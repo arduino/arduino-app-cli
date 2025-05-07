@@ -1,119 +1,292 @@
 package orchestrator
 
 import (
-	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"iter"
 	"log"
+	"log/slog"
 	"os"
 	"os/user"
+	"path"
 	"path/filepath"
 	"slices"
 
 	"github.com/arduino/arduino-cli/commands"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
+	dockerClient "github.com/docker/docker/client"
 	"github.com/sirupsen/logrus"
 
 	"github.com/arduino/arduino-app-cli/pkg/parser"
 )
 
-func StartApp(ctx context.Context, app parser.App) {
-	// Build and upload the sketch
-	if app.MainSketchFile != nil {
-		if err := compileUploadSketch(ctx, app.MainSketchFile.String()); err != nil {
-			log.Panic(err)
-		}
+var pythonImage string
+var orchestratorConfig *OrchestratorConfig
+
+func init() {
+	const dockerRegistry = "ghcr.io/bcmi-labs/"
+	const dockerPythonImage = "arduino/appslab-python-apps-base:0.0.2"
+	// Registry base: contains the registry and namespace, common to all Arduino docker images.
+	registryBase := os.Getenv("DOCKER_REGISTRY_BASE")
+	if registryBase == "" {
+		registryBase = dockerRegistry
 	}
 
-	// Run Python app
-	if app.MainPythonFile != nil {
-		provisioningStateDir := getProvisioningStateDir(app)
-		mainCompose := provisioningStateDir.Join("app-compose.yaml")
+	// Python image: image name (repository) and optionally a tag.
+	pythonImageAndTag := os.Getenv("DOCKER_PYTHON_BASE_IMAGE")
+	if pythonImageAndTag == "" {
+		pythonImageAndTag = dockerPythonImage
+	}
 
-		process, err := paths.NewProcess(nil, "docker", "compose", "-f", mainCompose.String(), "up", "-d", "--remove-orphans")
-		if err != nil {
-			log.Panic(err)
-		}
-		process.RedirectStdoutTo(os.Stdout)
-		process.RedirectStderrTo(os.Stderr)
-		err = process.RunWithinContext(ctx)
-		if err != nil {
-			log.Panic(err)
-		}
+	pythonImage = path.Join(registryBase, pythonImageAndTag)
+	slog.Debug("Using pythonImage", slog.String("image", pythonImage))
 
-		fmt.Printf("App '\033[0;35m%s\033[0m' started: Docker Compose running in detached mode.\n", app.Name)
+	// Load orchestrator OrchestratorConfig
+	cfg, err := NewOrchestratorConfigFromEnv()
+	if err != nil {
+		panic(fmt.Errorf("failed to load orchestrator config: %w", err))
+	}
+	orchestratorConfig = cfg
+}
+
+type AppStreamMessage struct {
+	Type string `json:"type"`
+	Data any    `json:"data"`
+}
+
+type MessageType string
+
+const (
+	UnknownType  MessageType = ""
+	ProgressType MessageType = "progress"
+	InfoType     MessageType = "info"
+	ErrorType    MessageType = "error"
+)
+
+type StreamMessage struct {
+	data     string
+	error    error
+	progress *Progress
+}
+
+type Progress struct {
+	Name     string
+	Progress float32
+}
+
+func (p *StreamMessage) IsData() bool           { return p.data != "" }
+func (p *StreamMessage) IsError() bool          { return p.error != nil }
+func (p *StreamMessage) IsProgress() bool       { return p.progress != nil }
+func (p *StreamMessage) GetData() string        { return p.data }
+func (p *StreamMessage) GetError() error        { return p.error }
+func (p *StreamMessage) GetProgress() *Progress { return p.progress }
+func (p *StreamMessage) GetType() MessageType {
+	if p.IsData() {
+		return InfoType
+	}
+	if p.IsError() {
+		return ErrorType
+	}
+	if p.IsProgress() {
+		return ProgressType
+	}
+	return UnknownType
+}
+
+func StartApp(ctx context.Context, docker *dockerClient.Client, app parser.App) iter.Seq[StreamMessage] {
+	return func(yield func(StreamMessage) bool) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		callbackWriter := NewCallbackWriter(func(line string) {
+			if !yield(StreamMessage{data: line}) {
+				cancel()
+				return
+			}
+		})
+
+		if app.MainSketchFile != nil {
+			if err := compileUploadSketch(ctx, app.MainSketchFile.String(), callbackWriter); err != nil {
+				yield(StreamMessage{error: err})
+				return
+			}
+		}
+		if app.MainPythonFile != nil {
+			if !yield(StreamMessage{data: "Provisioning app..."}) {
+				cancel()
+				return
+			}
+			if err := ProvisionApp(ctx, docker, app); err != nil {
+				yield(StreamMessage{error: err})
+				return
+			}
+			if !yield(StreamMessage{data: "Starting app..."}) {
+				cancel()
+				return
+			}
+
+			provisioningStateDir, err := getProvisioningStateDir(app)
+			if err != nil {
+				yield(StreamMessage{error: err})
+				return
+			}
+
+			mainCompose := provisioningStateDir.Join("app-compose.yaml")
+			process, err := paths.NewProcess(nil, "docker", "compose", "-f", mainCompose.String(), "up", "-d", "--remove-orphans")
+			if err != nil {
+				yield(StreamMessage{error: err})
+				return
+			}
+			process.RedirectStderrTo(callbackWriter)
+			process.RedirectStdoutTo(callbackWriter)
+			if err := process.RunWithinContext(ctx); err != nil {
+				yield(StreamMessage{error: err})
+				return
+			}
+		}
+		_ = yield(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
 	}
 }
 
-func StopApp(ctx context.Context, app parser.App) {
-	// Stop sketch
-	if app.MainSketchFile != nil {
-		// Flash empty sketch to stop the microcontroller.
-		// TODO: check that the app sketch is running before attempting to stop it.
-		if err := compileUploadSketch(ctx, getEmptySketch()); err != nil {
-			log.Panic(err)
-		}
-	}
-	// Stop python app
-	if app.MainPythonFile != nil {
-		provisioningStateDir := getProvisioningStateDir(app)
-		mainCompose := provisioningStateDir.Join("app-compose.yaml")
+func StopApp(ctx context.Context, app parser.App) iter.Seq[StreamMessage] {
+	return func(yield func(StreamMessage) bool) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
 
-		process, err := paths.NewProcess(nil, "docker", "compose", "-f", mainCompose.String(), "stop")
-		if err != nil {
-			log.Panic(err)
-		}
-		process.RedirectStdoutTo(os.Stdout)
-		process.RedirectStderrTo(os.Stderr)
-		err = process.RunWithinContext(ctx)
-		if err != nil {
-			log.Panic(err)
+		callbackWriter := NewCallbackWriter(func(line string) {
+			if !yield(StreamMessage{data: line}) {
+				cancel()
+				return
+			}
+		})
+		if app.MainSketchFile != nil {
+			// Flash empty sketch to stop the microcontroller.
+			// TODO: check that the app sketch is running before attempting to stop it.
+			if err := compileUploadSketch(ctx, getEmptySketch(), callbackWriter); err != nil {
+				panic(err)
+			}
 		}
 
-		fmt.Printf("Containers for the App '\033[0;35m%s\033[0m' stopped and removed\n", app.Name)
-	}
-}
-
-func AppLogs(ctx context.Context, app parser.App) {
-	provisioningStateDir := getProvisioningStateDir(app)
-	mainCompose := provisioningStateDir.Join("app-compose.yaml")
-	process, err := paths.NewProcess(nil, "docker", "compose", "-f", mainCompose.String(), "logs", "main", "-f")
-	if err != nil {
-		log.Panic(err)
-	}
-	process.RedirectStdoutTo(os.Stdout)
-	process.RedirectStderrTo(os.Stderr)
-	err = process.RunWithinContext(ctx)
-	if err != nil {
-		log.Println(err)
+		if app.MainPythonFile != nil {
+			provisioningStateDir, err := getProvisioningStateDir(app)
+			if err != nil {
+				yield(StreamMessage{error: err})
+				return
+			}
+			mainCompose := provisioningStateDir.Join("app-compose.yaml")
+			process, err := paths.NewProcess(nil, "docker", "compose", "-f", mainCompose.String(), "stop")
+			if err != nil {
+				yield(StreamMessage{error: err})
+				return
+			}
+			process.RedirectStderrTo(callbackWriter)
+			process.RedirectStdoutTo(callbackWriter)
+			if err := process.RunWithinContext(ctx); err != nil {
+				yield(StreamMessage{error: err})
+				return
+			}
+		}
+		_ = yield(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
 	}
 }
 
 type ListAppResult struct {
-	Stdout []byte
-	Stderr []byte
+	Apps []AppInfo `json:"apps"`
+}
+
+type AppInfo struct {
+	ID          ID     `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Category    string `json:"category"`
+	Icon        string `json:"icon"`
+	Status      string `json:"status"` // TODO: create enum
+	Example     bool   `json:"example"`
 }
 
 func ListApps(ctx context.Context) (ListAppResult, error) {
-	process, err := paths.NewProcess(nil, "docker", "compose", "ls", "-a")
-	if err != nil {
-		log.Panic(err)
+	result := ListAppResult{Apps: []AppInfo{}}
+
+	filterFunc := func(file *paths.Path) bool {
+		if file.Join("app.yaml").Exist() || file.Join("app.yml").Exist() {
+			app, err := parser.Load(file.String())
+			if err != nil {
+				slog.Error("unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", file.String()))
+				return false
+			}
+
+			var status string
+			resp, err := dockerComposeAppStatus(ctx, app)
+			if err != nil {
+				slog.Warn("unable to get app status", slog.String("error", err.Error()), slog.String("path", file.String()))
+			}
+			id, err := NewIDFromPath(app.FullPath)
+			if err != nil {
+				slog.Error("unable to get app id", slog.String("error", err.Error()), slog.String("path", file.String()))
+				return false
+			}
+			status = resp.Status
+			result.Apps = append(result.Apps,
+				AppInfo{
+					ID:          id,
+					Name:        app.Name,
+					Description: app.Descriptor.Description,
+					Category:    "", // TODO: add category on parser
+					Icon:        "", // TODO: add icon on parser
+					Status:      status,
+					Example:     id.IsExample(),
+				},
+			)
+		}
+		return false
 	}
 
-	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
-	// stream output
-	process.RedirectStdoutTo(stdout)
-	process.RedirectStderrTo(stderr)
-
-	err = process.RunWithinContext(ctx)
-	if err != nil {
-		return ListAppResult{}, err
+	for _, p := range []*paths.Path{orchestratorConfig.AppsDir(), orchestratorConfig.ExamplesDir()} {
+		_, err := p.ReadDirRecursiveFiltered(paths.FilterDirectories(), filterFunc)
+		if err != nil {
+			slog.Error("unable to list apps", slog.String("error", err.Error()))
+			return result, err
+		}
 	}
-	return ListAppResult{
-		Stdout: stdout.Bytes(),
-		Stderr: stderr.Bytes(),
-	}, nil
+	return result, nil
+}
+
+type AppDetailsResult struct {
+	ID          ID     `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Category    string `json:"category"`
+	Icon        string `json:"icon"`
+	Status      string `json:"status"` // TODO: create enum
+	Example     bool   `json:"example"`
+}
+
+func AppDetails(ctx context.Context, app parser.App) (AppDetailsResult, error) {
+	result := AppDetailsResult{}
+
+	var status string
+	resp, err := dockerComposeAppStatus(ctx, app)
+	if err != nil {
+		slog.Warn("unable to get app status", slog.String("error", err.Error()), slog.String("path", app.FullPath.String()))
+	}
+	status = resp.Status
+
+	id, err := NewIDFromPath(app.FullPath)
+	if err != nil {
+		return result, err
+	}
+
+	result.Status = status
+	result.ID = id
+	result.Name = app.Name
+	result.Description = app.Descriptor.Description
+	result.Category = "" // TODO: add category on parser
+	result.Icon = ""     // TODO: add icon on parser
+	result.Example = result.ID.IsExample()
+
+	return result, nil
 }
 
 func getCurrentUser() string {
@@ -135,7 +308,7 @@ func getDevices() []string {
 	return deviceList.AsStrings()
 }
 
-func compileUploadSketch(ctx context.Context, path string) error {
+func compileUploadSketch(ctx context.Context, path string, w io.Writer) error {
 	logrus.SetLevel(logrus.ErrorLevel)
 	srv := commands.NewArduinoCoreServer()
 
@@ -180,7 +353,7 @@ func compileUploadSketch(ctx context.Context, path string) error {
 	fmt.Println("\nAuto selected board:", name, "fqbn:", fqbn, "port:", port.Address)
 
 	// build the sketch
-	server, _ := commands.CompilerServerToStreams(ctx, os.Stdout, os.Stderr, func(msg *rpc.TaskProgress) {})
+	server, _ := commands.CompilerServerToStreams(ctx, w, w, nil)
 
 	// TODO: add build cache
 	// TODO: maybe handle resultCB.GetDiagnostics()
@@ -193,7 +366,7 @@ func compileUploadSketch(ctx context.Context, path string) error {
 		return err
 	}
 
-	stream, _ := commands.UploadToServerStreams(ctx, os.Stdout, os.Stderr)
+	stream, _ := commands.UploadToServerStreams(ctx, w, w)
 	err = srv.Upload(&rpc.UploadRequest{
 		Instance:   inst,
 		Fqbn:       fqbn,

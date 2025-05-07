@@ -2,8 +2,10 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 
 	dockerClient "github.com/docker/docker/client"
 )
@@ -11,9 +13,61 @@ import (
 func NewHTTPRouter(dockerClient *dockerClient.Client) http.Handler {
 	mux := http.NewServeMux()
 
-	mux.Handle("POST /v1/app/start", handlers.HandleAppStart(dockerClient))
-	mux.Handle("POST /v1/app/stop", handlers.HandleAppStop(dockerClient))
-	mux.Handle("GET /v1/app/list", handlers.HandleAppList(dockerClient))
+	mux.Handle("GET /v1/apps", handlers.HandleAppList(dockerClient))
+	mux.Handle("POST /v1/apps", handlers.HandleAppCreate(dockerClient))
+
+	appLogsHandler := handlers.HandleAppLogs(dockerClient)
+	appEventsHandler := handlers.HandleAppEvents(dockerClient)
+	appGetVariablesHandler := handlers.HandleAppGetVariables(dockerClient)
+	appDetailsHandler := handlers.HandleAppDetails(dockerClient)
+	mux.HandleFunc("GET /v1/apps/{path...}", func(w http.ResponseWriter, r *http.Request) {
+		path := r.PathValue("path")
+		switch {
+		case strings.HasSuffix(path, "/logs"):
+			id := strings.TrimSuffix(path, "/logs")
+			appLogsHandler(w, r, orchestrator.ID(id))
+		case strings.HasSuffix(path, "/events"):
+			id := strings.TrimSuffix(path, "/events")
+			appEventsHandler(w, r, orchestrator.ID(id))
+		case strings.HasSuffix(path, "/variables"):
+			id := strings.TrimSuffix(path, "/variables")
+			appGetVariablesHandler(w, r, orchestrator.ID(id))
+		default:
+			appDetailsHandler(w, r, orchestrator.ID(path))
+		}
+	})
+
+	appSetVariablesHandler := handlers.HandleAppSetVariables(dockerClient)
+	mux.HandleFunc("PATCH /v1/apps/{path...}", func(w http.ResponseWriter, r *http.Request) {
+		path := r.PathValue("path")
+		switch {
+		case strings.HasSuffix(path, "/variables"):
+			id := strings.TrimSuffix(path, "/variables")
+			appSetVariablesHandler(w, r, orchestrator.ID(id))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})
+
+	startHandler := handlers.HandleAppStart(dockerClient)
+	stopHandler := handlers.HandleAppStop(dockerClient)
+	cloneHandler := handlers.HandleAppClone(dockerClient)
+	mux.HandleFunc("POST /v1/apps/{path...}", func(w http.ResponseWriter, r *http.Request) {
+		path := r.PathValue("path")
+		switch {
+		case strings.HasSuffix(path, "/start"):
+			id := strings.TrimSuffix(path, "/start")
+			startHandler(w, r, orchestrator.ID(id))
+		case strings.HasSuffix(path, "/stop"):
+			id := strings.TrimSuffix(path, "/stop")
+			stopHandler(w, r, orchestrator.ID(id))
+		case strings.HasSuffix(path, "/clone"):
+			id := strings.TrimSuffix(path, "/clone")
+			cloneHandler(w, r, orchestrator.ID(id))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})
 
 	return mux
 }

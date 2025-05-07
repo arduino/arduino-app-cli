@@ -3,9 +3,8 @@ package orchestrator
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
-	"strings"
 
 	"github.com/arduino/arduino-app-cli/pkg/parser"
 
@@ -16,8 +15,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func ProvisionApp(ctx context.Context, pythonImage string, docker *dockerClient.Client, app parser.App) {
-	pullBasePythonContainer(ctx, pythonImage)
+func ProvisionApp(ctx context.Context, docker *dockerClient.Client, app parser.App) error {
+	if err := pullBasePythonContainer(ctx, pythonImage); err != nil {
+		return fmt.Errorf("provisioning failed to pull base image: %w", err)
+	}
+
 	resp, err := docker.ContainerCreate(ctx, &container.Config{
 		Image:      pythonImage,
 		User:       getCurrentUser(),
@@ -27,62 +29,61 @@ func ProvisionApp(ctx context.Context, pythonImage string, docker *dockerClient.
 		AutoRemove: true,
 	}, nil, nil, app.Name)
 	if err != nil {
-		log.Panic(err)
+		return fmt.Errorf("provisiong failed to create container: %w", err)
 	}
 
-	fmt.Println("\nLaunching the base Python image to get the modules/bricks details...")
+	slog.Debug("provisioning container created", slog.String("container_id", resp.ID))
 
 	waitCh, errCh := docker.ContainerWait(ctx, resp.ID, container.WaitConditionNextExit)
 	if err := docker.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
-		log.Panic(err)
+		return fmt.Errorf("provisioning failed to start container: %w", err)
 	}
-	fmt.Println("Provisioning container started with ID:", resp.ID)
+	slog.Debug("provisioning container started", slog.String("container_id", resp.ID))
 
 	select {
 	case result := <-waitCh:
 		if result.Error != nil {
-			log.Panic("Provisioning container wait error:", result.Error.Message)
+			return fmt.Errorf("provisioning failed: %v", result.Error.Message)
 		}
-		fmt.Println("Provisioning container exited with status code:", result.StatusCode)
 	case err := <-errCh:
-		log.Panic("Error waiting for container:", err)
+		return fmt.Errorf("provisioning failed: %w", err)
 	}
 
-	generateMainComposeFile(ctx, app, pythonImage)
+	return generateMainComposeFile(ctx, app, pythonImage)
 }
 
-func pullBasePythonContainer(ctx context.Context, pythonImage string) {
+func pullBasePythonContainer(ctx context.Context, pythonImage string) error {
 	process, err := paths.NewProcess(nil, "docker", "pull", pythonImage)
 	if err != nil {
-		log.Panic(err)
+		return err
 	}
 	process.RedirectStdoutTo(os.Stdout)
 	process.RedirectStderrTo(os.Stderr)
-	err = process.RunWithinContext(ctx)
-	if err != nil {
-		log.Panic(err)
-	}
+	return process.RunWithinContext(ctx)
 }
 
-func getProvisioningStateDir(app parser.App) *paths.Path {
+func getProvisioningStateDir(app parser.App) (*paths.Path, error) {
 	cacheDir := app.FullPath.Join(".cache")
 	if err := cacheDir.MkdirAll(); err != nil {
-		panic(err)
+		return nil, err
 	}
-	return cacheDir
+	return cacheDir, nil
 }
 
-func generateMainComposeFile(ctx context.Context, app parser.App, pythonImage string) {
-	provisioningStateDir := getProvisioningStateDir(app)
+func generateMainComposeFile(ctx context.Context, app parser.App, pythonImage string) error {
+	provisioningStateDir, err := getProvisioningStateDir(app)
+	if err != nil {
+		return err
+	}
 
 	var composeFiles paths.PathList
 	for _, dep := range app.Descriptor.ModuleDependencies {
 		composeFilePath := provisioningStateDir.Join("compose", dep.Name, "module_compose.yaml")
 		if composeFilePath.Exist() {
 			composeFiles.Add(composeFilePath)
-			fmt.Printf("- Using module: %s\n", dep.Name)
+			slog.Debug("Module compose file found", slog.String("module", dep.Name), slog.String("path", composeFilePath.String()))
 		} else {
-			fmt.Printf("- Using module: %s (not found)\n", dep.Name)
+			slog.Debug("Module compose file not found", slog.String("module", dep.Name), slog.String("path", composeFilePath.String()))
 		}
 	}
 
@@ -106,33 +107,31 @@ func generateMainComposeFile(ctx context.Context, app parser.App, pythonImage st
 		Include  []string     `yaml:"include,omitempty"`
 		Services *mainService `yaml:"services,omitempty"`
 	}
-	writeMainCompose := func() {
-		data, _ := yaml.Marshal(mainAppCompose)
-		if err := mainComposeFile.WriteFile(data); err != nil {
-			log.Panic(err)
+	writeMainCompose := func() error {
+		data, err := yaml.Marshal(mainAppCompose)
+		if err != nil {
+			return err
 		}
+		if err := mainComposeFile.WriteFile(data); err != nil {
+			return err
+		}
+		return nil
 	}
 
 	// Merge compose
 	mainAppCompose.Include = composeFiles.AsStrings()
 	mainAppCompose.Name = app.Name
-	writeMainCompose()
+	if err := writeMainCompose(); err != nil {
+		return err
+	}
 
-	fmt.Printf("\nCompose file for the App '\033[0;35m%s\033[0m' created, launching...\n", app.Name)
+	slog.Debug("Compose file for the App created", slog.String("compose_file", mainComposeFile.String()))
 
 	// docker compose -f app-compose.yml config --services
-	process, err := paths.NewProcess(nil, "docker", "compose", "-f", mainComposeFile.String(), "config", "--services")
+	services, err := dockerComposeListServices(ctx, mainComposeFile)
 	if err != nil {
-		log.Panic(err)
+		return err
 	}
-	stdout, stderr, err := process.RunAndCaptureOutput(ctx)
-	if err != nil {
-		log.Panic(err, " stderr:"+string(stderr))
-	}
-	if len(stderr) > 0 {
-		fmt.Println("stderr:", string(stderr))
-	}
-	services := strings.Split(strings.TrimSpace(string(stdout)), "\n")
 	services = f.Filter(services, f.NotEquals("main"))
 
 	ports := make([]string, len(app.Descriptor.Ports))
@@ -151,5 +150,5 @@ func generateMainComposeFile(ctx context.Context, app parser.App, pythonImage st
 			User:       getCurrentUser(),
 		},
 	}
-	writeMainCompose()
+	return writeMainCompose()
 }

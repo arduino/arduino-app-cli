@@ -30,4 +30,5 @@ build/
 
 **/.cache
 
-arduino-app-cli
+/arduino-app-cli
+/apps
