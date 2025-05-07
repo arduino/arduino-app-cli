@@ -1,8 +1,10 @@
 FROM golang:1.24.2 AS go
 
+ARG BINARY_NAME="arduino-app-cli"
+
 COPY . /app
 WORKDIR /app
-RUN GOOS=linux go build -o orchestrator ./cmd/arduino-app-cli/
+RUN GOOS=linux go build -o ${BINARY_NAME} ./cmd/arduino-app-cli/
 
 FROM debian:bookworm AS debian
 
@@ -12,7 +14,7 @@ ARG REVISION="1"
 RUN apt-get update && apt-get install -y sed
 
 COPY ./debian/orchestrator /orchestrator/
-COPY --from=go /app/orchestrator /orchestrator/usr/bin/orchestrator
+COPY --from=go /app/${BINARY_NAME} /orchestrator/usr/bin/${BINARY_NAME}
 
 RUN sed -i "s/ARCH/$(dpkg --print-architecture)/" /orchestrator/DEBIAN/control && \
     dpkg-deb --build --root-owner-group /orchestrator &&\

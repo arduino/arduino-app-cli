@@ -3,4 +3,4 @@ Version: 1.0
 Architecture: ARCH
 Maintainer: arduino <support@arduino.cc>
 Description: Arduino application orchestrator
-Depends: docker-ce, containerd.io, docker-compose-plugin
+Depends: docker.io, docker-compose
