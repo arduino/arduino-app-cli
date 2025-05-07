@@ -2,7 +2,7 @@ FROM golang:1.24.2 AS go
 
 COPY . /app
 WORKDIR /app
-RUN GOOS=linux go build -o orchestrator ./cmd/orchestrator/
+RUN GOOS=linux go build -o orchestrator ./cmd/arduino-app-cli/
 
 FROM debian:bookworm AS debian
 
