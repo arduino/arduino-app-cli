@@ -1,4 +1,4 @@
-package adbfs
+package adb
 
 import (
 	"bufio"
@@ -9,8 +9,10 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 )
 
@@ -51,12 +53,12 @@ func init() {
 	fmt.Printf("DEBUG: use adb at %q\n", adbPath)
 }
 
-type fileInfo struct {
-	name  string
-	isDir bool
+type FileInfo struct {
+	Name  string
+	IsDir bool
 }
 
-func adbList(path string) ([]fileInfo, error) {
+func List(path string) ([]FileInfo, error) {
 	cmd := exec.Command(adbPath, "shell", "ls", "-la", path)
 	output, err := cmd.StdoutPipe()
 	if err != nil {
@@ -73,7 +75,7 @@ func adbList(path string) ([]fileInfo, error) {
 		return nil, err
 	}
 
-	var files []fileInfo
+	var files []FileInfo
 	for {
 		line, err := r.ReadBytes('\n')
 		if err != nil {
@@ -91,87 +93,138 @@ func adbList(path string) ([]fileInfo, error) {
 		if name == "." || name == ".." {
 			continue
 		}
-		files = append(files, fileInfo{
-			name:  name,
-			isDir: line[0] == 'd',
+		files = append(files, FileInfo{
+			Name:  name,
+			IsDir: line[0] == 'd',
 		})
 	}
 
 	return files, nil
 }
 
-func adbStats(path string) (fileInfo, error) {
+func Stats(path string) (FileInfo, error) {
 	cmd := exec.Command(adbPath, "shell", "file", path)
 	output, err := cmd.StdoutPipe()
 	if err != nil {
-		return fileInfo{}, err
+		return FileInfo{}, err
 	}
 	defer output.Close()
 	if err := cmd.Start(); err != nil {
-		return fileInfo{}, err
+		return FileInfo{}, err
 	}
 
 	r := bufio.NewReader(output)
 	line, err := r.ReadBytes('\n')
 	if err != nil {
-		return fileInfo{}, err
+		return FileInfo{}, err
 	}
 
 	line = bytes.TrimSpace(line)
 	parts := bytes.Split(line, []byte(":"))
 	if len(parts) < 2 {
-		return fileInfo{}, fmt.Errorf("unexpected file command output: %s", line)
+		return FileInfo{}, fmt.Errorf("unexpected file command output: %s", line)
 	}
 
 	name := string(bytes.TrimSpace(parts[0]))
 	other := string(bytes.TrimSpace(parts[1]))
 
 	if strings.Contains(other, "cannot open") {
-		return fileInfo{}, fs.ErrNotExist
+		return FileInfo{}, fs.ErrNotExist
 	}
 
-	return fileInfo{
-		name:  name,
-		isDir: other == "directory",
+	return FileInfo{
+		Name:  name,
+		IsDir: other == "directory",
 	}, nil
 }
 
-func adbCatOut(path string) (io.ReadCloser, error) {
+func CatOut(path string) (io.ReadCloser, error) {
 	cmd := exec.Command(adbPath, "shell", "cat", path)
 	output, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("DEBUG: CatIn %q: ...\n", cmd.String())
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
 	return output, nil
 }
 
-func adbCatIn(r io.Reader, path string) error {
+func CatIn(r io.Reader, path string) error {
 	cmd := exec.Command(adbPath, "shell", "cat", ">", path)
 	cmd.Stdin = r
 	out, err := cmd.CombinedOutput()
+	fmt.Printf("DEBUG: CatIn %q: %s\n", cmd.String(), string(out))
 	if err != nil {
 		return err
 	}
-	fmt.Printf("DEBUG: adbCatIn %q: %s\n", path, string(out))
 	return nil
 }
 
-func adbMkDirAll(path string) error {
+func MkDirAll(path string) error {
 	cmd := exec.Command(adbPath, "shell", "mkdir", "-p", path)
-	_, err := cmd.CombinedOutput()
+	out, err := cmd.CombinedOutput()
+	fmt.Printf("DEBUG: MkDirAll %q: %s\n", cmd.String(), string(out))
 	if err != nil {
 		return err
 	}
-	fmt.Printf("DEBUG: adbMkDirAll %q\n", path)
 	return nil
 }
 
-func adbRm(path string) error {
+func Remove(path string) error {
 	cmd := exec.Command(adbPath, "shell", "rm", "-r", path)
-	_, err := cmd.CombinedOutput()
+	out, err := cmd.CombinedOutput()
+	fmt.Printf("DEBUG: Remove %q: %s\n", cmd.String(), string(out))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func PushSync(localPath, remotePath string) error {
+	cmd := exec.Command(adbPath, "push", "--sync", localPath, remotePath)
+	out, err := cmd.CombinedOutput()
+	fmt.Printf("DEBUG: PushSync %q: %s\n", cmd.String(), string(out))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// PullSync pulls files from the remote path to the local path, ignoring any top-level directories that match the ignorePath.
+// TODO: probably we should make this smarted an be able to ignore any subdir.
+func PullSync(remotePath, localPath string, ignorePath []string) error {
+	files, err := List(remotePath)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(localPath, 0755); err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		if idx := slices.IndexFunc(ignorePath, func(ignore string) bool {
+			return path.Base(ignore) == path.Base(file.Name)
+		}); idx != -1 {
+			continue
+		}
+
+		if err := pullSync(
+			path.Join(remotePath, file.Name),
+			filepath.Join(localPath, file.Name),
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func pullSync(remotePath, localPath string) error {
+	cmd := exec.Command(adbPath, "pull", "--sync", remotePath, localPath)
+	out, err := cmd.CombinedOutput()
+	fmt.Printf("DEBUG: pullSync %q: %s\n", cmd.String(), string(out))
 	if err != nil {
 		return err
 	}

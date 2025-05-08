@@ -5,6 +5,8 @@ import (
 	"io/fs"
 	"path"
 	"time"
+
+	"github.com/arduino/arduino-app-cli/pkg/adb"
 )
 
 type AdbFS struct {
@@ -13,11 +15,11 @@ type AdbFS struct {
 
 func (a AdbFS) Open(name string) (fs.File, error) {
 	name = path.Join(a.Base, name)
-	stats, err := adbStats(name)
+	stats, err := adb.Stats(name)
 	if err != nil {
 		return nil, err
 	}
-	if stats.isDir {
+	if stats.IsDir {
 		return AdbReadDirFile{name: name}, nil
 	}
 
@@ -29,15 +31,15 @@ type AdbFSWriter struct {
 }
 
 func (a AdbFSWriter) MkDirAll(p string) error {
-	return adbMkDirAll(path.Join(a.Base, p))
+	return adb.MkDirAll(path.Join(a.Base, p))
 }
 
 func (a AdbFSWriter) WriteFile(p string, data io.ReadCloser) error {
-	return adbCatIn(data, path.Join(a.Base, p))
+	return adb.CatIn(data, path.Join(a.Base, p))
 }
 
 func (a AdbFSWriter) RmFile(p string) error {
-	return adbRm(path.Join(a.Base, p))
+	return adb.Remove(path.Join(a.Base, p))
 }
 
 type AdbFile struct {
@@ -47,7 +49,7 @@ type AdbFile struct {
 
 func (a *AdbFile) Read(p []byte) (n int, err error) {
 	if a.read == nil {
-		r, err := adbCatOut(a.name)
+		r, err := adb.CatOut(a.name)
 		if err != nil {
 			return 0, err
 		}
@@ -104,14 +106,17 @@ type AdbReadDirFile struct {
 }
 
 func (a AdbReadDirFile) ReadDir(n int) ([]fs.DirEntry, error) {
-	files, err := adbList(a.name)
+	files, err := adb.List(a.name)
 	if err != nil {
 		return nil, err
 	}
 
 	entries := make([]fs.DirEntry, 0, len(files))
 	for _, file := range files {
-		entries = append(entries, AdbDirEntry(file))
+		entries = append(entries, AdbDirEntry{
+			name:  file.Name,
+			isDir: file.IsDir,
+		})
 	}
 
 	if n > 0 && len(entries) > n {
