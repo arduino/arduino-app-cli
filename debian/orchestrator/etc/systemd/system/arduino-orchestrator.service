@@ -2,7 +2,9 @@
 Description=Arduino Orchestrator Service
 
 [Service]
-ExecStart=/usr/bin/orchestrator
+ExecStart=/usr/bin/arduino-app-cli daemon --port 8800
+Environment="ARDUINO_APP_CLI__APPS_DIR=/opt/arduino/apps"
+Environment="ARDUINO_APP_CLI__DATA_DIR=/opt/arduino/data"
 StandardOutput=journal
 StandardError=journal
 Restart=always
