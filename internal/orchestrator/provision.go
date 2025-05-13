@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"regexp"
 
 	"github.com/arduino/arduino-app-cli/pkg/parser"
 
@@ -14,6 +15,8 @@ import (
 	"go.bug.st/f"
 	"gopkg.in/yaml.v3"
 )
+
+var containerNameInvalidRegex = regexp.MustCompile(`[^a-zA-Z0-9]`)
 
 func ProvisionApp(ctx context.Context, docker *dockerClient.Client, app parser.App) error {
 	if err := pullBasePythonContainer(ctx, pythonImage); err != nil {
@@ -27,7 +30,7 @@ func ProvisionApp(ctx context.Context, docker *dockerClient.Client, app parser.A
 	}, &container.HostConfig{
 		Binds:      []string{app.FullPath.String() + ":/app"},
 		AutoRemove: true,
-	}, nil, nil, app.Name)
+	}, nil, nil, generateContainerName(app.Name))
 	if err != nil {
 		return fmt.Errorf("provisiong failed to create container: %w", err)
 	}
@@ -50,6 +53,17 @@ func ProvisionApp(ctx context.Context, docker *dockerClient.Client, app parser.A
 	}
 
 	return generateMainComposeFile(ctx, app, pythonImage)
+}
+
+// Converts an arbitrary string to one that satisfies the container name requirement: [a-zA-Z0-9][a-zA-Z0-9_.-]
+// See the Docker Engine code here: https://github.com/moby/moby/blob/master/daemon/names/names.go#L6
+func generateContainerName(appName string) string {
+	result := containerNameInvalidRegex.ReplaceAllString(appName, "")
+
+	if len(result) < 1 {
+		result = "c"
+	}
+	return result
 }
 
 func pullBasePythonContainer(ctx context.Context, pythonImage string) error {

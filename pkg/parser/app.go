@@ -32,7 +32,6 @@ func Load(appPath string) (App, error) {
 	}
 
 	app := App{
-		Name:       path.Base(),
 		FullPath:   path,
 		Descriptor: Descriptor{},
 	}
@@ -43,6 +42,7 @@ func Load(appPath string) (App, error) {
 			return App{}, fmt.Errorf("error loading app descriptor file: %w", err)
 		}
 		app.Descriptor = desc
+		app.Name = desc.DisplayName
 	} else {
 		return App{}, errors.New("descriptor app.yaml file missing from app")
 	}
