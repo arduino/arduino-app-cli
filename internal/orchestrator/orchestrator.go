@@ -11,6 +11,7 @@ import (
 	"os/user"
 	"path"
 	"path/filepath"
+	"runtime"
 	"slices"
 
 	"github.com/arduino/arduino-cli/commands"
@@ -290,8 +291,11 @@ func AppDetails(ctx context.Context, app parser.App) (AppDetailsResult, error) {
 }
 
 func getCurrentUser() string {
-	// Map user to avoid permission issues.
 	// MacOS and Windows uses a VM so we don't need to map the user.
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		return ""
+	}
+	// Map user to avoid permission issues.
 	user, err := user.Current()
 	if err != nil {
 		panic(err)
@@ -300,6 +304,11 @@ func getCurrentUser() string {
 }
 
 func getDevices() []string {
+	// Ignore devices on Windows
+	if runtime.GOOS == "windows" {
+		return nil
+	}
+
 	deviceList, err := paths.New("/dev").ReadDir()
 	if err != nil {
 		panic(err)
