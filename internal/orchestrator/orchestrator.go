@@ -198,13 +198,13 @@ type ListAppResult struct {
 }
 
 type AppInfo struct {
-	ID          ID     `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Category    string `json:"category"`
-	Icon        string `json:"icon"`
-	Status      string `json:"status"` // TODO: create enum
-	Example     bool   `json:"example"`
+	ID          ID       `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Category    []string `json:"category"`
+	Icon        string   `json:"icon"`
+	Status      string   `json:"status"` // TODO: create enum
+	Example     bool     `json:"example"`
 }
 
 func ListApps(ctx context.Context) (ListAppResult, error) {
@@ -234,8 +234,8 @@ func ListApps(ctx context.Context) (ListAppResult, error) {
 					ID:          id,
 					Name:        app.Name,
 					Description: app.Descriptor.Description,
-					Category:    "", // TODO: add category on parser
-					Icon:        "", // TODO: add icon on parser
+					Category:    []string{}, // TODO: add category on parser
+					Icon:        "",         // TODO: add icon on parser
 					Status:      status,
 					Example:     id.IsExample(),
 				},
@@ -255,13 +255,13 @@ func ListApps(ctx context.Context) (ListAppResult, error) {
 }
 
 type AppDetailsResult struct {
-	ID          ID     `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Category    string `json:"category"`
-	Icon        string `json:"icon"`
-	Status      string `json:"status"` // TODO: create enum
-	Example     bool   `json:"example"`
+	ID          ID       `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Category    []string `json:"category"`
+	Icon        string   `json:"icon"`
+	Status      string   `json:"status"` // TODO: create enum
+	Example     bool     `json:"example"`
 }
 
 func AppDetails(ctx context.Context, app parser.App) (AppDetailsResult, error) {
@@ -283,8 +283,8 @@ func AppDetails(ctx context.Context, app parser.App) (AppDetailsResult, error) {
 	result.ID = id
 	result.Name = app.Name
 	result.Description = app.Descriptor.Description
-	result.Category = "" // TODO: add category on parser
-	result.Icon = ""     // TODO: add icon on parser
+	result.Category = []string{} // TODO: add category on parser
+	result.Icon = ""             // TODO: add icon on parser
 	result.Example = result.ID.IsExample()
 
 	return result, nil

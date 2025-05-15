@@ -17,6 +17,7 @@ type Descriptor struct {
 	Description        string             `yaml:"description"`
 	Ports              []int              `yaml:"ports"`
 	ModuleDependencies []ModuleDependency `yaml:"module-dependencies"`
+	Categories         []string           `yaml:"categories"`
 }
 
 func (md *ModuleDependency) UnmarshalYAML(node *yaml.Node) error {
