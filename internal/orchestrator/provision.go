@@ -12,6 +12,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/docker/api/types/container"
 	dockerClient "github.com/docker/docker/client"
+	"github.com/gosimple/slug"
 	"go.bug.st/f"
 	"gopkg.in/yaml.v3"
 )
@@ -112,6 +113,7 @@ func generateMainComposeFile(ctx context.Context, app parser.App, pythonImage st
 		Ports      []string `yaml:"ports"`
 		User       string   `yaml:"user"`
 		Entrypoint string   `yaml:"entrypoint"`
+		ExtraHosts []string `yaml:"extra_hosts,omitempty"`
 	}
 	type mainService struct {
 		Main service `yaml:"main"`
@@ -134,7 +136,12 @@ func generateMainComposeFile(ctx context.Context, app parser.App, pythonImage st
 
 	// Merge compose
 	mainAppCompose.Include = composeFiles.AsStrings()
-	mainAppCompose.Name = app.Name
+
+	composeProjectName, err := app.FullPath.RelFrom(orchestratorConfig.AppsDir())
+	if err != nil {
+		return fmt.Errorf("failed to get compose project name: %w", err)
+	}
+	mainAppCompose.Name = slug.Make(composeProjectName.String())
 	if err := writeMainCompose(); err != nil {
 		return err
 	}
@@ -162,6 +169,7 @@ func generateMainComposeFile(ctx context.Context, app parser.App, pythonImage st
 			Entrypoint: "/run.sh",
 			DependsOn:  services,
 			User:       getCurrentUser(),
+			ExtraHosts: []string{"msgpack-rpc-router:host-gateway"},
 		},
 	}
 	return writeMainCompose()
