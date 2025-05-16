@@ -18,6 +18,7 @@ import (
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
 	dockerClient "github.com/docker/docker/client"
+	"github.com/gosimple/slug"
 	"github.com/sirupsen/logrus"
 
 	"github.com/arduino/arduino-app-cli/pkg/parser"
@@ -25,6 +26,8 @@ import (
 
 var pythonImage string
 var orchestratorConfig *OrchestratorConfig
+
+var ErrAppAlreadyExists = fmt.Errorf("app already exists")
 
 func init() {
 	const dockerRegistry = "ghcr.io/bcmi-labs/"
@@ -288,6 +291,85 @@ func AppDetails(ctx context.Context, app parser.App) (AppDetailsResult, error) {
 	result.Example = result.ID.IsExample()
 
 	return result, nil
+}
+
+type CreateAppRequest struct {
+	Name       string
+	Icon       string
+	Bricks     []string
+	SkipPython bool
+	SkipSketch bool
+}
+
+type CreateAppResponse struct {
+	ID ID `json:"id"`
+}
+
+func CreateApp(ctx context.Context, req CreateAppRequest) (CreateAppResponse, error) {
+	if req.SkipPython && req.SkipSketch {
+		return CreateAppResponse{}, fmt.Errorf("cannot skip both python and sketch")
+	}
+	if req.Name == "" {
+		return CreateAppResponse{}, fmt.Errorf("app name cannot be empty")
+	}
+
+	appFolderName := slug.Make(req.Name)
+	basePath := orchestratorConfig.AppsDir().Join(appFolderName)
+	if basePath.Exist() {
+		return CreateAppResponse{}, ErrAppAlreadyExists
+	}
+
+	if err := basePath.MkdirAll(); err != nil {
+		return CreateAppResponse{}, fmt.Errorf("failed to create app directory: %w", err)
+	}
+	if !req.SkipSketch {
+		baseSketchPath := basePath.Join("sketch")
+		if err := baseSketchPath.MkdirAll(); err != nil {
+			return CreateAppResponse{}, fmt.Errorf("failed to create sketch directory: %w", err)
+		}
+		if err := baseSketchPath.Join("sketch.ino").WriteFile([]byte("void setup() {}\n\nvoid loop() {}")); err != nil {
+			return CreateAppResponse{}, fmt.Errorf("failed to create sketch file: %w", err)
+		}
+	}
+
+	if !req.SkipPython {
+		basePythonPath := basePath.Join("python")
+		if err := basePythonPath.MkdirAll(); err != nil {
+			return CreateAppResponse{}, fmt.Errorf("failed to create python directory: %w", err)
+		}
+		pythonContent := `def main():
+    print("Hello World!")
+
+
+if __name__ == "__main__":
+    main()
+`
+		if err := basePythonPath.Join("main.py").WriteFile([]byte(pythonContent)); err != nil {
+			return CreateAppResponse{}, fmt.Errorf("failed to create python file: %w", err)
+		}
+	}
+
+	// TODO: create app yaml marshaler
+	appContent := `display-name: "` + req.Name + `"` + "\n"
+	if req.Icon != "" {
+		appContent += `icon: "` + req.Icon + `"` + "\n"
+	}
+	if len(req.Bricks) > 0 {
+		appContent += "module-dependencies:\n" // TODO: rename this when we update the parser. The spec was renamed to `dependencies`
+		for _, brick := range req.Bricks {
+			appContent += "  - " + brick + "\n"
+		}
+	}
+
+	if err := basePath.Join("app.yaml").WriteFile([]byte(appContent)); err != nil {
+		return CreateAppResponse{}, fmt.Errorf("failed to create app.yaml file: %w", err)
+	}
+
+	id, err := NewIDFromPath(basePath)
+	if err != nil {
+		return CreateAppResponse{}, fmt.Errorf("failed to get app id: %w", err)
+	}
+	return CreateAppResponse{ID: id}, nil
 }
 
 func getCurrentUser() string {

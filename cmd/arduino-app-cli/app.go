@@ -34,14 +34,31 @@ func newAppCmd(docker *dockerClient.Client) *cobra.Command {
 }
 
 func newCreateCmd() *cobra.Command {
-	return &cobra.Command{
+	var (
+		icon     string
+		bricks   []string
+		noPyton  bool
+		noSketch bool
+	)
+
+	cmd := &cobra.Command{
 		Use:   "new name",
 		Short: "Creates a new app",
-		Args:  cobra.MaximumNArgs(1),
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			panic("not implemented")
+			cobra.MinimumNArgs(1)
+			name := args[0]
+			return createHandler(cmd.Context(), name, icon, bricks, noPyton, noSketch)
 		},
 	}
+
+	cmd.Flags().StringVarP(&icon, "icon", "i", "", "Icon for the app")
+	cmd.Flags().StringArrayVarP(&bricks, "bricks", "b", []string{}, "List of bricks to include in the app")
+	cmd.Flags().BoolVarP(&noPyton, "no-python", "", false, "Do not include Python files")
+	cmd.Flags().BoolVarP(&noSketch, "no-sketch", "", false, "Do not include Sketch files")
+	cmd.MarkFlagsMutuallyExclusive("no-python", "no-sketch")
+
+	return cmd
 }
 
 func newStartCmd(docker *dockerClient.Client) *cobra.Command {
@@ -204,5 +221,20 @@ func listHandler(ctx context.Context) error {
 		return nil
 	}
 	fmt.Println(string(resJSON))
+	return nil
+}
+
+func createHandler(ctx context.Context, name string, icon string, bricks []string, noPython, noSketch bool) error {
+	resp, err := orchestrator.CreateApp(ctx, orchestrator.CreateAppRequest{
+		Name:       name,
+		Icon:       icon,
+		Bricks:     bricks,
+		SkipPython: noPython,
+		SkipSketch: noSketch,
+	})
+	if err != nil {
+		return err
+	}
+	fmt.Println("App created successfully:", resp)
 	return nil
 }
