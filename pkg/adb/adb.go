@@ -6,14 +6,16 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"os/exec"
 	"os/user"
 	"path"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"strings"
+
+	"go.bug.st/f"
 )
 
 var adbPath = "adb"
@@ -26,21 +28,21 @@ func init() {
 	case "darwin":
 		user, err := user.Current()
 		if err != nil {
-			fmt.Println("WARNING: Unable to get current user:", err)
+			slog.Warn("Unable to get current user", "error", err)
 			break
 		}
 		path = filepath.Join(user.HomeDir, "/Library/Arduino15/", arduino15adbPath)
 	case "linux":
 		user, err := user.Current()
 		if err != nil {
-			fmt.Println("WARNING: Unable to get current user:", err)
+			slog.Warn("Unable to get current user", "error", err)
 			break
 		}
 		path = filepath.Join(user.HomeDir, ".arduino15/", arduino15adbPath)
 	case "windows":
 		user, err := user.Current()
 		if err != nil {
-			fmt.Println("WARNING: Unable to get current user:", err)
+			slog.Warn("Unable to get current user", "error", err)
 			break
 		}
 		path = filepath.Join(user.HomeDir, "AppData/Local/Arduino15/", arduino15adbPath)
@@ -50,7 +52,7 @@ func init() {
 		adbPath = path
 	}
 
-	fmt.Printf("DEBUG: use adb at %q\n", adbPath)
+	slog.Debug("get adb path", "path", adbPath)
 }
 
 type FileInfo struct {
@@ -58,13 +60,22 @@ type FileInfo struct {
 	IsDir bool
 }
 
-func List(path string) ([]FileInfo, error) {
-	cmd := exec.Command(adbPath, "shell", "ls", "-la", path)
+func List(path string, host ...string) ([]FileInfo, error) {
+	f.Assert(len(host) <= 1, "List: single host only")
+	var cmd *exec.Cmd
+	if len(host) == 1 && host[0] != "" {
+		cmd = exec.Command(adbPath, "-s", host[0], "shell", "ls", "-la", path) // nolint:gosec
+	} else {
+		cmd = exec.Command(adbPath, "shell", "ls", "-la", path)
+	}
+
+	cmd.Stderr = os.Stdout
 	output, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, err
 	}
 	defer output.Close()
+	slog.Debug("adb List", "cmd", cmd.String())
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
@@ -102,8 +113,14 @@ func List(path string) ([]FileInfo, error) {
 	return files, nil
 }
 
-func Stats(path string) (FileInfo, error) {
-	cmd := exec.Command(adbPath, "shell", "file", path)
+func Stats(path string, host ...string) (FileInfo, error) {
+	f.Assert(len(host) <= 1, "Stats: single host only")
+	var cmd *exec.Cmd
+	if len(host) == 1 && host[0] != "" {
+		cmd = exec.Command(adbPath, "-s", host[0], "shell", "file", path) // nolint:gosec
+	} else {
+		cmd = exec.Command(adbPath, "shell", "file", path)
+	}
 	output, err := cmd.StdoutPipe()
 	if err != nil {
 		return FileInfo{}, err
@@ -138,93 +155,109 @@ func Stats(path string) (FileInfo, error) {
 	}, nil
 }
 
-func CatOut(path string) (io.ReadCloser, error) {
-	cmd := exec.Command(adbPath, "shell", "cat", path)
+func CatOut(path string, host ...string) (io.ReadCloser, error) {
+	f.Assert(len(host) <= 1, "CatOut: single host only")
+	var cmd *exec.Cmd
+	if len(host) == 1 && host[0] != "" {
+		cmd = exec.Command(adbPath, "-s", host[0], "shell", "cat", path) // nolint:gosec
+	} else {
+		cmd = exec.Command(adbPath, "shell", "cat", path)
+	}
 	output, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("DEBUG: CatIn %q: ...\n", cmd.String())
+	slog.Debug("CatOut", "cmd", cmd.String())
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
 	return output, nil
 }
 
-func CatIn(r io.Reader, path string) error {
-	cmd := exec.Command(adbPath, "shell", "cat", ">", path)
+func CatIn(r io.Reader, path string, host ...string) error {
+	f.Assert(len(host) <= 1, "CatIn: single host only")
+	var cmd *exec.Cmd
+	if len(host) == 1 && host[0] != "" {
+		cmd = exec.Command(adbPath, "-s", host[0], "shell", "cat", ">", path) // nolint:gosec
+	} else {
+		cmd = exec.Command(adbPath, "shell", "cat", ">", path)
+	}
 	cmd.Stdin = r
 	out, err := cmd.CombinedOutput()
-	fmt.Printf("DEBUG: CatIn %q: %s\n", cmd.String(), string(out))
+	slog.Debug("adb CatIn", "cmd", cmd.String(), "out", string(out))
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func MkDirAll(path string) error {
-	cmd := exec.Command(adbPath, "shell", "mkdir", "-p", path)
+func MkDirAll(path string, host ...string) error {
+	f.Assert(len(host) <= 1, "MkDirAll: single host only")
+	var cmd *exec.Cmd
+	if len(host) == 1 && host[0] != "" {
+		cmd = exec.Command(adbPath, "-s", host[0], "shell", "mkdir", "-p", path) // nolint:gosec
+	} else {
+		cmd = exec.Command(adbPath, "shell", "mkdir", "-p", path)
+	}
 	out, err := cmd.CombinedOutput()
-	fmt.Printf("DEBUG: MkDirAll %q: %s\n", cmd.String(), string(out))
+	slog.Debug("adb MkDirAll", "cmd", cmd.String(), "out", string(out))
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func Remove(path string) error {
-	cmd := exec.Command(adbPath, "shell", "rm", "-r", path)
+func Remove(path string, host ...string) error {
+	f.Assert(len(host) <= 1, "Remove: single host only")
+	var cmd *exec.Cmd
+	if len(host) == 1 && host[0] != "" {
+		cmd = exec.Command(adbPath, "-s", host[0], "shell", "rm", "-r", path) // nolint:gosec
+	} else {
+		cmd = exec.Command(adbPath, "shell", "rm", "-r", path)
+	}
 	out, err := cmd.CombinedOutput()
-	fmt.Printf("DEBUG: Remove %q: %s\n", cmd.String(), string(out))
+	slog.Debug("adb Remove", "cmd", cmd.String(), "out", string(out))
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func PushSync(localPath, remotePath string) error {
-	cmd := exec.Command(adbPath, "push", "--sync", localPath, remotePath)
+// Push folder from the local machine to the remote device.
+func Push(localPath, remotePath string, host ...string) error {
+	f.Assert(len(host) <= 1, "PushSync: single host only")
+
+	remotePathDir := path.Dir(remotePath)
+
+	var cmd *exec.Cmd
+	if len(host) == 1 && host[0] != "" {
+		cmd = exec.Command(adbPath, "-s", host[0], "push", "--sync", localPath, remotePathDir) // nolint:gosec
+	} else {
+		cmd = exec.Command(adbPath, "push", "--sync", localPath, remotePathDir)
+	}
 	out, err := cmd.CombinedOutput()
-	fmt.Printf("DEBUG: PushSync %q: %s\n", cmd.String(), string(out))
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// PullSync pulls files from the remote path to the local path, ignoring any top-level directories that match the ignorePath.
-// TODO: probably we should make this smarted an be able to ignore any subdir.
-func PullSync(remotePath, localPath string, ignorePath []string) error {
-	files, err := List(remotePath)
+	slog.Debug("adb PushSync", "cmd", cmd.String(), "out", string(out))
 	if err != nil {
 		return err
 	}
 
-	if err := os.MkdirAll(localPath, 0755); err != nil {
-		return err
-	}
-
-	for _, file := range files {
-		if idx := slices.IndexFunc(ignorePath, func(ignore string) bool {
-			return path.Base(ignore) == path.Base(file.Name)
-		}); idx != -1 {
-			continue
-		}
-
-		if err := pullSync(
-			path.Join(remotePath, file.Name),
-			filepath.Join(localPath, file.Name),
-		); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
-func pullSync(remotePath, localPath string) error {
-	cmd := exec.Command(adbPath, "pull", "--sync", remotePath, localPath)
+// Pull folder from the remote device to the local machine.
+func Pull(remotePath, localPath string, host ...string) error {
+	f.Assert(len(host) <= 1, "PushSync: single host only")
+
+	localPath = filepath.Dir(localPath)
+
+	var cmd *exec.Cmd
+	if len(host) == 1 && host[0] != "" {
+		cmd = exec.Command(adbPath, "-s", host[0], "pull", "--sync", remotePath, localPath) // nolint:gosec
+	} else {
+		cmd = exec.Command(adbPath, "pull", "--sync", remotePath, localPath)
+	}
 	out, err := cmd.CombinedOutput()
-	fmt.Printf("DEBUG: pullSync %q: %s\n", cmd.String(), string(out))
+	slog.Debug("adb PullSync", "cmd", cmd.String(), "out", string(out))
 	if err != nil {
 		return err
 	}

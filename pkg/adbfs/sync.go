@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
+	"path"
+	"slices"
 )
 
 type FSWriter interface {
@@ -18,10 +21,23 @@ type FSWriter interface {
 // SyncFS synchronizes the contents of a source file system (srcFS) with a destination file system (dstFS).
 // It also removes files from the destination that are not present in the source.
 // TODO: be smarter and only copy files that are different.
-func SyncFS(dstFS FSWriter, srcFS fs.FS) error {
+func SyncFS(dstFS FSWriter, srcFS fs.FS, ignorePath ...string) error {
+	shoudlIgnore := func(src string) bool {
+		if idx := slices.IndexFunc(ignorePath, func(ignore string) bool {
+			return path.Base(ignore) == path.Base(src)
+		}); idx != -1 {
+			return true
+		}
+		return false
+	}
 	err := fs.WalkDir(srcFS, ".", func(src string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+
+		// ignore paths
+		if shoudlIgnore(src) {
+			return fs.SkipDir
 		}
 
 		if d.IsDir() {
@@ -29,7 +45,7 @@ func SyncFS(dstFS FSWriter, srcFS fs.FS) error {
 		}
 
 		if !d.Type().IsRegular() {
-			fmt.Printf("WARNING: skipping file %q of type %s\n", src, d.Type())
+			slog.Warn("sync skipping file", "file", src, "type", d.Type())
 			return nil
 		}
 
@@ -47,6 +63,10 @@ func SyncFS(dstFS FSWriter, srcFS fs.FS) error {
 	return fs.WalkDir(dstFS, ".", func(src string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+
+		if shoudlIgnore(src) {
+			return fs.SkipDir
 		}
 
 		f, err := srcFS.Open(src)
