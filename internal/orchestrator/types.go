@@ -43,3 +43,10 @@ func (id ID) ToPath() (*paths.Path, error) {
 	}
 	return nil, ErrInvalidID
 }
+
+func (id ID) Validate() error {
+	if !id.IsApp() && !id.IsExample() {
+		return ErrInvalidID
+	}
+	return nil
+}

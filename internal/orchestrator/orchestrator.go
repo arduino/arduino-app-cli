@@ -20,14 +20,19 @@ import (
 	dockerClient "github.com/docker/docker/client"
 	"github.com/gosimple/slug"
 	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v3"
 
 	"github.com/arduino/arduino-app-cli/pkg/parser"
 )
 
-var pythonImage string
-var orchestratorConfig *OrchestratorConfig
+var (
+	pythonImage        string
+	orchestratorConfig *OrchestratorConfig
 
-var ErrAppAlreadyExists = fmt.Errorf("app already exists")
+	ErrAppAlreadyExists = fmt.Errorf("app already exists")
+	ErrAppDoesntExists  = fmt.Errorf("app doesn't exist")
+	ErrInvalidApp       = fmt.Errorf("invalid app")
+)
 
 func init() {
 	const dockerRegistry = "ghcr.io/bcmi-labs/"
@@ -370,6 +375,108 @@ if __name__ == "__main__":
 		return CreateAppResponse{}, fmt.Errorf("failed to get app id: %w", err)
 	}
 	return CreateAppResponse{ID: id}, nil
+}
+
+type CloneAppRequest struct {
+	FromID ID
+
+	Name *string
+	Icon *string
+}
+
+type CloneAppResponse struct {
+	ID ID `json:"id"`
+}
+
+func CloneApp(ctx context.Context, req CloneAppRequest) (response CloneAppResponse, cloneErr error) {
+	originPath, err := req.FromID.ToPath()
+	if err != nil {
+		return CloneAppResponse{}, fmt.Errorf("failed to get app path: %w", err)
+	}
+	if !originPath.Exist() {
+		return CloneAppResponse{}, ErrAppDoesntExists
+	}
+	if !originPath.Join("app.yaml").Exist() && !originPath.Join("app.yml").Exist() {
+		return CloneAppResponse{}, ErrInvalidApp
+	}
+
+	var dstPath *paths.Path
+	if req.Name != nil && *req.Name != "" {
+		dstPath = orchestratorConfig.AppsDir().Join(slug.Make(*req.Name))
+		if dstPath.Exist() {
+			return CloneAppResponse{}, ErrAppAlreadyExists
+		}
+	} else {
+		for i := range 100 { // In case of name collision, we try up to 100 times.
+			dstName := fmt.Sprintf("%s-copy%d", originPath.Base(), i)
+			dstPath = orchestratorConfig.AppsDir().Join(dstName)
+			if !dstPath.Exist() {
+				break
+			}
+		}
+	}
+	if err := dstPath.MkdirAll(); err != nil {
+		return CloneAppResponse{}, fmt.Errorf("failed to create app directory: %w", err)
+	}
+
+	// In case something during the clone operation fails we remove the dst path
+	defer func() {
+		if cloneErr != nil {
+			_ = dstPath.RemoveAll()
+		}
+	}()
+
+	list, err := originPath.ReadDir(paths.FilterOutNames(".cache", "data"))
+	if err != nil {
+		return CloneAppResponse{}, fmt.Errorf("failed to read app directory: %w", err)
+	}
+	for _, file := range list {
+		if file.IsDir() {
+			if err := file.CopyDirTo(dstPath.Join(file.Base())); err != nil {
+				return CloneAppResponse{}, fmt.Errorf("failed to copy directory: %w", err)
+			}
+		} else {
+			if err := file.CopyTo(dstPath.Join(file.Base())); err != nil {
+				return CloneAppResponse{}, fmt.Errorf("failed to copy file: %w", err)
+			}
+		}
+	}
+
+	if (req.Name != nil && *req.Name != "") || (req.Icon != nil && *req.Icon != "") {
+		var appYamlPath *paths.Path
+		if dstPath.Join("app.yaml").Exist() {
+			appYamlPath = dstPath.Join("app.yaml")
+		} else {
+			appYamlPath = dstPath.Join("app.yml")
+		}
+		descriptor, err := parser.ParseDescriptorFile(appYamlPath)
+		if err != nil {
+			return CloneAppResponse{}, fmt.Errorf("failed to parse app.yaml file: %w", err)
+		}
+		if req.Name != nil && *req.Name != "" {
+			descriptor.DisplayName = *req.Name
+		}
+		if req.Icon != nil && *req.Icon != "" {
+			descriptor.Icon = *req.Icon
+		}
+
+		// TODO: implement MarshalYaml directly in the descriptor.
+		newDescriptor, err := yaml.Marshal(descriptor)
+		if err != nil {
+			// TODO: should we consider this a fatal error, or we prefer to silently ignore the error?
+			// Worst case, the optional fields will be the same as the source app.
+			return CloneAppResponse{}, fmt.Errorf("failed to marshal app.yaml file: %w", err)
+		}
+		if err := appYamlPath.WriteFile(newDescriptor); err != nil {
+			return CloneAppResponse{}, fmt.Errorf("failed to write app.yaml file: %w", err)
+		}
+	}
+
+	id, err := NewIDFromPath(dstPath)
+	if err != nil {
+		return CloneAppResponse{}, fmt.Errorf("failed to get app id: %w", err)
+	}
+	return CloneAppResponse{ID: id}, nil
 }
 
 func getCurrentUser() string {

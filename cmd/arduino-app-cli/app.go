@@ -10,6 +10,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/pkg/parser"
 
+	"github.com/arduino/go-paths-helper"
 	dockerClient "github.com/docker/docker/client"
 	"github.com/spf13/cobra"
 )
@@ -39,6 +40,7 @@ func newCreateCmd() *cobra.Command {
 		bricks   []string
 		noPyton  bool
 		noSketch bool
+		fromApp  string
 	)
 
 	cmd := &cobra.Command{
@@ -48,11 +50,12 @@ func newCreateCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cobra.MinimumNArgs(1)
 			name := args[0]
-			return createHandler(cmd.Context(), name, icon, bricks, noPyton, noSketch)
+			return createHandler(cmd.Context(), name, icon, bricks, noPyton, noSketch, fromApp)
 		},
 	}
 
 	cmd.Flags().StringVarP(&icon, "icon", "i", "", "Icon for the app")
+	cmd.Flags().StringVarP(&fromApp, "from-app", "", "", "Create the new app from the path of an existing app")
 	cmd.Flags().StringArrayVarP(&bricks, "bricks", "b", []string{}, "List of bricks to include in the app")
 	cmd.Flags().BoolVarP(&noPyton, "no-python", "", false, "Do not include Python files")
 	cmd.Flags().BoolVarP(&noSketch, "no-sketch", "", false, "Do not include Sketch files")
@@ -224,17 +227,42 @@ func listHandler(ctx context.Context) error {
 	return nil
 }
 
-func createHandler(ctx context.Context, name string, icon string, bricks []string, noPython, noSketch bool) error {
-	resp, err := orchestrator.CreateApp(ctx, orchestrator.CreateAppRequest{
-		Name:       name,
-		Icon:       icon,
-		Bricks:     bricks,
-		SkipPython: noPython,
-		SkipSketch: noSketch,
-	})
-	if err != nil {
-		return err
+func createHandler(ctx context.Context, name string, icon string, bricks []string, noPython, noSketch bool, fromApp string) error {
+	if fromApp != "" {
+		wd, err := paths.Getwd()
+		if err != nil {
+			return err
+		}
+		fromPath := paths.New(fromApp)
+		if !fromPath.IsAbs() {
+			fromPath = wd.JoinPath(fromPath)
+		}
+		id, err := orchestrator.NewIDFromPath(fromPath)
+		if err != nil {
+			return err
+		}
+
+		resp, err := orchestrator.CloneApp(ctx, orchestrator.CloneAppRequest{
+			Name:   &name,
+			FromID: id,
+		})
+		if err != nil {
+			return err
+		}
+		dst, _ := resp.ID.ToPath()
+		fmt.Println("App cloned in: ", dst)
+	} else {
+		resp, err := orchestrator.CreateApp(ctx, orchestrator.CreateAppRequest{
+			Name:       name,
+			Icon:       icon,
+			Bricks:     bricks,
+			SkipPython: noPython,
+			SkipSketch: noSketch,
+		})
+		if err != nil {
+			return err
+		}
+		fmt.Println("App created successfully:", resp)
 	}
-	fmt.Println("App created successfully:", resp)
 	return nil
 }
