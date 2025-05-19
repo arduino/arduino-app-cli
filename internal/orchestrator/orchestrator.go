@@ -542,7 +542,7 @@ func compileUploadSketch(ctx context.Context, path string, w io.Writer) error {
 
 	resp, err := srv.BoardList(ctx, &rpc.BoardListRequest{
 		Instance:                      inst,
-		Timeout:                       0,
+		Timeout:                       1000,
 		Fqbn:                          "",
 		SkipCloudApiForBoardDetection: false,
 	})
