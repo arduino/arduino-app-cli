@@ -185,16 +185,19 @@ func StopApp(ctx context.Context, app parser.App) iter.Seq[StreamMessage] {
 				return
 			}
 			mainCompose := provisioningStateDir.Join("app-compose.yaml")
-			process, err := paths.NewProcess(nil, "docker", "compose", "-f", mainCompose.String(), "stop")
-			if err != nil {
-				yield(StreamMessage{error: err})
-				return
-			}
-			process.RedirectStderrTo(callbackWriter)
-			process.RedirectStdoutTo(callbackWriter)
-			if err := process.RunWithinContext(ctx); err != nil {
-				yield(StreamMessage{error: err})
-				return
+			// In case the app was never started
+			if mainCompose.Exist() {
+				process, err := paths.NewProcess(nil, "docker", "compose", "-f", mainCompose.String(), "stop")
+				if err != nil {
+					yield(StreamMessage{error: err})
+					return
+				}
+				process.RedirectStderrTo(callbackWriter)
+				process.RedirectStdoutTo(callbackWriter)
+				if err := process.RunWithinContext(ctx); err != nil {
+					yield(StreamMessage{error: err})
+					return
+				}
 			}
 		}
 		_ = yield(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
@@ -477,6 +480,15 @@ func CloneApp(ctx context.Context, req CloneAppRequest) (response CloneAppRespon
 		return CloneAppResponse{}, fmt.Errorf("failed to get app id: %w", err)
 	}
 	return CloneAppResponse{ID: id}, nil
+}
+
+func DeleteApp(ctx context.Context, app parser.App) error {
+	for msg := range StopApp(ctx, app) {
+		if msg.error != nil {
+			return fmt.Errorf("failed to stop app: %w", msg.error)
+		}
+	}
+	return app.FullPath.RemoveAll()
 }
 
 func getCurrentUser() string {

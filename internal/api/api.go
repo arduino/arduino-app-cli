@@ -69,5 +69,11 @@ func NewHTTPRouter(dockerClient *dockerClient.Client) http.Handler {
 		}
 	})
 
+	deletehandler := handlers.HandleAppDelete()
+	mux.HandleFunc("DELETE /v1/apps/{path...}", func(w http.ResponseWriter, r *http.Request) {
+		path := r.PathValue("path")
+		deletehandler(w, r, orchestrator.ID(path))
+	})
+
 	return mux
 }
