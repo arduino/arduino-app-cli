@@ -2,7 +2,7 @@
 set -xe
 
 adb shell apt-get update
-adb shell apt-get install -y docker.io docker-compose docker-cli docker-buildx-plugin
+adb shell apt-get install -y docker.io docker-compose docker-cli docker-buildx
 
 # fix to use nftables instead iptables
 adb shell update-alternatives --set iptables /usr/sbin/iptables-legacy
