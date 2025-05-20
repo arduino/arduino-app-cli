@@ -29,7 +29,7 @@ func newDaemonCmd(docker *dockerClient.Client) *cobra.Command {
 
 func httpHandler(ctx context.Context, dockerClient *dockerClient.Client, daemonPort string) {
 	slog.Info("Starting HTTP server", slog.String("address", ":"+daemonPort))
-	apiSrv := api.NewHTTPRouter(dockerClient)
+	apiSrv := api.NewHTTPRouter(dockerClient, Version)
 
 	httpSrv := http.Server{
 		Addr:              ":" + daemonPort,

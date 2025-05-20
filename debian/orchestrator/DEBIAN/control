@@ -1,5 +1,5 @@
 Package: arduino-orchestrator
-Version: 1.0
+Version: VERSION
 Architecture: ARCH
 Maintainer: arduino <support@arduino.cc>
 Description: Arduino application orchestrator

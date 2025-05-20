@@ -6,12 +6,21 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/pkg/render"
 
 	dockerClient "github.com/docker/docker/client"
 )
 
-func NewHTTPRouter(dockerClient *dockerClient.Client) http.Handler {
+func NewHTTPRouter(dockerClient *dockerClient.Client, version string) http.Handler {
 	mux := http.NewServeMux()
+
+	mux.HandleFunc("/v1/version", func(w http.ResponseWriter, r *http.Request) {
+		render.EncodeResponse(w, http.StatusOK, struct {
+			Version string `json:"version"`
+		}{
+			Version: version,
+		})
+	})
 
 	mux.Handle("GET /v1/apps", handlers.HandleAppList(dockerClient))
 	mux.Handle("POST /v1/apps", handlers.HandleAppCreate(dockerClient))
