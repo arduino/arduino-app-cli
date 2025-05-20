@@ -31,6 +31,8 @@ func TestCreateApp(t *testing.T) {
 			appDir := orchestratorConfig.AppsDir().Join("skip-python")
 			require.DirExists(t, appDir.String())
 			require.NoDirExists(t, appDir.Join("python").String())
+			require.FileExists(t, appDir.Join("sketch", "sketch.ino").String())
+			require.FileExists(t, appDir.Join("sketch", "sketch.yaml").String())
 		})
 		t.Run("skip sketch", func(t *testing.T) {
 			r, err := CreateApp(t.Context(), CreateAppRequest{

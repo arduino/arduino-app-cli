@@ -1,0 +1,9 @@
+profiles:
+  default:
+    fqbn: arduino:renesas_uno:unor4wifi
+    platforms:
+      - platform: arduino:renesas_uno (1.4.1)
+    libraries:
+      - Arduino_JSON (0.2.0)
+
+default_profile: default

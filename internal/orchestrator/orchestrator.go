@@ -338,6 +338,9 @@ func CreateApp(ctx context.Context, req CreateAppRequest) (CreateAppResponse, er
 		if err := baseSketchPath.Join("sketch.ino").WriteFile([]byte("void setup() {}\n\nvoid loop() {}")); err != nil {
 			return CreateAppResponse{}, fmt.Errorf("failed to create sketch file: %w", err)
 		}
+		if err := baseSketchPath.Join("sketch.yaml").WriteFile([]byte("profiles:\n\ndefault_profile:")); err != nil {
+			return CreateAppResponse{}, fmt.Errorf("failed to create sketch.yaml project file: %w", err)
+		}
 	}
 
 	if !req.SkipPython {
@@ -533,9 +536,19 @@ func compileUploadSketch(ctx context.Context, path string, w io.Writer) error {
 		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
 	}()
 
+	sketchResp, err := srv.LoadSketch(ctx, &rpc.LoadSketchRequest{SketchPath: path})
+	if err != nil {
+		return err
+	}
+	sketch := sketchResp.GetSketch()
+	initReq := &rpc.InitRequest{Instance: inst, SketchPath: path}
+	if profile := sketch.GetDefaultProfile().GetName(); profile != "" {
+		initReq.Profile = profile
+	}
 	if err := srv.Init(
-		&rpc.InitRequest{Instance: inst},
-		commands.InitStreamResponseToCallbackFunction(ctx, nil),
+		initReq,
+		// TODO: implement progress callback function
+		commands.InitStreamResponseToCallbackFunction(ctx, func(r *rpc.InitResponse) error { return nil }),
 	); err != nil {
 		return err
 	}
