@@ -117,7 +117,8 @@ func StartApp(ctx context.Context, docker *dockerClient.Client, app parser.App) 
 		})
 
 		if app.MainSketchFile != nil {
-			if err := compileUploadSketch(ctx, app.MainSketchFile.String(), callbackWriter); err != nil {
+			buildPath := app.FullPath.Join(".cache", "sketch").String()
+			if err := compileUploadSketch(ctx, app.MainSketchFile.String(), buildPath, callbackWriter); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
@@ -171,9 +172,11 @@ func StopApp(ctx context.Context, app parser.App) iter.Seq[StreamMessage] {
 			}
 		})
 		if app.MainSketchFile != nil {
-			// Flash empty sketch to stop the microcontroller.
 			// TODO: check that the app sketch is running before attempting to stop it.
-			if err := compileUploadSketch(ctx, getEmptySketch(), callbackWriter); err != nil {
+
+			// Flash empty sketch to stop the microcontroller.
+			buildPath := "" // the empty sketch' build path must be in the default temporary directory.
+			if err := compileUploadSketch(ctx, getEmptySketch(), buildPath, callbackWriter); err != nil {
 				panic(err)
 			}
 		}
@@ -521,7 +524,7 @@ func getDevices() []string {
 	return deviceList.AsStrings()
 }
 
-func compileUploadSketch(ctx context.Context, path string, w io.Writer) error {
+func compileUploadSketch(ctx context.Context, sketchPath, buildPath string, w io.Writer) error {
 	logrus.SetLevel(logrus.ErrorLevel)
 	srv := commands.NewArduinoCoreServer()
 
@@ -536,12 +539,12 @@ func compileUploadSketch(ctx context.Context, path string, w io.Writer) error {
 		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
 	}()
 
-	sketchResp, err := srv.LoadSketch(ctx, &rpc.LoadSketchRequest{SketchPath: path})
+	sketchResp, err := srv.LoadSketch(ctx, &rpc.LoadSketchRequest{SketchPath: sketchPath})
 	if err != nil {
 		return err
 	}
 	sketch := sketchResp.GetSketch()
-	initReq := &rpc.InitRequest{Instance: inst, SketchPath: path}
+	initReq := &rpc.InitRequest{Instance: inst, SketchPath: sketchPath}
 	if profile := sketch.GetDefaultProfile().GetName(); profile != "" {
 		initReq.Profile = profile
 	}
@@ -583,7 +586,8 @@ func compileUploadSketch(ctx context.Context, path string, w io.Writer) error {
 	err = srv.Compile(&rpc.CompileRequest{
 		Instance:   inst,
 		Fqbn:       fqbn,
-		SketchPath: path,
+		SketchPath: sketchPath,
+		BuildPath:  buildPath,
 	}, server)
 	if err != nil {
 		return err
@@ -593,7 +597,7 @@ func compileUploadSketch(ctx context.Context, path string, w io.Writer) error {
 	err = srv.Upload(&rpc.UploadRequest{
 		Instance:   inst,
 		Fqbn:       fqbn,
-		SketchPath: path,
+		SketchPath: sketchPath,
 		Port:       port,
 	}, stream)
 	if err != nil {
