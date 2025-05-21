@@ -605,7 +605,7 @@ func GetDefaultApp() (*parser.App, error) {
 	defaultAppPath = bytes.TrimSpace(defaultAppPath)
 	if len(defaultAppPath) == 0 {
 		// If the file is empty, we remove it
-		slog.Warn("default app file is empty", slog.String("path", string(defaultAppPath)), slog.String("error", err.Error()))
+		slog.Warn("default app file is empty", slog.String("path", string(defaultAppPath)))
 		_ = defaultAppFilePath.Remove()
 		return nil, nil
 	}
