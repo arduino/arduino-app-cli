@@ -12,7 +12,21 @@ import (
 
 func HandleAppList(dockerClient *dockerClient.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		res, err := orchestrator.ListApps(r.Context())
+		queryParams := r.URL.Query()
+
+		showExamples := queryParams.Get("example") == "true"
+		showOnlyDefault := queryParams.Get("default") == "true"
+
+		var statusFilter string
+		if status := queryParams.Get("status"); status != "" {
+			statusFilter = status
+		}
+
+		res, err := orchestrator.ListApps(r.Context(), orchestrator.ListAppRequest{
+			ShowExamples:    showExamples,
+			ShowOnlyDefault: showOnlyDefault,
+			StatusFilter:    statusFilter,
+		})
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, "unable to find the app")

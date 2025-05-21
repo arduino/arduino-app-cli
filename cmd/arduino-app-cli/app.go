@@ -264,7 +264,7 @@ func logsHandler(ctx context.Context, app parser.App) error {
 }
 
 func listHandler(ctx context.Context) error {
-	res, err := orchestrator.ListApps(ctx)
+	res, err := orchestrator.ListApps(ctx, orchestrator.ListAppRequest{ShowExamples: true})
 	if err != nil {
 		return nil
 	}

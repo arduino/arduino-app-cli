@@ -242,17 +242,22 @@ type ListAppResult struct {
 }
 
 type AppInfo struct {
-	ID          ID       `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Category    []string `json:"category"`
-	Icon        string   `json:"icon"`
-	Status      string   `json:"status"` // TODO: create enum
-	Example     bool     `json:"example"`
-	Default     bool     `json:"default"`
+	ID          ID     `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Icon        string `json:"icon"`
+	Status      string `json:"status"` // TODO: create enum
+	Example     bool   `json:"example"`
+	Default     bool   `json:"default"`
 }
 
-func ListApps(ctx context.Context) (ListAppResult, error) {
+type ListAppRequest struct {
+	ShowExamples    bool
+	ShowOnlyDefault bool
+	StatusFilter    string // TODO: create enum
+}
+
+func ListApps(ctx context.Context, req ListAppRequest) (ListAppResult, error) {
 	result := ListAppResult{Apps: []AppInfo{}}
 
 	defaultApp, err := GetDefaultApp()
@@ -260,48 +265,72 @@ func ListApps(ctx context.Context) (ListAppResult, error) {
 		slog.Warn("unable to get default app", slog.String("error", err.Error()))
 	}
 
-	filterFunc := func(file *paths.Path) bool {
-		if file.Join("app.yaml").Exist() || file.Join("app.yml").Exist() {
-			app, err := parser.Load(file.String())
-			if err != nil {
-				slog.Error("unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", file.String()))
-				return false
-			}
+	var (
+		pathsToExplore paths.PathList
+		appPaths       paths.PathList
+	)
 
-			var status string
-			resp, err := dockerComposeAppStatus(ctx, app)
-			if err != nil {
-				slog.Warn("unable to get app status", slog.String("error", err.Error()), slog.String("path", file.String()))
-			}
-			id, err := NewIDFromPath(app.FullPath)
-			if err != nil {
-				slog.Error("unable to get app id", slog.String("error", err.Error()), slog.String("path", file.String()))
-				return false
-			}
-			status = resp.Status
-			result.Apps = append(result.Apps,
-				AppInfo{
-					ID:          id,
-					Name:        app.Name,
-					Description: app.Descriptor.Description,
-					Category:    []string{}, // TODO: add category on parser
-					Icon:        app.Descriptor.Icon,
-					Status:      status,
-					Example:     id.IsExample(),
-					Default:     defaultApp != nil && defaultApp.FullPath.String() == app.FullPath.String(),
-				},
-			)
-		}
-		return false
+	pathsToExplore.Add(orchestratorConfig.AppsDir())
+	if req.ShowExamples {
+		pathsToExplore.Add(orchestratorConfig.ExamplesDir())
 	}
-
-	for _, p := range []*paths.Path{orchestratorConfig.AppsDir(), orchestratorConfig.ExamplesDir()} {
-		_, err := p.ReadDirRecursiveFiltered(paths.FilterDirectories(), filterFunc)
+	for _, p := range pathsToExplore {
+		res, err := p.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
+			if file.Base() == ".cache" {
+				return false
+			}
+			if file.Join("app.yaml").NotExist() && file.Join("app.yml").NotExist() {
+				// Let's continue the scan, we might be in an parent folder
+				return true
+			}
+			return false
+		})
 		if err != nil {
 			slog.Error("unable to list apps", slog.String("error", err.Error()))
 			return result, err
 		}
+		appPaths.AddAll(res)
 	}
+
+	for _, file := range appPaths {
+		app, err := parser.Load(file.String())
+		if err != nil {
+			slog.Error("unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", file.String()))
+			continue
+		}
+
+		isDefault := defaultApp != nil && defaultApp.FullPath.String() == app.FullPath.String()
+		if req.ShowOnlyDefault && !isDefault {
+			continue
+		}
+
+		resp, err := dockerComposeAppStatus(ctx, app)
+		if err != nil {
+			slog.Warn("unable to get app status", slog.String("error", err.Error()), slog.String("path", file.String()))
+		}
+		id, err := NewIDFromPath(app.FullPath)
+		if err != nil {
+			slog.Error("unable to get app id", slog.String("error", err.Error()), slog.String("path", file.String()))
+			continue
+		}
+
+		if req.StatusFilter != "" && req.StatusFilter != resp.Status {
+			continue
+		}
+
+		result.Apps = append(result.Apps,
+			AppInfo{
+				ID:          id,
+				Name:        app.Name,
+				Description: app.Descriptor.Description,
+				Icon:        app.Descriptor.Icon,
+				Status:      resp.Status,
+				Example:     id.IsExample(),
+				Default:     isDefault,
+			},
+		)
+	}
+
 	return result, nil
 }
 
@@ -338,8 +367,7 @@ func AppDetails(ctx context.Context, app parser.App) (AppInfo, error) {
 		ID:          id,
 		Name:        app.Name,
 		Description: app.Descriptor.Description,
-		Category:    []string{}, // TODO: add category on parser
-		Icon:        "",         // TODO: add icon on parser
+		Icon:        app.Descriptor.Icon,
 		Status:      status,
 		Example:     id.IsExample(),
 		Default:     defaultAppPath == app.FullPath.String(),

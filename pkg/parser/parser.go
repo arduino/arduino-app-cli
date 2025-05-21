@@ -16,12 +16,11 @@ type Brick struct {
 }
 
 type AppDescriptor struct {
-	Name        string   `yaml:"name"`
-	Description string   `yaml:"description"`
-	Ports       []int    `yaml:"ports"`
-	Bricks      []Brick  `yaml:"bricks"`
-	Categories  []string `yaml:"categories"`
-	Icon        string   `yaml:"icon,omitempty"`
+	Name        string  `yaml:"name"`
+	Description string  `yaml:"description"`
+	Ports       []int   `yaml:"ports"`
+	Bricks      []Brick `yaml:"bricks"`
+	Icon        string  `yaml:"icon,omitempty"`
 }
 
 func (md *Brick) UnmarshalYAML(node *yaml.Node) error {
