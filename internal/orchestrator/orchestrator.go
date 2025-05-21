@@ -588,6 +588,7 @@ func compileUploadSketch(ctx context.Context, sketchPath, buildPath string, w io
 		Fqbn:       fqbn,
 		SketchPath: sketchPath,
 		BuildPath:  buildPath,
+		Libraries:  []string{sketchPath + "/../../sketch-libraries"},
 	}, server)
 	if err != nil {
 		return err
