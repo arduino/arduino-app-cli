@@ -30,6 +30,8 @@ func newAppCmd(docker *dockerClient.Client) *cobra.Command {
 	appCmd.AddCommand(newPsCmd())
 	appCmd.AddCommand(newProvisionCmd(docker))
 	appCmd.AddCommand(newMonitorCmd())
+	appCmd.AddCommand(newSetDefaultCmd())
+	appCmd.AddCommand(newGetDefaultCmd())
 
 	return appCmd
 }
@@ -163,6 +165,54 @@ func newProvisionCmd(docker *dockerClient.Client) *cobra.Command {
 				return err
 			}
 			return provisionHandler(cmd.Context(), docker, app)
+		},
+	}
+}
+
+func renderDefaultApp(app *parser.App) {
+	if app == nil {
+		fmt.Println("No default app set")
+	} else {
+		fmt.Printf("Default app: %s (%s)\n", app.Name, app.FullPath)
+	}
+}
+
+func newSetDefaultCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "set-default app_path",
+		Short: "Set the default app",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Remove default app.
+			if len(args) == 0 {
+				return orchestrator.SetDefaultApp(nil)
+			}
+
+			app, err := parser.Load(args[0])
+			if err != nil {
+				return err
+			}
+			if err := orchestrator.SetDefaultApp(&app); err != nil {
+				return err
+			}
+			renderDefaultApp(&app)
+			return nil
+		},
+	}
+}
+
+func newGetDefaultCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "get-default",
+		Short: "Get the default app",
+		Args:  cobra.MaximumNArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			def, err := orchestrator.GetDefaultApp()
+			if err != nil {
+				return err
+			}
+			renderDefaultApp(def)
+			return nil
 		},
 	}
 }

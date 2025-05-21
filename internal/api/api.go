@@ -73,6 +73,9 @@ func NewHTTPRouter(dockerClient *dockerClient.Client, version string) http.Handl
 		case strings.HasSuffix(path, "/clone"):
 			id := strings.TrimSuffix(path, "/clone")
 			cloneHandler(w, r, orchestrator.ID(id))
+		case strings.HasSuffix(path, "/default"):
+			id := strings.TrimSuffix(path, "/default")
+			handlers.HandleAppSetDefault(w, r, orchestrator.ID(id))
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -81,7 +84,13 @@ func NewHTTPRouter(dockerClient *dockerClient.Client, version string) http.Handl
 	deletehandler := handlers.HandleAppDelete()
 	mux.HandleFunc("DELETE /v1/apps/{path...}", func(w http.ResponseWriter, r *http.Request) {
 		path := r.PathValue("path")
-		deletehandler(w, r, orchestrator.ID(path))
+		switch {
+		case strings.HasSuffix(path, "/default"):
+			id := strings.TrimSuffix(path, "/default")
+			handlers.HandleDeleteDefault(w, r, orchestrator.ID(id))
+		default:
+			deletehandler(w, r, orchestrator.ID(path))
+		}
 	})
 
 	return mux

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/arduino/arduino-app-cli/internal/api"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/pkg/httprecover"
 
 	dockerClient "github.com/docker/docker/client"
@@ -20,6 +21,17 @@ func newDaemonCmd(docker *dockerClient.Client) *cobra.Command {
 		Short: "Run an HTTP server to expose arduino-app-cli functionality thorough REST API",
 		Run: func(cmd *cobra.Command, args []string) {
 			daemonPort, _ := cmd.Flags().GetString("port")
+
+			// start the default app in the background
+			go func() {
+				slog.Info("Starting default app")
+				err := orchestrator.StartDefaultApp(cmd.Context(), docker)
+				if err != nil {
+					slog.Error("Failed to start default app", slog.String("error", err.Error()))
+				}
+				slog.Info("Default app started")
+			}()
+
 			httpHandler(cmd.Context(), docker, daemonPort)
 		},
 	}

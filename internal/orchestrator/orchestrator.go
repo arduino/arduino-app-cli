@@ -1,6 +1,7 @@
 package orchestrator
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"sync"
 
 	"github.com/arduino/arduino-cli/commands"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
@@ -207,6 +209,34 @@ func StopApp(ctx context.Context, app parser.App) iter.Seq[StreamMessage] {
 	}
 }
 
+func StartDefaultApp(ctx context.Context, docker *dockerClient.Client) error {
+	app, err := GetDefaultApp()
+	if err != nil {
+		return fmt.Errorf("failed to get default app: %w", err)
+	}
+	if app == nil {
+		// default app not set.
+		return nil
+	}
+
+	status, err := AppDetails(ctx, *app)
+	if err != nil {
+		return fmt.Errorf("failed to get app details: %w", err)
+	}
+	if status.Status == "running" {
+		return nil
+	}
+
+	// TODO: we need to stop all other running app before starting the default app.
+	for msg := range StartApp(ctx, docker, *app) {
+		if msg.IsError() {
+			return fmt.Errorf("failed to start app: %w", msg.GetError())
+		}
+	}
+
+	return nil
+}
+
 type ListAppResult struct {
 	Apps []AppInfo `json:"apps"`
 }
@@ -219,10 +249,16 @@ type AppInfo struct {
 	Icon        string   `json:"icon"`
 	Status      string   `json:"status"` // TODO: create enum
 	Example     bool     `json:"example"`
+	Default     bool     `json:"default"`
 }
 
 func ListApps(ctx context.Context) (ListAppResult, error) {
 	result := ListAppResult{Apps: []AppInfo{}}
+
+	defaultApp, err := GetDefaultApp()
+	if err != nil {
+		slog.Warn("unable to get default app", slog.String("error", err.Error()))
+	}
 
 	filterFunc := func(file *paths.Path) bool {
 		if file.Join("app.yaml").Exist() || file.Join("app.yml").Exist() {
@@ -252,6 +288,7 @@ func ListApps(ctx context.Context) (ListAppResult, error) {
 					Icon:        app.Descriptor.Icon,
 					Status:      status,
 					Example:     id.IsExample(),
+					Default:     defaultApp != nil && defaultApp.FullPath.String() == app.FullPath.String(),
 				},
 			)
 		}
@@ -268,40 +305,45 @@ func ListApps(ctx context.Context) (ListAppResult, error) {
 	return result, nil
 }
 
-type AppDetailsResult struct {
-	ID          ID       `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Category    []string `json:"category"`
-	Icon        string   `json:"icon"`
-	Status      string   `json:"status"` // TODO: create enum
-	Example     bool     `json:"example"`
-}
+func AppDetails(ctx context.Context, app parser.App) (AppInfo, error) {
+	var wg sync.WaitGroup
+	wg.Add(2)
+	var status, defaultAppPath string
+	go func() {
+		defer wg.Done()
+		resp, err := dockerComposeAppStatus(ctx, app)
+		if err != nil {
+			slog.Warn("unable to get app status", slog.String("error", err.Error()), slog.String("path", app.FullPath.String()))
+		}
+		status = resp.Status
+	}()
+	go func() {
+		defer wg.Done()
+		defaultApp, err := GetDefaultApp()
+		if err != nil {
+			slog.Warn("unable to get default app", slog.String("error", err.Error()))
+			return
+		}
+		defaultAppPath = defaultApp.FullPath.String()
 
-func AppDetails(ctx context.Context, app parser.App) (AppDetailsResult, error) {
-	result := AppDetailsResult{}
-
-	var status string
-	resp, err := dockerComposeAppStatus(ctx, app)
-	if err != nil {
-		slog.Warn("unable to get app status", slog.String("error", err.Error()), slog.String("path", app.FullPath.String()))
-	}
-	status = resp.Status
+	}()
+	wg.Wait()
 
 	id, err := NewIDFromPath(app.FullPath)
 	if err != nil {
-		return result, err
+		return AppInfo{}, err
 	}
 
-	result.Status = status
-	result.ID = id
-	result.Name = app.Name
-	result.Description = app.Descriptor.Description
-	result.Category = []string{} // TODO: add category on parser
-	result.Icon = ""             // TODO: add icon on parser
-	result.Example = result.ID.IsExample()
-
-	return result, nil
+	return AppInfo{
+		ID:          id,
+		Name:        app.Name,
+		Description: app.Descriptor.Description,
+		Category:    []string{}, // TODO: add category on parser
+		Icon:        "",         // TODO: add icon on parser
+		Status:      status,
+		Example:     id.IsExample(),
+		Default:     defaultAppPath == app.FullPath.String(),
+	}, nil
 }
 
 type CreateAppRequest struct {
@@ -495,6 +537,60 @@ func DeleteApp(ctx context.Context, app parser.App) error {
 		}
 	}
 	return app.FullPath.RemoveAll()
+}
+
+const defaultAppFileName = "default.app"
+
+func SetDefaultApp(app *parser.App) error {
+	defaultAppPath := orchestratorConfig.DataDir().Join(defaultAppFileName)
+
+	// Remove the default app file if the app is nil.
+	if app == nil {
+		_ = defaultAppPath.Remove()
+		return nil
+	}
+
+	f, err := os.CreateTemp("", "")
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.WriteString(app.FullPath.String())
+	if err != nil {
+		return err
+	}
+	f.Close()
+
+	return os.Rename(f.Name(), defaultAppPath.String())
+}
+
+func GetDefaultApp() (*parser.App, error) {
+	defaultAppFilePath := orchestratorConfig.DataDir().Join(defaultAppFileName)
+	if !defaultAppFilePath.Exist() {
+		return nil, nil
+	}
+
+	defaultAppPath, err := defaultAppFilePath.ReadFile()
+	if err != nil {
+		return nil, err
+	}
+	defaultAppPath = bytes.TrimSpace(defaultAppPath)
+	if len(defaultAppPath) == 0 {
+		// If the file is empty, we remove it
+		slog.Warn("default app file is empty", slog.String("path", string(defaultAppPath)), slog.String("error", err.Error()))
+		_ = defaultAppFilePath.Remove()
+		return nil, nil
+	}
+
+	app, err := parser.Load(string(defaultAppPath))
+	if err != nil {
+		// If the app is not valid, we remove the file
+		slog.Warn("default app is not valid", slog.String("path", string(defaultAppPath)), slog.String("error", err.Error()))
+		_ = defaultAppFilePath.Remove()
+		return nil, err
+	}
+
+	return &app, nil
 }
 
 func getCurrentUser() string {

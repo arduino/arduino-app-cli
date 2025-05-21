@@ -29,25 +29,25 @@ func NewOrchestratorConfigFromEnv() (*OrchestratorConfig, error) {
 		appsDir = wd.JoinPath(appsDir)
 	}
 
-	examplesDir := paths.New(os.Getenv("ARDUINO_APP_CLI__DATA_DIR"))
-	if examplesDir == nil {
+	dataDir := paths.New(os.Getenv("ARDUINO_APP_CLI__DATA_DIR"))
+	if dataDir == nil {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return nil, err
 		}
-		examplesDir = paths.New(home).Join(".arduino-app-cli")
+		dataDir = paths.New(home).Join(".arduino-app-cli")
 	}
-	if !examplesDir.IsAbs() {
+	if !dataDir.IsAbs() {
 		wd, err := paths.Getwd()
 		if err != nil {
 			return nil, err
 		}
-		examplesDir = wd.JoinPath(examplesDir)
+		dataDir = wd.JoinPath(dataDir)
 	}
 
 	c := &OrchestratorConfig{
 		appsDir: appsDir,
-		dataDir: examplesDir,
+		dataDir: dataDir,
 	}
 	if err := c.init(); err != nil {
 		return nil, err
