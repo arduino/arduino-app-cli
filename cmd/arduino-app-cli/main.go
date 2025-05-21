@@ -28,6 +28,8 @@ func main() {
 		Short: "A CLI to manage the Python app",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		},
+		SilenceUsage:  true,
+		SilenceErrors: true,
 	}
 
 	rootCmd.AddCommand(
