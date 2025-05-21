@@ -13,30 +13,30 @@ func TestAppParser(t *testing.T) {
 	app, err := ParseDescriptorFile(appPath)
 	require.NoError(t, err)
 
-	require.Equal(t, app.DisplayName, "Image detection with UI")
+	require.Equal(t, app.Name, "Image detection with UI")
 	require.Equal(t, app.Ports[0], 7860)
 
-	dep1 := ModuleDependency{
+	brick1 := Brick{
 		Name:  "arduino/object_detection",
 		Model: "vision/yolo11",
 	}
-	require.Contains(t, app.ModuleDependencies, dep1)
+	require.Contains(t, app.Bricks, brick1)
 
-	// Test a more complex app descriptor file, with additional dependencies
+	// Test a more complex app descriptor file, with additional bricks
 	appPath = paths.New("testdata", "complex-app.yaml")
 	app, err = ParseDescriptorFile(appPath)
 	require.NoError(t, err)
 
-	require.Equal(t, app.DisplayName, "Complex app")
+	require.Equal(t, app.Name, "Complex app")
 	require.Contains(t, app.Ports, 7860, 8080)
 
-	dep2 := ModuleDependency{
+	brick2 := Brick{
 		Name: "arduino/not_found",
 	}
-	dep3 := ModuleDependency{
+	brick3 := Brick{
 		Name: "arduino/simple_string",
 	}
-	require.Contains(t, app.ModuleDependencies, dep1, dep2, dep3)
+	require.Contains(t, app.Bricks, brick1, brick2, brick3)
 
 	// Test a case that should fail.
 	appPath = paths.New("testdata", "wrong-app.yaml")

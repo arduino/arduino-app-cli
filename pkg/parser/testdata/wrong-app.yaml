@@ -1,8 +1,8 @@
-display-name: Wrong app
+name: Wrong app
 description: Wrong app
 
 ports:
   - 7860
 
-module-dependencies:
+bricks:
   - arduino/object_detection: something

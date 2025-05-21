@@ -13,7 +13,7 @@ type App struct {
 	MainPythonFile *paths.Path
 	MainSketchFile *paths.Path
 	FullPath       *paths.Path // FullPath is the path to the App folder
-	Descriptor     Descriptor
+	Descriptor     AppDescriptor
 }
 
 // Load creates an App instance by reading all the files composing an app and grouping them
@@ -33,7 +33,7 @@ func Load(appPath string) (App, error) {
 
 	app := App{
 		FullPath:   path,
-		Descriptor: Descriptor{},
+		Descriptor: AppDescriptor{},
 	}
 
 	if descriptorFile := app.GetDescriptorPath(); descriptorFile.Exist() {
@@ -42,7 +42,7 @@ func Load(appPath string) (App, error) {
 			return App{}, fmt.Errorf("error loading app descriptor file: %w", err)
 		}
 		app.Descriptor = desc
-		app.Name = desc.DisplayName
+		app.Name = desc.Name
 	} else {
 		return App{}, errors.New("descriptor app.yaml file missing from app")
 	}

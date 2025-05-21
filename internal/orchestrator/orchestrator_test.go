@@ -124,7 +124,7 @@ func TestCloneApp(t *testing.T) {
 				_ = appDir.RemoveAll()
 			})
 
-			// The app.yaml will have the display-name set to the new-name
+			// The app.yaml will have the name set to the new-name
 			clonedApp := f.Must(parser.Load(appDir.String()))
 			require.Equal(t, "new-name", clonedApp.Name)
 		})

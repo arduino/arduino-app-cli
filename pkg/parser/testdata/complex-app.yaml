@@ -1,11 +1,11 @@
-display-name: Complex app
+name: Complex app
 description: Complex app
 
 ports:
   - 7860
   - 8080
 
-module-dependencies:
+bricks:
   - arduino/object_detection: # dep as a map, with additional properties
       model: vision/yolo11
       other-prop: 42

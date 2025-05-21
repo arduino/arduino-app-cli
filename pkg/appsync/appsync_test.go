@@ -69,6 +69,7 @@ func startAdbDaemon(t *testing.T) {
 		t.Fatalf("failed to build adb daemon: %v", err)
 	}
 
+	adbPath := getAdbPath()
 	err = exec.Command("docker", "run", "-d", "--rm", "--name", adbdContainerName, "-p", adbPort+":5555", "adbd").Run()
 	if err != nil {
 		t.Fatalf("failed to start adb daemon: %v", err)
@@ -80,7 +81,7 @@ func startAdbDaemon(t *testing.T) {
 		case <-timeout:
 			t.Fatalf("adb daemon did not start within the timeout period")
 		case <-tick:
-			out, err := exec.Command("adb", "connect", "localhost:"+adbPort).CombinedOutput()
+			out, err := exec.Command(adbPath, "connect", "localhost:"+adbPort).CombinedOutput()
 			if err == nil && strings.Contains(string(out), "connected to localhost:"+adbPort) {
 				return // adb daemon is ready
 			}

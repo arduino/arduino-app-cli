@@ -92,13 +92,13 @@ func generateMainComposeFile(ctx context.Context, app parser.App, pythonImage st
 	}
 
 	var composeFiles paths.PathList
-	for _, dep := range app.Descriptor.ModuleDependencies {
-		composeFilePath := provisioningStateDir.Join("compose", dep.Name, "module_compose.yaml")
+	for _, brick := range app.Descriptor.Bricks {
+		composeFilePath := provisioningStateDir.Join("compose", brick.Name, "module_compose.yaml")
 		if composeFilePath.Exist() {
 			composeFiles.Add(composeFilePath)
-			slog.Debug("Module compose file found", slog.String("module", dep.Name), slog.String("path", composeFilePath.String()))
+			slog.Debug("Brick compose file found", slog.String("module", brick.Name), slog.String("path", composeFilePath.String()))
 		} else {
-			slog.Debug("Module compose file not found", slog.String("module", dep.Name), slog.String("path", composeFilePath.String()))
+			slog.Debug("Brick compose file not found", slog.String("module", brick.Name), slog.String("path", composeFilePath.String()))
 		}
 	}
 

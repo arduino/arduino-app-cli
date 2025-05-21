@@ -1,9 +1,9 @@
-display-name: Image pose detection with UI
+name: Image pose detection with UI
 description: Image pose detection with UI
 
 ports:
   - 7860
 
-module-dependencies:
+bricks:
   - arduino/pose_detection:
       models: vision/yolo11-pose

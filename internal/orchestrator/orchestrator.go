@@ -246,7 +246,7 @@ func ListApps(ctx context.Context) (ListAppResult, error) {
 					Name:        app.Name,
 					Description: app.Descriptor.Description,
 					Category:    []string{}, // TODO: add category on parser
-					Icon:        "",         // TODO: add icon on parser
+					Icon:        app.Descriptor.Icon,
 					Status:      status,
 					Example:     id.IsExample(),
 				},
@@ -361,7 +361,7 @@ if __name__ == "__main__":
 	}
 
 	// TODO: create app yaml marshaler
-	appContent := `display-name: "` + req.Name + `"` + "\n"
+	appContent := `name: "` + req.Name + `"` + "\n"
 	if req.Icon != "" {
 		appContent += `icon: "` + req.Icon + `"` + "\n"
 	}
@@ -460,7 +460,7 @@ func CloneApp(ctx context.Context, req CloneAppRequest) (response CloneAppRespon
 			return CloneAppResponse{}, fmt.Errorf("failed to parse app.yaml file: %w", err)
 		}
 		if req.Name != nil && *req.Name != "" {
-			descriptor.DisplayName = *req.Name
+			descriptor.Name = *req.Name
 		}
 		if req.Icon != nil && *req.Icon != "" {
 			descriptor.Icon = *req.Icon
