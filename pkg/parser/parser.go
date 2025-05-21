@@ -1,8 +1,11 @@
 package parser
 
 import (
+	"errors"
 	"fmt"
+	"io"
 
+	emoji "github.com/Andrew-M-C/go.emoji"
 	"github.com/arduino/go-paths-helper"
 	"gopkg.in/yaml.v3"
 )
@@ -60,13 +63,44 @@ func (md *Brick) UnmarshalYAML(node *yaml.Node) error {
 
 // ParseAppFile reads an app file
 func ParseDescriptorFile(file *paths.Path) (AppDescriptor, error) {
-	data, err := file.ReadFile()
+	f, err := file.Open()
 	if err != nil {
-		return AppDescriptor{}, err
+		return AppDescriptor{}, fmt.Errorf("cannot open file: %w", err)
 	}
+	defer f.Close()
 	descriptor := AppDescriptor{}
-	if err := yaml.Unmarshal(data, &descriptor); err != nil {
-		return AppDescriptor{}, err
+	if err := yaml.NewDecoder(f).Decode(&descriptor); err != nil {
+		// FIXME: probably we don't want to accept empty app.yaml files.
+		if errors.Is(err, io.EOF) {
+			return descriptor, nil
+		}
+		return AppDescriptor{}, fmt.Errorf("cannot decode descriptor: %w", err)
 	}
-	return descriptor, nil
+
+	return descriptor, validate(descriptor)
+}
+
+func validate(app AppDescriptor) error {
+	var allErrors error
+	if app.Icon != "" {
+		if !isSingleEmoji(app.Icon) {
+			allErrors = errors.Join(allErrors, fmt.Errorf("icon %q is not a valid single emoji", app.Icon))
+		}
+	}
+	return allErrors
+}
+
+func isSingleEmoji(s string) bool {
+	emojis := 0
+	for it := emoji.IterateChars(s); it.Next(); {
+		if !it.CurrentIsEmoji() {
+			return false
+		}
+		// Skip variation selectors (0xFE00-0xFE0F)
+		if it.Current() >= "\uFE00" && it.Current() <= "\uFE0F" {
+			continue
+		}
+		emojis++
+	}
+	return emojis == 1
 }

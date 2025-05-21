@@ -43,3 +43,29 @@ func TestAppParser(t *testing.T) {
 	app, err = ParseDescriptorFile(appPath)
 	require.Error(t, err)
 }
+
+func TestIsSingleEmoji(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected bool
+	}{
+		{"😃", true},
+		{"👩🏼‍🚀", true},
+		{"😃😃", false},
+		{"not", false},
+		{"", false},
+		{"👩🏼‍🚀👩🏼‍🚀", false},
+		{"👩🏼‍🚀n", false},
+		{"n👩🏼‍🚀", false},
+		{"👩🏼‍🚀😃", false},
+		{"⚡", true},
+		{"⚡️", true}, // High Voltage + Varinat Selector 16 (ref: https://en.wikipedia.org/wiki/Variation_Selectors_(Unicode_block))
+	}
+
+	for _, test := range tests {
+		t.Run(test.input, func(t *testing.T) {
+			result := isSingleEmoji(test.input)
+			require.Equal(t, test.expected, result, "Input: %s", test.input)
+		})
+	}
+}
