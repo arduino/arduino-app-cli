@@ -2,28 +2,111 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"io/fs"
+	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+
+	"github.com/arduino/arduino-create-agent/updater"
 	"github.com/arduino/arduino-app-cli/pkg/adbfs"
 )
 
 // App struct
 type App struct {
-	ctx context.Context
+	ctx           context.Context
+	updateBaseUrl string
 }
 
 // NewApp creates a new App application struct
-func NewApp() *App {
-	return &App{}
+func NewApp(updateBaseUrl string) *App {
+	return &App{
+		updateBaseUrl: updateBaseUrl,
+	}
 }
 
 // startup is called when the app starts. The context is saved
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+}
+
+func (a *App) shutdown(ctx context.Context) {
+	a.ctx = ctx
+	fmt.Println("Shutted down wails")
+}
+
+func (a *App) restartWithPath(restartPath string) error {
+	cmd := exec.Command(restartPath, os.Args[1:]...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	// FIXME: if the other app starts before the current one exits, it will fail in the main.go
+	// with open /home/dido/code/bmci-labs/orchestrator/adbfs-wails/build/bin/test-wails-temp: text file busy
+	err := cmd.Start()
+	if err != nil {
+		return fmt.Errorf("Failed to restart: %w", err)
+	}
+	runtime.Quit(a.ctx)
+	return nil
+}
+
+func (a *App) GetVersion() string {
+	return version
+}
+
+func (a *App) CheckAndApplyUpdate() error {
+	// FIXME: is the the "/" after the "http://127.0.0.1:3001/" is missing the update fails. Full URL http://127.0.0.1:3001/arduinoAppsLabs/Stable/linux-amd64.json
+	restartPath, err := updater.CheckForUpdates(version, a.updateBaseUrl, "arduinoAppsLabs/Stable")
+	if err != nil {
+		return fmt.Errorf("Error checking for updates: %w", err)
+	}
+	fmt.Println("Update available. Restart with ", restartPath)
+	if restartPath != "" {
+		return a.restartWithPath(restartPath)
+	}
+	return nil
+}
+
+type availableUpdateInfo struct {
+	Version string
+	Sha256  []byte
+}
+
+func (a *App) GetLatestVersion() (string, error) {
+	env := runtime.Environment(a.ctx)
+	fmt.Println("Arch:", env.Arch, "Platform:", env.Platform, "Type:", env.BuildType)
+	plat := env.Platform + "-" + env.Arch
+
+	// TODO: more robust way to generate the URL
+	infoURL := a.updateBaseUrl + "arduinoAppsLabs/Stable/" + plat + ".json"
+
+	fmt.Println("Fetching update info from", infoURL)
+	resp, err := http.Get(infoURL)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("bad http status from %s: %v", infoURL, resp.Status)
+	}
+	defer resp.Body.Close()
+
+	var res availableUpdateInfo
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return "", err
+	}
+	if len(res.Sha256) != sha256.Size {
+		return "", errors.New("bad cmd hash in info")
+	}
+	fmt.Println("Latest version:", res.Version)
+	return res.Version, nil
 }
 
 type FileInfo struct {
@@ -37,7 +120,7 @@ func (a *App) PullSync(localPath string, boardPath string) error {
 }
 
 func (a *App) PushSync(localPath string, boardPath string) error {
-	return adbfs.SyncFS(adbfs.AdbFSWriter{Base: boardPath}, os.DirFS(localPath))
+	return adbfs.SyncFS(adbfs.AdbFSWriter{adbfs.AdbFS{Base: boardPath}}, os.DirFS(localPath))
 }
 
 func (a *App) ListFiles(path string) ([]FileInfo, error) {
