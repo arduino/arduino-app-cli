@@ -22,6 +22,7 @@ import (
 	dockerClient "github.com/docker/docker/client"
 	"github.com/gosimple/slug"
 	"github.com/sirupsen/logrus"
+	"go.bug.st/f"
 	"gopkg.in/yaml.v3"
 
 	"github.com/arduino/arduino-app-cli/pkg/parser"
@@ -652,7 +653,7 @@ func getDevices() []string {
 }
 
 func compileUploadSketch(ctx context.Context, sketchPath, buildPath string, w io.Writer) error {
-	logrus.SetLevel(logrus.ErrorLevel)
+	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 	srv := commands.NewArduinoCoreServer()
 
 	var inst *rpc.Instance
@@ -706,10 +707,9 @@ func compileUploadSketch(ctx context.Context, sketchPath, buildPath string, w io
 	fmt.Println("\nAuto selected board:", name, "fqbn:", fqbn, "port:", port.Address)
 
 	// build the sketch
-	server, _ := commands.CompilerServerToStreams(ctx, w, w, nil)
+	server, getCompileResult := commands.CompilerServerToStreams(ctx, w, w, nil)
 
 	// TODO: add build cache
-	// TODO: maybe handle resultCB.GetDiagnostics()
 	err = srv.Compile(&rpc.CompileRequest{
 		Instance:   inst,
 		Fqbn:       fqbn,
@@ -719,6 +719,22 @@ func compileUploadSketch(ctx context.Context, sketchPath, buildPath string, w io
 	}, server)
 	if err != nil {
 		return err
+	}
+
+	// Output compilations details
+	result := getCompileResult()
+	f.Assert(result != nil, "Failed to get compilation result")
+	// TODO: maybe handle result.GetDiagnostics()
+	boardPlatform := result.GetBoardPlatform()
+	if boardPlatform != nil {
+		slog.Info("Board platform: " + boardPlatform.GetId() + " (" + boardPlatform.GetVersion() + ") in " + boardPlatform.GetInstallDir())
+	}
+	buildPlatform := result.GetBuildPlatform()
+	if buildPlatform != nil && buildPlatform.GetInstallDir() != boardPlatform.GetInstallDir() {
+		slog.Info("Build platform: " + buildPlatform.GetId() + " (" + buildPlatform.GetVersion() + ") in " + buildPlatform.GetInstallDir())
+	}
+	for _, lib := range result.GetUsedLibraries() {
+		slog.Info("Used library " + lib.GetName() + " (" + lib.GetVersion() + ") in " + lib.GetInstallDir())
 	}
 
 	stream, _ := commands.UploadToServerStreams(ctx, w, w)
