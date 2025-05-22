@@ -24,14 +24,19 @@ func ProvisionApp(ctx context.Context, docker *dockerClient.Client, app parser.A
 		return fmt.Errorf("provisioning failed to pull base image: %w", err)
 	}
 
-	resp, err := docker.ContainerCreate(ctx, &container.Config{
-		Image:      pythonImage,
-		User:       getCurrentUser(),
-		Entrypoint: []string{"/run.sh", "provision"},
-	}, &container.HostConfig{
-		Binds:      []string{app.FullPath.String() + ":/app"},
-		AutoRemove: true,
-	}, nil, nil, generateContainerName(app.Name))
+	resp, err := docker.ContainerCreate(
+		ctx,
+		&container.Config{
+			Image:      pythonImage,
+			User:       getCurrentUser(),
+			Entrypoint: []string{"/run.sh", "provision"},
+		}, &container.HostConfig{
+			Binds:      []string{app.FullPath.String() + ":/app"},
+			AutoRemove: true,
+		},
+		nil,
+		nil,
+		generateContainerName(app.Name))
 	if err != nil {
 		return fmt.Errorf("provisiong failed to create container: %w", err)
 	}

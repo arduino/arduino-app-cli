@@ -76,6 +76,10 @@ func ParseDescriptorFile(file *paths.Path) (AppDescriptor, error) {
 		return AppDescriptor{}, fmt.Errorf("cannot decode descriptor: %w", err)
 	}
 
+	if descriptor.Name == "" {
+		return AppDescriptor{}, fmt.Errorf("application name is empty")
+	}
+
 	return descriptor, validate(descriptor)
 }
 
