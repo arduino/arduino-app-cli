@@ -353,6 +353,9 @@ func AppDetails(ctx context.Context, app parser.App) (AppInfo, error) {
 			slog.Warn("unable to get default app", slog.String("error", err.Error()))
 			return
 		}
+		if defaultApp == nil {
+			return
+		}
 		defaultAppPath = defaultApp.FullPath.String()
 
 	}()

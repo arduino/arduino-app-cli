@@ -30,8 +30,6 @@ func newAppCmd(docker *dockerClient.Client) *cobra.Command {
 	appCmd.AddCommand(newPsCmd())
 	appCmd.AddCommand(newProvisionCmd(docker))
 	appCmd.AddCommand(newMonitorCmd())
-	appCmd.AddCommand(newSetDefaultCmd())
-	appCmd.AddCommand(newGetDefaultCmd())
 
 	return appCmd
 }
@@ -177,18 +175,47 @@ func renderDefaultApp(app *parser.App) {
 	}
 }
 
-func newSetDefaultCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "set-default app_path",
-		Short: "Set the default app",
-		Args:  cobra.MaximumNArgs(1),
+func newPropertiesCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "properties",
+		Short: "Manage apps properties",
+		Long:  "Manage apps properties, including setting and getting the default app.",
+	}
+
+	cmd.AddCommand(&cobra.Command{
+		Use:       "get default",
+		Short:     "Get properties, e.g., default",
+		ValidArgs: []string{"default"},
+		Args:      cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Remove default app.
 			if len(args) == 0 {
+				return cmd.Help()
+			}
+			def, err := orchestrator.GetDefaultApp()
+			if err != nil {
+				return err
+			}
+			renderDefaultApp(def)
+			return nil
+		},
+	})
+
+	cmd.AddCommand(&cobra.Command{
+		Use:       "set default <app_path>",
+		Short:     "Set properties, e.g., default",
+		Long:      "Set properties. Use 'none' to unset a property.",
+		ValidArgs: []string{"default"},
+		Args:      cobra.MaximumNArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return cmd.Help()
+			}
+			// Remove default app.
+			if len(args) == 1 || args[1] == "none" {
 				return orchestrator.SetDefaultApp(nil)
 			}
 
-			app, err := parser.Load(args[0])
+			app, err := parser.Load(args[1])
 			if err != nil {
 				return err
 			}
@@ -198,23 +225,9 @@ func newSetDefaultCmd() *cobra.Command {
 			renderDefaultApp(&app)
 			return nil
 		},
-	}
-}
+	})
 
-func newGetDefaultCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "get-default",
-		Short: "Get the default app",
-		Args:  cobra.MaximumNArgs(0),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			def, err := orchestrator.GetDefaultApp()
-			if err != nil {
-				return err
-			}
-			renderDefaultApp(def)
-			return nil
-		},
-	}
+	return cmd
 }
 
 func provisionHandler(ctx context.Context, docker *dockerClient.Client, app parser.App) error {
