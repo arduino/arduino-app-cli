@@ -109,4 +109,5 @@ require (
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
+	mkuznets.com/go/tabwriter v0.1.2
 )

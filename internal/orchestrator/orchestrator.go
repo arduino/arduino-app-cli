@@ -306,7 +306,7 @@ func ListApps(ctx context.Context, req ListAppRequest) (ListAppResult, error) {
 
 		resp, err := dockerComposeAppStatus(ctx, app)
 		if err != nil {
-			slog.Warn("unable to get app status", slog.String("error", err.Error()), slog.String("path", file.String()))
+			slog.Debug("unable to get app status", slog.String("error", err.Error()), slog.String("path", file.String()))
 		}
 		id, err := NewIDFromPath(app.FullPath)
 		if err != nil {

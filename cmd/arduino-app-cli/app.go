@@ -6,13 +6,15 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-
-	"github.com/arduino/arduino-app-cli/internal/orchestrator"
-	"github.com/arduino/arduino-app-cli/pkg/parser"
+	"os"
 
 	"github.com/arduino/go-paths-helper"
 	dockerClient "github.com/docker/docker/client"
 	"github.com/spf13/cobra"
+	"mkuznets.com/go/tabwriter"
+
+	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/pkg/parser"
 )
 
 func newAppCmd(docker *dockerClient.Client) *cobra.Command {
@@ -130,13 +132,18 @@ func newMonitorCmd() *cobra.Command {
 }
 
 func newListCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonFormat bool
+
+	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all running Python apps",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return listHandler(cmd.Context())
+			return listHandler(cmd.Context(), jsonFormat)
 		},
 	}
+
+	cmd.Flags().BoolVarP(&jsonFormat, "json", "", false, "Output the list in json format")
+	return cmd
 }
 
 func newPsCmd() *cobra.Command {
@@ -276,17 +283,36 @@ func logsHandler(ctx context.Context, app parser.App) error {
 	return nil
 }
 
-func listHandler(ctx context.Context) error {
+func listHandler(ctx context.Context, jsonFormat bool) error {
 	res, err := orchestrator.ListApps(ctx, orchestrator.ListAppRequest{ShowExamples: true})
 	if err != nil {
 		return nil
 	}
 
-	resJSON, err := json.Marshal(res)
-	if err != nil {
-		return nil
+	if jsonFormat {
+		// Print in JSON format.
+		resJSON, err := json.Marshal(res)
+		if err != nil {
+			return nil
+		}
+		fmt.Println(string(resJSON))
+	} else {
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0) // minwidth, tabwidth, padding, padchar, flags
+		fmt.Fprintln(w, "ID\tNAME\tICON\tDESCRIPTION\tSTATUS\tEXAMPLE")
+
+		for _, app := range res.Apps {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%t\n",
+				app.ID,
+				app.Name,
+				app.Icon,
+				app.Description,
+				app.Status,
+				app.Example,
+			)
+		}
+		w.Flush()
 	}
-	fmt.Println(string(resJSON))
+
 	return nil
 }
 
