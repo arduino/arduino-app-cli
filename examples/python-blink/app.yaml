@@ -1,0 +1,5 @@
+name: Python-Blinker 🎮
+description: An app showing how to blink an LED using Python.
+
+module-dependencies:
+  - arduino/mcu

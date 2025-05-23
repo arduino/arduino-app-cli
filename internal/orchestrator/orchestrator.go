@@ -8,12 +8,13 @@ import (
 	"iter"
 	"log"
 	"log/slog"
+	"net"
 	"os"
 	"os/user"
 	"path"
 	"path/filepath"
 	"runtime"
-	"slices"
+	"strings"
 	"sync"
 
 	"github.com/arduino/arduino-cli/commands"
@@ -25,6 +26,7 @@ import (
 	"go.bug.st/f"
 	"gopkg.in/yaml.v3"
 
+	"github.com/arduino/arduino-app-cli/cmd/router/msgpackrpc"
 	"github.com/arduino/arduino-app-cli/pkg/parser"
 )
 
@@ -39,7 +41,7 @@ var (
 
 func init() {
 	const dockerRegistry = "ghcr.io/bcmi-labs/"
-	const dockerPythonImage = "arduino/appslab-python-apps-base:0.0.2"
+	const dockerPythonImage = "arduino/appslab-python-apps-base:0.0.10"
 	// Registry base: contains the registry and namespace, common to all Arduino docker images.
 	registryBase := os.Getenv("DOCKER_REGISTRY_BASE")
 	if registryBase == "" {
@@ -662,6 +664,28 @@ func getDevices() []string {
 	return deviceList.AsStrings()
 }
 
+func disconnectSerialFromRPCRouter(ctx context.Context, portAddress string) func() {
+	c, err := net.Dial("tcp", ":8900")
+	if err != nil {
+		slog.Error("Failed to connect to router", "addr", ":8900", "err", err)
+		return func() {}
+	}
+	conn := msgpackrpc.NewConnection(c, c, nil, nil, nil)
+	go conn.Run()
+
+	if _, _, err := conn.SendRequest(ctx, "$/serial/close", []any{portAddress}); err != nil {
+		slog.Error("Failed to send $/serial/close request to router", "addr", ":8900", "err", err)
+	}
+
+	return func() {
+		defer c.Close()
+		defer conn.Close()
+		if _, _, err := conn.SendRequest(ctx, "$/serial/open", []any{portAddress}); err != nil {
+			slog.Error("Failed to send $/serial/open request to router", "addr", ":8900", "err", err)
+		}
+	}
+}
+
 func compileUploadSketch(ctx context.Context, sketchPath, buildPath string, w io.Writer) error {
 	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 	srv := commands.NewArduinoCoreServer()
@@ -704,16 +728,23 @@ func compileUploadSketch(ctx context.Context, sketchPath, buildPath string, w io
 		return err
 	}
 
-	idx := slices.IndexFunc(resp.Ports, func(p *rpc.DetectedPort) bool {
-		return len(p.MatchingBoards) > 0
-	})
-	if idx == -1 {
+	var name, fqbn string
+	var port *rpc.Port
+	for _, portItem := range resp.Ports {
+		for _, boardItem := range portItem.MatchingBoards {
+			if !strings.HasPrefix(boardItem.Fqbn, "arduino") {
+				continue
+			}
+			name = boardItem.Name
+			fqbn = boardItem.Fqbn
+			port = portItem.Port
+			break
+		}
+	}
+	if port == nil {
 		return fmt.Errorf("no board detected")
 	}
 
-	name := resp.Ports[idx].MatchingBoards[0].Name
-	fqbn := resp.Ports[idx].MatchingBoards[0].Fqbn
-	port := resp.Ports[idx].Port
 	fmt.Println("\nAuto selected board:", name, "fqbn:", fqbn, "port:", port.Address)
 
 	// build the sketch
@@ -747,18 +778,16 @@ func compileUploadSketch(ctx context.Context, sketchPath, buildPath string, w io
 		slog.Info("Used library " + lib.GetName() + " (" + lib.GetVersion() + ") in " + lib.GetInstallDir())
 	}
 
+	reconnect := disconnectSerialFromRPCRouter(ctx, port.Address)
+	defer reconnect()
+
 	stream, _ := commands.UploadToServerStreams(ctx, w, w)
-	err = srv.Upload(&rpc.UploadRequest{
+	return srv.Upload(&rpc.UploadRequest{
 		Instance:   inst,
 		Fqbn:       fqbn,
 		SketchPath: sketchPath,
 		Port:       port,
 	}, stream)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func getEmptySketch() string {
