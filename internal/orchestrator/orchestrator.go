@@ -787,6 +787,7 @@ func compileUploadSketch(ctx context.Context, sketchPath, buildPath string, w io
 		Fqbn:       fqbn,
 		SketchPath: sketchPath,
 		Port:       port,
+		ImportDir:  buildPath,
 	}, stream)
 }
 
