@@ -665,9 +665,10 @@ func getDevices() []string {
 }
 
 func disconnectSerialFromRPCRouter(ctx context.Context, portAddress string) func() {
-	c, err := net.Dial("tcp", ":8900")
+	var msgPackRouterAddr = paths.TempDir().Join("msgpack-router.sock").String()
+	c, err := net.Dial("unix", msgPackRouterAddr)
 	if err != nil {
-		slog.Error("Failed to connect to router", "addr", ":8900", "err", err)
+		slog.Error("Failed to connect to router", "addr", msgPackRouterAddr, "err", err)
 		return func() {}
 	}
 	conn := msgpackrpc.NewConnection(c, c, nil, nil, nil)
