@@ -90,6 +90,9 @@ func getProvisioningStateDir(app parser.App) (*paths.Path, error) {
 	return cacheDir, nil
 }
 
+const DockerAppLabel = "cc.arduino.app"
+const DockerAppPathLabel = "cc.arduino.app.path"
+
 func generateMainComposeFile(ctx context.Context, app parser.App, pythonImage string) error {
 	provisioningStateDir, err := getProvisioningStateDir(app)
 	if err != nil {
@@ -111,14 +114,15 @@ func generateMainComposeFile(ctx context.Context, app parser.App, pythonImage st
 	mainComposeFile := provisioningStateDir.Join("app-compose.yaml")
 
 	type service struct {
-		Image      string   `yaml:"image"`
-		DependsOn  []string `yaml:"depends_on,omitempty"`
-		Volumes    []string `yaml:"volumes"`
-		Devices    []string `yaml:"devices"`
-		Ports      []string `yaml:"ports"`
-		User       string   `yaml:"user"`
-		Entrypoint string   `yaml:"entrypoint"`
-		ExtraHosts []string `yaml:"extra_hosts,omitempty"`
+		Image      string            `yaml:"image"`
+		DependsOn  []string          `yaml:"depends_on,omitempty"`
+		Volumes    []string          `yaml:"volumes"`
+		Devices    []string          `yaml:"devices"`
+		Ports      []string          `yaml:"ports"`
+		User       string            `yaml:"user"`
+		Entrypoint string            `yaml:"entrypoint"`
+		ExtraHosts []string          `yaml:"extra_hosts,omitempty"`
+		Labels     map[string]string `yaml:"labels,omitempty"`
 	}
 	type mainService struct {
 		Main service `yaml:"main"`
@@ -175,6 +179,10 @@ func generateMainComposeFile(ctx context.Context, app parser.App, pythonImage st
 			DependsOn:  services,
 			User:       getCurrentUser(),
 			ExtraHosts: []string{"msgpack-rpc-router:host-gateway"},
+			Labels: map[string]string{
+				DockerAppLabel:     "true",
+				DockerAppPathLabel: app.FullPath.String(),
+			},
 		},
 	}
 	return writeMainCompose()

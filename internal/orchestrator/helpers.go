@@ -8,6 +8,9 @@ import (
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
+	dockerClient "github.com/docker/docker/client"
 
 	"github.com/arduino/arduino-app-cli/pkg/parser"
 )
@@ -75,4 +78,53 @@ func dockerComposeAppStatus(ctx context.Context, app parser.App) (DockerComposeA
 	}
 
 	return resp, nil
+}
+
+func getRunningApp(ctx context.Context, docker *dockerClient.Client) (*parser.App, error) {
+	getPythonApp := func() (*parser.App, error) {
+		containers, err := docker.ContainerList(ctx, container.ListOptions{
+			Filters: filters.NewArgs(filters.Arg("label", DockerAppLabel+"=true")),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to list containers: %w", err)
+		}
+		if len(containers) > 1 {
+			return nil, fmt.Errorf("multiple running apps found: %d", len(containers))
+		}
+		if len(containers) == 0 {
+			return nil, nil
+		}
+
+		container := containers[0]
+		inspect, err := docker.ContainerInspect(ctx, container.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to inspect container %s: %w", container.ID, err)
+		}
+		appPath, ok := inspect.Config.Labels[DockerAppPathLabel]
+		if !ok {
+			return nil, fmt.Errorf("failed to get config files for app %s", container.ID)
+		}
+
+		app, err := parser.Load(appPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load app %s: %w", appPath, err)
+		}
+		return &app, nil
+	}
+
+	getSketchApp := func() (*parser.App, error) {
+		// TODO: implement this function
+		return nil, nil
+	}
+
+	for _, get := range [](func() (*parser.App, error)){getPythonApp, getSketchApp} {
+		app, err := get()
+		if err != nil {
+			return nil, err
+		}
+		if app != nil {
+			return app, nil
+		}
+	}
+	return nil, nil
 }

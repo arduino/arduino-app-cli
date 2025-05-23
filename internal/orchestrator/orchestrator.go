@@ -112,6 +112,16 @@ func StartApp(ctx context.Context, docker *dockerClient.Client, app parser.App) 
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
+		running, err := getRunningApp(ctx, docker)
+		if err != nil {
+			yield(StreamMessage{error: err})
+			return
+		}
+		if running != nil {
+			yield(StreamMessage{error: fmt.Errorf("app %q is running", running.Name)})
+			return
+		}
+
 		callbackWriter := NewCallbackWriter(func(line string) {
 			if !yield(StreamMessage{data: line}) {
 				cancel()
