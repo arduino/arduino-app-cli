@@ -32,15 +32,15 @@ type AdbFSWriter struct {
 }
 
 func (a AdbFSWriter) MkDirAll(p string) error {
-	return adb.MkDirAll(path.Join(a.Base, p), a.AdbFS.Host)
+	return adb.MkDirAll(path.Join(a.Base, p), a.Host)
 }
 
 func (a AdbFSWriter) WriteFile(p string, data io.ReadCloser) error {
-	return adb.CatIn(data, path.Join(a.Base, p), a.AdbFS.Host)
+	return adb.CatIn(data, path.Join(a.Base, p), a.Host)
 }
 
 func (a AdbFSWriter) RmFile(p string) error {
-	return adb.Remove(path.Join(a.Base, p), a.AdbFS.Host)
+	return adb.Remove(path.Join(a.Base, p), a.Host)
 }
 
 type AdbFile struct {
