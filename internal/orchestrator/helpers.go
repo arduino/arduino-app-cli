@@ -11,6 +11,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	dockerClient "github.com/docker/docker/client"
+	"github.com/gosimple/slug"
 
 	"github.com/arduino/arduino-app-cli/pkg/parser"
 )
@@ -45,9 +46,12 @@ func dockerComposeAppStatus(ctx context.Context, app parser.App) (DockerComposeA
 	if err != nil {
 		return DockerComposeAppStatusResponse{}, err
 	}
-	composeName := app.FullPath.Base()
+	composeProjectName, err := getAppComposeProjectNameFromApp(app)
+	if err != nil {
+		return DockerComposeAppStatusResponse{}, err
+	}
 
-	process, err := paths.NewProcess(nil, "docker", "compose", "-f", mainCompose.String(), "ls", "--format", "json", "--all", "--filter", fmt.Sprintf("name=%s", composeName))
+	process, err := paths.NewProcess(nil, "docker", "compose", "-f", mainCompose.String(), "ls", "--format", "json", "--all", "--filter", fmt.Sprintf("name=%s", composeProjectName))
 	if err != nil {
 		return DockerComposeAppStatusResponse{}, err
 	}
@@ -67,17 +71,27 @@ func dockerComposeAppStatus(ctx context.Context, app parser.App) (DockerComposeA
 	if len(statusResponse) == 0 {
 		return DockerComposeAppStatusResponse{}, fmt.Errorf("failed to find app status in docker compose response")
 	}
-	// We only want the first response, as we are filtering by name
-	resp := statusResponse[0]
+	// It is possible that the --filter returns multiple items as it's not an exact match
+	var match DockerComposeAppStatusResponse
+	for _, v := range statusResponse {
+		if v.Name == composeProjectName {
+			match = v
+			break
+		}
+	}
+
+	if match == (DockerComposeAppStatusResponse{}) {
+		return DockerComposeAppStatusResponse{}, fmt.Errorf("failed to find app status in docker compose response")
+	}
 
 	// The response from compose is in the form of "state(number_services)". Example: "running(2)"
 	// We only want the state, so we remove the number of services
-	idx := strings.Index(resp.Status, "(")
+	idx := strings.Index(match.Status, "(")
 	if idx != -1 {
-		resp.Status = resp.Status[:idx]
+		match.Status = match.Status[:idx]
 	}
 
-	return resp, nil
+	return match, nil
 }
 
 func getRunningApp(ctx context.Context, docker *dockerClient.Client) (*parser.App, error) {
@@ -127,4 +141,12 @@ func getRunningApp(ctx context.Context, docker *dockerClient.Client) (*parser.Ap
 		}
 	}
 	return nil, nil
+}
+
+func getAppComposeProjectNameFromApp(app parser.App) (string, error) {
+	composeProjectName, err := app.FullPath.RelFrom(orchestratorConfig.AppsDir())
+	if err != nil {
+		return "", fmt.Errorf("failed to get compose project name: %w", err)
+	}
+	return slug.Make(composeProjectName.String()), nil
 }

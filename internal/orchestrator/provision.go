@@ -12,7 +12,6 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/docker/api/types/container"
 	dockerClient "github.com/docker/docker/client"
-	"github.com/gosimple/slug"
 	"go.bug.st/f"
 	"gopkg.in/yaml.v3"
 )
@@ -144,13 +143,12 @@ func generateMainComposeFile(ctx context.Context, app parser.App, pythonImage st
 	}
 
 	// Merge compose
-	mainAppCompose.Include = composeFiles.AsStrings()
-
-	composeProjectName, err := app.FullPath.RelFrom(orchestratorConfig.AppsDir())
+	composeProjectName, err := getAppComposeProjectNameFromApp(app)
 	if err != nil {
-		return fmt.Errorf("failed to get compose project name: %w", err)
+		return err
 	}
-	mainAppCompose.Name = slug.Make(composeProjectName.String())
+	mainAppCompose.Name = composeProjectName
+	mainAppCompose.Include = composeFiles.AsStrings()
 	if err := writeMainCompose(); err != nil {
 		return err
 	}
