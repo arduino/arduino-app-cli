@@ -12,6 +12,7 @@ import (
 	"github.com/arduino/arduino-app-cli/pkg/httprecover"
 
 	dockerClient "github.com/docker/docker/client"
+	"github.com/jub0bs/cors"
 	"github.com/spf13/cobra"
 )
 
@@ -43,9 +44,36 @@ func httpHandler(ctx context.Context, dockerClient *dockerClient.Client, daemonP
 	slog.Info("Starting HTTP server", slog.String("address", ":"+daemonPort))
 	apiSrv := api.NewHTTPRouter(dockerClient, Version)
 
+	corsMiddlware, err := cors.NewMiddleware(
+		cors.Config{
+			Origins: []string{
+				"wails://wails.localhost:34115",
+				"http://localhost:*", "https://localhost:*",
+			},
+			Methods: []string{
+				http.MethodGet,
+				http.MethodPost,
+				http.MethodPut,
+				http.MethodOptions,
+				http.MethodDelete,
+				http.MethodPatch,
+			},
+			RequestHeaders: []string{
+				"Accept",
+				"Authorization",
+				"Content-Type",
+			},
+			MaxAgeInSeconds: 86400,
+			ResponseHeaders: []string{},
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
+
 	httpSrv := http.Server{
 		Addr:              ":" + daemonPort,
-		Handler:           httprecover.RecoverPanic(apiSrv),
+		Handler:           httprecover.RecoverPanic(corsMiddlware.Wrap(apiSrv)),
 		ReadHeaderTimeout: 60 * time.Second,
 	}
 	go func() {
