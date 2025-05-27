@@ -21,6 +21,8 @@ func NewHTTPRouter(dockerClient *dockerClient.Client, version string) http.Handl
 			Version: version,
 		})
 	})
+	mux.Handle("GET /v1/bricks", handlers.HandleBrickList())
+	mux.Handle("GET /v1/bricks/{id...}", handlers.HandleBrickDetails())
 
 	mux.Handle("GET /v1/apps", handlers.HandleAppList(dockerClient))
 	mux.Handle("POST /v1/apps", handlers.HandleAppCreate(dockerClient))

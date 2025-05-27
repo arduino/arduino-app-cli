@@ -1,6 +1,6 @@
 name: Image detection with UI
-description: Image detection with UI
 icon: 📷
+description: Image detection with UI
 
 ports:
   - 7860

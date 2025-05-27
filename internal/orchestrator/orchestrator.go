@@ -24,16 +24,25 @@ import (
 	"github.com/gosimple/slug"
 	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
+	semver "go.bug.st/relaxed-semver"
 	"gopkg.in/yaml.v3"
 
 	"github.com/arduino/arduino-app-cli/cmd/router/msgpackrpc"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/pkg/parser"
 )
 
 var (
 	pythonImage        string
+	usedPythonImageTag string
+
 	orchestratorConfig *OrchestratorConfig
 
+	bricksIndex   *bricksindex.BricksIndex
+	bricksVersion *semver.Version
+)
+
+var (
 	ErrAppAlreadyExists = fmt.Errorf("app already exists")
 	ErrAppDoesntExists  = fmt.Errorf("app doesn't exist")
 	ErrInvalidApp       = fmt.Errorf("invalid app")
@@ -63,6 +72,28 @@ func init() {
 		panic(fmt.Errorf("failed to load orchestrator config: %w", err))
 	}
 	orchestratorConfig = cfg
+
+	index, err := bricksindex.GenerateBricksIndex()
+	if err != nil {
+		panic(fmt.Errorf("failed to generate bricks index: %w", err))
+	}
+	bricksIndex = index
+
+	if idx := strings.LastIndex(pythonImage, ":"); idx != -1 {
+		usedPythonImageTag = pythonImage[idx+1:]
+	}
+
+	collection, found := bricksIndex.GetCollection("arduino", "app-bricks")
+	if !found {
+		panic(fmt.Errorf("bricks index: arduino collection not found"))
+	}
+
+	chosenVersion, _ := semver.Parse(usedPythonImageTag)
+	if _, found := collection.GetRelease(chosenVersion); found {
+		bricksVersion = chosenVersion
+	} else {
+		bricksVersion = collection.LatestRelease
+	}
 }
 
 type AppStreamMessage struct {

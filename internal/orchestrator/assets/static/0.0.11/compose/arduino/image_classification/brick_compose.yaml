@@ -1,0 +1,5 @@
+services:
+  models-runner:
+    image: ${DOCKER_REGISTRY_BASE:-ghcr.io/bcmi-labs/}arduino/appslab-models-runner:0.0.11
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${BIND_PORT:-8100}:8100"

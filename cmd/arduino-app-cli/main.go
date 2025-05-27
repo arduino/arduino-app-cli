@@ -34,6 +34,7 @@ func main() {
 
 	rootCmd.AddCommand(
 		newAppCmd(docker),
+		newBrickCmd(),
 		newCompletionCommand(),
 		newDaemonCmd(docker),
 		newPropertiesCmd(),

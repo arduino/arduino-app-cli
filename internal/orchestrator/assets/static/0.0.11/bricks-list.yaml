@@ -1,0 +1,77 @@
+bricks:
+  - name: arduino/object_detection
+    description: Simple module for general purpose object detection.
+    require_container: true
+    variables:
+      - name: BIND_ADDRESS
+        default_value: 127.0.0.1
+      - name: BIND_PORT
+        default_value: "8100"
+  - name: arduino/pose_detection
+    description: Simple module for general purpose pose detection on image.
+    require_container: true
+    variables:
+      - name: BIND_ADDRESS
+        default_value: 127.0.0.1
+      - name: BIND_PORT
+        default_value: "8100"
+  - name: arduino/mcu
+    description: Module suitable to perform bi-directional communication to board installed
+      MCU.
+    require_container: false
+  - name: arduino/dbstorage_sqlite
+    description: Simplified database storage layer for Arduino sensor data using SQLite
+      local database.
+    require_container: false
+  - name: arduino/weather_forecast
+    description: Online weather forecast module for Arduino using open-meteo.com geolocation
+      and weather APIs. Requires an internet connection.
+    require_container: false
+  - name: arduino/camera_input
+    description: Acquire a video feed from a connected camera
+    require_container: false
+  - name: arduino/edge_impulse
+    description: Image classification and object detection made easy using Edge Impulse
+    require_container: true
+    variables:
+      - name: BIND_ADDRESS
+        default_value: 127.0.0.1
+        description: external container address
+      - name: BIND_PORT
+        default_value: "1337"
+        description: container port
+      - name: EI_PROJECT_API_KEY
+        description: Edge Impulse project API key
+  - name: arduino/image_classification
+    description: Simple module for general purpose image classification.
+    require_container: true
+    variables:
+      - name: BIND_ADDRESS
+        default_value: 127.0.0.1
+      - name: BIND_PORT
+        default_value: "8100"
+  - name: arduino/mqtt
+    description: MQTT connector module. Acts as a client for receiving and publishing
+      messages to an MQTT broker.
+    require_container: false
+  - name: arduino/dbstorage_influxdb
+    description: Simplified database storage layer for Arduino sensor data using InfluxDB.
+    require_container: true
+    variables:
+      - name: APP_HOME
+        default_value: .
+      - name: BIND_ADDRESS
+        default_value: 127.0.0.1
+        description: external container address
+      - name: BIND_PORT
+        default_value: "8086"
+        description: container port
+      - name: DB_PASSWORD
+        default_value: Arduino15
+        description: Database password
+      - name: DB_USERNAME
+        default_value: admin
+        description: Edge Impulse project API key
+      - name: INFLUXDB_ADMIN_TOKEN
+        default_value: 392edbf2-b8a2-481f-979d-3f188b2c05f0
+        description: InfluxDB admin token

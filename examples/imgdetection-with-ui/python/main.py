@@ -1,5 +1,5 @@
-from appslab.modules.objectdetection import ObjectDetection
-from appslab.core.image import draw_bounding_boxes
+from arduino.app_bricks.objectdetection import ObjectDetection
+from arduino.app_utils import draw_bounding_boxes
 import logging
 import gradio as gr
 import time

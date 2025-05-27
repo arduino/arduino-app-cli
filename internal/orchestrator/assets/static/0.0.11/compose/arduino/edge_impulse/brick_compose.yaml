@@ -1,0 +1,19 @@
+# BIND_ADDRESS = external container address
+# BIND_PORT = container port
+# EI_PROJECT_API_KEY = Edge Impulse project API key
+services:
+  ei-inference:
+    image: public.ecr.aws/g7a8t7v6/inference-container:48cd3f0d76c701a6070a27a8d9487d1733c155aa
+    restart: unless-stopped
+    ports:
+      - ${BIND_ADDRESS:-127.0.0.1}:${BIND_PORT:-1337}:1337
+    command: [
+      "--api-key",
+      "${EI_PROJECT_API_KEY}",
+      "--force-variant",
+      "float32",
+      "--force-engine",
+      "tflite",
+      "--run-http-server",
+      "1337",
+    ]

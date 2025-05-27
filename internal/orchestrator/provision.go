@@ -2,10 +2,16 @@ package orchestrator
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"strings"
+	"time"
 
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/assets"
 	"github.com/arduino/arduino-app-cli/pkg/parser"
 
 	"github.com/arduino/go-paths-helper"
@@ -16,6 +22,60 @@ import (
 )
 
 func ProvisionApp(ctx context.Context, docker *dockerClient.Client, app parser.App) error {
+	start := time.Now()
+	defer func() {
+		slog.Info("Provisioning took", "duration", time.Since(start).String())
+	}()
+
+	var containsThirdPartyDeps bool
+	for _, dep := range app.Descriptor.Bricks {
+		if !strings.HasPrefix(dep.Name, "arduino/") {
+			containsThirdPartyDeps = true
+			break
+		}
+	}
+	// In case in local development we use a tag that is not in the index we
+	// fallback to dynamicProvisioning
+	if containsThirdPartyDeps || usedPythonImageTag != bricksVersion.String() {
+		if err := dynamicProvisioning(ctx, docker, app); err != nil {
+			return err
+		}
+	} else {
+		cFS, err := fs.Sub(assets.FS, filepath.Join("static", bricksVersion.String()))
+		if err != nil {
+			return fmt.Errorf("failed to read assets directory: %w", err)
+		}
+
+		provisioningStateDir, err := getProvisioningStateDir(app)
+		if err != nil {
+			return err
+		}
+		if err := os.CopyFS(provisioningStateDir.String(), cFS); err != nil {
+			if errors.Is(err, fs.ErrExist) {
+				if err := provisioningStateDir.Join("bricks-list.yaml").Remove(); err != nil {
+					return err
+				}
+				if err := provisioningStateDir.Join("compose").RemoveAll(); err != nil {
+					return err
+				}
+				if err := provisioningStateDir.Join("docs").RemoveAll(); err != nil {
+					return err
+				}
+
+				// try again
+				if err := os.CopyFS(provisioningStateDir.String(), cFS); err != nil {
+					return err
+				}
+			} else {
+				return fmt.Errorf("failed to copy assets directory: %w", err)
+			}
+		}
+	}
+
+	return generateMainComposeFile(ctx, app, pythonImage)
+}
+
+func dynamicProvisioning(ctx context.Context, docker *dockerClient.Client, app parser.App) error {
 	if err := pullBasePythonContainer(ctx, pythonImage); err != nil {
 		return fmt.Errorf("provisioning failed to pull base image: %w", err)
 	}
@@ -50,8 +110,7 @@ func ProvisionApp(ctx context.Context, docker *dockerClient.Client, app parser.A
 	case err := <-errCh:
 		return fmt.Errorf("provisioning failed: %w", err)
 	}
-
-	return generateMainComposeFile(ctx, app, pythonImage)
+	return nil
 }
 
 func pullBasePythonContainer(ctx context.Context, pythonImage string) error {
