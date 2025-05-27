@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"log/slog"
 	"net/http"
 
@@ -37,5 +38,48 @@ func HandleAppDetails(dockerClient *dockerClient.Client) HandlerAppFunc {
 			return
 		}
 		render.EncodeResponse(w, http.StatusOK, res)
+	}
+}
+
+func HandleAppDetailsEdits() HandlerAppFunc {
+	return func(w http.ResponseWriter, r *http.Request, id orchestrator.ID) {
+		if id == "" {
+			render.EncodeResponse(w, http.StatusPreconditionFailed, "id must be set")
+			return
+		}
+		appPath, err := id.ToPath()
+		if err != nil {
+			render.EncodeResponse(w, http.StatusPreconditionFailed, "invalid id")
+			return
+		}
+
+		app, err := parser.Load(appPath.String())
+		if err != nil {
+			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", string(id)))
+			render.EncodeResponse(w, http.StatusInternalServerError, "unable to find the app")
+			return
+		}
+
+		type EditRequest struct {
+			Default *bool `json:"default,omitempty"`
+		}
+
+		var editRequest EditRequest
+		if err := json.NewDecoder(r.Body).Decode(&editRequest); err != nil {
+			slog.Error("Unable to decode the request body", slog.String("error", err.Error()))
+			render.EncodeResponse(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+
+		err = orchestrator.EditApp(orchestrator.AppEditRequest{
+			Default: editRequest.Default,
+		}, &app)
+		if err != nil {
+			slog.Error("Unable to edit the app", slog.String("error", err.Error()))
+			render.EncodeResponse(w, http.StatusInternalServerError, "unable to edit the app")
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
 	}
 }

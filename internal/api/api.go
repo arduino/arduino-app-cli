@@ -29,7 +29,6 @@ func NewHTTPRouter(dockerClient *dockerClient.Client, version string) http.Handl
 
 	appLogsHandler := handlers.HandleAppLogs(dockerClient)
 	appEventsHandler := handlers.HandleAppEvents(dockerClient)
-	appGetVariablesHandler := handlers.HandleAppGetVariables(dockerClient)
 	appDetailsHandler := handlers.HandleAppDetails(dockerClient)
 	mux.HandleFunc("GET /v1/apps/{path...}", func(w http.ResponseWriter, r *http.Request) {
 		path := r.PathValue("path")
@@ -40,24 +39,15 @@ func NewHTTPRouter(dockerClient *dockerClient.Client, version string) http.Handl
 		case strings.HasSuffix(path, "/events"):
 			id := strings.TrimSuffix(path, "/events")
 			appEventsHandler(w, r, orchestrator.ID(id))
-		case strings.HasSuffix(path, "/variables"):
-			id := strings.TrimSuffix(path, "/variables")
-			appGetVariablesHandler(w, r, orchestrator.ID(id))
 		default:
 			appDetailsHandler(w, r, orchestrator.ID(path))
 		}
 	})
 
-	appSetVariablesHandler := handlers.HandleAppSetVariables(dockerClient)
+	appDetailsEditsHandler := handlers.HandleAppDetailsEdits()
 	mux.HandleFunc("PATCH /v1/apps/{path...}", func(w http.ResponseWriter, r *http.Request) {
 		path := r.PathValue("path")
-		switch {
-		case strings.HasSuffix(path, "/variables"):
-			id := strings.TrimSuffix(path, "/variables")
-			appSetVariablesHandler(w, r, orchestrator.ID(id))
-		default:
-			handlers.HandleAppPropertyChanges(w, r, orchestrator.ID(path))
-		}
+		appDetailsEditsHandler(w, r, orchestrator.ID(path))
 	})
 
 	startHandler := handlers.HandleAppStart(dockerClient)

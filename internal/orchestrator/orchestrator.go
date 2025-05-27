@@ -621,7 +621,10 @@ func SetDefaultApp(app *parser.App) error {
 
 	// Remove the default app file if the app is nil.
 	if app == nil {
-		_ = defaultAppPath.Remove()
+		err := defaultAppPath.Remove()
+		if err != nil {
+			slog.Warn("failed to remove default app file", slog.String("path", defaultAppPath.String()), slog.String("error", err.Error()))
+		}
 		return nil
 	}
 
@@ -666,6 +669,48 @@ func GetDefaultApp() (*parser.App, error) {
 	}
 
 	return &app, nil
+}
+
+type AppEditRequest struct {
+	Default   *bool
+	Variables *map[string]struct{}
+}
+
+func EditApp(req AppEditRequest, app *parser.App) error {
+	if req.Default != nil {
+		if err := editAppDefaults(app, *req.Default); err != nil {
+			return fmt.Errorf("failed to edit app defaults: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func editAppDefaults(app *parser.App, isDefault bool) error {
+	if isDefault {
+		if err := SetDefaultApp(app); err != nil {
+			return fmt.Errorf("failed to set default app: %w", err)
+		}
+		return nil
+	}
+
+	defaultApp, err := GetDefaultApp()
+	if err != nil {
+		return fmt.Errorf("failed to get default app: %w", err)
+	}
+
+	// No default app set, nothing to unset.
+	if defaultApp == nil {
+		return nil
+	}
+
+	// Unset only if the current default is the same as the app being edited.
+	if defaultApp.FullPath.String() == app.FullPath.String() {
+		if err := SetDefaultApp(nil); err != nil {
+			return fmt.Errorf("failed to unset default app: %w", err)
+		}
+	}
+	return nil
 }
 
 func getCurrentUser() string {
