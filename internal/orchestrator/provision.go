@@ -161,6 +161,7 @@ func generateMainComposeFile(ctx context.Context, app parser.App, pythonImage st
 		Devices    []string          `yaml:"devices"`
 		Ports      []string          `yaml:"ports"`
 		User       string            `yaml:"user"`
+		GroupAdd   []string          `yaml:"group_add"`
 		Entrypoint string            `yaml:"entrypoint"`
 		ExtraHosts []string          `yaml:"extra_hosts,omitempty"`
 		Labels     map[string]string `yaml:"labels,omitempty"`
@@ -218,6 +219,7 @@ func generateMainComposeFile(ctx context.Context, app parser.App, pythonImage st
 			Entrypoint: "/run.sh",
 			DependsOn:  services,
 			User:       getCurrentUser(),
+			GroupAdd:   []string{"dialout", "video", "audio"},
 			ExtraHosts: []string{"msgpack-rpc-router:host-gateway"},
 			Labels: map[string]string{
 				DockerAppLabel:     "true",
