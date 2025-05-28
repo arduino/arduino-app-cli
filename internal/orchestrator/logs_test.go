@@ -7,35 +7,37 @@ import (
 )
 
 func TestConvertDockerLogsToMessage(t *testing.T) {
+	serviceBrickMapping := map[string]string{"models-runner": "my-brick"}
 	log1 := `models-runner-1  | INFO: Created TensorFlow Lite XNNPACK delegate for CPU.`
 	assert.Equal(t, LogMessage{
-		Name:    "models-runner",
-		Content: "INFO: Created TensorFlow Lite XNNPACK delegate for CPU.",
-	}, convertDockerLogToLogMessage(log1))
+		Name:      "models-runner",
+		BrickName: "my-brick",
+		Content:   "INFO: Created TensorFlow Lite XNNPACK delegate for CPU.",
+	}, convertDockerLogToLogMessage(log1, serviceBrickMapping))
 
 	log2 := `main-1           | Using CPython 3.13.3 interpreter at: /usr/local/bin/python`
 	assert.Equal(t, LogMessage{
 		Name:    "main",
 		Content: "Using CPython 3.13.3 interpreter at: /usr/local/bin/python",
-	}, convertDockerLogToLogMessage(log2))
+	}, convertDockerLogToLogMessage(log2, serviceBrickMapping))
 
 	log3 := `|`
 	assert.Equal(t, LogMessage{
 		Name:    "",
 		Content: "",
-	}, convertDockerLogToLogMessage(log3))
+	}, convertDockerLogToLogMessage(log3, serviceBrickMapping))
 
 	log4 := `main-1 |`
 	assert.Equal(t, LogMessage{
 		Name:    "main",
 		Content: "",
-	}, convertDockerLogToLogMessage(log4))
+	}, convertDockerLogToLogMessage(log4, serviceBrickMapping))
 
 	log5 := "main-1 |\n"
 	assert.Equal(t, LogMessage{
 		Name:    "main",
 		Content: "",
-	}, convertDockerLogToLogMessage(log5))
+	}, convertDockerLogToLogMessage(log5, serviceBrickMapping))
 
 	// Non parsable cases
 	for _, log := range []string{
@@ -46,6 +48,6 @@ func TestConvertDockerLogsToMessage(t *testing.T) {
 		assert.Equal(t, LogMessage{
 			Name:    "",
 			Content: log,
-		}, convertDockerLogToLogMessage(log))
+		}, convertDockerLogToLogMessage(log, serviceBrickMapping))
 	}
 }

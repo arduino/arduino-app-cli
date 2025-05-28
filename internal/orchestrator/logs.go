@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"log/slog"
 	"strings"
 
 	"github.com/arduino/arduino-app-cli/pkg/parser"
@@ -21,8 +22,9 @@ type AppLogsRequest struct {
 }
 
 type LogMessage struct {
-	Name    string
-	Content string
+	Name      string
+	BrickName string
+	Content   string
 }
 
 func AppLogs(ctx context.Context, app parser.App, req AppLogsRequest) (iter.Seq[LogMessage], error) {
@@ -33,6 +35,24 @@ func AppLogs(ctx context.Context, app parser.App, req AppLogsRequest) (iter.Seq[
 	provisioningStateDir, err := getProvisioningStateDir(app)
 	if err != nil {
 		return nil, err
+	}
+
+	// Obtain mapping compose service name <-> brick name
+	serviceToBrickMapping := make(map[string]string, len(app.Descriptor.Bricks))
+	for _, brick := range app.Descriptor.Bricks {
+		composeFilePath := provisioningStateDir.Join("compose", brick.Name, "brick_compose.yaml")
+		if composeFilePath.Exist() {
+			services, err := dockerComposeListServices(ctx, composeFilePath)
+			if err != nil {
+				return x.EmptyIter[LogMessage](), err
+			}
+			for i := range services {
+				serviceToBrickMapping[services[i]] = brick.Name
+			}
+			slog.Debug("Brick compose file found", slog.String("module", brick.Name), slog.String("path", composeFilePath.String()))
+		} else {
+			slog.Debug("Brick compose file not found", slog.String("module", brick.Name), slog.String("path", composeFilePath.String()))
+		}
 	}
 
 	mainCompose := provisioningStateDir.Join("app-compose.yaml")
@@ -70,7 +90,7 @@ func AppLogs(ctx context.Context, app parser.App, req AppLogsRequest) (iter.Seq[
 	}
 	return func(yield func(LogMessage) bool) {
 		stdout := NewCallbackWriter(func(line string) {
-			if !yield(convertDockerLogToLogMessage(line)) {
+			if !yield(convertDockerLogToLogMessage(line, serviceToBrickMapping)) {
 				return
 			}
 		})
@@ -82,7 +102,7 @@ func AppLogs(ctx context.Context, app parser.App, req AppLogsRequest) (iter.Seq[
 	}, nil
 }
 
-func convertDockerLogToLogMessage(m string) LogMessage {
+func convertDockerLogToLogMessage(m string, serviceToBrickMapping map[string]string) LogMessage {
 	serviceName, content, found := strings.Cut(m, "|")
 	if !found {
 		return LogMessage{Content: m}
@@ -95,7 +115,8 @@ func convertDockerLogToLogMessage(m string) LogMessage {
 		serviceName = serviceName[:idx]
 	}
 	return LogMessage{
-		Name:    serviceName,
-		Content: strings.TrimSpace(content),
+		Name:      serviceName,
+		BrickName: serviceToBrickMapping[serviceName],
+		Content:   strings.TrimSpace(content),
 	}
 }

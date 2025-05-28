@@ -72,6 +72,7 @@ func HandleAppLogs(dockerClient *dockerClient.Client) HandlerAppFunc {
 
 		type log struct {
 			ID      string `json:"id"`
+			BrickID string `json:"brick_id,omitempty"`
 			Message string `json:"message"`
 		}
 		messagesIter, err := orchestrator.AppLogs(r.Context(), app, appLogsRequest)
@@ -86,6 +87,7 @@ func HandleAppLogs(dockerClient *dockerClient.Client) HandlerAppFunc {
 			sseStream.Send(render.SSEEvent{Type: "message", Data: log{
 				ID:      item.Name,
 				Message: item.Content,
+				BrickID: item.BrickName,
 			}})
 		}
 	}
