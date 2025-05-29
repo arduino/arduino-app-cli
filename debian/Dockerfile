@@ -28,10 +28,12 @@ RUN apt-get update && apt-get install -y sed
 COPY ./debian/${DEB_NAME} /${DEB_NAME}/
 COPY --from=go /app/${BINARY_NAME} /${DEB_NAME}/usr/bin/${BINARY_NAME}
 
-RUN sed -i "s/ARCH/${ARCH}/" /${DEB_NAME}/DEBIAN/control && \
-    sed -i "s/VERSION/${VERSION}/" /${DEB_NAME}/DEBIAN/control && \
-    dpkg-deb --build --root-owner-group /${DEB_NAME} &&\
-    mv /${DEB_NAME}.deb "/${DEB_NAME}_${VERSION}-${REVISION}_${ARCH}.deb"
+# Go application are tagged with `v` prefix, this remove the first v if present
+RUN export VERSION=$(echo "${VERSION}" | sed -e "s/^v\(.*\)/\1/") && \
+  sed -i "s/ARCH/${ARCH}/" /${DEB_NAME}/DEBIAN/control && \
+  sed -i "s/VERSION/${VERSION}/" /${DEB_NAME}/DEBIAN/control && \
+  dpkg-deb --build --root-owner-group /${DEB_NAME} &&\
+  mv /${DEB_NAME}.deb "/${DEB_NAME}_${VERSION}-${REVISION}_${ARCH}.deb"
 
 FROM scratch
 
