@@ -1,6 +1,10 @@
 #include <Arduino_RPClite.h>
 
+#ifdef jomla
+#define MSGPACKRPC Serial1
+#else
 #define MSGPACKRPC SerialUSB
+#endif
 
 SerialTransport transport(&MSGPACKRPC);
 RPCServer server(transport);
