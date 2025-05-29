@@ -211,7 +211,7 @@ func TestEditApp(t *testing.T) {
 
 			currentDefaultApp, err := GetDefaultApp()
 			require.NoError(t, err)
-			require.Equal(t, appDir, currentDefaultApp.FullPath)
+			require.True(t, appDir.EquivalentTo(currentDefaultApp.FullPath))
 		})
 		t.Run("previously default", func(t *testing.T) {
 			app := f.Must(parser.Load(appDir.String()))
@@ -220,7 +220,7 @@ func TestEditApp(t *testing.T) {
 
 			previousDefaultApp, err := GetDefaultApp()
 			require.NoError(t, err)
-			require.Equal(t, appDir, previousDefaultApp.FullPath)
+			require.True(t, appDir.EquivalentTo(previousDefaultApp.FullPath))
 
 			err = EditApp(AppEditRequest{Default: f.Ptr(false)}, &app)
 			require.NoError(t, err)
