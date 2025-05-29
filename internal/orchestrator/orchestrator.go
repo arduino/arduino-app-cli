@@ -23,6 +23,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 	dockerClient "github.com/docker/docker/client"
 	"github.com/goccy/go-yaml"
+	"github.com/google/renameio/v2"
 	"github.com/gosimple/slug"
 	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
@@ -658,18 +659,7 @@ func SetDefaultApp(app *parser.App) error {
 		return nil
 	}
 
-	f, err := os.CreateTemp("", "")
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	_, err = f.WriteString(app.FullPath.String())
-	if err != nil {
-		return err
-	}
-	f.Close()
-
-	return os.Rename(f.Name(), defaultAppPath.String())
+	return renameio.WriteFile(defaultAppPath.String(), []byte(app.FullPath.String()), os.FileMode(0644))
 }
 
 func GetDefaultApp() (*parser.App, error) {

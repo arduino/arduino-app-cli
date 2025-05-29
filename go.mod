@@ -12,7 +12,7 @@ require (
 	github.com/docker/docker v28.0.4+incompatible
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/goccy/go-yaml v1.17.1
-	github.com/google/renameio v1.0.1
+	github.com/google/renameio/v2 v2.0.0
 	github.com/gosimple/slug v1.15.0
 	github.com/jub0bs/cors v0.5.9
 	github.com/sirupsen/logrus v1.9.3

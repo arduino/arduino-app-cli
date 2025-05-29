@@ -7,7 +7,7 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
-	"github.com/google/renameio"
+	"github.com/google/renameio/v2"
 )
 
 // App holds all the files composing an app
