@@ -30,7 +30,6 @@ func newAppCmd(docker *dockerClient.Client) *cobra.Command {
 	appCmd.AddCommand(newLogsCmd())
 	appCmd.AddCommand(newListCmd())
 	appCmd.AddCommand(newPsCmd())
-	appCmd.AddCommand(newProvisionCmd(docker))
 	appCmd.AddCommand(newMonitorCmd())
 
 	return appCmd
@@ -156,24 +155,6 @@ func newPsCmd() *cobra.Command {
 	}
 }
 
-func newProvisionCmd(docker *dockerClient.Client) *cobra.Command {
-	return &cobra.Command{
-		Use:   "provision app_path",
-		Short: "Makes sure the Python app deps are downloaded and running",
-		Args:  cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				return cmd.Help()
-			}
-			app, err := parser.Load(args[0])
-			if err != nil {
-				return err
-			}
-			return provisionHandler(cmd.Context(), docker, app)
-		},
-	}
-}
-
 func renderDefaultApp(app *parser.App) {
 	if app == nil {
 		fmt.Println("No default app set")
@@ -235,13 +216,6 @@ func newPropertiesCmd() *cobra.Command {
 	})
 
 	return cmd
-}
-
-func provisionHandler(ctx context.Context, docker *dockerClient.Client, app parser.App) error {
-	if err := orchestrator.ProvisionApp(ctx, docker, app); err != nil {
-		return err
-	}
-	return nil
 }
 
 func startHandler(ctx context.Context, docker *dockerClient.Client, app parser.App) error {
