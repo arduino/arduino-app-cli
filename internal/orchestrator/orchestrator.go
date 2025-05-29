@@ -379,7 +379,25 @@ func ListApps(ctx context.Context, req ListAppRequest) (ListAppResult, error) {
 	return result, nil
 }
 
-func AppDetails(ctx context.Context, app parser.App) (AppInfo, error) {
+type AppDetailedInfo struct {
+	ID          ID                 `json:"id"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	Icon        string             `json:"icon"`
+	Status      string             `json:"status"` // TODO: create enum
+	Example     bool               `json:"example"`
+	Default     bool               `json:"default"`
+	Bricks      []AppDetailedBrick `json:"bricks,omitempty"`
+}
+
+type AppDetailedBrick struct {
+	ID        string            `json:"id"`
+	Name      string            `json:"name"`
+	Icon      string            `json:"icon,omitempty"`
+	Variables map[string]string `json:"variables,omitempty"`
+}
+
+func AppDetails(ctx context.Context, app parser.App) (AppDetailedInfo, error) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	var status, defaultAppPath string
@@ -408,10 +426,10 @@ func AppDetails(ctx context.Context, app parser.App) (AppInfo, error) {
 
 	id, err := NewIDFromPath(app.FullPath)
 	if err != nil {
-		return AppInfo{}, err
+		return AppDetailedInfo{}, err
 	}
 
-	return AppInfo{
+	return AppDetailedInfo{
 		ID:          id,
 		Name:        app.Name,
 		Description: app.Descriptor.Description,
@@ -419,6 +437,14 @@ func AppDetails(ctx context.Context, app parser.App) (AppInfo, error) {
 		Status:      status,
 		Example:     id.IsExample(),
 		Default:     defaultAppPath == app.FullPath.String(),
+		Bricks: f.Map(app.Descriptor.Bricks, func(b parser.Brick) AppDetailedBrick {
+			return AppDetailedBrick{
+				ID:        b.Name, // TODO: use ID once the `name` will be different than the ID
+				Name:      b.Name, // TODO: use Name once the `name` will be different than the ID
+				Icon:      "",     // TODO: should we gather the icon from the index?
+				Variables: b.Variables,
+			}
+		}),
 	}, nil
 }
 

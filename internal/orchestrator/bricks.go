@@ -51,6 +51,7 @@ func BricksList() (BrickListResult, error) {
 type BrickDetailsResult struct {
 	ID          string                   `json:"id"`
 	Name        string                   `json:"name"`
+	Author      string                   `json:"author"`
 	Description string                   `json:"description"`
 	Icon        string                   `json:"icon"` // TODO: not implemented yet
 	IsInstalled bool                     `json:"installed"`
@@ -102,6 +103,7 @@ func BricksDetails(id string) (BrickDetailsResult, error) {
 	return BrickDetailsResult{
 		ID:          id,
 		Name:        brick.Name, // TODO: introduce a module_displayname. The Name property is not UI friendly
+		Author:      "Arduino",  // TODO: for now we only support our bricks
 		Description: brick.Description,
 		Icon:        "",   // TODO: not implemented yet
 		IsInstalled: true, // For now every Arduino brick are installed

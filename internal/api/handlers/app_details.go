@@ -47,6 +47,11 @@ func HandleAppDetailsEdits() HandlerAppFunc {
 			render.EncodeResponse(w, http.StatusPreconditionFailed, "id must be set")
 			return
 		}
+		if id.IsExample() {
+			render.EncodeResponse(w, http.StatusBadRequest, "cannot patch example")
+			return
+		}
+
 		appPath, err := id.ToPath()
 		if err != nil {
 			render.EncodeResponse(w, http.StatusPreconditionFailed, "invalid id")
