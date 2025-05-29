@@ -1,7 +1,9 @@
 package orchestrator
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/arduino/arduino-app-cli/pkg/parser"
 
@@ -185,6 +187,114 @@ func TestCloneApp(t *testing.T) {
 				Name:   f.Ptr("original-app"),
 			})
 			require.ErrorIs(t, err, ErrAppAlreadyExists)
+		})
+	})
+}
+
+func TestEditApp(t *testing.T) {
+	setTestOrchestratorConfig(t)
+
+	t.Run("with default", func(t *testing.T) {
+		_, err := CreateApp(t.Context(), CreateAppRequest{Name: "app-default"})
+		require.NoError(t, err)
+		appDir := orchestratorConfig.AppsDir().Join("app-default")
+
+		t.Run("previously not default", func(t *testing.T) {
+			app := f.Must(parser.Load(appDir.String()))
+
+			previousDefaultApp, err := GetDefaultApp()
+			require.NoError(t, err)
+			require.Nil(t, previousDefaultApp)
+
+			err = EditApp(AppEditRequest{Default: f.Ptr(true)}, &app)
+			require.NoError(t, err)
+
+			currentDefaultApp, err := GetDefaultApp()
+			require.NoError(t, err)
+			require.Equal(t, appDir, currentDefaultApp.FullPath)
+		})
+		t.Run("previously default", func(t *testing.T) {
+			app := f.Must(parser.Load(appDir.String()))
+			err := SetDefaultApp(&app)
+			require.NoError(t, err)
+
+			previousDefaultApp, err := GetDefaultApp()
+			require.NoError(t, err)
+			require.Equal(t, appDir, previousDefaultApp.FullPath)
+
+			err = EditApp(AppEditRequest{Default: f.Ptr(false)}, &app)
+			require.NoError(t, err)
+
+			currentDefaultApp, err := GetDefaultApp()
+			require.NoError(t, err)
+			require.Nil(t, currentDefaultApp)
+		})
+	})
+
+	createAppWithBricks := func(t *testing.T, bricks []parser.Brick) *parser.App {
+		t.Helper()
+		name := fmt.Sprintf("app-%v", time.Now().UnixNano())
+		_, err := CreateApp(t.Context(), CreateAppRequest{Name: name})
+		require.NoError(t, err)
+		appWithBricksDir := orchestratorConfig.AppsDir().Join(name)
+		appWithBricks := f.Ptr(f.Must(parser.Load(appWithBricksDir.String())))
+		appWithBricks.Descriptor.Bricks = bricks
+		require.NoError(t, err)
+		err = appWithBricks.Save()
+		require.NoError(t, err)
+		return appWithBricks
+	}
+
+	t.Run("with brick variables", func(t *testing.T) {
+		t.Run("add new brick", func(t *testing.T) {
+			appWithBricks := createAppWithBricks(t, []parser.Brick{})
+			err := EditApp(AppEditRequest{
+				Default: new(bool),
+				Variables: f.Ptr(map[string]map[string]string{
+					"arduino/object_detection": {"BIND_PORT": "9090"},
+				}),
+			}, appWithBricks)
+			require.NoError(t, err)
+		})
+
+		t.Run("override variables to existing brick", func(t *testing.T) {
+			appWithBricks := createAppWithBricks(t, []parser.Brick{
+				{
+					Name:      "arduino/object_detection",
+					Variables: map[string]string{"BIND_PORT": "8080"},
+				},
+			})
+
+			newVariables := map[string]map[string]string{
+				"arduino/object_detection": {"BIND_PORT": "1234"},
+			}
+			err := EditApp(AppEditRequest{
+				Default:   new(bool),
+				Variables: &newVariables,
+			}, appWithBricks)
+			require.NoError(t, err)
+
+			newApp, err := parser.Load(appWithBricks.FullPath.String())
+			require.NoError(t, err)
+			require.Len(t, newApp.Descriptor.Bricks, 1)
+			require.Equal(t, "arduino/object_detection", newApp.Descriptor.Bricks[0].Name)
+			require.Equal(t, newVariables["arduino/object_detection"], newApp.Descriptor.Bricks[0].Variables)
+		})
+		t.Run("setting not existing variable", func(t *testing.T) {
+			appWithBricks := createAppWithBricks(t, []parser.Brick{})
+
+			newVariables := map[string]map[string]string{
+				"arduino/object_detection": {"NOT_EXISTING_VAR": "nope"},
+			}
+			err := EditApp(AppEditRequest{
+				Default:   new(bool),
+				Variables: &newVariables,
+			}, appWithBricks)
+			require.Error(t, err)
+
+			newApp, err := parser.Load(appWithBricks.FullPath.String())
+			require.NoError(t, err)
+			require.Len(t, newApp.Descriptor.Bricks, 0)
 		})
 	})
 }

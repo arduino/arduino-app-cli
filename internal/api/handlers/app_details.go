@@ -61,7 +61,9 @@ func HandleAppDetailsEdits() HandlerAppFunc {
 		}
 
 		type EditRequest struct {
-			Default *bool `json:"default,omitempty"`
+			Default *bool `json:"default"`
+			// The key is brick name, the second map is variable_name -> value.
+			Variables *map[string]map[string]string `json:"variables"`
 		}
 
 		var editRequest EditRequest
@@ -72,7 +74,8 @@ func HandleAppDetailsEdits() HandlerAppFunc {
 		}
 
 		err = orchestrator.EditApp(orchestrator.AppEditRequest{
-			Default: editRequest.Default,
+			Default:   editRequest.Default,
+			Variables: editRequest.Variables,
 		}, &app)
 		if err != nil {
 			slog.Error("Unable to edit the app", slog.String("error", err.Error()))

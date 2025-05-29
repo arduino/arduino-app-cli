@@ -95,6 +95,16 @@ type BrickRelease struct {
 	Bricks  []*Brick        `yaml:"bricks"`
 }
 
+func (b *BrickRelease) FindBrick(brickName string) (*Brick, bool) {
+	brickIdx := slices.IndexFunc(b.Bricks, func(b *Brick) bool {
+		return b.Name == brickName
+	})
+	if brickIdx == -1 {
+		return nil, false
+	}
+	return b.Bricks[brickIdx], true
+}
+
 func (b *BrickRelease) UnmarshalYAML(unmarshal func(any) error) error {
 	type brickReleaseAlias BrickRelease // Trick to avoid infinite recursion
 	var raw brickReleaseAlias

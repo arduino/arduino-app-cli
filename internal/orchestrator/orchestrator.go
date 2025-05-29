@@ -14,6 +14,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 
@@ -480,19 +481,22 @@ if __name__ == "__main__":
 		}
 	}
 
-	// TODO: create app yaml marshaler
-	appContent := `name: "` + req.Name + `"` + "\n"
-	if req.Icon != "" {
-		appContent += `icon: "` + req.Icon + `"` + "\n"
-	}
-	if len(req.Bricks) > 0 {
-		appContent += "module-dependencies:\n" // TODO: rename this when we update the parser. The spec was renamed to `dependencies`
-		for _, brick := range req.Bricks {
-			appContent += "  - " + brick + "\n"
-		}
+	appYaml, err := yaml.Marshal(
+		parser.AppDescriptor{
+			Name:        req.Name,
+			Description: "",
+			Ports:       []int{},
+			Bricks: f.Map(req.Bricks, func(v string) parser.Brick {
+				return parser.Brick{Name: appFolderName}
+			}),
+			Icon: req.Icon, // TODO: not sure if icon will exists for bricks
+		},
+	)
+	if err != nil {
+		return CreateAppResponse{}, fmt.Errorf("failed to marshal app.yaml content: %w", err)
 	}
 
-	if err := basePath.Join("app.yaml").WriteFile([]byte(appContent)); err != nil {
+	if err := basePath.Join("app.yaml").WriteFile(appYaml); err != nil {
 		return CreateAppResponse{}, fmt.Errorf("failed to create app.yaml file: %w", err)
 	}
 
@@ -672,8 +676,10 @@ func GetDefaultApp() (*parser.App, error) {
 }
 
 type AppEditRequest struct {
-	Default   *bool
-	Variables *map[string]struct{}
+	Default *bool
+
+	// The key is brick name, the second map is variable_name -> value.
+	Variables *map[string]map[string]string
 }
 
 func EditApp(req AppEditRequest, app *parser.App) error {
@@ -683,7 +689,64 @@ func EditApp(req AppEditRequest, app *parser.App) error {
 		}
 	}
 
+	if req.Variables != nil {
+		if err := editVariables(app, *req.Variables); err != nil {
+			return fmt.Errorf("failed to edit app variables: %w", err)
+		}
+	}
+
 	return nil
+}
+
+func editVariables(app *parser.App, variables map[string]map[string]string) error {
+	if len(variables) == 0 {
+		return nil
+	}
+
+	checkTheVariablesExists := func(brickName string, vars map[string]string) error {
+		// Check that the brick exists in the bricks index.
+		collection, ok := bricksIndex.GetCollection("arduino", "app-bricks")
+		if !ok {
+			return fmt.Errorf("bricks index: arduino collection not found")
+		}
+		release, ok := collection.GetRelease(bricksVersion)
+		if !ok {
+			return fmt.Errorf("bricks index: release %s not found in arduino collection", bricksVersion)
+		}
+
+		brick, brickFound := release.FindBrick(brickName)
+		if !brickFound {
+			return fmt.Errorf("brick %v not found in bricks index", brickName)
+		}
+
+		// Validate that the variables exists for the brick.
+		for varName := range vars {
+			if _, ok := brick.Variables[varName]; !ok {
+				return fmt.Errorf("variable %v not found in brick %v", varName, brickName)
+			}
+		}
+		return nil
+	}
+
+	for brickName, vars := range variables {
+		if err := checkTheVariablesExists(brickName, vars); err != nil {
+			return err
+		}
+
+		idx := slices.IndexFunc(app.Descriptor.Bricks, func(b parser.Brick) bool {
+			return b.Name == brickName
+		})
+		if idx == -1 {
+			app.Descriptor.Bricks = append(app.Descriptor.Bricks, parser.Brick{
+				Name:      brickName,
+				Variables: vars,
+			})
+		} else {
+			app.Descriptor.Bricks[idx].Variables = vars
+		}
+	}
+
+	return app.Save()
 }
 
 func editAppDefaults(app *parser.App, isDefault bool) error {

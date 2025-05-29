@@ -5,3 +5,6 @@ ports:
 bricks:
     - arduino/object_detection:
         model: vision/yolo11
+        variables:
+          ROOT_PASSWORD: secret
+          PORT: 8080

@@ -3,8 +3,11 @@ package parser
 import (
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/google/renameio"
+	"gopkg.in/yaml.v3"
 )
 
 // App holds all the files composing an app
@@ -73,4 +76,21 @@ func (a *App) GetDescriptorPath() *paths.Path {
 		}
 	}
 	return descriptorFile
+}
+
+func (a *App) Save() error {
+	descriptorPath := a.GetDescriptorPath()
+	if descriptorPath == nil {
+		return errors.New("app descriptor file path is not set")
+	}
+
+	out, err := yaml.Marshal(a.Descriptor)
+	if err != nil {
+		return fmt.Errorf("cannot marshal app descriptor: %w", err)
+	}
+
+	if err := renameio.WriteFile(descriptorPath.String(), out, os.FileMode(0644)); err != nil {
+		return fmt.Errorf("cannot write app descriptor file: %w", err)
+	}
+	return nil
 }

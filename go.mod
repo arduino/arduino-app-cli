@@ -11,6 +11,7 @@ require (
 	github.com/djherbis/nio/v3 v3.0.1
 	github.com/docker/docker v28.0.4+incompatible
 	github.com/fsnotify/fsnotify v1.8.0
+	github.com/google/renameio v1.0.1
 	github.com/gosimple/slug v1.15.0
 	github.com/jub0bs/cors v0.5.9
 	github.com/sirupsen/logrus v1.9.3
@@ -19,6 +20,7 @@ require (
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	go.bug.st/cleanup v1.0.0
 	go.bug.st/f v0.4.0
+	go.bug.st/relaxed-semver v0.15.0
 	go.bug.st/serial v1.6.4
 	gopkg.in/yaml.v3 v3.0.1
 	mkuznets.com/go/tabwriter v0.1.2
@@ -91,7 +93,6 @@ require (
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	go.bug.st/downloader/v2 v2.2.0 // indirect
-	go.bug.st/relaxed-semver v0.15.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0 // indirect
 	go.opentelemetry.io/otel v1.35.0 // indirect

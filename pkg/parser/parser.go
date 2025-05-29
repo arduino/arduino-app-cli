@@ -11,8 +11,9 @@ import (
 )
 
 type Brick struct {
-	Name  string `yaml:"-"` // Ignores this field, to be handled manually
-	Model string `yaml:"model,omitempty"`
+	Name      string            `yaml:"-"` // Ignores this field, to be handled manually
+	Model     string            `yaml:"model,omitempty"`
+	Variables map[string]string `yaml:"variables,omitempty"`
 }
 
 type AppDescriptor struct {
@@ -21,6 +22,28 @@ type AppDescriptor struct {
 	Ports       []int   `yaml:"ports"`
 	Bricks      []Brick `yaml:"bricks"`
 	Icon        string  `yaml:"icon,omitempty"`
+}
+
+func (d AppDescriptor) MarshalYAML() (any, error) {
+	type raw struct {
+		Name        string             `yaml:"name"`
+		Description string             `yaml:"description"`
+		Ports       []int              `yaml:"ports"`
+		Bricks      []map[string]Brick `yaml:"bricks"`
+		Icon        string             `yaml:"icon,omitempty"`
+	}
+
+	bricks := make([]map[string]Brick, len(d.Bricks))
+	for i, brick := range d.Bricks {
+		bricks[i] = map[string]Brick{brick.Name: brick}
+	}
+	return &raw{
+		Name:        d.Name,
+		Description: d.Description,
+		Ports:       d.Ports,
+		Bricks:      bricks,
+		Icon:        d.Icon,
+	}, nil
 }
 
 func (md *Brick) UnmarshalYAML(node *yaml.Node) error {

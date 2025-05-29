@@ -19,6 +19,10 @@ func TestAppParser(t *testing.T) {
 	brick1 := Brick{
 		Name:  "arduino/object_detection",
 		Model: "vision/yolo11",
+		Variables: map[string]string{
+			"PORT":          "8080",
+			"ROOT_PASSWORD": "secret",
+		},
 	}
 	require.Contains(t, app.Bricks, brick1)
 
