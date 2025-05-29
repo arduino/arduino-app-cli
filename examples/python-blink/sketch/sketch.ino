@@ -51,5 +51,5 @@ MsgPack::str_t loopback(MsgPack::str_t message) {
 }
 
 void loop() {
-    server.loop();
+    server.run();
 }
