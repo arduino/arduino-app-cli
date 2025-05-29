@@ -3,8 +3,8 @@ package bricksindex
 import (
 	"testing"
 
+	yaml "github.com/goccy/go-yaml"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 )
 
 func TestBricksIndex(t *testing.T) {
@@ -33,7 +33,7 @@ func TestBricksIndex(t *testing.T) {
                 description: port
 `
 
-	var b BricksIndex
+	var b *BricksIndex
 	err := yaml.Unmarshal([]byte(x), &b)
 	require.NoError(t, err)
 }

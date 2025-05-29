@@ -4,9 +4,9 @@ import (
 	"path/filepath"
 	"slices"
 
+	yaml "github.com/goccy/go-yaml"
 	"go.bug.st/f"
 	semver "go.bug.st/relaxed-semver"
-	"gopkg.in/yaml.v3"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/assets"
 )
@@ -54,28 +54,36 @@ func (b *BricksCollections) GetCollection(name string) (*BricksCollection, bool)
 	return &BricksCollection{}, false
 }
 
-func (b *BricksCollections) UnmarshalYAML(unmarshal func(any) error) error {
-	var raw map[string]*BricksCollection
-	if err := unmarshal(&raw); err != nil {
-		return err
-	}
-
-	for name, collection := range raw {
-		collection.Name = name
-		raw[name] = collection
-	}
-
-	*b = raw
-
-	return nil
-}
-
 type BricksCollection struct {
 	Name          string          `yaml:"-"`
 	Package       string          `yaml:"package"`
 	Repository    string          `yaml:"repository"`
 	LatestRelease *semver.Version `yaml:"latest-release"`
 	Releases      []*BrickRelease `yaml:"releases"`
+}
+
+func (b *BricksCollection) UnmarshalYAML(unmarshal func(any) error) error {
+	type brickCollectionAlias struct {
+		Package       string          `yaml:"package"`
+		Repository    string          `yaml:"repository"`
+		LatestRelease string          `yaml:"latest-release"`
+		Releases      []*BrickRelease `yaml:"releases"`
+	}
+	var raw brickCollectionAlias
+	if err := unmarshal(&raw); err != nil {
+		return err
+	}
+	b.Package = raw.Package
+	b.Repository = raw.Repository
+	if raw.LatestRelease != "" {
+		r, err := semver.Parse(raw.LatestRelease)
+		if err != nil {
+			return err
+		}
+		b.LatestRelease = r
+	}
+	b.Releases = raw.Releases
+	return nil
 }
 
 func (b *BricksCollection) GetRelease(version *semver.Version) (*BrickRelease, bool) {

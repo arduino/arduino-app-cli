@@ -17,8 +17,8 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/docker/api/types/container"
 	dockerClient "github.com/docker/docker/client"
+	yaml "github.com/goccy/go-yaml"
 	"go.bug.st/f"
-	"gopkg.in/yaml.v3"
 )
 
 func ProvisionApp(ctx context.Context, docker *dockerClient.Client, app parser.App) error {

@@ -6,8 +6,8 @@ import (
 	"os"
 
 	"github.com/arduino/go-paths-helper"
+	yaml "github.com/goccy/go-yaml"
 	"github.com/google/renameio"
-	"gopkg.in/yaml.v3"
 )
 
 // App holds all the files composing an app

@@ -22,11 +22,11 @@ import (
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
 	dockerClient "github.com/docker/docker/client"
+	"github.com/goccy/go-yaml"
 	"github.com/gosimple/slug"
 	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
 	semver "go.bug.st/relaxed-semver"
-	"gopkg.in/yaml.v3"
 
 	"github.com/arduino/arduino-app-cli/cmd/router/msgpackrpc"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"

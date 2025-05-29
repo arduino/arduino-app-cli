@@ -11,6 +11,7 @@ require (
 	github.com/djherbis/nio/v3 v3.0.1
 	github.com/docker/docker v28.0.4+incompatible
 	github.com/fsnotify/fsnotify v1.8.0
+	github.com/goccy/go-yaml v1.17.1
 	github.com/google/renameio v1.0.1
 	github.com/gosimple/slug v1.15.0
 	github.com/jub0bs/cors v0.5.9
@@ -22,7 +23,6 @@ require (
 	go.bug.st/f v0.4.0
 	go.bug.st/relaxed-semver v0.15.0
 	go.bug.st/serial v1.6.4
-	gopkg.in/yaml.v3 v3.0.1
 	mkuznets.com/go/tabwriter v0.1.2
 )
 
@@ -111,5 +111,6 @@ require (
 	google.golang.org/grpc v1.72.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
 )
