@@ -7,7 +7,8 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
-	"github.com/google/renameio/v2"
+
+	"github.com/arduino/arduino-app-cli/pkg/x/fatomic"
 )
 
 // App holds all the files composing an app
@@ -89,7 +90,7 @@ func (a *App) Save() error {
 		return fmt.Errorf("cannot marshal app descriptor: %w", err)
 	}
 
-	if err := renameio.WriteFile(descriptorPath.String(), out, os.FileMode(0644)); err != nil {
+	if err := fatomic.WriteFile(descriptorPath.String(), out, os.FileMode(0644)); err != nil {
 		return fmt.Errorf("cannot write app descriptor file: %w", err)
 	}
 	return nil

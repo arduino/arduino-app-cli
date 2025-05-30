@@ -23,7 +23,6 @@ import (
 	"github.com/arduino/go-paths-helper"
 	dockerClient "github.com/docker/docker/client"
 	"github.com/goccy/go-yaml"
-	"github.com/google/renameio/v2"
 	"github.com/gosimple/slug"
 	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
@@ -32,6 +31,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/router/msgpackrpc"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/pkg/parser"
+	"github.com/arduino/arduino-app-cli/pkg/x/fatomic"
 )
 
 var (
@@ -659,7 +659,7 @@ func SetDefaultApp(app *parser.App) error {
 		return nil
 	}
 
-	return renameio.WriteFile(defaultAppPath.String(), []byte(app.FullPath.String()), os.FileMode(0644))
+	return fatomic.WriteFile(defaultAppPath.String(), []byte(app.FullPath.String()), os.FileMode(0644))
 }
 
 func GetDefaultApp() (*parser.App, error) {
