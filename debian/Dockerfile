@@ -9,7 +9,8 @@ RUN test -n "${ARCH}" || (echo "Error: ARCH is not set" && exit 1)
 
 COPY . /app
 WORKDIR /app
-RUN GOOS=linux GOARCH=${ARCH} go build -ldflags "-X 'main.Version=${VERSION}'" -o ${BINARY_NAME} ./cmd/${BINARY_NAME}
+RUN export VERSION=$(echo "${VERSION}" | sed -e "s/^v\(.*\)/\1/") && \
+    GOOS=linux GOARCH=${ARCH} go build -ldflags "-X 'main.Version=${VERSION}'" -o ${BINARY_NAME} ./cmd/${BINARY_NAME}
 
 FROM debian:bookworm AS debian
 
