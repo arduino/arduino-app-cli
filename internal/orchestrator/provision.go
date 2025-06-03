@@ -7,7 +7,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
-	"path/filepath"
+	"path"
 	"strings"
 	"time"
 
@@ -41,7 +41,7 @@ func ProvisionApp(ctx context.Context, docker *dockerClient.Client, app parser.A
 			return err
 		}
 	} else {
-		cFS, err := fs.Sub(assets.FS, filepath.Join("static", bricksVersion.String()))
+		cFS, err := fs.Sub(assets.FS, path.Join("static", bricksVersion.String()))
 		if err != nil {
 			return fmt.Errorf("failed to read assets directory: %w", err)
 		}

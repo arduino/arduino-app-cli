@@ -1,7 +1,7 @@
 package bricksindex
 
 import (
-	"path/filepath"
+	"path"
 	"slices"
 
 	yaml "github.com/goccy/go-yaml"
@@ -168,7 +168,7 @@ func GenerateBricksIndex() (*BricksIndex, error) {
 		Releases:   make([]*BrickRelease, len(versions)),
 	}
 	for i, version := range versions {
-		bricksList, err := assets.FS.ReadFile(filepath.Join("static", version.Name(), "bricks-list.yaml"))
+		bricksList, err := assets.FS.ReadFile(path.Join("static", version.Name(), "bricks-list.yaml"))
 		if err != nil {
 			return nil, err
 		}
