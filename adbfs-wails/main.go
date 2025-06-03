@@ -3,10 +3,12 @@ package main
 import (
 	"embed"
 	"fmt"
+	"log/slog"
+	"net/url"
 	"os"
-	"os/exec"
 
-	"github.com/arduino/arduino-create-agent/updater"
+	"github.com/arduino/arduino-app-cli/pkg/autoupdater/releaser"
+
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -22,36 +24,35 @@ var (
 func main() {
 	updateURL := os.Getenv("UPDATE_URL")
 	if updateURL == "" {
-		updateURL = "http://127.0.0.1:3001/" // fallback default
+		updateURL = "http://127.0.0.1:3001/"
 	}
 
-	src, err := os.Executable()
+	parsedURL, err := url.Parse(updateURL)
 	if err != nil {
-		panic(err)
+		fmt.Println("Invalid UPDATE_URL:", err)
+		os.Exit(1)
 	}
 
-	fmt.Printf("[%s] Current Version: %s\n", src, version)
+	fmt.Println("Current Version: ", version)
 
-	// NOTE: other Start is required to have the "-temp" binary copied at start up, otherwise the `update` command fails
-	restartPath := updater.Start(src)
-	if restartPath != "" {
-		fmt.Println("Restarting with updated binary", restartPath)
-		cmd := exec.Command(restartPath, os.Args[1:]...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-		err := cmd.Start()
-		if err != nil {
-			panic(err)
-		}
-		// here we do not have the context of the app, so we cannot call runtime.Quit
-		os.Exit(0)
+	headers := map[string]string{}
+	clientID := os.Getenv("CF_ACCESS_CLIENT_ID")
+	clientSecret := os.Getenv("CF_ACCESS_CLIENT_SECRET")
+	if clientID != "" && clientSecret != "" {
+		headers["CF-Access-Client-Id"] = clientID
+		headers["CF-Access-Client-Secret"] = clientSecret
+	}
+
+	slog.Info("Starting App", "version", version, "updateURL", updateURL, "clientID", clientID)
+
+	var client *releaser.Client
+	if len(headers) > 0 {
+		client = releaser.NewClient(parsedURL, "AppLab/Stable", releaser.WithHeaders(headers))
 	} else {
-		fmt.Println("Starting normally")
+		client = releaser.NewClient(parsedURL, "AppLab/Stable")
 	}
 
-	// Create an instance of the app structure
-	app := NewApp(updateURL)
+	app := NewApp(client)
 
 	// Create application with options
 	err = wails.Run(&options.App{

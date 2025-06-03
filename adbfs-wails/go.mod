@@ -5,7 +5,6 @@ go 1.24.1
 toolchain go1.24.3
 
 require (
-	github.com/arduino/arduino-create-agent v0.0.0-20250515135125-b2b98877d93b
 	github.com/arduino/arduino-app-cli v0.0.0-00010101000000-000000000000
 	github.com/wailsapp/wails/v2 v2.10.1
 )
@@ -22,9 +21,7 @@ require (
 	github.com/h2non/filetype v1.1.3 // indirect
 	github.com/jchv/go-winloader v0.0.0-20210711035445-715c2860da7e // indirect
 	github.com/juju/errors v1.0.0 // indirect
-	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/klauspost/compress v1.17.2 // indirect
-	github.com/kr/binarydist v0.1.0 // indirect
 	github.com/labstack/echo/v4 v4.13.3 // indirect
 	github.com/labstack/gommon v0.4.2 // indirect
 	github.com/leaanthony/go-ansi-parser v1.6.1 // indirect
@@ -37,16 +34,15 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/samber/lo v1.49.1 // indirect
-	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/tkrajina/go-reflector v0.5.8 // indirect
 	github.com/ulikunitz/xz v0.5.12 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/wailsapp/go-webview2 v1.0.19 // indirect
 	github.com/wailsapp/mimetype v1.4.1 // indirect
+	go.bug.st/f v0.4.0 // indirect
 	golang.org/x/crypto v0.37.0 // indirect
 	golang.org/x/net v0.39.0 // indirect
-	golang.org/x/sys v0.32.0 // indirect
+	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
-	gopkg.in/inconshreveable/go-update.v0 v0.0.0-20150814200126-d8b0b1d421aa // indirect
 )

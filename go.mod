@@ -26,6 +26,7 @@ require (
 	mkuznets.com/go/tabwriter v0.1.2
 )
 
+
 require (
 	dario.cat/mergo v1.0.0 // indirect
 	fortio.org/safecast v1.0.0 // indirect
@@ -38,7 +39,7 @@ require (
 	github.com/arduino/pluggable-discovery-protocol-handler/v2 v2.2.1 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/cmaglie/pb v1.0.27 // indirect
-	github.com/codeclysm/extract/v4 v4.0.0 // indirect
+	github.com/codeclysm/extract/v4 v4.0.0
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/creack/goselect v0.1.2 // indirect
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
