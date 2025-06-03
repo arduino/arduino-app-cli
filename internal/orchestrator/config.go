@@ -80,6 +80,22 @@ func (c *OrchestratorConfig) ExamplesDir() *paths.Path {
 	return c.dataDir.Join("examples")
 }
 
-func DefaultOrchestratorConfig() *OrchestratorConfig {
-	return orchestratorConfig
+type ConfigResponse struct {
+	Directories ConfigDirectories `json:"directories"`
+}
+
+type ConfigDirectories struct {
+	Data     string `json:"data"`
+	Apps     string `json:"apps"`
+	Examples string `json:"examples"`
+}
+
+func GetOrchestratorConfig() ConfigResponse {
+	return ConfigResponse{
+		Directories: ConfigDirectories{
+			Data:     orchestratorConfig.DataDir().String(),
+			Apps:     orchestratorConfig.AppsDir().String(),
+			Examples: orchestratorConfig.ExamplesDir().String(),
+		},
+	}
 }
