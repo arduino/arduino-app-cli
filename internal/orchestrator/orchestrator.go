@@ -42,12 +42,17 @@ var (
 
 	bricksIndex   *bricksindex.BricksIndex
 	bricksVersion *semver.Version
+
+	// true if the orchestrator is running on the Board.
+	onBoard bool
 )
 
 var (
 	ErrAppAlreadyExists = fmt.Errorf("app already exists")
 	ErrAppDoesntExists  = fmt.Errorf("app doesn't exist")
 	ErrInvalidApp       = fmt.Errorf("invalid app")
+
+	boardNames = []string{"Inc. Robotics RB1\n", "Imola\n"}
 )
 
 func init() {
@@ -96,6 +101,14 @@ func init() {
 	} else {
 		bricksVersion = collection.LatestRelease
 	}
+
+	onBoard = (func() bool {
+		buf, err := os.ReadFile("/sys/class/dmi/id/product_name")
+		if err == nil && slices.Contains(boardNames, string(buf)) {
+			return true
+		}
+		return false
+	})()
 }
 
 type AppStreamMessage struct {
@@ -874,34 +887,38 @@ func compileUploadSketch(ctx context.Context, sketchPath, buildPath string, w io
 		return err
 	}
 
-	resp, err := srv.BoardList(ctx, &rpc.BoardListRequest{
-		Instance:                      inst,
-		Timeout:                       1000,
-		Fqbn:                          "",
-		SkipCloudApiForBoardDetection: false,
-	})
-	if err != nil {
-		return err
-	}
-
-	var name, fqbn string
+	var fqbn string
 	var port *rpc.Port
-	for _, portItem := range resp.Ports {
-		for _, boardItem := range portItem.MatchingBoards {
-			if !strings.HasPrefix(boardItem.Fqbn, "arduino") {
-				continue
-			}
-			name = boardItem.Name
-			fqbn = boardItem.Fqbn
-			port = portItem.Port
-			break
+	if onBoard {
+		fqbn = "dev:zephyr:jomla"
+	} else {
+		resp, err := srv.BoardList(ctx, &rpc.BoardListRequest{
+			Instance:                      inst,
+			Timeout:                       1000,
+			Fqbn:                          "",
+			SkipCloudApiForBoardDetection: false,
+		})
+		if err != nil {
+			return err
 		}
-	}
-	if port == nil {
-		return fmt.Errorf("no board detected")
-	}
 
-	fmt.Println("\nAuto selected board:", name, "fqbn:", fqbn, "port:", port.Address)
+		var name string
+		for _, portItem := range resp.Ports {
+			for _, boardItem := range portItem.MatchingBoards {
+				if !strings.HasPrefix(boardItem.Fqbn, "arduino") {
+					continue
+				}
+				name = boardItem.Name
+				fqbn = boardItem.Fqbn
+				port = portItem.Port
+				break
+			}
+		}
+		if port == nil {
+			return fmt.Errorf("no board detected")
+		}
+		fmt.Println("\nAuto selected board:", name, "fqbn:", fqbn, "port:", port.Address)
+	}
 
 	// build the sketch
 	server, getCompileResult := commands.CompilerServerToStreams(ctx, w, w, nil)
@@ -934,8 +951,10 @@ func compileUploadSketch(ctx context.Context, sketchPath, buildPath string, w io
 		slog.Info("Used library " + lib.GetName() + " (" + lib.GetVersion() + ") in " + lib.GetInstallDir())
 	}
 
-	reconnect := disconnectSerialFromRPCRouter(ctx, port.Address)
-	defer reconnect()
+	if port != nil {
+		reconnect := disconnectSerialFromRPCRouter(ctx, port.Address)
+		defer reconnect()
+	}
 
 	stream, _ := commands.UploadToServerStreams(ctx, w, w)
 	return srv.Upload(&rpc.UploadRequest{

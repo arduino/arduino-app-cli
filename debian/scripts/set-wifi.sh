@@ -7,10 +7,10 @@
 
 set -xe
 
-adb shell sh -c 'cat > /etc/NetworkManager/system-connections/mywifi.nmconnection' <<EOF
+adb shell sh -c "cat > /etc/NetworkManager/system-connections/$SSID.nmconnection" <<EOF
 [connection]
-id=MyWiFi
-uuid=12345678-1234-1234-1234-123456789abc
+id=$SSID
+uuid=$(uuidgen)
 type=wifi
 autoconnect=true
 
