@@ -5,7 +5,7 @@
   let files = []
   let version = '';
   let latestVersion = '';
-   let updateError = '';
+  let updateError = '';
 
   onMount(async () => {
     version = await GetVersion();
@@ -18,12 +18,13 @@
     console.log("files", files)
   })
 
-  async function checkAndApplyUpdate() {
-    try{
-      console.log("Checking for updates...")
-      await CheckAndApplyUpdate()
+  async function checkForUpdates() {
+    updateError = '';
+    try {
+      await CheckAndApplyUpdate();
+
     } catch (error) {
-        updateError = error?.message || error;
+      updateError = error?.message || error;
       console.error("Error checking for updates:", error);
     }
   }
@@ -35,11 +36,12 @@
 
   <p>Latest version: {latestVersion} </p>
 
-  <button on:click={checkAndApplyUpdate}>Update</button>
+  <button on:click={checkForUpdates}>Check For Updates</button>
 
   {#if updateError}
     <p style="color: red;">Error: {updateError}</p>
   {/if}
+
 
   <div>list of files with adb</div>
 

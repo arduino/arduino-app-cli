@@ -48,13 +48,39 @@ func (a *App) CheckAndApplyUpdate() error {
 	if err != nil {
 		return fmt.Errorf("could not get executable path: %w", err)
 	}
-	restartPath, err := updater.CheckForUpdates(executablePath, updater.Version(version), a.client)
+	upgradeConfirm := func(current releaser.Version, target releaser.Version) bool {
+		result, err := runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
+			Type:          runtime.QuestionDialog,
+			Title:         "Update available",
+			Message:       "Do you want to upgrade from " + current.String() + " to " + target.String() + "?",
+			Buttons:       []string{"Yes", "No", "Cancel"},
+			DefaultButton: "Yes",
+		})
+
+		if err != nil {
+			fmt.Println("Error showing dialog:", err)
+			return false
+		}
+
+		if result == "Yes" {
+			fmt.Println("User confirmed the action.")
+			return true
+		}
+
+		return false
+
+	}
+
+	err = updater.CheckForUpdates(executablePath, releaser.Version(version), a.client, upgradeConfirm)
 	if err != nil {
 		return fmt.Errorf("Error checking for updates: %w", err)
 	}
-	if restartPath != "" {
-		return updater.Restart(restartPath)
-	}
+
+	_, err = runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
+		Type:    runtime.InfoDialog,
+		Title:   "AppLab",
+		Message: "There is no update available.",
+	})
 	return nil
 }
 
@@ -62,12 +88,12 @@ func (a *App) GetLatestVersion() (string, error) {
 	env := runtime.Environment(a.ctx)
 
 	plat := releaser.NewPlatform(env.Platform, env.Arch)
-	info, err := a.client.GetManifest(plat)
+	info, err := a.client.GetLatestVersion(plat)
 	if err != nil {
 		return "", err
 	}
 
-	return info.Version, nil
+	return info.Version.String(), nil
 }
 
 type FileInfo struct {
