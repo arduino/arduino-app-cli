@@ -6,6 +6,8 @@ adb shell usermod -aG sudo arduino
 adb shell usermod -aG netdev arduino
 adb shell usermod -aG dialout arduino
 adb shell usermod -aG docker arduino
+adb shell usermod -aG video arduino
+adb shell usermod -aG audio arduino
 
 # Allow user to set manage networks
 adb shell sh -c "cat > /etc/polkit-1/rules.d/50-sudo-networkmanager.rules" <<EOF
