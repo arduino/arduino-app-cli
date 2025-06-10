@@ -23,7 +23,7 @@ adb push ./build/remoteocd /home/arduino/.arduino15/packages/arduino/tools/remot
 rm ./build/remoteocd
 
 # Flash zephyr bootloader in the microcontroller.
-adb shell arduino-cli burn-bootloader -b dev:zephyr:jomla -P jlink
+adb shell su - arduino -c "\"arduino-cli burn-bootloader -b dev:zephyr:jomla -P jlink\""
 
 # Patch adbd-usb-gadget.
 adb push $BASE_DIR/adbd-usb-gadget /usr/lib/android-sdk/platform-tools/adbd-usb-gadget
