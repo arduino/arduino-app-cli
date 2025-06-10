@@ -15,12 +15,12 @@ import (
 	"github.com/arduino/arduino-app-cli/pkg/adbfs"
 )
 
-const boardAppPath = "/apps"
-
 type AppsSync struct {
 	Host   string
 	OnPull func(name string, tmp string)
 	OnPush func(name string)
+
+	boardAppPath string
 
 	mx       sync.RWMutex
 	syncApps map[string]string
@@ -29,7 +29,7 @@ type AppsSync struct {
 	stop    chan struct{}
 }
 
-func NewAppsSync() (*AppsSync, error) {
+func NewAppsSync(boardAppPath string) (*AppsSync, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create watcher: %w", err)
@@ -38,6 +38,8 @@ func NewAppsSync() (*AppsSync, error) {
 	a := &AppsSync{
 		OnPull: func(name string, tmp string) {},
 		OnPush: func(name string) {},
+
+		boardAppPath: boardAppPath,
 
 		mx:       sync.RWMutex{},
 		syncApps: make(map[string]string),
@@ -58,7 +60,7 @@ func (a *AppsSync) EnableSyncApp(name string) (string, error) {
 		return "", fmt.Errorf("app %q is already synced", name)
 	}
 
-	remote := path.Join(boardAppPath, name)
+	remote := path.Join(a.boardAppPath, name)
 	tmp, err := os.MkdirTemp("", "arduino-apps-sync_*")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp dir: %w", err)
@@ -125,7 +127,7 @@ func (a *AppsSync) DisableSyncApp(name string) error {
 	}
 
 	// force push the last time
-	if err = a.pushPath(tmp, path.Join(boardAppPath, name)); err != nil {
+	if err = a.pushPath(tmp, path.Join(a.boardAppPath, name)); err != nil {
 		return err
 	}
 
@@ -151,7 +153,7 @@ func (a *AppsSync) ForsePush(name string) error {
 }
 
 func (a *AppsSync) pushPath(tmp string, name string) error {
-	remote := path.Join(boardAppPath, name)
+	remote := path.Join(a.boardAppPath, name)
 	err := adbfs.SyncFS(
 		adbfs.AdbFSWriter{AdbFS: adbfs.AdbFS{Base: remote, Host: a.Host}},
 		os.DirFS(tmp),

@@ -116,7 +116,7 @@ func main() {
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			appName := args[0]
-			s, err := appsync.NewAppsSync()
+			s, err := appsync.NewAppsSync("/home/arduino/arduino-apps")
 			if err != nil {
 				fmt.Println("Error:", err.Error())
 				return

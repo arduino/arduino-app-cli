@@ -140,7 +140,7 @@ func TestEnableSyncApp(t *testing.T) {
 	runAdbCmd(t, "touch", "/apps/test/sketch/sketch.ino")
 	runAdbCmd(t, "touch", "/apps/test/app.yml")
 
-	sync, err := NewAppsSync()
+	sync, err := NewAppsSync("/apps")
 	require.NoError(t, err)
 	sync.Host = "localhost:" + adbPort
 	tmp, err := sync.EnableSyncApp("test")
