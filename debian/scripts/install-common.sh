@@ -3,6 +3,7 @@
 set -xe
 
 adb shell apt-get update
+adb shell apt-get upgrade -y
 adb shell apt-get install -y tree curl htop zip unzip file kitty-terminfo gpiod
 
 # Set TMPDIR for all users
