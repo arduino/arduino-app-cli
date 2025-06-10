@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -xe
+
 adb shell sh -c 'cat > /etc/apt/sources.list.d/arduino.list' <<EOF
 deb [trusted=yes] https://apt-repo.oniudra.cc stable main
 EOF
@@ -11,4 +13,4 @@ password aptexperiment
 EOF
 
 adb shell apt-get update
-adb shell apt-get install -y arduino-orchestrator arduino-router
+adb shell apt-get install -y arduino-orchestrator arduino-router arduino-app-lab
