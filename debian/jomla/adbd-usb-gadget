@@ -37,7 +37,7 @@ setup()
     echo "Debian" > strings/0x409/manufacturer
     echo "ADB device" > strings/0x409/product
     # Derive the serial number from the machine-id so it's unique
-    echo "$(sha256sum < /etc/machine-id | cut -d' ' -f1)" > strings/0x409/serialnumber
+    echo "$(sha256sum < /etc/machine-id | cut -d' ' -f1 | cut -c1-28)" > strings/0x409/serialnumber
 
     echo "ADB Configuration" > configs/c.1/strings/0x409/configuration
     echo 120 > configs/c.1/MaxPower

@@ -46,6 +46,7 @@ func init() {
 			break
 		}
 		path = filepath.Join(user.HomeDir, "AppData/Local/Arduino15/", arduino15adbPath)
+		path += ".exe"
 	}
 	s, err := os.Stat(path)
 	if err == nil && !s.IsDir() {
