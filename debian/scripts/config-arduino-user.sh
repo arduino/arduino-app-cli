@@ -25,4 +25,6 @@ adb shell usermod -aG gpiod arduino
 adb shell sh -c  "cat > /usr/lib/udev/rules.d/60-gpiod.rules" <<EOF
 SUBSYSTEM=="gpio", KERNEL=="gpiochip*", GROUP="gpiod", MODE="0660"
 EOF
+adb shell udevadm control --reload-rules
+adb shell udevadm trigger
 
