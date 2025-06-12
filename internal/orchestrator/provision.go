@@ -154,10 +154,15 @@ func generateMainComposeFile(ctx context.Context, app app.ArduinoApp, pythonImag
 	// Create a single docker-mainCompose that includes all the required services
 	mainComposeFile := provisioningStateDir.Join("app-compose.yaml")
 
+	type volume struct {
+		Type   string `yaml:"type"`
+		Source string `yaml:"source"`
+		Target string `yaml:"target"`
+	}
 	type service struct {
 		Image      string            `yaml:"image"`
 		DependsOn  []string          `yaml:"depends_on,omitempty"`
-		Volumes    []string          `yaml:"volumes"`
+		Volumes    []volume          `yaml:"volumes"`
 		Devices    []string          `yaml:"devices"`
 		Ports      []string          `yaml:"ports"`
 		User       string            `yaml:"user"`
@@ -210,10 +215,24 @@ func generateMainComposeFile(ctx context.Context, app app.ArduinoApp, pythonImag
 		ports[i] = fmt.Sprintf("%d:%d", p, p)
 	}
 
+	volumes := []volume{
+		{
+			Type:   "bind",
+			Source: app.FullPath.String(),
+			Target: "/app",
+		},
+	}
+	if orchestratorConfig.RouterSocketPath().Exist() {
+		volumes = append(volumes, volume{
+			Type:   "bind",
+			Source: orchestratorConfig.RouterSocketPath().String(),
+			Target: "/var/run/arduino-router.sock",
+		})
+	}
 	mainAppCompose.Services = &mainService{
 		Main: service{
 			Image:      pythonImage,
-			Volumes:    []string{app.FullPath.String() + ":/app"},
+			Volumes:    volumes,
 			Ports:      ports,
 			Devices:    getDevices(),
 			Entrypoint: "/run.sh",

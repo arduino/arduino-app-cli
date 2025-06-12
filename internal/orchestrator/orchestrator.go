@@ -833,7 +833,7 @@ func getDevices() []string {
 }
 
 func disconnectSerialFromRPCRouter(ctx context.Context, portAddress string) func() {
-	var msgPackRouterAddr = paths.TempDir().Join("msgpack-router.sock").String()
+	var msgPackRouterAddr = paths.TempDir().Join("arduino-router.sock").String()
 	c, err := net.Dial("unix", msgPackRouterAddr)
 	if err != nil {
 		slog.Error("Failed to connect to router", "addr", msgPackRouterAddr, "err", err)

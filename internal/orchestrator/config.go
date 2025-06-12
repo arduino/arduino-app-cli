@@ -7,8 +7,9 @@ import (
 )
 
 type OrchestratorConfig struct {
-	appsDir *paths.Path
-	dataDir *paths.Path
+	appsDir          *paths.Path
+	dataDir          *paths.Path
+	routerSocketPath *paths.Path
 }
 
 func NewOrchestratorConfigFromEnv() (*OrchestratorConfig, error) {
@@ -45,9 +46,15 @@ func NewOrchestratorConfigFromEnv() (*OrchestratorConfig, error) {
 		dataDir = wd.JoinPath(dataDir)
 	}
 
+	routerSocket := paths.New(os.Getenv("ARDUINO_APP_CLI__ROUTER_SOCKET"))
+	if routerSocket == nil || routerSocket.NotExist() {
+		routerSocket = paths.New("/var/run/arduino-router.sock")
+	}
+
 	c := &OrchestratorConfig{
-		appsDir: appsDir,
-		dataDir: dataDir,
+		appsDir:          appsDir,
+		dataDir:          dataDir,
+		routerSocketPath: routerSocket,
 	}
 	if err := c.init(); err != nil {
 		return nil, err
@@ -78,6 +85,10 @@ func (c *OrchestratorConfig) DataDir() *paths.Path {
 
 func (c *OrchestratorConfig) ExamplesDir() *paths.Path {
 	return c.dataDir.Join("examples")
+}
+
+func (c *OrchestratorConfig) RouterSocketPath() *paths.Path {
+	return c.routerSocketPath
 }
 
 type ConfigResponse struct {

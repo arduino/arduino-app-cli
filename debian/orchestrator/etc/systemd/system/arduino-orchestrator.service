@@ -10,6 +10,7 @@ User=arduino
 Group=arduino
 Environment="ARDUINO_APP_CLI__APPS_DIR=/home/arduino/arduino-apps"
 Environment="ARDUINO_APP_CLI__DATA_DIR=/home/arduino/.arduino-app-cli"
+Environment="ARDUINO_APP_CLI__ROUTER_SOCKET=/var/run/arduino-router.sock"
 StandardOutput=journal
 StandardError=journal
 Restart=always
