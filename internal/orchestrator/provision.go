@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/assets"
-	"github.com/arduino/arduino-app-cli/pkg/parser"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/docker/api/types/container"
@@ -21,7 +21,7 @@ import (
 	"go.bug.st/f"
 )
 
-func ProvisionApp(ctx context.Context, docker *dockerClient.Client, app parser.App) error {
+func ProvisionApp(ctx context.Context, docker *dockerClient.Client, app app.ArduinoApp) error {
 	start := time.Now()
 	defer func() {
 		slog.Info("Provisioning took", "duration", time.Since(start).String())
@@ -75,7 +75,7 @@ func ProvisionApp(ctx context.Context, docker *dockerClient.Client, app parser.A
 	return generateMainComposeFile(ctx, app, pythonImage)
 }
 
-func dynamicProvisioning(ctx context.Context, docker *dockerClient.Client, app parser.App) error {
+func dynamicProvisioning(ctx context.Context, docker *dockerClient.Client, app app.ArduinoApp) error {
 	if err := pullBasePythonContainer(ctx, pythonImage); err != nil {
 		return fmt.Errorf("provisioning failed to pull base image: %w", err)
 	}
@@ -123,7 +123,7 @@ func pullBasePythonContainer(ctx context.Context, pythonImage string) error {
 	return process.RunWithinContext(ctx)
 }
 
-func getProvisioningStateDir(app parser.App) (*paths.Path, error) {
+func getProvisioningStateDir(app app.ArduinoApp) (*paths.Path, error) {
 	cacheDir := app.FullPath.Join(".cache")
 	if err := cacheDir.MkdirAll(); err != nil {
 		return nil, err
@@ -134,7 +134,7 @@ func getProvisioningStateDir(app parser.App) (*paths.Path, error) {
 const DockerAppLabel = "cc.arduino.app"
 const DockerAppPathLabel = "cc.arduino.app.path"
 
-func generateMainComposeFile(ctx context.Context, app parser.App, pythonImage string) error {
+func generateMainComposeFile(ctx context.Context, app app.ArduinoApp, pythonImage string) error {
 	provisioningStateDir, err := getProvisioningStateDir(app)
 	if err != nil {
 		return err

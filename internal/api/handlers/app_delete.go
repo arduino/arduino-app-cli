@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
-	"github.com/arduino/arduino-app-cli/pkg/parser"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/pkg/render"
 )
 
@@ -25,7 +25,7 @@ func HandleAppDelete() HandlerAppFunc {
 			return
 		}
 
-		app, err := parser.Load(appPath.String())
+		app, err := app.Load(appPath.String())
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", string(id)))
 			render.EncodeResponse(w, http.StatusInternalServerError, "unable to find the app")

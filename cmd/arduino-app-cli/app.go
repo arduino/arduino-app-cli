@@ -14,7 +14,7 @@ import (
 	"mkuznets.com/go/tabwriter"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
-	"github.com/arduino/arduino-app-cli/pkg/parser"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 )
 
 func newAppCmd(docker *dockerClient.Client) *cobra.Command {
@@ -74,7 +74,7 @@ func newStartCmd(docker *dockerClient.Client) *cobra.Command {
 			if len(args) == 0 {
 				return cmd.Help()
 			}
-			app, err := parser.Load(args[0])
+			app, err := app.Load(args[0])
 			if err != nil {
 				return err
 			}
@@ -92,7 +92,7 @@ func newStopCmd() *cobra.Command {
 			if len(args) == 0 {
 				return cmd.Help()
 			}
-			app, err := parser.Load(args[0])
+			app, err := app.Load(args[0])
 			if err != nil {
 				return err
 			}
@@ -110,7 +110,7 @@ func newLogsCmd() *cobra.Command {
 			if len(args) == 0 {
 				return cmd.Help()
 			}
-			app, err := parser.Load(args[0])
+			app, err := app.Load(args[0])
 			if err != nil {
 				return err
 			}
@@ -155,7 +155,7 @@ func newPsCmd() *cobra.Command {
 	}
 }
 
-func renderDefaultApp(app *parser.App) {
+func renderDefaultApp(app *app.ArduinoApp) {
 	if app == nil {
 		fmt.Println("No default app set")
 	} else {
@@ -203,7 +203,7 @@ func newPropertiesCmd() *cobra.Command {
 				return orchestrator.SetDefaultApp(nil)
 			}
 
-			app, err := parser.Load(args[1])
+			app, err := app.Load(args[1])
 			if err != nil {
 				return err
 			}
@@ -218,7 +218,7 @@ func newPropertiesCmd() *cobra.Command {
 	return cmd
 }
 
-func startHandler(ctx context.Context, docker *dockerClient.Client, app parser.App) error {
+func startHandler(ctx context.Context, docker *dockerClient.Client, app app.ArduinoApp) error {
 	for message := range orchestrator.StartApp(ctx, docker, app) {
 		switch message.GetType() {
 		case orchestrator.ProgressType:
@@ -232,7 +232,7 @@ func startHandler(ctx context.Context, docker *dockerClient.Client, app parser.A
 	return nil
 }
 
-func stopHandler(ctx context.Context, app parser.App) error {
+func stopHandler(ctx context.Context, app app.ArduinoApp) error {
 	for message := range orchestrator.StopApp(ctx, app) {
 		switch message.GetType() {
 		case orchestrator.ProgressType:
@@ -246,7 +246,7 @@ func stopHandler(ctx context.Context, app parser.App) error {
 	return nil
 }
 
-func logsHandler(ctx context.Context, app parser.App) error {
+func logsHandler(ctx context.Context, app app.ArduinoApp) error {
 	logsIter, err := orchestrator.AppLogs(ctx, app, orchestrator.AppLogsRequest{ShowAppLogs: true, Follow: true})
 	if err != nil {
 		return err

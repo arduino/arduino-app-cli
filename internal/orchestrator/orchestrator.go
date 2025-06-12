@@ -29,8 +29,8 @@ import (
 	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/cmd/router/msgpackrpc"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/pkg/parser"
 	"github.com/arduino/arduino-app-cli/pkg/x/fatomic"
 )
 
@@ -155,7 +155,7 @@ func (p *StreamMessage) GetType() MessageType {
 	return UnknownType
 }
 
-func StartApp(ctx context.Context, docker *dockerClient.Client, app parser.App) iter.Seq[StreamMessage] {
+func StartApp(ctx context.Context, docker *dockerClient.Client, app app.ArduinoApp) iter.Seq[StreamMessage] {
 	return func(yield func(StreamMessage) bool) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -221,7 +221,7 @@ func StartApp(ctx context.Context, docker *dockerClient.Client, app parser.App) 
 	}
 }
 
-func StopApp(ctx context.Context, app parser.App) iter.Seq[StreamMessage] {
+func StopApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
 	return func(yield func(StreamMessage) bool) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -352,7 +352,7 @@ func ListApps(ctx context.Context, req ListAppRequest) (ListAppResult, error) {
 	}
 
 	for _, file := range appPaths {
-		app, err := parser.Load(file.String())
+		app, err := app.Load(file.String())
 		if err != nil {
 			slog.Error("unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", file.String()))
 			continue
@@ -411,15 +411,15 @@ type AppDetailedBrick struct {
 	Variables map[string]string `json:"variables,omitempty"`
 }
 
-func AppDetails(ctx context.Context, app parser.App) (AppDetailedInfo, error) {
+func AppDetails(ctx context.Context, userApp app.ArduinoApp) (AppDetailedInfo, error) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	var status, defaultAppPath string
 	go func() {
 		defer wg.Done()
-		resp, err := dockerComposeAppStatus(ctx, app)
+		resp, err := dockerComposeAppStatus(ctx, userApp)
 		if err != nil {
-			slog.Warn("unable to get app status", slog.String("error", err.Error()), slog.String("path", app.FullPath.String()))
+			slog.Warn("unable to get app status", slog.String("error", err.Error()), slog.String("path", userApp.FullPath.String()))
 		}
 		status = resp.Status
 	}()
@@ -438,20 +438,20 @@ func AppDetails(ctx context.Context, app parser.App) (AppDetailedInfo, error) {
 	}()
 	wg.Wait()
 
-	id, err := NewIDFromPath(app.FullPath)
+	id, err := NewIDFromPath(userApp.FullPath)
 	if err != nil {
 		return AppDetailedInfo{}, err
 	}
 
 	return AppDetailedInfo{
 		ID:          id,
-		Name:        app.Name,
-		Description: app.Descriptor.Description,
-		Icon:        app.Descriptor.Icon,
+		Name:        userApp.Name,
+		Description: userApp.Descriptor.Description,
+		Icon:        userApp.Descriptor.Icon,
 		Status:      status,
 		Example:     id.IsExample(),
-		Default:     defaultAppPath == app.FullPath.String(),
-		Bricks: f.Map(app.Descriptor.Bricks, func(b parser.Brick) AppDetailedBrick {
+		Default:     defaultAppPath == userApp.FullPath.String(),
+		Bricks: f.Map(userApp.Descriptor.Bricks, func(b app.Brick) AppDetailedBrick {
 			return AppDetailedBrick{
 				ID:        b.Name, // TODO: use ID once the `name` will be different than the ID
 				Name:      b.Name, // TODO: use Name once the `name` will be different than the ID
@@ -522,12 +522,12 @@ if __name__ == "__main__":
 	}
 
 	appYaml, err := yaml.Marshal(
-		parser.AppDescriptor{
+		app.AppDescriptor{
 			Name:        req.Name,
 			Description: "",
 			Ports:       []int{},
-			Bricks: f.Map(req.Bricks, func(v string) parser.Brick {
-				return parser.Brick{Name: appFolderName}
+			Bricks: f.Map(req.Bricks, func(v string) app.Brick {
+				return app.Brick{Name: appFolderName}
 			}),
 			Icon: req.Icon, // TODO: not sure if icon will exists for bricks
 		},
@@ -619,7 +619,7 @@ func CloneApp(ctx context.Context, req CloneAppRequest) (response CloneAppRespon
 		} else {
 			appYamlPath = dstPath.Join("app.yml")
 		}
-		descriptor, err := parser.ParseDescriptorFile(appYamlPath)
+		descriptor, err := app.ParseDescriptorFile(appYamlPath)
 		if err != nil {
 			return CloneAppResponse{}, fmt.Errorf("failed to parse app.yaml file: %w", err)
 		}
@@ -649,7 +649,7 @@ func CloneApp(ctx context.Context, req CloneAppRequest) (response CloneAppRespon
 	return CloneAppResponse{ID: id}, nil
 }
 
-func DeleteApp(ctx context.Context, app parser.App) error {
+func DeleteApp(ctx context.Context, app app.ArduinoApp) error {
 	for msg := range StopApp(ctx, app) {
 		if msg.error != nil {
 			return fmt.Errorf("failed to stop app: %w", msg.error)
@@ -660,7 +660,7 @@ func DeleteApp(ctx context.Context, app parser.App) error {
 
 const defaultAppFileName = "default.app"
 
-func SetDefaultApp(app *parser.App) error {
+func SetDefaultApp(app *app.ArduinoApp) error {
 	defaultAppPath := orchestratorConfig.DataDir().Join(defaultAppFileName)
 
 	// Remove the default app file if the app is nil.
@@ -675,7 +675,7 @@ func SetDefaultApp(app *parser.App) error {
 	return fatomic.WriteFile(defaultAppPath.String(), []byte(app.FullPath.String()), os.FileMode(0644))
 }
 
-func GetDefaultApp() (*parser.App, error) {
+func GetDefaultApp() (*app.ArduinoApp, error) {
 	defaultAppFilePath := orchestratorConfig.DataDir().Join(defaultAppFileName)
 	if !defaultAppFilePath.Exist() {
 		return nil, nil
@@ -693,7 +693,7 @@ func GetDefaultApp() (*parser.App, error) {
 		return nil, nil
 	}
 
-	app, err := parser.Load(string(defaultAppPath))
+	app, err := app.Load(string(defaultAppPath))
 	if err != nil {
 		// If the app is not valid, we remove the file
 		slog.Warn("default app is not valid", slog.String("path", string(defaultAppPath)), slog.String("error", err.Error()))
@@ -711,7 +711,7 @@ type AppEditRequest struct {
 	Variables *map[string]map[string]string
 }
 
-func EditApp(req AppEditRequest, app *parser.App) error {
+func EditApp(req AppEditRequest, app *app.ArduinoApp) error {
 	if req.Default != nil {
 		if err := editAppDefaults(app, *req.Default); err != nil {
 			return fmt.Errorf("failed to edit app defaults: %w", err)
@@ -727,7 +727,7 @@ func EditApp(req AppEditRequest, app *parser.App) error {
 	return nil
 }
 
-func editVariables(app *parser.App, variables map[string]map[string]string) error {
+func editVariables(userApp *app.ArduinoApp, variables map[string]map[string]string) error {
 	if len(variables) == 0 {
 		return nil
 	}
@@ -762,25 +762,25 @@ func editVariables(app *parser.App, variables map[string]map[string]string) erro
 			return err
 		}
 
-		idx := slices.IndexFunc(app.Descriptor.Bricks, func(b parser.Brick) bool {
+		idx := slices.IndexFunc(userApp.Descriptor.Bricks, func(b app.Brick) bool {
 			return b.Name == brickName
 		})
 		if idx == -1 {
-			app.Descriptor.Bricks = append(app.Descriptor.Bricks, parser.Brick{
+			userApp.Descriptor.Bricks = append(userApp.Descriptor.Bricks, app.Brick{
 				Name:      brickName,
 				Variables: vars,
 			})
 		} else {
-			app.Descriptor.Bricks[idx].Variables = vars
+			userApp.Descriptor.Bricks[idx].Variables = vars
 		}
 	}
 
-	return app.Save()
+	return userApp.Save()
 }
 
-func editAppDefaults(app *parser.App, isDefault bool) error {
+func editAppDefaults(userApp *app.ArduinoApp, isDefault bool) error {
 	if isDefault {
-		if err := SetDefaultApp(app); err != nil {
+		if err := SetDefaultApp(userApp); err != nil {
 			return fmt.Errorf("failed to set default app: %w", err)
 		}
 		return nil
@@ -797,7 +797,7 @@ func editAppDefaults(app *parser.App, isDefault bool) error {
 	}
 
 	// Unset only if the current default is the same as the app being edited.
-	if defaultApp.FullPath.String() == app.FullPath.String() {
+	if defaultApp.FullPath.String() == userApp.FullPath.String() {
 		if err := SetDefaultApp(nil); err != nil {
 			return fmt.Errorf("failed to unset default app: %w", err)
 		}

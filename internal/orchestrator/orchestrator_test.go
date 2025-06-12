@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arduino/arduino-app-cli/pkg/parser"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 
 	"github.com/stretchr/testify/require"
 	"go.bug.st/f"
@@ -127,7 +127,7 @@ func TestCloneApp(t *testing.T) {
 			})
 
 			// The app.yaml will have the name set to the new-name
-			clonedApp := f.Must(parser.Load(appDir.String()))
+			clonedApp := f.Must(app.Load(appDir.String()))
 			require.Equal(t, "new-name", clonedApp.Name)
 		})
 		t.Run("with icon", func(t *testing.T) {
@@ -145,7 +145,7 @@ func TestCloneApp(t *testing.T) {
 			})
 
 			// The app.yaml will have the icon set to 🦄
-			clonedApp := f.Must(parser.Load(appDir.String()))
+			clonedApp := f.Must(app.Load(appDir.String()))
 			require.Equal(t, "with-icon", clonedApp.Name)
 			require.Equal(t, "🦄", clonedApp.Descriptor.Icon)
 		})
@@ -200,7 +200,7 @@ func TestEditApp(t *testing.T) {
 		appDir := orchestratorConfig.AppsDir().Join("app-default")
 
 		t.Run("previously not default", func(t *testing.T) {
-			app := f.Must(parser.Load(appDir.String()))
+			app := f.Must(app.Load(appDir.String()))
 
 			previousDefaultApp, err := GetDefaultApp()
 			require.NoError(t, err)
@@ -214,7 +214,7 @@ func TestEditApp(t *testing.T) {
 			require.True(t, appDir.EquivalentTo(currentDefaultApp.FullPath))
 		})
 		t.Run("previously default", func(t *testing.T) {
-			app := f.Must(parser.Load(appDir.String()))
+			app := f.Must(app.Load(appDir.String()))
 			err := SetDefaultApp(&app)
 			require.NoError(t, err)
 
@@ -231,13 +231,13 @@ func TestEditApp(t *testing.T) {
 		})
 	})
 
-	createAppWithBricks := func(t *testing.T, bricks []parser.Brick) *parser.App {
+	createAppWithBricks := func(t *testing.T, bricks []app.Brick) *app.ArduinoApp {
 		t.Helper()
 		name := fmt.Sprintf("app-%v", time.Now().UnixNano())
 		_, err := CreateApp(t.Context(), CreateAppRequest{Name: name})
 		require.NoError(t, err)
 		appWithBricksDir := orchestratorConfig.AppsDir().Join(name)
-		appWithBricks := f.Ptr(f.Must(parser.Load(appWithBricksDir.String())))
+		appWithBricks := f.Ptr(f.Must(app.Load(appWithBricksDir.String())))
 		appWithBricks.Descriptor.Bricks = bricks
 		require.NoError(t, err)
 		err = appWithBricks.Save()
@@ -247,7 +247,7 @@ func TestEditApp(t *testing.T) {
 
 	t.Run("with brick variables", func(t *testing.T) {
 		t.Run("add new brick", func(t *testing.T) {
-			appWithBricks := createAppWithBricks(t, []parser.Brick{})
+			appWithBricks := createAppWithBricks(t, []app.Brick{})
 			err := EditApp(AppEditRequest{
 				Default: new(bool),
 				Variables: f.Ptr(map[string]map[string]string{
@@ -258,7 +258,7 @@ func TestEditApp(t *testing.T) {
 		})
 
 		t.Run("override variables to existing brick", func(t *testing.T) {
-			appWithBricks := createAppWithBricks(t, []parser.Brick{
+			appWithBricks := createAppWithBricks(t, []app.Brick{
 				{
 					Name:      "arduino/object_detection",
 					Variables: map[string]string{"BIND_PORT": "8080"},
@@ -274,14 +274,14 @@ func TestEditApp(t *testing.T) {
 			}, appWithBricks)
 			require.NoError(t, err)
 
-			newApp, err := parser.Load(appWithBricks.FullPath.String())
+			newApp, err := app.Load(appWithBricks.FullPath.String())
 			require.NoError(t, err)
 			require.Len(t, newApp.Descriptor.Bricks, 1)
 			require.Equal(t, "arduino/object_detection", newApp.Descriptor.Bricks[0].Name)
 			require.Equal(t, newVariables["arduino/object_detection"], newApp.Descriptor.Bricks[0].Variables)
 		})
 		t.Run("setting not existing variable", func(t *testing.T) {
-			appWithBricks := createAppWithBricks(t, []parser.Brick{})
+			appWithBricks := createAppWithBricks(t, []app.Brick{})
 
 			newVariables := map[string]map[string]string{
 				"arduino/object_detection": {"NOT_EXISTING_VAR": "nope"},
@@ -292,7 +292,7 @@ func TestEditApp(t *testing.T) {
 			}, appWithBricks)
 			require.Error(t, err)
 
-			newApp, err := parser.Load(appWithBricks.FullPath.String())
+			newApp, err := app.Load(appWithBricks.FullPath.String())
 			require.NoError(t, err)
 			require.Len(t, newApp.Descriptor.Bricks, 0)
 		})

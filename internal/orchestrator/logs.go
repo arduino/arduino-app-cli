@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/arduino/arduino-app-cli/pkg/parser"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/pkg/x"
 
 	"github.com/arduino/go-paths-helper"
@@ -27,7 +27,7 @@ type LogMessage struct {
 	Content   string
 }
 
-func AppLogs(ctx context.Context, app parser.App, req AppLogsRequest) (iter.Seq[LogMessage], error) {
+func AppLogs(ctx context.Context, app app.ArduinoApp, req AppLogsRequest) (iter.Seq[LogMessage], error) {
 	if app.MainPythonFile == nil {
 		return x.EmptyIter[LogMessage](), nil
 	}

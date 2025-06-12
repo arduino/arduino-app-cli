@@ -13,7 +13,7 @@ import (
 	dockerClient "github.com/docker/docker/client"
 	"github.com/gosimple/slug"
 
-	"github.com/arduino/arduino-app-cli/pkg/parser"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 )
 
 func dockerComposeListServices(ctx context.Context, composeFile *paths.Path) ([]string, error) {
@@ -41,7 +41,7 @@ type DockerComposeAppStatusResponse struct {
 	Status string `json:"Status"`
 }
 
-func dockerComposeAppStatus(ctx context.Context, app parser.App) (DockerComposeAppStatusResponse, error) {
+func dockerComposeAppStatus(ctx context.Context, app app.ArduinoApp) (DockerComposeAppStatusResponse, error) {
 	mainCompose, err := getProvisioningStateDir(app)
 	if err != nil {
 		return DockerComposeAppStatusResponse{}, err
@@ -94,8 +94,8 @@ func dockerComposeAppStatus(ctx context.Context, app parser.App) (DockerComposeA
 	return match, nil
 }
 
-func getRunningApp(ctx context.Context, docker *dockerClient.Client) (*parser.App, error) {
-	getPythonApp := func() (*parser.App, error) {
+func getRunningApp(ctx context.Context, docker *dockerClient.Client) (*app.ArduinoApp, error) {
+	getPythonApp := func() (*app.ArduinoApp, error) {
 		containers, err := docker.ContainerList(ctx, container.ListOptions{
 			Filters: filters.NewArgs(filters.Arg("label", DockerAppLabel+"=true")),
 		})
@@ -119,19 +119,19 @@ func getRunningApp(ctx context.Context, docker *dockerClient.Client) (*parser.Ap
 			return nil, fmt.Errorf("failed to get config files for app %s", container.ID)
 		}
 
-		app, err := parser.Load(appPath)
+		app, err := app.Load(appPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load app %s: %w", appPath, err)
 		}
 		return &app, nil
 	}
 
-	getSketchApp := func() (*parser.App, error) {
+	getSketchApp := func() (*app.ArduinoApp, error) {
 		// TODO: implement this function
 		return nil, nil
 	}
 
-	for _, get := range [](func() (*parser.App, error)){getPythonApp, getSketchApp} {
+	for _, get := range [](func() (*app.ArduinoApp, error)){getPythonApp, getSketchApp} {
 		app, err := get()
 		if err != nil {
 			return nil, err
@@ -143,7 +143,7 @@ func getRunningApp(ctx context.Context, docker *dockerClient.Client) (*parser.Ap
 	return nil, nil
 }
 
-func getAppComposeProjectNameFromApp(app parser.App) (string, error) {
+func getAppComposeProjectNameFromApp(app app.ArduinoApp) (string, error) {
 	composeProjectName, err := app.FullPath.RelFrom(orchestratorConfig.AppsDir())
 	if err != nil {
 		return "", fmt.Errorf("failed to get compose project name: %w", err)

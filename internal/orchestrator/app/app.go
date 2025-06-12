@@ -1,4 +1,4 @@
-package parser
+package app
 
 import (
 	"errors"
@@ -11,8 +11,8 @@ import (
 	"github.com/arduino/arduino-app-cli/pkg/x/fatomic"
 )
 
-// App holds all the files composing an app
-type App struct {
+// ArduinoApp holds all the files composing an app
+type ArduinoApp struct {
 	Name           string
 	MainPythonFile *paths.Path
 	MainSketchFile *paths.Path
@@ -22,20 +22,20 @@ type App struct {
 
 // Load creates an App instance by reading all the files composing an app and grouping them
 // by file type.
-func Load(appPath string) (App, error) {
+func Load(appPath string) (ArduinoApp, error) {
 	path := paths.New(appPath)
 	if path == nil {
-		return App{}, errors.New("empty app path")
+		return ArduinoApp{}, errors.New("empty app path")
 	}
 
 	path = path.Canonical()
 	if exist, err := path.IsDirCheck(); err != nil {
-		return App{}, fmt.Errorf("app path is not valid: %w", err)
+		return ArduinoApp{}, fmt.Errorf("app path is not valid: %w", err)
 	} else if !exist {
-		return App{}, fmt.Errorf("no such file or directory: %s", path)
+		return ArduinoApp{}, fmt.Errorf("no such file or directory: %s", path)
 	}
 
-	app := App{
+	app := ArduinoApp{
 		FullPath:   path,
 		Descriptor: AppDescriptor{},
 	}
@@ -43,12 +43,12 @@ func Load(appPath string) (App, error) {
 	if descriptorFile := app.GetDescriptorPath(); descriptorFile.Exist() {
 		desc, err := ParseDescriptorFile(descriptorFile)
 		if err != nil {
-			return App{}, fmt.Errorf("error loading app descriptor file: %w", err)
+			return ArduinoApp{}, fmt.Errorf("error loading app descriptor file: %w", err)
 		}
 		app.Descriptor = desc
 		app.Name = desc.Name
 	} else {
-		return App{}, errors.New("descriptor app.yaml file missing from app")
+		return ArduinoApp{}, errors.New("descriptor app.yaml file missing from app")
 	}
 
 	if path.Join("python", "main.py").Exist() {
@@ -61,14 +61,14 @@ func Load(appPath string) (App, error) {
 	}
 
 	if app.MainPythonFile == nil && app.MainSketchFile == nil {
-		return App{}, errors.New("main python file and sketch file missing from app")
+		return ArduinoApp{}, errors.New("main python file and sketch file missing from app")
 	}
 
 	return app, nil
 }
 
 // GetDescriptorPath returns the path to the app descriptor file (app.yaml or app.yml)
-func (a *App) GetDescriptorPath() *paths.Path {
+func (a *ArduinoApp) GetDescriptorPath() *paths.Path {
 	descriptorFile := a.FullPath.Join("app.yaml")
 	if !descriptorFile.Exist() {
 		alternateDescriptorFile := a.FullPath.Join("app.yml")
@@ -79,7 +79,7 @@ func (a *App) GetDescriptorPath() *paths.Path {
 	return descriptorFile
 }
 
-func (a *App) Save() error {
+func (a *ArduinoApp) Save() error {
 	descriptorPath := a.GetDescriptorPath()
 	if descriptorPath == nil {
 		return errors.New("app descriptor file path is not set")
