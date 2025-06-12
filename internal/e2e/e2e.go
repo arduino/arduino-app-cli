@@ -70,7 +70,6 @@ func FindArduinoAppCLIPath(t *testing.T) *paths.Path {
 // The Environment must be disposed by calling the CleanUp method via defer.
 func CreateEnvForDaemon(t *testing.T) *ArduinoAppCLI {
 	cli := NewArduinoAppCLI(t)
-	cli.path = FindArduinoAppCLIPath(t)
 	_ = cli.StartDaemon(false)
 	return cli
 }
@@ -106,7 +105,7 @@ func (cli *ArduinoAppCLI) StartDaemon(verbose bool) string {
 
 	// Await the CLI daemon to be ready
 	var connErr error
-	for retries := 5; retries > 0; retries-- {
+	for range 5 {
 		time.Sleep(time.Second)
 
 		c, err := client.NewClient(cli.DaemonAddr)
