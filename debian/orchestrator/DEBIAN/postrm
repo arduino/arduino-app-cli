@@ -1,3 +1,5 @@
 #!/bin/sh
 
-systemctl daemon-reload
+if [ -d /run/systemd/system ]; then
+  systemctl daemon-reload
+fi
