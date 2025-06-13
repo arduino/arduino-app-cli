@@ -28,7 +28,7 @@ func newAppCmd(docker *dockerClient.Client) *cobra.Command {
 	appCmd.AddCommand(newStartCmd(docker))
 	appCmd.AddCommand(newStopCmd())
 	appCmd.AddCommand(newLogsCmd())
-	appCmd.AddCommand(newListCmd())
+	appCmd.AddCommand(newListCmd(docker))
 	appCmd.AddCommand(newPsCmd())
 	appCmd.AddCommand(newMonitorCmd())
 
@@ -74,7 +74,7 @@ func newStartCmd(docker *dockerClient.Client) *cobra.Command {
 			if len(args) == 0 {
 				return cmd.Help()
 			}
-			app, err := app.Load(args[0])
+			app, err := loadApp(args[0])
 			if err != nil {
 				return err
 			}
@@ -92,7 +92,7 @@ func newStopCmd() *cobra.Command {
 			if len(args) == 0 {
 				return cmd.Help()
 			}
-			app, err := app.Load(args[0])
+			app, err := loadApp(args[0])
 			if err != nil {
 				return err
 			}
@@ -110,7 +110,7 @@ func newLogsCmd() *cobra.Command {
 			if len(args) == 0 {
 				return cmd.Help()
 			}
-			app, err := app.Load(args[0])
+			app, err := loadApp(args[0])
 			if err != nil {
 				return err
 			}
@@ -130,14 +130,14 @@ func newMonitorCmd() *cobra.Command {
 
 }
 
-func newListCmd() *cobra.Command {
+func newListCmd(docker *dockerClient.Client) *cobra.Command {
 	var jsonFormat bool
 
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all running Python apps",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return listHandler(cmd.Context(), jsonFormat)
+			return listHandler(cmd.Context(), docker, jsonFormat)
 		},
 	}
 
@@ -203,7 +203,7 @@ func newPropertiesCmd() *cobra.Command {
 				return orchestrator.SetDefaultApp(nil)
 			}
 
-			app, err := app.Load(args[1])
+			app, err := loadApp(args[1])
 			if err != nil {
 				return err
 			}
@@ -257,8 +257,8 @@ func logsHandler(ctx context.Context, app app.ArduinoApp) error {
 	return nil
 }
 
-func listHandler(ctx context.Context, jsonFormat bool) error {
-	res, err := orchestrator.ListApps(ctx, orchestrator.ListAppRequest{ShowExamples: true})
+func listHandler(ctx context.Context, docker *dockerClient.Client, jsonFormat bool) error {
+	res, err := orchestrator.ListApps(ctx, docker, orchestrator.ListAppRequest{ShowExamples: true})
 	if err != nil {
 		return nil
 	}
@@ -276,7 +276,7 @@ func listHandler(ctx context.Context, jsonFormat bool) error {
 
 		for _, app := range res.Apps {
 			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%t\n",
-				app.ID,
+				app.ID.Rel(),
 				app.Name,
 				app.Icon,
 				app.Description,
@@ -312,7 +312,7 @@ func createHandler(ctx context.Context, name string, icon string, bricks []strin
 		if err != nil {
 			return err
 		}
-		dst, _ := resp.ID.ToPath()
+		dst := resp.ID.ToPath()
 		fmt.Println("App cloned in: ", dst)
 	} else {
 		resp, err := orchestrator.CreateApp(ctx, orchestrator.CreateAppRequest{
@@ -328,4 +328,13 @@ func createHandler(ctx context.Context, name string, icon string, bricks []strin
 		fmt.Println("App created successfully:", resp)
 	}
 	return nil
+}
+
+func loadApp(idOrPath string) (app.ArduinoApp, error) {
+	id, err := orchestrator.ParseID(idOrPath)
+	if err == nil {
+		return app.ArduinoApp{}, fmt.Errorf("invalid app path: %s", idOrPath)
+	}
+
+	return app.Load(id.ToPath().String())
 }

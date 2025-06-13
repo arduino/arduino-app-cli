@@ -10,6 +10,11 @@ import (
 
 var ErrInvalidID = errors.New("not a valid id")
 
+// ID represents an identifier for an application or example in the orchestrator.
+// It can be in three formats:
+// - "user/<path_to_app>", for custom user applications in default directories
+// - "examples/<path_to_app>", for built-in examples
+// - "/<path_to_app>" for applications not in default directories
 type ID string
 
 func NewIDFromPath(p *paths.Path) (ID, error) {
@@ -23,7 +28,20 @@ func NewIDFromPath(p *paths.Path) (ID, error) {
 		return ID(path.Join("examples", id)), nil
 	}
 
-	return "", ErrInvalidID
+	if !p.Exist() {
+		return "", ErrInvalidID
+	}
+
+	p, err := p.Abs()
+	if err != nil {
+		return "", err
+	}
+	return ID(p.String()), nil
+}
+
+func ParseID(id string) (ID, error) {
+	v := ID(id)
+	return v, v.Validate()
 }
 
 func (id ID) IsExample() bool {
@@ -34,18 +52,44 @@ func (id ID) IsApp() bool {
 	return strings.HasPrefix(string(id), "user/")
 }
 
-func (id ID) ToPath() (*paths.Path, error) {
-	switch {
-	case id.IsApp():
-		return orchestratorConfig.AppsDir().Join(strings.TrimPrefix(string(id), "user/")), nil
-	case id.IsExample():
-		return orchestratorConfig.DataDir().Join(string(id)), nil
-	}
-	return nil, ErrInvalidID
+func (id ID) IsPath() bool {
+	return strings.HasPrefix(string(id), "/")
 }
 
+func (id ID) ToPath() *paths.Path {
+	switch {
+	case id.IsApp():
+		return orchestratorConfig.AppsDir().Join(strings.TrimPrefix(string(id), "user/"))
+	case id.IsExample():
+		return orchestratorConfig.DataDir().Join(string(id))
+	default:
+		return paths.New(string(id))
+	}
+}
+
+func (id ID) Rel() string {
+	if id.IsPath() {
+		wd, err := paths.Getwd()
+		if err != nil {
+			return string(id)
+		}
+		rel, err := paths.New(string(id)).RelFrom(wd)
+		if err != nil {
+			return string(id)
+		}
+		if !strings.HasPrefix(rel.String(), "./") && !strings.HasPrefix(rel.String(), "../") {
+			return "./" + rel.String()
+		}
+		return rel.String()
+	}
+	return string(id)
+}
 func (id ID) Validate() error {
-	if !id.IsApp() && !id.IsExample() {
+	if !id.IsApp() &&
+		!id.IsExample() &&
+		!id.IsPath() ||
+		(id.IsPath() &&
+			!paths.New(string(id)).Exist()) {
 		return ErrInvalidID
 	}
 	return nil

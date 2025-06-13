@@ -278,7 +278,7 @@ func StartDefaultApp(ctx context.Context, docker *dockerClient.Client) error {
 		return nil
 	}
 
-	status, err := AppDetails(ctx, *app)
+	status, err := AppDetails(ctx, docker, *app)
 	if err != nil {
 		return fmt.Errorf("failed to get app details: %w", err)
 	}
@@ -316,7 +316,7 @@ type ListAppRequest struct {
 	StatusFilter    string // TODO: create enum
 }
 
-func ListApps(ctx context.Context, req ListAppRequest) (ListAppResult, error) {
+func ListApps(ctx context.Context, docker *dockerClient.Client, req ListAppRequest) (ListAppResult, error) {
 	result := ListAppResult{Apps: []AppInfo{}}
 
 	defaultApp, err := GetDefaultApp()
@@ -351,6 +351,16 @@ func ListApps(ctx context.Context, req ListAppRequest) (ListAppResult, error) {
 		appPaths.AddAll(res)
 	}
 
+	apps, err := getAppsStatus(ctx, docker)
+	if err != nil {
+		slog.Error("unable to get running app", slog.String("error", err.Error()))
+	}
+
+	// Add apps in different paths.
+	for _, app := range apps {
+		appPaths.AddIfMissing(app.AppPath)
+	}
+
 	for _, file := range appPaths {
 		app, err := app.Load(file.String())
 		if err != nil {
@@ -363,18 +373,20 @@ func ListApps(ctx context.Context, req ListAppRequest) (ListAppResult, error) {
 			continue
 		}
 
-		resp, err := dockerComposeAppStatus(ctx, app)
-		if err != nil {
-			slog.Debug("unable to get app status", slog.String("error", err.Error()), slog.String("path", file.String()))
+		var status string
+		if idx := slices.IndexFunc(apps, func(a AppStatus) bool {
+			return a.AppPath.EqualsTo(app.FullPath)
+		}); idx != -1 {
+			status = apps[idx].Status
 		}
-		id, err := NewIDFromPath(app.FullPath)
-		if err != nil {
-			slog.Error("unable to get app id", slog.String("error", err.Error()), slog.String("path", file.String()))
+
+		if req.StatusFilter != "" && req.StatusFilter != status {
 			continue
 		}
 
-		if req.StatusFilter != "" && req.StatusFilter != resp.Status {
-			continue
+		id, err := NewIDFromPath(app.FullPath)
+		if err != nil {
+			return ListAppResult{}, fmt.Errorf("failed to get app ID from path %s: %w", file.String(), err)
 		}
 
 		result.Apps = append(result.Apps,
@@ -383,7 +395,7 @@ func ListApps(ctx context.Context, req ListAppRequest) (ListAppResult, error) {
 				Name:        app.Name,
 				Description: app.Descriptor.Description,
 				Icon:        app.Descriptor.Icon,
-				Status:      resp.Status,
+				Status:      status,
 				Example:     id.IsExample(),
 				Default:     isDefault,
 			},
@@ -411,17 +423,17 @@ type AppDetailedBrick struct {
 	Variables map[string]string `json:"variables,omitempty"`
 }
 
-func AppDetails(ctx context.Context, userApp app.ArduinoApp) (AppDetailedInfo, error) {
+func AppDetails(ctx context.Context, docker *dockerClient.Client, userApp app.ArduinoApp) (AppDetailedInfo, error) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	var status, defaultAppPath string
 	go func() {
 		defer wg.Done()
-		resp, err := dockerComposeAppStatus(ctx, userApp)
+		app, err := getAppStatus(ctx, docker, userApp)
 		if err != nil {
 			slog.Warn("unable to get app status", slog.String("error", err.Error()), slog.String("path", userApp.FullPath.String()))
 		}
-		status = resp.Status
+		status = app.Status
 	}()
 	go func() {
 		defer wg.Done()
@@ -559,10 +571,7 @@ type CloneAppResponse struct {
 }
 
 func CloneApp(ctx context.Context, req CloneAppRequest) (response CloneAppResponse, cloneErr error) {
-	originPath, err := req.FromID.ToPath()
-	if err != nil {
-		return CloneAppResponse{}, fmt.Errorf("failed to get app path: %w", err)
-	}
+	originPath := req.FromID.ToPath()
 	if !originPath.Exist() {
 		return CloneAppResponse{}, ErrAppDoesntExists
 	}

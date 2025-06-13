@@ -2,9 +2,9 @@ package orchestrator
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -41,106 +41,88 @@ type DockerComposeAppStatusResponse struct {
 	Status string `json:"Status"`
 }
 
-func dockerComposeAppStatus(ctx context.Context, app app.ArduinoApp) (DockerComposeAppStatusResponse, error) {
-	mainCompose, err := getProvisioningStateDir(app)
-	if err != nil {
-		return DockerComposeAppStatusResponse{}, err
-	}
-	composeProjectName, err := getAppComposeProjectNameFromApp(app)
-	if err != nil {
-		return DockerComposeAppStatusResponse{}, err
-	}
-
-	process, err := paths.NewProcess(nil, "docker", "compose", "-f", mainCompose.String(), "ls", "--format", "json", "--all", "--filter", fmt.Sprintf("name=%s", composeProjectName))
-	if err != nil {
-		return DockerComposeAppStatusResponse{}, err
-	}
-	stdout, stderr, err := process.RunAndCaptureOutput(ctx)
-	if len(stderr) > 0 {
-		slog.Error("docker compose config error", slog.String("stderr", string(stderr)))
-	}
-	if err != nil {
-		return DockerComposeAppStatusResponse{}, fmt.Errorf("failed to run docker compose config: %w", err)
-	}
-
-	var statusResponse []DockerComposeAppStatusResponse
-	if err := json.Unmarshal(stdout, &statusResponse); err != nil {
-		return DockerComposeAppStatusResponse{}, fmt.Errorf("failed to unmarshal docker compose status response: %w", err)
-	}
-
-	if len(statusResponse) == 0 {
-		return DockerComposeAppStatusResponse{}, fmt.Errorf("failed to find app status in docker compose response")
-	}
-	// It is possible that the --filter returns multiple items as it's not an exact match
-	var match DockerComposeAppStatusResponse
-	for _, v := range statusResponse {
-		if v.Name == composeProjectName {
-			match = v
-			break
-		}
-	}
-
-	if match == (DockerComposeAppStatusResponse{}) {
-		return DockerComposeAppStatusResponse{}, fmt.Errorf("failed to find app status in docker compose response")
-	}
-
-	// The response from compose is in the form of "state(number_services)". Example: "running(2)"
-	// We only want the state, so we remove the number of services
-	idx := strings.Index(match.Status, "(")
-	if idx != -1 {
-		match.Status = match.Status[:idx]
-	}
-
-	return match, nil
+type AppStatus struct {
+	AppPath *paths.Path
+	Status  string
 }
 
-func getRunningApp(ctx context.Context, docker *dockerClient.Client) (*app.ArduinoApp, error) {
-	getPythonApp := func() (*app.ArduinoApp, error) {
+func getAppsStatus(ctx context.Context, docker *dockerClient.Client) ([]AppStatus, error) {
+	getPythonApp := func() ([]AppStatus, error) {
 		containers, err := docker.ContainerList(ctx, container.ListOptions{
+			All:     true,
 			Filters: filters.NewArgs(filters.Arg("label", DockerAppLabel+"=true")),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to list containers: %w", err)
 		}
-		if len(containers) > 1 {
-			return nil, fmt.Errorf("multiple running apps found: %d", len(containers))
-		}
 		if len(containers) == 0 {
 			return nil, nil
 		}
 
-		container := containers[0]
-		inspect, err := docker.ContainerInspect(ctx, container.ID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to inspect container %s: %w", container.ID, err)
-		}
-		appPath, ok := inspect.Config.Labels[DockerAppPathLabel]
-		if !ok {
-			return nil, fmt.Errorf("failed to get config files for app %s", container.ID)
+		// We are labeling only the python containr so we assume there is only one container per app.
+		apps := make([]AppStatus, 0, len(containers))
+		for _, container := range containers {
+			appPath, ok := container.Labels[DockerAppPathLabel]
+			if !ok {
+				return nil, fmt.Errorf("failed to get config files for app %s", container.ID)
+			}
+
+			apps = append(apps, AppStatus{
+				AppPath: paths.New(appPath),
+				Status:  container.State,
+			})
 		}
 
-		app, err := app.Load(appPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load app %s: %w", appPath, err)
-		}
-		return &app, nil
+		return apps, nil
 	}
 
-	getSketchApp := func() (*app.ArduinoApp, error) {
+	getSketchApp := func() ([]AppStatus, error) {
 		// TODO: implement this function
 		return nil, nil
 	}
 
-	for _, get := range [](func() (*app.ArduinoApp, error)){getPythonApp, getSketchApp} {
-		app, err := get()
+	for _, get := range [](func() ([]AppStatus, error)){getPythonApp, getSketchApp} {
+		apps, err := get()
 		if err != nil {
 			return nil, err
 		}
-		if app != nil {
-			return app, nil
+		if len(apps) != 0 {
+			return apps, nil
 		}
 	}
 	return nil, nil
+}
+
+func getAppStatus(ctx context.Context, docker *dockerClient.Client, app app.ArduinoApp) (AppStatus, error) {
+	apps, err := getAppsStatus(ctx, docker)
+	if err != nil {
+		return AppStatus{}, fmt.Errorf("failed to get app status: %w", err)
+	}
+	idx := slices.IndexFunc(apps, func(a AppStatus) bool {
+		return a.AppPath.String() == app.FullPath.String()
+	})
+	if idx == -1 {
+		return AppStatus{}, fmt.Errorf("app %s not found", app.FullPath)
+	}
+	return apps[idx], nil
+}
+
+func getRunningApp(ctx context.Context, docker *dockerClient.Client) (*app.ArduinoApp, error) {
+	apps, err := getAppsStatus(ctx, docker)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get running apps: %w", err)
+	}
+	idx := slices.IndexFunc(apps, func(a AppStatus) bool {
+		return a.Status == "running"
+	})
+	if idx == -1 {
+		return nil, nil
+	}
+	app, err := app.Load(apps[idx].AppPath.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to load running app: %w", err)
+	}
+	return &app, nil
 }
 
 func getAppComposeProjectNameFromApp(app app.ArduinoApp) (string, error) {

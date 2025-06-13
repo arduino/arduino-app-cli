@@ -22,7 +22,7 @@ func HandleAppList(dockerClient *dockerClient.Client) http.HandlerFunc {
 			statusFilter = status
 		}
 
-		res, err := orchestrator.ListApps(r.Context(), orchestrator.ListAppRequest{
+		res, err := orchestrator.ListApps(r.Context(), dockerClient, orchestrator.ListAppRequest{
 			ShowExamples:    showExamples,
 			ShowOnlyDefault: showOnlyDefault,
 			StatusFilter:    statusFilter,

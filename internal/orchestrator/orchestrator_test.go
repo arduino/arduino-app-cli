@@ -75,8 +75,8 @@ func TestCreateApp(t *testing.T) {
 func TestCloneApp(t *testing.T) {
 	setTestOrchestratorConfig(t)
 
-	originalAppID := ID("user/original-app")
-	originalAppPath := f.Must(originalAppID.ToPath())
+	originalAppID := f.Must(ParseID("user/original-app"))
+	originalAppPath := originalAppID.ToPath()
 	r, err := CreateApp(t.Context(), CreateAppRequest{Name: "original-app"})
 	require.NoError(t, err)
 	require.Equal(t, originalAppID, r.ID)
@@ -120,7 +120,7 @@ func TestCloneApp(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Equal(t, ID("user/new-name"), resp.ID)
-			appDir := f.Must(resp.ID.ToPath())
+			appDir := resp.ID.ToPath()
 			require.DirExists(t, appDir.String())
 			t.Cleanup(func() {
 				_ = appDir.RemoveAll()
@@ -138,7 +138,7 @@ func TestCloneApp(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Equal(t, ID("user/with-icon"), resp.ID)
-			appDir := f.Must(resp.ID.ToPath())
+			appDir := resp.ID.ToPath()
 			require.DirExists(t, appDir.String())
 			t.Cleanup(func() {
 				_ = appDir.RemoveAll()
@@ -158,7 +158,7 @@ func TestCloneApp(t *testing.T) {
 			resp, err := CloneApp(t.Context(), CloneAppRequest{FromID: ID("user/app-with-cache")})
 			require.NoError(t, err)
 			require.Equal(t, ID("user/app-with-cache-copy0"), resp.ID)
-			appDir := f.Must(resp.ID.ToPath())
+			appDir := resp.ID.ToPath()
 			require.DirExists(t, appDir.String())
 			require.NoDirExists(t, appDir.Join(".cache").String())
 			require.NoDirExists(t, appDir.Join("data").String())

@@ -18,11 +18,7 @@ func HandleAppDetails(dockerClient *dockerClient.Client) HandlerAppFunc {
 			render.EncodeResponse(w, http.StatusPreconditionFailed, "id must be set")
 			return
 		}
-		appPath, err := id.ToPath()
-		if err != nil {
-			render.EncodeResponse(w, http.StatusPreconditionFailed, "invalid id")
-			return
-		}
+		appPath := id.ToPath()
 
 		app, err := app.Load(appPath.String())
 		if err != nil {
@@ -31,7 +27,7 @@ func HandleAppDetails(dockerClient *dockerClient.Client) HandlerAppFunc {
 			return
 		}
 
-		res, err := orchestrator.AppDetails(r.Context(), app)
+		res, err := orchestrator.AppDetails(r.Context(), dockerClient, app)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, "unable to find the app")
@@ -52,11 +48,7 @@ func HandleAppDetailsEdits() HandlerAppFunc {
 			return
 		}
 
-		appPath, err := id.ToPath()
-		if err != nil {
-			render.EncodeResponse(w, http.StatusPreconditionFailed, "invalid id")
-			return
-		}
+		appPath := id.ToPath()
 
 		app, err := app.Load(appPath.String())
 		if err != nil {

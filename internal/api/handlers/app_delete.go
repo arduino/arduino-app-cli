@@ -19,11 +19,7 @@ func HandleAppDelete() HandlerAppFunc {
 			render.EncodeResponse(w, http.StatusBadRequest, "cannot delete example")
 			return
 		}
-		appPath, err := id.ToPath()
-		if err != nil {
-			render.EncodeResponse(w, http.StatusPreconditionFailed, "invalid id")
-			return
-		}
+		appPath := id.ToPath()
 
 		app, err := app.Load(appPath.String())
 		if err != nil {

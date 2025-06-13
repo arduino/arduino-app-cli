@@ -35,20 +35,37 @@ func NewHTTPRouter(dockerClient *dockerClient.Client, version string) http.Handl
 		path := r.PathValue("path")
 		switch {
 		case strings.HasSuffix(path, "/logs"):
-			id := strings.TrimSuffix(path, "/logs")
-			appLogsHandler(w, r, orchestrator.ID(id))
+			id, err := orchestrator.ParseID(strings.TrimSuffix(path, "/logs"))
+			if err != nil {
+				render.EncodeResponse(w, http.StatusBadRequest, "invalid app ID")
+				return
+			}
+			appLogsHandler(w, r, id)
 		case strings.HasSuffix(path, "/events"):
-			id := strings.TrimSuffix(path, "/events")
-			appEventsHandler(w, r, orchestrator.ID(id))
+			id, err := orchestrator.ParseID(strings.TrimSuffix(path, "/events"))
+			if err != nil {
+				render.EncodeResponse(w, http.StatusBadRequest, "invalid app ID")
+				return
+			}
+			appEventsHandler(w, r, id)
 		default:
-			appDetailsHandler(w, r, orchestrator.ID(path))
+			id, err := orchestrator.ParseID(path)
+			if err != nil {
+				render.EncodeResponse(w, http.StatusBadRequest, "invalid app ID")
+				return
+			}
+			appDetailsHandler(w, r, id)
 		}
 	})
 
 	appDetailsEditsHandler := handlers.HandleAppDetailsEdits()
 	mux.HandleFunc("PATCH /v1/apps/{path...}", func(w http.ResponseWriter, r *http.Request) {
-		path := r.PathValue("path")
-		appDetailsEditsHandler(w, r, orchestrator.ID(path))
+		id, err := orchestrator.ParseID(r.PathValue("path"))
+		if err != nil {
+			render.EncodeResponse(w, http.StatusBadRequest, "invalid app ID")
+			return
+		}
+		appDetailsEditsHandler(w, r, id)
 	})
 
 	startHandler := handlers.HandleAppStart(dockerClient)
@@ -58,14 +75,26 @@ func NewHTTPRouter(dockerClient *dockerClient.Client, version string) http.Handl
 		path := r.PathValue("path")
 		switch {
 		case strings.HasSuffix(path, "/start"):
-			id := strings.TrimSuffix(path, "/start")
-			startHandler(w, r, orchestrator.ID(id))
+			id, err := orchestrator.ParseID(strings.TrimSuffix(path, "/start"))
+			if err != nil {
+				render.EncodeResponse(w, http.StatusBadRequest, "invalid app ID")
+				return
+			}
+			startHandler(w, r, id)
 		case strings.HasSuffix(path, "/stop"):
-			id := strings.TrimSuffix(path, "/stop")
-			stopHandler(w, r, orchestrator.ID(id))
+			id, err := orchestrator.ParseID(strings.TrimSuffix(path, "/stop"))
+			if err != nil {
+				render.EncodeResponse(w, http.StatusBadRequest, "invalid app ID")
+				return
+			}
+			stopHandler(w, r, id)
 		case strings.HasSuffix(path, "/clone"):
-			id := strings.TrimSuffix(path, "/clone")
-			cloneHandler(w, r, orchestrator.ID(id))
+			id, err := orchestrator.ParseID(strings.TrimSuffix(path, "/clone"))
+			if err != nil {
+				render.EncodeResponse(w, http.StatusBadRequest, "invalid app ID")
+				return
+			}
+			cloneHandler(w, r, id)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -73,7 +102,12 @@ func NewHTTPRouter(dockerClient *dockerClient.Client, version string) http.Handl
 
 	deletehandler := handlers.HandleAppDelete()
 	mux.HandleFunc("DELETE /v1/apps/{path...}", func(w http.ResponseWriter, r *http.Request) {
-		deletehandler(w, r, orchestrator.ID(r.PathValue("path")))
+		id, err := orchestrator.ParseID(r.PathValue("path"))
+		if err != nil {
+			render.EncodeResponse(w, http.StatusBadRequest, "invalid app ID")
+			return
+		}
+		deletehandler(w, r, id)
 	})
 
 	return mux
