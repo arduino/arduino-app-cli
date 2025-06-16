@@ -31,8 +31,8 @@ setup()
     mkdir -p strings/0x409
     mkdir -p configs/c.1/strings/0x409
 
-    echo 0x374e > idProduct
-    echo 0x0483 > idVendor
+    echo 0x0078 > idProduct
+    echo 0x2341 > idVendor
 
     echo "Debian" > strings/0x409/manufacturer
     echo "ADB device" > strings/0x409/product
