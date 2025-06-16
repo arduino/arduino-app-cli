@@ -74,7 +74,6 @@ func AppLogs(ctx context.Context, app app.ArduinoApp, req AppLogsRequest) (iter.
 		"-f",
 		mainCompose.String(),
 		"logs",
-		"main",
 		"--no-color",
 	}
 	if req.Follow {
