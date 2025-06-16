@@ -297,7 +297,8 @@ func StartDefaultApp(ctx context.Context, docker *dockerClient.Client) error {
 }
 
 type ListAppResult struct {
-	Apps []AppInfo `json:"apps"`
+	Apps       []AppInfo       `json:"apps"`
+	BrokenApps []BrokenAppInfo `json:"broken_apps"`
 }
 
 type AppInfo struct {
@@ -310,6 +311,11 @@ type AppInfo struct {
 	Default     bool   `json:"default"`
 }
 
+type BrokenAppInfo struct {
+	Name  string `json:"name"`
+	Error string `json:"error"`
+}
+
 type ListAppRequest struct {
 	ShowExamples    bool
 	ShowOnlyDefault bool
@@ -317,7 +323,7 @@ type ListAppRequest struct {
 }
 
 func ListApps(ctx context.Context, docker *dockerClient.Client, req ListAppRequest) (ListAppResult, error) {
-	result := ListAppResult{Apps: []AppInfo{}}
+	result := ListAppResult{Apps: []AppInfo{}, BrokenApps: []BrokenAppInfo{}}
 
 	defaultApp, err := GetDefaultApp()
 	if err != nil {
@@ -343,7 +349,7 @@ func ListApps(ctx context.Context, docker *dockerClient.Client, req ListAppReque
 				return true
 			}
 			return false
-		})
+		}, paths.FilterDirectories(), paths.FilterOutNames("python", "sketch", ".cache"))
 		if err != nil {
 			slog.Error("unable to list apps", slog.String("error", err.Error()))
 			return result, err
@@ -364,7 +370,10 @@ func ListApps(ctx context.Context, docker *dockerClient.Client, req ListAppReque
 	for _, file := range appPaths {
 		app, err := app.Load(file.String())
 		if err != nil {
-			slog.Error("unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", file.String()))
+			result.BrokenApps = append(result.BrokenApps, BrokenAppInfo{
+				Name:  file.Base(),
+				Error: fmt.Sprintf("unable to parse the app.yaml: %s", err.Error()),
+			})
 			continue
 		}
 

@@ -284,6 +284,16 @@ func listHandler(ctx context.Context, docker *dockerClient.Client, jsonFormat bo
 				app.Example,
 			)
 		}
+
+		if len(res.BrokenApps) > 0 {
+			fmt.Fprintln(w, "\nAPP\tERROR")
+			for _, app := range res.BrokenApps {
+				fmt.Fprintf(w, "%s\t%s\n",
+					app.Name,
+					app.Error,
+				)
+			}
+		}
 		w.Flush()
 	}
 
