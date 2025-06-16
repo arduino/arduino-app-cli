@@ -317,9 +317,12 @@ type BrokenAppInfo struct {
 }
 
 type ListAppRequest struct {
-	ShowExamples    bool
-	ShowOnlyDefault bool
-	StatusFilter    string // TODO: create enum
+	ShowExamples bool `query:"example" description:"If true, includes example applications in the result."`
+
+	ShowOnlyDefault bool `query:"default" description:"If true, returns only the default application."`
+
+	// TODO: create enum (e.g., 'running', 'stopped', 'pending').
+	StatusFilter string `query:"status" description:"Filters applications by status. Available values: running, stopped, unknown"`
 }
 
 func ListApps(ctx context.Context, docker *dockerClient.Client, req ListAppRequest) (ListAppResult, error) {
@@ -415,19 +418,19 @@ func ListApps(ctx context.Context, docker *dockerClient.Client, req ListAppReque
 }
 
 type AppDetailedInfo struct {
-	ID          ID                 `json:"id"`
-	Name        string             `json:"name"`
+	ID          ID                 `json:"id" required:"true" `
+	Name        string             `json:"name" required:"true"`
 	Description string             `json:"description"`
 	Icon        string             `json:"icon"`
-	Status      string             `json:"status"` // TODO: create enum
+	Status      string             `json:"status" required:"true"` // TODO: create enum
 	Example     bool               `json:"example"`
 	Default     bool               `json:"default"`
 	Bricks      []AppDetailedBrick `json:"bricks,omitempty"`
 }
 
 type AppDetailedBrick struct {
-	ID        string            `json:"id"`
-	Name      string            `json:"name"`
+	ID        string            `json:"id" required:"true"`
+	Name      string            `json:"name" required:"true"`
 	Icon      string            `json:"icon,omitempty"`
 	Variables map[string]string `json:"variables,omitempty"`
 }

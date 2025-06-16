@@ -37,6 +37,11 @@ func HandleAppDetails(dockerClient *dockerClient.Client) HandlerAppFunc {
 	}
 }
 
+type EditRequest struct {
+	Default   *bool                         `json:"default"`
+	Variables *map[string]map[string]string `json:"variables" example:"[\"core-auth\", \"new value\"]"`
+}
+
 func HandleAppDetailsEdits() HandlerAppFunc {
 	return func(w http.ResponseWriter, r *http.Request, id orchestrator.ID) {
 		if id == "" {
@@ -55,12 +60,6 @@ func HandleAppDetailsEdits() HandlerAppFunc {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", string(id)))
 			render.EncodeResponse(w, http.StatusInternalServerError, "unable to find the app")
 			return
-		}
-
-		type EditRequest struct {
-			Default *bool `json:"default"`
-			// The key is brick name, the second map is variable_name -> value.
-			Variables *map[string]map[string]string `json:"variables"`
 		}
 
 		var editRequest EditRequest

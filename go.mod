@@ -6,6 +6,7 @@ require (
 	github.com/Andrew-M-C/go.emoji v1.1.4
 	github.com/arduino/arduino-cli v1.2.2
 	github.com/arduino/go-paths-helper v1.13.0
+	github.com/codeclysm/extract/v4 v4.0.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/djherbis/buffer v1.2.0
 	github.com/djherbis/nio/v3 v3.0.1
@@ -20,14 +21,19 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.10.0
+	github.com/swaggest/jsonschema-go v0.3.74
+	github.com/swaggest/openapi-go v0.2.58
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	go.bug.st/cleanup v1.0.0
 	go.bug.st/f v0.4.0
 	go.bug.st/relaxed-semver v0.15.0
 	go.bug.st/serial v1.6.4
 	go.bug.st/testifyjson v1.3.0
+	golang.org/x/text v0.24.0
 	mkuznets.com/go/tabwriter v0.1.2
 )
+
+require gopkg.in/yaml.v2 v2.4.0 // indirect
 
 require (
 	dario.cat/mergo v1.0.0 // indirect
@@ -42,7 +48,6 @@ require (
 	github.com/arduino/pluggable-discovery-protocol-handler/v2 v2.2.1 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/cmaglie/pb v1.0.27 // indirect
-	github.com/codeclysm/extract/v4 v4.0.0
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/creack/goselect v0.1.2 // indirect
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
@@ -106,6 +111,7 @@ require (
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/spf13/viper v1.20.1 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
+	github.com/swaggest/refl v1.3.1 // indirect
 	github.com/ulikunitz/xz v0.5.12 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/vmware-labs/yaml-jsonpath v0.3.2 // indirect
@@ -125,14 +131,12 @@ require (
 	golang.org/x/sync v0.13.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/term v0.31.0 // indirect
-	golang.org/x/text v0.24.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 	golang.org/x/tools v0.30.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250218202821-56aae31c358a // indirect
 	google.golang.org/grpc v1.72.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
 )

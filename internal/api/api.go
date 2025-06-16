@@ -1,6 +1,7 @@
 package api
 
 import (
+	"embed"
 	"net/http"
 	"strings"
 
@@ -11,16 +12,13 @@ import (
 	dockerClient "github.com/docker/docker/client"
 )
 
+//go:embed docs
+var docsFS embed.FS
+
 func NewHTTPRouter(dockerClient *dockerClient.Client, version string) http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/v1/version", func(w http.ResponseWriter, r *http.Request) {
-		render.EncodeResponse(w, http.StatusOK, struct {
-			Version string `json:"version"`
-		}{
-			Version: version,
-		})
-	})
+	mux.Handle("GET /v1/version", handlers.HandlerVersion(version))
 	mux.Handle("GET /v1/config", handlers.HandleConfig())
 	mux.Handle("GET /v1/bricks", handlers.HandleBrickList())
 	mux.Handle("GET /v1/bricks/{id...}", handlers.HandleBrickDetails())
@@ -109,6 +107,9 @@ func NewHTTPRouter(dockerClient *dockerClient.Client, version string) http.Handl
 		}
 		deletehandler(w, r, id)
 	})
+
+	docsHandler := handlers.DocsServer(docsFS)
+	mux.Handle("GET /v1/docs/", http.StripPrefix("/v1/docs/", docsHandler))
 
 	return mux
 }

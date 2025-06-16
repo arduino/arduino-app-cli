@@ -13,6 +13,11 @@ import (
 	dockerClient "github.com/docker/docker/client"
 )
 
+type CloneRequest struct {
+	Name *string `json:"name" description:"application name" example:"My Awesome App"`
+	Icon *string `json:"icon" description:"application icon"`
+}
+
 func HandleAppClone(dockerClient *dockerClient.Client) HandlerAppFunc {
 	return func(w http.ResponseWriter, r *http.Request, id orchestrator.ID) {
 		if id == "" {
@@ -22,10 +27,6 @@ func HandleAppClone(dockerClient *dockerClient.Client) HandlerAppFunc {
 		if err := id.Validate(); err != nil {
 			render.EncodeResponse(w, http.StatusPreconditionFailed, "invalid id")
 			return
-		}
-		type CloneRequest struct {
-			Name *string `json:"name"`
-			Icon *string `json:"icon"`
 		}
 		defer r.Body.Close()
 

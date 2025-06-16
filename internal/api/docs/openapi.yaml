@@ -1,0 +1,672 @@
+openapi: 3.0.3
+info:
+  description: API specification for the MonzaImola Orchestrator
+  title: Arduino-App-Cli
+  version: 0.1.0
+servers:
+  - description: local server
+    url: http://localhost:8080
+tags:
+  - name: Application
+  - name: Brick
+paths:
+  /v1/apps:
+    get:
+      description: Returns a list of all apps, and example present. It is also possible
+        to apply different filters.
+      operationId: getApps
+      parameters:
+        - description: If true, includes example applications in the result.
+          in: query
+          name: example
+          schema:
+            description: If true, includes example applications in the result.
+            type: boolean
+        - description: If true, returns only the default application.
+          in: query
+          name: default
+          schema:
+            description: If true, returns only the default application.
+            type: boolean
+        - description: "Filters applications by status. Available values: running, stopped,
+            unknown"
+          in: query
+          name: status
+          schema:
+            description: "Filters applications by status. Available values: running,
+              stopped, unknown"
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListAppResult"
+          description: Successful response
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      summary: Get a list of installed apps/examples
+      tags:
+        - Application
+    post:
+      description: Creates a new app in the default app location.
+      operationId: createApp
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAppRequest"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateAppResponse"
+          description: Successful response
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      summary: Creates a new app
+      tags:
+        - Application
+  /v1/apps/{id}:
+    delete:
+      description: Remove the given app and all the resources it created
+      operationId: deleteApp
+      parameters:
+        - description: application identifier.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: application identifier.
+            type: string
+      responses:
+        "200":
+          description: Successful response
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      summary: delete the app
+      tags:
+        - Application
+    get:
+      description: Return all the detail for the given app
+      operationId: getAppDetails
+      parameters:
+        - description: application identifier.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: application identifier.
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppDetailedInfo"
+          description: Successful response
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      summary: Get app/example detail
+      tags:
+        - Application
+    patch:
+      description: Edit the given application. Is it possible to modify the default
+        status, to add/remove/update bricks and bricks variables.
+      operationId: editApp
+      parameters:
+        - description: application identifier.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: application identifier.
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditRequest"
+      responses:
+        "200":
+          description: Successful response
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      summary: Update App Details
+      tags:
+        - Application
+  /v1/apps/{id}/clone:
+    post:
+      description: Clone an existing app or example, in a new one. It is possible
+        to specify the new name and icon.
+      operationId: cloneApp
+      parameters:
+        - description: application identifier.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: application identifier.
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CloneRequest"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloneAppResponse"
+          description: Successful response
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      summary: Creates a new app, from another app or example identified by ID.
+      tags:
+        - Application
+  /v1/apps/{id}/events:
+    get:
+      description: "Returns events for a specific app "
+      operationId: getAppEvents
+      parameters:
+        - description: application identifier.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: application identifier.
+            type: string
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                type: string
+          description: OK
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      summary: "Get application events "
+      tags:
+        - Application
+  /v1/apps/{id}/logs:
+    get:
+      description: Obtain a ServerSentEvnt stream of logs. It is possible to apply
+        different filters.
+      operationId: getAppLogs
+      parameters:
+        - in: query
+          name: filter
+          schema:
+            type: string
+        - in: query
+          name: tail
+          schema:
+            type: integer
+        - in: query
+          name: nofollow
+          schema:
+            type: boolean
+        - description: application identifier.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: application identifier.
+            type: string
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                type: string
+          description: OK
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      summary: Get the logs of a running app
+      tags:
+        - Application
+  /v1/apps/{id}/start:
+    post:
+      description: Start the application and handles all the operation to start any
+        dependecies. If the app contains a sketch it also flash it in the micro.
+      operationId: startApp
+      parameters:
+        - description: application identifier.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: application identifier.
+            type: string
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                type: string
+          description: |
+            A stream of Server-Sent Events (SSE) that notifies the progress.
+            The client will receive events formatted as follows:
+
+            **Event 'progress'**:
+            Contains a JSON object with the percentage of completion.
+            'event: progress'
+            'data: {"progress":0.25}'
+
+            **Event 'message'**:
+            Contains a JSON object with an informational message.
+            'event: message'
+            'data: {"message":"Starting container..."}'
+
+            **Event 'error'**:
+            Contains a JSON object with the details of an error.
+            'event: error'
+            'data: {"code":"internal_service_err","message":"An error occurred during operation"}'
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      summary: Start an existing app/example
+      tags:
+        - Application
+  /v1/apps/{id}/stop:
+    post:
+      description: Stop the application and all it's dependecies. If the app contains
+        a sketch it also remove it from the micro.
+      operationId: stopApp
+      parameters:
+        - description: application identifier.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: application identifier.
+            type: string
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                type: string
+          description: |
+            A stream of Server-Sent Events (SSE) that notifies the progress.
+            The client will receive events formatted as follows:
+
+            **Event 'progress'**:
+            Contains a JSON object with the percentage of completion.
+            'event: progress'
+            'data: {"progress":0.25}'
+
+            **Event 'message'**:
+            Contains a JSON object with an informational message.
+            'event: message'
+            'data: {"message":"Stopping container..."}'
+
+            **Event 'error'**:
+            Contains a JSON object with the details of an error.
+            'event: error'
+            'data: {"code":"internal_service_err","message":"An error occurred during operation"}'
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      summary: Stop an existing app/example
+      tags:
+        - Application
+  /v1/bricks:
+    get:
+      description: Returns all the existing bricks. Bricks that are ready to use are
+        marked as installed.
+      operationId: getBricks
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrickListResult"
+          description: Successful response
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      summary: Get a list of available bricks
+      tags:
+        - Brick
+  /v1/bricks/{id}:
+    get:
+      description: Returns a detailed list of property associated to the given brick.
+      operationId: getBrickDetails
+      parameters:
+        - description: brick identifier.
+          in: path
+          name: id
+          required: true
+          schema:
+            description: brick identifier.
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrickDetailsResult"
+          description: Successful response
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      summary: Detail of a brick
+      tags:
+        - Brick
+  /v1/config:
+    get:
+      description: returns information about current directory configuration used
+        by the app
+      operationId: getConfig
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigResponse"
+          description: Successful response
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      summary: returns application configuration
+      tags:
+        - Application
+  /v1/version:
+    get:
+      description: returns the application current version
+      operationId: getVersions
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VersionResponse"
+          description: Successful response
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      summary: application version
+      tags:
+        - Application
+components:
+  responses:
+    BadRequest:
+      content:
+        application/json:
+          example:
+            code: 400
+            message: The request is invalid or missing required parameters.
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: Bad Request
+    Conflict:
+      content:
+        application/json:
+          example:
+            code: 409
+            message: There is a conflict with an existing resource.
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: Conflict
+    InternalServerError:
+      content:
+        application/json:
+          example:
+            code: 500
+            message: An unexpected error occurred.
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: Internal Server Error
+    NotFound:
+      content:
+        application/json:
+          example:
+            code: 404
+            message: The requested resource was not found.
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: Not Found
+    PreconditionFailed:
+      content:
+        application/json:
+          example:
+            code: 412
+            message: The request is invalid.
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: Precondition Failed
+  schemas:
+    AppDetailedBrick:
+      properties:
+        icon:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        variables:
+          additionalProperties:
+            type: string
+          type: object
+      required:
+        - id
+        - name
+      type: object
+    AppDetailedInfo:
+      properties:
+        bricks:
+          items:
+            $ref: "#/components/schemas/AppDetailedBrick"
+          type: array
+        default:
+          type: boolean
+        description:
+          type: string
+        example:
+          type: boolean
+        icon:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+      required:
+        - id
+        - name
+        - status
+      type: object
+    AppInfo:
+      properties:
+        default:
+          type: boolean
+        description:
+          type: string
+        example:
+          type: boolean
+        icon:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+      type: object
+    BrickDetailsResult:
+      properties:
+        author:
+          type: string
+        description:
+          type: string
+        icon:
+          type: string
+        id:
+          type: string
+        installed:
+          type: boolean
+        name:
+          type: string
+        readme:
+          type: string
+        variables:
+          additionalProperties:
+            $ref: "#/components/schemas/BrickVariable"
+          type: object
+      type: object
+    BrickListItem:
+      properties:
+        author:
+          type: string
+        description:
+          type: string
+        icon:
+          type: string
+        id:
+          type: string
+        installed:
+          type: boolean
+        name:
+          type: string
+      type: object
+    BrickListResult:
+      properties:
+        bricks:
+          items:
+            $ref: "#/components/schemas/BrickListItem"
+          nullable: true
+          type: array
+      type: object
+    BrickVariable:
+      properties:
+        default_value:
+          type: string
+        description:
+          type: string
+        required:
+          type: boolean
+      type: object
+    CloneAppResponse:
+      properties:
+        id:
+          type: string
+      type: object
+    CloneRequest:
+      properties:
+        icon:
+          description: application icon
+          nullable: true
+          type: string
+        name:
+          description: application name
+          example: My Awesome App
+          nullable: true
+          type: string
+      type: object
+    ConfigDirectories:
+      properties:
+        apps:
+          type: string
+        data:
+          type: string
+        examples:
+          type: string
+      type: object
+    ConfigResponse:
+      properties:
+        directories:
+          $ref: "#/components/schemas/ConfigDirectories"
+      type: object
+    CreateAppRequest:
+      properties:
+        bricks:
+          description: application bricks
+          example:
+            - core-auth
+            - data-storage
+          items:
+            type: string
+          type: array
+        icon:
+          description: application icon
+          type: string
+        name:
+          description: application name
+          example: My Awesome App
+          type: string
+      required:
+        - name
+      type: object
+    CreateAppResponse:
+      properties:
+        id:
+          type: string
+      type: object
+    EditRequest:
+      properties:
+        default:
+          nullable: true
+          type: boolean
+        variables:
+          additionalProperties:
+            additionalProperties:
+              type: string
+            type: object
+          example:
+            - core-auth
+            - new value
+          nullable: true
+          type: object
+      type: object
+    ErrorResponse:
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+      type: object
+    ListAppResult:
+      properties:
+        apps:
+          items:
+            $ref: "#/components/schemas/AppInfo"
+          nullable: true
+          type: array
+      type: object
+    VersionResponse:
+      properties:
+        version:
+          type: string
+      type: object

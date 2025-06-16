@@ -21,8 +21,9 @@ func TestCreateApp(t *testing.T) {
 
 	r, err := httpClient.CreateApp(t.Context(), client.CreateAppRequest{
 		Icon: f.Ptr("🌎"),
-		Name: f.Ptr("HelloWorld"),
+		Name: "HelloWorld",
 	})
+
 	require.NoError(t, err)
 	body, err := io.ReadAll(r.Body)
 	require.NoError(t, err)

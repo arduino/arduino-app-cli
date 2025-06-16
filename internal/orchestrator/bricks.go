@@ -55,7 +55,7 @@ type BrickDetailsResult struct {
 	Description string                   `json:"description"`
 	Icon        string                   `json:"icon"` // TODO: not implemented yet
 	IsInstalled bool                     `json:"installed"`
-	Variables   map[string]BrickVariable `json:"variables"`
+	Variables   map[string]BrickVariable `json:"variables,omitempty"`
 	Readme      string                   `json:"readme"`
 }
 

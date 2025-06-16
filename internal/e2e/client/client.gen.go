@@ -16,136 +16,107 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
-// Defines values for GetAppsParamsStatus.
-const (
-	Running GetAppsParamsStatus = "running"
-	Stopped GetAppsParamsStatus = "stopped"
-	Unknown GetAppsParamsStatus = "unknown"
-)
-
-// AppCloneRequest defines model for AppCloneRequest.
-type AppCloneRequest struct {
-	Icon *string `json:"icon,omitempty"`
-	Name *string `json:"name,omitempty"`
-}
-
-// AppCloneResponse defines model for AppCloneResponse.
-type AppCloneResponse struct {
-	Id *string `json:"id,omitempty"`
-}
-
-// AppDetailBrick defines model for AppDetailBrick.
-type AppDetailBrick struct {
+// AppDetailedBrick defines model for AppDetailedBrick.
+type AppDetailedBrick struct {
 	Icon      *string            `json:"icon,omitempty"`
 	Id        string             `json:"id"`
 	Name      string             `json:"name"`
 	Variables *map[string]string `json:"variables,omitempty"`
 }
 
-// AppDetailResponse defines model for AppDetailResponse.
-type AppDetailResponse struct {
-	Bricks      *AppDetailBrick `json:"bricks,omitempty"`
-	ByteSize    *int            `json:"byteSize,omitempty"`
-	Default     *bool           `json:"default,omitempty"`
-	Description *string         `json:"description,omitempty"`
-	Example     *bool           `json:"example,omitempty"`
-	Icon        *string         `json:"icon,omitempty"`
-	Id          string          `json:"id"`
-	Name        string          `json:"name"`
-	Status      string          `json:"status"`
+// AppDetailedInfo defines model for AppDetailedInfo.
+type AppDetailedInfo struct {
+	Bricks      *[]AppDetailedBrick `json:"bricks,omitempty"`
+	Default     *bool               `json:"default,omitempty"`
+	Description *string             `json:"description,omitempty"`
+	Example     *bool               `json:"example,omitempty"`
+	Icon        *string             `json:"icon,omitempty"`
+	Id          string              `json:"id"`
+	Name        string              `json:"name"`
+	Status      string              `json:"status"`
 }
 
-// AppListItem defines model for AppListItem.
-type AppListItem struct {
+// AppInfo defines model for AppInfo.
+type AppInfo struct {
 	Default     *bool   `json:"default,omitempty"`
 	Description *string `json:"description,omitempty"`
 	Example     *bool   `json:"example,omitempty"`
 	Icon        *string `json:"icon,omitempty"`
-	Id          string  `json:"id"`
-	Name        string  `json:"name"`
-	Status      string  `json:"status"`
+	Id          *string `json:"id,omitempty"`
+	Name        *string `json:"name,omitempty"`
+	Status      *string `json:"status,omitempty"`
 }
 
-// AppListResponse defines model for AppListResponse.
-type AppListResponse struct {
-	Apps *[]AppListItem `json:"apps,omitempty"`
+// BrickDetailsResult defines model for BrickDetailsResult.
+type BrickDetailsResult struct {
+	Author      *string                   `json:"author,omitempty"`
+	Description *string                   `json:"description,omitempty"`
+	Icon        *string                   `json:"icon,omitempty"`
+	Id          *string                   `json:"id,omitempty"`
+	Installed   *bool                     `json:"installed,omitempty"`
+	Name        *string                   `json:"name,omitempty"`
+	Readme      *string                   `json:"readme,omitempty"`
+	Variables   *map[string]BrickVariable `json:"variables,omitempty"`
 }
 
-// AppPatchRequest defines model for AppPatchRequest.
-type AppPatchRequest struct {
-	Default   *bool                         `json:"default,omitempty"`
-	Variables *map[string]map[string]string `json:"variables,omitempty"`
-}
-
-// Brick defines model for Brick.
-type Brick struct {
-	// Author The author of the brick.
-	Author *string `json:"author,omitempty"`
-
-	// Description A detailed description of the brick.
+// BrickListItem defines model for BrickListItem.
+type BrickListItem struct {
+	Author      *string `json:"author,omitempty"`
 	Description *string `json:"description,omitempty"`
-
-	// Icon An icon or emoji representing the brick.
-	Icon *string `json:"icon,omitempty"`
-
-	// Id The unique identifier of the brick.
-	Id string `json:"id"`
-
-	// IsInstalled Indicates whether the brick is installed.
-	IsInstalled *bool `json:"is_installed,omitempty"`
-
-	// Name The name of the brick.
-	Name string `json:"name"`
+	Icon        *string `json:"icon,omitempty"`
+	Id          *string `json:"id,omitempty"`
+	Installed   *bool   `json:"installed,omitempty"`
+	Name        *string `json:"name,omitempty"`
 }
 
-// BrickDetails defines model for BrickDetails.
-type BrickDetails struct {
-	// Author The author of the brick.
-	Author *string `json:"author,omitempty"`
-
-	// Description A detailed description of the brick.
-	Description *string `json:"description,omitempty"`
-
-	// Icon An icon or emoji representing the brick.
-	Icon *string `json:"icon,omitempty"`
-
-	// Id The unique identifier of the brick.
-	Id string `json:"id"`
-
-	// IsInstalled Indicates whether the brick is installed.
-	IsInstalled *bool `json:"is_installed,omitempty"`
-
-	// Name The name of the brick.
-	Name string `json:"name"`
-
-	// Readme The readmefile
-	Readme    *string                   `json:"readme,omitempty"`
-	Variables *map[string]BrickVariable `json:"variables,omitempty"`
-}
-
-// BrickListResponse defines model for BrickListResponse.
-type BrickListResponse struct {
-	Pagination *Pagination `json:"pagination,omitempty"`
-	Results    *[]Brick    `json:"results,omitempty"`
+// BrickListResult defines model for BrickListResult.
+type BrickListResult struct {
+	Bricks *[]BrickListItem `json:"bricks"`
 }
 
 // BrickVariable defines model for BrickVariable.
 type BrickVariable struct {
-	// DefaultValue The default value
 	DefaultValue *string `json:"default_value,omitempty"`
+	Description  *string `json:"description,omitempty"`
+	Required     *bool   `json:"required,omitempty"`
+}
 
-	// Description The variable description
-	Description *string `json:"description,omitempty"`
+// CloneAppResponse defines model for CloneAppResponse.
+type CloneAppResponse struct {
+	Id *string `json:"id,omitempty"`
+}
 
-	// Required If the variable is required
-	Required *bool `json:"required,omitempty"`
+// CloneRequest defines model for CloneRequest.
+type CloneRequest struct {
+	// Icon application icon
+	Icon *string `json:"icon"`
+
+	// Name application name
+	Name *string `json:"name"`
+}
+
+// ConfigDirectories defines model for ConfigDirectories.
+type ConfigDirectories struct {
+	Apps     *string `json:"apps,omitempty"`
+	Data     *string `json:"data,omitempty"`
+	Examples *string `json:"examples,omitempty"`
+}
+
+// ConfigResponse defines model for ConfigResponse.
+type ConfigResponse struct {
+	Directories *ConfigDirectories `json:"directories,omitempty"`
 }
 
 // CreateAppRequest defines model for CreateAppRequest.
 type CreateAppRequest struct {
+	// Bricks application bricks
 	Bricks *[]string `json:"bricks,omitempty"`
-	Icon   *string   `json:"icon,omitempty"`
-	Name   *string   `json:"name,omitempty"`
+
+	// Icon application icon
+	Icon *string `json:"icon,omitempty"`
+
+	// Name application name
+	Name string `json:"name"`
 }
 
 // CreateAppResponse defines model for CreateAppResponse.
@@ -153,35 +124,27 @@ type CreateAppResponse struct {
 	Id *string `json:"id,omitempty"`
 }
 
+// EditRequest defines model for EditRequest.
+type EditRequest struct {
+	Default   *bool                         `json:"default"`
+	Variables *map[string]map[string]string `json:"variables"`
+}
+
 // ErrorResponse defines model for ErrorResponse.
 type ErrorResponse struct {
-	Code    int     `json:"code"`
+	Code    *int    `json:"code,omitempty"`
 	Message *string `json:"message,omitempty"`
 }
 
-// Pagination defines model for Pagination.
-type Pagination struct {
-	// NextPage The next page number (if available).
-	NextPage *int `json:"next_page,omitempty"`
-
-	// Page The current page number.
-	Page int `json:"page"`
-
-	// PerPage The number of items per page.
-	PerPage int `json:"per_page"`
-
-	// PrevPage The previous page number (if available).
-	PrevPage *int `json:"prev_page,omitempty"`
-
-	// TotalItems The total number of items.
-	TotalItems int `json:"total_items"`
-
-	// TotalPages The total number of pages.
-	TotalPages int `json:"total_pages"`
+// ListAppResult defines model for ListAppResult.
+type ListAppResult struct {
+	Apps *[]AppInfo `json:"apps"`
 }
 
-// StreamedMessage defines model for StreamedMessage.
-type StreamedMessage = string
+// VersionResponse defines model for VersionResponse.
+type VersionResponse struct {
+	Version *string `json:"version,omitempty"`
+}
 
 // BadRequest defines model for BadRequest.
 type BadRequest = ErrorResponse
@@ -200,13 +163,15 @@ type PreconditionFailed = ErrorResponse
 
 // GetAppsParams defines parameters for GetApps.
 type GetAppsParams struct {
-	Example *bool                  `form:"example,omitempty" json:"example,omitempty"`
-	Default *bool                  `form:"default,omitempty" json:"default,omitempty"`
-	Status  *[]GetAppsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
-}
+	// Example If true, includes example applications in the result.
+	Example *bool `form:"example,omitempty" json:"example,omitempty"`
 
-// GetAppsParamsStatus defines parameters for GetApps.
-type GetAppsParamsStatus string
+	// Default If true, returns only the default application.
+	Default *bool `form:"default,omitempty" json:"default,omitempty"`
+
+	// Status Filters applications by status. Available values: running, stopped, unknown
+	Status *string `form:"status,omitempty" json:"status,omitempty"`
+}
 
 // GetAppLogsParams defines parameters for GetAppLogs.
 type GetAppLogsParams struct {
@@ -215,33 +180,14 @@ type GetAppLogsParams struct {
 	Nofollow *bool   `form:"nofollow,omitempty" json:"nofollow,omitempty"`
 }
 
-// GetMonitorParams defines parameters for GetMonitor.
-type GetMonitorParams struct {
-	Base64   *bool `form:"base64,omitempty" json:"base64,omitempty"`
-	BaudRate *int  `form:"baud_rate,omitempty" json:"baud_rate,omitempty"`
-}
-
-// SendToMonitorJSONBody defines parameters for SendToMonitor.
-type SendToMonitorJSONBody struct {
-	Message *string `json:"message,omitempty"`
-}
-
-// SendToMonitorParams defines parameters for SendToMonitor.
-type SendToMonitorParams struct {
-	Base64 *bool `form:"base64,omitempty" json:"base64,omitempty"`
-}
-
 // CreateAppJSONRequestBody defines body for CreateApp for application/json ContentType.
 type CreateAppJSONRequestBody = CreateAppRequest
 
 // EditAppJSONRequestBody defines body for EditApp for application/json ContentType.
-type EditAppJSONRequestBody = AppPatchRequest
+type EditAppJSONRequestBody = EditRequest
 
 // CloneAppJSONRequestBody defines body for CloneApp for application/json ContentType.
-type CloneAppJSONRequestBody = AppCloneRequest
-
-// SendToMonitorJSONRequestBody defines body for SendToMonitor for application/json ContentType.
-type SendToMonitorJSONRequestBody SendToMonitorJSONBody
+type CloneAppJSONRequestBody = CloneRequest
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -346,14 +292,6 @@ type ClientInterface interface {
 	// GetAppLogs request
 	GetAppLogs(ctx context.Context, id string, params *GetAppLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetMonitor request
-	GetMonitor(ctx context.Context, id string, params *GetMonitorParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// SendToMonitorWithBody request with any body
-	SendToMonitorWithBody(ctx context.Context, id string, params *SendToMonitorParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	SendToMonitor(ctx context.Context, id string, params *SendToMonitorParams, body SendToMonitorJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// StartApp request
 	StartApp(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -365,6 +303,12 @@ type ClientInterface interface {
 
 	// GetBrickDetails request
 	GetBrickDetails(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetConfig request
+	GetConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetVersions request
+	GetVersions(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) GetApps(ctx context.Context, params *GetAppsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -499,42 +443,6 @@ func (c *Client) GetAppLogs(ctx context.Context, id string, params *GetAppLogsPa
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetMonitor(ctx context.Context, id string, params *GetMonitorParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetMonitorRequest(c.Server, id, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) SendToMonitorWithBody(ctx context.Context, id string, params *SendToMonitorParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSendToMonitorRequestWithBody(c.Server, id, params, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) SendToMonitor(ctx context.Context, id string, params *SendToMonitorParams, body SendToMonitorJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSendToMonitorRequest(c.Server, id, params, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) StartApp(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewStartAppRequest(c.Server, id)
 	if err != nil {
@@ -573,6 +481,30 @@ func (c *Client) GetBricks(ctx context.Context, reqEditors ...RequestEditorFn) (
 
 func (c *Client) GetBrickDetails(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetBrickDetailsRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetConfigRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetVersions(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetVersionsRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -988,147 +920,6 @@ func NewGetAppLogsRequest(server string, id string, params *GetAppLogsParams) (*
 	return req, nil
 }
 
-// NewGetMonitorRequest generates requests for GetMonitor
-func NewGetMonitorRequest(server string, id string, params *GetMonitorParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/v1/apps/%s/monitor", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.Base64 != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "base64", runtime.ParamLocationQuery, *params.Base64); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.BaudRate != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "baud_rate", runtime.ParamLocationQuery, *params.BaudRate); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewSendToMonitorRequest calls the generic SendToMonitor builder with application/json body
-func NewSendToMonitorRequest(server string, id string, params *SendToMonitorParams, body SendToMonitorJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewSendToMonitorRequestWithBody(server, id, params, "application/json", bodyReader)
-}
-
-// NewSendToMonitorRequestWithBody generates requests for SendToMonitor with any type of body
-func NewSendToMonitorRequestWithBody(server string, id string, params *SendToMonitorParams, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/v1/apps/%s/monitor", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.Base64 != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "base64", runtime.ParamLocationQuery, *params.Base64); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("PUT", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
 // NewStartAppRequest generates requests for StartApp
 func NewStartAppRequest(server string, id string) (*http.Request, error) {
 	var err error
@@ -1258,6 +1049,60 @@ func NewGetBrickDetailsRequest(server string, id string) (*http.Request, error) 
 	return req, nil
 }
 
+// NewGetConfigRequest generates requests for GetConfig
+func NewGetConfigRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/config")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetVersionsRequest generates requests for GetVersions
+func NewGetVersionsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/version")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -1331,14 +1176,6 @@ type ClientWithResponsesInterface interface {
 	// GetAppLogsWithResponse request
 	GetAppLogsWithResponse(ctx context.Context, id string, params *GetAppLogsParams, reqEditors ...RequestEditorFn) (*GetAppLogsResp, error)
 
-	// GetMonitorWithResponse request
-	GetMonitorWithResponse(ctx context.Context, id string, params *GetMonitorParams, reqEditors ...RequestEditorFn) (*GetMonitorResp, error)
-
-	// SendToMonitorWithBodyWithResponse request with any body
-	SendToMonitorWithBodyWithResponse(ctx context.Context, id string, params *SendToMonitorParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SendToMonitorResp, error)
-
-	SendToMonitorWithResponse(ctx context.Context, id string, params *SendToMonitorParams, body SendToMonitorJSONRequestBody, reqEditors ...RequestEditorFn) (*SendToMonitorResp, error)
-
 	// StartAppWithResponse request
 	StartAppWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*StartAppResp, error)
 
@@ -1350,12 +1187,18 @@ type ClientWithResponsesInterface interface {
 
 	// GetBrickDetailsWithResponse request
 	GetBrickDetailsWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetBrickDetailsResp, error)
+
+	// GetConfigWithResponse request
+	GetConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetConfigResp, error)
+
+	// GetVersionsWithResponse request
+	GetVersionsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetVersionsResp, error)
 }
 
 type GetAppsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *AppListResponse
+	JSON200      *ListAppResult
 	JSON500      *InternalServerError
 }
 
@@ -1403,7 +1246,6 @@ func (r CreateAppResp) StatusCode() int {
 type DeleteAppResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *AppDetailResponse
 	JSON400      *BadRequest
 	JSON412      *PreconditionFailed
 	JSON500      *InternalServerError
@@ -1428,7 +1270,7 @@ func (r DeleteAppResp) StatusCode() int {
 type GetAppDetailsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *AppDetailResponse
+	JSON200      *AppDetailedInfo
 	JSON412      *PreconditionFailed
 	JSON500      *InternalServerError
 }
@@ -1476,7 +1318,7 @@ func (r EditAppResp) StatusCode() int {
 type CloneAppResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON201      *AppCloneResponse
+	JSON201      *CloneAppResponse
 	JSON400      *BadRequest
 	JSON404      *NotFound
 	JSON409      *Conflict
@@ -1503,6 +1345,7 @@ func (r CloneAppResp) StatusCode() int {
 type GetAppEventsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON500      *InternalServerError
 }
 
 // Status returns HTTPResponse.Status
@@ -1539,48 +1382,6 @@ func (r GetAppLogsResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetAppLogsResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetMonitorResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-}
-
-// Status returns HTTPResponse.Status
-func (r GetMonitorResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetMonitorResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type SendToMonitorResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-}
-
-// Status returns HTTPResponse.Status
-func (r SendToMonitorResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r SendToMonitorResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -1636,7 +1437,7 @@ func (r StopAppResp) StatusCode() int {
 type GetBricksResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *BrickListResponse
+	JSON200      *BrickListResult
 	JSON500      *InternalServerError
 }
 
@@ -1659,7 +1460,7 @@ func (r GetBricksResp) StatusCode() int {
 type GetBrickDetailsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *BrickDetails
+	JSON200      *BrickDetailsResult
 	JSON400      *BadRequest
 	JSON404      *NotFound
 	JSON500      *InternalServerError
@@ -1675,6 +1476,52 @@ func (r GetBrickDetailsResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetBrickDetailsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetConfigResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ConfigResponse
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetConfigResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetConfigResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetVersionsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *VersionResponse
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetVersionsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetVersionsResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -1777,32 +1624,6 @@ func (c *ClientWithResponses) GetAppLogsWithResponse(ctx context.Context, id str
 	return ParseGetAppLogsResp(rsp)
 }
 
-// GetMonitorWithResponse request returning *GetMonitorResp
-func (c *ClientWithResponses) GetMonitorWithResponse(ctx context.Context, id string, params *GetMonitorParams, reqEditors ...RequestEditorFn) (*GetMonitorResp, error) {
-	rsp, err := c.GetMonitor(ctx, id, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetMonitorResp(rsp)
-}
-
-// SendToMonitorWithBodyWithResponse request with arbitrary body returning *SendToMonitorResp
-func (c *ClientWithResponses) SendToMonitorWithBodyWithResponse(ctx context.Context, id string, params *SendToMonitorParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SendToMonitorResp, error) {
-	rsp, err := c.SendToMonitorWithBody(ctx, id, params, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseSendToMonitorResp(rsp)
-}
-
-func (c *ClientWithResponses) SendToMonitorWithResponse(ctx context.Context, id string, params *SendToMonitorParams, body SendToMonitorJSONRequestBody, reqEditors ...RequestEditorFn) (*SendToMonitorResp, error) {
-	rsp, err := c.SendToMonitor(ctx, id, params, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseSendToMonitorResp(rsp)
-}
-
 // StartAppWithResponse request returning *StartAppResp
 func (c *ClientWithResponses) StartAppWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*StartAppResp, error) {
 	rsp, err := c.StartApp(ctx, id, reqEditors...)
@@ -1839,6 +1660,24 @@ func (c *ClientWithResponses) GetBrickDetailsWithResponse(ctx context.Context, i
 	return ParseGetBrickDetailsResp(rsp)
 }
 
+// GetConfigWithResponse request returning *GetConfigResp
+func (c *ClientWithResponses) GetConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetConfigResp, error) {
+	rsp, err := c.GetConfig(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetConfigResp(rsp)
+}
+
+// GetVersionsWithResponse request returning *GetVersionsResp
+func (c *ClientWithResponses) GetVersionsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetVersionsResp, error) {
+	rsp, err := c.GetVersions(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetVersionsResp(rsp)
+}
+
 // ParseGetAppsResp parses an HTTP response from a GetAppsWithResponse call
 func ParseGetAppsResp(rsp *http.Response) (*GetAppsResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -1854,7 +1693,7 @@ func ParseGetAppsResp(rsp *http.Response) (*GetAppsResp, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AppListResponse
+		var dest ListAppResult
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -1933,13 +1772,6 @@ func ParseDeleteAppResp(rsp *http.Response) (*DeleteAppResp, error) {
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AppDetailResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest BadRequest
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -1981,7 +1813,7 @@ func ParseGetAppDetailsResp(rsp *http.Response) (*GetAppDetailsResp, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AppDetailResponse
+		var dest AppDetailedInfo
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2061,7 +1893,7 @@ func ParseCloneAppResp(rsp *http.Response) (*CloneAppResp, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest AppCloneResponse
+		var dest CloneAppResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2120,6 +1952,16 @@ func ParseGetAppEventsResp(rsp *http.Response) (*GetAppEventsResp, error) {
 		HTTPResponse: rsp,
 	}
 
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
 	return response, nil
 }
 
@@ -2158,38 +2000,6 @@ func ParseGetAppLogsResp(rsp *http.Response) (*GetAppLogsResp, error) {
 		}
 		response.JSON500 = &dest
 
-	}
-
-	return response, nil
-}
-
-// ParseGetMonitorResp parses an HTTP response from a GetMonitorWithResponse call
-func ParseGetMonitorResp(rsp *http.Response) (*GetMonitorResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetMonitorResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	return response, nil
-}
-
-// ParseSendToMonitorResp parses an HTTP response from a SendToMonitorWithResponse call
-func ParseSendToMonitorResp(rsp *http.Response) (*SendToMonitorResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &SendToMonitorResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
 	}
 
 	return response, nil
@@ -2276,7 +2086,7 @@ func ParseGetBricksResp(rsp *http.Response) (*GetBricksResp, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest BrickListResponse
+		var dest BrickListResult
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2309,7 +2119,7 @@ func ParseGetBrickDetailsResp(rsp *http.Response) (*GetBrickDetailsResp, error) 
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest BrickDetails
+		var dest BrickDetailsResult
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2328,6 +2138,72 @@ func ParseGetBrickDetailsResp(rsp *http.Response) (*GetBrickDetailsResp, error) 
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetConfigResp parses an HTTP response from a GetConfigWithResponse call
+func ParseGetConfigResp(rsp *http.Response) (*GetConfigResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetConfigResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ConfigResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetVersionsResp parses an HTTP response from a GetVersionsWithResponse call
+func ParseGetVersionsResp(rsp *http.Response) (*GetVersionsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetVersionsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest VersionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError

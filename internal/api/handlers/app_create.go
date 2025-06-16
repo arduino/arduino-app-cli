@@ -12,16 +12,17 @@ import (
 	dockerClient "github.com/docker/docker/client"
 )
 
+type CreateAppRequest struct {
+	Name   string   `json:"name" description:"application name" example:"My Awesome App" required:"true"`
+	Icon   string   `json:"icon" description:"application icon" `
+	Bricks []string `json:"bricks,omitempty" description:"application bricks"  example:"[\"core-auth\", \"data-storage\"]"`
+}
+
 func HandleAppCreate(dockerClient *dockerClient.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		type CreateRequest struct {
-			Name   string   `json:"name"`
-			Icon   string   `json:"icon"`
-			Bricks []string `json:"bricks"`
-		}
 		defer r.Body.Close()
 
-		var req CreateRequest
+		var req CreateAppRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			slog.Error("unable to decode app create request", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusBadRequest, "unable to decode app create request")
