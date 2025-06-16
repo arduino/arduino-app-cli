@@ -7,14 +7,16 @@ set -xe
 # Install Arduino CLI.
 adb shell 'mkdir -p /opt/arduino-cli && curl -L https://downloads.arduino.cc/arduino-cli/arduino-cli_1.2.2_Linux_ARM64.tar.gz | tar -xz -C /opt/arduino-cli'
 adb shell ln -s /opt/arduino-cli/arduino-cli /usr/local/bin/arduino-cli || true
-adb shell 'su - arduino -c "arduino-cli core install arduino:zephyr --additional-urls https://downloads.arduino.cc/packages/package_zephyr_index.json"'
 
 # Install ArduinoCore-zephyr platform.
-adb push $BASE_DIR/ArduinoCore-zephyr.tar.xz /tmp/ArduinoCore-zephyr.tar.xz
-adb shell tar -xJf /tmp/ArduinoCore-zephyr.tar.xz -C /opt/
-adb shell mkdir -p /home/arduino/Arduino/hardware/dev
-adb shell ln -s /opt/ArduinoCore-zephyr /home/arduino/Arduino/hardware/dev/zephyr || true
-adb shell rm -f /tmp/ArduinoCore-zephyr.tar.xz
+adb shell su - arduino -c "\"cat > /home/arduino/.arduino15/arduino-cli.yaml\"" <<EOF
+board_manager:
+    additional_urls:
+      - https://arduino:aptexperiment@apt-repo.oniudra.cc/zephyr-core-jomla.json
+network:
+  connection_timeout: 1000s
+EOF
+adb shell su - arduino -c "\"arduino-cli core install dev:zephyr\""
 
 # Compile and install remoteocd.
 GOARCH=arm64 GOOS=linux go build -o ./build/remoteocd ./cmd/remoteocd/
