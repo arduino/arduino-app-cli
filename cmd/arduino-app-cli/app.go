@@ -342,7 +342,7 @@ func createHandler(ctx context.Context, name string, icon string, bricks []strin
 
 func loadApp(idOrPath string) (app.ArduinoApp, error) {
 	id, err := orchestrator.ParseID(idOrPath)
-	if err == nil {
+	if err != nil {
 		return app.ArduinoApp{}, fmt.Errorf("invalid app path: %s", idOrPath)
 	}
 

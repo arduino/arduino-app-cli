@@ -39,7 +39,17 @@ func NewIDFromPath(p *paths.Path) (ID, error) {
 	return ID(p.String()), nil
 }
 
+// ParseID parses a string into an ID.
+// It accepts both absolute paths and relative paths.
 func ParseID(id string) (ID, error) {
+	if id == "" {
+		return "", ErrInvalidID
+	}
+	// Attempt to expand the path to absolute path.
+	if p, err := paths.New(id).Abs(); err == nil && p.Exist() {
+		id = p.String()
+	}
+
 	v := ID(id)
 	return v, v.Validate()
 }
