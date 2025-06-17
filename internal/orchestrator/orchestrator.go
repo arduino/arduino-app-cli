@@ -306,7 +306,7 @@ type AppInfo struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Icon        string `json:"icon"`
-	Status      string `json:"status"` // TODO: create enum
+	Status      Status `json:"status,omitempty"`
 	Example     bool   `json:"example"`
 	Default     bool   `json:"default"`
 }
@@ -321,8 +321,7 @@ type ListAppRequest struct {
 
 	ShowOnlyDefault bool `query:"default" description:"If true, returns only the default application."`
 
-	// TODO: create enum (e.g., 'running', 'stopped', 'pending').
-	StatusFilter string `query:"status" description:"Filters applications by status. Available values: running, stopped, unknown"`
+	StatusFilter Status `query:"status" description:"Filters applications by status"`
 }
 
 func ListApps(ctx context.Context, docker *dockerClient.Client, req ListAppRequest) (ListAppResult, error) {
@@ -385,7 +384,7 @@ func ListApps(ctx context.Context, docker *dockerClient.Client, req ListAppReque
 			continue
 		}
 
-		var status string
+		var status Status
 		if idx := slices.IndexFunc(apps, func(a AppStatus) bool {
 			return a.AppPath.EqualsTo(app.FullPath)
 		}); idx != -1 {
@@ -422,7 +421,7 @@ type AppDetailedInfo struct {
 	Name        string             `json:"name" required:"true"`
 	Description string             `json:"description"`
 	Icon        string             `json:"icon"`
-	Status      string             `json:"status" required:"true"` // TODO: create enum
+	Status      Status             `json:"status" required:"true"`
 	Example     bool               `json:"example"`
 	Default     bool               `json:"default"`
 	Bricks      []AppDetailedBrick `json:"bricks,omitempty"`
@@ -438,7 +437,8 @@ type AppDetailedBrick struct {
 func AppDetails(ctx context.Context, docker *dockerClient.Client, userApp app.ArduinoApp) (AppDetailedInfo, error) {
 	var wg sync.WaitGroup
 	wg.Add(2)
-	var status, defaultAppPath string
+	var defaultAppPath string
+	var status Status
 	go func() {
 		defer wg.Done()
 		app, err := getAppStatus(ctx, docker, userApp)

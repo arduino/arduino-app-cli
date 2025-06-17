@@ -28,14 +28,11 @@ paths:
           schema:
             description: If true, returns only the default application.
             type: boolean
-        - description: "Filters applications by status. Available values: running, stopped,
-            unknown"
+        - description: Filters applications by status
           in: query
           name: status
           schema:
-            description: "Filters applications by status. Available values: running,
-              stopped, unknown"
-            type: string
+            $ref: "#/components/schemas/Status"
       responses:
         "200":
           content:
@@ -502,7 +499,7 @@ components:
         name:
           type: string
         status:
-          type: string
+          $ref: "#/components/schemas/Status"
       required:
         - id
         - name
@@ -523,7 +520,7 @@ components:
         name:
           type: string
         status:
-          type: string
+          $ref: "#/components/schemas/Status"
       type: object
     BrickDetailsResult:
       properties:
@@ -577,6 +574,13 @@ components:
           type: string
         required:
           type: boolean
+      type: object
+    BrokenAppInfo:
+      properties:
+        error:
+          type: string
+        name:
+          type: string
       type: object
     CloneAppResponse:
       properties:
@@ -664,7 +668,22 @@ components:
             $ref: "#/components/schemas/AppInfo"
           nullable: true
           type: array
+        broken_apps:
+          items:
+            $ref: "#/components/schemas/BrokenAppInfo"
+          nullable: true
+          type: array
       type: object
+    Status:
+      description: Application status
+      enum:
+        - starting
+        - running
+        - stopping
+        - stopped
+        - failed
+      type: string
+      uniqueItems: true
     VersionResponse:
       properties:
         version:

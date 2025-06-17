@@ -36,14 +36,9 @@ func dockerComposeListServices(ctx context.Context, composeFile *paths.Path) ([]
 	return strings.Split(strings.TrimSpace(string(stdout)), "\n"), nil
 }
 
-type DockerComposeAppStatusResponse struct {
-	Name   string `json:"Name"`
-	Status string `json:"Status"`
-}
-
 type AppStatus struct {
 	AppPath *paths.Path
-	Status  string
+	Status  Status
 }
 
 func getAppsStatus(ctx context.Context, docker *dockerClient.Client) ([]AppStatus, error) {
@@ -61,15 +56,15 @@ func getAppsStatus(ctx context.Context, docker *dockerClient.Client) ([]AppStatu
 
 		// We are labeling only the python containr so we assume there is only one container per app.
 		apps := make([]AppStatus, 0, len(containers))
-		for _, container := range containers {
-			appPath, ok := container.Labels[DockerAppPathLabel]
+		for _, c := range containers {
+			appPath, ok := c.Labels[DockerAppPathLabel]
 			if !ok {
-				return nil, fmt.Errorf("failed to get config files for app %s", container.ID)
+				return nil, fmt.Errorf("failed to get config files for app %s", c.ID)
 			}
 
 			apps = append(apps, AppStatus{
 				AppPath: paths.New(appPath),
-				Status:  container.State,
+				Status:  StatusFromDockerState(c.State),
 			})
 		}
 

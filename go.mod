@@ -10,7 +10,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/djherbis/buffer v1.2.0
 	github.com/djherbis/nio/v3 v3.0.1
-	github.com/docker/docker v28.0.4+incompatible
+	github.com/docker/docker v28.2.2+incompatible
 	github.com/fatih/color v1.18.0
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/goccy/go-yaml v1.17.1
@@ -33,9 +33,11 @@ require (
 	mkuznets.com/go/tabwriter v0.1.2
 )
 
-require gopkg.in/yaml.v2 v2.4.0 // indirect
-
 require (
+	gopkg.in/yaml.v2 v2.4.0 // indirect
+	github.com/containerd/errdefs v1.0.0 // indirect
+	github.com/containerd/errdefs/pkg v0.3.0 // indirect
+	github.com/moby/sys/atomicwriter v0.1.0 // indirect
 	dario.cat/mergo v1.0.0 // indirect
 	fortio.org/safecast v1.0.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect

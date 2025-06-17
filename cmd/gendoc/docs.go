@@ -40,9 +40,23 @@ func NewOpenApiGenerator(version string) *Generator {
 		Description: f.Ptr("local server"),
 	})
 
+	reflector.Spec.Components = &openapi3.Components{}
+	reflector.Spec.Components.Schemas = &openapi3.ComponentsSchemas{}
+	reflector.Spec.Components.Schemas.WithMapOfSchemaOrRefValuesItem(
+		"Status",
+		openapi3.SchemaOrRef{
+			Schema: &openapi3.Schema{
+				UniqueItems: f.Ptr(true),
+				Enum:        f.Map(orchestrator.Status("").AllowedStatuses(), func(v orchestrator.Status) interface{} { return v }),
+				Type:        f.Ptr(openapi3.SchemaTypeString),
+				Description: f.Ptr("Application status"),
+				ReflectType: reflect.TypeOf(orchestrator.Status("")),
+			},
+		},
+	)
+
 	ErrorResponseSchema := "#/components/schemas/ErrorResponse"
 
-	reflector.Spec.WithComponents(openapi3.Components{})
 	reflector.Spec.Components.WithResponses(
 		openapi3.ComponentsResponses{
 			MapOfResponseOrRefValues: map[string]openapi3.ResponseOrRef{
@@ -143,6 +157,13 @@ func NewOpenApiGenerator(version string) *Generator {
 	// Openapi-go automatically add as prefix the package name. We use this hook
 	// to manually remove the pkg prefix.
 	reflector.DefaultOptions = append(reflector.DefaultOptions,
+		jsonschema.InterceptSchema(func(params jsonschema.InterceptSchemaParams) (stop bool, err error) {
+			if params.Value.Type() == reflect.TypeOf(orchestrator.Status("")) {
+				params.Schema.WithRef("#/components/schemas/Status")
+				return true, nil
+			}
+			return false, nil
+		}),
 		jsonschema.InterceptDefName(func(t reflect.Type, defaultDefName string) string {
 			caser := cases.Title(language.English)
 			pkgName := caser.String(path.Base(t.PkgPath()))

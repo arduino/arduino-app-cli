@@ -16,6 +16,15 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// Defines values for Status.
+const (
+	Failed   Status = "failed"
+	Running  Status = "running"
+	Starting Status = "starting"
+	Stopped  Status = "stopped"
+	Stopping Status = "stopping"
+)
+
 // AppDetailedBrick defines model for AppDetailedBrick.
 type AppDetailedBrick struct {
 	Icon      *string            `json:"icon,omitempty"`
@@ -33,7 +42,9 @@ type AppDetailedInfo struct {
 	Icon        *string             `json:"icon,omitempty"`
 	Id          string              `json:"id"`
 	Name        string              `json:"name"`
-	Status      string              `json:"status"`
+
+	// Status Application status
+	Status Status `json:"status"`
 }
 
 // AppInfo defines model for AppInfo.
@@ -44,7 +55,9 @@ type AppInfo struct {
 	Icon        *string `json:"icon,omitempty"`
 	Id          *string `json:"id,omitempty"`
 	Name        *string `json:"name,omitempty"`
-	Status      *string `json:"status,omitempty"`
+
+	// Status Application status
+	Status *Status `json:"status,omitempty"`
 }
 
 // BrickDetailsResult defines model for BrickDetailsResult.
@@ -79,6 +92,12 @@ type BrickVariable struct {
 	DefaultValue *string `json:"default_value,omitempty"`
 	Description  *string `json:"description,omitempty"`
 	Required     *bool   `json:"required,omitempty"`
+}
+
+// BrokenAppInfo defines model for BrokenAppInfo.
+type BrokenAppInfo struct {
+	Error *string `json:"error,omitempty"`
+	Name  *string `json:"name,omitempty"`
 }
 
 // CloneAppResponse defines model for CloneAppResponse.
@@ -138,8 +157,12 @@ type ErrorResponse struct {
 
 // ListAppResult defines model for ListAppResult.
 type ListAppResult struct {
-	Apps *[]AppInfo `json:"apps"`
+	Apps       *[]AppInfo       `json:"apps"`
+	BrokenApps *[]BrokenAppInfo `json:"broken_apps"`
 }
+
+// Status Application status
+type Status string
 
 // VersionResponse defines model for VersionResponse.
 type VersionResponse struct {
@@ -169,8 +192,8 @@ type GetAppsParams struct {
 	// Default If true, returns only the default application.
 	Default *bool `form:"default,omitempty" json:"default,omitempty"`
 
-	// Status Filters applications by status. Available values: running, stopped, unknown
-	Status *string `form:"status,omitempty" json:"status,omitempty"`
+	// Status Filters applications by status
+	Status *Status `form:"status,omitempty" json:"status,omitempty"`
 }
 
 // GetAppLogsParams defines parameters for GetAppLogs.

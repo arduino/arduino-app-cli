@@ -17,8 +17,13 @@ func HandleAppList(dockerClient *dockerClient.Client) http.HandlerFunc {
 		showExamples := queryParams.Get("example") == "true"
 		showOnlyDefault := queryParams.Get("default") == "true"
 
-		var statusFilter string
+		var statusFilter orchestrator.Status
 		if status := queryParams.Get("status"); status != "" {
+			status, err := orchestrator.ParseStatus(status)
+			if err != nil {
+				render.EncodeResponse(w, http.StatusBadRequest, "invalid status filter")
+				return
+			}
 			statusFilter = status
 		}
 
