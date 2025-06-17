@@ -205,7 +205,7 @@ func StartApp(ctx context.Context, docker *dockerClient.Client, app app.ArduinoA
 			}
 
 			mainCompose := provisioningStateDir.Join("app-compose.yaml")
-			process, err := paths.NewProcess(nil, "docker", "compose", "-f", mainCompose.String(), "up", "-d", "--remove-orphans")
+			process, err := paths.NewProcess(nil, "docker", "compose", "-f", mainCompose.String(), "up", "-d", "--remove-orphans", "--pull", "missing")
 			if err != nil {
 				yield(StreamMessage{error: err})
 				return
