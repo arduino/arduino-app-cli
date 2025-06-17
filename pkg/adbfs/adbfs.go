@@ -10,48 +10,63 @@ import (
 )
 
 type AdbFS struct {
-	Base string
-	Host string
+	base string
+
+	adb *adb.ADBConnection
+}
+
+func NewAdbFS(base string, adb *adb.ADBConnection) AdbFS {
+	return AdbFS{
+		base: base,
+		adb:  adb,
+	}
 }
 
 func (a AdbFS) Open(name string) (fs.File, error) {
-	name = path.Join(a.Base, name)
-	stats, err := adb.Stats(name, a.Host)
+	name = path.Join(a.base, name)
+	stats, err := a.adb.Stats(name)
 	if err != nil {
 		return nil, err
 	}
 	if stats.IsDir {
-		return AdbReadDirFile{name: name, host: a.Host}, nil
+		return AdbReadDirFile{name: name, adb: a.adb}, nil
 	}
 
-	return &AdbFile{name: name, host: a.Host}, nil
+	return &AdbFile{name: name, adb: a.adb}, nil
 }
 
 type AdbFSWriter struct {
 	AdbFS
 }
 
+func (a AdbFS) ToWriter() AdbFSWriter {
+	return AdbFSWriter{
+		AdbFS: a,
+	}
+}
+
 func (a AdbFSWriter) MkDirAll(p string) error {
-	return adb.MkDirAll(path.Join(a.Base, p), a.Host)
+	return a.adb.MkDirAll(path.Join(a.base, p))
 }
 
 func (a AdbFSWriter) WriteFile(p string, data io.ReadCloser) error {
-	return adb.CatIn(data, path.Join(a.Base, p), a.Host)
+	return a.adb.CatIn(data, path.Join(a.base, p))
 }
 
 func (a AdbFSWriter) RmFile(p string) error {
-	return adb.Remove(path.Join(a.Base, p), a.Host)
+	return a.adb.Remove(path.Join(a.base, p))
 }
 
 type AdbFile struct {
 	name string
 	read io.ReadCloser
-	host string
+
+	adb *adb.ADBConnection
 }
 
 func (a *AdbFile) Read(p []byte) (n int, err error) {
 	if a.read == nil {
-		r, err := adb.CatOut(a.name, a.host)
+		r, err := a.adb.CatOut(a.name)
 		if err != nil {
 			return 0, err
 		}
@@ -105,11 +120,12 @@ func (a AdbFileInfo) Sys() any {
 
 type AdbReadDirFile struct {
 	name string
-	host string
+
+	adb *adb.ADBConnection
 }
 
 func (a AdbReadDirFile) ReadDir(n int) ([]fs.DirEntry, error) {
-	files, err := adb.List(a.name, a.host)
+	files, err := a.adb.List(a.name)
 	if err != nil {
 		return nil, err
 	}

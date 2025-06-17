@@ -96,18 +96,6 @@ func stopAdbDaemon(t *testing.T) {
 	}
 }
 
-func runAdbCmd(t *testing.T, args ...string) {
-	adbPath := getAdbPath()
-	out, err := exec.Command(adbPath, "connect", "localhost:"+adbPort).CombinedOutput()
-	if err != nil {
-		t.Fatalf("failed to connect to adb daemon: %v: %s", err, string(out))
-	}
-	out, err = exec.Command(adbPath, append([]string{"-s", "localhost:" + adbPort, "shell"}, args...)...).CombinedOutput()
-	if err != nil {
-		t.Fatalf("failed to run adb command: %v: %s", err, string(out))
-	}
-}
-
 func TestEnableSyncApp(t *testing.T) {
 	t.Cleanup(func() {
 		stopAdbDaemon(t)
@@ -133,16 +121,24 @@ func TestEnableSyncApp(t *testing.T) {
 		return files
 	}
 
-	runAdbCmd(t, "mkdir", "/apps/test")
-	runAdbCmd(t, "mkdir", "/apps/test/python")
-	runAdbCmd(t, "touch", "/apps/test/python/main.py")
-	runAdbCmd(t, "mkdir", "/apps/test/sketch/")
-	runAdbCmd(t, "touch", "/apps/test/sketch/sketch.ino")
-	runAdbCmd(t, "touch", "/apps/test/app.yml")
-
-	sync, err := NewAppsSync("/apps")
+	adb, err := adb.FromHost("localhost:"+adbPort, "")
 	require.NoError(t, err)
-	sync.Host = "localhost:" + adbPort
+
+	_, err = adb.Run("mkdir", "-p", "/apps/arduino-apps/test")
+	require.NoError(t, err)
+	_, err = adb.Run("mkdir", "-p", "/apps/test/python")
+	require.NoError(t, err)
+	_, err = adb.Run("touch", "/apps/test/python/main.py")
+	require.NoError(t, err)
+	_, err = adb.Run("mkdir", "-p", "/apps/test/sketch/")
+	require.NoError(t, err)
+	_, err = adb.Run("touch", "/apps/test/sketch/sketch.ino")
+	require.NoError(t, err)
+	_, err = adb.Run("touch", "/apps/test/app.yml")
+	require.NoError(t, err)
+
+	sync, err := New(adb, "/apps")
+	require.NoError(t, err)
 	tmp, err := sync.EnableSyncApp("test")
 	require.NoError(t, err)
 	files := getFiles(os.DirFS(tmp))
@@ -162,7 +158,7 @@ func TestEnableSyncApp(t *testing.T) {
 		time.Sleep(1 * time.Second)
 
 		// check if the file is created
-		files = getFiles(adbfs.AdbFS{Base: "/apps/test", Host: "localhost:" + adbPort})
+		files = getFiles(adbfs.NewAdbFS("/apps/test", adb))
 		require.Equal(t, []string{
 			"app.yml",
 			"python",
@@ -181,7 +177,7 @@ func TestEnableSyncApp(t *testing.T) {
 		time.Sleep(1 * time.Second)
 
 		// check if the file is created
-		files = getFiles(adbfs.AdbFS{Base: "/apps/test", Host: "localhost:" + adbPort})
+		files = getFiles(adbfs.NewAdbFS("/apps/test", adb))
 		require.Equal(t, []string{
 			"app.yml",
 			"python",
@@ -201,7 +197,7 @@ func TestEnableSyncApp(t *testing.T) {
 		time.Sleep(1 * time.Second)
 		// check if the dir is created
 
-		files = getFiles(adbfs.AdbFS{Base: "/apps/test", Host: "localhost:" + adbPort})
+		files = getFiles(adbfs.NewAdbFS("/apps/test", adb))
 		require.Equal(t, []string{
 			"app.yml",
 			"python",
@@ -221,7 +217,7 @@ func TestEnableSyncApp(t *testing.T) {
 		time.Sleep(1 * time.Second)
 
 		// check if the file is created
-		files = getFiles(adbfs.AdbFS{Base: "/apps/test", Host: "localhost:" + adbPort})
+		files = getFiles(adbfs.NewAdbFS("/apps/test", adb))
 		require.Equal(t, []string{
 			"app.yml",
 			"python",
@@ -242,7 +238,7 @@ func TestEnableSyncApp(t *testing.T) {
 		time.Sleep(1 * time.Second)
 
 		// check if the file is updated
-		buff, err := adb.CatOut("/apps/test/python/main.py", "localhost:"+adbPort)
+		buff, err := adb.CatOut("/apps/test/python/main.py")
 		require.NoError(t, err)
 		b, err := io.ReadAll(buff)
 		require.NoError(t, err)
@@ -257,7 +253,7 @@ func TestEnableSyncApp(t *testing.T) {
 		time.Sleep(1 * time.Second)
 
 		// check if the file is deleted
-		files = getFiles(adbfs.AdbFS{Base: "/apps/test", Host: "localhost:" + adbPort})
+		files = getFiles(adbfs.NewAdbFS("/apps/test", adb))
 		require.Equal(t, []string{
 			"app.yml",
 			"python",
@@ -278,7 +274,7 @@ func TestEnableSyncApp(t *testing.T) {
 		time.Sleep(1 * time.Second)
 
 		// check if the dir is deleted
-		files = getFiles(adbfs.AdbFS{Base: "/apps/test", Host: "localhost:" + adbPort})
+		files = getFiles(adbfs.NewAdbFS("/apps/test", adb))
 		require.Equal(t, []string{
 			"app.yml",
 			"sketch",

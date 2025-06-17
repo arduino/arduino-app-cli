@@ -18,7 +18,7 @@ import (
 	"github.com/arduino/arduino-app-cli/pkg/appsync"
 )
 
-const boardAppPath = "/apps"
+const boardAppPath = "/home/arduino/arduino-apps"
 
 func main() {
 	var rootCmd = &cobra.Command{
@@ -26,19 +26,33 @@ func main() {
 		Short: "A CLI tool for interacting with arduino apps file system",
 	}
 
+	var fqbn, host string
+	rootCmd.PersistentFlags().StringVarP(&fqbn, "fqbn", "b", "dev:zephyr:jomla", "fqbn of the board")
+	rootCmd.PersistentFlags().StringVar(&host, "host", "", "ADB host address")
+
+	getAdbConnection := func(ctx context.Context) (*adb.ADBConnection, error) {
+		if host != "" {
+			return adb.FromHost(host, "")
+		}
+		return adb.FromFQBN(ctx, fqbn, "")
+	}
+
 	var lsCmd = &cobra.Command{
 		Use:   "ls [path]",
 		Short: "List files in the specified path",
 		Args:  cobra.MaximumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			p := "."
 			if len(args) > 0 {
 				p = args[0]
 			}
+			adb, err := getAdbConnection(cmd.Context())
+			if err != nil {
+				return fmt.Errorf("failed to connect to board: %w", err)
+			}
 			files, err := adb.List(path.Join(boardAppPath, p))
 			if err != nil {
-				fmt.Println("Error:", err.Error())
-				return
+				return fmt.Errorf("failed to list files: %w", err)
 			}
 			for _, file := range files {
 				if file.IsDir {
@@ -47,6 +61,7 @@ func main() {
 					fmt.Println("📄 ", file.Name)
 				}
 			}
+			return nil
 		},
 	}
 
@@ -54,13 +69,18 @@ func main() {
 		Use:   "tree [path]",
 		Short: "List files in the specified path (ignore hidden files)",
 		Args:  cobra.MaximumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			p := "."
 			if len(args) > 0 {
 				p = args[0]
 			}
 
-			err := fs.WalkDir(adbfs.AdbFS{Base: boardAppPath}, p, func(p string, info fs.DirEntry, err error) error {
+			adb, err := getAdbConnection(cmd.Context())
+			if err != nil {
+				return fmt.Errorf("failed to connect to board: %w", err)
+			}
+
+			err = fs.WalkDir(adbfs.NewAdbFS(boardAppPath, adb), p, func(p string, info fs.DirEntry, err error) error {
 				if err != nil {
 					return err
 				}
@@ -79,8 +99,9 @@ func main() {
 				return nil
 			})
 			if err != nil {
-				fmt.Println("Error:", err.Error())
+				return fmt.Errorf("failed to list files: %w", err)
 			}
+			return nil
 		},
 	}
 
@@ -88,12 +109,19 @@ func main() {
 		Use:   "push <local> <remote>",
 		Short: "Push a file or directory from the local machine to the board",
 		Args:  cobra.ExactArgs(2),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			local := args[0]
 			remote := path.Join(boardAppPath, args[1])
-			if err := adbfs.SyncFS(adbfs.AdbFSWriter{AdbFS: adbfs.AdbFS{Base: remote}}, os.DirFS(local)); err != nil {
-				fmt.Println("Error:", err.Error())
+
+			adb, err := getAdbConnection(cmd.Context())
+			if err != nil {
+				return fmt.Errorf("failed to connect to board: %w", err)
 			}
+
+			if err := adbfs.SyncFS(adbfs.NewAdbFS(remote, adb).ToWriter(), os.DirFS(local)); err != nil {
+				return fmt.Errorf("failed to push files: %w", err)
+			}
+			return nil
 		},
 	}
 
@@ -101,12 +129,19 @@ func main() {
 		Use:   "pull <remote> <local>",
 		Short: "Pull a file or directory from the local machine to the board",
 		Args:  cobra.ExactArgs(2),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			remote := path.Join(boardAppPath, args[0])
 			local := filepath.Join(args[1], path.Base(remote))
-			if err := adbfs.SyncFS(adbfs.OsFSWriter{Base: local}, adbfs.AdbFS{Base: remote}, ".cache"); err != nil {
-				fmt.Println("Error:", err.Error())
+
+			adb, err := getAdbConnection(cmd.Context())
+			if err != nil {
+				return fmt.Errorf("failed to connect to board: %w", err)
 			}
+
+			if err := adbfs.SyncFS(adbfs.OsFSWriter{Base: local}, adbfs.NewAdbFS(remote, adb), ".cache"); err != nil {
+				return fmt.Errorf("failed to pull files: %w", err)
+			}
+			return nil
 		},
 	}
 
@@ -114,12 +149,17 @@ func main() {
 		Use:   "enable-sync <app-name>",
 		Short: "Enable sync of an app from the board",
 		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			appName := args[0]
-			s, err := appsync.NewAppsSync("/home/arduino/arduino-apps")
+
+			adb, err := getAdbConnection(cmd.Context())
 			if err != nil {
-				fmt.Println("Error:", err.Error())
-				return
+				return fmt.Errorf("failed to connect to board: %w", err)
+			}
+
+			s, err := appsync.New(adb, boardAppPath)
+			if err != nil {
+				return fmt.Errorf("failed to create apps sync: %w", err)
 			}
 			defer s.Close()
 			s.OnPull = func(name, path string) {
@@ -131,14 +171,14 @@ func main() {
 
 			tmp, err := s.EnableSyncApp(appName)
 			if err != nil {
-				fmt.Println("Error:", err.Error())
-				return
+				return fmt.Errorf("failed to enable sync for app %q: %w", appName, err)
 			}
 
 			fmt.Printf("Enable sync of %q at %q\n", appName, tmp)
 
 			<-cmd.Context().Done()
 			_ = s.DisableSyncApp(appName)
+			return nil
 		},
 	}
 
@@ -149,7 +189,6 @@ func main() {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, slogOptions)))
 
 	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt)
-
 	rootCmd.AddCommand(lsCmd, treeCmd, pushCmd, pullCmd, syncAppCmd)
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		fmt.Println(err)
