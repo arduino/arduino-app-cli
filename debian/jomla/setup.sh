@@ -9,6 +9,7 @@ adb shell 'mkdir -p /opt/arduino-cli && curl -L https://downloads.arduino.cc/ard
 adb shell ln -s /opt/arduino-cli/arduino-cli /usr/local/bin/arduino-cli || true
 
 # Install ArduinoCore-zephyr platform.
+adb shell su - arduino -c "\"mkdir -p /home/arduino/.arduino15\""
 adb shell su - arduino -c "\"cat > /home/arduino/.arduino15/arduino-cli.yaml\"" <<EOF
 board_manager:
     additional_urls:
