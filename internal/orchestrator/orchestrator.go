@@ -55,6 +55,10 @@ var (
 	boardNames = []string{"Inc. Robotics RB1\n", "Imola\n"}
 )
 
+const (
+	DefaultDockerStopTimeoutSeconds = 5
+)
+
 func init() {
 	const dockerRegistry = "ghcr.io/bcmi-labs/"
 	const dockerPythonImage = "arduino/appslab-python-apps-base:0.0.12"
@@ -251,7 +255,7 @@ func StopApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
 			mainCompose := provisioningStateDir.Join("app-compose.yaml")
 			// In case the app was never started
 			if mainCompose.Exist() {
-				process, err := paths.NewProcess(nil, "docker", "compose", "-f", mainCompose.String(), "stop")
+				process, err := paths.NewProcess(nil, "docker", "compose", "-f", mainCompose.String(), "stop", fmt.Sprintf("--timeout=%d", DefaultDockerStopTimeoutSeconds))
 				if err != nil {
 					yield(StreamMessage{error: err})
 					return
