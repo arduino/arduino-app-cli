@@ -48,6 +48,17 @@ paths:
     post:
       description: Creates a new app in the default app location.
       operationId: createApp
+      parameters:
+        - name: skip-python
+          in: query
+          description: if true, skips python build
+          schema:
+            type: boolean
+        - name: skip-sketch
+          in: query
+          description: if true, skips sketch build
+          schema:
+            type: boolean
       requestBody:
         content:
           application/json:

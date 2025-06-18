@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/pkg/render"
@@ -20,7 +21,20 @@ type CreateAppRequest struct {
 
 func HandleAppCreate(dockerClient *dockerClient.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+
 		defer r.Body.Close()
+
+		queryParams := r.URL.Query()
+		skipPythonStr := queryParams.Get("skip-python")
+		skipSketchStr := queryParams.Get("skip-sketch")
+
+		skipPython := queryParamsValidator(skipPythonStr)
+		skipSketch := queryParamsValidator(skipSketchStr)
+
+		if skipPython && skipSketch {
+			render.EncodeResponse(w, http.StatusBadRequest, "cannot skip both python and sketch")
+			return
+		}
 
 		var req CreateAppRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -32,9 +46,11 @@ func HandleAppCreate(dockerClient *dockerClient.Client) http.HandlerFunc {
 		resp, err := orchestrator.CreateApp(
 			r.Context(),
 			orchestrator.CreateAppRequest{
-				Name:   req.Name,
-				Icon:   req.Icon,
-				Bricks: req.Bricks,
+				Name:       req.Name,
+				Icon:       req.Icon,
+				Bricks:     req.Bricks,
+				SkipPython: skipPython,
+				SkipSketch: skipSketch,
 			},
 		)
 		if err != nil {
@@ -49,4 +65,16 @@ func HandleAppCreate(dockerClient *dockerClient.Client) http.HandlerFunc {
 		}
 		render.EncodeResponse(w, http.StatusCreated, resp)
 	}
+}
+
+func queryParamsValidator(param string) bool {
+	if param == "" {
+		return false
+	}
+	b, err := strconv.ParseBool(param)
+	if err != nil {
+		slog.Warn("query value '%q' for AppCreate non valid: %v\n", param, err)
+		return false
+	}
+	return b
 }

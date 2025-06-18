@@ -196,6 +196,15 @@ type GetAppsParams struct {
 	Status *Status `form:"status,omitempty" json:"status,omitempty"`
 }
 
+// CreateAppParams defines parameters for CreateApp.
+type CreateAppParams struct {
+	// SkipPython if true, skips python build
+	SkipPython *bool `form:"skip-python,omitempty" json:"skip-python,omitempty"`
+
+	// SkipSketch if true, skips sketch build
+	SkipSketch *bool `form:"skip-sketch,omitempty" json:"skip-sketch,omitempty"`
+}
+
 // GetAppLogsParams defines parameters for GetAppLogs.
 type GetAppLogsParams struct {
 	Filter   *string `form:"filter,omitempty" json:"filter,omitempty"`
@@ -289,9 +298,9 @@ type ClientInterface interface {
 	GetApps(ctx context.Context, params *GetAppsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateAppWithBody request with any body
-	CreateAppWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateAppWithBody(ctx context.Context, params *CreateAppParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	CreateApp(ctx context.Context, body CreateAppJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateApp(ctx context.Context, params *CreateAppParams, body CreateAppJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteApp request
 	DeleteApp(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -346,8 +355,8 @@ func (c *Client) GetApps(ctx context.Context, params *GetAppsParams, reqEditors 
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateAppWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateAppRequestWithBody(c.Server, contentType, body)
+func (c *Client) CreateAppWithBody(ctx context.Context, params *CreateAppParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAppRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -358,8 +367,8 @@ func (c *Client) CreateAppWithBody(ctx context.Context, contentType string, body
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateApp(ctx context.Context, body CreateAppJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateAppRequest(c.Server, body)
+func (c *Client) CreateApp(ctx context.Context, params *CreateAppParams, body CreateAppJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAppRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -620,18 +629,18 @@ func NewGetAppsRequest(server string, params *GetAppsParams) (*http.Request, err
 }
 
 // NewCreateAppRequest calls the generic CreateApp builder with application/json body
-func NewCreateAppRequest(server string, body CreateAppJSONRequestBody) (*http.Request, error) {
+func NewCreateAppRequest(server string, params *CreateAppParams, body CreateAppJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewCreateAppRequestWithBody(server, "application/json", bodyReader)
+	return NewCreateAppRequestWithBody(server, params, "application/json", bodyReader)
 }
 
 // NewCreateAppRequestWithBody generates requests for CreateApp with any type of body
-func NewCreateAppRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewCreateAppRequestWithBody(server string, params *CreateAppParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -647,6 +656,44 @@ func NewCreateAppRequestWithBody(server string, contentType string, body io.Read
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.SkipPython != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "skip-python", runtime.ParamLocationQuery, *params.SkipPython); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SkipSketch != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "skip-sketch", runtime.ParamLocationQuery, *params.SkipSketch); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("POST", queryURL.String(), body)
@@ -1173,9 +1220,9 @@ type ClientWithResponsesInterface interface {
 	GetAppsWithResponse(ctx context.Context, params *GetAppsParams, reqEditors ...RequestEditorFn) (*GetAppsResp, error)
 
 	// CreateAppWithBodyWithResponse request with any body
-	CreateAppWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAppResp, error)
+	CreateAppWithBodyWithResponse(ctx context.Context, params *CreateAppParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAppResp, error)
 
-	CreateAppWithResponse(ctx context.Context, body CreateAppJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAppResp, error)
+	CreateAppWithResponse(ctx context.Context, params *CreateAppParams, body CreateAppJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAppResp, error)
 
 	// DeleteAppWithResponse request
 	DeleteAppWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteAppResp, error)
@@ -1561,16 +1608,16 @@ func (c *ClientWithResponses) GetAppsWithResponse(ctx context.Context, params *G
 }
 
 // CreateAppWithBodyWithResponse request with arbitrary body returning *CreateAppResp
-func (c *ClientWithResponses) CreateAppWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAppResp, error) {
-	rsp, err := c.CreateAppWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) CreateAppWithBodyWithResponse(ctx context.Context, params *CreateAppParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAppResp, error) {
+	rsp, err := c.CreateAppWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseCreateAppResp(rsp)
 }
 
-func (c *ClientWithResponses) CreateAppWithResponse(ctx context.Context, body CreateAppJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAppResp, error) {
-	rsp, err := c.CreateApp(ctx, body, reqEditors...)
+func (c *ClientWithResponses) CreateAppWithResponse(ctx context.Context, params *CreateAppParams, body CreateAppJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAppResp, error) {
+	rsp, err := c.CreateApp(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

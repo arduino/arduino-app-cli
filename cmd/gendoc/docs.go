@@ -416,6 +416,10 @@ Contains a JSON object with the details of an error.
 			Method:      http.MethodPost,
 			Path:        "/v1/apps",
 			Request:     handlers.CreateAppRequest{},
+			Parameters: (*struct {
+				SkipPython bool `query:"skipPython" description:"If true, the app will not be created with the python part."`
+				SkipSketch bool `query:"skipSketch" description:"If true, the app will not be created with the sketch part."`
+			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
 				DataStructure: orchestrator.CreateAppResponse{},
