@@ -135,13 +135,15 @@ func (s *SSEStream) Close() {
 }
 
 func (s *SSEStream) send(e SSEEvent) error {
-	if _, err := s.sseFlusher.Write([]byte("event: " + e.Type + "\n")); err != nil {
-		return err
+	if e.Type != "" {
+		if _, err := s.sseFlusher.Write([]byte("event: " + e.Type + "\n")); err != nil {
+			return err
+		}
 	}
 	if _, err := s.sseFlusher.Write([]byte("data: ")); err != nil {
 		return err
 	}
-	if err := json.NewEncoder(s.sseFlusher).Encode(e); err != nil {
+	if err := json.NewEncoder(s.sseFlusher).Encode(e.Data); err != nil {
 		return err
 	}
 
