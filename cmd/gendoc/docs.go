@@ -440,6 +440,10 @@ Contains a JSON object with the details of an error.
 			Method:      http.MethodGet,
 			Path:        "/v1/apps",
 			Request:     (*orchestrator.ListAppRequest)(nil),
+			Parameters: (*struct {
+				Filter string              `query:"filter" description:"Filters apps by apps,examples,default"`
+				Status orchestrator.Status `query:"status" description:"Filters applications by status"`
+			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
 				DataStructure: orchestrator.ListAppResult{},

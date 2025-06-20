@@ -321,30 +321,35 @@ type BrokenAppInfo struct {
 }
 
 type ListAppRequest struct {
-	ShowExamples bool `query:"example" description:"If true, includes example applications in the result."`
-
-	ShowOnlyDefault bool `query:"default" description:"If true, returns only the default application."`
-
-	StatusFilter Status `query:"status" description:"Filters applications by status"`
+	ShowExamples    bool
+	ShowOnlyDefault bool
+	ShowApps        bool
+	StatusFilter    Status
 }
 
 func ListApps(ctx context.Context, docker *dockerClient.Client, req ListAppRequest) (ListAppResult, error) {
-	result := ListAppResult{Apps: []AppInfo{}, BrokenApps: []BrokenAppInfo{}}
-
-	defaultApp, err := GetDefaultApp()
-	if err != nil {
-		slog.Warn("unable to get default app", slog.String("error", err.Error()))
-	}
-
 	var (
 		pathsToExplore paths.PathList
 		appPaths       paths.PathList
 	)
 
-	pathsToExplore.Add(orchestratorConfig.AppsDir())
+	apps, err := getAppsStatus(ctx, docker)
+	if err != nil {
+		slog.Error("unable to get running app", slog.String("error", err.Error()))
+	}
+
 	if req.ShowExamples {
 		pathsToExplore.Add(orchestratorConfig.ExamplesDir())
 	}
+	if req.ShowApps {
+		pathsToExplore.Add(orchestratorConfig.AppsDir())
+		// adds app that are on different paths
+		for _, app := range apps {
+			appPaths.AddIfMissing(app.AppPath)
+		}
+	}
+
+	result := ListAppResult{Apps: []AppInfo{}, BrokenApps: []BrokenAppInfo{}}
 	for _, p := range pathsToExplore {
 		res, err := p.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
 			if file.Base() == ".cache" {
@@ -363,14 +368,9 @@ func ListApps(ctx context.Context, docker *dockerClient.Client, req ListAppReque
 		appPaths.AddAll(res)
 	}
 
-	apps, err := getAppsStatus(ctx, docker)
+	defaultApp, err := GetDefaultApp()
 	if err != nil {
-		slog.Error("unable to get running app", slog.String("error", err.Error()))
-	}
-
-	// Add apps in different paths.
-	for _, app := range apps {
-		appPaths.AddIfMissing(app.AppPath)
+		slog.Warn("unable to get default app", slog.String("error", err.Error()))
 	}
 
 	for _, file := range appPaths {

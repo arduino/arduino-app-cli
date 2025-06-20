@@ -3,6 +3,8 @@ package handlers
 import (
 	"log/slog"
 	"net/http"
+	"slices"
+	"strings"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/pkg/render"
@@ -14,8 +16,13 @@ func HandleAppList(dockerClient *dockerClient.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		queryParams := r.URL.Query()
 
-		showExamples := queryParams.Get("example") == "true"
-		showOnlyDefault := queryParams.Get("default") == "true"
+		showExamples, showApps, showOnlyDefault := true, true, false
+		if filter := queryParams.Get("filter"); filter != "" {
+			filters := strings.Split(strings.TrimSpace(filter), ",")
+			showExamples = slices.Contains(filters, "examples")
+			showOnlyDefault = slices.Contains(filters, "default")
+			showApps = slices.Contains(filters, "apps")
+		}
 
 		var statusFilter orchestrator.Status
 		if status := queryParams.Get("status"); status != "" {
@@ -28,6 +35,7 @@ func HandleAppList(dockerClient *dockerClient.Client) http.HandlerFunc {
 		}
 
 		res, err := orchestrator.ListApps(r.Context(), dockerClient, orchestrator.ListAppRequest{
+			ShowApps:        showApps,
 			ShowExamples:    showExamples,
 			ShowOnlyDefault: showOnlyDefault,
 			StatusFilter:    statusFilter,

@@ -16,18 +16,12 @@ paths:
         to apply different filters.
       operationId: getApps
       parameters:
-      - description: If true, includes example applications in the result.
+      - description: Filters apps by apps,examples,default
         in: query
-        name: example
+        name: filter
         schema:
-          description: If true, includes example applications in the result.
-          type: boolean
-      - description: If true, returns only the default application.
-        in: query
-        name: default
-        schema:
-          description: If true, returns only the default application.
-          type: boolean
+          description: Filters apps by apps,examples,default
+          type: string
       - description: Filters applications by status
         in: query
         name: status

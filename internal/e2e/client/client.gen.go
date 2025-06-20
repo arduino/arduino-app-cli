@@ -186,11 +186,8 @@ type PreconditionFailed = ErrorResponse
 
 // GetAppsParams defines parameters for GetApps.
 type GetAppsParams struct {
-	// Example If true, includes example applications in the result.
-	Example *bool `form:"example,omitempty" json:"example,omitempty"`
-
-	// Default If true, returns only the default application.
-	Default *bool `form:"default,omitempty" json:"default,omitempty"`
+	// Filter Filters apps by apps,examples,default
+	Filter *string `form:"filter,omitempty" json:"filter,omitempty"`
 
 	// Status Filters applications by status
 	Status *Status `form:"status,omitempty" json:"status,omitempty"`
@@ -569,25 +566,9 @@ func NewGetAppsRequest(server string, params *GetAppsParams) (*http.Request, err
 	if params != nil {
 		queryValues := queryURL.Query()
 
-		if params.Example != nil {
+		if params.Filter != nil {
 
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "example", runtime.ParamLocationQuery, *params.Example); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Default != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "default", runtime.ParamLocationQuery, *params.Default); err != nil {
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "filter", runtime.ParamLocationQuery, *params.Filter); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
