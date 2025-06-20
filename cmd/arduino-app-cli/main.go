@@ -46,6 +46,7 @@ func main() {
 				fmt.Println("Arduino App CLI v" + Version)
 			},
 		},
+		newFSCmd(),
 	)
 
 	ctx := context.Background()

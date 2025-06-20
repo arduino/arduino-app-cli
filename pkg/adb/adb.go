@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
-	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -24,6 +23,7 @@ import (
 type ADBConnection struct {
 	host    string
 	adbPath string
+	User    string
 }
 
 func FromFQBN(ctx context.Context, fqbn string, adbPath string) (*ADBConnection, error) {
@@ -73,6 +73,7 @@ func FromSerial(serial string, adbPath string) *ADBConnection {
 	return &ADBConnection{
 		host:    serial,
 		adbPath: adbPath,
+		User:    "arduino",
 	}
 }
 
@@ -86,6 +87,7 @@ func FromHost(host string, adbPath string) (*ADBConnection, error) {
 	return &ADBConnection{
 		host:    host,
 		adbPath: adbPath,
+		User:    "arduino",
 	}, nil
 }
 
@@ -95,7 +97,7 @@ type FileInfo struct {
 }
 
 func (a *ADBConnection) List(path string) ([]FileInfo, error) {
-	cmd := exec.Command(a.adbPath, "-s", a.host, "shell", "ls", "-la", path) // nolint:gosec
+	cmd := a.GetCmd(context.TODO(), "ls", "-la", path) // nolint:gosec
 	cmd.Stderr = os.Stdout
 	output, err := cmd.StdoutPipe()
 	if err != nil {
@@ -141,7 +143,7 @@ func (a *ADBConnection) List(path string) ([]FileInfo, error) {
 }
 
 func (a *ADBConnection) Stats(path string) (FileInfo, error) {
-	cmd := exec.Command(a.adbPath, "-s", a.host, "shell", "file", path) // nolint:gosec
+	cmd := a.GetCmd(context.TODO(), "file", path) // nolint:gosec
 	output, err := cmd.StdoutPipe()
 	if err != nil {
 		return FileInfo{}, err
@@ -177,7 +179,7 @@ func (a *ADBConnection) Stats(path string) (FileInfo, error) {
 }
 
 func (a *ADBConnection) CatOut(path string) (io.ReadCloser, error) {
-	cmd := exec.Command(a.adbPath, "-s", a.host, "shell", "cat", path) // nolint:gosec
+	cmd := a.GetCmd(context.TODO(), "cat", path) // nolint:gosec
 	output, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, err
@@ -190,7 +192,7 @@ func (a *ADBConnection) CatOut(path string) (io.ReadCloser, error) {
 }
 
 func (a *ADBConnection) CatIn(r io.Reader, path string) error {
-	cmd := exec.Command(a.adbPath, "-s", a.host, "shell", "cat", ">", path) // nolint:gosec
+	cmd := a.GetCmd(context.TODO(), "cat", ">", path) // nolint:gosec
 	cmd.Stdin = r
 	out, err := cmd.CombinedOutput()
 	slog.Debug("adb CatIn", "cmd", cmd.String(), "out", string(out))
@@ -201,7 +203,7 @@ func (a *ADBConnection) CatIn(r io.Reader, path string) error {
 }
 
 func (a *ADBConnection) MkDirAll(path string) error {
-	cmd := exec.Command(a.adbPath, "-s", a.host, "shell", "mkdir", "-p", path) // nolint:gosec
+	cmd := a.GetCmd(context.TODO(), "mkdir", "-p", path) // nolint:gosec
 	out, err := cmd.CombinedOutput()
 	slog.Debug("adb MkDirAll", "cmd", cmd.String(), "out", string(out))
 	if err != nil {
@@ -211,7 +213,7 @@ func (a *ADBConnection) MkDirAll(path string) error {
 }
 
 func (a *ADBConnection) Remove(path string) error {
-	cmd := exec.Command(a.adbPath, "-s", a.host, "shell", "rm", "-r", path) // nolint:gosec
+	cmd := a.GetCmd(context.TODO(), "rm", "-r", path) // nolint:gosec
 	out, err := cmd.CombinedOutput()
 	slog.Debug("adb Remove", "cmd", cmd.String(), "out", string(out))
 	if err != nil {
@@ -220,44 +222,15 @@ func (a *ADBConnection) Remove(path string) error {
 	return nil
 }
 
-// Push folder from the local machine to the remote device.
-func (a *ADBConnection) Push(localPath, remotePath string) error {
-	remotePathDir := path.Dir(remotePath)
-
-	cmd := exec.Command(a.adbPath, "-s", a.host, "push", "--sync", localPath, remotePathDir) // nolint:gosec
-	out, err := cmd.CombinedOutput()
-	slog.Debug("adb PushSync", "cmd", cmd.String(), "out", string(out))
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Pull folder from the remote device to the local machine.
-func (a *ADBConnection) Pull(remotePath, localPath string) error {
-	localPath = filepath.Dir(localPath)
-
-	cmd := exec.Command(a.adbPath, "-s", a.host, "pull", "--sync", remotePath, localPath) // nolint:gosec
-	out, err := cmd.CombinedOutput()
-	slog.Debug("adb PullSync", "cmd", cmd.String(), "out", string(out))
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (a *ADBConnection) GetCmd(ctx context.Context, args ...string) *exec.Cmd {
-	adbArgs := make([]string, 0, len(args)+3)
-	adbArgs = append(adbArgs, "-s", a.host, "shell")
-	for _, arg := range args {
+	for i, arg := range args {
 		if strings.Contains(arg, " ") {
-			arg = fmt.Sprintf("%q", arg)
+			args[i] = fmt.Sprintf("%q", arg)
 		}
-		adbArgs = append(adbArgs, arg)
 	}
+
 	// TODO: fix command injection vulnerability
-	return exec.CommandContext(ctx, a.adbPath, adbArgs...) // nolint:gosec
+	return exec.CommandContext(ctx, a.adbPath, "-s", a.host, "shell", "su", "-", a.User, "-c", fmt.Sprintf("%q", fmt.Sprintf("sh -c %q", strings.Join(args, " ")))) // nolint:gosec
 }
 
 func (a *ADBConnection) Run(args ...string) (string, error) {

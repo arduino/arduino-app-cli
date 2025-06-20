@@ -122,6 +122,7 @@ func TestEnableSyncApp(t *testing.T) {
 	}
 
 	adb, err := adb.FromHost("localhost:"+adbPort, "")
+	adb.User = "root"
 	require.NoError(t, err)
 
 	_, err = adb.Run("mkdir", "-p", "/apps/arduino-apps/test")
