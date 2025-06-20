@@ -52,6 +52,9 @@ func ProvisionApp(ctx context.Context, docker *dockerClient.Client, app app.Ardu
 		}
 		if err := os.CopyFS(provisioningStateDir.String(), cFS); err != nil {
 			if errors.Is(err, fs.ErrExist) {
+				if err := provisioningStateDir.Join("models-list.yaml").Remove(); err != nil {
+					return err
+				}
 				if err := provisioningStateDir.Join("bricks-list.yaml").Remove(); err != nil {
 					return err
 				}

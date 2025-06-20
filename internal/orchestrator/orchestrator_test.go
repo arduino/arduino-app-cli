@@ -251,7 +251,7 @@ func TestEditApp(t *testing.T) {
 			err := EditApp(AppEditRequest{
 				Default: new(bool),
 				Variables: f.Ptr(map[string]map[string]string{
-					"arduino/object_detection": {"BIND_PORT": "9090"},
+					"arduino/object_detection": {"CUSTOM_MODEL_PATH": "/opt/models/ei"},
 				}),
 			}, appWithBricks)
 			require.NoError(t, err)
@@ -261,12 +261,12 @@ func TestEditApp(t *testing.T) {
 			appWithBricks := createAppWithBricks(t, []app.Brick{
 				{
 					Name:      "arduino/object_detection",
-					Variables: map[string]string{"BIND_PORT": "8080"},
+					Variables: map[string]string{"CUSTOM_MODEL_PATH": "/opt/models/ei"},
 				},
 			})
 
 			newVariables := map[string]map[string]string{
-				"arduino/object_detection": {"BIND_PORT": "1234"},
+				"arduino/object_detection": {"CUSTOM_MODEL_PATH": "/new"},
 			}
 			err := EditApp(AppEditRequest{
 				Default:   new(bool),

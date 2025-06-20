@@ -31,6 +31,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/router/msgpackrpc"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/pkg/x/fatomic"
 )
 
@@ -40,6 +41,7 @@ var (
 
 	orchestratorConfig *OrchestratorConfig
 
+	modelsIndex   *modelsindex.ModelsIndex
 	bricksIndex   *bricksindex.BricksIndex
 	bricksVersion *semver.Version
 
@@ -61,7 +63,7 @@ const (
 
 func init() {
 	const dockerRegistry = "ghcr.io/bcmi-labs/"
-	const dockerPythonImage = "arduino/appslab-python-apps-base:0.0.12"
+	const dockerPythonImage = "arduino/appslab-python-apps-base:0.0.23"
 	// Registry base: contains the registry and namespace, common to all Arduino docker images.
 	registryBase := os.Getenv("DOCKER_REGISTRY_BASE")
 	if registryBase == "" {
@@ -83,6 +85,12 @@ func init() {
 		panic(fmt.Errorf("failed to load orchestrator config: %w", err))
 	}
 	orchestratorConfig = cfg
+
+	mIndex, err := modelsindex.GenerateModelsIndex()
+	if err != nil {
+		panic(fmt.Errorf("failed to generate model index: %w", err))
+	}
+	modelsIndex = mIndex
 
 	index, err := bricksindex.GenerateBricksIndex()
 	if err != nil {
@@ -208,8 +216,22 @@ func StartApp(ctx context.Context, docker *dockerClient.Client, app app.ArduinoA
 				return
 			}
 
+			// Override the compose Variables with the app's variables and model configuration.
+			envs := []string{}
+			addMapToEnv := func(m map[string]string) {
+				for k, v := range m {
+					envs = append(envs, fmt.Sprintf("%s=%s", k, v))
+				}
+			}
+			for _, brick := range app.Descriptor.Bricks {
+				addMapToEnv(brick.Variables)
+				if m, found := modelsIndex.GetModelByID(brick.Model); found {
+					addMapToEnv(m.ModelConfiguration)
+				}
+			}
+
 			mainCompose := provisioningStateDir.Join("app-compose.yaml")
-			process, err := paths.NewProcess(nil, "docker", "compose", "-f", mainCompose.String(), "up", "-d", "--remove-orphans", "--pull", "missing")
+			process, err := paths.NewProcess(envs, "docker", "compose", "-f", mainCompose.String(), "up", "-d", "--remove-orphans", "--pull", "missing")
 			if err != nil {
 				yield(StreamMessage{error: err})
 				return
