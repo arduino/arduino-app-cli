@@ -4,10 +4,6 @@ BASE_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
 
 set -xe
 
-# Install Arduino CLI.
-adb shell 'mkdir -p /opt/arduino-cli && curl -L https://downloads.arduino.cc/arduino-cli/arduino-cli_1.2.2_Linux_ARM64.tar.gz | tar -xz -C /opt/arduino-cli'
-adb shell ln -s /opt/arduino-cli/arduino-cli /usr/local/bin/arduino-cli || true
-
 # Install ArduinoCore-zephyr platform.
 adb shell su - arduino -c "\"mkdir -p /home/arduino/.arduino15\""
 adb shell su - arduino -c "\"cat > /home/arduino/.arduino15/arduino-cli.yaml\"" <<EOF

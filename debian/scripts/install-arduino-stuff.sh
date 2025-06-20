@@ -13,4 +13,4 @@ password aptexperiment
 EOF
 
 adb shell apt-get update
-adb shell apt-get install -y arduino-orchestrator arduino-router arduino-app-lab
+adb shell apt-get install -y arduino-orchestrator arduino-router arduino-app-lab arduino-cli
