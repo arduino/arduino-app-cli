@@ -12,7 +12,9 @@
   "excludes": [
     "**/.venv/**",
     "**/testdata/**",
-    "examples/**"
+    "examples/**",
+    "**/assets/**",
+    "**/docs/openapi.yaml"
   ],
   "plugins": [
     "https://plugins.dprint.dev/json-0.19.4.wasm",

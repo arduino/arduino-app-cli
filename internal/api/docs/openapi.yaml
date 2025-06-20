@@ -4,11 +4,11 @@ info:
   title: Arduino-App-Cli
   version: 0.1.0
 servers:
-  - description: local server
-    url: http://localhost:8080
+- description: local server
+  url: http://localhost:8080
 tags:
-  - name: Application
-  - name: Brick
+- name: Application
+- name: Brick
 paths:
   /v1/apps:
     get:
@@ -16,198 +16,200 @@ paths:
         to apply different filters.
       operationId: getApps
       parameters:
-        - description: If true, includes example applications in the result.
-          in: query
-          name: example
-          schema:
-            description: If true, includes example applications in the result.
-            type: boolean
-        - description: If true, returns only the default application.
-          in: query
-          name: default
-          schema:
-            description: If true, returns only the default application.
-            type: boolean
-        - description: Filters applications by status
-          in: query
-          name: status
-          schema:
-            $ref: "#/components/schemas/Status"
+      - description: If true, includes example applications in the result.
+        in: query
+        name: example
+        schema:
+          description: If true, includes example applications in the result.
+          type: boolean
+      - description: If true, returns only the default application.
+        in: query
+        name: default
+        schema:
+          description: If true, returns only the default application.
+          type: boolean
+      - description: Filters applications by status
+        in: query
+        name: status
+        schema:
+          $ref: '#/components/schemas/Status'
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ListAppResult"
+                $ref: '#/components/schemas/ListAppResult'
           description: Successful response
         "500":
-          $ref: "#/components/responses/InternalServerError"
+          $ref: '#/components/responses/InternalServerError'
       summary: Get a list of installed apps/examples
       tags:
-        - Application
+      - Application
     post:
       description: Creates a new app in the default app location.
       operationId: createApp
       parameters:
-        - name: skip-python
-          in: query
-          description: if true, skips python build
-          schema:
-            type: boolean
-        - name: skip-sketch
-          in: query
-          description: if true, skips sketch build
-          schema:
-            type: boolean
+      - description: If true, the app will not be created with the python part.
+        in: query
+        name: skip-python
+        schema:
+          description: If true, the app will not be created with the python part.
+          type: boolean
+      - description: If true, the app will not be created with the sketch part.
+        in: query
+        name: skip-sketch
+        schema:
+          description: If true, the app will not be created with the sketch part.
+          type: boolean
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateAppRequest"
+              $ref: '#/components/schemas/CreateAppRequest'
       responses:
         "201":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CreateAppResponse"
+                $ref: '#/components/schemas/CreateAppResponse'
           description: Successful response
         "400":
-          $ref: "#/components/responses/BadRequest"
+          $ref: '#/components/responses/BadRequest'
         "409":
-          $ref: "#/components/responses/Conflict"
+          $ref: '#/components/responses/Conflict'
         "500":
-          $ref: "#/components/responses/InternalServerError"
+          $ref: '#/components/responses/InternalServerError'
       summary: Creates a new app
       tags:
-        - Application
+      - Application
   /v1/apps/{id}:
     delete:
       description: Remove the given app and all the resources it created
       operationId: deleteApp
       parameters:
-        - description: application identifier.
-          in: path
-          name: id
-          required: true
-          schema:
-            description: application identifier.
-            type: string
+      - description: application identifier.
+        in: path
+        name: id
+        required: true
+        schema:
+          description: application identifier.
+          type: string
       responses:
         "200":
           description: Successful response
         "400":
-          $ref: "#/components/responses/BadRequest"
+          $ref: '#/components/responses/BadRequest'
         "412":
-          $ref: "#/components/responses/PreconditionFailed"
+          $ref: '#/components/responses/PreconditionFailed'
         "500":
-          $ref: "#/components/responses/InternalServerError"
+          $ref: '#/components/responses/InternalServerError'
       summary: delete the app
       tags:
-        - Application
+      - Application
     get:
       description: Return all the detail for the given app
       operationId: getAppDetails
       parameters:
-        - description: application identifier.
-          in: path
-          name: id
-          required: true
-          schema:
-            description: application identifier.
-            type: string
+      - description: application identifier.
+        in: path
+        name: id
+        required: true
+        schema:
+          description: application identifier.
+          type: string
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AppDetailedInfo"
+                $ref: '#/components/schemas/AppDetailedInfo'
           description: Successful response
         "412":
-          $ref: "#/components/responses/PreconditionFailed"
+          $ref: '#/components/responses/PreconditionFailed'
         "500":
-          $ref: "#/components/responses/InternalServerError"
+          $ref: '#/components/responses/InternalServerError'
       summary: Get app/example detail
       tags:
-        - Application
+      - Application
     patch:
       description: Edit the given application. Is it possible to modify the default
         status, to add/remove/update bricks and bricks variables.
       operationId: editApp
       parameters:
-        - description: application identifier.
-          in: path
-          name: id
-          required: true
-          schema:
-            description: application identifier.
-            type: string
+      - description: application identifier.
+        in: path
+        name: id
+        required: true
+        schema:
+          description: application identifier.
+          type: string
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/EditRequest"
+              $ref: '#/components/schemas/EditRequest'
       responses:
         "200":
           description: Successful response
         "400":
-          $ref: "#/components/responses/BadRequest"
+          $ref: '#/components/responses/BadRequest'
         "412":
-          $ref: "#/components/responses/PreconditionFailed"
+          $ref: '#/components/responses/PreconditionFailed'
         "500":
-          $ref: "#/components/responses/InternalServerError"
+          $ref: '#/components/responses/InternalServerError'
       summary: Update App Details
       tags:
-        - Application
+      - Application
   /v1/apps/{id}/clone:
     post:
       description: Clone an existing app or example, in a new one. It is possible
         to specify the new name and icon.
       operationId: cloneApp
       parameters:
-        - description: application identifier.
-          in: path
-          name: id
-          required: true
-          schema:
-            description: application identifier.
-            type: string
+      - description: application identifier.
+        in: path
+        name: id
+        required: true
+        schema:
+          description: application identifier.
+          type: string
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CloneRequest"
+              $ref: '#/components/schemas/CloneRequest'
       responses:
         "201":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CloneAppResponse"
+                $ref: '#/components/schemas/CloneAppResponse'
           description: Successful response
         "400":
-          $ref: "#/components/responses/BadRequest"
+          $ref: '#/components/responses/BadRequest'
         "404":
-          $ref: "#/components/responses/NotFound"
+          $ref: '#/components/responses/NotFound'
         "409":
-          $ref: "#/components/responses/Conflict"
+          $ref: '#/components/responses/Conflict'
         "412":
-          $ref: "#/components/responses/PreconditionFailed"
+          $ref: '#/components/responses/PreconditionFailed'
         "500":
-          $ref: "#/components/responses/InternalServerError"
+          $ref: '#/components/responses/InternalServerError'
       summary: Creates a new app, from another app or example identified by ID.
       tags:
-        - Application
+      - Application
   /v1/apps/{id}/events:
     get:
-      description: "Returns events for a specific app "
+      description: 'Returns events for a specific app '
       operationId: getAppEvents
       parameters:
-        - description: application identifier.
-          in: path
-          name: id
-          required: true
-          schema:
-            description: application identifier.
-            type: string
+      - description: application identifier.
+        in: path
+        name: id
+        required: true
+        schema:
+          description: application identifier.
+          type: string
       responses:
         "200":
           content:
@@ -216,35 +218,35 @@ paths:
                 type: string
           description: OK
         "500":
-          $ref: "#/components/responses/InternalServerError"
-      summary: "Get application events "
+          $ref: '#/components/responses/InternalServerError'
+      summary: 'Get application events '
       tags:
-        - Application
+      - Application
   /v1/apps/{id}/logs:
     get:
       description: Obtain a ServerSentEvnt stream of logs. It is possible to apply
         different filters.
       operationId: getAppLogs
       parameters:
-        - in: query
-          name: filter
-          schema:
-            type: string
-        - in: query
-          name: tail
-          schema:
-            type: integer
-        - in: query
-          name: nofollow
-          schema:
-            type: boolean
-        - description: application identifier.
-          in: path
-          name: id
-          required: true
-          schema:
-            description: application identifier.
-            type: string
+      - in: query
+        name: filter
+        schema:
+          type: string
+      - in: query
+        name: tail
+        schema:
+          type: integer
+      - in: query
+        name: nofollow
+        schema:
+          type: boolean
+      - description: application identifier.
+        in: path
+        name: id
+        required: true
+        schema:
+          description: application identifier.
+          type: string
       responses:
         "200":
           content:
@@ -253,27 +255,27 @@ paths:
                 type: string
           description: OK
         "400":
-          $ref: "#/components/responses/BadRequest"
+          $ref: '#/components/responses/BadRequest'
         "412":
-          $ref: "#/components/responses/PreconditionFailed"
+          $ref: '#/components/responses/PreconditionFailed'
         "500":
-          $ref: "#/components/responses/InternalServerError"
+          $ref: '#/components/responses/InternalServerError'
       summary: Get the logs of a running app
       tags:
-        - Application
+      - Application
   /v1/apps/{id}/start:
     post:
       description: Start the application and handles all the operation to start any
         dependecies. If the app contains a sketch it also flash it in the micro.
       operationId: startApp
       parameters:
-        - description: application identifier.
-          in: path
-          name: id
-          required: true
-          schema:
-            description: application identifier.
-            type: string
+      - description: application identifier.
+        in: path
+        name: id
+        required: true
+        schema:
+          description: application identifier.
+          type: string
       responses:
         "200":
           content:
@@ -299,25 +301,25 @@ paths:
             'event: error'
             'data: {"code":"internal_service_err","message":"An error occurred during operation"}'
         "412":
-          $ref: "#/components/responses/PreconditionFailed"
+          $ref: '#/components/responses/PreconditionFailed'
         "500":
-          $ref: "#/components/responses/InternalServerError"
+          $ref: '#/components/responses/InternalServerError'
       summary: Start an existing app/example
       tags:
-        - Application
+      - Application
   /v1/apps/{id}/stop:
     post:
       description: Stop the application and all it's dependecies. If the app contains
         a sketch it also remove it from the micro.
       operationId: stopApp
       parameters:
-        - description: application identifier.
-          in: path
-          name: id
-          required: true
-          schema:
-            description: application identifier.
-            type: string
+      - description: application identifier.
+        in: path
+        name: id
+        required: true
+        schema:
+          description: application identifier.
+          type: string
       responses:
         "200":
           content:
@@ -343,12 +345,12 @@ paths:
             'event: error'
             'data: {"code":"internal_service_err","message":"An error occurred during operation"}'
         "412":
-          $ref: "#/components/responses/PreconditionFailed"
+          $ref: '#/components/responses/PreconditionFailed'
         "500":
-          $ref: "#/components/responses/InternalServerError"
+          $ref: '#/components/responses/InternalServerError'
       summary: Stop an existing app/example
       tags:
-        - Application
+      - Application
   /v1/bricks:
     get:
       description: Returns all the existing bricks. Bricks that are ready to use are
@@ -359,41 +361,41 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BrickListResult"
+                $ref: '#/components/schemas/BrickListResult'
           description: Successful response
         "500":
-          $ref: "#/components/responses/InternalServerError"
+          $ref: '#/components/responses/InternalServerError'
       summary: Get a list of available bricks
       tags:
-        - Brick
+      - Brick
   /v1/bricks/{id}:
     get:
       description: Returns a detailed list of property associated to the given brick.
       operationId: getBrickDetails
       parameters:
-        - description: brick identifier.
-          in: path
-          name: id
-          required: true
-          schema:
-            description: brick identifier.
-            type: string
+      - description: brick identifier.
+        in: path
+        name: id
+        required: true
+        schema:
+          description: brick identifier.
+          type: string
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BrickDetailsResult"
+                $ref: '#/components/schemas/BrickDetailsResult'
           description: Successful response
         "400":
-          $ref: "#/components/responses/BadRequest"
+          $ref: '#/components/responses/BadRequest'
         "404":
-          $ref: "#/components/responses/NotFound"
+          $ref: '#/components/responses/NotFound'
         "500":
-          $ref: "#/components/responses/InternalServerError"
+          $ref: '#/components/responses/InternalServerError'
       summary: Detail of a brick
       tags:
-        - Brick
+      - Brick
   /v1/config:
     get:
       description: returns information about current directory configuration used
@@ -404,13 +406,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ConfigResponse"
+                $ref: '#/components/schemas/ConfigResponse'
           description: Successful response
         "500":
-          $ref: "#/components/responses/InternalServerError"
+          $ref: '#/components/responses/InternalServerError'
       summary: returns application configuration
       tags:
-        - Application
+      - Application
   /v1/version:
     get:
       description: returns the application current version
@@ -420,13 +422,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/VersionResponse"
+                $ref: '#/components/schemas/VersionResponse'
           description: Successful response
         "500":
-          $ref: "#/components/responses/InternalServerError"
+          $ref: '#/components/responses/InternalServerError'
       summary: application version
       tags:
-        - Application
+      - Application
 components:
   responses:
     BadRequest:
@@ -436,7 +438,7 @@ components:
             code: 400
             message: The request is invalid or missing required parameters.
           schema:
-            $ref: "#/components/schemas/ErrorResponse"
+            $ref: '#/components/schemas/ErrorResponse'
       description: Bad Request
     Conflict:
       content:
@@ -445,7 +447,7 @@ components:
             code: 409
             message: There is a conflict with an existing resource.
           schema:
-            $ref: "#/components/schemas/ErrorResponse"
+            $ref: '#/components/schemas/ErrorResponse'
       description: Conflict
     InternalServerError:
       content:
@@ -454,7 +456,7 @@ components:
             code: 500
             message: An unexpected error occurred.
           schema:
-            $ref: "#/components/schemas/ErrorResponse"
+            $ref: '#/components/schemas/ErrorResponse'
       description: Internal Server Error
     NotFound:
       content:
@@ -463,7 +465,7 @@ components:
             code: 404
             message: The requested resource was not found.
           schema:
-            $ref: "#/components/schemas/ErrorResponse"
+            $ref: '#/components/schemas/ErrorResponse'
       description: Not Found
     PreconditionFailed:
       content:
@@ -472,7 +474,7 @@ components:
             code: 412
             message: The request is invalid.
           schema:
-            $ref: "#/components/schemas/ErrorResponse"
+            $ref: '#/components/schemas/ErrorResponse'
       description: Precondition Failed
   schemas:
     AppDetailedBrick:
@@ -488,14 +490,14 @@ components:
             type: string
           type: object
       required:
-        - id
-        - name
+      - id
+      - name
       type: object
     AppDetailedInfo:
       properties:
         bricks:
           items:
-            $ref: "#/components/schemas/AppDetailedBrick"
+            $ref: '#/components/schemas/AppDetailedBrick'
           type: array
         default:
           type: boolean
@@ -510,11 +512,11 @@ components:
         name:
           type: string
         status:
-          $ref: "#/components/schemas/Status"
+          $ref: '#/components/schemas/Status'
       required:
-        - id
-        - name
-        - status
+      - id
+      - name
+      - status
       type: object
     AppInfo:
       properties:
@@ -531,7 +533,7 @@ components:
         name:
           type: string
         status:
-          $ref: "#/components/schemas/Status"
+          $ref: '#/components/schemas/Status'
       type: object
     BrickDetailsResult:
       properties:
@@ -551,7 +553,7 @@ components:
           type: string
         variables:
           additionalProperties:
-            $ref: "#/components/schemas/BrickVariable"
+            $ref: '#/components/schemas/BrickVariable'
           type: object
       type: object
     BrickListItem:
@@ -573,7 +575,7 @@ components:
       properties:
         bricks:
           items:
-            $ref: "#/components/schemas/BrickListItem"
+            $ref: '#/components/schemas/BrickListItem'
           nullable: true
           type: array
       type: object
@@ -622,15 +624,15 @@ components:
     ConfigResponse:
       properties:
         directories:
-          $ref: "#/components/schemas/ConfigDirectories"
+          $ref: '#/components/schemas/ConfigDirectories'
       type: object
     CreateAppRequest:
       properties:
         bricks:
           description: application bricks
           example:
-            - core-auth
-            - data-storage
+          - core-auth
+          - data-storage
           items:
             type: string
           type: array
@@ -642,7 +644,7 @@ components:
           example: My Awesome App
           type: string
       required:
-        - name
+      - name
       type: object
     CreateAppResponse:
       properties:
@@ -660,8 +662,8 @@ components:
               type: string
             type: object
           example:
-            - core-auth
-            - new value
+          - core-auth
+          - new value
           nullable: true
           type: object
       type: object
@@ -676,23 +678,23 @@ components:
       properties:
         apps:
           items:
-            $ref: "#/components/schemas/AppInfo"
+            $ref: '#/components/schemas/AppInfo'
           nullable: true
           type: array
         broken_apps:
           items:
-            $ref: "#/components/schemas/BrokenAppInfo"
+            $ref: '#/components/schemas/BrokenAppInfo'
           nullable: true
           type: array
       type: object
     Status:
       description: Application status
       enum:
-        - starting
-        - running
-        - stopping
-        - stopped
-        - failed
+      - starting
+      - running
+      - stopping
+      - stopped
+      - failed
       type: string
       uniqueItems: true
     VersionResponse:

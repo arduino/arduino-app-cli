@@ -198,10 +198,10 @@ type GetAppsParams struct {
 
 // CreateAppParams defines parameters for CreateApp.
 type CreateAppParams struct {
-	// SkipPython if true, skips python build
+	// SkipPython If true, the app will not be created with the python part.
 	SkipPython *bool `form:"skip-python,omitempty" json:"skip-python,omitempty"`
 
-	// SkipSketch if true, skips sketch build
+	// SkipSketch If true, the app will not be created with the sketch part.
 	SkipSketch *bool `form:"skip-sketch,omitempty" json:"skip-sketch,omitempty"`
 }
 
