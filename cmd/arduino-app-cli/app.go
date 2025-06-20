@@ -272,14 +272,13 @@ func listHandler(ctx context.Context, docker *dockerClient.Client, jsonFormat bo
 		fmt.Println(string(resJSON))
 	} else {
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0) // minwidth, tabwidth, padding, padchar, flags
-		fmt.Fprintln(w, "ID\tNAME\tICON\tDESCRIPTION\tSTATUS\tEXAMPLE")
+		fmt.Fprintln(w, "ID\tNAME\tICON\tSTATUS\tEXAMPLE")
 
 		for _, app := range res.Apps {
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%t\n",
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%t\n",
 				app.ID.Rel(),
 				app.Name,
 				app.Icon,
-				app.Description,
 				app.Status,
 				app.Example,
 			)
