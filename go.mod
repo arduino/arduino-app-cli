@@ -28,16 +28,11 @@ require (
 	go.bug.st/f v0.4.0
 	go.bug.st/relaxed-semver v0.15.0
 	go.bug.st/serial v1.6.4
-	go.bug.st/testifyjson v1.3.0
 	golang.org/x/text v0.24.0
 	mkuznets.com/go/tabwriter v0.1.2
 )
 
 require (
-	gopkg.in/yaml.v2 v2.4.0 // indirect
-	github.com/containerd/errdefs v1.0.0 // indirect
-	github.com/containerd/errdefs/pkg v0.3.0 // indirect
-	github.com/moby/sys/atomicwriter v0.1.0 // indirect
 	dario.cat/mergo v1.0.0 // indirect
 	fortio.org/safecast v1.0.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -50,6 +45,8 @@ require (
 	github.com/arduino/pluggable-discovery-protocol-handler/v2 v2.2.1 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/cmaglie/pb v1.0.27 // indirect
+	github.com/containerd/errdefs v1.0.0 // indirect
+	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/creack/goselect v0.1.2 // indirect
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
@@ -76,8 +73,6 @@ require (
 	github.com/h2non/filetype v1.1.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/invopop/yaml v0.3.1 // indirect
-	github.com/itchyny/gojq v0.12.8 // indirect
-	github.com/itchyny/timefmt-go v0.1.3 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/juju/errors v1.0.0 // indirect
@@ -90,6 +85,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
+	github.com/moby/sys/atomicwriter v0.1.0 // indirect
 	github.com/moby/term v0.5.2 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
@@ -139,6 +135,7 @@ require (
 	google.golang.org/grpc v1.72.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
 )
