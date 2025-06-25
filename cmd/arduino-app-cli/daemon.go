@@ -48,6 +48,7 @@ func httpHandler(ctx context.Context, dockerClient *dockerClient.Client, daemonP
 		cors.Config{
 			Origins: []string{
 				"wails://wails.localhost:34115",
+				"http://wails.localhost:34115",
 				"http://localhost:*", "https://localhost:*",
 			},
 			Methods: []string{
