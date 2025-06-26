@@ -132,6 +132,7 @@ type Brick struct {
 	Version     string                          `yaml:"-"`
 	Variables   map[string]BrickReleaseVariable `yaml:"variables,omitempty"`
 	Description string                          `yaml:"description,omitempty"`
+	Ports       []string                        `yaml:"ports,omitempty"`
 }
 
 type BrickReleaseVariable struct {
@@ -152,6 +153,7 @@ type assetsBricks struct {
 	ModuleDescription string            `yaml:"description"`
 	RequireContainer  bool              `yaml:"require_container"`
 	Variables         []assetsVariables `yaml:"variables,omitempty"`
+	Ports             []string          `yaml:"ports,omitempty"`
 }
 
 func GenerateBricksIndex() (*BricksIndex, error) {
@@ -193,6 +195,7 @@ func GenerateBricksIndex() (*BricksIndex, error) {
 				Version:     version.Name(),
 				Variables:   variables,
 				Description: brick.ModuleDescription,
+				Ports:       brick.Ports,
 			}
 		}
 		collection.Releases[i] = brickRelease

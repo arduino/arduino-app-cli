@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"maps"
 	"os"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -213,9 +215,27 @@ func generateMainComposeFile(ctx context.Context, app app.ArduinoApp, pythonImag
 	}
 	services = f.Filter(services, f.NotEquals("main"))
 
-	ports := make([]string, len(app.Descriptor.Ports))
-	for i, p := range app.Descriptor.Ports {
-		ports[i] = fmt.Sprintf("%d:%d", p, p)
+	ports := make(map[string]struct{}, len(app.Descriptor.Ports))
+	for _, p := range app.Descriptor.Ports {
+		ports[fmt.Sprintf("%d:%d", p, p)] = struct{}{}
+	}
+
+	for _, b := range app.Descriptor.Bricks {
+		collection, found := bricksIndex.GetCollection("arduino", "app-bricks")
+		if !found {
+			continue
+		}
+		r, found := collection.GetRelease(bricksVersion)
+		if !found {
+			continue
+		}
+		brick, found := r.FindBrick(b.Name)
+		if !found {
+			continue
+		}
+		for _, p := range brick.Ports {
+			ports[fmt.Sprintf("%s:%s", p, p)] = struct{}{}
+		}
 	}
 
 	volumes := []volume{
@@ -232,11 +252,12 @@ func generateMainComposeFile(ctx context.Context, app app.ArduinoApp, pythonImag
 			Target: "/var/run/arduino-router.sock",
 		})
 	}
+
 	mainAppCompose.Services = &mainService{
 		Main: service{
 			Image:      pythonImage,
 			Volumes:    volumes,
-			Ports:      ports,
+			Ports:      slices.Collect(maps.Keys(ports)),
 			Devices:    getDevices(),
 			Entrypoint: "/run.sh",
 			DependsOn:  services,
