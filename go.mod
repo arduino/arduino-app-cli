@@ -24,6 +24,7 @@ require (
 	github.com/swaggest/jsonschema-go v0.3.74
 	github.com/swaggest/openapi-go v0.2.58
 	github.com/vmihailenco/msgpack/v5 v5.4.1
+	github.com/warthog618/go-gpiocdev v0.9.1
 	go.bug.st/cleanup v1.0.0
 	go.bug.st/f v0.4.0
 	go.bug.st/relaxed-semver v0.15.0

@@ -32,6 +32,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/pkg/micro"
 	"github.com/arduino/arduino-app-cli/pkg/x/fatomic"
 )
 
@@ -261,10 +262,19 @@ func StopApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
 		if app.MainSketchFile != nil {
 			// TODO: check that the app sketch is running before attempting to stop it.
 
-			// Flash empty sketch to stop the microcontroller.
-			buildPath := "" // the empty sketch' build path must be in the default temporary directory.
-			if err := compileUploadSketch(ctx, getEmptySketch(), buildPath, callbackWriter); err != nil {
-				panic(err)
+			if onBoard {
+				// On imola we could just disable the microcontroller
+				if err := micro.Disable(); err != nil {
+					yield(StreamMessage{error: err})
+					return
+				}
+			} else {
+				// Flash empty sketch to stop the microcontroller.
+				buildPath := "" // the empty sketch' build path must be in the default temporary directory.
+				if err := compileUploadSketch(ctx, getEmptySketch(), buildPath, callbackWriter); err != nil {
+					yield(StreamMessage{error: err})
+					return
+				}
 			}
 		}
 
