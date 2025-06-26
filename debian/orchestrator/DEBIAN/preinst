@@ -1,0 +1,18 @@
+#!/bin/sh
+set -e
+
+if ! getent group arduino >/dev/null; then
+    echo "Creating system group 'arduino'..."
+    addgroup --system arduino >/dev/null
+fi
+
+if ! getent passwd arduino >/dev/null; then
+    echo "Creating system user 'arduino'..."
+    adduser \
+      --system \
+      --ingroup arduino \
+      --home /home/arduino \
+      --shell /bin/false \
+      --disabled-password \
+      arduino >/dev/null
+fi

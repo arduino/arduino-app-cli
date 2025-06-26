@@ -32,3 +32,5 @@ build/
 
 /arduino-app-cli
 /apps
+# temporary staging directories
+/debian/orchestrator/home/arduino/.arduino-app-cli/examples
