@@ -1,0 +1,1 @@
+%sysupgrade ALL=(ALL) NOPASSWD: /usr/bin/apt-get update, /usr/bin/apt-get upgrade -y *, /usr/sbin/needrestart -r a

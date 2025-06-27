@@ -1,18 +1,22 @@
 #!/bin/sh
+
 set -e
 
-if ! getent group arduino >/dev/null; then
-    echo "Creating system group 'arduino'..."
-    addgroup --system arduino >/dev/null
-fi
+APP_USER="arduino"
+APP_GROUP="arduino"
+SYSUPGRADE_GROUP="sysupgrade"
 
-if ! getent passwd arduino >/dev/null; then
-    echo "Creating system user 'arduino'..."
-    adduser \
-      --system \
-      --ingroup arduino \
-      --home /home/arduino \
-      --shell /bin/false \
-      --disabled-password \
-      arduino >/dev/null
-fi
+# Ensure the the group user exists.
+addgroup "$APP_GROUP" || true
+
+# Ensure the application user exists.
+adduser \
+  --ingroup "$APP_GROUP" \
+  --home "/home/$APP_USER" \
+  --shell /bin/false \
+  --disabled-password \
+  "$APP_USER" >/dev/null || true
+
+# Ensure the sysupgrade group exists and add the application user to it.
+groupadd --system "$SYSUPGRADE_GROUP" || true
+usermod -aG "$SYSUPGRADE_GROUP" "$APP_USER"
