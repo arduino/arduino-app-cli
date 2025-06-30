@@ -13,26 +13,44 @@ bricks:
   - name: EI_CLASSIFICATION_MODEL
     default_value: /models/ootb/ei/mobilenet-v2-224px.eim
     description: path to the model file
-- name: arduino/webui
-  description: A user interface based on HTML and JavaScript that can rely on additional
-    APIs and a WebSocket exposed by a web server.
-  require_container: false
-  ports:
-  - 7000
 - name: arduino/pose_detection
   description: Simple module for general purpose pose detection on image.
   require_container: true
   ports: []
   variables: []
-- name: arduino/camera_input
-  description: Take pictures and record videos from a connected camera
+- name: arduino/streamlit_ui
+  description: A simplified user interface based on Streamlit and Python.
   require_container: false
+  ports:
+  - 7000
+- name: arduino/keyword_spotting
+  description: 'Brick for keyword spotting using a pre-trained model. It processes
+    audio input to detect specific keywords or phrases.
+
+    Brick is designed to work with pre-trained models provided by framework or with
+    custom audio classification models trained on Edge Impulse platform.
+
+    '
+  require_container: true
   ports: []
+  variables:
+  - name: CUSTOM_MODEL_PATH
+    default_value: /opt/models/ei/
+    description: path to the custom model directory
+  - name: EI_KEYWORK_SPOTTING_MODEL
+    default_value: /models/ootb/ei/keyword-spotting-hello-world.eim
+    description: path to the model file
 - name: arduino/mqtt
   description: MQTT connector module. Acts as a client for receiving and publishing
     messages to an MQTT broker.
   require_container: false
   ports: []
+- name: arduino/web_ui
+  description: A user interface based on HTML and JavaScript that can rely on additional
+    APIs and a WebSocket exposed by a web server.
+  require_container: false
+  ports:
+  - 7000
 - name: arduino/dbstorage_tsstore
   description: Simplified time series database storage layer for Arduino sensor samples
     built on top of InfluxDB.
@@ -88,8 +106,3 @@ bricks:
   - name: EI_V_ANOMALY_DETECTION_MODEL
     default_value: /models/ootb/ei/concrete-crack-anomaly-detection.eim
     description: path to the model file
-- name: arduino/streamlitui
-  description: A simplified user interface based on Streamlit and Python.
-  require_container: false
-  ports:
-  - 7000

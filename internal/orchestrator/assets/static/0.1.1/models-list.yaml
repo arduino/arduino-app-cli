@@ -9,16 +9,6 @@ models:
     metadata:
       source: "edgeimpulse"
       ei-id: 104110
- - yolov5-object-detection:
-    runner: brick
-    name : "General purpose object detection - YoloV5"
-    description: "General purpose object detection model based on YoloV5. This model is trained on the COCO dataset and can detect 80 different object classes."
-    model_configuration:
-      "EI_OBJ_DETECTION_MODEL": "/models/ootb/ei/yolo-v5-120px.eim"     
-    metadata:
-      source: "edgeimpulse"
-      ei-id: 705954    
-    brick: arduino/object_detection
  - yolox-object-detection:
     runner: brick
     name : "General purpose object detection - YoloX"
@@ -58,4 +48,14 @@ models:
     metadata:
       source: "edgeimpulse"
       ei-id: 288658      
-    brick: arduino/visual_anomaly_detection 
+    brick: arduino/visual_anomaly_detection
+ - keyword-spotting-hello-world:
+    runner: brick
+    name : "Keyword spotting - Hello World"
+    description: "A keyword-spotting-hello-world model to detect the keywords 'Hello World' in audio recordings"
+    model_configuration:
+      "EI_KEYWORK_SPOTTING_MODEL": "/models/ootb/ei/keyword-spotting-hello-world.eim" 
+    metadata:
+      source: "edgeimpulse"
+      ei-id: 725251      
+    brick: arduino/keyword_spotting     
