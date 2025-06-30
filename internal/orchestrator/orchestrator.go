@@ -885,8 +885,21 @@ func getDevices() []string {
 	if err != nil {
 		panic(err)
 	}
-	deviceList.FilterPrefix("video")
-	return deviceList.AsStrings()
+
+	// Get video devices
+	tmpFilter := deviceList
+	tmpFilter.FilterPrefix("video")
+	videoDevices := tmpFilter.AsStrings()
+
+	// Get audio devices
+	tmpFilter = deviceList
+	tmpFilter.FilterPrefix("snd")
+	soundDevices := []string{}
+	if len(tmpFilter.AsStrings()) > 0 {
+		soundDevices = append(soundDevices, "/dev/snd") // Add /dev/snd as a sound device
+	}
+
+	return append(videoDevices, soundDevices...)
 }
 
 func disconnectSerialFromRPCRouter(ctx context.Context, portAddress string) func() {
