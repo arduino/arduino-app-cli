@@ -25,6 +25,22 @@ const (
 	Stopping Status = "stopping"
 )
 
+// AIModelItem defines model for AIModelItem.
+type AIModelItem struct {
+	BrickId            *string            `json:"brick_id,omitempty"`
+	Description        *string            `json:"description,omitempty"`
+	Id                 *string            `json:"id,omitempty"`
+	Metadata           *map[string]string `json:"metadata,omitempty"`
+	ModelConfiguration *map[string]string `json:"model_configuration,omitempty"`
+	Name               *string            `json:"name,omitempty"`
+	Runner             *string            `json:"runner,omitempty"`
+}
+
+// AIModelsListResult defines model for AIModelsListResult.
+type AIModelsListResult struct {
+	Models *[]AIModelItem `json:"models"`
+}
+
 // AppDetailedBrick defines model for AppDetailedBrick.
 type AppDetailedBrick struct {
 	Icon      *string            `json:"icon,omitempty"`
@@ -209,6 +225,12 @@ type GetAppLogsParams struct {
 	Nofollow *bool   `form:"nofollow,omitempty" json:"nofollow,omitempty"`
 }
 
+// GetAIModelsParams defines parameters for GetAIModels.
+type GetAIModelsParams struct {
+	// Bricks Filter models by bricks. If not specified, all models are returned.
+	Bricks *string `form:"bricks,omitempty" json:"bricks,omitempty"`
+}
+
 // CreateAppJSONRequestBody defines body for CreateApp for application/json ContentType.
 type CreateAppJSONRequestBody = CreateAppRequest
 
@@ -335,6 +357,12 @@ type ClientInterface interface {
 
 	// GetConfig request
 	GetConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAIModels request
+	GetAIModels(ctx context.Context, params *GetAIModelsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAIModelDetails request
+	GetAIModelDetails(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetVersions request
 	GetVersions(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -522,6 +550,30 @@ func (c *Client) GetBrickDetails(ctx context.Context, id string, reqEditors ...R
 
 func (c *Client) GetConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetConfigRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAIModels(ctx context.Context, params *GetAIModelsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAIModelsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAIModelDetails(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAIModelDetailsRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1127,6 +1179,89 @@ func NewGetConfigRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewGetAIModelsRequest generates requests for GetAIModels
+func NewGetAIModelsRequest(server string, params *GetAIModelsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/models")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Bricks != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "bricks", runtime.ParamLocationQuery, *params.Bricks); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAIModelDetailsRequest generates requests for GetAIModelDetails
+func NewGetAIModelDetailsRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/models/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetVersionsRequest generates requests for GetVersions
 func NewGetVersionsRequest(server string) (*http.Request, error) {
 	var err error
@@ -1241,6 +1376,12 @@ type ClientWithResponsesInterface interface {
 
 	// GetConfigWithResponse request
 	GetConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetConfigResp, error)
+
+	// GetAIModelsWithResponse request
+	GetAIModelsWithResponse(ctx context.Context, params *GetAIModelsParams, reqEditors ...RequestEditorFn) (*GetAIModelsResp, error)
+
+	// GetAIModelDetailsWithResponse request
+	GetAIModelDetailsWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetAIModelDetailsResp, error)
 
 	// GetVersionsWithResponse request
 	GetVersionsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetVersionsResp, error)
@@ -1556,6 +1697,52 @@ func (r GetConfigResp) StatusCode() int {
 	return 0
 }
 
+type GetAIModelsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AIModelsListResult
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAIModelsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAIModelsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAIModelDetailsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AIModelItem
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAIModelDetailsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAIModelDetailsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetVersionsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -1718,6 +1905,24 @@ func (c *ClientWithResponses) GetConfigWithResponse(ctx context.Context, reqEdit
 		return nil, err
 	}
 	return ParseGetConfigResp(rsp)
+}
+
+// GetAIModelsWithResponse request returning *GetAIModelsResp
+func (c *ClientWithResponses) GetAIModelsWithResponse(ctx context.Context, params *GetAIModelsParams, reqEditors ...RequestEditorFn) (*GetAIModelsResp, error) {
+	rsp, err := c.GetAIModels(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAIModelsResp(rsp)
+}
+
+// GetAIModelDetailsWithResponse request returning *GetAIModelDetailsResp
+func (c *ClientWithResponses) GetAIModelDetailsWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetAIModelDetailsResp, error) {
+	rsp, err := c.GetAIModelDetails(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAIModelDetailsResp(rsp)
 }
 
 // GetVersionsWithResponse request returning *GetVersionsResp
@@ -2218,6 +2423,72 @@ func ParseGetConfigResp(rsp *http.Response) (*GetConfigResp, error) {
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest ConfigResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAIModelsResp parses an HTTP response from a GetAIModelsWithResponse call
+func ParseGetAIModelsResp(rsp *http.Response) (*GetAIModelsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAIModelsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AIModelsListResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAIModelDetailsResp parses an HTTP response from a GetAIModelDetailsWithResponse call
+func ParseGetAIModelDetailsResp(rsp *http.Response) (*GetAIModelDetailsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAIModelDetailsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AIModelItem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

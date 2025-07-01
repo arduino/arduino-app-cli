@@ -64,6 +64,16 @@ func (m *ModelsIndex) GetModelByBrick(brick string) (*AIModel, bool) {
 	return &m.models[idx], true
 }
 
+func (m *ModelsIndex) GetModelsByBricks(bricks []string) []AIModel {
+	var matchingModels []AIModel
+	for _, model := range m.models {
+		if slices.Contains(bricks, model.Brick) {
+			matchingModels = append(matchingModels, model)
+		}
+	}
+	return matchingModels
+}
+
 func GenerateModelsIndex() (*ModelsIndex, error) {
 	versions, err := assets.FS.ReadDir("static")
 	if err != nil {

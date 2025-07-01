@@ -23,9 +23,10 @@ type Tag string
 const (
 	ApplicationTag Tag = "Application"
 	BrickTag       Tag = "Brick"
+	AIModels       Tag = "AIModels"
 )
 
-var validTags = []Tag{ApplicationTag, BrickTag}
+var validTags = []Tag{ApplicationTag, BrickTag, AIModels}
 
 type Generator struct {
 	reflector *openapi3.Reflector
@@ -528,6 +529,46 @@ Contains a JSON object with the details of an error.
 			Description: "returns the application current version",
 			Summary:     "application version",
 			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "getAIModels",
+			Method:      http.MethodGet,
+			Path:        "/v1/models",
+			Request: (*struct {
+				Bricks string `query:"bricks" description:"Filter models by bricks. If not specified, all models are returned."`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: orchestrator.AIModelsListResult{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "Returns the list of AI models available in the system. It is possible to filter the models by bricks.",
+			Summary:     "Get a list of available AI models",
+			Tags:        []Tag{AIModels},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "getAIModelDetails",
+			Method:      http.MethodGet,
+			Path:        "/v1/models/{id}",
+			Request: (*struct {
+				ID string `path:"id" description:"AI model identifier."`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: orchestrator.AIModelItem{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "Returns the details of a specific AI model.",
+			Summary:     "Get AI model details",
+			Tags:        []Tag{AIModels},
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
 			},

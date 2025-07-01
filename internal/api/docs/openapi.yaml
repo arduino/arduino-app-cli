@@ -9,6 +9,7 @@ servers:
 tags:
 - name: Application
 - name: Brick
+- name: AIModels
 paths:
   /v1/apps:
     get:
@@ -407,6 +408,54 @@ paths:
       summary: returns application configuration
       tags:
       - Application
+  /v1/models:
+    get:
+      description: Returns the list of AI models available in the system. It is possible
+        to filter the models by bricks.
+      operationId: getAIModels
+      parameters:
+      - description: Filter models by bricks. If not specified, all models are returned.
+        in: query
+        name: bricks
+        schema:
+          description: Filter models by bricks. If not specified, all models are returned.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIModelsListResult'
+          description: Successful response
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Get a list of available AI models
+      tags:
+      - AIModels
+  /v1/models/{id}:
+    get:
+      description: Returns the details of a specific AI model.
+      operationId: getAIModelDetails
+      parameters:
+      - description: AI model identifier.
+        in: path
+        name: id
+        required: true
+        schema:
+          description: AI model identifier.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIModelItem'
+          description: Successful response
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Get AI model details
+      tags:
+      - AIModels
   /v1/version:
     get:
       description: returns the application current version
@@ -471,6 +520,35 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
       description: Precondition Failed
   schemas:
+    AIModelItem:
+      properties:
+        brick_id:
+          type: string
+        description:
+          type: string
+        id:
+          type: string
+        metadata:
+          additionalProperties:
+            type: string
+          type: object
+        model_configuration:
+          additionalProperties:
+            type: string
+          type: object
+        name:
+          type: string
+        runner:
+          type: string
+      type: object
+    AIModelsListResult:
+      properties:
+        models:
+          items:
+            $ref: '#/components/schemas/AIModelItem'
+          nullable: true
+          type: array
+      type: object
     AppDetailedBrick:
       properties:
         icon:

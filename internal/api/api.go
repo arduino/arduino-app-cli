@@ -25,6 +25,9 @@ func NewHTTPRouter(dockerClient *dockerClient.Client, version string) http.Handl
 	mux.Handle("GET /v1/system/update/check", handlers.HandleCheckUpgradable())
 	mux.Handle("GET /v1/system/update/apply", handlers.HandleUpgrade())
 
+	mux.Handle("GET /v1/models", handlers.HandleModelsList())
+	mux.Handle("GET /v1/models/{id}", handlers.HandlerModelByID())
+
 	mux.Handle("GET /v1/apps", handlers.HandleAppList(dockerClient))
 	mux.Handle("POST /v1/apps", handlers.HandleAppCreate(dockerClient))
 
