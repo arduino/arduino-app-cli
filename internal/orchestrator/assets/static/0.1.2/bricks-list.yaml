@@ -1,5 +1,5 @@
 bricks:
-- name: arduino/image_classification
+- name: arduino:image_classification
   description: "Brick for image classification using a pre-trained model. It processes\
     \ images and returns the predicted class label and confidence score.\nBrick is\
     \ designed to work with pre-trained models provided by framework or with custom\
@@ -13,17 +13,16 @@ bricks:
   - name: EI_CLASSIFICATION_MODEL
     default_value: /models/ootb/ei/mobilenet-v2-224px.eim
     description: path to the model file
-- name: arduino/pose_detection
-  description: Simple module for general purpose pose detection on image.
-  require_container: true
+- name: arduino:camera_scanner
+  description: Scans a camera for barcodes and QR codes
+  require_container: false
   ports: []
-  variables: []
-- name: arduino/streamlit_ui
+- name: arduino:streamlit_ui
   description: A simplified user interface based on Streamlit and Python.
   require_container: false
   ports:
   - 7000
-- name: arduino/keyword_spotting
+- name: arduino:keyword_spotting
   description: 'Brick for keyword spotting using a pre-trained model. It processes
     audio input to detect specific keywords or phrases.
 
@@ -40,18 +39,18 @@ bricks:
   - name: EI_KEYWORK_SPOTTING_MODEL
     default_value: /models/ootb/ei/keyword-spotting-hello-world.eim
     description: path to the model file
-- name: arduino/mqtt
+- name: arduino:mqtt
   description: MQTT connector module. Acts as a client for receiving and publishing
     messages to an MQTT broker.
   require_container: false
   ports: []
-- name: arduino/web_ui
+- name: arduino:web_ui
   description: A user interface based on HTML and JavaScript that can rely on additional
     APIs and a WebSocket exposed by a web server.
   require_container: false
   ports:
   - 7000
-- name: arduino/dbstorage_tsstore
+- name: arduino:dbstorage_tsstore
   description: Simplified time series database storage layer for Arduino sensor samples
     built on top of InfluxDB.
   require_container: true
@@ -68,12 +67,12 @@ bricks:
   - name: INFLUXDB_ADMIN_TOKEN
     default_value: 392edbf2-b8a2-481f-979d-3f188b2c05f0
     description: InfluxDB admin token
-- name: arduino/dbstorage_sqlstore
+- name: arduino:dbstorage_sqlstore
   description: Simplified database storage layer for Arduino sensor data using SQLite
     local database.
   require_container: false
   ports: []
-- name: arduino/object_detection
+- name: arduino:object_detection
   description: "Brick for object detection using a pre-trained model. It processes\
     \ images and returns the predicted class label, bounding-boxes and confidence\
     \ score.\nBrick is designed to work with pre-trained models provided by framework\
@@ -87,12 +86,12 @@ bricks:
   - name: EI_OBJ_DETECTION_MODEL
     default_value: /models/ootb/ei/yolo-x-nano.eim
     description: path to the model file
-- name: arduino/weather_forecast
+- name: arduino:weather_forecast
   description: Online weather forecast module for Arduino using open-meteo.com geolocation
     and weather APIs. Requires an internet connection.
   require_container: false
   ports: []
-- name: arduino/visual_anomaly_detection
+- name: arduino:visual_anomaly_detection
   description: "Brick for visual anomaly detection using a pre-trained model. It processes\
     \ images and returns detected anomalies and bounding-boxes.\nBrick is designed\
     \ to work with pre-trained models provided by framework or with custom object\

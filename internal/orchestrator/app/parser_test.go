@@ -17,7 +17,7 @@ func TestAppParser(t *testing.T) {
 	require.Equal(t, app.Ports[0], 7860)
 
 	brick1 := Brick{
-		Name:  "arduino/object_detection",
+		Name:  "arduino:object_detection",
 		Model: "vision/yolo11",
 		Variables: map[string]string{
 			"PORT":          "8080",
@@ -35,10 +35,10 @@ func TestAppParser(t *testing.T) {
 	require.Contains(t, app.Ports, 7860, 8080)
 
 	brick2 := Brick{
-		Name: "arduino/not_found",
+		Name: "arduino:not_found",
 	}
 	brick3 := Brick{
-		Name: "arduino/simple_string",
+		Name: "arduino:simple_string",
 	}
 	require.Contains(t, app.Bricks, brick1, brick2, brick3)
 

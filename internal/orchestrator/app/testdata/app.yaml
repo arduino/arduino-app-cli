@@ -3,7 +3,7 @@ description: Image detection with UI
 ports:
     - 7860
 bricks:
-    - arduino/object_detection:
+    - arduino:object_detection:
         model: vision/yolo11
         variables:
           ROOT_PASSWORD: secret

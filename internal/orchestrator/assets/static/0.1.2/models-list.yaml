@@ -5,7 +5,7 @@ models:
     description: "Face bounding box detection. This model is trained on the WIDER FACE dataset and can detect faces in images."
     model_configuration:
       "EI_OBJ_DETECTION_MODEL": "/models/ootb/ei/face-detection.eim"    
-    brick: arduino/object_detection
+    brick: arduino:object_detection
     metadata:
       source: "edgeimpulse"
       ei-id: 104110
@@ -18,7 +18,7 @@ models:
     metadata:
       source: "edgeimpulse"
       ei-id: 717280      
-    brick: arduino/object_detection     
+    brick: arduino:object_detection     
  - mobilenet-image-classification:
     runner: brick
     name : "General purpose image classification"
@@ -28,7 +28,7 @@ models:
     metadata:
       source: "edgeimpulse"
       ei-id: 708500     
-    brick: arduino/image_classification
+    brick: arduino:image_classification
  - person-classification:
     runner: brick
     name : "Person classification"
@@ -38,7 +38,7 @@ models:
     metadata:
       source: "edgeimpulse"
       ei-id: 233515     
-    brick: arduino/image_classification   
+    brick: arduino:image_classification   
  - concreate-crack-anomaly-detection:
     runner: brick
     name : "Concrete crack anomaly detection"
@@ -48,7 +48,7 @@ models:
     metadata:
       source: "edgeimpulse"
       ei-id: 288658      
-    brick: arduino/visual_anomaly_detection
+    brick: arduino:visual_anomaly_detection
  - keyword-spotting-hello-world:
     runner: brick
     name : "Keyword spotting - Hello World"
@@ -58,4 +58,4 @@ models:
     metadata:
       source: "edgeimpulse"
       ei-id: 725251      
-    brick: arduino/keyword_spotting     
+    brick: arduino:keyword_spotting     

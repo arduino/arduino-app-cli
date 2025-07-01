@@ -31,7 +31,7 @@ func ProvisionApp(ctx context.Context, docker *dockerClient.Client, app app.Ardu
 
 	var containsThirdPartyDeps bool
 	for _, dep := range app.Descriptor.Bricks {
-		if !strings.HasPrefix(dep.Name, "arduino/") {
+		if !strings.HasPrefix(dep.Name, "arduino:") {
 			containsThirdPartyDeps = true
 			break
 		}

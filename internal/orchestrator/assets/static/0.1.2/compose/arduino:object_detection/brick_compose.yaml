@@ -2,7 +2,7 @@
 # CUSTOM_MODEL_PATH = path to the custom model directory
 services:
   ei-obj-detection-runner:
-    image: ${DOCKER_REGISTRY_BASE:-ghcr.io/bcmi-labs/}arduino/appslab-ei-models-runner:0.1.1
+    image: ${DOCKER_REGISTRY_BASE:-ghcr.io/bcmi-labs/}arduino/appslab-ei-models-runner:0.1.2
     restart: unless-stopped
     ports:
       - ${BIND_ADDRESS:-127.0.0.1}:${BIND_PORT:-1337}:1337

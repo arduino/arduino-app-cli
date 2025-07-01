@@ -18,7 +18,7 @@ func TestCreateApp(t *testing.T) {
 		r, err := CreateApp(t.Context(), CreateAppRequest{
 			Name:   "example app",
 			Icon:   "😃",
-			Bricks: []string{"arduino/object-detection"},
+			Bricks: []string{"arduino:object-detection"},
 		})
 		require.NoError(t, err)
 		require.Equal(t, ID("user/example-app"), r.ID)
@@ -251,7 +251,7 @@ func TestEditApp(t *testing.T) {
 			err := EditApp(AppEditRequest{
 				Default: new(bool),
 				Variables: f.Ptr(map[string]map[string]string{
-					"arduino/object_detection": {"CUSTOM_MODEL_PATH": "/opt/models/ei"},
+					"arduino:object_detection": {"CUSTOM_MODEL_PATH": "/opt/models/ei"},
 				}),
 			}, appWithBricks)
 			require.NoError(t, err)
@@ -260,13 +260,13 @@ func TestEditApp(t *testing.T) {
 		t.Run("override variables to existing brick", func(t *testing.T) {
 			appWithBricks := createAppWithBricks(t, []app.Brick{
 				{
-					Name:      "arduino/object_detection",
+					Name:      "arduino:object_detection",
 					Variables: map[string]string{"CUSTOM_MODEL_PATH": "/opt/models/ei"},
 				},
 			})
 
 			newVariables := map[string]map[string]string{
-				"arduino/object_detection": {"CUSTOM_MODEL_PATH": "/new"},
+				"arduino:object_detection": {"CUSTOM_MODEL_PATH": "/new"},
 			}
 			err := EditApp(AppEditRequest{
 				Default:   new(bool),
@@ -277,14 +277,14 @@ func TestEditApp(t *testing.T) {
 			newApp, err := app.Load(appWithBricks.FullPath.String())
 			require.NoError(t, err)
 			require.Len(t, newApp.Descriptor.Bricks, 1)
-			require.Equal(t, "arduino/object_detection", newApp.Descriptor.Bricks[0].Name)
-			require.Equal(t, newVariables["arduino/object_detection"], newApp.Descriptor.Bricks[0].Variables)
+			require.Equal(t, "arduino:object_detection", newApp.Descriptor.Bricks[0].Name)
+			require.Equal(t, newVariables["arduino:object_detection"], newApp.Descriptor.Bricks[0].Variables)
 		})
 		t.Run("setting not existing variable", func(t *testing.T) {
 			appWithBricks := createAppWithBricks(t, []app.Brick{})
 
 			newVariables := map[string]map[string]string{
-				"arduino/object_detection": {"NOT_EXISTING_VAR": "nope"},
+				"arduino:object_detection": {"NOT_EXISTING_VAR": "nope"},
 			}
 			err := EditApp(AppEditRequest{
 				Default:   new(bool),

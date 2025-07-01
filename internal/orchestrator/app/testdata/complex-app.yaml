@@ -6,13 +6,13 @@ ports:
   - 8080
 
 bricks:
-  - arduino/object_detection: # dep as a map, with additional properties
+  - arduino:object_detection: # dep as a map, with additional properties
       model: vision/yolo11
       other-prop: 42
       variables:
         ROOT_PASSWORD: secret
         PORT: 8080
 
-  - arduino/not_found: # dep as a map, but without additional properties
+  - arduino:not_found: # dep as a map, but without additional properties
 
-  - arduino/simple_string # dep as a simple string
+  - arduino:simple_string # dep as a simple string
