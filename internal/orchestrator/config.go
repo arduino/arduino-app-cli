@@ -46,7 +46,7 @@ func NewOrchestratorConfigFromEnv() (*OrchestratorConfig, error) {
 		dataDir = wd.JoinPath(dataDir)
 	}
 
-	routerSocket := paths.New(os.Getenv("ARDUINO_APP_CLI__ROUTER_SOCKET"))
+	routerSocket := paths.New(os.Getenv("ARDUINO_ROUTER_SOCKET"))
 	if routerSocket == nil || routerSocket.NotExist() {
 		routerSocket = paths.New("/var/run/arduino-router.sock")
 	}
