@@ -260,7 +260,7 @@ func TestEditApp(t *testing.T) {
 		t.Run("override variables to existing brick", func(t *testing.T) {
 			appWithBricks := createAppWithBricks(t, []app.Brick{
 				{
-					Name:      "arduino:object_detection",
+					ID:        "arduino:object_detection",
 					Variables: map[string]string{"CUSTOM_MODEL_PATH": "/opt/models/ei"},
 				},
 			})
@@ -277,7 +277,7 @@ func TestEditApp(t *testing.T) {
 			newApp, err := app.Load(appWithBricks.FullPath.String())
 			require.NoError(t, err)
 			require.Len(t, newApp.Descriptor.Bricks, 1)
-			require.Equal(t, "arduino:object_detection", newApp.Descriptor.Bricks[0].Name)
+			require.Equal(t, "arduino:object_detection", newApp.Descriptor.Bricks[0].ID)
 			require.Equal(t, newVariables["arduino:object_detection"], newApp.Descriptor.Bricks[0].Variables)
 		})
 		t.Run("setting not existing variable", func(t *testing.T) {

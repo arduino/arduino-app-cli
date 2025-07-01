@@ -31,7 +31,7 @@ func ProvisionApp(ctx context.Context, docker *dockerClient.Client, app app.Ardu
 
 	var containsThirdPartyDeps bool
 	for _, dep := range app.Descriptor.Bricks {
-		if !strings.HasPrefix(dep.Name, "arduino:") {
+		if !strings.HasPrefix(dep.ID, "arduino:") {
 			containsThirdPartyDeps = true
 			break
 		}
@@ -147,12 +147,12 @@ func generateMainComposeFile(ctx context.Context, app app.ArduinoApp, pythonImag
 
 	var composeFiles paths.PathList
 	for _, brick := range app.Descriptor.Bricks {
-		composeFilePath := provisioningStateDir.Join("compose", brick.Name, "brick_compose.yaml")
+		composeFilePath := provisioningStateDir.Join("compose", brick.ID, "brick_compose.yaml")
 		if composeFilePath.Exist() {
 			composeFiles.Add(composeFilePath)
-			slog.Debug("Brick compose file found", slog.String("module", brick.Name), slog.String("path", composeFilePath.String()))
+			slog.Debug("Brick compose file found", slog.String("module", brick.ID), slog.String("path", composeFilePath.String()))
 		} else {
-			slog.Debug("Brick compose file not found", slog.String("module", brick.Name), slog.String("path", composeFilePath.String()))
+			slog.Debug("Brick compose file not found", slog.String("module", brick.ID), slog.String("path", composeFilePath.String()))
 		}
 	}
 
@@ -229,7 +229,7 @@ func generateMainComposeFile(ctx context.Context, app app.ArduinoApp, pythonImag
 		if !found {
 			continue
 		}
-		brick, found := r.FindBrick(b.Name)
+		brick, found := r.FindBrickByID(b.ID)
 		if !found {
 			continue
 		}

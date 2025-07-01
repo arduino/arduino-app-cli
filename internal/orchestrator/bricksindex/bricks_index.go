@@ -103,9 +103,9 @@ type BrickRelease struct {
 	Bricks  []*Brick        `yaml:"bricks"`
 }
 
-func (b *BrickRelease) FindBrick(brickName string) (*Brick, bool) {
+func (b *BrickRelease) FindBrickByID(brickName string) (*Brick, bool) {
 	brickIdx := slices.IndexFunc(b.Bricks, func(b *Brick) bool {
-		return b.Name == brickName
+		return b.ID == brickName
 	})
 	if brickIdx == -1 {
 		return nil, false
@@ -128,6 +128,7 @@ func (b *BrickRelease) UnmarshalYAML(unmarshal func(any) error) error {
 }
 
 type Brick struct {
+	ID          string                          `yaml:"id"`
 	Name        string                          `yaml:"name"`
 	Version     string                          `yaml:"-"`
 	Variables   map[string]BrickReleaseVariable `yaml:"variables,omitempty"`
@@ -149,6 +150,7 @@ type assetsVariables struct {
 	Description  string `yaml:"description,omitempty"`
 }
 type assetsBricks struct {
+	ID                string            `yaml:"id"`
 	Name              string            `yaml:"name"`
 	ModuleDescription string            `yaml:"description"`
 	RequireContainer  bool              `yaml:"require_container"`
@@ -191,6 +193,7 @@ func GenerateBricksIndex() (*BricksIndex, error) {
 				}
 			}
 			brickRelease.Bricks[j] = &Brick{
+				ID:          brick.ID,
 				Name:        brick.Name,
 				Version:     version.Name(),
 				Variables:   variables,

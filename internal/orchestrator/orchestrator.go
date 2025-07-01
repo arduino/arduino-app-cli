@@ -64,7 +64,7 @@ const (
 
 func init() {
 	const dockerRegistry = "ghcr.io/bcmi-labs/"
-	const dockerPythonImage = "arduino/appslab-python-apps-base:0.1.2"
+	const dockerPythonImage = "arduino/appslab-python-apps-base:0.1.3"
 	// Registry base: contains the registry and namespace, common to all Arduino docker images.
 	registryBase := os.Getenv("DOCKER_REGISTRY_BASE")
 	if registryBase == "" {
@@ -513,9 +513,9 @@ func AppDetails(ctx context.Context, docker *dockerClient.Client, userApp app.Ar
 		Default:     defaultAppPath == userApp.FullPath.String(),
 		Bricks: f.Map(userApp.Descriptor.Bricks, func(b app.Brick) AppDetailedBrick {
 			return AppDetailedBrick{
-				ID:        b.Name, // TODO: use ID once the `name` will be different than the ID
-				Name:      b.Name, // TODO: use Name once the `name` will be different than the ID
-				Icon:      "",     // TODO: should we gather the icon from the index?
+				ID:        b.ID,
+				Name:      b.ID, // TODO: retrieve the name from the index
+				Icon:      "",   // TODO: should we gather the icon from the index?
 				Variables: b.Variables,
 			}
 		}),
@@ -587,7 +587,7 @@ if __name__ == "__main__":
 			Description: "",
 			Ports:       []int{},
 			Bricks: f.Map(req.Bricks, func(v string) app.Brick {
-				return app.Brick{Name: appFolderName}
+				return app.Brick{ID: appFolderName}
 			}),
 			Icon: req.Icon, // TODO: not sure if icon will exists for bricks
 		},
@@ -789,7 +789,7 @@ func editVariables(userApp *app.ArduinoApp, variables map[string]map[string]stri
 		return nil
 	}
 
-	checkTheVariablesExists := func(brickName string, vars map[string]string) error {
+	checkTheVariablesExists := func(brickID string, vars map[string]string) error {
 		// Check that the brick exists in the bricks index.
 		collection, ok := bricksIndex.GetCollection("arduino", "app-bricks")
 		if !ok {
@@ -800,31 +800,31 @@ func editVariables(userApp *app.ArduinoApp, variables map[string]map[string]stri
 			return fmt.Errorf("bricks index: release %s not found in arduino collection", bricksVersion)
 		}
 
-		brick, brickFound := release.FindBrick(brickName)
+		brick, brickFound := release.FindBrickByID(brickID)
 		if !brickFound {
-			return fmt.Errorf("brick %v not found in bricks index", brickName)
+			return fmt.Errorf("brick %v not found in bricks index", brickID)
 		}
 
 		// Validate that the variables exists for the brick.
 		for varName := range vars {
 			if _, ok := brick.Variables[varName]; !ok {
-				return fmt.Errorf("variable %v not found in brick %v", varName, brickName)
+				return fmt.Errorf("variable %v not found in brick %v", varName, brickID)
 			}
 		}
 		return nil
 	}
 
-	for brickName, vars := range variables {
-		if err := checkTheVariablesExists(brickName, vars); err != nil {
+	for brickID, vars := range variables {
+		if err := checkTheVariablesExists(brickID, vars); err != nil {
 			return err
 		}
 
 		idx := slices.IndexFunc(userApp.Descriptor.Bricks, func(b app.Brick) bool {
-			return b.Name == brickName
+			return b.ID == brickID
 		})
 		if idx == -1 {
 			userApp.Descriptor.Bricks = append(userApp.Descriptor.Bricks, app.Brick{
-				Name:      brickName,
+				ID:        brickID,
 				Variables: vars,
 			})
 		} else {

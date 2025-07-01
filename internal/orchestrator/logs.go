@@ -40,18 +40,18 @@ func AppLogs(ctx context.Context, app app.ArduinoApp, req AppLogsRequest) (iter.
 	// Obtain mapping compose service name <-> brick name
 	serviceToBrickMapping := make(map[string]string, len(app.Descriptor.Bricks))
 	for _, brick := range app.Descriptor.Bricks {
-		composeFilePath := provisioningStateDir.Join("compose", brick.Name, "brick_compose.yaml")
+		composeFilePath := provisioningStateDir.Join("compose", brick.ID, "brick_compose.yaml")
 		if composeFilePath.Exist() {
 			services, err := dockerComposeListServices(ctx, composeFilePath)
 			if err != nil {
 				return x.EmptyIter[LogMessage](), err
 			}
 			for i := range services {
-				serviceToBrickMapping[services[i]] = brick.Name
+				serviceToBrickMapping[services[i]] = brick.ID
 			}
-			slog.Debug("Brick compose file found", slog.String("module", brick.Name), slog.String("path", composeFilePath.String()))
+			slog.Debug("Brick compose file found", slog.String("module", brick.ID), slog.String("path", composeFilePath.String()))
 		} else {
-			slog.Debug("Brick compose file not found", slog.String("module", brick.Name), slog.String("path", composeFilePath.String()))
+			slog.Debug("Brick compose file not found", slog.String("module", brick.ID), slog.String("path", composeFilePath.String()))
 		}
 	}
 

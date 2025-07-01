@@ -16,17 +16,17 @@ func TestBricksIndex(t *testing.T) {
     releases:
       - version: 1.0.0
         bricks:
-          - name: arduino/dbstorage
+          - id: arduino:dbstorage
             variables:
               PORT:
                 default_value: 8080
       - version: 2.0.0
         bricks:
-          - name: arduino/dbstorage
+          - id: arduino:dbstorage
             variables:
               PORT:
                 default_value: 8080
-          - name: arduino/"redis"
+          - id: arduino:redis
             variables:
               PORT:
                 default_value: 8080

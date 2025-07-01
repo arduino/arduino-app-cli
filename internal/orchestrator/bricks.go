@@ -37,9 +37,9 @@ func BricksList() (BrickListResult, error) {
 	res := BrickListResult{Bricks: make([]BrickListItem, len(release.Bricks))}
 	for i, brick := range release.Bricks {
 		res.Bricks[i] = BrickListItem{
-			ID:          brick.Name, // TODO: eventually this will become id
-			Name:        brick.Name, // TODO: introduce a module_displayname. The Name property is not UI friendly
-			Author:      "Arduino",  //TODO: for now we only support our bricks
+			ID:          brick.ID,
+			Name:        brick.Name,
+			Author:      "Arduino", //TODO: for now we only support our bricks
 			Description: brick.Description,
 			Icon:        "", // TODO: not implemented yet
 			IsInstalled: true,
@@ -78,7 +78,7 @@ func BricksDetails(id string) (BrickDetailsResult, error) {
 
 	var brick *bricksindex.Brick
 	for _, b := range release.Bricks {
-		if b.Name == id { // TODO: eventually this will become id
+		if b.ID == id {
 			brick = b
 		}
 	}
@@ -102,8 +102,8 @@ func BricksDetails(id string) (BrickDetailsResult, error) {
 
 	return BrickDetailsResult{
 		ID:          id,
-		Name:        brick.Name, // TODO: introduce a module_displayname. The Name property is not UI friendly
-		Author:      "Arduino",  // TODO: for now we only support our bricks
+		Name:        brick.Name,
+		Author:      "Arduino", // TODO: for now we only support our bricks
 		Description: brick.Description,
 		Icon:        "",   // TODO: not implemented yet
 		IsInstalled: true, // For now every Arduino brick are installed

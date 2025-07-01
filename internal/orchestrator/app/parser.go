@@ -12,7 +12,7 @@ import (
 )
 
 type Brick struct {
-	Name      string            `yaml:"-"` // Ignores this field, to be handled manually
+	ID        string            `yaml:"-"` // Ignores this field, to be handled manually
 	Model     string            `yaml:"model,omitempty"`
 	Variables map[string]string `yaml:"variables,omitempty"`
 }
@@ -36,7 +36,7 @@ func (d AppDescriptor) MarshalYAML() (any, error) {
 
 	bricks := make([]map[string]Brick, len(d.Bricks))
 	for i, brick := range d.Bricks {
-		bricks[i] = map[string]Brick{brick.Name: brick}
+		bricks[i] = map[string]Brick{brick.ID: brick}
 	}
 	return &raw{
 		Name:        d.Name,
@@ -49,8 +49,8 @@ func (d AppDescriptor) MarshalYAML() (any, error) {
 
 func (md *Brick) UnmarshalYAML(node ast.Node) error {
 	switch node.Type() {
-	case ast.StringType: // String type brick (i.e. "- arduino/brickname", without ':').
-		md.Name = node.(*ast.StringNode).Value
+	case ast.StringType: // String type brick (i.e. "- arduino:brickname").
+		md.ID = node.(*ast.StringNode).Value
 	case ast.MappingType: // Map type brick (name followed by a ':' and, optionally, some fields).
 		content := node.(*ast.MappingNode).Values
 		if len(content) == 0 {
@@ -68,7 +68,7 @@ func (md *Brick) UnmarshalYAML(node ast.Node) error {
 			var details brickAlias
 
 			if err := yaml.Unmarshal([]byte(valueNode.String()), &details); err != nil {
-				return fmt.Errorf("failed to unmarshal brick details for '%s': %w", md.Name, err)
+				return fmt.Errorf("failed to unmarshal brick details for '%s': %w", md.ID, err)
 			}
 			*md = Brick(details)
 		default:
@@ -76,7 +76,7 @@ func (md *Brick) UnmarshalYAML(node ast.Node) error {
 				valueNode.String(), keyNode.String())
 		}
 		if keyNode.Type() == ast.StringType {
-			md.Name = keyNode.(*ast.StringNode).Value
+			md.ID = keyNode.(*ast.StringNode).Value
 		}
 
 	default:
