@@ -9,6 +9,7 @@ import (
 	"maps"
 	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -147,7 +148,8 @@ func generateMainComposeFile(ctx context.Context, app app.ArduinoApp, pythonImag
 
 	var composeFiles paths.PathList
 	for _, brick := range app.Descriptor.Bricks {
-		composeFilePath := provisioningStateDir.Join("compose", brick.ID, "brick_compose.yaml")
+		brickPath := filepath.Join(strings.Split(brick.ID, ":")...)
+		composeFilePath := provisioningStateDir.Join("compose", brickPath, "brick_compose.yaml")
 		if composeFilePath.Exist() {
 			composeFiles.Add(composeFilePath)
 			slog.Debug("Brick compose file found", slog.String("module", brick.ID), slog.String("path", composeFilePath.String()))
