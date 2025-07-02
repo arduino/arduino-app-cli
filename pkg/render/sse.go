@@ -28,6 +28,13 @@ type SSEEvent struct {
 	Data any    `json:"data"`
 }
 
+func NewErrorEvent(data any) SSEEvent {
+	return SSEEvent{
+		Type: "error",
+		Data: data,
+	}
+}
+
 type sseFlusher interface {
 	http.Flusher
 	io.Writer

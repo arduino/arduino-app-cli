@@ -3,7 +3,6 @@ package orchestrator
 import (
 	"bufio"
 	"context"
-	"errors"
 	"io"
 	"iter"
 	"regexp"
@@ -11,11 +10,7 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	"go.bug.st/f"
-
-	"github.com/arduino/arduino-app-cli/pkg/x"
 )
-
-var ErrNoUpgradablePackages = errors.New("no upgradable packages found")
 
 type UpgradablePackage struct {
 	Name         string `json:"name"` // Package name without repository information
@@ -24,13 +19,7 @@ type UpgradablePackage struct {
 	ToVersion    string `json:"to_version"`
 }
 
-func RunUpgradeCommand(ctx context.Context, pks []UpgradablePackage) (iter.Seq[string], error) {
-	if len(pks) == 0 {
-		return x.EmptyIter[string](), ErrNoUpgradablePackages
-	}
-	names := f.Map(pks, func(p UpgradablePackage) string {
-		return p.Name
-	})
+func RunUpgradeCommand(ctx context.Context, names []string) (iter.Seq[string], error) {
 	args := append([]string{"sudo", "apt-get", "upgrade", "-y"}, names...)
 	upgradeCmd, err := paths.NewProcess([]string{"NEEDRESTART_MODE=l"}, args...)
 	if err != nil {

@@ -15,15 +15,17 @@ import (
 //go:embed docs
 var docsFS embed.FS
 
-func NewHTTPRouter(dockerClient *dockerClient.Client, version string) http.Handler {
+func NewHTTPRouter(dockerClient *dockerClient.Client, version string, eventsBroker *handlers.UpdateEventsBroker) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /v1/version", handlers.HandlerVersion(version))
 	mux.Handle("GET /v1/config", handlers.HandleConfig())
 	mux.Handle("GET /v1/bricks", handlers.HandleBrickList())
 	mux.Handle("GET /v1/bricks/{id...}", handlers.HandleBrickDetails())
+
 	mux.Handle("GET /v1/system/update/check", handlers.HandleCheckUpgradable())
-	mux.Handle("GET /v1/system/update/apply", handlers.HandleUpgrade())
+	mux.Handle("GET /v1/system/update/events", handlers.HandleUpdateEvents(eventsBroker))
+	mux.Handle("PUT /v1/system/update/apply", handlers.HandleUpdateApply(eventsBroker))
 
 	mux.Handle("GET /v1/models", handlers.HandleModelsList())
 	mux.Handle("GET /v1/models/{id}", handlers.HandlerModelByID())
