@@ -10,6 +10,7 @@ tags:
 - name: Application
 - name: Brick
 - name: AIModels
+- name: System
 paths:
   /v1/apps:
     get:
@@ -456,6 +457,93 @@ paths:
       summary: Get AI model details
       tags:
       - AIModels
+  /v1/system/update/apply:
+    put:
+      description: Start the upgrade process.
+      operationId: applyUpdate
+      parameters:
+      - description: If true, upgrade only the Arduino packages that require an upgrade.
+          Default is false.
+        in: query
+        name: only-arduino
+        schema:
+          description: If true, upgrade only the Arduino packages that require an
+            upgrade. Default is false.
+          type: boolean
+      responses:
+        "200":
+          description: Successful response
+        "204":
+          $ref: '#/components/responses/NoContent'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Start the upgrade process in background
+      tags:
+      - System
+  /v1/system/update/check:
+    get:
+      description: Returns the details of packages to be upgraded.
+      operationId: checkUpdate
+      parameters:
+      - description: If true, check only for Arduino packages that require an upgrade.
+          Default is false.
+        in: query
+        name: only-arduino
+        schema:
+          description: If true, check only for Arduino packages that require an upgrade.
+            Default is false.
+          type: boolean
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateCheckResult'
+          description: Successful response
+        "204":
+          $ref: '#/components/responses/NoContent'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Get the packages that requires an upgrade
+      tags:
+      - System
+  /v1/system/update/events:
+    get:
+      description: Returns the events of current update process.
+      operationId: eventsUpdate
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                type: string
+          description: |
+            A stream of Server-Sent Events (SSE) that notifies the progress of the update process.
+            The client will receive events formatted as follows:
+
+            **Event 'log'**:
+            Contains a log message of the apt upgrade command.
+            'event: log'
+            'data: "updating package: 0.25"'
+
+            **Event 'restarting'**:
+            Contains a string with the message that the upgrade is completed and the system is restarting.
+            'event: restarting'
+            'data: Upgrade completed. Restarting'
+
+            **Event 'error'**:
+            Contains a JSON object with the details of an error.
+            'event: error'
+            'data: {"code":"internal_service_err","message":"An error occurred during operation"}'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: SSE stream of the update process
+      tags:
+      - System
   /v1/version:
     get:
       description: returns the application current version
@@ -501,6 +589,15 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
       description: Internal Server Error
+    NoContent:
+      content:
+        application/json:
+          example:
+            code: 204
+            message: No content to return.
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      description: No Content
     NotFound:
       content:
         application/json:
@@ -769,6 +866,23 @@ components:
       - failed
       type: string
       uniqueItems: true
+    UpdateCheckResult:
+      properties:
+        packages:
+          items:
+            $ref: '#/components/schemas/UpgradablePackage'
+          nullable: true
+          type: array
+      type: object
+    UpgradablePackage:
+      properties:
+        from_version:
+          type: string
+        name:
+          type: string
+        to_version:
+          type: string
+      type: object
     VersionResponse:
       properties:
         version:

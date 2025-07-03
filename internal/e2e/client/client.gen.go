@@ -180,6 +180,18 @@ type ListAppResult struct {
 // Status Application status
 type Status string
 
+// UpdateCheckResult defines model for UpdateCheckResult.
+type UpdateCheckResult struct {
+	Packages *[]UpgradablePackage `json:"packages"`
+}
+
+// UpgradablePackage defines model for UpgradablePackage.
+type UpgradablePackage struct {
+	FromVersion *string `json:"from_version,omitempty"`
+	Name        *string `json:"name,omitempty"`
+	ToVersion   *string `json:"to_version,omitempty"`
+}
+
 // VersionResponse defines model for VersionResponse.
 type VersionResponse struct {
 	Version *string `json:"version,omitempty"`
@@ -193,6 +205,9 @@ type Conflict = ErrorResponse
 
 // InternalServerError defines model for InternalServerError.
 type InternalServerError = ErrorResponse
+
+// NoContent defines model for NoContent.
+type NoContent = ErrorResponse
 
 // NotFound defines model for NotFound.
 type NotFound = ErrorResponse
@@ -229,6 +244,18 @@ type GetAppLogsParams struct {
 type GetAIModelsParams struct {
 	// Bricks Filter models by bricks. If not specified, all models are returned.
 	Bricks *string `form:"bricks,omitempty" json:"bricks,omitempty"`
+}
+
+// ApplyUpdateParams defines parameters for ApplyUpdate.
+type ApplyUpdateParams struct {
+	// OnlyArduino If true, upgrade only the Arduino packages that require an upgrade. Default is false.
+	OnlyArduino *bool `form:"only-arduino,omitempty" json:"only-arduino,omitempty"`
+}
+
+// CheckUpdateParams defines parameters for CheckUpdate.
+type CheckUpdateParams struct {
+	// OnlyArduino If true, check only for Arduino packages that require an upgrade. Default is false.
+	OnlyArduino *bool `form:"only-arduino,omitempty" json:"only-arduino,omitempty"`
 }
 
 // CreateAppJSONRequestBody defines body for CreateApp for application/json ContentType.
@@ -363,6 +390,15 @@ type ClientInterface interface {
 
 	// GetAIModelDetails request
 	GetAIModelDetails(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ApplyUpdate request
+	ApplyUpdate(ctx context.Context, params *ApplyUpdateParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CheckUpdate request
+	CheckUpdate(ctx context.Context, params *CheckUpdateParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// EventsUpdate request
+	EventsUpdate(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetVersions request
 	GetVersions(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -574,6 +610,42 @@ func (c *Client) GetAIModels(ctx context.Context, params *GetAIModelsParams, req
 
 func (c *Client) GetAIModelDetails(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAIModelDetailsRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ApplyUpdate(ctx context.Context, params *ApplyUpdateParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewApplyUpdateRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CheckUpdate(ctx context.Context, params *CheckUpdateParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCheckUpdateRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) EventsUpdate(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEventsUpdateRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -1262,6 +1334,131 @@ func NewGetAIModelDetailsRequest(server string, id string) (*http.Request, error
 	return req, nil
 }
 
+// NewApplyUpdateRequest generates requests for ApplyUpdate
+func NewApplyUpdateRequest(server string, params *ApplyUpdateParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/system/update/apply")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.OnlyArduino != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "only-arduino", runtime.ParamLocationQuery, *params.OnlyArduino); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCheckUpdateRequest generates requests for CheckUpdate
+func NewCheckUpdateRequest(server string, params *CheckUpdateParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/system/update/check")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.OnlyArduino != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "only-arduino", runtime.ParamLocationQuery, *params.OnlyArduino); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewEventsUpdateRequest generates requests for EventsUpdate
+func NewEventsUpdateRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/system/update/events")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetVersionsRequest generates requests for GetVersions
 func NewGetVersionsRequest(server string) (*http.Request, error) {
 	var err error
@@ -1382,6 +1579,15 @@ type ClientWithResponsesInterface interface {
 
 	// GetAIModelDetailsWithResponse request
 	GetAIModelDetailsWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetAIModelDetailsResp, error)
+
+	// ApplyUpdateWithResponse request
+	ApplyUpdateWithResponse(ctx context.Context, params *ApplyUpdateParams, reqEditors ...RequestEditorFn) (*ApplyUpdateResp, error)
+
+	// CheckUpdateWithResponse request
+	CheckUpdateWithResponse(ctx context.Context, params *CheckUpdateParams, reqEditors ...RequestEditorFn) (*CheckUpdateResp, error)
+
+	// EventsUpdateWithResponse request
+	EventsUpdateWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*EventsUpdateResp, error)
 
 	// GetVersionsWithResponse request
 	GetVersionsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetVersionsResp, error)
@@ -1743,6 +1949,77 @@ func (r GetAIModelDetailsResp) StatusCode() int {
 	return 0
 }
 
+type ApplyUpdateResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON204      *NoContent
+	JSON409      *Conflict
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r ApplyUpdateResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ApplyUpdateResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CheckUpdateResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *UpdateCheckResult
+	JSON204      *NoContent
+	JSON400      *BadRequest
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r CheckUpdateResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CheckUpdateResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type EventsUpdateResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r EventsUpdateResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r EventsUpdateResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetVersionsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -1923,6 +2200,33 @@ func (c *ClientWithResponses) GetAIModelDetailsWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseGetAIModelDetailsResp(rsp)
+}
+
+// ApplyUpdateWithResponse request returning *ApplyUpdateResp
+func (c *ClientWithResponses) ApplyUpdateWithResponse(ctx context.Context, params *ApplyUpdateParams, reqEditors ...RequestEditorFn) (*ApplyUpdateResp, error) {
+	rsp, err := c.ApplyUpdate(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseApplyUpdateResp(rsp)
+}
+
+// CheckUpdateWithResponse request returning *CheckUpdateResp
+func (c *ClientWithResponses) CheckUpdateWithResponse(ctx context.Context, params *CheckUpdateParams, reqEditors ...RequestEditorFn) (*CheckUpdateResp, error) {
+	rsp, err := c.CheckUpdate(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCheckUpdateResp(rsp)
+}
+
+// EventsUpdateWithResponse request returning *EventsUpdateResp
+func (c *ClientWithResponses) EventsUpdateWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*EventsUpdateResp, error) {
+	rsp, err := c.EventsUpdate(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEventsUpdateResp(rsp)
 }
 
 // GetVersionsWithResponse request returning *GetVersionsResp
@@ -2494,6 +2798,119 @@ func ParseGetAIModelDetailsResp(rsp *http.Response) (*GetAIModelDetailsResp, err
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseApplyUpdateResp parses an HTTP response from a ApplyUpdateWithResponse call
+func ParseApplyUpdateResp(rsp *http.Response) (*ApplyUpdateResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ApplyUpdateResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 204:
+		var dest NoContent
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON204 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCheckUpdateResp parses an HTTP response from a CheckUpdateWithResponse call
+func ParseCheckUpdateResp(rsp *http.Response) (*CheckUpdateResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CheckUpdateResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest UpdateCheckResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 204:
+		var dest NoContent
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON204 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseEventsUpdateResp parses an HTTP response from a EventsUpdateWithResponse call
+func ParseEventsUpdateResp(rsp *http.Response) (*EventsUpdateResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &EventsUpdateResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

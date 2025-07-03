@@ -24,9 +24,10 @@ const (
 	ApplicationTag Tag = "Application"
 	BrickTag       Tag = "Brick"
 	AIModels       Tag = "AIModels"
+	SystemTag      Tag = "System"
 )
 
-var validTags = []Tag{ApplicationTag, BrickTag, AIModels}
+var validTags = []Tag{ApplicationTag, BrickTag, AIModels, SystemTag}
 
 type Generator struct {
 	reflector *openapi3.Reflector
@@ -105,6 +106,24 @@ func NewOpenApiGenerator(version string) *Generator {
 								Example: f.Ptr(interface{}(map[string]interface{}{
 									"code":    409,
 									"message": "There is a conflict with an existing resource.",
+								})),
+								Schema: &openapi3.SchemaOrRef{
+									SchemaReference: &openapi3.SchemaReference{
+										Ref: ErrorResponseSchema,
+									},
+								},
+							},
+						},
+					},
+				},
+				"NoContent": {
+					Response: &openapi3.Response{
+						Description: "No Content",
+						Content: map[string]openapi3.MediaType{
+							"application/json": {
+								Example: f.Ptr(interface{}(map[string]interface{}{
+									"code":    204,
+									"message": "No content to return.",
 								})),
 								Schema: &openapi3.SchemaOrRef{
 									SchemaReference: &openapi3.SchemaReference{
@@ -569,6 +588,82 @@ Contains a JSON object with the details of an error.
 			Description: "Returns the details of a specific AI model.",
 			Summary:     "Get AI model details",
 			Tags:        []Tag{AIModels},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "checkUpdate",
+			Method:      http.MethodGet,
+			Path:        "/v1/system/update/check",
+			Parameters: (*struct {
+				OnlyArduino bool `query:"only-arduino" description:"If true, check only for Arduino packages that require an upgrade. Default is false."`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: handlers.UpdateCheckResult{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "Returns the details of packages to be upgraded.",
+			Summary:     "Get the packages that requires an upgrade",
+			Tags:        []Tag{SystemTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusNoContent, Reference: "#/components/responses/NoContent"},
+			},
+		},
+		{
+			OperationId: "applyUpdate",
+			Method:      http.MethodPut,
+			Path:        "/v1/system/update/apply",
+			Parameters: (*struct {
+				OnlyArduino bool `query:"only-arduino" description:"If true, upgrade only the Arduino packages that require an upgrade. Default is false."`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				Description: "Successful response",
+				StatusCode:  http.StatusOK,
+			},
+			Description: "Start the upgrade process.",
+			Summary:     "Start the upgrade process in background",
+			Tags:        []Tag{SystemTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusConflict, Reference: "#/components/responses/Conflict"},
+				{StatusCode: http.StatusNoContent, Reference: "#/components/responses/NoContent"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "eventsUpdate",
+			Method:      http.MethodGet,
+			Path:        "/v1/system/update/events",
+			Request:     nil,
+			Description: "Returns the events of current update process.",
+			Summary:     "SSE stream of the update process",
+			Tags:        []Tag{SystemTag},
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "text/event-stream",
+				DataStructure: "",
+				Description: `A stream of Server-Sent Events (SSE) that notifies the progress of the update process.
+The client will receive events formatted as follows:
+
+**Event 'log'**:
+Contains a log message of the apt upgrade command.
+'event: log'
+'data: "updating package: 0.25"'
+
+**Event 'restarting'**:
+Contains a string with the message that the upgrade is completed and the system is restarting.
+'event: restarting'
+'data: Upgrade completed. Restarting'
+
+**Event 'error'**:
+Contains a JSON object with the details of an error.
+'event: error'
+'data: {"code":"internal_service_err","message":"An error occurred during operation"}'
+`,
+			},
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
 			},
