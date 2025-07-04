@@ -43,10 +43,9 @@ type AIModelsListResult struct {
 
 // AppDetailedBrick defines model for AppDetailedBrick.
 type AppDetailedBrick struct {
-	Icon      *string            `json:"icon,omitempty"`
-	Id        string             `json:"id"`
-	Name      string             `json:"name"`
-	Variables *map[string]string `json:"variables,omitempty"`
+	Icon *string `json:"icon,omitempty"`
+	Id   string  `json:"id"`
+	Name string  `json:"name"`
 }
 
 // AppDetailedInfo defines model for AppDetailedInfo.
@@ -169,8 +168,16 @@ type CreateAppResponse struct {
 
 // EditRequest defines model for EditRequest.
 type EditRequest struct {
-	Default   *bool                         `json:"default"`
-	Variables *map[string]map[string]string `json:"variables"`
+	Default *bool `json:"default"`
+
+	// Description application description
+	Description *string `json:"description"`
+
+	// Icon application icon
+	Icon *string `json:"icon"`
+
+	// Name application name
+	Name *string `json:"name"`
 }
 
 // ErrorResponse defines model for ErrorResponse.

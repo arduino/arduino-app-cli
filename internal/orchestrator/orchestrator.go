@@ -357,6 +357,11 @@ type ListAppRequest struct {
 	ShowOnlyDefault bool
 	ShowApps        bool
 	StatusFilter    Status
+
+	// IncludeNonStandardLocationApps will include apps that are not in the standard apps directory.
+	// We will search by looking for docker container metadata, and add the app not present in the
+	// standard apps directory in the result list.
+	IncludeNonStandardLocationApps bool
 }
 
 func ListApps(ctx context.Context, docker *dockerClient.Client, req ListAppRequest) (ListAppResult, error) {
@@ -376,8 +381,10 @@ func ListApps(ctx context.Context, docker *dockerClient.Client, req ListAppReque
 	if req.ShowApps {
 		pathsToExplore.Add(orchestratorConfig.AppsDir())
 		// adds app that are on different paths
-		for _, app := range apps {
-			appPaths.AddIfMissing(app.AppPath)
+		if req.IncludeNonStandardLocationApps {
+			for _, app := range apps {
+				appPaths.AddIfMissing(app.AppPath)
+			}
 		}
 	}
 
@@ -464,10 +471,9 @@ type AppDetailedInfo struct {
 }
 
 type AppDetailedBrick struct {
-	ID        string            `json:"id" required:"true"`
-	Name      string            `json:"name" required:"true"`
-	Icon      string            `json:"icon,omitempty"`
-	Variables map[string]string `json:"variables,omitempty"`
+	ID   string `json:"id" required:"true"`
+	Name string `json:"name" required:"true"`
+	Icon string `json:"icon,omitempty"`
 }
 
 func AppDetails(ctx context.Context, docker *dockerClient.Client, userApp app.ArduinoApp) (AppDetailedInfo, error) {
@@ -513,10 +519,9 @@ func AppDetails(ctx context.Context, docker *dockerClient.Client, userApp app.Ar
 		Default:     defaultAppPath == userApp.FullPath.String(),
 		Bricks: f.Map(userApp.Descriptor.Bricks, func(b app.Brick) AppDetailedBrick {
 			return AppDetailedBrick{
-				ID:        b.ID,
-				Name:      b.ID, // TODO: retrieve the name from the index
-				Icon:      "",   // TODO: should we gather the icon from the index?
-				Variables: b.Variables,
+				ID:   b.ID,
+				Name: b.ID, // TODO: retrieve the name from the index
+				Icon: "",   // TODO: should we gather the icon from the index?
 			}
 		}),
 	}, nil
@@ -542,9 +547,8 @@ func CreateApp(ctx context.Context, req CreateAppRequest) (CreateAppResponse, er
 		return CreateAppResponse{}, fmt.Errorf("app name cannot be empty")
 	}
 
-	appFolderName := slug.Make(req.Name)
-	basePath := orchestratorConfig.AppsDir().Join(appFolderName)
-	if basePath.Exist() {
+	basePath, appExists := findAppPathByName(req.Name)
+	if appExists {
 		return CreateAppResponse{}, ErrAppAlreadyExists
 	}
 
@@ -587,7 +591,7 @@ if __name__ == "__main__":
 			Description: "",
 			Ports:       []int{},
 			Bricks: f.Map(req.Bricks, func(v string) app.Brick {
-				return app.Brick{ID: appFolderName}
+				return app.Brick{ID: v}
 			}),
 			Icon: req.Icon, // TODO: not sure if icon will exists for bricks
 		},
@@ -762,28 +766,46 @@ func GetDefaultApp() (*app.ArduinoApp, error) {
 }
 
 type AppEditRequest struct {
-	Default *bool
-
-	// The key is brick name, the second map is variable_name -> value.
-	Variables *map[string]map[string]string
+	Name        *string
+	Icon        *string
+	Description *string
+	Default     *bool
 }
 
-func EditApp(req AppEditRequest, app *app.ArduinoApp) error {
+func EditApp(req AppEditRequest, app *app.ArduinoApp) (editErr error) {
 	if req.Default != nil {
 		if err := editAppDefaults(app, *req.Default); err != nil {
 			return fmt.Errorf("failed to edit app defaults: %w", err)
 		}
 	}
 
-	if req.Variables != nil {
-		if err := editVariables(app, *req.Variables); err != nil {
-			return fmt.Errorf("failed to edit app variables: %w", err)
+	if req.Name != nil {
+		app.Descriptor.Name = *req.Name
+		newPath := app.FullPath.Parent().Join(slug.Make(*req.Name))
+		if newPath.Exist() {
+			return ErrAppAlreadyExists
 		}
+
+		defer func() {
+			if err := app.FullPath.Rename(newPath); err != nil {
+				editErr = fmt.Errorf("failed to rename app path: %w", err)
+				return
+			}
+		}()
+	}
+	if req.Icon != nil {
+		app.Descriptor.Icon = *req.Icon
+	}
+	if req.Description != nil {
+		app.Descriptor.Description = *req.Description
 	}
 
-	return nil
+	return app.Save()
 }
 
+// The key is brick name, the second map is variable_name -> value.
+//
+//nolint:unused
 func editVariables(userApp *app.ArduinoApp, variables map[string]map[string]string) error {
 	if len(variables) == 0 {
 		return nil

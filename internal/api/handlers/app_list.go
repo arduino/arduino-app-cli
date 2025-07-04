@@ -12,6 +12,10 @@ import (
 	dockerClient "github.com/docker/docker/client"
 )
 
+type AppListResponse struct {
+	Apps []orchestrator.AppInfo `json:"apps" description:"List of applications"`
+}
+
 func HandleAppList(dockerClient *dockerClient.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		queryParams := r.URL.Query()
@@ -45,6 +49,6 @@ func HandleAppList(dockerClient *dockerClient.Client) http.HandlerFunc {
 			render.EncodeResponse(w, http.StatusInternalServerError, "unable to find the app")
 			return
 		}
-		render.EncodeResponse(w, http.StatusOK, res)
+		render.EncodeResponse(w, http.StatusOK, AppListResponse{Apps: res.Apps})
 	}
 }

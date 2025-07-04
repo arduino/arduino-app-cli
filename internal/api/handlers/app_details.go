@@ -38,8 +38,10 @@ func HandleAppDetails(dockerClient *dockerClient.Client) HandlerAppFunc {
 }
 
 type EditRequest struct {
-	Default   *bool                         `json:"default"`
-	Variables *map[string]map[string]string `json:"variables" example:"[\"core-auth\", \"new value\"]"`
+	Name        *string `json:"name" example:"My Awesome App" description:"application name"`
+	Icon        *string `json:"icon" example:"💻" description:"application icon"`
+	Description *string `json:"description" example:"This is my awesome app" description:"application description"`
+	Default     *bool   `json:"default"`
 }
 
 func HandleAppDetailsEdits() HandlerAppFunc {
@@ -70,8 +72,10 @@ func HandleAppDetailsEdits() HandlerAppFunc {
 		}
 
 		err = orchestrator.EditApp(orchestrator.AppEditRequest{
-			Default:   editRequest.Default,
-			Variables: editRequest.Variables,
+			Default:     editRequest.Default,
+			Name:        editRequest.Name,
+			Icon:        editRequest.Icon,
+			Description: editRequest.Description,
 		}, &app)
 		if err != nil {
 			slog.Error("Unable to edit the app", slog.String("error", err.Error()))

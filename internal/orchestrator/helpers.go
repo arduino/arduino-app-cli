@@ -127,3 +127,9 @@ func getAppComposeProjectNameFromApp(app app.ArduinoApp) (string, error) {
 	}
 	return slug.Make(composeProjectName.String()), nil
 }
+
+func findAppPathByName(name string) (*paths.Path, bool) {
+	appFolderName := slug.Make(name)
+	basePath := orchestratorConfig.AppsDir().Join(appFolderName)
+	return basePath, basePath.Exist()
+}

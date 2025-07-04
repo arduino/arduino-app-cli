@@ -259,8 +259,9 @@ func logsHandler(ctx context.Context, app app.ArduinoApp) error {
 
 func listHandler(ctx context.Context, docker *dockerClient.Client, jsonFormat bool) error {
 	res, err := orchestrator.ListApps(ctx, docker, orchestrator.ListAppRequest{
-		ShowExamples: true,
-		ShowApps:     true,
+		ShowExamples:                   true,
+		ShowApps:                       true,
+		IncludeNonStandardLocationApps: true,
 	})
 	if err != nil {
 		return nil

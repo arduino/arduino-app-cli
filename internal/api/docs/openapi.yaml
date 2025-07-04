@@ -654,10 +654,6 @@ components:
           type: string
         name:
           type: string
-        variables:
-          additionalProperties:
-            type: string
-          type: object
       required:
       - id
       - name
@@ -839,16 +835,21 @@ components:
         default:
           nullable: true
           type: boolean
-        variables:
-          additionalProperties:
-            additionalProperties:
-              type: string
-            type: object
-          example:
-          - core-auth
-          - new value
+        description:
+          description: application description
+          example: This is my awesome app
           nullable: true
-          type: object
+          type: string
+        icon:
+          description: application icon
+          example: "\U0001F4BB"
+          nullable: true
+          type: string
+        name:
+          description: application name
+          example: My Awesome App
+          nullable: true
+          type: string
       type: object
     ErrorResponse:
       properties:

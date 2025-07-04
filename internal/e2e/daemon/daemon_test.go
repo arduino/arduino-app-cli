@@ -179,3 +179,50 @@ func TestBricksList(t *testing.T) {
 		require.Equal(t, "installed", *brick.Status)
 	}
 }
+
+func TestEditApp(t *testing.T) {
+	// setup
+	cli := e2e.CreateEnvForDaemon(t)
+	t.Cleanup(cli.CleanUp)
+	httpClient, err := client.NewClientWithResponses(cli.DaemonAddr)
+	require.NoError(t, err)
+
+	appName := "test-app"
+	createResp, err := httpClient.CreateAppWithResponse(
+		t.Context(),
+		&client.CreateAppParams{SkipSketch: f.Ptr(true)},
+		client.CreateAppRequest{
+			Icon: f.Ptr("💻"),
+			Name: appName,
+		},
+		func(ctx context.Context, req *http.Request) error { return nil },
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode())
+	require.NotNil(t, createResp.JSON201)
+
+	renamedApp := appName + "-renamed"
+	editResp, err := httpClient.EditAppWithResponse(
+		t.Context(),
+		*createResp.JSON201.Id,
+		client.EditRequest{
+			Description: f.Ptr("new-description"),
+			Icon:        f.Ptr("🌟"),
+			Name:        f.Ptr(renamedApp),
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, editResp.StatusCode())
+
+	// Verify the app was renamed
+	appList, err := httpClient.GetAppsWithResponse(t.Context(), &client.GetAppsParams{})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, appList.StatusCode())
+	require.NotEmpty(t, appList.JSON200.Apps)
+	require.Len(t, *appList.JSON200.Apps, 1)
+
+	app := (*appList.JSON200.Apps)[0]
+	require.Equal(t, renamedApp, *app.Name)
+	require.Equal(t, "new-description", *app.Description)
+	require.Equal(t, "🌟", *app.Icon)
+}

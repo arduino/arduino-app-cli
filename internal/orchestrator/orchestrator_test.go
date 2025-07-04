@@ -1,9 +1,7 @@
 package orchestrator
 
 import (
-	"fmt"
 	"testing"
-	"time"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 
@@ -231,72 +229,116 @@ func TestEditApp(t *testing.T) {
 		})
 	})
 
-	createAppWithBricks := func(t *testing.T, bricks []app.Brick) *app.ArduinoApp {
-		t.Helper()
-		name := fmt.Sprintf("app-%v", time.Now().UnixNano())
-		_, err := CreateApp(t.Context(), CreateAppRequest{Name: name})
+	t.Run("with name", func(t *testing.T) {
+		originalAppName := "original-name"
+		_, err := CreateApp(t.Context(), CreateAppRequest{Name: originalAppName})
 		require.NoError(t, err)
-		appWithBricksDir := orchestratorConfig.AppsDir().Join(name)
-		appWithBricks := f.Ptr(f.Must(app.Load(appWithBricksDir.String())))
-		appWithBricks.Descriptor.Bricks = bricks
+		appDir := orchestratorConfig.AppsDir().Join(originalAppName)
+		originalApp := f.Must(app.Load(appDir.String()))
+
+		err = EditApp(AppEditRequest{Name: f.Ptr("new-name")}, &originalApp)
 		require.NoError(t, err)
-		err = appWithBricks.Save()
+		editedApp, err := app.Load(orchestratorConfig.AppsDir().Join("new-name").String())
 		require.NoError(t, err)
-		return appWithBricks
-	}
+		require.Equal(t, "new-name", editedApp.Name)
+		require.True(t, originalApp.FullPath.NotExist()) // The original app directory should be removed after renaming
 
-	t.Run("with brick variables", func(t *testing.T) {
-		t.Run("add new brick", func(t *testing.T) {
-			appWithBricks := createAppWithBricks(t, []app.Brick{})
-			err := EditApp(AppEditRequest{
-				Default: new(bool),
-				Variables: f.Ptr(map[string]map[string]string{
-					"arduino:object_detection": {"CUSTOM_MODEL_PATH": "/opt/models/ei"},
-				}),
-			}, appWithBricks)
+		t.Run("already existing name", func(t *testing.T) {
+			existingAppName := "existing-name"
+			_, err := CreateApp(t.Context(), CreateAppRequest{Name: existingAppName})
 			require.NoError(t, err)
-		})
+			appDir := orchestratorConfig.AppsDir().Join(existingAppName)
+			existingApp := f.Must(app.Load(appDir.String()))
 
-		t.Run("override variables to existing brick", func(t *testing.T) {
-			appWithBricks := createAppWithBricks(t, []app.Brick{
-				{
-					ID:        "arduino:object_detection",
-					Variables: map[string]string{"CUSTOM_MODEL_PATH": "/opt/models/ei"},
-				},
-			})
-
-			newVariables := map[string]map[string]string{
-				"arduino:object_detection": {"CUSTOM_MODEL_PATH": "/new"},
-			}
-			err := EditApp(AppEditRequest{
-				Default:   new(bool),
-				Variables: &newVariables,
-			}, appWithBricks)
-			require.NoError(t, err)
-
-			newApp, err := app.Load(appWithBricks.FullPath.String())
-			require.NoError(t, err)
-			require.Len(t, newApp.Descriptor.Bricks, 1)
-			require.Equal(t, "arduino:object_detection", newApp.Descriptor.Bricks[0].ID)
-			require.Equal(t, newVariables["arduino:object_detection"], newApp.Descriptor.Bricks[0].Variables)
-		})
-		t.Run("setting not existing variable", func(t *testing.T) {
-			appWithBricks := createAppWithBricks(t, []app.Brick{})
-
-			newVariables := map[string]map[string]string{
-				"arduino:object_detection": {"NOT_EXISTING_VAR": "nope"},
-			}
-			err := EditApp(AppEditRequest{
-				Default:   new(bool),
-				Variables: &newVariables,
-			}, appWithBricks)
-			require.Error(t, err)
-
-			newApp, err := app.Load(appWithBricks.FullPath.String())
-			require.NoError(t, err)
-			require.Len(t, newApp.Descriptor.Bricks, 0)
+			err = EditApp(AppEditRequest{Name: f.Ptr(existingAppName)}, &existingApp)
+			require.ErrorIs(t, err, ErrAppAlreadyExists)
 		})
 	})
+
+	t.Run("with icon and description", func(t *testing.T) {
+		commonAppName := "common-app"
+		_, err := CreateApp(t.Context(), CreateAppRequest{Name: commonAppName})
+		require.NoError(t, err)
+		commonAppDir := orchestratorConfig.AppsDir().Join(commonAppName)
+		commonApp := f.Must(app.Load(commonAppDir.String()))
+
+		err = EditApp(AppEditRequest{
+			Icon:        f.Ptr("💻"),
+			Description: f.Ptr("new desc"),
+		}, &commonApp)
+		require.NoError(t, err)
+		editedApp := f.Must(app.Load(commonAppDir.String()))
+		require.Equal(t, "new desc", editedApp.Descriptor.Description)
+		require.Equal(t, "💻", editedApp.Descriptor.Icon)
+	})
+
+	// TODO: Re-enable this tests when we refactor the brick endpoint
+	// 	createAppWithBricks := func(t *testing.T, bricks []app.Brick) *app.ArduinoApp {
+	// 	t.Helper()
+	// 	name := fmt.Sprintf("app-%v", time.Now().UnixNano())
+	// 	_, err := CreateApp(t.Context(), CreateAppRequest{Name: name})
+	// 	require.NoError(t, err)
+	// 	appWithBricksDir := orchestratorConfig.AppsDir().Join(name)
+	// 	appWithBricks := f.Ptr(f.Must(app.Load(appWithBricksDir.String())))
+	// 	appWithBricks.Descriptor.Bricks = bricks
+	// 	require.NoError(t, err)
+	// 	err = appWithBricks.Save()
+	// 	require.NoError(t, err)
+	// 	return appWithBricks
+	// }
+	//
+	// t.Run("with brick variables", func(t *testing.T) {
+	// 	t.Run("add new brick", func(t *testing.T) {
+	// 		appWithBricks := createAppWithBricks(t, []app.Brick{})
+	// 		err := EditApp(AppEditRequest{
+	// 			Default: new(bool),
+	// 			Variables: f.Ptr(map[string]map[string]string{
+	// 				"arduino:object_detection": {"CUSTOM_MODEL_PATH": "/opt/models/ei"},
+	// 			}),
+	// 		}, appWithBricks)
+	// 		require.NoError(t, err)
+	// 	})
+	//
+	// 	t.Run("override variables to existing brick", func(t *testing.T) {
+	// 		appWithBricks := createAppWithBricks(t, []app.Brick{
+	// 			{
+	// 				ID:        "arduino:object_detection",
+	// 				Variables: map[string]string{"CUSTOM_MODEL_PATH": "/opt/models/ei"},
+	// 			},
+	// 		})
+	//
+	// 		newVariables := map[string]map[string]string{
+	// 			"arduino:object_detection": {"CUSTOM_MODEL_PATH": "/new"},
+	// 		}
+	// 		err := EditApp(AppEditRequest{
+	// 			Default:   new(bool),
+	// 			Variables: &newVariables,
+	// 		}, appWithBricks)
+	// 		require.NoError(t, err)
+	//
+	// 		newApp, err := app.Load(appWithBricks.FullPath.String())
+	// 		require.NoError(t, err)
+	// 		require.Len(t, newApp.Descriptor.Bricks, 1)
+	// 		require.Equal(t, "arduino:object_detection", newApp.Descriptor.Bricks[0].ID)
+	// 		require.Equal(t, newVariables["arduino:object_detection"], newApp.Descriptor.Bricks[0].Variables)
+	// 	})
+	// 	t.Run("setting not existing variable", func(t *testing.T) {
+	// 		appWithBricks := createAppWithBricks(t, []app.Brick{})
+	//
+	// 		newVariables := map[string]map[string]string{
+	// 			"arduino:object_detection": {"NOT_EXISTING_VAR": "nope"},
+	// 		}
+	// 		err := EditApp(AppEditRequest{
+	// 			Default:   new(bool),
+	// 			Variables: &newVariables,
+	// 		}, appWithBricks)
+	// 		require.Error(t, err)
+	//
+	// 		newApp, err := app.Load(appWithBricks.FullPath.String())
+	// 		require.NoError(t, err)
+	// 		require.Len(t, newApp.Descriptor.Bricks, 0)
+	// 	})
+	// })
 }
 
 func setTestOrchestratorConfig(t *testing.T) {
