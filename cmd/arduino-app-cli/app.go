@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/arduino/go-paths-helper"
 	dockerClient "github.com/docker/docker/client"
@@ -267,6 +269,32 @@ func listHandler(ctx context.Context, docker *dockerClient.Client, jsonFormat bo
 		return nil
 	}
 
+	idToAlias := func(id orchestrator.ID) string {
+		v := id.String()
+		res, err := base64.RawURLEncoding.DecodeString(v)
+		if err != nil {
+			return v
+		}
+
+		v = string(res)
+		if strings.Contains(v, ":") {
+			return v
+		}
+
+		wd, err := paths.Getwd()
+		if err != nil {
+			return v
+		}
+		rel, err := paths.New(v).RelFrom(wd)
+		if err != nil {
+			return v
+		}
+		if !strings.HasPrefix(rel.String(), "./") && !strings.HasPrefix(rel.String(), "../") {
+			return "./" + rel.String()
+		}
+		return rel.String()
+	}
+
 	if jsonFormat {
 		// Print in JSON format.
 		resJSON, err := json.Marshal(res)
@@ -280,7 +308,7 @@ func listHandler(ctx context.Context, docker *dockerClient.Client, jsonFormat bo
 
 		for _, app := range res.Apps {
 			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%t\n",
-				app.ID.Rel(),
+				idToAlias(app.ID),
 				app.Name,
 				app.Icon,
 				app.Status,
@@ -338,7 +366,7 @@ func createHandler(ctx context.Context, name string, icon string, bricks []strin
 		if err != nil {
 			return err
 		}
-		fmt.Println("App created successfully:", resp)
+		fmt.Println("App created successfully:", resp.ID.ToPath().String())
 	}
 	return nil
 }

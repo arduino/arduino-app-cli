@@ -11,7 +11,6 @@ import (
 
 func TestCreateApp(t *testing.T) {
 	setTestOrchestratorConfig(t)
-
 	t.Run("valid app", func(t *testing.T) {
 		r, err := CreateApp(t.Context(), CreateAppRequest{
 			Name:   "example app",
@@ -19,7 +18,7 @@ func TestCreateApp(t *testing.T) {
 			Bricks: []string{"arduino:object-detection"},
 		})
 		require.NoError(t, err)
-		require.Equal(t, ID("user/example-app"), r.ID)
+		require.Equal(t, f.Must(ParseID("user:example-app")), r.ID)
 
 		t.Run("skip python", func(t *testing.T) {
 			r, err := CreateApp(t.Context(), CreateAppRequest{
@@ -27,7 +26,7 @@ func TestCreateApp(t *testing.T) {
 				SkipPython: true,
 			})
 			require.NoError(t, err)
-			require.Equal(t, ID("user/skip-python"), r.ID)
+			require.Equal(t, f.Must(ParseID("user:skip-python")), r.ID)
 			appDir := orchestratorConfig.AppsDir().Join("skip-python")
 			require.DirExists(t, appDir.String())
 			require.NoDirExists(t, appDir.Join("python").String())
@@ -40,7 +39,7 @@ func TestCreateApp(t *testing.T) {
 				SkipSketch: true,
 			})
 			require.NoError(t, err)
-			require.Equal(t, ID("user/skip-sketch"), r.ID)
+			require.Equal(t, f.Must(ParseID("user:skip-sketch")), r.ID)
 			appDir := orchestratorConfig.AppsDir().Join("skip-sketch")
 			require.DirExists(t, appDir.String())
 			require.NoDirExists(t, appDir.Join("sketch").String())
@@ -73,7 +72,7 @@ func TestCreateApp(t *testing.T) {
 func TestCloneApp(t *testing.T) {
 	setTestOrchestratorConfig(t)
 
-	originalAppID := f.Must(ParseID("user/original-app"))
+	originalAppID := f.Must(ParseID("user:original-app"))
 	originalAppPath := originalAppID.ToPath()
 	r, err := CreateApp(t.Context(), CreateAppRequest{Name: "original-app"})
 	require.NoError(t, err)
@@ -84,7 +83,7 @@ func TestCloneApp(t *testing.T) {
 		t.Run("without name", func(t *testing.T) {
 			resp, err := CloneApp(t.Context(), CloneAppRequest{FromID: originalAppID})
 			require.NoError(t, err)
-			require.Equal(t, ID("user/original-app-copy0"), resp.ID)
+			require.Equal(t, f.Must(ParseID("user:original-app-copy0")), resp.ID)
 			appDir := orchestratorConfig.AppsDir().Join("original-app-copy0")
 			require.DirExists(t, appDir.String())
 			t.Cleanup(func() {
@@ -117,7 +116,7 @@ func TestCloneApp(t *testing.T) {
 				Name:   f.Ptr("new-name"),
 			})
 			require.NoError(t, err)
-			require.Equal(t, ID("user/new-name"), resp.ID)
+			require.Equal(t, f.Must(ParseID("user:new-name")), resp.ID)
 			appDir := resp.ID.ToPath()
 			require.DirExists(t, appDir.String())
 			t.Cleanup(func() {
@@ -135,7 +134,7 @@ func TestCloneApp(t *testing.T) {
 				Icon:   f.Ptr("🦄"),
 			})
 			require.NoError(t, err)
-			require.Equal(t, ID("user/with-icon"), resp.ID)
+			require.Equal(t, f.Must(ParseID("user:with-icon")), resp.ID)
 			appDir := resp.ID.ToPath()
 			require.DirExists(t, appDir.String())
 			t.Cleanup(func() {
@@ -153,9 +152,9 @@ func TestCloneApp(t *testing.T) {
 			require.NoError(t, baseApp.Join("data").MkdirAll())
 			require.NoError(t, baseApp.Join("app.yaml").WriteFile([]byte("name: app-with-cache")))
 
-			resp, err := CloneApp(t.Context(), CloneAppRequest{FromID: ID("user/app-with-cache")})
+			resp, err := CloneApp(t.Context(), CloneAppRequest{FromID: f.Must(ParseID("user:app-with-cache"))})
 			require.NoError(t, err)
-			require.Equal(t, ID("user/app-with-cache-copy0"), resp.ID)
+			require.Equal(t, f.Must(ParseID("user:app-with-cache-copy0")), resp.ID)
 			appDir := resp.ID.ToPath()
 			require.DirExists(t, appDir.String())
 			require.NoDirExists(t, appDir.Join(".cache").String())
@@ -170,13 +169,13 @@ func TestCloneApp(t *testing.T) {
 
 	t.Run("invalid app", func(t *testing.T) {
 		t.Run("not existing origin", func(t *testing.T) {
-			_, err := CloneApp(t.Context(), CloneAppRequest{FromID: ID("user/not-existing")})
+			_, err := CloneApp(t.Context(), CloneAppRequest{FromID: f.Must(ParseID("user:not-existing"))})
 			require.ErrorIs(t, err, ErrAppDoesntExists)
 		})
 		t.Run("missing app yaml", func(t *testing.T) {
 			err := orchestratorConfig.appsDir.Join("app-without-yaml").Mkdir()
 			require.NoError(t, err)
-			_, err = CloneApp(t.Context(), CloneAppRequest{FromID: ID("user/app-without-yaml")})
+			_, err = CloneApp(t.Context(), CloneAppRequest{FromID: f.Must(ParseID("user:app-without-yaml"))})
 			require.ErrorIs(t, err, ErrInvalidApp)
 		})
 		t.Run("name already exists", func(t *testing.T) {

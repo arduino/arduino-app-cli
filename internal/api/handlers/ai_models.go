@@ -25,7 +25,7 @@ func HandleModelsList() http.HandlerFunc {
 
 func HandlerModelByID() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
+		id := r.PathValue("modelID")
 		if id == "" {
 			render.EncodeResponse(w, http.StatusBadRequest, "id must be set")
 			return

@@ -18,13 +18,10 @@ type CloneRequest struct {
 	Icon *string `json:"icon" description:"application icon"`
 }
 
-func HandleAppClone(dockerClient *dockerClient.Client) HandlerAppFunc {
-	return func(w http.ResponseWriter, r *http.Request, id orchestrator.ID) {
-		if id == "" {
-			render.EncodeResponse(w, http.StatusPreconditionFailed, "id must be set")
-			return
-		}
-		if err := id.Validate(); err != nil {
+func HandleAppClone(dockerClient *dockerClient.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
+		if err != nil {
 			render.EncodeResponse(w, http.StatusPreconditionFailed, "invalid id")
 			return
 		}

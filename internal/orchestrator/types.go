@@ -1,8 +1,8 @@
 package orchestrator
 
 import (
+	"encoding/base64"
 	"errors"
-	"path"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -10,97 +10,123 @@ import (
 
 var ErrInvalidID = errors.New("not a valid id")
 
-// ID represents an identifier for an application or example in the orchestrator.
-// It can be in three formats:
-// - "user/<path_to_app>", for custom user applications in default directories
-// - "examples/<path_to_app>", for built-in examples
-// - "/<path_to_app>" for applications not in default directories
-type ID string
+type ID struct {
+	path                 *paths.Path
+	encodedID            string
+	isFromKnownLocaltion bool
+	isExample            bool
+}
+
+func NewIDFromBase64(id string) (ID, error) {
+	decodedID, err := base64.RawURLEncoding.DecodeString(id)
+	if err != nil {
+		return ID{}, err
+	}
+	return parseID(string(decodedID))
+}
 
 func NewIDFromPath(p *paths.Path) (ID, error) {
-	id, found := strings.CutPrefix(p.String(), orchestratorConfig.AppsDir().String())
-	if found {
-		return ID(path.Join("user", id)), nil
+	if p == nil || !p.Exist() {
+		return ID{}, ErrInvalidID
 	}
-
-	id, found = strings.CutPrefix(p.String(), orchestratorConfig.ExamplesDir().String())
-	if found {
-		return ID(path.Join("examples", id)), nil
-	}
-
-	if !p.Exist() {
-		return "", ErrInvalidID
-	}
-
 	p, err := p.Abs()
 	if err != nil {
-		return "", err
+		return ID{}, err
 	}
-	return ID(p.String()), nil
+
+	var (
+		id                  string
+		isFromKnownLocation bool
+		isExample           bool
+	)
+	switch {
+	case strings.HasPrefix(p.String(), orchestratorConfig.AppsDir().String()):
+		rel, err := p.RelFrom(orchestratorConfig.AppsDir())
+		if err != nil {
+			return ID{}, ErrInvalidID
+		}
+		id = "user:" + rel.String()
+		isFromKnownLocation = true
+	case strings.HasPrefix(p.String(), orchestratorConfig.ExamplesDir().String()):
+		rel, err := p.RelFrom(orchestratorConfig.ExamplesDir())
+		if err != nil {
+			return ID{}, ErrInvalidID
+		}
+		id = "examples:" + rel.String()
+		isFromKnownLocation = true
+		isExample = true
+	default:
+		id = p.String()
+	}
+
+	return ID{
+		path:                 p,
+		encodedID:            base64.RawURLEncoding.EncodeToString([]byte(id)),
+		isFromKnownLocaltion: isFromKnownLocation,
+		isExample:            isExample,
+	}, nil
+}
+
+func parseID(id string) (ID, error) {
+	var path *paths.Path
+
+	prefix, appPath, found := strings.Cut(id, ":")
+	if found {
+		var isExample bool
+		switch prefix {
+		case "user":
+			path = orchestratorConfig.AppsDir().Join(appPath)
+		case "examples":
+			path = orchestratorConfig.ExamplesDir().Join(appPath)
+			isExample = true
+		default:
+			return ID{}, ErrInvalidID
+		}
+		return ID{
+			path:                 path,
+			encodedID:            base64.RawURLEncoding.EncodeToString([]byte(id)),
+			isFromKnownLocaltion: true,
+			isExample:            isExample,
+		}, nil
+	}
+
+	path = paths.New(id)
+	if path == nil {
+		return ID{}, ErrInvalidID
+	}
+
+	path, err := path.Abs()
+	if err != nil || !path.Exist() {
+		return ID{}, ErrInvalidID
+	}
+	return ID{
+		path:      path,
+		encodedID: base64.RawURLEncoding.EncodeToString([]byte(id)),
+	}, nil
 }
 
 // ParseID parses a string into an ID.
 // It accepts both absolute paths and relative paths.
 func ParseID(id string) (ID, error) {
-	if id == "" {
-		return "", ErrInvalidID
-	}
-	// Attempt to expand the path to absolute path.
-	if p, err := paths.New(id).Abs(); err == nil && p.Exist() {
-		id = p.String()
-	}
-
-	v := ID(id)
-	return v, v.Validate()
+	return parseID(id)
 }
 
 func (id ID) IsExample() bool {
-	return strings.HasPrefix(string(id), "examples/")
+	return id.isExample
 }
 
 func (id ID) IsApp() bool {
-	return strings.HasPrefix(string(id), "user/")
-}
-
-func (id ID) IsPath() bool {
-	return strings.HasPrefix(string(id), "/")
+	return !id.isExample
 }
 
 func (id ID) ToPath() *paths.Path {
-	switch {
-	case id.IsApp():
-		return orchestratorConfig.AppsDir().Join(strings.TrimPrefix(string(id), "user/"))
-	case id.IsExample():
-		return orchestratorConfig.DataDir().Join(string(id))
-	default:
-		return paths.New(string(id))
-	}
+	return id.path.Clone()
 }
 
-func (id ID) Rel() string {
-	if id.IsPath() {
-		wd, err := paths.Getwd()
-		if err != nil {
-			return string(id)
-		}
-		rel, err := paths.New(string(id)).RelFrom(wd)
-		if err != nil {
-			return string(id)
-		}
-		if !strings.HasPrefix(rel.String(), "./") && !strings.HasPrefix(rel.String(), "../") {
-			return "./" + rel.String()
-		}
-		return rel.String()
-	}
-	return string(id)
+func (id ID) String() string {
+	return id.encodedID
 }
-func (id ID) Validate() error {
-	if !id.IsApp() &&
-		!id.IsExample() &&
-		!id.IsPath() ||
-		(id.IsPath() &&
-			!paths.New(string(id)).Exist()) {
-		return ErrInvalidID
-	}
-	return nil
+
+func (id ID) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + id.encodedID + `"`), nil
 }

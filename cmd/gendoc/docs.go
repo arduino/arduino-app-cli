@@ -182,6 +182,12 @@ func NewOpenApiGenerator(version string) *Generator {
 				params.Schema.WithRef("#/components/schemas/Status")
 				return true, nil
 			}
+			// We treat the orchestrator.ID as a string in the OpenAPI spec.
+			if params.Value.Type() == reflect.TypeOf(orchestrator.ID{}) {
+				params.Schema.WithType(jsonschema.Type{
+					SimpleTypes: f.Ptr(jsonschema.String),
+				})
+			}
 			return false, nil
 		}),
 		jsonschema.InterceptDefName(func(t reflect.Type, defaultDefName string) string {

@@ -12,17 +12,17 @@ import (
 	dockerClient "github.com/docker/docker/client"
 )
 
-func HandleAppDetails(dockerClient *dockerClient.Client) HandlerAppFunc {
-	return func(w http.ResponseWriter, r *http.Request, id orchestrator.ID) {
-		if id == "" {
-			render.EncodeResponse(w, http.StatusPreconditionFailed, "id must be set")
+func HandleAppDetails(dockerClient *dockerClient.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
+		if err != nil {
+			render.EncodeResponse(w, http.StatusPreconditionFailed, "invalid id")
 			return
 		}
-		appPath := id.ToPath()
 
-		app, err := app.Load(appPath.String())
+		app, err := app.Load(id.ToPath().String())
 		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", string(id)))
+			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", id.String()))
 			render.EncodeResponse(w, http.StatusInternalServerError, "unable to find the app")
 			return
 		}
@@ -44,10 +44,11 @@ type EditRequest struct {
 	Default     *bool   `json:"default"`
 }
 
-func HandleAppDetailsEdits() HandlerAppFunc {
-	return func(w http.ResponseWriter, r *http.Request, id orchestrator.ID) {
-		if id == "" {
-			render.EncodeResponse(w, http.StatusPreconditionFailed, "id must be set")
+func HandleAppDetailsEdits() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
+		if err != nil {
+			render.EncodeResponse(w, http.StatusPreconditionFailed, "invalid id")
 			return
 		}
 		if id.IsExample() {
@@ -55,11 +56,9 @@ func HandleAppDetailsEdits() HandlerAppFunc {
 			return
 		}
 
-		appPath := id.ToPath()
-
-		app, err := app.Load(appPath.String())
+		app, err := app.Load(id.ToPath().String())
 		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", string(id)))
+			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", id.String()))
 			render.EncodeResponse(w, http.StatusInternalServerError, "unable to find the app")
 			return
 		}

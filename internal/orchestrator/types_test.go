@@ -6,6 +6,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.bug.st/f"
 )
 
 func TestNewIDFromPath(t *testing.T) {
@@ -29,17 +30,17 @@ func TestNewIDFromPath(t *testing.T) {
 		{
 			name: "valid user id",
 			in:   orchestratorConfig.AppsDir().Join("user-app"),
-			want: "user/user-app",
+			want: f.Must(ParseID("user:user-app")),
 		},
 		{
 			name: "valid example id",
 			in:   orchestratorConfig.ExamplesDir().Join("example-app"),
-			want: "examples/example-app",
+			want: f.Must(ParseID("examples:example-app")),
 		},
 		{
 			name: "valid absolute path",
 			in:   tmp.Join("other-app"),
-			want: ID(tmp.Join("other-app").String()),
+			want: f.Must(NewIDFromPath(tmp.Join("other-app"))),
 		},
 	}
 
@@ -68,35 +69,35 @@ func TestParseID(t *testing.T) {
 	}{
 		{
 			name: "valid user id",
-			in:   "user/user-app",
-			want: ID("user/user-app"),
+			in:   "user:user-app",
+			want: f.Must(ParseID("user:user-app")),
 		},
 		{
 			name: "valid example id",
-			in:   "examples/example-app",
-			want: "examples/example-app",
+			in:   "examples:example-app",
+			want: f.Must(ParseID("examples:example-app")),
 		},
 		{
 			name: "absolute path to app",
 			in:   tmp.Join("other-app").String(),
-			want: ID(tmp.Join("other-app").String()),
+			want: f.Must(NewIDFromPath(tmp.Join("other-app"))),
 		},
 		{
 			name:    "invalid id",
 			in:      "invalid-id",
-			want:    "",
+			want:    ID{},
 			wantErr: true,
 		},
 		{
 			name:    "empty id",
 			in:      "",
-			want:    "",
+			want:    ID{},
 			wantErr: true,
 		},
 		{
 			name:    "not existing path",
 			in:      "/non/existing/path",
-			want:    "",
+			want:    ID{},
 			wantErr: true,
 		},
 	}

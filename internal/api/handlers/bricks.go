@@ -23,7 +23,7 @@ func HandleBrickList() http.HandlerFunc {
 
 func HandleBrickDetails() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
+		id := r.PathValue("brickID")
 		if id == "" {
 			render.EncodeResponse(w, http.StatusBadRequest, "id must be set")
 			return
