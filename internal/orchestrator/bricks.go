@@ -20,7 +20,7 @@ type BrickListItem struct {
 	Author      string `json:"author"`
 	Description string `json:"description"`
 	Icon        string `json:"icon"` // TODO: not implemented yet
-	IsInstalled bool   `json:"installed"`
+	Status      string `json:"status"`
 }
 
 func BricksList() (BrickListResult, error) {
@@ -42,7 +42,7 @@ func BricksList() (BrickListResult, error) {
 			Author:      "Arduino", //TODO: for now we only support our bricks
 			Description: brick.Description,
 			Icon:        "", // TODO: not implemented yet
-			IsInstalled: true,
+			Status:      "installed",
 		}
 	}
 	return res, nil
@@ -54,9 +54,16 @@ type BrickDetailsResult struct {
 	Author      string                   `json:"author"`
 	Description string                   `json:"description"`
 	Icon        string                   `json:"icon"` // TODO: not implemented yet
-	IsInstalled bool                     `json:"installed"`
+	Status      string                   `json:"status"`
 	Variables   map[string]BrickVariable `json:"variables,omitempty"`
 	Readme      string                   `json:"readme"`
+	UsedByApps  []AppReference           `json:"used_by_apps"`
+}
+
+type AppReference struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Icon string `json:"icon"`
 }
 
 type BrickVariable struct {
@@ -105,8 +112,8 @@ func BricksDetails(id string) (BrickDetailsResult, error) {
 		Name:        brick.Name,
 		Author:      "Arduino", // TODO: for now we only support our bricks
 		Description: brick.Description,
-		Icon:        "",   // TODO: not implemented yet
-		IsInstalled: true, // For now every Arduino brick are installed
+		Icon:        "",          // TODO: not implemented yet
+		Status:      "installed", // For now every Arduino brick are installed
 		Variables:   variables,
 		Readme:      string(readme),
 	}, nil

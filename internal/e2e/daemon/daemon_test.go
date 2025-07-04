@@ -11,6 +11,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
 
 func TestCreateApp(t *testing.T) {
@@ -149,4 +150,32 @@ func TestAIModelDetails(t *testing.T) {
 	require.NotEmpty(t, response.JSON200.Metadata)
 	require.NotEmpty(t, response.JSON200.ModelConfiguration)
 	require.NotEmpty(t, response.JSON200.Runner)
+}
+
+func TestBricksList(t *testing.T) {
+	// setup
+	cli := e2e.CreateEnvForDaemon(t)
+	t.Cleanup(cli.CleanUp)
+	httpClient, err := client.NewClientWithResponses(cli.DaemonAddr)
+	require.NoError(t, err)
+
+	response, err := httpClient.GetBricksWithResponse(t.Context(), func(ctx context.Context, req *http.Request) error { return nil })
+	require.NoError(t, err)
+	require.NotEmpty(t, response.JSON200.Bricks)
+
+	idx := f.Must(bricksindex.GenerateBricksIndex())
+	collection, found := idx.GetCollection("arduino", "app-bricks")
+	require.True(t, found)
+	brickRelease := collection.GetLatestRelease()
+	require.NotNil(t, found)
+
+	// Compare the response with the bricks index
+	for _, brick := range *response.JSON200.Bricks {
+		bIdx, found := brickRelease.FindBrickByID(*brick.Id)
+		require.True(t, found)
+		require.Equal(t, bIdx.Name, *brick.Name)
+		require.Equal(t, bIdx.Description, *brick.Description)
+		require.Equal(t, "Arduino", *brick.Author)
+		require.Equal(t, "installed", *brick.Status)
+	}
 }

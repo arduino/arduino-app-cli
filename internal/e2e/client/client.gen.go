@@ -76,15 +76,23 @@ type AppInfo struct {
 	Status *Status `json:"status,omitempty"`
 }
 
+// AppReference defines model for AppReference.
+type AppReference struct {
+	Icon *string `json:"icon,omitempty"`
+	Id   *string `json:"id,omitempty"`
+	Name *string `json:"name,omitempty"`
+}
+
 // BrickDetailsResult defines model for BrickDetailsResult.
 type BrickDetailsResult struct {
 	Author      *string                   `json:"author,omitempty"`
 	Description *string                   `json:"description,omitempty"`
 	Icon        *string                   `json:"icon,omitempty"`
 	Id          *string                   `json:"id,omitempty"`
-	Installed   *bool                     `json:"installed,omitempty"`
 	Name        *string                   `json:"name,omitempty"`
 	Readme      *string                   `json:"readme,omitempty"`
+	Status      *string                   `json:"status,omitempty"`
+	UsedByApps  *[]AppReference           `json:"used_by_apps"`
 	Variables   *map[string]BrickVariable `json:"variables,omitempty"`
 }
 
@@ -94,8 +102,8 @@ type BrickListItem struct {
 	Description *string `json:"description,omitempty"`
 	Icon        *string `json:"icon,omitempty"`
 	Id          *string `json:"id,omitempty"`
-	Installed   *bool   `json:"installed,omitempty"`
 	Name        *string `json:"name,omitempty"`
+	Status      *string `json:"status,omitempty"`
 }
 
 // BrickListResult defines model for BrickListResult.

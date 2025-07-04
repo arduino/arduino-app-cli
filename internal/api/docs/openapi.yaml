@@ -704,6 +704,15 @@ components:
         status:
           $ref: '#/components/schemas/Status'
       type: object
+    AppReference:
+      properties:
+        icon:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+      type: object
     BrickDetailsResult:
       properties:
         author:
@@ -714,12 +723,17 @@ components:
           type: string
         id:
           type: string
-        installed:
-          type: boolean
         name:
           type: string
         readme:
           type: string
+        status:
+          type: string
+        used_by_apps:
+          items:
+            $ref: '#/components/schemas/AppReference'
+          nullable: true
+          type: array
         variables:
           additionalProperties:
             $ref: '#/components/schemas/BrickVariable'
@@ -735,9 +749,9 @@ components:
           type: string
         id:
           type: string
-        installed:
-          type: boolean
         name:
+          type: string
+        status:
           type: string
       type: object
     BrickListResult:

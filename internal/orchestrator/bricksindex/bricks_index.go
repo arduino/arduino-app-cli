@@ -98,6 +98,15 @@ func (b *BricksCollection) GetRelease(version *semver.Version) (*BrickRelease, b
 	return nil, false
 }
 
+func (b *BricksCollection) GetLatestRelease() *BrickRelease {
+	for i := range b.Releases {
+		if b.Releases[i].Version.Equal(b.LatestRelease) {
+			return b.Releases[i]
+		}
+	}
+	return nil
+}
+
 type BrickRelease struct {
 	Version *semver.Version `yaml:"version"`
 	Bricks  []*Brick        `yaml:"bricks"`
