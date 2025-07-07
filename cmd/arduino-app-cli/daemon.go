@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/arduino/arduino-app-cli/internal/api"
-	"github.com/arduino/arduino-app-cli/internal/api/handlers"
+	"github.com/arduino/arduino-app-cli/internal/apt"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/pkg/httprecover"
 
@@ -44,7 +44,7 @@ func newDaemonCmd(docker *dockerClient.Client) *cobra.Command {
 func httpHandler(ctx context.Context, dockerClient *dockerClient.Client, daemonPort string) {
 	slog.Info("Starting HTTP server", slog.String("address", ":"+daemonPort))
 
-	apiSrv := api.NewHTTPRouter(dockerClient, Version, handlers.NewUpdateEventsBroker())
+	apiSrv := api.NewHTTPRouter(dockerClient, Version, apt.New())
 
 	corsMiddlware, err := cors.NewMiddleware(
 		cors.Config{
