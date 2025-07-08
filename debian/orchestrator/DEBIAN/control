@@ -3,5 +3,5 @@ Version: $VERSION
 Architecture: $ARCH
 Maintainer: arduino <support@arduino.cc>
 Description: Arduino application orchestrator
-Depends: arduino-router
+Depends: arduino-router, needrestart
 
