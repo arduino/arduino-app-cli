@@ -295,7 +295,7 @@ paths:
             **Event 'error'**:
             Contains a JSON object with the details of an error.
             'event: error'
-            'data: {"code":"internal_service_err","message":"An error occurred during operation"}'
+            'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
         "412":
           $ref: '#/components/responses/PreconditionFailed'
         "500":
@@ -339,7 +339,7 @@ paths:
             **Event 'error'**:
             Contains a JSON object with the details of an error.
             'event: error'
-            'data: {"code":"internal_service_err","message":"An error occurred during operation"}'
+            'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
         "412":
           $ref: '#/components/responses/PreconditionFailed'
         "500":
@@ -457,6 +457,44 @@ paths:
       summary: Get AI model details
       tags:
       - AIModels
+  /v1/system/resources:
+    get:
+      description: Returns the system resources usage, such as memory, disk and CPU.
+      operationId: getSystemResources
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                type: string
+          description: |
+            A stream of Server-Sent Events (SSE) that notifies the stats.
+            The client will receive events formatted as follows:
+
+            **Event 'cpu'**:
+            Contains a JSON object with the CPU information.
+            'event: stats'
+            'data: {"used_percent": 0.25}'
+
+            **Event 'mem'**:
+            Contains a JSON object with the memory information.
+            'event: mem'
+            'data: {"used": 1024, "total": 2048}'
+
+            **Event 'disk'**:
+            Contains a JSON object with the disk information.
+            'event: disk'
+            'data: {"path":"/", "used": 512, "total": 1024}'
+
+            **Event 'error'**:
+            Contains a JSON object with the details of an error.
+            'event: error'
+            'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Get system resources usage
+      tags:
+      - System
   /v1/system/update/apply:
     put:
       description: Start the upgrade process.

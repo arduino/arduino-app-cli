@@ -23,11 +23,11 @@ type Tag string
 const (
 	ApplicationTag Tag = "Application"
 	BrickTag       Tag = "Brick"
-	AIModels       Tag = "AIModels"
+	AIModelsTag    Tag = "AIModels"
 	SystemTag      Tag = "System"
 )
 
-var validTags = []Tag{ApplicationTag, BrickTag, AIModels, SystemTag}
+var validTags = []Tag{ApplicationTag, BrickTag, AIModelsTag, SystemTag}
 
 type Generator struct {
 	reflector *openapi3.Reflector
@@ -309,7 +309,7 @@ Contains a JSON object with an informational message.
 **Event 'error'**:
 Contains a JSON object with the details of an error.
 'event: error'
-'data: {"code":"internal_service_err","message":"An error occurred during operation"}'
+'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
 `,
 			},
 			PossibleErrors: []ErrorResponse{
@@ -346,7 +346,7 @@ Contains a JSON object with an informational message.
 **Event 'error'**:
 Contains a JSON object with the details of an error.
 'event: error'
-'data: {"code":"internal_service_err","message":"An error occurred during operation"}'
+'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
 `,
 			},
 			PossibleErrors: []ErrorResponse{
@@ -573,7 +573,7 @@ Contains a JSON object with the details of an error.
 			},
 			Description: "Returns the list of AI models available in the system. It is possible to filter the models by bricks.",
 			Summary:     "Get a list of available AI models",
-			Tags:        []Tag{AIModels},
+			Tags:        []Tag{AIModelsTag},
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
 			},
@@ -593,7 +593,45 @@ Contains a JSON object with the details of an error.
 			},
 			Description: "Returns the details of a specific AI model.",
 			Summary:     "Get AI model details",
-			Tags:        []Tag{AIModels},
+			Tags:        []Tag{AIModelsTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "getSystemResources",
+			Method:      http.MethodGet,
+			Path:        "/v1/system/resources",
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "text/event-stream",
+				DataStructure: "",
+				Description: `A stream of Server-Sent Events (SSE) that notifies the stats.
+The client will receive events formatted as follows:
+
+**Event 'cpu'**:
+Contains a JSON object with the CPU information.
+'event: stats'
+'data: {"used_percent": 0.25}'
+
+**Event 'mem'**:
+Contains a JSON object with the memory information.
+'event: mem'
+'data: {"used": 1024, "total": 2048}'
+
+**Event 'disk'**:
+Contains a JSON object with the disk information.
+'event: disk'
+'data: {"path":"/", "used": 512, "total": 1024}'
+
+**Event 'error'**:
+Contains a JSON object with the details of an error.
+'event: error'
+'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+`,
+			},
+			Description: "Returns the system resources usage, such as memory, disk and CPU.",
+			Summary:     "Get system resources usage",
+			Tags:        []Tag{SystemTag},
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
 			},

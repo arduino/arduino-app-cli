@@ -2,15 +2,21 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
+	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tmaxmax/go-sse"
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
 
@@ -225,4 +231,56 @@ func TestEditApp(t *testing.T) {
 	require.Equal(t, renamedApp, *app.Name)
 	require.Equal(t, "new-description", *app.Description)
 	require.Equal(t, "🌟", *app.Icon)
+}
+
+func TestSystemResources(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("System resources test is only applicable for Linux")
+	}
+
+	// setup
+	cli := e2e.CreateEnvForDaemon(t)
+	t.Cleanup(cli.CleanUp)
+	httpClient, err := client.NewClientWithResponses(cli.DaemonAddr)
+	require.NoError(t, err)
+
+	//nolint:bodyclose
+	systemResources, err := httpClient.GetSystemResources(t.Context())
+	require.NoError(t, err)
+
+	reqCtx, cancelCtx := context.WithTimeout(t.Context(), 1*time.Minute)
+	conn := sse.DefaultClient.NewConnection(systemResources.Request.WithContext(reqCtx))
+
+	var (
+		cpuResp  orchestrator.SystemCPUResource
+		memResp  orchestrator.SystemMemoryResource
+		diskResp orchestrator.SystemDiskResource
+	)
+
+	conn.SubscribeToAll(func(event sse.Event) {
+		switch event.Type {
+		case "cpu":
+			require.NoError(t, json.Unmarshal([]byte(event.Data), &cpuResp))
+		case "mem":
+			require.NoError(t, json.Unmarshal([]byte(event.Data), &memResp))
+		case "disk":
+			require.NoError(t, json.Unmarshal([]byte(event.Data), &diskResp))
+		}
+		if cpuResp != (orchestrator.SystemCPUResource{}) &&
+			memResp != (orchestrator.SystemMemoryResource{}) &&
+			diskResp != (orchestrator.SystemDiskResource{}) {
+			cancelCtx() // Stop the connection once we have all resources
+		}
+	})
+
+	err = conn.Connect()
+	if !errors.Is(err, context.Canceled) {
+		require.NoError(t, err)
+	}
+	require.NotEmpty(t, cpuResp.UsedPercent)
+	require.NotEmpty(t, memResp.Used)
+	require.NotEmpty(t, memResp.Total)
+	require.NotEmpty(t, diskResp.Path)
+	require.NotEmpty(t, diskResp.Used)
+	require.NotEmpty(t, diskResp.Total)
 }

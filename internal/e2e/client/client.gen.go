@@ -406,6 +406,9 @@ type ClientInterface interface {
 	// GetAIModelDetails request
 	GetAIModelDetails(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetSystemResources request
+	GetSystemResources(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ApplyUpdate request
 	ApplyUpdate(ctx context.Context, params *ApplyUpdateParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -625,6 +628,18 @@ func (c *Client) GetAIModels(ctx context.Context, params *GetAIModelsParams, req
 
 func (c *Client) GetAIModelDetails(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAIModelDetailsRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetSystemResources(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSystemResourcesRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -1349,6 +1364,33 @@ func NewGetAIModelDetailsRequest(server string, id string) (*http.Request, error
 	return req, nil
 }
 
+// NewGetSystemResourcesRequest generates requests for GetSystemResources
+func NewGetSystemResourcesRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/system/resources")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewApplyUpdateRequest generates requests for ApplyUpdate
 func NewApplyUpdateRequest(server string, params *ApplyUpdateParams) (*http.Request, error) {
 	var err error
@@ -1594,6 +1636,9 @@ type ClientWithResponsesInterface interface {
 
 	// GetAIModelDetailsWithResponse request
 	GetAIModelDetailsWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetAIModelDetailsResp, error)
+
+	// GetSystemResourcesWithResponse request
+	GetSystemResourcesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSystemResourcesResp, error)
 
 	// ApplyUpdateWithResponse request
 	ApplyUpdateWithResponse(ctx context.Context, params *ApplyUpdateParams, reqEditors ...RequestEditorFn) (*ApplyUpdateResp, error)
@@ -1964,6 +2009,28 @@ func (r GetAIModelDetailsResp) StatusCode() int {
 	return 0
 }
 
+type GetSystemResourcesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetSystemResourcesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetSystemResourcesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ApplyUpdateResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -2215,6 +2282,15 @@ func (c *ClientWithResponses) GetAIModelDetailsWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseGetAIModelDetailsResp(rsp)
+}
+
+// GetSystemResourcesWithResponse request returning *GetSystemResourcesResp
+func (c *ClientWithResponses) GetSystemResourcesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSystemResourcesResp, error) {
+	rsp, err := c.GetSystemResources(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetSystemResourcesResp(rsp)
 }
 
 // ApplyUpdateWithResponse request returning *ApplyUpdateResp
@@ -2813,6 +2889,32 @@ func ParseGetAIModelDetailsResp(rsp *http.Response) (*GetAIModelDetailsResp, err
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetSystemResourcesResp parses an HTTP response from a GetSystemResourcesWithResponse call
+func ParseGetSystemResourcesResp(rsp *http.Response) (*GetSystemResourcesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetSystemResourcesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
