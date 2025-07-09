@@ -24,8 +24,8 @@ func TestLoad(t *testing.T) {
 		assert.NotNil(t, app.MainPythonFile)
 		assert.Equal(t, f.Must(filepath.Abs("testdata/AppSimple/python/main.py")), app.MainPythonFile.String())
 
-		assert.NotNil(t, app.MainSketchFile)
-		assert.Equal(t, f.Must(filepath.Abs("testdata/AppSimple/sketch/sketch.ino")), app.MainSketchFile.String())
+		assert.NotNil(t, app.MainSketchPath)
+		assert.Equal(t, f.Must(filepath.Abs("testdata/AppSimple/sketch")), app.MainSketchPath.String())
 	})
 }
 

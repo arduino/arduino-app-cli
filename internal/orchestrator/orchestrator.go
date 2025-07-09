@@ -190,9 +190,9 @@ func StartApp(ctx context.Context, docker *dockerClient.Client, app app.ArduinoA
 			}
 		})
 
-		if app.MainSketchFile != nil {
+		if app.MainSketchPath != nil {
 			buildPath := app.FullPath.Join(".cache", "sketch").String()
-			if err := compileUploadSketch(ctx, app.MainSketchFile.String(), buildPath, callbackWriter); err != nil {
+			if err := compileUploadSketch(ctx, app.MainSketchPath.String(), buildPath, callbackWriter); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
@@ -259,7 +259,7 @@ func StopApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
 				return
 			}
 		})
-		if app.MainSketchFile != nil {
+		if app.MainSketchPath != nil {
 			// TODO: check that the app sketch is running before attempting to stop it.
 
 			if onBoard {
@@ -967,10 +967,16 @@ func compileUploadSketch(ctx context.Context, sketchPath, buildPath string, w io
 		return err
 	}
 	sketch := sketchResp.GetSketch()
-	initReq := &rpc.InitRequest{Instance: inst, SketchPath: sketchPath}
-	if profile := sketch.GetDefaultProfile().GetName(); profile != "" {
-		initReq.Profile = profile
+	var profile string
+	if onBoard {
+		profile = sketch.GetDefaultProfile().GetName()
 	}
+	initReq := &rpc.InitRequest{
+		Instance:   inst,
+		SketchPath: sketchPath,
+		Profile:    profile,
+	}
+
 	if err := srv.Init(
 		initReq,
 		// TODO: implement progress callback function
@@ -1016,15 +1022,27 @@ func compileUploadSketch(ctx context.Context, sketchPath, buildPath string, w io
 	server, getCompileResult := commands.CompilerServerToStreams(ctx, w, w, nil)
 
 	// TODO: add build cache
-	err = srv.Compile(&rpc.CompileRequest{
-		Instance:   inst,
-		Fqbn:       fqbn,
-		SketchPath: sketchPath,
-		BuildPath:  buildPath,
-		Libraries:  []string{sketchPath + "/../../sketch-libraries"},
-	}, server)
-	if err != nil {
-		return err
+	if profile == "" {
+		err = srv.Compile(&rpc.CompileRequest{
+			Instance:   inst,
+			Fqbn:       fqbn,
+			SketchPath: sketchPath,
+			BuildPath:  buildPath,
+			Libraries:  []string{sketchPath + "/../../sketch-libraries"},
+		}, server)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = srv.Compile(&rpc.CompileRequest{
+			Instance:   inst,
+			Fqbn:       fqbn,
+			SketchPath: sketchPath,
+			BuildPath:  buildPath,
+		}, server)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Output compilations details
