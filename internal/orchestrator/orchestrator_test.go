@@ -346,6 +346,114 @@ func TestEditApp(t *testing.T) {
 	// })
 }
 
+func TestListApp(t *testing.T) {
+	setTestOrchestratorConfig(t)
+
+	docker, err := dockerClient.NewClientWithOpts(
+		dockerClient.FromEnv,
+		dockerClient.WithAPIVersionNegotiation(),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { docker.Close() })
+
+	createApp(t, "app1", false)
+	createApp(t, "app2", false)
+	createApp(t, "example1", true)
+
+	t.Run("list all apps", func(t *testing.T) {
+		res, err := ListApps(t.Context(), docker, ListAppRequest{
+			ShowApps:     true,
+			ShowExamples: true,
+			StatusFilter: "",
+		})
+		require.NoError(t, err)
+		// FIXME: we should enable this assertion when we have broken apps
+		// assert.Empty(t, res.BrokenApps)
+		assert.Empty(t, gCmp.Diff([]AppInfo{
+			{
+				ID:          f.Must(ParseID("examples:example1")),
+				Name:        "example1",
+				Description: "",
+				Icon:        "😃",
+				Status:      "",
+				Example:     true,
+				Default:     false,
+			},
+			{
+				ID:          f.Must(ParseID("user:app1")),
+				Name:        "app1",
+				Description: "",
+				Icon:        "😃",
+				Status:      "",
+				Example:     false,
+				Default:     false,
+			},
+			{
+				ID:          f.Must(ParseID("user:app2")),
+				Name:        "app2",
+				Description: "",
+				Icon:        "😃",
+				Status:      "",
+				Example:     false,
+				Default:     false,
+			},
+		}, res.Apps))
+	})
+
+	t.Run("list only apps", func(t *testing.T) {
+		res, err := ListApps(t.Context(), docker, ListAppRequest{
+			ShowApps:     true,
+			ShowExamples: false,
+			StatusFilter: "",
+		})
+		require.NoError(t, err)
+		// FIXME: we should enable this assertion when we have broken apps
+		// assert.Empty(t, res.BrokenApps)
+		assert.Empty(t, gCmp.Diff([]AppInfo{
+			{
+				ID:          f.Must(ParseID("user:app1")),
+				Name:        "app1",
+				Description: "",
+				Icon:        "😃",
+				Status:      "",
+				Example:     false,
+				Default:     false,
+			},
+			{
+				ID:          f.Must(ParseID("user:app2")),
+				Name:        "app2",
+				Description: "",
+				Icon:        "😃",
+				Status:      "",
+				Example:     false,
+				Default:     false,
+			},
+		}, res.Apps))
+	})
+
+	t.Run("list only examples", func(t *testing.T) {
+		res, err := ListApps(t.Context(), docker, ListAppRequest{
+			ShowApps:     false,
+			ShowExamples: true,
+			StatusFilter: "",
+		})
+		require.NoError(t, err)
+		// FIXME: we should enable this assertion when we have broken apps
+		// assert.Empty(t, res.BrokenApps)
+		assert.Empty(t, gCmp.Diff([]AppInfo{
+			{
+				ID:          f.Must(ParseID("examples:example1")),
+				Name:        "example1",
+				Description: "",
+				Icon:        "😃",
+				Status:      "",
+				Example:     true,
+				Default:     false,
+			},
+		}, res.Apps))
+	})
+}
+
 func TestAppDetails(t *testing.T) {
 	setTestOrchestratorConfig(t)
 
