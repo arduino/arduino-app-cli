@@ -6,7 +6,9 @@ bricks:
     \ designed to work with pre-trained models provided by framework or with custom\
     \ image classification models trained on Edge Impulse platform. \n"
   require_container: true
+  require_model: true
   ports: []
+  model_name: mobilenet-image-classification
   variables:
   - name: CUSTOM_MODEL_PATH
     default_value: /opt/models/ei/
@@ -18,15 +20,17 @@ bricks:
   name: Camera Scanner
   description: Scans a camera for barcodes and QR codes
   require_container: false
+  require_model: false
   ports: []
 - id: arduino:streamlit_ui
   name: Streamlit UI
   description: A simplified user interface based on Streamlit and Python.
   require_container: false
+  require_model: false
   ports:
   - 7000
-- id: arduino:keyword_spotting
-  name: Keyword Spotting
+- id: arduino:keyword_spotter
+  name: Keyword Spotter
   description: 'Brick for keyword spotting using a pre-trained model. It processes
     audio input to detect specific keywords or phrases.
 
@@ -35,7 +39,9 @@ bricks:
 
     '
   require_container: true
+  require_model: true
   ports: []
+  model_name: keyword-spotting-hello-world
   variables:
   - name: CUSTOM_MODEL_PATH
     default_value: /opt/models/ei/
@@ -48,12 +54,14 @@ bricks:
   description: MQTT connector module. Acts as a client for receiving and publishing
     messages to an MQTT broker.
   require_container: false
+  require_model: false
   ports: []
 - id: arduino:web_ui
   name: Web UI
   description: A user interface based on HTML and JavaScript that can rely on additional
     APIs and a WebSocket exposed by a web server.
   require_container: false
+  require_model: false
   ports:
   - 7000
 - id: arduino:dbstorage_tsstore
@@ -61,6 +69,7 @@ bricks:
   description: Simplified time series database storage layer for Arduino sensor samples
     built on top of InfluxDB.
   require_container: true
+  require_model: false
   ports: []
   variables:
   - name: APP_HOME
@@ -79,6 +88,7 @@ bricks:
   description: Simplified database storage layer for Arduino sensor data using SQLite
     local database.
   require_container: false
+  require_model: false
   ports: []
 - id: arduino:object_detection
   name: Object Detection
@@ -87,7 +97,9 @@ bricks:
     \ score.\nBrick is designed to work with pre-trained models provided by framework\
     \ or with custom object detection models trained on Edge Impulse platform. \n"
   require_container: true
+  require_model: true
   ports: []
+  model_name: yolox-object-detection
   variables:
   - name: CUSTOM_MODEL_PATH
     default_value: /opt/models/ei/
@@ -100,6 +112,7 @@ bricks:
   description: Online weather forecast module for Arduino using open-meteo.com geolocation
     and weather APIs. Requires an internet connection.
   require_container: false
+  require_model: false
   ports: []
 - id: arduino:visual_anomaly_detection
   name: Visual Anomaly Detection
@@ -108,7 +121,9 @@ bricks:
     \ to work with pre-trained models provided by framework or with custom object\
     \ detection models trained on Edge Impulse platform. \n"
   require_container: true
+  require_model: true
   ports: []
+  model_name: concreate-crack-anomaly-detection
   variables:
   - name: CUSTOM_MODEL_PATH
     default_value: /opt/models/ei/

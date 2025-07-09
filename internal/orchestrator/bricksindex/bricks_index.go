@@ -137,12 +137,14 @@ func (b *BrickRelease) UnmarshalYAML(unmarshal func(any) error) error {
 }
 
 type Brick struct {
-	ID          string                          `yaml:"id"`
-	Name        string                          `yaml:"name"`
-	Version     string                          `yaml:"-"`
-	Variables   map[string]BrickReleaseVariable `yaml:"variables,omitempty"`
-	Description string                          `yaml:"description,omitempty"`
-	Ports       []string                        `yaml:"ports,omitempty"`
+	ID           string                          `yaml:"id"`
+	Name         string                          `yaml:"name"`
+	Version      string                          `yaml:"-"`
+	Variables    map[string]BrickReleaseVariable `yaml:"variables,omitempty"`
+	Description  string                          `yaml:"description,omitempty"`
+	Ports        []string                        `yaml:"ports,omitempty"`
+	RequireModel bool                            `yaml:"require_model"`
+	ModelName    string                          `yaml:"model_name,omitempty"`
 }
 
 type BrickReleaseVariable struct {
@@ -163,8 +165,10 @@ type assetsBricks struct {
 	Name              string            `yaml:"name"`
 	ModuleDescription string            `yaml:"description"`
 	RequireContainer  bool              `yaml:"require_container"`
+	RequireModel      bool              `yaml:"require_model"`
 	Variables         []assetsVariables `yaml:"variables,omitempty"`
 	Ports             []string          `yaml:"ports,omitempty"`
+	ModelName         string            `yaml:"model_name,omitempty"`
 }
 
 func GenerateBricksIndex() (*BricksIndex, error) {
@@ -202,12 +206,14 @@ func GenerateBricksIndex() (*BricksIndex, error) {
 				}
 			}
 			brickRelease.Bricks[j] = &Brick{
-				ID:          brick.ID,
-				Name:        brick.Name,
-				Version:     version.Name(),
-				Variables:   variables,
-				Description: brick.ModuleDescription,
-				Ports:       brick.Ports,
+				ID:           brick.ID,
+				Name:         brick.Name,
+				Version:      version.Name(),
+				Variables:    variables,
+				Description:  brick.ModuleDescription,
+				Ports:        brick.Ports,
+				RequireModel: brick.RequireModel,
+				ModelName:    brick.ModelName,
 			}
 		}
 		collection.Releases[i] = brickRelease
