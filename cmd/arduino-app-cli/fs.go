@@ -121,7 +121,7 @@ func newSyncAppCmd() *cobra.Command {
 
 			appName := args[0]
 
-			s, err := appsync.New(conn, path.Join(boardHomePath, "arduino-apps"))
+			s, err := appsync.New(conn)
 			if err != nil {
 				return fmt.Errorf("failed to create apps sync: %w", err)
 			}
@@ -133,7 +133,7 @@ func newSyncAppCmd() *cobra.Command {
 				fmt.Printf(" ⬇️ Pushed app %q to the board\n", name)
 			}
 
-			tmp, err := s.EnableSyncApp(appName)
+			tmp, err := s.EnableSyncApp(path.Join(boardHomePath, "arduino-apps", appName))
 			if err != nil {
 				return fmt.Errorf("failed to enable sync for app %q: %w", appName, err)
 			}

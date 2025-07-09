@@ -28,11 +28,16 @@ func Load(appPath string) (ArduinoApp, error) {
 		return ArduinoApp{}, errors.New("empty app path")
 	}
 
-	path = path.Canonical()
-	if exist, err := path.IsDirCheck(); err != nil {
+	exist, err := path.IsDirCheck()
+	if err != nil {
 		return ArduinoApp{}, fmt.Errorf("app path is not valid: %w", err)
-	} else if !exist {
+	}
+	if !exist {
 		return ArduinoApp{}, fmt.Errorf("no such file or directory: %s", path)
+	}
+	path, err = path.Abs()
+	if err != nil {
+		return ArduinoApp{}, fmt.Errorf("cannot get absolute path for app: %w", err)
 	}
 
 	app := ArduinoApp{

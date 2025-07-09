@@ -5,7 +5,6 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -22,8 +21,6 @@ type AppsSync struct {
 	OnPull func(name string, tmp string)
 	OnPush func(name string)
 
-	boardAppPath string
-
 	mx       sync.RWMutex
 	syncApps map[string]string
 
@@ -31,7 +28,7 @@ type AppsSync struct {
 	stop    chan struct{}
 }
 
-func New(conn remote.RemoteConn, boardAppPath string) (*AppsSync, error) {
+func New(conn remote.RemoteConn) (*AppsSync, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create watcher: %w", err)
@@ -42,8 +39,6 @@ func New(conn remote.RemoteConn, boardAppPath string) (*AppsSync, error) {
 
 		OnPull: func(name string, tmp string) {},
 		OnPush: func(name string) {},
-
-		boardAppPath: boardAppPath,
 
 		mx:       sync.RWMutex{},
 		syncApps: make(map[string]string),
@@ -57,31 +52,30 @@ func New(conn remote.RemoteConn, boardAppPath string) (*AppsSync, error) {
 	return a, err
 }
 
-func (a *AppsSync) EnableSyncApp(name string) (string, error) {
+func (a *AppsSync) EnableSyncApp(path string) (string, error) {
 	a.mx.Lock()
 	defer a.mx.Unlock()
-	if _, ok := a.syncApps[name]; ok {
-		return "", fmt.Errorf("app %q is already synced", name)
+	if _, ok := a.syncApps[path]; ok {
+		return "", fmt.Errorf("app %q is already synced", path)
 	}
 
-	remote := path.Join(a.boardAppPath, name)
 	tmp, err := os.MkdirTemp("", "arduino-apps-sync_*")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp dir: %w", err)
 	}
-	tmp = filepath.Join(tmp, name)
+	tmp = filepath.Join(tmp, path)
 	err = os.MkdirAll(tmp, 0755)
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp dir: %w", err)
 	}
 
 	// pull app from the remote
-	if err := SyncFS(OsFSWriter{Base: tmp}, remotefs.New(remote, a.conn), ".cache"); err != nil {
-		return "", fmt.Errorf("failed to pull app %q: %w", name, err)
+	if err := SyncFS(OsFSWriter{Base: tmp}, remotefs.New(path, a.conn), ".cache"); err != nil {
+		return "", fmt.Errorf("failed to pull app %q: %w", path, err)
 	}
-	a.OnPull(name, tmp)
+	a.OnPull(path, tmp)
 
-	a.syncApps[name] = tmp
+	a.syncApps[path] = tmp
 
 	// Add a path.
 	err = fs.WalkDir(os.DirFS(tmp), ".", func(p string, info fs.DirEntry, err error) error {
@@ -103,15 +97,15 @@ func (a *AppsSync) EnableSyncApp(name string) (string, error) {
 	return tmp, nil
 }
 
-func (a *AppsSync) DisableSyncApp(name string) error {
+func (a *AppsSync) DisableSyncApp(path string) error {
 	// remove app from sync if is synced
 	a.mx.Lock()
 	defer a.mx.Unlock()
-	tmp, ok := a.syncApps[name]
+	tmp, ok := a.syncApps[path]
 	if !ok {
-		return fmt.Errorf("app %q is not synced", name)
+		return fmt.Errorf("app %q is not synced", path)
 	}
-	delete(a.syncApps, name)
+	delete(a.syncApps, path)
 
 	// remove watcher from all subdirs
 	err := fs.WalkDir(os.DirFS(tmp), ".", func(p string, info fs.DirEntry, err error) error {
@@ -131,7 +125,7 @@ func (a *AppsSync) DisableSyncApp(name string) error {
 	}
 
 	// force push the last time
-	if err = a.pushPath(tmp, path.Join(a.boardAppPath, name)); err != nil {
+	if err = a.pushPath(tmp, path); err != nil {
 		return err
 	}
 
@@ -140,33 +134,32 @@ func (a *AppsSync) DisableSyncApp(name string) error {
 	return nil
 }
 
-func (a *AppsSync) ForsePush(name string) error {
+func (a *AppsSync) ForsePush(path string) error {
 	// get synked app
 	a.mx.RLock()
 	defer a.mx.RUnlock()
-	tmp, ok := a.syncApps[name]
+	tmp, ok := a.syncApps[path]
 	if !ok {
-		return fmt.Errorf("app %q is not synced", name)
+		return fmt.Errorf("app %q is not synced", path)
 	}
 
-	if err := a.pushPath(tmp, name); err != nil {
-		return fmt.Errorf("failed to push app %q: %w", name, err)
+	if err := a.pushPath(tmp, path); err != nil {
+		return fmt.Errorf("failed to push app %q: %w", path, err)
 	}
 
 	return nil
 }
 
-func (a *AppsSync) pushPath(tmp string, name string) error {
-	remote := path.Join(a.boardAppPath, name)
+func (a *AppsSync) pushPath(tmp string, path string) error {
 	err := SyncFS(
-		remotefs.New(remote, a.conn).ToWriter(),
+		remotefs.New(path, a.conn).ToWriter(),
 		os.DirFS(tmp),
 		".cache",
 	)
 	if err != nil {
 		return err
 	}
-	a.OnPush(name)
+	a.OnPush(path)
 	return nil
 }
 

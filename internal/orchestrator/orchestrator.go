@@ -462,6 +462,7 @@ func ListApps(ctx context.Context, docker *dockerClient.Client, req ListAppReque
 type AppDetailedInfo struct {
 	ID          ID                 `json:"id" required:"true" `
 	Name        string             `json:"name" required:"true"`
+	Path        string             `json:"path"`
 	Description string             `json:"description"`
 	Icon        string             `json:"icon"`
 	Status      Status             `json:"status" required:"true"`
@@ -512,6 +513,7 @@ func AppDetails(ctx context.Context, docker *dockerClient.Client, userApp app.Ar
 	return AppDetailedInfo{
 		ID:          id,
 		Name:        userApp.Name,
+		Path:        userApp.FullPath.String(),
 		Description: userApp.Descriptor.Description,
 		Icon:        userApp.Descriptor.Icon,
 		Status:      status,

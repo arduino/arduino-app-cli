@@ -127,6 +127,15 @@ func (id ID) String() string {
 	return id.encodedID
 }
 
+// MarshalJSON implements the json.Marshaler interface for ID.
 func (id ID) MarshalJSON() ([]byte, error) {
 	return []byte(`"` + id.encodedID + `"`), nil
+}
+
+// Equal implements the go-cmp equality interface.
+func (id ID) Equal(other ID) bool {
+	return id.path.EqualsTo(other.path) &&
+		id.isFromKnownLocaltion == other.isFromKnownLocaltion &&
+		id.isExample == other.isExample &&
+		id.encodedID == other.encodedID
 }

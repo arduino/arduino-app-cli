@@ -1,12 +1,18 @@
 package orchestrator
 
 import (
+	"fmt"
+	"os"
 	"testing"
 
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-
+	"github.com/arduino/go-paths-helper"
+	dockerClient "github.com/docker/docker/client"
+	gCmp "github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.bug.st/f"
+
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 )
 
 func TestCreateApp(t *testing.T) {
@@ -340,15 +346,93 @@ func TestEditApp(t *testing.T) {
 	// })
 }
 
+func TestAppDetails(t *testing.T) {
+	setTestOrchestratorConfig(t)
+
+	docker, err := dockerClient.NewClientWithOpts(
+		dockerClient.FromEnv,
+		dockerClient.WithAPIVersionNegotiation(),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { docker.Close() })
+
+	createApp(t, "app1", false)
+	createApp(t, "example1", true)
+
+	t.Run("app details", func(t *testing.T) {
+		// TODO: fix data race in docker 😅
+		// t.Parallel()
+
+		id := f.Must(ParseID("user:app1"))
+		app, err := app.Load(id.ToPath().String())
+		require.NoError(t, err)
+		details, err := AppDetails(t.Context(), docker, app)
+		require.NoError(t, err)
+		fmt.Println(details)
+		assert.Empty(t, gCmp.Diff(details, AppDetailedInfo{
+			ID:          id,
+			Name:        "app1",
+			Path:        orchestratorConfig.AppsDir().Join("app1").String(),
+			Description: "",
+			Icon:        "😃",
+			Status:      "",
+			Example:     false,
+			Default:     false,
+			Bricks:      []AppDetailedBrick{},
+		}))
+	})
+
+	t.Run("example details", func(t *testing.T) {
+		// TODO: fix data race in docker 😅
+		// t.Parallel()
+
+		id := f.Must(ParseID("examples:example1"))
+		app, err := app.Load(id.ToPath().String())
+		require.NoError(t, err)
+		details, err := AppDetails(t.Context(), docker, app)
+		require.NoError(t, err)
+		assert.Empty(t, gCmp.Diff(details, AppDetailedInfo{
+			ID:          id,
+			Name:        "example1",
+			Path:        orchestratorConfig.ExamplesDir().Join("example1").String(),
+			Description: "",
+			Icon:        "😃",
+			Status:      "",
+			Example:     true,
+			Default:     false,
+			Bricks:      []AppDetailedBrick{},
+		}))
+	})
+}
+
 func setTestOrchestratorConfig(t *testing.T) {
 	t.Helper()
 
-	tmpDir := t.TempDir()
-	t.Setenv("ARDUINO_APP_CLI__APPS_DIR", tmpDir)
-	t.Setenv("ARDUINO_APP_CLI__DATA_DIR", tmpDir)
+	tmpDir := paths.New(t.TempDir())
+	t.Setenv("ARDUINO_APP_CLI__APPS_DIR", tmpDir.Join("apps").String())
+	t.Setenv("ARDUINO_APP_CLI__DATA_DIR", tmpDir.Join("data").String())
 	cfg, err := NewOrchestratorConfigFromEnv()
 	require.NoError(t, err)
 
 	// Override the global config with the test one
 	orchestratorConfig = cfg
+}
+
+func createApp(t *testing.T, name string, isExample bool) {
+	t.Helper()
+
+	res, err := CreateApp(t.Context(), CreateAppRequest{
+		Name: name,
+		Icon: "😃",
+	})
+	require.NoError(t, err)
+	require.Empty(t, gCmp.Diff(f.Must(ParseID("user:"+name)), res.ID))
+	if isExample {
+		newPath := orchestratorConfig.ExamplesDir().Join(name)
+		err = os.Rename(res.ID.ToPath().String(), newPath.String())
+		require.NoError(t, err)
+		newID, err := NewIDFromPath(newPath)
+		require.NoError(t, err)
+		assert.Empty(t, gCmp.Diff(f.Must(ParseID("examples:"+name)), newID))
+	}
 }

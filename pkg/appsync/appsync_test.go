@@ -82,10 +82,9 @@ func TestEnableSyncApp(t *testing.T) {
 
 		t.Run(remote.name, func(t *testing.T) {
 			t.Parallel()
-
-			sync, err := New(remote.conn, "apps")
+			sync, err := New(remote.conn)
 			require.NoError(t, err)
-			tmp, err := sync.EnableSyncApp("test")
+			tmp, err := sync.EnableSyncApp("apps/test")
 			require.NoError(t, err)
 			files := getFiles(os.DirFS(tmp))
 			require.Equal(t, []string{

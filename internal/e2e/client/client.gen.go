@@ -57,6 +57,7 @@ type AppDetailedInfo struct {
 	Icon        *string             `json:"icon,omitempty"`
 	Id          string              `json:"id"`
 	Name        string              `json:"name"`
+	Path        *string             `json:"path,omitempty"`
 
 	// Status Application status
 	Status Status `json:"status"`
