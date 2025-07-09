@@ -12,12 +12,12 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/arduino/arduino-app-cli/pkg/adb"
-	"github.com/arduino/arduino-app-cli/pkg/adbfs"
+	"github.com/arduino/arduino-app-cli/pkg/board/remote"
+	"github.com/arduino/arduino-app-cli/pkg/board/remotefs"
 )
 
 type AppsSync struct {
-	adb *adb.ADBConnection
+	conn remote.RemoteConn
 
 	OnPull func(name string, tmp string)
 	OnPush func(name string)
@@ -31,14 +31,14 @@ type AppsSync struct {
 	stop    chan struct{}
 }
 
-func New(adb *adb.ADBConnection, boardAppPath string) (*AppsSync, error) {
+func New(conn remote.RemoteConn, boardAppPath string) (*AppsSync, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create watcher: %w", err)
 	}
 
 	a := &AppsSync{
-		adb: adb,
+		conn: conn,
 
 		OnPull: func(name string, tmp string) {},
 		OnPush: func(name string) {},
@@ -76,7 +76,7 @@ func (a *AppsSync) EnableSyncApp(name string) (string, error) {
 	}
 
 	// pull app from the remote
-	if err := adbfs.SyncFS(adbfs.OsFSWriter{Base: tmp}, adbfs.NewAdbFS(remote, a.adb), ".cache"); err != nil {
+	if err := SyncFS(OsFSWriter{Base: tmp}, remotefs.New(remote, a.conn), ".cache"); err != nil {
 		return "", fmt.Errorf("failed to pull app %q: %w", name, err)
 	}
 	a.OnPull(name, tmp)
@@ -158,8 +158,8 @@ func (a *AppsSync) ForsePush(name string) error {
 
 func (a *AppsSync) pushPath(tmp string, name string) error {
 	remote := path.Join(a.boardAppPath, name)
-	err := adbfs.SyncFS(
-		adbfs.NewAdbFS(remote, a.adb).ToWriter(),
+	err := SyncFS(
+		remotefs.New(remote, a.conn).ToWriter(),
 		os.DirFS(tmp),
 		".cache",
 	)

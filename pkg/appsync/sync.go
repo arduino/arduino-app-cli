@@ -1,4 +1,4 @@
-package adbfs
+package appsync
 
 import (
 	"errors"

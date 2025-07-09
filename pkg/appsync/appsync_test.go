@@ -1,286 +1,233 @@
 package appsync
 
 import (
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
-	"os/exec"
-	"os/user"
 	"path/filepath"
-	"runtime"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/arduino/arduino-app-cli/pkg/adb"
-	"github.com/arduino/arduino-app-cli/pkg/adbfs"
+	"github.com/arduino/arduino-app-cli/pkg/board/remote"
+	"github.com/arduino/arduino-app-cli/pkg/board/remote/adb"
+	"github.com/arduino/arduino-app-cli/pkg/board/remote/ssh"
+	"github.com/arduino/arduino-app-cli/pkg/board/remotefs"
+	"github.com/arduino/arduino-app-cli/pkg/x/testtools"
 )
 
-func getAdbPath() string {
-	// Attempt to find the adb path in the Arduino15 directory
-	const arduino15adbPath = "packages/arduino/tools/adb/32.0.0/adb"
-	var path string
-	switch runtime.GOOS {
-	case "darwin":
-		user, err := user.Current()
-		if err != nil {
-			fmt.Println("WARNING: Unable to get current user:", err)
-			break
-		}
-		path = filepath.Join(user.HomeDir, "/Library/Arduino15/", arduino15adbPath)
-	case "linux":
-		user, err := user.Current()
-		if err != nil {
-			fmt.Println("WARNING: Unable to get current user:", err)
-			break
-		}
-		path = filepath.Join(user.HomeDir, ".arduino15/", arduino15adbPath)
-	case "windows":
-		user, err := user.Current()
-		if err != nil {
-			fmt.Println("WARNING: Unable to get current user:", err)
-			break
-		}
-		path = filepath.Join(user.HomeDir, "AppData/Local/Arduino15/", arduino15adbPath)
-	}
-	s, err := os.Stat(path)
-	if err == nil && !s.IsDir() {
-		return path
-	}
-	return "adb"
-}
-
-const adbdContainerName = "adbd-testing"
-const adbPort = "6666"
-
-func startAdbDaemon(t *testing.T) {
-	cmd := exec.Command("docker", "build", "-t", "adbd", ".")
-	dir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get absolute path: %v", err)
-	}
-	cmd.Dir = filepath.Join(dir, "../../adbd")
-	err = cmd.Run()
-	if err != nil {
-		t.Fatalf("failed to build adb daemon: %v", err)
-	}
-
-	adbPath := getAdbPath()
-	err = exec.Command("docker", "run", "-d", "--rm", "--name", adbdContainerName, "-p", adbPort+":5555", "adbd").Run()
-	if err != nil {
-		t.Fatalf("failed to start adb daemon: %v", err)
-	}
-	timeout := time.After(10 * time.Second)
-	tick := time.Tick(500 * time.Millisecond)
-	for {
-		select {
-		case <-timeout:
-			t.Fatalf("adb daemon did not start within the timeout period")
-		case <-tick:
-			out, err := exec.Command(adbPath, "connect", "localhost:"+adbPort).CombinedOutput()
-			if err == nil && strings.Contains(string(out), "connected to localhost:"+adbPort) {
-				return // adb daemon is ready
-			}
-		}
-	}
-}
-
-func stopAdbDaemon(t *testing.T) {
-	out, err := exec.Command("docker", "rm", "-f", adbdContainerName).CombinedOutput()
-	if err != nil {
-		t.Logf("DEBUG: adb daemon stop output: %q", string(out))
-	}
-}
-
 func TestEnableSyncApp(t *testing.T) {
-	t.Cleanup(func() {
-		stopAdbDaemon(t)
-	})
-	startAdbDaemon(t)
-
-	getFiles := func(f fs.FS) []string {
-		var files []string
-		err := fs.WalkDir(f, ".", func(p string, info fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if p == "." {
-				return nil
-			}
-			files = append(files, p)
-			return nil
-		})
-		if err != nil {
-			t.Fatalf("failed to walk dir: %v", err)
-		}
-		slices.Sort(files)
-		return files
+	t.Parallel()
+	remotes := []struct {
+		name string
+		conn remote.RemoteConn
+	}{
+		{
+			name: "adb",
+			conn: func() remote.RemoteConn {
+				name, adbPort, _ := testtools.StartAdbDContainer(t)
+				t.Cleanup(func() { testtools.StopAdbDContainer(t, name) })
+				conn, err := adb.FromHost("localhost:"+adbPort, "")
+				require.NoError(t, err)
+				return conn
+			}(),
+		},
+		{
+			name: "ssh",
+			conn: func() remote.RemoteConn {
+				name, _, sshPort := testtools.StartAdbDContainer(t)
+				t.Cleanup(func() { testtools.StopAdbDContainer(t, name) })
+				conn, err := ssh.FromHost("arduino", "arduino", "127.0.0.1:"+sshPort)
+				require.NoError(t, err)
+				return conn
+			}(),
+		},
 	}
 
-	adb, err := adb.FromHost("localhost:"+adbPort, "")
-	adb.User = "root"
-	require.NoError(t, err)
+	// Init the file system on the remote connections.
+	for _, remote := range remotes {
+		out, err := remote.conn.GetCmd(t.Context(), "mkdir", "-p", "apps/test/python").Output()
+		require.NoError(t, err, "output: %q", out)
+		out, err = remote.conn.GetCmd(t.Context(), "touch", "apps/test/python/main.py").Output()
+		require.NoError(t, err, "output: %q", out)
+		out, err = remote.conn.GetCmd(t.Context(), "mkdir", "-p", "apps/test/sketch/").Output()
+		require.NoError(t, err, "output: %q", out)
+		out, err = remote.conn.GetCmd(t.Context(), "touch", "apps/test/sketch/sketch.ino").Output()
+		require.NoError(t, err, "output: %q", out)
+		out, err = remote.conn.GetCmd(t.Context(), "touch", "apps/test/app.yml").Output()
+		require.NoError(t, err, "output: %q", out)
+	}
 
-	_, err = adb.Run("mkdir", "-p", "/apps/arduino-apps/test")
-	require.NoError(t, err)
-	_, err = adb.Run("mkdir", "-p", "/apps/test/python")
-	require.NoError(t, err)
-	_, err = adb.Run("touch", "/apps/test/python/main.py")
-	require.NoError(t, err)
-	_, err = adb.Run("mkdir", "-p", "/apps/test/sketch/")
-	require.NoError(t, err)
-	_, err = adb.Run("touch", "/apps/test/sketch/sketch.ino")
-	require.NoError(t, err)
-	_, err = adb.Run("touch", "/apps/test/app.yml")
-	require.NoError(t, err)
+	for _, remote := range remotes {
+		getFiles := func(f fs.FS) []string {
+			var files []string
+			err := fs.WalkDir(f, ".", func(p string, info fs.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
+				if p == "." {
+					return nil
+				}
+				files = append(files, p)
+				return nil
+			})
+			if err != nil {
+				t.Fatalf("failed to walk dir: %v", err)
+			}
+			slices.Sort(files)
+			return files
+		}
 
-	sync, err := New(adb, "/apps")
-	require.NoError(t, err)
-	tmp, err := sync.EnableSyncApp("test")
-	require.NoError(t, err)
-	files := getFiles(os.DirFS(tmp))
-	require.Equal(t, []string{
-		"app.yml",
-		"python",
-		"python/main.py",
-		"sketch",
-		"sketch/sketch.ino",
-	}, files)
+		t.Run(remote.name, func(t *testing.T) {
+			t.Parallel()
 
-	t.Run("test new file in root folder", func(t *testing.T) {
-		err = os.WriteFile(filepath.Join(tmp, "test.txt"), []byte("test"), 0600)
-		require.NoError(t, err)
+			sync, err := New(remote.conn, "apps")
+			require.NoError(t, err)
+			tmp, err := sync.EnableSyncApp("test")
+			require.NoError(t, err)
+			files := getFiles(os.DirFS(tmp))
+			require.Equal(t, []string{
+				"app.yml",
+				"python",
+				"python/main.py",
+				"sketch",
+				"sketch/sketch.ino",
+			}, files)
 
-		// wait for the event to be triggered
-		time.Sleep(1 * time.Second)
+			t.Run("test new file in root folder", func(t *testing.T) {
+				err = os.WriteFile(filepath.Join(tmp, "test.txt"), []byte("test"), 0600)
+				require.NoError(t, err)
 
-		// check if the file is created
-		files = getFiles(adbfs.NewAdbFS("/apps/test", adb))
-		require.Equal(t, []string{
-			"app.yml",
-			"python",
-			"python/main.py",
-			"sketch",
-			"sketch/sketch.ino",
-			"test.txt",
-		}, files)
-	})
+				// wait for the event to be triggered
+				time.Sleep(1 * time.Second)
 
-	t.Run("test new file in subdir", func(t *testing.T) {
-		err = os.WriteFile(filepath.Join(tmp, "python", "test.txt"), []byte("test"), 0600)
-		require.NoError(t, err)
+				// check if the file is created
+				files = getFiles(remotefs.New("apps/test", remote.conn))
+				require.Equal(t, []string{
+					"app.yml",
+					"python",
+					"python/main.py",
+					"sketch",
+					"sketch/sketch.ino",
+					"test.txt",
+				}, files)
+			})
 
-		// wait for the event to be triggered
-		time.Sleep(1 * time.Second)
+			t.Run("test new file in subdir", func(t *testing.T) {
+				err = os.WriteFile(filepath.Join(tmp, "python", "test.txt"), []byte("test"), 0600)
+				require.NoError(t, err)
 
-		// check if the file is created
-		files = getFiles(adbfs.NewAdbFS("/apps/test", adb))
-		require.Equal(t, []string{
-			"app.yml",
-			"python",
-			"python/main.py",
-			"python/test.txt",
-			"sketch",
-			"sketch/sketch.ino",
-			"test.txt",
-		}, files)
-	})
+				// wait for the event to be triggered
+				time.Sleep(1 * time.Second)
 
-	t.Run("test new dir", func(t *testing.T) {
-		err = os.MkdirAll(filepath.Join(tmp, "python", "test"), 0700)
-		require.NoError(t, err)
+				// check if the file is created
+				files = getFiles(remotefs.New("apps/test", remote.conn))
+				require.Equal(t, []string{
+					"app.yml",
+					"python",
+					"python/main.py",
+					"python/test.txt",
+					"sketch",
+					"sketch/sketch.ino",
+					"test.txt",
+				}, files)
+			})
 
-		// wait for the event to be triggered
-		time.Sleep(1 * time.Second)
-		// check if the dir is created
+			t.Run("test new dir", func(t *testing.T) {
+				err = os.MkdirAll(filepath.Join(tmp, "python", "test"), 0700)
+				require.NoError(t, err)
 
-		files = getFiles(adbfs.NewAdbFS("/apps/test", adb))
-		require.Equal(t, []string{
-			"app.yml",
-			"python",
-			"python/main.py",
-			"python/test",
-			"python/test.txt",
-			"sketch",
-			"sketch/sketch.ino",
-			"test.txt",
-		}, files)
+				// wait for the event to be triggered
+				time.Sleep(1 * time.Second)
+				// check if the dir is created
 
-		// add file in the new dir
-		err = os.WriteFile(filepath.Join(tmp, "python", "test", "test.txt"), []byte("test"), 0600)
-		require.NoError(t, err)
+				files = getFiles(remotefs.New("apps/test", remote.conn))
+				require.Equal(t, []string{
+					"app.yml",
+					"python",
+					"python/main.py",
+					"python/test",
+					"python/test.txt",
+					"sketch",
+					"sketch/sketch.ino",
+					"test.txt",
+				}, files)
 
-		// wait for the event to be triggered
-		time.Sleep(1 * time.Second)
+				// add file in the new dir
+				err = os.WriteFile(filepath.Join(tmp, "python", "test", "test.txt"), []byte("test"), 0600)
+				require.NoError(t, err)
 
-		// check if the file is created
-		files = getFiles(adbfs.NewAdbFS("/apps/test", adb))
-		require.Equal(t, []string{
-			"app.yml",
-			"python",
-			"python/main.py",
-			"python/test",
-			"python/test.txt",
-			"python/test/test.txt",
-			"sketch",
-			"sketch/sketch.ino",
-			"test.txt",
-		}, files)
-	})
+				// wait for the event to be triggered
+				time.Sleep(1 * time.Second)
 
-	t.Run("test update file", func(t *testing.T) {
-		err = os.WriteFile(filepath.Join(tmp, "python/main.py"), []byte("print('Hello')"), 0600)
+				// check if the file is created
+				files = getFiles(remotefs.New("apps/test", remote.conn))
+				require.Equal(t, []string{
+					"app.yml",
+					"python",
+					"python/main.py",
+					"python/test",
+					"python/test.txt",
+					"python/test/test.txt",
+					"sketch",
+					"sketch/sketch.ino",
+					"test.txt",
+				}, files)
+			})
 
-		// wait for the event to be triggered
-		time.Sleep(1 * time.Second)
+			t.Run("test update file", func(t *testing.T) {
+				err = os.WriteFile(filepath.Join(tmp, "python/main.py"), []byte("print('Hello')"), 0600)
 
-		// check if the file is updated
-		buff, err := adb.CatOut("/apps/test/python/main.py")
-		require.NoError(t, err)
-		b, err := io.ReadAll(buff)
-		require.NoError(t, err)
-		require.Equal(t, "print('Hello')", string(b))
-	})
+				// wait for the event to be triggered
+				time.Sleep(1 * time.Second)
 
-	t.Run("test delete file", func(t *testing.T) {
-		err = os.Remove(filepath.Join(tmp, "python/test.txt"))
-		require.NoError(t, err)
+				// check if the file is updated
+				buff, err := remote.conn.ReadFile("apps/test/python/main.py")
+				require.NoError(t, err)
+				b, err := io.ReadAll(buff)
+				require.NoError(t, err)
+				require.Equal(t, "print('Hello')", string(b))
+			})
 
-		// wait for the event to be triggered
-		time.Sleep(1 * time.Second)
+			t.Run("test delete file", func(t *testing.T) {
+				err = os.Remove(filepath.Join(tmp, "python/test.txt"))
+				require.NoError(t, err)
 
-		// check if the file is deleted
-		files = getFiles(adbfs.NewAdbFS("/apps/test", adb))
-		require.Equal(t, []string{
-			"app.yml",
-			"python",
-			"python/main.py",
-			"python/test",
-			"python/test/test.txt",
-			"sketch",
-			"sketch/sketch.ino",
-			"test.txt",
-		}, files)
-	})
+				// wait for the event to be triggered
+				time.Sleep(1 * time.Second)
 
-	t.Run("test delete dir", func(t *testing.T) {
-		err = os.RemoveAll(filepath.Join(tmp, "python"))
-		require.NoError(t, err)
+				// check if the file is deleted
+				files = getFiles(remotefs.New("apps/test", remote.conn))
+				require.Equal(t, []string{
+					"app.yml",
+					"python",
+					"python/main.py",
+					"python/test",
+					"python/test/test.txt",
+					"sketch",
+					"sketch/sketch.ino",
+					"test.txt",
+				}, files)
+			})
 
-		// wait for the event to be triggered
-		time.Sleep(1 * time.Second)
+			t.Run("test delete dir", func(t *testing.T) {
+				err = os.RemoveAll(filepath.Join(tmp, "python"))
+				require.NoError(t, err)
 
-		// check if the dir is deleted
-		files = getFiles(adbfs.NewAdbFS("/apps/test", adb))
-		require.Equal(t, []string{
-			"app.yml",
-			"sketch",
-			"sketch/sketch.ino",
-			"test.txt",
-		}, files)
-	})
+				// wait for the event to be triggered
+				time.Sleep(1 * time.Second)
+
+				// check if the dir is deleted
+				files = getFiles(remotefs.New("apps/test", remote.conn))
+				require.Equal(t, []string{
+					"app.yml",
+					"sketch",
+					"sketch/sketch.ino",
+					"test.txt",
+				}, files)
+			})
+		})
+	}
 }

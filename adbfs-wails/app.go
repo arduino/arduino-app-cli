@@ -8,9 +8,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/arduino/arduino-app-cli/pkg/adbfs"
 	"github.com/arduino/arduino-app-cli/pkg/autoupdater/releaser"
 	"github.com/arduino/arduino-app-cli/pkg/autoupdater/updater"
+	"github.com/arduino/arduino-app-cli/pkg/board/remote/adbfs"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )

@@ -9,16 +9,18 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/arduino/arduino-app-cli/pkg/adb"
-	"github.com/arduino/arduino-app-cli/pkg/adbfs"
 	"github.com/arduino/arduino-app-cli/pkg/appsync"
+	"github.com/arduino/arduino-app-cli/pkg/board"
+	"github.com/arduino/arduino-app-cli/pkg/board/remote"
+	"github.com/arduino/arduino-app-cli/pkg/board/remote/adb"
+	"github.com/arduino/arduino-app-cli/pkg/board/remotefs"
 )
 
 const boardHomePath = "/home/arduino"
 
 type contextKey string
 
-const adbConnectionKey contextKey = "adbConnectionKey"
+const remoteConnKey contextKey = "remoteConn"
 
 func newFSCmd() *cobra.Command {
 	var fqbn, host string
@@ -26,22 +28,30 @@ func newFSCmd() *cobra.Command {
 		Use:   "fs",
 		Short: "Manage board fs",
 		Long:  "",
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			var conn *adb.ADBConnection
-			var err error
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			if host != "" {
-				conn, err = adb.FromHost(host, "")
+				conn, err := adb.FromHost(host, "")
 				if err != nil {
-					return fmt.Errorf("failed to connect to ADB host %s: %w", host, err)
+					panic(fmt.Errorf("failed to connect to ADB host %s: %w", host, err))
 				}
-			} else {
-				conn, err = adb.FromFQBN(cmd.Context(), fqbn, "")
-				if err != nil {
-					return fmt.Errorf("failed to connect to board with fqbn %s: %w", fqbn, err)
-				}
+				cmd.SetContext(context.WithValue(cmd.Context(), remoteConnKey, conn))
+				return
 			}
-			cmd.SetContext(context.WithValue(cmd.Context(), adbConnectionKey, conn))
-			return nil
+
+			boards, err := board.FromFQBN(cmd.Context(), fqbn)
+			if err != nil {
+				panic(err)
+			}
+			if len(boards) == 0 {
+				panic(fmt.Errorf("no boards found for FQBN %s", fqbn))
+			}
+			conn, err := boards[0].Connect()
+			if err != nil {
+				panic(fmt.Errorf("failed to connect to board: %w", err))
+			}
+
+			cmd.SetContext(context.WithValue(cmd.Context(), remoteConnKey, conn))
+
 		},
 	}
 	fsCmd.PersistentFlags().StringVarP(&fqbn, "fqbn", "b", "dev:zephyr:jomla", "fqbn of the board")
@@ -57,10 +67,10 @@ func newFSCmd() *cobra.Command {
 func newPushCmd() *cobra.Command {
 	pushCmd := &cobra.Command{
 		Use:   "push <local> <remote>",
-		Short: "Push and sync a directory from the local machine to the board",
+		Short: "Push a file or directory from the local machine to the board",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			conn := cmd.Context().Value(adbConnectionKey).(*adb.ADBConnection)
+			conn := cmd.Context().Value(remoteConnKey).(remote.RemoteConn)
 
 			local, err := filepath.Abs(args[0])
 			if err != nil {
@@ -68,7 +78,7 @@ func newPushCmd() *cobra.Command {
 			}
 			remote := path.Join(boardHomePath, args[1])
 
-			if err := adbfs.SyncFS(adbfs.NewAdbFS(remote, conn).ToWriter(), os.DirFS(local), ".cache"); err != nil {
+			if err := appsync.SyncFS(remotefs.New(remote, conn).ToWriter(), os.DirFS(local), ".cache"); err != nil {
 				return fmt.Errorf("failed to push files: %w", err)
 			}
 			return nil
@@ -81,10 +91,10 @@ func newPushCmd() *cobra.Command {
 func newPullCmd() *cobra.Command {
 	pullCmd := &cobra.Command{
 		Use:   "pull <remote> <local>",
-		Short: "Pull and sync a directory from the local machine to the board",
+		Short: "Pull a file or directory from the local machine to the board",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			conn := cmd.Context().Value(adbConnectionKey).(*adb.ADBConnection)
+			conn := cmd.Context().Value(remoteConnKey).(remote.RemoteConn)
 
 			remote := path.Join(boardHomePath, args[0])
 			local, err := filepath.Abs(args[1])
@@ -92,7 +102,7 @@ func newPullCmd() *cobra.Command {
 				return fmt.Errorf("failed to get absolute path of local file: %w", err)
 			}
 
-			if err := adbfs.SyncFS(adbfs.OsFSWriter{Base: local}, adbfs.NewAdbFS(remote, conn), ".cache"); err != nil {
+			if err := appsync.SyncFS(appsync.OsFSWriter{Base: local}, remotefs.New(remote, conn), ".cache"); err != nil {
 				return fmt.Errorf("failed to pull files: %w", err)
 			}
 			return nil
@@ -107,7 +117,7 @@ func newSyncAppCmd() *cobra.Command {
 		Short: "Enable sync of an app from the board",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			conn := cmd.Context().Value(adbConnectionKey).(*adb.ADBConnection)
+			conn := cmd.Context().Value(remoteConnKey).(remote.RemoteConn)
 
 			appName := args[0]
 
