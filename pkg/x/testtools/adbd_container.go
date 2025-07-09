@@ -17,9 +17,8 @@ import (
 func StartAdbDContainer(t *testing.T) (string, string, string) {
 	t.Helper()
 
-	cmd := exec.Command("docker", "build", "-t", "adbd", ".")
-	base := getBaseProjectPath(t)
-	cmd.Dir = filepath.Join(base, "adbd")
+	cmd := exec.Command("docker", "build", "-t", "adbd", "-f", "adbd.Dockerfile", ".")
+	cmd.Dir = getBaseProjectPath(t)
 	err := cmd.Run()
 	if err != nil {
 		t.Fatalf("failed to build adb daemon: %v", err)
