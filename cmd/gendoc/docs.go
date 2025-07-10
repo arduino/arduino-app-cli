@@ -712,6 +712,115 @@ Contains a JSON object with the details of an error.
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
 			},
 		},
+		{
+			OperationId: "getAppBrickInstances",
+			Method:      http.MethodGet,
+			Path:        "/v1/apps/{appID}/bricks",
+			Parameters: (*struct {
+				ID string `path:"appID" description:"application identifier."`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: orchestrator.AppBrickInstancesResult{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "Get the list of brick instances for a specific app.",
+			Summary:     "Get brick instances for an app",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "getAppBrickInstanceByBrickID",
+			Method:      http.MethodGet,
+			Path:        "/v1/apps/{appID}/bricks/{brickID}",
+			Parameters: (*struct {
+				ID      string `path:"appID" description:"application identifier."`
+				BrickID string `path:"brickID" description:"brick identifier."`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: orchestrator.BrickInstance{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "Get a specific brick instance for an app by its ID.",
+			Summary:     "Get a specific brick instance by ID",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "upsertAppBrickInstance",
+			Method:      http.MethodPut,
+			Path:        "/v1/apps/{appID}/bricks/{brickID}",
+			Parameters: (*struct {
+				ID      string `path:"appID" description:"application identifier."`
+				BrickID string `path:"brickID" description:"brick identifier."`
+			})(nil),
+			Request: orchestrator.BrickCreateUpdateRequest{},
+			CustomSuccessResponse: &CustomResponseDef{
+				Description: "Successful response",
+				StatusCode:  http.StatusOK,
+			},
+			Description: "Upsert a brick instance for an app. If the instance does not exist, it will be created. If it exists, it will be updated.",
+			Summary:     "Upsert a brick instance for an app",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "updateAppBrickInstance",
+			Method:      http.MethodPatch,
+			Path:        "/v1/apps/{appID}/bricks/{brickID}",
+			Parameters: (*struct {
+				ID      string `path:"appID" description:"application identifier."`
+				BrickID string `path:"brickID" description:"brick identifier."`
+			})(nil),
+			Request: orchestrator.BrickCreateUpdateRequest{},
+			CustomSuccessResponse: &CustomResponseDef{
+				Description: "Successful response",
+				StatusCode:  http.StatusOK,
+			},
+			Description: "Update a brick instance for an app. It update/add only the provided fields.",
+			Summary:     "Update a brick instance for an app",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "deleteAppBrickInstance",
+			Method:      http.MethodDelete,
+			Path:        "/v1/apps/{appID}/bricks/{brickID}",
+			Parameters: (*struct {
+				ID      string `path:"appID" description:"application identifier."`
+				BrickID string `path:"brickID" description:"brick identifier."`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				Description: "Successful response",
+				StatusCode:  http.StatusOK,
+			},
+			Description: "Delete a brick instance for an app. It will remove the brick instance from the app.",
+			Summary:     "Delete a brick instance for an app",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
 	}
 
 	for _, op := range operations {

@@ -56,12 +56,17 @@ func (m *ModelsIndex) GetModelByID(id string) (*AIModel, bool) {
 	return &m.models[idx], true
 }
 
-func (m *ModelsIndex) GetModelByBrick(brick string) (*AIModel, bool) {
-	idx := slices.IndexFunc(m.models, func(v AIModel) bool { return v.Brick == brick })
-	if idx == -1 {
-		return nil, false
+func (m *ModelsIndex) GetModelsByBrick(brick string) []AIModel {
+	var matches []AIModel
+	for i := range m.models {
+		if m.models[i].Brick == brick {
+			matches = append(matches, m.models[i])
+		}
 	}
-	return &m.models[idx], true
+	if len(matches) == 0 {
+		return nil
+	}
+	return matches
 }
 
 func (m *ModelsIndex) GetModelsByBricks(bricks []string) []AIModel {

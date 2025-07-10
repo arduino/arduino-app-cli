@@ -78,6 +78,170 @@ paths:
       summary: Creates a new app
       tags:
       - Application
+  /v1/apps/{appID}/bricks:
+    get:
+      description: Get the list of brick instances for a specific app.
+      operationId: getAppBrickInstances
+      parameters:
+      - description: application identifier.
+        in: path
+        name: appID
+        required: true
+        schema:
+          description: application identifier.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppBrickInstancesResult'
+          description: Successful response
+        "412":
+          $ref: '#/components/responses/PreconditionFailed'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Get brick instances for an app
+      tags:
+      - Application
+  /v1/apps/{appID}/bricks/{brickID}:
+    delete:
+      description: Delete a brick instance for an app. It will remove the brick instance
+        from the app.
+      operationId: deleteAppBrickInstance
+      parameters:
+      - description: application identifier.
+        in: path
+        name: appID
+        required: true
+        schema:
+          description: application identifier.
+          type: string
+      - description: brick identifier.
+        in: path
+        name: brickID
+        required: true
+        schema:
+          description: brick identifier.
+          type: string
+      responses:
+        "200":
+          description: Successful response
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "412":
+          $ref: '#/components/responses/PreconditionFailed'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Delete a brick instance for an app
+      tags:
+      - Application
+    get:
+      description: Get a specific brick instance for an app by its ID.
+      operationId: getAppBrickInstanceByBrickID
+      parameters:
+      - description: application identifier.
+        in: path
+        name: appID
+        required: true
+        schema:
+          description: application identifier.
+          type: string
+      - description: brick identifier.
+        in: path
+        name: brickID
+        required: true
+        schema:
+          description: brick identifier.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrickInstance'
+          description: Successful response
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "412":
+          $ref: '#/components/responses/PreconditionFailed'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Get a specific brick instance by ID
+      tags:
+      - Application
+    patch:
+      description: Update a brick instance for an app. It update/add only the provided
+        fields.
+      operationId: updateAppBrickInstance
+      parameters:
+      - description: application identifier.
+        in: path
+        name: appID
+        required: true
+        schema:
+          description: application identifier.
+          type: string
+      - description: brick identifier.
+        in: path
+        name: brickID
+        required: true
+        schema:
+          description: brick identifier.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BrickCreateUpdateRequest'
+      responses:
+        "200":
+          description: Successful response
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "412":
+          $ref: '#/components/responses/PreconditionFailed'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Update a brick instance for an app
+      tags:
+      - Application
+    put:
+      description: Upsert a brick instance for an app. If the instance does not exist,
+        it will be created. If it exists, it will be updated.
+      operationId: upsertAppBrickInstance
+      parameters:
+      - description: application identifier.
+        in: path
+        name: appID
+        required: true
+        schema:
+          description: application identifier.
+          type: string
+      - description: brick identifier.
+        in: path
+        name: brickID
+        required: true
+        schema:
+          description: brick identifier.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BrickCreateUpdateRequest'
+      responses:
+        "200":
+          description: Successful response
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "412":
+          $ref: '#/components/responses/PreconditionFailed'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Upsert a brick instance for an app
+      tags:
+      - Application
   /v1/apps/{id}:
     delete:
       description: Remove the given app and all the resources it created
@@ -684,6 +848,14 @@ components:
           nullable: true
           type: array
       type: object
+    AppBrickInstancesResult:
+      properties:
+        bricks:
+          items:
+            $ref: '#/components/schemas/BrickInstance'
+          nullable: true
+          type: array
+      type: object
     AppDetailedBrick:
       properties:
         icon:
@@ -749,6 +921,16 @@ components:
         name:
           type: string
       type: object
+    BrickCreateUpdateRequest:
+      properties:
+        model:
+          nullable: true
+          type: string
+        variables:
+          additionalProperties:
+            type: string
+          type: object
+      type: object
     BrickDetailsResult:
       properties:
         author:
@@ -775,6 +957,25 @@ components:
             $ref: '#/components/schemas/BrickVariable'
           type: object
       type: object
+    BrickInstance:
+      properties:
+        author:
+          type: string
+        icon:
+          type: string
+        id:
+          type: string
+        model:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+        variables:
+          additionalProperties:
+            type: string
+          type: object
+      type: object
     BrickListItem:
       properties:
         author:
@@ -785,6 +986,11 @@ components:
           type: string
         id:
           type: string
+        models:
+          items:
+            type: string
+          nullable: true
+          type: array
         name:
           type: string
         status:

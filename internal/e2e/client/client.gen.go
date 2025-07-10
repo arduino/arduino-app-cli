@@ -41,6 +41,11 @@ type AIModelsListResult struct {
 	Models *[]AIModelItem `json:"models"`
 }
 
+// AppBrickInstancesResult defines model for AppBrickInstancesResult.
+type AppBrickInstancesResult struct {
+	Bricks *[]BrickInstance `json:"bricks"`
+}
+
 // AppDetailedBrick defines model for AppDetailedBrick.
 type AppDetailedBrick struct {
 	Icon *string `json:"icon,omitempty"`
@@ -83,6 +88,12 @@ type AppReference struct {
 	Name *string `json:"name,omitempty"`
 }
 
+// BrickCreateUpdateRequest defines model for BrickCreateUpdateRequest.
+type BrickCreateUpdateRequest struct {
+	Model     *string            `json:"model"`
+	Variables *map[string]string `json:"variables,omitempty"`
+}
+
 // BrickDetailsResult defines model for BrickDetailsResult.
 type BrickDetailsResult struct {
 	Author      *string                   `json:"author,omitempty"`
@@ -96,14 +107,26 @@ type BrickDetailsResult struct {
 	Variables   *map[string]BrickVariable `json:"variables,omitempty"`
 }
 
+// BrickInstance defines model for BrickInstance.
+type BrickInstance struct {
+	Author    *string            `json:"author,omitempty"`
+	Icon      *string            `json:"icon,omitempty"`
+	Id        *string            `json:"id,omitempty"`
+	Model     *string            `json:"model,omitempty"`
+	Name      *string            `json:"name,omitempty"`
+	Status    *string            `json:"status,omitempty"`
+	Variables *map[string]string `json:"variables,omitempty"`
+}
+
 // BrickListItem defines model for BrickListItem.
 type BrickListItem struct {
-	Author      *string `json:"author,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Icon        *string `json:"icon,omitempty"`
-	Id          *string `json:"id,omitempty"`
-	Name        *string `json:"name,omitempty"`
-	Status      *string `json:"status,omitempty"`
+	Author      *string   `json:"author,omitempty"`
+	Description *string   `json:"description,omitempty"`
+	Icon        *string   `json:"icon,omitempty"`
+	Id          *string   `json:"id,omitempty"`
+	Models      *[]string `json:"models"`
+	Name        *string   `json:"name,omitempty"`
+	Status      *string   `json:"status,omitempty"`
 }
 
 // BrickListResult defines model for BrickListResult.
@@ -277,6 +300,12 @@ type CheckUpdateParams struct {
 // CreateAppJSONRequestBody defines body for CreateApp for application/json ContentType.
 type CreateAppJSONRequestBody = CreateAppRequest
 
+// UpdateAppBrickInstanceJSONRequestBody defines body for UpdateAppBrickInstance for application/json ContentType.
+type UpdateAppBrickInstanceJSONRequestBody = BrickCreateUpdateRequest
+
+// UpsertAppBrickInstanceJSONRequestBody defines body for UpsertAppBrickInstance for application/json ContentType.
+type UpsertAppBrickInstanceJSONRequestBody = BrickCreateUpdateRequest
+
 // EditAppJSONRequestBody defines body for EditApp for application/json ContentType.
 type EditAppJSONRequestBody = EditRequest
 
@@ -364,6 +393,25 @@ type ClientInterface interface {
 
 	CreateApp(ctx context.Context, params *CreateAppParams, body CreateAppJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetAppBrickInstances request
+	GetAppBrickInstances(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteAppBrickInstance request
+	DeleteAppBrickInstance(ctx context.Context, appID string, brickID string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAppBrickInstanceByBrickID request
+	GetAppBrickInstanceByBrickID(ctx context.Context, appID string, brickID string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateAppBrickInstanceWithBody request with any body
+	UpdateAppBrickInstanceWithBody(ctx context.Context, appID string, brickID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateAppBrickInstance(ctx context.Context, appID string, brickID string, body UpdateAppBrickInstanceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpsertAppBrickInstanceWithBody request with any body
+	UpsertAppBrickInstanceWithBody(ctx context.Context, appID string, brickID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpsertAppBrickInstance(ctx context.Context, appID string, brickID string, body UpsertAppBrickInstanceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// DeleteApp request
 	DeleteApp(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -449,6 +497,90 @@ func (c *Client) CreateAppWithBody(ctx context.Context, params *CreateAppParams,
 
 func (c *Client) CreateApp(ctx context.Context, params *CreateAppParams, body CreateAppJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateAppRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAppBrickInstances(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAppBrickInstancesRequest(c.Server, appID)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteAppBrickInstance(ctx context.Context, appID string, brickID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAppBrickInstanceRequest(c.Server, appID, brickID)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAppBrickInstanceByBrickID(ctx context.Context, appID string, brickID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAppBrickInstanceByBrickIDRequest(c.Server, appID, brickID)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateAppBrickInstanceWithBody(ctx context.Context, appID string, brickID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateAppBrickInstanceRequestWithBody(c.Server, appID, brickID, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateAppBrickInstance(ctx context.Context, appID string, brickID string, body UpdateAppBrickInstanceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateAppBrickInstanceRequest(c.Server, appID, brickID, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpsertAppBrickInstanceWithBody(ctx context.Context, appID string, brickID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpsertAppBrickInstanceRequestWithBody(c.Server, appID, brickID, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpsertAppBrickInstance(ctx context.Context, appID string, brickID string, body UpsertAppBrickInstanceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpsertAppBrickInstanceRequest(c.Server, appID, brickID, body)
 	if err != nil {
 		return nil, err
 	}
@@ -833,6 +965,230 @@ func NewCreateAppRequestWithBody(server string, params *CreateAppParams, content
 	}
 
 	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetAppBrickInstancesRequest generates requests for GetAppBrickInstances
+func NewGetAppBrickInstancesRequest(server string, appID string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "appID", runtime.ParamLocationPath, appID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/apps/%s/bricks", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteAppBrickInstanceRequest generates requests for DeleteAppBrickInstance
+func NewDeleteAppBrickInstanceRequest(server string, appID string, brickID string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "appID", runtime.ParamLocationPath, appID)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "brickID", runtime.ParamLocationPath, brickID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/apps/%s/bricks/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAppBrickInstanceByBrickIDRequest generates requests for GetAppBrickInstanceByBrickID
+func NewGetAppBrickInstanceByBrickIDRequest(server string, appID string, brickID string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "appID", runtime.ParamLocationPath, appID)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "brickID", runtime.ParamLocationPath, brickID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/apps/%s/bricks/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateAppBrickInstanceRequest calls the generic UpdateAppBrickInstance builder with application/json body
+func NewUpdateAppBrickInstanceRequest(server string, appID string, brickID string, body UpdateAppBrickInstanceJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateAppBrickInstanceRequestWithBody(server, appID, brickID, "application/json", bodyReader)
+}
+
+// NewUpdateAppBrickInstanceRequestWithBody generates requests for UpdateAppBrickInstance with any type of body
+func NewUpdateAppBrickInstanceRequestWithBody(server string, appID string, brickID string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "appID", runtime.ParamLocationPath, appID)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "brickID", runtime.ParamLocationPath, brickID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/apps/%s/bricks/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewUpsertAppBrickInstanceRequest calls the generic UpsertAppBrickInstance builder with application/json body
+func NewUpsertAppBrickInstanceRequest(server string, appID string, brickID string, body UpsertAppBrickInstanceJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpsertAppBrickInstanceRequestWithBody(server, appID, brickID, "application/json", bodyReader)
+}
+
+// NewUpsertAppBrickInstanceRequestWithBody generates requests for UpsertAppBrickInstance with any type of body
+func NewUpsertAppBrickInstanceRequestWithBody(server string, appID string, brickID string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "appID", runtime.ParamLocationPath, appID)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "brickID", runtime.ParamLocationPath, brickID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/apps/%s/bricks/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -1595,6 +1951,25 @@ type ClientWithResponsesInterface interface {
 
 	CreateAppWithResponse(ctx context.Context, params *CreateAppParams, body CreateAppJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAppResp, error)
 
+	// GetAppBrickInstancesWithResponse request
+	GetAppBrickInstancesWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*GetAppBrickInstancesResp, error)
+
+	// DeleteAppBrickInstanceWithResponse request
+	DeleteAppBrickInstanceWithResponse(ctx context.Context, appID string, brickID string, reqEditors ...RequestEditorFn) (*DeleteAppBrickInstanceResp, error)
+
+	// GetAppBrickInstanceByBrickIDWithResponse request
+	GetAppBrickInstanceByBrickIDWithResponse(ctx context.Context, appID string, brickID string, reqEditors ...RequestEditorFn) (*GetAppBrickInstanceByBrickIDResp, error)
+
+	// UpdateAppBrickInstanceWithBodyWithResponse request with any body
+	UpdateAppBrickInstanceWithBodyWithResponse(ctx context.Context, appID string, brickID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAppBrickInstanceResp, error)
+
+	UpdateAppBrickInstanceWithResponse(ctx context.Context, appID string, brickID string, body UpdateAppBrickInstanceJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAppBrickInstanceResp, error)
+
+	// UpsertAppBrickInstanceWithBodyWithResponse request with any body
+	UpsertAppBrickInstanceWithBodyWithResponse(ctx context.Context, appID string, brickID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertAppBrickInstanceResp, error)
+
+	UpsertAppBrickInstanceWithResponse(ctx context.Context, appID string, brickID string, body UpsertAppBrickInstanceJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertAppBrickInstanceResp, error)
+
 	// DeleteAppWithResponse request
 	DeleteAppWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteAppResp, error)
 
@@ -1696,6 +2071,127 @@ func (r CreateAppResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r CreateAppResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAppBrickInstancesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AppBrickInstancesResult
+	JSON412      *PreconditionFailed
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAppBrickInstancesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAppBrickInstancesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteAppBrickInstanceResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON412      *PreconditionFailed
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteAppBrickInstanceResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteAppBrickInstanceResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAppBrickInstanceByBrickIDResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *BrickInstance
+	JSON400      *BadRequest
+	JSON412      *PreconditionFailed
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAppBrickInstanceByBrickIDResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAppBrickInstanceByBrickIDResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateAppBrickInstanceResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON412      *PreconditionFailed
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateAppBrickInstanceResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateAppBrickInstanceResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpsertAppBrickInstanceResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON412      *PreconditionFailed
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpsertAppBrickInstanceResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpsertAppBrickInstanceResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -2152,6 +2648,67 @@ func (c *ClientWithResponses) CreateAppWithResponse(ctx context.Context, params 
 	return ParseCreateAppResp(rsp)
 }
 
+// GetAppBrickInstancesWithResponse request returning *GetAppBrickInstancesResp
+func (c *ClientWithResponses) GetAppBrickInstancesWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*GetAppBrickInstancesResp, error) {
+	rsp, err := c.GetAppBrickInstances(ctx, appID, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAppBrickInstancesResp(rsp)
+}
+
+// DeleteAppBrickInstanceWithResponse request returning *DeleteAppBrickInstanceResp
+func (c *ClientWithResponses) DeleteAppBrickInstanceWithResponse(ctx context.Context, appID string, brickID string, reqEditors ...RequestEditorFn) (*DeleteAppBrickInstanceResp, error) {
+	rsp, err := c.DeleteAppBrickInstance(ctx, appID, brickID, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAppBrickInstanceResp(rsp)
+}
+
+// GetAppBrickInstanceByBrickIDWithResponse request returning *GetAppBrickInstanceByBrickIDResp
+func (c *ClientWithResponses) GetAppBrickInstanceByBrickIDWithResponse(ctx context.Context, appID string, brickID string, reqEditors ...RequestEditorFn) (*GetAppBrickInstanceByBrickIDResp, error) {
+	rsp, err := c.GetAppBrickInstanceByBrickID(ctx, appID, brickID, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAppBrickInstanceByBrickIDResp(rsp)
+}
+
+// UpdateAppBrickInstanceWithBodyWithResponse request with arbitrary body returning *UpdateAppBrickInstanceResp
+func (c *ClientWithResponses) UpdateAppBrickInstanceWithBodyWithResponse(ctx context.Context, appID string, brickID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAppBrickInstanceResp, error) {
+	rsp, err := c.UpdateAppBrickInstanceWithBody(ctx, appID, brickID, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateAppBrickInstanceResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateAppBrickInstanceWithResponse(ctx context.Context, appID string, brickID string, body UpdateAppBrickInstanceJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAppBrickInstanceResp, error) {
+	rsp, err := c.UpdateAppBrickInstance(ctx, appID, brickID, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateAppBrickInstanceResp(rsp)
+}
+
+// UpsertAppBrickInstanceWithBodyWithResponse request with arbitrary body returning *UpsertAppBrickInstanceResp
+func (c *ClientWithResponses) UpsertAppBrickInstanceWithBodyWithResponse(ctx context.Context, appID string, brickID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertAppBrickInstanceResp, error) {
+	rsp, err := c.UpsertAppBrickInstanceWithBody(ctx, appID, brickID, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpsertAppBrickInstanceResp(rsp)
+}
+
+func (c *ClientWithResponses) UpsertAppBrickInstanceWithResponse(ctx context.Context, appID string, brickID string, body UpsertAppBrickInstanceJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertAppBrickInstanceResp, error) {
+	rsp, err := c.UpsertAppBrickInstance(ctx, appID, brickID, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpsertAppBrickInstanceResp(rsp)
+}
+
 // DeleteAppWithResponse request returning *DeleteAppResp
 func (c *ClientWithResponses) DeleteAppWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteAppResp, error) {
 	rsp, err := c.DeleteApp(ctx, id, reqEditors...)
@@ -2397,6 +2954,213 @@ func ParseCreateAppResp(rsp *http.Response) (*CreateAppResp, error) {
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAppBrickInstancesResp parses an HTTP response from a GetAppBrickInstancesWithResponse call
+func ParseGetAppBrickInstancesResp(rsp *http.Response) (*GetAppBrickInstancesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAppBrickInstancesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AppBrickInstancesResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteAppBrickInstanceResp parses an HTTP response from a DeleteAppBrickInstanceWithResponse call
+func ParseDeleteAppBrickInstanceResp(rsp *http.Response) (*DeleteAppBrickInstanceResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteAppBrickInstanceResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAppBrickInstanceByBrickIDResp parses an HTTP response from a GetAppBrickInstanceByBrickIDWithResponse call
+func ParseGetAppBrickInstanceByBrickIDResp(rsp *http.Response) (*GetAppBrickInstanceByBrickIDResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAppBrickInstanceByBrickIDResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest BrickInstance
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateAppBrickInstanceResp parses an HTTP response from a UpdateAppBrickInstanceWithResponse call
+func ParseUpdateAppBrickInstanceResp(rsp *http.Response) (*UpdateAppBrickInstanceResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateAppBrickInstanceResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpsertAppBrickInstanceResp parses an HTTP response from a UpsertAppBrickInstanceWithResponse call
+func ParseUpsertAppBrickInstanceResp(rsp *http.Response) (*UpsertAppBrickInstanceResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpsertAppBrickInstanceResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError

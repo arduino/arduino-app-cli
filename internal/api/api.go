@@ -40,6 +40,12 @@ func NewHTTPRouter(dockerClient *dockerClient.Client, version string, aptClient 
 	mux.Handle("POST /v1/apps/{appID}/clone", handlers.HandleAppClone(dockerClient))
 	mux.Handle("DELETE /v1/apps/{appID}", handlers.HandleAppDelete())
 
+	mux.Handle("GET /v1/apps/{appID}/bricks", handlers.HandleAppBrickInstancesList())
+	mux.Handle("GET /v1/apps/{appID}/bricks/{brickID}", handlers.HandleAppBrickInstanceDetails())
+	mux.Handle("PUT /v1/apps/{appID}/bricks/{brickID}", handlers.HandleBrickCreate())
+	mux.Handle("PATCH /v1/apps/{appID}/bricks/{brickID}", handlers.HandleBrickUpdates())
+	mux.Handle("DELETE /v1/apps/{appID}/bricks/{brickID}", handlers.HandleBrickDelete())
+
 	mux.Handle("GET /v1/docs/", http.StripPrefix("/v1/docs/", handlers.DocsServer(docsFS)))
 
 	return mux
