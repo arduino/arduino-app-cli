@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/assets"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
 
 var ErrBrickNotFound = errors.New("brick not found")
@@ -24,18 +23,8 @@ type BrickListItem struct {
 }
 
 func BricksList() (BrickListResult, error) {
-	collection, found := bricksIndex.GetCollection("arduino", "app-bricks")
-	if !found {
-		return BrickListResult{}, errors.New("collection not found")
-	}
-
-	release, found := collection.GetRelease(bricksVersion)
-	if !found {
-		return BrickListResult{}, errors.New("release not found")
-	}
-
-	res := BrickListResult{Bricks: make([]BrickListItem, len(release.Bricks))}
-	for i, brick := range release.Bricks {
+	res := BrickListResult{Bricks: make([]BrickListItem, len(bricksIndex.Bricks))}
+	for i, brick := range bricksIndex.Bricks {
 		res.Bricks[i] = BrickListItem{
 			ID:          brick.ID,
 			Name:        brick.Name,
@@ -73,32 +62,17 @@ type BrickVariable struct {
 }
 
 func BricksDetails(id string) (BrickDetailsResult, error) {
-	collection, found := bricksIndex.GetCollection("arduino", "app-bricks")
+	brick, found := bricksIndex.FindBrickByID(id)
 	if !found {
-		return BrickDetailsResult{}, errors.New("collection not found")
-	}
-
-	release, found := collection.GetRelease(bricksVersion)
-	if !found {
-		return BrickDetailsResult{}, errors.New("release not found")
-	}
-
-	var brick *bricksindex.Brick
-	for _, b := range release.Bricks {
-		if b.ID == id {
-			brick = b
-		}
-	}
-	if brick == nil {
 		return BrickDetailsResult{}, ErrBrickNotFound
 	}
 
 	variables := make(map[string]BrickVariable, len(brick.Variables))
-	for k, v := range brick.Variables {
-		variables[k] = BrickVariable{
+	for _, v := range brick.Variables {
+		variables[v.Name] = BrickVariable{
 			DefaultValue: v.DefaultValue,
 			Description:  v.Description,
-			Required:     v.DefaultValue == "",
+			Required:     v.IsRequired(),
 		}
 	}
 

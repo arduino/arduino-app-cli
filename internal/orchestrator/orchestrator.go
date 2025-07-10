@@ -30,6 +30,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/cmd/router/msgpackrpc"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/assets"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/pkg/micro"
@@ -103,17 +104,12 @@ func init() {
 		usedPythonImageTag = pythonImage[idx+1:]
 	}
 
-	collection, found := bricksIndex.GetCollection("arduino", "app-bricks")
-	if !found {
-		panic(fmt.Errorf("bricks index: arduino collection not found"))
+	versions, err := assets.FS.ReadDir("static")
+	if err != nil {
+		panic(fmt.Errorf("unable to read assets"))
 	}
 
-	chosenVersion, _ := semver.Parse(usedPythonImageTag)
-	if _, found := collection.GetRelease(chosenVersion); found {
-		bricksVersion = chosenVersion
-	} else {
-		bricksVersion = collection.LatestRelease
-	}
+	bricksVersion = semver.MustParse(versions[0].Name())
 
 	onBoard = (func() bool {
 		buf, err := os.ReadFile("/sys/class/dmi/id/product_name")
@@ -815,23 +811,14 @@ func editVariables(userApp *app.ArduinoApp, variables map[string]map[string]stri
 
 	checkTheVariablesExists := func(brickID string, vars map[string]string) error {
 		// Check that the brick exists in the bricks index.
-		collection, ok := bricksIndex.GetCollection("arduino", "app-bricks")
-		if !ok {
-			return fmt.Errorf("bricks index: arduino collection not found")
-		}
-		release, ok := collection.GetRelease(bricksVersion)
-		if !ok {
-			return fmt.Errorf("bricks index: release %s not found in arduino collection", bricksVersion)
-		}
-
-		brick, brickFound := release.FindBrickByID(brickID)
+		brick, brickFound := bricksIndex.FindBrickByID(brickID)
 		if !brickFound {
 			return fmt.Errorf("brick %v not found in bricks index", brickID)
 		}
 
 		// Validate that the variables exists for the brick.
 		for varName := range vars {
-			if _, ok := brick.Variables[varName]; !ok {
+			if _, ok := brick.GetVariable(varName); !ok {
 				return fmt.Errorf("variable %v not found in brick %v", varName, brickID)
 			}
 		}

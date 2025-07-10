@@ -79,7 +79,7 @@ func GenerateModelsIndex() (*ModelsIndex, error) {
 	if err != nil {
 		return nil, err
 	}
-	f.Assert(len(versions) > 0, "No models available in the assets directory")
+	f.Assert(len(versions) == 1, "No models available in the assets directory")
 
 	modelsList, err := assets.FS.ReadFile(path.Join("static", versions[0].Name(), "models-list.yaml"))
 	if err != nil {

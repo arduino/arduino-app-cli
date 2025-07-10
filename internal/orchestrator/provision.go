@@ -223,15 +223,7 @@ func generateMainComposeFile(ctx context.Context, app app.ArduinoApp, pythonImag
 	}
 
 	for _, b := range app.Descriptor.Bricks {
-		collection, found := bricksIndex.GetCollection("arduino", "app-bricks")
-		if !found {
-			continue
-		}
-		r, found := collection.GetRelease(bricksVersion)
-		if !found {
-			continue
-		}
-		brick, found := r.FindBrickByID(b.ID)
+		brick, found := bricksIndex.FindBrickByID(b.ID)
 		if !found {
 			continue
 		}

@@ -169,15 +169,12 @@ func TestBricksList(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, response.JSON200.Bricks)
 
-	idx := f.Must(bricksindex.GenerateBricksIndex())
-	collection, found := idx.GetCollection("arduino", "app-bricks")
-	require.True(t, found)
-	brickRelease := collection.GetLatestRelease()
-	require.NotNil(t, found)
+	brickIndex, err := bricksindex.GenerateBricksIndex()
+	require.NoError(t, err)
 
 	// Compare the response with the bricks index
 	for _, brick := range *response.JSON200.Bricks {
-		bIdx, found := brickRelease.FindBrickByID(*brick.Id)
+		bIdx, found := brickIndex.FindBrickByID(*brick.Id)
 		require.True(t, found)
 		require.Equal(t, bIdx.Name, *brick.Name)
 		require.Equal(t, bIdx.Description, *brick.Description)
