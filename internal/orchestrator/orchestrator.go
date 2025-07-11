@@ -28,7 +28,7 @@ import (
 	"go.bug.st/f"
 	semver "go.bug.st/relaxed-semver"
 
-	"github.com/arduino/arduino-app-cli/cmd/router/msgpackrpc"
+	"github.com/arduino/arduino-app-cli/cmd/arduino-router/msgpackrpc"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/assets"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
