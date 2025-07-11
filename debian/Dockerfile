@@ -1,4 +1,4 @@
-FROM golang:1.24.2 AS go
+FROM golang:1.24.5 AS go
 
 ARG BINARY_NAME
 RUN test -n "${BINARY_NAME}" || (echo "Error: BINARY_NAME is not set" && exit 1)
@@ -10,7 +10,7 @@ RUN test -n "${ARCH}" || (echo "Error: ARCH is not set" && exit 1)
 COPY . /app
 WORKDIR /app
 RUN export VERSION=$(echo "${VERSION}" | sed -e "s/^v\(.*\)/\1/") && \
-    GOOS=linux GOARCH=${ARCH} go build -ldflags "-X 'main.Version=${VERSION}'" -o ${BINARY_NAME} ./cmd/${BINARY_NAME}
+  GOOS=linux GOARCH=${ARCH} go build -ldflags "-X 'main.Version=${VERSION}'" -o ${BINARY_NAME} ./cmd/${BINARY_NAME}
 
 FROM debian:bookworm AS debian
 
