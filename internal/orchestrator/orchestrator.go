@@ -455,9 +455,9 @@ type AppDetailedInfo struct {
 }
 
 type AppDetailedBrick struct {
-	ID   string `json:"id" required:"true"`
-	Name string `json:"name" required:"true"`
-	Icon string `json:"icon,omitempty"`
+	ID       string `json:"id" required:"true"`
+	Name     string `json:"name" required:"true"`
+	Category string `json:"category,omitempty"`
 }
 
 func AppDetails(ctx context.Context, docker *dockerClient.Client, userApp app.ArduinoApp) (AppDetailedInfo, error) {
@@ -503,11 +503,15 @@ func AppDetails(ctx context.Context, docker *dockerClient.Client, userApp app.Ar
 		Example:     id.IsExample(),
 		Default:     defaultAppPath == userApp.FullPath.String(),
 		Bricks: f.Map(userApp.Descriptor.Bricks, func(b app.Brick) AppDetailedBrick {
-			return AppDetailedBrick{
-				ID:   b.ID,
-				Name: b.ID, // TODO: retrieve the name from the index
-				Icon: "",   // TODO: should we gather the icon from the index?
+			res := AppDetailedBrick{ID: b.ID}
+			bi, found := bricksIndex.FindBrickByID(b.ID)
+			if !found {
+				slog.Warn("brick not found in bricks index", slog.String("id", b.ID), slog.String("app", userApp.FullPath.String()))
+				return res
 			}
+			res.Name = bi.Name
+			res.Category = bi.Category
+			return res
 		}),
 	}, nil
 }
@@ -786,51 +790,6 @@ func EditApp(req AppEditRequest, app *app.ArduinoApp) (editErr error) {
 	}
 
 	return app.Save()
-}
-
-// The key is brick name, the second map is variable_name -> value.
-//
-//nolint:unused
-func editVariables(userApp *app.ArduinoApp, variables map[string]map[string]string) error {
-	if len(variables) == 0 {
-		return nil
-	}
-
-	checkTheVariablesExists := func(brickID string, vars map[string]string) error {
-		// Check that the brick exists in the bricks index.
-		brick, brickFound := bricksIndex.FindBrickByID(brickID)
-		if !brickFound {
-			return fmt.Errorf("brick %v not found in bricks index", brickID)
-		}
-
-		// Validate that the variables exists for the brick.
-		for varName := range vars {
-			if _, ok := brick.GetVariable(varName); !ok {
-				return fmt.Errorf("variable %v not found in brick %v", varName, brickID)
-			}
-		}
-		return nil
-	}
-
-	for brickID, vars := range variables {
-		if err := checkTheVariablesExists(brickID, vars); err != nil {
-			return err
-		}
-
-		idx := slices.IndexFunc(userApp.Descriptor.Bricks, func(b app.Brick) bool {
-			return b.ID == brickID
-		})
-		if idx == -1 {
-			userApp.Descriptor.Bricks = append(userApp.Descriptor.Bricks, app.Brick{
-				ID:        brickID,
-				Variables: vars,
-			})
-		} else {
-			userApp.Descriptor.Bricks[idx].Variables = vars
-		}
-	}
-
-	return userApp.Save()
 }
 
 func editAppDefaults(userApp *app.ArduinoApp, isDefault bool) error {

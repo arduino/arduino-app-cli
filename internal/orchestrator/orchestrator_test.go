@@ -276,74 +276,6 @@ func TestEditApp(t *testing.T) {
 		require.Equal(t, "new desc", editedApp.Descriptor.Description)
 		require.Equal(t, "💻", editedApp.Descriptor.Icon)
 	})
-
-	// TODO: Re-enable this tests when we refactor the brick endpoint
-	// 	createAppWithBricks := func(t *testing.T, bricks []app.Brick) *app.ArduinoApp {
-	// 	t.Helper()
-	// 	name := fmt.Sprintf("app-%v", time.Now().UnixNano())
-	// 	_, err := CreateApp(t.Context(), CreateAppRequest{Name: name})
-	// 	require.NoError(t, err)
-	// 	appWithBricksDir := orchestratorConfig.AppsDir().Join(name)
-	// 	appWithBricks := f.Ptr(f.Must(app.Load(appWithBricksDir.String())))
-	// 	appWithBricks.Descriptor.Bricks = bricks
-	// 	require.NoError(t, err)
-	// 	err = appWithBricks.Save()
-	// 	require.NoError(t, err)
-	// 	return appWithBricks
-	// }
-	//
-	// t.Run("with brick variables", func(t *testing.T) {
-	// 	t.Run("add new brick", func(t *testing.T) {
-	// 		appWithBricks := createAppWithBricks(t, []app.Brick{})
-	// 		err := EditApp(AppEditRequest{
-	// 			Default: new(bool),
-	// 			Variables: f.Ptr(map[string]map[string]string{
-	// 				"arduino:object_detection": {"CUSTOM_MODEL_PATH": "/opt/models/ei"},
-	// 			}),
-	// 		}, appWithBricks)
-	// 		require.NoError(t, err)
-	// 	})
-	//
-	// 	t.Run("override variables to existing brick", func(t *testing.T) {
-	// 		appWithBricks := createAppWithBricks(t, []app.Brick{
-	// 			{
-	// 				ID:        "arduino:object_detection",
-	// 				Variables: map[string]string{"CUSTOM_MODEL_PATH": "/opt/models/ei"},
-	// 			},
-	// 		})
-	//
-	// 		newVariables := map[string]map[string]string{
-	// 			"arduino:object_detection": {"CUSTOM_MODEL_PATH": "/new"},
-	// 		}
-	// 		err := EditApp(AppEditRequest{
-	// 			Default:   new(bool),
-	// 			Variables: &newVariables,
-	// 		}, appWithBricks)
-	// 		require.NoError(t, err)
-	//
-	// 		newApp, err := app.Load(appWithBricks.FullPath.String())
-	// 		require.NoError(t, err)
-	// 		require.Len(t, newApp.Descriptor.Bricks, 1)
-	// 		require.Equal(t, "arduino:object_detection", newApp.Descriptor.Bricks[0].ID)
-	// 		require.Equal(t, newVariables["arduino:object_detection"], newApp.Descriptor.Bricks[0].Variables)
-	// 	})
-	// 	t.Run("setting not existing variable", func(t *testing.T) {
-	// 		appWithBricks := createAppWithBricks(t, []app.Brick{})
-	//
-	// 		newVariables := map[string]map[string]string{
-	// 			"arduino:object_detection": {"NOT_EXISTING_VAR": "nope"},
-	// 		}
-	// 		err := EditApp(AppEditRequest{
-	// 			Default:   new(bool),
-	// 			Variables: &newVariables,
-	// 		}, appWithBricks)
-	// 		require.Error(t, err)
-	//
-	// 		newApp, err := app.Load(appWithBricks.FullPath.String())
-	// 		require.NoError(t, err)
-	// 		require.Len(t, newApp.Descriptor.Bricks, 0)
-	// 	})
-	// })
 }
 
 func TestListApp(t *testing.T) {
@@ -367,8 +299,7 @@ func TestListApp(t *testing.T) {
 			StatusFilter: "",
 		})
 		require.NoError(t, err)
-		// FIXME: we should enable this assertion when we have broken apps
-		// assert.Empty(t, res.BrokenApps)
+		assert.Empty(t, res.BrokenApps)
 		assert.Empty(t, gCmp.Diff([]AppInfo{
 			{
 				ID:          f.Must(ParseID("examples:example1")),
@@ -407,8 +338,7 @@ func TestListApp(t *testing.T) {
 			StatusFilter: "",
 		})
 		require.NoError(t, err)
-		// FIXME: we should enable this assertion when we have broken apps
-		// assert.Empty(t, res.BrokenApps)
+		assert.Empty(t, res.BrokenApps)
 		assert.Empty(t, gCmp.Diff([]AppInfo{
 			{
 				ID:          f.Must(ParseID("user:app1")),
@@ -438,8 +368,7 @@ func TestListApp(t *testing.T) {
 			StatusFilter: "",
 		})
 		require.NoError(t, err)
-		// FIXME: we should enable this assertion when we have broken apps
-		// assert.Empty(t, res.BrokenApps)
+		assert.Empty(t, res.BrokenApps)
 		assert.Empty(t, gCmp.Diff([]AppInfo{
 			{
 				ID:          f.Must(ParseID("examples:example1")),

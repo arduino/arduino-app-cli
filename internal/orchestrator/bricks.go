@@ -25,7 +25,7 @@ type BrickListItem struct {
 	Name        string   `json:"name"`
 	Author      string   `json:"author"`
 	Description string   `json:"description"`
-	Icon        string   `json:"icon"` // TODO: not implemented yet
+	Category    string   `json:"category"`
 	Status      string   `json:"status"`
 	Models      []string `json:"models"`
 }
@@ -50,7 +50,7 @@ type BrickDetailsResult struct {
 	Name        string                   `json:"name"`
 	Author      string                   `json:"author"`
 	Description string                   `json:"description"`
-	Icon        string                   `json:"icon"` // TODO: not implemented yet
+	Category    string                   `json:"category"`
 	Status      string                   `json:"status"`
 	Variables   map[string]BrickVariable `json:"variables,omitempty"`
 	Readme      string                   `json:"readme"`
@@ -61,7 +61,7 @@ type BrickInstance struct {
 	ID        string            `json:"id"`
 	Name      string            `json:"name"`
 	Author    string            `json:"author"`
-	Icon      string            `json:"icon"` // TODO: not implemented yet
+	Category  string            `json:"category"`
 	Status    string            `json:"status"`
 	Variables map[string]string `json:"variables,omitempty"`
 	ModelID   string            `json:"model,omitempty"`
@@ -79,7 +79,7 @@ func BricksList() (BrickListResult, error) {
 			Name:        brick.Name,
 			Author:      "Arduino", // TODO: for now we only support our bricks
 			Description: brick.Description,
-			Icon:        "", // TODO: not implemented yet
+			Category:    brick.Category,
 			Status:      "installed",
 			Models: f.Map(modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModel) string {
 				return m.ID
@@ -100,7 +100,7 @@ func AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesResult, error) {
 			ID:        brick.ID,
 			Name:      brick.Name,
 			Author:    "Arduino", // TODO: for now we only support our bricks
-			Icon:      "",        // TODO: not implemented yet
+			Category:  brick.Category,
 			Status:    "installed",
 			ModelID:   brickInstance.Model,     // TODO: in case is not set by the user, should we return the default model?
 			Variables: brickInstance.Variables, // TODO: do we want to show also the default value of not explicitly set variables?
@@ -135,8 +135,8 @@ func AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (BrickInstance, 
 	return BrickInstance{
 		ID:        brickID,
 		Name:      brick.Name,
-		Author:    "Arduino",   // TODO: for now we only support our bricks
-		Icon:      "",          // TODO: not implemented yet
+		Author:    "Arduino", // TODO: for now we only support our bricks
+		Category:  brick.Category,
 		Status:    "installed", // For now every Arduino brick are installed
 		Variables: variables,
 		ModelID:   modelID,
@@ -168,7 +168,7 @@ func BricksDetails(id string) (BrickDetailsResult, error) {
 		Name:        brick.Name,
 		Author:      "Arduino", // TODO: for now we only support our bricks
 		Description: brick.Description,
-		Icon:        "",          // TODO: not implemented yet
+		Category:    brick.Category,
 		Status:      "installed", // For now every Arduino brick are installed
 		Variables:   variables,
 		Readme:      string(readme),

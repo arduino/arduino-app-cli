@@ -48,9 +48,9 @@ type AppBrickInstancesResult struct {
 
 // AppDetailedBrick defines model for AppDetailedBrick.
 type AppDetailedBrick struct {
-	Icon *string `json:"icon,omitempty"`
-	Id   string  `json:"id"`
-	Name string  `json:"name"`
+	Category *string `json:"category,omitempty"`
+	Id       string  `json:"id"`
+	Name     string  `json:"name"`
 }
 
 // AppDetailedInfo defines model for AppDetailedInfo.
@@ -103,8 +103,8 @@ type BrickCreateUpdateRequest struct {
 // BrickDetailsResult defines model for BrickDetailsResult.
 type BrickDetailsResult struct {
 	Author      *string                   `json:"author,omitempty"`
+	Category    *string                   `json:"category,omitempty"`
 	Description *string                   `json:"description,omitempty"`
-	Icon        *string                   `json:"icon,omitempty"`
 	Id          *string                   `json:"id,omitempty"`
 	Name        *string                   `json:"name,omitempty"`
 	Readme      *string                   `json:"readme,omitempty"`
@@ -116,7 +116,7 @@ type BrickDetailsResult struct {
 // BrickInstance defines model for BrickInstance.
 type BrickInstance struct {
 	Author    *string            `json:"author,omitempty"`
-	Icon      *string            `json:"icon,omitempty"`
+	Category  *string            `json:"category,omitempty"`
 	Id        *string            `json:"id,omitempty"`
 	Model     *string            `json:"model,omitempty"`
 	Name      *string            `json:"name,omitempty"`
@@ -127,8 +127,8 @@ type BrickInstance struct {
 // BrickListItem defines model for BrickListItem.
 type BrickListItem struct {
 	Author      *string   `json:"author,omitempty"`
+	Category    *string   `json:"category,omitempty"`
 	Description *string   `json:"description,omitempty"`
-	Icon        *string   `json:"icon,omitempty"`
 	Id          *string   `json:"id,omitempty"`
 	Models      *[]string `json:"models"`
 	Name        *string   `json:"name,omitempty"`

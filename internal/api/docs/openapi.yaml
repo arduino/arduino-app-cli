@@ -858,7 +858,7 @@ components:
       type: object
     AppDetailedBrick:
       properties:
-        icon:
+        category:
           type: string
         id:
           type: string
@@ -944,9 +944,9 @@ components:
       properties:
         author:
           type: string
-        description:
+        category:
           type: string
-        icon:
+        description:
           type: string
         id:
           type: string
@@ -970,7 +970,7 @@ components:
       properties:
         author:
           type: string
-        icon:
+        category:
           type: string
         id:
           type: string
@@ -989,9 +989,9 @@ components:
       properties:
         author:
           type: string
-        description:
+        category:
           type: string
-        icon:
+        description:
           type: string
         id:
           type: string
