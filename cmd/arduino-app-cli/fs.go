@@ -54,7 +54,7 @@ func newFSCmd() *cobra.Command {
 
 		},
 	}
-	fsCmd.PersistentFlags().StringVarP(&fqbn, "fqbn", "b", "dev:zephyr:jomla", "fqbn of the board")
+	fsCmd.PersistentFlags().StringVarP(&fqbn, "fqbn", "b", "arduino:zephyr:unoq", "fqbn of the board")
 	fsCmd.PersistentFlags().StringVar(&host, "host", "", "ADB host address")
 
 	fsCmd.AddCommand(newPushCmd())

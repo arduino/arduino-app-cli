@@ -46,17 +46,12 @@ var (
 	modelsIndex   *modelsindex.ModelsIndex
 	bricksIndex   *bricksindex.BricksIndex
 	bricksVersion *semver.Version
-
-	// true if the orchestrator is running on the Board.
-	onBoard bool
 )
 
 var (
 	ErrAppAlreadyExists = fmt.Errorf("app already exists")
 	ErrAppDoesntExists  = fmt.Errorf("app doesn't exist")
 	ErrInvalidApp       = fmt.Errorf("invalid app")
-
-	boardNames = []string{"Inc. Robotics RB1\n", "Imola\n"}
 )
 
 const (
@@ -110,14 +105,6 @@ func init() {
 	}
 
 	bricksVersion = semver.MustParse(versions[0].Name())
-
-	onBoard = (func() bool {
-		buf, err := os.ReadFile("/sys/class/dmi/id/product_name")
-		if err == nil && slices.Contains(boardNames, string(buf)) {
-			return true
-		}
-		return false
-	})()
 }
 
 type AppStreamMessage struct {
@@ -258,9 +245,9 @@ func StopApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
 		if app.MainSketchPath != nil {
 			// TODO: check that the app sketch is running before attempting to stop it.
 
-			if onBoard {
+			if micro.OnBoard {
 				// On imola we could just disable the microcontroller
-				if err := micro.Disable(); err != nil {
+				if err := micro.Disable(context.Background(), nil); err != nil {
 					yield(StreamMessage{error: err})
 					return
 				}
@@ -957,7 +944,7 @@ func compileUploadSketch(ctx context.Context, sketchPath, buildPath string, w io
 	}
 	sketch := sketchResp.GetSketch()
 	var profile string
-	if onBoard {
+	if micro.OnBoard {
 		profile = sketch.GetDefaultProfile().GetName()
 	}
 	initReq := &rpc.InitRequest{
@@ -976,8 +963,8 @@ func compileUploadSketch(ctx context.Context, sketchPath, buildPath string, w io
 
 	var fqbn string
 	var port *rpc.Port
-	if onBoard {
-		fqbn = "dev:zephyr:jomla"
+	if micro.OnBoard {
+		fqbn = "arduino:zephyr:unoq"
 	} else {
 		resp, err := srv.BoardList(ctx, &rpc.BoardListRequest{
 			Instance:                      inst,

@@ -5,14 +5,14 @@ package micro
 
 import "fmt"
 
-func Reset() error {
+func resetOnBoard() error {
 	return fmt.Errorf("micro is not supported on this platform")
 }
 
-func Enable() error {
+func enableOnBoard(bool) error {
 	return fmt.Errorf("micro is not supported on this platform")
 }
 
-func Disable() error {
+func disableOnBoard() error {
 	return fmt.Errorf("Enable is not supported on this platform")
 }

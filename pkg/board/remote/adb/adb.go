@@ -63,15 +63,17 @@ func FromSerial(serial string, adbPath string) (*ADBConnection, error) {
 	if adbPath == "" {
 		adbPath = findAdbPath()
 	}
+
 	// TODO: we should try multiple ports here.
 	if err := exec.Command(adbPath, "-s", serial, "forward", "tcp:2222", "tcp:22").Run(); err != nil {
-		panic(fmt.Errorf("failed to forward ADB port for serial %s: %w", serial, err))
+		return nil, fmt.Errorf("failed to forward ADB port for serial %s: %w", serial, err)
 	}
 
 	sshConn, err := ssh.FromHost("arduino", "arduino", "127.0.0.1:2222")
 	if err != nil {
-		panic(fmt.Errorf("failed to create SSH connection for serial %s: %w", serial, err))
+		return nil, fmt.Errorf("failed to create SSH connection for serial %s: %w", serial, err)
 	}
+
 	return &ADBConnection{
 		client:  sshConn,
 		host:    serial,

@@ -9,20 +9,14 @@ import (
 	"github.com/warthog618/go-gpiocdev"
 )
 
-const (
-	clipName  = "gpiochip1"
-	resetPin  = 40
-	enablePin = 71
-)
-
-func Reset() error {
-	chip, err := gpiocdev.NewChip(clipName)
+func resetOnBoard() error {
+	chip, err := gpiocdev.NewChip(ChipName)
 	if err != nil {
 		return err
 	}
 	defer chip.Close()
 
-	line, err := chip.RequestLine(resetPin, gpiocdev.AsOutput(0))
+	line, err := chip.RequestLine(ResetPin, gpiocdev.AsOutput(0))
 	if err != nil {
 		return err
 	}
@@ -39,14 +33,14 @@ func Reset() error {
 	return nil
 }
 
-func Enable() error {
-	chip, err := gpiocdev.NewChip(clipName)
+func enableOnBoard(withReset bool) error {
+	chip, err := gpiocdev.NewChip(ChipName)
 	if err != nil {
 		return err
 	}
 	defer chip.Close()
 
-	line, err := chip.RequestLine(enablePin, gpiocdev.AsOutput(0))
+	line, err := chip.RequestLine(EnablePin, gpiocdev.AsOutput(0))
 	if err != nil {
 		return err
 	}
@@ -56,17 +50,20 @@ func Enable() error {
 		return err
 	}
 
-	return Reset()
+	if withReset {
+		return resetOnBoard()
+	}
+	return nil
 }
 
-func Disable() error {
-	chip, err := gpiocdev.NewChip(clipName)
+func disableOnBoard() error {
+	chip, err := gpiocdev.NewChip(ChipName)
 	if err != nil {
 		return err
 	}
 	defer chip.Close()
 
-	line, err := chip.RequestLine(enablePin, gpiocdev.AsOutput(1))
+	line, err := chip.RequestLine(EnablePin, gpiocdev.AsOutput(1))
 	if err != nil {
 		return err
 	}
@@ -76,5 +73,5 @@ func Disable() error {
 		return err
 	}
 
-	return Reset()
+	return resetOnBoard()
 }

@@ -29,7 +29,7 @@ func (l *LocalCmd) Run() error {
 }
 
 func (l *LocalCmd) Output() ([]byte, error) {
-	return l.cmd.Output()
+	return l.cmd.CombinedOutput()
 }
 
 func (l *LocalCmd) Interactive() (io.WriteCloser, io.Reader, remote.Closer, error) {
