@@ -29,6 +29,7 @@ func newAppCmd(docker *dockerClient.Client) *cobra.Command {
 	appCmd.AddCommand(newCreateCmd())
 	appCmd.AddCommand(newStartCmd(docker))
 	appCmd.AddCommand(newStopCmd())
+	appCmd.AddCommand(newRestartCmd(docker))
 	appCmd.AddCommand(newLogsCmd())
 	appCmd.AddCommand(newListCmd(docker))
 	appCmd.AddCommand(newPsCmd())
@@ -70,7 +71,7 @@ func newCreateCmd() *cobra.Command {
 func newStartCmd(docker *dockerClient.Client) *cobra.Command {
 	return &cobra.Command{
 		Use:   "start app_path",
-		Short: "Start the Python app",
+		Short: "Start an Arduino app",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
@@ -88,7 +89,7 @@ func newStartCmd(docker *dockerClient.Client) *cobra.Command {
 func newStopCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "stop app_path",
-		Short: "Stop the Python app",
+		Short: "Stop an Arduino app",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
@@ -101,6 +102,28 @@ func newStopCmd() *cobra.Command {
 			return stopHandler(cmd.Context(), app)
 		},
 	}
+}
+
+func newRestartCmd(docker *dockerClient.Client) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "restart app_path",
+		Short: "Restart or Start an Arduino app",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return cmd.Help()
+			}
+			app, err := loadApp(args[0])
+			if err != nil {
+				return err
+			}
+			if err := stopHandler(cmd.Context(), app); err != nil {
+				slog.Warn("failed to stop app", "error", err)
+			}
+			return startHandler(cmd.Context(), docker, app)
+		},
+	}
+	return cmd
 }
 
 func newLogsCmd() *cobra.Command {
