@@ -472,7 +472,7 @@ Contains a JSON object with the details of an error.
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: orchestrator.ListAppResult{},
+				DataStructure: handlers.AppListResponse{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},

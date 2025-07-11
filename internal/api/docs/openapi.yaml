@@ -34,7 +34,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ListAppResult'
+                $ref: '#/components/schemas/AppListResponse'
           description: Successful response
         "500":
           $ref: '#/components/responses/InternalServerError'
@@ -912,6 +912,15 @@ components:
         status:
           $ref: '#/components/schemas/Status'
       type: object
+    AppListResponse:
+      properties:
+        apps:
+          description: List of applications
+          items:
+            $ref: '#/components/schemas/AppInfo'
+          nullable: true
+          type: array
+      type: object
     AppReference:
       properties:
         icon:
@@ -1013,13 +1022,6 @@ components:
         required:
           type: boolean
       type: object
-    BrokenAppInfo:
-      properties:
-        error:
-          type: string
-        name:
-          type: string
-      type: object
     CloneAppResponse:
       properties:
         id:
@@ -1103,19 +1105,6 @@ components:
           type: integer
         message:
           type: string
-      type: object
-    ListAppResult:
-      properties:
-        apps:
-          items:
-            $ref: '#/components/schemas/AppInfo'
-          nullable: true
-          type: array
-        broken_apps:
-          items:
-            $ref: '#/components/schemas/BrokenAppInfo'
-          nullable: true
-          type: array
       type: object
     Status:
       description: Application status

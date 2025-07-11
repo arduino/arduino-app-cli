@@ -81,6 +81,12 @@ type AppInfo struct {
 	Status *Status `json:"status,omitempty"`
 }
 
+// AppListResponse defines model for AppListResponse.
+type AppListResponse struct {
+	// Apps List of applications
+	Apps *[]AppInfo `json:"apps"`
+}
+
 // AppReference defines model for AppReference.
 type AppReference struct {
 	Icon *string `json:"icon,omitempty"`
@@ -139,12 +145,6 @@ type BrickVariable struct {
 	DefaultValue *string `json:"default_value,omitempty"`
 	Description  *string `json:"description,omitempty"`
 	Required     *bool   `json:"required,omitempty"`
-}
-
-// BrokenAppInfo defines model for BrokenAppInfo.
-type BrokenAppInfo struct {
-	Error *string `json:"error,omitempty"`
-	Name  *string `json:"name,omitempty"`
 }
 
 // CloneAppResponse defines model for CloneAppResponse.
@@ -208,12 +208,6 @@ type EditRequest struct {
 type ErrorResponse struct {
 	Code    *int    `json:"code,omitempty"`
 	Message *string `json:"message,omitempty"`
-}
-
-// ListAppResult defines model for ListAppResult.
-type ListAppResult struct {
-	Apps       *[]AppInfo       `json:"apps"`
-	BrokenApps *[]BrokenAppInfo `json:"broken_apps"`
 }
 
 // Status Application status
@@ -2032,7 +2026,7 @@ type ClientWithResponsesInterface interface {
 type GetAppsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ListAppResult
+	JSON200      *AppListResponse
 	JSON500      *InternalServerError
 }
 
@@ -2902,7 +2896,7 @@ func ParseGetAppsResp(rsp *http.Response) (*GetAppsResp, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ListAppResult
+		var dest AppListResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
