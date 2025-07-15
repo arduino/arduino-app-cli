@@ -1,9 +1,12 @@
 package adb
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"math/rand/v2"
 	"net"
@@ -15,67 +18,24 @@ import (
 	"strings"
 
 	"github.com/arduino/arduino-app-cli/pkg/board/remote"
-	"github.com/arduino/arduino-app-cli/pkg/board/remote/ssh"
 )
+
+const username = "arduino"
 
 type ADBConnection struct {
 	adbPath string
 	host    string
-	client  *ssh.SSHConnection
 }
 
 // Ensures ADBConnection implements the RemoteConn interface at compile time.
 var _ remote.RemoteConn = (*ADBConnection)(nil)
-
-const forwardPortAttempts = 10
-
-func isPortAvailable(port int) bool {
-	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
-	if err != nil {
-		return false
-	}
-	listener.Close()
-	return true
-}
-
-func getRandomPort() int {
-	port := 1000 + rand.IntN(9000) // nolint:gosec
-	return port
-}
-
-func getAvailablePort() (int, error) {
-	tried := make(map[int]any, forwardPortAttempts)
-	for len(tried) < forwardPortAttempts {
-		port := getRandomPort()
-		if _, seen := tried[port]; seen {
-			continue
-		}
-		tried[port] = struct{}{}
-
-		if isPortAvailable(port) {
-			return port, nil
-		}
-	}
-	return 0, fmt.Errorf("no available port found in range 1000-9999 after %d attempts", forwardPortAttempts)
-}
 
 func FromSerial(serial string, adbPath string) (*ADBConnection, error) {
 	if adbPath == "" {
 		adbPath = findAdbPath()
 	}
 
-	// TODO: we should try multiple ports here.
-	if err := exec.Command(adbPath, "-s", serial, "forward", "tcp:2222", "tcp:22").Run(); err != nil {
-		return nil, fmt.Errorf("failed to forward ADB port for serial %s: %w", serial, err)
-	}
-
-	sshConn, err := ssh.FromHost("arduino", "arduino", "127.0.0.1:2222")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create SSH connection for serial %s: %w", serial, err)
-	}
-
 	return &ADBConnection{
-		client:  sshConn,
 		host:    serial,
 		adbPath: adbPath,
 	}, nil
@@ -118,27 +78,132 @@ func (a *ADBConnection) ForwardKillAll(ctx context.Context) error {
 }
 
 func (a *ADBConnection) List(path string) ([]remote.FileInfo, error) {
-	return a.client.List(path)
+	cmd := exec.Command(a.adbPath, "-s", a.host, "shell", "ls", "-la", path) // nolint:gosec
+	cmd.Stderr = os.Stdout
+	output, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	defer output.Close()
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+
+	r := bufio.NewReader(output)
+	_, err = r.ReadBytes('\n') // Skip the first line
+	if err != nil {
+		return nil, err
+	}
+
+	var files []remote.FileInfo
+	for {
+		line, err := r.ReadBytes('\n')
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, err
+		}
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 {
+			continue
+		}
+		parts := bytes.Split(line, []byte(" "))
+		name := string(parts[len(parts)-1])
+		if name == "." || name == ".." {
+			continue
+		}
+		files = append(files, remote.FileInfo{
+			Name:  name,
+			IsDir: line[0] == 'd',
+		})
+	}
+
+	return files, nil
 }
 
 func (a *ADBConnection) Stats(path string) (remote.FileInfo, error) {
-	return a.client.Stats(path)
+	cmd := exec.Command(a.adbPath, "-s", a.host, "shell", "file", path) // nolint:gosec
+	output, err := cmd.StdoutPipe()
+	if err != nil {
+		return remote.FileInfo{}, err
+	}
+	defer output.Close()
+	if err := cmd.Start(); err != nil {
+		return remote.FileInfo{}, err
+	}
+
+	r := bufio.NewReader(output)
+	line, err := r.ReadBytes('\n')
+	if err != nil {
+		return remote.FileInfo{}, err
+	}
+
+	line = bytes.TrimSpace(line)
+	parts := bytes.Split(line, []byte(":"))
+	if len(parts) < 2 {
+		return remote.FileInfo{}, fmt.Errorf("unexpected file command output: %s", line)
+	}
+
+	name := string(bytes.TrimSpace(parts[0]))
+	other := string(bytes.TrimSpace(parts[1]))
+
+	if strings.Contains(other, "cannot open") {
+		return remote.FileInfo{}, fs.ErrNotExist
+	}
+
+	return remote.FileInfo{
+		Name:  name,
+		IsDir: other == "directory",
+	}, nil
 }
 
 func (a *ADBConnection) ReadFile(path string) (io.ReadCloser, error) {
-	return a.client.ReadFile(path)
+	cmd := exec.Command(a.adbPath, "-s", a.host, "shell", "cat", path) // nolint:gosec
+	output, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	return output, nil
 }
 
 func (a *ADBConnection) WriteFile(r io.Reader, path string) error {
-	return a.client.WriteFile(r, path)
+	// Create the file with the correct permissions and ownership
+	cmd := exec.Command(a.adbPath, "-s", a.host, "shell", "install", "-o", username, "-g", username, "-m", "0644", "/dev/null", path) // nolint:gosec
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to write file to %q: %w: %s", path, err, out)
+	}
+
+	// Write the content to the file.
+	cmd = exec.Command(a.adbPath, "-s", a.host, "shell", "cat", ">", path) // nolint:gosec
+	cmd.Stdin = r
+	out, err = cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to write file %q: %w: %s", path, err, out)
+	}
+	return nil
 }
 
 func (a *ADBConnection) MkDirAll(path string) error {
-	return a.client.MkDirAll(path)
+	cmd := exec.Command(a.adbPath, "-s", a.host, "shell", "install", "-o", username, "-g", username, "-m", "755", "-d", path) // nolint:gosec
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to create directory %q: %w: %s", path, err, out)
+	}
+	return nil
 }
 
 func (a *ADBConnection) Remove(path string) error {
-	return a.client.Remove(path)
+	cmd := exec.Command(a.adbPath, "-s", a.host, "shell", "rm", "-r", path) // nolint:gosec
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to remove path %q: %w: %s", path, err, out)
+	}
+	return nil
 }
 
 type ADBCommand struct {
@@ -197,10 +262,6 @@ func (a *ADBCommand) Interactive() (io.WriteCloser, io.Reader, remote.Closer, er
 	}, nil
 }
 
-func (a *ADBConnection) GetCmdAsUser(ctx context.Context, user string, cmd string, args ...string) remote.Cmder {
-	return a.client.GetCmdAsUser(ctx, user, cmd, args...)
-}
-
 func findAdbPath() string {
 	var adbPath = "adb"
 
@@ -239,4 +300,36 @@ func findAdbPath() string {
 	slog.Debug("get adb path", "path", adbPath)
 
 	return adbPath
+}
+
+func isPortAvailable(port int) bool {
+	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		return false
+	}
+	listener.Close()
+	return true
+}
+
+func getRandomPort() int {
+	port := 1000 + rand.IntN(9000) // nolint:gosec
+	return port
+}
+
+const forwardPortAttempts = 10
+
+func getAvailablePort() (int, error) {
+	tried := make(map[int]any, forwardPortAttempts)
+	for len(tried) < forwardPortAttempts {
+		port := getRandomPort()
+		if _, seen := tried[port]; seen {
+			continue
+		}
+		tried[port] = struct{}{}
+
+		if isPortAvailable(port) {
+			return port, nil
+		}
+	}
+	return 0, fmt.Errorf("no available port found in range 1000-9999 after %d attempts", forwardPortAttempts)
 }

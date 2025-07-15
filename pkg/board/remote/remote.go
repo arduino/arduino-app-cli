@@ -27,7 +27,6 @@ type RemoteFs interface {
 
 type RemoteShell interface {
 	GetCmd(ctx context.Context, cmd string, args ...string) Cmder
-	GetCmdAsUser(ctx context.Context, user string, cmd string, args ...string) Cmder
 }
 
 type Forwarder interface {

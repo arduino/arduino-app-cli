@@ -226,10 +226,6 @@ func (a *SSHConnection) GetCmd(_ context.Context, cmd string, args ...string) re
 	}
 }
 
-func (a *SSHConnection) GetCmdAsUser(ctx context.Context, _ string, cmd string, args ...string) remote.Cmder {
-	return a.GetCmd(ctx, cmd, args...)
-}
-
 func (c SSHCommand) Run() error {
 	if c.err != nil {
 		return c.err

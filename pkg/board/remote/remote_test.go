@@ -104,13 +104,9 @@ func TestSSHShell(t *testing.T) {
 	}
 
 	for _, conn := range remotes {
-		// Test both GetCmd and GetCmdAsUser
 		tests := []func(string, ...string) remote.Cmder{
 			func(cmd string, args ...string) remote.Cmder {
 				return conn.GetCmd(t.Context(), cmd, args...)
-			},
-			func(cmd string, args ...string) remote.Cmder {
-				return conn.GetCmdAsUser(t.Context(), "arduino", cmd, args...)
 			},
 		}
 
