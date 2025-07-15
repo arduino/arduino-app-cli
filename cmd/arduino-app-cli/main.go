@@ -39,6 +39,7 @@ func main() {
 		newDaemonCmd(docker),
 		newPropertiesCmd(),
 		newConfigCmd(),
+		newSystemCmd(),
 		&cobra.Command{
 			Use:   "version",
 			Short: "Print the version number of Arduino App CLI",
