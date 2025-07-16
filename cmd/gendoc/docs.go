@@ -68,8 +68,7 @@ func NewOpenApiGenerator(version string) *Generator {
 						Content: map[string]openapi3.MediaType{
 							"application/json": {
 								Example: f.Ptr(interface{}(map[string]interface{}{
-									"code":    400,
-									"message": "The request is invalid or missing required parameters.",
+									"details": "The request is invalid or missing required parameters.",
 								})),
 								Schema: &openapi3.SchemaOrRef{
 									SchemaReference: &openapi3.SchemaReference{
@@ -86,8 +85,7 @@ func NewOpenApiGenerator(version string) *Generator {
 						Content: map[string]openapi3.MediaType{
 							"application/json": {
 								Example: f.Ptr(interface{}(map[string]interface{}{
-									"code":    404,
-									"message": "The requested resource was not found.",
+									"details": "The requested resource was not found.",
 								})),
 								Schema: &openapi3.SchemaOrRef{
 									SchemaReference: &openapi3.SchemaReference{
@@ -104,8 +102,7 @@ func NewOpenApiGenerator(version string) *Generator {
 						Content: map[string]openapi3.MediaType{
 							"application/json": {
 								Example: f.Ptr(interface{}(map[string]interface{}{
-									"code":    409,
-									"message": "There is a conflict with an existing resource.",
+									"details": "There is a conflict with an existing resource.",
 								})),
 								Schema: &openapi3.SchemaOrRef{
 									SchemaReference: &openapi3.SchemaReference{
@@ -122,8 +119,7 @@ func NewOpenApiGenerator(version string) *Generator {
 						Content: map[string]openapi3.MediaType{
 							"application/json": {
 								Example: f.Ptr(interface{}(map[string]interface{}{
-									"code":    204,
-									"message": "No content to return.",
+									"details": "No content to return.",
 								})),
 								Schema: &openapi3.SchemaOrRef{
 									SchemaReference: &openapi3.SchemaReference{
@@ -140,8 +136,7 @@ func NewOpenApiGenerator(version string) *Generator {
 						Content: map[string]openapi3.MediaType{
 							"application/json": {
 								Example: f.Ptr(interface{}(map[string]interface{}{
-									"code":    412,
-									"message": "The request is invalid.",
+									"details": "The request is invalid.",
 								})),
 								Schema: &openapi3.SchemaOrRef{
 									SchemaReference: &openapi3.SchemaReference{
@@ -158,8 +153,7 @@ func NewOpenApiGenerator(version string) *Generator {
 						Content: map[string]openapi3.MediaType{
 							"application/json": {
 								Example: f.Ptr(interface{}(map[string]interface{}{
-									"code":    int64(500),
-									"message": "An unexpected error occurred.",
+									"details": "An unexpected error occurred.",
 								})),
 								Schema: &openapi3.SchemaOrRef{
 									SchemaReference: &openapi3.SchemaReference{

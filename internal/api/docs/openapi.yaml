@@ -768,8 +768,7 @@ components:
       content:
         application/json:
           example:
-            code: 400
-            message: The request is invalid or missing required parameters.
+            details: The request is invalid or missing required parameters.
           schema:
             $ref: '#/components/schemas/ErrorResponse'
       description: Bad Request
@@ -777,8 +776,7 @@ components:
       content:
         application/json:
           example:
-            code: 409
-            message: There is a conflict with an existing resource.
+            details: There is a conflict with an existing resource.
           schema:
             $ref: '#/components/schemas/ErrorResponse'
       description: Conflict
@@ -786,8 +784,7 @@ components:
       content:
         application/json:
           example:
-            code: 500
-            message: An unexpected error occurred.
+            details: An unexpected error occurred.
           schema:
             $ref: '#/components/schemas/ErrorResponse'
       description: Internal Server Error
@@ -795,8 +792,7 @@ components:
       content:
         application/json:
           example:
-            code: 204
-            message: No content to return.
+            details: No content to return.
           schema:
             $ref: '#/components/schemas/ErrorResponse'
       description: No Content
@@ -804,8 +800,7 @@ components:
       content:
         application/json:
           example:
-            code: 404
-            message: The requested resource was not found.
+            details: The requested resource was not found.
           schema:
             $ref: '#/components/schemas/ErrorResponse'
       description: Not Found
@@ -813,8 +808,7 @@ components:
       content:
         application/json:
           example:
-            code: 412
-            message: The request is invalid.
+            details: The request is invalid.
           schema:
             $ref: '#/components/schemas/ErrorResponse'
       description: Precondition Failed

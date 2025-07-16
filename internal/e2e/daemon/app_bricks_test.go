@@ -9,16 +9,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.bug.st/f"
 
-	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
 )
 
 func TestGetAppBrickInstances(t *testing.T) {
-	// setup
-	cli := e2e.CreateEnvForDaemon(t)
-	t.Cleanup(cli.CleanUp)
-	httpClient, err := client.NewClientWithResponses(cli.DaemonAddr)
-	require.NoError(t, err)
+
+	httpClient := GetHttpclient(t)
 
 	createResp, err := httpClient.CreateAppWithResponse(
 		t.Context(),
@@ -50,11 +46,8 @@ func TestGetAppBrickInstances(t *testing.T) {
 }
 
 func TestUpsertAppBrickInstance(t *testing.T) {
-	// setup
-	cli := e2e.CreateEnvForDaemon(t)
-	t.Cleanup(cli.CleanUp)
-	httpClient, err := client.NewClientWithResponses(cli.DaemonAddr)
-	require.NoError(t, err)
+
+	httpClient := GetHttpclient(t)
 
 	createResp, err := httpClient.CreateAppWithResponse(
 		t.Context(),
@@ -154,11 +147,8 @@ func TestUpsertAppBrickInstance(t *testing.T) {
 }
 
 func TestUpdateAppBrickInstance(t *testing.T) {
-	// setup
-	cli := e2e.CreateEnvForDaemon(t)
-	t.Cleanup(cli.CleanUp)
-	httpClient, err := client.NewClientWithResponses(cli.DaemonAddr)
-	require.NoError(t, err)
+
+	httpClient := GetHttpclient(t)
 
 	createResp, err := httpClient.CreateAppWithResponse(
 		t.Context(),
@@ -248,11 +238,8 @@ func TestUpdateAppBrickInstance(t *testing.T) {
 }
 
 func TestDeleteAppBrickInstance(t *testing.T) {
-	// setup
-	cli := e2e.CreateEnvForDaemon(t)
-	t.Cleanup(cli.CleanUp)
-	httpClient, err := client.NewClientWithResponses(cli.DaemonAddr)
-	require.NoError(t, err)
+
+	httpClient := GetHttpclient(t)
 
 	createResp, err := httpClient.CreateAppWithResponse(
 		t.Context(),
