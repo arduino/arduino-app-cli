@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/arduino/arduino-cli/commands"
+	"github.com/arduino/arduino-cli/pkg/fqbn"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/sirupsen/logrus"
 
@@ -25,6 +26,10 @@ type Board struct {
 const (
 	SerialProtocol  = "serial"
 	NetworkProtocol = "network"
+)
+
+const (
+	ArduinoUnoQ = "arduino:zephyr:unoq"
 )
 
 func FromFQBN(ctx context.Context, fqbn string) ([]Board, error) {
@@ -105,4 +110,95 @@ func (b *Board) Connect() (remote.RemoteConn, error) {
 	default:
 		panic("unreachable")
 	}
+}
+
+func EnsurePlatformInstalled(ctx context.Context, rawFQBN string) error {
+	parsedFQBN, err := fqbn.Parse(rawFQBN)
+	if err != nil {
+		return err
+	}
+
+	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
+	srv := commands.NewArduinoCoreServer()
+
+	var inst *rpc.Instance
+	if resp, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
+		return err
+	} else {
+		inst = resp.GetInstance()
+	}
+	defer func() {
+		_, err := srv.CleanDownloadCacheDirectory(ctx, &rpc.CleanDownloadCacheDirectoryRequest{})
+		if err != nil {
+			slog.Error("Error cleaning cache directory", slog.Any("error", err))
+		}
+		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
+	}()
+
+	// TODO: after embargo remove this
+	_, err = srv.SettingsSetValue(ctx, &rpc.SettingsSetValueRequest{
+		Key:          "board_manager.additional_urls",
+		EncodedValue: "https://arduino:aptexperiment@apt-repo.oniudra.cc/zephyr-core-imola.json",
+		ValueFormat:  "cli",
+	})
+	if err != nil {
+		return err
+	}
+
+	stream, _ := commands.UpdateIndexStreamResponseToCallbackFunction(ctx, func(curr *rpc.DownloadProgress) {
+		slog.Debug("Update index progress", slog.String("download_progress", curr.String()))
+	})
+	if err := srv.UpdateIndex(&rpc.UpdateIndexRequest{Instance: inst}, stream); err != nil {
+		return err
+	}
+
+	if err := srv.Init(
+		&rpc.InitRequest{Instance: inst},
+		commands.InitStreamResponseToCallbackFunction(ctx, func(r *rpc.InitResponse) error {
+			slog.Debug("Arduino init instance", slog.String("instance", r.String()))
+			return nil
+		}),
+	); err != nil {
+		return err
+	}
+
+	platforms, err := srv.PlatformSearch(ctx, &rpc.PlatformSearchRequest{
+		Instance:          inst,
+		ManuallyInstalled: true,
+	})
+	if err != nil {
+		return err
+	}
+
+	var platformSummary *rpc.PlatformSummary
+	for _, v := range platforms.GetSearchOutput() {
+		if v.GetMetadata().GetId() == parsedFQBN.Vendor+":"+parsedFQBN.Architecture {
+			platformSummary = v
+			break
+		}
+	}
+	if platformSummary == nil {
+		return fmt.Errorf("platform %s not found", parsedFQBN.Vendor+":"+parsedFQBN.Architecture)
+	}
+
+	if platformSummary.GetInstalledVersion() != "" {
+		return nil
+	}
+
+	return srv.PlatformInstall(
+		&rpc.PlatformInstallRequest{
+			Instance:        inst,
+			PlatformPackage: parsedFQBN.Vendor,
+			Architecture:    parsedFQBN.Architecture,
+		},
+		commands.PlatformInstallStreamResponseToCallbackFunction(
+			ctx,
+			func(curr *rpc.DownloadProgress) {
+				slog.Debug("Platform install progress", slog.String("download_progress", curr.String()))
+			},
+			func(msg *rpc.TaskProgress) {
+				slog.Debug("Platform install message", slog.String("message", msg.GetMessage()))
+			},
+		),
+	)
 }
