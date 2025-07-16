@@ -7,7 +7,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"path"
-	"slices"
+	"path/filepath"
 )
 
 type FSWriter interface {
@@ -22,13 +22,21 @@ type FSWriter interface {
 // It also removes files from the destination that are not present in the source.
 // TODO: be smarter and only copy files that are different.
 func SyncFS(dstFS FSWriter, srcFS fs.FS, ignorePath ...string) error {
-	shoudlIgnore := func(src string) bool {
-		if idx := slices.IndexFunc(ignorePath, func(ignore string) bool {
-			return path.Base(ignore) == path.Base(src)
-		}); idx != -1 {
-			return true
+	shoudlIgnore := func(src string, d fs.DirEntry) (bool, error) {
+		for _, ignore := range ignorePath {
+			// Cleanup eventual trailing slashes and clean the paths
+			ignore = filepath.Clean(ignore)
+			src = filepath.Clean(src)
+
+			// Direct match (file or directory name)
+			if src == ignore || path.Base(src) == ignore {
+				if d.IsDir() {
+					return true, fs.SkipDir
+				}
+				return true, nil
+			}
 		}
-		return false
+		return false, nil
 	}
 	err := fs.WalkDir(srcFS, ".", func(src string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -36,8 +44,8 @@ func SyncFS(dstFS FSWriter, srcFS fs.FS, ignorePath ...string) error {
 		}
 
 		// ignore paths
-		if shoudlIgnore(src) {
-			return fs.SkipDir
+		if ignore, skipError := shoudlIgnore(src, d); ignore {
+			return skipError
 		}
 
 		if d.IsDir() {
@@ -65,8 +73,9 @@ func SyncFS(dstFS FSWriter, srcFS fs.FS, ignorePath ...string) error {
 			return err
 		}
 
-		if shoudlIgnore(src) {
-			return fs.SkipDir
+		// ignore paths
+		if ignore, skipError := shoudlIgnore(src, d); ignore {
+			return skipError
 		}
 
 		f, err := srcFS.Open(src)

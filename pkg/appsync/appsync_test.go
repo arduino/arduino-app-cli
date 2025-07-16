@@ -88,7 +88,6 @@ func TestEnableSyncApp(t *testing.T) {
 			require.NoError(t, err)
 			files := getFiles(os.DirFS(tmp))
 			require.Equal(t, []string{
-				"app.yml",
 				"python",
 				"python/main.py",
 				"sketch",

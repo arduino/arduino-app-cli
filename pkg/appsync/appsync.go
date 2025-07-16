@@ -28,6 +28,8 @@ type AppsSync struct {
 	stop    chan struct{}
 }
 
+var ignoredFiles = []string{".cache", "app.yml", "app.yaml"}
+
 func New(conn remote.RemoteConn) (*AppsSync, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -70,7 +72,7 @@ func (a *AppsSync) EnableSyncApp(path string) (string, error) {
 	}
 
 	// pull app from the remote
-	if err := SyncFS(OsFSWriter{Base: tmp}, remotefs.New(path, a.conn), ".cache"); err != nil {
+	if err := SyncFS(OsFSWriter{Base: tmp}, remotefs.New(path, a.conn), ignoredFiles...); err != nil {
 		return "", fmt.Errorf("failed to pull app %q: %w", path, err)
 	}
 	a.OnPull(path, tmp)
@@ -154,7 +156,7 @@ func (a *AppsSync) pushPath(tmp string, path string) error {
 	err := SyncFS(
 		remotefs.New(path, a.conn).ToWriter(),
 		os.DirFS(tmp),
-		".cache",
+		ignoredFiles...,
 	)
 	if err != nil {
 		return err
