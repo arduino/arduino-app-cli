@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
+	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/pkg/render"
 )
@@ -27,12 +29,13 @@ func HandlerModelByID() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("modelID")
 		if id == "" {
-			render.EncodeResponse(w, http.StatusBadRequest, "id must be set")
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "id must be set"})
 			return
 		}
 		res, found := orchestrator.AIModelDetails(id)
 		if !found {
-			render.EncodeResponse(w, http.StatusNotFound, nil)
+			details := fmt.Sprintf("models with id %q not found", id)
+			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})
 			return
 		}
 		render.EncodeResponse(w, http.StatusOK, res)

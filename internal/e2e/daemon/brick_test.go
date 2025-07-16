@@ -2,12 +2,14 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
 
@@ -38,13 +40,17 @@ func TestBricksDetails(t *testing.T) {
 	httpClient := GetHttpclient(t)
 	t.Run("should return 404 Not Found for an invalid brick ID", func(t *testing.T) {
 		invalidBrickID := "notvalidBrickId"
+		var actualBody models.ErrorResponse
+		expectedDetails := fmt.Sprintf("brick with id %q not found", invalidBrickID)
 
 		response, err := httpClient.GetBrickDetailsWithResponse(t.Context(), invalidBrickID, func(ctx context.Context, req *http.Request) error { return nil })
 		require.NoError(t, err)
 		require.Equal(t, http.StatusNotFound, response.StatusCode(), "status code should be 404 Not Found")
-		actualBody := strings.TrimSpace(string(response.Body))
-		expectedBody := "{\"details\":\"brick with id \\\"notvalidBrickId\\\" not found\"}"
-		require.Equal(t, expectedBody, actualBody)
+
+		err = json.Unmarshal(response.Body, &actualBody)
+		require.NoError(t, err, "Failed to unmarshal the JSON error response body")
+
+		require.Equal(t, expectedDetails, actualBody.Details, "The error detail message is not what was expected")
 	})
 
 	t.Run("should return 200 OK with full details for a valid brick ID", func(t *testing.T) {
