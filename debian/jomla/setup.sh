@@ -28,4 +28,3 @@ adb shell su - arduino -c "\"arduino-cli burn-bootloader -b dev:zephyr:jomla -P 
 adb push $BASE_DIR/adbd-usb-gadget /usr/lib/android-sdk/platform-tools/adbd-usb-gadget
 adb shell chmod +x /usr/lib/android-sdk/platform-tools/adbd-usb-gadget
 adb shell systemctl restart adbd || true
-
