@@ -1,5 +1,16 @@
 # Database Storage - SQLStore
 
+This brick helps you manage SQLite databases easily by providing a simple interface for creating tables, inserting data, and handling database connections.
+
+## Features
+
+- Simple API for SQLite database operations
+- Create tables with custom schemas
+- Insert, update, and delete records
+- Query data with flexible filters
+- Automatic connection management
+- Error handling for common database issues
+
 ## Code example and usage
 
 Instantiate a new class to open (or create a new database)

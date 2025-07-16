@@ -1,5 +1,16 @@
 # Database Storage - Time Series Store
 
+This brick helps you manage and store time series data efficiently using an Influx DB.
+
+## Features
+
+- Efficient storage and retrieval of time series data
+- Simple API for creating tables and inserting data
+- Automatic handling of database connections
+- Easy integration with Influx DB
+- Methods for querying and managing stored data
+- Robust error handling and resource management
+
 ## Code example and usage
 
 Instantiate a new class to open database connection.

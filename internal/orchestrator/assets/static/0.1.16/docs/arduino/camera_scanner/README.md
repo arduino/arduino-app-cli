@@ -4,12 +4,11 @@ This brick helps in acquiring a camera's video stream and scanning it for barcod
 
 ## Features
 
-- **Supported formats**: EAN-13, EAN-8, and UPC-A, and 2D QR codes;
-- **Single code scanning**: detects a single code at a time;
-- **Multiple code scanning**: detects a multiple codes at a time;
-- **Mixed scanning**: by default, detects barcodes and QR codes simultaneously.
+- Supported formats: EAN-13, EAN-8, and UPC-A, and 2D QR codes;
+- Detects a single code at a time;
+- By default, detects barcodes and QR codes simultaneously.
 
-## How to use
+## Code example and usage
 
 ```python
 from arduino.app_bricks.camera_code_detector import CameraCodeDetector

@@ -1,6 +1,13 @@
-# Image classification brick
+# Image classification
 
 Classifies image content by detecting objects and their confidence scores. Uses YOLO v11 as the default model.
+
+## Features
+
+- Detects multiple objects in a single image
+- Returns class names and confidence scores for each object
+- Supports input as bytes or PIL images
+- Configurable model parameters (e.g., image type, confidence threshold)
 
 ## Code example and usage
 

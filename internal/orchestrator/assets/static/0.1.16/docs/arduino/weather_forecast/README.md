@@ -1,4 +1,4 @@
-# Weather Forecast brick
+# Weather Forecast
 
 Streamlined online weather API for retrieving forecasts by city name or geographic coordinates.
 Forecasts are provided by open-meteo.com.

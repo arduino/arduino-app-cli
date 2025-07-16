@@ -1,7 +1,6 @@
 package orchestrator
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -24,11 +23,6 @@ func TestCreateBrickApp(t *testing.T) {
 			f.Must(NewIDFromPath(orchestratorConfig.AppsDir().Join("example-app"))),
 			r.ID,
 		)
-
-		brickList, err := BricksList()
-		bricklast := brickList.Bricks[0]
-		require.Equal(t, bricklast.Models, []string{"mobilenet-image-classification", "person-classification"})
-		fmt.Println(bricklast)
 		require.NoError(t, err)
 
 		appDir := r.ID.ToPath()

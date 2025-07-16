@@ -1,6 +1,14 @@
-# Object detection brick
+# Object detection
 
 Detects objects within an image, returning bounding boxes, class labels, and confidence scores. Uses YOLO v11 as the default model.
+
+## Features
+
+- Real-time object detection on images
+- Returns bounding boxes, class labels, and confidence scores
+- Supports multiple image formats (JPEG, PNG, etc.)
+- Adjustable detection confidence and box overlap thresholds
+- Easy integration with PIL images or raw bytes
 
 ## Code example and usage
 
