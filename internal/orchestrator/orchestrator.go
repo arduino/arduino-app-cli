@@ -254,7 +254,11 @@ func StopApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
 			} else {
 				// Flash empty sketch to stop the microcontroller.
 				buildPath := "" // the empty sketch' build path must be in the default temporary directory.
-				if err := compileUploadSketch(ctx, getEmptySketch(), buildPath, callbackWriter); err != nil {
+
+				// TODO: probably we don't need this branch as the code is always executed on the UnoQ, expect
+				// during dev-env
+				noOpCallbackWriter := NewCallbackWriter(func(line string) {})
+				if err := compileUploadSketch(ctx, getEmptySketch(), buildPath, noOpCallbackWriter); err != nil {
 					yield(StreamMessage{error: err})
 					return
 				}
