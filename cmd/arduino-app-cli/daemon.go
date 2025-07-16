@@ -49,6 +49,7 @@ func httpHandler(ctx context.Context, dockerClient *dockerClient.Client, daemonP
 	corsMiddlware, err := cors.NewMiddleware(
 		cors.Config{
 			Origins: []string{
+				"wails://wails",
 				"wails://wails.localhost:34115",
 				"http://wails.localhost:34115",
 				"http://localhost:*", "https://localhost:*",
