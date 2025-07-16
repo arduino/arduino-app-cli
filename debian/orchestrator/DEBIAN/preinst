@@ -6,17 +6,20 @@ APP_USER="arduino"
 APP_GROUP="arduino"
 SYSUPGRADE_GROUP="sysupgrade"
 
-# Ensure the the group user exists.
-addgroup "$APP_GROUP" || true
+if ! getent group "$APP_GROUP" >/dev/null 2>&1; then
+    addgroup "$APP_GROUP"
+fi
 
-# Ensure the application user exists.
-adduser \
-  --ingroup "$APP_GROUP" \
-  --home "/home/$APP_USER" \
-  --shell /bin/false \
-  --disabled-password \
-  "$APP_USER" >/dev/null || true
+if ! getent passwd "$APP_USER" >/dev/null 2>&1; then
+    adduser \
+        --ingroup "$APP_GROUP" \
+        --home "/home/$APP_USER" \
+        --shell /bin/false \
+        --disabled-password \
+        "$APP_USER" >/dev/null
+fi
 
-# Ensure the sysupgrade group exists and add the application user to it.
-groupadd --system "$SYSUPGRADE_GROUP" || true
+if ! getent group "$SYSUPGRADE_GROUP" >/dev/null 2>&1; then
+    groupadd --system "$SYSUPGRADE_GROUP"
+fi
 usermod -aG "$SYSUPGRADE_GROUP" "$APP_USER"
