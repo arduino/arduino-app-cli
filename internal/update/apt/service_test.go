@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/arduino/arduino-app-cli/internal/update"
 )
 
 func TestParseListUpgradableOutput(t *testing.T) {
@@ -12,23 +14,24 @@ func TestParseListUpgradableOutput(t *testing.T) {
 		tests := []struct {
 			name     string
 			input    string
-			expected []UpgradablePackage
+			expected []update.UpgradablePackage
 		}{
 			{
 				name:     "empty input",
 				input:    "",
-				expected: []UpgradablePackage{},
+				expected: []update.UpgradablePackage{},
 			},
 			{
 				name:     "line not matching regex",
 				input:    "this-is-not a-valid-line\n",
-				expected: []UpgradablePackage{},
+				expected: []update.UpgradablePackage{},
 			},
 			{
 				name:  "upgradable package without [upgradable from]",
 				input: "nano/bionic-updates 2.9.3-2 amd64",
-				expected: []UpgradablePackage{
+				expected: []update.UpgradablePackage{
 					{
+						Type:         update.Debian,
 						Name:         "nano",
 						ToVersion:    "2.9.3-2",
 						FromVersion:  "",
@@ -39,8 +42,9 @@ func TestParseListUpgradableOutput(t *testing.T) {
 			{
 				name:  "package with from and to versions",
 				input: "apt/focal-updates 2.0.11 amd64 [upgradable from: 2.0.10]",
-				expected: []UpgradablePackage{
+				expected: []update.UpgradablePackage{
 					{
+						Type:         update.Debian,
 						Name:         "apt",
 						ToVersion:    "2.0.11",
 						FromVersion:  "2.0.10",
@@ -56,26 +60,30 @@ apt/focal-updates 2.0.11 amd64 [upgradable from: 2.0.10]
 code/stable 1.100.3-1748872405 amd64 [upgradable from: 1.100.2-1747260578]
 containerd.io/focal 1.7.27-1 amd64 [upgradable from: 1.7.25-1]
 `,
-				expected: []UpgradablePackage{
+				expected: []update.UpgradablePackage{
 					{
+						Type:         update.Debian,
 						Name:         "distro-info-data",
 						ToVersion:    "0.43ubuntu1.18",
 						FromVersion:  "0.43ubuntu1.16",
 						Architecture: "all",
 					},
 					{
+						Type:         update.Debian,
 						Name:         "apt",
 						ToVersion:    "2.0.11",
 						FromVersion:  "2.0.10",
 						Architecture: "amd64",
 					},
 					{
+						Type:         update.Debian,
 						Name:         "code",
 						ToVersion:    "1.100.3-1748872405",
 						FromVersion:  "1.100.2-1747260578",
 						Architecture: "amd64",
 					},
 					{
+						Type:         update.Debian,
 						Name:         "containerd.io",
 						ToVersion:    "1.7.27-1",
 						FromVersion:  "1.7.25-1",

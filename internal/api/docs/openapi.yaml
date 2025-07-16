@@ -1100,6 +1100,13 @@ components:
         message:
           type: string
       type: object
+    PackageType:
+      description: Package type
+      enum:
+      - arduino-platform
+      - debian-package
+      type: string
+      uniqueItems: true
     Status:
       description: Application status
       enum:
@@ -1112,7 +1119,7 @@ components:
       uniqueItems: true
     UpdateCheckResult:
       properties:
-        packages:
+        updates:
           items:
             $ref: '#/components/schemas/UpgradablePackage'
           nullable: true
@@ -1126,6 +1133,8 @@ components:
           type: string
         to_version:
           type: string
+        type:
+          $ref: '#/components/schemas/PackageType'
       type: object
     VersionResponse:
       properties:

@@ -16,6 +16,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/update"
 )
 
 type Tag string
@@ -53,6 +54,18 @@ func NewOpenApiGenerator(version string) *Generator {
 				Type:        f.Ptr(openapi3.SchemaTypeString),
 				Description: f.Ptr("Application status"),
 				ReflectType: reflect.TypeOf(orchestrator.Status("")),
+			},
+		},
+	)
+	reflector.Spec.Components.Schemas.WithMapOfSchemaOrRefValuesItem(
+		"PackageType",
+		openapi3.SchemaOrRef{
+			Schema: &openapi3.Schema{
+				UniqueItems: f.Ptr(true),
+				Enum:        f.Map(update.PackageType("").AllowedStatuses(), func(v update.PackageType) interface{} { return v }),
+				Type:        f.Ptr(openapi3.SchemaTypeString),
+				Description: f.Ptr("Package type"),
+				ReflectType: reflect.TypeOf(update.PackageType("")),
 			},
 		},
 	)
@@ -181,6 +194,11 @@ func NewOpenApiGenerator(version string) *Generator {
 				params.Schema.WithType(jsonschema.Type{
 					SimpleTypes: f.Ptr(jsonschema.String),
 				})
+			}
+
+			if params.Value.Type() == reflect.TypeOf(update.PackageType("")) {
+				params.Schema.WithRef("#/components/schemas/PackageType")
+				return true, nil
 			}
 			return false, nil
 		}),

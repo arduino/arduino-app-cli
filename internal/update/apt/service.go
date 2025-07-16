@@ -10,48 +10,38 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/arduino/go-paths-helper"
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/update"
 )
-
-type UpgradablePackage struct {
-	Name         string `json:"name"` // Package name without repository information
-	Architecture string `json:"-"`
-	FromVersion  string `json:"from_version"`
-	ToVersion    string `json:"to_version"`
-}
 
 // Service for apt package management operations.
 // It manages subscribers and publishes events to all of them.
 type Service struct {
-	inProgress atomic.Bool
-
-	mu   sync.RWMutex
-	subs map[chan Event]struct{} // TODO: use a more efficient data structure for subscribers for not duplicating events if multiple subscribers receive the same event
+	lock sync.Mutex
 }
 
 func New() *Service {
-	return &Service{
-		subs: make(map[chan Event]struct{}),
-	}
+	return &Service{}
 }
-
-var ErrOperationAlreadyInProgress = fmt.Errorf("an operation is already in progress")
 
 // ListUpgradablePackages lists all upgradable packages using the `apt list --upgradable` command.
 // It runs the `apt-get update` command before listing the packages to ensure the package list is up to date.
 // It filters the packages using the provided matcher function.
 // It returns a slice of UpgradablePackage or an error if the command fails.
-func (b *Service) ListUpgradablePackages(ctx context.Context, matcher func(UpgradablePackage) bool) ([]UpgradablePackage, error) {
-	if !b.inProgress.CompareAndSwap(false, true) {
-		return nil, ErrOperationAlreadyInProgress
+func (s *Service) ListUpgradablePackages(ctx context.Context, matcher func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
+	if !s.lock.TryLock() {
+		return nil, update.ErrOperationAlreadyInProgress
 	}
-	defer b.inProgress.Store(false)
+	defer s.lock.Unlock()
+
+	if err := runDpkgConfigureCommand(ctx); err != nil {
+		return nil, fmt.Errorf("error running dpkg configure command: %w", err)
+	}
 
 	err := runUpdateCommand(ctx)
 	if err != nil {
@@ -68,82 +58,64 @@ func (b *Service) ListUpgradablePackages(ctx context.Context, matcher func(Upgra
 // UpgradePackages upgrades the specified packages using the `apt-get upgrade` command.
 // It publishes events to subscribers during the upgrade process.
 // It returns an error if the upgrade is already in progress or if the upgrade command fails.
-func (b *Service) UpgradePackages(names []string) error {
-	if !b.inProgress.CompareAndSwap(false, true) {
-		return ErrOperationAlreadyInProgress
+func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan update.Event, error) {
+	if !s.lock.TryLock() {
+		return nil, update.ErrOperationAlreadyInProgress
 	}
+	eventsCh := make(chan update.Event, 100)
 
 	go func() {
-		defer b.inProgress.Store(false)
+		defer s.lock.Unlock()
+		defer close(eventsCh)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 		defer cancel()
 
-		b.publish(Event{Type: StartEvent, Data: "Upgrade is starting"})
+		eventsCh <- update.Event{Type: update.StartEvent, Data: "Upgrade is starting"}
 
 		stream := runUpgradeCommand(ctx, names)
 		for line, err := range stream {
 			if err != nil {
-				b.publishError(err, "Error running upgrade command")
+				eventsCh <- update.Event{
+					Type: update.ErrorEvent,
+					Err:  err,
+					Data: "Error running upgrade command",
+				}
 				slog.Error("error processing upgrade command output", "error", err)
 				return
 			}
-			b.publish(Event{Type: UpgradeLineEvent, Data: line})
+			eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: line}
 		}
 
-		b.publish(Event{Type: RestartEvent, Data: "Upgrade completed. Restarting ..."})
+		eventsCh <- update.Event{Type: update.RestartEvent, Data: "Upgrade completed. Restarting ..."}
 
 		err := restartServices(ctx)
 		if err != nil {
-			b.publishError(err, "Error restart services after upgrade")
+			eventsCh <- update.Event{
+				Type: update.ErrorEvent,
+				Err:  err,
+				Data: "Error restart services after upgrade",
+			}
 			slog.Error("failed to restart services", "error", err)
 			return
 		}
 	}()
-	return nil
+
+	return eventsCh, nil
 }
 
-// Subscribe creates a new channel for receiving APT events.
-func (b *Service) Subscribe() chan Event {
-	eventCh := make(chan Event, 100)
-	b.mu.Lock()
-	b.subs[eventCh] = struct{}{}
-	b.mu.Unlock()
-	return eventCh
-}
-
-// Unsubscribe removes the channel from the list of subscribers and closes it.
-func (b *Service) Unsubscribe(eventCh chan Event) {
-	b.mu.Lock()
-	delete(b.subs, eventCh)
-	close(eventCh)
-	b.mu.Unlock()
-}
-
-func (b *Service) publishError(err error, msg string) {
-	b.publish(Event{
-		Type: ErrorEvent,
-		Data: msg,
-		Err:  err,
-	})
-}
-
-// Publish sends the Apt event to all event subscribers.
-func (b *Service) publish(event Event) {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
-	for ch := range b.subs {
-		select {
-		case ch <- event:
-		default:
-			slog.Warn("Discarding event (channel full)",
-				slog.String("type", event.Type.String()),
-				slog.String("data", fmt.Sprintf("%v", event.Data)),
-				slog.Any("error", event.Err),
-			)
-		}
+// runDpkgConfigureCommand is need in case an upgrade was interrupted in the middle
+// and the dpkg database is in an inconsistent state.
+func runDpkgConfigureCommand(ctx context.Context) error {
+	dpkgCmd, err := paths.NewProcess(nil, "sudo", "dpkg", "--configure", "-a")
+	if err != nil {
+		return err
 	}
+	err = dpkgCmd.RunWithinContext(ctx)
+	if err != nil {
+		return fmt.Errorf("error running dpkg configure command: %w", err)
+	}
+	return nil
 }
 
 func runUpdateCommand(ctx context.Context) error {
@@ -160,7 +132,7 @@ func runUpdateCommand(ctx context.Context) error {
 
 func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, error] {
 	env := []string{"NEEDRESTART_MODE=l"}
-	args := append([]string{"sudo", "apt-get", "upgrade", "-y"}, names...)
+	args := append([]string{"sudo", "apt-get", "install", "--only-upgrade", "-y"}, names...)
 
 	return func(yield func(string, error) bool) {
 		upgradeCmd, err := paths.NewProcess(env, args...)
@@ -204,7 +176,7 @@ func restartServices(ctx context.Context) error {
 	return nil
 }
 
-func listUpgradablePackages(ctx context.Context, matcher func(UpgradablePackage) bool) ([]UpgradablePackage, error) {
+func listUpgradablePackages(ctx context.Context, matcher func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
 	listUpgradable, err := paths.NewProcess(nil, "apt", "list", "--upgradable")
 	if err != nil {
 		return nil, err
@@ -233,10 +205,10 @@ func listUpgradablePackages(ctx context.Context, matcher func(UpgradablePackage)
 
 // parseListUpgradableOutput parses the output of `apt list --upgradable` command
 // Example: apt/focal-updates 2.0.11 amd64 [upgradable from: 2.0.10]
-func parseListUpgradableOutput(r io.Reader) []UpgradablePackage {
+func parseListUpgradableOutput(r io.Reader) []update.UpgradablePackage {
 	re := regexp.MustCompile(`^([^ ]+) ([^ ]+) ([^ ]+)(?: \[upgradable from: ([^\[\]]*)\])?`)
 
-	res := []UpgradablePackage{}
+	res := []update.UpgradablePackage{}
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		matches := re.FindStringSubmatch(scanner.Text())
@@ -249,7 +221,8 @@ func parseListUpgradableOutput(r io.Reader) []UpgradablePackage {
 		//       -> "libgweather-common"
 		name := strings.Split(matches[1], "/")[0]
 
-		pkg := UpgradablePackage{
+		pkg := update.UpgradablePackage{
+			Type:         update.Debian,
 			Name:         name,
 			ToVersion:    matches[2],
 			Architecture: matches[3],

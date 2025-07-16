@@ -16,6 +16,12 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// Defines values for PackageType.
+const (
+	ArduinoPlatform PackageType = "arduino-platform"
+	DebianPackage   PackageType = "debian-package"
+)
+
 // Defines values for Status.
 const (
 	Failed   Status = "failed"
@@ -210,12 +216,15 @@ type ErrorResponse struct {
 	Message *string `json:"message,omitempty"`
 }
 
+// PackageType Package type
+type PackageType string
+
 // Status Application status
 type Status string
 
 // UpdateCheckResult defines model for UpdateCheckResult.
 type UpdateCheckResult struct {
-	Packages *[]UpgradablePackage `json:"packages"`
+	Updates *[]UpgradablePackage `json:"updates"`
 }
 
 // UpgradablePackage defines model for UpgradablePackage.
@@ -223,6 +232,9 @@ type UpgradablePackage struct {
 	FromVersion *string `json:"from_version,omitempty"`
 	Name        *string `json:"name,omitempty"`
 	ToVersion   *string `json:"to_version,omitempty"`
+
+	// Type Package type
+	Type *PackageType `json:"type,omitempty"`
 }
 
 // VersionResponse defines model for VersionResponse.

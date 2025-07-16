@@ -1,0 +1,285 @@
+package arduino
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"os"
+	"sync"
+	"time"
+
+	"github.com/arduino/arduino-cli/commands"
+	"github.com/arduino/arduino-cli/commands/cmderrors"
+	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
+	"github.com/sirupsen/logrus"
+
+	"github.com/arduino/arduino-app-cli/internal/update"
+)
+
+type ArduinoPlatformUpdater struct {
+	lock sync.Mutex
+}
+
+func NewArduinoPlatformUpdater() *ArduinoPlatformUpdater {
+	return &ArduinoPlatformUpdater{}
+}
+
+// ListUpgradablePackages implements ServiceUpdater.
+func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
+	if !a.lock.TryLock() {
+		return nil, update.ErrOperationAlreadyInProgress
+	}
+	defer a.lock.Unlock()
+
+	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
+	srv := commands.NewArduinoCoreServer()
+
+	var inst *rpc.Instance
+	if resp, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
+		return nil, err
+	} else {
+		inst = resp.GetInstance()
+	}
+	defer func() {
+		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
+	}()
+
+	_, err := srv.SettingsSetValue(ctx, &rpc.SettingsSetValueRequest{
+		Key:          "board_manager.additional_urls",
+		EncodedValue: "https://arduino:aptexperiment@apt-repo.oniudra.cc/zephyr-core-imola.json",
+		ValueFormat:  "cli",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	stream, _ := commands.UpdateIndexStreamResponseToCallbackFunction(ctx, func(curr *rpc.DownloadProgress) {
+		slog.Debug("Update index progress", slog.String("download_progress", curr.String()))
+	})
+	if err := srv.UpdateIndex(&rpc.UpdateIndexRequest{Instance: inst}, stream); err != nil {
+		return nil, err
+	}
+
+	if err := srv.Init(
+		&rpc.InitRequest{Instance: inst},
+		commands.InitStreamResponseToCallbackFunction(ctx, func(r *rpc.InitResponse) error {
+			slog.Debug("Arduino init instance", slog.String("instance", r.String()))
+			return nil
+		}),
+	); err != nil {
+		return nil, err
+	}
+
+	platforms, err := srv.PlatformSearch(ctx, &rpc.PlatformSearchRequest{
+		Instance:          inst,
+		ManuallyInstalled: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var platformSummary *rpc.PlatformSummary
+	for _, v := range platforms.GetSearchOutput() {
+		if v.GetMetadata().GetId() == "arduino:zephyr" {
+			platformSummary = v
+			break
+		}
+	}
+
+	if platformSummary == nil {
+		return nil, nil // No platform found
+	}
+
+	if platformSummary.GetLatestVersion() == platformSummary.GetInstalledVersion() {
+		return nil, nil // No update available
+	}
+
+	return []update.UpgradablePackage{{
+		Type:        update.Arduino,
+		Name:        "arduino:zephyr",
+		FromVersion: platformSummary.GetInstalledVersion(),
+		ToVersion:   platformSummary.GetLatestVersion(),
+	}}, nil
+}
+
+// UpgradePackages implements ServiceUpdater.
+func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []string) (<-chan update.Event, error) {
+	if !a.lock.TryLock() {
+		return nil, update.ErrOperationAlreadyInProgress
+	}
+	eventsCh := make(chan update.Event, 100)
+
+	downloadProgressCB := func(curr *rpc.DownloadProgress) {
+		data := arduinoCLIDownloadProgressToString(curr)
+		slog.Debug("Download progress", slog.String("download_progress", data))
+		eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: data}
+	}
+	taskProgressCB := func(msg *rpc.TaskProgress) {
+		data := arduinoCLITaskProgressToString(msg)
+		slog.Debug("Task progress", slog.String("task_progress", data))
+		eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: data}
+	}
+
+	go func() {
+		defer a.lock.Unlock()
+		defer close(eventsCh)
+
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+		defer cancel()
+
+		eventsCh <- update.Event{Type: update.StartEvent, Data: "Upgrade is starting"}
+
+		logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
+		srv := commands.NewArduinoCoreServer()
+
+		var inst *rpc.Instance
+		if resp, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
+			eventsCh <- update.Event{
+				Type: update.ErrorEvent,
+				Err:  err,
+				Data: "Error creating Arduino instance",
+			}
+			return
+		} else {
+			inst = resp.GetInstance()
+		}
+		defer func() {
+			_, err := srv.CleanDownloadCacheDirectory(ctx, &rpc.CleanDownloadCacheDirectoryRequest{})
+			if err != nil {
+				slog.Error("Error cleaning cache directory", slog.Any("error", err))
+			}
+			_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
+		}()
+
+		{
+			_, err := srv.SettingsSetValue(ctx, &rpc.SettingsSetValueRequest{
+				Key:          "board_manager.additional_urls",
+				EncodedValue: "https://arduino:aptexperiment@apt-repo.oniudra.cc/zephyr-core-imola.json",
+				ValueFormat:  "cli",
+			})
+			if err != nil {
+				eventsCh <- update.Event{
+					Type: update.ErrorEvent,
+					Err:  err,
+					Data: "Error setting additional URLs",
+				}
+				return
+			}
+			stream, _ := commands.UpdateIndexStreamResponseToCallbackFunction(ctx, downloadProgressCB)
+			if err := srv.UpdateIndex(&rpc.UpdateIndexRequest{Instance: inst}, stream); err != nil {
+				eventsCh <- update.Event{
+					Type: update.ErrorEvent,
+					Err:  err,
+					Data: "Error updating index",
+				}
+				return
+			}
+			if err := srv.Init(&rpc.InitRequest{Instance: inst}, commands.InitStreamResponseToCallbackFunction(ctx, nil)); err != nil {
+				eventsCh <- update.Event{
+					Type: update.ErrorEvent,
+					Err:  err,
+					Data: "Error initializing Arduino instance",
+				}
+				return
+			}
+		}
+
+		stream, respCB := commands.PlatformUpgradeStreamResponseToCallbackFunction(
+			ctx,
+			downloadProgressCB,
+			taskProgressCB,
+		)
+		if err := srv.PlatformUpgrade(
+			&rpc.PlatformUpgradeRequest{
+				Instance:         inst,
+				PlatformPackage:  "arduino",
+				Architecture:     "zephyr",
+				SkipPostInstall:  false,
+				SkipPreUninstall: false,
+			},
+			stream,
+		); err != nil {
+			var notFound *cmderrors.PlatformNotFoundError
+			if !errors.As(err, &notFound) {
+				eventsCh <- update.Event{
+					Type: update.ErrorEvent,
+					Err:  err,
+					Data: "Error upgrading platform",
+				}
+				return
+			}
+			// If the platform is not found, we will try to install it
+			err := srv.PlatformInstall(
+				&rpc.PlatformInstallRequest{
+					Instance:        inst,
+					PlatformPackage: "arduino",
+					Architecture:    "zephyr",
+				},
+				commands.PlatformInstallStreamResponseToCallbackFunction(
+					ctx,
+					downloadProgressCB,
+					taskProgressCB,
+				),
+			)
+			if err != nil {
+				eventsCh <- update.Event{
+					Type: update.ErrorEvent,
+					Err:  err,
+					Data: "Error installing platform",
+				}
+				return
+			}
+		} else if respCB().GetPlatform() == nil {
+			eventsCh <- update.Event{
+				Type: update.ErrorEvent,
+				Data: "platform upgrade failed",
+			}
+			return
+		}
+
+		err := srv.BurnBootloader(
+			&rpc.BurnBootloaderRequest{
+				Instance:   inst,
+				Fqbn:       "arduino:zephyr:unoq",
+				Programmer: "jlink",
+			},
+			commands.BurnBootloaderToServerStreams(ctx, os.Stdout, os.Stderr),
+		)
+		if err != nil {
+			eventsCh <- update.Event{
+				Type: update.ErrorEvent,
+				Err:  err,
+				Data: "Error burning bootloader",
+			}
+			return
+		}
+	}()
+
+	return eventsCh, nil
+}
+
+func arduinoCLIDownloadProgressToString(progress *rpc.DownloadProgress) string {
+	switch {
+	case progress.GetStart() != nil:
+		return fmt.Sprintf("Download started: %s", progress.GetStart().GetUrl())
+	case progress.GetUpdate() != nil:
+		return fmt.Sprintf("Download progress: %s", progress.GetUpdate())
+	case progress.GetEnd() != nil:
+		return fmt.Sprintf("Download completed: %s", progress.GetEnd())
+	}
+	return progress.String()
+}
+
+func arduinoCLITaskProgressToString(progress *rpc.TaskProgress) string {
+	data := fmt.Sprintf("Task %s:", progress.GetName())
+	if progress.GetMessage() != "" {
+		data += fmt.Sprintf(" (%s)", progress.GetMessage())
+	}
+	if progress.GetCompleted() {
+		data += " completed"
+	} else {
+		data += fmt.Sprintf(" %.2f%%", progress.GetPercent())
+	}
+	return data
+}

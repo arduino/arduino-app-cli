@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
-	"github.com/arduino/arduino-app-cli/internal/apt"
+	"github.com/arduino/arduino-app-cli/internal/update"
 
 	dockerClient "github.com/docker/docker/client"
 )
@@ -13,7 +13,7 @@ import (
 //go:embed docs
 var docsFS embed.FS
 
-func NewHTTPRouter(dockerClient *dockerClient.Client, version string, aptClient *apt.Service) http.Handler {
+func NewHTTPRouter(dockerClient *dockerClient.Client, version string, updater *update.Manager) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /v1/version", handlers.HandlerVersion(version))
@@ -21,9 +21,9 @@ func NewHTTPRouter(dockerClient *dockerClient.Client, version string, aptClient 
 	mux.Handle("GET /v1/bricks", handlers.HandleBrickList())
 	mux.Handle("GET /v1/bricks/{brickID}", handlers.HandleBrickDetails())
 
-	mux.Handle("GET /v1/system/update/check", handlers.HandleCheckUpgradable(aptClient))
-	mux.Handle("GET /v1/system/update/events", handlers.HandleUpdateEvents(aptClient))
-	mux.Handle("PUT /v1/system/update/apply", handlers.HandleUpdateApply(aptClient))
+	mux.Handle("GET /v1/system/update/check", handlers.HandleCheckUpgradable(updater))
+	mux.Handle("GET /v1/system/update/events", handlers.HandleUpdateEvents(updater))
+	mux.Handle("PUT /v1/system/update/apply", handlers.HandleUpdateApply(updater))
 	mux.Handle("GET /v1/system/resources", handlers.HandleSystemResources())
 
 	mux.Handle("GET /v1/models", handlers.HandleModelsList())

@@ -7,21 +7,19 @@ import (
 
 	"log/slog"
 
-	"go.bug.st/f"
-
-	"github.com/arduino/arduino-app-cli/internal/apt"
+	"github.com/arduino/arduino-app-cli/internal/update"
 	"github.com/arduino/arduino-app-cli/pkg/render"
 )
 
-var matchArduinoPackage = func(p apt.UpgradablePackage) bool {
+var matchArduinoPackage = func(p update.UpgradablePackage) bool {
 	return strings.HasPrefix(p.Name, "arduino-")
 }
 
-var matchAllPackages = func(p apt.UpgradablePackage) bool {
+var matchAllPackages = func(p update.UpgradablePackage) bool {
 	return true
 }
 
-func HandleCheckUpgradable(aptClient *apt.Service) http.HandlerFunc {
+func HandleCheckUpgradable(updater *update.Manager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		queryParams := r.URL.Query()
 
@@ -35,9 +33,9 @@ func HandleCheckUpgradable(aptClient *apt.Service) http.HandlerFunc {
 			filterFunc = matchArduinoPackage
 		}
 
-		pkgs, err := aptClient.ListUpgradablePackages(r.Context(), filterFunc)
+		pkgs, err := updater.ListUpgradablePackages(r.Context(), filterFunc)
 		if err != nil {
-			if errors.Is(err, apt.ErrOperationAlreadyInProgress) {
+			if errors.Is(err, update.ErrOperationAlreadyInProgress) {
 				render.EncodeResponse(w, http.StatusConflict, err.Error())
 				return
 			}
@@ -46,21 +44,19 @@ func HandleCheckUpgradable(aptClient *apt.Service) http.HandlerFunc {
 		}
 
 		if len(pkgs) == 0 {
-			render.EncodeResponse(w, http.StatusNoContent, "System is up to date, no upgradable packages found")
+			render.EncodeResponse(w, http.StatusNoContent, nil)
 			return
 		}
 
-		render.EncodeResponse(w, http.StatusOK, UpdateCheckResult{
-			Packages: pkgs,
-		})
+		render.EncodeResponse(w, http.StatusOK, UpdateCheckResult{Packages: pkgs})
 	}
 }
 
 type UpdateCheckResult struct {
-	Packages []apt.UpgradablePackage `json:"packages"`
+	Packages []update.UpgradablePackage `json:"updates"`
 }
 
-func HandleUpdateApply(aptClient *apt.Service) http.HandlerFunc {
+func HandleUpdateApply(updater *update.Manager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		queryParams := r.URL.Query()
 		onlyArduinoPackages := false
@@ -73,9 +69,9 @@ func HandleUpdateApply(aptClient *apt.Service) http.HandlerFunc {
 			filterFunc = matchArduinoPackage
 		}
 
-		pkgs, err := aptClient.ListUpgradablePackages(r.Context(), filterFunc)
+		pkgs, err := updater.ListUpgradablePackages(r.Context(), filterFunc)
 		if err != nil {
-			if errors.Is(err, apt.ErrOperationAlreadyInProgress) {
+			if errors.Is(err, update.ErrOperationAlreadyInProgress) {
 				render.EncodeResponse(w, http.StatusConflict, err.Error())
 				return
 			}
@@ -89,13 +85,9 @@ func HandleUpdateApply(aptClient *apt.Service) http.HandlerFunc {
 			return
 		}
 
-		names := f.Map(pkgs, func(p apt.UpgradablePackage) string {
-			return p.Name
-		})
-
-		err = aptClient.UpgradePackages(names)
+		err = updater.UpgradePackages(r.Context(), pkgs)
 		if err != nil {
-			if errors.Is(err, apt.ErrOperationAlreadyInProgress) {
+			if errors.Is(err, update.ErrOperationAlreadyInProgress) {
 				render.EncodeResponse(w, http.StatusConflict, err.Error())
 				return
 			}
@@ -107,7 +99,7 @@ func HandleUpdateApply(aptClient *apt.Service) http.HandlerFunc {
 	}
 }
 
-func HandleUpdateEvents(aptClient *apt.Service) http.HandlerFunc {
+func HandleUpdateEvents(updater *update.Manager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sseStream, err := render.NewSSEStream(r.Context(), w)
 		if err != nil {
@@ -117,8 +109,8 @@ func HandleUpdateEvents(aptClient *apt.Service) http.HandlerFunc {
 		}
 		defer sseStream.Close()
 
-		ch := aptClient.Subscribe()
-		defer aptClient.Unsubscribe(ch)
+		ch := updater.Subscribe()
+		defer updater.Unsubscribe(ch)
 
 		for {
 			select {
@@ -127,7 +119,7 @@ func HandleUpdateEvents(aptClient *apt.Service) http.HandlerFunc {
 					slog.Info("APT event channel closed, stopping SSE stream")
 					return
 				}
-				if event.Type == apt.ErrorEvent {
+				if event.Type == update.ErrorEvent {
 					sseStream.SendError(render.SSEErrorData{
 						Code:    render.InternalServiceErr,
 						Message: event.Data,

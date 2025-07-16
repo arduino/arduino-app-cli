@@ -1,4 +1,4 @@
-package apt
+package update
 
 // EventType defines the type of upgrade event.
 type EventType int
@@ -7,6 +7,7 @@ const (
 	UpgradeLineEvent EventType = iota
 	StartEvent
 	RestartEvent
+	DoneEvent
 	ErrorEvent
 )
 
@@ -25,9 +26,22 @@ func (t EventType) String() string {
 		return "restarting"
 	case StartEvent:
 		return "starting"
+	case DoneEvent:
+		return "done"
 	case ErrorEvent:
 		return "error"
 	default:
 		panic("unreachable")
 	}
+}
+
+type PackageType string
+
+const (
+	Arduino PackageType = "arduino-platform"
+	Debian  PackageType = "debian-package"
+)
+
+func (s PackageType) AllowedStatuses() []PackageType {
+	return []PackageType{Arduino, Debian}
 }
