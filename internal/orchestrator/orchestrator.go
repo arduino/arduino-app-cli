@@ -58,10 +58,11 @@ const (
 	DefaultDockerStopTimeoutSeconds = 5
 )
 
+var RunnerVersion = "0.1.16"
+
 func init() {
 	const dockerRegistry = "ghcr.io/bcmi-labs/"
-	const dockerPythonImage = "arduino/appslab-python-apps-base:0.1.16"
-	// Registry base: contains the registry and namespace, common to all Arduino docker images.
+	var dockerPythonImage = fmt.Sprintf("arduino/appslab-python-apps-base:%s", RunnerVersion)
 	registryBase := os.Getenv("DOCKER_REGISTRY_BASE")
 	if registryBase == "" {
 		registryBase = dockerRegistry
