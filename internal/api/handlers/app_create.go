@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/pkg/render"
 
@@ -32,14 +33,14 @@ func HandleAppCreate(dockerClient *dockerClient.Client) http.HandlerFunc {
 		skipSketch := queryParamsValidator(skipSketchStr)
 
 		if skipPython && skipSketch {
-			render.EncodeResponse(w, http.StatusBadRequest, "cannot skip both python and sketch")
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "cannot skip both python and sketch"})
 			return
 		}
 
 		var req CreateAppRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			slog.Error("unable to decode app create request", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusBadRequest, "unable to decode app create request")
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "unable to decode app create request"})
 			return
 		}
 
@@ -56,11 +57,11 @@ func HandleAppCreate(dockerClient *dockerClient.Client) http.HandlerFunc {
 		if err != nil {
 			if errors.Is(err, orchestrator.ErrAppAlreadyExists) {
 				slog.Error("app already exists", slog.String("error", err.Error()))
-				render.EncodeResponse(w, http.StatusConflict, "app already exists")
+				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: "app already exists"})
 				return
 			}
 			slog.Error("unable to create app", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusInternalServerError, "unable to create app")
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to create"})
 			return
 		}
 		render.EncodeResponse(w, http.StatusCreated, resp)

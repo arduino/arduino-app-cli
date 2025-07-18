@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/pkg/render"
@@ -15,21 +16,21 @@ func HandleAppStop(dockerClient *dockerClient.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
 		if err != nil {
-			render.EncodeResponse(w, http.StatusPreconditionFailed, "invalid id")
+			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid id"})
 			return
 		}
 
 		app, err := app.Load(id.ToPath().String())
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", id.String()))
-			render.EncodeResponse(w, http.StatusInternalServerError, "unable to find the app")
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
 			return
 		}
 
 		sseStream, err := render.NewSSEStream(r.Context(), w)
 		if err != nil {
 			slog.Error("Unable to create SSE stream", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusInternalServerError, "unable to create SSE stream")
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to create SSE stream"})
 			return
 		}
 		defer sseStream.Close()

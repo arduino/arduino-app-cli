@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/pkg/render"
@@ -16,21 +17,21 @@ func HandleAppDetails(dockerClient *dockerClient.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
 		if err != nil {
-			render.EncodeResponse(w, http.StatusPreconditionFailed, "invalid id")
+			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid id"})
 			return
 		}
 
 		app, err := app.Load(id.ToPath().String())
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", id.String()))
-			render.EncodeResponse(w, http.StatusInternalServerError, "unable to find the app")
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
 			return
 		}
 
 		res, err := orchestrator.AppDetails(r.Context(), dockerClient, app)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusInternalServerError, "unable to find the app")
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
 			return
 		}
 		render.EncodeResponse(w, http.StatusOK, res)
@@ -48,25 +49,25 @@ func HandleAppDetailsEdits() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
 		if err != nil {
-			render.EncodeResponse(w, http.StatusPreconditionFailed, "invalid id")
+			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid id"})
 			return
 		}
 		if id.IsExample() {
-			render.EncodeResponse(w, http.StatusBadRequest, "cannot patch example")
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "cannot patch the example"})
 			return
 		}
 
 		app, err := app.Load(id.ToPath().String())
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", id.String()))
-			render.EncodeResponse(w, http.StatusInternalServerError, "unable to find the app")
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
 			return
 		}
 
 		var editRequest EditRequest
 		if err := json.NewDecoder(r.Body).Decode(&editRequest); err != nil {
 			slog.Error("Unable to decode the request body", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusBadRequest, "invalid request body")
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "invalid request"})
 			return
 		}
 
@@ -78,7 +79,7 @@ func HandleAppDetailsEdits() http.HandlerFunc {
 		}, &app)
 		if err != nil {
 			slog.Error("Unable to edit the app", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusInternalServerError, "unable to edit the app")
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to edit the app"})
 			return
 		}
 

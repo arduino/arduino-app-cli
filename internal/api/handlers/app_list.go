@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/pkg/render"
 
@@ -32,7 +33,7 @@ func HandleAppList(dockerClient *dockerClient.Client) http.HandlerFunc {
 		if status := queryParams.Get("status"); status != "" {
 			status, err := orchestrator.ParseStatus(status)
 			if err != nil {
-				render.EncodeResponse(w, http.StatusBadRequest, "invalid status filter")
+				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "invalid status filter"})
 				return
 			}
 			statusFilter = status
@@ -46,7 +47,8 @@ func HandleAppList(dockerClient *dockerClient.Client) http.HandlerFunc {
 		})
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusInternalServerError, "unable to find the app")
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
+
 			return
 		}
 		render.EncodeResponse(w, http.StatusOK, AppListResponse{Apps: res.Apps})
