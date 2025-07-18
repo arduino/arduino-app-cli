@@ -5,14 +5,14 @@ import (
 	"os"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/arduino/arduino-app-cli/pkg/board/remote"
 )
 
 const (
-	ResetPin  = 38
-	EnablePin = 70
-	ChipName  = "gpiochip1"
+	ResetPin = 38
+	ChipName = "gpiochip1"
 )
 
 var OnBoard = sync.OnceValue(func() bool {
@@ -25,19 +25,22 @@ var OnBoard = sync.OnceValue(func() bool {
 })()
 
 func Reset(ctx context.Context, cmder remote.RemoteShell) error {
-	if OnBoard {
-		return resetOnBoard()
+	if err := Disable(ctx, cmder); err != nil {
+		return err
 	}
 
-	return resetRemote(ctx, cmder)
+	// Simulate a reset by toggling the reset pin
+	time.Sleep(10 * time.Millisecond)
+
+	return Enable(ctx, cmder)
 }
 
-func Enable(ctx context.Context, cmder remote.RemoteShell, withReset bool) error {
+func Enable(ctx context.Context, cmder remote.RemoteShell) error {
 	if OnBoard {
-		return enableOnBoard(withReset)
+		return enableOnBoard()
 	}
 
-	return enableRemote(ctx, cmder, withReset)
+	return enableRemote(ctx, cmder)
 }
 
 func Disable(ctx context.Context, cmder remote.RemoteShell) error {

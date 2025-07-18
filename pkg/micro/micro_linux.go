@@ -4,12 +4,10 @@
 package micro
 
 import (
-	"time"
-
 	"github.com/warthog618/go-gpiocdev"
 )
 
-func resetOnBoard() error {
+func enableOnBoard() error {
 	chip, err := gpiocdev.NewChip(ChipName)
 	if err != nil {
 		return err
@@ -22,38 +20,7 @@ func resetOnBoard() error {
 	}
 	defer line.Close()
 
-	if err := line.SetValue(0); err != nil {
-		return err
-	}
-	time.Sleep(10 * time.Millisecond) // Simulate reset delay
-	if err := line.SetValue(1); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func enableOnBoard(withReset bool) error {
-	chip, err := gpiocdev.NewChip(ChipName)
-	if err != nil {
-		return err
-	}
-	defer chip.Close()
-
-	line, err := chip.RequestLine(EnablePin, gpiocdev.AsOutput(0))
-	if err != nil {
-		return err
-	}
-	defer line.Close()
-
-	if err := line.SetValue(0); err != nil {
-		return err
-	}
-
-	if withReset {
-		return resetOnBoard()
-	}
-	return nil
+	return line.SetValue(1)
 }
 
 func disableOnBoard() error {
@@ -63,15 +30,11 @@ func disableOnBoard() error {
 	}
 	defer chip.Close()
 
-	line, err := chip.RequestLine(EnablePin, gpiocdev.AsOutput(1))
+	line, err := chip.RequestLine(ResetPin, gpiocdev.AsOutput(0))
 	if err != nil {
 		return err
 	}
 	defer line.Close()
 
-	if err := line.SetValue(1); err != nil {
-		return err
-	}
-
-	return resetOnBoard()
+	return line.SetValue(0)
 }
