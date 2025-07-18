@@ -15,6 +15,9 @@ import (
 )
 
 func StartAdbDContainer(t *testing.T) (string, string, string) {
+	if runtime.GOOS != "linux" && os.Getenv("CI") != "" {
+		t.Skip("Skipping tests in CI that requires docker on non-Linux systems")
+	}
 	t.Helper()
 
 	cmd := exec.Command("docker", "build", "-t", "adbd", "-f", "adbd.Dockerfile", ".")
