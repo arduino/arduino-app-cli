@@ -16,6 +16,7 @@ import (
 )
 
 var ErrBrickNotFound = errors.New("brick not found")
+var ErrCannotSave = errors.New("cannot save brick instance")
 
 type BrickListResult struct {
 	Bricks []BrickListItem `json:"bricks"`
@@ -213,6 +214,9 @@ func BrickCreate(req BrickCreateUpdateRequest, appCurrent app.ArduinoApp) error 
 
 	brickInstance.ID = req.ID
 
+	if req.Model == nil {
+		return fmt.Errorf("received empty model ")
+	}
 	models := modelsIndex.GetModelsByBrick(brickInstance.ID)
 	idx := slices.IndexFunc(models, func(m modelsindex.AIModel) bool { return m.ID == *req.Model })
 	if idx == -1 {
@@ -259,7 +263,6 @@ func BrickUpdate(req BrickCreateUpdateRequest, appCurrent app.ArduinoApp) error 
 		}
 		brickModel = *req.Model
 	}
-
 	brick, present := bricksIndex.FindBrickByID(brickID)
 	if !present {
 		return fmt.Errorf("brick not found with id %s", brickID)
@@ -300,7 +303,7 @@ func BrickUpdate(req BrickCreateUpdateRequest, appCurrent app.ArduinoApp) error 
 func BrickDelete(id string, appCurrent *app.ArduinoApp) error {
 	_, present := bricksIndex.FindBrickByID(id)
 	if !present {
-		return fmt.Errorf("brick not found with id %s", id)
+		return ErrBrickNotFound
 	}
 
 	appCurrent.Descriptor.Bricks = slices.DeleteFunc(appCurrent.Descriptor.Bricks, func(b app.Brick) bool {
@@ -308,7 +311,7 @@ func BrickDelete(id string, appCurrent *app.ArduinoApp) error {
 	})
 
 	if err := appCurrent.Save(); err != nil {
-		return fmt.Errorf("cannot save brick instance with id %s", id)
+		return ErrCannotSave
 	}
 	return nil
 }
