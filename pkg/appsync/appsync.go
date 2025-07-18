@@ -181,7 +181,7 @@ func (a *AppsSync) watchLoop() {
 				return
 			}
 			slog.Debug("watcher event", "op", event.Op, "path", event.Name)
-			go func() {
+			func() {
 				a.mx.RLock()
 				defer a.mx.RUnlock()
 				for name, tmp := range a.syncApps {

@@ -5,13 +5,14 @@ import (
 	"math/rand/v2"
 	"os"
 	"os/exec"
-	"os/user"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/arduino/arduino-app-cli/pkg/board/remote/adb"
 )
 
 func StartAdbDContainer(t *testing.T) (string, string, string) {
@@ -39,7 +40,7 @@ func StartAdbDContainer(t *testing.T) (string, string, string) {
 		t.Logf("attempt to start adb container with port %q, %q: %s, %s", adbPort, sshPort, err, strings.TrimSpace(string(out)))
 	}
 
-	adbPath := getAdbPath()
+	adbPath := adb.FindAdbPath()
 	for {
 		select {
 		case <-time.After(10 * time.Second):
@@ -73,40 +74,6 @@ func getRandPort(t *testing.T) string {
 	// Random port between 1000 and 9999
 	port := 1000 + rand.IntN(9000) // nolint:gosec
 	return strconv.Itoa(port)
-}
-
-func getAdbPath() string {
-	// Attempt to find the adb path in the Arduino15 directory
-	const arduino15adbPath = "packages/arduino/tools/adb/32.0.0/adb"
-	var path string
-	switch runtime.GOOS {
-	case "darwin":
-		user, err := user.Current()
-		if err != nil {
-			fmt.Println("WARNING: Unable to get current user:", err)
-			break
-		}
-		path = filepath.Join(user.HomeDir, "/Library/Arduino15/", arduino15adbPath)
-	case "linux":
-		user, err := user.Current()
-		if err != nil {
-			fmt.Println("WARNING: Unable to get current user:", err)
-			break
-		}
-		path = filepath.Join(user.HomeDir, ".arduino15/", arduino15adbPath)
-	case "windows":
-		user, err := user.Current()
-		if err != nil {
-			fmt.Println("WARNING: Unable to get current user:", err)
-			break
-		}
-		path = filepath.Join(user.HomeDir, "AppData/Local/Arduino15/", arduino15adbPath)
-	}
-	s, err := os.Stat(path)
-	if err == nil && !s.IsDir() {
-		return path
-	}
-	return "adb"
 }
 
 func getBaseProjectPath(t *testing.T) string {

@@ -32,7 +32,7 @@ var _ remote.RemoteConn = (*ADBConnection)(nil)
 
 func FromSerial(serial string, adbPath string) (*ADBConnection, error) {
 	if adbPath == "" {
-		adbPath = findAdbPath()
+		adbPath = FindAdbPath()
 	}
 
 	return &ADBConnection{
@@ -43,7 +43,7 @@ func FromSerial(serial string, adbPath string) (*ADBConnection, error) {
 
 func FromHost(host string, adbPath string) (*ADBConnection, error) {
 	if adbPath == "" {
-		adbPath = findAdbPath()
+		adbPath = FindAdbPath()
 	}
 	if err := exec.Command(adbPath, "connect", host).Run(); err != nil {
 		return nil, fmt.Errorf("failed to connect to ADB host %s: %w", host, err)
@@ -159,33 +159,11 @@ func (a *ADBConnection) Stats(path string) (remote.FileInfo, error) {
 }
 
 func (a *ADBConnection) ReadFile(path string) (io.ReadCloser, error) {
-	cmd := exec.Command(a.adbPath, "-s", a.host, "shell", "cat", path) // nolint:gosec
-	output, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
-	if err := cmd.Start(); err != nil {
-		return nil, err
-	}
-	return output, nil
+	return adbReadFile(a, path)
 }
 
 func (a *ADBConnection) WriteFile(r io.Reader, path string) error {
-	// Create the file with the correct permissions and ownership
-	cmd := exec.Command(a.adbPath, "-s", a.host, "shell", "install", "-o", username, "-g", username, "-m", "0644", "/dev/null", path) // nolint:gosec
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to write file to %q: %w: %s", path, err, out)
-	}
-
-	// Write the content to the file.
-	cmd = exec.Command(a.adbPath, "-s", a.host, "shell", "cat", ">", path) // nolint:gosec
-	cmd.Stdin = r
-	out, err = cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to write file %q: %w: %s", path, err, out)
-	}
-	return nil
+	return adbWriteFile(a, r, path)
 }
 
 func (a *ADBConnection) MkDirAll(path string) error {
@@ -262,7 +240,7 @@ func (a *ADBCommand) Interactive() (io.WriteCloser, io.Reader, remote.Closer, er
 	}, nil
 }
 
-func findAdbPath() string {
+func FindAdbPath() string {
 	var adbPath = "adb"
 
 	// Attempt to find the adb path in the Arduino15 directory

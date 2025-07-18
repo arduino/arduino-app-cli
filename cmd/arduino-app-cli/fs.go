@@ -113,13 +113,13 @@ func newPullCmd() *cobra.Command {
 
 func newSyncAppCmd() *cobra.Command {
 	syncAppCmd := &cobra.Command{
-		Use:   "enable-sync <app-name>",
-		Short: "Enable sync of an app from the board",
+		Use:   "enable-sync <path>",
+		Short: "Enable sync of an path from the board",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			conn := cmd.Context().Value(remoteConnKey).(remote.RemoteConn)
 
-			appName := args[0]
+			remote := path.Join(boardHomePath, args[0])
 
 			s, err := appsync.New(conn)
 			if err != nil {
@@ -133,15 +133,15 @@ func newSyncAppCmd() *cobra.Command {
 				fmt.Printf(" ⬇️ Pushed app %q to the board\n", name)
 			}
 
-			tmp, err := s.EnableSyncApp(path.Join(boardHomePath, "arduino-apps", appName))
+			tmp, err := s.EnableSyncApp(remote)
 			if err != nil {
-				return fmt.Errorf("failed to enable sync for app %q: %w", appName, err)
+				return fmt.Errorf("failed to enable sync for app %q: %w", remote, err)
 			}
 
-			fmt.Printf("Enable sync of %q at %q\n", appName, tmp)
+			fmt.Printf("Enable sync of %q at %q\n", remote, tmp)
 
 			<-cmd.Context().Done()
-			_ = s.DisableSyncApp(appName)
+			_ = s.DisableSyncApp(remote)
 			return nil
 		},
 	}

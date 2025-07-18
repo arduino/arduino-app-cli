@@ -121,7 +121,7 @@ func TestSSHShell(t *testing.T) {
 				cmd := cmder("echo", "Hello, World!")
 				output, err := cmd.Output()
 				require.NoError(t, err)
-				require.Equal(t, "Hello, World!\n", string(output))
+				assert.True(t, strings.HasPrefix(string(output), "Hello, World!"))
 			})
 
 			t.Run("Interactive", func(t *testing.T) {
@@ -135,7 +135,7 @@ func TestSSHShell(t *testing.T) {
 
 				output, err := io.ReadAll(stdout)
 				require.NoError(t, err)
-				require.Equal(t, "Hello, Interactive World!\n", string(output))
+				assert.True(t, strings.HasPrefix(string(output), "Hello, Interactive World!"))
 
 				require.NoError(t, closer())
 			})

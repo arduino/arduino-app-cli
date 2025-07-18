@@ -226,6 +226,8 @@ func TestEnableSyncApp(t *testing.T) {
 					"test.txt",
 				}, files)
 			})
+
+			sync.Close()
 		})
 	}
 }

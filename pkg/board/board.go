@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 
 	"github.com/arduino/arduino-cli/commands"
 	"github.com/arduino/arduino-cli/pkg/fqbn"
@@ -71,9 +72,10 @@ func FromFQBN(ctx context.Context, fqbn string) ([]Board, error) {
 			}
 			switch port.GetPort().GetProtocol() {
 			case SerialProtocol:
+				serial := strings.ToLower(port.GetPort().GetHardwareId()) // in windows this is uppercase.
 				boards = append(boards, Board{
 					Protocol: SerialProtocol,
-					Serial:   port.GetPort().GetHardwareId(),
+					Serial:   serial,
 				})
 			case NetworkProtocol:
 				boards = append(boards, Board{
