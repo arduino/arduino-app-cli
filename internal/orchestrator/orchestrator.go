@@ -392,7 +392,7 @@ func ListApps(ctx context.Context, docker *dockerClient.Client, req ListAppReque
 			slog.Error("unable to list apps", slog.String("error", err.Error()))
 			return result, err
 		}
-		appPaths.AddAll(res)
+		appPaths.AddAllMissing(res)
 	}
 
 	defaultApp, err := GetDefaultApp()
