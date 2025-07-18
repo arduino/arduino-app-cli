@@ -556,7 +556,7 @@ func TestAppLogs(t *testing.T) {
 		body, _ := io.ReadAll(resp.Body)
 		err = json.Unmarshal(body, &actualResponseBody)
 		require.NoError(t, err, "Failed to unmarshal the JSON error response body")
-		require.Equal(t, "invalid tail value, cannot be negative", actualResponseBody.Details)
+		require.Equal(t, "invalid tail value", actualResponseBody.Details)
 	})
 	// find a way to test 400 invalid tail value: client generated code is type safe, so an invalid value can't be sent
 }

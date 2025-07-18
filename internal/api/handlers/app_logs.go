@@ -39,18 +39,15 @@ func HandleAppLogs(dockerClient *dockerClient.Client) http.HandlerFunc {
 			showAppLogs = slices.Contains(filters, "app")
 		}
 
-		tail := int64(0)
+		var tail *uint64
 		if tailStr := queryParams.Get("tail"); tailStr != "" {
-			tail, err = strconv.ParseInt(tailStr, 10, 64)
+			tailParsed, err := strconv.ParseUint(tailStr, 10, 64)
 			if err != nil {
 				slog.Error("Unable to parse tail", slog.String("error", err.Error()), slog.String("tail", tailStr))
 				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "invalid tail value"})
 				return
 			}
-			if tail < 0 {
-				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "invalid tail value, cannot be negative"})
-				return
-			}
+			tail = &tailParsed
 		}
 
 		// If the follow query param is set, the default is true

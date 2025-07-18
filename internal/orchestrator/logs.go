@@ -18,7 +18,7 @@ type AppLogsRequest struct {
 	ShowAppLogs      bool
 	ShowServicesLogs bool
 	Follow           bool
-	Tail             int64
+	Tail             *uint64
 }
 
 type LogMessage struct {
@@ -79,8 +79,8 @@ func AppLogs(ctx context.Context, app app.ArduinoApp, req AppLogsRequest) (iter.
 	if req.Follow {
 		args = append(args, "--follow")
 	}
-	if req.Tail > 0 {
-		args = append(args, "--tail", fmt.Sprintf("%d", req.Tail))
+	if req.Tail != nil {
+		args = append(args, "--tail", fmt.Sprintf("%d", *req.Tail))
 	}
 	args = append(args, dockerComposeServices...)
 	process, err := paths.NewProcess(nil, args...)

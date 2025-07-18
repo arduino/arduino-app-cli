@@ -127,7 +127,8 @@ func newRestartCmd(docker *dockerClient.Client) *cobra.Command {
 }
 
 func newLogsCmd() *cobra.Command {
-	return &cobra.Command{
+	var tail uint64
+	cmd := &cobra.Command{
 		Use:   "logs app_path",
 		Short: "Show the logs of the Python app",
 		Args:  cobra.MaximumNArgs(1),
@@ -139,9 +140,11 @@ func newLogsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return logsHandler(cmd.Context(), app)
+			return logsHandler(cmd.Context(), app, &tail)
 		},
 	}
+	cmd.Flags().Uint64Var(&tail, "tail", 100, "Tail the last N logs")
+	return cmd
 }
 
 func newMonitorCmd() *cobra.Command {
@@ -271,8 +274,16 @@ func stopHandler(ctx context.Context, app app.ArduinoApp) error {
 	return nil
 }
 
-func logsHandler(ctx context.Context, app app.ArduinoApp) error {
-	logsIter, err := orchestrator.AppLogs(ctx, app, orchestrator.AppLogsRequest{ShowAppLogs: true, Follow: true})
+func logsHandler(ctx context.Context, app app.ArduinoApp, tail *uint64) error {
+	logsIter, err := orchestrator.AppLogs(
+		ctx,
+		app,
+		orchestrator.AppLogsRequest{
+			ShowAppLogs: true,
+			Follow:      true,
+			Tail:        tail,
+		},
+	)
 	if err != nil {
 		return err
 	}
