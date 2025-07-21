@@ -7,6 +7,7 @@ import (
 
 	"log/slog"
 
+	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/update"
 	"github.com/arduino/arduino-app-cli/pkg/render"
 )
@@ -36,10 +37,10 @@ func HandleCheckUpgradable(updater *update.Manager) http.HandlerFunc {
 		pkgs, err := updater.ListUpgradablePackages(r.Context(), filterFunc)
 		if err != nil {
 			if errors.Is(err, update.ErrOperationAlreadyInProgress) {
-				render.EncodeResponse(w, http.StatusConflict, err.Error())
+				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: err.Error()})
 				return
 			}
-			render.EncodeResponse(w, http.StatusBadRequest, "Error checking for upgradable packages: "+err.Error())
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "Error checking for upgradable packages: " + err.Error()})
 			return
 		}
 
@@ -72,26 +73,26 @@ func HandleUpdateApply(updater *update.Manager) http.HandlerFunc {
 		pkgs, err := updater.ListUpgradablePackages(r.Context(), filterFunc)
 		if err != nil {
 			if errors.Is(err, update.ErrOperationAlreadyInProgress) {
-				render.EncodeResponse(w, http.StatusConflict, err.Error())
+				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: err.Error()})
 				return
 			}
 			slog.Error("Unable to get upgradable packages", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusInternalServerError, "Error checking for upgradable packages")
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "Error checking for upgradable packages"})
 			return
 		}
 
 		if len(pkgs) == 0 {
-			render.EncodeResponse(w, http.StatusNoContent, "System is up to date, no upgradable packages found")
+			render.EncodeResponse(w, http.StatusNoContent, models.ErrorResponse{Details: "System is up to date, no upgradable packages found"})
 			return
 		}
 
 		err = updater.UpgradePackages(r.Context(), pkgs)
 		if err != nil {
 			if errors.Is(err, update.ErrOperationAlreadyInProgress) {
-				render.EncodeResponse(w, http.StatusConflict, err.Error())
+				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: err.Error()})
 				return
 			}
-			render.EncodeResponse(w, http.StatusInternalServerError, "Error upgrading packages")
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "Error upgrading packages"})
 			return
 		}
 
@@ -104,7 +105,7 @@ func HandleUpdateEvents(updater *update.Manager) http.HandlerFunc {
 		sseStream, err := render.NewSSEStream(r.Context(), w)
 		if err != nil {
 			slog.Error("Unable to create SSE stream", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusInternalServerError, "unable to create SSE stream")
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to create SSE stream"})
 			return
 		}
 		defer sseStream.Close()
