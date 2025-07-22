@@ -119,8 +119,9 @@ func httpHandler(
 		panic(err)
 	}
 
+	address := "127.0.0.1:" + daemonPort
 	httpSrv := http.Server{
-		Addr:              ":" + daemonPort,
+		Addr:              address,
 		Handler:           httprecover.RecoverPanic(corsMiddlware.Wrap(apiSrv)),
 		ReadHeaderTimeout: 60 * time.Second,
 	}
@@ -131,10 +132,10 @@ func httpHandler(
 	}()
 
 	<-ctx.Done()
-	slog.Info("Shutting down HTTP server", slog.String("address", ":"+daemonPort))
+	slog.Info("Shutting down HTTP server", slog.String("address", address))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	_ = httpSrv.Shutdown(ctx)
 	cancel()
-	slog.Info("HTTP server shut down", slog.String("address", ":"+daemonPort))
+	slog.Info("HTTP server shut down", slog.String("address", address))
 }
