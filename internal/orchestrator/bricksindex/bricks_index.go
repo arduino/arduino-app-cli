@@ -44,6 +44,7 @@ type Brick struct {
 	Variables        []BrickVariable `yaml:"variables,omitempty"`
 	Ports            []string        `yaml:"ports,omitempty"`
 	ModelName        string          `yaml:"model_name,omitempty"`
+	RequiresDevices  bool            `yaml:"require_devices,omitempty"`
 }
 
 func (b Brick) GetVariable(name string) (BrickVariable, bool) {
@@ -68,9 +69,17 @@ func GenerateBricksIndex() (*BricksIndex, error) {
 		return nil, err
 	}
 
+	return unmarshalBricksIndex(bricksList)
+}
+
+func unmarshalBricksIndex(bricksList []byte) (*BricksIndex, error) {
 	var index BricksIndex
 	if err := yaml.Unmarshal(bricksList, &index); err != nil {
 		return nil, err
 	}
 	return &index, nil
+}
+
+func LoadBricksIndex(bricksList []byte) (*BricksIndex, error) {
+	return unmarshalBricksIndex(bricksList)
 }

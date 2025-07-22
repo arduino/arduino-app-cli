@@ -216,7 +216,14 @@ func StartApp(ctx context.Context, docker *dockerClient.Client, app app.ArduinoA
 			}
 
 			mainCompose := provisioningStateDir.Join("app-compose.yaml")
-			process, err := paths.NewProcess(envs, "docker", "compose", "-f", mainCompose.String(), "up", "-d", "--remove-orphans", "--pull", "missing")
+			overrideComposeFile := provisioningStateDir.Join("app-compose-overrides.yaml")
+			commands := []string{}
+			commands = append(commands, "docker", "compose", "-f", mainCompose.String())
+			if ok, _ := overrideComposeFile.ExistCheck(); ok {
+				commands = append(commands, "-f", overrideComposeFile.String())
+			}
+			commands = append(commands, "up", "-d", "--remove-orphans", "--pull", "missing")
+			process, err := paths.NewProcess(envs, commands...)
 			if err != nil {
 				yield(StreamMessage{error: err})
 				return

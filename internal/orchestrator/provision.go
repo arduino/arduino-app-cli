@@ -16,13 +16,32 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/assets"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/docker/api/types/container"
 	dockerClient "github.com/docker/docker/client"
 	yaml "github.com/goccy/go-yaml"
-	"go.bug.st/f"
 )
+
+type volume struct {
+	Type   string `yaml:"type"`
+	Source string `yaml:"source"`
+	Target string `yaml:"target"`
+}
+
+type service struct {
+	Image      string            `yaml:"image"`
+	DependsOn  []string          `yaml:"depends_on,omitempty"`
+	Volumes    []volume          `yaml:"volumes"`
+	Devices    []string          `yaml:"devices"`
+	Ports      []string          `yaml:"ports"`
+	User       string            `yaml:"user"`
+	GroupAdd   []string          `yaml:"group_add"`
+	Entrypoint string            `yaml:"entrypoint"`
+	ExtraHosts []string          `yaml:"extra_hosts,omitempty"`
+	Labels     map[string]string `yaml:"labels,omitempty"`
+}
 
 func ProvisionApp(ctx context.Context, docker *dockerClient.Client, app app.ArduinoApp) error {
 	start := time.Now()
@@ -78,7 +97,7 @@ func ProvisionApp(ctx context.Context, docker *dockerClient.Client, app app.Ardu
 		}
 	}
 
-	return generateMainComposeFile(ctx, app, pythonImage)
+	return generateMainComposeFile(app, pythonImage, bricksIndex)
 }
 
 func dynamicProvisioning(ctx context.Context, docker *dockerClient.Client, app app.ArduinoApp) error {
@@ -140,18 +159,29 @@ func getProvisioningStateDir(app app.ArduinoApp) (*paths.Path, error) {
 const DockerAppLabel = "cc.arduino.app"
 const DockerAppPathLabel = "cc.arduino.app.path"
 
-func generateMainComposeFile(ctx context.Context, app app.ArduinoApp, pythonImage string) error {
+func generateMainComposeFile(app app.ArduinoApp, pythonImage string, bricks *bricksindex.BricksIndex) error {
 	provisioningStateDir, err := getProvisioningStateDir(app)
 	if err != nil {
 		return err
 	}
 
+	slog.Debug("Generating main compose file for the App")
+
 	var composeFiles paths.PathList
+	services := []string{}
+	brickServices := map[string][]string{}
 	for _, brick := range app.Descriptor.Bricks {
 		brickPath := filepath.Join(strings.Split(brick.ID, ":")...)
 		composeFilePath := provisioningStateDir.Join("compose", brickPath, "brick_compose.yaml")
 		if composeFilePath.Exist() {
 			composeFiles.Add(composeFilePath)
+			svcs, e := extracServicesFromComposeFile(composeFilePath)
+			if e != nil {
+				slog.Error("Failed to extract services from compose file", slog.String("compose_file", composeFilePath.String()), slog.Any("error", e))
+				continue
+			}
+			brickServices[brick.ID] = svcs
+			services = append(services, svcs...)
 			slog.Debug("Brick compose file found", slog.String("module", brick.ID), slog.String("path", composeFilePath.String()))
 		} else {
 			slog.Debug("Brick compose file not found", slog.String("module", brick.ID), slog.String("path", composeFilePath.String()))
@@ -160,24 +190,9 @@ func generateMainComposeFile(ctx context.Context, app app.ArduinoApp, pythonImag
 
 	// Create a single docker-mainCompose that includes all the required services
 	mainComposeFile := provisioningStateDir.Join("app-compose.yaml")
+	// If required, create an override compose file for devices
+	overrideComposeFile := provisioningStateDir.Join("app-compose-overrides.yaml")
 
-	type volume struct {
-		Type   string `yaml:"type"`
-		Source string `yaml:"source"`
-		Target string `yaml:"target"`
-	}
-	type service struct {
-		Image      string            `yaml:"image"`
-		DependsOn  []string          `yaml:"depends_on,omitempty"`
-		Volumes    []volume          `yaml:"volumes"`
-		Devices    []string          `yaml:"devices"`
-		Ports      []string          `yaml:"ports"`
-		User       string            `yaml:"user"`
-		GroupAdd   []string          `yaml:"group_add"`
-		Entrypoint string            `yaml:"entrypoint"`
-		ExtraHosts []string          `yaml:"extra_hosts,omitempty"`
-		Labels     map[string]string `yaml:"labels,omitempty"`
-	}
 	type mainService struct {
 		Main service `yaml:"main"`
 	}
@@ -210,25 +225,29 @@ func generateMainComposeFile(ctx context.Context, app app.ArduinoApp, pythonImag
 
 	slog.Debug("Compose file for the App created", slog.String("compose_file", mainComposeFile.String()))
 
-	// docker compose -f app-compose.yml config --services
-	services, err := dockerComposeListServices(ctx, mainComposeFile)
-	if err != nil {
-		return err
-	}
-	services = f.Filter(services, f.NotEquals("main"))
-
 	ports := make(map[string]struct{}, len(app.Descriptor.Ports))
 	for _, p := range app.Descriptor.Ports {
 		ports[fmt.Sprintf("%d:%d", p, p)] = struct{}{}
 	}
 
+	servicesThatRequireDevices := []string{}
 	for _, b := range app.Descriptor.Bricks {
-		brick, found := bricksIndex.FindBrickByID(b.ID)
+		brick, found := bricks.FindBrickByID(b.ID)
+		slog.Debug("Processing brick", slog.String("brick_id", b.ID), slog.Bool("found", found))
 		if !found {
 			continue
 		}
 		for _, p := range brick.Ports {
 			ports[fmt.Sprintf("%s:%s", p, p)] = struct{}{}
+		}
+		slog.Debug("Brick require Devices", slog.Bool("Devices", brick.RequiresDevices), slog.Any("ports", ports))
+		if brick.RequiresDevices {
+			// Load services from compose file
+			if svcs, ok := brickServices[b.ID]; ok {
+				servicesThatRequireDevices = append(servicesThatRequireDevices, svcs...)
+			} else {
+				slog.Debug("(RequiresDevices) No compose file found for brick", slog.String("brick_id", b.ID))
+			}
 		}
 	}
 
@@ -239,6 +258,7 @@ func generateMainComposeFile(ctx context.Context, app app.ArduinoApp, pythonImag
 			Target: "/app",
 		},
 	}
+	slog.Debug("Adding UNIX socket", slog.Any("sock", orchestratorConfig.RouterSocketPath().String()), slog.Bool("exists", orchestratorConfig.RouterSocketPath().Exist()))
 	if orchestratorConfig.RouterSocketPath().Exist() {
 		volumes = append(volumes, volume{
 			Type:   "bind",
@@ -247,12 +267,14 @@ func generateMainComposeFile(ctx context.Context, app app.ArduinoApp, pythonImag
 		})
 	}
 
+	devices := getDevices()
+
 	mainAppCompose.Services = &mainService{
 		Main: service{
 			Image:      pythonImage,
 			Volumes:    volumes,
 			Ports:      slices.Collect(maps.Keys(ports)),
-			Devices:    getDevices(),
+			Devices:    devices,
 			Entrypoint: "/run.sh",
 			DependsOn:  services,
 			User:       getCurrentUser(),
@@ -264,5 +286,77 @@ func generateMainComposeFile(ctx context.Context, app app.ArduinoApp, pythonImag
 			},
 		},
 	}
-	return writeMainCompose()
+
+	// Write the main compose file
+	if e := writeMainCompose(); e != nil {
+		return e
+	}
+	// If there are services that require devices, we need to generate an override compose file
+	if overrideComposeFile.Exist() {
+		if err := overrideComposeFile.Remove(); err != nil {
+			return fmt.Errorf("failed to remove existing override compose file: %w", err)
+		}
+	}
+	if len(servicesThatRequireDevices) > 0 {
+		// Write additiona file to override devices section in included compose files
+		if e := generateServicesOverrideFile(servicesThatRequireDevices, devices, overrideComposeFile); e != nil {
+			return e
+		}
+	}
+	// Done!
+	return nil
+}
+
+func extracServicesFromComposeFile(composeFile *paths.Path) ([]string, error) {
+	if content, e := os.ReadFile(composeFile.String()); e != nil {
+		return nil, e
+	} else {
+		servicesThatRequireDevices := []string{}
+		type serviceMin struct {
+			Image string `yaml:"image"`
+		}
+		type composeServices struct {
+			Services map[string]serviceMin `yaml:"services"`
+		}
+		var index composeServices
+		if err := yaml.Unmarshal(content, &index); err != nil {
+			return nil, err
+		}
+		if len(index.Services) > 0 {
+			for svc := range index.Services {
+				servicesThatRequireDevices = append(servicesThatRequireDevices, svc)
+			}
+		}
+		return servicesThatRequireDevices, nil
+	}
+}
+
+func generateServicesOverrideFile(servicesThatRequireDevices []string, devices []string, overrideComposeFile *paths.Path) error {
+	type serviceOverride struct {
+		Devices []string `yaml:"devices"`
+	}
+	var overrideCompose struct {
+		Services map[string]serviceOverride `yaml:"services,omitempty"`
+	}
+	overrideCompose.Services = make(map[string]serviceOverride, len(servicesThatRequireDevices))
+	for _, svc := range servicesThatRequireDevices {
+		overrideCompose.Services[svc] = serviceOverride{
+			Devices: devices,
+		}
+	}
+	slog.Debug("Generating override compose file for devices", slog.Any("overrideCompose", overrideCompose), slog.Any("devices", devices))
+	writeOverrideCompose := func() error {
+		data, err := yaml.Marshal(overrideCompose)
+		if err != nil {
+			return err
+		}
+		if err := overrideComposeFile.WriteFile(data); err != nil {
+			return err
+		}
+		return nil
+	}
+	if e := writeOverrideCompose(); e != nil {
+		return e
+	}
+	return nil
 }
