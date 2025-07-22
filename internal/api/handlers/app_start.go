@@ -7,12 +7,19 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/pkg/render"
 
 	dockerClient "github.com/docker/docker/client"
 )
 
-func HandleAppStart(dockerClient *dockerClient.Client) http.HandlerFunc {
+func HandleAppStart(
+	dockerClient *dockerClient.Client,
+	provisioner *orchestrator.Provision,
+	modelsIndex *modelsindex.ModelsIndex,
+	bricksIndex *bricksindex.BricksIndex,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
 		if err != nil {
@@ -41,7 +48,7 @@ func HandleAppStart(dockerClient *dockerClient.Client) http.HandlerFunc {
 		type log struct {
 			Message string `json:"message"`
 		}
-		for item := range orchestrator.StartApp(r.Context(), dockerClient, app) {
+		for item := range orchestrator.StartApp(r.Context(), dockerClient, provisioner, modelsIndex, bricksIndex, app) {
 			switch item.GetType() {
 			case orchestrator.ProgressType:
 				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress{Progress: item.GetProgress().Progress}})

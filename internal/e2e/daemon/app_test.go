@@ -560,3 +560,44 @@ func TestAppLogs(t *testing.T) {
 	})
 	// find a way to test 400 invalid tail value: client generated code is type safe, so an invalid value can't be sent
 }
+
+func TestAppDetails(t *testing.T) {
+	httpClient := GetHttpclient(t)
+
+	appName := "test-app-details"
+	createResp, err := httpClient.CreateAppWithResponse(
+		t.Context(),
+		&client.CreateAppParams{SkipSketch: f.Ptr(true)},
+		client.CreateAppRequest{
+			Icon:   f.Ptr("💻"),
+			Name:   appName,
+			Bricks: f.Ptr([]string{ImageClassifactionBrickID}),
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode())
+	require.NotNil(t, createResp.JSON201)
+
+	t.Run("DetailsOfApp", func(t *testing.T) {
+		appID := createResp.JSON201.Id
+		detailsResp, err := httpClient.GetAppDetailsWithResponse(t.Context(), *appID)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, detailsResp.StatusCode())
+		require.Equal(t, *appID, detailsResp.JSON200.Id)
+		require.Equal(t, appName, detailsResp.JSON200.Name)
+		require.Equal(t, "💻", *detailsResp.JSON200.Icon)
+		require.Len(t, *detailsResp.JSON200.Bricks, 1)
+		require.Equal(t,
+			client.AppDetailedBrick{
+				Id:       ImageClassifactionBrickID,
+				Name:     "Image Classification",
+				Category: f.Ptr("video"),
+			},
+			(*detailsResp.JSON200.Bricks)[0],
+		)
+		require.False(t, *detailsResp.JSON200.Example)
+		require.False(t, *detailsResp.JSON200.Default)
+		require.Equal(t, client.Stopped, detailsResp.JSON200.Status)
+		require.NotEmpty(t, detailsResp.JSON200.Path)
+	})
+}

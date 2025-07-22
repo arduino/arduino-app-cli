@@ -49,7 +49,7 @@ services:
 	assert.Nil(t, err, "Failed to write compose file for video object detection")
 
 	// Override brick index with custom test content
-	bricksIndex, err = bricksindex.LoadBricksIndex([]byte(`
+	bricksIndex, err := bricksindex.LoadBricksIndex([]byte(`
 bricks:
 - id: arduino:dbstorage_sqlstore
   name: Database Storage - SQLStore
@@ -86,7 +86,7 @@ bricks:
 	assert.Equal(t, "Object Detection", br.Name, "Brick name should match")
 
 	// Run the provision function to generate the main compose file
-	err = generateMainComposeFile(app, "arduino:appslab-python-apps-base:dev-latest", bricksIndex)
+	err = generateMainComposeFile(&app, bricksIndex, "arduino:appslab-python-apps-base:dev-latest")
 
 	// Validate that the main compose file and overrides are created
 	assert.Nil(t, err, "Failed to generate main compose file")

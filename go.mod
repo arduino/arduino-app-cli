@@ -8,6 +8,7 @@ require (
 	github.com/arduino/go-paths-helper v1.13.1
 	github.com/codeclysm/extract/v4 v4.0.0
 	github.com/compose-spec/compose-go/v2 v2.7.1
+	github.com/containerd/errdefs v1.0.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/djherbis/buffer v1.2.0
 	github.com/djherbis/nio/v3 v3.0.1
@@ -31,7 +32,6 @@ require (
 	github.com/warthog618/go-gpiocdev v0.9.1
 	go.bug.st/cleanup v1.0.0
 	go.bug.st/f v0.4.0
-	go.bug.st/relaxed-semver v0.15.0
 	go.bug.st/serial v1.6.4
 	golang.org/x/crypto v0.40.0
 	golang.org/x/text v0.27.0
@@ -53,7 +53,6 @@ require (
 	github.com/arduino/pluggable-discovery-protocol-handler/v2 v2.2.1 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/cmaglie/pb v1.0.27 // indirect
-	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/creack/goselect v0.1.3 // indirect
@@ -133,6 +132,7 @@ require (
 	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.bug.st/downloader/v2 v2.2.0 // indirect
+	go.bug.st/relaxed-semver v0.15.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0 // indirect
 	go.opentelemetry.io/otel v1.35.0 // indirect

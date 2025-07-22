@@ -4,12 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"net/http"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/assets"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
 
@@ -21,7 +25,9 @@ func TestBricksList(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, response.JSON200.Bricks)
 
-	brickIndex, err := bricksindex.GenerateBricksIndex()
+	versions := f.Must(assets.FS.ReadDir("static"))
+	assetsFolderFS := f.Must(fs.Sub(assets.FS, path.Join("static", versions[0].Name())))
+	brickIndex, err := bricksindex.GenerateBricksIndex(assetsFolderFS)
 	require.NoError(t, err)
 
 	// Compare the response with the bricks index
@@ -71,7 +77,7 @@ func TestBricksDetails(t *testing.T) {
 		require.Equal(t, "/models/ootb/ei/mobilenet-v2-224px.eim", *(*response.JSON200.Variables)["EI_CLASSIFICATION_MODEL"].DefaultValue)
 		require.Equal(t, "path to the model file", *(*response.JSON200.Variables)["EI_CLASSIFICATION_MODEL"].Description)
 		require.Equal(t, false, *(*response.JSON200.Variables)["EI_CLASSIFICATION_MODEL"].Required)
-		require.Equal(t, "", *response.JSON200.Readme)
+		require.NotEmpty(t, *response.JSON200.Readme)
 		require.Nil(t, response.JSON200.UsedByApps)
 	})
 }

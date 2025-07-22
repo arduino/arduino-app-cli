@@ -22,7 +22,7 @@ type AIModelsListRequest struct {
 	FilterByBrickID []string
 }
 
-func AIModelsList(req AIModelsListRequest) AIModelsListResult {
+func AIModelsList(req AIModelsListRequest, modelsIndex *modelsindex.ModelsIndex) AIModelsListResult {
 	var collection []modelsindex.AIModel
 	if len(req.FilterByBrickID) == 0 {
 		collection = modelsIndex.GetModels()
@@ -44,7 +44,7 @@ func AIModelsList(req AIModelsListRequest) AIModelsListResult {
 	return res
 }
 
-func AIModelDetails(id string) (AIModelItem, bool) {
+func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelItem, bool) {
 	model, found := modelsIndex.GetModelByID(id)
 	if !found {
 		return AIModelItem{}, false

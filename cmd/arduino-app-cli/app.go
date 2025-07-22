@@ -17,9 +17,16 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
-func newAppCmd(docker *dockerClient.Client) *cobra.Command {
+func newAppCmd(
+	docker *dockerClient.Client,
+	provisioner *orchestrator.Provision,
+	modelsIndex *modelsindex.ModelsIndex,
+	bricksIndex *bricksindex.BricksIndex,
+) *cobra.Command {
 	appCmd := &cobra.Command{
 		Use:   "app",
 		Short: "Manage Arduino Apps",
@@ -27,9 +34,9 @@ func newAppCmd(docker *dockerClient.Client) *cobra.Command {
 	}
 
 	appCmd.AddCommand(newCreateCmd())
-	appCmd.AddCommand(newStartCmd(docker))
+	appCmd.AddCommand(newStartCmd(docker, provisioner, modelsIndex, bricksIndex))
 	appCmd.AddCommand(newStopCmd())
-	appCmd.AddCommand(newRestartCmd(docker))
+	appCmd.AddCommand(newRestartCmd(docker, provisioner, modelsIndex, bricksIndex))
 	appCmd.AddCommand(newLogsCmd())
 	appCmd.AddCommand(newListCmd(docker))
 	appCmd.AddCommand(newPsCmd())
@@ -68,7 +75,12 @@ func newCreateCmd() *cobra.Command {
 	return cmd
 }
 
-func newStartCmd(docker *dockerClient.Client) *cobra.Command {
+func newStartCmd(
+	docker *dockerClient.Client,
+	provisioner *orchestrator.Provision,
+	modelsIndex *modelsindex.ModelsIndex,
+	bricksIndex *bricksindex.BricksIndex,
+) *cobra.Command {
 	return &cobra.Command{
 		Use:   "start app_path",
 		Short: "Start an Arduino app",
@@ -81,7 +93,7 @@ func newStartCmd(docker *dockerClient.Client) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return startHandler(cmd.Context(), docker, app)
+			return startHandler(cmd.Context(), docker, provisioner, app, modelsIndex, bricksIndex)
 		},
 	}
 }
@@ -104,7 +116,12 @@ func newStopCmd() *cobra.Command {
 	}
 }
 
-func newRestartCmd(docker *dockerClient.Client) *cobra.Command {
+func newRestartCmd(
+	docker *dockerClient.Client,
+	provisioner *orchestrator.Provision,
+	modelsIndex *modelsindex.ModelsIndex,
+	bricksIndex *bricksindex.BricksIndex,
+) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "restart app_path",
 		Short: "Restart or Start an Arduino app",
@@ -120,7 +137,7 @@ func newRestartCmd(docker *dockerClient.Client) *cobra.Command {
 			if err := stopHandler(cmd.Context(), app); err != nil {
 				slog.Warn("failed to stop app", "error", err)
 			}
-			return startHandler(cmd.Context(), docker, app)
+			return startHandler(cmd.Context(), docker, provisioner, app, modelsIndex, bricksIndex)
 		},
 	}
 	return cmd
@@ -246,8 +263,15 @@ func newPropertiesCmd() *cobra.Command {
 	return cmd
 }
 
-func startHandler(ctx context.Context, docker *dockerClient.Client, app app.ArduinoApp) error {
-	for message := range orchestrator.StartApp(ctx, docker, app) {
+func startHandler(
+	ctx context.Context,
+	docker *dockerClient.Client,
+	provisioner *orchestrator.Provision,
+	app app.ArduinoApp,
+	modelsIndex *modelsindex.ModelsIndex,
+	bricksIndex *bricksindex.BricksIndex,
+) error {
+	for message := range orchestrator.StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, app) {
 		switch message.GetType() {
 		case orchestrator.ProgressType:
 			slog.Info("progress", slog.Float64("progress", float64(message.GetProgress().Progress)))

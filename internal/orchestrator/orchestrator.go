@@ -11,7 +11,6 @@ import (
 	"net"
 	"os"
 	"os/user"
-	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -26,11 +25,9 @@ import (
 	"github.com/gosimple/slug"
 	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
-	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-router/msgpackrpc"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/assets"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/pkg/micro"
@@ -38,14 +35,7 @@ import (
 )
 
 var (
-	pythonImage        string
-	usedPythonImageTag string
-
 	orchestratorConfig *OrchestratorConfig
-
-	modelsIndex   *modelsindex.ModelsIndex
-	bricksIndex   *bricksindex.BricksIndex
-	bricksVersion *semver.Version
 )
 
 var (
@@ -58,54 +48,13 @@ const (
 	DefaultDockerStopTimeoutSeconds = 5
 )
 
-var RunnerVersion = "0.1.16"
-
 func init() {
-	const dockerRegistry = "ghcr.io/bcmi-labs/"
-	var dockerPythonImage = fmt.Sprintf("arduino/appslab-python-apps-base:%s", RunnerVersion)
-	registryBase := os.Getenv("DOCKER_REGISTRY_BASE")
-	if registryBase == "" {
-		registryBase = dockerRegistry
-	}
-
-	// Python image: image name (repository) and optionally a tag.
-	pythonImageAndTag := os.Getenv("DOCKER_PYTHON_BASE_IMAGE")
-	if pythonImageAndTag == "" {
-		pythonImageAndTag = dockerPythonImage
-	}
-
-	pythonImage = path.Join(registryBase, pythonImageAndTag)
-	slog.Debug("Using pythonImage", slog.String("image", pythonImage))
-
 	// Load orchestrator OrchestratorConfig
 	cfg, err := NewOrchestratorConfigFromEnv()
 	if err != nil {
 		panic(fmt.Errorf("failed to load orchestrator config: %w", err))
 	}
 	orchestratorConfig = cfg
-
-	mIndex, err := modelsindex.GenerateModelsIndex()
-	if err != nil {
-		panic(fmt.Errorf("failed to generate model index: %w", err))
-	}
-	modelsIndex = mIndex
-
-	index, err := bricksindex.GenerateBricksIndex()
-	if err != nil {
-		panic(fmt.Errorf("failed to generate bricks index: %w", err))
-	}
-	bricksIndex = index
-
-	if idx := strings.LastIndex(pythonImage, ":"); idx != -1 {
-		usedPythonImageTag = pythonImage[idx+1:]
-	}
-
-	versions, err := assets.FS.ReadDir("static")
-	if err != nil {
-		panic(fmt.Errorf("unable to read assets"))
-	}
-
-	bricksVersion = semver.MustParse(versions[0].Name())
 }
 
 type AppStreamMessage struct {
@@ -152,7 +101,7 @@ func (p *StreamMessage) GetType() MessageType {
 	return UnknownType
 }
 
-func StartApp(ctx context.Context, docker *dockerClient.Client, app app.ArduinoApp) iter.Seq[StreamMessage] {
+func StartApp(ctx context.Context, docker *dockerClient.Client, provisioner *Provision, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, app app.ArduinoApp) iter.Seq[StreamMessage] {
 	return func(yield func(StreamMessage) bool) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -186,7 +135,7 @@ func StartApp(ctx context.Context, docker *dockerClient.Client, app app.ArduinoA
 				cancel()
 				return
 			}
-			if err := ProvisionApp(ctx, docker, app); err != nil {
+			if err := ProvisionApp(ctx, provisioner, bricksIndex, &app); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
@@ -299,7 +248,13 @@ func StopApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
 	}
 }
 
-func StartDefaultApp(ctx context.Context, docker *dockerClient.Client) error {
+func StartDefaultApp(
+	ctx context.Context,
+	docker *dockerClient.Client,
+	provisioner *Provision,
+	modelsIndex *modelsindex.ModelsIndex,
+	bricksIndex *bricksindex.BricksIndex,
+) error {
 	app, err := GetDefaultApp()
 	if err != nil {
 		return fmt.Errorf("failed to get default app: %w", err)
@@ -309,7 +264,7 @@ func StartDefaultApp(ctx context.Context, docker *dockerClient.Client) error {
 		return nil
 	}
 
-	status, err := AppDetails(ctx, docker, *app)
+	status, err := AppDetails(ctx, docker, *app, bricksIndex)
 	if err != nil {
 		return fmt.Errorf("failed to get app details: %w", err)
 	}
@@ -318,7 +273,7 @@ func StartDefaultApp(ctx context.Context, docker *dockerClient.Client) error {
 	}
 
 	// TODO: we need to stop all other running app before starting the default app.
-	for msg := range StartApp(ctx, docker, *app) {
+	for msg := range StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, *app) {
 		if msg.IsError() {
 			return fmt.Errorf("failed to start app: %w", msg.GetError())
 		}
@@ -472,7 +427,12 @@ type AppDetailedBrick struct {
 	Category string `json:"category,omitempty"`
 }
 
-func AppDetails(ctx context.Context, docker *dockerClient.Client, userApp app.ArduinoApp) (AppDetailedInfo, error) {
+func AppDetails(
+	ctx context.Context,
+	docker *dockerClient.Client,
+	userApp app.ArduinoApp,
+	bricksIndex *bricksindex.BricksIndex,
+) (AppDetailedInfo, error) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	var defaultAppPath string
@@ -482,8 +442,10 @@ func AppDetails(ctx context.Context, docker *dockerClient.Client, userApp app.Ar
 		app, err := getAppStatus(ctx, docker, userApp)
 		if err != nil {
 			slog.Warn("unable to get app status", slog.String("error", err.Error()), slog.String("path", userApp.FullPath.String()))
+			status = StatusStopped
+		} else {
+			status = app.Status
 		}
-		status = app.Status
 	}()
 	go func() {
 		defer wg.Done()

@@ -27,7 +27,7 @@ bricks:
     description: path to the custom model directory
   - name: EI_OBJ_DETECTION_MODEL
     default_value: /models/ootb/ei/yolo-x-nano.eim
-    description: path to the model file   
+    description: path to the model file
 - id: arduino:image_classification
   name: Image Classification
   description: "Brick for image classification using a pre-trained model. It processes\

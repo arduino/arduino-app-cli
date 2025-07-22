@@ -1,13 +1,12 @@
 package bricksindex
 
 import (
-	"path"
+	"io"
+	"io/fs"
 	"slices"
 
+	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
-	"go.bug.st/f"
-
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/assets"
 )
 
 type BricksIndex struct {
@@ -57,19 +56,18 @@ func (b Brick) GetVariable(name string) (BrickVariable, bool) {
 	return b.Variables[idx], true
 }
 
-func GenerateBricksIndex() (*BricksIndex, error) {
-	versions, err := assets.FS.ReadDir("static")
+func GenerateBricksIndex(fs fs.FS) (*BricksIndex, error) {
+	file, err := fs.Open("bricks-list.yaml")
 	if err != nil {
 		return nil, err
 	}
-	f.Assert(len(versions) == 1, "No bricks available in the assets directory")
-
-	bricksList, err := assets.FS.ReadFile(path.Join("static", versions[0].Name(), "bricks-list.yaml"))
+	defer file.Close()
+	content, err := io.ReadAll(file)
 	if err != nil {
 		return nil, err
 	}
 
-	return unmarshalBricksIndex(bricksList)
+	return unmarshalBricksIndex(content)
 }
 
 func unmarshalBricksIndex(bricksList []byte) (*BricksIndex, error) {
@@ -82,4 +80,12 @@ func unmarshalBricksIndex(bricksList []byte) (*BricksIndex, error) {
 
 func LoadBricksIndex(bricksList []byte) (*BricksIndex, error) {
 	return unmarshalBricksIndex(bricksList)
+}
+
+func GenerateBricksIndexFromFile(dir *paths.Path) (*BricksIndex, error) {
+	content, err := dir.Join("bricks-list.yaml").ReadFile()
+	if err != nil {
+		return nil, err
+	}
+	return unmarshalBricksIndex(content)
 }

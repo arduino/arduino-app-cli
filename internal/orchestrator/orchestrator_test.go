@@ -1,7 +1,6 @@
 package orchestrator
 
 import (
-	"fmt"
 	"os"
 	"testing"
 
@@ -380,65 +379,6 @@ func TestListApp(t *testing.T) {
 				Default:     false,
 			},
 		}, res.Apps))
-	})
-}
-
-func TestAppDetails(t *testing.T) {
-	setTestOrchestratorConfig(t)
-
-	docker, err := dockerClient.NewClientWithOpts(
-		dockerClient.FromEnv,
-		dockerClient.WithAPIVersionNegotiation(),
-	)
-	require.NoError(t, err)
-	t.Cleanup(func() { docker.Close() })
-
-	createApp(t, "app1", false)
-	createApp(t, "example1", true)
-
-	t.Run("app details", func(t *testing.T) {
-		// TODO: fix data race in docker 😅
-		// t.Parallel()
-
-		id := f.Must(ParseID("user:app1"))
-		app, err := app.Load(id.ToPath().String())
-		require.NoError(t, err)
-		details, err := AppDetails(t.Context(), docker, app)
-		require.NoError(t, err)
-		fmt.Println(details)
-		assert.Empty(t, gCmp.Diff(details, AppDetailedInfo{
-			ID:          id,
-			Name:        "app1",
-			Path:        orchestratorConfig.AppsDir().Join("app1").String(),
-			Description: "",
-			Icon:        "😃",
-			Status:      "",
-			Example:     false,
-			Default:     false,
-			Bricks:      []AppDetailedBrick{},
-		}))
-	})
-
-	t.Run("example details", func(t *testing.T) {
-		// TODO: fix data race in docker 😅
-		// t.Parallel()
-
-		id := f.Must(ParseID("examples:example1"))
-		app, err := app.Load(id.ToPath().String())
-		require.NoError(t, err)
-		details, err := AppDetails(t.Context(), docker, app)
-		require.NoError(t, err)
-		assert.Empty(t, gCmp.Diff(details, AppDetailedInfo{
-			ID:          id,
-			Name:        "example1",
-			Path:        orchestratorConfig.ExamplesDir().Join("example1").String(),
-			Description: "",
-			Icon:        "😃",
-			Status:      "",
-			Example:     true,
-			Default:     false,
-			Bricks:      []AppDetailedBrick{},
-		}))
 	})
 }
 

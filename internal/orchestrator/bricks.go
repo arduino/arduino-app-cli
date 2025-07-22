@@ -3,15 +3,18 @@ package orchestrator
 import (
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"maps"
-	"os"
+	"path"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/assets"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
@@ -72,7 +75,7 @@ type AppBrickInstancesResult struct {
 	BrickInstances []BrickInstance `json:"bricks"`
 }
 
-func BricksList() (BrickListResult, error) {
+func BricksList(modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex) (BrickListResult, error) {
 	res := BrickListResult{Bricks: make([]BrickListItem, len(bricksIndex.Bricks))}
 	for i, brick := range bricksIndex.Bricks {
 		res.Bricks[i] = BrickListItem{
@@ -90,7 +93,7 @@ func BricksList() (BrickListResult, error) {
 	return res, nil
 }
 
-func AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesResult, error) {
+func AppBrickInstancesList(a *app.ArduinoApp, bricksIndex *bricksindex.BricksIndex) (AppBrickInstancesResult, error) {
 	res := AppBrickInstancesResult{BrickInstances: make([]BrickInstance, len(a.Descriptor.Bricks))}
 	for i, brickInstance := range a.Descriptor.Bricks {
 		brick, found := bricksIndex.FindBrickByID(brickInstance.ID)
@@ -110,7 +113,7 @@ func AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesResult, error) {
 	return res, nil
 }
 
-func AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (BrickInstance, error) {
+func AppBrickInstanceDetails(a *app.ArduinoApp, bricksIndex *bricksindex.BricksIndex, brickID string) (BrickInstance, error) {
 	brick, found := bricksIndex.FindBrickByID(brickID)
 	if !found {
 		return BrickInstance{}, ErrBrickNotFound
@@ -144,7 +147,7 @@ func AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (BrickInstance, 
 	}, nil
 }
 
-func BricksDetails(id string) (BrickDetailsResult, error) {
+func BricksDetails(docsFS fs.FS, bricksIndex *bricksindex.BricksIndex, id string) (BrickDetailsResult, error) {
 	brick, found := bricksIndex.FindBrickByID(id)
 	if !found {
 		return BrickDetailsResult{}, ErrBrickNotFound
@@ -159,8 +162,16 @@ func BricksDetails(id string) (BrickDetailsResult, error) {
 		}
 	}
 
-	readme, err := assets.FS.ReadFile(filepath.Join("static", bricksVersion.String(), "docs", id, "README.md"))
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
+	// TODO: here would be cool to create a store abrstraction
+	brickPath := filepath.Join(strings.Split(brick.ID, ":")...)
+	docFile, err := docsFS.Open(path.Join(brickPath, "README.md"))
+	if err != nil {
+		return BrickDetailsResult{}, fmt.Errorf("cannot open docs for brick %s: %w", id, err)
+	}
+	defer docFile.Close()
+
+	readme, err := io.ReadAll(docFile)
+	if err != nil {
 		return BrickDetailsResult{}, err
 	}
 
@@ -176,7 +187,12 @@ func BricksDetails(id string) (BrickDetailsResult, error) {
 	}, nil
 }
 
-func BrickCreate(req BrickCreateUpdateRequest, appCurrent app.ArduinoApp) error {
+func BrickCreate(
+	req BrickCreateUpdateRequest,
+	modelsIndex *modelsindex.ModelsIndex,
+	bricksIndex *bricksindex.BricksIndex,
+	appCurrent app.ArduinoApp,
+) error {
 	brick, present := bricksIndex.FindBrickByID(req.ID)
 	if !present {
 		return fmt.Errorf("brick not found with id %s", req.ID)
@@ -243,7 +259,12 @@ func BrickCreate(req BrickCreateUpdateRequest, appCurrent app.ArduinoApp) error 
 	return nil
 }
 
-func BrickUpdate(req BrickCreateUpdateRequest, appCurrent app.ArduinoApp) error {
+func BrickUpdate(
+	req BrickCreateUpdateRequest,
+	modelsIndex *modelsindex.ModelsIndex,
+	bricksIndex *bricksindex.BricksIndex,
+	appCurrent app.ArduinoApp,
+) error {
 	index := slices.IndexFunc(appCurrent.Descriptor.Bricks, func(b app.Brick) bool { return b.ID == req.ID })
 	if index == -1 {
 		return fmt.Errorf("brick not found with id %s", req.ID)
@@ -300,7 +321,11 @@ func BrickUpdate(req BrickCreateUpdateRequest, appCurrent app.ArduinoApp) error 
 
 }
 
-func BrickDelete(id string, appCurrent *app.ArduinoApp) error {
+func BrickDelete(
+	bricksIndex *bricksindex.BricksIndex,
+	id string,
+	appCurrent *app.ArduinoApp,
+) error {
 	_, present := bricksIndex.FindBrickByID(id)
 	if !present {
 		return ErrBrickNotFound

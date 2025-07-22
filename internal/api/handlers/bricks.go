@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log"
 	"log/slog"
 	"net/http"
@@ -11,12 +12,17 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/pkg/render"
 )
 
-func HandleBrickList() http.HandlerFunc {
+func HandleBrickList(
+	modelsIndex *modelsindex.ModelsIndex,
+	bricksIndex *bricksindex.BricksIndex,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		res, err := orchestrator.BricksList()
+		res, err := orchestrator.BricksList(modelsIndex, bricksIndex)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to retrieve brick list"})
@@ -27,7 +33,7 @@ func HandleBrickList() http.HandlerFunc {
 	}
 }
 
-func HandleAppBrickInstancesList() http.HandlerFunc {
+func HandleAppBrickInstancesList(bricksIndex *bricksindex.BricksIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		appId, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
@@ -44,7 +50,7 @@ func HandleAppBrickInstancesList() http.HandlerFunc {
 			return
 		}
 
-		res, err := orchestrator.AppBrickInstancesList(&app)
+		res, err := orchestrator.AppBrickInstancesList(&app, bricksIndex)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			details := fmt.Sprintf("unable to find brick list for app %q", appId)
@@ -55,7 +61,7 @@ func HandleAppBrickInstancesList() http.HandlerFunc {
 	}
 }
 
-func HandleAppBrickInstanceDetails() http.HandlerFunc {
+func HandleAppBrickInstanceDetails(bricksIndex *bricksindex.BricksIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		appId, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
 		if err != nil {
@@ -77,7 +83,7 @@ func HandleAppBrickInstanceDetails() http.HandlerFunc {
 			return
 		}
 
-		res, err := orchestrator.AppBrickInstanceDetails(&app, brickID)
+		res, err := orchestrator.AppBrickInstanceDetails(&app, bricksIndex, brickID)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to obtain brick details"})
@@ -87,7 +93,10 @@ func HandleAppBrickInstanceDetails() http.HandlerFunc {
 	}
 }
 
-func HandleBrickCreate() http.HandlerFunc {
+func HandleBrickCreate(
+	modelsIndex *modelsindex.ModelsIndex,
+	bricksIndex *bricksindex.BricksIndex,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		appId, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
 		if err != nil {
@@ -119,7 +128,7 @@ func HandleBrickCreate() http.HandlerFunc {
 
 		req.ID = id
 
-		err = orchestrator.BrickCreate(req, app)
+		err = orchestrator.BrickCreate(req, modelsIndex, bricksIndex, app)
 		if err != nil {
 			// TODO: handle specific errors
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
@@ -130,14 +139,17 @@ func HandleBrickCreate() http.HandlerFunc {
 	}
 }
 
-func HandleBrickDetails() http.HandlerFunc {
+func HandleBrickDetails(
+	docsFS fs.FS,
+	bricksIndex *bricksindex.BricksIndex,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("brickID")
 		if id == "" {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "id must be set"})
 			return
 		}
-		res, err := orchestrator.BricksDetails(id)
+		res, err := orchestrator.BricksDetails(docsFS, bricksIndex, id)
 		if err != nil {
 			if errors.Is(err, orchestrator.ErrBrickNotFound) {
 				details := fmt.Sprintf("brick with id %q not found", id)
@@ -153,7 +165,10 @@ func HandleBrickDetails() http.HandlerFunc {
 	}
 }
 
-func HandleBrickUpdates() http.HandlerFunc {
+func HandleBrickUpdates(
+	modelsIndex *modelsindex.ModelsIndex,
+	bricksIndex *bricksindex.BricksIndex,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		appId, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
 		if err != nil {
@@ -183,7 +198,7 @@ func HandleBrickUpdates() http.HandlerFunc {
 		}
 
 		req.ID = id
-		err = orchestrator.BrickUpdate(req, app)
+		err = orchestrator.BrickUpdate(req, modelsIndex, bricksIndex, app)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to update the brick"})
@@ -196,7 +211,7 @@ func HandleBrickUpdates() http.HandlerFunc {
 	}
 }
 
-func HandleBrickPartialUpdates() http.HandlerFunc {
+func HandleBrickPartialUpdates(docsFS fs.FS, bricksIndex *bricksindex.BricksIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("brickID")
 		if id == "" {
@@ -204,7 +219,7 @@ func HandleBrickPartialUpdates() http.HandlerFunc {
 			return
 		}
 
-		res, err := orchestrator.BricksDetails(id)
+		res, err := orchestrator.BricksDetails(docsFS, bricksIndex, id)
 		if err != nil {
 			return
 		}
@@ -212,7 +227,7 @@ func HandleBrickPartialUpdates() http.HandlerFunc {
 	}
 }
 
-func HandleBrickDelete() http.HandlerFunc {
+func HandleBrickDelete(bricksIndex *bricksindex.BricksIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		appId, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
 		if err != nil {
@@ -234,7 +249,7 @@ func HandleBrickDelete() http.HandlerFunc {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "brickID must be set"})
 			return
 		}
-		err = orchestrator.BrickDelete(id, &app)
+		err = orchestrator.BrickDelete(bricksIndex, id, &app)
 		if err != nil {
 			switch {
 			case errors.Is(err, orchestrator.ErrBrickNotFound):

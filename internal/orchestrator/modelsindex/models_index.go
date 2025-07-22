@@ -1,13 +1,12 @@
 package modelsindex
 
 import (
-	"path"
+	"io"
+	"io/fs"
 	"slices"
 
+	"github.com/arduino/go-paths-helper"
 	"github.com/goccy/go-yaml"
-	"go.bug.st/f"
-
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/assets"
 )
 
 type assetsModelList struct {
@@ -79,20 +78,40 @@ func (m *ModelsIndex) GetModelsByBricks(bricks []string) []AIModel {
 	return matchingModels
 }
 
-func GenerateModelsIndex() (*ModelsIndex, error) {
-	versions, err := assets.FS.ReadDir("static")
+func GenerateModelsIndex(fs fs.FS) (*ModelsIndex, error) {
+	file, err := fs.Open("models-list.yaml")
 	if err != nil {
 		return nil, err
 	}
-	f.Assert(len(versions) == 1, "No models available in the assets directory")
-
-	modelsList, err := assets.FS.ReadFile(path.Join("static", versions[0].Name(), "models-list.yaml"))
+	defer file.Close()
+	content, err := io.ReadAll(file)
 	if err != nil {
 		return nil, err
 	}
 
 	var list assetsModelList
-	if err := yaml.Unmarshal(modelsList, &list); err != nil {
+	if err := yaml.Unmarshal(content, &list); err != nil {
+		return nil, err
+	}
+
+	models := make([]AIModel, len(list.Models))
+	for i, modelMap := range list.Models {
+		for id, model := range modelMap {
+			model.ID = id
+			models[i] = model
+		}
+	}
+	return &ModelsIndex{models: models}, nil
+}
+
+func GenerateModelsIndexFromFile(dir *paths.Path) (*ModelsIndex, error) {
+	content, err := dir.Join("models-list.yaml").ReadFile()
+	if err != nil {
+		return nil, err
+	}
+
+	var list assetsModelList
+	if err := yaml.Unmarshal(content, &list); err != nil {
 		return nil, err
 	}
 

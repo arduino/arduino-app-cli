@@ -7,10 +7,11 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/pkg/render"
 )
 
-func HandleModelsList() http.HandlerFunc {
+func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		params := r.URL.Query()
 
@@ -20,19 +21,19 @@ func HandleModelsList() http.HandlerFunc {
 		}
 		res := orchestrator.AIModelsList(orchestrator.AIModelsListRequest{
 			FilterByBrickID: brickFilter,
-		})
+		}, modelsIndex)
 		render.EncodeResponse(w, http.StatusOK, res)
 	}
 }
 
-func HandlerModelByID() http.HandlerFunc {
+func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("modelID")
 		if id == "" {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "id must be set"})
 			return
 		}
-		res, found := orchestrator.AIModelDetails(id)
+		res, found := orchestrator.AIModelDetails(modelsIndex, id)
 		if !found {
 			details := fmt.Sprintf("models with id %q not found", id)
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})

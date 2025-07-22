@@ -8,12 +8,13 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/pkg/render"
 
 	dockerClient "github.com/docker/docker/client"
 )
 
-func HandleAppDetails(dockerClient *dockerClient.Client) http.HandlerFunc {
+func HandleAppDetails(dockerClient *dockerClient.Client, bricksIndex *bricksindex.BricksIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
 		if err != nil {
@@ -28,7 +29,7 @@ func HandleAppDetails(dockerClient *dockerClient.Client) http.HandlerFunc {
 			return
 		}
 
-		res, err := orchestrator.AppDetails(r.Context(), dockerClient, app)
+		res, err := orchestrator.AppDetails(r.Context(), dockerClient, app, bricksIndex)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})

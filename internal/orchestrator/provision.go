@@ -8,14 +8,14 @@ import (
 	"log/slog"
 	"maps"
 	"os"
-	"path"
 	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/containerd/errdefs"
+
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/assets"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 
 	"github.com/arduino/go-paths-helper"
@@ -43,79 +43,106 @@ type service struct {
 	Labels     map[string]string `yaml:"labels,omitempty"`
 }
 
-func ProvisionApp(ctx context.Context, docker *dockerClient.Client, app app.ArduinoApp) error {
+func ProvisionApp(
+	ctx context.Context,
+	provisioner *Provision,
+	bricksIndex *bricksindex.BricksIndex,
+	app *app.ArduinoApp,
+) error {
 	start := time.Now()
 	defer func() {
 		slog.Info("Provisioning took", "duration", time.Since(start).String())
 	}()
-
-	var containsThirdPartyDeps bool
-	for _, dep := range app.Descriptor.Bricks {
-		if !strings.HasPrefix(dep.ID, "arduino:") {
-			containsThirdPartyDeps = true
-			break
-		}
-	}
-	// In case in local development we use a tag that is not in the index we
-	// fallback to dynamicProvisioning
-	if containsThirdPartyDeps || usedPythonImageTag != bricksVersion.String() {
-		if err := dynamicProvisioning(ctx, docker, app); err != nil {
-			return err
-		}
-	} else {
-		cFS, err := fs.Sub(assets.FS, path.Join("static", bricksVersion.String()))
-		if err != nil {
-			return fmt.Errorf("failed to read assets directory: %w", err)
-		}
-
-		provisioningStateDir, err := getProvisioningStateDir(app)
-		if err != nil {
-			return err
-		}
-		if err := os.CopyFS(provisioningStateDir.String(), cFS); err != nil {
-			if errors.Is(err, fs.ErrExist) {
-				if err := provisioningStateDir.Join("models-list.yaml").Remove(); err != nil {
-					return err
-				}
-				if err := provisioningStateDir.Join("bricks-list.yaml").Remove(); err != nil {
-					return err
-				}
-				if err := provisioningStateDir.Join("compose").RemoveAll(); err != nil {
-					return err
-				}
-				if err := provisioningStateDir.Join("docs").RemoveAll(); err != nil {
-					return err
-				}
-
-				// try again
-				if err := os.CopyFS(provisioningStateDir.String(), cFS); err != nil {
-					return err
-				}
-			} else {
-				return fmt.Errorf("failed to copy assets directory: %w", err)
-			}
-		}
-	}
-
-	return generateMainComposeFile(app, pythonImage, bricksIndex)
+	return provisioner.App(ctx, bricksIndex, app)
 }
 
-func dynamicProvisioning(ctx context.Context, docker *dockerClient.Client, app app.ArduinoApp) error {
-	if err := pullBasePythonContainer(ctx, pythonImage); err != nil {
-		return fmt.Errorf("provisioning failed to pull base image: %w", err)
+type Provision struct {
+	docker              *dockerClient.Client
+	useDynamicProvision bool
+	composeFS           fs.FS
+	pythonImage         string
+}
+
+func NewProvision(
+	docker *dockerClient.Client,
+	assetsFS fs.FS,
+	useDynamicProvision bool,
+	pythonImage string,
+) (*Provision, error) {
+	if useDynamicProvision {
+		if err := dynamicProvisioning(context.Background(), docker, pythonImage, paths.TempDir().String()); err != nil {
+			return nil, fmt.Errorf("failed to perform dynamic provisioning: %w", err)
+		}
 	}
 
+	return &Provision{
+		docker:              docker,
+		composeFS:           assetsFS,
+		useDynamicProvision: useDynamicProvision,
+		pythonImage:         pythonImage,
+	}, nil
+}
+
+func (p *Provision) App(
+	ctx context.Context,
+	bricksIndex *bricksindex.BricksIndex,
+	arduinoApp *app.ArduinoApp,
+) error {
+	if arduinoApp == nil {
+		return fmt.Errorf("provisioning failed: arduinoApp is nil")
+	}
+
+	provisioningStateDir, err := getProvisioningStateDir(*arduinoApp)
+	if err != nil {
+		return err
+	}
+
+	dst := provisioningStateDir.Join("compose")
+	if err := dst.RemoveAll(); err != nil {
+		return fmt.Errorf("failed to remove compose directory: %w", err)
+	}
+	if p.useDynamicProvision {
+		composeDir := paths.New(paths.TempDir().String(), ".cache", "compose")
+		if err := composeDir.CopyDirTo(dst); err != nil {
+			return fmt.Errorf("failed to copy compose directory: %w", err)
+		}
+	} else {
+		if err := os.CopyFS(dst.String(), p.composeFS); err != nil {
+			return fmt.Errorf("failed to copy assets directory: %w", err)
+		}
+	}
+
+	return generateMainComposeFile(arduinoApp, bricksIndex, p.pythonImage)
+}
+
+func dynamicProvisioning(
+	ctx context.Context,
+	docker *dockerClient.Client,
+	pythonImage, srcPath string,
+) error {
 	containerCfg := &container.Config{
-		Image:      pythonImage,
-		User:       getCurrentUser(),
-		Entrypoint: []string{"/run.sh", "provision"},
+		Image: pythonImage,
+		User:  getCurrentUser(),
+		Entrypoint: []string{
+			"/bin/bash",
+			"-c",
+			fmt.Sprintf("%s && %s",
+				"arduino-bricks-list-modules --provision-compose",
+				"arduino-bricks-list-modules -o /app/.cache/bricks-list.yaml -m /app/.cache/models-list.yaml",
+			),
+		},
 	}
 	containerHostCfg := &container.HostConfig{
-		Binds:      []string{app.FullPath.String() + ":/app"},
+		Binds:      []string{srcPath + ":/app"},
 		AutoRemove: true,
 	}
 	resp, err := docker.ContainerCreate(ctx, containerCfg, containerHostCfg, nil, nil, "")
 	if err != nil {
+		if errors.Is(err, errdefs.ErrNotFound) {
+			if err := pullBasePythonContainer(ctx, pythonImage); err != nil {
+				return fmt.Errorf("provisioning failed to pull base image: %w", err)
+			}
+		}
 		return fmt.Errorf("provisiong failed to create container: %w", err)
 	}
 
@@ -159,8 +186,12 @@ func getProvisioningStateDir(app app.ArduinoApp) (*paths.Path, error) {
 const DockerAppLabel = "cc.arduino.app"
 const DockerAppPathLabel = "cc.arduino.app.path"
 
-func generateMainComposeFile(app app.ArduinoApp, pythonImage string, bricks *bricksindex.BricksIndex) error {
-	provisioningStateDir, err := getProvisioningStateDir(app)
+func generateMainComposeFile(
+	app *app.ArduinoApp,
+	bricksIndex *bricksindex.BricksIndex,
+	pythonImage string,
+) error {
+	provisioningStateDir, err := getProvisioningStateDir(*app)
 	if err != nil {
 		return err
 	}
@@ -213,7 +244,7 @@ func generateMainComposeFile(app app.ArduinoApp, pythonImage string, bricks *bri
 	}
 
 	// Merge compose
-	composeProjectName, err := getAppComposeProjectNameFromApp(app)
+	composeProjectName, err := getAppComposeProjectNameFromApp(*app)
 	if err != nil {
 		return err
 	}
@@ -232,7 +263,7 @@ func generateMainComposeFile(app app.ArduinoApp, pythonImage string, bricks *bri
 
 	servicesThatRequireDevices := []string{}
 	for _, b := range app.Descriptor.Bricks {
-		brick, found := bricks.FindBrickByID(b.ID)
+		brick, found := bricksIndex.FindBrickByID(b.ID)
 		slog.Debug("Processing brick", slog.String("brick_id", b.ID), slog.Bool("found", found))
 		if !found {
 			continue
