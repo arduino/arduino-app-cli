@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"io/fs"
@@ -39,7 +40,9 @@ func main() {
 		panic(err)
 	}
 	defer docker.Close()
-	slog.SetLogLoggerLevel(slog.LevelDebug)
+
+	logLevel := ParseLogLevel(cmp.Or(os.Getenv("ARDUINO_APP_CLI__LOG_LEVEL"), "WARN"))
+	slog.SetLogLoggerLevel(logLevel)
 
 	const dockerRegistry = "ghcr.io/bcmi-labs/"
 	var dockerPythonImage = fmt.Sprintf("arduino/appslab-python-apps-base:%s", RunnerVersion)
@@ -119,4 +122,14 @@ func main() {
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		slog.Error(err.Error())
 	}
+}
+
+func ParseLogLevel(level string) slog.Level {
+	var l slog.Level
+	err := l.UnmarshalText([]byte(level))
+	if err != nil {
+		fmt.Printf("Invalid log level: %s\n", level)
+		os.Exit(1)
+	}
+	return l
 }
