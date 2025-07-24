@@ -108,7 +108,7 @@ func getRunningApp(ctx context.Context, docker *dockerClient.Client) (*app.Ardui
 		return nil, fmt.Errorf("failed to get running apps: %w", err)
 	}
 	idx := slices.IndexFunc(apps, func(a AppStatus) bool {
-		return a.Status == "running"
+		return a.Status == StatusRunning
 	})
 	if idx == -1 {
 		return nil, nil

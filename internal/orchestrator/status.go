@@ -20,11 +20,11 @@ func StatusFromDockerState(s container.ContainerState) Status {
 	switch s {
 	case container.StateRunning:
 		return StatusRunning
-	case container.StateCreated, container.StateRestarting:
+	case container.StateRestarting:
 		return StatusStarting
 	case container.StateRemoving:
 		return StatusStopping
-	case container.StateExited, container.StatePaused:
+	case container.StateCreated, container.StateExited, container.StatePaused:
 		return StatusStopped
 	case container.StateDead:
 		return StatusFailed
