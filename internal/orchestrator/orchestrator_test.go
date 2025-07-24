@@ -238,14 +238,15 @@ func TestEditApp(t *testing.T) {
 		_, err := CreateApp(t.Context(), CreateAppRequest{Name: originalAppName})
 		require.NoError(t, err)
 		appDir := orchestratorConfig.AppsDir().Join(originalAppName)
-		originalApp := f.Must(app.Load(appDir.String()))
+		userApp := f.Must(app.Load(appDir.String()))
+		originalPath := userApp.FullPath
 
-		err = EditApp(AppEditRequest{Name: f.Ptr("new-name")}, &originalApp)
+		err = EditApp(AppEditRequest{Name: f.Ptr("new-name")}, &userApp)
 		require.NoError(t, err)
 		editedApp, err := app.Load(orchestratorConfig.AppsDir().Join("new-name").String())
 		require.NoError(t, err)
 		require.Equal(t, "new-name", editedApp.Name)
-		require.True(t, originalApp.FullPath.NotExist()) // The original app directory should be removed after renaming
+		require.True(t, originalPath.NotExist()) // The original app directory should be removed after renaming
 
 		t.Run("already existing name", func(t *testing.T) {
 			existingAppName := "existing-name"

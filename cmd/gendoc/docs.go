@@ -396,8 +396,10 @@ Contains a JSON object with the details of an error.
 				ID string `path:"id" description:"application identifier."`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
-				Description: "Successful response",
-				StatusCode:  http.StatusOK,
+				ContentType:   "application/json",
+				DataStructure: orchestrator.AppDetailedInfo{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
 			},
 			Description: "Edit the given application. Is it possible to modify the default status, to add/remove/update bricks and bricks variables.",
 			Summary:     "Update App Details",

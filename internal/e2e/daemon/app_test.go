@@ -115,7 +115,6 @@ func TestEditApp(t *testing.T) {
 	httpClient := GetHttpclient(t)
 
 	appName := "test-app-to-edit"
-	var updatedAppId string
 	createResp, err := httpClient.CreateAppWithResponse(
 		t.Context(),
 		&client.CreateAppParams{SkipSketch: f.Ptr(true)},
@@ -132,29 +131,25 @@ func TestEditApp(t *testing.T) {
 
 	t.Run("EditAllFields_Success", func(t *testing.T) {
 		renamedApp := appName + "-renamed"
+		modifedIcon := "🌟"
 		editResp, err := httpClient.EditAppWithResponse(
 			t.Context(),
 			validAppId,
 			client.EditRequest{
 				Description: f.Ptr("new-description"),
-				Icon:        f.Ptr("🌟"),
+				Icon:        f.Ptr(modifedIcon),
 				Name:        f.Ptr(renamedApp),
 			},
 		)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, editResp.StatusCode())
-
-		appList, err := httpClient.GetAppsWithResponse(t.Context(), &client.GetAppsParams{})
+		require.NotNil(t, editResp.JSON200)
+		require.NotNil(t, editResp.JSON200.Id)
+		detailsResp, err := httpClient.GetAppDetailsWithResponse(t.Context(), editResp.JSON200.Id)
 		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, appList.StatusCode())
-		require.NotEmpty(t, appList.JSON200.Apps)
-		require.Len(t, *appList.JSON200.Apps, 1)
-
-		app := (*appList.JSON200.Apps)[0]
-		require.Equal(t, renamedApp, *app.Name)
-		require.Equal(t, "new-description", *app.Description)
-		require.Equal(t, "🌟", *app.Icon)
-		updatedAppId = *app.Id
+		require.Equal(t, http.StatusOK, detailsResp.StatusCode())
+		require.Equal(t, renamedApp, detailsResp.JSON200.Name)
+		require.Equal(t, modifedIcon, *detailsResp.JSON200.Icon)
 	})
 
 	t.Run("InvalidAppId_Fail", func(t *testing.T) {
@@ -216,11 +211,25 @@ func TestEditApp(t *testing.T) {
 	})
 
 	t.Run("InvalidRequestBody_Fail", func(t *testing.T) {
+		createResp, err := httpClient.CreateAppWithResponse(
+			t.Context(),
+			&client.CreateAppParams{SkipSketch: f.Ptr(true)},
+			client.CreateAppRequest{
+				Icon: f.Ptr("💻"),
+				Name: "new-valid-app",
+			},
+		)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusCreated, createResp.StatusCode())
+		require.NotNil(t, createResp.JSON201)
+
+		validAppId := *createResp.JSON201.Id
+
 		var actualResponseBody models.ErrorResponse
 		malformedBody := `{"name": "test" "icon": "💻"}`
 		editResp, err := httpClient.EditAppWithBody(
 			t.Context(),
-			updatedAppId,
+			validAppId,
 			"application/json",
 			strings.NewReader(malformedBody),
 		)

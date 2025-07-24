@@ -2349,6 +2349,7 @@ func (r GetAppDetailsResp) StatusCode() int {
 type EditAppResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON200      *AppDetailedInfo
 	JSON400      *BadRequest
 	JSON412      *PreconditionFailed
 	JSON500      *InternalServerError
@@ -3417,6 +3418,13 @@ func ParseEditAppResp(rsp *http.Response) (*EditAppResp, error) {
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AppDetailedInfo
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest BadRequest
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

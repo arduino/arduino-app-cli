@@ -336,6 +336,10 @@ paths:
               $ref: '#/components/schemas/EditRequest'
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppDetailedInfo'
           description: Successful response
         "400":
           $ref: '#/components/responses/BadRequest'

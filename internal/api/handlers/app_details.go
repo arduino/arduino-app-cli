@@ -46,7 +46,7 @@ type EditRequest struct {
 	Default     *bool   `json:"default"`
 }
 
-func HandleAppDetailsEdits() http.HandlerFunc {
+func HandleAppDetailsEdits(dockerClient *dockerClient.Client, bricksIndex *bricksindex.BricksIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
 		if err != nil {
@@ -71,7 +71,6 @@ func HandleAppDetailsEdits() http.HandlerFunc {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "invalid request"})
 			return
 		}
-
 		err = orchestrator.EditApp(orchestrator.AppEditRequest{
 			Default:     editRequest.Default,
 			Name:        editRequest.Name,
@@ -83,7 +82,12 @@ func HandleAppDetailsEdits() http.HandlerFunc {
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to edit the app"})
 			return
 		}
-
-		w.WriteHeader(http.StatusOK)
+		res, err := orchestrator.AppDetails(r.Context(), dockerClient, app, bricksIndex)
+		if err != nil {
+			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
+			return
+		}
+		render.EncodeResponse(w, http.StatusOK, res)
 	}
 }

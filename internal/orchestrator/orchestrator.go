@@ -748,14 +748,14 @@ func EditApp(req AppEditRequest, app *app.ArduinoApp) (editErr error) {
 		if newPath.Exist() {
 			return ErrAppAlreadyExists
 		}
-
-		defer func() {
-			if err := app.FullPath.Rename(newPath); err != nil {
-				editErr = fmt.Errorf("failed to rename app path: %w", err)
-				return
-			}
-		}()
+		if err := app.FullPath.Rename(newPath); err != nil {
+			editErr = fmt.Errorf("failed to rename app path: %w", err)
+			return editErr
+		}
+		app.FullPath = newPath
+		app.Name = app.Descriptor.Name
 	}
+
 	if req.Icon != nil {
 		app.Descriptor.Icon = *req.Icon
 	}
@@ -763,7 +763,11 @@ func EditApp(req AppEditRequest, app *app.ArduinoApp) (editErr error) {
 		app.Descriptor.Description = *req.Description
 	}
 
-	return app.Save()
+	err := app.Save()
+	if err != nil {
+		return fmt.Errorf("failed to save app: %w", err)
+	}
+	return nil
 }
 
 func editAppDefaults(userApp *app.ArduinoApp, isDefault bool) error {
