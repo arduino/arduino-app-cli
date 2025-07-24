@@ -41,7 +41,7 @@ func main() {
 	}
 	defer docker.Close()
 
-	logLevel := ParseLogLevel(cmp.Or(os.Getenv("ARDUINO_APP_CLI__LOG_LEVEL"), "WARN"))
+	logLevel := ParseLogLevel(cmp.Or(os.Getenv("ARDUINO_APP_CLI__LOG_LEVEL"), "INFO"))
 	slog.SetLogLoggerLevel(logLevel)
 
 	const dockerRegistry = "ghcr.io/bcmi-labs/"
