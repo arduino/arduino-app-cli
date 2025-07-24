@@ -12,6 +12,8 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/update"
 
 	dockerClient "github.com/docker/docker/client"
+
+	_ "net/http/pprof" //nolint:gosec // pprof import is safe for profiling endpoints
 )
 
 //go:embed docs
@@ -27,6 +29,7 @@ func NewHTTPRouter(
 	bricksIndex *bricksindex.BricksIndex,
 ) http.Handler {
 	mux := http.NewServeMux()
+	mux.Handle("GET /debug/", http.DefaultServeMux) // pprof endpoints
 
 	mux.Handle("GET /v1/version", handlers.HandlerVersion(version))
 	mux.Handle("GET /v1/config", handlers.HandleConfig())
