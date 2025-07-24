@@ -248,6 +248,27 @@ func (g *Generator) InitOperations() {
 
 	operations := []OperationConfig{
 		{
+			OperationId: "getAppPorts",
+			Method:      http.MethodGet,
+			Path:        "/v1/apps/{appID}/exposed-ports",
+			Request: (*struct {
+				ID string `path:"appID" description:"application identifier."`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: handlers.AppPortResponse{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "Return all ports exposed by the given app.",
+			Summary:     "Get app exposed ports",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
 			OperationId: "deleteApp",
 			Method:      http.MethodDelete,
 			Path:        "/v1/apps/{id}",

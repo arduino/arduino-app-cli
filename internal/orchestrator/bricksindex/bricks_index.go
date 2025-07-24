@@ -38,6 +38,7 @@ type Brick struct {
 	Name             string          `yaml:"name"`
 	Description      string          `yaml:"description"`
 	Category         string          `yaml:"category,omitempty"`
+	RequiresDisplay  string          `yaml:"requires_display,omitempty"`
 	RequireContainer bool            `yaml:"require_container"`
 	RequireModel     bool            `yaml:"require_model"`
 	Variables        []BrickVariable `yaml:"variables,omitempty"`

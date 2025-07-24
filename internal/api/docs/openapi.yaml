@@ -242,6 +242,32 @@ paths:
       summary: Upsert a brick instance for an app
       tags:
       - Application
+  /v1/apps/{appID}/exposed-ports:
+    get:
+      description: Return all ports exposed by the given app.
+      operationId: getAppPorts
+      parameters:
+      - description: application identifier.
+        in: path
+        name: appID
+        required: true
+        schema:
+          description: application identifier.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppPortResponse'
+          description: Successful response
+        "412":
+          $ref: '#/components/responses/PreconditionFailed'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Get app exposed ports
+      tags:
+      - Application
   /v1/apps/{id}:
     delete:
       description: Remove the given app and all the resources it created
@@ -915,6 +941,16 @@ components:
           nullable: true
           type: array
       type: object
+    AppPortResponse:
+      properties:
+        ports:
+          description: exposed port of the app
+          example: 80
+          items:
+            $ref: '#/components/schemas/Port'
+          nullable: true
+          type: array
+      type: object
     AppReference:
       properties:
         icon:
@@ -1107,6 +1143,21 @@ components:
       - debian-package
       type: string
       uniqueItems: true
+    Port:
+      properties:
+        port:
+          description: "exposed port\tof the app"
+          example: "80"
+          type: string
+        serviceName:
+          description: name of the service if the port is exposed by a brick
+          example: Web Interface
+          type: string
+        source:
+          description: source of the port, e.g. app or brick:data-storage
+          example: brick:data-storage
+          type: string
+      type: object
     Status:
       description: Application status
       enum:

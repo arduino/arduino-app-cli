@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -599,5 +600,109 @@ func TestAppDetails(t *testing.T) {
 		require.False(t, *detailsResp.JSON200.Default)
 		require.Equal(t, client.Stopped, detailsResp.JSON200.Status)
 		require.NotEmpty(t, detailsResp.JSON200.Path)
+	})
+}
+
+func TestAppPorts(t *testing.T) {
+	httpClient := GetHttpclient(t)
+
+	t.Run("GetAppPorts_Success", func(t *testing.T) {
+
+		createResp, err := httpClient.CreateAppWithResponse(
+			t.Context(),
+			&client.CreateAppParams{SkipSketch: f.Ptr(true)},
+			client.CreateAppRequest{
+				Icon:   f.Ptr("💻"),
+				Name:   "test-app",
+				Bricks: &[]string{StreamLitUi},
+			},
+			func(ctx context.Context, req *http.Request) error { return nil },
+		)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusCreated, createResp.StatusCode())
+		require.NotNil(t, createResp.JSON201)
+
+		resp, err := httpClient.GetAppPorts(
+			t.Context(),
+			*createResp.JSON201.Id,
+			func(ctx context.Context, req *http.Request) error { return nil },
+		)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		var portsResponse client.AppPortResponse
+		err = json.NewDecoder(resp.Body).Decode(&portsResponse)
+		require.NoError(t, err)
+		require.NotEmpty(t, portsResponse.Ports)
+		ports := *portsResponse.Ports
+		require.Len(t, ports, 1)
+		require.Equal(t, "7000", *ports[0].Port)
+		require.Equal(t, "arduino:streamlit_ui", *ports[0].Source)
+		require.Equal(t, "webview", *ports[0].ServiceName)
+
+	})
+
+	t.Run("GetAppPortsEmpty_Success", func(t *testing.T) {
+
+		createResp, err := httpClient.CreateAppWithResponse(
+			t.Context(),
+			&client.CreateAppParams{SkipSketch: f.Ptr(true)},
+			client.CreateAppRequest{
+				Icon:   f.Ptr("💻"),
+				Name:   "test-app-2",
+				Bricks: &[]string{ImageClassifactionBrickID},
+			},
+			func(ctx context.Context, req *http.Request) error { return nil },
+		)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusCreated, createResp.StatusCode())
+		require.NotNil(t, createResp.JSON201)
+
+		resp, err := httpClient.GetAppPorts(
+			t.Context(),
+			*createResp.JSON201.Id,
+			func(ctx context.Context, req *http.Request) error { return nil },
+		)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		var portsResponse client.AppPortResponse
+		err = json.NewDecoder(resp.Body).Decode(&portsResponse)
+		require.NoError(t, err)
+		require.Empty(t, portsResponse.Ports)
+
+	})
+
+	t.Run("GetAppPortsNoexistingApp_FAil", func(t *testing.T) {
+
+		resp, err := httpClient.GetAppPorts(
+			t.Context(),
+			noExistingApp,
+			func(ctx context.Context, req *http.Request) error { return nil },
+		)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+		var acturalResp models.ErrorResponse
+		err = json.NewDecoder(resp.Body).Decode(&acturalResp)
+		require.NoError(t, err)
+		require.Equal(t, "unable to find the app", acturalResp.Details, "The error detail message is not what was expected")
+
+	})
+	t.Run("GetAppPortsInvalidAppId", func(t *testing.T) {
+
+		resp, err := httpClient.GetAppPorts(
+			t.Context(),
+			malformedAppId,
+			func(ctx context.Context, req *http.Request) error { return nil },
+		)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusPreconditionFailed, resp.StatusCode)
+		var acturalResp models.ErrorResponse
+		err = json.NewDecoder(resp.Body).Decode(&acturalResp)
+		require.NoError(t, err)
+		require.Equal(t, "invalid id", acturalResp.Details, "The error detail message is not what was expected")
+
 	})
 }

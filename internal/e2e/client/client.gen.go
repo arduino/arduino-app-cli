@@ -93,6 +93,12 @@ type AppListResponse struct {
 	Apps *[]AppInfo `json:"apps"`
 }
 
+// AppPortResponse defines model for AppPortResponse.
+type AppPortResponse struct {
+	// Ports exposed port of the app
+	Ports *[]Port `json:"ports"`
+}
+
 // AppReference defines model for AppReference.
 type AppReference struct {
 	Icon *string `json:"icon,omitempty"`
@@ -218,6 +224,18 @@ type ErrorResponse struct {
 
 // PackageType Package type
 type PackageType string
+
+// Port defines model for Port.
+type Port struct {
+	// Port exposed port	of the app
+	Port *string `json:"port,omitempty"`
+
+	// ServiceName name of the service if the port is exposed by a brick
+	ServiceName *string `json:"serviceName,omitempty"`
+
+	// Source source of the port, e.g. app or brick:data-storage
+	Source *string `json:"source,omitempty"`
+}
 
 // Status Application status
 type Status string
@@ -418,6 +436,9 @@ type ClientInterface interface {
 
 	UpsertAppBrickInstance(ctx context.Context, appID string, brickID string, body UpsertAppBrickInstanceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetAppPorts request
+	GetAppPorts(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// DeleteApp request
 	DeleteApp(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -587,6 +608,18 @@ func (c *Client) UpsertAppBrickInstanceWithBody(ctx context.Context, appID strin
 
 func (c *Client) UpsertAppBrickInstance(ctx context.Context, appID string, brickID string, body UpsertAppBrickInstanceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpsertAppBrickInstanceRequest(c.Server, appID, brickID, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAppPorts(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAppPortsRequest(c.Server, appID)
 	if err != nil {
 		return nil, err
 	}
@@ -1200,6 +1233,40 @@ func NewUpsertAppBrickInstanceRequestWithBody(server string, appID string, brick
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetAppPortsRequest generates requests for GetAppPorts
+func NewGetAppPortsRequest(server string, appID string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "appID", runtime.ParamLocationPath, appID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/apps/%s/exposed-ports", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -1976,6 +2043,9 @@ type ClientWithResponsesInterface interface {
 
 	UpsertAppBrickInstanceWithResponse(ctx context.Context, appID string, brickID string, body UpsertAppBrickInstanceJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertAppBrickInstanceResp, error)
 
+	// GetAppPortsWithResponse request
+	GetAppPortsWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*GetAppPortsResp, error)
+
 	// DeleteAppWithResponse request
 	DeleteAppWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteAppResp, error)
 
@@ -2198,6 +2268,30 @@ func (r UpsertAppBrickInstanceResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpsertAppBrickInstanceResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAppPortsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AppPortResponse
+	JSON412      *PreconditionFailed
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAppPortsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAppPortsResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -2715,6 +2809,15 @@ func (c *ClientWithResponses) UpsertAppBrickInstanceWithResponse(ctx context.Con
 	return ParseUpsertAppBrickInstanceResp(rsp)
 }
 
+// GetAppPortsWithResponse request returning *GetAppPortsResp
+func (c *ClientWithResponses) GetAppPortsWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*GetAppPortsResp, error) {
+	rsp, err := c.GetAppPorts(ctx, appID, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAppPortsResp(rsp)
+}
+
 // DeleteAppWithResponse request returning *DeleteAppResp
 func (c *ClientWithResponses) DeleteAppWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteAppResp, error) {
 	rsp, err := c.DeleteApp(ctx, id, reqEditors...)
@@ -3160,6 +3263,46 @@ func ParseUpsertAppBrickInstanceResp(rsp *http.Response) (*UpsertAppBrickInstanc
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAppPortsResp parses an HTTP response from a GetAppPortsWithResponse call
+func ParseGetAppPortsResp(rsp *http.Response) (*GetAppPortsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAppPortsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AppPortResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
 		var dest PreconditionFailed

@@ -4,7 +4,6 @@ package daemon
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -472,7 +471,6 @@ func TestUpdateAppBrickInstance(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 
-		fmt.Println("holaaaa " + string(body))
 		err = json.Unmarshal(body, &actualResponseBody)
 		require.NoError(t, err, "Failed to unmarshal the JSON error response body")
 		require.Equal(t, "invalid request body", actualResponseBody.Details, "The error detail message is not what was expected")

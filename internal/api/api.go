@@ -51,6 +51,7 @@ func NewHTTPRouter(
 	mux.Handle("POST /v1/apps/{appID}/stop", handlers.HandleAppStop(dockerClient))
 	mux.Handle("POST /v1/apps/{appID}/clone", handlers.HandleAppClone(dockerClient))
 	mux.Handle("DELETE /v1/apps/{appID}", handlers.HandleAppDelete())
+	mux.Handle("GET /v1/apps/{appID}/exposed-ports", handlers.HandleAppPorts(bricksIndex))
 
 	mux.Handle("GET /v1/apps/{appID}/bricks", handlers.HandleAppBrickInstancesList(bricksIndex))
 	mux.Handle("GET /v1/apps/{appID}/bricks/{brickID}", handlers.HandleAppBrickInstanceDetails(bricksIndex))
