@@ -142,8 +142,12 @@ func dynamicProvisioning(
 			if err := pullBasePythonContainer(ctx, pythonImage); err != nil {
 				return fmt.Errorf("provisioning failed to pull base image: %w", err)
 			}
+			// Now that we have pulled the container we recreate it
+			resp, err = docker.ContainerCreate(ctx, containerCfg, containerHostCfg, nil, nil, "")
 		}
-		return fmt.Errorf("provisiong failed to create container: %w", err)
+		if err != nil {
+			return fmt.Errorf("provisiong failed to create container: %w", err)
+		}
 	}
 
 	slog.Debug("provisioning container created", slog.String("container_id", resp.ID))
