@@ -6,12 +6,10 @@ import (
 	"fmt"
 	"io"
 	"iter"
-	"log"
 	"log/slog"
 	"net"
 	"os"
 	"os/user"
-	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
@@ -124,8 +122,7 @@ func StartApp(ctx context.Context, docker *dockerClient.Client, provisioner *Pro
 		})
 
 		if app.MainSketchPath != nil {
-			buildPath := app.FullPath.Join(".cache", "sketch").String()
-			if err := compileUploadSketch(ctx, app.MainSketchPath.String(), buildPath, callbackWriter); err != nil {
+			if err := compileUploadSketch(ctx, &app, callbackWriter); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
@@ -205,17 +202,6 @@ func StopApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
 			if micro.OnBoard {
 				// On imola we could just disable the microcontroller
 				if err := micro.Disable(context.Background(), nil); err != nil {
-					yield(StreamMessage{error: err})
-					return
-				}
-			} else {
-				// Flash empty sketch to stop the microcontroller.
-				buildPath := "" // the empty sketch' build path must be in the default temporary directory.
-
-				// TODO: probably we don't need this branch as the code is always executed on the UnoQ, expect
-				// during dev-env
-				noOpCallbackWriter := NewCallbackWriter(func(line string) {})
-				if err := compileUploadSketch(ctx, getEmptySketch(), buildPath, noOpCallbackWriter); err != nil {
 					yield(StreamMessage{error: err})
 					return
 				}
@@ -860,7 +846,7 @@ func disconnectSerialFromRPCRouter(ctx context.Context, portAddress string) func
 	}
 }
 
-func compileUploadSketch(ctx context.Context, sketchPath, buildPath string, w io.Writer) error {
+func compileUploadSketch(ctx context.Context, arduinoApp *app.ArduinoApp, w io.Writer) error {
 	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 	srv := commands.NewArduinoCoreServer()
 
@@ -874,7 +860,8 @@ func compileUploadSketch(ctx context.Context, sketchPath, buildPath string, w io
 	defer func() {
 		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
 	}()
-
+	sketchPath := arduinoApp.MainSketchPath.String()
+	buildPath := arduinoApp.SketchBuildPath().String()
 	sketchResp, err := srv.LoadSketch(ctx, &rpc.LoadSketchRequest{SketchPath: sketchPath})
 	if err != nil {
 		return err
@@ -987,20 +974,4 @@ func compileUploadSketch(ctx context.Context, sketchPath, buildPath string, w io
 		Port:       port,
 		ImportDir:  buildPath,
 	}, stream)
-}
-
-func getEmptySketch() string {
-	const emptySketch = `void setup() {}
-void loop() {}
-`
-	dir := filepath.Join(os.TempDir(), "empty_sketch")
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		log.Panic(err)
-	}
-	ino := filepath.Join(dir, "empty_sketch.ino")
-	err := os.WriteFile(ino, []byte(emptySketch), 0600)
-	if err != nil {
-		panic(err)
-	}
-	return ino
 }

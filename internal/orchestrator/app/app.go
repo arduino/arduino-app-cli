@@ -100,3 +100,7 @@ func (a *ArduinoApp) Save() error {
 	}
 	return nil
 }
+
+func (a *ArduinoApp) SketchBuildPath() *paths.Path {
+	return a.FullPath.Join(".cache", "sketch")
+}
