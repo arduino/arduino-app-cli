@@ -3,32 +3,23 @@ package main
 import (
 	"context"
 	"errors"
-	"io/fs"
 	"log/slog"
 	"net/http"
 	"time"
 
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/internal/api"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/update"
 	"github.com/arduino/arduino-app-cli/internal/update/apt"
 	"github.com/arduino/arduino-app-cli/internal/update/arduino"
 	"github.com/arduino/arduino-app-cli/pkg/httprecover"
 
-	dockerClient "github.com/docker/docker/client"
 	"github.com/jub0bs/cors"
 	"github.com/spf13/cobra"
 )
 
-func newDaemonCmd(
-	docker *dockerClient.Client,
-	provisioner *orchestrator.Provision,
-	brickDocsFS fs.FS,
-	modelsIndex *modelsindex.ModelsIndex,
-	bricksIndex *bricksindex.BricksIndex,
-) *cobra.Command {
+func newDaemonCmd() *cobra.Command {
 	daemonCmd := &cobra.Command{
 		Use:   "daemon",
 		Short: "Run an HTTP server to expose arduino-app-cli functionality thorough REST API",
@@ -40,10 +31,10 @@ func newDaemonCmd(
 				slog.Info("Starting default app")
 				err := orchestrator.StartDefaultApp(
 					cmd.Context(),
-					docker,
-					provisioner,
-					modelsIndex,
-					bricksIndex,
+					servicelocator.GetDockerClient(),
+					servicelocator.GetProvisioner(),
+					servicelocator.GetModelsIndex(),
+					servicelocator.GetBricksIndex(),
 				)
 				if err != nil {
 					slog.Error("Failed to start default app", slog.String("error", err.Error()))
@@ -51,43 +42,27 @@ func newDaemonCmd(
 				slog.Info("Default app started")
 			}()
 
-			httpHandler(
-				cmd.Context(),
-				docker,
-				provisioner,
-				daemonPort,
-				brickDocsFS,
-				modelsIndex,
-				bricksIndex,
-			)
+			httpHandler(cmd.Context(), daemonPort)
 		},
 	}
 	daemonCmd.Flags().String("port", "8080", "The TCP port the daemon will listen to")
 	return daemonCmd
 }
 
-func httpHandler(
-	ctx context.Context,
-	dockerClient *dockerClient.Client,
-	provisioner *orchestrator.Provision,
-	daemonPort string,
-	brickDocsFS fs.FS,
-	modelsIndex *modelsindex.ModelsIndex,
-	bricksIndex *bricksindex.BricksIndex,
-) {
+func httpHandler(ctx context.Context, daemonPort string) {
 	slog.Info("Starting HTTP server", slog.String("address", ":"+daemonPort))
 
 	apiSrv := api.NewHTTPRouter(
-		dockerClient,
+		servicelocator.GetDockerClient(),
 		Version,
 		update.NewManager(
 			apt.New(),
 			arduino.NewArduinoPlatformUpdater(),
 		),
-		provisioner,
-		brickDocsFS,
-		modelsIndex,
-		bricksIndex,
+		servicelocator.GetProvisioner(),
+		servicelocator.GetBricksDocsFS(),
+		servicelocator.GetModelsIndex(),
+		servicelocator.GetBricksIndex(),
 	)
 
 	corsMiddlware, err := cors.NewMiddleware(

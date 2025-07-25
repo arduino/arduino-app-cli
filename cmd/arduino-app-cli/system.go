@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"path"
 	"strings"
@@ -12,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.bug.st/f"
 
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/assets"
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 )
 
 func newSystemCmd() *cobra.Command {
@@ -41,7 +42,7 @@ func newDownloadImage() *cobra.Command {
 // SystemInit pulls necessary Docker images.
 func SystemInit(ctx context.Context) error {
 	preInstallContainer := []string{
-		"ghcr.io/bcmi-labs/arduino/appslab-python-apps-base:" + usedPythonImageTag,
+		"ghcr.io/bcmi-labs/arduino/appslab-python-apps-base:" + servicelocator.GetUsedPythonImageTag(),
 	}
 	additionalContainers, err := parseAllModelsRunnerImageTag()
 	if err != nil {
@@ -64,14 +65,9 @@ func SystemInit(ctx context.Context) error {
 }
 
 func parseAllModelsRunnerImageTag() ([]string, error) {
-	versions, err := assets.FS.ReadDir("static")
-	if err != nil {
-		return nil, err
-	}
-	f.Assert(len(versions) == 1, "No models available in the assets directory")
-
-	baseDir := path.Join("static", versions[0].Name(), "compose", "arduino")
-	bricks, err := assets.FS.ReadDir(baseDir)
+	assets := servicelocator.GetAssetsFolderFS()
+	baseDir := path.Join("compose", "arduino")
+	bricks, err := fs.ReadDir(assets, baseDir)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +75,7 @@ func parseAllModelsRunnerImageTag() ([]string, error) {
 	result := make([]string, 0, len(bricks))
 	for _, brick := range bricks {
 		composeFile := path.Join(baseDir, brick.Name(), "brick_compose.yaml")
-		content, err := assets.FS.ReadFile(composeFile)
+		content, err := fs.ReadFile(assets, composeFile)
 		if err != nil {
 			return nil, err
 		}

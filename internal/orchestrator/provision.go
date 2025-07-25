@@ -115,6 +115,17 @@ func (p *Provision) App(
 	return generateMainComposeFile(arduinoApp, bricksIndex, p.pythonImage)
 }
 
+func (p *Provision) IsUsingDynamicProvision() bool {
+	return p.useDynamicProvision
+}
+
+func (p *Provision) DynamicProvisionDir() *paths.Path {
+	if p.useDynamicProvision {
+		return paths.TempDir().Join(".cache")
+	}
+	return nil
+}
+
 func dynamicProvisioning(
 	ctx context.Context,
 	docker *dockerClient.Client,

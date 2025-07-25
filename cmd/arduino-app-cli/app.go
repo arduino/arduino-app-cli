@@ -11,22 +11,15 @@ import (
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
-	dockerClient "github.com/docker/docker/client"
 	"github.com/spf13/cobra"
 	"mkuznets.com/go/tabwriter"
 
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
-func newAppCmd(
-	docker *dockerClient.Client,
-	provisioner *orchestrator.Provision,
-	modelsIndex *modelsindex.ModelsIndex,
-	bricksIndex *bricksindex.BricksIndex,
-) *cobra.Command {
+func newAppCmd() *cobra.Command {
 	appCmd := &cobra.Command{
 		Use:   "app",
 		Short: "Manage Arduino Apps",
@@ -34,11 +27,11 @@ func newAppCmd(
 	}
 
 	appCmd.AddCommand(newCreateCmd())
-	appCmd.AddCommand(newStartCmd(docker, provisioner, modelsIndex, bricksIndex))
+	appCmd.AddCommand(newStartCmd())
 	appCmd.AddCommand(newStopCmd())
-	appCmd.AddCommand(newRestartCmd(docker, provisioner, modelsIndex, bricksIndex))
+	appCmd.AddCommand(newRestartCmd())
 	appCmd.AddCommand(newLogsCmd())
-	appCmd.AddCommand(newListCmd(docker))
+	appCmd.AddCommand(newListCmd())
 	appCmd.AddCommand(newPsCmd())
 	appCmd.AddCommand(newMonitorCmd())
 
@@ -75,12 +68,7 @@ func newCreateCmd() *cobra.Command {
 	return cmd
 }
 
-func newStartCmd(
-	docker *dockerClient.Client,
-	provisioner *orchestrator.Provision,
-	modelsIndex *modelsindex.ModelsIndex,
-	bricksIndex *bricksindex.BricksIndex,
-) *cobra.Command {
+func newStartCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "start app_path",
 		Short: "Start an Arduino app",
@@ -93,7 +81,7 @@ func newStartCmd(
 			if err != nil {
 				return err
 			}
-			return startHandler(cmd.Context(), docker, provisioner, app, modelsIndex, bricksIndex)
+			return startHandler(cmd.Context(), app)
 		},
 	}
 }
@@ -116,12 +104,7 @@ func newStopCmd() *cobra.Command {
 	}
 }
 
-func newRestartCmd(
-	docker *dockerClient.Client,
-	provisioner *orchestrator.Provision,
-	modelsIndex *modelsindex.ModelsIndex,
-	bricksIndex *bricksindex.BricksIndex,
-) *cobra.Command {
+func newRestartCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "restart app_path",
 		Short: "Restart or Start an Arduino app",
@@ -137,7 +120,7 @@ func newRestartCmd(
 			if err := stopHandler(cmd.Context(), app); err != nil {
 				slog.Warn("failed to stop app", "error", err)
 			}
-			return startHandler(cmd.Context(), docker, provisioner, app, modelsIndex, bricksIndex)
+			return startHandler(cmd.Context(), app)
 		},
 	}
 	return cmd
@@ -175,14 +158,14 @@ func newMonitorCmd() *cobra.Command {
 
 }
 
-func newListCmd(docker *dockerClient.Client) *cobra.Command {
+func newListCmd() *cobra.Command {
 	var jsonFormat bool
 
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all running Python apps",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return listHandler(cmd.Context(), docker, jsonFormat)
+			return listHandler(cmd.Context(), jsonFormat)
 		},
 	}
 
@@ -263,15 +246,16 @@ func newPropertiesCmd() *cobra.Command {
 	return cmd
 }
 
-func startHandler(
-	ctx context.Context,
-	docker *dockerClient.Client,
-	provisioner *orchestrator.Provision,
-	app app.ArduinoApp,
-	modelsIndex *modelsindex.ModelsIndex,
-	bricksIndex *bricksindex.BricksIndex,
-) error {
-	for message := range orchestrator.StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, app) {
+func startHandler(ctx context.Context, app app.ArduinoApp) error {
+	stream := orchestrator.StartApp(
+		ctx,
+		servicelocator.GetDockerClient(),
+		servicelocator.GetProvisioner(),
+		servicelocator.GetModelsIndex(),
+		servicelocator.GetBricksIndex(),
+		app,
+	)
+	for message := range stream {
 		switch message.GetType() {
 		case orchestrator.ProgressType:
 			slog.Info("progress", slog.Float64("progress", float64(message.GetProgress().Progress)))
@@ -317,12 +301,15 @@ func logsHandler(ctx context.Context, app app.ArduinoApp, tail *uint64) error {
 	return nil
 }
 
-func listHandler(ctx context.Context, docker *dockerClient.Client, jsonFormat bool) error {
-	res, err := orchestrator.ListApps(ctx, docker, orchestrator.ListAppRequest{
-		ShowExamples:                   true,
-		ShowApps:                       true,
-		IncludeNonStandardLocationApps: true,
-	})
+func listHandler(ctx context.Context, jsonFormat bool) error {
+	res, err := orchestrator.ListApps(ctx,
+		servicelocator.GetDockerClient(),
+		orchestrator.ListAppRequest{
+			ShowExamples:                   true,
+			ShowApps:                       true,
+			IncludeNonStandardLocationApps: true,
+		},
+	)
 	if err != nil {
 		return nil
 	}
