@@ -32,11 +32,11 @@ func NewOrchestratorConfigFromEnv() (*OrchestratorConfig, error) {
 
 	dataDir := paths.New(os.Getenv("ARDUINO_APP_CLI__DATA_DIR"))
 	if dataDir == nil {
-		home, err := os.UserHomeDir()
+		xdgConfig, err := os.UserConfigDir()
 		if err != nil {
 			return nil, err
 		}
-		dataDir = paths.New(home).Join(".arduino-app-cli")
+		dataDir = paths.New(xdgConfig).Join("arduino-app-cli")
 	}
 	if !dataDir.IsAbs() {
 		wd, err := paths.Getwd()
