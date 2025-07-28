@@ -28,6 +28,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/pkg/helpers"
 	"github.com/arduino/arduino-app-cli/pkg/micro"
 	"github.com/arduino/arduino-app-cli/pkg/x/fatomic"
 )
@@ -122,6 +123,10 @@ func StartApp(ctx context.Context, docker *dockerClient.Client, provisioner *Pro
 		})
 
 		if app.MainSketchPath != nil {
+			if !yield(StreamMessage{data: "compiling and updating sketch..."}) {
+				cancel()
+				return
+			}
 			if err := compileUploadSketch(ctx, &app, callbackWriter); err != nil {
 				yield(StreamMessage{error: err})
 				return
@@ -879,8 +884,31 @@ func compileUploadSketch(ctx context.Context, arduinoApp *app.ArduinoApp, w io.W
 
 	if err := srv.Init(
 		initReq,
-		// TODO: implement progress callback function
-		commands.InitStreamResponseToCallbackFunction(ctx, func(r *rpc.InitResponse) error { return nil }),
+		commands.InitStreamResponseToCallbackFunction(ctx, func(r *rpc.InitResponse) error {
+			var response string
+			switch msg := r.GetMessage().(type) {
+			case *rpc.InitResponse_InitProgress:
+				if progress := msg.InitProgress.GetTaskProgress(); progress != nil {
+					response = helpers.ArduinoCLITaskProgressToString(progress)
+				}
+				if progress := msg.InitProgress.GetDownloadProgress(); progress != nil {
+					response = helpers.ArduinoCLIDownloadProgressToString(progress)
+				}
+			case *rpc.InitResponse_Error:
+				response = "Error: " + msg.Error.String()
+			case *rpc.InitResponse_Profile:
+				response = fmt.Sprintf(
+					"Sketch profile configured: FQBN=%q, Port=%q",
+					msg.Profile.GetFqbn(),
+					msg.Profile.GetPort(),
+				)
+			}
+			if _, err := w.Write([]byte(response + "\n")); err != nil {
+				return err
+			}
+
+			return nil
+		}),
 	); err != nil {
 		return err
 	}

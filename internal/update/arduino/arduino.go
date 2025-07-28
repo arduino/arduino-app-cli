@@ -3,7 +3,6 @@ package arduino
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/update"
+	"github.com/arduino/arduino-app-cli/pkg/helpers"
 )
 
 type ArduinoPlatformUpdater struct {
@@ -111,12 +111,12 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 	eventsCh := make(chan update.Event, 100)
 
 	downloadProgressCB := func(curr *rpc.DownloadProgress) {
-		data := arduinoCLIDownloadProgressToString(curr)
+		data := helpers.ArduinoCLIDownloadProgressToString(curr)
 		slog.Debug("Download progress", slog.String("download_progress", data))
 		eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: data}
 	}
 	taskProgressCB := func(msg *rpc.TaskProgress) {
-		data := arduinoCLITaskProgressToString(msg)
+		data := helpers.ArduinoCLITaskProgressToString(msg)
 		slog.Debug("Task progress", slog.String("task_progress", data))
 		eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: data}
 	}
@@ -261,29 +261,4 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 	}()
 
 	return eventsCh, nil
-}
-
-func arduinoCLIDownloadProgressToString(progress *rpc.DownloadProgress) string {
-	switch {
-	case progress.GetStart() != nil:
-		return fmt.Sprintf("Download started: %s", progress.GetStart().GetUrl())
-	case progress.GetUpdate() != nil:
-		return fmt.Sprintf("Download progress: %s", progress.GetUpdate())
-	case progress.GetEnd() != nil:
-		return fmt.Sprintf("Download completed: %s", progress.GetEnd())
-	}
-	return progress.String()
-}
-
-func arduinoCLITaskProgressToString(progress *rpc.TaskProgress) string {
-	data := fmt.Sprintf("Task %s:", progress.GetName())
-	if progress.GetMessage() != "" {
-		data += fmt.Sprintf(" (%s)", progress.GetMessage())
-	}
-	if progress.GetCompleted() {
-		data += " completed"
-	} else {
-		data += fmt.Sprintf(" %.2f%%", progress.GetPercent())
-	}
-	return data
 }

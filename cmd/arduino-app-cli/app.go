@@ -258,7 +258,7 @@ func startHandler(ctx context.Context, app app.ArduinoApp) error {
 	for message := range stream {
 		switch message.GetType() {
 		case orchestrator.ProgressType:
-			fmt.Fprintf(out, "Progress: %.0f%%\n", float64(message.GetProgress().Progress)*100)
+			fmt.Fprintf(out, "Progress: %.0f%%\n", message.GetProgress().Progress)
 		case orchestrator.InfoType:
 			fmt.Fprintln(out, "[INFO]", message.GetData())
 		case orchestrator.ErrorType:
@@ -283,7 +283,7 @@ func stopHandler(ctx context.Context, app app.ArduinoApp) error {
 	for message := range orchestrator.StopApp(ctx, app) {
 		switch message.GetType() {
 		case orchestrator.ProgressType:
-			fmt.Fprintf(out, "Progress: %.0f%%\n", float64(message.GetProgress().Progress)*100)
+			fmt.Fprintf(out, "Progress: %.0f%%\n", message.GetProgress().Progress)
 		case orchestrator.InfoType:
 			fmt.Fprintln(out, "[INFO]", message.GetData())
 		case orchestrator.ErrorType:
