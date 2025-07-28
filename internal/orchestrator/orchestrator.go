@@ -915,7 +915,7 @@ func compileUploadSketch(ctx context.Context, arduinoApp *app.ArduinoApp, w io.W
 		if port == nil {
 			return fmt.Errorf("no board detected")
 		}
-		fmt.Println("\nAuto selected board:", name, "fqbn:", fqbn, "port:", port.Address)
+		slog.Debug("Auto selected board", "board_name", name, "fqbn", fqbn, "port", port.Address)
 	}
 
 	// build the sketch

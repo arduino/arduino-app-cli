@@ -20,6 +20,7 @@ require (
 	github.com/google/renameio/v2 v2.0.0
 	github.com/gosimple/slug v1.15.0
 	github.com/jub0bs/cors v0.7.0
+	github.com/leonelquinteros/gotext v1.7.2
 	github.com/oapi-codegen/runtime v1.1.1
 	github.com/shirou/gopsutil/v4 v4.25.6
 	github.com/sirupsen/logrus v1.9.3
@@ -87,7 +88,6 @@ require (
 	github.com/juju/errors v1.0.0 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
-	github.com/leonelquinteros/gotext v1.7.2 // indirect
 	github.com/lufia/plan9stats v0.0.0-20250317134145-8bc96cf8fc35 // indirect
 	github.com/mailru/easyjson v0.9.0 // indirect
 	github.com/marcinbor85/gohex v0.0.0-20210308104911-55fb1c624d84 // indirect

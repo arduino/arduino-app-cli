@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"sync"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/sirupsen/logrus"
 
+	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/update"
 )
 
@@ -238,13 +238,17 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 			return
 		}
 
+		cbw := orchestrator.NewCallbackWriter(func(line string) {
+			eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: line}
+		})
+
 		err := srv.BurnBootloader(
 			&rpc.BurnBootloaderRequest{
 				Instance:   inst,
 				Fqbn:       "arduino:zephyr:unoq",
 				Programmer: "jlink",
 			},
-			commands.BurnBootloaderToServerStreams(ctx, os.Stdout, os.Stderr),
+			commands.BurnBootloaderToServerStreams(ctx, cbw, cbw),
 		)
 		if err != nil {
 			eventsCh <- update.Event{

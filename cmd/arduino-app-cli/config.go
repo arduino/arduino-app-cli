@@ -1,11 +1,10 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-
 	"github.com/spf13/cobra"
 
+	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/cmd/results"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 )
 
@@ -32,10 +31,10 @@ func newConfigGetCmd() *cobra.Command {
 
 func getConfigHandler() error {
 	cfg := orchestrator.GetOrchestratorConfig()
-	res, err := json.MarshalIndent(cfg, "", "  ")
-	if err != nil {
-		return err
-	}
-	fmt.Print(string(res))
+
+	feedback.PrintResult(results.ConfigResult{
+		Config: cfg,
+	})
+
 	return nil
 }

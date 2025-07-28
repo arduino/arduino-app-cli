@@ -2,19 +2,15 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
-	"os"
-	"strings"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/spf13/cobra"
-	"mkuznets.com/go/tabwriter"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
+	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/cmd/results"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 )
@@ -115,10 +111,11 @@ func newRestartCmd() *cobra.Command {
 			}
 			app, err := loadApp(args[0])
 			if err != nil {
-				return err
+				feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+				return nil
 			}
 			if err := stopHandler(cmd.Context(), app); err != nil {
-				slog.Warn("failed to stop app", "error", err)
+				feedback.Warning(fmt.Sprintf("failed to stop app: %s", err.Error()))
 			}
 			return startHandler(cmd.Context(), app)
 		},
@@ -165,7 +162,7 @@ func newListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List all running Python apps",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return listHandler(cmd.Context(), jsonFormat)
+			return listHandler(cmd.Context())
 		},
 	}
 
@@ -180,14 +177,6 @@ func newPsCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			panic("not implemented")
 		},
-	}
-}
-
-func renderDefaultApp(app *app.ArduinoApp) {
-	if app == nil {
-		fmt.Println("No default app set")
-	} else {
-		fmt.Printf("Default app: %s (%s)\n", app.Name, app.FullPath)
 	}
 }
 
@@ -209,9 +198,11 @@ func newPropertiesCmd() *cobra.Command {
 			}
 			def, err := orchestrator.GetDefaultApp()
 			if err != nil {
-				return err
+				feedback.Fatal(err.Error(), feedback.ErrGeneric)
 			}
-			renderDefaultApp(def)
+			feedback.PrintResult(results.DefaultAppResult{
+				App: def,
+			})
 			return nil
 		},
 	})
@@ -228,17 +219,24 @@ func newPropertiesCmd() *cobra.Command {
 			}
 			// Remove default app.
 			if len(args) == 1 || args[1] == "none" {
-				return orchestrator.SetDefaultApp(nil)
+				if err := orchestrator.SetDefaultApp(nil); err != nil {
+					feedback.Fatal(err.Error(), feedback.ErrGeneric)
+					return nil
+				}
+				feedback.PrintResult(results.DefaultAppResult{App: nil})
+				return nil
 			}
 
 			app, err := loadApp(args[1])
 			if err != nil {
-				return err
+				feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+				return nil
 			}
 			if err := orchestrator.SetDefaultApp(&app); err != nil {
-				return err
+				feedback.Fatal(err.Error(), feedback.ErrGeneric)
+				return nil
 			}
-			renderDefaultApp(&app)
+			feedback.PrintResult(results.DefaultAppResult{App: &app})
 			return nil
 		},
 	})
@@ -247,6 +245,8 @@ func newPropertiesCmd() *cobra.Command {
 }
 
 func startHandler(ctx context.Context, app app.ArduinoApp) error {
+	out, _, getResult := feedback.OutputStreams()
+
 	stream := orchestrator.StartApp(
 		ctx,
 		servicelocator.GetDockerClient(),
@@ -258,31 +258,57 @@ func startHandler(ctx context.Context, app app.ArduinoApp) error {
 	for message := range stream {
 		switch message.GetType() {
 		case orchestrator.ProgressType:
-			slog.Info("progress", slog.Float64("progress", float64(message.GetProgress().Progress)))
+			fmt.Fprintf(out, "Progress: %.0f%%\n", float64(message.GetProgress().Progress)*100)
 		case orchestrator.InfoType:
-			slog.Info("log", slog.String("message", message.GetData()))
+			fmt.Fprintln(out, "[INFO]", message.GetData())
 		case orchestrator.ErrorType:
-			return errors.New(message.GetError().Error())
+			err := errors.New(message.GetError().Error())
+			feedback.Fatal(err.Error(), feedback.ErrGeneric)
+			return nil
 		}
 	}
+	outputResult := getResult()
+	feedback.PrintResult(results.StartAppResult{
+		AppName: app.Name,
+		Status:  "started",
+		Output:  outputResult,
+	})
+
 	return nil
 }
 
 func stopHandler(ctx context.Context, app app.ArduinoApp) error {
+	out, _, getResult := feedback.OutputStreams()
+
 	for message := range orchestrator.StopApp(ctx, app) {
 		switch message.GetType() {
 		case orchestrator.ProgressType:
-			slog.Info("progress", slog.Float64("progress", float64(message.GetProgress().Progress)))
+			fmt.Fprintf(out, "Progress: %.0f%%\n", float64(message.GetProgress().Progress)*100)
 		case orchestrator.InfoType:
-			slog.Info("log", slog.String("message", message.GetData()))
+			fmt.Fprintln(out, "[INFO]", message.GetData())
 		case orchestrator.ErrorType:
-			return errors.New(message.GetError().Error())
+			err := errors.New(message.GetError().Error())
+			feedback.Fatal(err.Error(), feedback.ErrGeneric)
+			return nil
 		}
 	}
+	outputResult := getResult()
+
+	feedback.PrintResult(results.StopAppResult{
+		AppName: app.Name,
+		Status:  "stopped",
+		Output:  outputResult,
+	})
 	return nil
 }
 
 func logsHandler(ctx context.Context, app app.ArduinoApp, tail *uint64) error {
+	stdout, _, err := feedback.DirectStreams()
+	if err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+		return nil
+	}
+
 	logsIter, err := orchestrator.AppLogs(
 		ctx,
 		app,
@@ -293,15 +319,16 @@ func logsHandler(ctx context.Context, app app.ArduinoApp, tail *uint64) error {
 		},
 	)
 	if err != nil {
-		return err
+		feedback.Fatal(err.Error(), feedback.ErrGeneric)
+		return nil
 	}
 	for msg := range logsIter {
-		fmt.Printf("[%s] %s\n", msg.Name, msg.Content)
+		fmt.Fprintf(stdout, "[%s] %s\n", msg.Name, msg.Content)
 	}
 	return nil
 }
 
-func listHandler(ctx context.Context, jsonFormat bool) error {
+func listHandler(ctx context.Context) error {
 	res, err := orchestrator.ListApps(ctx,
 		servicelocator.GetDockerClient(),
 		orchestrator.ListAppRequest{
@@ -311,67 +338,14 @@ func listHandler(ctx context.Context, jsonFormat bool) error {
 		},
 	)
 	if err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 		return nil
 	}
 
-	idToAlias := func(id orchestrator.ID) string {
-		v := id.String()
-		res, err := base64.RawURLEncoding.DecodeString(v)
-		if err != nil {
-			return v
-		}
-
-		v = string(res)
-		if strings.Contains(v, ":") {
-			return v
-		}
-
-		wd, err := paths.Getwd()
-		if err != nil {
-			return v
-		}
-		rel, err := paths.New(v).RelFrom(wd)
-		if err != nil {
-			return v
-		}
-		if !strings.HasPrefix(rel.String(), "./") && !strings.HasPrefix(rel.String(), "../") {
-			return "./" + rel.String()
-		}
-		return rel.String()
-	}
-
-	if jsonFormat {
-		// Print in JSON format.
-		resJSON, err := json.Marshal(res)
-		if err != nil {
-			return nil
-		}
-		fmt.Println(string(resJSON))
-	} else {
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0) // minwidth, tabwidth, padding, padchar, flags
-		fmt.Fprintln(w, "ID\tNAME\tICON\tSTATUS\tEXAMPLE")
-
-		for _, app := range res.Apps {
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%t\n",
-				idToAlias(app.ID),
-				app.Name,
-				app.Icon,
-				app.Status,
-				app.Example,
-			)
-		}
-
-		if len(res.BrokenApps) > 0 {
-			fmt.Fprintln(w, "\nAPP\tERROR")
-			for _, app := range res.BrokenApps {
-				fmt.Fprintf(w, "%s\t%s\n",
-					app.Name,
-					app.Error,
-				)
-			}
-		}
-		w.Flush()
-	}
+	feedback.PrintResult(results.AppListResult{
+		Apps:       res.Apps,
+		BrokenApps: res.BrokenApps,
+	})
 
 	return nil
 }
@@ -380,7 +354,8 @@ func createHandler(ctx context.Context, name string, icon string, bricks []strin
 	if fromApp != "" {
 		wd, err := paths.Getwd()
 		if err != nil {
-			return err
+			feedback.Fatal(err.Error(), feedback.ErrGeneric)
+			return nil
 		}
 		fromPath := paths.New(fromApp)
 		if !fromPath.IsAbs() {
@@ -388,7 +363,8 @@ func createHandler(ctx context.Context, name string, icon string, bricks []strin
 		}
 		id, err := orchestrator.NewIDFromPath(fromPath)
 		if err != nil {
-			return err
+			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+			return nil
 		}
 
 		resp, err := orchestrator.CloneApp(ctx, orchestrator.CloneAppRequest{
@@ -396,10 +372,17 @@ func createHandler(ctx context.Context, name string, icon string, bricks []strin
 			FromID: id,
 		})
 		if err != nil {
-			return err
+			feedback.Fatal(err.Error(), feedback.ErrGeneric)
+			return nil
 		}
 		dst := resp.ID.ToPath()
-		fmt.Println("App cloned in: ", dst)
+
+		feedback.PrintResult(results.CreateAppResult{
+			Result:  "ok",
+			Message: "App created successfully",
+			Path:    dst.String(),
+		})
+
 	} else {
 		resp, err := orchestrator.CreateApp(ctx, orchestrator.CreateAppRequest{
 			Name:       name,
@@ -409,9 +392,14 @@ func createHandler(ctx context.Context, name string, icon string, bricks []strin
 			SkipSketch: noSketch,
 		})
 		if err != nil {
-			return err
+			feedback.Fatal(err.Error(), feedback.ErrGeneric)
+			return nil
 		}
-		fmt.Println("App created successfully:", resp.ID.ToPath().String())
+		feedback.PrintResult(results.CreateAppResult{
+			Result:  "ok",
+			Message: "App created successfully",
+			Path:    resp.ID.ToPath().String(),
+		})
 	}
 	return nil
 }

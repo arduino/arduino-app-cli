@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/pkg/appsync"
 	"github.com/arduino/arduino-app-cli/pkg/board"
 	"github.com/arduino/arduino-app-cli/pkg/board/remote"
@@ -127,10 +128,10 @@ func newSyncAppCmd() *cobra.Command {
 			}
 			defer s.Close()
 			s.OnPull = func(name, path string) {
-				fmt.Printf(" ⬆️ Pulled app %q to folder %q\n", name, path)
+				feedback.Printf(" ⬆️ Pulled app %q to folder %q", name, path)
 			}
 			s.OnPush = func(name string) {
-				fmt.Printf(" ⬇️ Pushed app %q to the board\n", name)
+				feedback.Printf(" ⬇️ Pushed app %q to the board", name)
 			}
 
 			tmp, err := s.EnableSyncApp(remote)
@@ -138,7 +139,7 @@ func newSyncAppCmd() *cobra.Command {
 				return fmt.Errorf("failed to enable sync for app %q: %w", remote, err)
 			}
 
-			fmt.Printf("Enable sync of %q at %q\n", remote, tmp)
+			feedback.Printf("Enable sync of %q at %q", remote, tmp)
 
 			<-cmd.Context().Done()
 			_ = s.DisableSyncApp(remote)

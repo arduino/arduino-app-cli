@@ -185,8 +185,12 @@ func pullBasePythonContainer(ctx context.Context, pythonImage string) error {
 	if err != nil {
 		return err
 	}
-	process.RedirectStdoutTo(os.Stdout)
-	process.RedirectStderrTo(os.Stderr)
+	process.RedirectStdoutTo(NewCallbackWriter(func(line string) {
+		slog.Debug("Pulling container", slog.String("image", pythonImage), slog.String("line", line))
+	}))
+	process.RedirectStderrTo(NewCallbackWriter(func(line string) {
+		slog.Error("Error pulling container", slog.String("image", pythonImage), slog.String("line", line))
+	}))
 	return process.RunWithinContext(ctx)
 }
 

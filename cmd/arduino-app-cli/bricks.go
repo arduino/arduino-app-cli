@@ -1,10 +1,11 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
+	"errors"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
+	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/cmd/results"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 
 	"github.com/spf13/cobra"
@@ -49,14 +50,12 @@ func bricksListHandler() error {
 		servicelocator.GetBricksIndex(),
 	)
 	if err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 		return nil
 	}
 
-	resJSON, err := json.MarshalIndent(res, "", "  ")
-	if err != nil {
-		return nil
-	}
-	fmt.Println(string(resJSON))
+	feedback.PrintResult(results.BrickListResult{
+		Bricks: res.Bricks})
 	return nil
 }
 
@@ -67,13 +66,16 @@ func bricksDetailsHandler(id string) error {
 		id,
 	)
 	if err != nil {
+		if errors.Is(err, orchestrator.ErrBrickNotFound) {
+			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+		} else {
+			feedback.Fatal(err.Error(), feedback.ErrGeneric)
+		}
 		return nil
 	}
 
-	resJSON, err := json.MarshalIndent(res, "", "  ")
-	if err != nil {
-		return nil
-	}
-	fmt.Println(string(resJSON))
+	feedback.PrintResult(results.BrickDetailsResult{
+		BrickDetailsResult: res,
+	})
 	return nil
 }

@@ -14,6 +14,7 @@ import (
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
+	"github.com/arduino/arduino-app-cli/cmd/feedback"
 )
 
 func newSystemCmd() *cobra.Command {
@@ -50,13 +51,19 @@ func SystemInit(ctx context.Context) error {
 	}
 	preInstallContainer = append(preInstallContainer, additionalContainers...)
 
+	stdout, _, err := feedback.DirectStreams()
+	if err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+		return nil
+	}
+
 	for _, container := range preInstallContainer {
 		cmd, err := paths.NewProcess(nil, "docker", "pull", container)
 		if err != nil {
 			return err
 		}
-		cmd.RedirectStderrTo(os.Stdout)
-		cmd.RedirectStdoutTo(os.Stdout)
+		cmd.RedirectStderrTo(stdout)
+		cmd.RedirectStdoutTo(stdout)
 		if err := cmd.RunWithinContext(ctx); err != nil {
 			return err
 		}
