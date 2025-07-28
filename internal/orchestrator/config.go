@@ -1,15 +1,17 @@
 package orchestrator
 
 import (
+	"log/slog"
 	"os"
 
 	"github.com/arduino/go-paths-helper"
 )
 
 type OrchestratorConfig struct {
-	appsDir          *paths.Path
-	dataDir          *paths.Path
-	routerSocketPath *paths.Path
+	appsDir           *paths.Path
+	dataDir           *paths.Path
+	routerSocketPath  *paths.Path
+	customEIModelsDir *paths.Path
 }
 
 func NewOrchestratorConfigFromEnv() (*OrchestratorConfig, error) {
@@ -51,10 +53,26 @@ func NewOrchestratorConfigFromEnv() (*OrchestratorConfig, error) {
 		routerSocket = paths.New("/var/run/arduino-router.sock")
 	}
 
+	// Ensure the custom EI modules directory exists
+	customEIModelsDir := paths.New(os.Getenv("ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR"))
+	if customEIModelsDir == nil {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return nil, err
+		}
+		customEIModelsDir = paths.New(homeDir, ".arduino-bricks/ei-models")
+	}
+	if customEIModelsDir.NotExist() {
+		if err := customEIModelsDir.MkdirAll(); err != nil {
+			slog.Warn("failed create custom model directory", "error", err)
+		}
+	}
+
 	c := &OrchestratorConfig{
-		appsDir:          appsDir,
-		dataDir:          dataDir,
-		routerSocketPath: routerSocket,
+		appsDir:           appsDir,
+		dataDir:           dataDir,
+		routerSocketPath:  routerSocket,
+		customEIModelsDir: customEIModelsDir,
 	}
 	if err := c.init(); err != nil {
 		return nil, err
