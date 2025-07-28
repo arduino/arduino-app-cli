@@ -21,7 +21,7 @@ func NewOrchestratorConfigFromEnv() (*OrchestratorConfig, error) {
 		if err != nil {
 			return nil, err
 		}
-		appsDir = paths.New(home).Join("arduino-apps")
+		appsDir = paths.New(home).Join("ArduinoApps")
 	}
 
 	if !appsDir.IsAbs() {
