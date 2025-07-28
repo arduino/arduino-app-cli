@@ -61,7 +61,7 @@ func (a *AppsSync) EnableSyncApp(path string) (string, error) {
 		return "", fmt.Errorf("app %q is already synced", path)
 	}
 
-	tmp, err := os.MkdirTemp("", "arduino-apps-sync_*")
+	tmp, err := os.MkdirTemp("", "ArduinoApps-sync_*")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp dir: %w", err)
 	}

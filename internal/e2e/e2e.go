@@ -33,7 +33,7 @@ type ArduinoAppCLI struct {
 func NewArduinoAppCLI(t *testing.T) *ArduinoAppCLI {
 	rootDir, err := paths.MkTempDir("", "app-cli")
 	require.NoError(t, err)
-	appDir := rootDir.Join("arduino-apps")
+	appDir := rootDir.Join("ArduinoApps")
 	dataDir := rootDir.Join(".arduino-app-cli")
 	return &ArduinoAppCLI{
 		t:          require.New(t),

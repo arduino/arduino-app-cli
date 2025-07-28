@@ -12,7 +12,7 @@ import (
 func TestNewIDFromPath(t *testing.T) {
 	tmp := paths.New(t.TempDir())
 	orchestratorConfig = &OrchestratorConfig{
-		appsDir: tmp.Join("arduino-apps"),
+		appsDir: tmp.Join("ArduinoApps"),
 		dataDir: tmp.Join(".arduino-app-cli"),
 	}
 	require.NoError(t, orchestratorConfig.init())

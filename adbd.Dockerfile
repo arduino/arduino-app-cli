@@ -7,8 +7,8 @@ RUN apt-get update \
 
 RUN useradd -m -s /bin/bash arduino && \
     echo "arduino:arduino" | chpasswd
-RUN mkdir /home/arduino/arduino-apps && \
-    chown arduino:arduino /home/arduino/arduino-apps
+RUN mkdir /home/arduino/ArduinoApps && \
+    chown arduino:arduino /home/arduino/ArduinoApps
 
 WORKDIR /home/arduino
 EXPOSE 22
