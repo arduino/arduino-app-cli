@@ -27,7 +27,7 @@ func newCreateCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cobra.MinimumNArgs(1)
 			name := args[0]
-			return createHandler(cmd.Context(), name, icon, bricks, noPyton, noSketch, fromApp)
+			return createHandler(cmd.Context(), name, icon, noPyton, noSketch, fromApp)
 		},
 	}
 
@@ -41,7 +41,7 @@ func newCreateCmd() *cobra.Command {
 	return cmd
 }
 
-func createHandler(ctx context.Context, name string, icon string, bricks []string, noPython, noSketch bool, fromApp string) error {
+func createHandler(ctx context.Context, name string, icon string, noPython, noSketch bool, fromApp string) error {
 	if fromApp != "" {
 		wd, err := paths.Getwd()
 		if err != nil {
@@ -78,7 +78,6 @@ func createHandler(ctx context.Context, name string, icon string, bricks []strin
 		resp, err := orchestrator.CreateApp(ctx, orchestrator.CreateAppRequest{
 			Name:       name,
 			Icon:       icon,
-			Bricks:     bricks,
 			SkipPython: noPython,
 			SkipSketch: noSketch,
 		})

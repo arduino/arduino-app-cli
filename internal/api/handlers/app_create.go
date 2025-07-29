@@ -15,9 +15,8 @@ import (
 )
 
 type CreateAppRequest struct {
-	Name   string   `json:"name" description:"application name" example:"My Awesome App" required:"true"`
-	Icon   string   `json:"icon" description:"application icon" `
-	Bricks []string `json:"bricks,omitempty" description:"application bricks"  example:"[\"core-auth\", \"data-storage\"]"`
+	Name string `json:"name" description:"application name" example:"My Awesome App" required:"true"`
+	Icon string `json:"icon" description:"application icon" `
 }
 
 func HandleAppCreate(dockerClient *dockerClient.Client) http.HandlerFunc {
@@ -49,7 +48,6 @@ func HandleAppCreate(dockerClient *dockerClient.Client) http.HandlerFunc {
 			orchestrator.CreateAppRequest{
 				Name:       req.Name,
 				Icon:       req.Icon,
-				Bricks:     req.Bricks,
 				SkipPython: skipPython,
 				SkipSketch: skipSketch,
 			},

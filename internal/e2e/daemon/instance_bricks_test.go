@@ -16,18 +16,14 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
 )
 
-func TestGetAppBrickInstances(t *testing.T) {
-
+func setupTestApp(t *testing.T) (*client.CreateAppResp, *client.ClientWithResponses) {
 	httpClient := GetHttpclient(t)
-	var actualBody models.ErrorResponse
-
 	createResp, err := httpClient.CreateAppWithResponse(
 		t.Context(),
 		&client.CreateAppParams{SkipSketch: f.Ptr(true)},
 		client.CreateAppRequest{
-			Icon:   f.Ptr("💻"),
-			Name:   "test-app",
-			Bricks: &[]string{ImageClassifactionBrickID},
+			Icon: f.Ptr("💻"),
+			Name: "test-app",
 		},
 		func(ctx context.Context, req *http.Request) error { return nil },
 	)
@@ -35,6 +31,22 @@ func TestGetAppBrickInstances(t *testing.T) {
 	require.Equal(t, http.StatusCreated, createResp.StatusCode())
 	require.NotNil(t, createResp.JSON201)
 
+	resp, err := httpClient.UpsertAppBrickInstanceWithResponse(
+		t.Context(),
+		*createResp.JSON201.Id,
+		ImageClassifactionBrickID,
+		client.BrickCreateUpdateRequest{Model: f.Ptr("mobilenet-image-classification")},
+		func(ctx context.Context, req *http.Request) error { return nil },
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode())
+
+	return createResp, httpClient
+}
+
+func TestGetAppBrickInstances(t *testing.T) {
+	var actualBody models.ErrorResponse
+	createResp, httpClient := setupTestApp(t)
 	t.Run("GetAppBrickInstances_Success", func(t *testing.T) {
 		brickInstances, err := httpClient.GetAppBrickInstancesWithResponse(t.Context(), *createResp.JSON201.Id, func(ctx context.Context, req *http.Request) error { return nil })
 		require.NoError(t, err)
@@ -71,23 +83,8 @@ func TestGetAppBrickInstances(t *testing.T) {
 
 func TestGetAppBrickInstanceById(t *testing.T) {
 
-	httpClient := GetHttpclient(t)
-
 	var actualBody models.ErrorResponse
-
-	createResp, err := httpClient.CreateAppWithResponse(
-		t.Context(),
-		&client.CreateAppParams{SkipSketch: f.Ptr(true)},
-		client.CreateAppRequest{
-			Icon:   f.Ptr("💻"),
-			Name:   "test-app",
-			Bricks: &[]string{ImageClassifactionBrickID},
-		},
-		func(ctx context.Context, req *http.Request) error { return nil },
-	)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusCreated, createResp.StatusCode())
-	require.NotNil(t, createResp.JSON201)
+	createResp, httpClient := setupTestApp(t)
 
 	t.Run("GetAppBrickInstanceByBrickID_Success", func(t *testing.T) {
 		brickInstance, err := httpClient.GetAppBrickInstanceByBrickIDWithResponse(
@@ -138,34 +135,7 @@ func TestGetAppBrickInstanceById(t *testing.T) {
 
 func TestUpsertAppBrickInstance(t *testing.T) {
 	var actualResponseBody models.ErrorResponse
-	httpClient := GetHttpclient(t)
-
-	createResp, err := httpClient.CreateAppWithResponse(
-		t.Context(),
-		&client.CreateAppParams{SkipSketch: f.Ptr(true)},
-		client.CreateAppRequest{
-			Icon: f.Ptr("💻"),
-			Name: "test-app",
-		},
-		func(ctx context.Context, req *http.Request) error { return nil },
-	)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusCreated, createResp.StatusCode())
-	require.NotNil(t, createResp.JSON201)
-
-	// Create the brick instance
-	resp, err := httpClient.UpsertAppBrickInstanceWithResponse(
-		t.Context(),
-		*createResp.JSON201.Id,
-		ImageClassifactionBrickID,
-		client.BrickCreateUpdateRequest{
-			Model:     f.Ptr("person-classification"),
-			Variables: &map[string]string{"CUSTOM_MODEL_PATH": "overidden"},
-		},
-		func(ctx context.Context, req *http.Request) error { return nil },
-	)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode())
+	createResp, httpClient := setupTestApp(t)
 
 	// Verify the brick instance was updated
 	brickInstance, err := httpClient.GetAppBrickInstanceByBrickIDWithResponse(
@@ -176,8 +146,8 @@ func TestUpsertAppBrickInstance(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, brickInstance.JSON200)
 	require.Equal(t, ImageClassifactionBrickID, *brickInstance.JSON200.Id)
-	require.Equal(t, "overidden", (*brickInstance.JSON200.Variables)["CUSTOM_MODEL_PATH"])
-	require.Equal(t, "person-classification", *brickInstance.JSON200.Model)
+	require.Equal(t, "/models/custom/ei/", (*brickInstance.JSON200.Variables)["CUSTOM_MODEL_PATH"])
+	require.Equal(t, "mobilenet-image-classification", *brickInstance.JSON200.Model)
 
 	t.Run("OverrideBrickInstance", func(t *testing.T) {
 		resp, err := httpClient.UpsertAppBrickInstanceWithResponse(
@@ -300,21 +270,8 @@ func TestUpsertAppBrickInstance(t *testing.T) {
 
 func TestUpdateAppBrickInstance(t *testing.T) {
 	var actualResponseBody models.ErrorResponse
-	httpClient := GetHttpclient(t)
+	createResp, httpClient := setupTestApp(t)
 
-	createResp, err := httpClient.CreateAppWithResponse(
-		t.Context(),
-		&client.CreateAppParams{SkipSketch: f.Ptr(true)},
-		client.CreateAppRequest{
-			Icon:   f.Ptr("💻"),
-			Name:   "test-app",
-			Bricks: &[]string{ImageClassifactionBrickID},
-		},
-		func(ctx context.Context, req *http.Request) error { return nil },
-	)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusCreated, createResp.StatusCode())
-	require.NotNil(t, createResp.JSON201)
 	t.Run("UpdateAppBrickInstance", func(t *testing.T) {
 		resp, err := httpClient.UpdateAppBrickInstanceWithResponse(
 			t.Context(),
@@ -480,21 +437,7 @@ func TestUpdateAppBrickInstance(t *testing.T) {
 
 func TestDeleteAppBrickInstance(t *testing.T) {
 
-	httpClient := GetHttpclient(t)
-
-	createResp, err := httpClient.CreateAppWithResponse(
-		t.Context(),
-		&client.CreateAppParams{SkipSketch: f.Ptr(true)},
-		client.CreateAppRequest{
-			Icon:   f.Ptr("💻"),
-			Name:   "test-app",
-			Bricks: &[]string{ImageClassifactionBrickID},
-		},
-		func(ctx context.Context, req *http.Request) error { return nil },
-	)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusCreated, createResp.StatusCode())
-	require.NotNil(t, createResp.JSON201)
+	createResp, httpClient := setupTestApp(t)
 
 	t.Run("DeleteAppBrickInstance_NoExistingAppId_fail", func(t *testing.T) {
 		var actualResponseBody models.ErrorResponse

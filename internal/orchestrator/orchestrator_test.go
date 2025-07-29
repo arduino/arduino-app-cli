@@ -18,9 +18,8 @@ func TestCreateApp(t *testing.T) {
 	setTestOrchestratorConfig(t)
 	t.Run("valid app", func(t *testing.T) {
 		r, err := CreateApp(t.Context(), CreateAppRequest{
-			Name:   "example app",
-			Icon:   "😃",
-			Bricks: []string{"arduino:object-detection"},
+			Name: "example app",
+			Icon: "😃",
 		})
 		require.NoError(t, err)
 		require.Equal(t, f.Must(ParseID("user:example-app")), r.ID)

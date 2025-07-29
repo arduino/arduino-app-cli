@@ -187,9 +187,6 @@ type ConfigResponse struct {
 
 // CreateAppRequest defines model for CreateAppRequest.
 type CreateAppRequest struct {
-	// Bricks application bricks
-	Bricks *[]string `json:"bricks,omitempty"`
-
 	// Icon application icon
 	Icon *string `json:"icon,omitempty"`
 

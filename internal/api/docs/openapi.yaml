@@ -1089,14 +1089,6 @@ components:
       type: object
     CreateAppRequest:
       properties:
-        bricks:
-          description: application bricks
-          example:
-          - core-auth
-          - data-storage
-          items:
-            type: string
-          type: array
         icon:
           description: application icon
           type: string

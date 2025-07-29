@@ -230,16 +230,15 @@ func BrickCreate(
 
 	brickInstance.ID = req.ID
 
-	if req.Model == nil {
-		return fmt.Errorf("received empty model ")
-	}
-	models := modelsIndex.GetModelsByBrick(brickInstance.ID)
-	idx := slices.IndexFunc(models, func(m modelsindex.AIModel) bool { return m.ID == *req.Model })
-	if idx == -1 {
-		return fmt.Errorf("model %s does not exsist", *req.Model)
-	}
+	if req.Model != nil {
+		models := modelsIndex.GetModelsByBrick(brickInstance.ID)
+		idx := slices.IndexFunc(models, func(m modelsindex.AIModel) bool { return m.ID == *req.Model })
+		if idx == -1 {
+			return fmt.Errorf("model %s does not exsist", *req.Model)
+		}
 
-	brickInstance.Model = models[idx].ID
+		brickInstance.Model = models[idx].ID
+	}
 	brickInstance.Variables = req.Variables
 
 	if brickIndex == -1 {

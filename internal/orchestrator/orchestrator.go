@@ -484,7 +484,6 @@ func AppDetails(
 type CreateAppRequest struct {
 	Name       string
 	Icon       string
-	Bricks     []string
 	SkipPython bool
 	SkipSketch bool
 }
@@ -544,10 +543,7 @@ if __name__ == "__main__":
 			Name:        req.Name,
 			Description: "",
 			Ports:       []int{},
-			Bricks: f.Map(req.Bricks, func(v string) app.Brick {
-				return app.Brick{ID: v}
-			}),
-			Icon: req.Icon, // TODO: not sure if icon will exists for bricks
+			Icon:        req.Icon, // TODO: not sure if icon will exists for bricks
 		},
 	)
 	if err != nil {

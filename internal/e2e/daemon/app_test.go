@@ -18,11 +18,9 @@ import (
 func TestCreateApp(t *testing.T) {
 	httpClient := GetHttpclient(t)
 
-	bricks := []string{"brick_1"}
 	defaultRequestBody := client.CreateAppRequest{
-		Icon:   f.Ptr("🌎"),
-		Name:   "HelloWorld",
-		Bricks: &bricks,
+		Icon: f.Ptr("🌎"),
+		Name: "HelloWorld",
 	}
 
 	testCases := []struct {
@@ -58,9 +56,8 @@ func TestCreateApp(t *testing.T) {
 				SkipSketch: f.Ptr(false),
 			},
 			body: client.CreateAppRequest{
-				Icon:   f.Ptr("🌎"),
-				Name:   "HelloWorld_2",
-				Bricks: &bricks,
+				Icon: f.Ptr("🌎"),
+				Name: "HelloWorld_2",
 			},
 			expectedStatusCode: http.StatusCreated,
 		},
@@ -71,9 +68,8 @@ func TestCreateApp(t *testing.T) {
 				SkipSketch: f.Ptr(true),
 			},
 			body: client.CreateAppRequest{
-				Icon:   f.Ptr("🌎"),
-				Name:   "HelloWorld_3",
-				Bricks: &bricks,
+				Icon: f.Ptr("🌎"),
+				Name: "HelloWorld_3",
 			},
 			expectedStatusCode: http.StatusCreated,
 		},
@@ -560,14 +556,23 @@ func TestAppDetails(t *testing.T) {
 		t.Context(),
 		&client.CreateAppParams{SkipSketch: f.Ptr(true)},
 		client.CreateAppRequest{
-			Icon:   f.Ptr("💻"),
-			Name:   appName,
-			Bricks: f.Ptr([]string{ImageClassifactionBrickID}),
+			Icon: f.Ptr("💻"),
+			Name: appName,
 		},
 	)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusCreated, createResp.StatusCode())
 	require.NotNil(t, createResp.JSON201)
+
+	resp, err := httpClient.UpsertAppBrickInstanceWithResponse(
+		t.Context(),
+		*createResp.JSON201.Id,
+		ImageClassifactionBrickID,
+		client.BrickCreateUpdateRequest{Model: f.Ptr("mobilenet-image-classification")},
+		func(ctx context.Context, req *http.Request) error { return nil },
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode())
 
 	t.Run("DetailsOfApp", func(t *testing.T) {
 		appID := createResp.JSON201.Id
@@ -602,15 +607,24 @@ func TestAppPorts(t *testing.T) {
 			t.Context(),
 			&client.CreateAppParams{SkipSketch: f.Ptr(true)},
 			client.CreateAppRequest{
-				Icon:   f.Ptr("💻"),
-				Name:   "test-app",
-				Bricks: &[]string{StreamLitUi},
+				Icon: f.Ptr("💻"),
+				Name: "test-app",
 			},
 			func(ctx context.Context, req *http.Request) error { return nil },
 		)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusCreated, createResp.StatusCode())
 		require.NotNil(t, createResp.JSON201)
+
+		respBrick, err := httpClient.UpsertAppBrickInstanceWithResponse(
+			t.Context(),
+			*createResp.JSON201.Id,
+			StreamLitUi,
+			client.BrickCreateUpdateRequest{},
+			func(ctx context.Context, req *http.Request) error { return nil },
+		)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, respBrick.StatusCode())
 
 		resp, err := httpClient.GetAppPorts(
 			t.Context(),
@@ -638,9 +652,8 @@ func TestAppPorts(t *testing.T) {
 			t.Context(),
 			&client.CreateAppParams{SkipSketch: f.Ptr(true)},
 			client.CreateAppRequest{
-				Icon:   f.Ptr("💻"),
-				Name:   "test-app-2",
-				Bricks: &[]string{ImageClassifactionBrickID},
+				Icon: f.Ptr("💻"),
+				Name: "test-app-2",
 			},
 			func(ctx context.Context, req *http.Request) error { return nil },
 		)
