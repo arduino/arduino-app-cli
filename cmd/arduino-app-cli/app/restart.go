@@ -1,0 +1,34 @@
+package app
+
+import (
+	"fmt"
+
+	"github.com/spf13/cobra"
+
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
+	"github.com/arduino/arduino-app-cli/cmd/feedback"
+)
+
+func newRestartCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "restart app_path",
+		Short: "Restart or Start an Arduino app",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return cmd.Help()
+			}
+			app, err := Load(args[0])
+			if err != nil {
+				feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+				return nil
+			}
+			if err := stopHandler(cmd.Context(), app); err != nil {
+				feedback.Warning(fmt.Sprintf("failed to stop app: %s", err.Error()))
+			}
+			return startHandler(cmd.Context(), app)
+		},
+		ValidArgsFunction: completion.ApplicationNames(),
+	}
+	return cmd
+}

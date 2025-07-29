@@ -10,10 +10,18 @@ import (
 	"github.com/spf13/cobra"
 	"go.bug.st/cleanup"
 
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/app"
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/brick"
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/config"
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/daemon"
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/fs"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/properties"
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/system"
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/version"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/cmd/i18n"
-	"github.com/arduino/arduino-app-cli/cmd/results"
 )
 
 // Version will be set a build time with -ldflags
@@ -43,24 +51,15 @@ func main() {
 	rootCmd.PersistentFlags().StringVar(&format, "format", "text", "Output format (text, json)")
 
 	rootCmd.AddCommand(
-		newAppCmd(),
-		newBrickCmd(),
-		newCompletionCommand(),
-		newDaemonCmd(),
-		newPropertiesCmd(),
-		newConfigCmd(),
-		newSystemCmd(),
-		&cobra.Command{
-			Use:   "version",
-			Short: "Print the version number of Arduino App CLI",
-			Run: func(cmd *cobra.Command, args []string) {
-				feedback.PrintResult(results.VersionResult{
-					AppName: "Arduino App CLI",
-					Version: Version,
-				})
-			},
-		},
-		newFSCmd(),
+		app.NewAppCmd(),
+		brick.NewBrickCmd(),
+		completion.NewCompletionCommand(),
+		daemon.NewDaemonCmd(Version),
+		properties.NewPropertiesCmd(),
+		config.NewConfigCmd(),
+		system.NewSystemCmd(),
+		fs.NewFSCmd(),
+		version.NewVersionCmd(Version),
 	)
 
 	ctx := context.Background()

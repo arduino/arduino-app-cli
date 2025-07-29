@@ -1,4 +1,4 @@
-package main
+package completion
 
 import (
 	"os"
@@ -6,12 +6,12 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/results"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
-	"github.com/arduino/arduino-app-cli/cmd/results"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 )
 
-func newCompletionCommand() *cobra.Command {
+func NewCompletionCommand() *cobra.Command {
 	completionCmd := &cobra.Command{
 		Use:       "completion [bash|zsh|fish|powershell]",
 		ValidArgs: []string{"bash", "zsh", "fish", "powershell"},

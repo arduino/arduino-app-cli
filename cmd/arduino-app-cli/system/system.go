@@ -1,4 +1,4 @@
-package main
+package system
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 )
 
-func newSystemCmd() *cobra.Command {
+func NewSystemCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:    "system",
 		Hidden: true,

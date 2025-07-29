@@ -1,4 +1,4 @@
-package main
+package daemon
 
 import (
 	"context"
@@ -19,7 +19,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newDaemonCmd() *cobra.Command {
+func NewDaemonCmd(version string) *cobra.Command {
 	daemonCmd := &cobra.Command{
 		Use:   "daemon",
 		Short: "Run an HTTP server to expose arduino-app-cli functionality thorough REST API",
@@ -42,19 +42,19 @@ func newDaemonCmd() *cobra.Command {
 				slog.Info("Default app started")
 			}()
 
-			httpHandler(cmd.Context(), daemonPort)
+			httpHandler(cmd.Context(), daemonPort, version)
 		},
 	}
 	daemonCmd.Flags().String("port", "8080", "The TCP port the daemon will listen to")
 	return daemonCmd
 }
 
-func httpHandler(ctx context.Context, daemonPort string) {
+func httpHandler(ctx context.Context, daemonPort, version string) {
 	slog.Info("Starting HTTP server", slog.String("address", ":"+daemonPort))
 
 	apiSrv := api.NewHTTPRouter(
 		servicelocator.GetDockerClient(),
-		Version,
+		version,
 		update.NewManager(
 			apt.New(),
 			arduino.NewArduinoPlatformUpdater(),
