@@ -1,5 +1,0 @@
-#!/bin/sh
-
-chown -R arduino:arduino /home/arduino/.arduino-app-cli/examples
-
-systemctl enable arduino-orchestrator
