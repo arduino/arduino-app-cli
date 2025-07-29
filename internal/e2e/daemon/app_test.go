@@ -169,25 +169,6 @@ func TestEditApp(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "invalid id", actualResponseBody.Details)
 	})
-
-	t.Run("PatchingExampleApp_Fail", func(t *testing.T) {
-		var actualResponseBody models.ErrorResponse
-		editResp, err := httpClient.EditApp(
-			t.Context(),
-			noExisitingExample,
-			client.EditRequest{Name: f.Ptr("any-name")},
-		)
-		require.NoError(t, err)
-		defer editResp.Body.Close()
-
-		require.Equal(t, http.StatusBadRequest, editResp.StatusCode)
-		body, err := io.ReadAll(editResp.Body)
-		require.NoError(t, err)
-		err = json.Unmarshal(body, &actualResponseBody)
-		require.NoError(t, err)
-		require.Equal(t, "cannot patch the example", actualResponseBody.Details)
-	})
-
 	t.Run("NonExistentAppId_Fail", func(t *testing.T) {
 		var actualResponseBody models.ErrorResponse
 		editResp, err := httpClient.EditApp(

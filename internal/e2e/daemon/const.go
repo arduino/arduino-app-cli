@@ -8,4 +8,5 @@ const (
 	noExistingApp                  = "dXNlcjp0ZXN0LWFwcAw"
 	malformedAppId                 = "this-is-definitely-not-base64"
 	noExisitingExample             = "ZXhhbXBsZXM6anVzdGJsaW5f"
+	existingExampleAppId           = "ZXhhbXBsZXM6YWlyLXF1YWxpdHktbW9uaXRvcmluZw"
 )
