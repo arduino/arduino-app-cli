@@ -1,1 +1,1 @@
-%sysupgrade ALL=(ALL) NOPASSWD: /usr/bin/apt-get update, /usr/bin/apt-get upgrade -y *, /usr/sbin/needrestart -r a, /usr/bin/dpkg --configure -a
+%sysupgrade ALL=(ALL) NOPASSWD: /usr/bin/apt-get update, /usr/bin/apt-get upgrade -y *, /usr/sbin/needrestart -r a, /usr/bin/dpkg --configure -a, /usr/bin/apt-get install --only-upgrade -y *
