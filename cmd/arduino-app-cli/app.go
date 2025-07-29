@@ -79,6 +79,7 @@ func newStartCmd() *cobra.Command {
 			}
 			return startHandler(cmd.Context(), app)
 		},
+		ValidArgsFunction: ApplicationNames(),
 	}
 }
 
@@ -97,6 +98,7 @@ func newStopCmd() *cobra.Command {
 			}
 			return stopHandler(cmd.Context(), app)
 		},
+		ValidArgsFunction: ApplicationNames(),
 	}
 }
 
@@ -119,6 +121,7 @@ func newRestartCmd() *cobra.Command {
 			}
 			return startHandler(cmd.Context(), app)
 		},
+		ValidArgsFunction: ApplicationNames(),
 	}
 	return cmd
 }
@@ -139,6 +142,7 @@ func newLogsCmd() *cobra.Command {
 			}
 			return logsHandler(cmd.Context(), app, &tail)
 		},
+		ValidArgsFunction: ApplicationNames(),
 	}
 	cmd.Flags().Uint64Var(&tail, "tail", 100, "Tail the last N logs")
 	return cmd
@@ -151,6 +155,7 @@ func newMonitorCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			panic("not implemented")
 		},
+		ValidArgsFunction: ApplicationNames(),
 	}
 
 }

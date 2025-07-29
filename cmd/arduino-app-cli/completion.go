@@ -5,7 +5,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/cmd/results"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 )
 
 func newCompletionCommand() *cobra.Command {
@@ -47,4 +50,26 @@ func newCompletionCommand() *cobra.Command {
 	completionCmd.Flags().Bool("no-descriptions", false, "Disable completion description for shells that support it")
 
 	return completionCmd
+}
+
+func ApplicationNames() cobra.CompletionFunc {
+	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		apps, err := orchestrator.ListApps(cmd.Context(),
+			servicelocator.GetDockerClient(),
+			orchestrator.ListAppRequest{
+				ShowExamples:                   true,
+				ShowApps:                       true,
+				IncludeNonStandardLocationApps: true,
+			},
+		)
+		if err != nil {
+			return nil, cobra.ShellCompDirectiveError
+		}
+
+		var res []string
+		for _, a := range apps.Apps {
+			res = append(res, results.IdToAlias(a.ID))
+		}
+		return res, cobra.ShellCompDirectiveNoFileComp
+	}
 }
