@@ -10,6 +10,7 @@
     "indentWidth": 4
   },
   "excludes": [
+    ".licenses/**",
     "**/.venv/**",
     "**/testdata/**",
     "examples/**",
