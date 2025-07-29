@@ -29,7 +29,6 @@ method=auto
 method=auto
 EOF
 
-adb shell chmod 600 /etc/NetworkManager/system-connections/mywifi.nmconnection
+adb shell chmod 600 /etc/NetworkManager/system-connections/$SSID.nmconnection
 
 adb shell systemctl restart NetworkManager
-
