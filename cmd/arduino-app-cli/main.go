@@ -28,10 +28,13 @@ import (
 var Version string = "0.0.0-dev"
 var format string
 
-func main() {
+func run() error {
 	defer func() { _ = servicelocator.CloseDockerClient() }()
 
-	logLevel := ParseLogLevel(cmp.Or(os.Getenv("ARDUINO_APP_CLI__LOG_LEVEL"), "INFO"))
+	logLevel, err := ParseLogLevel(cmp.Or(os.Getenv("ARDUINO_APP_CLI__LOG_LEVEL"), "INFO"))
+	if err != nil {
+		return err
+	}
 	slog.SetLogLoggerLevel(logLevel)
 
 	rootCmd := &cobra.Command{
@@ -65,15 +68,23 @@ func main() {
 	ctx := context.Background()
 	ctx, _ = cleanup.InterruptableContext(ctx)
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
-		slog.Error(err.Error())
+		return err
+	}
+
+	return nil
+}
+
+func main() {
+	if err := run(); err != nil {
+		feedback.FatalError(err, 1)
 	}
 }
 
-func ParseLogLevel(level string) slog.Level {
+func ParseLogLevel(level string) (slog.Level, error) {
 	var l slog.Level
 	err := l.UnmarshalText([]byte(level))
 	if err != nil {
-		feedback.Fatal(fmt.Sprintf("Invalid log level: %s\n", level), feedback.ErrGeneric)
+		return 0, fmt.Errorf("invalid log level: %w", err)
 	}
-	return l
+	return l, nil
 }
