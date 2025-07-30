@@ -1,9 +1,12 @@
 package board
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -18,10 +21,11 @@ import (
 )
 
 type Board struct {
-	// TODO: add fields for allowing identification
-	Protocol string
-	Serial   string
-	Address  string
+	Protocol   string
+	Serial     string
+	Address    string
+	CustomName string
+	BoardName  string
 }
 
 const (
@@ -70,17 +74,25 @@ func FromFQBN(ctx context.Context, fqbn string) ([]Board, error) {
 			if port.GetPort() == nil {
 				continue
 			}
+
+			var boardName string
+			if len(port.GetMatchingBoards()) > 0 {
+				boardName = port.GetMatchingBoards()[0].GetName()
+			}
+
 			switch port.GetPort().GetProtocol() {
 			case SerialProtocol:
 				serial := strings.ToLower(port.GetPort().GetHardwareId()) // in windows this is uppercase.
 				boards = append(boards, Board{
-					Protocol: SerialProtocol,
-					Serial:   serial,
+					Protocol:  SerialProtocol,
+					Serial:    serial,
+					BoardName: boardName,
 				})
 			case NetworkProtocol:
 				boards = append(boards, Board{
-					Protocol: NetworkProtocol,
-					Address:  port.GetPort().GetAddress(),
+					Protocol:  NetworkProtocol,
+					Address:   port.GetPort().GetAddress(),
+					BoardName: boardName,
 				})
 			default:
 				slog.Warn("unknown protocol", "protocol", port.GetPort().GetProtocol())
@@ -96,13 +108,29 @@ func FromFQBN(ctx context.Context, fqbn string) ([]Board, error) {
 			}
 		})
 
+		// Get board names
+		for i := range boards {
+			switch boards[i].Protocol {
+			case SerialProtocol:
+				// TODO: we should store the board custom name in the product id so we can get it from the discovery service.
+				var name string
+				if conn, err := adb.FromSerial(boards[i].Serial, ""); err == nil {
+					if name, err = GetCustomName(ctx, conn); err == nil {
+						boards[i].CustomName = name
+					}
+				}
+			case NetworkProtocol:
+				// TODO: get from mDNS
+			}
+		}
+
 		return boards, nil
 	}
 
 	return nil, fmt.Errorf("no hardware ID found for FQBN %s", fqbn)
 }
 
-func (b *Board) Connect() (remote.RemoteConn, error) {
+func (b *Board) GetConnection() (remote.RemoteConn, error) {
 	switch b.Protocol {
 	case SerialProtocol:
 		return adb.FromSerial(b.Serial, "")
@@ -112,6 +140,32 @@ func (b *Board) Connect() (remote.RemoteConn, error) {
 	default:
 		panic("unreachable")
 	}
+}
+
+var customNameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-]{0,63}$`)
+
+func SetCustomName(ctx context.Context, conn remote.RemoteConn, name string) error {
+	if !customNameRegex.MatchString(name) {
+		return fmt.Errorf("invalid custom name: %s, must match regex %s", name, customNameRegex.String())
+	}
+
+	if err := conn.WriteFile(strings.NewReader(name), "/etc/hostname"); err != nil {
+		return fmt.Errorf("failed to set board name: %w", err)
+	}
+	return nil
+}
+
+func GetCustomName(ctx context.Context, conn remote.RemoteConn) (string, error) {
+	r, err := conn.ReadFile("/etc/hostname")
+	if err != nil {
+		return "", fmt.Errorf("failed to get board name: %w", err)
+	}
+	defer r.Close()
+	out, err := io.ReadAll(r)
+	if err != nil {
+		return "", fmt.Errorf("failed to read board name: %w", err)
+	}
+	return string(bytes.TrimSpace(out)), nil
 }
 
 func EnsurePlatformInstalled(ctx context.Context, rawFQBN string) error {

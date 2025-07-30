@@ -11,11 +11,11 @@ import (
 	"go.bug.st/cleanup"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/app"
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/board"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/brick"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/config"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/daemon"
-	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/fs"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/properties"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/system"
@@ -58,7 +58,7 @@ func main() {
 		properties.NewPropertiesCmd(),
 		config.NewConfigCmd(),
 		system.NewSystemCmd(),
-		fs.NewFSCmd(),
+		board.NewBoardCmd(),
 		version.NewVersionCmd(Version),
 	)
 
