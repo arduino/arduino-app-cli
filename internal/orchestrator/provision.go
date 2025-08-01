@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"maps"
 	"os"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/store"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/docker/api/types/container"
@@ -59,13 +59,13 @@ func ProvisionApp(
 type Provision struct {
 	docker              *dockerClient.Client
 	useDynamicProvision bool
-	composeFS           fs.FS
+	staticStore         *store.StaticStore
 	pythonImage         string
 }
 
 func NewProvision(
 	docker *dockerClient.Client,
-	assetsFS fs.FS,
+	staticStore *store.StaticStore,
 	useDynamicProvision bool,
 	pythonImage string,
 ) (*Provision, error) {
@@ -77,7 +77,7 @@ func NewProvision(
 
 	return &Provision{
 		docker:              docker,
-		composeFS:           assetsFS,
+		staticStore:         staticStore,
 		useDynamicProvision: useDynamicProvision,
 		pythonImage:         pythonImage,
 	}, nil
@@ -107,8 +107,8 @@ func (p *Provision) App(
 			return fmt.Errorf("failed to copy compose directory: %w", err)
 		}
 	} else {
-		if err := os.CopyFS(dst.String(), p.composeFS); err != nil {
-			return fmt.Errorf("failed to copy assets directory: %w", err)
+		if err := p.staticStore.SaveComposeFolderTo(dst.String()); err != nil {
+			return fmt.Errorf("failed to save compose folder: %w", err)
 		}
 	}
 

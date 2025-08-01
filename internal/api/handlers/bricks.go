@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"log"
 	"log/slog"
 	"net/http"
@@ -14,6 +13,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/store"
 	"github.com/arduino/arduino-app-cli/pkg/render"
 )
 
@@ -140,7 +140,7 @@ func HandleBrickCreate(
 }
 
 func HandleBrickDetails(
-	docsFS fs.FS,
+	staticStore *store.StaticStore,
 	bricksIndex *bricksindex.BricksIndex,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -149,7 +149,7 @@ func HandleBrickDetails(
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "id must be set"})
 			return
 		}
-		res, err := orchestrator.BricksDetails(docsFS, bricksIndex, id)
+		res, err := orchestrator.BricksDetails(staticStore, bricksIndex, id)
 		if err != nil {
 			if errors.Is(err, orchestrator.ErrBrickNotFound) {
 				details := fmt.Sprintf("brick with id %q not found", id)
@@ -211,7 +211,10 @@ func HandleBrickUpdates(
 	}
 }
 
-func HandleBrickPartialUpdates(docsFS fs.FS, bricksIndex *bricksindex.BricksIndex) http.HandlerFunc {
+func HandleBrickPartialUpdates(
+	staticStore *store.StaticStore,
+	bricksIndex *bricksindex.BricksIndex,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("brickID")
 		if id == "" {
@@ -219,7 +222,7 @@ func HandleBrickPartialUpdates(docsFS fs.FS, bricksIndex *bricksindex.BricksInde
 			return
 		}
 
-		res, err := orchestrator.BricksDetails(docsFS, bricksIndex, id)
+		res, err := orchestrator.BricksDetails(staticStore, bricksIndex, id)
 		if err != nil {
 			return
 		}

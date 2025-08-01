@@ -24,7 +24,7 @@ func newBricksDetailsCmd() *cobra.Command {
 
 func bricksDetailsHandler(id string) {
 	res, err := orchestrator.BricksDetails(
-		servicelocator.GetBricksDocsFS(),
+		servicelocator.GetStaticStore(),
 		servicelocator.GetBricksIndex(),
 		id,
 	)

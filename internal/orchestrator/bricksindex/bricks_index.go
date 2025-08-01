@@ -2,7 +2,6 @@ package bricksindex
 
 import (
 	"io"
-	"io/fs"
 	"slices"
 
 	"github.com/arduino/go-paths-helper"
@@ -57,36 +56,23 @@ func (b Brick) GetVariable(name string) (BrickVariable, bool) {
 	return b.Variables[idx], true
 }
 
-func GenerateBricksIndex(fs fs.FS) (*BricksIndex, error) {
-	file, err := fs.Open("bricks-list.yaml")
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	content, err := io.ReadAll(file)
-	if err != nil {
-		return nil, err
-	}
-
-	return unmarshalBricksIndex(content)
-}
-
-func unmarshalBricksIndex(bricksList []byte) (*BricksIndex, error) {
+func unmarshalBricksIndex(content io.Reader) (*BricksIndex, error) {
 	var index BricksIndex
-	if err := yaml.Unmarshal(bricksList, &index); err != nil {
+	if err := yaml.NewDecoder(content).Decode(&index); err != nil {
 		return nil, err
 	}
 	return &index, nil
 }
 
-func LoadBricksIndex(bricksList []byte) (*BricksIndex, error) {
-	return unmarshalBricksIndex(bricksList)
+func LoadBricksIndex(content io.Reader) (*BricksIndex, error) {
+	return unmarshalBricksIndex(content)
 }
 
 func GenerateBricksIndexFromFile(dir *paths.Path) (*BricksIndex, error) {
-	content, err := dir.Join("bricks-list.yaml").ReadFile()
+	content, err := dir.Join("bricks-list.yaml").Open()
 	if err != nil {
 		return nil, err
 	}
+	defer content.Close()
 	return unmarshalBricksIndex(content)
 }

@@ -1,6 +1,7 @@
 package orchestrator
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
@@ -49,7 +50,7 @@ services:
 	assert.Nil(t, err, "Failed to write compose file for video object detection")
 
 	// Override brick index with custom test content
-	bricksIndex, err := bricksindex.LoadBricksIndex([]byte(`
+	bricksIndex, err := bricksindex.LoadBricksIndex(bytes.NewBuffer([]byte(`
 bricks:
 - id: arduino:dbstorage_sqlstore
   name: Database Storage - SQLStore
@@ -77,7 +78,7 @@ bricks:
     description: path to the custom model directory
   - name: EI_OBJ_DETECTION_MODEL
     default_value: /models/ootb/ei/yolo-x-nano.eim
-    description: path to the model file`))
+    description: path to the model file`)))
 	assert.Nil(t, err, "Failed to load bricks index with custom content")
 
 	br, ok := bricksIndex.FindBrickByID("arduino:video_object_detection")

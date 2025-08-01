@@ -3,19 +3,15 @@ package orchestrator
 import (
 	"errors"
 	"fmt"
-	"io"
-	"io/fs"
 	"maps"
-	"path"
-	"path/filepath"
 	"slices"
-	"strings"
 
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
 var ErrBrickNotFound = errors.New("brick not found")
@@ -147,7 +143,11 @@ func AppBrickInstanceDetails(a *app.ArduinoApp, bricksIndex *bricksindex.BricksI
 	}, nil
 }
 
-func BricksDetails(docsFS fs.FS, bricksIndex *bricksindex.BricksIndex, id string) (BrickDetailsResult, error) {
+func BricksDetails(
+	staticStore *store.StaticStore,
+	bricksIndex *bricksindex.BricksIndex,
+	id string,
+) (BrickDetailsResult, error) {
 	brick, found := bricksIndex.FindBrickByID(id)
 	if !found {
 		return BrickDetailsResult{}, ErrBrickNotFound
@@ -162,17 +162,9 @@ func BricksDetails(docsFS fs.FS, bricksIndex *bricksindex.BricksIndex, id string
 		}
 	}
 
-	// TODO: here would be cool to create a store abrstraction
-	brickPath := filepath.Join(strings.Split(brick.ID, ":")...)
-	docFile, err := docsFS.Open(path.Join(brickPath, "README.md"))
+	readme, err := staticStore.GetBrickReadmeFromID(brick.ID)
 	if err != nil {
 		return BrickDetailsResult{}, fmt.Errorf("cannot open docs for brick %s: %w", id, err)
-	}
-	defer docFile.Close()
-
-	readme, err := io.ReadAll(docFile)
-	if err != nil {
-		return BrickDetailsResult{}, err
 	}
 
 	return BrickDetailsResult{
@@ -183,7 +175,7 @@ func BricksDetails(docsFS fs.FS, bricksIndex *bricksindex.BricksIndex, id string
 		Category:    brick.Category,
 		Status:      "installed", // For now every Arduino brick are installed
 		Variables:   variables,
-		Readme:      string(readme),
+		Readme:      readme,
 	}, nil
 }
 

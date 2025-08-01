@@ -2,7 +2,6 @@ package servicelocator
 
 import (
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"os"
 	"path"
@@ -13,9 +12,9 @@ import (
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/assets"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
 var (
@@ -28,7 +27,9 @@ var (
 			dynamicProvisionDir := GetProvisioner().DynamicProvisionDir()
 			bIndex = f.Must(bricksindex.GenerateBricksIndexFromFile(dynamicProvisionDir))
 		} else {
-			bIndex = f.Must(bricksindex.GenerateBricksIndex(GetAssetsFolderFS()))
+			bricksIndexContent := f.Must(GetStaticStore().GetBricksListFile())
+			defer bricksIndexContent.Close()
+			bIndex = f.Must(bricksindex.LoadBricksIndex(bricksIndexContent))
 		}
 		return bIndex
 	})
@@ -39,7 +40,9 @@ var (
 			dynamicProvisionDir := GetProvisioner().DynamicProvisionDir()
 			mIndex = f.Must(modelsindex.GenerateModelsIndexFromFile(dynamicProvisionDir))
 		} else {
-			mIndex = f.Must(modelsindex.GenerateModelsIndex(GetAssetsFolderFS()))
+			modelsIndexContent := f.Must(GetStaticStore().GetModelsListFile())
+			defer modelsIndexContent.Close()
+			mIndex = f.Must(modelsindex.LoadModelsIndex(modelsIndexContent))
 		}
 		return mIndex
 	})
@@ -48,10 +51,9 @@ var (
 		pythonImage, usedPythonImageTag := getPythonImageAndTag()
 		slog.Debug("Using pythonImage", slog.String("image", pythonImage))
 
-		composeFolderFS := f.Must(fs.Sub(assets.FS, path.Join("static", RunnerVersion, "compose")))
 		return f.Must(orchestrator.NewProvision(
 			GetDockerClient(),
-			composeFolderFS,
+			GetStaticStore(),
 			usedPythonImageTag != RunnerVersion,
 			pythonImage,
 		))
@@ -74,17 +76,13 @@ var (
 		return nil
 	}
 
-	GetBricksDocsFS = sync.OnceValue(func() fs.FS {
-		return f.Must(fs.Sub(assets.FS, path.Join("static", RunnerVersion, "docs")))
-	})
-
-	GetAssetsFolderFS = sync.OnceValue(func() fs.FS {
-		return f.Must(fs.Sub(assets.FS, path.Join("static", RunnerVersion)))
-	})
-
 	GetUsedPythonImageTag = sync.OnceValue(func() string {
 		_, usedPythonImageTag := getPythonImageAndTag()
 		return usedPythonImageTag
+	})
+
+	GetStaticStore = sync.OnceValue(func() *store.StaticStore {
+		return store.NewStaticStore(RunnerVersion)
 	})
 )
 

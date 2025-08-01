@@ -60,7 +60,7 @@ func httpHandler(ctx context.Context, daemonPort, version string) {
 			arduino.NewArduinoPlatformUpdater(),
 		),
 		servicelocator.GetProvisioner(),
-		servicelocator.GetBricksDocsFS(),
+		servicelocator.GetStaticStore(),
 		servicelocator.GetModelsIndex(),
 		servicelocator.GetBricksIndex(),
 	)

@@ -4,9 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"net/http"
-	"path"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,10 +13,10 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/assets"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
 func TestBricksList(t *testing.T) {
-
 	httpClient := GetHttpclient(t)
 
 	response, err := httpClient.GetBricksWithResponse(t.Context(), func(ctx context.Context, req *http.Request) error { return nil })
@@ -26,8 +24,12 @@ func TestBricksList(t *testing.T) {
 	require.NotEmpty(t, response.JSON200.Bricks)
 
 	versions := f.Must(assets.FS.ReadDir("static"))
-	assetsFolderFS := f.Must(fs.Sub(assets.FS, path.Join("static", versions[0].Name())))
-	brickIndex, err := bricksindex.GenerateBricksIndex(assetsFolderFS)
+	require.Len(t, versions, 1)
+	version := versions[0].Name()
+	staticStore := store.NewStaticStore(version)
+	indexContent := f.Must(staticStore.GetBricksListFile())
+	defer indexContent.Close()
+	brickIndex, err := bricksindex.LoadBricksIndex(indexContent)
 	require.NoError(t, err)
 
 	// Compare the response with the bricks index

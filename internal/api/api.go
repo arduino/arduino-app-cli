@@ -2,13 +2,13 @@ package api
 
 import (
 	"embed"
-	"io/fs"
 	"net/http"
 
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/store"
 	"github.com/arduino/arduino-app-cli/internal/update"
 
 	dockerClient "github.com/docker/docker/client"
@@ -24,7 +24,7 @@ func NewHTTPRouter(
 	version string,
 	updater *update.Manager,
 	provisioner *orchestrator.Provision,
-	bricksDocsFS fs.FS,
+	staticStore *store.StaticStore,
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
 ) http.Handler {
@@ -34,7 +34,7 @@ func NewHTTPRouter(
 	mux.Handle("GET /v1/version", handlers.HandlerVersion(version))
 	mux.Handle("GET /v1/config", handlers.HandleConfig())
 	mux.Handle("GET /v1/bricks", handlers.HandleBrickList(modelsIndex, bricksIndex))
-	mux.Handle("GET /v1/bricks/{brickID}", handlers.HandleBrickDetails(bricksDocsFS, bricksIndex))
+	mux.Handle("GET /v1/bricks/{brickID}", handlers.HandleBrickDetails(staticStore, bricksIndex))
 
 	mux.Handle("GET /v1/system/update/check", handlers.HandleCheckUpgradable(updater))
 	mux.Handle("GET /v1/system/update/events", handlers.HandleUpdateEvents(updater))

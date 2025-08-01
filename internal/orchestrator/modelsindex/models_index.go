@@ -2,7 +2,6 @@ package modelsindex
 
 import (
 	"io"
-	"io/fs"
 	"slices"
 
 	"github.com/arduino/go-paths-helper"
@@ -78,19 +77,9 @@ func (m *ModelsIndex) GetModelsByBricks(bricks []string) []AIModel {
 	return matchingModels
 }
 
-func GenerateModelsIndex(fs fs.FS) (*ModelsIndex, error) {
-	file, err := fs.Open("models-list.yaml")
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	content, err := io.ReadAll(file)
-	if err != nil {
-		return nil, err
-	}
-
+func LoadModelsIndex(content io.Reader) (*ModelsIndex, error) {
 	var list assetsModelList
-	if err := yaml.Unmarshal(content, &list); err != nil {
+	if err := yaml.NewDecoder(content).Decode(&list); err != nil {
 		return nil, err
 	}
 

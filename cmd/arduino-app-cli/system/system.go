@@ -72,7 +72,10 @@ func SystemInit(ctx context.Context) error {
 }
 
 func parseAllModelsRunnerImageTag() ([]string, error) {
-	assets := servicelocator.GetAssetsFolderFS()
+	assets, err := servicelocator.GetStaticStore().GetAssetsFolder()
+	if err != nil {
+		return nil, err
+	}
 	baseDir := path.Join("compose", "arduino")
 	bricks, err := fs.ReadDir(assets, baseDir)
 	if err != nil {
