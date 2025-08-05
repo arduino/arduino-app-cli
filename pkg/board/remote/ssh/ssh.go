@@ -208,8 +208,7 @@ type SSHCommand struct {
 	err     error
 }
 
-// TODO: implement context
-func (a *SSHConnection) GetCmd(_ context.Context, cmd string, args ...string) remote.Cmder {
+func (a *SSHConnection) GetCmd(cmd string, args ...string) remote.Cmder {
 	session, err := a.client.NewSession()
 	if err != nil {
 		return &SSHCommand{
@@ -226,7 +225,7 @@ func (a *SSHConnection) GetCmd(_ context.Context, cmd string, args ...string) re
 	}
 }
 
-func (c SSHCommand) Run() error {
+func (c SSHCommand) Run(ctx context.Context) error {
 	if c.err != nil {
 		return c.err
 	}
@@ -235,7 +234,7 @@ func (c SSHCommand) Run() error {
 	return c.session.Run(c.cmd)
 }
 
-func (c *SSHCommand) Output() ([]byte, error) {
+func (c *SSHCommand) Output(ctx context.Context) ([]byte, error) {
 	if c.err != nil {
 		return nil, c.err
 	}
@@ -244,26 +243,30 @@ func (c *SSHCommand) Output() ([]byte, error) {
 	return c.session.CombinedOutput(c.cmd)
 }
 
-func (c *SSHCommand) Interactive() (io.WriteCloser, io.Reader, remote.Closer, error) {
+func (c *SSHCommand) Interactive() (io.WriteCloser, io.Reader, io.Reader, remote.Closer, error) {
 	if c.err != nil {
-		return nil, nil, nil, c.err
+		return nil, nil, nil, nil, c.err
 	}
 
 	c.session.Stderr = c.session.Stdout // Redirect stderr to stdout
 	stdin, err := c.session.StdinPipe()
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to get stdin pipe: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to get stdin pipe: %w", err)
 	}
 	stdout, err := c.session.StdoutPipe()
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to get stdout pipe: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to get stdout pipe: %w", err)
+	}
+	stderr, err := c.session.StderrPipe()
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to get stderr pipe: %w", err)
 	}
 
 	if err := c.session.Start(c.cmd); err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to start command: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to start command: %w", err)
 	}
 
-	return stdin, stdout, func() error {
+	return stdin, stdout, stderr, func() error {
 		if err := c.session.Wait(); err != nil {
 			return fmt.Errorf("command failed: %w", err)
 		}

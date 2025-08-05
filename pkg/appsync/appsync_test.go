@@ -48,15 +48,15 @@ func TestEnableSyncApp(t *testing.T) {
 
 	// Init the file system on the remote connections.
 	for _, remote := range remotes {
-		out, err := remote.conn.GetCmd(t.Context(), "mkdir", "-p", "apps/test/python").Output()
+		out, err := remote.conn.GetCmd("mkdir", "-p", "apps/test/python").Output(t.Context())
 		require.NoError(t, err, "output: %q", out)
-		out, err = remote.conn.GetCmd(t.Context(), "touch", "apps/test/python/main.py").Output()
+		out, err = remote.conn.GetCmd("touch", "apps/test/python/main.py").Output(t.Context())
 		require.NoError(t, err, "output: %q", out)
-		out, err = remote.conn.GetCmd(t.Context(), "mkdir", "-p", "apps/test/sketch/").Output()
+		out, err = remote.conn.GetCmd("mkdir", "-p", "apps/test/sketch/").Output(t.Context())
 		require.NoError(t, err, "output: %q", out)
-		out, err = remote.conn.GetCmd(t.Context(), "touch", "apps/test/sketch/sketch.ino").Output()
+		out, err = remote.conn.GetCmd("touch", "apps/test/sketch/sketch.ino").Output(t.Context())
 		require.NoError(t, err, "output: %q", out)
-		out, err = remote.conn.GetCmd(t.Context(), "touch", "apps/test/app.yml").Output()
+		out, err = remote.conn.GetCmd("touch", "apps/test/app.yml").Output(t.Context())
 		require.NoError(t, err, "output: %q", out)
 	}
 

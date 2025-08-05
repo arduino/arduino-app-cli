@@ -59,8 +59,8 @@ github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kd
 github.com/apapsch/go-jsonmerge/v2 v2.0.0 h1:axGnT1gRIfimI7gJifB699GoE/oq+F2MU7Dml6nw9rQ=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0/go.mod h1:lvDnEdqiQrp0O42VQGgmlKpxL1AP2+08jFMw88y4klk=
 github.com/arduino/go-paths-helper v1.0.1/go.mod h1:HpxtKph+g238EJHq4geEPv9p+gl3v5YYu35Yb+w31Ck=
-github.com/arduino/go-paths-helper v1.13.1 h1:M7SCdLB2VldxOdChnjZkxAZwWZdDtNY4IlHL9nxGQFo=
-github.com/arduino/go-paths-helper v1.13.1/go.mod h1:dDodKn2ZX4iwuoBMapdDO+5d0oDLBeM4BS0xS4i40Ak=
+github.com/arduino/go-paths-helper v1.14.0 h1:b4C8KJa7CNz2XnzTWg97M3LAmzWSWrj+m/o5/skzv3Y=
+github.com/arduino/go-paths-helper v1.14.0/go.mod h1:dDodKn2ZX4iwuoBMapdDO+5d0oDLBeM4BS0xS4i40Ak=
 github.com/arduino/go-properties-orderedmap v1.8.1 h1:nU5S6cXPwMoxZs4ORw61wPTALNfriIduvNB4cxTmNYM=
 github.com/arduino/go-properties-orderedmap v1.8.1/go.mod h1:DKjD2VXY/NZmlingh4lSFMEYCVubfeArCsGPGDwb2yk=
 github.com/arduino/go-serial-utils v0.1.2 h1:MRFwME4w/uaVkJ1R+wzz4KSbI9cF9IDVrYorazvjpTk=

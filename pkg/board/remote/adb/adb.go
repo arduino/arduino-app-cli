@@ -11,11 +11,12 @@ import (
 	"math/rand/v2"
 	"net"
 	"os"
-	"os/exec"
 	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/arduino/go-paths-helper"
 
 	"github.com/arduino/arduino-app-cli/pkg/board/remote"
 )
@@ -45,7 +46,11 @@ func FromHost(host string, adbPath string) (*ADBConnection, error) {
 	if adbPath == "" {
 		adbPath = FindAdbPath()
 	}
-	if err := exec.Command(adbPath, "connect", host).Run(); err != nil {
+	cmd, err := paths.NewProcess(nil, adbPath, "connect", host)
+	if err != nil {
+		return nil, err
+	}
+	if err := cmd.Run(); err != nil {
 		return nil, fmt.Errorf("failed to connect to ADB host %s: %w", host, err)
 	}
 	return FromSerial(host, adbPath)
@@ -59,7 +64,11 @@ func (a *ADBConnection) Forward(ctx context.Context, remotePort int) (int, error
 
 	local := fmt.Sprintf("tcp:%d", hostAvailablePort)
 	remote := fmt.Sprintf("tcp:%d", remotePort)
-	if err := exec.CommandContext(ctx, a.adbPath, "-s", a.host, "forward", local, remote).Run(); err != nil { // nolint:gosec
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "forward", local, remote)
+	if err != nil {
+		return hostAvailablePort, err
+	}
+	if err := cmd.RunWithinContext(ctx); err != nil {
 		return hostAvailablePort, fmt.Errorf(
 			"failed to forward ADB port %s to %s: %w",
 			local,
@@ -71,15 +80,22 @@ func (a *ADBConnection) Forward(ctx context.Context, remotePort int) (int, error
 }
 
 func (a *ADBConnection) ForwardKillAll(ctx context.Context) error {
-	if err := exec.CommandContext(ctx, a.adbPath, "-s", a.host, "killforward-all").Run(); err != nil { // nolint:gosec
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "killforward-all")
+	if err != nil {
+		return err
+	}
+	if err := cmd.RunWithinContext(ctx); err != nil {
 		return fmt.Errorf("failed to kill all ADB forwarded ports: %w", err)
 	}
 	return nil
 }
 
 func (a *ADBConnection) List(path string) ([]remote.FileInfo, error) {
-	cmd := exec.Command(a.adbPath, "-s", a.host, "shell", "ls", "-la", path) // nolint:gosec
-	cmd.Stderr = os.Stdout
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "ls", "-la", path)
+	if err != nil {
+		return nil, err
+	}
+	cmd.RedirectStderrTo(os.Stdout)
 	output, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, err
@@ -123,7 +139,10 @@ func (a *ADBConnection) List(path string) ([]remote.FileInfo, error) {
 }
 
 func (a *ADBConnection) Stats(path string) (remote.FileInfo, error) {
-	cmd := exec.Command(a.adbPath, "-s", a.host, "shell", "file", path) // nolint:gosec
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "file", path)
+	if err != nil {
+		return remote.FileInfo{}, err
+	}
 	output, err := cmd.StdoutPipe()
 	if err != nil {
 		return remote.FileInfo{}, err
@@ -167,28 +186,34 @@ func (a *ADBConnection) WriteFile(r io.Reader, path string) error {
 }
 
 func (a *ADBConnection) MkDirAll(path string) error {
-	cmd := exec.Command(a.adbPath, "-s", a.host, "shell", "install", "-o", username, "-g", username, "-m", "755", "-d", path) // nolint:gosec
-	out, err := cmd.CombinedOutput()
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "install", "-o", username, "-g", username, "-m", "755", "-d", path)
 	if err != nil {
-		return fmt.Errorf("failed to create directory %q: %w: %s", path, err, out)
+		return err
+	}
+	stdout, err := cmd.RunAndCaptureCombinedOutput(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to create directory %q: %w: %s", path, err, string(stdout))
 	}
 	return nil
 }
 
 func (a *ADBConnection) Remove(path string) error {
-	cmd := exec.Command(a.adbPath, "-s", a.host, "shell", "rm", "-r", path) // nolint:gosec
-	out, err := cmd.CombinedOutput()
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "rm", "-r", path) // nolint:gosec
 	if err != nil {
-		return fmt.Errorf("failed to remove path %q: %w: %s", path, err, out)
+		return err
+	}
+	stdout, err := cmd.RunAndCaptureCombinedOutput(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to remove path %q: %w: %s", path, err, string(stdout))
 	}
 	return nil
 }
 
 type ADBCommand struct {
-	cmd *exec.Cmd
+	cmd *paths.Process
 }
 
-func (a *ADBConnection) GetCmd(ctx context.Context, cmd string, args ...string) remote.Cmder {
+func (a *ADBConnection) GetCmd(cmd string, args ...string) remote.Cmder {
 	for i, arg := range args {
 		if strings.Contains(arg, " ") {
 			args[i] = fmt.Sprintf("%q", arg)
@@ -197,41 +222,47 @@ func (a *ADBConnection) GetCmd(ctx context.Context, cmd string, args ...string) 
 
 	// TODO: fix command injection vulnerability
 	var cmds []string
-	cmds = append(cmds, "-s", a.host, "shell", cmd)
-	cmds = append(cmds, args...)
-
-	cmdd := exec.CommandContext(ctx, a.adbPath, cmds...) // nolint:gosec
-	return &ADBCommand{
-		cmd: cmdd,
+	cmds = append(cmds, a.adbPath, "-s", a.host, "shell", cmd)
+	if len(args) > 0 {
+		cmds = append(cmds, args...)
 	}
+
+	command, _ := paths.NewProcess(nil, cmds...)
+	return &ADBCommand{cmd: command}
 }
 
-func (a *ADBCommand) Run() error {
-	return a.cmd.Run()
+func (a *ADBCommand) Run(ctx context.Context) error {
+	return a.cmd.RunWithinContext(ctx)
 }
 
-func (a *ADBCommand) Output() ([]byte, error) {
-	return a.cmd.CombinedOutput()
+func (a *ADBCommand) Output(ctx context.Context) ([]byte, error) {
+	return a.cmd.RunAndCaptureCombinedOutput(ctx)
 }
 
-func (a *ADBCommand) Interactive() (io.WriteCloser, io.Reader, remote.Closer, error) {
-	a.cmd.Stderr = a.cmd.Stdout // Redirect stderr to stdout
+func (a *ADBCommand) Interactive() (io.WriteCloser, io.Reader, io.Reader, remote.Closer, error) {
 	stdin, err := a.cmd.StdinPipe()
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to get stdin pipe: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to get stdin pipe: %w", err)
 	}
 	stdout, err := a.cmd.StdoutPipe()
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to get stdout pipe: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to get stdout pipe: %w", err)
+	}
+	stderr, err := a.cmd.StderrPipe()
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to get stderr pipe: %w", err)
 	}
 
 	if err := a.cmd.Start(); err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to start command: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to start command: %w", err)
 	}
 
-	return stdin, stdout, func() error {
+	return stdin, stdout, stderr, func() error {
 		if err := stdout.Close(); err != nil {
 			return fmt.Errorf("failed to close stdout pipe: %w", err)
+		}
+		if err := stderr.Close(); err != nil {
+			return fmt.Errorf("failed to close stderr pipe: %w", err)
 		}
 		if err := a.cmd.Wait(); err != nil {
 			return fmt.Errorf("command failed: %w", err)

@@ -26,7 +26,7 @@ type RemoteFs interface {
 }
 
 type RemoteShell interface {
-	GetCmd(ctx context.Context, cmd string, args ...string) Cmder
+	GetCmd(cmd string, args ...string) Cmder
 }
 
 type Forwarder interface {
@@ -37,7 +37,7 @@ type Forwarder interface {
 type Closer func() error
 
 type Cmder interface {
-	Run() error
-	Output() ([]byte, error)
-	Interactive() (io.WriteCloser, io.Reader, Closer, error)
+	Run(ctx context.Context) error
+	Output(ctx context.Context) ([]byte, error)
+	Interactive() (io.WriteCloser, io.Reader, io.Reader, Closer, error)
 }

@@ -45,9 +45,9 @@ func adbWriteFile(a *ADBConnection, r io.Reader, pathStr string) error {
 	if err != nil {
 		return fmt.Errorf("cannot create process: %w", err)
 	}
-	stdout, stderr, err := cmd.RunAndCaptureOutput(context.TODO())
+	stdout, err := cmd.RunAndCaptureCombinedOutput(context.TODO())
 	if err != nil {
-		return fmt.Errorf("failed to create file to %q: %w: %s: %s", pathStr, err, string(stdout), string(stderr))
+		return fmt.Errorf("failed to create file to %q: %w: %s", pathStr, err, string(stdout))
 	}
 
 	// Write the content to the file.

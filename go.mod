@@ -5,7 +5,7 @@ go 1.24.5
 require (
 	github.com/Andrew-M-C/go.emoji v1.1.4
 	github.com/arduino/arduino-cli v1.2.2
-	github.com/arduino/go-paths-helper v1.13.1
+	github.com/arduino/go-paths-helper v1.14.0
 	github.com/codeclysm/extract/v4 v4.0.0
 	github.com/compose-spec/compose-go/v2 v2.7.1
 	github.com/containerd/errdefs v1.0.0

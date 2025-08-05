@@ -106,27 +106,27 @@ func TestSSHShell(t *testing.T) {
 	for _, conn := range remotes {
 		tests := []func(string, ...string) remote.Cmder{
 			func(cmd string, args ...string) remote.Cmder {
-				return conn.GetCmd(t.Context(), cmd, args...)
+				return conn.GetCmd(cmd, args...)
 			},
 		}
 
 		for _, cmder := range tests {
 			t.Run("Run", func(t *testing.T) {
 				cmd := cmder("echo", "Hello, World!")
-				err := cmd.Run()
+				err := cmd.Run(t.Context())
 				require.NoError(t, err)
 			})
 
 			t.Run("Output", func(t *testing.T) {
 				cmd := cmder("echo", "Hello, World!")
-				output, err := cmd.Output()
+				output, err := cmd.Output(t.Context())
 				require.NoError(t, err)
 				assert.True(t, strings.HasPrefix(string(output), "Hello, World!"))
 			})
 
 			t.Run("Interactive", func(t *testing.T) {
 				cmd := cmder("cat")
-				stdin, stdout, closer, err := cmd.Interactive()
+				stdin, stdout, stderr, closer, err := cmd.Interactive()
 				require.NoError(t, err)
 
 				_, err = stdin.Write([]byte("Hello, Interactive World!\n"))
@@ -136,6 +136,9 @@ func TestSSHShell(t *testing.T) {
 				output, err := io.ReadAll(stdout)
 				require.NoError(t, err)
 				assert.True(t, strings.HasPrefix(string(output), "Hello, Interactive World!"))
+				stderrOutput, err := io.ReadAll(stderr)
+				require.NoError(t, err)
+				require.Empty(t, stderrOutput)
 
 				require.NoError(t, closer())
 			})
