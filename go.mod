@@ -2,6 +2,17 @@ module github.com/arduino/arduino-app-cli
 
 go 1.24.5
 
+// This is needed because compose introduce a regression in https://github.com/docker/compose/pull/13062
+// They changed the wait monitor ends. Because we're using the Logs() method, we are no longer able to make it
+// quit because the context is no longer propagated in the underlying monitor.
+replace (
+	github.com/compose-spec/compose-go/v2 => github.com/compose-spec/compose-go/v2 v2.7.1
+	github.com/docker/buildx => github.com/docker/buildx v0.25.0
+	github.com/docker/cli => github.com/docker/cli v28.3.2+incompatible
+	github.com/docker/compose/v2 => github.com/docker/compose/v2 v2.38.3-0.20250716153459-17ba6c7188fe
+	github.com/docker/docker => github.com/docker/docker v28.3.2+incompatible
+)
+
 require (
 	github.com/Andrew-M-C/go.emoji v1.1.4
 	github.com/arduino/arduino-cli v1.2.2
@@ -13,7 +24,7 @@ require (
 	github.com/djherbis/buffer v1.2.0
 	github.com/djherbis/nio/v3 v3.0.1
 	github.com/docker/cli v28.3.2+incompatible
-	github.com/docker/compose/v2 v2.39.1
+	github.com/docker/compose/v2 v2.38.3-0.20250716153459-17ba6c7188fe
 	github.com/docker/docker v28.3.2+incompatible
 	github.com/fatih/color v1.18.0
 	github.com/fsnotify/fsnotify v1.9.0
@@ -162,7 +173,7 @@ require (
 	github.com/mitchellh/go-ps v1.0.0 // indirect
 	github.com/mitchellh/hashstructure/v2 v2.0.2 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
-	github.com/moby/buildkit v0.23.0-rc1.0.20250618182037-9b91d20367db // indirect
+	github.com/moby/buildkit v0.23.2 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/go-archive v0.1.0 // indirect
 	github.com/moby/locker v1.0.1 // indirect
@@ -256,7 +267,6 @@ require (
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/mock v0.5.2 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
-	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/mod v0.25.0 // indirect
 	golang.org/x/net v0.41.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
