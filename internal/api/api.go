@@ -11,7 +11,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/store"
 	"github.com/arduino/arduino-app-cli/internal/update"
 
-	dockerClient "github.com/docker/docker/client"
+	"github.com/docker/cli/cli/command"
 
 	_ "net/http/pprof" //nolint:gosec // pprof import is safe for profiling endpoints
 )
@@ -20,7 +20,7 @@ import (
 var docsFS embed.FS
 
 func NewHTTPRouter(
-	dockerClient *dockerClient.Client,
+	dockerClient command.Cli,
 	version string,
 	updater *update.Manager,
 	provisioner *orchestrator.Provision,
@@ -45,7 +45,7 @@ func NewHTTPRouter(
 	mux.Handle("GET /v1/models/{modelID}", handlers.HandlerModelByID(modelsIndex))
 
 	mux.Handle("GET /v1/apps", handlers.HandleAppList(dockerClient))
-	mux.Handle("POST /v1/apps", handlers.HandleAppCreate(dockerClient))
+	mux.Handle("POST /v1/apps", handlers.HandleAppCreate())
 
 	mux.Handle("GET /v1/apps/{appID}", handlers.HandleAppDetails(dockerClient, bricksIndex))
 	mux.Handle("PATCH /v1/apps/{appID}", handlers.HandleAppDetailsEdits(dockerClient, bricksIndex))

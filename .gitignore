@@ -34,4 +34,4 @@ build/
 /arduino-app-cli
 /apps
 # temporary staging directories
-/debian/arduino-app-cli/home
+/debian/arduino-app-cli/home/

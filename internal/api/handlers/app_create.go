@@ -10,8 +10,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/pkg/render"
-
-	dockerClient "github.com/docker/docker/client"
 )
 
 type CreateAppRequest struct {
@@ -19,7 +17,7 @@ type CreateAppRequest struct {
 	Icon string `json:"icon" description:"application icon" `
 }
 
-func HandleAppCreate(dockerClient *dockerClient.Client) http.HandlerFunc {
+func HandleAppCreate() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		defer r.Body.Close()

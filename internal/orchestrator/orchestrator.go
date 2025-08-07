@@ -18,7 +18,7 @@ import (
 	"github.com/arduino/arduino-cli/commands"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
-	dockerClient "github.com/docker/docker/client"
+	"github.com/docker/cli/cli/command"
 	"github.com/goccy/go-yaml"
 	"github.com/gosimple/slug"
 	"github.com/sirupsen/logrus"
@@ -100,12 +100,19 @@ func (p *StreamMessage) GetType() MessageType {
 	return UnknownType
 }
 
-func StartApp(ctx context.Context, docker *dockerClient.Client, provisioner *Provision, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, app app.ArduinoApp) iter.Seq[StreamMessage] {
+func StartApp(
+	ctx context.Context,
+	docker command.Cli,
+	provisioner *Provision,
+	modelsIndex *modelsindex.ModelsIndex,
+	bricksIndex *bricksindex.BricksIndex,
+	app app.ArduinoApp,
+) iter.Seq[StreamMessage] {
 	return func(yield func(StreamMessage) bool) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		running, err := getRunningApp(ctx, docker)
+		running, err := getRunningApp(ctx, docker.Client())
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return
@@ -241,7 +248,7 @@ func StopApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
 
 func StartDefaultApp(
 	ctx context.Context,
-	docker *dockerClient.Client,
+	docker command.Cli,
 	provisioner *Provision,
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
@@ -305,13 +312,17 @@ type ListAppRequest struct {
 	IncludeNonStandardLocationApps bool
 }
 
-func ListApps(ctx context.Context, docker *dockerClient.Client, req ListAppRequest) (ListAppResult, error) {
+func ListApps(
+	ctx context.Context,
+	docker command.Cli,
+	req ListAppRequest,
+) (ListAppResult, error) {
 	var (
 		pathsToExplore paths.PathList
 		appPaths       paths.PathList
 	)
 
-	apps, err := getAppsStatus(ctx, docker)
+	apps, err := getAppsStatus(ctx, docker.Client())
 	if err != nil {
 		slog.Error("unable to get running app", slog.String("error", err.Error()))
 	}
@@ -420,7 +431,7 @@ type AppDetailedBrick struct {
 
 func AppDetails(
 	ctx context.Context,
-	docker *dockerClient.Client,
+	docker command.Cli,
 	userApp app.ArduinoApp,
 	bricksIndex *bricksindex.BricksIndex,
 ) (AppDetailedInfo, error) {

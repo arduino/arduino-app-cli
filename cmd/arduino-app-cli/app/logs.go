@@ -7,13 +7,18 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 )
 
 func newLogsCmd() *cobra.Command {
-	var tail uint64
+	var (
+		tail   uint64
+		follow bool
+		all    bool
+	)
 	cmd := &cobra.Command{
 		Use:   "logs app_path",
 		Short: "Show the logs of the Python app",
@@ -26,29 +31,36 @@ func newLogsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return logsHandler(cmd.Context(), app, &tail)
+			return logsHandler(cmd.Context(), app, &tail, follow, all)
 		},
 		ValidArgsFunction: completion.ApplicationNames(),
 	}
 	cmd.Flags().Uint64Var(&tail, "tail", 100, "Tail the last N logs")
+	cmd.Flags().BoolVar(&follow, "follow", false, "Follow the logs")
+	cmd.Flags().BoolVar(&all, "all", false, "Show all logs")
 	return cmd
 }
 
-func logsHandler(ctx context.Context, app app.ArduinoApp, tail *uint64) error {
+func logsHandler(ctx context.Context, app app.ArduinoApp, tail *uint64, follow, all bool) error {
 	stdout, _, err := feedback.DirectStreams()
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 		return nil
 	}
 
+	cfg := orchestrator.AppLogsRequest{
+		ShowAppLogs: true,
+		Follow:      follow,
+		Tail:        tail,
+	}
+	if all {
+		cfg.ShowServicesLogs = true
+	}
 	logsIter, err := orchestrator.AppLogs(
 		ctx,
 		app,
-		orchestrator.AppLogsRequest{
-			ShowAppLogs: true,
-			Follow:      true,
-			Tail:        tail,
-		},
+		cfg,
+		servicelocator.GetDockerClient(),
 	)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)

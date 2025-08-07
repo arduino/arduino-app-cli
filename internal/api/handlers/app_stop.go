@@ -9,10 +9,10 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/pkg/render"
 
-	dockerClient "github.com/docker/docker/client"
+	"github.com/docker/cli/cli/command"
 )
 
-func HandleAppStop(dockerClient *dockerClient.Client) http.HandlerFunc {
+func HandleAppStop(dockerClient command.Cli) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
 		if err != nil {

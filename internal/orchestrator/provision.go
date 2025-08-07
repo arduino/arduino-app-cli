@@ -19,6 +19,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/store"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/docker/cli/cli/command"
 	"github.com/docker/docker/api/types/container"
 	dockerClient "github.com/docker/docker/client"
 	yaml "github.com/goccy/go-yaml"
@@ -57,20 +58,20 @@ func ProvisionApp(
 }
 
 type Provision struct {
-	docker              *dockerClient.Client
+	docker              command.Cli
 	useDynamicProvision bool
 	staticStore         *store.StaticStore
 	pythonImage         string
 }
 
 func NewProvision(
-	docker *dockerClient.Client,
+	docker command.Cli,
 	staticStore *store.StaticStore,
 	useDynamicProvision bool,
 	pythonImage string,
 ) (*Provision, error) {
 	if useDynamicProvision {
-		if err := dynamicProvisioning(context.Background(), docker, pythonImage, paths.TempDir().String()); err != nil {
+		if err := dynamicProvisioning(context.Background(), docker.Client(), pythonImage, paths.TempDir().String()); err != nil {
 			return nil, fmt.Errorf("failed to perform dynamic provisioning: %w", err)
 		}
 	}
@@ -128,7 +129,7 @@ func (p *Provision) DynamicProvisionDir() *paths.Path {
 
 func dynamicProvisioning(
 	ctx context.Context,
-	docker *dockerClient.Client,
+	docker dockerClient.APIClient,
 	pythonImage, srcPath string,
 ) error {
 	containerCfg := &container.Config{

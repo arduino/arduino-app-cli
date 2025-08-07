@@ -6,18 +6,18 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/docker/cli/cli/command"
+
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/pkg/render"
-
-	dockerClient "github.com/docker/docker/client"
 )
 
 type AppListResponse struct {
 	Apps []orchestrator.AppInfo `json:"apps" description:"List of applications"`
 }
 
-func HandleAppList(dockerClient *dockerClient.Client) http.HandlerFunc {
+func HandleAppList(dockerCli command.Cli) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		queryParams := r.URL.Query()
 
@@ -39,7 +39,7 @@ func HandleAppList(dockerClient *dockerClient.Client) http.HandlerFunc {
 			statusFilter = status
 		}
 
-		res, err := orchestrator.ListApps(r.Context(), dockerClient, orchestrator.ListAppRequest{
+		res, err := orchestrator.ListApps(r.Context(), dockerCli, orchestrator.ListAppRequest{
 			ShowApps:        showApps,
 			ShowExamples:    showExamples,
 			ShowOnlyDefault: showOnlyDefault,

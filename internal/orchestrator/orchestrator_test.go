@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/docker/cli/cli/command"
+	"github.com/docker/cli/cli/flags"
 	dockerClient "github.com/docker/docker/client"
 	gCmp "github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -285,14 +287,21 @@ func TestListApp(t *testing.T) {
 		dockerClient.WithAPIVersionNegotiation(),
 	)
 	require.NoError(t, err)
-	t.Cleanup(func() { docker.Close() })
+	dockerCli, err := command.NewDockerCli(
+		command.WithAPIClient(docker),
+		command.WithBaseContext(t.Context()),
+	)
+	require.NoError(t, err)
+
+	err = dockerCli.Initialize(&flags.ClientOptions{})
+	require.NoError(t, err)
 
 	createApp(t, "app1", false)
 	createApp(t, "app2", false)
 	createApp(t, "example1", true)
 
 	t.Run("list all apps", func(t *testing.T) {
-		res, err := ListApps(t.Context(), docker, ListAppRequest{
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
 			ShowApps:     true,
 			ShowExamples: true,
 			StatusFilter: "",
@@ -331,7 +340,7 @@ func TestListApp(t *testing.T) {
 	})
 
 	t.Run("list only apps", func(t *testing.T) {
-		res, err := ListApps(t.Context(), docker, ListAppRequest{
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
 			ShowApps:     true,
 			ShowExamples: false,
 			StatusFilter: "",
@@ -361,7 +370,7 @@ func TestListApp(t *testing.T) {
 	})
 
 	t.Run("list only examples", func(t *testing.T) {
-		res, err := ListApps(t.Context(), docker, ListAppRequest{
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
 			ShowApps:     false,
 			ShowExamples: true,
 			StatusFilter: "",

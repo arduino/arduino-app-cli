@@ -11,11 +11,11 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/pkg/render"
 
-	dockerClient "github.com/docker/docker/client"
+	"github.com/docker/cli/cli/command"
 )
 
 func HandleAppStart(
-	dockerClient *dockerClient.Client,
+	dockerCli command.Cli,
 	provisioner *orchestrator.Provision,
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
@@ -48,7 +48,7 @@ func HandleAppStart(
 		type log struct {
 			Message string `json:"message"`
 		}
-		for item := range orchestrator.StartApp(r.Context(), dockerClient, provisioner, modelsIndex, bricksIndex, app) {
+		for item := range orchestrator.StartApp(r.Context(), dockerCli, provisioner, modelsIndex, bricksIndex, app) {
 			switch item.GetType() {
 			case orchestrator.ProgressType:
 				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress{Progress: item.GetProgress().Progress}})

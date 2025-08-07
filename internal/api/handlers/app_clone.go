@@ -11,7 +11,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/pkg/render"
 
-	dockerClient "github.com/docker/docker/client"
+	"github.com/docker/cli/cli/command"
 )
 
 type CloneRequest struct {
@@ -19,7 +19,7 @@ type CloneRequest struct {
 	Icon *string `json:"icon" description:"application icon"`
 }
 
-func HandleAppClone(dockerClient *dockerClient.Client) http.HandlerFunc {
+func HandleAppClone(dockerClient command.Cli) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
 		if err != nil {

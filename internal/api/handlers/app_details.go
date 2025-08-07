@@ -11,10 +11,10 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/pkg/render"
 
-	dockerClient "github.com/docker/docker/client"
+	"github.com/docker/cli/cli/command"
 )
 
-func HandleAppDetails(dockerClient *dockerClient.Client, bricksIndex *bricksindex.BricksIndex) http.HandlerFunc {
+func HandleAppDetails(dockerClient command.Cli, bricksIndex *bricksindex.BricksIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
 		if err != nil {
@@ -46,7 +46,7 @@ type EditRequest struct {
 	Default     *bool   `json:"default"`
 }
 
-func HandleAppDetailsEdits(dockerClient *dockerClient.Client, bricksIndex *bricksindex.BricksIndex) http.HandlerFunc {
+func HandleAppDetailsEdits(dockerClient command.Cli, bricksIndex *bricksindex.BricksIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
 		if err != nil {

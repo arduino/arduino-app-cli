@@ -7,15 +7,15 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/docker/cli/cli/command"
+
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/pkg/render"
-
-	dockerClient "github.com/docker/docker/client"
 )
 
-func HandleAppLogs(dockerClient *dockerClient.Client) http.HandlerFunc {
+func HandleAppLogs(dockerClient command.Cli) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
 		if err != nil {
@@ -73,7 +73,7 @@ func HandleAppLogs(dockerClient *dockerClient.Client) http.HandlerFunc {
 			BrickID string `json:"brick_id,omitempty"`
 			Message string `json:"message"`
 		}
-		messagesIter, err := orchestrator.AppLogs(r.Context(), app, appLogsRequest)
+		messagesIter, err := orchestrator.AppLogs(r.Context(), app, appLogsRequest, dockerClient)
 		if err != nil {
 			sseStream.SendError(render.SSEErrorData{
 				Code:    render.InternalServiceErr,

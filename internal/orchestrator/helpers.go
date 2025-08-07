@@ -3,11 +3,10 @@ package orchestrator
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"slices"
-	"strings"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/docker/cli/cli/command"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	dockerClient "github.com/docker/docker/client"
@@ -16,32 +15,15 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 )
 
-func dockerComposeListServices(ctx context.Context, composeFile *paths.Path) ([]string, error) {
-	process, err := paths.NewProcess(nil, "docker", "compose", "-f", composeFile.String(), "config", "--services")
-	if err != nil {
-		return nil, err
-	}
-	stdout, stderr, err := process.RunAndCaptureOutput(ctx)
-	if len(stderr) > 0 {
-		slog.Error("docker compose config error", slog.String("stderr", string(stderr)))
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to run docker compose config: %w", err)
-	}
-
-	if len(stdout) == 0 {
-		return nil, nil
-	}
-
-	return strings.Split(strings.TrimSpace(string(stdout)), "\n"), nil
-}
-
 type AppStatus struct {
 	AppPath *paths.Path
 	Status  Status
 }
 
-func getAppsStatus(ctx context.Context, docker *dockerClient.Client) ([]AppStatus, error) {
+func getAppsStatus(
+	ctx context.Context,
+	docker dockerClient.APIClient,
+) ([]AppStatus, error) {
 	getPythonApp := func() ([]AppStatus, error) {
 		containers, err := docker.ContainerList(ctx, container.ListOptions{
 			All:     true,
@@ -88,8 +70,12 @@ func getAppsStatus(ctx context.Context, docker *dockerClient.Client) ([]AppStatu
 	return nil, nil
 }
 
-func getAppStatus(ctx context.Context, docker *dockerClient.Client, app app.ArduinoApp) (AppStatus, error) {
-	apps, err := getAppsStatus(ctx, docker)
+func getAppStatus(
+	ctx context.Context,
+	docker command.Cli,
+	app app.ArduinoApp,
+) (AppStatus, error) {
+	apps, err := getAppsStatus(ctx, docker.Client())
 	if err != nil {
 		return AppStatus{}, fmt.Errorf("failed to get app status: %w", err)
 	}
@@ -102,7 +88,10 @@ func getAppStatus(ctx context.Context, docker *dockerClient.Client, app app.Ardu
 	return apps[idx], nil
 }
 
-func getRunningApp(ctx context.Context, docker *dockerClient.Client) (*app.ArduinoApp, error) {
+func getRunningApp(
+	ctx context.Context,
+	docker dockerClient.APIClient,
+) (*app.ArduinoApp, error) {
 	apps, err := getAppsStatus(ctx, docker)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get running apps: %w", err)
