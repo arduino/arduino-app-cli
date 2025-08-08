@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 
-	"github.com/arduino/go-paths-helper"
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/results"
@@ -43,16 +42,7 @@ func newCreateCmd() *cobra.Command {
 
 func createHandler(ctx context.Context, name string, icon string, noPython, noSketch bool, fromApp string) error {
 	if fromApp != "" {
-		wd, err := paths.Getwd()
-		if err != nil {
-			feedback.Fatal(err.Error(), feedback.ErrGeneric)
-			return nil
-		}
-		fromPath := paths.New(fromApp)
-		if !fromPath.IsAbs() {
-			fromPath = wd.JoinPath(fromPath)
-		}
-		id, err := orchestrator.NewIDFromPath(fromPath)
+		id, err := orchestrator.ParseID(fromApp)
 		if err != nil {
 			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 			return nil
