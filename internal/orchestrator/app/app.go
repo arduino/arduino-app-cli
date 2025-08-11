@@ -69,6 +69,11 @@ func Load(appPath string) (ArduinoApp, error) {
 		return ArduinoApp{}, errors.New("main python file and sketch file missing from app")
 	}
 
+	// Ensure the .cache folder is created
+	if err := app.ProvisioningStateDir().MkdirAll(); err != nil {
+		return ArduinoApp{}, errors.New("cannot create .cache directory for app provisioning state")
+	}
+
 	return app, nil
 }
 
@@ -103,4 +108,12 @@ func (a *ArduinoApp) Save() error {
 
 func (a *ArduinoApp) SketchBuildPath() *paths.Path {
 	return a.FullPath.Join(".cache", "sketch")
+}
+
+func (a *ArduinoApp) ProvisioningStateDir() *paths.Path {
+	return a.FullPath.Join(".cache")
+}
+
+func (a *ArduinoApp) AppComposeFilePath() *paths.Path {
+	return a.ProvisioningStateDir().Join("app-compose.yaml")
 }

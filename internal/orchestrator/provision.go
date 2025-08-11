@@ -93,12 +93,7 @@ func (p *Provision) App(
 		return fmt.Errorf("provisioning failed: arduinoApp is nil")
 	}
 
-	provisioningStateDir, err := getProvisioningStateDir(*arduinoApp)
-	if err != nil {
-		return err
-	}
-
-	dst := provisioningStateDir.Join("compose")
+	dst := arduinoApp.ProvisioningStateDir().Join("compose")
 	if err := dst.RemoveAll(); err != nil {
 		return fmt.Errorf("failed to remove compose directory: %w", err)
 	}
@@ -195,14 +190,6 @@ func pullBasePythonContainer(ctx context.Context, pythonImage string) error {
 	return process.RunWithinContext(ctx)
 }
 
-func getProvisioningStateDir(app app.ArduinoApp) (*paths.Path, error) {
-	cacheDir := app.FullPath.Join(".cache")
-	if err := cacheDir.MkdirAll(); err != nil {
-		return nil, err
-	}
-	return cacheDir, nil
-}
-
 const DockerAppLabel = "cc.arduino.app"
 const DockerAppPathLabel = "cc.arduino.app.path"
 
@@ -211,11 +198,6 @@ func generateMainComposeFile(
 	bricksIndex *bricksindex.BricksIndex,
 	pythonImage string,
 ) error {
-	provisioningStateDir, err := getProvisioningStateDir(*app)
-	if err != nil {
-		return err
-	}
-
 	slog.Debug("Generating main compose file for the App")
 
 	var composeFiles paths.PathList
@@ -223,7 +205,7 @@ func generateMainComposeFile(
 	brickServices := map[string][]string{}
 	for _, brick := range app.Descriptor.Bricks {
 		brickPath := filepath.Join(strings.Split(brick.ID, ":")...)
-		composeFilePath := provisioningStateDir.Join("compose", brickPath, "brick_compose.yaml")
+		composeFilePath := app.ProvisioningStateDir().Join("compose", brickPath, "brick_compose.yaml")
 		if composeFilePath.Exist() {
 			composeFiles.Add(composeFilePath)
 			svcs, e := extracServicesFromComposeFile(composeFilePath)
@@ -240,9 +222,9 @@ func generateMainComposeFile(
 	}
 
 	// Create a single docker-mainCompose that includes all the required services
-	mainComposeFile := provisioningStateDir.Join("app-compose.yaml")
+	mainComposeFile := app.AppComposeFilePath()
 	// If required, create an override compose file for devices
-	overrideComposeFile := provisioningStateDir.Join("app-compose-overrides.yaml")
+	overrideComposeFile := app.ProvisioningStateDir().Join("app-compose-overrides.yaml")
 
 	type mainService struct {
 		Main service `yaml:"main"`

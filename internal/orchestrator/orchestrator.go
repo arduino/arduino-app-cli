@@ -153,12 +153,6 @@ func StartApp(
 				return
 			}
 
-			provisioningStateDir, err := getProvisioningStateDir(app)
-			if err != nil {
-				yield(StreamMessage{error: err})
-				return
-			}
-
 			// Override the compose Variables with the app's variables and model configuration.
 			envs := []string{}
 			addMapToEnv := func(m map[string]string) {
@@ -173,10 +167,9 @@ func StartApp(
 				}
 			}
 
-			mainCompose := provisioningStateDir.Join("app-compose.yaml")
-			overrideComposeFile := provisioningStateDir.Join("app-compose-overrides.yaml")
+			overrideComposeFile := app.ProvisioningStateDir().Join("app-compose-overrides.yaml")
 			commands := []string{}
-			commands = append(commands, "docker", "compose", "-f", mainCompose.String())
+			commands = append(commands, "docker", "compose", "-f", app.AppComposeFilePath().String())
 			if ok, _ := overrideComposeFile.ExistCheck(); ok {
 				commands = append(commands, "-f", overrideComposeFile.String())
 			}
@@ -221,12 +214,7 @@ func StopApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
 		}
 
 		if app.MainPythonFile != nil {
-			provisioningStateDir, err := getProvisioningStateDir(app)
-			if err != nil {
-				yield(StreamMessage{error: err})
-				return
-			}
-			mainCompose := provisioningStateDir.Join("app-compose.yaml")
+			mainCompose := app.AppComposeFilePath()
 			// In case the app was never started
 			if mainCompose.Exist() {
 				process, err := paths.NewProcess(nil, "docker", "compose", "-f", mainCompose.String(), "stop", fmt.Sprintf("--timeout=%d", DefaultDockerStopTimeoutSeconds))

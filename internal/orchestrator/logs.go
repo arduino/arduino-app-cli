@@ -45,11 +45,7 @@ func AppLogs(
 		return x.EmptyIter[LogMessage](), nil
 	}
 
-	provisioningStateDir, err := getProvisioningStateDir(app)
-	if err != nil {
-		return nil, err
-	}
-	mainCompose := provisioningStateDir.Join("app-compose.yaml")
+	mainCompose := app.AppComposeFilePath()
 	if mainCompose.NotExist() {
 		return x.EmptyIter[LogMessage](), nil
 	}
@@ -63,7 +59,7 @@ func AppLogs(
 			slog.Warn("invalid brick id", slog.String("brick_id", brick.ID))
 			continue
 		}
-		composeFilePath := provisioningStateDir.Join("compose", namespace, brickName, "brick_compose.yaml")
+		composeFilePath := app.ProvisioningStateDir().Join("compose", namespace, brickName, "brick_compose.yaml")
 		if composeFilePath.Exist() {
 			prj, err := loader.LoadWithContext(
 				ctx,
