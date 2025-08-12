@@ -9,7 +9,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 )
 
 func newBricksDetailsCmd() *cobra.Command {
@@ -24,13 +24,9 @@ func newBricksDetailsCmd() *cobra.Command {
 }
 
 func bricksDetailsHandler(id string) {
-	res, err := orchestrator.BricksDetails(
-		servicelocator.GetStaticStore(),
-		servicelocator.GetBricksIndex(),
-		id,
-	)
+	res, err := servicelocator.GetBrickService().BricksDetails(id)
 	if err != nil {
-		if errors.Is(err, orchestrator.ErrBrickNotFound) {
+		if errors.Is(err, bricks.ErrBrickNotFound) {
 			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 		} else {
 			feedback.Fatal(err.Error(), feedback.ErrGeneric)
@@ -43,18 +39,18 @@ func bricksDetailsHandler(id string) {
 }
 
 type brickDetailsResult struct {
-	BrickDetailsResult orchestrator.BrickDetailsResult
+	BrickDetailsResult bricks.BrickDetailsResult
 }
 
 func (r brickDetailsResult) String() string {
 	b := &strings.Builder{}
 
-	fmt.Fprintf(b, "Name:        %s\n", r.BrickDetailsResult.Name)
-	fmt.Fprintf(b, "ID:          %s\n", r.BrickDetailsResult.ID)
-	fmt.Fprintf(b, "Author:      %s\n", r.BrickDetailsResult.Author)
-	fmt.Fprintf(b, "Category:    %s\n", r.BrickDetailsResult.Category)
-	fmt.Fprintf(b, "Status:      %s\n", r.BrickDetailsResult.Status)
-	fmt.Fprintf(b, "\nDescription:\n%s\n", r.BrickDetailsResult.Description)
+	b.WriteString("Name:        " + r.BrickDetailsResult.Name + "\n")
+	b.WriteString("ID:          " + r.BrickDetailsResult.ID + "\n")
+	b.WriteString("Author:      " + r.BrickDetailsResult.Author + "\n")
+	b.WriteString("Category:    " + r.BrickDetailsResult.Category + "\n")
+	b.WriteString("Status:      " + r.BrickDetailsResult.Status + "\n")
+	b.WriteString("\nDescription:\n" + r.BrickDetailsResult.Description + "\n")
 
 	if len(r.BrickDetailsResult.Variables) > 0 {
 		b.WriteString("\nVariables:\n")

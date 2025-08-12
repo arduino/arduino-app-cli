@@ -63,6 +63,7 @@ func httpHandler(ctx context.Context, daemonPort, version string) {
 		servicelocator.GetStaticStore(),
 		servicelocator.GetModelsIndex(),
 		servicelocator.GetBricksIndex(),
+		servicelocator.GetBrickService(),
 	)
 
 	corsMiddlware, err := cors.NewMiddleware(

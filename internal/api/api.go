@@ -6,6 +6,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/store"
@@ -27,14 +28,15 @@ func NewHTTPRouter(
 	staticStore *store.StaticStore,
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
+	brickService *bricks.Service,
 ) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /debug/", http.DefaultServeMux) // pprof endpoints
 
 	mux.Handle("GET /v1/version", handlers.HandlerVersion(version))
 	mux.Handle("GET /v1/config", handlers.HandleConfig())
-	mux.Handle("GET /v1/bricks", handlers.HandleBrickList(modelsIndex, bricksIndex))
-	mux.Handle("GET /v1/bricks/{brickID}", handlers.HandleBrickDetails(staticStore, bricksIndex))
+	mux.Handle("GET /v1/bricks", handlers.HandleBrickList(brickService))
+	mux.Handle("GET /v1/bricks/{brickID}", handlers.HandleBrickDetails(brickService))
 
 	mux.Handle("GET /v1/system/update/check", handlers.HandleCheckUpgradable(updater))
 	mux.Handle("GET /v1/system/update/events", handlers.HandleUpdateEvents(updater))
@@ -56,11 +58,11 @@ func NewHTTPRouter(
 	mux.Handle("DELETE /v1/apps/{appID}", handlers.HandleAppDelete())
 	mux.Handle("GET /v1/apps/{appID}/exposed-ports", handlers.HandleAppPorts(bricksIndex))
 
-	mux.Handle("GET /v1/apps/{appID}/bricks", handlers.HandleAppBrickInstancesList(bricksIndex))
-	mux.Handle("GET /v1/apps/{appID}/bricks/{brickID}", handlers.HandleAppBrickInstanceDetails(bricksIndex))
-	mux.Handle("PUT /v1/apps/{appID}/bricks/{brickID}", handlers.HandleBrickCreate(modelsIndex, bricksIndex))
-	mux.Handle("PATCH /v1/apps/{appID}/bricks/{brickID}", handlers.HandleBrickUpdates(modelsIndex, bricksIndex))
-	mux.Handle("DELETE /v1/apps/{appID}/bricks/{brickID}", handlers.HandleBrickDelete(bricksIndex))
+	mux.Handle("GET /v1/apps/{appID}/bricks", handlers.HandleAppBrickInstancesList(brickService))
+	mux.Handle("GET /v1/apps/{appID}/bricks/{brickID}", handlers.HandleAppBrickInstanceDetails(brickService))
+	mux.Handle("PUT /v1/apps/{appID}/bricks/{brickID}", handlers.HandleBrickCreate(brickService))
+	mux.Handle("PATCH /v1/apps/{appID}/bricks/{brickID}", handlers.HandleBrickUpdates(brickService))
+	mux.Handle("DELETE /v1/apps/{appID}/bricks/{brickID}", handlers.HandleBrickDelete(brickService))
 
 	mux.Handle("GET /v1/docs/", http.StripPrefix("/v1/docs/", handlers.DocsServer(docsFS)))
 

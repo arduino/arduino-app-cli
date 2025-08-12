@@ -1,4 +1,4 @@
-package orchestrator
+package bricks
 
 import (
 	"errors"
@@ -14,66 +14,32 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
-var ErrBrickNotFound = errors.New("brick not found")
-var ErrCannotSave = errors.New("cannot save brick instance")
+var (
+	ErrBrickNotFound   = errors.New("brick not found")
+	ErrCannotSaveBrick = errors.New("cannot save brick instance")
+)
 
-type BrickListResult struct {
-	Bricks []BrickListItem `json:"bricks"`
-}
-type BrickListItem struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Author      string   `json:"author"`
-	Description string   `json:"description"`
-	Category    string   `json:"category"`
-	Status      string   `json:"status"`
-	Models      []string `json:"models"`
-}
-type BrickCreateUpdateRequest struct {
-	ID        string            `json:"-"`
-	Model     *string           `json:"model"`
-	Variables map[string]string `json:"variables,omitempty"`
-}
-type BrickVariable struct {
-	DefaultValue string `json:"default_value,omitempty"`
-	Description  string `json:"description,omitempty"`
-	Required     bool   `json:"required"`
-}
-type AppReference struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Icon string `json:"icon"`
+type Service struct {
+	modelsIndex *modelsindex.ModelsIndex
+	bricksIndex *bricksindex.BricksIndex
+	staticStore *store.StaticStore
 }
 
-type BrickDetailsResult struct {
-	ID          string                   `json:"id"`
-	Name        string                   `json:"name"`
-	Author      string                   `json:"author"`
-	Description string                   `json:"description"`
-	Category    string                   `json:"category"`
-	Status      string                   `json:"status"`
-	Variables   map[string]BrickVariable `json:"variables,omitempty"`
-	Readme      string                   `json:"readme"`
-	UsedByApps  []AppReference           `json:"used_by_apps"`
+func NewService(
+	modelsIndex *modelsindex.ModelsIndex,
+	bricksIndex *bricksindex.BricksIndex,
+	staticStore *store.StaticStore,
+) *Service {
+	return &Service{
+		modelsIndex: modelsIndex,
+		bricksIndex: bricksIndex,
+		staticStore: staticStore,
+	}
 }
 
-type BrickInstance struct {
-	ID        string            `json:"id"`
-	Name      string            `json:"name"`
-	Author    string            `json:"author"`
-	Category  string            `json:"category"`
-	Status    string            `json:"status"`
-	Variables map[string]string `json:"variables,omitempty"`
-	ModelID   string            `json:"model,omitempty"`
-}
-
-type AppBrickInstancesResult struct {
-	BrickInstances []BrickInstance `json:"bricks"`
-}
-
-func BricksList(modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex) (BrickListResult, error) {
-	res := BrickListResult{Bricks: make([]BrickListItem, len(bricksIndex.Bricks))}
-	for i, brick := range bricksIndex.Bricks {
+func (s *Service) List() (BrickListResult, error) {
+	res := BrickListResult{Bricks: make([]BrickListItem, len(s.bricksIndex.Bricks))}
+	for i, brick := range s.bricksIndex.Bricks {
 		res.Bricks[i] = BrickListItem{
 			ID:          brick.ID,
 			Name:        brick.Name,
@@ -81,7 +47,7 @@ func BricksList(modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.B
 			Description: brick.Description,
 			Category:    brick.Category,
 			Status:      "installed",
-			Models: f.Map(modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModel) string {
+			Models: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModel) string {
 				return m.ID
 			}),
 		}
@@ -89,10 +55,10 @@ func BricksList(modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.B
 	return res, nil
 }
 
-func AppBrickInstancesList(a *app.ArduinoApp, bricksIndex *bricksindex.BricksIndex) (AppBrickInstancesResult, error) {
+func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesResult, error) {
 	res := AppBrickInstancesResult{BrickInstances: make([]BrickInstance, len(a.Descriptor.Bricks))}
 	for i, brickInstance := range a.Descriptor.Bricks {
-		brick, found := bricksIndex.FindBrickByID(brickInstance.ID)
+		brick, found := s.bricksIndex.FindBrickByID(brickInstance.ID)
 		if !found {
 			return AppBrickInstancesResult{}, fmt.Errorf("brick not found with id %s", brickInstance.ID)
 		}
@@ -109,8 +75,8 @@ func AppBrickInstancesList(a *app.ArduinoApp, bricksIndex *bricksindex.BricksInd
 	return res, nil
 }
 
-func AppBrickInstanceDetails(a *app.ArduinoApp, bricksIndex *bricksindex.BricksIndex, brickID string) (BrickInstance, error) {
-	brick, found := bricksIndex.FindBrickByID(brickID)
+func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (BrickInstance, error) {
+	brick, found := s.bricksIndex.FindBrickByID(brickID)
 	if !found {
 		return BrickInstance{}, ErrBrickNotFound
 	}
@@ -143,12 +109,8 @@ func AppBrickInstanceDetails(a *app.ArduinoApp, bricksIndex *bricksindex.BricksI
 	}, nil
 }
 
-func BricksDetails(
-	staticStore *store.StaticStore,
-	bricksIndex *bricksindex.BricksIndex,
-	id string,
-) (BrickDetailsResult, error) {
-	brick, found := bricksIndex.FindBrickByID(id)
+func (s *Service) BricksDetails(id string) (BrickDetailsResult, error) {
+	brick, found := s.bricksIndex.FindBrickByID(id)
 	if !found {
 		return BrickDetailsResult{}, ErrBrickNotFound
 	}
@@ -162,7 +124,7 @@ func BricksDetails(
 		}
 	}
 
-	readme, err := staticStore.GetBrickReadmeFromID(brick.ID)
+	readme, err := s.staticStore.GetBrickReadmeFromID(brick.ID)
 	if err != nil {
 		return BrickDetailsResult{}, fmt.Errorf("cannot open docs for brick %s: %w", id, err)
 	}
@@ -179,13 +141,17 @@ func BricksDetails(
 	}, nil
 }
 
-func BrickCreate(
+type BrickCreateUpdateRequest struct {
+	ID        string            `json:"-"`
+	Model     *string           `json:"model"`
+	Variables map[string]string `json:"variables,omitempty"`
+}
+
+func (s *Service) BrickCreate(
 	req BrickCreateUpdateRequest,
-	modelsIndex *modelsindex.ModelsIndex,
-	bricksIndex *bricksindex.BricksIndex,
 	appCurrent app.ArduinoApp,
 ) error {
-	brick, present := bricksIndex.FindBrickByID(req.ID)
+	brick, present := s.bricksIndex.FindBrickByID(req.ID)
 	if !present {
 		return fmt.Errorf("brick not found with id %s", req.ID)
 	}
@@ -223,7 +189,7 @@ func BrickCreate(
 	brickInstance.ID = req.ID
 
 	if req.Model != nil {
-		models := modelsIndex.GetModelsByBrick(brickInstance.ID)
+		models := s.modelsIndex.GetModelsByBrick(brickInstance.ID)
 		idx := slices.IndexFunc(models, func(m modelsindex.AIModel) bool { return m.ID == *req.Model })
 		if idx == -1 {
 			return fmt.Errorf("model %s does not exsist", *req.Model)
@@ -250,10 +216,8 @@ func BrickCreate(
 	return nil
 }
 
-func BrickUpdate(
+func (s *Service) BrickUpdate(
 	req BrickCreateUpdateRequest,
-	modelsIndex *modelsindex.ModelsIndex,
-	bricksIndex *bricksindex.BricksIndex,
 	appCurrent app.ArduinoApp,
 ) error {
 	index := slices.IndexFunc(appCurrent.Descriptor.Bricks, func(b app.Brick) bool { return b.ID == req.ID })
@@ -268,14 +232,14 @@ func BrickUpdate(
 	brickModel := appCurrent.Descriptor.Bricks[index].Model
 
 	if req.Model != nil && *req.Model != brickModel {
-		models := modelsIndex.GetModelsByBrick(req.ID)
+		models := s.modelsIndex.GetModelsByBrick(req.ID)
 		idx := slices.IndexFunc(models, func(m modelsindex.AIModel) bool { return m.ID == *req.Model })
 		if idx == -1 {
 			return fmt.Errorf("model %s does not exsist", *req.Model)
 		}
 		brickModel = *req.Model
 	}
-	brick, present := bricksIndex.FindBrickByID(brickID)
+	brick, present := s.bricksIndex.FindBrickByID(brickID)
 	if !present {
 		return fmt.Errorf("brick not found with id %s", brickID)
 	}
@@ -312,13 +276,11 @@ func BrickUpdate(
 
 }
 
-func BrickDelete(
-	bricksIndex *bricksindex.BricksIndex,
-	id string,
+func (s *Service) BrickDelete(
 	appCurrent *app.ArduinoApp,
+	id string,
 ) error {
-	_, present := bricksIndex.FindBrickByID(id)
-	if !present {
+	if _, present := s.bricksIndex.FindBrickByID(id); !present {
 		return ErrBrickNotFound
 	}
 
@@ -327,7 +289,7 @@ func BrickDelete(
 	})
 
 	if err := appCurrent.Save(); err != nil {
-		return ErrCannotSave
+		return ErrCannotSaveBrick
 	}
 	return nil
 }

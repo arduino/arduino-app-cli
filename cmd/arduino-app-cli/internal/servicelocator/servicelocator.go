@@ -14,6 +14,7 @@ import (
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/store"
@@ -92,6 +93,14 @@ var (
 
 	GetStaticStore = sync.OnceValue(func() *store.StaticStore {
 		return store.NewStaticStore(RunnerVersion)
+	})
+
+	GetBrickService = sync.OnceValue(func() *bricks.Service {
+		return bricks.NewService(
+			GetModelsIndex(),
+			GetBricksIndex(),
+			GetStaticStore(),
+		)
 	})
 )
 

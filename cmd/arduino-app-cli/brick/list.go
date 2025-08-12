@@ -6,7 +6,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/pkg/tablestyle"
 )
 
@@ -20,10 +20,7 @@ func newBricksListCmd() *cobra.Command {
 	}
 }
 func bricksListHandler() {
-	res, err := orchestrator.BricksList(
-		servicelocator.GetModelsIndex(),
-		servicelocator.GetBricksIndex(),
-	)
+	res, err := servicelocator.GetBrickService().List()
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}
@@ -31,7 +28,7 @@ func bricksListHandler() {
 }
 
 type brickListResult struct {
-	Bricks []orchestrator.BrickListItem `json:"bricks"`
+	Bricks []bricks.BrickListItem `json:"bricks"`
 }
 
 func (r brickListResult) String() string {

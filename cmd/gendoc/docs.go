@@ -16,6 +16,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/update"
 )
 
@@ -527,7 +528,7 @@ Contains a JSON object with the details of an error.
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: orchestrator.BrickDetailsResult{},
+				DataStructure: bricks.BrickDetailsResult{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},
@@ -546,7 +547,7 @@ Contains a JSON object with the details of an error.
 			Request:     nil,
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: orchestrator.BrickListResult{},
+				DataStructure: bricks.BrickListResult{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},
@@ -756,7 +757,7 @@ Contains a JSON object with the details of an error.
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: orchestrator.AppBrickInstancesResult{},
+				DataStructure: bricks.AppBrickInstancesResult{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},
@@ -778,7 +779,7 @@ Contains a JSON object with the details of an error.
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: orchestrator.BrickInstance{},
+				DataStructure: bricks.BrickInstance{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},
@@ -799,7 +800,7 @@ Contains a JSON object with the details of an error.
 				ID      string `path:"appID" description:"application identifier."`
 				BrickID string `path:"brickID" description:"brick identifier."`
 			})(nil),
-			Request: orchestrator.BrickCreateUpdateRequest{},
+			Request: bricks.BrickCreateUpdateRequest{},
 			CustomSuccessResponse: &CustomResponseDef{
 				Description: "Successful response",
 				StatusCode:  http.StatusOK,
@@ -821,7 +822,7 @@ Contains a JSON object with the details of an error.
 				ID      string `path:"appID" description:"application identifier."`
 				BrickID string `path:"brickID" description:"brick identifier."`
 			})(nil),
-			Request: orchestrator.BrickCreateUpdateRequest{},
+			Request: bricks.BrickCreateUpdateRequest{},
 			CustomSuccessResponse: &CustomResponseDef{
 				Description: "Successful response",
 				StatusCode:  http.StatusOK,
