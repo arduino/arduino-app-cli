@@ -8,7 +8,6 @@ import (
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
-	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/results"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -56,11 +55,25 @@ func startHandler(ctx context.Context, app app.ArduinoApp) error {
 		}
 	}
 	outputResult := getResult()
-	feedback.PrintResult(results.StartAppResult{
+	feedback.PrintResult(startAppResult{
 		AppName: app.Name,
 		Status:  "started",
 		Output:  outputResult,
 	})
 
 	return nil
+}
+
+type startAppResult struct {
+	AppName string                        `json:"appName"`
+	Status  string                        `json:"status"`
+	Output  *feedback.OutputStreamsResult `json:"output,omitempty"`
+}
+
+func (r startAppResult) String() string {
+	return fmt.Sprintf("✓ App %q started successfully", r.AppName)
+}
+
+func (r startAppResult) Data() interface{} {
+	return r
 }

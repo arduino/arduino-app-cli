@@ -2,10 +2,10 @@ package app
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
 
-	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/results"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 )
@@ -58,7 +58,7 @@ func createHandler(ctx context.Context, name string, icon string, noPython, noSk
 		}
 		dst := resp.ID.ToPath()
 
-		feedback.PrintResult(results.CreateAppResult{
+		feedback.PrintResult(createAppResult{
 			Result:  "ok",
 			Message: "App created successfully",
 			Path:    dst.String(),
@@ -75,11 +75,25 @@ func createHandler(ctx context.Context, name string, icon string, noPython, noSk
 			feedback.Fatal(err.Error(), feedback.ErrGeneric)
 			return nil
 		}
-		feedback.PrintResult(results.CreateAppResult{
+		feedback.PrintResult(createAppResult{
 			Result:  "ok",
 			Message: "App created successfully",
 			Path:    resp.ID.ToPath().String(),
 		})
 	}
 	return nil
+}
+
+type createAppResult struct {
+	Path    string `json:"path"`
+	Message string `json:"message"`
+	Result  string `json:"result"`
+}
+
+func (r createAppResult) String() string {
+	return fmt.Sprintf("%s: %s (%s)", r.Message, r.Path, r.Result)
+}
+
+func (r createAppResult) Data() interface{} {
+	return r
 }

@@ -32,6 +32,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/renameio/v2 v2.0.0
 	github.com/gosimple/slug v1.15.0
+	github.com/jedib0t/go-pretty/v6 v6.6.8
 	github.com/jub0bs/cors v0.7.0
 	github.com/leonelquinteros/gotext v1.7.2
 	github.com/oapi-codegen/runtime v1.1.1
@@ -49,7 +50,6 @@ require (
 	go.bug.st/serial v1.6.4
 	golang.org/x/crypto v0.40.0
 	golang.org/x/text v0.27.0
-	mkuznets.com/go/tabwriter v0.1.2
 )
 
 replace github.com/arduino/arduino-cli v1.2.2 => github.com/cmaglie/arduino-cli v0.0.0-20250729153337-aa3337355e48
@@ -209,7 +209,7 @@ require (
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.62.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
-	github.com/rivo/uniseg v0.4.4 // indirect
+	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.1 // indirect
 	github.com/schollz/closestmatch v2.1.0+incompatible // indirect

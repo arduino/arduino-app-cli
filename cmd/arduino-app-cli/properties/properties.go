@@ -1,12 +1,14 @@
 package properties
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/app"
-	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/results"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	arduinoApp "github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 )
 
 func NewPropertiesCmd() *cobra.Command {
@@ -29,9 +31,7 @@ func NewPropertiesCmd() *cobra.Command {
 			if err != nil {
 				feedback.Fatal(err.Error(), feedback.ErrGeneric)
 			}
-			feedback.PrintResult(results.DefaultAppResult{
-				App: def,
-			})
+			feedback.PrintResult(defaultAppResult{App: def})
 			return nil
 		},
 	})
@@ -52,7 +52,7 @@ func NewPropertiesCmd() *cobra.Command {
 					feedback.Fatal(err.Error(), feedback.ErrGeneric)
 					return nil
 				}
-				feedback.PrintResult(results.DefaultAppResult{App: nil})
+				feedback.PrintResult(defaultAppResult{App: nil})
 				return nil
 			}
 
@@ -65,10 +65,25 @@ func NewPropertiesCmd() *cobra.Command {
 				feedback.Fatal(err.Error(), feedback.ErrGeneric)
 				return nil
 			}
-			feedback.PrintResult(results.DefaultAppResult{App: &app})
+			feedback.PrintResult(defaultAppResult{App: &app})
 			return nil
 		},
 	})
 
 	return cmd
+}
+
+type defaultAppResult struct {
+	App *arduinoApp.ArduinoApp `json:"app,omitempty"`
+}
+
+func (r defaultAppResult) String() string {
+	if r.App == nil {
+		return "No default app set"
+	}
+	return fmt.Sprintf("Default app: %s (%s)", r.App.Name, r.App.FullPath)
+}
+
+func (r defaultAppResult) Data() interface{} {
+	return r
 }

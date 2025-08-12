@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
-	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/results"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -48,10 +47,24 @@ func stopHandler(ctx context.Context, app app.ArduinoApp) error {
 	}
 	outputResult := getResult()
 
-	feedback.PrintResult(results.StopAppResult{
+	feedback.PrintResult(stopAppResult{
 		AppName: app.Name,
 		Status:  "stopped",
 		Output:  outputResult,
 	})
 	return nil
+}
+
+type stopAppResult struct {
+	AppName string                        `json:"appName"`
+	Status  string                        `json:"status"`
+	Output  *feedback.OutputStreamsResult `json:"output,omitempty"`
+}
+
+func (r stopAppResult) String() string {
+	return fmt.Sprintf("✓ App '%q stopped successfully.", r.AppName)
+}
+
+func (r stopAppResult) Data() interface{} {
+	return r
 }

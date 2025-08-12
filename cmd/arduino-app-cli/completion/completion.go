@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/cmdutil"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
-	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/results"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 )
@@ -68,7 +68,7 @@ func ApplicationNames() cobra.CompletionFunc {
 
 		var res []string
 		for _, a := range apps.Apps {
-			res = append(res, results.IdToAlias(a.ID))
+			res = append(res, cmdutil.IDToAlias(a.ID))
 		}
 		return res, cobra.ShellCompDirectiveNoFileComp
 	}
