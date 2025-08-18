@@ -1,3 +1,5 @@
+// The servicelocator pkg should be used only under cmd/arduino-app-cli as a convenience to build our DI.
+
 package servicelocator
 
 import (
