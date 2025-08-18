@@ -83,16 +83,37 @@ func FromFQBN(ctx context.Context, fqbn string) ([]Board, error) {
 			switch port.GetPort().GetProtocol() {
 			case SerialProtocol:
 				serial := strings.ToLower(port.GetPort().GetHardwareId()) // in windows this is uppercase.
+
+				// TODO: we should store the board custom name in the product id so we can get it from the discovery service.
+				var customName string
+				if conn, err := adb.FromSerial(serial, ""); err == nil {
+					if name, err := GetCustomName(ctx, conn); err == nil {
+						customName = name
+					}
+				}
+
 				boards = append(boards, Board{
-					Protocol:  SerialProtocol,
-					Serial:    serial,
-					BoardName: boardName,
+					Protocol:   SerialProtocol,
+					Serial:     serial,
+					BoardName:  boardName,
+					CustomName: customName,
 				})
 			case NetworkProtocol:
+				var customName string
+				if name, ok := port.GetPort().GetProperties()["hostname"]; ok {
+					// take the part before the first dot as custom name
+					idx := strings.Index(name, ".")
+					if idx == -1 {
+						idx = len(name)
+					}
+					customName = name[:idx]
+				}
+
 				boards = append(boards, Board{
-					Protocol:  NetworkProtocol,
-					Address:   port.GetPort().GetAddress(),
-					BoardName: boardName,
+					Protocol:   NetworkProtocol,
+					Address:    port.GetPort().GetAddress(),
+					BoardName:  boardName,
+					CustomName: customName,
 				})
 			default:
 				slog.Warn("unknown protocol", "protocol", port.GetPort().GetProtocol())
@@ -107,22 +128,6 @@ func FromFQBN(ctx context.Context, fqbn string) ([]Board, error) {
 				return 1
 			}
 		})
-
-		// Get board names
-		for i := range boards {
-			switch boards[i].Protocol {
-			case SerialProtocol:
-				// TODO: we should store the board custom name in the product id so we can get it from the discovery service.
-				var name string
-				if conn, err := adb.FromSerial(boards[i].Serial, ""); err == nil {
-					if name, err = GetCustomName(ctx, conn); err == nil {
-						boards[i].CustomName = name
-					}
-				}
-			case NetworkProtocol:
-				// TODO: get from mDNS
-			}
-		}
 
 		return boards, nil
 	}

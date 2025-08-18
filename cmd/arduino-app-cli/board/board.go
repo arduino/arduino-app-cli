@@ -27,30 +27,31 @@ func NewBoardCmd() *cobra.Command {
 		Use:   "board",
 		Short: "Manage boards",
 		Long:  "",
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if host != "" {
 				conn, err := adb.FromHost(host, "")
 				if err != nil {
 					panic(fmt.Errorf("failed to connect to ADB host %s: %w", host, err))
 				}
 				cmd.SetContext(context.WithValue(cmd.Context(), remoteConnKey, conn))
-				return
+				return nil
 			}
 
 			boards, err := board.FromFQBN(cmd.Context(), fqbn)
 			if err != nil {
-				panic(err)
+				return fmt.Errorf("failed to get boards for FQBN %s: %w", fqbn, err)
 			}
 			if len(boards) == 0 {
-				panic(fmt.Errorf("no boards found for FQBN %s", fqbn))
+				return fmt.Errorf("no boards found for FQBN %s", fqbn)
 			}
 			conn, err := boards[0].GetConnection()
 			if err != nil {
-				panic(fmt.Errorf("failed to connect to board: %w", err))
+				return fmt.Errorf("failed to connect to board %s: %w", boards[0].BoardName, err)
 			}
 
 			cmd.SetContext(context.WithValue(cmd.Context(), remoteConnKey, conn))
 			cmd.SetContext(context.WithValue(cmd.Context(), boardsListKey, boards))
+			return nil
 		},
 	}
 	fsCmd.PersistentFlags().StringVarP(&fqbn, "fqbn", "b", "arduino:zephyr:unoq", "fqbn of the board")
