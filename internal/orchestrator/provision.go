@@ -8,6 +8,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -48,13 +49,14 @@ func ProvisionApp(
 	ctx context.Context,
 	provisioner *Provision,
 	bricksIndex *bricksindex.BricksIndex,
+	mapped_env map[string]string,
 	app *app.ArduinoApp,
 ) error {
 	start := time.Now()
 	defer func() {
 		slog.Info("Provisioning took", "duration", time.Since(start).String())
 	}()
-	return provisioner.App(ctx, bricksIndex, app)
+	return provisioner.App(ctx, bricksIndex, app, mapped_env)
 }
 
 type Provision struct {
@@ -88,6 +90,7 @@ func (p *Provision) App(
 	ctx context.Context,
 	bricksIndex *bricksindex.BricksIndex,
 	arduinoApp *app.ArduinoApp,
+	mapped_env map[string]string,
 ) error {
 	if arduinoApp == nil {
 		return fmt.Errorf("provisioning failed: arduinoApp is nil")
@@ -108,7 +111,7 @@ func (p *Provision) App(
 		}
 	}
 
-	return generateMainComposeFile(arduinoApp, bricksIndex, p.pythonImage)
+	return generateMainComposeFile(arduinoApp, bricksIndex, p.pythonImage, mapped_env)
 }
 
 func (p *Provision) IsUsingDynamicProvision() bool {
@@ -197,6 +200,7 @@ func generateMainComposeFile(
 	app *app.ArduinoApp,
 	bricksIndex *bricksindex.BricksIndex,
 	pythonImage string,
+	mapped_env map[string]string,
 ) error {
 	slog.Debug("Generating main compose file for the App")
 
@@ -291,6 +295,7 @@ func generateMainComposeFile(
 			Target: "/app",
 		},
 	}
+
 	slog.Debug("Adding UNIX socket", slog.Any("sock", orchestratorConfig.RouterSocketPath().String()), slog.Bool("exists", orchestratorConfig.RouterSocketPath().Exist()))
 	if orchestratorConfig.RouterSocketPath().Exist() {
 		volumes = append(volumes, volume{
@@ -301,6 +306,7 @@ func generateMainComposeFile(
 	}
 
 	devices := getDevices()
+	groups := []string{"dialout", "video", "audio"}
 
 	mainAppCompose.Services = &mainService{
 		Main: service{
@@ -311,7 +317,7 @@ func generateMainComposeFile(
 			Entrypoint: "/run.sh",
 			DependsOn:  services,
 			User:       getCurrentUser(),
-			GroupAdd:   []string{"dialout", "video", "audio"},
+			GroupAdd:   groups,
 			ExtraHosts: []string{"msgpack-rpc-router:host-gateway"},
 			Labels: map[string]string{
 				DockerAppLabel:     "true",
@@ -324,18 +330,28 @@ func generateMainComposeFile(
 	if e := writeMainCompose(); e != nil {
 		return e
 	}
+
 	// If there are services that require devices, we need to generate an override compose file
-	if overrideComposeFile.Exist() {
-		if err := overrideComposeFile.Remove(); err != nil {
-			return fmt.Errorf("failed to remove existing override compose file: %w", err)
-		}
+	// Write additional file to override devices section in included compose files
+	if e := generateServicesOverrideFile(services, servicesThatRequireDevices, devices, getCurrentUser(), groups, overrideComposeFile); e != nil {
+		return e
 	}
-	if len(servicesThatRequireDevices) > 0 {
-		// Write additiona file to override devices section in included compose files
-		if e := generateServicesOverrideFile(servicesThatRequireDevices, devices, overrideComposeFile); e != nil {
-			return e
+
+	// Pre-provision containers required paths, if they do not exist.
+	// This is required to preserve the host directory access rights for arduino user.
+	// Otherwise, paths created by the container will have root:root ownership
+	for _, additionalComposeFile := range composeFiles {
+		composeFilePath := additionalComposeFile.String()
+		slog.Debug("Pre-provisioning volumes from compose file", slog.String("compose_file", composeFilePath))
+
+		volumes, err := extractVolumesFromComposeFile(composeFilePath)
+		if err != nil {
+			slog.Warn("Failed to extract volumes from compose file", slog.String("compose_file", composeFilePath), slog.Any("error", err))
+			continue
 		}
+		provisionComposeVolumes(composeFilePath, volumes, app, mapped_env)
 	}
+
 	// Done!
 	return nil
 }
@@ -364,20 +380,37 @@ func extracServicesFromComposeFile(composeFile *paths.Path) ([]string, error) {
 	}
 }
 
-func generateServicesOverrideFile(servicesThatRequireDevices []string, devices []string, overrideComposeFile *paths.Path) error {
+func generateServicesOverrideFile(services []string, servicesThatRequireDevices []string, devices []string, user string, groups []string, overrideComposeFile *paths.Path) error {
+	if overrideComposeFile.Exist() {
+		if err := overrideComposeFile.Remove(); err != nil {
+			return fmt.Errorf("failed to remove existing override compose file: %w", err)
+		}
+	}
+
+	if len(services) == 0 {
+		slog.Debug("No services to override, skipping override compose file generation")
+		return nil
+	}
+
 	type serviceOverride struct {
-		Devices []string `yaml:"devices"`
+		Devices  *[]string `yaml:"devices,omitempty"`
+		User     string    `yaml:"user"`
+		GroupAdd []string  `yaml:"group_add"`
 	}
 	var overrideCompose struct {
 		Services map[string]serviceOverride `yaml:"services,omitempty"`
 	}
-	overrideCompose.Services = make(map[string]serviceOverride, len(servicesThatRequireDevices))
-	for _, svc := range servicesThatRequireDevices {
-		overrideCompose.Services[svc] = serviceOverride{
-			Devices: devices,
+	overrideCompose.Services = make(map[string]serviceOverride, len(services))
+	for _, svc := range services {
+		override := serviceOverride{
+			User:     user,
+			GroupAdd: groups,
 		}
+		if slices.Contains(servicesThatRequireDevices, svc) {
+			override.Devices = &devices
+		}
+		overrideCompose.Services[svc] = override
 	}
-	slog.Debug("Generating override compose file for devices", slog.Any("overrideCompose", overrideCompose), slog.Any("devices", devices))
 	writeOverrideCompose := func() error {
 		data, err := yaml.Marshal(overrideCompose)
 		if err != nil {
@@ -392,4 +425,106 @@ func generateServicesOverrideFile(servicesThatRequireDevices []string, devices [
 		return e
 	}
 	return nil
+}
+
+var (
+	// Regular expression to split on the first colon that is not followed by a hyphen
+	volumeColonSplitRE     = regexp.MustCompile(`:[^-]`)
+	volumeAppHomeReplaceRE = regexp.MustCompile(`\$\{APP_HOME(:-\.)?\}`)
+	volumePathReplaceRE    = regexp.MustCompile(`\$\{([A-Z_-]+)(:-)?([\/a-zA-Z0-9._-]+)?\}`)
+)
+
+// provisionComposeVolumes ensure we create the parent folder with the correct owner.
+// By default docker if it doesn't find the folder, it will create it as root.
+// We do not want that, to make sure to have it as `arduino:arduino` we have
+// to manually parse the volumes, and make sure to create the target dirs ourself.
+func provisionComposeVolumes(additionalComposeFile string, volumes []string, app *app.ArduinoApp, mapped_env map[string]string) {
+	if len(volumes) == 0 {
+		slog.Debug("No volumes to provision from compose file", slog.String("compose_file", additionalComposeFile))
+		return
+	}
+
+	slog.Debug("Extracted volumes from compose file", slog.String("compose_file", additionalComposeFile), slog.Any("volumes", volumes))
+	for _, volume := range volumes {
+		volume = replaceDockerMacros(volume, app, mapped_env, additionalComposeFile)
+		hostDirectory := paths.New(volume)
+		if strings.Contains(volume, ":") {
+			volumes := volumeColonSplitRE.Split(volume, -1)
+			hostDirectory = paths.New(volumes[0])
+		}
+		if !hostDirectory.Exist() {
+			if err := hostDirectory.MkdirAll(); err != nil {
+				slog.Warn("Failed to create host directory for compose file", slog.String("compose_file", additionalComposeFile), slog.String("host_directory", hostDirectory.String()), slog.Any("error", err))
+			} else {
+				slog.Debug("Pre-provisioning host directory for compose file", slog.String("compose_file", additionalComposeFile), slog.String("host_directory", hostDirectory.String()))
+			}
+		}
+	}
+}
+
+func replaceDockerMacros(volume string, app *app.ArduinoApp, mapped_env map[string]string, additionalComposeFile string) string {
+	// Replace ${APP_HOME} with the actual app path
+	volume = volumeAppHomeReplaceRE.ReplaceAllString(volume, app.FullPath.String())
+	// Replace host volume directory with the actual path
+	if volumePathReplaceRE.MatchString(volume) {
+		groups := volumePathReplaceRE.FindStringSubmatch(volume)
+		// idx 0 is the full match, idx 1 is the variable name, idx 2 is the optional `:-` and idx 3 is the default value
+		switch len(groups) {
+		case 2:
+			// Check if the environment variable is set
+			if value, ok := mapped_env[groups[1]]; ok {
+				volume = volumePathReplaceRE.ReplaceAllString(volume, value)
+			} else {
+				slog.Warn("Environment variable not found for volume replacement", slog.String("variable", groups[1]), slog.String("compose_file", additionalComposeFile))
+			}
+		case 4:
+			// If the variable is not set, use the default value
+			if value, ok := mapped_env[groups[1]]; ok {
+				volume = volumePathReplaceRE.ReplaceAllString(volume, value)
+			} else {
+				volume = volumePathReplaceRE.ReplaceAllString(volume, groups[3])
+			}
+		default:
+			slog.Warn("Unexpected format for volume replacement", slog.String("volume", volume), slog.String("compose_file", additionalComposeFile))
+		}
+	}
+	return volume
+}
+
+func extractVolumesFromComposeFile(additionalComposeFile string) ([]string, error) {
+	content, err := os.ReadFile(additionalComposeFile)
+	if err != nil {
+		slog.Error("Failed to read compose file", slog.String("compose_file", additionalComposeFile), slog.Any("error", err))
+		return nil, err
+	}
+	// Try with string syntax first
+	type composeServices[T any] struct {
+		Services map[string]struct {
+			Volumes []T `yaml:"volumes"`
+		} `yaml:"services"`
+	}
+	var index composeServices[string]
+	if err := yaml.Unmarshal(content, &index); err != nil {
+		var index composeServices[volume]
+		if err := yaml.Unmarshal(content, &index); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal compose file %s: %w", additionalComposeFile, err)
+		}
+		volumes := make([]string, 0, len(index.Services))
+		for _, svc := range index.Services {
+			for _, v := range svc.Volumes {
+				if v.Type == "bind" {
+					volumes = append(volumes, v.Source)
+				} else {
+					volumes = append(volumes, v.Target)
+				}
+			}
+		}
+		return volumes, nil
+	}
+
+	volumes := make([]string, 0, len(index.Services))
+	for _, svc := range index.Services {
+		volumes = append(volumes, svc.Volumes...)
+	}
+	return volumes, nil
 }

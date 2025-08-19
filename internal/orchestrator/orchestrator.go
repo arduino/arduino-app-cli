@@ -140,24 +140,13 @@ func StartApp(
 			}
 		}
 		if app.MainPythonFile != nil {
-			if !yield(StreamMessage{data: "Provisioning app..."}) {
-				cancel()
-				return
-			}
-			if err := ProvisionApp(ctx, provisioner, bricksIndex, &app); err != nil {
-				yield(StreamMessage{error: err})
-				return
-			}
-			if !yield(StreamMessage{data: "Starting app..."}) {
-				cancel()
-				return
-			}
-
 			// Override the compose Variables with the app's variables and model configuration.
 			envs := []string{}
+			mapped_env := map[string]string{}
 			addMapToEnv := func(m map[string]string) {
 				for k, v := range m {
 					envs = append(envs, fmt.Sprintf("%s=%s", k, v))
+					mapped_env[k] = v
 				}
 			}
 			for _, brick := range app.Descriptor.Bricks {
@@ -166,8 +155,26 @@ func StartApp(
 					addMapToEnv(m.ModelConfiguration)
 				}
 			}
+			// Add the APP_HOME directory to the environment variables
+			addMapToEnv(map[string]string{"APP_HOME": app.FullPath.String()})
+			slog.Debug("Configuring app environment", slog.String("APP_HOME", app.FullPath.String()), slog.Any("envs", envs))
 
-			overrideComposeFile := app.ProvisioningStateDir().Join("app-compose-overrides.yaml")
+			if !yield(StreamMessage{data: "Provisioning app..."}) {
+				cancel()
+				return
+			}
+			if err := ProvisionApp(ctx, provisioner, bricksIndex, mapped_env, &app); err != nil {
+				yield(StreamMessage{error: err})
+				return
+			}
+			if !yield(StreamMessage{data: "Starting app..."}) {
+				cancel()
+				return
+			}
+
+			// Launch the docker compose command to start the app
+			overrideComposeFile := app.AppComposeOverrideFilePath()
+
 			commands := []string{}
 			commands = append(commands, "docker", "compose", "-f", app.AppComposeFilePath().String())
 			if ok, _ := overrideComposeFile.ExistCheck(); ok {

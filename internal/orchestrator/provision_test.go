@@ -2,6 +2,8 @@ package orchestrator
 
 import (
 	"bytes"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
@@ -87,7 +89,8 @@ bricks:
 	assert.Equal(t, "Object Detection", br.Name, "Brick name should match")
 
 	// Run the provision function to generate the main compose file
-	err = generateMainComposeFile(&app, bricksIndex, "arduino:appslab-python-apps-base:dev-latest")
+	env := map[string]string{}
+	err = generateMainComposeFile(&app, bricksIndex, "arduino:appslab-python-apps-base:dev-latest", env)
 
 	// Validate that the main compose file and overrides are created
 	assert.Nil(t, err, "Failed to generate main compose file")
@@ -107,4 +110,135 @@ bricks:
 	assert.Nil(t, err, "Failed to unmarshal overrides content")
 	assert.NotNil(t, content.Services["ei-video-obj-detection-runner"], "Override for ei-video-obj-detection-runner should exist")
 	assert.NotNil(t, content.Services["ei-video-obj-detection-runner"]["devices"], "Override for ei-video-obj-detection-runner devices should exist")
+}
+
+func TestVolumeParser(t *testing.T) {
+
+	t.Run("TestPreProvsionVolumesCustomEnv", func(t *testing.T) {
+		tempDirectory := t.TempDir()
+
+		volumesFromStrings := `
+services:
+  dbstorage-influx:
+    image: influxdb:2.7
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${BIND_PORT:-8086}:8086"
+    volumes:
+      - "${CUSTOM_PATH:-.}/data/influx-data:/var/lib/influxdb2"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+`
+		volumesFromFile := paths.New(tempDirectory).Join("volumes-from.yaml")
+		if err := os.WriteFile(volumesFromFile.String(), []byte(volumesFromStrings), 0600); err != nil {
+			t.Fatalf("Failed to write volumes from file: %v", err)
+		}
+
+		app := &app.ArduinoApp{
+			Name:     "TestApp",
+			FullPath: paths.New(tempDirectory),
+		}
+		env := map[string]string{
+			"CUSTOM_PATH": tempDirectory,
+		}
+		volumes, err := extractVolumesFromComposeFile(volumesFromFile.String())
+		assert.Nil(t, err, "Failed to extract volumes from compose file")
+		provisionComposeVolumes(volumesFromFile.String(), volumes, app, env)
+		assert.True(t, app.FullPath.Join("data").Join("influx-data").Exist(), "Volume directory should exist")
+	})
+
+	t.Run("TestPreProvsionVolumesCustomEnvUsingDefault", func(t *testing.T) {
+		tempDirectory := t.TempDir()
+
+		volumesFromStrings := `
+services:
+  dbstorage-influx:
+    image: influxdb:2.7
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${BIND_PORT:-8086}:8086"
+    volumes:
+      - "${CUSTOM_PATH:-@@DEFVALUE@@/customized}/data/influx-data:/var/lib/influxdb2"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+`
+		volumesFromStrings = strings.ReplaceAll(volumesFromStrings, "@@DEFVALUE@@", tempDirectory)
+
+		volumesFromFile := paths.New(tempDirectory).Join("volumes-from.yaml")
+		if err := os.WriteFile(volumesFromFile.String(), []byte(volumesFromStrings), 0600); err != nil {
+			t.Fatalf("Failed to write volumes from file: %v", err)
+		}
+
+		app := &app.ArduinoApp{
+			Name:     "TestApp",
+			FullPath: paths.New(tempDirectory),
+		}
+		// No env, use macro default value
+		env := map[string]string{}
+		volumes, err := extractVolumesFromComposeFile(volumesFromFile.String())
+		assert.Nil(t, err, "Failed to extract volumes from compose file")
+		provisionComposeVolumes(volumesFromFile.String(), volumes, app, env)
+		assert.True(t, app.FullPath.Join("customized").Join("data").Join("influx-data").Exist(), "Volume directory should exist")
+	})
+
+	t.Run("TestPreProvsionVolumesAsStructure", func(t *testing.T) {
+		tempDirectory := t.TempDir()
+
+		volumesFromStrings := `
+services:
+  dbstorage-influx:
+    image: influxdb:2.7
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${BIND_PORT:-8086}:8086"
+    volumes:
+    - type: bind
+      source: ${APP_HOME:-.}/data/influx-data
+      target: /data/influx-data
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+`
+		volumesFromFile := paths.New(tempDirectory).Join("volumes-from.yaml")
+		if err := os.WriteFile(volumesFromFile.String(), []byte(volumesFromStrings), 0600); err != nil {
+			t.Fatalf("Failed to write volumes from file: %v", err)
+		}
+
+		app := &app.ArduinoApp{
+			Name:     "TestApp",
+			FullPath: paths.New(tempDirectory),
+		}
+		env := map[string]string{}
+		volumes, err := extractVolumesFromComposeFile(volumesFromFile.String())
+		assert.Nil(t, err, "Failed to extract volumes from compose file")
+		provisionComposeVolumes(volumesFromFile.String(), volumes, app, env)
+		assert.True(t, app.FullPath.Join("data").Join("influx-data").Exist(), "Volume directory should exist")
+	})
+
+	t.Run("TestPreProvsionVolumes", func(t *testing.T) {
+		tempDirectory := t.TempDir()
+
+		volumesFromStrings := `
+services:
+  dbstorage-influx:
+    image: influxdb:2.7
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${BIND_PORT:-8086}:8086"
+    volumes:
+      - "${APP_HOME:-.}/data/influx-data:/var/lib/influxdb2"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+`
+		volumesFromFile := paths.New(tempDirectory).Join("volumes-from.yaml")
+		if err := os.WriteFile(volumesFromFile.String(), []byte(volumesFromStrings), 0600); err != nil {
+			t.Fatalf("Failed to write volumes from file: %v", err)
+		}
+
+		app := &app.ArduinoApp{
+			Name:     "TestApp",
+			FullPath: paths.New(tempDirectory),
+		}
+		env := map[string]string{}
+		volumes, err := extractVolumesFromComposeFile(volumesFromFile.String())
+		assert.Nil(t, err, "Failed to extract volumes from compose file")
+		provisionComposeVolumes(volumesFromFile.String(), volumes, app, env)
+		assert.True(t, app.FullPath.Join("data").Join("influx-data").Exist(), "Volume directory should exist")
+	})
+
 }

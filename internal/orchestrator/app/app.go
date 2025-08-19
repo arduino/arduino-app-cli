@@ -117,3 +117,7 @@ func (a *ArduinoApp) ProvisioningStateDir() *paths.Path {
 func (a *ArduinoApp) AppComposeFilePath() *paths.Path {
 	return a.ProvisioningStateDir().Join("app-compose.yaml")
 }
+
+func (a *ArduinoApp) AppComposeOverrideFilePath() *paths.Path {
+	return a.ProvisioningStateDir().Join("app-compose-overrides.yaml")
+}
