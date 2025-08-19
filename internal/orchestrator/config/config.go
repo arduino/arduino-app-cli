@@ -1,4 +1,4 @@
-package orchestrator
+package config
 
 import (
 	"log/slog"
@@ -7,19 +7,19 @@ import (
 	"github.com/arduino/go-paths-helper"
 )
 
-type OrchestratorConfig struct {
+type Configuration struct {
 	appsDir           *paths.Path
 	dataDir           *paths.Path
 	routerSocketPath  *paths.Path
 	customEIModelsDir *paths.Path
 }
 
-func NewOrchestratorConfigFromEnv() (*OrchestratorConfig, error) {
+func NewFromEnv() (Configuration, error) {
 	appsDir := paths.New(os.Getenv("ARDUINO_APP_CLI__APPS_DIR"))
 	if appsDir == nil {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return nil, err
+			return Configuration{}, err
 		}
 		appsDir = paths.New(home).Join("ArduinoApps")
 	}
@@ -27,7 +27,7 @@ func NewOrchestratorConfigFromEnv() (*OrchestratorConfig, error) {
 	if !appsDir.IsAbs() {
 		wd, err := paths.Getwd()
 		if err != nil {
-			return nil, err
+			return Configuration{}, err
 		}
 		appsDir = wd.JoinPath(appsDir)
 	}
@@ -36,14 +36,14 @@ func NewOrchestratorConfigFromEnv() (*OrchestratorConfig, error) {
 	if dataDir == nil {
 		xdgConfig, err := os.UserConfigDir()
 		if err != nil {
-			return nil, err
+			return Configuration{}, err
 		}
 		dataDir = paths.New(xdgConfig).Join("arduino-app-cli")
 	}
 	if !dataDir.IsAbs() {
 		wd, err := paths.Getwd()
 		if err != nil {
-			return nil, err
+			return Configuration{}, err
 		}
 		dataDir = wd.JoinPath(dataDir)
 	}
@@ -58,7 +58,7 @@ func NewOrchestratorConfigFromEnv() (*OrchestratorConfig, error) {
 	if customEIModelsDir == nil {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
-			return nil, err
+			return Configuration{}, err
 		}
 		customEIModelsDir = paths.New(homeDir, ".arduino-bricks/ei-models")
 	}
@@ -68,19 +68,19 @@ func NewOrchestratorConfigFromEnv() (*OrchestratorConfig, error) {
 		}
 	}
 
-	c := &OrchestratorConfig{
+	c := Configuration{
 		appsDir:           appsDir,
 		dataDir:           dataDir,
 		routerSocketPath:  routerSocket,
 		customEIModelsDir: customEIModelsDir,
 	}
 	if err := c.init(); err != nil {
-		return nil, err
+		return Configuration{}, err
 	}
 	return c, nil
 }
 
-func (c *OrchestratorConfig) init() error {
+func (c *Configuration) init() error {
 	if err := c.AppsDir().MkdirAll(); err != nil {
 		return err
 	}
@@ -93,38 +93,18 @@ func (c *OrchestratorConfig) init() error {
 	return nil
 }
 
-func (c *OrchestratorConfig) AppsDir() *paths.Path {
+func (c *Configuration) AppsDir() *paths.Path {
 	return c.appsDir
 }
 
-func (c *OrchestratorConfig) DataDir() *paths.Path {
+func (c *Configuration) DataDir() *paths.Path {
 	return c.dataDir
 }
 
-func (c *OrchestratorConfig) ExamplesDir() *paths.Path {
+func (c *Configuration) ExamplesDir() *paths.Path {
 	return c.dataDir.Join("examples")
 }
 
-func (c *OrchestratorConfig) RouterSocketPath() *paths.Path {
+func (c *Configuration) RouterSocketPath() *paths.Path {
 	return c.routerSocketPath
-}
-
-type ConfigResponse struct {
-	Directories ConfigDirectories `json:"directories"`
-}
-
-type ConfigDirectories struct {
-	Data     string `json:"data"`
-	Apps     string `json:"apps"`
-	Examples string `json:"examples"`
-}
-
-func GetOrchestratorConfig() ConfigResponse {
-	return ConfigResponse{
-		Directories: ConfigDirectories{
-			Data:     orchestratorConfig.DataDir().String(),
-			Apps:     orchestratorConfig.AppsDir().String(),
-			Examples: orchestratorConfig.ExamplesDir().String(),
-		},
-	}
 }

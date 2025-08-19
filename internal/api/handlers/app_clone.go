@@ -9,6 +9,8 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/pkg/render"
 
 	"github.com/docker/cli/cli/command"
@@ -19,9 +21,13 @@ type CloneRequest struct {
 	Icon *string `json:"icon" description:"application icon"`
 }
 
-func HandleAppClone(dockerClient command.Cli) http.HandlerFunc {
+func HandleAppClone(
+	dockerClient command.Cli,
+	idProvider *app.IDProvider,
+	cfg config.Configuration,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
+		id, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid id"})
 			return
@@ -48,7 +54,7 @@ func HandleAppClone(dockerClient command.Cli) http.HandlerFunc {
 			FromID: id,
 			Name:   req.Name,
 			Icon:   req.Icon,
-		})
+		}, idProvider, cfg)
 		if err != nil {
 			if errors.Is(err, orchestrator.ErrAppAlreadyExists) {
 				slog.Error("app already exists", slog.String("error", err.Error()))

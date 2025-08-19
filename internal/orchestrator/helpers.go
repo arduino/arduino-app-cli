@@ -13,6 +13,7 @@ import (
 	"github.com/gosimple/slug"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
 type AppStatus struct {
@@ -109,16 +110,16 @@ func getRunningApp(
 	return &app, nil
 }
 
-func getAppComposeProjectNameFromApp(app app.ArduinoApp) (string, error) {
-	composeProjectName, err := app.FullPath.RelFrom(orchestratorConfig.AppsDir())
+func getAppComposeProjectNameFromApp(app app.ArduinoApp, cfg config.Configuration) (string, error) {
+	composeProjectName, err := app.FullPath.RelFrom(cfg.AppsDir())
 	if err != nil {
 		return "", fmt.Errorf("failed to get compose project name: %w", err)
 	}
 	return slug.Make(composeProjectName.String()), nil
 }
 
-func findAppPathByName(name string) (*paths.Path, bool) {
+func findAppPathByName(name string, cfg config.Configuration) (*paths.Path, bool) {
 	appFolderName := slug.Make(name)
-	basePath := orchestratorConfig.AppsDir().Join(appFolderName)
+	basePath := cfg.AppsDir().Join(appFolderName)
 	return basePath, basePath.Exist()
 }

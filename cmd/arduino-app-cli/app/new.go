@@ -6,11 +6,13 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
-func newCreateCmd() *cobra.Command {
+func newCreateCmd(cfg config.Configuration) *cobra.Command {
 	var (
 		icon     string
 		bricks   []string
@@ -26,7 +28,7 @@ func newCreateCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cobra.MinimumNArgs(1)
 			name := args[0]
-			return createHandler(cmd.Context(), name, icon, noPyton, noSketch, fromApp)
+			return createHandler(cmd.Context(), cfg, name, icon, noPyton, noSketch, fromApp)
 		},
 	}
 
@@ -40,9 +42,9 @@ func newCreateCmd() *cobra.Command {
 	return cmd
 }
 
-func createHandler(ctx context.Context, name string, icon string, noPython, noSketch bool, fromApp string) error {
+func createHandler(ctx context.Context, cfg config.Configuration, name string, icon string, noPython, noSketch bool, fromApp string) error {
 	if fromApp != "" {
-		id, err := orchestrator.ParseID(fromApp)
+		id, err := servicelocator.GetAppIDProvider().ParseID(fromApp)
 		if err != nil {
 			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 			return nil
@@ -51,7 +53,7 @@ func createHandler(ctx context.Context, name string, icon string, noPython, noSk
 		resp, err := orchestrator.CloneApp(ctx, orchestrator.CloneAppRequest{
 			Name:   &name,
 			FromID: id,
-		})
+		}, servicelocator.GetAppIDProvider(), cfg)
 		if err != nil {
 			feedback.Fatal(err.Error(), feedback.ErrGeneric)
 			return nil
@@ -70,7 +72,7 @@ func createHandler(ctx context.Context, name string, icon string, noPython, noSk
 			Icon:       icon,
 			SkipPython: noPython,
 			SkipSketch: noSketch,
-		})
+		}, servicelocator.GetAppIDProvider(), cfg)
 		if err != nil {
 			feedback.Fatal(err.Error(), feedback.ErrGeneric)
 			return nil

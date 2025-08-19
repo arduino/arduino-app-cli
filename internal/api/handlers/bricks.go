@@ -9,7 +9,6 @@ import (
 	"net/http"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/pkg/render"
@@ -28,10 +27,12 @@ func HandleBrickList(brickService *bricks.Service) http.HandlerFunc {
 	}
 }
 
-func HandleAppBrickInstancesList(brickService *bricks.Service) http.HandlerFunc {
+func HandleAppBrickInstancesList(
+	brickService *bricks.Service,
+	idProvider *app.IDProvider,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		appId, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
+		appId, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
 			return
@@ -56,9 +57,12 @@ func HandleAppBrickInstancesList(brickService *bricks.Service) http.HandlerFunc 
 	}
 }
 
-func HandleAppBrickInstanceDetails(brickService *bricks.Service) http.HandlerFunc {
+func HandleAppBrickInstanceDetails(
+	brickService *bricks.Service,
+	idProvider *app.IDProvider,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		appId, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
+		appId, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
 			return
@@ -88,9 +92,12 @@ func HandleAppBrickInstanceDetails(brickService *bricks.Service) http.HandlerFun
 	}
 }
 
-func HandleBrickCreate(brickService *bricks.Service) http.HandlerFunc {
+func HandleBrickCreate(
+	brickService *bricks.Service,
+	idProvider *app.IDProvider,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		appId, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
+		appId, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
 			return
@@ -154,9 +161,12 @@ func HandleBrickDetails(brickService *bricks.Service) http.HandlerFunc {
 	}
 }
 
-func HandleBrickUpdates(brickService *bricks.Service) http.HandlerFunc {
+func HandleBrickUpdates(
+	brickService *bricks.Service,
+	idProvider *app.IDProvider,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		appId, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
+		appId, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
 			return
@@ -213,9 +223,12 @@ func HandleBrickPartialUpdates(brickService *bricks.Service) http.HandlerFunc {
 	}
 }
 
-func HandleBrickDelete(brickService *bricks.Service) http.HandlerFunc {
+func HandleBrickDelete(
+	brickService *bricks.Service,
+	idProvider *app.IDProvider,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		appId, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
+		appId, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
 			return

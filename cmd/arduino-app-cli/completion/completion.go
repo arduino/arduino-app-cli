@@ -9,6 +9,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
 func NewCompletionCommand() *cobra.Command {
@@ -52,7 +53,7 @@ func NewCompletionCommand() *cobra.Command {
 	return completionCmd
 }
 
-func ApplicationNames() cobra.CompletionFunc {
+func ApplicationNames(cfg config.Configuration) cobra.CompletionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		apps, err := orchestrator.ListApps(cmd.Context(),
 			servicelocator.GetDockerClient(),
@@ -61,6 +62,8 @@ func ApplicationNames() cobra.CompletionFunc {
 				ShowApps:                       true,
 				IncludeNonStandardLocationApps: true,
 			},
+			servicelocator.GetAppIDProvider(),
+			cfg,
 		)
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveError

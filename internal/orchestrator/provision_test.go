@@ -17,7 +17,7 @@ import (
 )
 
 func TestProvisionAppWithOverrides(t *testing.T) {
-
+	cfg := setTestOrchestratorConfig(t)
 	tempDirectory := t.TempDir()
 
 	// Define a mock app with bricks that require overrides
@@ -90,7 +90,7 @@ bricks:
 
 	// Run the provision function to generate the main compose file
 	env := map[string]string{}
-	err = generateMainComposeFile(&app, bricksIndex, "arduino:appslab-python-apps-base:dev-latest", env)
+	err = generateMainComposeFile(&app, bricksIndex, "arduino:appslab-python-apps-base:dev-latest", cfg, env)
 
 	// Validate that the main compose file and overrides are created
 	assert.Nil(t, err, "Failed to generate main compose file")

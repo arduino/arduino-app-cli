@@ -17,6 +17,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/store"
 
 	"github.com/arduino/go-paths-helper"
@@ -51,12 +52,13 @@ func ProvisionApp(
 	bricksIndex *bricksindex.BricksIndex,
 	mapped_env map[string]string,
 	app *app.ArduinoApp,
+	cfg config.Configuration,
 ) error {
 	start := time.Now()
 	defer func() {
 		slog.Info("Provisioning took", "duration", time.Since(start).String())
 	}()
-	return provisioner.App(ctx, bricksIndex, app, mapped_env)
+	return provisioner.App(ctx, bricksIndex, app, cfg, mapped_env)
 }
 
 type Provision struct {
@@ -90,6 +92,7 @@ func (p *Provision) App(
 	ctx context.Context,
 	bricksIndex *bricksindex.BricksIndex,
 	arduinoApp *app.ArduinoApp,
+	cfg config.Configuration,
 	mapped_env map[string]string,
 ) error {
 	if arduinoApp == nil {
@@ -111,7 +114,7 @@ func (p *Provision) App(
 		}
 	}
 
-	return generateMainComposeFile(arduinoApp, bricksIndex, p.pythonImage, mapped_env)
+	return generateMainComposeFile(arduinoApp, bricksIndex, p.pythonImage, cfg, mapped_env)
 }
 
 func (p *Provision) IsUsingDynamicProvision() bool {
@@ -200,6 +203,7 @@ func generateMainComposeFile(
 	app *app.ArduinoApp,
 	bricksIndex *bricksindex.BricksIndex,
 	pythonImage string,
+	cfg config.Configuration,
 	mapped_env map[string]string,
 ) error {
 	slog.Debug("Generating main compose file for the App")
@@ -250,7 +254,7 @@ func generateMainComposeFile(
 	}
 
 	// Merge compose
-	composeProjectName, err := getAppComposeProjectNameFromApp(*app)
+	composeProjectName, err := getAppComposeProjectNameFromApp(*app, cfg)
 	if err != nil {
 		return err
 	}
@@ -296,11 +300,11 @@ func generateMainComposeFile(
 		},
 	}
 
-	slog.Debug("Adding UNIX socket", slog.Any("sock", orchestratorConfig.RouterSocketPath().String()), slog.Bool("exists", orchestratorConfig.RouterSocketPath().Exist()))
-	if orchestratorConfig.RouterSocketPath().Exist() {
+	slog.Debug("Adding UNIX socket", slog.Any("sock", cfg.RouterSocketPath().String()), slog.Bool("exists", cfg.RouterSocketPath().Exist()))
+	if cfg.RouterSocketPath().Exist() {
 		volumes = append(volumes, volume{
 			Type:   "bind",
-			Source: orchestratorConfig.RouterSocketPath().String(),
+			Source: cfg.RouterSocketPath().String(),
 			Target: "/var/run/arduino-router.sock",
 		})
 	}

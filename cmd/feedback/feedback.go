@@ -58,6 +58,7 @@ var (
 	formatSelected bool
 )
 
+// nolint:gochecknoinits
 func init() {
 	reset()
 }

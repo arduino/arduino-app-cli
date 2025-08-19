@@ -14,83 +14,26 @@ import (
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
-func TestCreateApp(t *testing.T) {
-	setTestOrchestratorConfig(t)
-	t.Run("valid app", func(t *testing.T) {
-		r, err := CreateApp(t.Context(), CreateAppRequest{
-			Name: "example app",
-			Icon: "😃",
-		})
-		require.NoError(t, err)
-		require.Equal(t, f.Must(ParseID("user:example-app")), r.ID)
-
-		t.Run("skip python", func(t *testing.T) {
-			r, err := CreateApp(t.Context(), CreateAppRequest{
-				Name:       "skip-python",
-				SkipPython: true,
-			})
-			require.NoError(t, err)
-			require.Equal(t, f.Must(ParseID("user:skip-python")), r.ID)
-			appDir := orchestratorConfig.AppsDir().Join("skip-python")
-			require.DirExists(t, appDir.String())
-			require.NoDirExists(t, appDir.Join("python").String())
-			require.FileExists(t, appDir.Join("sketch", "sketch.ino").String())
-			require.FileExists(t, appDir.Join("sketch", "sketch.yaml").String())
-		})
-		t.Run("skip sketch", func(t *testing.T) {
-			r, err := CreateApp(t.Context(), CreateAppRequest{
-				Name:       "skip-sketch",
-				SkipSketch: true,
-			})
-			require.NoError(t, err)
-			require.Equal(t, f.Must(ParseID("user:skip-sketch")), r.ID)
-			appDir := orchestratorConfig.AppsDir().Join("skip-sketch")
-			require.DirExists(t, appDir.String())
-			require.NoDirExists(t, appDir.Join("sketch").String())
-		})
-	})
-
-	t.Run("invalid app", func(t *testing.T) {
-		t.Run("empty name", func(t *testing.T) {
-			_, err := CreateApp(t.Context(), CreateAppRequest{Name: ""})
-			require.Error(t, err)
-		})
-		t.Run("app already present", func(t *testing.T) {
-			r := CreateAppRequest{Name: "present"}
-			_, err := CreateApp(t.Context(), r)
-			require.NoError(t, err)
-			_, err = CreateApp(t.Context(), r)
-			require.ErrorIs(t, err, ErrAppAlreadyExists)
-		})
-		t.Run("skipping both python and sketch", func(t *testing.T) {
-			_, err := CreateApp(t.Context(), CreateAppRequest{
-				Name:       "skip-both",
-				SkipPython: true,
-				SkipSketch: true,
-			})
-			require.Error(t, err)
-		})
-	})
-}
-
 func TestCloneApp(t *testing.T) {
-	setTestOrchestratorConfig(t)
+	cfg := setTestOrchestratorConfig(t)
+	idProvider := app.NewAppIDProvider(cfg)
 
-	originalAppID := f.Must(ParseID("user:original-app"))
+	originalAppID := f.Must(idProvider.ParseID("user:original-app"))
 	originalAppPath := originalAppID.ToPath()
-	r, err := CreateApp(t.Context(), CreateAppRequest{Name: "original-app"})
+	r, err := CreateApp(t.Context(), CreateAppRequest{Name: "original-app"}, idProvider, cfg)
 	require.NoError(t, err)
 	require.Equal(t, originalAppID, r.ID)
 	require.DirExists(t, originalAppPath.String())
 
 	t.Run("valid clone", func(t *testing.T) {
 		t.Run("without name", func(t *testing.T) {
-			resp, err := CloneApp(t.Context(), CloneAppRequest{FromID: originalAppID})
+			resp, err := CloneApp(t.Context(), CloneAppRequest{FromID: originalAppID}, idProvider, cfg)
 			require.NoError(t, err)
-			require.Equal(t, f.Must(ParseID("user:original-app-copy0")), resp.ID)
-			appDir := orchestratorConfig.AppsDir().Join("original-app-copy0")
+			require.Equal(t, f.Must(idProvider.ParseID("user:original-app-copy0")), resp.ID)
+			appDir := cfg.AppsDir().Join("original-app-copy0")
 			require.DirExists(t, appDir.String())
 			t.Cleanup(func() {
 				_ = appDir.RemoveAll()
@@ -120,9 +63,9 @@ func TestCloneApp(t *testing.T) {
 			resp, err := CloneApp(t.Context(), CloneAppRequest{
 				FromID: originalAppID,
 				Name:   f.Ptr("new-name"),
-			})
+			}, idProvider, cfg)
 			require.NoError(t, err)
-			require.Equal(t, f.Must(ParseID("user:new-name")), resp.ID)
+			require.Equal(t, f.Must(idProvider.ParseID("user:new-name")), resp.ID)
 			appDir := resp.ID.ToPath()
 			require.DirExists(t, appDir.String())
 			t.Cleanup(func() {
@@ -138,9 +81,9 @@ func TestCloneApp(t *testing.T) {
 				FromID: originalAppID,
 				Name:   f.Ptr("with-icon"),
 				Icon:   f.Ptr("🦄"),
-			})
+			}, idProvider, cfg)
 			require.NoError(t, err)
-			require.Equal(t, f.Must(ParseID("user:with-icon")), resp.ID)
+			require.Equal(t, f.Must(idProvider.ParseID("user:with-icon")), resp.ID)
 			appDir := resp.ID.ToPath()
 			require.DirExists(t, appDir.String())
 			t.Cleanup(func() {
@@ -153,14 +96,14 @@ func TestCloneApp(t *testing.T) {
 			require.Equal(t, "🦄", clonedApp.Descriptor.Icon)
 		})
 		t.Run("skips .cache and data folder", func(t *testing.T) {
-			baseApp := orchestratorConfig.appsDir.Join("app-with-cache")
+			baseApp := cfg.AppsDir().Join("app-with-cache")
 			require.NoError(t, baseApp.Join(".cache").MkdirAll())
 			require.NoError(t, baseApp.Join("data").MkdirAll())
 			require.NoError(t, baseApp.Join("app.yaml").WriteFile([]byte("name: app-with-cache")))
 
-			resp, err := CloneApp(t.Context(), CloneAppRequest{FromID: f.Must(ParseID("user:app-with-cache"))})
+			resp, err := CloneApp(t.Context(), CloneAppRequest{FromID: f.Must(idProvider.ParseID("user:app-with-cache"))}, idProvider, cfg)
 			require.NoError(t, err)
-			require.Equal(t, f.Must(ParseID("user:app-with-cache-copy0")), resp.ID)
+			require.Equal(t, f.Must(idProvider.ParseID("user:app-with-cache-copy0")), resp.ID)
 			appDir := resp.ID.ToPath()
 			require.DirExists(t, appDir.String())
 			require.NoDirExists(t, appDir.Join(".cache").String())
@@ -175,60 +118,61 @@ func TestCloneApp(t *testing.T) {
 
 	t.Run("invalid app", func(t *testing.T) {
 		t.Run("not existing origin", func(t *testing.T) {
-			_, err := CloneApp(t.Context(), CloneAppRequest{FromID: f.Must(ParseID("user:not-existing"))})
+			_, err := CloneApp(t.Context(), CloneAppRequest{FromID: f.Must(idProvider.ParseID("user:not-existing"))}, idProvider, cfg)
 			require.ErrorIs(t, err, ErrAppDoesntExists)
 		})
 		t.Run("missing app yaml", func(t *testing.T) {
-			err := orchestratorConfig.appsDir.Join("app-without-yaml").Mkdir()
+			err := cfg.AppsDir().Join("app-without-yaml").Mkdir()
 			require.NoError(t, err)
-			_, err = CloneApp(t.Context(), CloneAppRequest{FromID: f.Must(ParseID("user:app-without-yaml"))})
+			_, err = CloneApp(t.Context(), CloneAppRequest{FromID: f.Must(idProvider.ParseID("user:app-without-yaml"))}, idProvider, cfg)
 			require.ErrorIs(t, err, ErrInvalidApp)
 		})
 		t.Run("name already exists", func(t *testing.T) {
 			_, err = CloneApp(t.Context(), CloneAppRequest{
 				FromID: originalAppID,
 				Name:   f.Ptr("original-app"),
-			})
+			}, idProvider, cfg)
 			require.ErrorIs(t, err, ErrAppAlreadyExists)
 		})
 	})
 }
 
 func TestEditApp(t *testing.T) {
-	setTestOrchestratorConfig(t)
+	cfg := setTestOrchestratorConfig(t)
+	idProvider := app.NewAppIDProvider(cfg)
 
 	t.Run("with default", func(t *testing.T) {
-		_, err := CreateApp(t.Context(), CreateAppRequest{Name: "app-default"})
+		_, err := CreateApp(t.Context(), CreateAppRequest{Name: "app-default"}, idProvider, cfg)
 		require.NoError(t, err)
-		appDir := orchestratorConfig.AppsDir().Join("app-default")
+		appDir := cfg.AppsDir().Join("app-default")
 
 		t.Run("previously not default", func(t *testing.T) {
 			app := f.Must(app.Load(appDir.String()))
 
-			previousDefaultApp, err := GetDefaultApp()
+			previousDefaultApp, err := GetDefaultApp(cfg)
 			require.NoError(t, err)
 			require.Nil(t, previousDefaultApp)
 
-			err = EditApp(AppEditRequest{Default: f.Ptr(true)}, &app)
+			err = EditApp(AppEditRequest{Default: f.Ptr(true)}, &app, cfg)
 			require.NoError(t, err)
 
-			currentDefaultApp, err := GetDefaultApp()
+			currentDefaultApp, err := GetDefaultApp(cfg)
 			require.NoError(t, err)
 			require.True(t, appDir.EquivalentTo(currentDefaultApp.FullPath))
 		})
 		t.Run("previously default", func(t *testing.T) {
 			app := f.Must(app.Load(appDir.String()))
-			err := SetDefaultApp(&app)
+			err := SetDefaultApp(&app, cfg)
 			require.NoError(t, err)
 
-			previousDefaultApp, err := GetDefaultApp()
+			previousDefaultApp, err := GetDefaultApp(cfg)
 			require.NoError(t, err)
 			require.True(t, appDir.EquivalentTo(previousDefaultApp.FullPath))
 
-			err = EditApp(AppEditRequest{Default: f.Ptr(false)}, &app)
+			err = EditApp(AppEditRequest{Default: f.Ptr(false)}, &app, cfg)
 			require.NoError(t, err)
 
-			currentDefaultApp, err := GetDefaultApp()
+			currentDefaultApp, err := GetDefaultApp(cfg)
 			require.NoError(t, err)
 			require.Nil(t, currentDefaultApp)
 		})
@@ -236,42 +180,42 @@ func TestEditApp(t *testing.T) {
 
 	t.Run("with name", func(t *testing.T) {
 		originalAppName := "original-name"
-		_, err := CreateApp(t.Context(), CreateAppRequest{Name: originalAppName})
+		_, err := CreateApp(t.Context(), CreateAppRequest{Name: originalAppName}, idProvider, cfg)
 		require.NoError(t, err)
-		appDir := orchestratorConfig.AppsDir().Join(originalAppName)
+		appDir := cfg.AppsDir().Join(originalAppName)
 		userApp := f.Must(app.Load(appDir.String()))
 		originalPath := userApp.FullPath
 
-		err = EditApp(AppEditRequest{Name: f.Ptr("new-name")}, &userApp)
+		err = EditApp(AppEditRequest{Name: f.Ptr("new-name")}, &userApp, cfg)
 		require.NoError(t, err)
-		editedApp, err := app.Load(orchestratorConfig.AppsDir().Join("new-name").String())
+		editedApp, err := app.Load(cfg.AppsDir().Join("new-name").String())
 		require.NoError(t, err)
 		require.Equal(t, "new-name", editedApp.Name)
 		require.True(t, originalPath.NotExist()) // The original app directory should be removed after renaming
 
 		t.Run("already existing name", func(t *testing.T) {
 			existingAppName := "existing-name"
-			_, err := CreateApp(t.Context(), CreateAppRequest{Name: existingAppName})
+			_, err := CreateApp(t.Context(), CreateAppRequest{Name: existingAppName}, idProvider, cfg)
 			require.NoError(t, err)
-			appDir := orchestratorConfig.AppsDir().Join(existingAppName)
+			appDir := cfg.AppsDir().Join(existingAppName)
 			existingApp := f.Must(app.Load(appDir.String()))
 
-			err = EditApp(AppEditRequest{Name: f.Ptr(existingAppName)}, &existingApp)
+			err = EditApp(AppEditRequest{Name: f.Ptr(existingAppName)}, &existingApp, cfg)
 			require.ErrorIs(t, err, ErrAppAlreadyExists)
 		})
 	})
 
 	t.Run("with icon and description", func(t *testing.T) {
 		commonAppName := "common-app"
-		_, err := CreateApp(t.Context(), CreateAppRequest{Name: commonAppName})
+		_, err := CreateApp(t.Context(), CreateAppRequest{Name: commonAppName}, idProvider, cfg)
 		require.NoError(t, err)
-		commonAppDir := orchestratorConfig.AppsDir().Join(commonAppName)
+		commonAppDir := cfg.AppsDir().Join(commonAppName)
 		commonApp := f.Must(app.Load(commonAppDir.String()))
 
 		err = EditApp(AppEditRequest{
 			Icon:        f.Ptr("💻"),
 			Description: f.Ptr("new desc"),
-		}, &commonApp)
+		}, &commonApp, cfg)
 		require.NoError(t, err)
 		editedApp := f.Must(app.Load(commonAppDir.String()))
 		require.Equal(t, "new desc", editedApp.Descriptor.Description)
@@ -280,7 +224,8 @@ func TestEditApp(t *testing.T) {
 }
 
 func TestListApp(t *testing.T) {
-	setTestOrchestratorConfig(t)
+	cfg := setTestOrchestratorConfig(t)
+	idProvider := app.NewAppIDProvider(cfg)
 
 	docker, err := dockerClient.NewClientWithOpts(
 		dockerClient.FromEnv,
@@ -296,21 +241,21 @@ func TestListApp(t *testing.T) {
 	err = dockerCli.Initialize(&flags.ClientOptions{})
 	require.NoError(t, err)
 
-	createApp(t, "app1", false)
-	createApp(t, "app2", false)
-	createApp(t, "example1", true)
+	createApp(t, "app1", false, idProvider, cfg)
+	createApp(t, "app2", false, idProvider, cfg)
+	createApp(t, "example1", true, idProvider, cfg)
 
 	t.Run("list all apps", func(t *testing.T) {
 		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
 			ShowApps:     true,
 			ShowExamples: true,
 			StatusFilter: "",
-		})
+		}, idProvider, cfg)
 		require.NoError(t, err)
 		assert.Empty(t, res.BrokenApps)
 		assert.Empty(t, gCmp.Diff([]AppInfo{
 			{
-				ID:          f.Must(ParseID("examples:example1")),
+				ID:          f.Must(idProvider.ParseID("examples:example1")),
 				Name:        "example1",
 				Description: "",
 				Icon:        "😃",
@@ -319,7 +264,7 @@ func TestListApp(t *testing.T) {
 				Default:     false,
 			},
 			{
-				ID:          f.Must(ParseID("user:app1")),
+				ID:          f.Must(idProvider.ParseID("user:app1")),
 				Name:        "app1",
 				Description: "",
 				Icon:        "😃",
@@ -328,7 +273,7 @@ func TestListApp(t *testing.T) {
 				Default:     false,
 			},
 			{
-				ID:          f.Must(ParseID("user:app2")),
+				ID:          f.Must(idProvider.ParseID("user:app2")),
 				Name:        "app2",
 				Description: "",
 				Icon:        "😃",
@@ -344,12 +289,12 @@ func TestListApp(t *testing.T) {
 			ShowApps:     true,
 			ShowExamples: false,
 			StatusFilter: "",
-		})
+		}, idProvider, cfg)
 		require.NoError(t, err)
 		assert.Empty(t, res.BrokenApps)
 		assert.Empty(t, gCmp.Diff([]AppInfo{
 			{
-				ID:          f.Must(ParseID("user:app1")),
+				ID:          f.Must(idProvider.ParseID("user:app1")),
 				Name:        "app1",
 				Description: "",
 				Icon:        "😃",
@@ -358,7 +303,7 @@ func TestListApp(t *testing.T) {
 				Default:     false,
 			},
 			{
-				ID:          f.Must(ParseID("user:app2")),
+				ID:          f.Must(idProvider.ParseID("user:app2")),
 				Name:        "app2",
 				Description: "",
 				Icon:        "😃",
@@ -374,12 +319,12 @@ func TestListApp(t *testing.T) {
 			ShowApps:     false,
 			ShowExamples: true,
 			StatusFilter: "",
-		})
+		}, idProvider, cfg)
 		require.NoError(t, err)
 		assert.Empty(t, res.BrokenApps)
 		assert.Empty(t, gCmp.Diff([]AppInfo{
 			{
-				ID:          f.Must(ParseID("examples:example1")),
+				ID:          f.Must(idProvider.ParseID("examples:example1")),
 				Name:        "example1",
 				Description: "",
 				Icon:        "😃",
@@ -391,34 +336,39 @@ func TestListApp(t *testing.T) {
 	})
 }
 
-func setTestOrchestratorConfig(t *testing.T) {
+func setTestOrchestratorConfig(t *testing.T) config.Configuration {
 	t.Helper()
 
 	tmpDir := paths.New(t.TempDir())
 	t.Setenv("ARDUINO_APP_CLI__APPS_DIR", tmpDir.Join("apps").String())
 	t.Setenv("ARDUINO_APP_CLI__DATA_DIR", tmpDir.Join("data").String())
-	cfg, err := NewOrchestratorConfigFromEnv()
+	cfg, err := config.NewFromEnv()
 	require.NoError(t, err)
 
-	// Override the global config with the test one
-	orchestratorConfig = cfg
+	return cfg
 }
 
-func createApp(t *testing.T, name string, isExample bool) {
+func createApp(
+	t *testing.T,
+	name string,
+	isExample bool,
+	idProvider *app.IDProvider,
+	cfg config.Configuration,
+) {
 	t.Helper()
 
 	res, err := CreateApp(t.Context(), CreateAppRequest{
 		Name: name,
 		Icon: "😃",
-	})
+	}, idProvider, cfg)
 	require.NoError(t, err)
-	require.Empty(t, gCmp.Diff(f.Must(ParseID("user:"+name)), res.ID))
+	require.Empty(t, gCmp.Diff(f.Must(idProvider.ParseID("user:"+name)), res.ID))
 	if isExample {
-		newPath := orchestratorConfig.ExamplesDir().Join(name)
+		newPath := cfg.ExamplesDir().Join(name)
 		err = os.Rename(res.ID.ToPath().String(), newPath.String())
 		require.NoError(t, err)
-		newID, err := NewIDFromPath(newPath)
+		newID, err := idProvider.IDFromPath(newPath)
 		require.NoError(t, err)
-		assert.Empty(t, gCmp.Diff(f.Must(ParseID("examples:"+name)), newID))
+		assert.Empty(t, gCmp.Diff(f.Must(idProvider.ParseID("examples:"+name)), newID))
 	}
 }

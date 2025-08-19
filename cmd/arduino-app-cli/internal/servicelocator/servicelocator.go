@@ -16,15 +16,23 @@ import (
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
+var globalConfig config.Configuration
+
+func Init(cfg config.Configuration) {
+	globalConfig = cfg
+}
+
 var (
 	// Do not manually modify this, we keep it updated with the `task generate:bricks-and-models-index`
-	RunnerVersion = "0.1.16"
+	runnerVersion = "0.1.16"
 
 	GetBricksIndex = sync.OnceValue(func() *bricksindex.BricksIndex {
 		var bIndex *bricksindex.BricksIndex
@@ -59,7 +67,7 @@ var (
 		return f.Must(orchestrator.NewProvision(
 			GetDockerClient(),
 			GetStaticStore(),
-			usedPythonImageTag != RunnerVersion,
+			usedPythonImageTag != runnerVersion,
 			pythonImage,
 		))
 	})
@@ -94,7 +102,7 @@ var (
 	})
 
 	GetStaticStore = sync.OnceValue(func() *store.StaticStore {
-		return store.NewStaticStore(RunnerVersion)
+		return store.NewStaticStore(runnerVersion)
 	})
 
 	GetBrickService = sync.OnceValue(func() *bricks.Service {
@@ -103,6 +111,10 @@ var (
 			GetBricksIndex(),
 			GetStaticStore(),
 		)
+	})
+
+	GetAppIDProvider = sync.OnceValue(func() *app.IDProvider {
+		return app.NewAppIDProvider(globalConfig)
 	})
 )
 
@@ -115,7 +127,7 @@ func getPythonImageAndTag() (string, string) {
 	// Python image: image name (repository) and optionally a tag.
 	pythonImageAndTag := os.Getenv("DOCKER_PYTHON_BASE_IMAGE")
 	if pythonImageAndTag == "" {
-		pythonImageAndTag = fmt.Sprintf("arduino/appslab-python-apps-base:%s", RunnerVersion)
+		pythonImageAndTag = fmt.Sprintf("arduino/appslab-python-apps-base:%s", runnerVersion)
 	}
 	pythonImage := path.Join(registryBase, pythonImageAndTag)
 	var usedPythonImageTag string

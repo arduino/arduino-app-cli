@@ -8,32 +8,33 @@ import (
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
-func NewConfigCmd() *cobra.Command {
+func NewConfigCmd(cfg config.Configuration) *cobra.Command {
 	appCmd := &cobra.Command{
 		Use:   "config",
 		Short: "Manage arduino-app-cli config",
 	}
 
-	appCmd.AddCommand(newConfigGetCmd())
+	appCmd.AddCommand(newConfigGetCmd(cfg))
 
 	return appCmd
 }
 
-func newConfigGetCmd() *cobra.Command {
+func newConfigGetCmd(cfg config.Configuration) *cobra.Command {
 	return &cobra.Command{
 		Use:   "get",
 		Short: "get configuration",
 		Run: func(cmd *cobra.Command, args []string) {
-			getConfigHandler()
+			getConfigHandler(cfg)
 		},
 	}
 }
 
-func getConfigHandler() {
+func getConfigHandler(cfg config.Configuration) {
 	feedback.PrintResult(configResult{
-		Config: orchestrator.GetOrchestratorConfig(),
+		Config: orchestrator.GetOrchestratorConfig(cfg),
 	})
 }
 

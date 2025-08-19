@@ -9,14 +9,20 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/pkg/render"
 
 	"github.com/docker/cli/cli/command"
 )
 
-func HandleAppDetails(dockerClient command.Cli, bricksIndex *bricksindex.BricksIndex) http.HandlerFunc {
+func HandleAppDetails(
+	dockerClient command.Cli,
+	bricksIndex *bricksindex.BricksIndex,
+	idProvider *app.IDProvider,
+	cfg config.Configuration,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
+		id, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid id"})
 			return
@@ -29,7 +35,7 @@ func HandleAppDetails(dockerClient command.Cli, bricksIndex *bricksindex.BricksI
 			return
 		}
 
-		res, err := orchestrator.AppDetails(r.Context(), dockerClient, app, bricksIndex)
+		res, err := orchestrator.AppDetails(r.Context(), dockerClient, app, bricksIndex, idProvider, cfg)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
@@ -46,9 +52,14 @@ type EditRequest struct {
 	Default     *bool   `json:"default"`
 }
 
-func HandleAppDetailsEdits(dockerClient command.Cli, bricksIndex *bricksindex.BricksIndex) http.HandlerFunc {
+func HandleAppDetailsEdits(
+	dockerClient command.Cli,
+	bricksIndex *bricksindex.BricksIndex,
+	idProvider *app.IDProvider,
+	cfg config.Configuration,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
+		id, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid id"})
 			return
@@ -84,14 +95,14 @@ func HandleAppDetailsEdits(dockerClient command.Cli, bricksIndex *bricksindex.Br
 				Description: editRequest.Description,
 			}
 		}
-		err = orchestrator.EditApp(appEditRequest, &app)
+		err = orchestrator.EditApp(appEditRequest, &app, cfg)
 		if err != nil {
 			slog.Error("Unable to edit the app", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to edit the app"})
 			return
 		}
 
-		res, err := orchestrator.AppDetails(r.Context(), dockerClient, app, bricksIndex)
+		res, err := orchestrator.AppDetails(r.Context(), dockerClient, app, bricksIndex, idProvider, cfg)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})

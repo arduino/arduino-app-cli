@@ -11,17 +11,18 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/pkg/tablestyle"
 )
 
-func newListCmd() *cobra.Command {
+func newListCmd(cfg config.Configuration) *cobra.Command {
 	var showBrokenApps bool
 
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all running Python apps",
 		Run: func(cmd *cobra.Command, args []string) {
-			listHandler(cmd.Context(), showBrokenApps)
+			listHandler(cmd.Context(), cfg, showBrokenApps)
 		},
 	}
 
@@ -29,7 +30,7 @@ func newListCmd() *cobra.Command {
 	return cmd
 }
 
-func listHandler(ctx context.Context, showBrokenApps bool) {
+func listHandler(ctx context.Context, cfg config.Configuration, showBrokenApps bool) {
 	res, err := orchestrator.ListApps(ctx,
 		servicelocator.GetDockerClient(),
 		orchestrator.ListAppRequest{
@@ -37,6 +38,8 @@ func listHandler(ctx context.Context, showBrokenApps bool) {
 			ShowApps:                       true,
 			IncludeNonStandardLocationApps: true,
 		},
+		servicelocator.GetAppIDProvider(),
+		cfg,
 	)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)

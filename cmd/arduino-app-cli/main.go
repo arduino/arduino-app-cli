@@ -22,13 +22,15 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/version"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/cmd/i18n"
+	cfg "github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
 // Version will be set a build time with -ldflags
 var Version string = "0.0.0-dev"
 var format string
 
-func run() error {
+func run(configuration cfg.Configuration) error {
+	servicelocator.Init(configuration)
 	defer func() { _ = servicelocator.CloseDockerClient() }()
 
 	logLevel, err := ParseLogLevel(cmp.Or(os.Getenv("ARDUINO_APP_CLI__LOG_LEVEL"), "INFO"))
@@ -54,12 +56,12 @@ func run() error {
 	rootCmd.PersistentFlags().StringVar(&format, "format", "text", "Output format (text, json)")
 
 	rootCmd.AddCommand(
-		app.NewAppCmd(),
+		app.NewAppCmd(configuration),
 		brick.NewBrickCmd(),
 		completion.NewCompletionCommand(),
-		daemon.NewDaemonCmd(Version),
-		properties.NewPropertiesCmd(),
-		config.NewConfigCmd(),
+		daemon.NewDaemonCmd(configuration, Version),
+		properties.NewPropertiesCmd(configuration),
+		config.NewConfigCmd(configuration),
 		system.NewSystemCmd(),
 		board.NewBoardCmd(),
 		version.NewVersionCmd(Version),
@@ -75,7 +77,11 @@ func run() error {
 }
 
 func main() {
-	if err := run(); err != nil {
+	configuration, err := cfg.NewFromEnv()
+	if err != nil {
+		feedback.Fatal(fmt.Sprintf("invalid config: %s", err), feedback.ErrGeneric)
+	}
+	if err := run(configuration); err != nil {
 		feedback.FatalError(err, 1)
 	}
 }

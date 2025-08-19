@@ -10,6 +10,8 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/pkg/render"
 )
 
@@ -17,7 +19,11 @@ type AppListResponse struct {
 	Apps []orchestrator.AppInfo `json:"apps" description:"List of applications"`
 }
 
-func HandleAppList(dockerCli command.Cli) http.HandlerFunc {
+func HandleAppList(
+	dockerCli command.Cli,
+	idProvider *app.IDProvider,
+	cfg config.Configuration,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		queryParams := r.URL.Query()
 
@@ -44,7 +50,7 @@ func HandleAppList(dockerCli command.Cli) http.HandlerFunc {
 			ShowExamples:    showExamples,
 			ShowOnlyDefault: showOnlyDefault,
 			StatusFilter:    statusFilter,
-		})
+		}, idProvider, cfg)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})

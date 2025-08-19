@@ -10,9 +10,10 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
-func newStopCmd() *cobra.Command {
+func newStopCmd(cfg config.Configuration) *cobra.Command {
 	return &cobra.Command{
 		Use:   "stop app_path",
 		Short: "Stop an Arduino app",
@@ -27,7 +28,7 @@ func newStopCmd() *cobra.Command {
 			}
 			return stopHandler(cmd.Context(), app)
 		},
-		ValidArgsFunction: completion.ApplicationNames(),
+		ValidArgsFunction: completion.ApplicationNames(cfg),
 	}
 }
 

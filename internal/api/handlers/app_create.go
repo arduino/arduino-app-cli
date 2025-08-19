@@ -9,6 +9,8 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/pkg/render"
 )
 
@@ -17,7 +19,10 @@ type CreateAppRequest struct {
 	Icon string `json:"icon" description:"application icon" `
 }
 
-func HandleAppCreate() http.HandlerFunc {
+func HandleAppCreate(
+	idProvider *app.IDProvider,
+	cfg config.Configuration,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		defer r.Body.Close()
@@ -49,6 +54,8 @@ func HandleAppCreate() http.HandlerFunc {
 				SkipPython: skipPython,
 				SkipSketch: skipSketch,
 			},
+			idProvider,
+			cfg,
 		)
 		if err != nil {
 			if errors.Is(err, orchestrator.ErrAppAlreadyExists) {

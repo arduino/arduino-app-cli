@@ -11,9 +11,10 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
-func newStartCmd() *cobra.Command {
+func newStartCmd(cfg config.Configuration) *cobra.Command {
 	return &cobra.Command{
 		Use:   "start app_path",
 		Short: "Start an Arduino app",
@@ -26,13 +27,13 @@ func newStartCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return startHandler(cmd.Context(), app)
+			return startHandler(cmd.Context(), cfg, app)
 		},
-		ValidArgsFunction: completion.ApplicationNames(),
+		ValidArgsFunction: completion.ApplicationNames(cfg),
 	}
 }
 
-func startHandler(ctx context.Context, app app.ArduinoApp) error {
+func startHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp) error {
 	out, _, getResult := feedback.OutputStreams()
 
 	stream := orchestrator.StartApp(
@@ -42,6 +43,7 @@ func startHandler(ctx context.Context, app app.ArduinoApp) error {
 		servicelocator.GetModelsIndex(),
 		servicelocator.GetBricksIndex(),
 		app,
+		cfg,
 	)
 	for message := range stream {
 		switch message.GetType() {

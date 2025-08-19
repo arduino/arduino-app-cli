@@ -10,6 +10,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/internal/api"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/update"
 	"github.com/arduino/arduino-app-cli/internal/update/apt"
 	"github.com/arduino/arduino-app-cli/internal/update/arduino"
@@ -19,7 +20,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewDaemonCmd(version string) *cobra.Command {
+func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 	var autoPull bool
 	daemonCmd := &cobra.Command{
 		Use:   "daemon",
@@ -52,6 +53,8 @@ func NewDaemonCmd(version string) *cobra.Command {
 					servicelocator.GetProvisioner(),
 					servicelocator.GetModelsIndex(),
 					servicelocator.GetBricksIndex(),
+					servicelocator.GetAppIDProvider(),
+					cfg,
 				)
 				if err != nil {
 					slog.Error("Failed to start default app", slog.String("error", err.Error()))
@@ -59,7 +62,7 @@ func NewDaemonCmd(version string) *cobra.Command {
 				slog.Info("Default app started")
 			}()
 
-			httpHandler(cmd.Context(), daemonPort, version)
+			httpHandler(cmd.Context(), cfg, daemonPort, version)
 		},
 	}
 	daemonCmd.Flags().String("port", "8080", "The TCP port the daemon will listen to")
@@ -67,7 +70,7 @@ func NewDaemonCmd(version string) *cobra.Command {
 	return daemonCmd
 }
 
-func httpHandler(ctx context.Context, daemonPort, version string) {
+func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, version string) {
 	slog.Info("Starting HTTP server", slog.String("address", ":"+daemonPort))
 
 	apiSrv := api.NewHTTPRouter(
@@ -82,6 +85,8 @@ func httpHandler(ctx context.Context, daemonPort, version string) {
 		servicelocator.GetModelsIndex(),
 		servicelocator.GetBricksIndex(),
 		servicelocator.GetBrickService(),
+		servicelocator.GetAppIDProvider(),
+		cfg,
 	)
 
 	corsMiddlware, err := cors.NewMiddleware(

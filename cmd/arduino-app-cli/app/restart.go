@@ -7,9 +7,10 @@ import (
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
-func newRestartCmd() *cobra.Command {
+func newRestartCmd(cfg config.Configuration) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "restart app_path",
 		Short: "Restart or Start an Arduino app",
@@ -26,9 +27,9 @@ func newRestartCmd() *cobra.Command {
 			if err := stopHandler(cmd.Context(), app); err != nil {
 				feedback.Warning(fmt.Sprintf("failed to stop app: %s", err.Error()))
 			}
-			return startHandler(cmd.Context(), app)
+			return startHandler(cmd.Context(), cfg, app)
 		},
-		ValidArgsFunction: completion.ApplicationNames(),
+		ValidArgsFunction: completion.ApplicationNames(cfg),
 	}
 	return cmd
 }

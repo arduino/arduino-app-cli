@@ -10,9 +10,9 @@ import (
 	"github.com/arduino/arduino-app-cli/pkg/render"
 )
 
-func HandleAppDelete() http.HandlerFunc {
+func HandleAppDelete(idProvider *app.IDProvider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
+		id, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid id"})
 			return

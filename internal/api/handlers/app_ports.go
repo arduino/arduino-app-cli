@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/pkg/render"
@@ -22,9 +21,12 @@ type port struct {
 	ServiceName string `json:"serviceName,omitempty" example:"Web Interface" description:"name of the service if the port is exposed by a brick"`
 }
 
-func HandleAppPorts(bricksIndex *bricksindex.BricksIndex) http.HandlerFunc {
+func HandleAppPorts(
+	bricksIndex *bricksindex.BricksIndex,
+	idProvider *app.IDProvider,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := orchestrator.NewIDFromBase64(r.PathValue("appID"))
+		id, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid id"})
 			return

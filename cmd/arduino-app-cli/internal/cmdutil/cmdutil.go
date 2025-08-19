@@ -6,12 +6,12 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 
-	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 )
 
 // IDToAlias returns the string representation of an app ID in a readable and short way.
 // Either with the id itself or a relative path if possible.
-func IDToAlias(id orchestrator.ID) string {
+func IDToAlias(id app.ID) string {
 	v := id.String()
 	res, err := base64.RawURLEncoding.DecodeString(v)
 	if err != nil {

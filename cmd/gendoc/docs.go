@@ -16,6 +16,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/update"
 )
@@ -191,7 +192,7 @@ func NewOpenApiGenerator(version string) *Generator {
 				return true, nil
 			}
 			// We treat the orchestrator.ID as a string in the OpenAPI spec.
-			if params.Value.Type() == reflect.TypeOf(orchestrator.ID{}) {
+			if params.Value.Type() == reflect.TypeOf(app.ID{}) {
 				params.Schema.WithType(jsonschema.Type{
 					SimpleTypes: f.Ptr(jsonschema.String),
 				})

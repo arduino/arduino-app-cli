@@ -27,14 +27,11 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-router/msgpackrpc"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/pkg/helpers"
 	"github.com/arduino/arduino-app-cli/pkg/micro"
 	"github.com/arduino/arduino-app-cli/pkg/x/fatomic"
-)
-
-var (
-	orchestratorConfig *OrchestratorConfig
 )
 
 var (
@@ -46,15 +43,6 @@ var (
 const (
 	DefaultDockerStopTimeoutSeconds = 5
 )
-
-func init() {
-	// Load orchestrator OrchestratorConfig
-	cfg, err := NewOrchestratorConfigFromEnv()
-	if err != nil {
-		panic(fmt.Errorf("failed to load orchestrator config: %w", err))
-	}
-	orchestratorConfig = cfg
-}
 
 type AppStreamMessage struct {
 	Type string `json:"type"`
@@ -107,6 +95,7 @@ func StartApp(
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
 	app app.ArduinoApp,
+	cfg config.Configuration,
 ) iter.Seq[StreamMessage] {
 	return func(yield func(StreamMessage) bool) {
 		ctx, cancel := context.WithCancel(ctx)
@@ -134,7 +123,7 @@ func StartApp(
 				cancel()
 				return
 			}
-			if err := compileUploadSketch(ctx, &app, callbackWriter); err != nil {
+			if err := compileUploadSketch(ctx, &app, callbackWriter, cfg); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
@@ -163,7 +152,7 @@ func StartApp(
 				cancel()
 				return
 			}
-			if err := ProvisionApp(ctx, provisioner, bricksIndex, mapped_env, &app); err != nil {
+			if err := ProvisionApp(ctx, provisioner, bricksIndex, mapped_env, &app, cfg); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
@@ -247,8 +236,10 @@ func StartDefaultApp(
 	provisioner *Provision,
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
+	idProvider *app.IDProvider,
+	cfg config.Configuration,
 ) error {
-	app, err := GetDefaultApp()
+	app, err := GetDefaultApp(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to get default app: %w", err)
 	}
@@ -257,7 +248,7 @@ func StartDefaultApp(
 		return nil
 	}
 
-	status, err := AppDetails(ctx, docker, *app, bricksIndex)
+	status, err := AppDetails(ctx, docker, *app, bricksIndex, idProvider, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to get app details: %w", err)
 	}
@@ -266,7 +257,7 @@ func StartDefaultApp(
 	}
 
 	// TODO: we need to stop all other running app before starting the default app.
-	for msg := range StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, *app) {
+	for msg := range StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, *app, cfg) {
 		if msg.IsError() {
 			return fmt.Errorf("failed to start app: %w", msg.GetError())
 		}
@@ -281,7 +272,7 @@ type ListAppResult struct {
 }
 
 type AppInfo struct {
-	ID          ID     `json:"id"`
+	ID          app.ID `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Icon        string `json:"icon"`
@@ -311,6 +302,8 @@ func ListApps(
 	ctx context.Context,
 	docker command.Cli,
 	req ListAppRequest,
+	idProvider *app.IDProvider,
+	cfg config.Configuration,
 ) (ListAppResult, error) {
 	var (
 		pathsToExplore paths.PathList
@@ -323,10 +316,10 @@ func ListApps(
 	}
 
 	if req.ShowExamples {
-		pathsToExplore.Add(orchestratorConfig.ExamplesDir())
+		pathsToExplore.Add(cfg.ExamplesDir())
 	}
 	if req.ShowApps {
-		pathsToExplore.Add(orchestratorConfig.AppsDir())
+		pathsToExplore.Add(cfg.AppsDir())
 		// adds app that are on different paths
 		if req.IncludeNonStandardLocationApps {
 			for _, app := range apps {
@@ -354,7 +347,7 @@ func ListApps(
 		appPaths.AddAllMissing(res)
 	}
 
-	defaultApp, err := GetDefaultApp()
+	defaultApp, err := GetDefaultApp(cfg)
 	if err != nil {
 		slog.Warn("unable to get default app", slog.String("error", err.Error()))
 	}
@@ -385,7 +378,7 @@ func ListApps(
 			continue
 		}
 
-		id, err := NewIDFromPath(app.FullPath)
+		id, err := idProvider.IDFromPath(app.FullPath)
 		if err != nil {
 			return ListAppResult{}, fmt.Errorf("failed to get app ID from path %s: %w", file.String(), err)
 		}
@@ -407,7 +400,7 @@ func ListApps(
 }
 
 type AppDetailedInfo struct {
-	ID          ID                 `json:"id" required:"true" `
+	ID          app.ID             `json:"id" required:"true" `
 	Name        string             `json:"name" required:"true"`
 	Path        string             `json:"path"`
 	Description string             `json:"description"`
@@ -429,6 +422,8 @@ func AppDetails(
 	docker command.Cli,
 	userApp app.ArduinoApp,
 	bricksIndex *bricksindex.BricksIndex,
+	idProvider *app.IDProvider,
+	cfg config.Configuration,
 ) (AppDetailedInfo, error) {
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -446,7 +441,7 @@ func AppDetails(
 	}()
 	go func() {
 		defer wg.Done()
-		defaultApp, err := GetDefaultApp()
+		defaultApp, err := GetDefaultApp(cfg)
 		if err != nil {
 			slog.Warn("unable to get default app", slog.String("error", err.Error()))
 			return
@@ -459,7 +454,7 @@ func AppDetails(
 	}()
 	wg.Wait()
 
-	id, err := NewIDFromPath(userApp.FullPath)
+	id, err := idProvider.IDFromPath(userApp.FullPath)
 	if err != nil {
 		return AppDetailedInfo{}, err
 	}
@@ -495,10 +490,15 @@ type CreateAppRequest struct {
 }
 
 type CreateAppResponse struct {
-	ID ID `json:"id"`
+	ID app.ID `json:"id"`
 }
 
-func CreateApp(ctx context.Context, req CreateAppRequest) (CreateAppResponse, error) {
+func CreateApp(
+	ctx context.Context,
+	req CreateAppRequest,
+	idProvider *app.IDProvider,
+	cfg config.Configuration,
+) (CreateAppResponse, error) {
 	if req.SkipPython && req.SkipSketch {
 		return CreateAppResponse{}, fmt.Errorf("cannot skip both python and sketch")
 	}
@@ -506,7 +506,7 @@ func CreateApp(ctx context.Context, req CreateAppRequest) (CreateAppResponse, er
 		return CreateAppResponse{}, fmt.Errorf("app name cannot be empty")
 	}
 
-	basePath, appExists := findAppPathByName(req.Name)
+	basePath, appExists := findAppPathByName(req.Name, cfg)
 	if appExists {
 		return CreateAppResponse{}, ErrAppAlreadyExists
 	}
@@ -560,7 +560,7 @@ if __name__ == "__main__":
 		return CreateAppResponse{}, fmt.Errorf("failed to create app.yaml file: %w", err)
 	}
 
-	id, err := NewIDFromPath(basePath)
+	id, err := idProvider.IDFromPath(basePath)
 	if err != nil {
 		return CreateAppResponse{}, fmt.Errorf("failed to get app id: %w", err)
 	}
@@ -568,17 +568,22 @@ if __name__ == "__main__":
 }
 
 type CloneAppRequest struct {
-	FromID ID
+	FromID app.ID
 
 	Name *string
 	Icon *string
 }
 
 type CloneAppResponse struct {
-	ID ID `json:"id"`
+	ID app.ID `json:"id"`
 }
 
-func CloneApp(ctx context.Context, req CloneAppRequest) (response CloneAppResponse, cloneErr error) {
+func CloneApp(
+	ctx context.Context,
+	req CloneAppRequest,
+	idProvider *app.IDProvider,
+	cfg config.Configuration,
+) (response CloneAppResponse, cloneErr error) {
 	originPath := req.FromID.ToPath()
 	if !originPath.Exist() {
 		return CloneAppResponse{}, ErrAppDoesntExists
@@ -589,14 +594,14 @@ func CloneApp(ctx context.Context, req CloneAppRequest) (response CloneAppRespon
 
 	var dstPath *paths.Path
 	if req.Name != nil && *req.Name != "" {
-		dstPath = orchestratorConfig.AppsDir().Join(slug.Make(*req.Name))
+		dstPath = cfg.AppsDir().Join(slug.Make(*req.Name))
 		if dstPath.Exist() {
 			return CloneAppResponse{}, ErrAppAlreadyExists
 		}
 	} else {
 		for i := range 100 { // In case of name collision, we try up to 100 times.
 			dstName := fmt.Sprintf("%s-copy%d", originPath.Base(), i)
-			dstPath = orchestratorConfig.AppsDir().Join(dstName)
+			dstPath = cfg.AppsDir().Join(dstName)
 			if !dstPath.Exist() {
 				break
 			}
@@ -659,7 +664,7 @@ func CloneApp(ctx context.Context, req CloneAppRequest) (response CloneAppRespon
 		}
 	}
 
-	id, err := NewIDFromPath(dstPath)
+	id, err := idProvider.IDFromPath(dstPath)
 	if err != nil {
 		return CloneAppResponse{}, fmt.Errorf("failed to get app id: %w", err)
 	}
@@ -677,8 +682,8 @@ func DeleteApp(ctx context.Context, app app.ArduinoApp) error {
 
 const defaultAppFileName = "default.app"
 
-func SetDefaultApp(app *app.ArduinoApp) error {
-	defaultAppPath := orchestratorConfig.DataDir().Join(defaultAppFileName)
+func SetDefaultApp(app *app.ArduinoApp, cfg config.Configuration) error {
+	defaultAppPath := cfg.DataDir().Join(defaultAppFileName)
 
 	// Remove the default app file if the app is nil.
 	if app == nil {
@@ -692,8 +697,8 @@ func SetDefaultApp(app *app.ArduinoApp) error {
 	return fatomic.WriteFile(defaultAppPath.String(), []byte(app.FullPath.String()), os.FileMode(0644))
 }
 
-func GetDefaultApp() (*app.ArduinoApp, error) {
-	defaultAppFilePath := orchestratorConfig.DataDir().Join(defaultAppFileName)
+func GetDefaultApp(cfg config.Configuration) (*app.ArduinoApp, error) {
+	defaultAppFilePath := cfg.DataDir().Join(defaultAppFileName)
 	if !defaultAppFilePath.Exist() {
 		return nil, nil
 	}
@@ -728,9 +733,13 @@ type AppEditRequest struct {
 	Default     *bool
 }
 
-func EditApp(req AppEditRequest, app *app.ArduinoApp) (editErr error) {
+func EditApp(
+	req AppEditRequest,
+	app *app.ArduinoApp,
+	cfg config.Configuration,
+) (editErr error) {
 	if req.Default != nil {
-		if err := editAppDefaults(app, *req.Default); err != nil {
+		if err := editAppDefaults(app, *req.Default, cfg); err != nil {
 			return fmt.Errorf("failed to edit app defaults: %w", err)
 		}
 	}
@@ -763,15 +772,15 @@ func EditApp(req AppEditRequest, app *app.ArduinoApp) (editErr error) {
 	return nil
 }
 
-func editAppDefaults(userApp *app.ArduinoApp, isDefault bool) error {
+func editAppDefaults(userApp *app.ArduinoApp, isDefault bool, cfg config.Configuration) error {
 	if isDefault {
-		if err := SetDefaultApp(userApp); err != nil {
+		if err := SetDefaultApp(userApp, cfg); err != nil {
 			return fmt.Errorf("failed to set default app: %w", err)
 		}
 		return nil
 	}
 
-	defaultApp, err := GetDefaultApp()
+	defaultApp, err := GetDefaultApp(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to get default app: %w", err)
 	}
@@ -783,7 +792,7 @@ func editAppDefaults(userApp *app.ArduinoApp, isDefault bool) error {
 
 	// Unset only if the current default is the same as the app being edited.
 	if defaultApp.FullPath.String() == userApp.FullPath.String() {
-		if err := SetDefaultApp(nil); err != nil {
+		if err := SetDefaultApp(nil, cfg); err != nil {
 			return fmt.Errorf("failed to unset default app: %w", err)
 		}
 	}
@@ -830,8 +839,8 @@ func getDevices() []string {
 	return append(videoDevices, soundDevices...)
 }
 
-func disconnectSerialFromRPCRouter(ctx context.Context, portAddress string) func() {
-	var msgPackRouterAddr = orchestratorConfig.routerSocketPath.String()
+func disconnectSerialFromRPCRouter(ctx context.Context, portAddress string, cfg config.Configuration) func() {
+	var msgPackRouterAddr = cfg.RouterSocketPath().String()
 	c, err := net.Dial("unix", msgPackRouterAddr)
 	if err != nil {
 		slog.Error("Failed to connect to router", "addr", msgPackRouterAddr, "err", err)
@@ -853,7 +862,12 @@ func disconnectSerialFromRPCRouter(ctx context.Context, portAddress string) func
 	}
 }
 
-func compileUploadSketch(ctx context.Context, arduinoApp *app.ArduinoApp, w io.Writer) error {
+func compileUploadSketch(
+	ctx context.Context,
+	arduinoApp *app.ArduinoApp,
+	w io.Writer,
+	cfg config.Configuration,
+) error {
 	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 	srv := commands.NewArduinoCoreServer()
 
@@ -992,7 +1006,7 @@ func compileUploadSketch(ctx context.Context, arduinoApp *app.ArduinoApp, w io.W
 	}
 
 	if port != nil {
-		reconnect := disconnectSerialFromRPCRouter(ctx, port.Address)
+		reconnect := disconnectSerialFromRPCRouter(ctx, port.Address, cfg)
 		defer reconnect()
 	}
 
@@ -1004,4 +1018,24 @@ func compileUploadSketch(ctx context.Context, arduinoApp *app.ArduinoApp, w io.W
 		Port:       port,
 		ImportDir:  buildPath,
 	}, stream)
+}
+
+type ConfigResponse struct {
+	Directories ConfigDirectories `json:"directories"`
+}
+
+type ConfigDirectories struct {
+	Data     string `json:"data"`
+	Apps     string `json:"apps"`
+	Examples string `json:"examples"`
+}
+
+func GetOrchestratorConfig(cfg config.Configuration) ConfigResponse {
+	return ConfigResponse{
+		Directories: ConfigDirectories{
+			Data:     cfg.DataDir().String(),
+			Apps:     cfg.AppsDir().String(),
+			Examples: cfg.ExamplesDir().String(),
+		},
+	}
 }

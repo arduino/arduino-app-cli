@@ -11,9 +11,10 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
-func newLogsCmd() *cobra.Command {
+func newLogsCmd(cfg config.Configuration) *cobra.Command {
 	var (
 		tail   uint64
 		follow bool
@@ -33,7 +34,7 @@ func newLogsCmd() *cobra.Command {
 			}
 			return logsHandler(cmd.Context(), app, &tail, follow, all)
 		},
-		ValidArgsFunction: completion.ApplicationNames(),
+		ValidArgsFunction: completion.ApplicationNames(cfg),
 	}
 	cmd.Flags().Uint64Var(&tail, "tail", 100, "Tail the last N logs")
 	cmd.Flags().BoolVar(&follow, "follow", false, "Follow the logs")
