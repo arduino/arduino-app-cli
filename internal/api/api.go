@@ -70,5 +70,7 @@ func NewHTTPRouter(
 
 	mux.Handle("GET /v1/docs/", http.StripPrefix("/v1/docs/", handlers.DocsServer(docsFS)))
 
+	mux.Handle("GET /v1/monitor/ws", handlers.HandleMonitorWS())
+
 	return mux
 }
