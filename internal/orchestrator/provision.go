@@ -397,9 +397,9 @@ func generateServicesOverrideFile(services []string, servicesThatRequireDevices 
 	}
 
 	type serviceOverride struct {
-		Devices  *[]string `yaml:"devices,omitempty"`
 		User     string    `yaml:"user"`
-		GroupAdd []string  `yaml:"group_add"`
+		Devices  *[]string `yaml:"devices,omitempty"`
+		GroupAdd *[]string `yaml:"group_add,omitempty"`
 	}
 	var overrideCompose struct {
 		Services map[string]serviceOverride `yaml:"services,omitempty"`
@@ -411,7 +411,7 @@ func generateServicesOverrideFile(services []string, servicesThatRequireDevices 
 		}
 		if slices.Contains(servicesThatRequireDevices, svc) {
 			override.Devices = &devices
-			override.GroupAdd = groups
+			override.GroupAdd = &groups
 		}
 		overrideCompose.Services[svc] = override
 	}
