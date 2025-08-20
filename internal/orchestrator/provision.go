@@ -310,7 +310,7 @@ func generateMainComposeFile(
 	}
 
 	devices := getDevices()
-	groups := []string{"dialout", "video", "audio"}
+	groups := []string{"dialout", "video", "audio", "render"}
 
 	mainAppCompose.Services = &mainService{
 		Main: service{
@@ -407,11 +407,11 @@ func generateServicesOverrideFile(services []string, servicesThatRequireDevices 
 	overrideCompose.Services = make(map[string]serviceOverride, len(services))
 	for _, svc := range services {
 		override := serviceOverride{
-			User:     user,
-			GroupAdd: groups,
+			User: user,
 		}
 		if slices.Contains(servicesThatRequireDevices, svc) {
 			override.Devices = &devices
+			override.GroupAdd = groups
 		}
 		overrideCompose.Services[svc] = override
 	}
