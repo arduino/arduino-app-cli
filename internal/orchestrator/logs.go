@@ -90,6 +90,7 @@ func AppLogs(
 			WorkingDir:  mainCompose.Base(),
 			Environment: types.NewMapping(os.Environ()),
 		},
+		loader.WithSkipValidation, //TODO: check if there is a bug on docker compose upstream
 	)
 	if err != nil {
 		return nil, err
