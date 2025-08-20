@@ -35,39 +35,18 @@ var (
 	runnerVersion = "0.1.16"
 
 	GetBricksIndex = sync.OnceValue(func() *bricksindex.BricksIndex {
-		var bIndex *bricksindex.BricksIndex
-		if GetProvisioner().IsUsingDynamicProvision() {
-			dynamicProvisionDir := GetProvisioner().DynamicProvisionDir()
-			bIndex = f.Must(bricksindex.GenerateBricksIndexFromFile(dynamicProvisionDir))
-		} else {
-			bricksIndexContent := f.Must(GetStaticStore().GetBricksListFile())
-			defer bricksIndexContent.Close()
-			bIndex = f.Must(bricksindex.LoadBricksIndex(bricksIndexContent))
-		}
-		return bIndex
+		return f.Must(bricksindex.GenerateBricksIndexFromFile(GetStaticStore().GetAssetsFolder()))
 	})
 
 	GetModelsIndex = sync.OnceValue(func() *modelsindex.ModelsIndex {
-		var mIndex *modelsindex.ModelsIndex
-		if GetProvisioner().IsUsingDynamicProvision() {
-			dynamicProvisionDir := GetProvisioner().DynamicProvisionDir()
-			mIndex = f.Must(modelsindex.GenerateModelsIndexFromFile(dynamicProvisionDir))
-		} else {
-			modelsIndexContent := f.Must(GetStaticStore().GetModelsListFile())
-			defer modelsIndexContent.Close()
-			mIndex = f.Must(modelsindex.LoadModelsIndex(modelsIndexContent))
-		}
-		return mIndex
+		return f.Must(modelsindex.GenerateModelsIndexFromFile(GetStaticStore().GetAssetsFolder()))
 	})
 
 	GetProvisioner = sync.OnceValue(func() *orchestrator.Provision {
-		pythonImage, usedPythonImageTag := getPythonImageAndTag()
-		slog.Debug("Using pythonImage", slog.String("image", pythonImage))
-
+		pythonImage, _ := getPythonImageAndTag()
 		return f.Must(orchestrator.NewProvision(
 			GetDockerClient(),
-			GetStaticStore(),
-			usedPythonImageTag != runnerVersion,
+			shouldUseDynamicProvisioning(),
 			pythonImage,
 		))
 	})
@@ -102,7 +81,13 @@ var (
 	})
 
 	GetStaticStore = sync.OnceValue(func() *store.StaticStore {
-		return store.NewStaticStore(runnerVersion)
+		var baseDir string
+		if GetProvisioner().IsUsingDynamicProvision() {
+			baseDir = GetProvisioner().DynamicProvisionDir().String()
+		} else {
+			baseDir = globalConfig.AssetsDir().Join(runnerVersion).String()
+		}
+		return store.NewStaticStore(baseDir)
 	})
 
 	GetBrickService = sync.OnceValue(func() *bricks.Service {
@@ -135,4 +120,10 @@ func getPythonImageAndTag() (string, string) {
 		usedPythonImageTag = pythonImage[idx+1:]
 	}
 	return pythonImage, usedPythonImageTag
+}
+
+func shouldUseDynamicProvisioning() bool {
+	pythonImage, usedPythonImageTag := getPythonImageAndTag()
+	slog.Debug("Using pythonImage", slog.String("image", pythonImage))
+	return usedPythonImageTag != runnerVersion
 }

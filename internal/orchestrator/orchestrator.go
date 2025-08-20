@@ -29,6 +29,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/store"
 	"github.com/arduino/arduino-app-cli/pkg/helpers"
 	"github.com/arduino/arduino-app-cli/pkg/micro"
 	"github.com/arduino/arduino-app-cli/pkg/x/fatomic"
@@ -96,6 +97,7 @@ func StartApp(
 	bricksIndex *bricksindex.BricksIndex,
 	app app.ArduinoApp,
 	cfg config.Configuration,
+	staticStore *store.StaticStore,
 ) iter.Seq[StreamMessage] {
 	return func(yield func(StreamMessage) bool) {
 		ctx, cancel := context.WithCancel(ctx)
@@ -152,7 +154,7 @@ func StartApp(
 				cancel()
 				return
 			}
-			if err := ProvisionApp(ctx, provisioner, bricksIndex, mapped_env, &app, cfg); err != nil {
+			if err := ProvisionApp(ctx, provisioner, bricksIndex, mapped_env, &app, cfg, staticStore); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
@@ -238,6 +240,7 @@ func StartDefaultApp(
 	bricksIndex *bricksindex.BricksIndex,
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
+	staticStore *store.StaticStore,
 ) error {
 	app, err := GetDefaultApp(cfg)
 	if err != nil {
@@ -257,7 +260,7 @@ func StartDefaultApp(
 	}
 
 	// TODO: we need to stop all other running app before starting the default app.
-	for msg := range StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, *app, cfg) {
+	for msg := range StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, *app, cfg, staticStore) {
 		if msg.IsError() {
 			return fmt.Errorf("failed to start app: %w", msg.GetError())
 		}

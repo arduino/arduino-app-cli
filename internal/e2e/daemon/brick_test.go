@@ -7,11 +7,10 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
-	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/assets"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
@@ -23,13 +22,8 @@ func TestBricksList(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, response.JSON200.Bricks)
 
-	versions := f.Must(assets.FS.ReadDir("static"))
-	require.Len(t, versions, 1)
-	version := versions[0].Name()
-	staticStore := store.NewStaticStore(version)
-	indexContent := f.Must(staticStore.GetBricksListFile())
-	defer indexContent.Close()
-	brickIndex, err := bricksindex.LoadBricksIndex(indexContent)
+	staticStore := store.NewStaticStore(paths.New("testdata", "assets", "0.1.16").String())
+	brickIndex, err := bricksindex.GenerateBricksIndexFromFile(staticStore.GetAssetsFolder())
 	require.NoError(t, err)
 
 	// Compare the response with the bricks index

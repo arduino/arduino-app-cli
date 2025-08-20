@@ -1,7 +1,6 @@
 package orchestrator
 
 import (
-	"bytes"
 	"os"
 	"strings"
 	"testing"
@@ -14,6 +13,7 @@ import (
 	yaml "github.com/goccy/go-yaml"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestProvisionAppWithOverrides(t *testing.T) {
@@ -51,8 +51,7 @@ services:
 	err = videoObjectDetectionComposePath.Join("brick_compose.yaml").WriteFile([]byte(composeForVideoObjectDetection))
 	assert.Nil(t, err, "Failed to write compose file for video object detection")
 
-	// Override brick index with custom test content
-	bricksIndex, err := bricksindex.LoadBricksIndex(bytes.NewBuffer([]byte(`
+	bricksIndexContent := []byte(`
 bricks:
 - id: arduino:dbstorage_sqlstore
   name: Database Storage - SQLStore
@@ -80,7 +79,12 @@ bricks:
     description: path to the custom model directory
   - name: EI_OBJ_DETECTION_MODEL
     default_value: /models/ootb/ei/yolo-x-nano.eim
-    description: path to the model file`)))
+    description: path to the model file`)
+	err = paths.New(tempDirectory, "bricks-list.yaml").WriteFile(bricksIndexContent)
+	require.NoError(t, err)
+
+	// Override brick index with custom test content
+	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(paths.New(tempDirectory))
 	assert.Nil(t, err, "Failed to load bricks index with custom content")
 
 	br, ok := bricksIndex.FindBrickByID("arduino:video_object_detection")

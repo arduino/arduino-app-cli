@@ -9,6 +9,7 @@ import (
 
 type Configuration struct {
 	appsDir           *paths.Path
+	configDir         *paths.Path
 	dataDir           *paths.Path
 	routerSocketPath  *paths.Path
 	customEIModelsDir *paths.Path
@@ -32,20 +33,29 @@ func NewFromEnv() (Configuration, error) {
 		appsDir = wd.JoinPath(appsDir)
 	}
 
-	dataDir := paths.New(os.Getenv("ARDUINO_APP_CLI__DATA_DIR"))
-	if dataDir == nil {
+	configDir := paths.New(os.Getenv("ARDUINO_APP_CLI__CONFIG_DIR"))
+	if configDir == nil {
 		xdgConfig, err := os.UserConfigDir()
 		if err != nil {
 			return Configuration{}, err
 		}
-		dataDir = paths.New(xdgConfig).Join("arduino-app-cli")
+		configDir = paths.New(xdgConfig).Join("arduino-app-cli")
 	}
-	if !dataDir.IsAbs() {
+	if !configDir.IsAbs() {
 		wd, err := paths.Getwd()
 		if err != nil {
 			return Configuration{}, err
 		}
-		dataDir = wd.JoinPath(dataDir)
+		configDir = wd.JoinPath(configDir)
+	}
+
+	dataDir := paths.New(os.Getenv("ARDUINO_APP_CLI__DATA_DIR"))
+	if dataDir == nil {
+		xdgHome, err := os.UserHomeDir()
+		if err != nil {
+			return Configuration{}, err
+		}
+		dataDir = paths.New(xdgHome).Join(".local", "share", "arduino-app-cli")
 	}
 
 	routerSocket := paths.New(os.Getenv("ARDUINO_ROUTER_SOCKET"))
@@ -70,6 +80,7 @@ func NewFromEnv() (Configuration, error) {
 
 	c := Configuration{
 		appsDir:           appsDir,
+		configDir:         configDir,
 		dataDir:           dataDir,
 		routerSocketPath:  routerSocket,
 		customEIModelsDir: customEIModelsDir,
@@ -97,6 +108,10 @@ func (c *Configuration) AppsDir() *paths.Path {
 	return c.appsDir
 }
 
+func (c *Configuration) ConfigDir() *paths.Path {
+	return c.configDir
+}
+
 func (c *Configuration) DataDir() *paths.Path {
 	return c.dataDir
 }
@@ -107,4 +122,8 @@ func (c *Configuration) ExamplesDir() *paths.Path {
 
 func (c *Configuration) RouterSocketPath() *paths.Path {
 	return c.routerSocketPath
+}
+
+func (c *Configuration) AssetsDir() *paths.Path {
+	return c.dataDir.Join("assets")
 }

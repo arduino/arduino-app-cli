@@ -1,5 +1,6 @@
 #!/bin/sh
 
-chown -R arduino:arduino /home/arduino/.config/arduino-app-cli/examples
+chown -R arduino:arduino /home/arduino/.config/arduino-app-cli
+chown -R arduino:arduino /home/arduino/.local/share/arduino-app-cli
 
 systemctl enable arduino-app-cli

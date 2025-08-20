@@ -2,9 +2,7 @@ package orchestrator
 
 import (
 	"context"
-	"io/fs"
 	"os"
-	"path"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -48,20 +46,17 @@ func SystemInit(ctx context.Context, pythonImageTag string, staticStore *store.S
 }
 
 func parseAllModelsRunnerImageTag(staticStore *store.StaticStore) ([]string, error) {
-	assets, err := staticStore.GetAssetsFolder()
-	if err != nil {
-		return nil, err
-	}
-	baseDir := path.Join("compose", "arduino")
-	bricks, err := fs.ReadDir(assets, baseDir)
+	composePath := staticStore.GetComposeFolder()
+	brickNamespace := "arduino"
+	bricks, err := composePath.Join(brickNamespace).ReadDir()
 	if err != nil {
 		return nil, err
 	}
 
 	result := make([]string, 0, len(bricks))
 	for _, brick := range bricks {
-		composeFile := path.Join(baseDir, brick.Name(), "brick_compose.yaml")
-		content, err := fs.ReadFile(assets, composeFile)
+		composeFile := composePath.Join(brickNamespace, brick.Base(), "brick_compose.yaml")
+		content, err := composeFile.ReadFile()
 		if err != nil {
 			return nil, err
 		}

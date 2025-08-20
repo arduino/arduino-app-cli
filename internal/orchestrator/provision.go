@@ -53,39 +53,42 @@ func ProvisionApp(
 	mapped_env map[string]string,
 	app *app.ArduinoApp,
 	cfg config.Configuration,
+	staticStore *store.StaticStore,
 ) error {
 	start := time.Now()
 	defer func() {
 		slog.Info("Provisioning took", "duration", time.Since(start).String())
 	}()
-	return provisioner.App(ctx, bricksIndex, app, cfg, mapped_env)
+	return provisioner.App(ctx, bricksIndex, app, cfg, mapped_env, staticStore)
 }
 
 type Provision struct {
 	docker              command.Cli
 	useDynamicProvision bool
-	staticStore         *store.StaticStore
 	pythonImage         string
 }
 
 func NewProvision(
 	docker command.Cli,
-	staticStore *store.StaticStore,
 	useDynamicProvision bool,
 	pythonImage string,
 ) (*Provision, error) {
+	provisioner := &Provision{
+		docker:              docker,
+		useDynamicProvision: useDynamicProvision,
+		pythonImage:         pythonImage,
+	}
+
+	dyanmicProvisionDir := provisioner.DynamicProvisionDir()
 	if useDynamicProvision {
-		if err := dynamicProvisioning(context.Background(), docker.Client(), pythonImage, paths.TempDir().String()); err != nil {
+		_ = dyanmicProvisionDir.RemoveAll()
+		_ = dyanmicProvisionDir.MkdirAll()
+		if err := dynamicProvisioning(context.Background(), docker.Client(), pythonImage, dyanmicProvisionDir.String()); err != nil {
 			return nil, fmt.Errorf("failed to perform dynamic provisioning: %w", err)
 		}
 	}
 
-	return &Provision{
-		docker:              docker,
-		staticStore:         staticStore,
-		useDynamicProvision: useDynamicProvision,
-		pythonImage:         pythonImage,
-	}, nil
+	return provisioner, nil
 }
 
 func (p *Provision) App(
@@ -94,6 +97,7 @@ func (p *Provision) App(
 	arduinoApp *app.ArduinoApp,
 	cfg config.Configuration,
 	mapped_env map[string]string,
+	staticStore *store.StaticStore,
 ) error {
 	if arduinoApp == nil {
 		return fmt.Errorf("provisioning failed: arduinoApp is nil")
@@ -109,7 +113,7 @@ func (p *Provision) App(
 			return fmt.Errorf("failed to copy compose directory: %w", err)
 		}
 	} else {
-		if err := p.staticStore.SaveComposeFolderTo(dst.String()); err != nil {
+		if err := staticStore.SaveComposeFolderTo(dst.String()); err != nil {
 			return fmt.Errorf("failed to save compose folder: %w", err)
 		}
 	}
@@ -123,7 +127,7 @@ func (p *Provision) IsUsingDynamicProvision() bool {
 
 func (p *Provision) DynamicProvisionDir() *paths.Path {
 	if p.useDynamicProvision {
-		return paths.TempDir().Join(".cache")
+		return paths.TempDir().Join("dyanmic-provision", ".cache")
 	}
 	return nil
 }

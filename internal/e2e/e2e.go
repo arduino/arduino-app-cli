@@ -23,7 +23,7 @@ type ArduinoAppCLI struct {
 	DaemonAddr   string
 	path         *paths.Path
 	appDir       *paths.Path
-	dataDir      *paths.Path
+	configDir    *paths.Path
 	envVars      map[string]string
 	proc         *paths.Process
 	stdIn        io.WriteCloser
@@ -34,16 +34,18 @@ func NewArduinoAppCLI(t *testing.T) *ArduinoAppCLI {
 	rootDir, err := paths.MkTempDir("", "app-cli")
 	require.NoError(t, err)
 	appDir := rootDir.Join("ArduinoApps")
-	dataDir := rootDir.Join(".arduino-app-cli")
+	dataDir := FindRepositoryRootPath(t).Join("internal", "e2e", "daemon", "testdata")
+	configDir := rootDir.Join("config")
 	return &ArduinoAppCLI{
 		t:          require.New(t),
 		DaemonAddr: "",
 		path:       FindArduinoAppCLIPath(t),
 		appDir:     appDir,
-		dataDir:    dataDir,
+		configDir:  configDir,
 		envVars: map[string]string{
-			"ARDUINO_APP_CLI__APPS_DIR": appDir.String(),
-			"ARDUINO_APP_CLI__DATA_DIR": dataDir.String(),
+			"ARDUINO_APP_CLI__APPS_DIR":   appDir.String(),
+			"ARDUINO_APP_CLI__CONFIG_DIR": configDir.String(),
+			"ARDUINO_APP_CLI__DATA_DIR":   dataDir.String(),
 		},
 	}
 }

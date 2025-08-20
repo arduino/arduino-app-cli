@@ -55,6 +55,7 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 					servicelocator.GetBricksIndex(),
 					servicelocator.GetAppIDProvider(),
 					cfg,
+					servicelocator.GetStaticStore(),
 				)
 				if err != nil {
 					slog.Error("Failed to start default app", slog.String("error", err.Error()))
