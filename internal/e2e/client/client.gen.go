@@ -114,15 +114,17 @@ type BrickCreateUpdateRequest struct {
 
 // BrickDetailsResult defines model for BrickDetailsResult.
 type BrickDetailsResult struct {
-	Author      *string                   `json:"author,omitempty"`
-	Category    *string                   `json:"category,omitempty"`
-	Description *string                   `json:"description,omitempty"`
-	Id          *string                   `json:"id,omitempty"`
-	Name        *string                   `json:"name,omitempty"`
-	Readme      *string                   `json:"readme,omitempty"`
-	Status      *string                   `json:"status,omitempty"`
-	UsedByApps  *[]AppReference           `json:"used_by_apps"`
-	Variables   *map[string]BrickVariable `json:"variables,omitempty"`
+	ApiDocsPath  *string                   `json:"api_docs_path,omitempty"`
+	Author       *string                   `json:"author,omitempty"`
+	Category     *string                   `json:"category,omitempty"`
+	CodeExamples *[]CodeExample            `json:"code_examples"`
+	Description  *string                   `json:"description,omitempty"`
+	Id           *string                   `json:"id,omitempty"`
+	Name         *string                   `json:"name,omitempty"`
+	Readme       *string                   `json:"readme,omitempty"`
+	Status       *string                   `json:"status,omitempty"`
+	UsedByApps   *[]AppReference           `json:"used_by_apps"`
+	Variables    *map[string]BrickVariable `json:"variables,omitempty"`
 }
 
 // BrickInstance defines model for BrickInstance.
@@ -171,6 +173,11 @@ type CloneRequest struct {
 
 	// Name application name
 	Name *string `json:"name"`
+}
+
+// CodeExample defines model for CodeExample.
+type CodeExample struct {
+	Path *string `json:"path,omitempty"`
 }
 
 // ConfigDirectories defines model for ConfigDirectories.

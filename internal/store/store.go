@@ -11,18 +11,22 @@ import (
 )
 
 type StaticStore struct {
-	baseDir     string
-	composePath string
-	docsPath    string
-	assetsPath  *paths.Path
+	baseDir          string
+	composePath      string
+	docsPath         string
+	assetsPath       *paths.Path
+	apiDocsPath      string
+	codeExamplesPath string
 }
 
 func NewStaticStore(baseDir string) *StaticStore {
 	return &StaticStore{
-		baseDir:     baseDir,
-		composePath: filepath.Join(baseDir, "compose"),
-		docsPath:    filepath.Join(baseDir, "docs"),
-		assetsPath:  paths.New(baseDir),
+		baseDir:          baseDir,
+		composePath:      filepath.Join(baseDir, "compose"),
+		docsPath:         filepath.Join(baseDir, "docs"),
+		apiDocsPath:      filepath.Join(baseDir, "api-docs"),
+		codeExamplesPath: filepath.Join(baseDir, "examples"),
+		assetsPath:       paths.New(baseDir),
 	}
 }
 
@@ -62,4 +66,25 @@ func (s *StaticStore) GetBrickComposeFilePathFromID(brickID string) (*paths.Path
 		return nil, errors.New("invalid ID")
 	}
 	return paths.New(s.composePath, namespace, brickName, "brick_compose.yaml"), nil
+}
+
+func (s *StaticStore) GetBrickApiDocPathFromID(brickID string) (string, error) {
+	namespace, brickName, ok := strings.Cut(brickID, ":")
+	if !ok {
+		return "", errors.New("invalid ID")
+	}
+	return filepath.Join(s.apiDocsPath, namespace, "app_bricks", brickName, "API.md"), nil
+}
+
+func (s *StaticStore) GetBrickCodeExamplesPathFromID(brickID string) (paths.PathList, error) {
+	namespace, brickName, ok := strings.Cut(brickID, ":")
+	if !ok {
+		return nil, errors.New("invalid ID")
+	}
+	targetDir := paths.New(s.codeExamplesPath, namespace, brickName)
+	dirEntries, err := targetDir.ReadDir()
+	if err != nil {
+		return nil, fmt.Errorf("cannot read examples directory %q: %w", targetDir, err)
+	}
+	return dirEntries, nil
 }

@@ -34,6 +34,9 @@ type BrickVariable struct {
 	Required     bool   `json:"required"`
 }
 
+type CodeExample struct {
+	Path string `json:"path"`
+}
 type AppReference struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -41,13 +44,15 @@ type AppReference struct {
 }
 
 type BrickDetailsResult struct {
-	ID          string                   `json:"id"`
-	Name        string                   `json:"name"`
-	Author      string                   `json:"author"`
-	Description string                   `json:"description"`
-	Category    string                   `json:"category"`
-	Status      string                   `json:"status"`
-	Variables   map[string]BrickVariable `json:"variables,omitempty"`
-	Readme      string                   `json:"readme"`
-	UsedByApps  []AppReference           `json:"used_by_apps"`
+	ID           string                   `json:"id"`
+	Name         string                   `json:"name"`
+	Author       string                   `json:"author"`
+	Description  string                   `json:"description"`
+	Category     string                   `json:"category"`
+	Status       string                   `json:"status"`
+	Variables    map[string]BrickVariable `json:"variables,omitempty"`
+	Readme       string                   `json:"readme"`
+	ApiDocsPath  string                   `json:"api_docs_path"`
+	CodeExamples []CodeExample            `json:"code_examples"`
+	UsedByApps   []AppReference           `json:"used_by_apps"`
 }

@@ -976,10 +976,17 @@ components:
       type: object
     BrickDetailsResult:
       properties:
+        api_docs_path:
+          type: string
         author:
           type: string
         category:
           type: string
+        code_examples:
+          items:
+            $ref: '#/components/schemas/CodeExample'
+          nullable: true
+          type: array
         description:
           type: string
         id:
@@ -1071,6 +1078,11 @@ components:
           description: application name
           example: My Awesome App
           nullable: true
+          type: string
+      type: object
+    CodeExample:
+      properties:
+        path:
           type: string
       type: object
     ConfigDirectories:

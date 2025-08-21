@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/arduino/go-paths-helper"
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -129,15 +130,32 @@ func (s *Service) BricksDetails(id string) (BrickDetailsResult, error) {
 		return BrickDetailsResult{}, fmt.Errorf("cannot open docs for brick %s: %w", id, err)
 	}
 
+	apiDocsPath, err := s.staticStore.GetBrickApiDocPathFromID(brick.ID)
+	if err != nil {
+		return BrickDetailsResult{}, fmt.Errorf("cannot open api-docs for brick %s: %w", id, err)
+	}
+
+	examplePaths, err := s.staticStore.GetBrickCodeExamplesPathFromID(brick.ID)
+	if err != nil {
+		return BrickDetailsResult{}, fmt.Errorf("cannot open code examples for brick %s: %w", id, err)
+	}
+	codeExamples := f.Map(examplePaths, func(p *paths.Path) CodeExample {
+		return CodeExample{
+			Path: p.String(),
+		}
+	})
+
 	return BrickDetailsResult{
-		ID:          id,
-		Name:        brick.Name,
-		Author:      "Arduino", // TODO: for now we only support our bricks
-		Description: brick.Description,
-		Category:    brick.Category,
-		Status:      "installed", // For now every Arduino brick are installed
-		Variables:   variables,
-		Readme:      readme,
+		ID:           id,
+		Name:         brick.Name,
+		Author:       "Arduino", // TODO: for now we only support our bricks
+		Description:  brick.Description,
+		Category:     brick.Category,
+		Status:       "installed", // For now every Arduino brick are installed
+		Variables:    variables,
+		Readme:       readme,
+		ApiDocsPath:  apiDocsPath,
+		CodeExamples: codeExamples,
 	}, nil
 }
 

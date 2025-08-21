@@ -236,15 +236,15 @@ func HandleBrickDelete(
 		if err != nil {
 			switch {
 			case errors.Is(err, bricks.ErrBrickNotFound):
-				details := fmt.Sprintf("brick not found for id %q", id)
-				render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})
+				slog.Error("brick not found", "id", id, "error", err)
+				render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: "brick not found"})
 
 			case errors.Is(err, bricks.ErrCannotSaveBrick):
-				log.Printf("Internal error saving brick instance %s: %v", id, err)
+				slog.Error("Internal error saving brick instance", "id", id, "error", err)
 				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to delete the app"})
 
 			default:
-				log.Printf("Unexpected error deleting brick %s: %v", id, err)
+				slog.Error("Unexpected error deleting brick", "id", id, "error", err)
 				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "A server error occurred while finalizing the deletion."})
 			}
 			return
