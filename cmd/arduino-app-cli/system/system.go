@@ -98,7 +98,7 @@ func newUpdateCmd() *cobra.Command {
 	}
 
 	cmd.PersistentFlags().BoolVar(&onlyArduino, "only-arduino", false, "Check for all upgradable packages")
-	cmd.PersistentFlags().BoolVar(&forceYes, "--yes", false, "Automatically confirm all prompts")
+	cmd.PersistentFlags().BoolVar(&forceYes, "yes", false, "Automatically confirm all prompts")
 
 	return cmd
 }
