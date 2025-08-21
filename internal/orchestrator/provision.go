@@ -67,10 +67,9 @@ func NewProvision(
 		if err := dynamicProvisioning(context.Background(), docker.Client(), pythonImage, tmpProvisionDir.String()); err != nil {
 			return nil, fmt.Errorf("failed to perform dynamic provisioning: %w", err)
 		}
-		if err := tmpProvisionDir.Join(".cache").Rename(dynamicProvisionDir); err != nil {
+		if err := tmpProvisionDir.Rename(dynamicProvisionDir); err != nil {
 			return nil, fmt.Errorf("failed to rename tmp provisioning folder: %w", err)
 		}
-		_ = tmpProvisionDir.RemoveAll()
 	}
 
 	return &Provision{
@@ -112,8 +111,8 @@ func dynamicProvisioning(
 			"/bin/bash",
 			"-c",
 			fmt.Sprintf("%s && %s",
-				"arduino-bricks-list-modules --provision-compose",
-				"arduino-bricks-list-modules -o /app/.cache/bricks-list.yaml -m /app/.cache/models-list.yaml",
+				"arduino-bricks-list-modules -o /app/bricks-list.yaml -m /app/models-list.yaml",
+				"arduino-bricks-list-modules --provision-compose -o /app",
 			),
 		},
 	}
