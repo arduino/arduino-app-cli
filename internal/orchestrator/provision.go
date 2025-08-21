@@ -7,11 +7,9 @@ import (
 	"log/slog"
 	"maps"
 	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/containerd/errdefs"
 
@@ -46,49 +44,39 @@ type service struct {
 	Labels     map[string]string `yaml:"labels,omitempty"`
 }
 
-func ProvisionApp(
-	ctx context.Context,
-	provisioner *Provision,
-	bricksIndex *bricksindex.BricksIndex,
-	mapped_env map[string]string,
-	app *app.ArduinoApp,
-	cfg config.Configuration,
-	staticStore *store.StaticStore,
-) error {
-	start := time.Now()
-	defer func() {
-		slog.Info("Provisioning took", "duration", time.Since(start).String())
-	}()
-	return provisioner.App(ctx, bricksIndex, app, cfg, mapped_env, staticStore)
-}
-
 type Provision struct {
-	docker              command.Cli
-	useDynamicProvision bool
-	pythonImage         string
+	docker      command.Cli
+	pythonImage string
 }
 
 func NewProvision(
 	docker command.Cli,
-	useDynamicProvision bool,
 	pythonImage string,
+	usedPythonImageTag string,
+	pinnedPythonImagTag string,
+	cfg config.Configuration,
 ) (*Provision, error) {
-	provisioner := &Provision{
-		docker:              docker,
-		useDynamicProvision: useDynamicProvision,
-		pythonImage:         pythonImage,
-	}
-
-	dyanmicProvisionDir := provisioner.DynamicProvisionDir()
-	if useDynamicProvision {
-		_ = dyanmicProvisionDir.RemoveAll()
-		_ = dyanmicProvisionDir.MkdirAll()
-		if err := dynamicProvisioning(context.Background(), docker.Client(), pythonImage, dyanmicProvisionDir.String()); err != nil {
+	isDevelopmentMode := usedPythonImageTag != pinnedPythonImagTag
+	if isDevelopmentMode {
+		dynamicProvisionDir := cfg.AssetsDir().Join(usedPythonImageTag)
+		_ = dynamicProvisionDir.RemoveAll()
+		tmpProvisionDir, err := cfg.AssetsDir().MkTempDir("dynamic-provisioning")
+		if err != nil {
+			return nil, fmt.Errorf("failed to perform creation of dynamic provisioning dir: %w", err)
+		}
+		if err := dynamicProvisioning(context.Background(), docker.Client(), pythonImage, tmpProvisionDir.String()); err != nil {
 			return nil, fmt.Errorf("failed to perform dynamic provisioning: %w", err)
 		}
+		if err := tmpProvisionDir.Join(".cache").Rename(dynamicProvisionDir); err != nil {
+			return nil, fmt.Errorf("failed to rename tmp provisioning folder: %w", err)
+		}
+		_ = tmpProvisionDir.RemoveAll()
 	}
 
-	return provisioner, nil
+	return &Provision{
+		docker:      docker,
+		pythonImage: pythonImage,
+	}, nil
 }
 
 func (p *Provision) App(
@@ -103,33 +91,13 @@ func (p *Provision) App(
 		return fmt.Errorf("provisioning failed: arduinoApp is nil")
 	}
 
-	dst := arduinoApp.ProvisioningStateDir().Join("compose")
-	if err := dst.RemoveAll(); err != nil {
-		return fmt.Errorf("failed to remove compose directory: %w", err)
-	}
-	if p.useDynamicProvision {
-		composeDir := paths.New(paths.TempDir().String(), ".cache", "compose")
-		if err := composeDir.CopyDirTo(dst); err != nil {
-			return fmt.Errorf("failed to copy compose directory: %w", err)
-		}
-	} else {
-		if err := staticStore.SaveComposeFolderTo(dst.String()); err != nil {
-			return fmt.Errorf("failed to save compose folder: %w", err)
+	if arduinoApp.ProvisioningStateDir().NotExist() {
+		if err := arduinoApp.ProvisioningStateDir().MkdirAll(); err != nil {
+			return fmt.Errorf("provisioning failed: unable to create .cache")
 		}
 	}
 
-	return generateMainComposeFile(arduinoApp, bricksIndex, p.pythonImage, cfg, mapped_env)
-}
-
-func (p *Provision) IsUsingDynamicProvision() bool {
-	return p.useDynamicProvision
-}
-
-func (p *Provision) DynamicProvisionDir() *paths.Path {
-	if p.useDynamicProvision {
-		return paths.TempDir().Join("dyanmic-provision", ".cache")
-	}
-	return nil
+	return generateMainComposeFile(arduinoApp, bricksIndex, p.pythonImage, cfg, mapped_env, staticStore)
 }
 
 func dynamicProvisioning(
@@ -209,6 +177,7 @@ func generateMainComposeFile(
 	pythonImage string,
 	cfg config.Configuration,
 	mapped_env map[string]string,
+	staticStore *store.StaticStore,
 ) error {
 	slog.Debug("Generating main compose file for the App")
 
@@ -216,21 +185,25 @@ func generateMainComposeFile(
 	services := []string{}
 	brickServices := map[string][]string{}
 	for _, brick := range app.Descriptor.Bricks {
-		brickPath := filepath.Join(strings.Split(brick.ID, ":")...)
-		composeFilePath := app.ProvisioningStateDir().Join("compose", brickPath, "brick_compose.yaml")
-		if composeFilePath.Exist() {
-			composeFiles.Add(composeFilePath)
-			svcs, e := extracServicesFromComposeFile(composeFilePath)
-			if e != nil {
-				slog.Error("Failed to extract services from compose file", slog.String("compose_file", composeFilePath.String()), slog.Any("error", e))
-				continue
-			}
-			brickServices[brick.ID] = svcs
-			services = append(services, svcs...)
-			slog.Debug("Brick compose file found", slog.String("module", brick.ID), slog.String("path", composeFilePath.String()))
-		} else {
-			slog.Debug("Brick compose file not found", slog.String("module", brick.ID), slog.String("path", composeFilePath.String()))
+		composeFilePath, err := staticStore.GetBrickComposeFilePathFromID(brick.ID)
+		if err != nil {
+			slog.Error("brick compose id not valid", slog.String("error", err.Error()), slog.String("brick_id", brick.ID))
+			continue
 		}
+		if !composeFilePath.Exist() {
+			slog.Debug("Brick compose file not found", slog.String("module", brick.ID), slog.String("path", composeFilePath.String()))
+			continue
+		}
+
+		composeFiles.Add(composeFilePath)
+		svcs, e := extracServicesFromComposeFile(composeFilePath)
+		if e != nil {
+			slog.Error("Failed to extract services from compose file", slog.String("compose_file", composeFilePath.String()), slog.Any("error", e))
+			continue
+		}
+		brickServices[brick.ID] = svcs
+		services = append(services, svcs...)
+		slog.Debug("Brick compose file found", slog.String("module", brick.ID), slog.String("path", composeFilePath.String()))
 	}
 
 	// Create a single docker-mainCompose that includes all the required services

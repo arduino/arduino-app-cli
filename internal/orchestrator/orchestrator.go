@@ -154,7 +154,8 @@ func StartApp(
 				cancel()
 				return
 			}
-			if err := ProvisionApp(ctx, provisioner, bricksIndex, mapped_env, &app, cfg, staticStore); err != nil {
+
+			if err := provisioner.App(ctx, bricksIndex, &app, cfg, mapped_env, staticStore); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}

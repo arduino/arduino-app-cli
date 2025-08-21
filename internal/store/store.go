@@ -55,3 +55,11 @@ func (s *StaticStore) GetBrickReadmeFromID(brickID string) (string, error) {
 	}
 	return string(content), nil
 }
+
+func (s *StaticStore) GetBrickComposeFilePathFromID(brickID string) (*paths.Path, error) {
+	namespace, brickName, ok := strings.Cut(brickID, ":")
+	if !ok {
+		return nil, errors.New("invalid ID")
+	}
+	return paths.New(s.composePath, namespace, brickName, "brick_compose.yaml"), nil
+}

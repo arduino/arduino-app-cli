@@ -43,11 +43,15 @@ var (
 	})
 
 	GetProvisioner = sync.OnceValue(func() *orchestrator.Provision {
-		pythonImage, _ := getPythonImageAndTag()
+		pythonImage, usedPythonImageTag := getPythonImageAndTag()
+		slog.Debug("Using pythonImage", slog.String("image", pythonImage))
+
 		return f.Must(orchestrator.NewProvision(
 			GetDockerClient(),
-			shouldUseDynamicProvisioning(),
 			pythonImage,
+			usedPythonImageTag,
+			runnerVersion,
+			globalConfig,
 		))
 	})
 
@@ -81,13 +85,7 @@ var (
 	})
 
 	GetStaticStore = sync.OnceValue(func() *store.StaticStore {
-		var baseDir string
-		if GetProvisioner().IsUsingDynamicProvision() {
-			baseDir = GetProvisioner().DynamicProvisionDir().String()
-		} else {
-			baseDir = globalConfig.AssetsDir().Join(runnerVersion).String()
-		}
-		return store.NewStaticStore(baseDir)
+		return store.NewStaticStore(globalConfig.AssetsDir().Join(GetUsedPythonImageTag()).String())
 	})
 
 	GetBrickService = sync.OnceValue(func() *bricks.Service {
@@ -120,10 +118,4 @@ func getPythonImageAndTag() (string, string) {
 		usedPythonImageTag = pythonImage[idx+1:]
 	}
 	return pythonImage, usedPythonImageTag
-}
-
-func shouldUseDynamicProvisioning() bool {
-	pythonImage, usedPythonImageTag := getPythonImageAndTag()
-	slog.Debug("Using pythonImage", slog.String("image", pythonImage))
-	return usedPythonImageTag != runnerVersion
 }

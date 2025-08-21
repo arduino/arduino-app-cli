@@ -9,16 +9,18 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/store"
 
 	yaml "github.com/goccy/go-yaml"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestProvisionAppWithOverrides(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	tempDirectory := t.TempDir()
+
+	staticStore := store.NewStaticStore(cfg.AssetsDir().String())
 
 	// Define a mock app with bricks that require overrides
 	app := app.ArduinoApp{
@@ -36,10 +38,10 @@ func TestProvisionAppWithOverrides(t *testing.T) {
 		},
 		FullPath: paths.New(tempDirectory),
 	}
+	require.NoError(t, app.ProvisioningStateDir().MkdirAll())
 	// Add compose files for the bricks - video object detection
-	videoObjectDetectionComposePath := paths.New(tempDirectory).Join(".cache").Join("compose").Join("arduino").Join("video_object_detection")
-	err := videoObjectDetectionComposePath.MkdirAll()
-	assert.Nil(t, err, "Failed to create compose directory for video object detection")
+	videoObjectDetectionComposePath := cfg.AssetsDir().Join("compose", "arduino", "video_object_detection")
+	require.NoError(t, videoObjectDetectionComposePath.MkdirAll())
 	composeForVideoObjectDetection := `
 version: '3.8'
 services:
@@ -48,8 +50,8 @@ services:
     ports:
     - "8080:8080"
 `
-	err = videoObjectDetectionComposePath.Join("brick_compose.yaml").WriteFile([]byte(composeForVideoObjectDetection))
-	assert.Nil(t, err, "Failed to write compose file for video object detection")
+	err := videoObjectDetectionComposePath.Join("brick_compose.yaml").WriteFile([]byte(composeForVideoObjectDetection))
+	require.NoError(t, err)
 
 	bricksIndexContent := []byte(`
 bricks:
@@ -80,40 +82,40 @@ bricks:
   - name: EI_OBJ_DETECTION_MODEL
     default_value: /models/ootb/ei/yolo-x-nano.eim
     description: path to the model file`)
-	err = paths.New(tempDirectory, "bricks-list.yaml").WriteFile(bricksIndexContent)
+	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
 
 	// Override brick index with custom test content
-	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(paths.New(tempDirectory))
-	assert.Nil(t, err, "Failed to load bricks index with custom content")
+	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(cfg.AssetsDir())
+	require.Nil(t, err, "Failed to load bricks index with custom content")
 
 	br, ok := bricksIndex.FindBrickByID("arduino:video_object_detection")
-	assert.True(t, ok, "Brick arduino:video_object_detection should exist in the index")
-	assert.NotNil(t, br, "Brick arduino:video_object_detection should not be nil")
-	assert.Equal(t, "Object Detection", br.Name, "Brick name should match")
+	require.True(t, ok, "Brick arduino:video_object_detection should exist in the index")
+	require.NotNil(t, br, "Brick arduino:video_object_detection should not be nil")
+	require.Equal(t, "Object Detection", br.Name, "Brick name should match")
 
 	// Run the provision function to generate the main compose file
 	env := map[string]string{}
-	err = generateMainComposeFile(&app, bricksIndex, "arduino:appslab-python-apps-base:dev-latest", cfg, env)
+	err = generateMainComposeFile(&app, bricksIndex, "arduino:appslab-python-apps-base:dev-latest", cfg, env, staticStore)
 
 	// Validate that the main compose file and overrides are created
-	assert.Nil(t, err, "Failed to generate main compose file")
+	require.NoError(t, err, "Failed to generate main compose file")
 	composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
-	assert.True(t, composeFilePath.Exist(), "Main compose file should exist")
+	require.True(t, composeFilePath.Exist(), "Main compose file should exist")
 	overridesFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose-overrides.yaml")
-	assert.True(t, overridesFilePath.Exist(), "Override compose file should exist")
+	require.True(t, overridesFilePath.Exist(), "Override compose file should exist")
 
 	// Open override file and check for the expected override
 	overridesContent, err := overridesFilePath.ReadFile()
-	assert.Nil(t, err, "Failed to read overrides file")
+	require.Nil(t, err, "Failed to read overrides file")
 	type services struct {
 		Services map[string]map[string]interface{} `yaml:"services"`
 	}
 	content := services{}
 	err = yaml.Unmarshal(overridesContent, &content)
-	assert.Nil(t, err, "Failed to unmarshal overrides content")
-	assert.NotNil(t, content.Services["ei-video-obj-detection-runner"], "Override for ei-video-obj-detection-runner should exist")
-	assert.NotNil(t, content.Services["ei-video-obj-detection-runner"]["devices"], "Override for ei-video-obj-detection-runner devices should exist")
+	require.Nil(t, err, "Failed to unmarshal overrides content")
+	require.NotNil(t, content.Services["ei-video-obj-detection-runner"], "Override for ei-video-obj-detection-runner should exist")
+	require.NotNil(t, content.Services["ei-video-obj-detection-runner"]["devices"], "Override for ei-video-obj-detection-runner devices should exist")
 }
 
 func TestVolumeParser(t *testing.T) {
@@ -145,9 +147,9 @@ services:
 			"CUSTOM_PATH": tempDirectory,
 		}
 		volumes, err := extractVolumesFromComposeFile(volumesFromFile.String())
-		assert.Nil(t, err, "Failed to extract volumes from compose file")
+		require.Nil(t, err, "Failed to extract volumes from compose file")
 		provisionComposeVolumes(volumesFromFile.String(), volumes, app, env)
-		assert.True(t, app.FullPath.Join("data").Join("influx-data").Exist(), "Volume directory should exist")
+		require.True(t, app.FullPath.Join("data").Join("influx-data").Exist(), "Volume directory should exist")
 	})
 
 	t.Run("TestPreProvsionVolumesCustomEnvUsingDefault", func(t *testing.T) {
@@ -178,9 +180,9 @@ services:
 		// No env, use macro default value
 		env := map[string]string{}
 		volumes, err := extractVolumesFromComposeFile(volumesFromFile.String())
-		assert.Nil(t, err, "Failed to extract volumes from compose file")
+		require.Nil(t, err, "Failed to extract volumes from compose file")
 		provisionComposeVolumes(volumesFromFile.String(), volumes, app, env)
-		assert.True(t, app.FullPath.Join("customized").Join("data").Join("influx-data").Exist(), "Volume directory should exist")
+		require.True(t, app.FullPath.Join("customized").Join("data").Join("influx-data").Exist(), "Volume directory should exist")
 	})
 
 	t.Run("TestPreProvsionVolumesAsStructure", func(t *testing.T) {
@@ -210,9 +212,9 @@ services:
 		}
 		env := map[string]string{}
 		volumes, err := extractVolumesFromComposeFile(volumesFromFile.String())
-		assert.Nil(t, err, "Failed to extract volumes from compose file")
+		require.Nil(t, err, "Failed to extract volumes from compose file")
 		provisionComposeVolumes(volumesFromFile.String(), volumes, app, env)
-		assert.True(t, app.FullPath.Join("data").Join("influx-data").Exist(), "Volume directory should exist")
+		require.True(t, app.FullPath.Join("data").Join("influx-data").Exist(), "Volume directory should exist")
 	})
 
 	t.Run("TestPreProvsionVolumes", func(t *testing.T) {
@@ -240,9 +242,9 @@ services:
 		}
 		env := map[string]string{}
 		volumes, err := extractVolumesFromComposeFile(volumesFromFile.String())
-		assert.Nil(t, err, "Failed to extract volumes from compose file")
+		require.Nil(t, err, "Failed to extract volumes from compose file")
 		provisionComposeVolumes(volumesFromFile.String(), volumes, app, env)
-		assert.True(t, app.FullPath.Join("data").Join("influx-data").Exist(), "Volume directory should exist")
+		require.True(t, app.FullPath.Join("data").Join("influx-data").Exist(), "Volume directory should exist")
 	})
 
 }

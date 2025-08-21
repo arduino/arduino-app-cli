@@ -95,10 +95,10 @@ func (c *Configuration) init() error {
 	if err := c.AppsDir().MkdirAll(); err != nil {
 		return err
 	}
-	if err := c.dataDir.MkdirAll(); err != nil {
+	if err := c.ExamplesDir().MkdirAll(); err != nil {
 		return err
 	}
-	if err := c.ExamplesDir().MkdirAll(); err != nil {
+	if err := c.AssetsDir().MkdirAll(); err != nil {
 		return err
 	}
 	return nil
