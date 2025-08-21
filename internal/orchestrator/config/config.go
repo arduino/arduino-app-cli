@@ -10,7 +10,6 @@ import (
 	"github.com/arduino/go-paths-helper"
 )
 
-// Do not manually modify this, we keep it updated with the `task generate:bricks-and-models-index`
 var runnerVersion = "0.1.16"
 
 type Configuration struct {

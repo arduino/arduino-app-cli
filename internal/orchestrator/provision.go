@@ -21,7 +21,6 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/docker/api/types/container"
-	dockerClient "github.com/docker/docker/client"
 	yaml "github.com/goccy/go-yaml"
 )
 
@@ -49,30 +48,55 @@ type Provision struct {
 	pythonImage string
 }
 
+// isPreEmbargo checks if the runner version is the pre-embargo version.
+// Before the embargo, boards are stuck to run the docker contains version 0.1.16.
+// We need to be sure that we aren't enabling features that aren't available in that version, such as:
+// - Disable dynamic provisioning
+// - Render group functionality
+func isPreEmbargo(cfg config.Configuration) bool {
+	return cfg.RunnerVersion == "0.1.16"
+}
+
+func isDevelopmentMode(cfg config.Configuration) bool {
+	return cfg.RunnerVersion != cfg.UsedPythonImageTag
+}
+
 func NewProvision(
 	docker command.Cli,
 	cfg config.Configuration,
 ) (*Provision, error) {
-	isDevelopmentMode := cfg.UsedPythonImageTag != cfg.RunnerVersion
-	if isDevelopmentMode {
-		dynamicProvisionDir := cfg.AssetsDir().Join(cfg.UsedPythonImageTag)
-		_ = dynamicProvisionDir.RemoveAll()
-		tmpProvisionDir, err := cfg.AssetsDir().MkTempDir("dynamic-provisioning")
-		if err != nil {
-			return nil, fmt.Errorf("failed to perform creation of dynamic provisioning dir: %w", err)
-		}
-		if err := dynamicProvisioning(context.Background(), docker.Client(), cfg.PythonImage, tmpProvisionDir.String()); err != nil {
-			return nil, fmt.Errorf("failed to perform dynamic provisioning: %w", err)
-		}
-		if err := tmpProvisionDir.Rename(dynamicProvisionDir); err != nil {
-			return nil, fmt.Errorf("failed to rename tmp provisioning folder: %w", err)
-		}
-	}
-
-	return &Provision{
+	provision := &Provision{
 		docker:      docker,
 		pythonImage: cfg.PythonImage,
-	}, nil
+	}
+
+	if isPreEmbargo(cfg) && !isDevelopmentMode(cfg) {
+		return provision, nil
+	}
+
+	dynamicProvisionDir := cfg.AssetsDir().Join(cfg.UsedPythonImageTag)
+
+	// In development mode we want to make sure everything is fresh.
+	if isDevelopmentMode(cfg) {
+		_ = dynamicProvisionDir.RemoveAll()
+	}
+
+	if dynamicProvisionDir.Exist() {
+		return provision, nil
+	}
+
+	tmpProvisionDir, err := cfg.AssetsDir().MkTempDir("dynamic-provisioning")
+	if err != nil {
+		return nil, fmt.Errorf("failed to perform creation of dynamic provisioning dir: %w", err)
+	}
+	if err := provision.init(tmpProvisionDir.String()); err != nil {
+		return nil, fmt.Errorf("failed to perform dynamic provisioning: %w", err)
+	}
+	if err := tmpProvisionDir.Rename(dynamicProvisionDir); err != nil {
+		return nil, fmt.Errorf("failed to rename tmp provisioning folder: %w", err)
+	}
+
+	return provision, nil
 }
 
 func (p *Provision) App(
@@ -96,13 +120,11 @@ func (p *Provision) App(
 	return generateMainComposeFile(arduinoApp, bricksIndex, p.pythonImage, cfg, mapped_env, staticStore)
 }
 
-func dynamicProvisioning(
-	ctx context.Context,
-	docker dockerClient.APIClient,
-	pythonImage, srcPath string,
+func (p *Provision) init(
+	srcPath string,
 ) error {
 	containerCfg := &container.Config{
-		Image: pythonImage,
+		Image: p.pythonImage,
 		User:  getCurrentUser(),
 		Entrypoint: []string{
 			"/bin/bash",
@@ -117,14 +139,14 @@ func dynamicProvisioning(
 		Binds:      []string{srcPath + ":/app"},
 		AutoRemove: true,
 	}
-	resp, err := docker.ContainerCreate(ctx, containerCfg, containerHostCfg, nil, nil, "")
+	resp, err := p.docker.Client().ContainerCreate(context.Background(), containerCfg, containerHostCfg, nil, nil, "")
 	if err != nil {
 		if errors.Is(err, errdefs.ErrNotFound) {
-			if err := pullBasePythonContainer(ctx, pythonImage); err != nil {
+			if err := pullBasePythonContainer(context.Background(), p.pythonImage); err != nil {
 				return fmt.Errorf("provisioning failed to pull base image: %w", err)
 			}
 			// Now that we have pulled the container we recreate it
-			resp, err = docker.ContainerCreate(ctx, containerCfg, containerHostCfg, nil, nil, "")
+			resp, err = p.docker.Client().ContainerCreate(context.Background(), containerCfg, containerHostCfg, nil, nil, "")
 		}
 		if err != nil {
 			return fmt.Errorf("provisiong failed to create container: %w", err)
@@ -133,8 +155,8 @@ func dynamicProvisioning(
 
 	slog.Debug("provisioning container created", slog.String("container_id", resp.ID))
 
-	waitCh, errCh := docker.ContainerWait(ctx, resp.ID, container.WaitConditionNextExit)
-	if err := docker.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+	waitCh, errCh := p.docker.Client().ContainerWait(context.Background(), resp.ID, container.WaitConditionNextExit)
+	if err := p.docker.Client().ContainerStart(context.Background(), resp.ID, container.StartOptions{}); err != nil {
 		return fmt.Errorf("provisioning failed to start container: %w", err)
 	}
 	slog.Debug("provisioning container started", slog.String("container_id", resp.ID))
@@ -283,7 +305,11 @@ func generateMainComposeFile(
 	}
 
 	devices := getDevices()
-	groups := []string{"dialout", "video", "audio", "render"}
+
+	groups := []string{"dialout", "video", "audio"}
+	if !isPreEmbargo(cfg) || isDevelopmentMode(cfg) {
+		groups = append(groups, "render")
+	}
 
 	mainAppCompose.Services = &mainService{
 		Main: service{
