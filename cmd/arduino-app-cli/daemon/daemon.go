@@ -21,28 +21,11 @@ import (
 )
 
 func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
-	var autoPull bool
 	daemonCmd := &cobra.Command{
 		Use:   "daemon",
 		Short: "Run an HTTP server to expose arduino-app-cli functionality thorough REST API",
 		Run: func(cmd *cobra.Command, args []string) {
 			daemonPort, _ := cmd.Flags().GetString("port")
-
-			if autoPull {
-				go func() {
-					slog.Info("Auto-pull enabled, starting background process...")
-					err := orchestrator.SystemInit(
-						cmd.Context(),
-						servicelocator.GetUsedPythonImageTag(),
-						servicelocator.GetStaticStore(),
-					)
-					if err != nil {
-						slog.Error("Auto-pull process failed", slog.String("error", err.Error()))
-					} else {
-						slog.Info("Auto-pull process completed.")
-					}
-				}()
-			}
 
 			// start the default app in the background
 			go func() {
@@ -59,15 +42,27 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 				)
 				if err != nil {
 					slog.Error("Failed to start default app", slog.String("error", err.Error()))
+				} else {
+					slog.Info("Default app started")
 				}
-				slog.Info("Default app started")
+
+				slog.Info("Try to pull latest docker images in background...")
+				err = orchestrator.SystemInit(
+					cmd.Context(),
+					servicelocator.GetUsedPythonImageTag(),
+					servicelocator.GetStaticStore(),
+				)
+				if err != nil {
+					slog.Error("Auto-pull process failed", slog.String("error", err.Error()))
+				} else {
+					slog.Info("Auto-pull process completed.")
+				}
 			}()
 
 			httpHandler(cmd.Context(), cfg, daemonPort, version)
 		},
 	}
 	daemonCmd.Flags().String("port", "8080", "The TCP port the daemon will listen to")
-	daemonCmd.Flags().BoolVarP(&autoPull, "auto-pull", "p", false, "Enable auto-pull of all app images on startup")
 	return daemonCmd
 }
 

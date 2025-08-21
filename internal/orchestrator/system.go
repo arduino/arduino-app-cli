@@ -1,8 +1,11 @@
 package orchestrator
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -16,22 +19,31 @@ import (
 
 // SystemInit pulls necessary Docker images.
 func SystemInit(ctx context.Context, pythonImageTag string, staticStore *store.StaticStore) error {
-	preInstallContainer := []string{
+	containersToPreinstall := []string{
 		"ghcr.io/bcmi-labs/arduino/appslab-python-apps-base:" + pythonImageTag,
 	}
 	additionalContainers, err := parseAllModelsRunnerImageTag(staticStore)
 	if err != nil {
 		return err
 	}
-	preInstallContainer = append(preInstallContainer, additionalContainers...)
+	containersToPreinstall = append(containersToPreinstall, additionalContainers...)
+
+	pulledImages, err := listImagesAlreadyPulled(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Filter out containers alredy pulled
+	containersToPreinstall = slices.DeleteFunc(containersToPreinstall, func(v string) bool {
+		return slices.Contains(pulledImages, v)
+	})
 
 	stdout, _, err := feedback.DirectStreams()
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 		return nil
 	}
-
-	for _, container := range preInstallContainer {
+	for _, container := range containersToPreinstall {
 		cmd, err := paths.NewProcess(nil, "docker", "pull", container)
 		if err != nil {
 			return err
@@ -43,6 +55,45 @@ func SystemInit(ctx context.Context, pythonImageTag string, staticStore *store.S
 		}
 	}
 	return nil
+}
+
+// listImagesAlreadyPulled
+func listImagesAlreadyPulled(ctx context.Context) ([]string, error) {
+	cmd, err := paths.NewProcess(nil,
+		"docker", "images", "--format", "json",
+		"-f", "reference=ghcr.io/bcmi-labs/arduino/*",
+		"-f", "reference=public.ecr.aws/*",
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Capture the output to check if the image exists
+	stdout, _, err := cmd.RunAndCaptureOutput(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	type dockerImage struct {
+		Repository string `json:"Repository"`
+		Tag        string `json:"Tag"`
+	}
+	var resp dockerImage
+	result := []string{}
+	for img := range bytes.Lines(stdout) {
+		if len(img) == 0 {
+			continue
+		}
+		if err := json.Unmarshal(img, &resp); err != nil {
+			return nil, err
+		}
+		if resp.Tag == "<none>" {
+			continue
+		}
+		result = append(result, resp.Repository+":"+resp.Tag)
+	}
+
+	return result, nil
 }
 
 func parseAllModelsRunnerImageTag(staticStore *store.StaticStore) ([]string, error) {
