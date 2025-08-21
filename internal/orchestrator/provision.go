@@ -51,20 +51,17 @@ type Provision struct {
 
 func NewProvision(
 	docker command.Cli,
-	pythonImage string,
-	usedPythonImageTag string,
-	pinnedPythonImagTag string,
 	cfg config.Configuration,
 ) (*Provision, error) {
-	isDevelopmentMode := usedPythonImageTag != pinnedPythonImagTag
+	isDevelopmentMode := cfg.UsedPythonImageTag != cfg.RunnerVersion
 	if isDevelopmentMode {
-		dynamicProvisionDir := cfg.AssetsDir().Join(usedPythonImageTag)
+		dynamicProvisionDir := cfg.AssetsDir().Join(cfg.UsedPythonImageTag)
 		_ = dynamicProvisionDir.RemoveAll()
 		tmpProvisionDir, err := cfg.AssetsDir().MkTempDir("dynamic-provisioning")
 		if err != nil {
 			return nil, fmt.Errorf("failed to perform creation of dynamic provisioning dir: %w", err)
 		}
-		if err := dynamicProvisioning(context.Background(), docker.Client(), pythonImage, tmpProvisionDir.String()); err != nil {
+		if err := dynamicProvisioning(context.Background(), docker.Client(), cfg.PythonImage, tmpProvisionDir.String()); err != nil {
 			return nil, fmt.Errorf("failed to perform dynamic provisioning: %w", err)
 		}
 		if err := tmpProvisionDir.Rename(dynamicProvisionDir); err != nil {
@@ -74,7 +71,7 @@ func NewProvision(
 
 	return &Provision{
 		docker:      docker,
-		pythonImage: pythonImage,
+		pythonImage: cfg.PythonImage,
 	}, nil
 }
 

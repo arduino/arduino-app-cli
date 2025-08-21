@@ -3,11 +3,6 @@
 package servicelocator
 
 import (
-	"fmt"
-	"log/slog"
-	"os"
-	"path"
-	"strings"
 	"sync"
 
 	dockerCommand "github.com/docker/cli/cli/command"
@@ -31,9 +26,6 @@ func Init(cfg config.Configuration) {
 }
 
 var (
-	// Do not manually modify this, we keep it updated with the `task generate:bricks-and-models-index`
-	runnerVersion = "0.1.16"
-
 	GetBricksIndex = sync.OnceValue(func() *bricksindex.BricksIndex {
 		return f.Must(bricksindex.GenerateBricksIndexFromFile(GetStaticStore().GetAssetsFolder()))
 	})
@@ -43,14 +35,8 @@ var (
 	})
 
 	GetProvisioner = sync.OnceValue(func() *orchestrator.Provision {
-		pythonImage, usedPythonImageTag := getPythonImageAndTag()
-		slog.Debug("Using pythonImage", slog.String("image", pythonImage))
-
 		return f.Must(orchestrator.NewProvision(
 			GetDockerClient(),
-			pythonImage,
-			usedPythonImageTag,
-			runnerVersion,
 			globalConfig,
 		))
 	})
@@ -79,13 +65,8 @@ var (
 		return nil
 	}
 
-	GetUsedPythonImageTag = sync.OnceValue(func() string {
-		_, usedPythonImageTag := getPythonImageAndTag()
-		return usedPythonImageTag
-	})
-
 	GetStaticStore = sync.OnceValue(func() *store.StaticStore {
-		return store.NewStaticStore(globalConfig.AssetsDir().Join(GetUsedPythonImageTag()).String())
+		return store.NewStaticStore(globalConfig.AssetsDir().Join(globalConfig.UsedPythonImageTag).String())
 	})
 
 	GetBrickService = sync.OnceValue(func() *bricks.Service {
@@ -100,22 +81,3 @@ var (
 		return app.NewAppIDProvider(globalConfig)
 	})
 )
-
-func getPythonImageAndTag() (string, string) {
-	registryBase := os.Getenv("DOCKER_REGISTRY_BASE")
-	if registryBase == "" {
-		registryBase = "ghcr.io/bcmi-labs/"
-	}
-
-	// Python image: image name (repository) and optionally a tag.
-	pythonImageAndTag := os.Getenv("DOCKER_PYTHON_BASE_IMAGE")
-	if pythonImageAndTag == "" {
-		pythonImageAndTag = fmt.Sprintf("arduino/appslab-python-apps-base:%s", runnerVersion)
-	}
-	pythonImage := path.Join(registryBase, pythonImageAndTag)
-	var usedPythonImageTag string
-	if idx := strings.LastIndex(pythonImage, ":"); idx != -1 {
-		usedPythonImageTag = pythonImage[idx+1:]
-	}
-	return pythonImage, usedPythonImageTag
-}

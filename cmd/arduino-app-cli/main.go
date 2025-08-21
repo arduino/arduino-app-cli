@@ -62,7 +62,7 @@ func run(configuration cfg.Configuration) error {
 		daemon.NewDaemonCmd(configuration, Version),
 		properties.NewPropertiesCmd(configuration),
 		config.NewConfigCmd(configuration),
-		system.NewSystemCmd(),
+		system.NewSystemCmd(configuration),
 		board.NewBoardCmd(),
 		version.NewVersionCmd(Version),
 	)

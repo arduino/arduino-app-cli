@@ -1,18 +1,27 @@
 package config
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
+	"path"
+	"strings"
 
 	"github.com/arduino/go-paths-helper"
 )
 
+// Do not manually modify this, we keep it updated with the `task generate:bricks-and-models-index`
+var runnerVersion = "0.1.16"
+
 type Configuration struct {
-	appsDir           *paths.Path
-	configDir         *paths.Path
-	dataDir           *paths.Path
-	routerSocketPath  *paths.Path
-	customEIModelsDir *paths.Path
+	appsDir            *paths.Path
+	configDir          *paths.Path
+	dataDir            *paths.Path
+	routerSocketPath   *paths.Path
+	customEIModelsDir  *paths.Path
+	PythonImage        string
+	UsedPythonImageTag string
+	RunnerVersion      string
 }
 
 func NewFromEnv() (Configuration, error) {
@@ -78,12 +87,18 @@ func NewFromEnv() (Configuration, error) {
 		}
 	}
 
+	pythonImage, usedPythonImageTag := getPythonImageAndTag()
+	slog.Debug("Using pythonImage", slog.String("image", pythonImage))
+
 	c := Configuration{
-		appsDir:           appsDir,
-		configDir:         configDir,
-		dataDir:           dataDir,
-		routerSocketPath:  routerSocket,
-		customEIModelsDir: customEIModelsDir,
+		appsDir:            appsDir,
+		configDir:          configDir,
+		dataDir:            dataDir,
+		routerSocketPath:   routerSocket,
+		customEIModelsDir:  customEIModelsDir,
+		PythonImage:        pythonImage,
+		UsedPythonImageTag: usedPythonImageTag,
+		RunnerVersion:      runnerVersion,
 	}
 	if err := c.init(); err != nil {
 		return Configuration{}, err
@@ -126,4 +141,23 @@ func (c *Configuration) RouterSocketPath() *paths.Path {
 
 func (c *Configuration) AssetsDir() *paths.Path {
 	return c.dataDir.Join("assets")
+}
+
+func getPythonImageAndTag() (string, string) {
+	registryBase := os.Getenv("DOCKER_REGISTRY_BASE")
+	if registryBase == "" {
+		registryBase = "ghcr.io/bcmi-labs/"
+	}
+
+	// Python image: image name (repository) and optionally a tag.
+	pythonImageAndTag := os.Getenv("DOCKER_PYTHON_BASE_IMAGE")
+	if pythonImageAndTag == "" {
+		pythonImageAndTag = fmt.Sprintf("arduino/appslab-python-apps-base:%s", runnerVersion)
+	}
+	pythonImage := path.Join(registryBase, pythonImageAndTag)
+	var usedPythonImageTag string
+	if idx := strings.LastIndex(pythonImage, ":"); idx != -1 {
+		usedPythonImageTag = pythonImage[idx+1:]
+	}
+	return pythonImage, usedPythonImageTag
 }
