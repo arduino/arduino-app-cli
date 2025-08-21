@@ -207,22 +207,6 @@ func HandleBrickUpdates(
 	}
 }
 
-func HandleBrickPartialUpdates(brickService *bricks.Service) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("brickID")
-		if id == "" {
-			render.EncodeResponse(w, http.StatusBadRequest, "id must be set")
-			return
-		}
-
-		res, err := brickService.BricksDetails(id)
-		if err != nil {
-			return
-		}
-		render.EncodeResponse(w, http.StatusOK, res)
-	}
-}
-
 func HandleBrickDelete(
 	brickService *bricks.Service,
 	idProvider *app.IDProvider,
