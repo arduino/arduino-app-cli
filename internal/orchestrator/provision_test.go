@@ -20,6 +20,9 @@ func TestProvisionAppWithOverrides(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	tempDirectory := t.TempDir()
 
+	// TODO: hack to skip the preEmbargo check
+	cfg.UsedPythonImageTag = "latest"
+
 	staticStore := store.NewStaticStore(cfg.AssetsDir().String())
 
 	// Define a mock app with bricks that require overrides

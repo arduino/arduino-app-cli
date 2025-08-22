@@ -334,6 +334,13 @@ func generateMainComposeFile(
 		return e
 	}
 
+	if isPreEmbargo(cfg) && !isDevelopmentMode(cfg) {
+		// In case we are pre-imbargo we remove the override to force the app start
+		// to take the app-compose.yaml
+		_ = overrideComposeFile.Remove()
+		return nil
+	}
+
 	// If there are services that require devices, we need to generate an override compose file
 	// Write additional file to override devices section in included compose files
 	if e := generateServicesOverrideFile(services, servicesThatRequireDevices, devices, getCurrentUser(), groups, overrideComposeFile); e != nil {
