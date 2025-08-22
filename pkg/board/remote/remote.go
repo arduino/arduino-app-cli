@@ -11,12 +11,12 @@ type FileInfo struct {
 }
 
 type RemoteConn interface {
-	RemoteFs
-	RemoteShell
+	FS
+	RemoteShell // TODO: should be removed after refactoring.
 	Forwarder
 }
 
-type RemoteFs interface {
+type FS interface {
 	List(path string) ([]FileInfo, error)
 	MkDirAll(path string) error
 	WriteFile(data io.Reader, path string) error

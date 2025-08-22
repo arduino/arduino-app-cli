@@ -17,7 +17,9 @@ import (
 
 	"github.com/arduino/arduino-app-cli/pkg/board/remote"
 	"github.com/arduino/arduino-app-cli/pkg/board/remote/adb"
+	"github.com/arduino/arduino-app-cli/pkg/board/remote/local"
 	"github.com/arduino/arduino-app-cli/pkg/board/remote/ssh"
+	"github.com/arduino/arduino-app-cli/pkg/micro"
 )
 
 type Board struct {
@@ -31,13 +33,33 @@ type Board struct {
 const (
 	SerialProtocol  = "serial"
 	NetworkProtocol = "network"
+	LocalProtocol   = "local"
 )
 
 const (
 	ArduinoUnoQ = "arduino:zephyr:unoq"
+	SerialPath  = "/sys/devices/soc0/serial_number"
 )
 
 func FromFQBN(ctx context.Context, fqbn string) ([]Board, error) {
+	if micro.OnBoard {
+		var customName string
+		if name, err := GetCustomName(ctx, &local.LocalConnection{}); err == nil {
+			customName = name
+		}
+		var serial string
+		if sn, err := getSerial(&local.LocalConnection{}); err == nil {
+			serial = sn
+		}
+		return []Board{{
+			Protocol:   LocalProtocol,
+			Serial:     serial,
+			Address:    "",
+			CustomName: customName,
+			BoardName:  "Uno Q",
+		}}, nil
+	}
+
 	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 	srv := commands.NewArduinoCoreServer()
 
@@ -135,13 +157,23 @@ func FromFQBN(ctx context.Context, fqbn string) ([]Board, error) {
 	return nil, fmt.Errorf("no hardware ID found for FQBN %s", fqbn)
 }
 
-func (b *Board) GetConnection() (remote.RemoteConn, error) {
+func (b *Board) GetConnection(optPassword ...string) (remote.RemoteConn, error) {
+	if len(optPassword) > 1 {
+		return nil, fmt.Errorf("too many optional args, expected at most one")
+	}
+
+	password := "arduino"
+	if len(optPassword) == 1 {
+		password = optPassword[0]
+	}
+
 	switch b.Protocol {
 	case SerialProtocol:
 		return adb.FromSerial(b.Serial, "")
 	case NetworkProtocol:
-		// TODO: use secure connection
-		return ssh.FromHost("arduino", "arduino", b.Address+":22")
+		return ssh.FromHost("arduino", password, b.Address+":22")
+	case LocalProtocol:
+		return &local.LocalConnection{}, nil
 	default:
 		panic("unreachable")
 	}
@@ -171,6 +203,20 @@ func GetCustomName(ctx context.Context, conn remote.RemoteConn) (string, error) 
 		return "", fmt.Errorf("failed to read board name: %w", err)
 	}
 	return string(bytes.TrimSpace(out)), nil
+}
+
+func getSerial(conn remote.RemoteConn) (string, error) {
+	f, err := conn.ReadFile(SerialPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to get serial number: %w", err)
+	}
+
+	serial, err := io.ReadAll(f)
+	if err != nil {
+		return "", fmt.Errorf("failed to read serial number: %w", err)
+	}
+
+	return strings.TrimSpace(string(serial)), nil
 }
 
 func EnsurePlatformInstalled(ctx context.Context, rawFQBN string) error {

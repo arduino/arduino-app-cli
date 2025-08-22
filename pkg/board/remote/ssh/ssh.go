@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"path"
 	"strings"
 
 	"golang.org/x/crypto/ssh"
@@ -170,14 +171,14 @@ func (a *SSHConnection) Remove(path string) error {
 	return nil
 }
 
-func (a *SSHConnection) Stats(path string) (remote.FileInfo, error) {
+func (a *SSHConnection) Stats(p string) (remote.FileInfo, error) {
 	session, err := a.client.NewSession()
 	if err != nil {
 		return remote.FileInfo{}, err
 	}
 	defer session.Close()
 
-	cmd := fmt.Sprintf("file %s", path)
+	cmd := fmt.Sprintf("file %s", p)
 	output, err := session.Output(cmd)
 	if err != nil {
 		return remote.FileInfo{}, err
@@ -197,7 +198,7 @@ func (a *SSHConnection) Stats(path string) (remote.FileInfo, error) {
 	}
 
 	return remote.FileInfo{
-		Name:  name,
+		Name:  path.Base(name),
 		IsDir: other == "directory",
 	}, nil
 }

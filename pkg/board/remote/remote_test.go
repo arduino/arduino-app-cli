@@ -10,6 +10,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/pkg/board/remote"
 	"github.com/arduino/arduino-app-cli/pkg/board/remote/adb"
+	"github.com/arduino/arduino-app-cli/pkg/board/remote/local"
 	"github.com/arduino/arduino-app-cli/pkg/board/remote/ssh"
 	"github.com/arduino/arduino-app-cli/pkg/x/testtools"
 )
@@ -18,70 +19,84 @@ func TestRemoteFS(t *testing.T) {
 	name, adbPort, sshPort := testtools.StartAdbDContainer(t)
 	t.Cleanup(func() { testtools.StopAdbDContainer(t, name) })
 
-	remotes := []remote.RemoteFs{
-		func() remote.RemoteFs {
+	tests := []struct {
+		name string
+		conn remote.FS
+	}{{
+		"adb",
+		func() remote.FS {
 			conn, err := adb.FromHost("localhost:"+adbPort, "")
 			require.NoError(t, err)
 			return conn
 		}(),
-		func() remote.RemoteFs {
+	}, {
+		"ssh",
+		func() remote.FS {
 			conn, err := ssh.FromHost("arduino", "arduino", "127.0.0.1:"+sshPort)
 			require.NoError(t, err)
 			return conn
 		}(),
+	}, {
+		"local",
+		func() remote.FS {
+			return &local.LocalConnection{}
+		}(),
+	},
 	}
 
-	for _, conn := range remotes {
-		t.Run("Mkdir", func(t *testing.T) {
-			err := conn.MkDirAll("./testdir")
-			require.NoError(t, err)
-			info, err := conn.Stats("./testdir")
-			require.NoError(t, err)
-			assert.Equal(t, info, remote.FileInfo{
-				Name:  "./testdir",
-				IsDir: true,
-			})
-		})
-
-		t.Run("WriteFile/ReadFile", func(t *testing.T) {
-			err := conn.WriteFile(strings.NewReader("Hello, World!"), "./testdir/testfile.txt")
-			require.NoError(t, err)
-			info, err := conn.Stats("./testdir/testfile.txt")
-			require.NoError(t, err)
-			assert.Equal(t, info, remote.FileInfo{
-				Name:  "./testdir/testfile.txt",
-				IsDir: false,
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Run("Mkdir", func(t *testing.T) {
+				err := tc.conn.MkDirAll("./testdir")
+				require.NoError(t, err)
+				info, err := tc.conn.Stats("./testdir")
+				require.NoError(t, err)
+				assert.Equal(t, remote.FileInfo{
+					Name:  "testdir",
+					IsDir: true,
+				}, info)
 			})
 
-			r, err := conn.ReadFile("./testdir/testfile.txt")
-			require.NoError(t, err)
-			data, err := io.ReadAll(r)
-			require.NoError(t, err)
-			require.Equal(t, "Hello, World!", string(data))
-		})
+			t.Run("WriteFile/ReadFile", func(t *testing.T) {
+				err := tc.conn.WriteFile(strings.NewReader("Hello, World!"), "./testdir/testfile.txt")
+				require.NoError(t, err)
+				info, err := tc.conn.Stats("./testdir/testfile.txt")
+				require.NoError(t, err)
+				assert.Equal(t, remote.FileInfo{
+					Name:  "testfile.txt",
+					IsDir: false,
+				}, info)
 
-		t.Run("List", func(t *testing.T) {
-			files, err := conn.List("./")
-			require.NoError(t, err)
-			assert.NotEmpty(t, files)
-			assert.Contains(t, files, remote.FileInfo{Name: "testdir", IsDir: true})
+				r, err := tc.conn.ReadFile("./testdir/testfile.txt")
+				require.NoError(t, err)
+				data, err := io.ReadAll(r)
+				require.NoError(t, err)
+				require.Equal(t, "Hello, World!", string(data))
+			})
 
-			files, err = conn.List("./testdir")
-			require.NoError(t, err)
-			assert.Len(t, files, 1)
-			assert.Equal(t, remote.FileInfo{Name: "testfile.txt", IsDir: false}, files[0])
-		})
+			t.Run("List", func(t *testing.T) {
+				files, err := tc.conn.List("./")
+				require.NoError(t, err)
+				assert.NotEmpty(t, files)
+				assert.Contains(t, files, remote.FileInfo{Name: "testdir", IsDir: true})
 
-		t.Run("Remove", func(t *testing.T) {
-			err := conn.Remove("./testdir/testfile.txt")
-			require.NoError(t, err)
-			_, err = conn.Stats("./testdir/testfile.txt")
-			assert.Error(t, err)
+				files, err = tc.conn.List("./testdir")
+				require.NoError(t, err)
+				assert.Len(t, files, 1)
+				assert.Equal(t, remote.FileInfo{Name: "testfile.txt", IsDir: false}, files[0])
+			})
 
-			err = conn.Remove("./testdir")
-			require.NoError(t, err)
-			_, err = conn.Stats("./testdir")
-			assert.Error(t, err)
+			t.Run("Remove", func(t *testing.T) {
+				err := tc.conn.Remove("./testdir/testfile.txt")
+				require.NoError(t, err)
+				_, err = tc.conn.Stats("./testdir/testfile.txt")
+				assert.Error(t, err)
+
+				err = tc.conn.Remove("./testdir")
+				require.NoError(t, err)
+				_, err = tc.conn.Stats("./testdir")
+				assert.Error(t, err)
+			})
 		})
 	}
 }
@@ -100,6 +115,9 @@ func TestSSHShell(t *testing.T) {
 			conn, err := ssh.FromHost("arduino", "arduino", "127.0.0.1:"+sshPort)
 			require.NoError(t, err)
 			return conn
+		}(),
+		func() remote.RemoteShell {
+			return &local.LocalConnection{}
 		}(),
 	}
 

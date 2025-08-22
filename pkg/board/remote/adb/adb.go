@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"os/user"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -138,8 +139,8 @@ func (a *ADBConnection) List(path string) ([]remote.FileInfo, error) {
 	return files, nil
 }
 
-func (a *ADBConnection) Stats(path string) (remote.FileInfo, error) {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "file", path)
+func (a *ADBConnection) Stats(p string) (remote.FileInfo, error) {
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "file", p)
 	if err != nil {
 		return remote.FileInfo{}, err
 	}
@@ -172,7 +173,7 @@ func (a *ADBConnection) Stats(path string) (remote.FileInfo, error) {
 	}
 
 	return remote.FileInfo{
-		Name:  name,
+		Name:  path.Base(name),
 		IsDir: other == "directory",
 	}, nil
 }

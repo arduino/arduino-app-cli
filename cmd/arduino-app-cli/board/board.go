@@ -113,7 +113,7 @@ func newBoardListCmd() *cobra.Command {
 			for _, b := range boards {
 				var address string
 				switch b.Protocol {
-				case board.SerialProtocol:
+				case board.SerialProtocol, board.LocalProtocol:
 					address = b.Serial
 				case board.NetworkProtocol:
 					address = b.Address

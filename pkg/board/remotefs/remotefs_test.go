@@ -12,6 +12,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/pkg/board/remote"
 	"github.com/arduino/arduino-app-cli/pkg/board/remote/adb"
+	"github.com/arduino/arduino-app-cli/pkg/board/remote/local"
 	"github.com/arduino/arduino-app-cli/pkg/board/remote/ssh"
 	"github.com/arduino/arduino-app-cli/pkg/board/remotefs"
 	"github.com/arduino/arduino-app-cli/pkg/x/testtools"
@@ -22,11 +23,11 @@ func TestRemoteFS(t *testing.T) {
 
 	remotes := []struct {
 		name string
-		conn remote.RemoteFs
+		conn remote.FS
 	}{
 		{
 			name: "adb",
-			conn: func() remote.RemoteFs {
+			conn: func() remote.FS {
 				name, adbPort, _ := testtools.StartAdbDContainer(t)
 				t.Cleanup(func() { testtools.StopAdbDContainer(t, name) })
 				conn, err := adb.FromHost("localhost:"+adbPort, "")
@@ -36,13 +37,17 @@ func TestRemoteFS(t *testing.T) {
 		},
 		{
 			name: "ssh",
-			conn: func() remote.RemoteFs {
+			conn: func() remote.FS {
 				name, _, sshPort := testtools.StartAdbDContainer(t)
 				t.Cleanup(func() { testtools.StopAdbDContainer(t, name) })
 				conn, err := ssh.FromHost("arduino", "arduino", "127.0.0.1:"+sshPort)
 				require.NoError(t, err)
 				return conn
 			}(),
+		},
+		{
+			name: "local",
+			conn: &local.LocalConnection{},
 		},
 	}
 

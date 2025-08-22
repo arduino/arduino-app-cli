@@ -14,10 +14,10 @@ import (
 type RemoteFS struct {
 	base string
 
-	conn remote.RemoteFs
+	conn remote.FS
 }
 
-func New(base string, conn remote.RemoteFs) RemoteFS {
+func New(base string, conn remote.FS) RemoteFS {
 	return RemoteFS{
 		base: base,
 		conn: conn,
@@ -69,7 +69,7 @@ type RemoteFile struct {
 
 	read io.ReadCloser
 
-	conn remote.RemoteFs
+	conn remote.FS
 }
 
 func (a *RemoteFile) Read(p []byte) (n int, err error) {
@@ -139,7 +139,7 @@ type RemoteDir struct {
 
 	files []remote.FileInfo
 	valid bool
-	conn  remote.RemoteFs
+	conn  remote.FS
 }
 
 func (a *RemoteDir) ReadDir(n int) ([]fs.DirEntry, error) {
