@@ -210,27 +210,33 @@ func generateMainComposeFile(
 	for _, brick := range app.Descriptor.Bricks {
 		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
 		slog.Debug("Processing brick", slog.String("brick_id", brick.ID), slog.Bool("found", found))
-		if !found || !idxBrick.RequireContainer {
+		if !found {
 			continue
 		}
 
-		// 1. Retrieve the brick_compose.yaml file.
+		// 1. Retrieve ports that we have to expose defined in the brick
+		for _, p := range idxBrick.Ports {
+			ports[fmt.Sprintf("%s:%s", p, p)] = struct{}{}
+		}
+
+		// The following code is needed only if the brick requires a container.
+		// In case it doesn't we just skip to the next one.
+		if !idxBrick.RequireContainer {
+			continue
+		}
+
+		// 2. Retrieve the brick_compose.yaml file.
 		composeFilePath, err := staticStore.GetBrickComposeFilePathFromID(brick.ID)
 		if err != nil {
 			slog.Error("brick compose id not valid", slog.String("error", err.Error()), slog.String("brick_id", brick.ID))
 			continue
 		}
 
-		// 2. Retrieve the compose services names.
+		// 3. Retrieve the compose services names.
 		svcs, err := extracServicesFromComposeFile(composeFilePath)
 		if err != nil {
 			slog.Error("loading brick_compose", slog.String("brick_id", brick.ID), slog.String("path", composeFilePath.String()), slog.Any("error", err))
 			continue
-		}
-
-		// 3. Retrieve ports that we have to expose defined in the brick
-		for _, p := range idxBrick.Ports {
-			ports[fmt.Sprintf("%s:%s", p, p)] = struct{}{}
 		}
 
 		// 4. Retrieve the required devices that we have to mount
