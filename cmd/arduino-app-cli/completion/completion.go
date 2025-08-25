@@ -54,6 +54,10 @@ func NewCompletionCommand() *cobra.Command {
 }
 
 func ApplicationNames(cfg config.Configuration) cobra.CompletionFunc {
+	return ApplicationNamesWithFilterFunc(cfg, func(_ orchestrator.AppInfo) bool { return true })
+}
+
+func ApplicationNamesWithFilterFunc(cfg config.Configuration, filter func(apps orchestrator.AppInfo) bool) cobra.CompletionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		apps, err := orchestrator.ListApps(cmd.Context(),
 			servicelocator.GetDockerClient(),
@@ -71,7 +75,9 @@ func ApplicationNames(cfg config.Configuration) cobra.CompletionFunc {
 
 		var res []string
 		for _, a := range apps.Apps {
-			res = append(res, cmdutil.IDToAlias(a.ID))
+			if filter(a) {
+				res = append(res, cmdutil.IDToAlias(a.ID))
+			}
 		}
 		return res, cobra.ShellCompDirectiveNoFileComp
 	}

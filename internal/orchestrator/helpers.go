@@ -98,7 +98,7 @@ func getRunningApp(
 		return nil, fmt.Errorf("failed to get running apps: %w", err)
 	}
 	idx := slices.IndexFunc(apps, func(a AppStatus) bool {
-		return a.Status == StatusRunning
+		return a.Status == StatusRunning || a.Status == StatusStarting
 	})
 	if idx == -1 {
 		return nil, nil

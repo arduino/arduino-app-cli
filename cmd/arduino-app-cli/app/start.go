@@ -29,7 +29,10 @@ func newStartCmd(cfg config.Configuration) *cobra.Command {
 			}
 			return startHandler(cmd.Context(), cfg, app)
 		},
-		ValidArgsFunction: completion.ApplicationNames(cfg),
+		ValidArgsFunction: completion.ApplicationNamesWithFilterFunc(cfg, func(apps orchestrator.AppInfo) bool {
+			return apps.Status != orchestrator.StatusStarting &&
+				apps.Status != orchestrator.StatusRunning
+		}),
 	}
 }
 
