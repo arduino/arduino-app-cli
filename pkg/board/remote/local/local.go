@@ -79,7 +79,7 @@ func (a *LocalConnection) Remove(path string) error {
 	return os.RemoveAll(path)
 }
 
-type ADBCommand struct {
+type LocalCommand struct {
 	cmd *paths.Process
 	err error
 }
@@ -90,24 +90,24 @@ func (a *LocalConnection) GetCmd(cmd string, args ...string) remote.Cmder {
 	cmds = append(cmds, args...)
 
 	command, err := paths.NewProcess(nil, cmds...)
-	return &ADBCommand{cmd: command, err: err}
+	return &LocalCommand{cmd: command, err: err}
 }
 
-func (a *ADBCommand) Run(ctx context.Context) error {
+func (a *LocalCommand) Run(ctx context.Context) error {
 	if a.err != nil {
 		return fmt.Errorf("failed to create command: %w", a.err)
 	}
 	return a.cmd.RunWithinContext(ctx)
 }
 
-func (a *ADBCommand) Output(ctx context.Context) ([]byte, error) {
+func (a *LocalCommand) Output(ctx context.Context) ([]byte, error) {
 	if a.err != nil {
 		return nil, fmt.Errorf("failed to create command: %w", a.err)
 	}
 	return a.cmd.RunAndCaptureCombinedOutput(ctx)
 }
 
-func (a *ADBCommand) Interactive() (io.WriteCloser, io.Reader, io.Reader, remote.Closer, error) {
+func (a *LocalCommand) Interactive() (io.WriteCloser, io.Reader, io.Reader, remote.Closer, error) {
 	if a.err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to create command: %w", a.err)
 	}
