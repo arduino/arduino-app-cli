@@ -88,9 +88,8 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 	corsMiddlware, err := cors.NewMiddleware(
 		cors.Config{
 			Origins: []string{
-				"wails://wails",
-				"wails://wails.localhost:34115",
-				"http://wails.localhost:34115",
+				"wails://wails", "wails://wails.localhost:*",
+				"http://wails.localhost", "http://wails.localhost:*",
 				"http://localhost:*", "https://localhost:*",
 			},
 			Methods: []string{
