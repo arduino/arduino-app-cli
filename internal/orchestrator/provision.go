@@ -199,29 +199,48 @@ func generateMainComposeFile(
 ) error {
 	slog.Debug("Generating main compose file for the App")
 
+	ports := make(map[string]struct{}, len(app.Descriptor.Ports))
+	for _, p := range app.Descriptor.Ports {
+		ports[fmt.Sprintf("%d:%d", p, p)] = struct{}{}
+	}
+
 	var composeFiles paths.PathList
 	services := []string{}
-	brickServices := map[string][]string{}
+	servicesThatRequireDevices := []string{}
 	for _, brick := range app.Descriptor.Bricks {
+		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
+		slog.Debug("Processing brick", slog.String("brick_id", brick.ID), slog.Bool("found", found))
+		if !found || !idxBrick.RequireContainer {
+			continue
+		}
+
+		// 1. Retrieve the brick_compose.yaml file.
 		composeFilePath, err := staticStore.GetBrickComposeFilePathFromID(brick.ID)
 		if err != nil {
 			slog.Error("brick compose id not valid", slog.String("error", err.Error()), slog.String("brick_id", brick.ID))
 			continue
 		}
-		if !composeFilePath.Exist() {
-			slog.Debug("Brick compose file not found", slog.String("module", brick.ID), slog.String("path", composeFilePath.String()))
+
+		// 2. Retrieve the compose services names.
+		svcs, err := extracServicesFromComposeFile(composeFilePath)
+		if err != nil {
+			slog.Error("loading brick_compose", slog.String("brick_id", brick.ID), slog.String("path", composeFilePath.String()), slog.Any("error", err))
 			continue
 		}
 
-		composeFiles.Add(composeFilePath)
-		svcs, e := extracServicesFromComposeFile(composeFilePath)
-		if e != nil {
-			slog.Error("Failed to extract services from compose file", slog.String("compose_file", composeFilePath.String()), slog.Any("error", e))
-			continue
+		// 3. Retrieve ports that we have to expose defined in the brick
+		for _, p := range idxBrick.Ports {
+			ports[fmt.Sprintf("%s:%s", p, p)] = struct{}{}
 		}
-		brickServices[brick.ID] = svcs
+
+		// 4. Retrieve the required devices that we have to mount
+		slog.Debug("Brick require Devices", slog.Bool("Devices", idxBrick.RequiresDevices), slog.Any("ports", ports))
+		if idxBrick.RequiresDevices {
+			servicesThatRequireDevices = append(servicesThatRequireDevices, svcs...)
+		}
+
+		composeFiles.Add(composeFilePath)
 		services = append(services, svcs...)
-		slog.Debug("Brick compose file found", slog.String("module", brick.ID), slog.String("path", composeFilePath.String()))
 	}
 
 	// Create a single docker-mainCompose that includes all the required services
@@ -237,17 +256,6 @@ func generateMainComposeFile(
 		Include  []string     `yaml:"include,omitempty"`
 		Services *mainService `yaml:"services,omitempty"`
 	}
-	writeMainCompose := func() error {
-		data, err := yaml.Marshal(mainAppCompose)
-		if err != nil {
-			return err
-		}
-		if err := mainComposeFile.WriteFile(data); err != nil {
-			return err
-		}
-		return nil
-	}
-
 	// Merge compose
 	composeProjectName, err := getAppComposeProjectNameFromApp(*app, cfg)
 	if err != nil {
@@ -255,37 +263,6 @@ func generateMainComposeFile(
 	}
 	mainAppCompose.Name = composeProjectName
 	mainAppCompose.Include = composeFiles.AsStrings()
-	if err := writeMainCompose(); err != nil {
-		return err
-	}
-
-	slog.Debug("Compose file for the App created", slog.String("compose_file", mainComposeFile.String()))
-
-	ports := make(map[string]struct{}, len(app.Descriptor.Ports))
-	for _, p := range app.Descriptor.Ports {
-		ports[fmt.Sprintf("%d:%d", p, p)] = struct{}{}
-	}
-
-	servicesThatRequireDevices := []string{}
-	for _, b := range app.Descriptor.Bricks {
-		brick, found := bricksIndex.FindBrickByID(b.ID)
-		slog.Debug("Processing brick", slog.String("brick_id", b.ID), slog.Bool("found", found))
-		if !found {
-			continue
-		}
-		for _, p := range brick.Ports {
-			ports[fmt.Sprintf("%s:%s", p, p)] = struct{}{}
-		}
-		slog.Debug("Brick require Devices", slog.Bool("Devices", brick.RequiresDevices), slog.Any("ports", ports))
-		if brick.RequiresDevices {
-			// Load services from compose file
-			if svcs, ok := brickServices[b.ID]; ok {
-				servicesThatRequireDevices = append(servicesThatRequireDevices, svcs...)
-			} else {
-				slog.Debug("(RequiresDevices) No compose file found for brick", slog.String("brick_id", b.ID))
-			}
-		}
-	}
 
 	volumes := []volume{
 		{
@@ -294,7 +271,6 @@ func generateMainComposeFile(
 			Target: "/app",
 		},
 	}
-
 	slog.Debug("Adding UNIX socket", slog.Any("sock", cfg.RouterSocketPath().String()), slog.Bool("exists", cfg.RouterSocketPath().Exist()))
 	if cfg.RouterSocketPath().Exist() {
 		volumes = append(volumes, volume{
@@ -330,8 +306,12 @@ func generateMainComposeFile(
 	}
 
 	// Write the main compose file
-	if e := writeMainCompose(); e != nil {
-		return e
+	data, err := yaml.Marshal(mainAppCompose)
+	if err != nil {
+		return err
+	}
+	if err := mainComposeFile.WriteFile(data); err != nil {
+		return err
 	}
 
 	if isPreEmbargo(cfg) && !isDevelopmentMode(cfg) {
@@ -367,27 +347,28 @@ func generateMainComposeFile(
 }
 
 func extracServicesFromComposeFile(composeFile *paths.Path) ([]string, error) {
-	if content, e := os.ReadFile(composeFile.String()); e != nil {
-		return nil, e
-	} else {
-		servicesThatRequireDevices := []string{}
-		type serviceMin struct {
-			Image string `yaml:"image"`
-		}
-		type composeServices struct {
-			Services map[string]serviceMin `yaml:"services"`
-		}
-		var index composeServices
-		if err := yaml.Unmarshal(content, &index); err != nil {
-			return nil, err
-		}
-		if len(index.Services) > 0 {
-			for svc := range index.Services {
-				servicesThatRequireDevices = append(servicesThatRequireDevices, svc)
-			}
-		}
-		return servicesThatRequireDevices, nil
+	content, err := os.ReadFile(composeFile.String())
+	if err != nil {
+		return nil, err
 	}
+
+	type serviceMin struct {
+		Image string `yaml:"image"`
+	}
+	type composeServices struct {
+		Services map[string]serviceMin `yaml:"services"`
+	}
+	var index composeServices
+	if err := yaml.Unmarshal(content, &index); err != nil {
+		return nil, err
+	}
+	services := make([]string, len(index.Services))
+	i := 0
+	for svc := range maps.Keys(index.Services) {
+		services[i] = svc
+		i++
+	}
+	return services, nil
 }
 
 func generateServicesOverrideFile(services []string, servicesThatRequireDevices []string, devices []string, user string, groups []string, overrideComposeFile *paths.Path) error {
