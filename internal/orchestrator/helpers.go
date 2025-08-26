@@ -11,6 +11,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	dockerClient "github.com/docker/docker/client"
 	"github.com/gosimple/slug"
+	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -19,6 +20,69 @@ import (
 type AppStatus struct {
 	AppPath *paths.Path
 	Status  Status
+}
+
+// parseAppStatus takes all the containers that matches the DockerAppLabel,
+// and construct a map of the state of an app and all its dependencies state.
+// For app that have at least 1 dependency, we calculate the overall state
+// as follow:
+//
+//	running: all running
+//	stopped: all stopped
+//	failed: at least one failed
+//	stopping: at least one stopping
+//	starting: at least one starting
+func parseAppStatus(containers []container.Summary) []AppStatus {
+	apps := make([]AppStatus, 0, len(containers))
+	appsStatusMap := make(map[string][]Status)
+	for _, c := range containers {
+		appPath, ok := c.Labels[DockerAppPathLabel]
+		if !ok {
+			continue
+		}
+		appsStatusMap[appPath] = append(appsStatusMap[appPath], StatusFromDockerState(c.State))
+	}
+
+	appendResult := func(appPath *paths.Path, status Status) {
+		apps = append(apps, AppStatus{
+			AppPath: appPath,
+			Status:  status,
+		})
+	}
+
+	for appPath, s := range appsStatusMap {
+		f.Assert(len(s) != 0, "status slice is zero")
+
+		appPath := paths.New(appPath)
+
+		//	running: all running
+		if !slices.ContainsFunc(s, func(v Status) bool { return v != StatusRunning }) {
+			appendResult(appPath, StatusRunning)
+			continue
+		}
+		//	stopped: all stopped
+		if !slices.ContainsFunc(s, func(v Status) bool { return v != StatusStopped }) {
+			appendResult(appPath, StatusStopped)
+			continue
+		}
+
+		// ...else we have multiple different status we calculate the status
+		// among the possible left: {failed, stopping, starting}
+		if slices.ContainsFunc(s, func(v Status) bool { return v == StatusFailed }) {
+			appendResult(appPath, StatusFailed)
+			continue
+		}
+		if slices.ContainsFunc(s, func(v Status) bool { return v == StatusStopping }) {
+			appendResult(appPath, StatusStopping)
+			continue
+		}
+		if slices.ContainsFunc(s, func(v Status) bool { return v == StatusStarting }) {
+			appendResult(appPath, StatusStarting)
+			continue
+		}
+	}
+
+	return apps
 }
 
 func getAppsStatus(
@@ -36,22 +100,7 @@ func getAppsStatus(
 		if len(containers) == 0 {
 			return nil, nil
 		}
-
-		// We are labeling only the python containr so we assume there is only one container per app.
-		apps := make([]AppStatus, 0, len(containers))
-		for _, c := range containers {
-			appPath, ok := c.Labels[DockerAppPathLabel]
-			if !ok {
-				return nil, fmt.Errorf("failed to get config files for app %s", c.ID)
-			}
-
-			apps = append(apps, AppStatus{
-				AppPath: paths.New(appPath),
-				Status:  StatusFromDockerState(c.State),
-			})
-		}
-
-		return apps, nil
+		return parseAppStatus(containers), nil
 	}
 
 	getSketchApp := func() ([]AppStatus, error) {

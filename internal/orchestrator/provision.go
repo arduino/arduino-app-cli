@@ -186,8 +186,11 @@ func pullBasePythonContainer(ctx context.Context, pythonImage string) error {
 	return process.RunWithinContext(ctx)
 }
 
-const DockerAppLabel = "cc.arduino.app"
-const DockerAppPathLabel = "cc.arduino.app.path"
+const (
+	DockerAppLabel     = "cc.arduino.app"
+	DockerAppMainLabel = "cc.arduino.app.main"
+	DockerAppPathLabel = "cc.arduino.app.path"
+)
 
 func generateMainComposeFile(
 	app *app.ArduinoApp,
@@ -306,6 +309,7 @@ func generateMainComposeFile(
 			ExtraHosts: []string{"msgpack-rpc-router:host-gateway"},
 			Labels: map[string]string{
 				DockerAppLabel:     "true",
+				DockerAppMainLabel: "true",
 				DockerAppPathLabel: app.FullPath.String(),
 			},
 		},
@@ -320,17 +324,15 @@ func generateMainComposeFile(
 		return err
 	}
 
-	if isPreEmbargo(cfg) && !isDevelopmentMode(cfg) {
-		// In case we are pre-imbargo we remove the override to force the app start
-		// to take the app-compose.yaml
-		_ = overrideComposeFile.Remove()
-		return nil
-	}
-
 	// If there are services that require devices, we need to generate an override compose file
 	// Write additional file to override devices section in included compose files
-	if e := generateServicesOverrideFile(services, servicesThatRequireDevices, devices, getCurrentUser(), groups, overrideComposeFile); e != nil {
+	if e := generateServicesOverrideFile(app, cfg, services, servicesThatRequireDevices, devices, getCurrentUser(), groups, overrideComposeFile); e != nil {
 		return e
+	}
+
+	// TODO: remove me after embargo
+	if isPreEmbargo(cfg) && !isDevelopmentMode(cfg) {
+		return nil
 	}
 
 	// Pre-provision containers required paths, if they do not exist.
@@ -377,7 +379,7 @@ func extracServicesFromComposeFile(composeFile *paths.Path) ([]string, error) {
 	return services, nil
 }
 
-func generateServicesOverrideFile(services []string, servicesThatRequireDevices []string, devices []string, user string, groups []string, overrideComposeFile *paths.Path) error {
+func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, cfg config.Configuration, services []string, servicesThatRequireDevices []string, devices []string, user string, groups []string, overrideComposeFile *paths.Path) error {
 	if overrideComposeFile.Exist() {
 		if err := overrideComposeFile.Remove(); err != nil {
 			return fmt.Errorf("failed to remove existing override compose file: %w", err)
@@ -390,17 +392,34 @@ func generateServicesOverrideFile(services []string, servicesThatRequireDevices 
 	}
 
 	type serviceOverride struct {
-		User     string    `yaml:"user"`
-		Devices  *[]string `yaml:"devices,omitempty"`
-		GroupAdd *[]string `yaml:"group_add,omitempty"`
+		User     string            `yaml:"user,omitempty"`
+		Devices  *[]string         `yaml:"devices,omitempty"`
+		GroupAdd *[]string         `yaml:"group_add,omitempty"`
+		Labels   map[string]string `yaml:"labels,omitempty"`
 	}
 	var overrideCompose struct {
 		Services map[string]serviceOverride `yaml:"services,omitempty"`
 	}
 	overrideCompose.Services = make(map[string]serviceOverride, len(services))
 	for _, svc := range services {
+		// TODO: remove me after embargo
+		if isPreEmbargo(cfg) && !isDevelopmentMode(cfg) {
+			override := serviceOverride{
+				Labels: map[string]string{
+					DockerAppLabel:     "true",
+					DockerAppPathLabel: arduinoApp.FullPath.String(),
+				},
+			}
+			overrideCompose.Services[svc] = override
+			continue
+		}
+		// ----
 		override := serviceOverride{
 			User: user,
+			Labels: map[string]string{
+				DockerAppLabel:     "true",
+				DockerAppPathLabel: arduinoApp.FullPath.String(),
+			},
 		}
 		if slices.Contains(servicesThatRequireDevices, svc) {
 			override.Devices = &devices
