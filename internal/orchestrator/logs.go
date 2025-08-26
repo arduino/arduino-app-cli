@@ -19,6 +19,7 @@ import (
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/store"
 	"github.com/arduino/arduino-app-cli/pkg/x"
 )
 
@@ -40,6 +41,7 @@ func AppLogs(
 	app app.ArduinoApp,
 	req AppLogsRequest,
 	dockerCli command.Cli,
+	staticStore *store.StaticStore,
 ) (iter.Seq[LogMessage], error) {
 	if app.MainPythonFile == nil {
 		return x.EmptyIter[LogMessage](), nil
@@ -50,44 +52,33 @@ func AppLogs(
 		return x.EmptyIter[LogMessage](), nil
 	}
 
-	configFiles := []types.ConfigFile{{Filename: mainCompose.String()}}
 	// Obtain mapping compose service name <-> brick name
 	serviceToBrickMapping := make(map[string]string, len(app.Descriptor.Bricks))
 	for _, brick := range app.Descriptor.Bricks {
-		namespace, brickName, ok := strings.Cut(brick.ID, ":")
-		if !ok {
-			slog.Warn("invalid brick id", slog.String("brick_id", brick.ID))
+		composeFilePath, err := staticStore.GetBrickComposeFilePathFromID(brick.ID)
+		if err != nil {
+			slog.Warn("brick not valid", slog.String("brick_id", brick.ID), slog.Any("error", err))
 			continue
 		}
-		composeFilePath := app.ProvisioningStateDir().Join("compose", namespace, brickName, "brick_compose.yaml")
-		if composeFilePath.Exist() {
-			prj, err := loader.LoadWithContext(
-				ctx,
-				types.ConfigDetails{
-					ConfigFiles: []types.ConfigFile{{Filename: composeFilePath.String()}},
-					Environment: types.NewMapping(os.Environ()),
-				},
-				// This is used otherwise compose will fail with: project name must be set
-				func(o *loader.Options) { o.SetProjectName(brick.ID, false) },
-			)
-			if err != nil {
-				return x.EmptyIter[LogMessage](), err
-			}
-			for s := range prj.Services {
-				serviceToBrickMapping[s] = brick.ID
-			}
-			configFiles = append(configFiles, types.ConfigFile{Filename: composeFilePath.String()})
-			slog.Debug("Brick compose file found", slog.String("module", brick.ID), slog.String("path", composeFilePath.String()))
-		} else {
+		if !composeFilePath.Exist() {
 			slog.Debug("Brick compose file not found", slog.String("module", brick.ID), slog.String("path", composeFilePath.String()))
+			continue
+		}
+
+		services, err := extracServicesFromComposeFile(composeFilePath)
+		if err != nil {
+			return x.EmptyIter[LogMessage](), err
+		}
+		for _, s := range services {
+			serviceToBrickMapping[s] = brick.ID
 		}
 	}
 
 	prj, err := loader.LoadWithContext(
 		ctx,
 		types.ConfigDetails{
-			ConfigFiles: configFiles,
-			WorkingDir:  mainCompose.Base(),
+			ConfigFiles: []types.ConfigFile{{Filename: mainCompose.String()}},
+			WorkingDir:  app.ProvisioningStateDir().String(),
 			Environment: types.NewMapping(os.Environ()),
 		},
 		loader.WithSkipValidation, //TODO: check if there is a bug on docker compose upstream
