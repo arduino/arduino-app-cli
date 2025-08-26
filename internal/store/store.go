@@ -49,9 +49,9 @@ func (s *StaticStore) GetComposeFolder() *paths.Path {
 }
 
 func (s *StaticStore) GetBrickReadmeFromID(brickID string) (string, error) {
-	namespace, brickName, ok := strings.Cut(brickID, ":")
-	if !ok {
-		return "", errors.New("invalid ID")
+	namespace, brickName, err := parseBrickID(brickID)
+	if err != nil {
+		return "", err
 	}
 	content, err := os.ReadFile(filepath.Join(s.docsPath, namespace, brickName, "README.md"))
 	if err != nil {
@@ -61,25 +61,25 @@ func (s *StaticStore) GetBrickReadmeFromID(brickID string) (string, error) {
 }
 
 func (s *StaticStore) GetBrickComposeFilePathFromID(brickID string) (*paths.Path, error) {
-	namespace, brickName, ok := strings.Cut(brickID, ":")
-	if !ok {
-		return nil, errors.New("invalid ID")
+	namespace, brickName, err := parseBrickID(brickID)
+	if err != nil {
+		return nil, err
 	}
 	return paths.New(s.composePath, namespace, brickName, "brick_compose.yaml"), nil
 }
 
 func (s *StaticStore) GetBrickApiDocPathFromID(brickID string) (string, error) {
-	namespace, brickName, ok := strings.Cut(brickID, ":")
-	if !ok {
-		return "", errors.New("invalid ID")
+	namespace, brickName, err := parseBrickID(brickID)
+	if err != nil {
+		return "", err
 	}
 	return filepath.Join(s.apiDocsPath, namespace, "app_bricks", brickName, "API.md"), nil
 }
 
 func (s *StaticStore) GetBrickCodeExamplesPathFromID(brickID string) (paths.PathList, error) {
-	namespace, brickName, ok := strings.Cut(brickID, ":")
-	if !ok {
-		return nil, errors.New("invalid ID")
+	namespace, brickName, err := parseBrickID(brickID)
+	if err != nil {
+		return nil, err
 	}
 	targetDir := paths.New(s.codeExamplesPath, namespace, brickName)
 	dirEntries, err := targetDir.ReadDir()
@@ -87,4 +87,12 @@ func (s *StaticStore) GetBrickCodeExamplesPathFromID(brickID string) (paths.Path
 		return nil, fmt.Errorf("cannot read examples directory %q: %w", targetDir, err)
 	}
 	return dirEntries, nil
+}
+
+func parseBrickID(brickID string) (namespace, name string, err error) {
+	namespace, brickName, ok := strings.Cut(brickID, ":")
+	if !ok {
+		return "", "", errors.New("invalid ID")
+	}
+	return namespace, brickName, nil
 }
