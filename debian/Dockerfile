@@ -6,6 +6,7 @@ ARG VERSION
 RUN test -n "${VERSION}" || (echo "Error: VERSION is not set" && exit 1)
 ARG ARCH
 RUN test -n "${ARCH}" || (echo "Error: ARCH is not set" && exit 1)
+ARG RELEASE
 
 # Download dependencies first (this layer will be cached by docker for quicker image builds).
 # This will be recomputed only when these two files change, instead of every build.
@@ -22,7 +23,8 @@ ADD pkg ./pkg
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
   --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
   export VERSION=$(echo "${VERSION}" | sed -e "s/^v\(.*\)/\1/") \
-  && GOOS=linux GOARCH=${ARCH} go build -ldflags "-X 'main.Version=${VERSION}'" -o ${BINARY_NAME} ./cmd/${BINARY_NAME}
+  export LDFLAGS=$([ -n "$RELEASE" ] && echo "-s -w" || echo "") \
+  && GOOS=linux GOARCH=${ARCH} go build -ldflags "${LDFLAGS} -X 'main.Version=${VERSION}'" -o ${BINARY_NAME} ./cmd/${BINARY_NAME}
 
 FROM debian:bookworm AS debian
 
