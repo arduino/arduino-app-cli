@@ -906,10 +906,18 @@ func getCurrentUser() string {
 	return user.Uid + ":" + user.Gid
 }
 
-func getDevices() ([]string, bool) {
+type deviceResult struct {
+	devicePaths    []string
+	hasVideoDevice bool
+	hasSoundDevice bool
+	hasGPUDevice   bool
+}
+
+func getDevices() deviceResult {
+	res := deviceResult{}
 	// Ignore devices on Windows
 	if runtime.GOOS == "windows" {
-		return nil, false
+		return res
 	}
 
 	deviceList, err := paths.New("/dev").ReadDir()
@@ -917,27 +925,24 @@ func getDevices() ([]string, bool) {
 		panic(err)
 	}
 
-	devices := []string{}
-	addSoundDevice, addGPUDevice, addVideoDevices := false, false, false
-
 	for _, p := range deviceList {
 		switch {
 		case p.HasPrefix("video"):
-			devices = append(devices, p.String())
-			addVideoDevices = true
+			res.devicePaths = append(res.devicePaths, p.String())
+			res.hasVideoDevice = true
 		case p.HasPrefix("snd"):
-			addSoundDevice = true
+			res.hasSoundDevice = true
 		case p.HasPrefix("dri"):
-			addGPUDevice = true
+			res.hasGPUDevice = true
 		}
 	}
-	if addSoundDevice {
-		devices = append(devices, "/dev/snd")
+	if res.hasSoundDevice {
+		res.devicePaths = append(res.devicePaths, "/dev/snd")
 	}
-	if addGPUDevice {
-		devices = append(devices, "/dev/dri")
+	if res.hasGPUDevice {
+		res.devicePaths = append(res.devicePaths, "/dev/dri")
 	}
-	return devices, addVideoDevices
+	return res
 }
 
 func disconnectSerialFromRPCRouter(ctx context.Context, portAddress string, cfg config.Configuration) func() {

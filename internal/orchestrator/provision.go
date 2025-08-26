@@ -289,8 +289,8 @@ func generateMainComposeFile(
 		})
 	}
 
-	devices, addVideo := getDevices()
-	if addVideo {
+	devices := getDevices()
+	if devices.hasVideoDevice {
 		// If we are adding video devices, mount also /dev/v4l if it exists to allow access to by-id/path links
 		if paths.New("/dev/v4l").Exist() {
 			volumes = append(volumes, volume{
@@ -311,7 +311,7 @@ func generateMainComposeFile(
 			Image:      pythonImage,
 			Volumes:    volumes,
 			Ports:      slices.Collect(maps.Keys(ports)),
-			Devices:    devices,
+			Devices:    devices.devicePaths,
 			Entrypoint: "/run.sh",
 			DependsOn:  services,
 			User:       getCurrentUser(),
@@ -336,7 +336,7 @@ func generateMainComposeFile(
 
 	// If there are services that require devices, we need to generate an override compose file
 	// Write additional file to override devices section in included compose files
-	if e := generateServicesOverrideFile(app, cfg, services, servicesThatRequireDevices, devices, getCurrentUser(), groups, overrideComposeFile); e != nil {
+	if e := generateServicesOverrideFile(app, cfg, services, servicesThatRequireDevices, devices.devicePaths, getCurrentUser(), groups, overrideComposeFile); e != nil {
 		return e
 	}
 
