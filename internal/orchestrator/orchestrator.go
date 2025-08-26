@@ -906,10 +906,10 @@ func getCurrentUser() string {
 	return user.Uid + ":" + user.Gid
 }
 
-func getDevices() []string {
+func getDevices() ([]string, bool) {
 	// Ignore devices on Windows
 	if runtime.GOOS == "windows" {
-		return nil
+		return nil, false
 	}
 
 	deviceList, err := paths.New("/dev").ReadDir()
@@ -918,12 +918,13 @@ func getDevices() []string {
 	}
 
 	devices := []string{}
-	addSoundDevice, addGPUDevice := false, false
+	addSoundDevice, addGPUDevice, addVideoDevices := false, false, false
 
 	for _, p := range deviceList {
 		switch {
 		case p.HasPrefix("video"):
 			devices = append(devices, p.String())
+			addVideoDevices = true
 		case p.HasPrefix("snd"):
 			addSoundDevice = true
 		case p.HasPrefix("dri"):
@@ -936,7 +937,7 @@ func getDevices() []string {
 	if addGPUDevice {
 		devices = append(devices, "/dev/dri")
 	}
-	return devices
+	return devices, addVideoDevices
 }
 
 func disconnectSerialFromRPCRouter(ctx context.Context, portAddress string, cfg config.Configuration) func() {

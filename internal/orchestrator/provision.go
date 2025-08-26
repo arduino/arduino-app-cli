@@ -289,7 +289,17 @@ func generateMainComposeFile(
 		})
 	}
 
-	devices := getDevices()
+	devices, addVideo := getDevices()
+	if addVideo {
+		// If we are adding video devices, mount also /dev/v4l if it exists to allow access to by-id/path links
+		if paths.New("/dev/v4l").Exist() {
+			volumes = append(volumes, volume{
+				Type:   "bind",
+				Source: "/dev/v4l",
+				Target: "/dev/v4l",
+			})
+		}
+	}
 
 	groups := []string{"dialout", "video", "audio"}
 	if !isPreEmbargo(cfg) || isDevelopmentMode(cfg) {
