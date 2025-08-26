@@ -10,8 +10,10 @@ import (
 	"net"
 	"os"
 	"os/user"
+	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -132,23 +134,7 @@ func StartApp(
 		}
 		if app.MainPythonFile != nil {
 			// Override the compose Variables with the app's variables and model configuration.
-			envs := []string{}
-			mapped_env := map[string]string{}
-			addMapToEnv := func(m map[string]string) {
-				for k, v := range m {
-					envs = append(envs, fmt.Sprintf("%s=%s", k, v))
-					mapped_env[k] = v
-				}
-			}
-			for _, brick := range app.Descriptor.Bricks {
-				addMapToEnv(brick.Variables)
-				if m, found := modelsIndex.GetModelByID(brick.Model); found {
-					addMapToEnv(m.ModelConfiguration)
-				}
-			}
-			// Add the APP_HOME directory to the environment variables
-			addMapToEnv(map[string]string{"APP_HOME": app.FullPath.String()})
-			slog.Debug("Configuring app environment", slog.String("APP_HOME", app.FullPath.String()), slog.Any("envs", envs))
+			envs, mapped_env := handleEnvironmentVariables(app, modelsIndex)
 
 			if !yield(StreamMessage{data: "Provisioning app..."}) {
 				cancel()
@@ -187,6 +173,110 @@ func StartApp(
 		}
 		_ = yield(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
 	}
+}
+
+func handleEnvironmentVariables(app app.ArduinoApp, modelsIndex *modelsindex.ModelsIndex) ([]string, map[string]string) {
+	envs := []string{}
+	mapped_env := map[string]string{}
+	addMapToEnv := func(m map[string]string) {
+		for k, v := range m {
+			envs = append(envs, fmt.Sprintf("%s=%s", k, v))
+			mapped_env[k] = v
+		}
+	}
+	for _, brick := range app.Descriptor.Bricks {
+		addMapToEnv(brick.Variables)
+		if m, found := modelsIndex.GetModelByID(brick.Model); found {
+			addMapToEnv(m.ModelConfiguration)
+		}
+	}
+
+	// Add the APP_HOME directory to the environment variables
+	addMapToEnv(map[string]string{"APP_HOME": app.FullPath.String()})
+	slog.Debug("Configuring app environment", slog.String("APP_HOME", app.FullPath.String()), slog.Any("envs", envs))
+
+	// Pre-select default camera device if available. This can be overridden by the app environment variables (or in future by applab)
+	// This is required because there are some video devices for HW acceleration that are auto registered in /dev but are not real cameras.
+	if videoDevices := getVideoDevices(); len(videoDevices) > 0 {
+		// VIDEO_DEVICE will be the first device in /dev/v4l/by-id
+		addMapToEnv(map[string]string{"VIDEO_DEVICE": videoDevices[0]})
+		slog.Info("Configuring default video device", slog.String("VIDEO_DEVICE", videoDevices[0]))
+	}
+
+	return envs, mapped_env
+}
+
+func extractIndexFromVideoDeviceName(device string) (int, error) {
+	dev := device[strings.LastIndex(device, "index")+len("index"):]
+	if indexI, err := strconv.Atoi(dev); err != nil {
+		return -1, err
+	} else {
+		return indexI, nil
+	}
+}
+
+func sortV4lByIndexDevices(deviceList []string) {
+	slices.SortFunc(deviceList, func(a, b string) int {
+		// Extract the index from the first string
+		indexI, err := extractIndexFromVideoDeviceName(a)
+		if err != nil {
+			return 0
+		}
+
+		// Extract the index from the second string
+		indexJ, err := extractIndexFromVideoDeviceName(b)
+		if err != nil {
+			return 0
+		}
+
+		// Compare the numeric indices
+		switch {
+		case indexI < indexJ:
+			return -1
+		case indexI > indexJ:
+			return 1
+		default:
+			return 0
+		}
+	})
+}
+
+func getVideoDevices() map[int]string {
+	// Check and read /dev/v4l/by-id. This fs contains only real video devices (cameras), filtering out devices for HW acceleration (like Qualcomm Venus)
+	videoDevicePath := paths.New("/dev/v4l/by-id")
+	if _, err := videoDevicePath.Stat(); err != nil {
+		return nil // no video device found
+	}
+	v4DeviceList, err := videoDevicePath.ReadDir()
+	if err != nil {
+		slog.Warn("unable to list /dev/v4l/by-id", slog.String("error", err.Error()))
+		return nil
+	}
+	sortedDevices := []string{}
+	for _, v4d := range v4DeviceList {
+		sortedDevices = append(sortedDevices, v4d.String())
+	}
+	sortV4lByIndexDevices(sortedDevices)
+
+	camDevices := []string{}
+	for _, v4d := range sortedDevices {
+		if linked, err := os.Readlink(v4d); err == nil {
+			split := strings.Split(linked, "/")
+			realVideoDev := filepath.Join("/dev", split[len(split)-1])
+			slog.Debug("found v4l device", slog.String("device", v4d), slog.String("linked", linked), slog.String("realDevice", realVideoDev))
+			camDevices = append(camDevices, realVideoDev)
+		} else {
+			slog.Warn("unable to readlink v4l device", slog.String("device", v4d), slog.String("error", err.Error()))
+		}
+	}
+	// VIDEO_DEVICE will be the first device in /dev/v4l/by-id
+	slog.Debug("sorted camera devices", slog.Any("devices", camDevices))
+	deviceMap := map[int]string{}
+	for i, cam := range camDevices {
+		slog.Debug("found camera device", slog.Int("index", i), slog.String("device", cam))
+		deviceMap[i] = cam
+	}
+	return deviceMap
 }
 
 func StopApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {

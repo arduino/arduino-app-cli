@@ -373,3 +373,17 @@ func createApp(
 		assert.Empty(t, gCmp.Diff(f.Must(idProvider.ParseID("examples:"+name)), newID))
 	}
 }
+
+func TestSortV4LVideoDevices(t *testing.T) {
+
+	devices := []string{
+		"usb-Generic_GENERAL_-_UVC-video-index1",
+		"usb-Generic_GENERAL_-_UVC-video-index0",
+		"usb-046d_0825-video-index2",
+	}
+
+	sortV4lByIndexDevices(devices)
+	assert.Equal(t, "usb-Generic_GENERAL_-_UVC-video-index0", devices[0])
+	assert.Equal(t, "usb-Generic_GENERAL_-_UVC-video-index1", devices[1])
+	assert.Equal(t, "usb-046d_0825-video-index2", devices[2])
+}
