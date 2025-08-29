@@ -10,6 +10,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 )
 
+// runnerVersion do not edit, this is generate with `task generate:assets`
 var runnerVersion = "0.2.9"
 
 type Configuration struct {
