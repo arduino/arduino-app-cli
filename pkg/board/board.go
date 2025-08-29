@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/arduino/arduino-cli/commands"
 	"github.com/arduino/arduino-cli/pkg/fqbn"
@@ -41,7 +42,16 @@ const (
 	SerialPath  = "/sys/devices/soc0/serial_number"
 )
 
+// Cache the initialized Arduino CLI service, so it don't need to be re-initialized
+// TODO: provide a way to get the board information by event instead of polling.
+var arduinoCLIServer rpc.ArduinoCoreServiceServer
+var arduinoCLIInstance *rpc.Instance
+var arduinoCLILock sync.Mutex
+
 func FromFQBN(ctx context.Context, fqbn string) ([]Board, error) {
+	arduinoCLILock.Lock()
+	defer arduinoCLILock.Unlock()
+
 	if micro.OnBoard {
 		var customName string
 		if name, err := GetCustomName(ctx, &local.LocalConnection{}); err == nil {
@@ -60,29 +70,34 @@ func FromFQBN(ctx context.Context, fqbn string) ([]Board, error) {
 		}}, nil
 	}
 
-	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
-	srv := commands.NewArduinoCoreServer()
-
-	var inst *rpc.Instance
-	if resp, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
-		return nil, err
-	} else {
-		inst = resp.GetInstance()
-	}
-	defer func() {
-		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
-	}()
-
-	if err := srv.Init(
-		&rpc.InitRequest{Instance: inst},
-		// TODO: implement progress callback function
-		commands.InitStreamResponseToCallbackFunction(ctx, func(r *rpc.InitResponse) error { return nil }),
-	); err != nil {
-		return nil, err
+	if arduinoCLIServer == nil {
+		logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
+		arduinoCLIServer = commands.NewArduinoCoreServer()
 	}
 
-	list, err := srv.BoardList(ctx, &rpc.BoardListRequest{
-		Instance: inst,
+	if arduinoCLIInstance == nil {
+		var inst *rpc.Instance
+		if resp, err := arduinoCLIServer.Create(ctx, &rpc.CreateRequest{}); err != nil {
+			return nil, err
+		} else {
+			inst = resp.GetInstance()
+		}
+
+		if err := arduinoCLIServer.Init(
+			&rpc.InitRequest{Instance: inst},
+			// TODO: implement progress callback function
+			commands.InitStreamResponseToCallbackFunction(ctx, func(r *rpc.InitResponse) error { return nil }),
+		); err != nil {
+			// in case of error destroy invalid instance
+			_, _ = arduinoCLIServer.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
+			return nil, err
+		}
+
+		arduinoCLIInstance = inst
+	}
+
+	list, err := arduinoCLIServer.BoardList(ctx, &rpc.BoardListRequest{
+		Instance: arduinoCLIInstance,
 		Timeout:  2000, // 2 seconds
 		Fqbn:     fqbn,
 	})
