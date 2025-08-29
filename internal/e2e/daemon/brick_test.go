@@ -12,6 +12,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
@@ -21,8 +22,10 @@ func TestBricksList(t *testing.T) {
 	response, err := httpClient.GetBricksWithResponse(t.Context(), func(ctx context.Context, req *http.Request) error { return nil })
 	require.NoError(t, err)
 	require.NotEmpty(t, response.JSON200.Bricks)
+	cfg, err := config.NewFromEnv()
+	require.NoError(t, err)
 
-	staticStore := store.NewStaticStore(paths.New("testdata", "assets", "0.1.16").String())
+	staticStore := store.NewStaticStore(paths.New("testdata", "assets", cfg.RunnerVersion).String())
 	brickIndex, err := bricksindex.GenerateBricksIndexFromFile(staticStore.GetAssetsFolder())
 	require.NoError(t, err)
 
@@ -67,7 +70,7 @@ func TestBricksDetails(t *testing.T) {
 		require.Equal(t, "Image Classification", *response.JSON200.Name)
 		require.NotEmpty(t, *response.JSON200.Description, "description should not be empty")
 		require.Equal(t, "video", *response.JSON200.Category)
-		require.Equal(t, "/models/custom/ei/", *(*response.JSON200.Variables)["CUSTOM_MODEL_PATH"].DefaultValue)
+		require.Equal(t, "/home/arduino/.arduino-bricks/ei-models", *(*response.JSON200.Variables)["CUSTOM_MODEL_PATH"].DefaultValue)
 		require.Equal(t, "path to the custom model directory", *(*response.JSON200.Variables)["CUSTOM_MODEL_PATH"].Description)
 		require.Equal(t, false, *(*response.JSON200.Variables)["CUSTOM_MODEL_PATH"].Required)
 		require.Equal(t, "/models/ootb/ei/mobilenet-v2-224px.eim", *(*response.JSON200.Variables)["EI_CLASSIFICATION_MODEL"].DefaultValue)

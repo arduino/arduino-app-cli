@@ -10,7 +10,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 )
 
-var runnerVersion = "0.1.16"
+var runnerVersion = "0.2.9"
 
 type Configuration struct {
 	appsDir            *paths.Path
@@ -151,7 +151,7 @@ func getPythonImageAndTag() (string, string) {
 	// Python image: image name (repository) and optionally a tag.
 	pythonImageAndTag := os.Getenv("DOCKER_PYTHON_BASE_IMAGE")
 	if pythonImageAndTag == "" {
-		pythonImageAndTag = fmt.Sprintf("arduino/appslab-python-apps-base:%s", runnerVersion)
+		pythonImageAndTag = fmt.Sprintf("app-bricks/python-apps-base:%s", runnerVersion)
 	}
 	pythonImage := path.Join(registryBase, pythonImageAndTag)
 	var usedPythonImageTag string

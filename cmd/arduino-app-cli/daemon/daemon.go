@@ -49,7 +49,7 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 				slog.Info("Try to pull latest docker images in background...")
 				err = orchestrator.SystemInit(
 					cmd.Context(),
-					cfg.UsedPythonImageTag,
+					cfg,
 					servicelocator.GetStaticStore(),
 				)
 				if err != nil {

@@ -99,7 +99,7 @@ bricks:
 
 	// Run the provision function to generate the main compose file
 	env := map[string]string{}
-	err = generateMainComposeFile(&app, bricksIndex, "arduino:appslab-python-apps-base:dev-latest", cfg, env, staticStore)
+	err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore)
 
 	// Validate that the main compose file and overrides are created
 	require.NoError(t, err, "Failed to generate main compose file")

@@ -146,7 +146,7 @@ func TestUpsertAppBrickInstance(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, brickInstance.JSON200)
 	require.Equal(t, ImageClassifactionBrickID, *brickInstance.JSON200.Id)
-	require.Equal(t, "/models/custom/ei/", (*brickInstance.JSON200.Variables)["CUSTOM_MODEL_PATH"])
+	require.Equal(t, "/home/arduino/.arduino-bricks/ei-models", (*brickInstance.JSON200.Variables)["CUSTOM_MODEL_PATH"])
 	require.Equal(t, "mobilenet-image-classification", *brickInstance.JSON200.Model)
 
 	t.Run("OverrideBrickInstance", func(t *testing.T) {

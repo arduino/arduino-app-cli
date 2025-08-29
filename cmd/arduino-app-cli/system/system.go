@@ -32,7 +32,7 @@ func newDownloadImage(cfg config.Configuration) *cobra.Command {
 		Args:   cobra.ExactArgs(0),
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return orchestrator.SystemInit(cmd.Context(), cfg.UsedPythonImageTag, servicelocator.GetStaticStore())
+			return orchestrator.SystemInit(cmd.Context(), cfg, servicelocator.GetStaticStore())
 		},
 	}
 

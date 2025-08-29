@@ -14,14 +14,13 @@ import (
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
 // SystemInit pulls necessary Docker images.
-func SystemInit(ctx context.Context, pythonImageTag string, staticStore *store.StaticStore) error {
-	containersToPreinstall := []string{
-		"ghcr.io/bcmi-labs/arduino/appslab-python-apps-base:" + pythonImageTag,
-	}
+func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *store.StaticStore) error {
+	containersToPreinstall := []string{cfg.PythonImage}
 	additionalContainers, err := parseAllModelsRunnerImageTag(staticStore)
 	if err != nil {
 		return err
@@ -61,7 +60,7 @@ func SystemInit(ctx context.Context, pythonImageTag string, staticStore *store.S
 func listImagesAlreadyPulled(ctx context.Context) ([]string, error) {
 	cmd, err := paths.NewProcess(nil,
 		"docker", "images", "--format", "json",
-		"-f", "reference=ghcr.io/bcmi-labs/arduino/*",
+		"-f", "reference=ghcr.io/bcmi-labs/*",
 		"-f", "reference=public.ecr.aws/*",
 	)
 	if err != nil {
