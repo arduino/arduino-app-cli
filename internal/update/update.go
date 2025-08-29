@@ -5,10 +5,19 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 )
 
 var ErrOperationAlreadyInProgress = errors.New("an operation is already in progress")
+
+var MatchArduinoPackage = func(p UpgradablePackage) bool {
+	return strings.HasPrefix(p.Name, "arduino-") || (p.Name == "adbd" && strings.HasSuffix(p.ToVersion, "arduino1"))
+}
+
+var MatchAllPackages = func(p UpgradablePackage) bool {
+	return true
+}
 
 type UpgradablePackage struct {
 	Type         PackageType `json:"type"` // e.g., "arduino", "deb"

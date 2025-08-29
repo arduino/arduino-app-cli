@@ -12,14 +12,6 @@ import (
 	"github.com/arduino/arduino-app-cli/pkg/render"
 )
 
-var matchArduinoPackage = func(p update.UpgradablePackage) bool {
-	return strings.HasPrefix(p.Name, "arduino-")
-}
-
-var matchAllPackages = func(p update.UpgradablePackage) bool {
-	return true
-}
-
 func HandleCheckUpgradable(updater *update.Manager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		queryParams := r.URL.Query()
@@ -29,9 +21,9 @@ func HandleCheckUpgradable(updater *update.Manager) http.HandlerFunc {
 			onlyArduinoPackages = strings.ToLower(val) == "true"
 		}
 
-		filterFunc := matchAllPackages
+		filterFunc := update.MatchAllPackages
 		if onlyArduinoPackages {
-			filterFunc = matchArduinoPackage
+			filterFunc = update.MatchArduinoPackage
 		}
 
 		pkgs, err := updater.ListUpgradablePackages(r.Context(), filterFunc)
@@ -65,9 +57,9 @@ func HandleUpdateApply(updater *update.Manager) http.HandlerFunc {
 			onlyArduinoPackages = strings.ToLower(val) == "true"
 		}
 
-		filterFunc := matchAllPackages
+		filterFunc := update.MatchAllPackages
 		if onlyArduinoPackages {
-			filterFunc = matchArduinoPackage
+			filterFunc = update.MatchArduinoPackage
 		}
 
 		pkgs, err := updater.ListUpgradablePackages(r.Context(), filterFunc)

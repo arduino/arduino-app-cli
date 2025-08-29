@@ -112,11 +112,7 @@ func getUpdater() *update.Manager {
 
 func getFilterFunc(onlyArduino bool) func(p update.UpgradablePackage) bool {
 	if onlyArduino {
-		return func(p update.UpgradablePackage) bool {
-			return strings.HasPrefix(p.Name, "arduino-")
-		}
+		return update.MatchArduinoPackage
 	}
-	return func(p update.UpgradablePackage) bool {
-		return true
-	}
+	return update.MatchAllPackages
 }
