@@ -48,15 +48,6 @@ type Provision struct {
 	pythonImage string
 }
 
-// isPreEmbargo checks if the runner version is the pre-embargo version.
-// Before the embargo, boards are stuck to run the docker contains version 0.1.16.
-// We need to be sure that we aren't enabling features that aren't available in that version, such as:
-// - Disable dynamic provisioning
-// - Render group functionality
-func isPreEmbargo(cfg config.Configuration) bool {
-	return cfg.RunnerVersion == "0.1.16"
-}
-
 func isDevelopmentMode(cfg config.Configuration) bool {
 	return cfg.RunnerVersion != cfg.UsedPythonImageTag
 }
@@ -68,10 +59,6 @@ func NewProvision(
 	provision := &Provision{
 		docker:      docker,
 		pythonImage: cfg.PythonImage,
-	}
-
-	if isPreEmbargo(cfg) && !isDevelopmentMode(cfg) {
-		return provision, nil
 	}
 
 	dynamicProvisionDir := cfg.AssetsDir().Join(cfg.UsedPythonImageTag)
@@ -301,10 +288,7 @@ func generateMainComposeFile(
 		}
 	}
 
-	groups := []string{"dialout", "video", "audio"}
-	if !isPreEmbargo(cfg) || isDevelopmentMode(cfg) {
-		groups = append(groups, "render")
-	}
+	groups := []string{"dialout", "video", "audio", "render"}
 
 	mainAppCompose.Services = &mainService{
 		Main: service{
@@ -336,13 +320,8 @@ func generateMainComposeFile(
 
 	// If there are services that require devices, we need to generate an override compose file
 	// Write additional file to override devices section in included compose files
-	if e := generateServicesOverrideFile(app, cfg, services, servicesThatRequireDevices, devices.devicePaths, getCurrentUser(), groups, overrideComposeFile); e != nil {
+	if e := generateServicesOverrideFile(app, services, servicesThatRequireDevices, devices.devicePaths, getCurrentUser(), groups, overrideComposeFile); e != nil {
 		return e
-	}
-
-	// TODO: remove me after embargo
-	if isPreEmbargo(cfg) && !isDevelopmentMode(cfg) {
-		return nil
 	}
 
 	// Pre-provision containers required paths, if they do not exist.
@@ -389,7 +368,7 @@ func extracServicesFromComposeFile(composeFile *paths.Path) ([]string, error) {
 	return services, nil
 }
 
-func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, cfg config.Configuration, services []string, servicesThatRequireDevices []string, devices []string, user string, groups []string, overrideComposeFile *paths.Path) error {
+func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []string, servicesThatRequireDevices []string, devices []string, user string, groups []string, overrideComposeFile *paths.Path) error {
 	if overrideComposeFile.Exist() {
 		if err := overrideComposeFile.Remove(); err != nil {
 			return fmt.Errorf("failed to remove existing override compose file: %w", err)
@@ -412,18 +391,6 @@ func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, cfg config.Configu
 	}
 	overrideCompose.Services = make(map[string]serviceOverride, len(services))
 	for _, svc := range services {
-		// TODO: remove me after embargo
-		if isPreEmbargo(cfg) && !isDevelopmentMode(cfg) {
-			override := serviceOverride{
-				Labels: map[string]string{
-					DockerAppLabel:     "true",
-					DockerAppPathLabel: arduinoApp.FullPath.String(),
-				},
-			}
-			overrideCompose.Services[svc] = override
-			continue
-		}
-		// ----
 		override := serviceOverride{
 			User: user,
 			Labels: map[string]string{
