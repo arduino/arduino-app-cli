@@ -13,6 +13,8 @@ import (
 
 	"github.com/containerd/errdefs"
 
+	"github.com/arduino/arduino-app-cli/pkg/helpers"
+
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -31,16 +33,17 @@ type volume struct {
 }
 
 type service struct {
-	Image      string            `yaml:"image"`
-	DependsOn  []string          `yaml:"depends_on,omitempty"`
-	Volumes    []volume          `yaml:"volumes"`
-	Devices    []string          `yaml:"devices"`
-	Ports      []string          `yaml:"ports"`
-	User       string            `yaml:"user"`
-	GroupAdd   []string          `yaml:"group_add"`
-	Entrypoint string            `yaml:"entrypoint"`
-	ExtraHosts []string          `yaml:"extra_hosts,omitempty"`
-	Labels     map[string]string `yaml:"labels,omitempty"`
+	Image       string            `yaml:"image"`
+	DependsOn   []string          `yaml:"depends_on,omitempty"`
+	Volumes     []volume          `yaml:"volumes"`
+	Devices     []string          `yaml:"devices"`
+	Ports       []string          `yaml:"ports"`
+	User        string            `yaml:"user"`
+	GroupAdd    []string          `yaml:"group_add"`
+	Entrypoint  string            `yaml:"entrypoint"`
+	ExtraHosts  []string          `yaml:"extra_hosts,omitempty"`
+	Labels      map[string]string `yaml:"labels,omitempty"`
+	Environment map[string]string `yaml:"environment,omitempty"`
 }
 
 type Provision struct {
@@ -305,6 +308,18 @@ func generateMainComposeFile(
 				DockerAppLabel:     "true",
 				DockerAppMainLabel: "true",
 				DockerAppPathLabel: app.FullPath.String(),
+			},
+			// Add the host ip to the environment variables if we can retrieve it.
+			// This is used to show the network ip address of the board in the apps.
+			Environment: map[string]string{
+				"HOST_IP": func() string {
+					if hostIP, err := helpers.GetHostIP(); err != nil {
+						slog.Warn("Failed to get host IP", slog.Any("error", err))
+						return ""
+					} else {
+						return hostIP
+					}
+				}(),
 			},
 		},
 	}

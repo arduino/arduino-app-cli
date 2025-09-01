@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"fmt"
+	"net"
 
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 )
@@ -29,4 +30,34 @@ func ArduinoCLITaskProgressToString(progress *rpc.TaskProgress) string {
 		data += fmt.Sprintf(" %.2f%%", progress.GetPercent())
 	}
 	return data
+}
+
+func GetHostIP() (string, error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return "", err
+	}
+
+	getIP := func(name string) (string, error) {
+		for _, iface := range ifaces {
+			if iface.Name == name {
+				addrs, err := iface.Addrs()
+				if err != nil {
+					return "", err
+				}
+				for _, addr := range addrs {
+					if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+						return ipnet.IP.String(), nil
+					}
+				}
+			}
+		}
+		return "", fmt.Errorf("no IP address found for %s", name)
+	}
+
+	if ip, err := getIP("eth0"); err == nil {
+		return ip, nil
+	}
+
+	return getIP("wlan0")
 }
