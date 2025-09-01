@@ -146,7 +146,7 @@ func (c *Configuration) AssetsDir() *paths.Path {
 func getPythonImageAndTag() (string, string) {
 	registryBase := os.Getenv("DOCKER_REGISTRY_BASE")
 	if registryBase == "" {
-		registryBase = "ghcr.io/bcmi-labs/"
+		registryBase = "public.ecr.aws/arduino/"
 	}
 
 	// Python image: image name (repository) and optionally a tag.

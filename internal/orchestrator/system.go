@@ -123,9 +123,8 @@ func parseAllModelsRunnerImageTag(staticStore *store.StaticStore) ([]string, err
 		}
 		for _, v := range prj.Services {
 			// Add only if the image comes from arduino
-			if strings.HasPrefix(v.Image, "ghcr.io/bcmi-labs/arduino/") ||
-				// TODO: add the correct ecr prefix as soon as we have it in production
-				strings.HasPrefix(v.Image, "public.ecr.aws/") {
+			if strings.HasPrefix(v.Image, "ghcr.io/bcmi-labs/") ||
+				strings.HasPrefix(v.Image, "public.ecr.aws/arduino/") {
 				result = append(result, v.Image)
 			}
 		}
