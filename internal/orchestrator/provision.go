@@ -11,19 +11,17 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/arduino/go-paths-helper"
 	"github.com/containerd/errdefs"
-
-	"github.com/arduino/arduino-app-cli/pkg/helpers"
+	"github.com/docker/cli/cli/command"
+	"github.com/docker/docker/api/types/container"
+	yaml "github.com/goccy/go-yaml"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/store"
-
-	"github.com/arduino/go-paths-helper"
-	"github.com/docker/cli/cli/command"
-	"github.com/docker/docker/api/types/container"
-	yaml "github.com/goccy/go-yaml"
+	"github.com/arduino/arduino-app-cli/pkg/helpers"
 )
 
 type volume struct {
