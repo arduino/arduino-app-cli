@@ -2,7 +2,7 @@
 # CUSTOM_MODEL_PATH = path to the custom model directory
 services:
   ei-motion-detection-runner:
-    image: ${DOCKER_REGISTRY_BASE:-ghcr.io/bcmi-labs/}app-bricks/ei-models-runner:0.3.1
+    image: ${DOCKER_REGISTRY_BASE:-public.ecr.aws/arduino/}app-bricks/ei-models-runner:0.3.2
     devices:
       - "/dev/dri:/dev/dri"
     group_add:

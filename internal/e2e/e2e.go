@@ -107,7 +107,7 @@ func (cli *ArduinoAppCLI) StartDaemon(verbose bool) string {
 
 	// Await the CLI daemon to be ready
 	var connErr error
-	for range 5 {
+	for range 10 {
 		time.Sleep(time.Second)
 
 		c, err := client.NewClient(cli.DaemonAddr)
