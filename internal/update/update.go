@@ -12,7 +12,8 @@ import (
 var ErrOperationAlreadyInProgress = errors.New("an operation is already in progress")
 
 var MatchArduinoPackage = func(p UpgradablePackage) bool {
-	return strings.HasPrefix(p.Name, "arduino-") || (p.Name == "adbd" && strings.HasSuffix(p.ToVersion, "arduino1"))
+	return strings.HasPrefix(p.Name, "arduino-") ||
+		(p.Name == "adbd" && strings.Contains(p.ToVersion, "arduino")) // NOTE: changing this check could remove the adbd package, breaking the device access.
 }
 
 var MatchAllPackages = func(p UpgradablePackage) bool {
