@@ -95,6 +95,9 @@ func listImagesAlreadyPulled(ctx context.Context) ([]string, error) {
 	return result, nil
 }
 
+// Container images matching this list will be pulled by 'system init' and included in the Linux images.
+var imagePrefixes = []string{"ghcr.io/bcmi-labs/", "public.ecr.aws/arduino/", "influxdb"}
+
 func parseAllModelsRunnerImageTag(staticStore *store.StaticStore) ([]string, error) {
 	composePath := staticStore.GetComposeFolder()
 	brickNamespace := "arduino"
@@ -122,10 +125,10 @@ func parseAllModelsRunnerImageTag(staticStore *store.StaticStore) ([]string, err
 			return nil, err
 		}
 		for _, v := range prj.Services {
-			// Add only if the image comes from arduino
-			if strings.HasPrefix(v.Image, "ghcr.io/bcmi-labs/") ||
-				strings.HasPrefix(v.Image, "public.ecr.aws/arduino/") {
-				result = append(result, v.Image)
+			for _, prefix := range imagePrefixes {
+				if strings.HasPrefix(v.Image, prefix) {
+					result = append(result, v.Image)
+				}
 			}
 		}
 	}
