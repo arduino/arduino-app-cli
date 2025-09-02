@@ -25,6 +25,25 @@ func NewArduinoPlatformUpdater() *ArduinoPlatformUpdater {
 	return &ArduinoPlatformUpdater{}
 }
 
+func setConfig(ctx context.Context, srv rpc.ArduinoCoreServiceServer) error {
+	if _, err := srv.SettingsSetValue(ctx, &rpc.SettingsSetValueRequest{
+		Key:          "board_manager.additional_urls",
+		EncodedValue: "https://arduino:aptexperiment@apt-repo.oniudra.cc/zephyr-core-imola.json",
+		ValueFormat:  "cli",
+	}); err != nil {
+		return err
+	}
+	if _, err := srv.SettingsSetValue(ctx, &rpc.SettingsSetValueRequest{
+		Key:          "network.connection_timeout",
+		EncodedValue: "600s",
+		ValueFormat:  "cli",
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // ListUpgradablePackages implements ServiceUpdater.
 func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
 	if !a.lock.TryLock() {
@@ -34,6 +53,9 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ f
 
 	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 	srv := commands.NewArduinoCoreServer()
+	if err := setConfig(ctx, srv); err != nil {
+		return nil, err
+	}
 
 	var inst *rpc.Instance
 	if resp, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
@@ -44,15 +66,6 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ f
 	defer func() {
 		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
 	}()
-
-	_, err := srv.SettingsSetValue(ctx, &rpc.SettingsSetValueRequest{
-		Key:          "board_manager.additional_urls",
-		EncodedValue: "https://arduino:aptexperiment@apt-repo.oniudra.cc/zephyr-core-imola.json",
-		ValueFormat:  "cli",
-	})
-	if err != nil {
-		return nil, err
-	}
 
 	stream, _ := commands.UpdateIndexStreamResponseToCallbackFunction(ctx, func(curr *rpc.DownloadProgress) {
 		slog.Debug("Update index progress", slog.String("download_progress", curr.String()))
@@ -133,6 +146,15 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 		logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 		srv := commands.NewArduinoCoreServer()
 
+		if err := setConfig(ctx, srv); err != nil {
+			eventsCh <- update.Event{
+				Type: update.ErrorEvent,
+				Err:  err,
+				Data: "Error setting additional URLs",
+			}
+			return
+		}
+
 		var inst *rpc.Instance
 		if resp, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
 			eventsCh <- update.Event{
@@ -153,19 +175,6 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 		}()
 
 		{
-			_, err := srv.SettingsSetValue(ctx, &rpc.SettingsSetValueRequest{
-				Key:          "board_manager.additional_urls",
-				EncodedValue: "https://arduino:aptexperiment@apt-repo.oniudra.cc/zephyr-core-imola.json",
-				ValueFormat:  "cli",
-			})
-			if err != nil {
-				eventsCh <- update.Event{
-					Type: update.ErrorEvent,
-					Err:  err,
-					Data: "Error setting additional URLs",
-				}
-				return
-			}
 			stream, _ := commands.UpdateIndexStreamResponseToCallbackFunction(ctx, downloadProgressCB)
 			if err := srv.UpdateIndex(&rpc.UpdateIndexRequest{Instance: inst}, stream); err != nil {
 				eventsCh <- update.Event{
