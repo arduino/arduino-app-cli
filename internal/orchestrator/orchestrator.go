@@ -115,7 +115,7 @@ func StartApp(
 			return
 		}
 
-		callbackWriter := NewCallbackWriter(func(line string) {
+		sketchCallbackWriter := NewCallbackWriter(func(line string) {
 			if !yield(StreamMessage{data: line}) {
 				cancel()
 				return
@@ -127,7 +127,7 @@ func StartApp(
 				cancel()
 				return
 			}
-			if err := compileUploadSketch(ctx, &app, callbackWriter, cfg); err != nil {
+			if err := compileUploadSketch(ctx, &app, sketchCallbackWriter, cfg); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
@@ -159,14 +159,32 @@ func StartApp(
 				commands = append(commands, "-f", overrideComposeFile.String())
 			}
 			commands = append(commands, "up", "-d", "--remove-orphans", "--pull", "missing")
+
+			var customError error
+			callbackDockerWriter := NewCallbackWriter(func(line string) {
+				// docker compose sometimes returns errors as info lines, we try to parse them here and return a proper error
+				if e := GetCustomErrorFomDockerEvent(line); e != nil {
+					customError = e
+				}
+
+				if !yield(StreamMessage{data: line}) {
+					cancel()
+					return
+				}
+			})
+
 			process, err := paths.NewProcess(envs, commands...)
 			if err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
-			process.RedirectStderrTo(callbackWriter)
-			process.RedirectStdoutTo(callbackWriter)
+			process.RedirectStderrTo(callbackDockerWriter)
+			process.RedirectStdoutTo(callbackDockerWriter)
 			if err := process.RunWithinContext(ctx); err != nil {
+				// custom error could have been set while reading the output. Not detected by the process exit code
+				if customError != nil {
+					err = customError
+				}
 				yield(StreamMessage{error: err})
 				return
 			}

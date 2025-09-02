@@ -66,3 +66,53 @@ func TestParseAppStatus(t *testing.T) {
 		})
 	}
 }
+
+func TestGetCustomErrorFomDockerEvent(t *testing.T) {
+	tests := []struct {
+		name       string
+		message    string
+		wantErr    bool
+		wantErrMsg string
+	}{
+		{
+			name:       "unauthorized error",
+			message:    "main Error Head \"https://****/bcmi-labs/arduino/appslab-python-apps-base/manifests/0.1.16\": unauthorized",
+			wantErr:    true,
+			wantErrMsg: "could not reach the Docker registry to download base image. Please make sure to be authorized to download from it or flash the board with the latest Arduino Linux image. Details: main Error Head \"https://****/bcmi-labs/arduino/appslab-python-apps-base/manifests/0.1.16\": unauthorized)",
+		},
+		{
+			name:       "connection refused error",
+			message:    "main Error Get \"https://***/\": dial tcp: lookup ghcr.io on [::1]:53: read udp [::1]:52317-\u003e[::1]:53: read: connection refused",
+			wantErr:    true,
+			wantErrMsg: "could not reach the Docker registry to download base image. Please check your internet connection or flash the board with the latest Arduino Linux image. Details: main Error Get \"https://***/\": dial tcp: lookup ghcr.io on [::1]:53: read udp [::1]:52317-\u003e[::1]:53: read: connection refused)",
+		},
+		{
+			name:       "no such host error",
+			message:    "Get \"https://registry-1.docker.io/v2/\": dial tcp: lookup registry-1.docker.io on 127.0.0.1:53: no such host",
+			wantErr:    true,
+			wantErrMsg: "could not reach the Docker registry to download base image. Please check your internet connection or flash the board with the latest Arduino Linux image. Details: Get \"https://registry-1.docker.io/v2/\": dial tcp: lookup registry-1.docker.io on 127.0.0.1:53: no such host)",
+		},
+		{
+			name:    "no matching error",
+			message: "container successfully started",
+			wantErr: false,
+		},
+		{
+			name:    "empty message",
+			message: "",
+			wantErr: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := GetCustomErrorFomDockerEvent(tc.message)
+			if tc.wantErr {
+				require.Error(t, err)
+				require.Equal(t, tc.wantErrMsg, err.Error())
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

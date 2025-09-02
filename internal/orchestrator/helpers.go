@@ -2,8 +2,10 @@ package orchestrator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
@@ -171,4 +173,16 @@ func findAppPathByName(name string, cfg config.Configuration) (*paths.Path, bool
 	appFolderName := slug.Make(name)
 	basePath := cfg.AppsDir().Join(appFolderName)
 	return basePath, basePath.Exist()
+}
+
+func GetCustomErrorFomDockerEvent(message string) error {
+	if strings.HasSuffix(message, ": unauthorized") {
+		return errors.New("could not reach the Docker registry to download base image. Please make sure to be authorized to download from it or flash the board with the latest Arduino Linux image. Details: " + message + ")")
+	}
+
+	if strings.HasSuffix(message, ": connection refused") || strings.Contains(message, ": no such host") {
+		return errors.New("could not reach the Docker registry to download base image. Please check your internet connection or flash the board with the latest Arduino Linux image. Details: " + message + ")")
+	}
+
+	return nil
 }
