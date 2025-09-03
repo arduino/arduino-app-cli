@@ -33,6 +33,7 @@ func NewHTTPRouter(
 	brickService *bricks.Service,
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
+	allowedOrigins []string,
 ) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /debug/", http.DefaultServeMux) // pprof endpoints
@@ -70,7 +71,7 @@ func NewHTTPRouter(
 
 	mux.Handle("GET /v1/docs/", http.StripPrefix("/v1/docs/", handlers.DocsServer(docsFS)))
 
-	mux.Handle("GET /v1/monitor/ws", handlers.HandleMonitorWS())
+	mux.Handle("GET /v1/monitor/ws", handlers.HandleMonitorWS(allowedOrigins))
 
 	return mux
 }

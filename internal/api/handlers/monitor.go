@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -14,11 +15,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/pkg/render"
 )
-
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-}
 
 func monitorStream(mon net.Conn, ws *websocket.Conn) {
 	logWebsocketError := func(msg string, err error) {
@@ -72,7 +68,32 @@ func monitorStream(mon net.Conn, ws *websocket.Conn) {
 	}()
 }
 
-func HandleMonitorWS() http.HandlerFunc {
+func checkOrigin(origin string, allowedOrigins []string) bool {
+	for _, allowed := range allowedOrigins {
+		if strings.HasSuffix(allowed, "*") {
+			// String ends with *, match the prefix
+			if strings.HasPrefix(origin, strings.TrimSuffix(allowed, "*")) {
+				return true
+			}
+		} else {
+			// Exact match
+			if allowed == origin {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func HandleMonitorWS(allowedOrigins []string) http.HandlerFunc {
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			return checkOrigin(r.Header.Get("Origin"), allowedOrigins)
+		},
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Connect to monitor
 		mon, err := net.DialTimeout("tcp", "127.0.0.1:7500", time.Second)
@@ -88,7 +109,8 @@ func HandleMonitorWS() http.HandlerFunc {
 			// Remember to close monitor connection if websocket upgrade fails.
 			mon.Close()
 
-			render.EncodeResponse(w, http.StatusInternalServerError, map[string]string{"error": "Failed to upgrade connection"})
+			slog.Error("Failed to upgrade connection", slog.String("error", err.Error()))
+			render.EncodeResponse(w, http.StatusInternalServerError, map[string]string{"error": "Failed to upgrade connection: " + err.Error()})
 			return
 		}
 

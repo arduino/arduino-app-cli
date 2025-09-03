@@ -69,6 +69,32 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, version string) {
 	slog.Info("Starting HTTP server", slog.String("address", ":"+daemonPort))
 
+	corsConfig := cors.Config{
+		Origins: []string{
+			"wails://wails",
+			"wails://wails.localhost:*",
+			"http://wails.localhost",
+			"http://wails.localhost:*",
+			"http://localhost:*",
+			"https://localhost:*",
+		},
+		Methods: []string{
+			http.MethodGet,
+			http.MethodPost,
+			http.MethodPut,
+			http.MethodOptions,
+			http.MethodDelete,
+			http.MethodPatch,
+		},
+		RequestHeaders: []string{
+			"Accept",
+			"Authorization",
+			"Content-Type",
+		},
+		MaxAgeInSeconds: 86400,
+		ResponseHeaders: []string{},
+	}
+
 	apiSrv := api.NewHTTPRouter(
 		servicelocator.GetDockerClient(),
 		version,
@@ -83,40 +109,21 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 		servicelocator.GetBrickService(),
 		servicelocator.GetAppIDProvider(),
 		cfg,
+		corsConfig.Origins,
 	)
 
-	corsMiddlware, err := cors.NewMiddleware(
-		cors.Config{
-			Origins: []string{
-				"wails://wails", "wails://wails.localhost:*",
-				"http://wails.localhost", "http://wails.localhost:*",
-				"http://localhost:*", "https://localhost:*",
-			},
-			Methods: []string{
-				http.MethodGet,
-				http.MethodPost,
-				http.MethodPut,
-				http.MethodOptions,
-				http.MethodDelete,
-				http.MethodPatch,
-			},
-			RequestHeaders: []string{
-				"Accept",
-				"Authorization",
-				"Content-Type",
-			},
-			MaxAgeInSeconds: 86400,
-			ResponseHeaders: []string{},
-		},
-	)
+	// Wrap the API server with CORS middleware
+	corsMiddlware, err := cors.NewMiddleware(corsConfig)
 	if err != nil {
 		panic(err)
 	}
+	apiSrv = corsMiddlware.Wrap(apiSrv)
 
+	// Start the HTTP server
 	address := "127.0.0.1:" + daemonPort
 	httpSrv := http.Server{
 		Addr:              address,
-		Handler:           httprecover.RecoverPanic(corsMiddlware.Wrap(apiSrv)),
+		Handler:           httprecover.RecoverPanic(apiSrv),
 		ReadHeaderTimeout: 60 * time.Second,
 	}
 	go func() {
