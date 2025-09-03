@@ -201,7 +201,9 @@ func SetCustomName(ctx context.Context, conn remote.RemoteConn, name string) err
 		return fmt.Errorf("invalid custom name: %s, must match regex %s", name, customNameRegex.String())
 	}
 
-	if err := conn.WriteFile(strings.NewReader(name), "/etc/hostname"); err != nil {
+	err := conn.GetCmd("sudo", "hostnamectl", "set-hostname", name).
+		Run(ctx)
+	if err != nil {
 		return fmt.Errorf("failed to set board name: %w", err)
 	}
 	return nil
