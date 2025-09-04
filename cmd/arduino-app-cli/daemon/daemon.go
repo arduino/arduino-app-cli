@@ -61,7 +61,6 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 		Origins: []string{
 			"wails://wails",
 			"wails://wails.localhost:*",
-			"http://wails.localhost",
 			"http://wails.localhost:*",
 			"http://localhost:*",
 			"https://localhost:*",
