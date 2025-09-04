@@ -45,18 +45,6 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 				} else {
 					slog.Info("Default app started")
 				}
-
-				slog.Info("Try to pull latest docker images in background...")
-				err = orchestrator.SystemInit(
-					cmd.Context(),
-					cfg,
-					servicelocator.GetStaticStore(),
-				)
-				if err != nil {
-					slog.Error("Auto-pull process failed", slog.String("error", err.Error()))
-				} else {
-					slog.Info("Auto-pull process completed.")
-				}
 			}()
 
 			httpHandler(cmd.Context(), cfg, daemonPort, version)

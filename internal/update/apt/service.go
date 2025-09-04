@@ -87,6 +87,26 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan u
 			eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: line}
 		}
 
+		// TEMPORARY PATCH: Install the latest docker images and show the logs to the users.
+		// TODO: Remove this workaround once docker image versions are no longer hardcoded in arduino-app-cli.
+		// Tracking issue: https://github.com/arduino/arduino-app-cli/issues/600
+		// Currently, we need to launch `arduino-app-cli system init` to pull the latest docker images because
+		// the version of the docker images are hardcoded in the (new downloaded) version of the arduino-app-cli.
+		eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: "Pulling the latest docker images ..."}
+		streamDocker := pullDockerImages(ctx)
+		for line, err := range streamDocker {
+			if err != nil {
+				eventsCh <- update.Event{
+					Type: update.ErrorEvent,
+					Err:  err,
+					Data: "Error upgrading docker images",
+				}
+				slog.Error("error upgrading docker images", "error", err)
+				return
+			}
+			eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: line}
+		}
+
 		eventsCh <- update.Event{Type: update.RestartEvent, Data: "Upgrade completed. Restarting ..."}
 
 		err := restartServices(ctx)
@@ -156,6 +176,31 @@ func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, er
 		}
 	}
 
+}
+
+func pullDockerImages(ctx context.Context) iter.Seq2[string, error] {
+	return func(yield func(string, error) bool) {
+		cmd, err := paths.NewProcess(nil, "arduino-app-cli", "system", "init")
+		if err != nil {
+			_ = yield("", err)
+			return
+		}
+		stdout := orchestrator.NewCallbackWriter(func(line string) {
+			if !yield(line, nil) {
+				err := cmd.Kill()
+				if err != nil {
+					slog.Error("Failed to kill 'arduino-app-cli system init' command", slog.String("error", err.Error()))
+				}
+				return
+			}
+		})
+		cmd.RedirectStderrTo(stdout)
+		cmd.RedirectStdoutTo(stdout)
+		err = cmd.RunWithinContext(ctx)
+		if err != nil {
+			return
+		}
+	}
 }
 
 // RestartServices restarts services that need to be restarted after an upgrade.
