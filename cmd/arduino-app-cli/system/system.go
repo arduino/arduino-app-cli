@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/docker/cli/cli/command"
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
@@ -22,6 +23,7 @@ func NewSystemCmd(cfg config.Configuration) *cobra.Command {
 
 	cmd.AddCommand(newDownloadImage(cfg))
 	cmd.AddCommand(newUpdateCmd())
+	cmd.AddCommand(newCleanUpCmd(cfg, servicelocator.GetDockerClient()))
 
 	return cmd
 }
@@ -115,4 +117,30 @@ func getFilterFunc(onlyArduino bool) func(p update.UpgradablePackage) bool {
 		return update.MatchArduinoPackage
 	}
 	return update.MatchAllPackages
+}
+
+func newCleanUpCmd(cfg config.Configuration, docker command.Cli) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "cleanup",
+		Short: "Removes unused and obsolete application images to free up disk space.",
+		Args:  cobra.ExactArgs(0),
+		RunE: func(cmd *cobra.Command, _ []string) error {
+
+			staticStore := servicelocator.GetStaticStore()
+
+			feedback.Printf("Running cleanup...")
+			result, err := orchestrator.SystemCleanupSoft(cmd.Context(), cfg, staticStore, docker)
+			if err != nil {
+				return err
+			}
+
+			if result > 0 {
+				feedback.Printf("Cleanup successful. Freed up %d bytes of disk space.", result)
+			} else {
+				feedback.Printf("No removable images found.")
+			}
+			return nil
+		},
+	}
+	return cmd
 }

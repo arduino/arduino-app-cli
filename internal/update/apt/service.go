@@ -72,7 +72,6 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan u
 		defer cancel()
 
 		eventsCh <- update.Event{Type: update.StartEvent, Data: "Upgrade is starting"}
-
 		stream := runUpgradeCommand(ctx, names)
 		for line, err := range stream {
 			if err != nil {
@@ -83,6 +82,19 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan u
 				}
 				slog.Error("error processing upgrade command output", "error", err)
 				return
+			}
+			eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: line}
+		}
+		// TEMPORARY PATCH: stopping and destroying docker containers and images since IDE does not implement it yet.
+		// TODO: Remove this workaround once IDE implements it.
+		// Tracking issue: https://github.com/arduino/arduino-app-cli/issues/623
+		eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: "Stop and destroy docker containers and images ..."}
+		streamCleanup := cleanupDockerContainers(ctx)
+		for line, err := range streamCleanup {
+			if err != nil {
+				// TODO: maybe we should retun an error or a better feedback to the user?
+				// currently, we just log the error and continue considenring not blocking
+				slog.Error("Error stopping and destroying docker containers", "error", err)
 			}
 			eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: line}
 		}
@@ -106,7 +118,6 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan u
 			}
 			eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: line}
 		}
-
 		eventsCh <- update.Event{Type: update.RestartEvent, Data: "Upgrade completed. Restarting ..."}
 
 		err := restartServices(ctx)
@@ -198,6 +209,36 @@ func pullDockerImages(ctx context.Context) iter.Seq2[string, error] {
 		cmd.RedirectStdoutTo(stdout)
 		err = cmd.RunWithinContext(ctx)
 		if err != nil {
+			return
+		}
+	}
+}
+
+// Remove all stopped containers
+func cleanupDockerContainers(ctx context.Context) iter.Seq2[string, error] {
+	return func(yield func(string, error) bool) {
+		cmd, err := paths.NewProcess(nil, "arduino-app-cli", "system", "cleanup")
+		if err != nil {
+			_ = yield("", err)
+			return
+		}
+
+		stdout := orchestrator.NewCallbackWriter(func(line string) {
+			if !yield(line, nil) {
+				err := cmd.Kill()
+				if err != nil {
+					slog.Error("Failed to kill 'arduino-app-cli system cleanup' command", slog.String("error", err.Error()))
+				}
+				return
+			}
+		})
+
+		cmd.RedirectStderrTo(stdout)
+		cmd.RedirectStdoutTo(stdout)
+
+		err = cmd.RunWithinContext(ctx)
+		if err != nil {
+			_ = yield("", err)
 			return
 		}
 	}

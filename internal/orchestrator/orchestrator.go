@@ -297,7 +297,7 @@ func getVideoDevices() map[int]string {
 	return deviceMap
 }
 
-func StopApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
+func stopAppWithCmd(ctx context.Context, app app.ArduinoApp, cmd string) iter.Seq[StreamMessage] {
 	return func(yield func(StreamMessage) bool) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -324,7 +324,7 @@ func StopApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
 			mainCompose := app.AppComposeFilePath()
 			// In case the app was never started
 			if mainCompose.Exist() {
-				process, err := paths.NewProcess(nil, "docker", "compose", "-f", mainCompose.String(), "stop", fmt.Sprintf("--timeout=%d", DefaultDockerStopTimeoutSeconds))
+				process, err := paths.NewProcess(nil, "docker", "compose", "-f", mainCompose.String(), cmd, fmt.Sprintf("--timeout=%d", DefaultDockerStopTimeoutSeconds))
 				if err != nil {
 					yield(StreamMessage{error: err})
 					return
@@ -339,6 +339,14 @@ func StopApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
 		}
 		_ = yield(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
 	}
+}
+
+func StopApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
+	return stopAppWithCmd(ctx, app, "stop")
+}
+
+func StopAndDestroyApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
+	return stopAppWithCmd(ctx, app, "down")
 }
 
 func StartDefaultApp(
