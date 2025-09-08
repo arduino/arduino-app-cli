@@ -222,6 +222,25 @@ func GetCustomName(ctx context.Context, conn remote.RemoteConn) (string, error) 
 	return string(bytes.TrimSpace(out)), nil
 }
 
+func IsUserPasswordSet(conn remote.RemoteShell) (bool, error) {
+	cmd := conn.GetCmd("chage", "-l", "arduino")
+
+	w, out, _, closer, err := cmd.Interactive()
+	if err != nil {
+		return false, fmt.Errorf("failed to check password: %w", err)
+	}
+	w.Close() // we don't need to write anything
+
+	isUserSet, err := remote.ParseChage(out)
+	if err != nil {
+		return false, err
+	}
+	if err := closer(); err != nil {
+		return false, err
+	}
+	return isUserSet, nil
+}
+
 func getSerial(conn remote.RemoteConn) (string, error) {
 	f, err := conn.ReadFile(SerialPath)
 	if err != nil {

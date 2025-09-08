@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -111,16 +112,28 @@ func newBoardListCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			boards := cmd.Context().Value(boardsListKey).([]board.Board)
 			for _, b := range boards {
-				var address string
+
+				var address, configured string
 				switch b.Protocol {
 				case board.SerialProtocol, board.LocalProtocol:
 					address = b.Serial
+
+					if conn, err := b.GetConnection(); err != nil {
+						return fmt.Errorf("failed to connect to board %s: %w", b.BoardName, err)
+					} else {
+						if s, err := board.IsUserPasswordSet(conn); err != nil {
+							return fmt.Errorf("failed to check if user password is set: %w", err)
+						} else {
+							configured = "- Configured: " + strconv.FormatBool(s)
+						}
+					}
 				case board.NetworkProtocol:
 					address = b.Address
 				default:
 					panic("unreachable")
 				}
-				feedback.Printf("%s (%s) - Connection: %s [%s]\n", b.BoardName, b.CustomName, b.Protocol, address)
+
+				feedback.Printf("%s (%s) - Connection: %s [%s] %s\n", b.BoardName, b.CustomName, b.Protocol, address, configured)
 			}
 			return nil
 		},
