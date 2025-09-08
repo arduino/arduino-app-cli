@@ -1,8 +1,6 @@
 module testwails
 
-go 1.24.1
-
-toolchain go1.24.3
+go 1.25
 
 require (
 	github.com/arduino/arduino-app-cli v0.0.0-00010101000000-000000000000
@@ -12,7 +10,7 @@ require (
 replace github.com/arduino/arduino-app-cli => ../
 
 require (
-	github.com/arduino/go-paths-helper v1.13.0 // indirect
+	github.com/arduino/go-paths-helper v1.14.0 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/codeclysm/extract/v4 v4.0.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
@@ -21,14 +19,14 @@ require (
 	github.com/h2non/filetype v1.1.3 // indirect
 	github.com/jchv/go-winloader v0.0.0-20210711035445-715c2860da7e // indirect
 	github.com/juju/errors v1.0.0 // indirect
-	github.com/klauspost/compress v1.17.2 // indirect
+	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/labstack/echo/v4 v4.13.3 // indirect
 	github.com/labstack/gommon v0.4.2 // indirect
 	github.com/leaanthony/go-ansi-parser v1.6.1 // indirect
 	github.com/leaanthony/gosod v1.0.4 // indirect
 	github.com/leaanthony/slicer v1.6.0 // indirect
 	github.com/leaanthony/u v1.1.1 // indirect
-	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
@@ -40,9 +38,8 @@ require (
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/wailsapp/go-webview2 v1.0.19 // indirect
 	github.com/wailsapp/mimetype v1.4.1 // indirect
-	go.bug.st/f v0.4.0 // indirect
-	golang.org/x/crypto v0.37.0 // indirect
-	golang.org/x/net v0.39.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
-	golang.org/x/text v0.24.0 // indirect
+	golang.org/x/crypto v0.40.0 // indirect
+	golang.org/x/net v0.42.0 // indirect
+	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/text v0.28.0 // indirect
 )

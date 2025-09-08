@@ -1,8 +1,7 @@
 <script>
   import { onMount } from 'svelte';
-  import { MkTempDir,PullSync,ListFiles, GetVersion, CheckAndApplyUpdate, GetLatestVersion } from '../wailsjs/go/main/App.js'
+  import { GetVersion, CheckAndApplyUpdate, GetLatestVersion } from '../wailsjs/go/main/App.js'
 
-  let files = []
   let version = '';
   let latestVersion = '';
   let updateError = '';
@@ -10,12 +9,6 @@
   onMount(async () => {
     version = await GetVersion();
     latestVersion = await GetLatestVersion();
-
-    const tmpPath = await MkTempDir("apps")
-    console.log("tmpPath", tmpPath)
-    await PullSync(tmpPath, ".")
-    files = await ListFiles(tmpPath)
-    console.log("files", files)
   })
 
   async function checkForUpdates() {
@@ -41,19 +34,4 @@
   {#if updateError}
     <p style="color: red;">Error: {updateError}</p>
   {/if}
-
-
-  <div>list of files with adb</div>
-
-  <br/>
-  <div>
-      {#each files as file }
-          <div>
-              {file.IsDir ? '📁' : '📄'} {file.Path}
-          </div>
-      {/each}
-  </div>
 </main>
-
-<style>
-</style>

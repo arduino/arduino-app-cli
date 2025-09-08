@@ -1,0 +1,66 @@
+version: "3"
+
+tasks:
+  release-server:start:
+    dir: wails-test
+    cmds:
+      - docker rm -f wails-static-server
+      - docker run --rm -d -v "./public:/usr/share/nginx/html:rw" --user $(id -u):$(id -g) -p 3001:80 --name wails-static-server nginx:alpine
+
+  release:local:
+    desc: Build and put the binary into the folder served by a local NGINX server.
+    vars:
+      VERSION: "{{.CLI_ARGS}}"
+    cmds:
+      - task: build
+        vars:
+          VERSION: "{{.VERSION}}"
+      - cmd: "cd .."
+      - cmd: go run cmd/releaser/main.go -o wails-test/public/AppLab/Stable wails-test/build/bin/wails-test-{{.VERSION}}.app {{.VERSION}}
+        platforms: [darwin]
+      - cmd: go run cmd/releaser/main.go -o wails-test/public/AppLab/Stable wails-test/build/bin/wails-test-{{.VERSION}} {{.VERSION}}
+        platforms: [linux]
+      - cmd: go run cmd/releaser/main.go -o wails-test/public/AppLab/Stable wails-test/build/bin/wails-test-{{.VERSION}}.exe {{.VERSION}}
+        platforms: [windows]
+
+  up:local:
+    cmds:
+      - task: build
+        vars:
+          VERSION: "0.0.0"
+      - task: up:internal
+        vars:
+          VERSION: "0.0.0"
+          UPDATE_URL: "http://127.0.0.1:3001/"
+
+  up:staging:
+    cmds:
+      - task: build
+        vars:
+          VERSION: "{{.VERSION}}"
+      - task: up:internal
+        vars:
+          UPDATE_URL: https://downloads.oniudra.cc
+          CF_ACCESS_CLIENT_SECRET: "$(export AWS_PROFILE=arduino-staging && aws ssm get-parameter --with-decryption --name /devops/downloads/cloudflare_access_client_secret --query Parameter.Value --output text)"
+          CF_ACCESS_CLIENT_ID: "$(export AWS_PROFILE=arduino-staging && aws ssm get-parameter --with-decryption --name /devops/downloads/cloudflare_access_client_id --query Parameter.Value --output text)"
+
+  up:internal:
+    internal: true
+    dir: wails-test/build/bin
+    cmds:
+      - cmd: UPDATE_URL="{{.UPDATE_URL}}" CF_ACCESS_CLIENT_ID="{{.CF_ACCESS_CLIENT_ID}}" CF_ACCESS_CLIENT_SECRET="{{.CF_ACCESS_CLIENT_SECRET}}" ./wails-test-{{.VERSION}}
+        platforms: [linux]
+      - cmd: UPDATE_URL="{{.UPDATE_URL}}" CF_ACCESS_CLIENT_ID="{{.CF_ACCESS_CLIENT_ID}}" CF_ACCESS_CLIENT_SECRET="{{.CF_ACCESS_CLIENT_SECRET}}" ./wails-test-{{.VERSION}}.app/Contents/MacOS/wails-test-{{.VERSION}}
+        platforms: [darwin]
+      - cmd: UPDATE_URL="{{.UPDATE_URL}}" CF_ACCESS_CLIENT_ID="{{.CF_ACCESS_CLIENT_ID}}" CF_ACCESS_CLIENT_SECRET="{{.CF_ACCESS_CLIENT_SECRET}}" ./wails-test-{{.VERSION}}.exe
+        platforms: [windows]
+
+  build:
+    desc: Build the Wails app with a VERSION
+    internal: true
+    dir: wails-test
+    vars:
+      VERSION: "{{.VERSION }}"
+    cmds:
+      - "echo Building with version: {{.VERSION}}"
+      - wails build -ldflags "-X main.version={{.VERSION}}" -o wails-test-{{.VERSION}}
