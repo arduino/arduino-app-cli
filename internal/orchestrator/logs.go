@@ -65,11 +65,11 @@ func AppLogs(
 			continue
 		}
 
-		services, err := extracServicesFromComposeFile(composeFilePath)
+		services, err := extractServicesFromComposeFile(composeFilePath)
 		if err != nil {
 			return x.EmptyIter[LogMessage](), err
 		}
-		for _, s := range services {
+		for s := range services {
 			serviceToBrickMapping[s] = brick.ID
 		}
 	}

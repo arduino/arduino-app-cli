@@ -30,18 +30,22 @@ type volume struct {
 	Target string `yaml:"target"`
 }
 
+type dependsOnCondition struct {
+	Condition string `yaml:"condition"`
+}
+
 type service struct {
-	Image       string            `yaml:"image"`
-	DependsOn   []string          `yaml:"depends_on,omitempty"`
-	Volumes     []volume          `yaml:"volumes"`
-	Devices     []string          `yaml:"devices"`
-	Ports       []string          `yaml:"ports"`
-	User        string            `yaml:"user"`
-	GroupAdd    []string          `yaml:"group_add"`
-	Entrypoint  string            `yaml:"entrypoint"`
-	ExtraHosts  []string          `yaml:"extra_hosts,omitempty"`
-	Labels      map[string]string `yaml:"labels,omitempty"`
-	Environment map[string]string `yaml:"environment,omitempty"`
+	Image       string                        `yaml:"image"`
+	DependsOn   map[string]dependsOnCondition `yaml:"depends_on,omitempty"`
+	Volumes     []volume                      `yaml:"volumes"`
+	Devices     []string                      `yaml:"devices"`
+	Ports       []string                      `yaml:"ports"`
+	User        string                        `yaml:"user"`
+	GroupAdd    []string                      `yaml:"group_add"`
+	Entrypoint  string                        `yaml:"entrypoint"`
+	ExtraHosts  []string                      `yaml:"extra_hosts,omitempty"`
+	Labels      map[string]string             `yaml:"labels,omitempty"`
+	Environment map[string]string             `yaml:"environment,omitempty"`
 }
 
 type Provision struct {
@@ -196,8 +200,8 @@ func generateMainComposeFile(
 	}
 
 	var composeFiles paths.PathList
-	services := []string{}
-	servicesThatRequireDevices := []string{}
+	services := make(map[string]serviceInfo)
+	var servicesThatRequireDevices []string
 	for _, brick := range app.Descriptor.Bricks {
 		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
 		slog.Debug("Processing brick", slog.String("brick_id", brick.ID), slog.Bool("found", found))
@@ -224,7 +228,7 @@ func generateMainComposeFile(
 		}
 
 		// 3. Retrieve the compose services names.
-		svcs, err := extracServicesFromComposeFile(composeFilePath)
+		svcs, err := extractServicesFromComposeFile(composeFilePath)
 		if err != nil {
 			slog.Error("loading brick_compose", slog.String("brick_id", brick.ID), slog.String("path", composeFilePath.String()), slog.Any("error", err))
 			continue
@@ -233,11 +237,11 @@ func generateMainComposeFile(
 		// 4. Retrieve the required devices that we have to mount
 		slog.Debug("Brick require Devices", slog.Bool("Devices", idxBrick.RequiresDevices), slog.Any("ports", ports))
 		if idxBrick.RequiresDevices {
-			servicesThatRequireDevices = append(servicesThatRequireDevices, svcs...)
+			servicesThatRequireDevices = slices.AppendSeq(servicesThatRequireDevices, maps.Keys(svcs))
 		}
 
 		composeFiles.Add(composeFilePath)
-		services = append(services, svcs...)
+		maps.Insert(services, maps.All(svcs))
 	}
 
 	// Create a single docker-mainCompose that includes all the required services
@@ -291,6 +295,22 @@ func generateMainComposeFile(
 
 	groups := []string{"dialout", "video", "audio", "render"}
 
+	// Define depends_on conditions
+	// Services with healthcheck will be started only when healthy
+	// Services without healthcheck will be started as soon as the container is started
+	dependsOn := make(map[string]dependsOnCondition, len(services))
+	for name := range services {
+		if services[name].hasHealthcheck {
+			dependsOn[name] = dependsOnCondition{
+				Condition: "service_healthy",
+			}
+		} else {
+			dependsOn[name] = dependsOnCondition{
+				Condition: "service_started",
+			}
+		}
+	}
+
 	mainAppCompose.Services = &mainService{
 		Main: service{
 			Image:      pythonImage,
@@ -298,7 +318,7 @@ func generateMainComposeFile(
 			Ports:      slices.Collect(maps.Keys(ports)),
 			Devices:    devices.devicePaths,
 			Entrypoint: "/run.sh",
-			DependsOn:  services,
+			DependsOn:  dependsOn,
 			User:       getCurrentUser(),
 			GroupAdd:   groups,
 			ExtraHosts: []string{"msgpack-rpc-router:host-gateway"},
@@ -333,7 +353,7 @@ func generateMainComposeFile(
 
 	// If there are services that require devices, we need to generate an override compose file
 	// Write additional file to override devices section in included compose files
-	if e := generateServicesOverrideFile(app, services, servicesThatRequireDevices, devices.devicePaths, getCurrentUser(), groups, overrideComposeFile); e != nil {
+	if e := generateServicesOverrideFile(app, slices.Collect(maps.Keys(services)), servicesThatRequireDevices, devices.devicePaths, getCurrentUser(), groups, overrideComposeFile); e != nil {
 		return e
 	}
 
@@ -356,14 +376,21 @@ func generateMainComposeFile(
 	return nil
 }
 
-func extracServicesFromComposeFile(composeFile *paths.Path) ([]string, error) {
+type serviceInfo struct {
+	hasHealthcheck bool
+}
+
+func extractServicesFromComposeFile(composeFile *paths.Path) (map[string]serviceInfo, error) {
 	content, err := os.ReadFile(composeFile.String())
 	if err != nil {
 		return nil, err
 	}
 
 	type serviceMin struct {
-		Image string `yaml:"image"`
+		Image       string `yaml:"image"`
+		Healthcheck struct {
+			Test []string `yaml:"test"`
+		} `yaml:"healthcheck,omitempty"`
 	}
 	type composeServices struct {
 		Services map[string]serviceMin `yaml:"services"`
@@ -372,11 +399,10 @@ func extracServicesFromComposeFile(composeFile *paths.Path) ([]string, error) {
 	if err := yaml.Unmarshal(content, &index); err != nil {
 		return nil, err
 	}
-	services := make([]string, len(index.Services))
-	i := 0
-	for svc := range maps.Keys(index.Services) {
-		services[i] = svc
-		i++
+	services := make(map[string]serviceInfo, len(index.Services))
+	for svc, svcDef := range index.Services {
+		hasHealthcheck := len(svcDef.Healthcheck.Test) > 0
+		services[svc] = serviceInfo{hasHealthcheck: hasHealthcheck}
 	}
 	return services, nil
 }

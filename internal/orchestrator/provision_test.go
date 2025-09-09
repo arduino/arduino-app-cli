@@ -11,7 +11,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/store"
 
-	yaml "github.com/goccy/go-yaml"
+	"github.com/goccy/go-yaml"
 
 	"github.com/stretchr/testify/require"
 )
@@ -250,4 +250,157 @@ services:
 		require.True(t, app.FullPath.Join("data").Join("influx-data").Exist(), "Volume directory should exist")
 	})
 
+}
+
+func TestProvisionAppWithDependsOn(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	staticStore := store.NewStaticStore(cfg.AssetsDir().String())
+	tempDirectory := t.TempDir()
+	var env = map[string]string{}
+	type services struct {
+		Services map[string]struct {
+			Image     string `yaml:"image"`
+			DependsOn map[string]struct {
+				Condition string `yaml:"condition"`
+			} `yaml:"depends_on"`
+		} `yaml:"services"`
+	}
+
+	bricksIndexContent := []byte(`
+bricks:
+- id: arduino:dbstorage_tsstore
+  name: Database Storage - Time Series Store
+  description: Simplified time series database storage layer for Arduino sensor samples
+    built on top of InfluxDB.
+  require_container: true
+  require_model: false
+  ports: []
+  category: storage
+  variables:
+  - name: APP_HOME
+    default_value: .`)
+	err := cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
+	require.NoError(t, err)
+
+	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(cfg.AssetsDir())
+	require.Nil(t, err, "Failed to load bricks index with custom content")
+	br, ok := bricksIndex.FindBrickByID("arduino:dbstorage_tsstore")
+	require.True(t, ok, "Brick arduino:dbstorage_tsstore should exist in the index")
+	require.NotNil(t, br, "Brick arduino:dbstorage_tsstore should not be nil")
+	require.Equal(t, "Database Storage - Time Series Store", br.Name, "Brick name should match")
+
+	app := app.ArduinoApp{
+		Name: "TestApp",
+		Descriptor: app.AppDescriptor{
+			Bricks: []app.Brick{
+				{
+					ID: "arduino:dbstorage_tsstore",
+				},
+			},
+		},
+		FullPath: paths.New(tempDirectory),
+	}
+	require.NoError(t, app.ProvisioningStateDir().MkdirAll())
+
+	t.Run("services with healthcheck", func(t *testing.T) {
+		fileComposePath := cfg.AssetsDir().Join("compose", "arduino", "dbstorage_tsstore")
+		require.NoError(t, fileComposePath.MkdirAll())
+		dependsOnFromStrings := `
+services:
+  dbstorage-influx:
+    image: influxdb:2.7
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${BIND_PORT:-8086}:8086"
+    volumes:
+      - "${APP_HOME:-.}/data/influx-data:/var/lib/influxdb2"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/health"]`
+		err := fileComposePath.Join("brick_compose.yaml").WriteFile([]byte(dependsOnFromStrings))
+		require.NoError(t, err)
+
+		// Run the provision function to generate the main compose file
+		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore)
+		require.NoError(t, err, "Failed to generate main compose file")
+		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
+		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
+
+		// Open main compose file and check for the expected depends_on with service_healthy
+		mainComposeFileContent, err := composeFilePath.ReadFile()
+		require.Nil(t, err, "Failed to read compose file")
+		var content services
+		err = yaml.Unmarshal(mainComposeFileContent, &content)
+		require.Nil(t, err, "Failed to unmarshal overrides content")
+		exp := services{
+			Services: map[string]struct {
+				Image     string `yaml:"image"`
+				DependsOn map[string]struct {
+					Condition string `yaml:"condition"`
+				} `yaml:"depends_on"`
+			}{
+				"main": {
+					Image: "app-bricks:python-apps-base:dev-latest",
+					DependsOn: map[string]struct {
+						Condition string `yaml:"condition"`
+					}{
+						"dbstorage-influx": {
+							Condition: "service_healthy",
+						},
+					},
+				},
+			},
+		}
+		require.Equal(t, exp, content, "Main compose content should match the expected structure")
+	})
+
+	t.Run("services without healthcheck", func(t *testing.T) {
+		fileComposePath := cfg.AssetsDir().Join("compose", "arduino", "dbstorage_tsstore")
+		require.NoError(t, fileComposePath.MkdirAll())
+		dependsOnFromStrings := `
+services:
+  dbstorage-influx:
+    image: influxdb:2.7
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${BIND_PORT:-8086}:8086"
+    volumes:
+      - "${APP_HOME:-.}/data/influx-data:/var/lib/influxdb2"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup`
+		err = fileComposePath.Join("brick_compose.yaml").WriteFile([]byte(dependsOnFromStrings))
+		require.NoError(t, err)
+
+		// Run the provision function to generate the main compose file
+		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore)
+		require.NoError(t, err, "Failed to generate main compose file")
+		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
+		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
+
+		// Open main compose file and check for the expected depends_on with service_started
+		mainComposeFileContent, err := composeFilePath.ReadFile()
+		require.Nil(t, err, "Failed to read compose file")
+		var content services
+		err = yaml.Unmarshal(mainComposeFileContent, &content)
+		require.Nil(t, err, "Failed to unmarshal overrides content")
+		exp := services{
+			Services: map[string]struct {
+				Image     string `yaml:"image"`
+				DependsOn map[string]struct {
+					Condition string `yaml:"condition"`
+				} `yaml:"depends_on"`
+			}{
+				"main": {
+					Image: "app-bricks:python-apps-base:dev-latest",
+					DependsOn: map[string]struct {
+						Condition string `yaml:"condition"`
+					}{
+						"dbstorage-influx": {
+							Condition: "service_started",
+						},
+					},
+				},
+			},
+		}
+		require.Equal(t, exp, content, "Main compose content should match the expected structure")
+	})
 }
