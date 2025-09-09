@@ -845,8 +845,11 @@ components:
   schemas:
     AIModelItem:
       properties:
-        brick_id:
-          type: string
+        brick_ids:
+          items:
+            type: string
+          nullable: true
+          type: array
         description:
           type: string
         id:

@@ -13,7 +13,7 @@ type AIModelItem struct {
 	Name               string            `json:"name"`
 	ModuleDescription  string            `json:"description"`
 	Runner             string            `json:"runner"`
-	Brick              string            `json:"brick_id"`
+	Bricks             []string          `json:"brick_ids"`
 	Metadata           map[string]string `json:"metadata,omitempty"`
 	ModelConfiguration map[string]string `json:"model_configuration,omitempty"`
 }
@@ -36,7 +36,7 @@ func AIModelsList(req AIModelsListRequest, modelsIndex *modelsindex.ModelsIndex)
 			Name:               model.Name,
 			ModuleDescription:  model.ModuleDescription,
 			Runner:             model.Runner,
-			Brick:              model.Brick,
+			Bricks:             model.Bricks,
 			Metadata:           model.Metadata,
 			ModelConfiguration: model.ModelConfiguration,
 		}
@@ -54,7 +54,7 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 		Name:               model.Name,
 		ModuleDescription:  model.ModuleDescription,
 		Runner:             model.Runner,
-		Brick:              model.Brick,
+		Bricks:             model.Bricks,
 		Metadata:           model.Metadata,
 		ModelConfiguration: model.ModelConfiguration,
 	}, true

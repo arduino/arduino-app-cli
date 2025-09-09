@@ -54,7 +54,7 @@ func TestAIModelDetails(t *testing.T) {
 
 	expectedModel := (*aiModelsList.JSON200.Models)[0]
 	require.NotNil(t, expectedModel.Id, "Setup model's ID should not be nil")
-	require.NotNil(t, expectedModel.BrickId, "Setup model's BrickId should not be nil")
+	require.NotNil(t, expectedModel.BrickIds, "Setup model's BrickId should not be nil")
 	require.NotNil(t, expectedModel.Name, "Setup model's Name should not be nil")
 	require.NotNil(t, expectedModel.Description, "Setup model's Description should not be nil")
 	require.NotNil(t, expectedModel.Metadata, "Setup model's Metadata should not be nil")
@@ -71,8 +71,8 @@ func TestAIModelDetails(t *testing.T) {
 		require.NotNil(t, modelDetails.Id, "Response model's ID should not be nil")
 		require.Equal(t, *expectedModel.Id, *modelDetails.Id, "ID should match")
 
-		require.NotNil(t, modelDetails.BrickId, "Response model's BrickId should not be nil")
-		require.Equal(t, *expectedModel.BrickId, *modelDetails.BrickId, "BrickId should match")
+		require.NotNil(t, modelDetails.BrickIds, "Response model's BrickId should not be nil")
+		require.Equal(t, *expectedModel.BrickIds, *modelDetails.BrickIds, "BrickIds should match")
 
 		require.NotNil(t, modelDetails.Name, "Response model's Name should not be nil")
 		require.Equal(t, *expectedModel.Name, *modelDetails.Name, "Name should match")

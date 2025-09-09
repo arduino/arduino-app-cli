@@ -33,7 +33,7 @@ const (
 
 // AIModelItem defines model for AIModelItem.
 type AIModelItem struct {
-	BrickId            *string            `json:"brick_id,omitempty"`
+	BrickIds           *[]string          `json:"brick_ids"`
 	Description        *string            `json:"description,omitempty"`
 	Id                 *string            `json:"id,omitempty"`
 	Metadata           *map[string]string `json:"metadata,omitempty"`

@@ -32,7 +32,7 @@ type AIModel struct {
 	Name               string            `yaml:"name"`
 	ModuleDescription  string            `yaml:"description"`
 	Runner             string            `yaml:"runner"`
-	Brick              string            `yaml:"brick"`
+	Bricks             []string          `yaml:"bricks,omitempty"`
 	Metadata           map[string]string `yaml:"metadata,omitempty"`
 	ModelConfiguration map[string]string `yaml:"model_configuration,omitempty"`
 }
@@ -56,7 +56,7 @@ func (m *ModelsIndex) GetModelByID(id string) (*AIModel, bool) {
 func (m *ModelsIndex) GetModelsByBrick(brick string) []AIModel {
 	var matches []AIModel
 	for i := range m.models {
-		if m.models[i].Brick == brick {
+		if len(m.models[i].Bricks) > 0 && slices.Contains(m.models[i].Bricks, brick) {
 			matches = append(matches, m.models[i])
 		}
 	}
@@ -69,8 +69,11 @@ func (m *ModelsIndex) GetModelsByBrick(brick string) []AIModel {
 func (m *ModelsIndex) GetModelsByBricks(bricks []string) []AIModel {
 	var matchingModels []AIModel
 	for _, model := range m.models {
-		if slices.Contains(bricks, model.Brick) {
-			matchingModels = append(matchingModels, model)
+		for _, modelBrick := range model.Bricks {
+			if slices.Contains(bricks, modelBrick) {
+				matchingModels = append(matchingModels, model)
+				break
+			}
 		}
 	}
 	return matchingModels
