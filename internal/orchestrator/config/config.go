@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -22,6 +23,7 @@ type Configuration struct {
 	PythonImage        string
 	UsedPythonImageTag string
 	RunnerVersion      string
+	AllowRoot          bool
 }
 
 func NewFromEnv() (Configuration, error) {
@@ -90,6 +92,11 @@ func NewFromEnv() (Configuration, error) {
 	pythonImage, usedPythonImageTag := getPythonImageAndTag()
 	slog.Debug("Using pythonImage", slog.String("image", pythonImage))
 
+	allowRoot, err := strconv.ParseBool(os.Getenv("ARDUINO_APP_CLI__ALLOW_ROOT"))
+	if err != nil {
+		allowRoot = false
+	}
+
 	c := Configuration{
 		appsDir:            appsDir,
 		configDir:          configDir,
@@ -99,6 +106,7 @@ func NewFromEnv() (Configuration, error) {
 		PythonImage:        pythonImage,
 		UsedPythonImageTag: usedPythonImageTag,
 		RunnerVersion:      runnerVersion,
+		AllowRoot:          allowRoot,
 	}
 	if err := c.init(); err != nil {
 		return Configuration{}, err

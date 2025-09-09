@@ -81,6 +81,11 @@ func main() {
 	if err != nil {
 		feedback.Fatal(fmt.Sprintf("invalid config: %s", err), feedback.ErrGeneric)
 	}
+
+	if os.Geteuid() == 0 && !configuration.AllowRoot {
+		feedback.Fatal("arduino-app-cli must not be run as root. Try `su - arduino` before this command.", feedback.ErrGeneric)
+	}
+
 	if err := run(configuration); err != nil {
 		feedback.FatalError(err, 1)
 	}
