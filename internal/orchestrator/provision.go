@@ -293,6 +293,8 @@ func generateMainComposeFile(
 		}
 	}
 
+	volumes = addLedControl(volumes)
+
 	groups := []string{"dialout", "video", "audio", "render"}
 
 	// Define depends_on conditions
@@ -320,7 +322,7 @@ func generateMainComposeFile(
 			Entrypoint: "/run.sh",
 			DependsOn:  dependsOn,
 			User:       getCurrentUser(),
-			GroupAdd:   groups,
+			GroupAdd:   append(groups, "gpiod"),
 			ExtraHosts: []string{"msgpack-rpc-router:host-gateway"},
 			Labels: map[string]string{
 				DockerAppLabel:     "true",

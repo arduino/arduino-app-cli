@@ -979,6 +979,28 @@ func getDevices() deviceResult {
 	return res
 }
 
+// addLedControl adds bindings for led control if the paths exist.
+func addLedControl(volumes []volume) []volume {
+	ledsPath := paths.NewPathList(
+		"/sys/class/leds/blue:user",
+		"/sys/class/leds/green:user",
+		"/sys/class/leds/red:user",
+		"/sys/class/leds/blue:bt",
+		"/sys/class/leds/green:wlan",
+		"/sys/class/leds/red:panic",
+	)
+	for _, path := range ledsPath {
+		if path.Exist() {
+			volumes = append(volumes, volume{
+				Type:   "bind",
+				Source: path.String(),
+				Target: path.String(),
+			})
+		}
+	}
+	return volumes
+}
+
 func disconnectSerialFromRPCRouter(ctx context.Context, portAddress string, cfg config.Configuration) func() {
 	var msgPackRouterAddr = cfg.RouterSocketPath().String()
 	c, err := net.Dial("unix", msgPackRouterAddr)
