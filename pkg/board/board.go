@@ -241,6 +241,29 @@ func IsUserPasswordSet(conn remote.RemoteShell) (bool, error) {
 	return isUserSet, nil
 }
 
+func SetUserPassword(ctx context.Context, conn remote.RemoteConn, newPass string) error {
+	cmd := conn.GetCmd("sudo", "arduino-passwd")
+	stdin, stdout, stderr, closer, err := cmd.Interactive()
+	if err != nil {
+		return fmt.Errorf("failed to set password: %w", err)
+	}
+
+	if _, err = stdin.Write([]byte(newPass)); err != nil {
+		return fmt.Errorf("failed to write password: %w", err)
+	}
+	if err := stdin.Close(); err != nil {
+		return fmt.Errorf("failed to close stdin: %w", err)
+	}
+
+	if err := closer(); err != nil {
+		out, _ := io.ReadAll(stdout)
+		errOut, _ := io.ReadAll(stderr)
+		return fmt.Errorf("failed to set password: %w: %s %s", err, out, errOut)
+	}
+
+	return nil
+}
+
 func getSerial(conn remote.RemoteConn) (string, error) {
 	f, err := conn.ReadFile(SerialPath)
 	if err != nil {

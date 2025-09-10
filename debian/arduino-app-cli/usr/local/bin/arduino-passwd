@@ -1,0 +1,8 @@
+#!/bin/bash
+
+read -s "pass"
+
+[ -n "$pass" ] || exit 1
+
+echo "arduino:$pass" | chpasswd
+

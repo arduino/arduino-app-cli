@@ -3,10 +3,12 @@ package board
 import (
 	"context"
 	"fmt"
+	"os"
 	"path"
 	"strconv"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/pkg/appsync"
@@ -63,6 +65,7 @@ func NewBoardCmd() *cobra.Command {
 	fsCmd.AddCommand(newSyncAppCmd())
 	fsCmd.AddCommand(newBoardListCmd())
 	fsCmd.AddCommand(newBoardSetName())
+	fsCmd.AddCommand(newSetPasswordCmd())
 
 	return fsCmd
 }
@@ -160,4 +163,29 @@ func newBoardSetName() *cobra.Command {
 	}
 
 	return setNameCmd
+}
+
+func newSetPasswordCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "set-password",
+		Short: "Set the user password of the board",
+		Args:  cobra.ExactArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			conn := cmd.Context().Value(remoteConnKey).(remote.RemoteConn)
+
+			feedback.Print("Enter new password: ")
+			// TODO: fix for not interactive terminal
+			password, err := term.ReadPassword(int(os.Stdin.Fd())) // nolint:forbidigo
+			if err != nil {
+				return fmt.Errorf("failed to read password: %w", err)
+			}
+
+			if err := board.SetUserPassword(cmd.Context(), conn, string(password)); err != nil {
+				return fmt.Errorf("failed to set user password: %w", err)
+			}
+
+			feedback.Printf("User password set\n")
+			return nil
+		},
+	}
 }
