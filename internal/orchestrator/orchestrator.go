@@ -127,7 +127,7 @@ func StartApp(
 		})
 
 		if app.MainSketchPath != nil {
-			if !yield(StreamMessage{data: "compiling and updating sketch..."}) {
+			if !yield(StreamMessage{data: "Compiling and uploading the sketch..."}) {
 				cancel()
 				return
 			}
