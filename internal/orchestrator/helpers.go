@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"slices"
 	"strings"
 
@@ -206,9 +205,8 @@ func setStatusLeds(trigger LedTrigger) error {
 		if !ledPath.Exist() {
 			return fmt.Errorf("LED path %s does not exist", ledPath)
 		}
-		var value string
-		if err := os.WriteFile(ledPath.String(), []byte(trigger), 0600); err != nil {
-			return fmt.Errorf("failed to set LED %s to %s: %w", ledPath, value, err)
+		if err := ledPath.WriteFile([]byte(trigger)); err != nil {
+			return fmt.Errorf("failed to set LED %s to %s: %w", ledPath, trigger, err)
 		}
 	}
 	return nil
