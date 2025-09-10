@@ -115,6 +115,10 @@ func StartApp(
 			return
 		}
 
+		if err := setStatusLeds(LedTriggerNone); err != nil {
+			slog.Debug("unable to set status leds", slog.String("error", err.Error()))
+		}
+
 		sketchCallbackWriter := NewCallbackWriter(func(line string) {
 			if !yield(StreamMessage{data: line}) {
 				cancel()
@@ -301,6 +305,10 @@ func stopAppWithCmd(ctx context.Context, app app.ArduinoApp, cmd string) iter.Se
 	return func(yield func(StreamMessage) bool) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
+
+		if err := setStatusLeds(LedTriggerDefault); err != nil {
+			slog.Debug("unable to set status leds", slog.String("error", err.Error()))
+		}
 
 		callbackWriter := NewCallbackWriter(func(line string) {
 			if !yield(StreamMessage{data: line}) {

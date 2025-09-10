@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 
@@ -184,5 +185,31 @@ func GetCustomErrorFomDockerEvent(message string) error {
 		return errors.New("could not reach the Docker registry to download base image. Please check your internet connection or flash the board with the latest Arduino Linux image. Details: " + message + ")")
 	}
 
+	return nil
+}
+
+type LedTrigger string
+
+const (
+	LedTriggerNone    LedTrigger = "none"
+	LedTriggerDefault LedTrigger = "default"
+)
+
+var statusLeds = paths.NewPathList(
+	"/sys/class/leds/blue:bt/trigger",
+	"/sys/class/leds/green:wlan/trigger",
+	"/sys/class/leds/red:panic/trigger",
+)
+
+func setStatusLeds(trigger LedTrigger) error {
+	for _, ledPath := range statusLeds {
+		if !ledPath.Exist() {
+			return fmt.Errorf("LED path %s does not exist", ledPath)
+		}
+		var value string
+		if err := os.WriteFile(ledPath.String(), []byte(trigger), 0600); err != nil {
+			return fmt.Errorf("failed to set LED %s to %s: %w", ledPath, value, err)
+		}
+	}
 	return nil
 }
