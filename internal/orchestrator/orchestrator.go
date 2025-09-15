@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -928,10 +927,6 @@ func editAppDefaults(userApp *app.ArduinoApp, isDefault bool, cfg config.Configu
 }
 
 func getCurrentUser() string {
-	// MacOS and Windows uses a VM so we don't need to map the user.
-	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
-		return ""
-	}
 	// Map user to avoid permission issues.
 	user, err := user.Current()
 	if err != nil {
@@ -949,10 +944,6 @@ type deviceResult struct {
 
 func getDevices() deviceResult {
 	res := deviceResult{}
-	// Ignore devices on Windows
-	if runtime.GOOS == "windows" {
-		return res
-	}
 
 	deviceList, err := paths.New("/dev").ReadDir()
 	if err != nil {
