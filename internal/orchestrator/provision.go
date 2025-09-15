@@ -247,7 +247,7 @@ func generateMainComposeFile(
 	// Create a single docker-mainCompose that includes all the required services
 	mainComposeFile := app.AppComposeFilePath()
 	// If required, create an override compose file for devices
-	overrideComposeFile := app.ProvisioningStateDir().Join("app-compose-overrides.yaml")
+	overrideComposeFile := app.AppComposeOverrideFilePath()
 
 	type mainService struct {
 		Main service `yaml:"main"`
