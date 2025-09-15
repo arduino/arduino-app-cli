@@ -2,7 +2,7 @@
 # CUSTOM_MODEL_PATH = path to the custom model directory
 services:
   ei-video-obj-detection-runner:
-    image: ${DOCKER_REGISTRY_BASE:-public.ecr.aws/arduino/}app-bricks/ei-models-runner:0.4.0   
+    image: ${DOCKER_REGISTRY_BASE:-public.ecr.aws/arduino/}app-bricks/ei-models-runner:0.4.2   
     ports:
       - ${BIND_PORT:-4912}:4912
     volumes:
