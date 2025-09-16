@@ -45,8 +45,9 @@ func newUpdateCmd() *cobra.Command {
 	var onlyArduino bool
 	var forceYes bool
 	cmd := &cobra.Command{
-		Use:  "update",
-		Args: cobra.ExactArgs(0),
+		Use:   "update",
+		Short: "Launches an update of the upgradable packages on the system",
+		Args:  cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			filterFunc := getFilterFunc(onlyArduino)
 
@@ -99,7 +100,7 @@ func newUpdateCmd() *cobra.Command {
 		},
 	}
 
-	cmd.PersistentFlags().BoolVar(&onlyArduino, "only-arduino", false, "Check for all upgradable packages")
+	cmd.PersistentFlags().BoolVar(&onlyArduino, "only-arduino", false, "Only upgrades Arduino specific packages")
 	cmd.PersistentFlags().BoolVar(&forceYes, "yes", false, "Automatically confirm all prompts")
 
 	return cmd
