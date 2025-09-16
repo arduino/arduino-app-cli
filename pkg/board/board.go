@@ -15,6 +15,7 @@ import (
 	"github.com/arduino/arduino-cli/pkg/fqbn"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/sirupsen/logrus"
+	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/pkg/board/remote"
 	"github.com/arduino/arduino-app-cli/pkg/board/remote/adb"
@@ -41,6 +42,26 @@ const (
 	ArduinoUnoQ = "arduino:zephyr:unoq"
 	SerialPath  = "/sys/devices/soc0/serial_number"
 )
+
+func identifyUnoQ(p *rpc.DetectedPort) {
+	const UnoQVID = "0x2341"
+	const UnoQPID = "0x0078"
+	const UnoQBoardID = "unoq"
+
+	// If the board has been already identified as Uno Q, just return true
+	for _, b := range p.GetMatchingBoards() {
+		if b.GetFqbn() == ArduinoUnoQ {
+			return
+		}
+	}
+
+	// Otherwise check the VID/PID or board ID
+	props := p.GetPort().GetProperties()
+	isUnoQ := props["board"] == UnoQBoardID || (props["vid"] == UnoQVID && props["pid"] == UnoQPID)
+	if isUnoQ {
+		p.MatchingBoards = append(p.MatchingBoards, &rpc.BoardListItem{Name: "Arduino UNO Q", Fqbn: ArduinoUnoQ})
+	}
+}
 
 // Cache the initialized Arduino CLI service, so it don't need to be re-initialized
 // TODO: provide a way to get the board information by event instead of polling.
@@ -96,80 +117,95 @@ func FromFQBN(ctx context.Context, fqbn string) ([]Board, error) {
 		arduinoCLIInstance = inst
 	}
 
-	list, err := arduinoCLIServer.BoardList(ctx, &rpc.BoardListRequest{
+	listReq := &rpc.BoardListRequest{
 		Instance: arduinoCLIInstance,
-		Timeout:  2000, // 2 seconds
-		Fqbn:     fqbn,
-	})
+		Timeout:  100, // 100 ms
+	}
+	list, err := arduinoCLIServer.BoardList(ctx, listReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get info for FQBN %s: %w", fqbn, err)
 	}
 
-	if ports := list.GetPorts(); len(ports) != 0 {
-		var boards []Board
-		for _, port := range ports {
-			if port.GetPort() == nil {
-				continue
-			}
-
-			var boardName string
-			if len(port.GetMatchingBoards()) > 0 {
-				boardName = port.GetMatchingBoards()[0].GetName()
-			}
-
-			switch port.GetPort().GetProtocol() {
-			case SerialProtocol:
-				serial := strings.ToLower(port.GetPort().GetHardwareId()) // in windows this is uppercase.
-
-				// TODO: we should store the board custom name in the product id so we can get it from the discovery service.
-				var customName string
-				if conn, err := adb.FromSerial(serial, ""); err == nil {
-					if name, err := GetCustomName(ctx, conn); err == nil {
-						customName = name
-					}
-				}
-
-				boards = append(boards, Board{
-					Protocol:   SerialProtocol,
-					Serial:     serial,
-					BoardName:  boardName,
-					CustomName: customName,
-				})
-			case NetworkProtocol:
-				var customName string
-				if name, ok := port.GetPort().GetProperties()["hostname"]; ok {
-					// take the part before the first dot as custom name
-					idx := strings.Index(name, ".")
-					if idx == -1 {
-						idx = len(name)
-					}
-					customName = name[:idx]
-				}
-
-				boards = append(boards, Board{
-					Protocol:   NetworkProtocol,
-					Address:    port.GetPort().GetAddress(),
-					BoardName:  boardName,
-					CustomName: customName,
-				})
-			default:
-				slog.Warn("unknown protocol", "protocol", port.GetPort().GetProtocol())
-			}
-		}
-
-		// Sort serial first
-		slices.SortFunc(boards, func(a, b Board) int {
-			if a.Protocol == "serial" {
-				return -1
-			} else {
-				return 1
-			}
-		})
-
-		return boards, nil
+	ports := list.GetPorts()
+	for _, p := range ports {
+		identifyUnoQ(p)
 	}
 
-	return nil, fmt.Errorf("no hardware ID found for FQBN %s", fqbn)
+	portMatchFqbn := func(p *rpc.DetectedPort) bool {
+		return slices.ContainsFunc(
+			p.GetMatchingBoards(),
+			func(b *rpc.BoardListItem) bool {
+				return b.GetFqbn() == fqbn
+			},
+		)
+	}
+	ports = f.Filter(ports, portMatchFqbn)
+
+	if len(ports) == 0 {
+		return nil, fmt.Errorf("no hardware ID found for FQBN %s", fqbn)
+	}
+
+	var boards []Board
+	for _, port := range ports {
+		if port.GetPort() == nil {
+			continue
+		}
+
+		var boardName string
+		if len(port.GetMatchingBoards()) > 0 {
+			boardName = port.GetMatchingBoards()[0].GetName()
+		}
+
+		switch port.GetPort().GetProtocol() {
+		case SerialProtocol:
+			serial := strings.ToLower(port.GetPort().GetHardwareId()) // in windows this is uppercase.
+
+			// TODO: we should store the board custom name in the product id so we can get it from the discovery service.
+			var customName string
+			if conn, err := adb.FromSerial(serial, ""); err == nil {
+				if name, err := GetCustomName(ctx, conn); err == nil {
+					customName = name
+				}
+			}
+
+			boards = append(boards, Board{
+				Protocol:   SerialProtocol,
+				Serial:     serial,
+				BoardName:  boardName,
+				CustomName: customName,
+			})
+		case NetworkProtocol:
+			var customName string
+			if name, ok := port.GetPort().GetProperties()["hostname"]; ok {
+				// take the part before the first dot as custom name
+				idx := strings.Index(name, ".")
+				if idx == -1 {
+					idx = len(name)
+				}
+				customName = name[:idx]
+			}
+
+			boards = append(boards, Board{
+				Protocol:   NetworkProtocol,
+				Address:    port.GetPort().GetAddress(),
+				BoardName:  boardName,
+				CustomName: customName,
+			})
+		default:
+			slog.Warn("unknown protocol", "protocol", port.GetPort().GetProtocol())
+		}
+	}
+
+	// Sort serial first
+	slices.SortFunc(boards, func(a, b Board) int {
+		if a.Protocol == "serial" {
+			return -1
+		} else {
+			return 1
+		}
+	})
+
+	return boards, nil
 }
 
 func (b *Board) GetConnection(optPassword ...string) (remote.RemoteConn, error) {
