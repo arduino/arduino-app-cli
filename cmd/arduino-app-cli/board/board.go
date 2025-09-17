@@ -66,6 +66,9 @@ func NewBoardCmd() *cobra.Command {
 	fsCmd.AddCommand(newBoardListCmd())
 	fsCmd.AddCommand(newBoardSetName())
 	fsCmd.AddCommand(newSetPasswordCmd())
+	fsCmd.AddCommand(newEnableNetworkModeCmd())
+	fsCmd.AddCommand(newDisableNetworkModeCmd())
+	fsCmd.AddCommand(newNetworkModeStatusCmd())
 
 	return fsCmd
 }
@@ -185,6 +188,61 @@ func newSetPasswordCmd() *cobra.Command {
 			}
 
 			feedback.Printf("User password set\n")
+			return nil
+		},
+	}
+}
+
+func newEnableNetworkModeCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "enable-ssh",
+		Short: "Enable and start the SSH service on the board",
+		Args:  cobra.ExactArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			conn := cmd.Context().Value(remoteConnKey).(remote.RemoteConn)
+
+			if err := board.EnableNetworkMode(cmd.Context(), conn); err != nil {
+				return fmt.Errorf("failed to enable SSH: %w", err)
+			}
+
+			feedback.Printf("SSH service enabled and started\n")
+			return nil
+		},
+	}
+}
+
+func newDisableNetworkModeCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "disable-ssh",
+		Short: "Disable and stop the SSH service on the board",
+		Args:  cobra.ExactArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			conn := cmd.Context().Value(remoteConnKey).(remote.RemoteConn)
+
+			if err := board.DisableNetworkMode(cmd.Context(), conn); err != nil {
+				return fmt.Errorf("failed to disable SSH: %w", err)
+			}
+
+			feedback.Printf("SSH service disabled and stopped\n")
+			return nil
+		},
+	}
+}
+
+func newNetworkModeStatusCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "status-ssh",
+		Short: "Check the status of the network mode on the board",
+		Args:  cobra.ExactArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			conn := cmd.Context().Value(remoteConnKey).(remote.RemoteConn)
+
+			isEnabled, err := board.NetworkModeStatus(cmd.Context(), conn)
+			if err != nil {
+				return fmt.Errorf("failed to check network mode status: %w", err)
+			}
+
+			feedback.Printf("Network mode is %s\n", map[bool]string{true: "enabled", false: "disabled"}[isEnabled])
 			return nil
 		},
 	}

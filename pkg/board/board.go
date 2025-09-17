@@ -3,9 +3,11 @@ package board
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"os/exec"
 	"regexp"
 	"slices"
 	"strings"
@@ -295,6 +297,60 @@ func SetUserPassword(ctx context.Context, conn remote.RemoteConn, newPass string
 		out, _ := io.ReadAll(stdout)
 		errOut, _ := io.ReadAll(stderr)
 		return fmt.Errorf("failed to set password: %w: %s %s", err, out, errOut)
+	}
+
+	return nil
+}
+
+func EnableNetworkMode(ctx context.Context, conn remote.RemoteConn) error {
+	if err := conn.GetCmd("sudo", "dpkg-reconfigure", "openssh-server").Run(ctx); err != nil {
+		return fmt.Errorf("failed to reconfigure openssh-server: %w", err)
+	}
+
+	if err := conn.GetCmd("sudo", "systemctl", "enable", "ssh").Run(ctx); err != nil {
+		return fmt.Errorf("failed to enable ssh service: %w", err)
+	}
+
+	if err := conn.GetCmd("sudo", "systemctl", "start", "ssh").Run(ctx); err != nil {
+		return fmt.Errorf("failed to start ssh service: %w", err)
+	}
+
+	return nil
+}
+
+func NetworkModeStatus(ctx context.Context, conn remote.RemoteConn) (bool, error) {
+	err := conn.GetCmd("systemctl", "is-enabled", "ssh").Run(ctx)
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			if exitErr.ExitCode() != 0 {
+				return false, nil
+			}
+		}
+		return false, fmt.Errorf("failed to check ssh service status: %w", err)
+	}
+
+	err = conn.GetCmd("systemctl", "is-active", "ssh").Run(ctx)
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			if exitErr.ExitCode() != 0 {
+				return false, nil
+			}
+		}
+		return false, fmt.Errorf("failed to check ssh service status: %w", err)
+	}
+
+	return true, nil
+}
+
+func DisableNetworkMode(ctx context.Context, conn remote.RemoteConn) error {
+	if err := conn.GetCmd("sudo", "systemctl", "disable", "ssh").Run(ctx); err != nil {
+		return fmt.Errorf("failed to disable ssh service: %w", err)
+	}
+
+	if err := conn.GetCmd("sudo", "systemctl", "stop", "ssh").Run(ctx); err != nil {
+		return fmt.Errorf("failed to stop ssh service: %w", err)
 	}
 
 	return nil

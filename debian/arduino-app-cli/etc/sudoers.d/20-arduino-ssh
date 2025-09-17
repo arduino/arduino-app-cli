@@ -1,0 +1,1 @@
+arduino ALL=(ALL) NOPASSWD: /usr/sbin/dpkg-reconfigure openssh-server, /usr/bin/systemctl enable ssh, /usr/bin/systemctl start ssh, /usr/bin/systemctl disable ssh, /usr/bin/systemctl stop ssh
