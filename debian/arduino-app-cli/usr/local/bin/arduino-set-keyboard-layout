@@ -1,0 +1,13 @@
+#!/bin/sh
+
+LAYOUT="$1"
+if [ -z "$LAYOUT" ]; then
+  echo "No layout provided"
+  exit 1
+fi
+
+# Update the "XKBLAYOUT" line in /etc/default/keyboard
+sed -i "s/^XKBLAYOUT=\"[^\"]*\"/XKBLAYOUT=\"$LAYOUT\"/" /etc/default/keyboard
+
+# Then apply the changes
+udevadm trigger --subsystem-match=input --action=change

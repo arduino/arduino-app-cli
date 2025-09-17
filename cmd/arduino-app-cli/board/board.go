@@ -70,6 +70,10 @@ func NewBoardCmd() *cobra.Command {
 	fsCmd.AddCommand(newDisableNetworkModeCmd())
 	fsCmd.AddCommand(newNetworkModeStatusCmd())
 
+	fsCmd.AddCommand(listKeyboardLayouts())
+	fsCmd.AddCommand(getKeyboardLayout())
+	fsCmd.AddCommand(setKeyboardLayout())
+
 	return fsCmd
 }
 
@@ -243,6 +247,88 @@ func newNetworkModeStatusCmd() *cobra.Command {
 			}
 
 			feedback.Printf("Network mode is %s\n", map[bool]string{true: "enabled", false: "disabled"}[isEnabled])
+			return nil
+		},
+	}
+}
+
+func getKeyboardLayout() *cobra.Command {
+	return &cobra.Command{
+		Use:   "get-keyboard-layout",
+		Short: "Returns the current system keyboard layout code",
+		Args:  cobra.ExactArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			conn := cmd.Context().Value(remoteConnKey).(remote.RemoteConn)
+
+			layoutCode, err := board.GetKeyboardLayout(cmd.Context(), conn)
+			if err != nil {
+				return fmt.Errorf("failed: %w", err)
+			}
+			feedback.Printf("Layout: %s", layoutCode)
+
+			return nil
+		},
+	}
+}
+
+func setKeyboardLayout() *cobra.Command {
+	return &cobra.Command{
+		Use:   "set-keyboard-layout <layout>",
+		Short: "Saves and applies the current system keyboard layout",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			conn := cmd.Context().Value(remoteConnKey).(remote.RemoteConn)
+			layoutCode := args[0]
+
+			err := validateKeyboardLayoutCode(conn, layoutCode)
+			if err != nil {
+				return fmt.Errorf("failed: %w", err)
+			}
+
+			err = board.SetKeyboardLayout(cmd.Context(), conn, layoutCode)
+			if err != nil {
+				return fmt.Errorf("failed: %w", err)
+			}
+
+			feedback.Printf("New layout applied: %s", layoutCode)
+			return nil
+		},
+	}
+}
+
+func validateKeyboardLayoutCode(conn remote.RemoteConn, layoutCode string) error {
+	// Make sure the input layout code is in the list of valid ones
+	layouts, err := board.ListKeyboardLayouts(conn)
+	if err != nil {
+		return fmt.Errorf("failed to fetch valid layouts: %w", err)
+	}
+
+	for _, layout := range layouts {
+		if layout.LayoutId == layoutCode {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid layout code: %s", layoutCode)
+}
+
+func listKeyboardLayouts() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list-keyboard-layouts",
+		Short: "Returns the list of valid keyboard layouts, with a description",
+		Args:  cobra.ExactArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			conn := cmd.Context().Value(remoteConnKey).(remote.RemoteConn)
+
+			layouts, err := board.ListKeyboardLayouts(conn)
+			if err != nil {
+				return fmt.Errorf("failed: %w", err)
+			}
+
+			for _, layout := range layouts {
+				feedback.Printf("%s, %s", layout.LayoutId, layout.Description)
+			}
+
 			return nil
 		},
 	}
