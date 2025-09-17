@@ -303,54 +303,56 @@ func SetUserPassword(ctx context.Context, conn remote.RemoteConn, newPass string
 }
 
 func EnableNetworkMode(ctx context.Context, conn remote.RemoteConn) error {
-	if err := conn.GetCmd("sudo", "dpkg-reconfigure", "openssh-server").Run(ctx); err != nil {
-		return fmt.Errorf("failed to reconfigure openssh-server: %w", err)
+	cmds := [][]string{
+		{"sudo", "dpkg-reconfigure", "openssh-server"},
+		{"sudo", "systemctl", "enable", "ssh"},
+		{"sudo", "systemctl", "start", "ssh"},
+		{"sudo", "systemctl", "enable", "avahi-daemon"},
+		{"sudo", "systemctl", "start", "avahi-daemon"},
 	}
 
-	if err := conn.GetCmd("sudo", "systemctl", "enable", "ssh").Run(ctx); err != nil {
-		return fmt.Errorf("failed to enable ssh service: %w", err)
-	}
-
-	if err := conn.GetCmd("sudo", "systemctl", "start", "ssh").Run(ctx); err != nil {
-		return fmt.Errorf("failed to start ssh service: %w", err)
+	for _, cmd := range cmds {
+		if err := conn.GetCmd(cmd[0], cmd[1:]...).Run(ctx); err != nil {
+			return fmt.Errorf("failed to run cmd %q: %w", strings.Join(cmd, " "), err)
+		}
 	}
 
 	return nil
 }
 
 func NetworkModeStatus(ctx context.Context, conn remote.RemoteConn) (bool, error) {
-	err := conn.GetCmd("systemctl", "is-enabled", "ssh").Run(ctx)
-	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			if exitErr.ExitCode() != 0 {
-				return false, nil
-			}
-		}
-		return false, fmt.Errorf("failed to check ssh service status: %w", err)
+	cmds := [][]string{
+		{"systemctl", "is-enabled", "ssh"},
+		{"systemctl", "is-active", "ssh"},
+		{"systemctl", "is-enabled", "avahi-daemon"},
+		{"systemctl", "is-active", "avahi-daemon"},
 	}
 
-	err = conn.GetCmd("systemctl", "is-active", "ssh").Run(ctx)
-	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			if exitErr.ExitCode() != 0 {
+	for _, cmd := range cmds {
+		if err := conn.GetCmd(cmd[0], cmd[1:]...).Run(ctx); err != nil {
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) && exitErr.ExitCode() != 0 {
 				return false, nil
 			}
+			return false, fmt.Errorf("failed to run cmd %q: %w", strings.Join(cmd, " "), err)
 		}
-		return false, fmt.Errorf("failed to check ssh service status: %w", err)
 	}
 
 	return true, nil
 }
 
 func DisableNetworkMode(ctx context.Context, conn remote.RemoteConn) error {
-	if err := conn.GetCmd("sudo", "systemctl", "disable", "ssh").Run(ctx); err != nil {
-		return fmt.Errorf("failed to disable ssh service: %w", err)
+	cmds := [][]string{
+		{"sudo", "systemctl", "disable", "ssh"},
+		{"sudo", "systemctl", "stop", "ssh"},
+		{"sudo", "systemctl", "disable", "avahi-daemon"},
+		{"sudo", "systemctl", "stop", "avahi-daemon"},
 	}
 
-	if err := conn.GetCmd("sudo", "systemctl", "stop", "ssh").Run(ctx); err != nil {
-		return fmt.Errorf("failed to stop ssh service: %w", err)
+	for _, cmd := range cmds {
+		if err := conn.GetCmd(cmd[0], cmd[1:]...).Run(ctx); err != nil {
+			return fmt.Errorf("failed to run cmd %q: %w", strings.Join(cmd, " "), err)
+		}
 	}
 
 	return nil

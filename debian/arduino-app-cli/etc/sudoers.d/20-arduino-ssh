@@ -1,1 +1,1 @@
-arduino ALL=(ALL) NOPASSWD: /usr/sbin/dpkg-reconfigure openssh-server, /usr/bin/systemctl enable ssh, /usr/bin/systemctl start ssh, /usr/bin/systemctl disable ssh, /usr/bin/systemctl stop ssh
+arduino ALL=(ALL) NOPASSWD: /usr/sbin/dpkg-reconfigure openssh-server, /usr/bin/systemctl enable ssh, /usr/bin/systemctl start ssh, /usr/bin/systemctl disable ssh, /usr/bin/systemctl stop ssh, /usr/bin/systemctl disable avahi-daemon, /usr/bin/systemctl stop avahi-daemon, /usr/bin/systemctl enable avahi-daemon, /usr/bin/systemctl start avahi-daemon
