@@ -27,6 +27,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-router/msgpackrpc"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	appgenerator "github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
@@ -610,10 +611,11 @@ func AppDetails(
 }
 
 type CreateAppRequest struct {
-	Name       string
-	Icon       string
-	SkipPython bool
-	SkipSketch bool
+	Name        string
+	Icon        string
+	Description string
+	SkipPython  bool
+	SkipSketch  bool
 }
 
 type CreateAppResponse struct {
@@ -637,56 +639,26 @@ func CreateApp(
 	if appExists {
 		return CreateAppResponse{}, ErrAppAlreadyExists
 	}
-
-	if err := basePath.MkdirAll(); err != nil {
-		return CreateAppResponse{}, fmt.Errorf("failed to create app directory: %w", err)
-	}
-	if !req.SkipSketch {
-		baseSketchPath := basePath.Join("sketch")
-		if err := baseSketchPath.MkdirAll(); err != nil {
-			return CreateAppResponse{}, fmt.Errorf("failed to create sketch directory: %w", err)
-		}
-		if err := baseSketchPath.Join("sketch.ino").WriteFile([]byte("void setup() {}\n\nvoid loop() {}")); err != nil {
-			return CreateAppResponse{}, fmt.Errorf("failed to create sketch file: %w", err)
-		}
-		if err := baseSketchPath.Join("sketch.yaml").WriteFile([]byte("profiles:\n\ndefault_profile:")); err != nil {
-			return CreateAppResponse{}, fmt.Errorf("failed to create sketch.yaml project file: %w", err)
-		}
+	appName := req.Name
+	app := app.AppDescriptor{
+		Name:        appName,
+		Description: req.Description,
+		Ports:       []int{},
+		Icon:        req.Icon, // TODO: not sure if icon will exists for bricks
 	}
 
-	if !req.SkipPython {
-		basePythonPath := basePath.Join("python")
-		if err := basePythonPath.MkdirAll(); err != nil {
-			return CreateAppResponse{}, fmt.Errorf("failed to create python directory: %w", err)
-		}
-		pythonContent := `def main():
-    print("Hello World!")
+	var options appgenerator.Opts = 0
 
-
-if __name__ == "__main__":
-    main()
-`
-		if err := basePythonPath.Join("main.py").WriteFile([]byte(pythonContent)); err != nil {
-			return CreateAppResponse{}, fmt.Errorf("failed to create python file: %w", err)
-		}
+	if req.SkipSketch {
+		options |= appgenerator.SkipSketch
+	}
+	if req.SkipPython {
+		options |= appgenerator.SkipPython
 	}
 
-	appYaml, err := yaml.Marshal(
-		app.AppDescriptor{
-			Name:        req.Name,
-			Description: "",
-			Ports:       []int{},
-			Icon:        req.Icon, // TODO: not sure if icon will exists for bricks
-		},
-	)
-	if err != nil {
-		return CreateAppResponse{}, fmt.Errorf("failed to marshal app.yaml content: %w", err)
+	if err := appgenerator.GenerateApp(basePath, app, options); err != nil {
+		return CreateAppResponse{}, fmt.Errorf("failed to create app: %w", err)
 	}
-
-	if err := basePath.Join("app.yaml").WriteFile(appYaml); err != nil {
-		return CreateAppResponse{}, fmt.Errorf("failed to create app.yaml file: %w", err)
-	}
-
 	id, err := idProvider.IDFromPath(basePath)
 	if err != nil {
 		return CreateAppResponse{}, fmt.Errorf("failed to get app id: %w", err)

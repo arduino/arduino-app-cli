@@ -15,8 +15,9 @@ import (
 )
 
 type CreateAppRequest struct {
-	Name string `json:"name" description:"application name" example:"My Awesome App" required:"true"`
-	Icon string `json:"icon" description:"application icon" `
+	Name        string `json:"name" description:"application name" example:"My Awesome App" required:"true"`
+	Icon        string `json:"icon" description:"application icon" `
+	Description string `json:"description" description:"application description" `
 }
 
 func HandleAppCreate(
@@ -49,10 +50,11 @@ func HandleAppCreate(
 		resp, err := orchestrator.CreateApp(
 			r.Context(),
 			orchestrator.CreateAppRequest{
-				Name:       req.Name,
-				Icon:       req.Icon,
-				SkipPython: skipPython,
-				SkipSketch: skipSketch,
+				Name:        req.Name,
+				Icon:        req.Icon,
+				Description: req.Description,
+				SkipPython:  skipPython,
+				SkipSketch:  skipSketch,
 			},
 			idProvider,
 			cfg,

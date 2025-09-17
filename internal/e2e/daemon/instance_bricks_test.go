@@ -22,8 +22,9 @@ func setupTestApp(t *testing.T) (*client.CreateAppResp, *client.ClientWithRespon
 		t.Context(),
 		&client.CreateAppParams{SkipSketch: f.Ptr(true)},
 		client.CreateAppRequest{
-			Icon: f.Ptr("💻"),
-			Name: "test-app",
+			Icon:        f.Ptr("💻"),
+			Name:        "test-app",
+			Description: f.Ptr("My app description"),
 		},
 		func(ctx context.Context, req *http.Request) error { return nil },
 	)

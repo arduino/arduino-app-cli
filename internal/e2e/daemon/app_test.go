@@ -19,8 +19,9 @@ func TestCreateApp(t *testing.T) {
 	httpClient := GetHttpclient(t)
 
 	defaultRequestBody := client.CreateAppRequest{
-		Icon: f.Ptr("🌎"),
-		Name: "HelloWorld",
+		Icon:        f.Ptr("🌎"),
+		Name:        "HelloWorld",
+		Description: f.Ptr("My HelloWorld description"),
 	}
 
 	testCases := []struct {
@@ -56,8 +57,9 @@ func TestCreateApp(t *testing.T) {
 				SkipSketch: f.Ptr(false),
 			},
 			body: client.CreateAppRequest{
-				Icon: f.Ptr("🌎"),
-				Name: "HelloWorld_2",
+				Icon:        f.Ptr("🌎"),
+				Name:        "HelloWorld_2",
+				Description: f.Ptr("My HelloWorld_2 description"),
 			},
 			expectedStatusCode: http.StatusCreated,
 		},
@@ -68,8 +70,9 @@ func TestCreateApp(t *testing.T) {
 				SkipSketch: f.Ptr(true),
 			},
 			body: client.CreateAppRequest{
-				Icon: f.Ptr("🌎"),
-				Name: "HelloWorld_3",
+				Icon:        f.Ptr("🌎"),
+				Name:        "HelloWorld_3",
+				Description: f.Ptr("My HelloWorld_3 description"),
 			},
 			expectedStatusCode: http.StatusCreated,
 		},
@@ -107,6 +110,47 @@ func TestCreateApp(t *testing.T) {
 	}
 }
 
+func TestCreateAndVerifyAppDetails(t *testing.T) {
+	httpClient := GetHttpclient(t)
+	appToCreate := client.CreateAppRequest{
+		Icon:        f.Ptr("🧪"),
+		Name:        "test-app-for-verification",
+		Description: f.Ptr("A description for the verification test."),
+	}
+
+	createResp, err := httpClient.CreateAppWithResponse(
+		t.Context(),
+		&client.CreateAppParams{SkipSketch: f.Ptr(true)},
+		appToCreate,
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode())
+	require.NotNil(t, createResp.JSON201, "The creation response body should not be nil")
+	require.NotNil(t, createResp.JSON201.Id, "The created app ID should not be nil")
+
+	createdAppId := *createResp.JSON201.Id
+
+	detailsResp, err := httpClient.GetAppDetailsWithResponse(t.Context(), createdAppId)
+
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, detailsResp.StatusCode())
+	require.NotNil(t, detailsResp.JSON200, "The get details response body should not be nil")
+
+	retrievedApp := detailsResp.JSON200
+
+	require.Equal(t, createdAppId, retrievedApp.Id)
+	require.Equal(t, appToCreate.Name, retrievedApp.Name)
+	require.Equal(t, *appToCreate.Icon, *retrievedApp.Icon)
+	require.Equal(t, *appToCreate.Description, *retrievedApp.Description)
+
+	require.False(t, *retrievedApp.Example, "A new app should not be an 'example'")
+	require.False(t, *retrievedApp.Default, "A new app should not be 'default'")
+	require.Equal(t, client.Stopped, retrievedApp.Status, "The initial status of a new app should be 'stopped'")
+	require.Empty(t, retrievedApp.Bricks, "A new app should not have 'bricks'")
+	require.NotEmpty(t, retrievedApp.Path, "The app path should not be empty")
+}
+
 func TestEditApp(t *testing.T) {
 	httpClient := GetHttpclient(t)
 
@@ -115,8 +159,9 @@ func TestEditApp(t *testing.T) {
 		t.Context(),
 		&client.CreateAppParams{SkipSketch: f.Ptr(true)},
 		client.CreateAppRequest{
-			Icon: f.Ptr("💻"),
-			Name: appName,
+			Icon:        f.Ptr("💻"),
+			Name:        appName,
+			Description: f.Ptr("My app description"),
 		},
 	)
 	require.NoError(t, err)
@@ -192,8 +237,9 @@ func TestEditApp(t *testing.T) {
 			t.Context(),
 			&client.CreateAppParams{SkipSketch: f.Ptr(true)},
 			client.CreateAppRequest{
-				Icon: f.Ptr("💻"),
-				Name: "new-valid-app",
+				Icon:        f.Ptr("💻"),
+				Name:        "new-valid-app",
+				Description: f.Ptr("My app description"),
 			},
 		)
 		require.NoError(t, err)
@@ -230,8 +276,9 @@ func TestDeleteApp(t *testing.T) {
 		t.Context(),
 		&client.CreateAppParams{SkipSketch: f.Ptr(true)},
 		client.CreateAppRequest{
-			Icon: f.Ptr("🗑️"),
-			Name: appToDeleteName,
+			Icon:        f.Ptr("🗑️"),
+			Name:        appToDeleteName,
+			Description: f.Ptr("My app description"),
 		},
 	)
 	require.NoError(t, err)
@@ -375,8 +422,9 @@ func TestAppClone(t *testing.T) {
 		t.Context(),
 		&client.CreateAppParams{},
 		client.CreateAppRequest{
-			Icon: f.Ptr("📄"),
-			Name: "source-app",
+			Icon:        f.Ptr("📄"),
+			Name:        "source-app",
+			Description: f.Ptr("My app description"),
 		},
 	)
 	require.NoError(t, err)
@@ -387,8 +435,9 @@ func TestAppClone(t *testing.T) {
 		t.Context(),
 		&client.CreateAppParams{},
 		client.CreateAppRequest{
-			Icon: f.Ptr("🚫"),
-			Name: "existing-clone-name",
+			Icon:        f.Ptr("🚫"),
+			Name:        "existing-clone-name",
+			Description: f.Ptr("My app description"),
 		},
 	)
 	require.NoError(t, err)
@@ -492,8 +541,9 @@ func TestAppLogs(t *testing.T) {
 		t.Context(),
 		&client.CreateAppParams{},
 		client.CreateAppRequest{
-			Icon: f.Ptr("📜"),
-			Name: "app-with-logs",
+			Icon:        f.Ptr("📜"),
+			Name:        "app-with-logs",
+			Description: f.Ptr("My app description"),
 		},
 	)
 	require.NoError(t, err)
@@ -556,8 +606,9 @@ func TestAppDetails(t *testing.T) {
 		t.Context(),
 		&client.CreateAppParams{SkipSketch: f.Ptr(true)},
 		client.CreateAppRequest{
-			Icon: f.Ptr("💻"),
-			Name: appName,
+			Icon:        f.Ptr("💻"),
+			Name:        appName,
+			Description: f.Ptr("My app description"),
 		},
 	)
 	require.NoError(t, err)
@@ -582,6 +633,7 @@ func TestAppDetails(t *testing.T) {
 		require.Equal(t, *appID, detailsResp.JSON200.Id)
 		require.Equal(t, appName, detailsResp.JSON200.Name)
 		require.Equal(t, "💻", *detailsResp.JSON200.Icon)
+		require.Equal(t, "My app description", *detailsResp.JSON200.Description)
 		require.Len(t, *detailsResp.JSON200.Bricks, 1)
 		require.Equal(t,
 			client.AppDetailedBrick{
@@ -607,8 +659,9 @@ func TestAppPorts(t *testing.T) {
 			t.Context(),
 			&client.CreateAppParams{SkipSketch: f.Ptr(true)},
 			client.CreateAppRequest{
-				Icon: f.Ptr("💻"),
-				Name: "test-app",
+				Icon:        f.Ptr("💻"),
+				Name:        "test-app",
+				Description: f.Ptr("My app description"),
 			},
 			func(ctx context.Context, req *http.Request) error { return nil },
 		)
@@ -652,8 +705,9 @@ func TestAppPorts(t *testing.T) {
 			t.Context(),
 			&client.CreateAppParams{SkipSketch: f.Ptr(true)},
 			client.CreateAppRequest{
-				Icon: f.Ptr("💻"),
-				Name: "test-app-2",
+				Icon:        f.Ptr("💻"),
+				Name:        "test-app-2",
+				Description: f.Ptr("My app description"),
 			},
 			func(ctx context.Context, req *http.Request) error { return nil },
 		)

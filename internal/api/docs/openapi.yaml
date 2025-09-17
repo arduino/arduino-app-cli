@@ -1104,6 +1104,9 @@ components:
       type: object
     CreateAppRequest:
       properties:
+        description:
+          description: application description
+          type: string
         icon:
           description: application icon
           type: string

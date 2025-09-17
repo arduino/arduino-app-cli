@@ -14,11 +14,12 @@ import (
 
 func newCreateCmd(cfg config.Configuration) *cobra.Command {
 	var (
-		icon     string
-		bricks   []string
-		noPyton  bool
-		noSketch bool
-		fromApp  string
+		icon        string
+		description string
+		bricks      []string
+		noPyton     bool
+		noSketch    bool
+		fromApp     string
 	)
 
 	cmd := &cobra.Command{
@@ -28,11 +29,12 @@ func newCreateCmd(cfg config.Configuration) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cobra.MinimumNArgs(1)
 			name := args[0]
-			return createHandler(cmd.Context(), cfg, name, icon, noPyton, noSketch, fromApp)
+			return createHandler(cmd.Context(), cfg, name, icon, description, noPyton, noSketch, fromApp)
 		},
 	}
 
 	cmd.Flags().StringVarP(&icon, "icon", "i", "", "Icon for the app")
+	cmd.Flags().StringVarP(&description, "description", "d", "", "Description for the app")
 	cmd.Flags().StringVarP(&fromApp, "from-app", "", "", "Create the new app from the path of an existing app")
 	cmd.Flags().StringArrayVarP(&bricks, "bricks", "b", []string{}, "List of bricks to include in the app")
 	cmd.Flags().BoolVarP(&noPyton, "no-python", "", false, "Do not include Python files")
@@ -42,7 +44,7 @@ func newCreateCmd(cfg config.Configuration) *cobra.Command {
 	return cmd
 }
 
-func createHandler(ctx context.Context, cfg config.Configuration, name string, icon string, noPython, noSketch bool, fromApp string) error {
+func createHandler(ctx context.Context, cfg config.Configuration, name string, icon string, description string, noPython, noSketch bool, fromApp string) error {
 	if fromApp != "" {
 		id, err := servicelocator.GetAppIDProvider().ParseID(fromApp)
 		if err != nil {
@@ -68,10 +70,11 @@ func createHandler(ctx context.Context, cfg config.Configuration, name string, i
 
 	} else {
 		resp, err := orchestrator.CreateApp(ctx, orchestrator.CreateAppRequest{
-			Name:       name,
-			Icon:       icon,
-			SkipPython: noPython,
-			SkipSketch: noSketch,
+			Name:        name,
+			Icon:        icon,
+			Description: description,
+			SkipPython:  noPython,
+			SkipSketch:  noSketch,
 		}, servicelocator.GetAppIDProvider(), cfg)
 		if err != nil {
 			feedback.Fatal(err.Error(), feedback.ErrGeneric)
