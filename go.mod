@@ -1,6 +1,6 @@
 module github.com/arduino/arduino-app-cli
 
-go 1.25
+go 1.25.1
 
 // This is needed because compose introduce a regression in https://github.com/docker/compose/pull/13062
 // They changed the wait monitor ends. Because we're using the Logs() method, we are no longer able to make it
@@ -17,6 +17,7 @@ require (
 	github.com/Andrew-M-C/go.emoji v1.1.4
 	github.com/arduino/arduino-cli v1.3.1
 	github.com/arduino/go-paths-helper v1.14.0
+	github.com/arduino/go-windows-runas v0.0.0-20250918132957-e681a11c5bd8
 	github.com/codeclysm/extract/v4 v4.0.0
 	github.com/compose-spec/compose-go/v2 v2.8.1
 	github.com/containerd/errdefs v1.0.0
@@ -272,7 +273,7 @@ require (
 	golang.org/x/net v0.42.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
-	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/sys v0.36.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 	golang.org/x/tools v0.35.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250528174236-200df99c418a // indirect
