@@ -21,7 +21,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/store"
-	"github.com/arduino/arduino-app-cli/pkg/helpers"
+	"github.com/arduino/arduino-app-cli/pkg/x"
 )
 
 type volume struct {
@@ -189,7 +189,7 @@ func generateMainComposeFile(
 	bricksIndex *bricksindex.BricksIndex,
 	pythonImage string,
 	cfg config.Configuration,
-	mapped_env map[string]string,
+	envs x.EnvVars,
 	staticStore *store.StaticStore,
 ) error {
 	slog.Debug("Generating main compose file for the App")
@@ -329,18 +329,7 @@ func generateMainComposeFile(
 				DockerAppMainLabel: "true",
 				DockerAppPathLabel: app.FullPath.String(),
 			},
-			// Add the host ip to the environment variables if we can retrieve it.
-			// This is used to show the network ip address of the board in the apps.
-			Environment: map[string]string{
-				"HOST_IP": func() string {
-					if hostIP, err := helpers.GetHostIP(); err != nil {
-						slog.Warn("Failed to get host IP", slog.Any("error", err))
-						return ""
-					} else {
-						return hostIP
-					}
-				}(),
-			},
+			Environment: envs,
 		},
 	}
 
@@ -355,7 +344,7 @@ func generateMainComposeFile(
 
 	// If there are services that require devices, we need to generate an override compose file
 	// Write additional file to override devices section in included compose files
-	if e := generateServicesOverrideFile(app, slices.Collect(maps.Keys(services)), servicesThatRequireDevices, devices.devicePaths, getCurrentUser(), groups, overrideComposeFile); e != nil {
+	if e := generateServicesOverrideFile(app, slices.Collect(maps.Keys(services)), servicesThatRequireDevices, devices.devicePaths, getCurrentUser(), groups, overrideComposeFile, envs); e != nil {
 		return e
 	}
 
@@ -371,7 +360,7 @@ func generateMainComposeFile(
 			slog.Warn("Failed to extract volumes from compose file", slog.String("compose_file", composeFilePath), slog.Any("error", err))
 			continue
 		}
-		provisionComposeVolumes(composeFilePath, volumes, app, mapped_env)
+		provisionComposeVolumes(composeFilePath, volumes, app, envs)
 	}
 
 	// Done!
@@ -409,7 +398,7 @@ func extractServicesFromComposeFile(composeFile *paths.Path) (map[string]service
 	return services, nil
 }
 
-func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []string, servicesThatRequireDevices []string, devices []string, user string, groups []string, overrideComposeFile *paths.Path) error {
+func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []string, servicesThatRequireDevices []string, devices []string, user string, groups []string, overrideComposeFile *paths.Path, envs x.EnvVars) error {
 	if overrideComposeFile.Exist() {
 		if err := overrideComposeFile.Remove(); err != nil {
 			return fmt.Errorf("failed to remove existing override compose file: %w", err)
@@ -422,10 +411,11 @@ func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []string,
 	}
 
 	type serviceOverride struct {
-		User     string            `yaml:"user,omitempty"`
-		Devices  *[]string         `yaml:"devices,omitempty"`
-		GroupAdd *[]string         `yaml:"group_add,omitempty"`
-		Labels   map[string]string `yaml:"labels,omitempty"`
+		User        string            `yaml:"user,omitempty"`
+		Devices     *[]string         `yaml:"devices,omitempty"`
+		GroupAdd    *[]string         `yaml:"group_add,omitempty"`
+		Labels      map[string]string `yaml:"labels,omitempty"`
+		Environment map[string]string `yaml:"environment,omitempty"`
 	}
 	var overrideCompose struct {
 		Services map[string]serviceOverride `yaml:"services,omitempty"`
@@ -443,6 +433,7 @@ func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []string,
 			override.Devices = &devices
 			override.GroupAdd = &groups
 		}
+		override.Environment = envs
 		overrideCompose.Services[svc] = override
 	}
 	writeOverrideCompose := func() error {

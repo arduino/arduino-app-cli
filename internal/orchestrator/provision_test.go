@@ -20,9 +20,6 @@ func TestProvisionAppWithOverrides(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	tempDirectory := t.TempDir()
 
-	// TODO: hack to skip the preEmbargo check
-	cfg.UsedPythonImageTag = "latest"
-
 	staticStore := store.NewStaticStore(cfg.AssetsDir().String())
 
 	// Define a mock app with bricks that require overrides
@@ -33,6 +30,9 @@ func TestProvisionAppWithOverrides(t *testing.T) {
 				{
 					ID:    "arduino:video_object_detection",
 					Model: "yolox-object-detection",
+					Variables: map[string]string{
+						"CUSTOM_MODEL_PATH": "/models/custom/ei/",
+					},
 				},
 				{
 					ID: "arduino:web_ui",
@@ -98,7 +98,9 @@ bricks:
 	require.Equal(t, "Object Detection", br.Name, "Brick name should match")
 
 	// Run the provision function to generate the main compose file
-	env := map[string]string{}
+	env := map[string]string{
+		"FOO": "bar",
+	}
 	err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore)
 
 	// Validate that the main compose file and overrides are created
@@ -110,7 +112,8 @@ bricks:
 
 	// Open override file and check for the expected override
 	overridesContent, err := overridesFilePath.ReadFile()
-	require.Nil(t, err, "Failed to read overrides file")
+	require.NoError(t, err)
+
 	type services struct {
 		Services map[string]map[string]interface{} `yaml:"services"`
 	}
@@ -119,6 +122,7 @@ bricks:
 	require.Nil(t, err, "Failed to unmarshal overrides content")
 	require.NotNil(t, content.Services["ei-video-obj-detection-runner"], "Override for ei-video-obj-detection-runner should exist")
 	require.NotNil(t, content.Services["ei-video-obj-detection-runner"]["devices"], "Override for ei-video-obj-detection-runner devices should exist")
+	require.Equal(t, "bar", content.Services["ei-video-obj-detection-runner"]["environment"].(map[string]interface{})["FOO"])
 }
 
 func TestVolumeParser(t *testing.T) {

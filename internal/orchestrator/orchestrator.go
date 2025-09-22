@@ -7,6 +7,7 @@ import (
 	"io"
 	"iter"
 	"log/slog"
+	"maps"
 	"net"
 	"os"
 	"os/user"
@@ -34,6 +35,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/store"
 	"github.com/arduino/arduino-app-cli/pkg/helpers"
 	"github.com/arduino/arduino-app-cli/pkg/micro"
+	"github.com/arduino/arduino-app-cli/pkg/x"
 	"github.com/arduino/arduino-app-cli/pkg/x/fatomic"
 )
 
@@ -137,15 +139,14 @@ func StartApp(
 			}
 		}
 		if app.MainPythonFile != nil {
-			// Override the compose Variables with the app's variables and model configuration.
-			envs, mapped_env := handleEnvironmentVariables(app, modelsIndex)
+			envs := getAppEnvironmentVariables(app, bricksIndex, modelsIndex)
 
 			if !yield(StreamMessage{data: "Provisioning app..."}) {
 				cancel()
 				return
 			}
 
-			if err := provisioner.App(ctx, bricksIndex, &app, cfg, mapped_env, staticStore); err != nil {
+			if err := provisioner.App(ctx, bricksIndex, &app, cfg, envs, staticStore); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
@@ -177,7 +178,7 @@ func StartApp(
 				}
 			})
 
-			process, err := paths.NewProcess(envs, commands...)
+			process, err := paths.NewProcess(envs.AsList(), commands...)
 			if err != nil {
 				yield(StreamMessage{error: err})
 				return
@@ -197,35 +198,44 @@ func StartApp(
 	}
 }
 
-func handleEnvironmentVariables(app app.ArduinoApp, modelsIndex *modelsindex.ModelsIndex) ([]string, map[string]string) {
-	envs := []string{}
-	mapped_env := map[string]string{}
-	addMapToEnv := func(m map[string]string) {
-		for k, v := range m {
-			envs = append(envs, fmt.Sprintf("%s=%s", k, v))
-			mapped_env[k] = v
-		}
-	}
+// getAppEnvironmentVariables returns the environment variables for the app by merging variables and config in the following order:
+// - brick default variables (variables defined in the brick definition)
+// - brick instance variables (variables defined in the app.yaml for the brick instance)
+// - model configuration variables (variables defined in the model configuration)
+// In addition, it adds some useful environment variables like APP_HOME and HOST_IP.
+func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex) x.EnvVars {
+	envs := make(x.EnvVars)
+
 	for _, brick := range app.Descriptor.Bricks {
-		addMapToEnv(brick.Variables)
+		if brickDef, found := brickIndex.FindBrickByID(brick.ID); found {
+			maps.Insert(envs, brickDef.GetDefaultVariables())
+		}
+		maps.Insert(envs, maps.All(brick.Variables))
+
 		if m, found := modelsIndex.GetModelByID(brick.Model); found {
-			addMapToEnv(m.ModelConfiguration)
+			maps.Insert(envs, maps.All(m.ModelConfiguration))
 		}
 	}
 
 	// Add the APP_HOME directory to the environment variables
-	addMapToEnv(map[string]string{"APP_HOME": app.FullPath.String()})
-	slog.Debug("Configuring app environment", slog.String("APP_HOME", app.FullPath.String()), slog.Any("envs", envs))
+	envs["APP_HOME"] = app.FullPath.String()
 
 	// Pre-select default camera device if available. This can be overridden by the app environment variables (or in future by applab)
 	// This is required because there are some video devices for HW acceleration that are auto registered in /dev but are not real cameras.
 	if videoDevices := getVideoDevices(); len(videoDevices) > 0 {
 		// VIDEO_DEVICE will be the first device in /dev/v4l/by-id
-		addMapToEnv(map[string]string{"VIDEO_DEVICE": videoDevices[0]})
-		slog.Info("Configuring default video device", slog.String("VIDEO_DEVICE", videoDevices[0]))
+		envs["VIDEO_DEVICE"] = videoDevices[0]
 	}
 
-	return envs, mapped_env
+	if hostIP, err := helpers.GetHostIP(); err == nil {
+		envs["HOST_IP"] = hostIP
+	} else {
+		slog.Warn("unable to get host IP", slog.String("error", err.Error()))
+	}
+
+	slog.Debug("Current environment variables", slog.Any("envs", envs))
+
+	return envs
 }
 
 func extractIndexFromVideoDeviceName(device string) (int, error) {

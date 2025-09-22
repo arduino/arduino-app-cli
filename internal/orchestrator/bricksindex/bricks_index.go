@@ -2,6 +2,7 @@ package bricksindex
 
 import (
 	"io"
+	"iter"
 	"slices"
 
 	"github.com/arduino/go-paths-helper"
@@ -54,6 +55,16 @@ func (b Brick) GetVariable(name string) (BrickVariable, bool) {
 		return BrickVariable{}, false
 	}
 	return b.Variables[idx], true
+}
+
+func (b Brick) GetDefaultVariables() iter.Seq2[string, string] {
+	return func(yield func(string, string) bool) {
+		for _, v := range b.Variables {
+			if !yield(v.Name, v.DefaultValue) {
+				return
+			}
+		}
+	}
 }
 
 func unmarshalBricksIndex(content io.Reader) (*BricksIndex, error) {

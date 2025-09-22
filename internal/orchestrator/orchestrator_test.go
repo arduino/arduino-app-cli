@@ -14,7 +14,9 @@ import (
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
 func TestCloneApp(t *testing.T) {
@@ -355,7 +357,7 @@ func createApp(
 	isExample bool,
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
-) {
+) app.ID {
 	t.Helper()
 
 	res, err := CreateApp(t.Context(), CreateAppRequest{
@@ -371,7 +373,10 @@ func createApp(
 		newID, err := idProvider.IDFromPath(newPath)
 		require.NoError(t, err)
 		assert.Empty(t, gCmp.Diff(f.Must(idProvider.ParseID("examples:"+name)), newID))
+		res.ID = newID
 	}
+
+	return res.ID
 }
 
 func TestSortV4LVideoDevices(t *testing.T) {
@@ -386,4 +391,89 @@ func TestSortV4LVideoDevices(t *testing.T) {
 	assert.Equal(t, "usb-Generic_GENERAL_-_UVC-video-index0", devices[0])
 	assert.Equal(t, "usb-Generic_GENERAL_-_UVC-video-index1", devices[1])
 	assert.Equal(t, "usb-046d_0825-video-index2", devices[2])
+}
+
+func TestGetAppEnvironmentVariablesWithDefaults(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	idProvider := app.NewAppIDProvider(cfg)
+
+	docker, err := dockerClient.NewClientWithOpts(
+		dockerClient.FromEnv,
+		dockerClient.WithAPIVersionNegotiation(),
+	)
+	require.NoError(t, err)
+	dockerCli, err := command.NewDockerCli(
+		command.WithAPIClient(docker),
+		command.WithBaseContext(t.Context()),
+	)
+	require.NoError(t, err)
+
+	err = dockerCli.Initialize(&flags.ClientOptions{})
+	require.NoError(t, err)
+
+	appId := createApp(t, "app1", false, idProvider, cfg)
+	appDesc, err := app.Load(appId.ToPath().String())
+	require.NoError(t, err)
+	appDesc.Descriptor.Bricks = []app.Brick{
+		{
+			ID:        "arduino:object_detection",
+			Model:     "",                  // use the default model
+			Variables: map[string]string{}, // use the default variables
+		},
+	}
+
+	bricksIndexContent := []byte(`
+bricks:
+- id: arduino:object_detection
+  name: Object Detection
+  description: "Brick for object detection using a pre-trained model. It processes\
+    \ images and returns the predicted class label, bounding-boxes and confidence\
+    \ score.\nBrick is designed to work with pre-trained models provided by framework\
+    \ or with custom object detection models trained on Edge Impulse platform. \n"
+  require_container: true
+  require_model: true
+  require_devices: false
+  ports: []
+  category: video
+  model_name: yolox-object-detection
+  variables:
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: path to the custom model directory
+  - name: EI_OBJ_DETECTION_MODEL
+    default_value: /models/ootb/ei/yolo-x-nano.eim
+    description: path to the model file
+`)
+	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
+	require.NoError(t, err)
+	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(cfg.AssetsDir())
+	assert.NoError(t, err)
+
+	modelsIndexContent := []byte(`
+models:
+- yolox-object-detection:
+    runner: brick
+    name : "General purpose object detection - YoloX"
+    description: "General purpose object detection model based on YoloX Nano. This model is trained on the COCO dataset and can detect 80 different object classes."
+    model_configuration:
+      "EI_OBJ_DETECTION_MODEL": "/models/ootb/ei/yolo-x-nano.eim"
+    metadata:
+    source: "edgeimpulse"
+    ei-project-id: 717280
+    source-model-id: "YOLOX-Nano"
+    source-model-url: "https://github.com/Megvii-BaseDetection/YOLOX"
+    bricks:
+    - arduino:object_detection
+    - arduino:video_object_detection
+`)
+	err = cfg.AssetsDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
+	require.NoError(t, err)
+	modelIndex, err := modelsindex.GenerateModelsIndexFromFile(cfg.AssetsDir())
+	require.NoError(t, err)
+
+	env := getAppEnvironmentVariables(appDesc, bricksIndex, modelIndex)
+	require.Equal(t, cfg.AppsDir().Join("app1").String(), env["APP_HOME"])
+	require.Equal(t, "/models/ootb/ei/yolo-x-nano.eim", env["EI_OBJ_DETECTION_MODEL"])
+	require.Equal(t, "/home/arduino/.arduino-bricks/ei-models", env["CUSTOM_MODEL_PATH"])
+	// we ignore HOST_IP since it's dynamic
 }
