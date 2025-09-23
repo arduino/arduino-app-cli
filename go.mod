@@ -17,7 +17,7 @@ require (
 	github.com/Andrew-M-C/go.emoji v1.1.4
 	github.com/arduino/arduino-cli v1.3.1
 	github.com/arduino/go-paths-helper v1.14.0
-	github.com/arduino/go-windows-runas v0.0.0-20250918132957-e681a11c5bd8
+	github.com/arduino/go-windows-runas v1.0.0
 	github.com/codeclysm/extract/v4 v4.0.0
 	github.com/compose-spec/compose-go/v2 v2.8.1
 	github.com/containerd/errdefs v1.0.0
