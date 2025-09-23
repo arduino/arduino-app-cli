@@ -34,6 +34,11 @@ type dependsOnCondition struct {
 	Condition string `yaml:"condition"`
 }
 
+type logging struct {
+	Driver  string            `yaml:"driver"`
+	Options map[string]string `yaml:"options,omitempty"`
+}
+
 type service struct {
 	Image       string                        `yaml:"image"`
 	DependsOn   map[string]dependsOnCondition `yaml:"depends_on,omitempty"`
@@ -46,6 +51,7 @@ type service struct {
 	ExtraHosts  []string                      `yaml:"extra_hosts,omitempty"`
 	Labels      map[string]string             `yaml:"labels,omitempty"`
 	Environment map[string]string             `yaml:"environment,omitempty"`
+	Logging     *logging                      `yaml:"logging,omitempty"`
 }
 
 type Provision struct {
@@ -330,6 +336,13 @@ func generateMainComposeFile(
 				DockerAppPathLabel: app.FullPath.String(),
 			},
 			Environment: envs,
+			Logging: &logging{
+				Driver: "json-file",
+				Options: map[string]string{
+					"max-size": "5m",
+					"max-file": "2",
+				},
+			},
 		},
 	}
 
