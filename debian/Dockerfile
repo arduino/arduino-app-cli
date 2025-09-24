@@ -1,4 +1,4 @@
-FROM golang:1.25.0 AS go
+FROM golang:1.25.1 AS go
 
 ARG BINARY_NAME
 RUN test -n "${BINARY_NAME}" || (echo "Error: BINARY_NAME is not set" && exit 1)

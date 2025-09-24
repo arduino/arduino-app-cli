@@ -1,7 +1,10 @@
 // x is a package that provides experimental features and utilities.
 package x
 
-import "iter"
+import (
+	"iter"
+	"strconv"
+)
 
 func EmptyIter[V any]() iter.Seq[V] {
 	return func(yield func(V) bool) {}
@@ -15,4 +18,8 @@ func (e EnvVars) AsList() []string {
 		list = append(list, k+"="+v)
 	}
 	return list
+}
+
+func ToHumanMiB(bytes int64) string {
+	return strconv.FormatFloat(float64(bytes)/(1024.0*1024.0), 'f', 2, 64) + "MiB"
 }

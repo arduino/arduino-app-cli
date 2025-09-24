@@ -14,6 +14,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/update"
 	"github.com/arduino/arduino-app-cli/internal/update/apt"
 	"github.com/arduino/arduino-app-cli/internal/update/arduino"
+	"github.com/arduino/arduino-app-cli/pkg/x"
 )
 
 func NewSystemCmd(cfg config.Configuration) *cobra.Command {
@@ -34,7 +35,7 @@ func newDownloadImage(cfg config.Configuration) *cobra.Command {
 		Args:   cobra.ExactArgs(0),
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return orchestrator.SystemInit(cmd.Context(), cfg, servicelocator.GetStaticStore())
+			return orchestrator.SystemInit(cmd.Context(), cfg, servicelocator.GetStaticStore(), servicelocator.GetDockerClient())
 		},
 	}
 
@@ -126,20 +127,26 @@ func newCleanUpCmd(cfg config.Configuration, docker command.Cli) *cobra.Command 
 		Short: "Removes unused and obsolete application images to free up disk space.",
 		Args:  cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, _ []string) error {
-
 			staticStore := servicelocator.GetStaticStore()
 
 			feedback.Printf("Running cleanup...")
-			result, err := orchestrator.SystemCleanupSoft(cmd.Context(), cfg, staticStore, docker)
+			result, err := orchestrator.SystemCleanup(cmd.Context(), cfg, staticStore, docker)
 			if err != nil {
 				return err
 			}
 
-			if result > 0 {
-				feedback.Printf("Cleanup successful. Freed up %d bytes of disk space.", result)
-			} else {
-				feedback.Printf("No removable images found.")
+			if result.IsEmpty() {
+				feedback.Print("Nothing to clean up.")
+				return nil
 			}
+
+			feedback.Print("Cleanup successful.")
+			feedback.Print("Freed up")
+			if result.RunningAppRemoved {
+				feedback.Print("  - 1 running app")
+			}
+			feedback.Printf("  - %d containers", result.ContainersRemoved)
+			feedback.Printf("  - %d images (%v)", result.ImagesRemoved, x.ToHumanMiB(result.SpaceFreed))
 			return nil
 		},
 	}

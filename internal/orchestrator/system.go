@@ -1,19 +1,22 @@
 package orchestrator
 
 import (
-	"bytes"
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"slices"
-	"strconv"
 	"strings"
 
-	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/image"
+	dockerClient "github.com/docker/docker/client"
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
@@ -22,7 +25,7 @@ import (
 )
 
 // SystemInit pulls necessary Docker images.
-func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *store.StaticStore) error {
+func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *store.StaticStore, docker *command.DockerCli) error {
 	containersToPreinstall := []string{cfg.PythonImage}
 	additionalContainers, err := parseAllModelsRunnerImageTag(staticStore)
 	if err != nil {
@@ -30,7 +33,7 @@ func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *stor
 	}
 	containersToPreinstall = append(containersToPreinstall, additionalContainers...)
 
-	pulledImages, err := listImagesAlreadyPulled(ctx)
+	pulledImages, err := listImagesAlreadyPulled(ctx, docker.Client())
 	if err != nil {
 		return err
 	}
@@ -47,63 +50,72 @@ func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *stor
 	}
 
 	for _, container := range containersToPreinstall {
+		feedback.Printf("Pulling container image %s ...", container)
+		if err := pullImage(ctx, stdout, docker.Client(), container); err != nil {
+			feedback.Printf("Warning: failed to read image pull response - %v", err)
+		}
+	}
 
-		cmd, err := paths.NewProcess(nil, "docker", "pull", container)
-		if err != nil {
-			return err
+	return nil
+}
+
+func pullImage(ctx context.Context, stdout io.Writer, docker dockerClient.APIClient, imageName string) error {
+	out, err := docker.ImagePull(ctx, imageName, image.PullOptions{})
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	scanner := bufio.NewScanner(out)
+	for scanner.Scan() {
+		type Payload struct {
+			Status   string `json:"status"`
+			Progress string `json:"progress"`
+			ID       string `json:"id"`
 		}
-		cmd.RedirectStderrTo(stdout)
-		cmd.RedirectStdoutTo(stdout)
-		if err := cmd.RunWithinContext(ctx); err != nil {
-			return err
+
+		var payload Payload
+		if err := json.Unmarshal(scanner.Bytes(), &payload); err == nil {
+			if payload.Status != "" {
+				fmt.Fprintf(stdout, "%s", payload.Status)
+			}
+			if payload.Progress != "" {
+				fmt.Fprintf(stdout, "[%s] %s\r", payload.ID, payload.Progress)
+			} else {
+				fmt.Fprintln(stdout)
+			}
 		}
+	}
+	if err := scanner.Err(); err != nil {
+		return err
 	}
 	return nil
 }
 
+// Container images matching this list will be pulled by 'system init' and included in the Linux images.
+var imagePrefixes = []string{"ghcr.io/bcmi-labs/", "public.ecr.aws/arduino/", "influxdb"}
+
 // listImagesAlreadyPulled
 // TODO make reference constant in a dedicated file as single source of truth
-func listImagesAlreadyPulled(ctx context.Context) ([]string, error) {
-	cmd, err := paths.NewProcess(nil,
-		"docker", "images", "--format", "json",
-		"-f", "reference=ghcr.io/bcmi-labs/*",
-		"-f", "reference=public.ecr.aws/arduino/app-bricks/*",
-		"-f", "reference=influxdb",
-	)
+func listImagesAlreadyPulled(ctx context.Context, docker dockerClient.APIClient) ([]string, error) {
+	images, err := docker.ImageList(ctx, image.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	// Capture the output to check if the image exists
-	stdout, _, err := cmd.RunAndCaptureOutput(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	type dockerImage struct {
-		Repository string `json:"Repository"`
-		Tag        string `json:"Tag"`
-	}
-	var resp dockerImage
-	result := []string{}
-	for img := range bytes.Lines(stdout) {
-		if len(img) == 0 {
-			continue
+	result := make([]string, 0, len(images))
+	for _, image := range images {
+		for _, tag := range image.RepoTags {
+			for _, prefix := range imagePrefixes {
+				if strings.HasPrefix(tag, prefix) {
+					result = append(result, tag)
+				}
+			}
 		}
-		if err := json.Unmarshal(img, &resp); err != nil {
-			return nil, err
-		}
-		if resp.Tag == "<none>" {
-			continue
-		}
-		result = append(result, resp.Repository+":"+resp.Tag)
 	}
 
 	return result, nil
 }
-
-// Container images matching this list will be pulled by 'system init' and included in the Linux images.
-var imagePrefixes = []string{"ghcr.io/bcmi-labs/", "public.ecr.aws/arduino/", "influxdb"}
 
 func parseAllModelsRunnerImageTag(staticStore *store.StaticStore) ([]string, error) {
 	composePath := staticStore.GetComposeFolder()
@@ -143,85 +155,84 @@ func parseAllModelsRunnerImageTag(staticStore *store.StaticStore) ([]string, err
 	return f.Uniq(result), nil
 }
 
-func SystemCleanupSoft(ctx context.Context, cfg config.Configuration, staticStore *store.StaticStore, docker command.Cli) (int64, error) {
-	totalCleaned := int64(0)
+type SystemCleanupResult struct {
+	ContainersRemoved int
+	ImagesRemoved     int
+	RunningAppRemoved bool
+	SpaceFreed        int64 // in bytes
+}
 
-	containersMustStay, err := getRequiredImages(cfg, staticStore)
-	if err != nil {
-		return totalCleaned, err
-	}
+func (s SystemCleanupResult) IsEmpty() bool {
+	return s == SystemCleanupResult{}
+}
 
-	allImages, err := listImagesAlreadyPulled(ctx)
-	if err != nil {
-		return totalCleaned, err
-	}
+// SystemCleanup removes dangling containers and unused images.
+// Also running apps are stopped and removed.
+func SystemCleanup(ctx context.Context, cfg config.Configuration, staticStore *store.StaticStore, docker command.Cli) (SystemCleanupResult, error) {
+	var result SystemCleanupResult
 
-	imagesToRemove := slices.DeleteFunc(allImages, func(v string) bool {
-		return slices.Contains(containersMustStay, v)
-	})
-
-	if len(imagesToRemove) == 0 {
-		return totalCleaned, nil
-	}
-
+	// Remove running app and dangling containers
 	runningApp, err := getRunningApp(ctx, docker.Client())
 	if err != nil {
-		return totalCleaned, fmt.Errorf("failed to get running app: %w", err)
+		feedback.Printf("Warning: failed to get running app - %v", err)
 	}
 	if runningApp != nil {
 		for item := range StopAndDestroyApp(ctx, *runningApp) {
 			if item.GetType() == ErrorType {
-				return totalCleaned, item.GetError()
+				feedback.Printf("Warning: failed to stop and destroy running app - %v", item.GetError())
+				break
 			}
 		}
+		result.RunningAppRemoved = true
+	}
+	if count, err := removeDanglingContainers(ctx, docker.Client()); err != nil {
+		feedback.Printf("Warning: failed to remove dangling containers - %v", err)
+	} else {
+		result.ContainersRemoved = count
 	}
 
-	for _, container := range imagesToRemove {
-		imageSize, err := removeImage(ctx, container)
+	// Remove unused images
+	containersMustStay, err := getRequiredImages(cfg, staticStore)
+	if err != nil {
+		return result, err
+	}
+	allImages, err := listImagesAlreadyPulled(ctx, docker.Client())
+	if err != nil {
+		return result, err
+	}
+	imagesToRemove := slices.DeleteFunc(allImages, func(v string) bool {
+		return slices.Contains(containersMustStay, v)
+	})
+
+	for _, image := range imagesToRemove {
+		imageSize, err := removeImage(ctx, docker.Client(), image)
 		if err != nil {
-			feedback.Printf("Warning: failed to remove image %s - %v", container, err)
+			feedback.Printf("Warning: failed to remove image %s - %v", image, err)
 			continue
 		}
-		totalCleaned += imageSize
+		result.SpaceFreed += imageSize
+		result.ImagesRemoved++
 	}
-	return totalCleaned, nil
+
+	return result, nil
 }
 
-func removeImage(ctx context.Context, imageName string) (int64, error) {
-	imageSize, err := getImageSize(imageName, ctx)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get size of image %s: %w", imageName, err)
+func removeImage(ctx context.Context, docker dockerClient.APIClient, imageName string) (int64, error) {
+	var size int64
+	if info, err := docker.ImageInspect(ctx, imageName); err != nil {
+		feedback.Printf("Warning: failed to inspect image %s - %v", imageName, err)
+	} else {
+		size = info.Size
 	}
 
-	cmd, err := paths.NewProcess(nil, "docker", "rmi", "-f", imageName)
-	if err != nil {
-		return 0, fmt.Errorf("failed to create command to remove docker image %s: %w", imageName, err)
+	if _, err := docker.ImageRemove(ctx, imageName, image.RemoveOptions{
+		Force:         true,
+		PruneChildren: true,
+	}); err != nil {
+		return 0, fmt.Errorf("failed to remove image %s: %w", imageName, err)
 	}
 
-	if err := cmd.RunWithinContext(ctx); err != nil {
-		return 0, fmt.Errorf("failed to remove image %s: %v", imageName, err)
-	}
-
-	return imageSize, nil
-}
-
-func getImageSize(container string, ctx context.Context) (int64, error) {
-	cmdImageSize, err := paths.NewProcess(nil, "docker", "image", "inspect", container, "--format", "{{.Size}}")
-	if err != nil {
-		return 0, err
-	}
-	containersize, err := cmdImageSize.RunAndCaptureCombinedOutput(ctx)
-	if err != nil {
-		return 0, err
-	}
-	trimmedOutput := bytes.TrimSpace(containersize)
-
-	sizeInt64, err := strconv.ParseInt(string(trimmedOutput), 10, 64)
-	if err != nil {
-		return 0, err
-	}
-
-	return sizeInt64, nil
+	return size, nil
 }
 
 // imgages required by the system
@@ -235,4 +246,26 @@ func getRequiredImages(cfg config.Configuration, staticStore *store.StaticStore)
 
 	requiredImages = append(requiredImages, modelsRunnersContainers...)
 	return requiredImages, nil
+}
+
+func removeDanglingContainers(ctx context.Context, docker dockerClient.APIClient) (int, error) {
+	containers, err := docker.ContainerList(ctx, container.ListOptions{
+		All:     true,
+		Filters: filters.NewArgs(filters.Arg("label", DockerAppLabel+"=true")),
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to list containers: %w", err)
+	}
+
+	var counter int
+	for _, info := range containers {
+		if err := docker.ContainerRemove(ctx, info.ID, container.RemoveOptions{
+			Force:         true,
+			RemoveVolumes: true,
+		}); err != nil {
+			return 0, fmt.Errorf("failed to remove container %s: %w", info.ID, err)
+		}
+		counter++
+	}
+	return counter, nil
 }
