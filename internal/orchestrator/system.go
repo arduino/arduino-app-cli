@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
@@ -60,9 +62,32 @@ func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *stor
 }
 
 func pullImage(ctx context.Context, stdout io.Writer, docker dockerClient.APIClient, imageName string) error {
-	out, err := docker.ImagePull(ctx, imageName, image.PullOptions{})
-	if err != nil {
-		return err
+	delay := 1 * time.Second
+
+	var out io.ReadCloser
+	var allErr error
+	var lastErr error
+	for range 4 { // 1s, 2s, 4s, 8s
+		out, lastErr = docker.ImagePull(ctx, imageName, image.PullOptions{})
+		if lastErr == nil {
+			break // Success
+		}
+		if !strings.Contains(lastErr.Error(), "toomanyrequests") {
+			return lastErr // Fail fast on non-rate-limit errors
+		}
+		allErr = errors.Join(allErr, lastErr)
+
+		feedback.Printf("Warning: received 'toomanyrequests' error from Docker registry, retrying in %s ...", delay)
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+		}
+		delay *= 2
+	}
+	if lastErr != nil {
+		return fmt.Errorf("failed to pull image %s after multiple attempts: %w", imageName, allErr)
 	}
 	defer out.Close()
 
