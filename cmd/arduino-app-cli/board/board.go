@@ -27,9 +27,10 @@ const boardsListKey contextKey = "boardsList"
 func NewBoardCmd() *cobra.Command {
 	var fqbn, host string
 	fsCmd := &cobra.Command{
-		Use:   "board",
-		Short: "Manage boards",
-		Long:  "",
+		Use:    "board",
+		Short:  "Manage boards",
+		Long:   "",
+		Hidden: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if host != "" {
 				conn, err := adb.FromHost(host, "")
