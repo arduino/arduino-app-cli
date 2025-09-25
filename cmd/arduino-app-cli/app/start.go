@@ -17,7 +17,7 @@ import (
 func newStartCmd(cfg config.Configuration) *cobra.Command {
 	return &cobra.Command{
 		Use:   "start app_path",
-		Short: "Start an Arduino app",
+		Short: "Start an Arduino App",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {

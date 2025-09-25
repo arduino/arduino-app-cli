@@ -24,7 +24,7 @@ func newCreateCmd(cfg config.Configuration) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "new name",
-		Short: "Creates a new app",
+		Short: "Creates a new Arduino App",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cobra.MinimumNArgs(1)

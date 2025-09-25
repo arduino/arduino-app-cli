@@ -10,7 +10,7 @@ import (
 func newMonitorCmd(cfg config.Configuration) *cobra.Command {
 	return &cobra.Command{
 		Use:   "monitor",
-		Short: "Monitor the Python app",
+		Short: "Monitor the Arduino app",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			panic("not implemented")
 		},

@@ -20,7 +20,7 @@ func newListCmd(cfg config.Configuration) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List all running Python apps",
+		Short: "List the Arduino apps",
 		Run: func(cmd *cobra.Command, args []string) {
 			listHandler(cmd.Context(), cfg, showBrokenApps)
 		},

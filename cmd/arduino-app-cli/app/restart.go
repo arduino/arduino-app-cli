@@ -13,7 +13,7 @@ import (
 func newRestartCmd(cfg config.Configuration) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "restart app_path",
-		Short: "Restart or Start an Arduino app",
+		Short: "Restart or Start an Arduino App",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {

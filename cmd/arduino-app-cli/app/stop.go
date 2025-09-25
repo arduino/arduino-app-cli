@@ -16,7 +16,7 @@ import (
 func newStopCmd(cfg config.Configuration) *cobra.Command {
 	return &cobra.Command{
 		Use:   "stop app_path",
-		Short: "Stop an Arduino app",
+		Short: "Stop an Arduino App",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
