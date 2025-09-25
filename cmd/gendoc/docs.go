@@ -15,6 +15,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
+	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
@@ -28,6 +29,7 @@ const (
 	BrickTag       Tag = "Brick"
 	AIModelsTag    Tag = "AIModels"
 	SystemTag      Tag = "System"
+	Property       Tag = "Property"
 )
 
 var validTags = []Tag{ApplicationTag, BrickTag, AIModelsTag, SystemTag}
@@ -187,6 +189,7 @@ func NewOpenApiGenerator(version string) *Generator {
 	// to manually remove the pkg prefix.
 	reflector.DefaultOptions = append(reflector.DefaultOptions,
 		jsonschema.InterceptSchema(func(params jsonschema.InterceptSchemaParams) (stop bool, err error) {
+
 			if params.Value.Type() == reflect.TypeOf(orchestrator.Status("")) {
 				params.Schema.WithRef("#/components/schemas/Status")
 				return true, nil
@@ -249,6 +252,90 @@ type ErrorResponse struct {
 func (g *Generator) InitOperations() {
 
 	operations := []OperationConfig{
+		{
+			OperationId: "DeleteProperty",
+			Method:      http.MethodDelete,
+			Path:        "/v1/properties/{key}",
+			Request: (*struct {
+				ID string `path:"key" description:"property key."`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: nil,
+				Description:   "Successful response",
+				StatusCode:    http.StatusNoContent,
+			},
+			Description: "Delete the property by the provided key.",
+			Summary:     "Delete property by key",
+			Tags:        []Tag{Property},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusNotFound, Reference: "#/components/responses/NotFound"},
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "UpdateProperty",
+			Method:      http.MethodPut,
+			Path:        "/v1/properties/{key}",
+			Parameters: (*struct {
+				ID string `path:"key" description:"property key."`
+			})(nil),
+			Request: []byte{},
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/octet-stream",
+				DataStructure: []byte{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "Update or create a new property.",
+			Summary:     "Upsert property",
+			Tags:        []Tag{Property},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusNotFound, Reference: "#/components/responses/NotFound"},
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "GetProperty",
+			Method:      http.MethodGet,
+			Path:        "/v1/properties/{key}",
+			Parameters: (*struct {
+				ID string `path:"key" description:"property key."`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/octet-stream",
+				DataStructure: []byte{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "Return a single property by the provided key.",
+			Summary:     "Get property by key",
+			Tags:        []Tag{Property},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusNotFound, Reference: "#/components/responses/NotFound"},
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "GetPropertyKeys",
+			Method:      http.MethodGet,
+			Path:        "/v1/properties",
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: models.PropertyKeysResponse{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "Return the list of system properties.",
+			Summary:     "Get system properties",
+			Tags:        []Tag{Property},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
 		{
 			OperationId: "getAppPorts",
 			Method:      http.MethodGet,

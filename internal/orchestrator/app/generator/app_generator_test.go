@@ -55,7 +55,7 @@ func TestGenerateApp(t *testing.T) {
 			if os.Getenv("UPDATE_GOLDEN") == "true" {
 				t.Logf("UPDATE_GOLDEN=true: updating  golden files in %s", tc.goldenPath)
 				require.NoError(t, os.RemoveAll(tc.goldenPath))
-				require.NoError(t, os.CopyFS(tempDir, os.DirFS(tc.goldenPath)))
+				require.NoError(t, os.CopyFS(tc.goldenPath, os.DirFS(tempDir)))
 			} else {
 				compareFolders(t, paths.New(tempDir), paths.New(tc.goldenPath))
 			}

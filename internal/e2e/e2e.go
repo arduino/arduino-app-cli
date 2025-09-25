@@ -34,8 +34,14 @@ func NewArduinoAppCLI(t *testing.T) *ArduinoAppCLI {
 	rootDir, err := paths.MkTempDir("", "app-cli")
 	require.NoError(t, err)
 	appDir := rootDir.Join("ArduinoApps")
-	dataDir := FindRepositoryRootPath(t).Join("internal", "e2e", "daemon", "testdata")
+	dataDir := rootDir.Join("data")
 	configDir := rootDir.Join("config")
+	originalTestDataDir := FindRepositoryRootPath(t).Join("internal", "e2e", "daemon", "testdata")
+	if originalTestDataDir.Exist() {
+		require.NoError(t, os.CopyFS(dataDir.String(), os.DirFS(originalTestDataDir.String())))
+		require.NoError(t, err, "failed to copy testdata to temp dir")
+	}
+
 	return &ArduinoAppCLI{
 		t:          require.New(t),
 		DaemonAddr: "",

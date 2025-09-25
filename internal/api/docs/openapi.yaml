@@ -651,6 +651,112 @@ paths:
       summary: Get AI model details
       tags:
       - AIModels
+  /v1/properties:
+    get:
+      description: Return the list of system properties.
+      operationId: GetPropertyKeys
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyKeysResponse'
+          description: Successful response
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Get system properties
+      tags:
+      - Property
+  /v1/properties/{key}:
+    delete:
+      description: Delete the property by the provided key.
+      operationId: DeleteProperty
+      parameters:
+      - description: property key.
+        in: path
+        name: key
+        required: true
+        schema:
+          description: property key.
+          type: string
+      responses:
+        "204":
+          content:
+            application/json:
+              schema:
+                type: string
+          description: Successful response
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Delete property by key
+      tags:
+      - Property
+    get:
+      description: Return a single property by the provided key.
+      operationId: GetProperty
+      parameters:
+      - description: property key.
+        in: path
+        name: key
+        required: true
+        schema:
+          description: property key.
+          type: string
+      responses:
+        "200":
+          content:
+            application/octet-stream:
+              schema:
+                format: base64
+                type: string
+          description: Successful response
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Get property by key
+      tags:
+      - Property
+    put:
+      description: Update or create a new property.
+      operationId: UpdateProperty
+      parameters:
+      - description: property key.
+        in: path
+        name: key
+        required: true
+        schema:
+          description: property key.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              format: base64
+              type: string
+      responses:
+        "200":
+          content:
+            application/octet-stream:
+              schema:
+                format: base64
+                type: string
+          description: Successful response
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Upsert property
+      tags:
+      - Property
   /v1/system/resources:
     get:
       description: Returns the system resources usage, such as memory, disk and CPU.
@@ -1171,6 +1277,14 @@ components:
           description: source of the port, e.g. app or brick:data-storage
           example: brick:data-storage
           type: string
+      type: object
+    PropertyKeysResponse:
+      properties:
+        keys:
+          items:
+            type: string
+          nullable: true
+          type: array
       type: object
     Status:
       description: Application status
