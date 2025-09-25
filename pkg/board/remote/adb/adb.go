@@ -8,8 +8,6 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
-	"math/rand/v2"
-	"net"
 	"os"
 	"os/user"
 	"path"
@@ -20,6 +18,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 
 	"github.com/arduino/arduino-app-cli/pkg/board/remote"
+	"github.com/arduino/arduino-app-cli/pkg/board/remote/common"
 )
 
 const username = "arduino"
@@ -58,7 +57,7 @@ func FromHost(host string, adbPath string) (*ADBConnection, error) {
 }
 
 func (a *ADBConnection) Forward(ctx context.Context, remotePort int) (int, error) {
-	hostAvailablePort, err := getAvailablePort()
+	hostAvailablePort, err := common.GetAvailablePort()
 	if err != nil {
 		return 0, fmt.Errorf("failed to find an available port: %w", err)
 	}
@@ -310,36 +309,4 @@ func FindAdbPath() string {
 	slog.Debug("get adb path", "path", adbPath)
 
 	return adbPath
-}
-
-func isPortAvailable(port int) bool {
-	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
-	if err != nil {
-		return false
-	}
-	listener.Close()
-	return true
-}
-
-func getRandomPort() int {
-	port := 1000 + rand.IntN(9000) // nolint:gosec
-	return port
-}
-
-const forwardPortAttempts = 10
-
-func getAvailablePort() (int, error) {
-	tried := make(map[int]any, forwardPortAttempts)
-	for len(tried) < forwardPortAttempts {
-		port := getRandomPort()
-		if _, seen := tried[port]; seen {
-			continue
-		}
-		tried[port] = struct{}{}
-
-		if isPortAvailable(port) {
-			return port, nil
-		}
-	}
-	return 0, fmt.Errorf("no available port found in range 1000-9999 after %d attempts", forwardPortAttempts)
 }

@@ -3,20 +3,31 @@ package ssh
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"log"
+	"log/slog"
+	"net"
 	"path"
 	"strings"
+	"sync"
 
 	"golang.org/x/crypto/ssh"
 
 	"github.com/arduino/arduino-app-cli/pkg/board/remote"
+	"github.com/arduino/arduino-app-cli/pkg/board/remote/common"
 )
+
+var ErrAuthFailed = errors.New("ssh authentication failed")
 
 type SSHConnection struct {
 	client *ssh.Client
+	wg     sync.WaitGroup
+
+	mu        sync.Mutex
+	Listeners []net.Listener
 }
 
 // Ensures SSHConnection implements the RemoteConn interface at compile time.
@@ -32,7 +43,13 @@ func FromHost(user, password, address string) (*SSHConnection, error) {
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // nolint:gosec
 	})
 	if err != nil {
-		log.Fatalf("Failed to dial: %s", err)
+		msg := err.Error()
+		if strings.Contains(msg, "unable to authenticate") ||
+			strings.Contains(msg, "no supported methods remain") ||
+			strings.Contains(msg, "permission denied") {
+			return nil, ErrAuthFailed
+		}
+		return nil, fmt.Errorf("failed to dial SSH: %w", err)
 	}
 
 	return &SSHConnection{
@@ -41,11 +58,82 @@ func FromHost(user, password, address string) (*SSHConnection, error) {
 }
 
 func (a *SSHConnection) Forward(ctx context.Context, remotePort int) (int, error) {
-	panic("`Forward` is not implemented for SSHConnection")
+
+	// Get a random available port for remote connection
+	randomPort, err := common.GetAvailablePort()
+	if err != nil {
+		log.Printf("failed to get available port: %v", err)
+		return 0, err
+	}
+	// Listen locally on remote port
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", "localhost", randomPort))
+	if err != nil {
+		return 0, err
+	}
+
+	a.mu.Lock()
+	a.Listeners = append(a.Listeners, listener)
+	a.mu.Unlock()
+
+	a.wg.Add(1)
+	go func() {
+		defer listener.Close()
+		defer a.wg.Done()
+
+		for {
+			localConn, err := listener.Accept()
+			if err != nil {
+				if !errors.Is(err, net.ErrClosed) {
+					slog.Warn("failed to accept local connection:", slog.Any("error", err))
+				}
+				return
+			}
+
+			go func(localConn net.Conn, remotePort int) {
+				defer localConn.Close()
+
+				// TODO: the kill operation should forcefully terminate the connection that was already estabish
+
+				// Open remote connection through SSH
+				remoteConn, err := a.client.Dial("tcp", fmt.Sprintf("localhost:%d", remotePort))
+				if err != nil {
+					slog.Warn("failed to dial remote host:", slog.Any("error", err))
+					return
+
+				}
+				defer remoteConn.Close()
+
+				// Bidirectional copy
+				var wg sync.WaitGroup
+				wg.Go(func() { copyAndLog(remoteConn, localConn) })
+				wg.Go(func() { copyAndLog(localConn, remoteConn) })
+				wg.Wait()
+			}(localConn, remotePort)
+		}
+	}()
+
+	return randomPort, nil
+
+}
+
+func copyAndLog(dst io.Writer, src io.Reader) {
+	_, err := io.Copy(dst, src)
+	if err != nil {
+		slog.Warn("failed to copy connection", slog.Any("error", err))
+	}
 }
 
 func (a *SSHConnection) ForwardKillAll(ctx context.Context) error {
-	panic("`ForwardKillAll` is not implemented for SSHConnection")
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for _, listener := range a.Listeners {
+		if err := listener.Close(); err != nil {
+			return err
+		}
+	}
+	a.wg.Wait()
+	a.Listeners = make([]net.Listener, 0)
+	return nil
 }
 
 func (a *SSHConnection) List(path string) ([]remote.FileInfo, error) {

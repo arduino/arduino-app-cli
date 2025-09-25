@@ -1,13 +1,19 @@
 package remote_test
 
 import (
+	"context"
+	"fmt"
+
 	"io"
+	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/pkg/board/remote"
 	"github.com/arduino/arduino-app-cli/pkg/board/remote/adb"
 	"github.com/arduino/arduino-app-cli/pkg/board/remote/local"
@@ -162,4 +168,80 @@ func TestSSHShell(t *testing.T) {
 			})
 		}
 	}
+
+}
+
+func TestSSHForwarder(t *testing.T) {
+	name, _, sshPort := testtools.StartAdbDContainer(t)
+	t.Cleanup(func() { testtools.StopAdbDContainer(t, name) })
+
+	conn, err := ssh.FromHost("arduino", "arduino", fmt.Sprintf("%s:%s", "localhost", sshPort))
+	require.NoError(t, err)
+
+	t.Run("Forward ADB", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		forwardPort, err := conn.Forward(ctx, 5555)
+		if err != nil {
+			t.Errorf("Forward failed: %v", err)
+		}
+		if forwardPort <= 0 || forwardPort > 65535 {
+			t.Fatalf("invalid port: %d", forwardPort)
+		}
+		adb_forwarded_endpoint := fmt.Sprintf("localhost:%s", strconv.Itoa(forwardPort))
+
+		out, err := exec.Command("adb", "connect", adb_forwarded_endpoint).CombinedOutput()
+		require.NoError(t, err, "adb connect output: %q", out)
+
+		cmd := exec.Command("adb", "-s", adb_forwarded_endpoint, "shell", "echo", "Hello, World!")
+		out, err = cmd.CombinedOutput()
+		require.NoError(t, err, "command output: %q", out)
+		feedback.Printf("Command output:\n%s\n", string(out))
+		require.NotNil(t, string(out))
+	})
+}
+
+func TestSSHKillForwarder(t *testing.T) {
+	name, _, sshPort := testtools.StartAdbDContainer(t)
+	t.Cleanup(func() { testtools.StopAdbDContainer(t, name) })
+
+	conn, err := ssh.FromHost("arduino", "arduino", fmt.Sprintf("%s:%s", "localhost", sshPort))
+	require.NoError(t, err)
+
+	t.Run("KillAllForwards", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		forwardPort, err := conn.Forward(ctx, 5555)
+		if err != nil {
+			t.Errorf("Forward failed: %v", err)
+		}
+		if forwardPort <= 0 || forwardPort > 65535 {
+			t.Fatalf("invalid port: %d", forwardPort)
+		}
+		adb_forwarded_endpoint := fmt.Sprintf("localhost:%s", strconv.Itoa(forwardPort))
+
+		out, err := exec.Command("adb", "connect", adb_forwarded_endpoint).CombinedOutput()
+		require.NoError(t, err, "adb connect output: %q", out)
+
+		cmd := exec.Command("adb", "-s", adb_forwarded_endpoint, "shell", "echo", "Hello, World!")
+		out, err = cmd.CombinedOutput()
+		require.NoError(t, err, "command output: %q", out)
+		feedback.Printf("Command output:\n%s\n", string(out))
+		require.NotNil(t, string(out))
+
+		err = conn.ForwardKillAll(t.Context())
+		require.NoError(t, err)
+		out, err = exec.Command("adb", "disconnect", adb_forwarded_endpoint).CombinedOutput()
+		require.NoError(t, err, "adb disconnect output: %q", out)
+
+		out, err = exec.Command("adb", "connect", adb_forwarded_endpoint).CombinedOutput()
+		require.NoError(t, err, "adb connect output: %q", out)
+
+		cmd = exec.Command("adb", "-s", adb_forwarded_endpoint, "shell", "echo", "Hello, World!")
+		out, err = cmd.CombinedOutput()
+		require.Error(t, err, "command output: %q", out)
+		feedback.Printf("Command output:\n%s\n", string(out))
+	})
 }
