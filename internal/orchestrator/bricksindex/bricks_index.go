@@ -34,17 +34,18 @@ func (v BrickVariable) IsRequired() bool {
 }
 
 type Brick struct {
-	ID               string          `yaml:"id"`
-	Name             string          `yaml:"name"`
-	Description      string          `yaml:"description"`
-	Category         string          `yaml:"category,omitempty"`
-	RequiresDisplay  string          `yaml:"requires_display,omitempty"`
-	RequireContainer bool            `yaml:"require_container"`
-	RequireModel     bool            `yaml:"require_model"`
-	Variables        []BrickVariable `yaml:"variables,omitempty"`
-	Ports            []string        `yaml:"ports,omitempty"`
-	ModelName        string          `yaml:"model_name,omitempty"`
-	RequiresDevices  bool            `yaml:"require_devices,omitempty"`
+	ID                        string          `yaml:"id"`
+	Name                      string          `yaml:"name"`
+	Description               string          `yaml:"description"`
+	Category                  string          `yaml:"category,omitempty"`
+	RequiresDisplay           string          `yaml:"requires_display,omitempty"`
+	RequireContainer          bool            `yaml:"require_container"`
+	RequireModel              bool            `yaml:"require_model"`
+	Variables                 []BrickVariable `yaml:"variables,omitempty"`
+	Ports                     []string        `yaml:"ports,omitempty"`
+	ModelName                 string          `yaml:"model_name,omitempty"`
+	MountDevicesIntoContainer bool            `yaml:"mount_devices_into_container,omitempty"`
+	RequiredDevices           []string        `yaml:"required_devices,omitempty"`
 }
 
 func (b Brick) GetVariable(name string) (BrickVariable, bool) {

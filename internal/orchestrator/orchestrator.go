@@ -47,6 +47,10 @@ var (
 
 const (
 	DefaultDockerStopTimeoutSeconds = 5
+
+	CameraDevice     = "camera"
+	MicrophoneDevice = "microphone"
+	SpeakerDevice    = "speaker"
 )
 
 type AppStreamMessage struct {
@@ -272,6 +276,24 @@ func sortV4lByIndexDevices(deviceList []string) {
 			return 0
 		}
 	})
+}
+
+func getSoundDevices() []string {
+	// Check and read /dev/snd. This fs contains only real sound devices
+	soundDevicePath := paths.New("/dev/snd/by-id")
+	if _, err := soundDevicePath.Stat(); err != nil {
+		return nil // no sound device found
+	}
+	sndDeviceList, err := soundDevicePath.ReadDir()
+	if err != nil {
+		slog.Warn("unable to list /dev/snd/by-id", slog.String("error", err.Error()))
+		return nil
+	}
+	detectedDevices := []string{}
+	for _, sndD := range sndDeviceList {
+		detectedDevices = append(detectedDevices, sndD.String())
+	}
+	return detectedDevices
 }
 
 func getVideoDevices() map[int]string {
@@ -925,32 +947,66 @@ type deviceResult struct {
 	hasGPUDevice   bool
 }
 
-func getDevices() deviceResult {
+func getDevices() (*deviceResult, error) {
 	res := deviceResult{}
 
 	deviceList, err := paths.New("/dev").ReadDir()
 	if err != nil {
-		panic(err)
+		slog.Error("unable to list /dev", slog.String("error", err.Error()))
+		return nil, fmt.Errorf("unable to list board devices")
 	}
 
 	for _, p := range deviceList {
 		switch {
 		case p.HasPrefix("video"):
 			res.devicePaths = append(res.devicePaths, p.String())
-			res.hasVideoDevice = true
-		case p.HasPrefix("snd"):
-			res.hasSoundDevice = true
 		case p.HasPrefix("dri"):
 			res.hasGPUDevice = true
 		}
 	}
-	if res.hasSoundDevice {
-		res.devicePaths = append(res.devicePaths, "/dev/snd")
+	// Verify if there are real video devices (cameras) in /dev/v4l/by-id
+	if camDevices := getVideoDevices(); len(camDevices) > 0 {
+		res.hasVideoDevice = true
 	}
+	// Verify if there are real sound devices in /dev/snd/by-id
+	if sndDev := getSoundDevices(); len(sndDev) > 0 {
+		res.devicePaths = append(res.devicePaths, "/dev/snd")
+		res.hasSoundDevice = true
+	}
+	// Verify if we need to add GPU devices
 	if res.hasGPUDevice {
 		res.devicePaths = append(res.devicePaths, "/dev/dri")
 	}
-	return res
+
+	return &res, nil
+}
+
+// Validate that the required devices are available. Blocks the app start if a required device is missing.
+func validateDevices(res *deviceResult, requiredDeviceClasses map[string]any) error {
+
+	// Check if all required device classes are available
+	if len(requiredDeviceClasses) > 0 {
+		for class := range requiredDeviceClasses {
+			switch class {
+			case CameraDevice:
+				if !res.hasVideoDevice {
+					return fmt.Errorf("no camera found")
+				}
+			case MicrophoneDevice:
+				if !res.hasSoundDevice {
+					return fmt.Errorf("no microphone device found")
+				}
+			case SpeakerDevice:
+				if !res.hasSoundDevice {
+					return fmt.Errorf("no speaker device found")
+				}
+			default:
+				slog.Debug("not handled device class - no action", slog.String("class", class))
+			}
+		}
+	}
+
+	return nil
 }
 
 // addLedControl adds bindings for led control if the paths exist.

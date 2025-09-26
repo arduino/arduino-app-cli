@@ -18,20 +18,22 @@ type Brick struct {
 }
 
 type AppDescriptor struct {
-	Name        string  `yaml:"name"`
-	Description string  `yaml:"description"`
-	Ports       []int   `yaml:"ports"`
-	Bricks      []Brick `yaml:"bricks"`
-	Icon        string  `yaml:"icon,omitempty"`
+	Name            string   `yaml:"name"`
+	Description     string   `yaml:"description"`
+	Ports           []int    `yaml:"ports"`
+	Bricks          []Brick  `yaml:"bricks"`
+	Icon            string   `yaml:"icon,omitempty"`
+	RequiredDevices []string `yaml:"required_devices,omitempty"`
 }
 
 func (d AppDescriptor) MarshalYAML() (any, error) {
 	type raw struct {
-		Name        string             `yaml:"name"`
-		Description string             `yaml:"description"`
-		Ports       []int              `yaml:"ports"`
-		Bricks      []map[string]Brick `yaml:"bricks"`
-		Icon        string             `yaml:"icon,omitempty"`
+		Name            string             `yaml:"name"`
+		Description     string             `yaml:"description"`
+		Ports           []int              `yaml:"ports"`
+		Bricks          []map[string]Brick `yaml:"bricks"`
+		Icon            string             `yaml:"icon,omitempty"`
+		RequiredDevices []string           `yaml:"required_devices,omitempty"`
 	}
 
 	bricks := make([]map[string]Brick, len(d.Bricks))
@@ -39,11 +41,12 @@ func (d AppDescriptor) MarshalYAML() (any, error) {
 		bricks[i] = map[string]Brick{brick.ID: brick}
 	}
 	return &raw{
-		Name:        d.Name,
-		Description: d.Description,
-		Ports:       d.Ports,
-		Bricks:      bricks,
-		Icon:        d.Icon,
+		Name:            d.Name,
+		Description:     d.Description,
+		Ports:           d.Ports,
+		Bricks:          bricks,
+		Icon:            d.Icon,
+		RequiredDevices: d.RequiredDevices,
 	}, nil
 }
 

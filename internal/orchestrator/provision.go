@@ -208,6 +208,7 @@ func generateMainComposeFile(
 	var composeFiles paths.PathList
 	services := make(map[string]serviceInfo)
 	var servicesThatRequireDevices []string
+	requiredDeviceClasses := make(map[string]any)
 	for _, brick := range app.Descriptor.Bricks {
 		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
 		slog.Debug("Processing brick", slog.String("brick_id", brick.ID), slog.Bool("found", found))
@@ -241,13 +242,27 @@ func generateMainComposeFile(
 		}
 
 		// 4. Retrieve the required devices that we have to mount
-		slog.Debug("Brick require Devices", slog.Bool("Devices", idxBrick.RequiresDevices), slog.Any("ports", ports))
-		if idxBrick.RequiresDevices {
+		slog.Debug("Brick config", slog.Bool("require_devices", idxBrick.MountDevicesIntoContainer), slog.Any("ports", ports), slog.Any("required_devices", idxBrick.RequiredDevices))
+		if idxBrick.MountDevicesIntoContainer {
 			servicesThatRequireDevices = slices.AppendSeq(servicesThatRequireDevices, maps.Keys(svcs))
+		}
+
+		// 5. Collect all the required device classes
+		if len(idxBrick.RequiredDevices) > 0 {
+			for _, deviceClass := range idxBrick.RequiredDevices {
+				requiredDeviceClasses[deviceClass] = true
+			}
 		}
 
 		composeFiles.Add(composeFilePath)
 		maps.Insert(services, maps.All(svcs))
+	}
+
+	// 6. Collect all the required device classes from the app descriptor
+	if len(app.Descriptor.RequiredDevices) > 0 {
+		for _, deviceClass := range app.Descriptor.RequiredDevices {
+			requiredDeviceClasses[deviceClass] = true
+		}
 	}
 
 	// Create a single docker-mainCompose that includes all the required services
@@ -287,7 +302,14 @@ func generateMainComposeFile(
 		})
 	}
 
-	devices := getDevices()
+	// Check board devices and mount them if needed
+	devices, err := getDevices()
+	if err != nil {
+		return err
+	}
+	if err = validateDevices(devices, requiredDeviceClasses); err != nil {
+		return fmt.Errorf("missing required device: %w", err)
+	}
 	if devices.hasVideoDevice {
 		// If we are adding video devices, mount also /dev/v4l if it exists to allow access to by-id/path links
 		if paths.New("/dev/v4l").Exist() {

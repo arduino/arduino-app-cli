@@ -71,7 +71,7 @@ bricks:
   description: "Brick for object detection using a pre-trained model."
   require_container: true
   require_model: true
-  require_devices: true
+  mount_devices_into_container: true
   ports: []
   category: video
   model_name: yolox-object-detection

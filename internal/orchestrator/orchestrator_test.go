@@ -477,3 +477,56 @@ models:
 	require.Equal(t, "/home/arduino/.arduino-bricks/ei-models", env["CUSTOM_MODEL_PATH"])
 	// we ignore HOST_IP since it's dynamic
 }
+
+func TestValidateDevice(t *testing.T) {
+
+	t.Run("valid", func(t *testing.T) {
+		dev := deviceResult{
+			devicePaths:    []string{"/dev/video0", "/dev/video1", "/dev/snd/pcmC0D0p"},
+			hasGPUDevice:   true,
+			hasSoundDevice: true,
+			hasVideoDevice: true,
+		}
+		requiredDeviceClasses := make(map[string]any)
+		requiredDeviceClasses["camera"] = true
+		requiredDeviceClasses["microphone"] = true
+		err := validateDevices(&dev, requiredDeviceClasses)
+		assert.NoError(t, err)
+	})
+	t.Run("no camera", func(t *testing.T) {
+		dev := deviceResult{
+			devicePaths:    []string{},
+			hasGPUDevice:   true,
+			hasSoundDevice: false,
+			hasVideoDevice: false,
+		}
+		requiredDeviceClasses := make(map[string]any)
+		requiredDeviceClasses["camera"] = true
+		err := validateDevices(&dev, requiredDeviceClasses)
+		assert.Error(t, err)
+	})
+	t.Run("no mic", func(t *testing.T) {
+		dev := deviceResult{
+			devicePaths:    []string{},
+			hasGPUDevice:   true,
+			hasSoundDevice: false,
+			hasVideoDevice: true,
+		}
+		requiredDeviceClasses := make(map[string]any)
+		requiredDeviceClasses["microphone"] = true
+		err := validateDevices(&dev, requiredDeviceClasses)
+		assert.Error(t, err)
+	})
+	t.Run("no speaker", func(t *testing.T) {
+		dev := deviceResult{
+			devicePaths:    []string{},
+			hasGPUDevice:   true,
+			hasSoundDevice: false,
+			hasVideoDevice: true,
+		}
+		requiredDeviceClasses := make(map[string]any)
+		requiredDeviceClasses["speaker"] = true
+		err := validateDevices(&dev, requiredDeviceClasses)
+		assert.Error(t, err)
+	})
+}

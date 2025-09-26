@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
@@ -56,7 +58,8 @@ func startHandler(ctx context.Context, cfg config.Configuration, app app.Arduino
 		case orchestrator.InfoType:
 			fmt.Fprintln(out, "[INFO]", message.GetData())
 		case orchestrator.ErrorType:
-			feedback.Fatal(message.GetError().Error(), feedback.ErrGeneric)
+			errMesg := cases.Title(language.AmericanEnglish).String(message.GetError().Error())
+			feedback.Fatal(fmt.Sprintf("[ERROR] %s", errMesg), feedback.ErrGeneric)
 			return nil
 		}
 	}
