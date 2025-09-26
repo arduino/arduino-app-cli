@@ -54,7 +54,7 @@ func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *stor
 	for _, container := range containersToPreinstall {
 		feedback.Printf("Pulling container image %s ...", container)
 		if err := pullImage(ctx, stdout, docker.Client(), container); err != nil {
-			feedback.Printf("Warning: failed to read image pull response - %v", err)
+			return fmt.Errorf("failed to pull image %s: %w", container, err)
 		}
 	}
 
