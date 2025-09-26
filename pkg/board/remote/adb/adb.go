@@ -18,7 +18,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 
 	"github.com/arduino/arduino-app-cli/pkg/board/remote"
-	"github.com/arduino/arduino-app-cli/pkg/board/remote/common"
+	"github.com/arduino/arduino-app-cli/pkg/x/ports"
 )
 
 const username = "arduino"
@@ -56,27 +56,27 @@ func FromHost(host string, adbPath string) (*ADBConnection, error) {
 	return FromSerial(host, adbPath)
 }
 
-func (a *ADBConnection) Forward(ctx context.Context, remotePort int) (int, error) {
-	hostAvailablePort, err := common.GetAvailablePort()
-	if err != nil {
-		return 0, fmt.Errorf("failed to find an available port: %w", err)
+func (a *ADBConnection) Forward(ctx context.Context, localPort int, remotePort int) error {
+	if !ports.IsAvailable(localPort) {
+		return remote.ErrPortAvailable
 	}
 
-	local := fmt.Sprintf("tcp:%d", hostAvailablePort)
+	local := fmt.Sprintf("tcp:%d", localPort)
 	remote := fmt.Sprintf("tcp:%d", remotePort)
 	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "forward", local, remote)
 	if err != nil {
-		return hostAvailablePort, err
+		return err
 	}
 	if err := cmd.RunWithinContext(ctx); err != nil {
-		return hostAvailablePort, fmt.Errorf(
+		return fmt.Errorf(
 			"failed to forward ADB port %s to %s: %w",
 			local,
 			remote,
 			err,
 		)
 	}
-	return hostAvailablePort, nil
+
+	return nil
 }
 
 func (a *ADBConnection) ForwardKillAll(ctx context.Context) error {

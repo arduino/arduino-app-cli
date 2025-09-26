@@ -2,8 +2,11 @@ package remote
 
 import (
 	"context"
+	"fmt"
 	"io"
 )
+
+var ErrPortAvailable = fmt.Errorf("port is not available")
 
 type FileInfo struct {
 	Name  string
@@ -30,7 +33,7 @@ type RemoteShell interface {
 }
 
 type Forwarder interface {
-	Forward(ctx context.Context, remotePort int) (int, error)
+	Forward(ctx context.Context, localPort int, remotePort int) error
 	ForwardKillAll(ctx context.Context) error
 }
 

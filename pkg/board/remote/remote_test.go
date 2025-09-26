@@ -18,6 +18,7 @@ import (
 	"github.com/arduino/arduino-app-cli/pkg/board/remote/adb"
 	"github.com/arduino/arduino-app-cli/pkg/board/remote/local"
 	"github.com/arduino/arduino-app-cli/pkg/board/remote/ssh"
+	"github.com/arduino/arduino-app-cli/pkg/x/ports"
 	"github.com/arduino/arduino-app-cli/pkg/x/testtools"
 )
 
@@ -182,7 +183,10 @@ func TestSSHForwarder(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 
-		forwardPort, err := conn.Forward(ctx, 5555)
+		forwardPort, err := ports.GetAvailable()
+		require.NoError(t, err)
+
+		err = conn.Forward(ctx, forwardPort, 5555)
 		if err != nil {
 			t.Errorf("Forward failed: %v", err)
 		}
@@ -213,7 +217,10 @@ func TestSSHKillForwarder(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 
-		forwardPort, err := conn.Forward(ctx, 5555)
+		forwardPort, err := ports.GetAvailable()
+		require.NoError(t, err)
+
+		err = conn.Forward(ctx, forwardPort, 5555)
 		if err != nil {
 			t.Errorf("Forward failed: %v", err)
 		}

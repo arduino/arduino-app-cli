@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
 	"log/slog"
 	"net"
 	"path"
@@ -17,7 +16,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/arduino/arduino-app-cli/pkg/board/remote"
-	"github.com/arduino/arduino-app-cli/pkg/board/remote/common"
+	"github.com/arduino/arduino-app-cli/pkg/x/ports"
 )
 
 var ErrAuthFailed = errors.New("ssh authentication failed")
@@ -57,18 +56,14 @@ func FromHost(user, password, address string) (*SSHConnection, error) {
 	}, nil
 }
 
-func (a *SSHConnection) Forward(ctx context.Context, remotePort int) (int, error) {
-
-	// Get a random available port for remote connection
-	randomPort, err := common.GetAvailablePort()
-	if err != nil {
-		log.Printf("failed to get available port: %v", err)
-		return 0, err
+func (a *SSHConnection) Forward(ctx context.Context, localPort int, remotePort int) error {
+	if !ports.IsAvailable(localPort) {
+		return remote.ErrPortAvailable
 	}
-	// Listen locally on remote port
-	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", "localhost", randomPort))
+
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", "localhost", localPort))
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	a.mu.Lock()
@@ -112,8 +107,7 @@ func (a *SSHConnection) Forward(ctx context.Context, remotePort int) (int, error
 		}
 	}()
 
-	return randomPort, nil
-
+	return nil
 }
 
 func copyAndLog(dst io.Writer, src io.Reader) {
