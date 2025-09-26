@@ -200,8 +200,8 @@ func StartApp(
 
 // getAppEnvironmentVariables returns the environment variables for the app by merging variables and config in the following order:
 // - brick default variables (variables defined in the brick definition)
-// - brick instance variables (variables defined in the app.yaml for the brick instance)
 // - model configuration variables (variables defined in the model configuration)
+// - brick instance variables (variables defined in the app.yaml for the brick instance)
 // In addition, it adds some useful environment variables like APP_HOME and HOST_IP.
 func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex) x.EnvVars {
 	envs := make(x.EnvVars)
@@ -210,11 +210,12 @@ func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.Bric
 		if brickDef, found := brickIndex.FindBrickByID(brick.ID); found {
 			maps.Insert(envs, brickDef.GetDefaultVariables())
 		}
-		maps.Insert(envs, maps.All(brick.Variables))
 
 		if m, found := modelsIndex.GetModelByID(brick.Model); found {
 			maps.Insert(envs, maps.All(m.ModelConfiguration))
 		}
+
+		maps.Insert(envs, maps.All(brick.Variables))
 	}
 
 	// Add the APP_HOME directory to the environment variables
