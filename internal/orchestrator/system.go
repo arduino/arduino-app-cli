@@ -61,21 +61,24 @@ func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *stor
 	return nil
 }
 
-func pullImage(ctx context.Context, stdout io.Writer, docker dockerClient.APIClient, imageName string) error {
-	delay := 1 * time.Second
+const minDelay = 1 * time.Second
+const maxDelay = 10 * time.Second
 
+func pullImage(ctx context.Context, stdout io.Writer, docker dockerClient.APIClient, imageName string) error {
+	delay := minDelay
 	var out io.ReadCloser
 	var allErr error
 	var lastErr error
-	for range 4 { // 1s, 2s, 4s, 8s
+	for range 10 { // 1s, 2s, 4s, 8s, 10s, 10s, 10s, 10s, 10s, 10s
 		out, lastErr = docker.ImagePull(ctx, imageName, image.PullOptions{})
 		if lastErr == nil {
 			break // Success
 		}
-		if !strings.Contains(lastErr.Error(), "toomanyrequests") {
-			return lastErr // Fail fast on non-rate-limit errors
-		}
 		allErr = errors.Join(allErr, lastErr)
+
+		if !strings.Contains(lastErr.Error(), "toomanyrequests") {
+			return allErr // Non-retryable error
+		}
 
 		feedback.Printf("Warning: received 'toomanyrequests' error from Docker registry, retrying in %s ...", delay)
 
@@ -84,7 +87,7 @@ func pullImage(ctx context.Context, stdout io.Writer, docker dockerClient.APICli
 			return ctx.Err()
 		case <-time.After(delay):
 		}
-		delay *= 2
+		delay = min(delay*2, maxDelay)
 	}
 	if lastErr != nil {
 		return fmt.Errorf("failed to pull image %s after multiple attempts: %w", imageName, allErr)
