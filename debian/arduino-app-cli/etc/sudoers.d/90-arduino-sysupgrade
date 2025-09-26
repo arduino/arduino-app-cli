@@ -1,1 +1,1 @@
-%sysupgrade ALL=(ALL) NOPASSWD: /usr/bin/apt-get update, /usr/sbin/needrestart -r a, /usr/bin/dpkg --configure -a, /usr/bin/apt-get install --only-upgrade -y *, /usr/bin/hostnamectl set-hostname *
+%sysupgrade ALL=(ALL) NOPASSWD: /usr/bin/apt-get update, /usr/sbin/needrestart -r a, /usr/bin/dpkg --configure -a, /usr/bin/apt-get install --only-upgrade -y *, /usr/bin/apt-get clean -y, /usr/bin/hostnamectl set-hostname *

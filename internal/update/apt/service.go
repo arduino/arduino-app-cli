@@ -85,6 +85,19 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan u
 			}
 			eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: line}
 		}
+		eventsCh <- update.Event{Type: update.StartEvent, Data: "apt cleaning cache is starting"}
+		for line, err := range runAptCleanCommand(ctx) {
+			if err != nil {
+				eventsCh <- update.Event{
+					Type: update.ErrorEvent,
+					Err:  err,
+					Data: "Error running apt clean command",
+				}
+				slog.Error("error processing apt clean command output", "error", err)
+				return
+			}
+			eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: line}
+		}
 		// TEMPORARY PATCH: stopping and destroying docker containers and images since IDE does not implement it yet.
 		// TODO: Remove this workaround once IDE implements it.
 		// Tracking issue: https://github.com/arduino/arduino-app-cli/issues/623
@@ -187,6 +200,24 @@ func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, er
 		}
 	}
 
+}
+
+func runAptCleanCommand(ctx context.Context) iter.Seq2[string, error] {
+	return func(yield func(string, error) bool) {
+		cleanCmd, err := paths.NewProcess(nil, "sudo", "apt-get", "clean", "-y")
+		if err != nil {
+			_ = yield("", err)
+			return
+		}
+		stdout := orchestrator.NewCallbackWriter(func(line string) {
+			_ = yield(line, nil)
+		})
+		cleanCmd.RedirectStderrTo(stdout)
+		cleanCmd.RedirectStdoutTo(stdout)
+		if err := cleanCmd.RunWithinContext(ctx); err != nil {
+			_ = yield("", err)
+		}
+	}
 }
 
 func pullDockerImages(ctx context.Context) iter.Seq2[string, error] {
