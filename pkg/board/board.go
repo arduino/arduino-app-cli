@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"os/exec"
 	"regexp"
 	"slices"
@@ -224,7 +225,7 @@ func (b *Board) GetConnection(optPassword ...string) (remote.RemoteConn, error) 
 	case SerialProtocol:
 		return adb.FromSerial(b.Serial, "")
 	case NetworkProtocol:
-		return ssh.FromHost("arduino", password, b.Address+":22")
+		return ssh.FromHost("arduino", password, net.JoinHostPort(b.Address, "22"))
 	case LocalProtocol:
 		return &local.LocalConnection{}, nil
 	default:
