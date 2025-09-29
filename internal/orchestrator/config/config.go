@@ -12,7 +12,7 @@ import (
 )
 
 // runnerVersion do not edit, this is generate with `task generate:assets`
-var runnerVersion = "0.4.4"
+var runnerVersion = "0.4.5"
 
 type Configuration struct {
 	appsDir            *paths.Path
