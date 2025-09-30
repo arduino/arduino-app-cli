@@ -1158,27 +1158,20 @@ func compileUploadSketch(
 	server, getCompileResult := commands.CompilerServerToStreams(ctx, w, w, nil)
 
 	// TODO: add build cache
+	compileReq := rpc.CompileRequest{
+		Instance:   inst,
+		Fqbn:       fqbn,
+		SketchPath: sketchPath,
+		BuildPath:  buildPath,
+		Jobs:       2,
+	}
 	if profile == "" {
-		err = srv.Compile(&rpc.CompileRequest{
-			Instance:   inst,
-			Fqbn:       fqbn,
-			SketchPath: sketchPath,
-			BuildPath:  buildPath,
-			Libraries:  []string{sketchPath + "/../../sketch-libraries"},
-		}, server)
-		if err != nil {
-			return err
-		}
-	} else {
-		err = srv.Compile(&rpc.CompileRequest{
-			Instance:   inst,
-			Fqbn:       fqbn,
-			SketchPath: sketchPath,
-			BuildPath:  buildPath,
-		}, server)
-		if err != nil {
-			return err
-		}
+		compileReq.Libraries = []string{sketchPath + "/../../sketch-libraries"}
+	}
+
+	err = srv.Compile(&compileReq, server)
+	if err != nil {
+		return err
 	}
 
 	// Output compilations details
