@@ -209,6 +209,12 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 			},
 			stream,
 		); err != nil {
+			var alreadyPresent *cmderrors.PlatformAlreadyAtTheLatestVersionError
+			if errors.As(err, &alreadyPresent) {
+				eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: alreadyPresent.Error()}
+				return
+			}
+
 			var notFound *cmderrors.PlatformNotFoundError
 			if !errors.As(err, &notFound) {
 				eventsCh <- update.Event{

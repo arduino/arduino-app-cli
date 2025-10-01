@@ -146,6 +146,9 @@ func (b *Manager) broadcast(event Event) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
+	if event.Type == ErrorEvent {
+		slog.Error("An error occurred", slog.Any("event", event))
+	}
 	for ch := range b.subs {
 		select {
 		case ch <- event:
