@@ -244,7 +244,21 @@ func SetCustomName(ctx context.Context, conn remote.RemoteConn, name string) err
 		Run(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to set board name: %w", err)
+
 	}
+
+	isEnable, err := NetworkModeStatus(ctx, conn)
+	if err != nil {
+		return fmt.Errorf("failed get board status: %w", err)
+	}
+	if isEnable {
+		err = conn.GetCmd("sudo", "systemctl", "restart", "avahi-daemon").
+			Run(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to restart avahi-daemon: %w", err)
+		}
+	}
+
 	return nil
 }
 
