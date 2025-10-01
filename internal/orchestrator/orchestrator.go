@@ -476,10 +476,10 @@ func ListApps(
 		slog.Error("unable to get running app", slog.String("error", err.Error()))
 	}
 
-	if req.ShowExamples {
+	if req.ShowExamples || req.ShowOnlyDefault {
 		pathsToExplore.Add(cfg.ExamplesDir())
 	}
-	if req.ShowApps {
+	if req.ShowApps || req.ShowOnlyDefault {
 		pathsToExplore.Add(cfg.AppsDir())
 		// adds app that are on different paths
 		if req.IncludeNonStandardLocationApps {

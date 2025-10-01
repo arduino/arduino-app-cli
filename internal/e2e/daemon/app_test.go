@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -109,7 +110,6 @@ func TestCreateApp(t *testing.T) {
 		})
 	}
 }
-
 func TestCreateAndVerifyAppDetails(t *testing.T) {
 	httpClient := GetHttpclient(t)
 	appToCreate := client.CreateAppRequest{
@@ -761,5 +761,76 @@ func TestAppPorts(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "invalid id", acturalResp.Details, "The error detail message is not what was expected")
 
+	})
+}
+
+func TestAppList(t *testing.T) {
+	httpClient := GetHttpclient(t)
+	t.Run("AppListEmpty_success", func(t *testing.T) {
+		resp, err := httpClient.GetAppsWithResponse(t.Context(), &client.GetAppsParams{})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode())
+		require.NotNil(t, resp.JSON200)
+		require.Empty(t, resp.JSON200.Apps, "The apps list should be empty")
+	})
+
+	t.Run("AppListShouldContainsAllTheelements_success", func(t *testing.T) {
+		expectedAppNumber := 5
+		for i := 0; i < expectedAppNumber; i++ {
+			r, err := httpClient.CreateApp(t.Context(), &client.CreateAppParams{
+				SkipPython: f.Ptr(false),
+				SkipSketch: f.Ptr(false),
+			}, client.CreateAppRequest{
+				Icon:        f.Ptr("🌎"),
+				Name:        "HelloWorld-" + strconv.Itoa(i),
+				Description: f.Ptr("My HelloWorld description")})
+			require.NoError(t, err)
+			defer r.Body.Close()
+		}
+		resp, err := httpClient.GetAppsWithResponse(t.Context(), &client.GetAppsParams{})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode())
+		require.NotNil(t, resp.JSON200)
+		require.Equal(t, len(*resp.JSON200.Apps), expectedAppNumber, "The apps list should contain "+strconv.Itoa(expectedAppNumber)+" elements")
+
+	})
+
+	t.Run("AppListDefault_success", func(t *testing.T) {
+		r, err := httpClient.CreateApp(t.Context(), &client.CreateAppParams{
+			SkipPython: f.Ptr(false),
+			SkipSketch: f.Ptr(false),
+		}, client.CreateAppRequest{
+			Icon:        f.Ptr("🌎"),
+			Name:        "HelloWorld-default",
+			Description: f.Ptr("My HelloWorld description")})
+		require.NoError(t, err)
+		defer r.Body.Close()
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusCreated, r.StatusCode)
+		var createdApp client.CreateAppResponse
+		err = json.Unmarshal(body, &createdApp)
+		require.NoError(t, err)
+		require.NotNil(t, createdApp.Id)
+		defaultAppId := *createdApp.Id
+
+		editResp, err := httpClient.EditAppWithResponse(
+			t.Context(),
+			defaultAppId,
+			client.EditRequest{
+				Default: f.Ptr(true),
+			},
+		)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, editResp.StatusCode())
+
+		resp, err := httpClient.GetAppsWithResponse(t.Context(), &client.GetAppsParams{Filter: f.Ptr("default")})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode())
+		require.NotNil(t, resp.JSON200)
+		require.Equal(t, 1, len(*resp.JSON200.Apps), "The apps list should contain 1 element")
+		require.Equal(t, true, *(*resp.JSON200.Apps)[0].Default, "The app should be default")
+		app := (*resp.JSON200.Apps)[0]
+		require.Equal(t, "HelloWorld-default", *app.Name, "The app name should be 'HelloWorld-default'")
 	})
 }
