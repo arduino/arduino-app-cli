@@ -131,22 +131,35 @@ func StartApp(
 				return
 			}
 		})
-
+		if !yield(StreamMessage{progress: &Progress{Name: "preparing", Progress: 0.0}}) {
+			return
+		}
 		if app.MainSketchPath != nil {
-			if !yield(StreamMessage{data: "Compiling and uploading the sketch..."}) {
-				cancel()
+			if !yield(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}}) {
 				return
 			}
 			if err := compileUploadSketch(ctx, &app, sketchCallbackWriter, cfg); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
+			if !yield(StreamMessage{progress: &Progress{Name: "sketch updated", Progress: 10.0}}) {
+				return
+			}
 		}
+
 		if app.MainPythonFile != nil {
 			envs := getAppEnvironmentVariables(app, bricksIndex, modelsIndex)
 
-			if !yield(StreamMessage{data: "Provisioning app..."}) {
+			if !yield(StreamMessage{data: "python provisioning"}) {
 				cancel()
+				return
+			}
+			provisionStartProgress := float32(0.0)
+			if app.MainSketchPath != nil {
+				provisionStartProgress = 10.0
+			}
+
+			if !yield(StreamMessage{progress: &Progress{Name: "python provisioning", Progress: provisionStartProgress}}) {
 				return
 			}
 
@@ -154,7 +167,8 @@ func StartApp(
 				yield(StreamMessage{error: err})
 				return
 			}
-			if !yield(StreamMessage{data: "Starting app..."}) {
+
+			if !yield(StreamMessage{data: "python downloading"}) {
 				cancel()
 				return
 			}
@@ -169,14 +183,26 @@ func StartApp(
 			}
 			commands = append(commands, "up", "-d", "--remove-orphans", "--pull", "missing")
 
+			dockerParser := NewDockerProgressParser(200)
+
 			var customError error
 			callbackDockerWriter := NewCallbackWriter(func(line string) {
 				// docker compose sometimes returns errors as info lines, we try to parse them here and return a proper error
+
 				if e := GetCustomErrorFomDockerEvent(line); e != nil {
 					customError = e
 				}
+				if percentage, ok := dockerParser.Parse(line); ok {
 
-				if !yield(StreamMessage{data: line}) {
+					// assumption: docker pull progress goes from 0 to 80% of the total app start progress
+					totalProgress := 20.0 + (percentage/100.0)*80.0
+
+					if !yield(StreamMessage{progress: &Progress{Name: "python starting", Progress: float32(totalProgress)}}) {
+						cancel()
+						return
+					}
+					return
+				} else if !yield(StreamMessage{data: line}) {
 					cancel()
 					return
 				}
@@ -194,6 +220,7 @@ func StartApp(
 				if customError != nil {
 					err = customError
 				}
+
 				yield(StreamMessage{error: err})
 				return
 			}
