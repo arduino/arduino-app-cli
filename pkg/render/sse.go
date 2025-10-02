@@ -15,7 +15,6 @@ type SSEErrCode string
 
 const (
 	InternalServiceErr SSEErrCode = "INTERNAL_SERVER_ERROR"
-	ServerCloseErr     SSEErrCode = "SERVER_CLOSED"
 )
 
 type SSEErrorData struct {
@@ -89,7 +88,7 @@ func NewSSEStream(ctx context.Context, w http.ResponseWriter) (*SSEStream, error
 
 func (s *SSEStream) loop() {
 	defer func() {
-		_ = s.send(SSEEvent{Type: "error", Data: SSEErrorData{Code: ServerCloseErr}})
+		_ = s.send(SSEEvent{Type: "close", Data: "Stream closed by server"})
 		close(s.stoppedCh)
 	}()
 
