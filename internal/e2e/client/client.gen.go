@@ -31,6 +31,16 @@ const (
 	Stopping Status = "stopping"
 )
 
+// Defines values for ListLibrariesParamsSort.
+const (
+	ForksAsc   ListLibrariesParamsSort = "forks_asc"
+	ForksDesc  ListLibrariesParamsSort = "forks_desc"
+	RecentAsc  ListLibrariesParamsSort = "recent_asc"
+	RecentDesc ListLibrariesParamsSort = "recent_desc"
+	StarsAsc   ListLibrariesParamsSort = "stars_asc"
+	StarsDesc  ListLibrariesParamsSort = "stars_desc"
+)
+
 // AIModelItem defines model for AIModelItem.
 type AIModelItem struct {
 	BrickIds           *[]string          `json:"brick_ids"`
@@ -229,8 +239,55 @@ type ErrorResponse struct {
 	Message *string `json:"message,omitempty"`
 }
 
+// Library defines model for Library.
+type Library struct {
+	Architectures *[]string `json:"architectures"`
+	Author        *string   `json:"author,omitempty"`
+	Category      *string   `json:"category,omitempty"`
+	Dependencies  *[]struct {
+		Name *string `json:"name,omitempty"`
+	} `json:"dependencies"`
+	ExampleCount *int      `json:"example_count,omitempty"`
+	Id           *string   `json:"id,omitempty"`
+	Includes     *[]string `json:"includes"`
+	License      *string   `json:"license,omitempty"`
+	Maintainer   *string   `json:"maintainer,omitempty"`
+	Name         *string   `json:"name,omitempty"`
+	Paragraph    *string   `json:"paragraph,omitempty"`
+	Platform     *string   `json:"platform"`
+	Releases     *[]struct {
+		Id      *string `json:"id,omitempty"`
+		Version *string `json:"version,omitempty"`
+	} `json:"releases"`
+	Repository *struct {
+		Forks     *int    `json:"forks,omitempty"`
+		Stars     *int    `json:"stars,omitempty"`
+		UpdatedAt *string `json:"updated_at,omitempty"`
+		Url       *string `json:"url,omitempty"`
+	} `json:"repository"`
+	Sentence *string   `json:"sentence,omitempty"`
+	Types    *[]string `json:"types"`
+	Website  *string   `json:"website,omitempty"`
+}
+
+// LibraryListResponse defines model for LibraryListResponse.
+type LibraryListResponse struct {
+	Libraries  *[]Library  `json:"libraries"`
+	Pagination *Pagination `json:"pagination,omitempty"`
+}
+
 // PackageType Package type
 type PackageType string
+
+// Pagination defines model for Pagination.
+type Pagination struct {
+	NextPage   *int `json:"next_page,omitempty"`
+	Page       *int `json:"page,omitempty"`
+	PerPage    *int `json:"per_page,omitempty"`
+	PrevPage   *int `json:"prev_page,omitempty"`
+	TotalItems *int `json:"total_items,omitempty"`
+	TotalPages *int `json:"total_pages,omitempty"`
+}
 
 // Port defines model for Port.
 type Port struct {
@@ -314,6 +371,30 @@ type GetAppLogsParams struct {
 	Tail     *int    `form:"tail,omitempty" json:"tail,omitempty"`
 	Nofollow *bool   `form:"nofollow,omitempty" json:"nofollow,omitempty"`
 }
+
+// ListLibrariesParams defines parameters for ListLibraries.
+type ListLibrariesParams struct {
+	// Search Search term to filter libraries by name, sentence, paragraph.
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// Architecture Filter libraries by target architecture
+	Architecture *string `form:"architecture,omitempty" json:"architecture,omitempty"`
+
+	// Platform Filter libraries by platform
+	Platform *string `form:"platform,omitempty" json:"platform,omitempty"`
+
+	// Sort Sort order for the results
+	Sort *ListLibrariesParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+
+	// Page Page number for pagination
+	Page *int `form:"page,omitempty" json:"page,omitempty"`
+
+	// Limit Number of results per page
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListLibrariesParamsSort defines parameters for ListLibraries.
+type ListLibrariesParamsSort string
 
 // GetAIModelsParams defines parameters for GetAIModels.
 type GetAIModelsParams struct {
@@ -493,6 +574,9 @@ type ClientInterface interface {
 
 	// GetConfig request
 	GetConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListLibraries request
+	ListLibraries(ctx context.Context, params *ListLibrariesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAIModels request
 	GetAIModels(ctx context.Context, params *GetAIModelsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -808,6 +892,18 @@ func (c *Client) GetBrickDetails(ctx context.Context, id string, reqEditors ...R
 
 func (c *Client) GetConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetConfigRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListLibraries(ctx context.Context, params *ListLibrariesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListLibrariesRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1803,6 +1899,135 @@ func NewGetConfigRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewListLibrariesRequest generates requests for ListLibraries
+func NewListLibrariesRequest(server string, params *ListLibrariesParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/libraries")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Search != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "search", runtime.ParamLocationQuery, *params.Search); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Architecture != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "architecture", runtime.ParamLocationQuery, *params.Architecture); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Platform != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "platform", runtime.ParamLocationQuery, *params.Platform); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Sort != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "sort", runtime.ParamLocationQuery, *params.Sort); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetAIModelsRequest generates requests for GetAIModels
 func NewGetAIModelsRequest(server string, params *GetAIModelsParams) (*http.Request, error) {
 	var err error
@@ -2317,6 +2542,9 @@ type ClientWithResponsesInterface interface {
 	// GetConfigWithResponse request
 	GetConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetConfigResp, error)
 
+	// ListLibrariesWithResponse request
+	ListLibrariesWithResponse(ctx context.Context, params *ListLibrariesParams, reqEditors ...RequestEditorFn) (*ListLibrariesResp, error)
+
 	// GetAIModelsWithResponse request
 	GetAIModelsWithResponse(ctx context.Context, params *GetAIModelsParams, reqEditors ...RequestEditorFn) (*GetAIModelsResp, error)
 
@@ -2809,6 +3037,30 @@ func (r GetConfigResp) StatusCode() int {
 	return 0
 }
 
+type ListLibrariesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *LibraryListResponse
+	JSON400      *BadRequest
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListLibrariesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListLibrariesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetAIModelsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3276,6 +3528,15 @@ func (c *ClientWithResponses) GetConfigWithResponse(ctx context.Context, reqEdit
 		return nil, err
 	}
 	return ParseGetConfigResp(rsp)
+}
+
+// ListLibrariesWithResponse request returning *ListLibrariesResp
+func (c *ClientWithResponses) ListLibrariesWithResponse(ctx context.Context, params *ListLibrariesParams, reqEditors ...RequestEditorFn) (*ListLibrariesResp, error) {
+	rsp, err := c.ListLibraries(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListLibrariesResp(rsp)
 }
 
 // GetAIModelsWithResponse request returning *GetAIModelsResp
@@ -4132,6 +4393,46 @@ func ParseGetConfigResp(rsp *http.Response) (*GetConfigResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListLibrariesResp parses an HTTP response from a ListLibrariesWithResponse call
+func ParseListLibrariesResp(rsp *http.Response) (*ListLibrariesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListLibrariesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LibraryListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError

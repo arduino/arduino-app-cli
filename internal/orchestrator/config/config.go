@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"path"
 	"strconv"
@@ -24,6 +25,7 @@ type Configuration struct {
 	UsedPythonImageTag string
 	RunnerVersion      string
 	AllowRoot          bool
+	LibrariesAPIURL    *url.URL
 }
 
 func NewFromEnv() (Configuration, error) {
@@ -97,6 +99,15 @@ func NewFromEnv() (Configuration, error) {
 		allowRoot = false
 	}
 
+	librariesAPIURL := os.Getenv("LIBRARIES_API_URL")
+	if librariesAPIURL == "" {
+		librariesAPIURL = "https://api2.arduino.cc/libraries/v1/libraries"
+	}
+	parsedLibrariesURL, err := url.Parse(librariesAPIURL)
+	if err != nil {
+		return Configuration{}, fmt.Errorf("invalid LIBRARIES_API_URL: %w", err)
+	}
+
 	c := Configuration{
 		appsDir:            appsDir,
 		configDir:          configDir,
@@ -107,6 +118,7 @@ func NewFromEnv() (Configuration, error) {
 		UsedPythonImageTag: usedPythonImageTag,
 		RunnerVersion:      runnerVersion,
 		AllowRoot:          allowRoot,
+		LibrariesAPIURL:    parsedLibrariesURL,
 	}
 	if err := c.init(); err != nil {
 		return Configuration{}, err

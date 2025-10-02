@@ -30,9 +30,10 @@ const (
 	AIModelsTag    Tag = "AIModels"
 	SystemTag      Tag = "System"
 	Property       Tag = "Property"
+	LibrariesTag   Tag = "Libraries"
 )
 
-var validTags = []Tag{ApplicationTag, BrickTag, AIModelsTag, SystemTag}
+var validTags = []Tag{ApplicationTag, BrickTag, AIModelsTag, SystemTag, LibrariesTag}
 
 type Generator struct {
 	reflector *openapi3.Reflector
@@ -41,9 +42,8 @@ type Generator struct {
 func NewOpenApiGenerator(version string) *Generator {
 	reflector := openapi3.NewReflector()
 	reflector.Spec.Info.WithTitle("Arduino-App-Cli").WithVersion(version)
-	reflector.Spec.Info.WithDescription("API specification for the MonzaImola Orchestrator")
 	reflector.Spec.Servers = append(reflector.Spec.Servers, openapi3.Server{
-		URL:         "http://localhost:8080",
+		URL:         "http://localhost:6060",
 		Description: f.Ptr("local server"),
 	})
 
@@ -941,6 +941,32 @@ Contains a JSON object with the details of an error.
 			Tags:        []Tag{ApplicationTag},
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "listLibraries",
+			Method:      http.MethodGet,
+			Path:        "/v1/libraries",
+			Parameters: (*struct {
+				Search       string `query:"search" description:"Search term to filter libraries by name, sentence, paragraph."`
+				Architecture string `query:"architecture" description:"Filter libraries by target architecture"`
+				Platform     string `query:"platform" description:"Filter libraries by platform"`
+				Sort         string `query:"sort" description:"Sort order for the results" enum:"stars_asc,stars_desc,forks_asc,forks_desc,recent_asc,recent_desc" default:"stars_desc"`
+				Page         int    `query:"page" description:"Page number for pagination" minimum:"1" default:"1"`
+				Limit        int    `query:"limit" description:"Number of results per page" minimum:"1" maximum:"1000" default:"20"`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: handlers.LibraryListResponse{},
+				Description:   "Successful response with library search results",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "Search for Arduino libraries in the registry with various filters.",
+			Summary:     "Search Arduino libraries",
+			Tags:        []Tag{LibrariesTag},
+			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
 			},

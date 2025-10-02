@@ -1,16 +1,16 @@
 openapi: 3.0.3
 info:
-  description: API specification for the MonzaImola Orchestrator
   title: Arduino-App-Cli
   version: 0.1.0
 servers:
 - description: local server
-  url: http://localhost:8080
+  url: http://localhost:6060
 tags:
 - name: Application
 - name: Brick
 - name: AIModels
 - name: System
+- name: Libraries
 paths:
   /v1/apps:
     get:
@@ -603,6 +603,74 @@ paths:
       summary: returns application configuration
       tags:
       - Application
+  /v1/libraries:
+    get:
+      description: Search for Arduino libraries in the registry with various filters.
+      operationId: listLibraries
+      parameters:
+      - description: Search term to filter libraries by name, sentence, paragraph.
+        in: query
+        name: search
+        schema:
+          description: Search term to filter libraries by name, sentence, paragraph.
+          type: string
+      - description: Filter libraries by target architecture
+        in: query
+        name: architecture
+        schema:
+          description: Filter libraries by target architecture
+          type: string
+      - description: Filter libraries by platform
+        in: query
+        name: platform
+        schema:
+          description: Filter libraries by platform
+          type: string
+      - description: Sort order for the results
+        in: query
+        name: sort
+        schema:
+          default: stars_desc
+          description: Sort order for the results
+          enum:
+          - stars_asc
+          - stars_desc
+          - forks_asc
+          - forks_desc
+          - recent_asc
+          - recent_desc
+          type: string
+      - description: Page number for pagination
+        in: query
+        name: page
+        schema:
+          default: 1
+          description: Page number for pagination
+          minimum: 1
+          type: integer
+      - description: Number of results per page
+        in: query
+        name: limit
+        schema:
+          default: 20
+          description: Number of results per page
+          maximum: 1000
+          minimum: 1
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LibraryListResponse'
+          description: Successful response with library search results
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Search Arduino libraries
+      tags:
+      - Libraries
   /v1/models:
     get:
       description: Returns the list of AI models available in the system. It is possible
@@ -1256,6 +1324,87 @@ components:
         message:
           type: string
       type: object
+    Library:
+      properties:
+        architectures:
+          items:
+            type: string
+          nullable: true
+          type: array
+        author:
+          type: string
+        category:
+          type: string
+        dependencies:
+          items:
+            properties:
+              name:
+                type: string
+            type: object
+          nullable: true
+          type: array
+        example_count:
+          type: integer
+        id:
+          type: string
+        includes:
+          items:
+            type: string
+          nullable: true
+          type: array
+        license:
+          type: string
+        maintainer:
+          type: string
+        name:
+          type: string
+        paragraph:
+          type: string
+        platform:
+          nullable: true
+          type: string
+        releases:
+          items:
+            properties:
+              id:
+                type: string
+              version:
+                type: string
+            type: object
+          nullable: true
+          type: array
+        repository:
+          nullable: true
+          properties:
+            forks:
+              type: integer
+            stars:
+              type: integer
+            updated_at:
+              type: string
+            url:
+              type: string
+          type: object
+        sentence:
+          type: string
+        types:
+          items:
+            type: string
+          nullable: true
+          type: array
+        website:
+          type: string
+      type: object
+    LibraryListResponse:
+      properties:
+        libraries:
+          items:
+            $ref: '#/components/schemas/Library'
+          nullable: true
+          type: array
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      type: object
     PackageType:
       description: Package type
       enum:
@@ -1263,6 +1412,21 @@ components:
       - debian-package
       type: string
       uniqueItems: true
+    Pagination:
+      properties:
+        next_page:
+          type: integer
+        page:
+          type: integer
+        per_page:
+          type: integer
+        prev_page:
+          type: integer
+        total_items:
+          type: integer
+        total_pages:
+          type: integer
+      type: object
     Port:
       properties:
         port:
