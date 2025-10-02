@@ -66,7 +66,7 @@ func HandleAppClone(
 				render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: "app not found"})
 				return
 			}
-			if errors.Is(err, orchestrator.ErrInvalidApp) {
+			if errors.Is(err, app.ErrInvalidApp) {
 				slog.Error("missing app.yaml", slog.String("error", err.Error()))
 				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "missing app.yaml"})
 				return

@@ -42,7 +42,6 @@ import (
 var (
 	ErrAppAlreadyExists = fmt.Errorf("app already exists")
 	ErrAppDoesntExists  = fmt.Errorf("app doesn't exist")
-	ErrInvalidApp       = fmt.Errorf("invalid app")
 )
 
 const (
@@ -700,13 +699,15 @@ func CreateApp(
 		return CreateAppResponse{}, ErrAppAlreadyExists
 	}
 	appName := req.Name
-	app := app.AppDescriptor{
+	newApp := app.AppDescriptor{
 		Name:        appName,
 		Description: req.Description,
 		Ports:       []int{},
 		Icon:        req.Icon, // TODO: not sure if icon will exists for bricks
 	}
-
+	if err := newApp.IsValid(); err != nil {
+		return CreateAppResponse{}, fmt.Errorf("%w: %v", app.ErrInvalidApp, err)
+	}
 	var options appgenerator.Opts = 0
 
 	if req.SkipSketch {
@@ -716,7 +717,7 @@ func CreateApp(
 		options |= appgenerator.SkipPython
 	}
 
-	if err := appgenerator.GenerateApp(basePath, app, options); err != nil {
+	if err := appgenerator.GenerateApp(basePath, newApp, options); err != nil {
 		return CreateAppResponse{}, fmt.Errorf("failed to create app: %w", err)
 	}
 	id, err := idProvider.IDFromPath(basePath)
@@ -748,7 +749,7 @@ func CloneApp(
 		return CloneAppResponse{}, ErrAppDoesntExists
 	}
 	if !originPath.Join("app.yaml").Exist() && !originPath.Join("app.yml").Exist() {
-		return CloneAppResponse{}, ErrInvalidApp
+		return CloneAppResponse{}, app.ErrInvalidApp
 	}
 
 	var dstPath *paths.Path
@@ -894,37 +895,40 @@ type AppEditRequest struct {
 
 func EditApp(
 	req AppEditRequest,
-	app *app.ArduinoApp,
+	editApp *app.ArduinoApp,
 	cfg config.Configuration,
 ) (editErr error) {
 	if req.Default != nil {
-		if err := editAppDefaults(app, *req.Default, cfg); err != nil {
+		if err := editAppDefaults(editApp, *req.Default, cfg); err != nil {
 			return fmt.Errorf("failed to edit app defaults: %w", err)
 		}
 	}
 
 	if req.Name != nil {
-		app.Descriptor.Name = *req.Name
-		newPath := app.FullPath.Parent().Join(slug.Make(*req.Name))
+		editApp.Descriptor.Name = *req.Name
+		newPath := editApp.FullPath.Parent().Join(slug.Make(*req.Name))
 		if newPath.Exist() {
 			return ErrAppAlreadyExists
 		}
-		if err := app.FullPath.Rename(newPath); err != nil {
+		if err := editApp.FullPath.Rename(newPath); err != nil {
 			editErr = fmt.Errorf("failed to rename app path: %w", err)
 			return editErr
 		}
-		app.FullPath = newPath
-		app.Name = app.Descriptor.Name
+		editApp.FullPath = newPath
+		editApp.Name = editApp.Descriptor.Name
 	}
 
 	if req.Icon != nil {
-		app.Descriptor.Icon = *req.Icon
+		editApp.Descriptor.Icon = *req.Icon
 	}
 	if req.Description != nil {
-		app.Descriptor.Description = *req.Description
+		editApp.Descriptor.Description = *req.Description
 	}
 
-	err := app.Save()
+	if err := editApp.Descriptor.IsValid(); err != nil {
+		return fmt.Errorf("%w: %w", app.ErrInvalidApp, err)
+	}
+	err := editApp.Save()
 	if err != nil {
 		return fmt.Errorf("failed to save app: %w", err)
 	}

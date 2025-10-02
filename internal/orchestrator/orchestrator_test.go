@@ -127,7 +127,7 @@ func TestCloneApp(t *testing.T) {
 			err := cfg.AppsDir().Join("app-without-yaml").Mkdir()
 			require.NoError(t, err)
 			_, err = CloneApp(t.Context(), CloneAppRequest{FromID: f.Must(idProvider.ParseID("user:app-without-yaml"))}, idProvider, cfg)
-			require.ErrorIs(t, err, ErrInvalidApp)
+			require.ErrorIs(t, err, app.ErrInvalidApp)
 		})
 		t.Run("name already exists", func(t *testing.T) {
 			_, err = CloneApp(t.Context(), CloneAppRequest{

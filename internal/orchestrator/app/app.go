@@ -89,7 +89,19 @@ func (a *ArduinoApp) GetDescriptorPath() *paths.Path {
 	return descriptorFile
 }
 
+var ErrInvalidApp = fmt.Errorf("invalid app")
+
 func (a *ArduinoApp) Save() error {
+	if err := a.Descriptor.IsValid(); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidApp, err)
+	}
+	if err := a.writeApp(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (a *ArduinoApp) writeApp() error {
 	descriptorPath := a.GetDescriptorPath()
 	if descriptorPath == nil {
 		return errors.New("app descriptor file path is not set")

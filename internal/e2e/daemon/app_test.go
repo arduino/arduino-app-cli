@@ -33,6 +33,34 @@ func TestCreateApp(t *testing.T) {
 		expectedErrorDetails *string
 	}{
 		{
+			name: "should return 400 bad request when icon is not a single emoji",
+			parameters: client.CreateAppParams{
+				SkipPython: f.Ptr(false),
+				SkipSketch: f.Ptr(false),
+			},
+			body: client.CreateAppRequest{
+				Icon:        f.Ptr("invalid-icon"),
+				Name:        "HelloWorld-2",
+				Description: f.Ptr("My HelloWorld description"),
+			},
+			expectedStatusCode:   http.StatusBadRequest,
+			expectedErrorDetails: f.Ptr("invalid app: icon \"invalid-icon\" is not a valid single emoji"),
+		},
+		{
+			name: "should create app successfully when icon is empty",
+			parameters: client.CreateAppParams{
+				SkipPython: f.Ptr(false),
+				SkipSketch: f.Ptr(false),
+			},
+			body: client.CreateAppRequest{
+				Icon:        nil,
+				Name:        "HelloWorld-2",
+				Description: f.Ptr("My HelloWorld description"),
+			},
+			expectedStatusCode: http.StatusCreated,
+			//expectedErrorDetails: f.Ptr("invalid app: icon cannot be empty"),
+		},
+		{
 			name: "should return 201 Created on first successful creation",
 			parameters: client.CreateAppParams{
 				SkipPython: f.Ptr(false),
@@ -192,7 +220,33 @@ func TestEditApp(t *testing.T) {
 		require.Equal(t, renamedApp, detailsResp.JSON200.Name)
 		require.Equal(t, modifedIcon, *detailsResp.JSON200.Icon)
 	})
+	t.Run("RequestEmptyIcon_Success", func(t *testing.T) {
+		createResp, err := httpClient.CreateAppWithResponse(
+			t.Context(),
+			&client.CreateAppParams{SkipSketch: f.Ptr(true)},
+			client.CreateAppRequest{
+				Icon:        f.Ptr("💻"),
+				Name:        "new-valid-app-1",
+				Description: f.Ptr("My app description"),
+			},
+		)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusCreated, createResp.StatusCode())
+		require.NotNil(t, createResp.JSON201)
 
+		validAppId := *createResp.JSON201.Id
+
+		invalidIconBody := `{"icon": "","description": "modified", "example": false,"default": false}`
+		editResp, err := httpClient.EditAppWithBody(
+			t.Context(),
+			validAppId,
+			"application/json",
+			strings.NewReader(invalidIconBody),
+		)
+		require.NoError(t, err)
+		defer editResp.Body.Close()
+		require.Equal(t, http.StatusOK, editResp.StatusCode)
+	})
 	t.Run("InvalidAppId_Fail", func(t *testing.T) {
 		var actualResponseBody models.ErrorResponse
 		editResp, err := httpClient.EditApp(
@@ -232,7 +286,7 @@ func TestEditApp(t *testing.T) {
 		require.Equal(t, "unable to find the app", actualResponseBody.Details)
 	})
 
-	t.Run("InvalidRequestBody_Fail", func(t *testing.T) {
+	t.Run("InvalidRequestSintaxBody_Fail", func(t *testing.T) {
 		createResp, err := httpClient.CreateAppWithResponse(
 			t.Context(),
 			&client.CreateAppParams{SkipSketch: f.Ptr(true)},
@@ -265,6 +319,40 @@ func TestEditApp(t *testing.T) {
 		err = json.Unmarshal(body, &actualResponseBody)
 		require.NoError(t, err)
 		require.Equal(t, "invalid request", actualResponseBody.Details)
+	})
+	t.Run("InvalidRequestIcon_Fail", func(t *testing.T) {
+		createResp, err := httpClient.CreateAppWithResponse(
+			t.Context(),
+			&client.CreateAppParams{SkipSketch: f.Ptr(true)},
+			client.CreateAppRequest{
+				Icon:        f.Ptr("💻"),
+				Name:        "new-valid-app-2",
+				Description: f.Ptr("My app description"),
+			},
+		)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusCreated, createResp.StatusCode())
+		require.NotNil(t, createResp.JSON201)
+
+		validAppId := *createResp.JSON201.Id
+
+		var actualResponseBody models.ErrorResponse
+		invalidIconBody := `{"name": "test", "icon": "💻 invalid"}`
+		editResp, err := httpClient.EditAppWithBody(
+			t.Context(),
+			validAppId,
+			"application/json",
+			strings.NewReader(invalidIconBody),
+		)
+		require.NoError(t, err)
+		defer editResp.Body.Close()
+
+		require.Equal(t, http.StatusBadRequest, editResp.StatusCode)
+		body, err := io.ReadAll(editResp.Body)
+		require.NoError(t, err)
+		err = json.Unmarshal(body, &actualResponseBody)
+		require.NoError(t, err)
+		require.Equal(t, "invalid app: icon \"💻 invalid\" is not a valid single emoji", actualResponseBody.Details)
 	})
 }
 

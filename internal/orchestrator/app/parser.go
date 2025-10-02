@@ -110,14 +110,14 @@ func ParseDescriptorFile(file *paths.Path) (AppDescriptor, error) {
 		return AppDescriptor{}, fmt.Errorf("application name is empty")
 	}
 
-	return descriptor, validate(descriptor)
+	return descriptor, descriptor.IsValid()
 }
 
-func validate(app AppDescriptor) error {
+func (a *AppDescriptor) IsValid() error {
 	var allErrors error
-	if app.Icon != "" {
-		if !isSingleEmoji(app.Icon) {
-			allErrors = errors.Join(allErrors, fmt.Errorf("icon %q is not a valid single emoji", app.Icon))
+	if a.Icon != "" {
+		if !isSingleEmoji(a.Icon) {
+			allErrors = errors.Join(allErrors, fmt.Errorf("icon %q is not a valid single emoji", a.Icon))
 		}
 	}
 	return allErrors

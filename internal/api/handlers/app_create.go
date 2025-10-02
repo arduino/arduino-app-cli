@@ -60,13 +60,18 @@ func HandleAppCreate(
 			cfg,
 		)
 		if err != nil {
-			if errors.Is(err, orchestrator.ErrAppAlreadyExists) {
+			switch {
+			case errors.Is(err, orchestrator.ErrAppAlreadyExists):
 				slog.Error("app already exists", slog.String("error", err.Error()))
 				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: "app already exists"})
-				return
+
+			case errors.Is(err, app.ErrInvalidApp):
+				slog.Error("invalid app data", slog.String("error", err.Error()))
+				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
+			default:
+				slog.Error("unable to create app", slog.String("error", err.Error()))
+				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "an unexpected error occurred"})
 			}
-			slog.Error("unable to create app", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to create"})
 			return
 		}
 		render.EncodeResponse(w, http.StatusCreated, resp)

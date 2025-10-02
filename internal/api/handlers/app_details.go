@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -64,7 +66,7 @@ func HandleAppDetailsEdits(
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid id"})
 			return
 		}
-		app, err := app.Load(id.ToPath().String())
+		appToEdit, err := app.Load(id.ToPath().String())
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", id.String()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
@@ -95,14 +97,25 @@ func HandleAppDetailsEdits(
 				Description: editRequest.Description,
 			}
 		}
-		err = orchestrator.EditApp(appEditRequest, &app, cfg)
+		err = orchestrator.EditApp(appEditRequest, &appToEdit, cfg)
 		if err != nil {
-			slog.Error("Unable to edit the app", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to edit the app"})
+			switch {
+			case errors.Is(err, app.ErrInvalidApp):
+				slog.Error("Unable to edit the app 1", slog.String("error", err.Error()))
+				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
+			case errors.Is(err, orchestrator.ErrAppAlreadyExists):
+				slog.Error("The name is already in use.", slog.String("error", err.Error()))
+				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{
+					Details: fmt.Sprintf("the name %q is already in use", *editRequest.Name),
+				})
+			default:
+				slog.Error("Unable to edit the app ", slog.String("error", err.Error()))
+				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to edit the app"})
+			}
 			return
 		}
 
-		res, err := orchestrator.AppDetails(r.Context(), dockerClient, app, bricksIndex, idProvider, cfg)
+		res, err := orchestrator.AppDetails(r.Context(), dockerClient, appToEdit, bricksIndex, idProvider, cfg)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
