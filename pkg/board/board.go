@@ -327,8 +327,8 @@ func EnableNetworkMode(ctx context.Context, conn remote.RemoteConn) error {
 	}
 
 	for _, cmd := range cmds {
-		if err := conn.GetCmd(cmd[0], cmd[1:]...).Run(ctx); err != nil {
-			return fmt.Errorf("failed to run cmd %q: %w", strings.Join(cmd, " "), err)
+		if out, err := conn.GetCmd(cmd[0], cmd[1:]...).Output(ctx); err != nil {
+			return fmt.Errorf("failed to run cmd %q: %w: %s", strings.Join(cmd, " "), err, string(out))
 		}
 	}
 
@@ -365,8 +365,8 @@ func DisableNetworkMode(ctx context.Context, conn remote.RemoteConn) error {
 	}
 
 	for _, cmd := range cmds {
-		if err := conn.GetCmd(cmd[0], cmd[1:]...).Run(ctx); err != nil {
-			return fmt.Errorf("failed to run cmd %q: %w", strings.Join(cmd, " "), err)
+		if out, err := conn.GetCmd(cmd[0], cmd[1:]...).Output(ctx); err != nil {
+			return fmt.Errorf("failed to run cmd %q: %w: %s", strings.Join(cmd, " "), err, string(out))
 		}
 	}
 
