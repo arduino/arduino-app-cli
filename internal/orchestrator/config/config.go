@@ -17,7 +17,6 @@ var runnerVersion = "0.4.5"
 
 type Configuration struct {
 	appsDir            *paths.Path
-	configDir          *paths.Path
 	dataDir            *paths.Path
 	routerSocketPath   *paths.Path
 	customEIModelsDir  *paths.Path
@@ -44,22 +43,6 @@ func NewFromEnv() (Configuration, error) {
 			return Configuration{}, err
 		}
 		appsDir = wd.JoinPath(appsDir)
-	}
-
-	configDir := paths.New(os.Getenv("ARDUINO_APP_CLI__CONFIG_DIR"))
-	if configDir == nil {
-		xdgConfig, err := os.UserConfigDir()
-		if err != nil {
-			return Configuration{}, err
-		}
-		configDir = paths.New(xdgConfig).Join("arduino-app-cli")
-	}
-	if !configDir.IsAbs() {
-		wd, err := paths.Getwd()
-		if err != nil {
-			return Configuration{}, err
-		}
-		configDir = wd.JoinPath(configDir)
 	}
 
 	dataDir := paths.New(os.Getenv("ARDUINO_APP_CLI__DATA_DIR"))
@@ -110,7 +93,6 @@ func NewFromEnv() (Configuration, error) {
 
 	c := Configuration{
 		appsDir:            appsDir,
-		configDir:          configDir,
 		dataDir:            dataDir,
 		routerSocketPath:   routerSocket,
 		customEIModelsDir:  customEIModelsDir,
@@ -141,10 +123,6 @@ func (c *Configuration) init() error {
 
 func (c *Configuration) AppsDir() *paths.Path {
 	return c.appsDir
-}
-
-func (c *Configuration) ConfigDir() *paths.Path {
-	return c.configDir
 }
 
 func (c *Configuration) DataDir() *paths.Path {
