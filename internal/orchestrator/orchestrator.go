@@ -207,6 +207,7 @@ func StartApp(
 				}
 			})
 
+			slog.Debug("starting app", slog.String("command", strings.Join(commands, " ")), slog.Any("envs", envs))
 			process, err := paths.NewProcess(envs.AsList(), commands...)
 			if err != nil {
 				yield(StreamMessage{error: err})
@@ -245,6 +246,7 @@ func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.Bric
 			maps.Insert(envs, maps.All(m.ModelConfiguration))
 		}
 
+		slog.Debug("adding Brick", slog.String("brickID", brick.ID), slog.String("model", brick.Model), slog.Any("variables", brick.Variables))
 		maps.Insert(envs, maps.All(brick.Variables))
 	}
 

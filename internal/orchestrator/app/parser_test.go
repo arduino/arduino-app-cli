@@ -1,6 +1,7 @@
 package app
 
 import (
+	"os"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
@@ -72,4 +73,38 @@ func TestIsSingleEmoji(t *testing.T) {
 			require.Equal(t, test.expected, result, "Input: %s", test.input)
 		})
 	}
+}
+
+func TestArduinoApp_Load(t *testing.T) {
+	tempDir := t.TempDir()
+	err := paths.New(tempDir).MkdirAll()
+	require.NoError(t, err)
+
+	// Create minimal setup
+	err = paths.New(tempDir, "python").MkdirAll()
+	require.NoError(t, err)
+	err = os.WriteFile(paths.New(tempDir, "python", "main.py").String(), []byte("print('Hello World')"), 0600)
+	require.NoError(t, err)
+	// Create a valid app.yaml file
+	appYaml := paths.New(tempDir, "app.yaml")
+
+	appDescriptor :=
+		`name: Test App
+bricks:
+  - arduino:object_detection:
+      model: yolox-object-detection
+      variables:
+        "EI_OBJ_DETECTION_MODEL": "/home/arduino/.arduino-bricks/ei-models/face-det.eim"
+`
+
+	err = os.WriteFile(appYaml.String(), []byte(appDescriptor), 0600)
+	require.NoError(t, err)
+
+	app, err := Load(tempDir)
+	require.NoError(t, err)
+	require.Equal(t, "Test App", app.Name)
+	require.Equal(t, 1, len(app.Descriptor.Bricks))
+	require.Equal(t, "arduino:object_detection", app.Descriptor.Bricks[0].ID)
+	require.Equal(t, "yolox-object-detection", app.Descriptor.Bricks[0].Model)
+	require.Equal(t, "/home/arduino/.arduino-bricks/ei-models/face-det.eim", app.Descriptor.Bricks[0].Variables["EI_OBJ_DETECTION_MODEL"])
 }
