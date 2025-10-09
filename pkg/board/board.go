@@ -252,10 +252,14 @@ func SetCustomName(ctx context.Context, conn remote.RemoteConn, name string) err
 		return fmt.Errorf("failed get board status: %w", err)
 	}
 	if isEnable {
-		err = conn.GetCmd("sudo", "systemctl", "restart", "avahi-daemon").
-			Run(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to restart avahi-daemon: %w", err)
+		cmds := [][]string{
+			{"sudo", "systemctl", "stop", "avahi-daemon"},
+			{"sudo", "systemctl", "start", "avahi-daemon"},
+		}
+		for _, cmd := range cmds {
+			if out, err := conn.GetCmd(cmd[0], cmd[1:]...).Output(ctx); err != nil {
+				return fmt.Errorf("failed to run cmd %q: %w: %s", strings.Join(cmd, " "), err, string(out))
+			}
 		}
 	}
 
