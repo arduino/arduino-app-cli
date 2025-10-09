@@ -5,8 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
 	"sync"
+	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
 var ErrOperationAlreadyInProgress = errors.New("an operation is already in progress")
@@ -56,15 +60,42 @@ func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(Upgra
 	}
 	defer m.lock.Unlock()
 
-	arduinoPkgs, err := m.arduinoPlatformUpdateService.ListUpgradablePackages(ctx, matcher)
-	if err != nil {
+	// Make sure to be connected to the internet, before checking for updates.
+	// This is needed because the checks below work also when offline (using cached data).
+	if !isConnected() {
+		return nil, errors.New("no internet connectivity")
+	}
+
+	// Get the list of upgradable packages from two sources (deb and platform) in parallel.
+	g, ctx := errgroup.WithContext(ctx)
+	var (
+		debPkgs     []UpgradablePackage
+		arduinoPkgs []UpgradablePackage
+	)
+
+	g.Go(func() error {
+		pkgs, err := m.debUpdateService.ListUpgradablePackages(ctx, matcher)
+		if err != nil {
+			return err
+		}
+		debPkgs = pkgs
+		return nil
+	})
+
+	g.Go(func() error {
+		pkgs, err := m.arduinoPlatformUpdateService.ListUpgradablePackages(ctx, matcher)
+		if err != nil {
+			return err
+		}
+		arduinoPkgs = pkgs
+		return nil
+	})
+
+	// Wait for all the checks to complete (or any to fail).
+	if err := g.Wait(); err != nil {
 		return nil, err
 	}
 
-	debPkgs, err := m.debUpdateService.ListUpgradablePackages(ctx, matcher)
-	if err != nil {
-		return nil, err
-	}
 	return append(arduinoPkgs, debPkgs...), nil
 }
 
@@ -160,4 +191,20 @@ func (b *Manager) broadcast(event Event) {
 			)
 		}
 	}
+}
+
+func isConnected() bool {
+	client := http.Client{
+		Timeout: 3 * time.Second,
+	}
+
+	// Just check that the connection can be estabilished.
+	// The HEAD method will not get the results and we are ignoring the HTTP status code.
+	resp, err := client.Head("https://downloads.arduino.cc/")
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	return true
 }
