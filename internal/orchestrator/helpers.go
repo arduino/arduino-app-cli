@@ -19,7 +19,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
-type AppStatus struct {
+type AppStatusInfo struct {
 	AppPath *paths.Path
 	Status  Status
 }
@@ -34,8 +34,8 @@ type AppStatus struct {
 //	failed: at least one failed
 //	stopping: at least one stopping
 //	starting: at least one starting
-func parseAppStatus(containers []container.Summary) []AppStatus {
-	apps := make([]AppStatus, 0, len(containers))
+func parseAppStatus(containers []container.Summary) []AppStatusInfo {
+	apps := make([]AppStatusInfo, 0, len(containers))
 	appsStatusMap := make(map[string][]Status)
 	for _, c := range containers {
 		appPath, ok := c.Labels[DockerAppPathLabel]
@@ -46,7 +46,7 @@ func parseAppStatus(containers []container.Summary) []AppStatus {
 	}
 
 	appendResult := func(appPath *paths.Path, status Status) {
-		apps = append(apps, AppStatus{
+		apps = append(apps, AppStatusInfo{
 			AppPath: appPath,
 			Status:  status,
 		})
@@ -90,8 +90,8 @@ func parseAppStatus(containers []container.Summary) []AppStatus {
 func getAppsStatus(
 	ctx context.Context,
 	docker dockerClient.APIClient,
-) ([]AppStatus, error) {
-	getPythonApp := func() ([]AppStatus, error) {
+) ([]AppStatusInfo, error) {
+	getPythonApp := func() ([]AppStatusInfo, error) {
 		containers, err := docker.ContainerList(ctx, container.ListOptions{
 			All:     true,
 			Filters: filters.NewArgs(filters.Arg("label", DockerAppLabel+"=true")),
@@ -105,12 +105,12 @@ func getAppsStatus(
 		return parseAppStatus(containers), nil
 	}
 
-	getSketchApp := func() ([]AppStatus, error) {
+	getSketchApp := func() ([]AppStatusInfo, error) {
 		// TODO: implement this function
 		return nil, nil
 	}
 
-	for _, get := range [](func() ([]AppStatus, error)){getPythonApp, getSketchApp} {
+	for _, get := range [](func() ([]AppStatusInfo, error)){getPythonApp, getSketchApp} {
 		apps, err := get()
 		if err != nil {
 			return nil, err
@@ -126,16 +126,16 @@ func getAppStatus(
 	ctx context.Context,
 	docker command.Cli,
 	app app.ArduinoApp,
-) (AppStatus, error) {
+) (AppStatusInfo, error) {
 	apps, err := getAppsStatus(ctx, docker.Client())
 	if err != nil {
-		return AppStatus{}, fmt.Errorf("failed to get app status: %w", err)
+		return AppStatusInfo{}, fmt.Errorf("failed to get app status: %w", err)
 	}
-	idx := slices.IndexFunc(apps, func(a AppStatus) bool {
+	idx := slices.IndexFunc(apps, func(a AppStatusInfo) bool {
 		return a.AppPath.String() == app.FullPath.String()
 	})
 	if idx == -1 {
-		return AppStatus{}, fmt.Errorf("app %s not found", app.FullPath)
+		return AppStatusInfo{}, fmt.Errorf("app %s not found", app.FullPath)
 	}
 	return apps[idx], nil
 }
@@ -148,7 +148,7 @@ func getRunningApp(
 	if err != nil {
 		return nil, fmt.Errorf("failed to get running apps: %w", err)
 	}
-	idx := slices.IndexFunc(apps, func(a AppStatus) bool {
+	idx := slices.IndexFunc(apps, func(a AppStatusInfo) bool {
 		return a.Status == StatusRunning || a.Status == StatusStarting
 	})
 	if idx == -1 {

@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/docker/cli/cli/command"
+
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -12,8 +14,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/store"
 	"github.com/arduino/arduino-app-cli/pkg/render"
-
-	"github.com/docker/cli/cli/command"
 )
 
 func HandleAppStart(
