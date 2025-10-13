@@ -10,6 +10,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/update"
@@ -17,7 +18,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/update/arduino"
 	"github.com/arduino/arduino-app-cli/pkg/board"
 	"github.com/arduino/arduino-app-cli/pkg/board/remote/local"
-	"github.com/arduino/arduino-app-cli/pkg/x"
 )
 
 func NewSystemCmd(cfg config.Configuration) *cobra.Command {
@@ -151,7 +151,7 @@ func newCleanUpCmd(cfg config.Configuration, docker command.Cli) *cobra.Command 
 				feedback.Print("  - 1 running app")
 			}
 			feedback.Printf("  - %d containers", result.ContainersRemoved)
-			feedback.Printf("  - %d images (%v)", result.ImagesRemoved, x.ToHumanMiB(result.SpaceFreed))
+			feedback.Printf("  - %d images (%v)", result.ImagesRemoved, helpers.ToHumanMiB(result.SpaceFreed))
 			return nil
 		},
 	}

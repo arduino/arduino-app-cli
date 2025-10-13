@@ -12,7 +12,7 @@ import (
 	"github.com/shirou/gopsutil/v4/disk"
 	"github.com/shirou/gopsutil/v4/mem"
 
-	"github.com/arduino/arduino-app-cli/pkg/x"
+	"github.com/arduino/arduino-app-cli/internal/helpers"
 )
 
 type SystemResource interface {
@@ -58,13 +58,13 @@ func SystemResources(ctx context.Context, cfg *SystemResourceConfig) (iter.Seq[S
 	firstMessagesToSend := []SystemResource{}
 	memory, err := mem.VirtualMemory()
 	if err != nil {
-		return x.EmptyIter[SystemResource](), err
+		return helpers.EmptyIter[SystemResource](), err
 	}
 	firstMessagesToSend = append(firstMessagesToSend, &SystemMemoryResource{Used: memory.Used, Total: memory.Total})
 
 	cpuStats, err := cpu.Percent(0, false)
 	if err != nil {
-		return x.EmptyIter[SystemResource](), err
+		return helpers.EmptyIter[SystemResource](), err
 	}
 	firstMessagesToSend = append(firstMessagesToSend, &SystemCPUResource{UsedPercent: cpuStats[0]})
 
@@ -72,7 +72,7 @@ func SystemResources(ctx context.Context, cfg *SystemResourceConfig) (iter.Seq[S
 	for _, path := range diskPaths {
 		diskStats, err := disk.Usage(path)
 		if err != nil && !errors.Is(err, syscall.ENOENT) {
-			return x.EmptyIter[SystemResource](), err
+			return helpers.EmptyIter[SystemResource](), err
 		}
 		if diskStats != nil {
 			firstMessagesToSend = append(firstMessagesToSend, &SystemDiskResource{Path: path, Used: diskStats.Used, Total: diskStats.Total})

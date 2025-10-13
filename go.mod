@@ -28,7 +28,6 @@ require (
 	github.com/docker/compose/v2 v2.38.3-0.20250716153459-17ba6c7188fe
 	github.com/docker/docker v28.3.2+incompatible
 	github.com/fatih/color v1.18.0
-	github.com/fsnotify/fsnotify v1.9.0
 	github.com/goccy/go-yaml v1.18.0
 	github.com/gofrs/flock v0.12.1
 	github.com/google/go-cmp v0.7.0
@@ -120,6 +119,7 @@ require (
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsevents v0.2.0 // indirect
+	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/fvbommel/sortorder v1.1.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/getkin/kin-openapi v0.132.0 // indirect

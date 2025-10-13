@@ -9,7 +9,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	properties "github.com/arduino/arduino-app-cli/internal/orchestrator/system_properties"
-	"github.com/arduino/arduino-app-cli/pkg/render"
+	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
 func HandlePropertyKeys(cfg config.Configuration) http.HandlerFunc {

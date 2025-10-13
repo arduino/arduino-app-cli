@@ -11,7 +11,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
-	"github.com/arduino/arduino-app-cli/pkg/render"
+	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
 func HandleBrickList(brickService *bricks.Service) http.HandlerFunc {

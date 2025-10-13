@@ -13,7 +13,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
-	"github.com/arduino/arduino-app-cli/pkg/render"
+	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
 func monitorStream(mon net.Conn, ws *websocket.Conn) {

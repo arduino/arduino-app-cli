@@ -4,20 +4,16 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path"
 	"strconv"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
-	"github.com/arduino/arduino-app-cli/pkg/appsync"
 	"github.com/arduino/arduino-app-cli/pkg/board"
 	"github.com/arduino/arduino-app-cli/pkg/board/remote"
 	"github.com/arduino/arduino-app-cli/pkg/board/remote/adb"
 )
-
-const boardHomePath = "/home/arduino"
 
 type contextKey string
 
@@ -61,9 +57,6 @@ func NewBoardCmd() *cobra.Command {
 	fsCmd.PersistentFlags().StringVarP(&fqbn, "fqbn", "b", "arduino:zephyr:unoq", "fqbn of the board")
 	fsCmd.PersistentFlags().StringVar(&host, "host", "", "ADB host address")
 
-	fsCmd.AddCommand(newPushCmd())
-	fsCmd.AddCommand(newPullCmd())
-	fsCmd.AddCommand(newSyncAppCmd())
 	fsCmd.AddCommand(newBoardListCmd())
 	fsCmd.AddCommand(newBoardSetName())
 	fsCmd.AddCommand(newSetPasswordCmd())
@@ -76,44 +69,6 @@ func NewBoardCmd() *cobra.Command {
 	fsCmd.AddCommand(setKeyboardLayout())
 
 	return fsCmd
-}
-
-func newSyncAppCmd() *cobra.Command {
-	syncAppCmd := &cobra.Command{
-		Use:   "enable-sync <path>",
-		Short: "Enable sync of an path from the board",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			conn := cmd.Context().Value(remoteConnKey).(remote.RemoteConn)
-
-			remote := path.Join(boardHomePath, args[0])
-
-			s, err := appsync.New(conn)
-			if err != nil {
-				return fmt.Errorf("failed to create apps sync: %w", err)
-			}
-			defer s.Close()
-			s.OnPull = func(name, path string) {
-				feedback.Printf(" ⬆️ Pulled app %q to folder %q", name, path)
-			}
-			s.OnPush = func(name string) {
-				feedback.Printf(" ⬇️ Pushed app %q to the board", name)
-			}
-
-			tmp, err := s.EnableSyncApp(remote)
-			if err != nil {
-				return fmt.Errorf("failed to enable sync for app %q: %w", remote, err)
-			}
-
-			feedback.Printf("Enable sync of %q at %q", remote, tmp)
-
-			<-cmd.Context().Done()
-			_ = s.DisableSyncApp(remote)
-			return nil
-		},
-	}
-
-	return syncAppCmd
 }
 
 func newBoardListCmd() *cobra.Command {

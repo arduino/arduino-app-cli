@@ -8,8 +8,8 @@ import (
 	"log/slog"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/render"
 	"github.com/arduino/arduino-app-cli/internal/update"
-	"github.com/arduino/arduino-app-cli/pkg/render"
 )
 
 func HandleCheckUpgradable(updater *update.Manager) http.HandlerFunc {

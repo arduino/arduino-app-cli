@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/arduino/arduino-app-cli/pkg/render"
+	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
 type VersionResponse struct {

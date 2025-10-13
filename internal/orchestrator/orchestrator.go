@@ -8,7 +8,6 @@ import (
 	"iter"
 	"log/slog"
 	"maps"
-	"net"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -26,17 +25,15 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
 
-	"github.com/arduino/arduino-app-cli/cmd/arduino-router/msgpackrpc"
+	"github.com/arduino/arduino-app-cli/internal/fatomic"
+	"github.com/arduino/arduino-app-cli/internal/helpers"
+	"github.com/arduino/arduino-app-cli/internal/micro"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	appgenerator "github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/store"
-	"github.com/arduino/arduino-app-cli/pkg/helpers"
-	"github.com/arduino/arduino-app-cli/pkg/micro"
-	"github.com/arduino/arduino-app-cli/pkg/x"
-	"github.com/arduino/arduino-app-cli/pkg/x/fatomic"
 )
 
 var (
@@ -137,7 +134,7 @@ func StartApp(
 			if !yield(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}}) {
 				return
 			}
-			if err := compileUploadSketch(ctx, &app, sketchCallbackWriter, cfg); err != nil {
+			if err := compileUploadSketch(ctx, &app, sketchCallbackWriter); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
@@ -234,8 +231,8 @@ func StartApp(
 // - model configuration variables (variables defined in the model configuration)
 // - brick instance variables (variables defined in the app.yaml for the brick instance)
 // In addition, it adds some useful environment variables like APP_HOME and HOST_IP.
-func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex) x.EnvVars {
-	envs := make(x.EnvVars)
+func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex) helpers.EnvVars {
+	envs := make(helpers.EnvVars)
 
 	for _, brick := range app.Descriptor.Bricks {
 		if brickDef, found := brickIndex.FindBrickByID(brick.ID); found {
@@ -380,12 +377,9 @@ func stopAppWithCmd(ctx context.Context, app app.ArduinoApp, cmd string) iter.Se
 		if app.MainSketchPath != nil {
 			// TODO: check that the app sketch is running before attempting to stop it.
 
-			if micro.OnBoard {
-				// On imola we could just disable the microcontroller
-				if err := micro.Disable(context.Background(), nil); err != nil {
-					yield(StreamMessage{error: err})
-					return
-				}
+			if err := micro.Disable(); err != nil {
+				yield(StreamMessage{error: err})
+				return
 			}
 		}
 
@@ -1064,35 +1058,13 @@ func addLedControl(volumes []volume) []volume {
 	return volumes
 }
 
-func disconnectSerialFromRPCRouter(ctx context.Context, portAddress string, cfg config.Configuration) func() {
-	var msgPackRouterAddr = cfg.RouterSocketPath().String()
-	c, err := net.Dial("unix", msgPackRouterAddr)
-	if err != nil {
-		slog.Error("Failed to connect to router", "addr", msgPackRouterAddr, "err", err)
-		return func() {}
-	}
-	conn := msgpackrpc.NewConnection(c, c, nil, nil, nil)
-	go conn.Run()
-
-	if _, _, err := conn.SendRequest(ctx, "$/serial/close", []any{portAddress}); err != nil {
-		slog.Error("Failed to send $/serial/close request to router", "addr", ":8900", "err", err)
-	}
-
-	return func() {
-		defer c.Close()
-		defer conn.Close()
-		if _, _, err := conn.SendRequest(ctx, "$/serial/open", []any{portAddress}); err != nil {
-			slog.Error("Failed to send $/serial/open request to router", "addr", ":8900", "err", err)
-		}
-	}
-}
-
 func compileUploadSketch(
 	ctx context.Context,
 	arduinoApp *app.ArduinoApp,
 	w io.Writer,
-	cfg config.Configuration,
 ) error {
+	const fqbn = "arduino:zephyr:unoq"
+
 	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 	srv := commands.NewArduinoCoreServer()
 
@@ -1113,10 +1085,7 @@ func compileUploadSketch(
 		return err
 	}
 	sketch := sketchResp.GetSketch()
-	var profile string
-	if micro.OnBoard {
-		profile = sketch.GetDefaultProfile().GetName()
-	}
+	profile := sketch.GetDefaultProfile().GetName()
 	initReq := &rpc.InitRequest{
 		Instance:   inst,
 		SketchPath: sketchPath,
@@ -1152,39 +1121,6 @@ func compileUploadSketch(
 		}),
 	); err != nil {
 		return err
-	}
-
-	var fqbn string
-	var port *rpc.Port
-	if micro.OnBoard {
-		fqbn = "arduino:zephyr:unoq"
-	} else {
-		resp, err := srv.BoardList(ctx, &rpc.BoardListRequest{
-			Instance:                      inst,
-			Timeout:                       1000,
-			Fqbn:                          "",
-			SkipCloudApiForBoardDetection: false,
-		})
-		if err != nil {
-			return err
-		}
-
-		var name string
-		for _, portItem := range resp.Ports {
-			for _, boardItem := range portItem.MatchingBoards {
-				if !strings.HasPrefix(boardItem.Fqbn, "arduino") {
-					continue
-				}
-				name = boardItem.Name
-				fqbn = boardItem.Fqbn
-				port = portItem.Port
-				break
-			}
-		}
-		if port == nil {
-			return fmt.Errorf("no board detected")
-		}
-		slog.Debug("Auto selected board", "board_name", name, "fqbn", fqbn, "port", port.Address)
 	}
 
 	// build the sketch
@@ -1223,17 +1159,11 @@ func compileUploadSketch(
 		slog.Info("Used library " + lib.GetName() + " (" + lib.GetVersion() + ") in " + lib.GetInstallDir())
 	}
 
-	if port != nil {
-		reconnect := disconnectSerialFromRPCRouter(ctx, port.Address, cfg)
-		defer reconnect()
-	}
-
 	stream, _ := commands.UploadToServerStreams(ctx, w, w)
 	return srv.Upload(&rpc.UploadRequest{
 		Instance:   inst,
 		Fqbn:       fqbn,
 		SketchPath: sketchPath,
-		Port:       port,
 		ImportDir:  buildPath,
 	}, stream)
 }

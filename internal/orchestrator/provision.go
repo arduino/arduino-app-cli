@@ -17,11 +17,11 @@ import (
 	"github.com/docker/docker/api/types/container"
 	yaml "github.com/goccy/go-yaml"
 
+	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/store"
-	"github.com/arduino/arduino-app-cli/pkg/x"
 )
 
 type volume struct {
@@ -195,7 +195,7 @@ func generateMainComposeFile(
 	bricksIndex *bricksindex.BricksIndex,
 	pythonImage string,
 	cfg config.Configuration,
-	envs x.EnvVars,
+	envs helpers.EnvVars,
 	staticStore *store.StaticStore,
 ) error {
 	slog.Debug("Generating main compose file for the App")
@@ -433,7 +433,7 @@ func extractServicesFromComposeFile(composeFile *paths.Path) (map[string]service
 	return services, nil
 }
 
-func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []string, servicesThatRequireDevices []string, devices []string, user string, groups []string, overrideComposeFile *paths.Path, envs x.EnvVars) error {
+func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []string, servicesThatRequireDevices []string, devices []string, user string, groups []string, overrideComposeFile *paths.Path, envs helpers.EnvVars) error {
 	if overrideComposeFile.Exist() {
 		if err := overrideComposeFile.Remove(); err != nil {
 			return fmt.Errorf("failed to remove existing override compose file: %w", err)

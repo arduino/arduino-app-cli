@@ -9,7 +9,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/pkg/render"
+	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
 type AppPortResponse struct {

@@ -12,8 +12,8 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/render"
 	"github.com/arduino/arduino-app-cli/internal/store"
-	"github.com/arduino/arduino-app-cli/pkg/render"
 )
 
 func HandleAppStart(

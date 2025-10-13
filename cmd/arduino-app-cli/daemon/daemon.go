@@ -7,17 +7,17 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/jub0bs/cors"
+	"github.com/spf13/cobra"
+
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/internal/api"
+	"github.com/arduino/arduino-app-cli/internal/httprecover"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/update"
 	"github.com/arduino/arduino-app-cli/internal/update/apt"
 	"github.com/arduino/arduino-app-cli/internal/update/arduino"
-	"github.com/arduino/arduino-app-cli/pkg/httprecover"
-
-	"github.com/jub0bs/cors"
-	"github.com/spf13/cobra"
 )
 
 func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {

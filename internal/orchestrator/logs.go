@@ -18,9 +18,9 @@ import (
 	"github.com/docker/compose/v2/pkg/compose"
 	"go.bug.st/f"
 
+	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/store"
-	"github.com/arduino/arduino-app-cli/pkg/x"
 )
 
 type AppLogsRequest struct {
@@ -44,12 +44,12 @@ func AppLogs(
 	staticStore *store.StaticStore,
 ) (iter.Seq[LogMessage], error) {
 	if app.MainPythonFile == nil {
-		return x.EmptyIter[LogMessage](), nil
+		return helpers.EmptyIter[LogMessage](), nil
 	}
 
 	mainCompose := app.AppComposeFilePath()
 	if mainCompose.NotExist() {
-		return x.EmptyIter[LogMessage](), nil
+		return helpers.EmptyIter[LogMessage](), nil
 	}
 
 	// Obtain mapping compose service name <-> brick name
@@ -67,7 +67,7 @@ func AppLogs(
 
 		services, err := extractServicesFromComposeFile(composeFilePath)
 		if err != nil {
-			return x.EmptyIter[LogMessage](), err
+			return helpers.EmptyIter[LogMessage](), err
 		}
 		for s := range services {
 			serviceToBrickMapping[s] = brick.ID

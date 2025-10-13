@@ -12,7 +12,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/pkg/tablestyle"
+	"github.com/arduino/arduino-app-cli/internal/tablestyle"
 )
 
 func newListCmd(cfg config.Configuration) *cobra.Command {

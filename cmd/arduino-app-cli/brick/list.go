@@ -7,7 +7,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
-	"github.com/arduino/arduino-app-cli/pkg/tablestyle"
+	"github.com/arduino/arduino-app-cli/internal/tablestyle"
 )
 
 func newBricksListCmd() *cobra.Command {

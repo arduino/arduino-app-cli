@@ -3,6 +3,7 @@ package helpers
 import (
 	"fmt"
 	"net"
+	"strconv"
 
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 )
@@ -60,4 +61,8 @@ func GetHostIP() (string, error) {
 	}
 
 	return getIP("wlan0")
+}
+
+func ToHumanMiB(bytes int64) string {
+	return strconv.FormatFloat(float64(bytes)/(1024.0*1024.0), 'f', 2, 64) + "MiB"
 }

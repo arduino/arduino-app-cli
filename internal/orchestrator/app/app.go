@@ -8,7 +8,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
 
-	"github.com/arduino/arduino-app-cli/pkg/x/fatomic"
+	"github.com/arduino/arduino-app-cli/internal/fatomic"
 )
 
 // ArduinoApp holds all the files composing an app

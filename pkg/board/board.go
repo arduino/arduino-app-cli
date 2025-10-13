@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"os"
 	"os/exec"
 	"regexp"
 	"slices"
@@ -24,7 +25,6 @@ import (
 	"github.com/arduino/arduino-app-cli/pkg/board/remote/adb"
 	"github.com/arduino/arduino-app-cli/pkg/board/remote/local"
 	"github.com/arduino/arduino-app-cli/pkg/board/remote/ssh"
-	"github.com/arduino/arduino-app-cli/pkg/micro"
 )
 
 type Board struct {
@@ -66,6 +66,15 @@ func identifyUnoQ(p *rpc.DetectedPort) {
 	}
 }
 
+var onBoard = sync.OnceValue(func() bool {
+	var boardNames = []string{"UNO Q\n", "Imola\n", "Inc. Robotics RB1\n"}
+	buf, err := os.ReadFile("/sys/class/dmi/id/product_name")
+	if err == nil && slices.Contains(boardNames, string(buf)) {
+		return true
+	}
+	return false
+})()
+
 // Cache the initialized Arduino CLI service, so it don't need to be re-initialized
 // TODO: provide a way to get the board information by event instead of polling.
 var arduinoCLIServer rpc.ArduinoCoreServiceServer
@@ -76,7 +85,7 @@ func FromFQBN(ctx context.Context, fqbn string) ([]Board, error) {
 	arduinoCLILock.Lock()
 	defer arduinoCLILock.Unlock()
 
-	if micro.OnBoard {
+	if onBoard {
 		var customName string
 		if name, err := GetCustomName(ctx, &local.LocalConnection{}); err == nil {
 			customName = name

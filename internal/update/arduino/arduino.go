@@ -12,9 +12,9 @@ import (
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/sirupsen/logrus"
 
+	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/update"
-	"github.com/arduino/arduino-app-cli/pkg/helpers"
 )
 
 type ArduinoPlatformUpdater struct {
