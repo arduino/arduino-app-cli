@@ -120,11 +120,11 @@ func pullImage(ctx context.Context, stdout io.Writer, docker dockerClient.APICli
 	return nil
 }
 
-// Container images matching this list will be pulled by 'system init' and included in the Linux images.
-var imagePrefixes = []string{"ghcr.io/bcmi-labs/", "public.ecr.aws/arduino/", "influxdb"}
+// List of prefixes used to identify current or past Arduino images. Used both during 'system init' and during cleanup.
+var imagePrefixes = []string{"ghcr.io/bcmi-labs/", "public.ecr.aws/arduino/", "ghcr.io/arduino/", "influxdb"}
 
-// listImagesAlreadyPulled
-// TODO make reference constant in a dedicated file as single source of truth
+// Lists all the local docker images that could have been, or are downloaded by Arduino.
+// This is used both to avoid pulling already existing images and cleaning up unused old Arduino images.
 func listImagesAlreadyPulled(ctx context.Context, docker dockerClient.APIClient) ([]string, error) {
 	images, err := docker.ImageList(ctx, image.ListOptions{})
 	if err != nil {

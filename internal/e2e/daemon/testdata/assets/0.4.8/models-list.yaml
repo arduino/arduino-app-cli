@@ -1,0 +1,1174 @@
+models:
+ - face-detection:
+    runner: brick
+    name : "Lightweight-Face-Detection"
+    description: "Face bounding box detection. This model is trained on the WIDER FACE dataset and can detect faces in images."
+    model_configuration:
+      "EI_OBJ_DETECTION_MODEL": "/models/ootb/ei/lw-face-det.eim"
+    model_labels: 
+      - face
+    bricks:
+      - arduino:object_detection
+      - arduino:video_object_detection
+    metadata:
+      source: "qualcomm-ai-hub"
+      ei-gpu-mode: false
+      source-model-id: "face-det-lite"
+      source-model-url: "https://aihub.qualcomm.com/models/face_det_lite"
+ - yolox-object-detection:
+    runner: brick
+    name : "General purpose object detection - YoloX"
+    description: "General purpose object detection model based on YoloX Nano. This model is trained on the COCO dataset and can detect 80 different object classes."
+    model_configuration:
+      "EI_OBJ_DETECTION_MODEL": "/models/ootb/ei/yolo-x-nano.eim"
+    model_labels:
+      - airplane
+      - apple
+      - backpack
+      - banana
+      - baseball bat
+      - baseball glove
+      - bear
+      - bed
+      - bench
+      - bicycle
+      - bird
+      - boat
+      - book
+      - bottle
+      - bowl
+      - broccoli
+      - bus
+      - cake
+      - car
+      - carrot
+      - cat
+      - cell phone
+      - chair
+      - clock
+      - couch
+      - cow
+      - cup
+      - dining table
+      - dog
+      - donut
+      - elephant
+      - fire hydrant
+      - fork
+      - frisbee
+      - giraffe
+      - hair drier
+      - handbag
+      - hot dog
+      - horse
+      - keyboard
+      - kite
+      - knife
+      - laptop
+      - microwave
+      - motorcycle
+      - mouse
+      - orange
+      - oven
+      - parking meter
+      - person
+      - pizza
+      - potted plant
+      - refrigerator
+      - remote
+      - sandwich
+      - scissors
+      - sheep
+      - sink
+      - skateboard
+      - skis
+      - snowboard
+      - spoon
+      - sports ball
+      - stop sign
+      - suitcase
+      - surfboard
+      - teddy bear
+      - tennis racket
+      - tie
+      - toaster
+      - toilet
+      - toothbrush
+      - traffic light
+      - train
+      - truck
+      - tv
+      - umbrella
+      - vase
+      - wine glass
+      - zebra
+    metadata:
+      source: "edgeimpulse"
+      ei-project-id: 717280
+      source-model-id: "YOLOX-Nano"
+      source-model-url: "https://github.com/Megvii-BaseDetection/YOLOX"
+    bricks:
+      - arduino:object_detection
+      - arduino:video_object_detection
+ - mobilenet-image-classification:
+    runner: brick
+    name : "General purpose image classification"
+    description: "General purpose image classification model based on MobileNetV2. This model is trained on the ImageNet dataset and can classify images into 1000 categories."
+    model_configuration:
+      "EI_CLASSIFICATION_MODEL": "/models/ootb/ei/mobilenet-v2-224px.eim"
+    model_labels:
+      - abacus
+      - abaya
+      - academic gown
+      - acorn
+      - acorn squash
+      - acoustic guitar
+      - admiral
+      - Afghan hound
+      - African chameleon
+      - African crocodile
+      - African elephant
+      - African grey
+      - African hunting dog
+      - agaric
+      - Airedale
+      - aircraft carrier
+      - airliner
+      - airship
+      - albatross
+      - alp
+      - altar
+      - American alligator
+      - American black bear
+      - American chameleon
+      - American coot
+      - American egret
+      - American lobster
+      - American Staffordshire terrier
+      - amphibian
+      - analog clock
+      - anemone fish
+      - Angora
+      - ant
+      - Appenzeller
+      - Arabian camel
+      - armadillo
+      - assault rifle
+      - Australian terrier
+      - axolotl
+      - baboon
+      - backpack
+      - badger
+      - bagel
+      - balance beam
+      - bald eagle
+      - ballplayer
+      - balloon
+      - ballpoint
+      - banana
+      - Band Aid
+      - banded gecko
+      - banjo
+      - bannister
+      - barber chair
+      - barbershop
+      - barbell
+      - barn
+      - barn spider
+      - barometer
+      - barracouta
+      - barrel
+      - barrow
+      - basenji
+      - baseball
+      - basset
+      - bassinet
+      - bassoon
+      - bath towel
+      - bathing cap
+      - bathtub
+      - beacon
+      - beagle
+      - beak
+      - bearskin
+      - beaver
+      - Bedlington terrier
+      - bee
+      - bee eater
+      - beer bottle
+      - beer glass
+      - bell cote
+      - bell pepper
+      - Bernese mountain dog
+      - bikini
+      - binder
+      - binoculars
+      - bison
+      - bittern
+      - black and gold garden spider
+      - black grouse
+      - black stork
+      - black swan
+      - black-and-tan coonhound
+      - black-footed ferret
+      - black widow
+      - Blenheim spaniel
+      - bloodhound
+      - bluetick
+      - boa constrictor
+      - boathouse
+      - bobsled
+      - bolete
+      - bolo tie
+      - bonnet
+      - book jacket
+      - bookcase
+      - bookshop
+      - Border collie
+      - Border terrier
+      - borzoi
+      - Boston bull
+      - bottlecap
+      - Bouvier des Flandres
+      - bow
+      - bow tie
+      - boxer
+      - box turtle
+      - Brabancon griffon
+      - brain coral
+      - brambling
+      - brass
+      - brassiere
+      - breakwater
+      - breastplate
+      - briard
+      - broccoli
+      - brown bear
+      - bubble
+      - buckeye
+      - bucket
+      - buckle
+      - bulbul
+      - bull mastiff
+      - bullfrog
+      - bullet train
+      - bulletproof vest
+      - burrito
+      - bus
+      - bustard
+      - butcher shop
+      - butternut squash
+      - cabbage butterfly
+      - cab
+      - cairn
+      - cake
+      - caldron
+      - camel
+      - candle
+      - canoe
+      - can opener
+      - capuchin
+      - car mirror
+      - carbonara
+      - cardigan
+      - Cardigan
+      - cardinal
+      - caribou
+      - carousel
+      - carpenter's kit
+      - carton
+      - car wheel
+      - cash machine
+      - cassette
+      - cassette player
+      - castle
+      - catamaran
+      - cauliflower
+      - CD player
+      - celestial sphere
+      - cello
+      - cellular telephone
+      - centipede
+      - chain
+      - chain saw
+      - chainlink fence
+      - chain mail
+      - chair
+      - chambered nautilus
+      - cheetah
+      - cheeseburger
+      - chest
+      - chickadee
+      - Chihuahua
+      - chime
+      - chimpanzee
+      - china cabinet
+      - Chinchilla
+      - chocolate sauce
+      - Christmas stocking
+      - church
+      - cicada
+      - cinema
+      - cock
+      - cockatoo
+      - cocker spaniel
+      - cocktail shaker
+      - coffeepot
+      - coffee mug
+      - coho
+      - coil
+      - collie
+      - colobus
+      - combination lock
+      - comic book
+      - common iguana
+      - common newt
+      - Komodo dragon
+      - Komondor
+      - conch
+      - confectionery
+      - container ship
+      - convertible
+      - copperhead
+      - coral fungus
+      - coral reef
+      - corkscrew
+      - cormorant
+      - cornet
+      - cougar
+      - coucal
+      - cowboy boot
+      - cowboy hat
+      - coyote
+      - coypu
+      - crab
+      - cradle
+      - crane
+      - crash helmet
+      - crate
+      - crayfish
+      - cricket
+      - crib
+      - Crock Pot
+      - crocodile
+      - croquet ball
+      - crossword puzzle
+      - crutch
+      - cuirass
+      - cucumber
+      - cup
+      - curly-coated retriever
+      - custard apple
+      - dam
+      - damselfly
+      - Dandie Dinmont
+      - dhole
+      - dial telephone
+      - diamondback
+      - diaper
+      - digital clock
+      - digital watch
+      - dingo
+      - dog
+      - dogsled
+      - doormat
+      - Doberman
+      - dome
+      - donkey
+      - dowitcher
+      - dragonfly
+      - drake
+      - drilling platform
+      - drum
+      - drumstick
+      - duck
+      - dugong
+      - dumbbell
+      - Dungeness crab
+      - dung beetle
+      - Dutch oven
+      - ear
+      - earthstar
+      - echidna
+      - eel
+      - eft
+      - Egyptian cat
+      - electric fan
+      - electric guitar
+      - electric locomotive
+      - electric ray
+      - elephant
+      - elk
+      - English foxhound
+      - English setter
+      - English springer
+      - EntleBucher
+      - envelope
+      - Eskimo dog
+      - espresso
+      - espresso maker
+      - European fire salamander
+      - European gallinule
+      - face powder
+      - feather boa
+      - fiddler crab
+      - fig
+      - file
+      - fire engine
+      - fire screen
+      - fireboat
+      - fire hydrant
+      - flamingo
+      - flat-coated retriever
+      - flatworm
+      - flip-flop
+      - folding chair
+      - football helmet
+      - forklift
+      - fountain
+      - fountain pen
+      - four-poster
+      - fox squirrel
+      - French bulldog
+      - French horn
+      - French loaf
+      - freight car
+      - frilled lizard
+      - frying pan
+      - fur coat
+      - gallinule
+      - gamecock
+      - garbage truck
+      - garden spider
+      - gar
+      - garter snake
+      - gasmask
+      - gas pump
+      - gazelle
+      - gecko
+      - German shepherd
+      - German short-haired pointer
+      - geyser
+      - giant panda
+      - giant schnauzer
+      - gibbon
+      - Gila monster
+      - giraffe
+      - goat
+      - goblet
+      - go-kart
+      - golden retriever
+      - goldfinch
+      - goldfish
+      - golf ball
+      - golfcart
+      - gondola
+      - gong
+      - Gordon setter
+      - gorilla
+      - gown
+      - grand piano
+      - Granny Smith
+      - grasshopper
+      - great dane
+      - great grey owl
+      - great white shark
+      - Greater Swiss Mountain dog
+      - green lizard
+      - green mamba
+      - green snake
+      - greenhouse
+      - grille
+      - groom
+      - groenendael
+      - ground beetle
+      - guacamole
+      - guenon
+      - guinea pig
+      - guillotine
+      - gyromitra
+      - hair drier
+      - hair slide
+      - hair spray
+      - half track
+      - hammer
+      - hammerhead
+      - hamper
+      - hamster
+      - hand blower
+      - hand-held computer
+      - handkerchief
+      - hard disc
+      - hare
+      - harp
+      - hartebeest
+      - harvester
+      - hatchet
+      - hay
+      - head cabbage
+      - hen
+      - hen-of-the-woods
+      - hermit crab
+      - hippopotamus
+      - hip
+      - hognose snake
+      - hog
+      - holster
+      - home theater
+      - honeycomb
+      - hook
+      - hoopskirt
+      - horizontal bar
+      - hornbill
+      - horned viper
+      - horse cart
+      - hourglass
+      - house finch
+      - howler monkey
+      - hummingbird
+      - hyena
+      - Ibizan hound
+      - ibex
+      - ice cream
+      - ice lolly
+      - ice bear
+      - impala
+      - Indian cobra
+      - Indian elephant
+      - indigo bunting
+      - indri
+      - iPod
+      - Irish setter
+      - Irish terrier
+      - Irish wolfhound
+      - Irish water spaniel
+      - iron
+      - isopod
+      - jackfruit
+      - jack-o'-lantern
+      - jacamar
+      - jaguar
+      - jay
+      - jean
+      - jellyfish
+      - jersey
+      - jeep
+      - jigsaw puzzle
+      - jinrikisha
+      - joystick
+      - junco
+      - keeshond
+      - kelpie
+      - Kerry blue terrier
+      - keyboard
+      - king crab
+      - king penguin
+      - king snake
+      - kimono
+      - kitten
+      - kit fox
+      - knot
+      - koala
+      - kuvasz
+      - lab coat
+      - Labrador retriever
+      - lacewing
+      - ladle
+      - lakeside
+      - lampshade
+      - langur
+      - laptop
+      - lawn mower
+      - leatherback turtle
+      - leaf beetle
+      - leafhopper
+      - lemon
+      - len
+      - lens cap
+      - Leonberg
+      - leopard
+      - lesser panda
+      - letter opener
+      - Lhasa
+      - library
+      - lifeboat
+      - lighter
+      - limpkin
+      - limousine
+      - lion
+      - lionfish
+      - lipstick
+      - little blue heron
+      - Loafer
+      - loggerhead
+      - long-horned beetle
+      - lorikeet
+      - lotion
+      - loudspeaker
+      - loupe
+      - lumbermill
+      - lycaenid
+      - lynx
+      - macaque
+      - macaw
+      - Madagascar cat
+      - magpie
+      - mailbag
+      - mailbox
+      - maillot
+      - malamute
+      - malinois
+      - Maltese dog
+      - manhole cover
+      - mantis
+      - maraca
+      - marimba
+      - marmoset
+      - marmot
+      - mask
+      - mashed potato
+      - mastiff
+      - matchstick
+      - maypole
+      - maze
+      - measuring cup
+      - meat loaf
+      - medicine chest
+      - meerkat
+      - megalith
+      - menu
+      - Mexican hairless
+      - microphone
+      - microwave
+      - military uniform
+      - milk can
+      - minibike
+      - minibus
+      - miniature pinscher
+      - miniature poodle
+      - miniature schnauzer
+      - miniskirt
+      - mink
+      - minivan
+      - missile
+      - mitten
+      - mixing bowl
+      - mobile home
+      - Model T
+      - modem
+      - monarch
+      - mongoose
+      - monitor
+      - moped
+      - mortar
+      - mortarboard
+      - mosque
+      - mosquito net
+      - motor scooter
+      - mountain bike
+      - mountain tent
+      - mouse
+      - mousetrap
+      - moving van
+      - mud turtle
+      - mudpuppy
+      - mushroom
+      - muzzle
+      - nail
+      - necklace
+      - nematode
+      - Newfoundland
+      - night snake
+      - nipple
+      - Norfolk terrier
+      - Norwegian elkhound
+      - notebook
+      - Norwich terrier
+      - obelisk
+      - oboe
+      - ocarina
+      - odometer
+      - Old English sheepdog
+      - oil filter
+      - orangutan
+      - organ
+      - orange
+      - oscilloscope
+      - ostrich
+      - otter
+      - otterhound
+      - overskirt
+      - ox
+      - oxcart
+      - oxygen mask
+      - oystercatcher
+      - ox
+      - oxcart
+      - oxygen mask
+      - oystercatcher
+      - paddle
+      - paddlewheel
+      - padlock
+      - pajama
+      - palace
+      - panpipe
+      - papillon
+      - parachute
+      - parallel bars
+      - park bench
+      - parking meter
+      - partridge
+      - passenger car
+      - patas
+      - patio
+      - peacock
+      - Pekinese
+      - pelican
+      - Pembroke
+      - pencil box
+      - pencil sharpener
+      - penguin
+      - Persian cat
+      - person
+      - perfume
+      - Petri dish
+      - photocopier
+      - pick
+      - pickelhaube
+      - picket fence
+      - pickup
+      - pier
+      - piggy bank
+      - pill bottle
+      - pillow
+      - ping-pong ball
+      - pinwheel
+      - pineapple
+      - pirate
+      - pitcher
+      - pizza
+      - platypus
+      - plate
+      - plate rack
+      - plow
+      - plunger
+      - pole
+      - polecat
+      - Polaroid camera
+      - police van
+      - Pomeranian
+      - pomegranate
+      - poncho
+      - pool table
+      - pop bottle
+      - porcupine
+      - pot
+      - potpie
+      - potter's wheel
+      - power drill
+      - prairie chicken
+      - prayer rug
+      - pretzel
+      - printer
+      - prison
+      - proboscis monkey
+      - projectile
+      - projector
+      - promontory
+      - ptarmigan
+      - puck
+      - puffer
+      - pug
+      - punching bag
+      - purse
+      - quail
+      - quill
+      - quilt
+      - rabbit
+      - racer
+      - racket
+      - radiator
+      - radio
+      - radio telescope
+      - rain barrel
+      - ram
+      - rapeseed
+      - red fox
+      - red wine
+      - red-backed sandpiper
+      - red-breasted merganser
+      - redbone
+      - redshank
+      - red wolf
+      - reel
+      - reflex camera
+      - refrigerator
+      - remote control
+      - restaurant
+      - revolver
+      - rhinoceros beetle
+      - Rhodesian ridgeback
+      - rifle
+      - ringlet
+      - ringneck snake
+      - robin
+      - rock crab
+      - rocking chair
+      - rock python
+      - rod
+      - Rottweiler
+      - rotisserie
+      - rubber eraser
+      - ruddy turnstone
+      - ruffed grouse
+      - rugby ball
+      - rule
+      - running shoe
+      - safe
+      - safety pin
+      - Saint Bernard
+      - Saluki
+      - saltshaker
+      - Samoyed
+      - sandbar
+      - sandal
+      - sarong
+      - sax
+      - scabbard
+      - scale
+      - schipperke
+      - schooner
+      - schnauzer
+      - scoreboard
+      - scorpion
+      - Scotch terrier
+      - screwdriver
+      - screw
+      - scuba diver
+      - sea anemone
+      - sea cucumber
+      - sea lion
+      - sea snake
+      - seashore
+      - Sealyham terrier
+      - seat belt
+      - sewing machine
+      - shield
+      - Shih-Tzu
+      - shoji
+      - shoe shop
+      - shopping basket
+      - shopping cart
+      - shovel
+      - shower cap
+      - shower curtain
+      - siamang
+      - Siamese cat
+      - Siberian husky
+      - sidewinder
+      - silky terrier
+      - skunk
+      - ski mask
+      - ski
+      - sleeping bag
+      - slide rule
+      - sliding door
+      - slot
+      - slug
+      - snail
+      - snake
+      - snorkel
+      - snow leopard
+      - snowmobile
+      - snowplow
+      - soap dispenser
+      - soccer ball
+      - sock
+      - soft-coated wheaten terrier
+      - solar dish
+      - sombrero
+      - sorrel
+      - soup bowl
+      - space bar
+      - space heater
+      - space shuttle
+      - spatula
+      - speedboat
+      - spider monkey
+      - spider web
+      - spindle
+      - spiny lobster
+      - spoonbill
+      - sports car
+      - spotted salamander
+      - spotlight
+      - squirrel monkey
+      - stage
+      - Staffordshire bullterrier
+      - standard poodle
+      - standard schnauzer
+      - starfish
+      - steam locomotive
+      - steel arch bridge
+      - steel drum
+      - stethoscope
+      - stingray
+      - stinkhorn
+      - stole
+      - stone wall
+      - stopwatch
+      - store
+      - strainer
+      - strawberry
+      - street sign
+      - streetcar
+      - stretcher
+      - studio couch
+      - stupa
+      - sturgeon
+      - submarine
+      - suit
+      - sulphur butterfly
+      - sulphur-crested cockatoo
+      - sundial
+      - sunglass
+      - sunglasses
+      - sunscreen
+      - Sussex spaniel
+      - suspension bridge
+      - swab
+      - sweatshirt
+      - swimming trunks
+      - swing
+      - switch
+      - syringe
+      - tabby
+      - table lamp
+      - tailed frog
+      - tank
+      - tape player
+      - tarantula
+      - teapot
+      - teddy
+      - television
+      - tench
+      - tennis ball
+      - terrapin
+      - theater curtain
+      - thatch
+      - thimble
+      - three-toed sloth
+      - thresher
+      - throne
+      - thunder snake
+      - Tibetan mastiff
+      - Tibetan terrier
+      - tiger beetle
+      - tiger cat
+      - tiger shark
+      - tiger
+      - tile roof
+      - timber wolf
+      - titi
+      - toaster
+      - tobacco shop
+      - toilet seat
+      - toilet tissue
+      - torch
+      - totem pole
+      - toucan
+      - toy poodle
+      - toy terrier
+      - toyshop
+      - tractor
+      - traffic light
+      - trailer truck
+      - train
+      - tray
+      - tree frog
+      - trench coat
+      - triceratops
+      - tricycle
+      - trilobite
+      - trimaran
+      - tripod
+      - triumphal arch
+      - trifle
+      - trolleybus
+      - trombone
+      - tub
+      - turnstile
+      - tusker
+      - tv
+      - typewriter keyboard
+      - umbrella
+      - unicycle
+      - upright
+      - vacuum
+      - valley
+      - vase
+      - vault
+      - velvet
+      - vending machine
+      - vestment
+      - viaduct
+      - violin
+      - vine snake
+      - vizsla
+      - volcano
+      - volleyball
+      - vulture
+      - waffle iron
+      - Walker hound
+      - wallaby
+      - wall clock
+      - wallet
+      - warthog
+      - wardrobe
+      - warplane
+      - washbasin
+      - washer
+      - water bottle
+      - water buffalo
+      - water jug
+      - water ouzel
+      - water snake
+      - water tower
+      - weasel
+      - weevil
+      - Weimaraner
+      - Welsh springer spaniel
+      - West Highland white terrier
+      - white stork
+      - white wolf
+      - whippet
+      - whiskey jug
+      - whistle
+      - whiptail
+      - wig
+      - wild boar
+      - window screen
+      - window shade
+      - Windsor tie
+      - wine bottle
+      - wing
+      - wire-haired fox terrier
+      - wok
+      - wolf spider
+      - wombat
+      - wooden spoon
+      - wool
+      - wood rabbit
+      - worm fence
+      - wreck
+      - yak
+      - yawl
+      - yellow lady's slipper
+      - Yorkshire terrier
+      - yurt
+      - zebra
+      - zucchini
+    metadata:
+      source: "edgeimpulse"
+      ei-project-id: 708500
+      ei-gpu-mode: true
+      source-model-id: "MobileNetV2"
+      source-model-url: "https://www.tensorflow.org/api_docs/python/tf/keras/applications/MobileNetV2"
+    bricks:
+      - arduino:image_classification
+      - arduino:video_image_classification
+ - person-classification:
+    runner: brick
+    name : "Person classification"
+    description: "Person classification model based on WakeVision dataset. This model is trained to classify images into two categories: person and not-person."
+    model_configuration:
+      "EI_CLASSIFICATION_MODEL": "/models/ootb/ei/person-classification.eim"
+    model_labels: 
+      - "non person"
+      - "person"
+    metadata:
+      source: "edgeimpulse"
+      ei-project-id: 755016
+      ei-gpu-mode: true
+      source-model-id: "person-classification-wakevision"
+      source-model-url: "https://studio.edgeimpulse.com/studio/755016"
+    bricks:
+      - arduino:image_classification
+      - arduino:video_image_classification   
+ - concreate-crack-anomaly-detection:
+    runner: brick
+    name : "Concrete crack anomaly detection"
+    description: "Anomaly detection model to identify cracks in concrete structures."
+    model_configuration:
+      "EI_V_ANOMALY_DETECTION_MODEL": "/models/ootb/ei/concrete-crack-anomaly-detection.eim" 
+    metadata:
+      source: "edgeimpulse"
+      ei-project-id: 288658
+      source-model-id: "concrete-crack-anomaly-detection"
+      source-model-url: "https://studio.edgeimpulse.com/public/288658"
+    bricks:
+      - arduino:visual_anomaly_detection
+ - keyword-spotting-hey-arduino:
+    runner: brick
+    name : "Keyword spotting - Hey Arduino!"
+    description: "A keyword-spotting model to detect the 'Hey Arduino!' in audio recordings"
+    model_configuration:
+      "EI_KEYWORD_SPOTTING_MODEL": "/models/ootb/ei/keyword-spotting-hey-arduino.eim"
+    model_labels: 
+      - "background"
+      - "hey_arduino"
+      - "other"
+    metadata:
+      source: "edgeimpulse"
+      ei-project-id: 757509   
+      ei-impulse-id: 30
+      source-model-id: "hey-arduino"
+      source-model-url: "https://studio.edgeimpulse.com/studio/757509"
+    bricks:
+      - arduino:keyword_spotter
+ - updown-wave-motion-detection:
+    runner: brick
+    name : "Continuous motion detection"
+    description: "A motion detection model designed to identify up/down, wave, and snake movements evalauting accelerometer data."
+    model_configuration:
+      "EI_MOTION_DETECTION_MODEL": "/models/ootb/ei/updown-wave-motion-detection.eim"
+    model_labels:
+      - idle
+      - snake
+      - updown
+      - wave      
+    metadata:
+      source: "edgeimpulse"
+      ei-project-id: 734960
+      source-model-id: "continuous-motion-detection"
+      source-model-url: "https://studio.edgeimpulse.com/studio/734960"
+    brick: arduino:motion_detection
+ - fan-anomaly-detection:
+    runner: brick
+    name : "Fan anomaly detection"
+    description: "An anomaly detection model designed to identify anomalies in fan operation."
+    model_configuration:
+      "EI_VIBRATION_ANOMALY_DETECTION_MODEL": "/models/ootb/ei/fan-anomaly-detection.eim" 
+    metadata:
+      source: "edgeimpulse"
+      ei-project-id: 774707
+      source-model-id: "fan-anomaly-detection"
+      source-model-url: "https://studio.edgeimpulse.com/studio/774707"
+    bricks:
+      - arduino:vibration_anomaly_detection    
+ - glass-breaking:
+    runner: brick
+    name : "Glass breaking classifier"
+    description: "A glass breaking classifier model to detect glass breaking sounds in audio recordings"
+    model_configuration:
+      "EI_AUDIO_CLASSIFICATION_MODEL": "/models/ootb/ei/glass-breaking.eim"
+    model_labels:
+      - "Background"
+      - "Glass_Breaking"
+    metadata:
+      source: "edgeimpulse"
+      ei-project-id: 749446
+      source-model-id: "glass-breaking"
+      source-model-url: "https://studio.edgeimpulse.com/studio/749446"
+    bricks:
+      - arduino:audio_classifier

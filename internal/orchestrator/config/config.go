@@ -13,7 +13,7 @@ import (
 )
 
 // runnerVersion do not edit, this is generate with `task generate:assets`
-var runnerVersion = "0.4.5"
+var runnerVersion = "0.4.8"
 
 type Configuration struct {
 	appsDir            *paths.Path
@@ -144,7 +144,7 @@ func (c *Configuration) AssetsDir() *paths.Path {
 func getPythonImageAndTag() (string, string) {
 	registryBase := os.Getenv("DOCKER_REGISTRY_BASE")
 	if registryBase == "" {
-		registryBase = "public.ecr.aws/arduino/"
+		registryBase = "ghcr.io/arduino/"
 	}
 
 	// Python image: image name (repository) and optionally a tag.

@@ -15,25 +15,25 @@ import (
 func TestListImagesAlreadyPulled(t *testing.T) {
 	docker := getDockerClient(t)
 
-	r, err := docker.ImagePull(t.Context(), "public.ecr.aws/arduino/app-bricks/python-apps-base:0.4.0", image.PullOptions{})
+	r, err := docker.ImagePull(t.Context(), "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8", image.PullOptions{})
 	require.NoError(t, err)
 	_, _ = io.Copy(io.Discard, r)
 	r.Close()
 
 	images, err := listImagesAlreadyPulled(t.Context(), docker)
 	require.NoError(t, err)
-	require.Contains(t, images, "public.ecr.aws/arduino/app-bricks/python-apps-base:0.4.0")
+	require.Contains(t, images, "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8")
 }
 
 func TestRemoveImage(t *testing.T) {
 	docker := getDockerClient(t)
 
-	r, err := docker.ImagePull(t.Context(), "public.ecr.aws/arduino/app-bricks/python-apps-base:0.4.0", image.PullOptions{})
+	r, err := docker.ImagePull(t.Context(), "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8", image.PullOptions{})
 	require.NoError(t, err)
 	_, _ = io.Copy(io.Discard, r)
 	r.Close()
 
-	size, err := removeImage(t.Context(), docker, "public.ecr.aws/arduino/app-bricks/python-apps-base:0.4.0")
+	size, err := removeImage(t.Context(), docker, "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8")
 	require.NoError(t, err)
 	require.Greater(t, size, int64(1024))
 }
