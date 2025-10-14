@@ -122,6 +122,30 @@ func getAppsStatus(
 	return nil, nil
 }
 
+func getAppStatusByPath(
+	ctx context.Context,
+	docker dockerClient.APIClient,
+	pathLabel string,
+) (*AppStatusInfo, error) {
+	containers, err := docker.ContainerList(ctx, container.ListOptions{
+		All:     true,
+		Filters: filters.NewArgs(filters.Arg("label", DockerAppPathLabel+"="+pathLabel)),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list containers: %w", err)
+	}
+	if len(containers) == 0 {
+		return nil, nil
+	}
+
+	app := parseAppStatus(containers)
+	if len(app) == 0 {
+		return nil, nil
+	}
+	return &app[0], nil
+}
+
+// TODO: merge this with the more efficient getAppStatusByPath
 func getAppStatus(
 	ctx context.Context,
 	docker command.Cli,

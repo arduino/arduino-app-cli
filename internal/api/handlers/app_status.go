@@ -3,7 +3,6 @@ package handlers
 import (
 	"log/slog"
 	"net/http"
-	"time"
 
 	"github.com/docker/cli/cli/command"
 
@@ -28,30 +27,12 @@ func HandlerAppStatus(
 		}
 		defer sseStream.Close()
 
-		// TODO: maybe we should limit the size of this cache?
-		stateCache := make(map[string]orchestrator.Status)
-
-		for {
-			apps, err := orchestrator.AppStatus(r.Context(), cfg, dockerCli.Client(), idProvider)
+		for appStatus, err := range orchestrator.AppStatusEvents(r.Context(), cfg, dockerCli, idProvider) {
 			if err != nil {
-				slog.Error("Unable to get apps status", slog.String("error", err.Error()))
-				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to get apps status"})
-				return
+				sseStream.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: err.Error()})
+				continue
 			}
-			for _, a := range apps {
-				status, exist := stateCache[a.ID.String()]
-				if !exist || status != a.Status {
-					sseStream.Send(render.SSEEvent{Type: "app", Data: a})
-				}
-
-				stateCache[a.ID.String()] = a.Status
-			}
-
-			select {
-			case <-r.Context().Done():
-				return
-			case <-time.After(1 * time.Second):
-			}
+			sseStream.Send(render.SSEEvent{Type: "app", Data: appStatus})
 		}
 	}
 }

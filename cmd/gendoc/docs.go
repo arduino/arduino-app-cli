@@ -521,6 +521,33 @@ Contains a JSON object with the details of an error.
 			},
 		},
 		{
+			OperationId: "getAppsEvents",
+			Method:      http.MethodGet,
+			Path:        "/v1/apps/events",
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "text/event-stream",
+				DataStructure: orchestrator.LogMessage{},
+			},
+			Description: `A stream of Server-Sent Events (SSE) that notifies the apps status.
+The client will receive events formatted as follows:
+
+**Event 'app'**:
+Contains a JSON object with an informational message.
+'event: app'
+'data: {"id":"dXNlcjpleGFtcG","name":"example-app-for-status-events","description":"My app description","icon":"💻","status":"running","example":false,"default":false}'
+
+**Event 'error'**:
+Contains a JSON object with the details of an error.
+'event: error'
+'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+`,
+			Summary: "Get application events",
+			Tags:    []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
 			OperationId: "getAppEvents",
 			Method:      http.MethodGet,
 			Path:        "/v1/apps/{id}/events",
@@ -532,7 +559,7 @@ Contains a JSON object with the details of an error.
 				DataStructure: orchestrator.LogMessage{},
 			},
 			Description: "Returns events for a specific app ",
-			Summary:     "Get application events ",
+			Summary:     "Get application events",
 			Tags:        []Tag{ApplicationTag},
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},

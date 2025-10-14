@@ -1,9 +1,12 @@
 package daemon
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -852,6 +855,66 @@ func TestAppPorts(t *testing.T) {
 	})
 }
 
+func TestGetAppsStatusEvents(t *testing.T) {
+
+	httpClient := GetHttpclient(t)
+	appName := "example-app-for-status-events"
+
+	t.Run("StreamAppEvents_Success", func(t *testing.T) {
+		eventsResp, err := httpClient.GetAppsEvents(t.Context())
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, eventsResp.StatusCode)
+		defer eventsResp.Body.Close()
+		scanner := bufio.NewScanner(eventsResp.Body)
+		go func() {
+			createResp, err := httpClient.CreateAppWithResponse(
+				t.Context(),
+				&client.CreateAppParams{SkipSketch: f.Ptr(true)},
+				client.CreateAppRequest{
+					Icon:        f.Ptr("💻"),
+					Name:        appName,
+					Description: f.Ptr("My app description"),
+				},
+			)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusCreated, createResp.StatusCode())
+			appResponse, err := httpClient.StartAppWithResponse(t.Context(), *createResp.JSON201.Id)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, appResponse.StatusCode())
+		}()
+		var lastStatuses []string
+		for scanner.Scan() {
+			line := scanner.Text()
+			if line == "" {
+				continue
+			}
+			eventData := strings.TrimPrefix(line, "data: ")
+			if strings.Contains(eventData, `"name":"`+appName+`"`) {
+				var event map[string]interface{}
+				err := json.Unmarshal([]byte(eventData), &event)
+				require.NoError(t, err)
+				status, ok := event["status"].(string)
+				require.True(t, ok, "status field missing or not string")
+				lastStatuses = append(lastStatuses, status)
+				if len(lastStatuses) > 3 {
+					lastStatuses = lastStatuses[1:]
+				}
+				if len(lastStatuses) == 3 &&
+					lastStatuses[0] == "stopped" &&
+					lastStatuses[1] == "running" &&
+					lastStatuses[2] == "stopped" {
+					fmt.Println("Desired sequence received, terminating test")
+					return
+				}
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			log.Fatal(fmt.Errorf("error reading event stream: %w", err))
+		}
+
+	})
+}
+
 func TestAppList(t *testing.T) {
 	httpClient := GetHttpclient(t)
 	t.Run("AppListEmpty_success", func(t *testing.T) {
@@ -880,7 +943,6 @@ func TestAppList(t *testing.T) {
 		require.Equal(t, http.StatusOK, resp.StatusCode())
 		require.NotNil(t, resp.JSON200)
 		require.Equal(t, len(*resp.JSON200.Apps), expectedAppNumber, "The apps list should contain "+strconv.Itoa(expectedAppNumber)+" elements")
-
 	})
 
 	t.Run("AppListDefault_success", func(t *testing.T) {

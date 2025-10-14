@@ -409,7 +409,7 @@ paths:
           description: OK
         "500":
           $ref: '#/components/responses/InternalServerError'
-      summary: 'Get application events '
+      summary: Get application events
       tags:
       - Application
   /v1/apps/{id}/logs:
@@ -539,6 +539,28 @@ paths:
         "500":
           $ref: '#/components/responses/InternalServerError'
       summary: Stop an existing app/example
+      tags:
+      - Application
+  /v1/apps/events:
+    get:
+      description: "A stream of Server-Sent Events (SSE) that notifies the apps status.\nThe
+        client will receive events formatted as follows:\n\n**Event 'app'**:\nContains
+        a JSON object with an informational message.\n'event: app'\n'data: {\"id\":\"dXNlcjpleGFtcG\",\"name\":\"example-app-for-status-events\",\"description\":\"My
+        app description\",\"icon\":\"\U0001F4BB\",\"status\":\"running\",\"example\":false,\"default\":false}'\n\n**Event
+        'error'**:\nContains a JSON object with the details of an error.\n'event:
+        error'\n'data: {\"code\":\"INTERNAL_SERVER_ERROR\",\"message\":\"An error
+        occurred during operation\"}'\n"
+      operationId: getAppsEvents
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                type: string
+          description: OK
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Get application events
       tags:
       - Application
   /v1/bricks:
