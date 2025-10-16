@@ -1,8 +1,6 @@
 package app
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
@@ -25,7 +23,7 @@ func newRestartCmd(cfg config.Configuration) *cobra.Command {
 				return nil
 			}
 			if err := stopHandler(cmd.Context(), app); err != nil {
-				feedback.Warning(fmt.Sprintf("failed to stop app: %s", err.Error()))
+				feedback.Warnf("failed to stop app: %s", err.Error())
 			}
 			return startHandler(cmd.Context(), cfg, app)
 		},

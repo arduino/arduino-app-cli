@@ -5,10 +5,9 @@ Wants=network-online.target docker.service arduino-router.service
 Requires=docker.service arduino-router.service
 
 [Service]
-ExecStart=/usr/bin/arduino-app-cli daemon --port 8800
+ExecStart=/usr/bin/arduino-app-cli daemon --port 8800 --log-level error
 User=arduino
 Group=arduino
-Environment="ARDUINO_APP_CLI__LOG_LEVEL=ERROR"
 Environment="ARDUINO_ROUTER_SOCKET=/var/run/arduino-router.sock"
 StandardOutput=journal
 StandardError=journal

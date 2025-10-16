@@ -5,11 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 
 	"github.com/arduino/arduino-app-cli/cmd/i18n"
-
-	"github.com/sirupsen/logrus"
 )
 
 // OutputFormat is an output format
@@ -140,13 +139,14 @@ func Print(v string) {
 }
 
 // Warning outputs a warning message.
-func Warning(msg string) {
+func Warnf(msg string, args ...interface{}) {
+	msg = fmt.Sprintf(msg, args...)
 	if format == Text {
 		fmt.Fprintln(feedbackErr, msg)
 	} else {
 		bufferWarnings = append(bufferWarnings, msg)
 	}
-	logrus.Warning(msg)
+	slog.Warn(msg)
 }
 
 // FatalError outputs the error and exits with status exitCode.

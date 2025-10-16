@@ -1,7 +1,6 @@
 package main
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -28,17 +27,11 @@ import (
 // Version will be set a build time with -ldflags
 var Version string = "0.0.0-dev"
 var format string
+var logLevelStr string
 
 func run(configuration cfg.Configuration) error {
 	servicelocator.Init(configuration)
 	defer func() { _ = servicelocator.CloseDockerClient() }()
-
-	logLevel, err := ParseLogLevel(cmp.Or(os.Getenv("ARDUINO_APP_CLI__LOG_LEVEL"), "INFO"))
-	if err != nil {
-		return err
-	}
-	slog.SetLogLoggerLevel(logLevel)
-
 	rootCmd := &cobra.Command{
 		Use:   "arduino-app-cli",
 		Short: "A CLI to manage the Python app",
@@ -47,13 +40,18 @@ func run(configuration cfg.Configuration) error {
 			if !ok {
 				feedback.Fatal(i18n.Tr("Invalid output format: %s", format), feedback.ErrBadArgument)
 			}
-			feedback.SetFormat(format)
+			logLevel, err := ParseLogLevel(logLevelStr)
+			if err != nil {
+				feedback.FatalError(err, feedback.ErrBadArgument)
+			}
+			slog.SetLogLoggerLevel(logLevel)
 		},
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
 
 	rootCmd.PersistentFlags().StringVar(&format, "format", "text", "Output format (text, json)")
+	rootCmd.PersistentFlags().StringVar(&logLevelStr, "log-level", "error", "Set the log level (debug, info, warn, error)")
 
 	rootCmd.AddCommand(
 		app.NewAppCmd(configuration),

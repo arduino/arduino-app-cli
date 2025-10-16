@@ -80,7 +80,7 @@ func pullImage(ctx context.Context, stdout io.Writer, docker dockerClient.APICli
 			return allErr // Non-retryable error
 		}
 
-		feedback.Printf("Warning: received 'toomanyrequests' error from Docker registry, retrying in %s ...", delay)
+		feedback.Warnf("received 'toomanyrequests' error from Docker registry, retrying in %s ...", delay)
 
 		select {
 		case <-ctx.Done():
@@ -217,19 +217,19 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, staticStore *s
 	// Remove running app and dangling containers
 	runningApp, err := getRunningApp(ctx, docker.Client())
 	if err != nil {
-		feedback.Printf("Warning: failed to get running app - %v", err)
+		feedback.Warnf("failed to get running app - %v", err)
 	}
 	if runningApp != nil {
 		for item := range StopAndDestroyApp(ctx, *runningApp) {
 			if item.GetType() == ErrorType {
-				feedback.Printf("Warning: failed to stop and destroy running app - %v", item.GetError())
+				feedback.Warnf("failed to stop and destroy running app - %v", item.GetError())
 				break
 			}
 		}
 		result.RunningAppRemoved = true
 	}
 	if count, err := removeDanglingContainers(ctx, docker.Client()); err != nil {
-		feedback.Printf("Warning: failed to remove dangling containers - %v", err)
+		feedback.Warnf("failed to remove dangling containers - %v", err)
 	} else {
 		result.ContainersRemoved = count
 	}
@@ -250,7 +250,7 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, staticStore *s
 	for _, image := range imagesToRemove {
 		imageSize, err := removeImage(ctx, docker.Client(), image)
 		if err != nil {
-			feedback.Printf("Warning: failed to remove image %s - %v", image, err)
+			feedback.Warnf("failed to remove image %s - %v", image, err)
 			continue
 		}
 		result.SpaceFreed += imageSize
@@ -263,7 +263,7 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, staticStore *s
 func removeImage(ctx context.Context, docker dockerClient.APIClient, imageName string) (int64, error) {
 	var size int64
 	if info, err := docker.ImageInspect(ctx, imageName); err != nil {
-		feedback.Printf("Warning: failed to inspect image %s - %v", imageName, err)
+		feedback.Warnf("failed to inspect image %s - %v", imageName, err)
 	} else {
 		size = info.Size
 	}
