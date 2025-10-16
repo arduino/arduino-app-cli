@@ -16,7 +16,8 @@ import (
 )
 
 type AppListResponse struct {
-	Apps []orchestrator.AppInfo `json:"apps" description:"List of applications"`
+	Apps       []orchestrator.AppInfo       `json:"apps" description:"List of applications"`
+	BrokenApps []orchestrator.BrokenAppInfo `json:"broken_apps,omitempty" description:"List of applications that are broken and couldn't be parsed"`
 }
 
 func HandleAppList(
@@ -57,6 +58,6 @@ func HandleAppList(
 
 			return
 		}
-		render.EncodeResponse(w, http.StatusOK, AppListResponse{Apps: res.Apps})
+		render.EncodeResponse(w, http.StatusOK, AppListResponse{Apps: res.Apps, BrokenApps: res.BrokenApps})
 	}
 }

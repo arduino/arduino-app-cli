@@ -3,6 +3,7 @@ package daemon
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,6 +19,45 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
 )
+
+func TestApps(t *testing.T) {
+	httpClient := GetHttpclient(t)
+
+	appName := "test-app-details"
+	icon := "💻"
+	createResp, err := httpClient.CreateAppWithResponse(
+		t.Context(),
+		&client.CreateAppParams{SkipSketch: f.Ptr(true)},
+		client.CreateAppRequest{
+			Icon: &icon,
+			Name: appName,
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode())
+	require.NotNil(t, createResp.JSON201)
+	fmt.Println(*createResp.JSON201.Id)
+	fmt.Println(string(f.Must(base64.StdEncoding.DecodeString(*createResp.JSON201.Id))))
+	appID := createResp.JSON201.Id
+
+	t.Run("ok", func(t *testing.T) {
+		appsResp, err := httpClient.GetAppsWithResponse(t.Context(), &client.GetAppsParams{})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, appsResp.StatusCode())
+
+		require.NotNil(t, appsResp.JSON200.Apps)
+		require.Len(t, *appsResp.JSON200.Apps, 1)
+
+		require.Equal(t, *appID, *(*appsResp.JSON200.Apps)[0].Id)
+		require.Equal(t, appName, *(*appsResp.JSON200.Apps)[0].Name)
+		require.Equal(t, icon, *(*appsResp.JSON200.Apps)[0].Icon)
+		require.Equal(t, false, *(*appsResp.JSON200.Apps)[0].Example)
+		require.Equal(t, false, *(*appsResp.JSON200.Apps)[0].Default)
+		require.Equal(t, "", *(*appsResp.JSON200.Apps)[0].Description)
+
+		require.Nil(t, appsResp.JSON200.BrokenApps)
+	})
+}
 
 func TestCreateApp(t *testing.T) {
 	httpClient := GetHttpclient(t)

@@ -101,6 +101,9 @@ type AppInfo struct {
 type AppListResponse struct {
 	// Apps List of applications
 	Apps *[]AppInfo `json:"apps"`
+
+	// BrokenApps List of applications that are broken and couldn't be parsed
+	BrokenApps *[]BrokenAppInfo `json:"broken_apps,omitempty"`
 }
 
 // AppPortResponse defines model for AppPortResponse.
@@ -169,6 +172,12 @@ type BrickVariable struct {
 	DefaultValue *string `json:"default_value,omitempty"`
 	Description  *string `json:"description,omitempty"`
 	Required     *bool   `json:"required,omitempty"`
+}
+
+// BrokenAppInfo defines model for BrokenAppInfo.
+type BrokenAppInfo struct {
+	Error *string `json:"error,omitempty"`
+	Name  *string `json:"name,omitempty"`
 }
 
 // CloneAppResponse defines model for CloneAppResponse.

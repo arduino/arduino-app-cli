@@ -1251,6 +1251,11 @@ components:
             $ref: '#/components/schemas/AppInfo'
           nullable: true
           type: array
+        broken_apps:
+          description: List of applications that are broken and couldn't be parsed
+          items:
+            $ref: '#/components/schemas/BrokenAppInfo'
+          type: array
       type: object
     AppPortResponse:
       properties:
@@ -1369,6 +1374,13 @@ components:
           type: string
         required:
           type: boolean
+      type: object
+    BrokenAppInfo:
+      properties:
+        error:
+          type: string
+        name:
+          type: string
       type: object
     CloneAppResponse:
       properties:
