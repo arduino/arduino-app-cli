@@ -7,9 +7,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/arduino/arduino-app-cli/cmd/i18n"
+
+	"github.com/sirupsen/logrus"
 )
 
 // OutputFormat is an output format

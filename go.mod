@@ -19,9 +19,6 @@ require (
 	github.com/arduino/go-paths-helper v1.14.0
 	github.com/compose-spec/compose-go/v2 v2.8.1
 	github.com/containerd/errdefs v1.0.0
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-	github.com/djherbis/buffer v1.2.0
-	github.com/djherbis/nio/v3 v3.0.1
 	github.com/docker/cli v28.3.2+incompatible
 	github.com/docker/compose/v2 v2.38.3-0.20250716153459-17ba6c7188fe
 	github.com/docker/docker v28.3.2+incompatible
@@ -47,10 +44,8 @@ require (
 	github.com/warthog618/go-gpiocdev v0.9.1
 	go.bug.st/cleanup v1.0.0
 	go.bug.st/f v0.4.0
-	go.bug.st/serial v1.6.4
 	golang.org/x/crypto v0.41.0
 	golang.org/x/sync v0.17.0
-	golang.org/x/sys v0.36.0
 	golang.org/x/term v0.34.0
 	golang.org/x/text v0.29.0
 )
@@ -103,7 +98,10 @@ require (
 	github.com/containerd/typeurl/v2 v2.2.3 // indirect
 	github.com/creack/goselect v0.1.3 // indirect
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/distribution/reference v0.6.0 // indirect
+	github.com/djherbis/buffer v1.2.0 // indirect
+	github.com/djherbis/nio/v3 v3.0.1 // indirect
 	github.com/docker/buildx v0.26.1 // indirect
 	github.com/docker/cli-docs-tool v0.10.0 // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
@@ -252,6 +250,7 @@ require (
 	github.com/zclconf/go-cty v1.16.2 // indirect
 	go.bug.st/downloader/v2 v2.2.0 // indirect
 	go.bug.st/relaxed-semver v0.15.0 // indirect
+	go.bug.st/serial v1.6.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.60.0 // indirect
@@ -273,6 +272,7 @@ require (
 	golang.org/x/mod v0.27.0 // indirect
 	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
+	golang.org/x/sys v0.36.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 	golang.org/x/tools v0.36.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250528174236-200df99c418a // indirect
