@@ -39,6 +39,7 @@ func HandleAppStop(
 		defer sseStream.Close()
 
 		type progress struct {
+			Name     string  `json:"name"`
 			Progress float32 `json:"progress"`
 		}
 		type log struct {
@@ -47,7 +48,7 @@ func HandleAppStop(
 		for item := range orchestrator.StopApp(r.Context(), app) {
 			switch item.GetType() {
 			case orchestrator.ProgressType:
-				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress{Progress: item.GetProgress().Progress}})
+				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress(*item.GetProgress())})
 			case orchestrator.InfoType:
 				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: item.GetData()}})
 			case orchestrator.ErrorType:

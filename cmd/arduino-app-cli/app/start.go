@@ -54,7 +54,7 @@ func startHandler(ctx context.Context, cfg config.Configuration, app app.Arduino
 	for message := range stream {
 		switch message.GetType() {
 		case orchestrator.ProgressType:
-			fmt.Fprintf(out, "Progress: %.0f%%\n", message.GetProgress().Progress)
+			fmt.Fprintf(out, "Progress[%s]: %.0f%%\n", message.GetProgress().Name, message.GetProgress().Progress)
 		case orchestrator.InfoType:
 			fmt.Fprintln(out, "[INFO]", message.GetData())
 		case orchestrator.ErrorType:

@@ -48,6 +48,7 @@ func HandleAppStart(
 		defer sseStream.Close()
 
 		type progress struct {
+			Name     string  `json:"name"`
 			Progress float32 `json:"progress"`
 		}
 		type log struct {
@@ -56,7 +57,7 @@ func HandleAppStart(
 		for item := range orchestrator.StartApp(r.Context(), dockerCli, provisioner, modelsIndex, bricksIndex, app, cfg, staticStore) {
 			switch item.GetType() {
 			case orchestrator.ProgressType:
-				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress{Progress: item.GetProgress().Progress}})
+				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress(*item.GetProgress())})
 			case orchestrator.InfoType:
 				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: item.GetData()}})
 			case orchestrator.ErrorType:
