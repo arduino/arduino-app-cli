@@ -88,6 +88,10 @@ func NewSSEStream(ctx context.Context, w http.ResponseWriter) (*SSEStream, error
 
 func (s *SSEStream) loop() {
 	defer func() {
+		// This is kept for backward compatibility. We should remove this in the future.
+		_ = s.send(SSEEvent{Type: "error", Data: SSEErrorData{Code: "SERVER_CLOSED"}})
+
+		// Notify the client that the stream is closed
 		_ = s.send(SSEEvent{Type: "close", Data: "Stream closed by server"})
 		close(s.stoppedCh)
 	}()
