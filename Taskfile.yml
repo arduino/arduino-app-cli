@@ -1,0 +1,294 @@
+version: "3"
+
+# `.env.local` takes precedence. Only new keys found in the `.env` will be
+# appended to the current set.
+dotenv: [".env.local", ".env"]
+
+vars:
+  GOLANGCI_LINT_VERSION: v2.4.0
+  GOIMPORTS_VERSION: v0.29.0
+  DPRINT_VERSION: 0.48.0
+  EXAMPLE_VERSION: "0.4.8"
+  RUNNER_VERSION: "0.4.8"
+  VERSION: # if version is not passed we hack the semver by encoding the commit as pre-release
+    sh: echo "${VERSION:-0.0.0-$(git rev-parse --short HEAD)}"
+
+tasks:
+  init:
+    desc: Setup local env
+    deps:
+      - install:linter
+      - install:goimports
+      - install:watcher
+      - install:dprint
+      - install:oapi-codegen
+
+  install:linter:
+    cmds:
+      - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b .bin/ {{ .GOLANGCI_LINT_VERSION }}
+
+  install:goimports:
+    cmds:
+      - go install golang.org/x/tools/cmd/goimports@{{ .GOIMPORTS_VERSION }}
+
+  install:watcher:
+    cmds:
+      - go install github.com/githubnemo/CompileDaemon@v1.4.0
+
+  install:dprint:
+    cmds:
+      - curl -fsSL https://dprint.dev/install.sh | sh -s {{ .DPRINT_VERSION }}
+      - mkdir -p .bin && cp $HOME/.dprint/bin/dprint .bin/dprint # workaround for local install
+
+  install:oapi-codegen:
+    cmds:
+      - go get -tool github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+
+  test:
+    desc: Run all tests
+    deps: [test:internal, test:pkg]
+
+  test:internal:
+    cmds:
+      - go build ./cmd/arduino-app-cli # needed for e2e tests
+      - task: generate
+      - go test ./internal/... ./cmd/... -v -race {{ .CLI_ARGS }}
+
+  test:pkg:
+    desc: Run only tests in the pkg directory
+    cmds:
+      - go test ./pkg/... -v -race {{ .CLI_ARGS }}
+
+  test:cover:
+    desc: Run all tests and open cover html report
+    cmds:
+      - task test -- -coverprofile=coverage.out
+      - go tool cover -func=coverage.out
+      - go tool cover -html=coverage.out
+
+  lint:
+    desc: Run the linters
+    cmds:
+      - ${PWD}/.bin/golangci-lint run --fix -v --timeout 300s {{ .CLI_ARGS }}
+
+  fmt:
+    desc: Run format
+    cmds:
+      - goimports -l -w .
+      - ${PWD}/.bin/dprint fmt
+
+  generate:
+    desc: Run go generate
+    cmds:
+      - go generate ./...
+
+  fmt-check:
+    desc: Check format
+    cmds:
+      - ${PWD}/.bin/dprint check
+
+  doc:
+    desc: Doc generation
+    cmds:
+      - go run ./cmd/gendoc
+
+  api:docs:
+    desc: Open api docs
+    cmds:
+      - python3 -m http.server 8000 -d docs
+
+  clone-examples-repo:
+    desc: "Clones the examples repo directly into the debian structure"
+    cmds:
+      - |
+          set -e
+          echo "Runner version set as: {{ .EXAMPLE_VERSION }}"
+          TMP_PATH="$(mktemp -d)"
+          DEST_PATH="debian/arduino-app-cli/home/arduino/.local/share/arduino-app-cli/"
+          echo "Cloning bcmi-labs/app-bricks-example into temporary directory ${TMP_PATH}..."
+          git clone --depth 1 --branch "{{ .EXAMPLE_VERSION }}" https://github.com/bcmi-labs/app-bricks-example "${TMP_PATH}"
+          rm -rf "${DEST_PATH}/examples"
+          mkdir -p "${DEST_PATH}"
+          mv "${TMP_PATH}/examples" "${DEST_PATH}"
+          rm -rf "${TMP_PATH}/examples"
+          echo "Examples successfully cloned."
+    silent: false
+
+  build-deb:arduino-app-cli:
+    desc: Build debian package
+    deps:
+      - clone-examples-repo
+    cmds:
+      - docker build --build-arg BINARY_NAME=arduino-app-cli --build-arg DEB_NAME=arduino-app-cli --build-arg VERSION={{ .VERSION }} --build-arg ARCH={{ .ARCH }} --build-arg RELEASE={{ .RELEASE }} --output=./build -f debian/Dockerfile .
+    vars:
+      ARCH: '{{.ARCH | default "arm64"}}'
+
+  arduino-app-cli:build:local:
+    desc: "Build the arduino-app-cli locally"
+    cmds:
+      - go build -v -o ./build/arduino-app-cli ./cmd/arduino-app-cli
+
+  arduino-app-cli:release:
+    desc: Create a tag on the current commit and push it to the remote to create the release
+    cmds:
+      - |
+          if [ -z "{{.CLI_ARGS}}" ]; then
+            echo "Error: Version argument is required. Usage: task orchestrator:trigger:release -- <version>"
+            exit 1
+          fi
+      - git tag -a "{{.CLI_ARGS}}" -m "Release {{.CLI_ARGS}}"
+      - git push origin "{{.CLI_ARGS}}"
+
+  arduino-app-cli:start:
+    desc: "build and launch the arduino-app-cli in daemon mode"
+    cmds:
+      - task arduino-app-cli:build:local
+      - ./build/arduino-app-cli daemon  --port 6060
+
+  # To to forward a port, using ssh, you can use this command:
+  # ssh -L 8800:localhost:8800 arduino@<BOARD_IP>
+  arduino-app-cli:pprof:
+    desc: Open pprof UI
+    cmds:
+      - go tool pprof -http=:8084   {{ .URL }}/debug/pprof/{{ .TYPE }}
+    vars:
+      TYPE: '{{.TYPE | default "heap"}}' # goroutine, heap, mutex
+      URL: '{{ .URL| default "http://localhost:8800" }}'
+
+  adbd:start:
+    desc: interact with adbd
+    cmds:
+      - docker build -t adbd -f adbd.Dockerfile .
+      - docker rm -f adbd || true
+      - docker run --rm --name adbd -d -p 5555:5555 -p 2222:22 -v $HOME/.arduino-app-cli/examples:/apps adbd
+
+  adbd:stop:
+    desc: stop adbd
+    cmds:
+      - docker rm -f adbd
+
+  board:install-arduino-app-cli:
+    desc: Install arduino-app-cli on the board
+    interactive: true
+    cmds:
+      - rm ./build/*.deb || true
+      - task: build-deb:arduino-app-cli
+      - adb shell rm /tmp/*.deb || true
+      - adb push ./build/arduino-app-cli_*_arm64.deb /tmp/
+      - ./scripts/run-remote-sudo.sh "dpkg -i /tmp/arduino-app-cli*_arm64.deb && needrestart -r a"
+
+  setup:examples:local:
+    desc: Download and locally install the official examples
+    cmds:
+      - |
+          set -e
+          DEST_PATH=$(case "$(uname)" in
+            Darwin) echo "$HOME/Library/Application Support/arduino-app-cli/" ;;
+            Linux) echo "$HOME/.config/arduino-app-cli/" ;;
+            *) echo "$AppData/arduino-app-cli/" ;;
+          esac)
+          TMP_PATH="$(mktemp -d)"
+
+          echo "Cloning examples into temporary directory ${TMP_PATH}..."
+          git clone --depth 1 https://github.com/bcmi-labs/app-bricks-example.git "${TMP_PATH}"
+
+          echo "Installing examples to ${DEST_PATH}examples"
+          rm -rf "${DEST_PATH}examples"
+          mkdir -p "${DEST_PATH}"
+
+          mv "${TMP_PATH}/examples" "${DEST_PATH}"
+
+          rm -rf "${TMP_PATH}"
+          echo "Examples installed successfully."
+
+  generate:assets:
+    desc: This generates the models and bricks index. Also updates the corresponding testdata.
+    vars:
+      sed_replacement: s#runnerVersion = \".*#runnerVersion = \"{{.RUNNER_VERSION}}\"#
+      TMPDIR: '{{trimSuffix "/" .TMPDIR| default "/tmp"}}/generate-assets'
+      SEMVER_TAG: "{{.RUNNER_VERSION}}"
+      OUTPUT_DIR: "{{.TMPDIR}}/{{.SEMVER_TAG}}"
+      ASSETS_DIR: debian/arduino-app-cli/home/arduino/.local/share/arduino-app-cli/assets
+      TESTDATA_DIR: internal/e2e/daemon/testdata/assets
+    preconditions:
+      - sh: '[ ! -d "{{.ASSETS_DIR}}/{{.SEMVER_TAG}}" ] || [ ! -d "{{.TESTDATA_DIR}}/{{.SEMVER_TAG}}" ]'
+        msg: "Both assets folder are already at version '{{.RUNNER_VERSION}}'. Nothing to do."
+    cmds:
+      - |
+          # Get the corresponding models and bricks release, and unzip it.
+          gh release download -R bcmi-labs/app-bricks-py "release/{{.SEMVER_TAG}}" -p '*.whl' -D "{{.TMPDIR}}" --clobber
+          unzip -o "{{.TMPDIR}}/arduino_app_bricks-{{.SEMVER_TAG}}-py3-none-any.whl" -d "{{.OUTPUT_DIR}}"
+      - |
+          # Copy the assets to the assets dir and testdata dir, replacing the previous version.
+          rm -rf "{{.ASSETS_DIR}}" && mkdir -p "{{.ASSETS_DIR}}"
+          cp -r "{{.OUTPUT_DIR}}/arduino/app_bricks/static" "{{.ASSETS_DIR}}/{{.SEMVER_TAG}}"
+          rm -rf "{{.TESTDATA_DIR}}" && mkdir -p "{{.TESTDATA_DIR}}"
+          cp -r "{{.OUTPUT_DIR}}/arduino/app_bricks/static" "{{.TESTDATA_DIR}}/{{.SEMVER_TAG}}"
+      - cmd: rm -rf {{.TMPDIR}}
+      - cmd: echo "Updating the runnerVersion in config.go to '{{.RUNNER_VERSION}}'"
+      - cmd: sed -i "{{.sed_replacement}}" internal/orchestrator/config/config.go
+        platforms: [linux]
+      - cmd: sed -i '' "{{.sed_replacement}}" internal/orchestrator/config/config.go
+        platforms: [darwin]
+
+  update-deb-copyright:
+    desc: Extract project and dependency licenses into asd copyright
+    cmds:
+      - |
+          gem install licensed --version "{{.LICENSED_VERSION}}"
+
+          licensed cache
+          licensed notices
+          cat > debian/arduino-app-cli/usr/share/doc/arduino-app-cli/copyright <<EOF
+          Copyright 2025 ARDUINO SA (http://www.arduino.cc/)
+
+          This software is released under the GNU General Public License version 3,
+          which covers the main part of arduino-app-cli.
+          The terms of this license can be found at:
+          https://www.gnu.org/licenses/gpl-3.0.en.html
+
+          You can be released from the requirements of the above licenses by purchasing
+          a commercial license. Buying such a license is mandatory if you want to
+          modify or otherwise use the software for commercial activities involving the
+          Arduino software without disclosing the source code of your own applications.
+          To purchase a commercial license, send an email to license@arduino.cc.
+
+          ---
+
+          EOF
+          cat .licenses/arduino-app-cli/NOTICE  >> debian/arduino-app-cli/usr/share/doc/arduino-app-cli/copyright
+
+  # Source: https://github.com/arduino/tooling-project-assets/blob/main/workflow-templates/assets/check-dependencies-task/Taskfile.yml
+  general:cache-dep-licenses:
+    desc: Cache dependency license metadata
+    deps:
+      - task: general:prepare-deps
+    cmds:
+      - |
+          if
+            ! which licensed \
+            &>/dev/null
+          then
+            if [[ {{OS}} == "windows" ]]; then
+              echo "Licensed does not have Windows support."
+              echo "Please use Linux/macOS or download the dependencies cache from the GitHub Actions workflow artifact."
+            else
+              echo "licensed not found or not in PATH."
+              echo "Please install: https://github.com/licensee/licensed#installation"
+            fi
+            exit 1
+          fi
+      - licensed cache
+
+  # Source: https://github.com/arduino/tooling-project-assets/blob/main/workflow-templates/assets/check-dependencies-task/Taskfile.yml
+  general:check-dep-licenses:
+    desc: Check for unapproved dependency licenses
+    deps:
+      - task: general:cache-dep-licenses
+    cmds:
+      - licensed status
+
+  # Source: https://github.com/arduino/tooling-project-assets/blob/main/workflow-templates/assets/check-go-dependencies-task/Taskfile.yml
+  general:prepare-deps:
+    desc: Prepare project dependencies for license check
+    # No preparation is needed for Go module-based projects.
