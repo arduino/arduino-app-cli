@@ -13,6 +13,9 @@ replace (
 	github.com/docker/docker => github.com/docker/docker v28.3.2+incompatible
 )
 
+// Required until https://github.com/arduino/arduino-cli/pull/3019 is merged and released
+replace github.com/arduino/arduino-cli => github.com/cmaglie/arduino-cli v0.0.0-20251006122726-27fe68b0a18a
+
 require (
 	github.com/Andrew-M-C/go.emoji v1.1.4
 	github.com/arduino/arduino-cli v1.3.1
@@ -35,8 +38,8 @@ require (
 	github.com/oapi-codegen/runtime v1.1.1
 	github.com/shirou/gopsutil/v4 v4.25.6
 	github.com/sirupsen/logrus v1.9.3
-	github.com/spf13/cobra v1.9.1
-	github.com/stretchr/testify v1.11.0
+	github.com/spf13/cobra v1.10.1
+	github.com/stretchr/testify v1.11.1
 	github.com/swaggest/jsonschema-go v0.3.78
 	github.com/swaggest/openapi-go v0.2.58
 	github.com/tmaxmax/go-sse v0.11.0
@@ -44,15 +47,16 @@ require (
 	github.com/warthog618/go-gpiocdev v0.9.1
 	go.bug.st/cleanup v1.0.0
 	go.bug.st/f v0.4.0
+	go.bug.st/relaxed-semver v0.15.0
 	golang.org/x/crypto v0.41.0
 	golang.org/x/sync v0.17.0
-	golang.org/x/term v0.34.0
+	golang.org/x/term v0.35.0
 	golang.org/x/text v0.29.0
 )
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
-	fortio.org/safecast v1.0.0 // indirect
+	fortio.org/safecast v1.2.0 // indirect
 	github.com/AlecAivazis/survey/v2 v2.3.7 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/DefangLabs/secret-detector v0.0.0-20250403165618-22662109213e // indirect
@@ -130,7 +134,7 @@ require (
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
-	github.com/go-viper/mapstructure/v2 v2.3.0 // indirect
+	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/gofrs/uuid/v5 v5.3.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
@@ -224,7 +228,7 @@ require (
 	github.com/speakeasy-api/openapi-overlay v0.10.2 // indirect
 	github.com/spf13/afero v1.12.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
-	github.com/spf13/pflag v1.0.7 // indirect
+	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/spf13/viper v1.20.1 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/swaggest/refl v1.4.0 // indirect
@@ -237,7 +241,7 @@ require (
 	github.com/tonistiigi/go-csvvalue v0.0.0-20240814133006-030d3b2625d0 // indirect
 	github.com/tonistiigi/units v0.0.0-20180711220420-6950e57a87ea // indirect
 	github.com/tonistiigi/vt100 v0.0.0-20240514184818-90bafcd6abab // indirect
-	github.com/ulikunitz/xz v0.5.12 // indirect
+	github.com/ulikunitz/xz v0.5.15 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/vmware-labs/yaml-jsonpath v0.3.2 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
@@ -249,22 +253,21 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zclconf/go-cty v1.16.2 // indirect
 	go.bug.st/downloader/v2 v2.2.0 // indirect
-	go.bug.st/relaxed-semver v0.15.0 // indirect
 	go.bug.st/serial v1.6.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.60.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0 // indirect
-	go.opentelemetry.io/otel v1.36.0 // indirect
+	go.opentelemetry.io/otel v1.37.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.35.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.35.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.35.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.35.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.35.0 // indirect
-	go.opentelemetry.io/otel/metric v1.36.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.36.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.36.0 // indirect
-	go.opentelemetry.io/otel/trace v1.36.0 // indirect
+	go.opentelemetry.io/otel/metric v1.37.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.37.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.37.0 // indirect
+	go.opentelemetry.io/otel/trace v1.37.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/mock v0.5.2 // indirect
@@ -275,10 +278,10 @@ require (
 	golang.org/x/sys v0.36.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 	golang.org/x/tools v0.36.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20250528174236-200df99c418a // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250528174236-200df99c418a // indirect
-	google.golang.org/grpc v1.74.2 // indirect
-	google.golang.org/protobuf v1.36.7 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20250707201910-8d1bb00bc6a7 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250707201910-8d1bb00bc6a7 // indirect
+	google.golang.org/grpc v1.75.1 // indirect
+	google.golang.org/protobuf v1.36.9 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect

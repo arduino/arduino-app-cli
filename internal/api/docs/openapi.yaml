@@ -268,6 +268,114 @@ paths:
       summary: Get app exposed ports
       tags:
       - Application
+  /v1/apps/{appID}/sketch/libraries/:
+    get:
+      description: Lists the libraries used in the App' sketch.
+      operationId: appSketchListLibraries
+      parameters:
+      - description: application identifier.
+        in: path
+        name: appID
+        required: true
+        schema:
+          description: application identifier.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SketchListLibraryResponse'
+          description: Successful response
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "412":
+          $ref: '#/components/responses/PreconditionFailed'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Lists the libraries used in the App' sketch.
+      tags:
+      - Application
+  /v1/apps/{appID}/sketch/libraries/{libRef}:
+    delete:
+      description: Removes a library from the App' sketch. The library will be removed
+        from the sketch project file.
+      operationId: appSketchRemoveLibrary
+      parameters:
+      - description: application identifier.
+        in: path
+        name: appID
+        required: true
+        schema:
+          description: application identifier.
+          type: string
+      - description: library reference ("LibraryName" or "LibraryName@Version").
+        in: path
+        name: libRef
+        required: true
+        schema:
+          description: library reference ("LibraryName" or "LibraryName@Version").
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SketchRemoveLibraryResponse'
+          description: Successful response
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "412":
+          $ref: '#/components/responses/PreconditionFailed'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Removes a library from the App' sketch.
+      tags:
+      - Application
+    put:
+      description: Adds a library to the App' sketch. The library will be added to
+        the sketch project file. The dependencies of the library may be optionally
+        added as well.
+      operationId: appSketchAddLibrary
+      parameters:
+      - description: if set to "true", the library's dependencies will be added as
+          well.
+        in: query
+        name: add_deps
+        schema:
+          description: if set to "true", the library's dependencies will be added
+            as well.
+          type: string
+      - description: application identifier.
+        in: path
+        name: appID
+        required: true
+        schema:
+          description: application identifier.
+          type: string
+      - description: library reference ("LibraryName" or "LibraryName@Version").
+        in: path
+        name: libRef
+        required: true
+        schema:
+          description: library reference ("LibraryName" or "LibraryName@Version").
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SketchAddLibraryResponse'
+          description: Successful response
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "412":
+          $ref: '#/components/responses/PreconditionFailed'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Adds a library to the App' sketch.
+      tags:
+      - Application
   /v1/apps/{id}:
     delete:
       description: Remove the given app and all the resources it created
@@ -1427,6 +1535,8 @@ components:
         pagination:
           $ref: '#/components/schemas/Pagination'
       type: object
+    LibraryReleaseID:
+      type: object
     PackageType:
       description: Package type
       enum:
@@ -1469,6 +1579,30 @@ components:
         keys:
           items:
             type: string
+          nullable: true
+          type: array
+      type: object
+    SketchAddLibraryResponse:
+      properties:
+        libraries:
+          items:
+            $ref: '#/components/schemas/LibraryReleaseID'
+          nullable: true
+          type: array
+      type: object
+    SketchListLibraryResponse:
+      properties:
+        libraries:
+          items:
+            $ref: '#/components/schemas/LibraryReleaseID'
+          nullable: true
+          type: array
+      type: object
+    SketchRemoveLibraryResponse:
+      properties:
+        libraries:
+          items:
+            $ref: '#/components/schemas/LibraryReleaseID'
           nullable: true
           type: array
       type: object

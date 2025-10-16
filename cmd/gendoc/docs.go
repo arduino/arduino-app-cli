@@ -998,6 +998,75 @@ Contains a JSON object with the details of an error.
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
 			},
 		},
+		{
+			OperationId: "appSketchAddLibrary",
+			Method:      http.MethodPut,
+			Path:        "/v1/apps/{appID}/sketch/libraries/{libRef}",
+			Parameters: (*struct {
+				ID              string `path:"appID" description:"application identifier."`
+				LibRef          string `path:"libRef" description:"library reference (\"LibraryName\" or \"LibraryName@Version\")."`
+				AddDependencies string `query:"add_deps" description:"if set to \"true\", the library's dependencies will be added as well."`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: handlers.SketchAddLibraryResponse{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "Adds a library to the App' sketch. The library will be added to the sketch project file. The dependencies of the library may be optionally added as well.",
+			Summary:     "Adds a library to the App' sketch.",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "appSketchRemoveLibrary",
+			Method:      http.MethodDelete,
+			Path:        "/v1/apps/{appID}/sketch/libraries/{libRef}",
+			Parameters: (*struct {
+				ID     string `path:"appID" description:"application identifier."`
+				LibRef string `path:"libRef" description:"library reference (\"LibraryName\" or \"LibraryName@Version\")."`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: handlers.SketchRemoveLibraryResponse{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "Removes a library from the App' sketch. The library will be removed from the sketch project file.",
+			Summary:     "Removes a library from the App' sketch.",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "appSketchListLibraries",
+			Method:      http.MethodGet,
+			Path:        "/v1/apps/{appID}/sketch/libraries/",
+			Parameters: (*struct {
+				ID string `path:"appID" description:"application identifier."`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: handlers.SketchListLibraryResponse{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "Lists the libraries used in the App' sketch.",
+			Summary:     "Lists the libraries used in the App' sketch.",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
 	}
 
 	for _, op := range operations {

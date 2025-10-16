@@ -276,6 +276,9 @@ type LibraryListResponse struct {
 	Pagination *Pagination `json:"pagination,omitempty"`
 }
 
+// LibraryReleaseID defines model for LibraryReleaseID.
+type LibraryReleaseID = map[string]interface{}
+
 // PackageType Package type
 type PackageType string
 
@@ -304,6 +307,21 @@ type Port struct {
 // PropertyKeysResponse defines model for PropertyKeysResponse.
 type PropertyKeysResponse struct {
 	Keys *[]string `json:"keys"`
+}
+
+// SketchAddLibraryResponse defines model for SketchAddLibraryResponse.
+type SketchAddLibraryResponse struct {
+	Libraries *[]LibraryReleaseID `json:"libraries"`
+}
+
+// SketchListLibraryResponse defines model for SketchListLibraryResponse.
+type SketchListLibraryResponse struct {
+	Libraries *[]LibraryReleaseID `json:"libraries"`
+}
+
+// SketchRemoveLibraryResponse defines model for SketchRemoveLibraryResponse.
+type SketchRemoveLibraryResponse struct {
+	Libraries *[]LibraryReleaseID `json:"libraries"`
 }
 
 // Status Application status
@@ -363,6 +381,12 @@ type CreateAppParams struct {
 
 	// SkipSketch If true, the app will not be created with the sketch part.
 	SkipSketch *bool `form:"skip-sketch,omitempty" json:"skip-sketch,omitempty"`
+}
+
+// AppSketchAddLibraryParams defines parameters for AppSketchAddLibrary.
+type AppSketchAddLibraryParams struct {
+	// AddDeps if set to "true", the library's dependencies will be added as well.
+	AddDeps *string `form:"add_deps,omitempty" json:"add_deps,omitempty"`
 }
 
 // GetAppLogsParams defines parameters for GetAppLogs.
@@ -540,6 +564,15 @@ type ClientInterface interface {
 
 	// GetAppPorts request
 	GetAppPorts(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AppSketchListLibraries request
+	AppSketchListLibraries(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AppSketchRemoveLibrary request
+	AppSketchRemoveLibrary(ctx context.Context, appID string, libRef string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AppSketchAddLibrary request
+	AppSketchAddLibrary(ctx context.Context, appID string, libRef string, params *AppSketchAddLibraryParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteApp request
 	DeleteApp(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -751,6 +784,42 @@ func (c *Client) UpsertAppBrickInstance(ctx context.Context, appID string, brick
 
 func (c *Client) GetAppPorts(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAppPortsRequest(c.Server, appID)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AppSketchListLibraries(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAppSketchListLibrariesRequest(c.Server, appID)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AppSketchRemoveLibrary(ctx context.Context, appID string, libRef string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAppSketchRemoveLibraryRequest(c.Server, appID, libRef)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AppSketchAddLibrary(ctx context.Context, appID string, libRef string, params *AppSketchAddLibraryParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAppSketchAddLibraryRequest(c.Server, appID, libRef, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1494,6 +1563,144 @@ func NewGetAppPortsRequest(server string, appID string) (*http.Request, error) {
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAppSketchListLibrariesRequest generates requests for AppSketchListLibraries
+func NewAppSketchListLibrariesRequest(server string, appID string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "appID", runtime.ParamLocationPath, appID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/apps/%s/sketch/libraries/", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAppSketchRemoveLibraryRequest generates requests for AppSketchRemoveLibrary
+func NewAppSketchRemoveLibraryRequest(server string, appID string, libRef string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "appID", runtime.ParamLocationPath, appID)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "libRef", runtime.ParamLocationPath, libRef)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/apps/%s/sketch/libraries/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAppSketchAddLibraryRequest generates requests for AppSketchAddLibrary
+func NewAppSketchAddLibraryRequest(server string, appID string, libRef string, params *AppSketchAddLibraryParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "appID", runtime.ParamLocationPath, appID)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "libRef", runtime.ParamLocationPath, libRef)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/apps/%s/sketch/libraries/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.AddDeps != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "add_deps", runtime.ParamLocationQuery, *params.AddDeps); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2550,6 +2757,15 @@ type ClientWithResponsesInterface interface {
 	// GetAppPortsWithResponse request
 	GetAppPortsWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*GetAppPortsResp, error)
 
+	// AppSketchListLibrariesWithResponse request
+	AppSketchListLibrariesWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*AppSketchListLibrariesResp, error)
+
+	// AppSketchRemoveLibraryWithResponse request
+	AppSketchRemoveLibraryWithResponse(ctx context.Context, appID string, libRef string, reqEditors ...RequestEditorFn) (*AppSketchRemoveLibraryResp, error)
+
+	// AppSketchAddLibraryWithResponse request
+	AppSketchAddLibraryWithResponse(ctx context.Context, appID string, libRef string, params *AppSketchAddLibraryParams, reqEditors ...RequestEditorFn) (*AppSketchAddLibraryResp, error)
+
 	// DeleteAppWithResponse request
 	DeleteAppWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteAppResp, error)
 
@@ -2835,6 +3051,81 @@ func (r GetAppPortsResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetAppPortsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type AppSketchListLibrariesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *SketchListLibraryResponse
+	JSON400      *BadRequest
+	JSON412      *PreconditionFailed
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r AppSketchListLibrariesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AppSketchListLibrariesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type AppSketchRemoveLibraryResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *SketchRemoveLibraryResponse
+	JSON400      *BadRequest
+	JSON412      *PreconditionFailed
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r AppSketchRemoveLibraryResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AppSketchRemoveLibraryResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type AppSketchAddLibraryResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *SketchAddLibraryResponse
+	JSON400      *BadRequest
+	JSON412      *PreconditionFailed
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r AppSketchAddLibraryResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AppSketchAddLibraryResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3491,6 +3782,33 @@ func (c *ClientWithResponses) GetAppPortsWithResponse(ctx context.Context, appID
 	return ParseGetAppPortsResp(rsp)
 }
 
+// AppSketchListLibrariesWithResponse request returning *AppSketchListLibrariesResp
+func (c *ClientWithResponses) AppSketchListLibrariesWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*AppSketchListLibrariesResp, error) {
+	rsp, err := c.AppSketchListLibraries(ctx, appID, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAppSketchListLibrariesResp(rsp)
+}
+
+// AppSketchRemoveLibraryWithResponse request returning *AppSketchRemoveLibraryResp
+func (c *ClientWithResponses) AppSketchRemoveLibraryWithResponse(ctx context.Context, appID string, libRef string, reqEditors ...RequestEditorFn) (*AppSketchRemoveLibraryResp, error) {
+	rsp, err := c.AppSketchRemoveLibrary(ctx, appID, libRef, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAppSketchRemoveLibraryResp(rsp)
+}
+
+// AppSketchAddLibraryWithResponse request returning *AppSketchAddLibraryResp
+func (c *ClientWithResponses) AppSketchAddLibraryWithResponse(ctx context.Context, appID string, libRef string, params *AppSketchAddLibraryParams, reqEditors ...RequestEditorFn) (*AppSketchAddLibraryResp, error) {
+	rsp, err := c.AppSketchAddLibrary(ctx, appID, libRef, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAppSketchAddLibraryResp(rsp)
+}
+
 // DeleteAppWithResponse request returning *DeleteAppResp
 func (c *ClientWithResponses) DeleteAppWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteAppResp, error) {
 	rsp, err := c.DeleteApp(ctx, id, reqEditors...)
@@ -4055,6 +4373,147 @@ func ParseGetAppPortsResp(rsp *http.Response) (*GetAppPortsResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAppSketchListLibrariesResp parses an HTTP response from a AppSketchListLibrariesWithResponse call
+func ParseAppSketchListLibrariesResp(rsp *http.Response) (*AppSketchListLibrariesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AppSketchListLibrariesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SketchListLibraryResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAppSketchRemoveLibraryResp parses an HTTP response from a AppSketchRemoveLibraryWithResponse call
+func ParseAppSketchRemoveLibraryResp(rsp *http.Response) (*AppSketchRemoveLibraryResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AppSketchRemoveLibraryResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SketchRemoveLibraryResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAppSketchAddLibraryResp parses an HTTP response from a AppSketchAddLibraryWithResponse call
+func ParseAppSketchAddLibraryResp(rsp *http.Response) (*AppSketchAddLibraryResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AppSketchAddLibraryResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SketchAddLibraryResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
 		var dest PreconditionFailed
