@@ -76,7 +76,7 @@ func pullImage(ctx context.Context, stdout io.Writer, docker dockerClient.APICli
 		}
 		allErr = errors.Join(allErr, lastErr)
 
-		if !strings.Contains(lastErr.Error(), "toomanyrequests") {
+		if !isTemporaryDockerError(lastErr) {
 			return allErr // Non-retryable error
 		}
 
@@ -118,6 +118,21 @@ func pullImage(ctx context.Context, stdout io.Writer, docker dockerClient.APICli
 		return err
 	}
 	return nil
+}
+func isTemporaryDockerError(err error) bool {
+	errorString := err.Error()
+	transientSubstrings := []string{
+		"toomanyrequests",
+		"Client.Timeout exceeded",
+		"request canceled while waiting for connection",
+	}
+
+	for _, sub := range transientSubstrings {
+		if strings.Contains(errorString, sub) {
+			return true
+		}
+	}
+	return false
 }
 
 // List of prefixes used to identify current or past Arduino images. Used both during 'system init' and during cleanup.
