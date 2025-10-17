@@ -40,15 +40,9 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - name: Install Task
-        uses: arduino/setup-task@v2
-        with:
-          version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build deb
         run: |
-          task build-deb:arduino-app-cli VERSION=${TAG_VERSION} ARCH=${{ matrix.arch }} RELEASE="true"
+          go tool task build-deb:arduino-app-cli VERSION=${TAG_VERSION} ARCH=${{ matrix.arch }} RELEASE="true"
 
       - name: Create Github Release and upload artifacts
         uses: ncipollo/release-action@v1
