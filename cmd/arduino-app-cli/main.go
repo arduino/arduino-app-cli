@@ -55,6 +55,8 @@ func run(configuration cfg.Configuration) error {
 			if !ok {
 				feedback.Fatal(i18n.Tr("Invalid output format: %s", format), feedback.ErrBadArgument)
 			}
+			feedback.SetFormat(format)
+
 			logLevel, err := ParseLogLevel(logLevelStr)
 			if err != nil {
 				feedback.FatalError(err, feedback.ErrBadArgument)
