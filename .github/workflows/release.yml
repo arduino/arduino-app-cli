@@ -49,18 +49,6 @@ jobs:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Binary
-        env:
-          GOARCH: ${{ matrix.arch }}
-        run: |
-          export CGO_ENABLED=0
-
-          mkdir -p build
-          go build -v -ldflags "-s -w -X 'main.Version=${TAG_VERSION}'" -o ./build/${{ env.PROJECT_NAME }} ./cmd/arduino-app-cli
-          chmod +x ./build/${{ env.PROJECT_NAME }}
-          tar -czvf ./build/${{ env.PROJECT_NAME }}-${TAG_VERSION}-${{ matrix.platform-name }}-${{ matrix.arch }}.tar.gz -C ./build ${{ env.PROJECT_NAME }}
-          rm ./build/${{ env.PROJECT_NAME }}
-
       - name: Build deb
         if: matrix.platform-name == 'linux'
         run: |
