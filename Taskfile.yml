@@ -235,9 +235,6 @@ tasks:
     desc: Extract project and dependency licenses into asd copyright
     cmds:
       - |
-          gem install licensed --version "{{.LICENSED_VERSION}}"
-
-          licensed cache
           licensed notices
           cat > debian/arduino-app-cli/usr/share/doc/arduino-app-cli/copyright <<EOF
           Copyright 2025 ARDUINO SA (http://www.arduino.cc/)
