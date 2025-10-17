@@ -77,7 +77,7 @@ func FindRepositoryRootPath(t *testing.T) *paths.Path {
 	require.NoError(t, err)
 	for !repoRootPath.Join(".git").Exist() {
 		t.Log(repoRootPath.String())
-		require.Contains(t, repoRootPath.String(), "orchestrator", "Error searching for repository root path")
+		require.Contains(t, repoRootPath.String(), "arduino-app-cli", "Error searching for repository root path")
 		repoRootPath = repoRootPath.Parent()
 	}
 	return repoRootPath
