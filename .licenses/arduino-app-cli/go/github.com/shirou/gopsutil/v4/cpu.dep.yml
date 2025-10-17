@@ -4,7 +4,7 @@ version: v4.25.6
 type: go
 summary: 'SPDX-License-Identifier: BSD-3-Clause'
 homepage: https://pkg.go.dev/github.com/shirou/gopsutil/v4/cpu
-license:  bsd-3-clause
+license: bsd-3-clause
 licenses:
 - sources: v4@v4.25.6/LICENSE
   text: |-
