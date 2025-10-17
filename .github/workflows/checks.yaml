@@ -1,0 +1,54 @@
+name: Run Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# In the same branch only 1 workflow per time can run. In case we're not in the
+# main branch we cancel previous running workflow
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+  # Used by the buf to create a comment with a brief summary of failing tets
+  pull-requests: write
+
+jobs:
+  run-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dprint/check@v2.2
+        with:
+          dprint-version: 0.48.0
+
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.4.0
+          args: --timeout 300s
+
+      - name: Check go mod
+        run: |
+          go mod tidy
+          git diff --color --exit-code
+
+      # This is required to allow licensee/setup-licensed to install Licensed via Ruby gem.
+      - name: Install Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ruby # Install latest version
+      - name: Install licensed
+        uses: licensee/setup-licensed@v1.3.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          version: 5.x
+
+      - name: Run deb copyright check
+        run: |
+          go tool task update-deb-copyright
+          git diff --color --exit-code

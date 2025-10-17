@@ -1,0 +1,20 @@
+name: Block Merge if "do-not-merge" Label Exists
+
+on:
+  pull_request:
+    types:
+      - opened
+      - labeled
+      - unlabeled
+      - synchronize # important for when new commits are pushed
+
+jobs:
+  check-do-not-merge-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for "do-not-merge" label
+        if: contains(github.event.pull_request.labels.*.name, 'do-not-merge')
+        run: |
+          echo "This Pull Request has the 'do-not-merge' label. Merging is blocked."
+          echo "Please remove the 'do-not-merge' label to enable merging."
+          exit 1 # This will cause the workflow to fail
