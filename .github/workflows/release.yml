@@ -47,7 +47,6 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build deb
-        if: matrix.platform-name == 'linux'
         run: |
           task build-deb:arduino-app-cli VERSION=${TAG_VERSION} ARCH=${{ matrix.arch }} RELEASE="true"
 
