@@ -1,0 +1,76 @@
+name: Release arduino-app-cli
+
+on:
+  push:
+    tags:
+      - "*" # Trigger on all tags
+
+env:
+  GO_VERSION: "1.25.1"
+  PROJECT_NAME: "arduino-app-cli"
+  GITHUB_TOKEN: ${{ secrets.ARDUINOBOT_TOKEN }}
+  GITHUB_USERNAME: ArduinoBot
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-22.04]
+        arch: [amd64, arm64]
+        include:
+          - os: ubuntu-22.04
+            platform-name: linux
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Set env vars
+        run: |
+          echo "TAG_VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
+          echo "creating tag ${TAG_VERSION}"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git for private repo cloning
+        run: |
+          git config --global url."https://${{ env.GITHUB_USERNAME }}:${{ env.GITHUB_TOKEN }}@github.com".insteadOf "https://github.com"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Binary
+        env:
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          export CGO_ENABLED=0
+
+          mkdir -p build
+          go build -v -ldflags "-s -w -X 'main.Version=${TAG_VERSION}'" -o ./build/${{ env.PROJECT_NAME }} ./cmd/arduino-app-cli
+          chmod +x ./build/${{ env.PROJECT_NAME }}
+          tar -czvf ./build/${{ env.PROJECT_NAME }}-${TAG_VERSION}-${{ matrix.platform-name }}-${{ matrix.arch }}.tar.gz -C ./build ${{ env.PROJECT_NAME }}
+          rm ./build/${{ env.PROJECT_NAME }}
+
+      - name: Build deb
+        if: matrix.platform-name == 'linux'
+        run: |
+          task build-deb VERSION=${TAG_VERSION} ARCH=${{ matrix.arch }} RELEASE="true"
+
+      - name: Create Github Release and upload artifacts
+        uses: ncipollo/release-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          draft: false
+          prerelease: true
+          artifacts: build/*.tar.gz,build/*.deb
+          allowUpdates: true
