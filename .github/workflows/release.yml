@@ -60,5 +60,5 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           draft: false
           prerelease: true
-          artifacts: build/*.tar.gz,build/*.deb
+          artifacts: build/*.deb
           allowUpdates: true
