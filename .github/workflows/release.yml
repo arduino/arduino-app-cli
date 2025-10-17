@@ -17,9 +17,6 @@ jobs:
       matrix:
         os: [ubuntu-22.04]
         arch: [amd64, arm64]
-        include:
-          - os: ubuntu-22.04
-            platform-name: linux
 
     runs-on: ${{ matrix.os }}
 
