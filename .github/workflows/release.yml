@@ -64,7 +64,7 @@ jobs:
       - name: Build deb
         if: matrix.platform-name == 'linux'
         run: |
-          task build-deb VERSION=${TAG_VERSION} ARCH=${{ matrix.arch }} RELEASE="true"
+          task build-deb:arduino-app-cli VERSION=${TAG_VERSION} ARCH=${{ matrix.arch }} RELEASE="true"
 
       - name: Create Github Release and upload artifacts
         uses: ncipollo/release-action@v1
