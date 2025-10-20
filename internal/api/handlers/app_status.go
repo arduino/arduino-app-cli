@@ -42,6 +42,16 @@ func HandlerAppStatus(
 		}
 		defer sseStream.Close()
 
+		result, err := orchestrator.ListApps(r.Context(), dockerCli, orchestrator.ListAppRequest{ShowExamples: true, ShowApps: true}, idProvider, cfg)
+		if err != nil {
+			sseStream.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: err.Error()})
+		}
+		for _, app := range result.Apps {
+			if app.Status != "" {
+				sseStream.Send(render.SSEEvent{Type: "app", Data: app})
+			}
+		}
+
 		for appStatus, err := range orchestrator.AppStatusEvents(r.Context(), cfg, dockerCli, idProvider) {
 			if err != nil {
 				sseStream.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: err.Error()})
