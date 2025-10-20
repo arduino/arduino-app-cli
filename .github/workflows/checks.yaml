@@ -36,4 +36,3 @@ jobs:
         run: |
           go mod tidy
           git diff --color --exit-code
-

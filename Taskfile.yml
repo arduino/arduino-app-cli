@@ -260,7 +260,6 @@ tasks:
       - licensed cache
       - licensed notices
 
-
   # Source: https://github.com/arduino/tooling-project-assets/blob/main/workflow-templates/assets/check-dependencies-task/Taskfile.yml
   general:check-dep-licenses:
     desc: Check for unapproved dependency licenses
