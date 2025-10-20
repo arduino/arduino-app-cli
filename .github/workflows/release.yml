@@ -6,7 +6,6 @@ on:
       - "v[0-9]+.[0-9]+.[0-9]+*"
 
 env:
-  GO_VERSION: "1.25.1"
   PROJECT_NAME: "arduino-app-cli"
   GITHUB_TOKEN: ${{ secrets.ARDUINOBOT_TOKEN }}
   GITHUB_USERNAME: ArduinoBot
@@ -38,7 +37,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go.mod
 
       - name: Build deb
         run: |
