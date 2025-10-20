@@ -41,7 +41,7 @@ jobs:
 
       - name: Build deb
         run: |
-          go tool task build-deb:arduino-app-cli VERSION=${TAG_VERSION} ARCH=${{ matrix.arch }} RELEASE="true"
+          go tool task build-deb VERSION=${TAG_VERSION} ARCH=${{ matrix.arch }} RELEASE="true"
 
       - name: Create Github Release and upload artifacts
         uses: ncipollo/release-action@v1
