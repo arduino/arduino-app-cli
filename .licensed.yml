@@ -6,7 +6,6 @@ cache_path: .licenses
 apps:
   - source_path: ./cmd/arduino-app-cli
 
-
 reviewed:
   go:
     # TODO: remove it after releasing this https://github.com/arduino/go-win32-utils/pull/10

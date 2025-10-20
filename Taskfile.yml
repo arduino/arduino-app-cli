@@ -97,7 +97,17 @@ tasks:
     cmds:
       - python3 -m http.server 8000 -d docs
 
-  clone-examples-repo:
+  build-deb:
+    desc: Build debian package
+    deps:
+      - build-deb:clone-examples
+      - build-deb:copyright
+    cmds:
+      - docker build --build-arg BINARY_NAME=arduino-app-cli --build-arg DEB_NAME=arduino-app-cli --build-arg VERSION={{ .VERSION }} --build-arg ARCH={{ .ARCH }} --build-arg RELEASE={{ .RELEASE }} --output=./build -f debian/Dockerfile .
+    vars:
+      ARCH: '{{.ARCH | default "arm64"}}'
+
+  build-deb:clone-examples:
     desc: "Clones the examples repo directly into the debian structure"
     cmds:
       - |
@@ -114,14 +124,29 @@ tasks:
           echo "Examples successfully cloned."
     silent: false
 
-  build-deb:arduino-app-cli:
-    desc: Build debian package
-    deps:
-      - clone-examples-repo
+  build-deb:copyright:
+    desc: Add dependency licenses to debian copyright file
     cmds:
-      - docker build --build-arg BINARY_NAME=arduino-app-cli --build-arg DEB_NAME=arduino-app-cli --build-arg VERSION={{ .VERSION }} --build-arg ARCH={{ .ARCH }} --build-arg RELEASE={{ .RELEASE }} --output=./build -f debian/Dockerfile .
-    vars:
-      ARCH: '{{.ARCH | default "arm64"}}'
+      - mkdir -p debian/arduino-app-cli/usr/share/doc/arduino-app-cli
+      - |
+          cat > debian/arduino-app-cli/usr/share/doc/arduino-app-cli/copyright <<EOF
+          Copyright 2025 ARDUINO SA (http://www.arduino.cc/)
+
+          This software is released under the GNU General Public License version 3,
+          which covers the main part of arduino-app-cli.
+          The terms of this license can be found at:
+          https://www.gnu.org/licenses/gpl-3.0.en.html
+
+          You can be released from the requirements of the above licenses by purchasing
+          a commercial license. Buying such a license is mandatory if you want to
+          modify or otherwise use the software for commercial activities involving the
+          Arduino software without disclosing the source code of your own applications.
+          To purchase a commercial license, send an email to license@arduino.cc.
+
+          ---
+
+          EOF
+      - cat .licenses/arduino-app-cli/NOTICE >> debian/arduino-app-cli/usr/share/doc/arduino-app-cli/copyright
 
   arduino-app-cli:build:local:
     desc: "Build the arduino-app-cli locally"
@@ -172,7 +197,7 @@ tasks:
     interactive: true
     cmds:
       - rm ./build/*.deb || true
-      - task: build-deb:arduino-app-cli
+      - task: build-deb
       - adb shell rm /tmp/*.deb || true
       - adb push ./build/arduino-app-cli_*_arm64.deb /tmp/
       - ./scripts/run-remote-sudo.sh "dpkg -i /tmp/arduino-app-cli*_arm64.deb && needrestart -r a"
@@ -231,30 +256,6 @@ tasks:
       - cmd: sed -i '' "{{.sed_replacement}}" internal/orchestrator/config/config.go
         platforms: [darwin]
 
-  update-deb-copyright:
-    desc: Extract project and dependency licenses into asd copyright
-    cmds:
-      - |
-          licensed notices
-          cat > debian/arduino-app-cli/usr/share/doc/arduino-app-cli/copyright <<EOF
-          Copyright 2025 ARDUINO SA (http://www.arduino.cc/)
-
-          This software is released under the GNU General Public License version 3,
-          which covers the main part of arduino-app-cli.
-          The terms of this license can be found at:
-          https://www.gnu.org/licenses/gpl-3.0.en.html
-
-          You can be released from the requirements of the above licenses by purchasing
-          a commercial license. Buying such a license is mandatory if you want to
-          modify or otherwise use the software for commercial activities involving the
-          Arduino software without disclosing the source code of your own applications.
-          To purchase a commercial license, send an email to license@arduino.cc.
-
-          ---
-
-          EOF
-          cat .licenses/arduino-app-cli/NOTICE  >> debian/arduino-app-cli/usr/share/doc/arduino-app-cli/copyright
-
   # Source: https://github.com/arduino/tooling-project-assets/blob/main/workflow-templates/assets/check-dependencies-task/Taskfile.yml
   general:cache-dep-licenses:
     desc: Cache dependency license metadata
@@ -276,6 +277,7 @@ tasks:
             exit 1
           fi
       - licensed cache
+      - licensed notices
 
   # Source: https://github.com/arduino/tooling-project-assets/blob/main/workflow-templates/assets/check-dependencies-task/Taskfile.yml
   general:check-dep-licenses:
