@@ -146,7 +146,6 @@ tasks:
           ---
 
           EOF
-      - cat .licenses/arduino-app-cli/NOTICE >> debian/arduino-app-cli/usr/share/doc/arduino-app-cli/copyright
 
   arduino-app-cli:build:local:
     desc: "Build the arduino-app-cli locally"
