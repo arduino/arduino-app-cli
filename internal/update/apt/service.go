@@ -54,13 +54,14 @@ func (s *Service) ListUpgradablePackages(ctx context.Context, matcher func(updat
 	}
 	defer s.lock.Unlock()
 
+	// Attempt to fix dpkg database in case an upgrade was interrupted in the middle.
 	if err := runDpkgConfigureCommand(ctx); err != nil {
-		return nil, fmt.Errorf("error running dpkg configure command: %w", err)
+		slog.Warn("error running dpkg configure command, skipped", "error", err)
 	}
 
 	err := runUpdateCommand(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("error running apt-get update command: %w", err)
+		return nil, err
 	}
 
 	pkgs, err := listUpgradablePackages(ctx, matcher)
@@ -170,9 +171,9 @@ func runDpkgConfigureCommand(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	err = dpkgCmd.RunWithinContext(ctx)
+	out, err := dpkgCmd.RunAndCaptureCombinedOutput(ctx)
 	if err != nil {
-		return fmt.Errorf("error running dpkg configure command: %w", err)
+		return fmt.Errorf("error running dpkg configure command: %w: %s", err, out)
 	}
 	return nil
 }
@@ -182,9 +183,9 @@ func runUpdateCommand(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	err = updateCmd.RunWithinContext(ctx)
+	out, err := updateCmd.RunAndCaptureCombinedOutput(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("error running apt-get update command: %w: %s", err, out)
 	}
 	return nil
 }
