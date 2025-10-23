@@ -279,7 +279,7 @@ func getTestApp(t *testing.T, appPath, appName string) app.ArduinoApp {
 	assert.Equal(t, f.Must(filepath.Abs("testdata/"+appName+"/python/main.py")), app.MainPythonFile.String())
 	// in case you want to test sketch based apps too
 	// assert.NotNil(t, app.MainSketchPath)
-	//assert.Equal(t, f.Must(filepath.Abs("testdata/"+appName+"/sketch")), app.MainSketchPath.String())
+	// assert.Equal(t, f.Must(filepath.Abs("testdata/"+appName+"/sketch")), app.MainSketchPath.String())
 	return app
 }
 
