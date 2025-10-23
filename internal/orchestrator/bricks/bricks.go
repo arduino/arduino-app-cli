@@ -154,7 +154,7 @@ func (s *Service) BricksDetails(id string) (BrickDetailsResult, error) {
 	if err != nil {
 		return BrickDetailsResult{}, fmt.Errorf("cannot open code examples for brick %s: %w", id, err)
 	}
-	var codeExamples = f.Map(examplePaths, func(p *paths.Path) CodeExample {
+	codeExamples := f.Map(examplePaths, func(p *paths.Path) CodeExample {
 		return CodeExample{
 			Path: p.String(),
 		}
