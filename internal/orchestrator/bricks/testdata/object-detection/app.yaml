@@ -1,0 +1,8 @@
+name: Detect objects on images
+icon: 🏞️
+description: Object detection in the browser
+
+bricks:
+  - arduino:web_ui
+  - arduino:object_detection
+  - arduino:arduino_cloud
