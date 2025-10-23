@@ -54,13 +54,14 @@ func (s *Service) ListUpgradablePackages(ctx context.Context, matcher func(updat
 	}
 	defer s.lock.Unlock()
 
+	// Attempt to fix dpkg database in case an upgrade was interrupted in the middle.
 	if err := runDpkgConfigureCommand(ctx); err != nil {
-		return nil, fmt.Errorf("error running dpkg configure command: %w", err)
+		slog.Warn("error running dpkg configure command, skipped", "error", err)
 	}
 
 	err := runUpdateCommand(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("error running apt-get update command: %w", err)
+		return nil, err
 	}
 
 	pkgs, err := listUpgradablePackages(ctx, matcher)
@@ -166,25 +167,23 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan u
 // runDpkgConfigureCommand is need in case an upgrade was interrupted in the middle
 // and the dpkg database is in an inconsistent state.
 func runDpkgConfigureCommand(ctx context.Context) error {
-	dpkgCmd, err := paths.NewProcess(nil, "sudo", "dpkg", "--configure", "-a")
+	cmd, err := paths.NewProcess(nil, "sudo", "dpkg", "--configure", "-a")
 	if err != nil {
 		return err
 	}
-	err = dpkgCmd.RunWithinContext(ctx)
-	if err != nil {
-		return fmt.Errorf("error running dpkg configure command: %w", err)
+	if out, err := cmd.RunAndCaptureCombinedOutput(ctx); err != nil {
+		return fmt.Errorf("error running dpkg configure command: %w: %s", err, out)
 	}
 	return nil
 }
 
 func runUpdateCommand(ctx context.Context) error {
-	updateCmd, err := paths.NewProcess(nil, "sudo", "apt-get", "update")
+	cmd, err := paths.NewProcess(nil, "sudo", "apt-get", "update")
 	if err != nil {
 		return err
 	}
-	err = updateCmd.RunWithinContext(ctx)
-	if err != nil {
-		return err
+	if out, err := cmd.RunAndCaptureCombinedOutput(ctx); err != nil {
+		return fmt.Errorf("error running apt-get update command: %w: %s", err, out)
 	}
 	return nil
 }
@@ -202,23 +201,24 @@ func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, er
 	args = append(args, names...)
 
 	return func(yield func(string, error) bool) {
-		upgradeCmd, err := paths.NewProcess(env, args...)
+		cmd, err := paths.NewProcess(env, args...)
 		if err != nil {
 			_ = yield("", err)
 			return
 		}
+
 		stdout := orchestrator.NewCallbackWriter(func(line string) {
 			if !yield(line, nil) {
-				err := upgradeCmd.Kill()
-				if err != nil {
+				if err := cmd.Kill(); err != nil {
 					slog.Error("Failed to kill upgrade command", slog.String("error", err.Error()))
 				}
-				return
 			}
 		})
-		upgradeCmd.RedirectStderrTo(stdout)
-		upgradeCmd.RedirectStdoutTo(stdout)
-		if err := upgradeCmd.RunWithinContext(ctx); err != nil {
+		cmd.RedirectStderrTo(stdout)
+		cmd.RedirectStdoutTo(stdout)
+
+		if err := cmd.RunWithinContext(ctx); err != nil {
+			_ = yield("", err)
 			return
 		}
 	}
@@ -227,18 +227,25 @@ func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, er
 
 func runAptCleanCommand(ctx context.Context) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
-		cleanCmd, err := paths.NewProcess(nil, "sudo", "apt-get", "clean", "-y")
+		cmd, err := paths.NewProcess(nil, "sudo", "apt-get", "clean", "-y")
 		if err != nil {
 			_ = yield("", err)
 			return
 		}
+
 		stdout := orchestrator.NewCallbackWriter(func(line string) {
-			_ = yield(line, nil)
+			if !yield(line, nil) {
+				if err := cmd.Kill(); err != nil {
+					slog.Error("Failed to kill apt clean command", slog.String("error", err.Error()))
+				}
+			}
 		})
-		cleanCmd.RedirectStderrTo(stdout)
-		cleanCmd.RedirectStdoutTo(stdout)
-		if err := cleanCmd.RunWithinContext(ctx); err != nil {
+		cmd.RedirectStderrTo(stdout)
+		cmd.RedirectStdoutTo(stdout)
+
+		if err := cmd.RunWithinContext(ctx); err != nil {
 			_ = yield("", err)
+			return
 		}
 	}
 }
@@ -250,19 +257,19 @@ func pullDockerImages(ctx context.Context) iter.Seq2[string, error] {
 			_ = yield("", err)
 			return
 		}
+
 		stdout := orchestrator.NewCallbackWriter(func(line string) {
 			if !yield(line, nil) {
-				err := cmd.Kill()
-				if err != nil {
+				if err := cmd.Kill(); err != nil {
 					slog.Error("Failed to kill 'arduino-app-cli system init' command", slog.String("error", err.Error()))
 				}
-				return
 			}
 		})
 		cmd.RedirectStderrTo(stdout)
 		cmd.RedirectStdoutTo(stdout)
-		err = cmd.RunWithinContext(ctx)
-		if err != nil {
+
+		if err = cmd.RunWithinContext(ctx); err != nil {
+			_ = yield("", err)
 			return
 		}
 	}
@@ -279,19 +286,15 @@ func cleanupDockerContainers(ctx context.Context) iter.Seq2[string, error] {
 
 		stdout := orchestrator.NewCallbackWriter(func(line string) {
 			if !yield(line, nil) {
-				err := cmd.Kill()
-				if err != nil {
+				if err := cmd.Kill(); err != nil {
 					slog.Error("Failed to kill 'arduino-app-cli system cleanup' command", slog.String("error", err.Error()))
 				}
-				return
 			}
 		})
-
 		cmd.RedirectStderrTo(stdout)
 		cmd.RedirectStdoutTo(stdout)
 
-		err = cmd.RunWithinContext(ctx)
-		if err != nil {
+		if err = cmd.RunWithinContext(ctx); err != nil {
 			_ = yield("", err)
 			return
 		}
@@ -309,11 +312,7 @@ func restartServices(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	err = needRestartCmd.RunWithinContext(ctx)
-	if err != nil {
-		return err
-	}
-	return nil
+	return needRestartCmd.RunWithinContext(ctx)
 }
 
 func listUpgradablePackages(ctx context.Context, matcher func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
