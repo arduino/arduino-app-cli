@@ -7,18 +7,21 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
+
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
 const validBrickID = "arduino:arduino_cloud"
 
-func setupTestStore() (*StaticStore, string) {
-	baseDir := paths.New("testdata").String()
+func setupTestStore(t *testing.T) (*StaticStore, string) {
+	cfg, err := config.NewFromEnv()
+	require.NoError(t, err)
+	baseDir := paths.New("testdata", "assets", cfg.RunnerVersion).String()
 	return NewStaticStore(baseDir), baseDir
 }
 
 func TestGetBrickReadmeFromID(t *testing.T) {
-
-	store, baseDir := setupTestStore()
+	store, baseDir := setupTestStore(t)
 	namespace, brickName, _ := parseBrickID(validBrickID)
 	expectedReadmePath := filepath.Join(baseDir, "docs", namespace, brickName, "README.md")
 	expectedContent, err := os.ReadFile(expectedReadmePath)
@@ -57,15 +60,10 @@ func TestGetBrickReadmeFromID(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-
 			content, err := store.GetBrickReadmeFromID(tc.brickID)
-
 			if tc.wantErr {
-
 				require.Error(t, err, "should have returned an error")
-
 				if tc.wantErrIs != nil {
-
 					require.ErrorIs(t, err, tc.wantErrIs, "error type mismatch")
 				}
 				if tc.wantErrMsg != "" {
@@ -80,11 +78,8 @@ func TestGetBrickReadmeFromID(t *testing.T) {
 }
 
 func TestGetBrickComposeFilePathFromID(t *testing.T) {
-
-	store, baseDir := setupTestStore()
-
+	store, baseDir := setupTestStore(t)
 	namespace, brickName, _ := parseBrickID(validBrickID)
-
 	expectedPathString := filepath.Join(baseDir, "compose", namespace, brickName, "brick_compose.yaml")
 
 	testCases := []struct {
@@ -112,7 +107,6 @@ func TestGetBrickComposeFilePathFromID(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			path, err := store.GetBrickComposeFilePathFromID(tc.brickID)
-
 			if tc.wantErr {
 				require.Error(t, err, "function was expected to return an error")
 				require.Nil(t, path, "path was expected to be nil")
@@ -127,8 +121,7 @@ func TestGetBrickComposeFilePathFromID(t *testing.T) {
 }
 
 func TestGetBrickCodeExamplesPathFromID(t *testing.T) {
-	store, _ := setupTestStore()
-
+	store, _ := setupTestStore(t)
 	const expectedEntryCount = 2
 
 	testCases := []struct {
@@ -169,7 +162,6 @@ func TestGetBrickCodeExamplesPathFromID(t *testing.T) {
 			} else {
 				require.NoError(t, err, "should not have returned an error")
 			}
-
 			if tc.wantNilList {
 				require.Nil(t, pathList, "pathList should be nil")
 			} else {
