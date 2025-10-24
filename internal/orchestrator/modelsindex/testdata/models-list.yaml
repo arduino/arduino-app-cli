@@ -108,5 +108,4 @@ models:
       source-model-id: "YOLOX-Nano"
       source-model-url: "https://github.com/Megvii-BaseDetection/YOLOX"
     bricks:
-      - arduino:object_detection
       - arduino:video_object_detection
