@@ -25,13 +25,26 @@ import (
 )
 
 func TestLoad(t *testing.T) {
-	t.Run("empty", func(t *testing.T) {
+	t.Run("empty path returns an error", func(t *testing.T) {
 		app, err := Load("")
 		assert.Error(t, err)
 		assert.Empty(t, app)
+		assert.Contains(t, err.Error(), "empty")
 	})
 
-	t.Run("AppSimple", func(t *testing.T) {
+	t.Run("it fails if the app path is an existing file", func(t *testing.T) {
+		_, err := Load("testdata/app.yaml")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "app path must be a directory")
+	})
+
+	t.Run("it fails if the app path does not exist", func(t *testing.T) {
+		_, err := Load("testdata/this-folder-does-not-exist")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "app path is not valid")
+	})
+
+	t.Run("it load an app correctly", func(t *testing.T) {
 		app, err := Load("testdata/AppSimple")
 		assert.NoError(t, err)
 		assert.NotEmpty(t, app)
