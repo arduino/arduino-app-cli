@@ -1,0 +1,8 @@
+models:
+  - invalid_model:
+      name: "Invalid Model"
+      description: "Missing required fields"
+      # Missing runner field
+      invalid_field: "this should cause parsing issues"
+    - another_invalid:
+        name: 123  # Invalid type for name field
