@@ -8,8 +8,8 @@ vars:
   GOLANGCI_LINT_VERSION: v2.4.0
   GOIMPORTS_VERSION: v0.29.0
   DPRINT_VERSION: 0.48.0
-  EXAMPLE_VERSION: "0.4.8"
-  RUNNER_VERSION: "0.4.8"
+  EXAMPLE_VERSION: "0.5.0"
+  RUNNER_VERSION: "0.5.0"
   VERSION: # if version is not passed we hack the semver by encoding the commit as pre-release
     sh: echo "${VERSION:-0.0.0-$(git rev-parse --short HEAD)}"
 
@@ -115,8 +115,8 @@ tasks:
           echo "Runner version set as: {{ .EXAMPLE_VERSION }}"
           TMP_PATH="$(mktemp -d)"
           DEST_PATH="debian/arduino-app-cli/home/arduino/.local/share/arduino-app-cli/"
-          echo "Cloning bcmi-labs/app-bricks-example into temporary directory ${TMP_PATH}..."
-          git clone --depth 1 --branch "{{ .EXAMPLE_VERSION }}" https://github.com/bcmi-labs/app-bricks-example "${TMP_PATH}"
+          echo "Cloning arduino/app-bricks-example into temporary directory ${TMP_PATH}..."
+          git clone --depth 1 --branch "{{ .EXAMPLE_VERSION }}" https://github.com/arduino/app-bricks-example "${TMP_PATH}"
           rm -rf "${DEST_PATH}/examples"
           mkdir -p "${DEST_PATH}"
           mv "${TMP_PATH}/examples" "${DEST_PATH}"
@@ -215,7 +215,7 @@ tasks:
           TMP_PATH="$(mktemp -d)"
 
           echo "Cloning examples into temporary directory ${TMP_PATH}..."
-          git clone --depth 1 https://github.com/bcmi-labs/app-bricks-example.git "${TMP_PATH}"
+          git clone --depth 1 https://github.com/arduino/app-bricks-example.git "${TMP_PATH}"
 
           echo "Installing examples to ${DEST_PATH}examples"
           rm -rf "${DEST_PATH}examples"
@@ -230,7 +230,7 @@ tasks:
     desc: This generates the models and bricks index. Also updates the corresponding testdata.
     vars:
       sed_replacement: s#runnerVersion = \".*#runnerVersion = \"{{.RUNNER_VERSION}}\"#
-      TMPDIR: '{{trimSuffix "/" .TMPDIR| default "/tmp"}}/generate-assets'
+      TMPDIR: '{{trimSuffix "/" (env "TMPDIR")| default "/tmp"}}/generate-assets'
       SEMVER_TAG: "{{.RUNNER_VERSION}}"
       OUTPUT_DIR: "{{.TMPDIR}}/{{.SEMVER_TAG}}"
       ASSETS_DIR: debian/arduino-app-cli/home/arduino/.local/share/arduino-app-cli/assets
@@ -241,7 +241,7 @@ tasks:
     cmds:
       - |
           # Get the corresponding models and bricks release, and unzip it.
-          gh release download -R bcmi-labs/app-bricks-py "release/{{.SEMVER_TAG}}" -p '*.whl' -D "{{.TMPDIR}}" --clobber
+          gh release download -R arduino/app-bricks-py "release/{{.SEMVER_TAG}}" -p '*.whl' -D "{{.TMPDIR}}" --clobber
           unzip -o "{{.TMPDIR}}/arduino_app_bricks-{{.SEMVER_TAG}}-py3-none-any.whl" -d "{{.OUTPUT_DIR}}"
       - |
           # Copy the assets to the assets dir and testdata dir, replacing the previous version.

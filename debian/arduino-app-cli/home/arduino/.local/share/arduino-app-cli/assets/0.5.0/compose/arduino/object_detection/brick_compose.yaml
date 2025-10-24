@@ -1,0 +1,24 @@
+# EI_OBJ_DETECTION_MODEL = path to the model file
+# CUSTOM_MODEL_PATH = path to the custom model directory
+services:
+  ei-obj-detection-runner:
+    image: ${DOCKER_REGISTRY_BASE:-ghcr.io/arduino/}app-bricks/ei-models-runner:0.5.0
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"     
+    devices:
+      - "/dev/dri:/dev/dri"
+    group_add:
+      - "render"
+    ports:
+      - ${BIND_ADDRESS:-127.0.0.1}:${BIND_PORT:-1337}:1337
+    volumes:
+      - "${CUSTOM_MODEL_PATH:-/home/arduino/.arduino-bricks/ei-models}:${CUSTOM_MODEL_PATH:-/home/arduino/.arduino-bricks/ei-models}"
+    command: ["--model-file", "${EI_OBJ_DETECTION_MODEL:-/models/ootb/ei/yolo-x-nano.eim}", "--run-http-server", "1337", "--dont-print-predictions"]
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -q --spider http://localhost:1337/api/info || exit 1" ]
+      interval: 2s
+      timeout: 2s
+      retries: 25
