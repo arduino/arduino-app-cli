@@ -22,7 +22,11 @@ func TestGenerateModelsIndexFromFile(t *testing.T) {
 		modelsIndex, err := GenerateModelsIndexFromFile(paths.New("testdata"))
 		require.NoError(t, err)
 
-		model, found := modelsIndex.GetModelByID("face-detection")
+		model, found := modelsIndex.GetModelByID("not-existing-model")
+		assert.False(t, found)
+		assert.Nil(t, model)
+
+		model, found = modelsIndex.GetModelByID("face-detection")
 		assert.Equal(t, "brick", model.Runner)
 		require.True(t, found, "face-detection should be found")
 		assert.Equal(t, "face-detection", model.ID)
