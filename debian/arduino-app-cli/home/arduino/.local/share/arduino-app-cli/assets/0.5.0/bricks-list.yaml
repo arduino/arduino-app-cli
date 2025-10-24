@@ -1,0 +1,330 @@
+bricks:
+- id: arduino:dbstorage_sqlstore
+  name: Database - SQL
+  description: Simplified database storage layer for Arduino sensor data using SQLite
+    local database.
+  require_container: false
+  require_model: false
+  require_devices: false
+  mount_devices_into_container: false
+  ports: []
+  category: storage
+- id: arduino:object_detection
+  name: Object Detection
+  description: "Brick for object detection using a pre-trained model. It processes\
+    \ images and returns the predicted class label, bounding-boxes and confidence\
+    \ score.\nBrick is designed to work with pre-trained models provided by framework\
+    \ or with custom object detection models trained on Edge Impulse platform. \n"
+  require_container: true
+  require_model: true
+  require_devices: false
+  mount_devices_into_container: false
+  ports: []
+  category: video
+  model_name: yolox-object-detection
+  variables:
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: path to the custom model directory
+  - name: EI_OBJ_DETECTION_MODEL
+    default_value: /models/ootb/ei/yolo-x-nano.eim
+    description: path to the model file
+- id: arduino:mood_detector
+  name: Mood Detection
+  description: 'This brick analyzes text sentiment to detect the mood expressed.
+
+    It classifies text as positive, negative, or neutral.
+
+    '
+  require_container: false
+  require_model: false
+  require_devices: false
+  mount_devices_into_container: false
+  ports: []
+  category: text
+- id: arduino:camera_code_detection
+  name: Camera Code Detection
+  description: Scans a camera for barcodes and QR codes
+  require_container: false
+  require_model: false
+  require_devices: false
+  mount_devices_into_container: false
+  ports: []
+  category: video
+  required_devices:
+  - camera
+- id: arduino:audio_classification
+  name: Audio Classification
+  description: 'Brick for audio classification using a pre-trained model. It processes
+    audio input to classify different sounds.
+
+    Brick is designed to work with pre-trained models provided by framework or with
+    custom audio classification models trained on Edge Impulse platform.
+
+    '
+  require_container: true
+  require_model: true
+  require_devices: false
+  mount_devices_into_container: false
+  ports: []
+  category: audio
+  model_name: glass-breaking
+  variables:
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: path to the custom model directory
+  - name: EI_AUDIO_CLASSIFICATION_MODEL
+    default_value: /models/ootb/ei/glass-breaking.eim
+    description: path to the model file
+- id: arduino:arduino_cloud
+  name: Arduino Cloud
+  description: Connects to Arduino Cloud
+  require_container: false
+  require_model: false
+  require_devices: false
+  mount_devices_into_container: false
+  ports: []
+  category: null
+  variables:
+  - name: ARDUINO_DEVICE_ID
+    description: Arduino Cloud Device ID
+  - name: ARDUINO_SECRET
+    description: Arduino Cloud Secret
+- id: arduino:image_classification
+  name: Image Classification
+  description: "Brick for image classification using a pre-trained model. It processes\
+    \ images and returns the predicted class label and confidence score.\nBrick is\
+    \ designed to work with pre-trained models provided by framework or with custom\
+    \ image classification models trained on Edge Impulse platform. \n"
+  require_container: true
+  require_model: true
+  require_devices: false
+  mount_devices_into_container: false
+  ports: []
+  category: video
+  model_name: mobilenet-image-classification
+  variables:
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: path to the custom model directory
+  - name: EI_CLASSIFICATION_MODEL
+    default_value: /models/ootb/ei/mobilenet-v2-224px.eim
+    description: path to the model file
+- id: arduino:streamlit_ui
+  name: WebUI - Streamlit
+  description: A simplified user interface based on Streamlit and Python.
+  require_container: false
+  require_model: false
+  require_devices: false
+  mount_devices_into_container: false
+  ports:
+  - 7000
+  category: ui
+  requires_display: webview
+- id: arduino:vibration_anomaly_detection
+  name: Vibration Anomaly detection
+  description: 'This Brick is designed for vibration anomaly detection and recognition,
+    leveraging pre-trained models.
+
+    It takes input from sensors (accelerometer) to identify possible anomalies based
+    on vibration patterns.
+
+    You can use it with pre-trained models provided by the framework or with your
+    own custom anomaly detections models trained on the Edge Impulse platform.
+
+    '
+  require_container: true
+  require_model: true
+  require_devices: false
+  mount_devices_into_container: false
+  ports: []
+  category: null
+  model_name: fan-anomaly-detection
+  variables:
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: path to the custom model directory
+  - name: CUSTOM_MODEL_PATH
+    default_value: /models/custom/ei/
+    description: path to the custom model directory
+  - name: EI_VIBRATION_ANOMALY_DETECTION_MODEL
+    default_value: /models/ootb/ei/fan-anomaly-detection.eim
+- id: arduino:web_ui
+  name: WebUI - HTML
+  description: A user interface based on HTML and JavaScript that can rely on additional
+    APIs and a WebSocket exposed by a web server.
+  require_container: false
+  require_model: false
+  require_devices: false
+  mount_devices_into_container: false
+  ports:
+  - 7000
+  category: ui
+  requires_display: webview
+- id: arduino:keyword_spotting
+  name: Keyword Spotting
+  description: 'Brick for keyword spotting using a pre-trained model. It processes
+    audio input to detect specific keywords or phrases.
+
+    Brick is designed to work with pre-trained models provided by framework or with
+    custom audio classification models trained on Edge Impulse platform.
+
+    '
+  require_container: true
+  require_model: true
+  require_devices: false
+  mount_devices_into_container: false
+  ports: []
+  category: audio
+  model_name: keyword-spotting-hey-arduino
+  required_devices:
+  - microphone
+  variables:
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: path to the custom model directory
+  - name: EI_KEYWORD_SPOTTING_MODEL
+    default_value: /models/ootb/ei/keyword-spotting-hey-arduino.eim
+    description: path to the model file
+- id: arduino:video_image_classification
+  name: Video Image Classification
+  description: 'This image classification brick utilizes a pre-trained model to analyze
+    video streams from a camera.
+
+    It identifies objects, returning their predicted class labels and confidence scores.
+
+    The output is a video stream featuring classification as overaly, with the added
+    capability to trigger actions based on these detections.
+
+    It supports pre-trained models provided by the framework and custom object detection
+    models trained on the Edge Impulse platform.
+
+    '
+  require_container: true
+  require_model: true
+  require_devices: true
+  mount_devices_into_container: true
+  ports: []
+  category: video
+  model_name: mobilenet-image-classification
+  required_devices:
+  - camera
+  variables:
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models/
+    description: path to the custom model directory
+  - name: EI_CLASSIFICATION_MODEL
+    default_value: /models/ootb/ei/mobilenet-v2-224px.eim
+    description: path to the model file
+  - name: VIDEO_DEVICE
+    default_value: /dev/video1
+- id: arduino:weather_forecast
+  name: Weather Forecast
+  description: Online weather forecast module for Arduino using open-meteo.com geolocation
+    and weather APIs. Requires an internet connection.
+  require_container: false
+  require_model: false
+  require_devices: false
+  mount_devices_into_container: false
+  ports: []
+  category: miscellaneous
+- id: arduino:motion_detection
+  name: Motion detection
+  description: 'This Brick is designed for motion detection and recognition, leveraging
+    pre-trained models.
+
+    It takes input from accelerometer sensors to identify various motion patterns.
+
+    You can use it with pre-trained models provided by the framework or with your
+    custom motion classification models trained on the Edge Impulse platform.
+
+    '
+  require_container: true
+  require_model: true
+  require_devices: false
+  mount_devices_into_container: false
+  ports: []
+  category: null
+  model_name: updown-wave-motion-detection
+  variables:
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: path to the custom model directory
+  - name: EI_MOTION_DETECTION_MODEL
+    default_value: /models/ootb/ei/updown-wave-motion-detection.eim
+    description: path to the model file
+- id: arduino:dbstorage_tsstore
+  name: Database - Time Series
+  description: Simplified time series database storage layer for Arduino sensor samples
+    built on top of InfluxDB.
+  require_container: true
+  require_model: false
+  require_devices: false
+  mount_devices_into_container: false
+  ports: []
+  category: storage
+  variables:
+  - name: APP_HOME
+    default_value: .
+  - name: DB_PASSWORD
+    default_value: Arduino15
+    description: Database password
+  - name: DB_USERNAME
+    default_value: admin
+    description: Edge Impulse project API key
+  - name: INFLUXDB_ADMIN_TOKEN
+    default_value: 392edbf2-b8a2-481f-979d-3f188b2c05f0
+    description: InfluxDB admin token
+- id: arduino:visual_anomaly_detection
+  name: Visual Anomaly Detection
+  description: "Brick for visual anomaly detection using a pre-trained model. It processes\
+    \ images to identify unusual patterns and returns detected anomalies with bounding\
+    \ boxes. \nSupports pre-trained models provided by the framework or custom anomaly\
+    \ detection models trained on the Edge Impulse platform. \n"
+  require_container: true
+  require_model: true
+  require_devices: false
+  mount_devices_into_container: false
+  ports: []
+  category: image
+  model_name: concrete-crack-anomaly-detection
+  variables:
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: path to the custom model directory
+  - name: EI_V_ANOMALY_DETECTION_MODEL
+    default_value: /models/ootb/ei/concrete-crack-anomaly-detection.eim
+    description: path to the model file
+- id: arduino:video_object_detection
+  name: Video Object Detection
+  description: 'This object detection brick utilizes a pre-trained model to analyze
+    video streams from a camera.
+
+    It identifies objects, returning their predicted class labels, bounding boxes,
+    and confidence scores.
+
+    The output is a video stream featuring bounding boxes around detected objects,
+    with the added capability to trigger actions based on these detections.
+
+    It supports pre-trained models provided by the framework and custom object detection
+    models trained on the Edge Impulse platform.
+
+    '
+  require_container: true
+  require_model: true
+  require_devices: true
+  mount_devices_into_container: true
+  ports: []
+  category: null
+  model_name: yolox-object-detection
+  required_devices:
+  - camera
+  variables:
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models/
+    description: path to the custom model directory
+  - name: EI_OBJ_DETECTION_MODEL
+    default_value: /models/ootb/ei/yolo-x-nano.eim
+    description: path to the model file
+  - name: VIDEO_DEVICE
+    default_value: /dev/video1
