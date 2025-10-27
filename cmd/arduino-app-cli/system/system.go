@@ -40,16 +40,17 @@ func NewSystemCmd(cfg config.Configuration) *cobra.Command {
 		Use: "system",
 	}
 
-	cmd.AddCommand(newDownloadImage(cfg))
+	cmd.AddCommand(newDownloadImageCmd(cfg))
 	cmd.AddCommand(newUpdateCmd())
 	cmd.AddCommand(newCleanUpCmd(cfg, servicelocator.GetDockerClient()))
-	cmd.AddCommand(newNetworkMode())
-	cmd.AddCommand(newkeyboardSet())
+	cmd.AddCommand(newNetworkModeCmd())
+	cmd.AddCommand(newKeyboardSetCmd())
+	cmd.AddCommand(newBoardSetNameCmd())
 
 	return cmd
 }
 
-func newDownloadImage(cfg config.Configuration) *cobra.Command {
+func newDownloadImageCmd(cfg config.Configuration) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:    "init",
 		Args:   cobra.ExactArgs(0),
@@ -173,7 +174,7 @@ func newCleanUpCmd(cfg config.Configuration, docker command.Cli) *cobra.Command 
 	return cmd
 }
 
-func newNetworkMode() *cobra.Command {
+func newNetworkModeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "network-mode <enable|disable|status>",
 		Short: "Manage the network mode of the system",
@@ -209,7 +210,7 @@ func newNetworkMode() *cobra.Command {
 	return cmd
 }
 
-func newkeyboardSet() *cobra.Command {
+func newKeyboardSetCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "keyboard [layout]",
 		Short: "Manage the keyboard layout of the system",
@@ -249,4 +250,22 @@ func newkeyboardSet() *cobra.Command {
 		}}
 
 	return cmd
+}
+
+func newBoardSetNameCmd() *cobra.Command {
+	setNameCmd := &cobra.Command{
+		Use:   "set-name <name>",
+		Short: "Set the custom name of the board",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := args[0]
+			if err := board.SetCustomName(cmd.Context(), &local.LocalConnection{}, name); err != nil {
+				return fmt.Errorf("failed to set custom name: %w", err)
+			}
+			feedback.Printf("Custom name set to %q\n", name)
+			return nil
+		},
+	}
+
+	return setNameCmd
 }

@@ -25,7 +25,6 @@ import (
 	"go.bug.st/cleanup"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/app"
-	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/board"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/brick"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/config"
@@ -78,7 +77,6 @@ func run(configuration cfg.Configuration) error {
 		properties.NewPropertiesCmd(configuration),
 		config.NewConfigCmd(configuration),
 		system.NewSystemCmd(configuration),
-		board.NewBoardCmd(),
 		version.NewVersionCmd(Version),
 	)
 
