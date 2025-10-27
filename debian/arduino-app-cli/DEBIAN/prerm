@@ -1,3 +1,4 @@
 #!/bin/sh
 
 systemctl disable arduino-app-cli
+systemctl disable arduino-burn-bootloader
