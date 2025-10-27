@@ -36,4 +36,3 @@ build/
 
 # debian packaging files
 /debian/arduino-app-cli/home/arduino/.local/share/arduino-app-cli/examples
-/debian/arduino-app-cli/usr/share/doc/arduino-app-cli/copyright
