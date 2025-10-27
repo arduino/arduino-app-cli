@@ -116,7 +116,7 @@ tasks:
           TMP_PATH="$(mktemp -d)"
           DEST_PATH="debian/arduino-app-cli/home/arduino/.local/share/arduino-app-cli/"
           echo "Cloning arduino/app-bricks-example into temporary directory ${TMP_PATH}..."
-          git clone --depth 1 --branch "{{ .EXAMPLE_VERSION }}" https://github.com/arduino/app-bricks-example "${TMP_PATH}"
+          git clone --depth 1 --branch "{{ .EXAMPLE_VERSION }}" https://github.com/arduino/app-bricks-examples "${TMP_PATH}"
           rm -rf "${DEST_PATH}/examples"
           mkdir -p "${DEST_PATH}"
           mv "${TMP_PATH}/examples" "${DEST_PATH}"
