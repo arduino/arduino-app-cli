@@ -25,21 +25,23 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
-func newBricksDetailsCmd() *cobra.Command {
+func newBricksDetailsCmd(cfg config.Configuration) *cobra.Command {
 	return &cobra.Command{
 		Use:   "details",
 		Short: "Details of a specific brick",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			bricksDetailsHandler(args[0])
+			bricksDetailsHandler(args[0], cfg)
 		},
 	}
 }
 
-func bricksDetailsHandler(id string) {
-	res, err := servicelocator.GetBrickService().BricksDetails(id)
+func bricksDetailsHandler(id string, cfg config.Configuration) {
+	res, err := servicelocator.GetBrickService().BricksDetails(id, servicelocator.GetAppIDProvider(),
+		cfg)
 	if err != nil {
 		if errors.Is(err, bricks.ErrBrickNotFound) {
 			feedback.Fatal(err.Error(), feedback.ErrBadArgument)

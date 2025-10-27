@@ -18,6 +18,7 @@ package bricks
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"slices"
 
@@ -26,6 +27,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
@@ -125,7 +127,8 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 	}, nil
 }
 
-func (s *Service) BricksDetails(id string) (BrickDetailsResult, error) {
+func (s *Service) BricksDetails(id string, idProvider *app.IDProvider,
+	cfg config.Configuration) (BrickDetailsResult, error) {
 	brick, found := s.bricksIndex.FindBrickByID(id)
 	if !found {
 		return BrickDetailsResult{}, ErrBrickNotFound
@@ -160,6 +163,20 @@ func (s *Service) BricksDetails(id string) (BrickDetailsResult, error) {
 		}
 	})
 
+	/*qui mi serve una funzione per calcolare questo. devo iterare su ogni app, di esempio o no.
+	ho già la funzione appList che mi può aiutare.
+	e per ogni elemento se ho il bircikc id corrente
+	mi creo un AppReference*/
+	appList, err := getAppList(cfg)
+	if err != nil {
+		slog.Error("unable to get app list", slog.String("error", err.Error()))
+		return BrickDetailsResult{}, fmt.Errorf("unable to get app list: %w", err)
+	}
+	usedByApps, err := getUsedByApps(appList, brick.ID, idProvider)
+	if err != nil {
+		slog.Error("unable to get used by apps", slog.String("error", err.Error()))
+		return BrickDetailsResult{}, fmt.Errorf("unable to get used by apps: %w", err)
+	}
 	return BrickDetailsResult{
 		ID:           id,
 		Name:         brick.Name,
@@ -171,7 +188,73 @@ func (s *Service) BricksDetails(id string) (BrickDetailsResult, error) {
 		Readme:       readme,
 		ApiDocsPath:  apiDocsPath,
 		CodeExamples: codeExamples,
+		UsedByApps:   usedByApps,
 	}, nil
+}
+
+func getAppList(
+	cfg config.Configuration,
+) ([]app.ArduinoApp, error) {
+	var (
+		pathsToExplore paths.PathList
+		appPaths       paths.PathList
+	)
+	pathsToExplore.Add(cfg.ExamplesDir())
+	pathsToExplore.Add(cfg.AppsDir())
+	arduinoApps := []app.ArduinoApp{}
+
+	for _, p := range pathsToExplore {
+		res, err := p.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
+			if file.Base() == ".cache" {
+				return false
+			}
+			if file.Join("app.yaml").NotExist() && file.Join("app.yml").NotExist() {
+				return true
+			}
+			return false
+		}, paths.FilterDirectories(), paths.FilterOutNames("python", "sketch", ".cache"))
+
+		if err != nil {
+			slog.Error("unable to list apps", slog.String("error", err.Error()))
+			return arduinoApps, err
+		}
+		appPaths.AddAllMissing(res)
+	}
+
+	for _, file := range appPaths {
+		app, err := app.Load(file.String())
+		if err != nil {
+			/*			result.BrokenApps = append(result.BrokenApps, orchestrator.BrokenAppInfo{
+						Name:  file.Base(),
+						Error: fmt.Sprintf("unable to parse the app.yaml: %s", err.Error()),
+					})*/
+			continue
+		}
+
+		arduinoApps = append(arduinoApps, app)
+	}
+	return arduinoApps, nil
+}
+
+func getUsedByApps(apps []app.ArduinoApp, brickId string, idProvider *app.IDProvider) ([]AppReference, error) {
+	usedByApps := []AppReference{}
+	for _, app := range apps {
+		for _, b := range app.Descriptor.Bricks {
+			if b.ID == brickId {
+				id, err := idProvider.IDFromPath(app.FullPath)
+				if err != nil {
+					return usedByApps, fmt.Errorf("failed to get app ID for %s: %w", app.Name, err)
+				}
+				usedByApps = append(usedByApps, AppReference{
+					Name: app.Name,
+					ID:   id.String(),
+					Icon: app.Descriptor.Icon,
+				})
+				break
+			}
+		}
+	}
+	return usedByApps, nil
 }
 
 type BrickCreateUpdateRequest struct {
