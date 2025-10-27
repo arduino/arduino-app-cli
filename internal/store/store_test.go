@@ -2,31 +2,16 @@ package store
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
-
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
 const validBrickID = "arduino:arduino_cloud"
 
-func setupTestStore(t *testing.T) (*StaticStore, string) {
-	cfg, err := config.NewFromEnv()
-	require.NoError(t, err)
-	baseDir := paths.New("testdata", "assets", cfg.RunnerVersion).String()
-	return NewStaticStore(baseDir), baseDir
-}
-
 func TestGetBrickReadmeFromID(t *testing.T) {
-	store, baseDir := setupTestStore(t)
-	namespace, brickName, _ := parseBrickID(validBrickID)
-	expectedReadmePath := filepath.Join(baseDir, "docs", namespace, brickName, "README.md")
-	expectedContent, err := os.ReadFile(expectedReadmePath)
-	require.NoError(t, err, "Error Reading README file: %s", expectedReadmePath)
-	require.NotEmpty(t, expectedContent, "ReadME file is empty: %s", expectedReadmePath)
+	store := NewStaticStore(paths.New("testdata", "assets", "0.4.8").String())
 
 	testCases := []struct {
 		name        string
@@ -39,7 +24,7 @@ func TestGetBrickReadmeFromID(t *testing.T) {
 		{
 			name:        "Success - file found",
 			brickID:     validBrickID,
-			wantContent: string(expectedContent),
+			wantContent: "## Readme test file",
 			wantErr:     false,
 		},
 		{
@@ -78,9 +63,7 @@ func TestGetBrickReadmeFromID(t *testing.T) {
 }
 
 func TestGetBrickComposeFilePathFromID(t *testing.T) {
-	store, baseDir := setupTestStore(t)
-	namespace, brickName, _ := parseBrickID(validBrickID)
-	expectedPathString := filepath.Join(baseDir, "compose", namespace, brickName, "brick_compose.yaml")
+	store := NewStaticStore(paths.New("testdata", "assets", "0.4.8").String())
 
 	testCases := []struct {
 		name       string
@@ -92,7 +75,7 @@ func TestGetBrickComposeFilePathFromID(t *testing.T) {
 		{
 			name:     "Success - valid ID",
 			brickID:  validBrickID,
-			wantPath: expectedPathString,
+			wantPath: "testdata/assets/0.4.8/compose/arduino/arduino_cloud/brick_compose.yaml",
 			wantErr:  false,
 		},
 		{
@@ -121,7 +104,7 @@ func TestGetBrickComposeFilePathFromID(t *testing.T) {
 }
 
 func TestGetBrickCodeExamplesPathFromID(t *testing.T) {
-	store, _ := setupTestStore(t)
+	store := NewStaticStore(paths.New("testdata", "assets", "0.4.8").String())
 	const expectedEntryCount = 2
 
 	testCases := []struct {
