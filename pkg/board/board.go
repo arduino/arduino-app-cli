@@ -438,16 +438,6 @@ func EnsurePlatformInstalled(ctx context.Context, rawFQBN string) error {
 		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
 	}()
 
-	// TODO: after embargo remove this
-	_, err = srv.SettingsSetValue(ctx, &rpc.SettingsSetValueRequest{
-		Key:          "board_manager.additional_urls",
-		EncodedValue: "https://arduino:aptexperiment@apt-repo.oniudra.cc/zephyr-core-imola.json",
-		ValueFormat:  "cli",
-	})
-	if err != nil {
-		return err
-	}
-
 	stream, _ := commands.UpdateIndexStreamResponseToCallbackFunction(ctx, func(curr *rpc.DownloadProgress) {
 		slog.Debug("Update index progress", slog.String("download_progress", curr.String()))
 	})
