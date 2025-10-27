@@ -71,7 +71,7 @@ func run(configuration cfg.Configuration) error {
 
 	rootCmd.AddCommand(
 		app.NewAppCmd(configuration),
-		brick.NewBrickCmd(),
+		brick.NewBrickCmd(configuration),
 		completion.NewCompletionCommand(),
 		daemon.NewDaemonCmd(configuration, Version),
 		properties.NewPropertiesCmd(configuration),
