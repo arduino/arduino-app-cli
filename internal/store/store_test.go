@@ -1,7 +1,6 @@
 package store
 
 import (
-	"os"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
@@ -18,7 +17,6 @@ func TestGetBrickReadmeFromID(t *testing.T) {
 		brickID     string
 		wantContent string
 		wantErr     bool
-		wantErrIs   error
 		wantErrMsg  string
 	}{
 		{
@@ -32,7 +30,7 @@ func TestGetBrickReadmeFromID(t *testing.T) {
 			brickID:     "namespace:non_existent_brick",
 			wantContent: "",
 			wantErr:     true,
-			wantErrIs:   os.ErrNotExist,
+			wantErrMsg:  "open testdata/assets/0.4.8/docs/namespace/non_existent_brick/README.md: no such file or directory",
 		},
 		{
 			name:        "Failure - invalid ID",
@@ -48,9 +46,6 @@ func TestGetBrickReadmeFromID(t *testing.T) {
 			content, err := store.GetBrickReadmeFromID(tc.brickID)
 			if tc.wantErr {
 				require.Error(t, err, "should have returned an error")
-				if tc.wantErrIs != nil {
-					require.ErrorIs(t, err, tc.wantErrIs, "error type mismatch")
-				}
 				if tc.wantErrMsg != "" {
 					require.EqualError(t, err, tc.wantErrMsg, "error message mismatch")
 				}
@@ -105,47 +100,42 @@ func TestGetBrickComposeFilePathFromID(t *testing.T) {
 
 func TestGetBrickCodeExamplesPathFromID(t *testing.T) {
 	store := NewStaticStore(paths.New("testdata", "assets", "0.4.8").String())
-	const expectedEntryCount = 2
 
 	testCases := []struct {
 		name           string
 		brickID        string
-		wantNilList    bool
 		wantEntryCount int
-		wantErr        bool
-		wantErrMsg     string
+		wantErr        string
 	}{
 		{
 			name:           "Success - directory found",
 			brickID:        validBrickID,
-			wantNilList:    false,
-			wantEntryCount: expectedEntryCount,
-			wantErr:        false,
+			wantEntryCount: 2,
+			wantErr:        "",
 		},
 		{
-			name:        "Success - directory not found",
-			brickID:     "namespace:non_existent_brick",
-			wantNilList: true,
-			wantErr:     false,
+			name:           "Success - directory not found",
+			brickID:        "namespace:non_existent_brick",
+			wantEntryCount: 0,
+			wantErr:        "",
 		},
 		{
-			name:        "Failure - invalid ID",
-			brickID:     "invalid-id",
-			wantNilList: true,
-			wantErr:     true,
-			wantErrMsg:  "invalid ID",
+			name:           "Failure - invalid ID",
+			brickID:        "invalid-id",
+			wantEntryCount: 0,
+			wantErr:        "invalid ID",
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			pathList, err := store.GetBrickCodeExamplesPathFromID(tc.brickID)
-			if tc.wantErr {
+			if tc.wantErr != "" {
 				require.Error(t, err, "should have returned an error")
-				require.EqualError(t, err, tc.wantErrMsg, "error message mismatch")
+				require.EqualError(t, err, tc.wantErr, "error message mismatch")
 			} else {
 				require.NoError(t, err, "should not have returned an error")
 			}
-			if tc.wantNilList {
+			if tc.wantEntryCount == 0 {
 				require.Nil(t, pathList, "pathList should be nil")
 			} else {
 				require.NotNil(t, pathList, "pathList should not be nil")
