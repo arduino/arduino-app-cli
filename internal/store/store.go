@@ -99,6 +99,9 @@ func (s *StaticStore) GetBrickCodeExamplesPathFromID(brickID string) (paths.Path
 	targetDir := paths.New(s.codeExamplesPath, namespace, brickName)
 	dirEntries, err := targetDir.ReadDir()
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("cannot read examples directory %q: %w", targetDir, err)
 	}
 	return dirEntries, nil
