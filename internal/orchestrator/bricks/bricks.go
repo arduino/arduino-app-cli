@@ -163,10 +163,6 @@ func (s *Service) BricksDetails(id string, idProvider *app.IDProvider,
 		}
 	})
 
-	/*qui mi serve una funzione per calcolare questo. devo iterare su ogni app, di esempio o no.
-	ho già la funzione appList che mi può aiutare.
-	e per ogni elemento se ho il bircikc id corrente
-	mi creo un AppReference*/
 	appList, err := getAppList(cfg)
 	if err != nil {
 		slog.Error("unable to get app list", slog.String("error", err.Error()))
