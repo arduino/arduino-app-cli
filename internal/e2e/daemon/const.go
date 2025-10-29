@@ -15,6 +15,12 @@
 
 package daemon
 
+import (
+	"go.bug.st/f"
+
+	"github.com/arduino/arduino-app-cli/internal/e2e/client"
+)
+
 const (
 	ImageClassifactionBrickID      = "arduino:image_classification"
 	StreamLitUi                    = "arduino:streamlit_ui"
@@ -23,4 +29,21 @@ const (
 	noExistingApp                  = "dXNlcjp0ZXN0LWFwcAw"
 	malformedAppId                 = "this-is-definitely-not-base64"
 	noExisitingExample             = "ZXhhbXBsZXM6anVzdGJsaW5f"
+)
+
+var (
+	expectedVariablesDetails = []client.BrickInstanceVariable{
+		{
+			Description: f.Ptr("path to the custom model directory"),
+			Name:        f.Ptr("CUSTOM_MODEL_PATH"),
+			Required:    f.Ptr(false),
+			Value:       f.Ptr(""),
+		},
+		{
+			Description: f.Ptr("path to the model file"),
+			Name:        f.Ptr("EI_CLASSIFICATION_MODEL"),
+			Required:    f.Ptr(false),
+			Value:       f.Ptr(""),
+		},
+	}
 )

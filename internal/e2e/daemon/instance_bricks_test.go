@@ -68,6 +68,7 @@ func TestGetAppBrickInstances(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, *brickInstances.JSON200.Bricks, 1)
 		require.Equal(t, ImageClassifactionBrickID, *(*brickInstances.JSON200.Bricks)[0].Id)
+		require.Equal(t, expectedVariablesDetails, *(*brickInstances.JSON200.Bricks)[0].VariablesDetails)
 
 	})
 
@@ -111,6 +112,7 @@ func TestGetAppBrickInstanceById(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, brickInstance.JSON200)
 		require.Equal(t, ImageClassifactionBrickID, *brickInstance.JSON200.Id)
+		require.Equal(t, expectedVariablesDetails, (*brickInstance.JSON200.VariablesDetails))
 	})
 
 	t.Run("GetAppBrickInstanceByBrickID_InvalidAppID_Fails", func(t *testing.T) {
