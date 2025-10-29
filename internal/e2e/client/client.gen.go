@@ -142,13 +142,22 @@ type BrickDetailsResult struct {
 
 // BrickInstance defines model for BrickInstance.
 type BrickInstance struct {
-	Author    *string            `json:"author,omitempty"`
-	Category  *string            `json:"category,omitempty"`
-	Id        *string            `json:"id,omitempty"`
-	Model     *string            `json:"model,omitempty"`
-	Name      *string            `json:"name,omitempty"`
-	Status    *string            `json:"status,omitempty"`
-	Variables *map[string]string `json:"variables,omitempty"`
+	Author           *string                  `json:"author,omitempty"`
+	Category         *string                  `json:"category,omitempty"`
+	Id               *string                  `json:"id,omitempty"`
+	Model            *string                  `json:"model,omitempty"`
+	Name             *string                  `json:"name,omitempty"`
+	Status           *string                  `json:"status,omitempty"`
+	Variables        *map[string]string       `json:"variables,omitempty"`
+	VariablesDetails *[]BrickInstanceVariable `json:"variables_details,omitempty"`
+}
+
+// BrickInstanceVariable defines model for BrickInstanceVariable.
+type BrickInstanceVariable struct {
+	Description *string `json:"description,omitempty"`
+	Name        *string `json:"name,omitempty"`
+	Required    *bool   `json:"required,omitempty"`
+	Value       *string `json:"value,omitempty"`
 }
 
 // BrickListItem defines model for BrickListItem.

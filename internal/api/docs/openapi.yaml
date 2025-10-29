@@ -1337,6 +1337,21 @@ components:
           additionalProperties:
             type: string
           type: object
+        variables_details:
+          items:
+            $ref: '#/components/schemas/BrickInstanceVariable'
+          type: array
+      type: object
+    BrickInstanceVariable:
+      properties:
+        description:
+          type: string
+        name:
+          type: string
+        required:
+          type: boolean
+        value:
+          type: string
       type: object
     BrickListItem:
       properties:
