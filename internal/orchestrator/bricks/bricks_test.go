@@ -1,18 +1,3 @@
-// This file is part of arduino-app-cli.
-//
-// Copyright 2025 ARDUINO SA (http://www.arduino.cc/)
-//
-// This software is released under the GNU General Public License version 3,
-// which covers the main part of arduino-app-cli.
-// The terms of this license can be found at:
-// https://www.gnu.org/licenses/gpl-3.0.en.html
-//
-// You can be released from the requirements of the above licenses by purchasing
-// a commercial license. Buying such a license is mandatory if you want to
-// modify or otherwise use the software for commercial activities involving the
-// Arduino software without disclosing the source code of your own applications.
-// To purchase a commercial license, send an email to license@arduino.cc.
-
 package bricks
 
 import (
@@ -109,4 +94,84 @@ func TestBrickCreate(t *testing.T) {
 		require.Equal(t, deviceID, after.Descriptor.Bricks[0].Variables["ARDUINO_DEVICE_ID"])
 		require.Equal(t, secret, after.Descriptor.Bricks[0].Variables["ARDUINO_SECRET"])
 	})
+}
+
+func TestGetBrickInstanceVariableDetails(t *testing.T) {
+	tests := []struct {
+		name                     string
+		brick                    *bricksindex.Brick
+		userVariables            map[string]string
+		expectedInstanceVariable []BrickInstanceVariable
+		expectedVariableMap      map[string]string
+	}{
+		{
+			name: "variable is present in the map",
+			brick: &bricksindex.Brick{
+				Variables: []bricksindex.BrickVariable{
+					{Name: "VAR1", Description: "desc"},
+				},
+			},
+			userVariables: map[string]string{"VAR1": "value1"},
+			expectedInstanceVariable: []BrickInstanceVariable{
+				{Name: "VAR1", Value: "value1", Description: "desc", Required: true},
+			},
+			expectedVariableMap: map[string]string{"VAR1": "value1"},
+		},
+		{
+			name: "variable not present in the map",
+			brick: &bricksindex.Brick{
+				Variables: []bricksindex.BrickVariable{
+					{Name: "VAR1", Description: "desc"},
+				},
+			},
+			userVariables: map[string]string{},
+			expectedInstanceVariable: []BrickInstanceVariable{
+				{Name: "VAR1", Value: "", Description: "desc", Required: true},
+			},
+			expectedVariableMap: map[string]string{"VAR1": ""},
+		},
+		{
+			name: "variable with default value",
+			brick: &bricksindex.Brick{
+				Variables: []bricksindex.BrickVariable{
+					{Name: "VAR1", DefaultValue: "default", Description: "desc"},
+				},
+			},
+			userVariables: map[string]string{},
+			expectedInstanceVariable: []BrickInstanceVariable{
+				{Name: "VAR1", Value: "default", Description: "desc", Required: false},
+			},
+			expectedVariableMap: map[string]string{"VAR1": "default"},
+		},
+		{
+			name: "multiple variables",
+			brick: &bricksindex.Brick{
+				Variables: []bricksindex.BrickVariable{
+					{Name: "VAR1", Description: "desc1"},
+					{Name: "VAR2", DefaultValue: "def2", Description: "desc2"},
+				},
+			},
+			userVariables: map[string]string{"VAR1": "v1"},
+			expectedInstanceVariable: []BrickInstanceVariable{
+				{Name: "VAR1", Value: "v1", Description: "desc1", Required: true},
+				{Name: "VAR2", Value: "def2", Description: "desc2", Required: false},
+			},
+			expectedVariableMap: map[string]string{"VAR1": "v1", "VAR2": "def2"},
+		},
+		{
+			name:                     "no variables",
+			brick:                    &bricksindex.Brick{Variables: []bricksindex.BrickVariable{}},
+			userVariables:            map[string]string{},
+			expectedInstanceVariable: []BrickInstanceVariable{},
+			expectedVariableMap:      map[string]string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actualVariableMap, actualInstanceVariables := getBrickVariableDetails(tt.brick, tt.userVariables)
+			require.Equal(t, tt.expectedVariableMap, actualVariableMap)
+			require.Equal(t, tt.expectedInstanceVariable, actualInstanceVariables)
+		})
+	}
 }
