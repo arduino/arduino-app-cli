@@ -34,13 +34,21 @@ type AppBrickInstancesResult struct {
 }
 
 type BrickInstance struct {
-	ID        string            `json:"id"`
-	Name      string            `json:"name"`
-	Author    string            `json:"author"`
-	Category  string            `json:"category"`
-	Status    string            `json:"status"`
-	Variables map[string]string `json:"variables,omitempty"`
-	ModelID   string            `json:"model,omitempty"`
+	ID               string                  `json:"id"`
+	Name             string                  `json:"name"`
+	Author           string                  `json:"author"`
+	Category         string                  `json:"category"`
+	Status           string                  `json:"status"`
+	Variables        map[string]string       `json:"variables,omitempty"`
+	VariablesDetails []BrickInstanceVariable `json:"variables_details,omitempty"`
+	ModelID          string                  `json:"model,omitempty"`
+}
+
+type BrickInstanceVariable struct {
+	Name        string `json:"name"`
+	Value       string `json:"value"`
+	Description string `json:"description"`
+	Required    bool   `json:"required"`
 }
 
 type BrickVariable struct {
