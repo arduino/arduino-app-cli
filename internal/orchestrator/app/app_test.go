@@ -25,7 +25,7 @@ import (
 )
 
 func TestLoad(t *testing.T) {
-	t.Run("it fails if tha app path is empty", func(t *testing.T) {
+	t.Run("it fails if the app path is empty", func(t *testing.T) {
 		app, err := Load("")
 		assert.Error(t, err)
 		assert.Empty(t, app)
