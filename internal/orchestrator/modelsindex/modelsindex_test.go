@@ -42,7 +42,7 @@ func TestGenerateModelsIndexFromFile(t *testing.T) {
 	})
 
 	t.Run("it fails if model-list.yaml does not exist", func(t *testing.T) {
-		nonExistentPath := paths.New("nonexistent.yaml")
+		nonExistentPath := paths.New("nonexistentdir")
 		modelsIndex, err := GenerateModelsIndexFromFile(nonExistentPath)
 		assert.Error(t, err)
 		assert.Nil(t, modelsIndex)
