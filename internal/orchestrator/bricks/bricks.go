@@ -215,7 +215,7 @@ func getUsedByApps(
 	for _, file := range appPaths {
 		app, err := app.Load(file.String())
 		if err != nil {
-			//we are not considering the borken apps
+			// we are not considering the borken apps
 			slog.Warn("unable to parse app.yaml, skipping", "path", file.String(), "error", err.Error())
 			continue
 		}
