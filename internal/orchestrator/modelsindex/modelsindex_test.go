@@ -9,19 +9,16 @@ import (
 )
 
 func TestGenerateModelsIndexFromFile(t *testing.T) {
-	t.Run("it parses a valid model-list.yaml", func(t *testing.T) {
-		modelsIndex, err := GenerateModelsIndexFromFile(paths.New("testdata"))
-		require.NoError(t, err)
-		require.NotNil(t, modelsIndex)
+	modelsIndex, err := GenerateModelsIndexFromFile(paths.New("testdata"))
+	require.NoError(t, err)
+	require.NotNil(t, modelsIndex)
 
+	t.Run("it parses a valid model-list.yaml", func(t *testing.T) {
 		models := modelsIndex.GetModels()
 		assert.Len(t, models, 2, "Expected 2 models to be parsed")
 	})
 
 	t.Run("it gets a model by ID", func(t *testing.T) {
-		modelsIndex, err := GenerateModelsIndexFromFile(paths.New("testdata"))
-		require.NoError(t, err)
-
 		model, found := modelsIndex.GetModelByID("not-existing-model")
 		assert.False(t, found)
 		assert.Nil(t, model)
@@ -48,10 +45,7 @@ func TestGenerateModelsIndexFromFile(t *testing.T) {
 		assert.Nil(t, modelsIndex)
 	})
 
-	t.Run("it filters models by a single brick", func(t *testing.T) {
-		modelsIndex, err := GenerateModelsIndexFromFile(paths.New("testdata"))
-		require.NoError(t, err)
-
+	t.Run("it gets models by a single brick", func(t *testing.T) {
 		brick1Models := modelsIndex.GetModelsByBrick("arduino:object_detection")
 		assert.Len(t, brick1Models, 1)
 		assert.Equal(t, "face-detection", brick1Models[0].ID)
@@ -60,11 +54,12 @@ func TestGenerateModelsIndexFromFile(t *testing.T) {
 		assert.Nil(t, brick1Models)
 	})
 
-	t.Run("it filters models by multiple bricks", func(t *testing.T) {
-		modelsIndex, err := GenerateModelsIndexFromFile(paths.New("testdata"))
-		require.NoError(t, err)
+	t.Run("it gets models by multiple bricks", func(t *testing.T) {
+		brick2Models := modelsIndex.GetModelsByBrick("arduino:non_existing")
+		assert.Len(t, brick2Models, 0)
+		assert.Nil(t, brick2Models)
 
-		brick2Models := modelsIndex.GetModelsByBrick("arduino:video_object_detection")
+		brick2Models = modelsIndex.GetModelsByBrick("arduino:video_object_detection")
 		assert.Len(t, brick2Models, 2)
 		assert.Equal(t, "face-detection", brick2Models[0].ID)
 		assert.Equal(t, "yolox-object-detection", brick2Models[1].ID)
