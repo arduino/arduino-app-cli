@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGenerateModelsIndexFromFile(t *testing.T) {
+func TestModelsIndex(t *testing.T) {
 	modelsIndex, err := GenerateModelsIndexFromFile(paths.New("testdata"))
 	require.NoError(t, err)
 	require.NotNil(t, modelsIndex)
