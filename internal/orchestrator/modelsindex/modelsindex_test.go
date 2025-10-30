@@ -45,31 +45,28 @@ func TestGenerateModelsIndexFromFile(t *testing.T) {
 		assert.Nil(t, modelsIndex)
 	})
 
-	t.Run("it gets models by a single brick", func(t *testing.T) {
-		brick1Models := modelsIndex.GetModelsByBrick("arduino:object_detection")
-		assert.Len(t, brick1Models, 1)
-		assert.Equal(t, "face-detection", brick1Models[0].ID)
+	t.Run("it gets models by a brick", func(t *testing.T) {
+		model := modelsIndex.GetModelsByBrick("not-existing-brick")
+		assert.Nil(t, model)
 
-		brick1Models = modelsIndex.GetModelsByBrick("not-existing-brick")
-		assert.Nil(t, brick1Models)
+		model = modelsIndex.GetModelsByBrick("arduino:object_detection")
+		assert.Len(t, model, 1)
+		assert.Equal(t, "face-detection", model[0].ID)
 	})
 
-	t.Run("it gets models by multiple bricks", func(t *testing.T) {
-		brick2Models := modelsIndex.GetModelsByBrick("arduino:non_existing")
-		assert.Len(t, brick2Models, 0)
-		assert.Nil(t, brick2Models)
+	t.Run("it gets models by bricks", func(t *testing.T) {
+		models := modelsIndex.GetModelsByBricks([]string{"arduino:non_existing"})
+		assert.Len(t, models, 0)
+		assert.Nil(t, models)
 
-		brick2Models = modelsIndex.GetModelsByBrick("arduino:video_object_detection")
-		assert.Len(t, brick2Models, 2)
-		assert.Equal(t, "face-detection", brick2Models[0].ID)
-		assert.Equal(t, "yolox-object-detection", brick2Models[1].ID)
+		models = modelsIndex.GetModelsByBricks([]string{"arduino:video_object_detection"})
+		assert.Len(t, models, 2)
+		assert.Equal(t, "face-detection", models[0].ID)
+		assert.Equal(t, "yolox-object-detection", models[1].ID)
 
-		bricks2Models := modelsIndex.GetModelsByBricks([]string{"arduino:object_detection", "arduino:video_object_detection"})
-		assert.Len(t, bricks2Models, 2)
-		assert.Equal(t, "face-detection", bricks2Models[0].ID)
-		assert.Equal(t, "yolox-object-detection", bricks2Models[1].ID)
-
-		nonExistentModels := modelsIndex.GetModelsByBrick("nonexistent_brick")
-		assert.Nil(t, nonExistentModels)
+		models = modelsIndex.GetModelsByBricks([]string{"arduino:object_detection", "arduino:video_object_detection"})
+		assert.Len(t, models, 2)
+		assert.Equal(t, "face-detection", models[0].ID)
+		assert.Equal(t, "yolox-object-detection", models[1].ID)
 	})
 }
