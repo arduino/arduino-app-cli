@@ -163,16 +163,12 @@ func (s *Service) BricksDetails(id string, idProvider *app.IDProvider,
 		}
 	})
 
-	appList, err := getAppList(cfg)
-	if err != nil {
-		slog.Error("unable to get app list", slog.String("error", err.Error()))
-		return BrickDetailsResult{}, fmt.Errorf("unable to get app list: %w", err)
-	}
-	usedByApps, err := getUsedByApps(appList, brick.ID, idProvider)
+	usedByApps, err := getUsedByApps(cfg, brick.ID, idProvider)
 	if err != nil {
 		slog.Error("unable to get used by apps", slog.String("error", err.Error()))
 		return BrickDetailsResult{}, fmt.Errorf("unable to get used by apps: %w", err)
 	}
+
 	return BrickDetailsResult{
 		ID:           id,
 		Name:         brick.Name,
@@ -188,16 +184,15 @@ func (s *Service) BricksDetails(id string, idProvider *app.IDProvider,
 	}, nil
 }
 
-func getAppList(
-	cfg config.Configuration,
-) ([]app.ArduinoApp, error) {
+func getUsedByApps(
+	cfg config.Configuration, brickId string, idProvider *app.IDProvider) ([]AppReference, error) {
 	var (
 		pathsToExplore paths.PathList
 		appPaths       paths.PathList
 	)
 	pathsToExplore.Add(cfg.ExamplesDir())
 	pathsToExplore.Add(cfg.AppsDir())
-	arduinoApps := []app.ArduinoApp{}
+	usedByApps := []AppReference{}
 
 	for _, p := range pathsToExplore {
 		res, err := p.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
@@ -212,7 +207,7 @@ func getAppList(
 
 		if err != nil {
 			slog.Error("unable to list apps", slog.String("error", err.Error()))
-			return arduinoApps, err
+			return usedByApps, err
 		}
 		appPaths.AddAllMissing(res)
 	}
@@ -220,21 +215,11 @@ func getAppList(
 	for _, file := range appPaths {
 		app, err := app.Load(file.String())
 		if err != nil {
-			/*			result.BrokenApps = append(result.BrokenApps, orchestrator.BrokenAppInfo{
-						Name:  file.Base(),
-						Error: fmt.Sprintf("unable to parse the app.yaml: %s", err.Error()),
-					})*/
+			//we are not considering the borken apps
+			slog.Warn("unable to parse app.yaml, skipping", "path", file.String(), "error", err.Error())
 			continue
 		}
 
-		arduinoApps = append(arduinoApps, app)
-	}
-	return arduinoApps, nil
-}
-
-func getUsedByApps(apps []app.ArduinoApp, brickId string, idProvider *app.IDProvider) ([]AppReference, error) {
-	usedByApps := []AppReference{}
-	for _, app := range apps {
 		for _, b := range app.Descriptor.Bricks {
 			if b.ID == brickId {
 				id, err := idProvider.IDFromPath(app.FullPath)
