@@ -77,7 +77,6 @@ func restartHandler(ctx context.Context, cfg config.Configuration, app app.Ardui
 		}
 	}
 
-	// Feedback finale di successo
 	outputResult := getResult()
 	feedback.PrintResult(restartAppResult{
 		AppName: app.Name,
