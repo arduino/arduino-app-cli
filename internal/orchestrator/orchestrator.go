@@ -452,12 +452,12 @@ func RestartApp(
 			return
 		}
 
-		if runningApp != nil && runningApp.FullPath.String() != appToStart.FullPath.String() {
-			yield(StreamMessage{error: fmt.Errorf("another app %q is running", runningApp.Name)})
-			return
-		}
-
 		if runningApp != nil {
+			if runningApp.FullPath.String() != appToStart.FullPath.String() {
+				yield(StreamMessage{error: fmt.Errorf("another app %q is running", runningApp.Name)})
+				return
+			}
+
 			stopStream := StopApp(ctx, *runningApp)
 			for msg := range stopStream {
 				if !yield(msg) {
