@@ -222,7 +222,7 @@ func getUsedByApps(
 			if b.ID == brickId {
 				id, err := idProvider.IDFromPath(app.FullPath)
 				if err != nil {
-					return usedByApps, fmt.Errorf("failed to get app ID for %s: %w", app.Name, err)
+					return usedByApps, fmt.Errorf("failed to get app ID for %s: %w", app.FullPath, err)
 				}
 				usedByApps = append(usedByApps, AppReference{
 					Name: app.Name,
