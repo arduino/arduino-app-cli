@@ -1,14 +1,18 @@
 # Arduino App specification
 This is the specification for the `Arduino App` (from now on called App) format to be used with `arduino-app-cli` and `Arduino App Lab`.
 
-## Arduino App Folder structure
+# Arduino App Folder structure
 An App is a self-contained folder that includes the following components:
  - `app.yaml` (mandatory) the file descriptor of the app in YAML format.
  - `sketch` (optional) the folder containing an Arduino [Sketch](https://arduino.github.io/arduino-cli/1.3/sketch-specification/)).
  - `python` (optional) the folder containing the Python code.
-At least one on `sketch` or `python` folder must be present.
 
+At least one on `sketch` or `python` folder must be present.
 The App must be self-contained (it does not contain references to external files) because this means it can be exported, shared, or zipped easily.
+
+The user-defined apps are saved into `/home/arduino/ArduinoApps` folder.
+The builtin-apps are
+
 
 Example of a `my-app` folder structure
 ```
@@ -70,4 +74,6 @@ If present, it must contain the `main.py` with the python code of the main.
 Optionally, a `requirements.txt` with additional python package dependencies to be installed.
 
 ### Other
-The folder can be added to the folder structure
+Other sub-folders or files can be added to the app folder.
+The reserved folder names are `sketch` and `python`.
+The reserved file names are `app.yaml` and `sketch.yaml`.
