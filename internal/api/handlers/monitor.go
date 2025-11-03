@@ -83,24 +83,53 @@ func monitorStream(mon net.Conn, ws *websocket.Conn) {
 	}()
 }
 
-func checkOrigin(origin string, allowedOrigins []string) bool {
-	for _, allowed := range allowedOrigins {
-		if strings.HasSuffix(allowed, "*") {
-			// String ends with *, match the prefix
-			if strings.HasPrefix(origin, strings.TrimSuffix(allowed, "*")) {
-				return true
-			}
-		} else {
-			// Exact match
-			if allowed == origin {
-				return true
-			}
-		}
+func splitOrigin(origin string) (scheme, host, port string, err error) {
+	parts := strings.SplitN(origin, "://", 2)
+	if len(parts) != 2 {
+		return "", "", "", fmt.Errorf("invalid origin format: %s", origin)
 	}
+	scheme = parts[0]
+	hostPort := parts[1]
+	hostParts := strings.SplitN(hostPort, ":", 2)
+	host = hostParts[0]
+	if len(hostParts) == 2 {
+		port = hostParts[1]
+	} else {
+		port = "*"
+	}
+	return scheme, host, port, nil
+}
+
+func checkOrigin(origin string, allowedOrigins []string) bool {
+	scheme, host, port, err := splitOrigin(origin)
+	if err != nil {
+		slog.Error("WebSocket origin check failed", slog.String("origin", origin), slog.String("error", err.Error()))
+		return false
+	}
+	for _, allowed := range allowedOrigins {
+		allowedScheme, allowedHost, allowedPort, err := splitOrigin(allowed)
+		if err != nil {
+			panic(err)
+		}
+		if allowedScheme != scheme {
+			continue
+		}
+		if allowedHost != host && allowedHost != "*" {
+			continue
+		}
+		if allowedPort != port && allowedPort != "*" {
+			continue
+		}
+		return true
+	}
+	slog.Error("WebSocket origin check failed", slog.String("origin", origin))
 	return false
 }
 
 func HandleMonitorWS(allowedOrigins []string) http.HandlerFunc {
+	// Do a dry-run of checkorigin, so it can panic if misconfigured now, not on first request
+	_ = checkOrigin("http://example.com:8000", allowedOrigins)
+
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
