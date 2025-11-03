@@ -37,13 +37,13 @@ var (
 			Description: f.Ptr("path to the custom model directory"),
 			Name:        f.Ptr("CUSTOM_MODEL_PATH"),
 			Required:    f.Ptr(false),
-			Value:       f.Ptr(""),
+			Value:       f.Ptr("/home/arduino/.arduino-bricks/ei-models"),
 		},
 		{
 			Description: f.Ptr("path to the model file"),
 			Name:        f.Ptr("EI_CLASSIFICATION_MODEL"),
 			Required:    f.Ptr(false),
-			Value:       f.Ptr(""),
+			Value:       f.Ptr("/models/ootb/ei/mobilenet-v2-224px.eim"),
 		},
 	}
 )
