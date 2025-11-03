@@ -41,6 +41,7 @@ func TestCheckOrigin(t *testing.T) {
 	allow("wails://wails")
 	allow("wails://wails:8000")
 	allow("http://wails.localhost")
+	allow("http://localhost")
 	allow("http://example.com:7000")
 	allow("https://blah.com:443")
 	deny("wails://evil.com")

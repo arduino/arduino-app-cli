@@ -128,7 +128,7 @@ func checkOrigin(origin string, allowedOrigins []string) bool {
 
 func HandleMonitorWS(allowedOrigins []string) http.HandlerFunc {
 	// Do a dry-run of checkorigin, so it can panic if misconfigured now, not on first request
-	_ = checkOrigin("http://example.com:8000", allowedOrigins)
+	_ = checkOrigin("http://localhost", allowedOrigins)
 
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
