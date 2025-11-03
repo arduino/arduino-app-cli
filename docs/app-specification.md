@@ -11,7 +11,7 @@ At least one on `sketch` or `python` folder must be present.
 The App must be self-contained (it does not contain references to external files) because this means it can be exported, shared, or zipped easily.
 
 The user-defined apps are saved into `/home/arduino/ArduinoApps` folder.
-The builtin-apps are
+The builtin-apps are stored into `home/arduino/.local/share/arduino-app-cli/examples` folder.
 
 
 Example of a `my-app` folder structure
