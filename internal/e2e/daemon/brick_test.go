@@ -33,7 +33,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
-func setupTesBrick(t *testing.T) (*client.CreateAppResp, *client.ClientWithResponses) {
+func setupTestBrick(t *testing.T) (*client.CreateAppResp, *client.ClientWithResponses) {
 	httpClient := GetHttpclient(t)
 	createResp, err := httpClient.CreateAppWithResponse(
 		t.Context(),
@@ -87,7 +87,7 @@ func TestBricksList(t *testing.T) {
 }
 
 func TestBricksDetails(t *testing.T) {
-	_, httpClient := setupTesBrick(t)
+	_, httpClient := setupTestBrick(t)
 
 	t.Run("should return 404 Not Found for an invalid brick ID", func(t *testing.T) {
 		invalidBrickID := "notvalidBrickId"

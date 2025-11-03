@@ -165,7 +165,6 @@ func (s *Service) BricksDetails(id string, idProvider *app.IDProvider,
 
 	usedByApps, err := getUsedByApps(cfg, brick.ID, idProvider)
 	if err != nil {
-		slog.Error("unable to get used by apps", slog.String("error", err.Error()))
 		return BrickDetailsResult{}, fmt.Errorf("unable to get used by apps: %w", err)
 	}
 
@@ -204,7 +203,6 @@ func getUsedByApps(
 			}
 			return false
 		}, paths.FilterDirectories(), paths.FilterOutNames("python", "sketch", ".cache"))
-
 		if err != nil {
 			slog.Error("unable to list apps", slog.String("error", err.Error()))
 			return usedByApps, err
@@ -215,7 +213,7 @@ func getUsedByApps(
 	for _, file := range appPaths {
 		app, err := app.Load(file.String())
 		if err != nil {
-			// we are not considering the borken apps
+			// we are not considering the broken apps
 			slog.Warn("unable to parse app.yaml, skipping", "path", file.String(), "error", err.Error())
 			continue
 		}
