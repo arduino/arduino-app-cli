@@ -39,7 +39,7 @@ type BrickInstance struct {
 	Author           string                  `json:"author"`
 	Category         string                  `json:"category"`
 	Status           string                  `json:"status"`
-	Variables        map[string]string       `json:"variables,omitempty"`
+	Variables        map[string]string       `json:"variables,omitempty" description:"Deprecated: use variables_details instead. This field is kept for backward compatibility."`
 	VariablesDetails []BrickInstanceVariable `json:"variables_details,omitempty"`
 	ModelID          string                  `json:"model,omitempty"`
 }

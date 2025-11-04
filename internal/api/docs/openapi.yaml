@@ -1336,6 +1336,8 @@ components:
         variables:
           additionalProperties:
             type: string
+          description: 'Deprecated: use variables_details instead. This field is kept
+            for backward compatibility.'
           type: object
         variables_details:
           items:
