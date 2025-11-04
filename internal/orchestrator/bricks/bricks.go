@@ -186,23 +186,23 @@ func (s *Service) BrickCreate(
 ) error {
 	brick, present := s.bricksIndex.FindBrickByID(req.ID)
 	if !present {
-		return fmt.Errorf("brick not found with id %s", req.ID)
+		return fmt.Errorf("brick '%s' not found", req.ID)
 	}
 
 	for name, reqValue := range req.Variables {
 		value, exist := brick.GetVariable(name)
 		if !exist {
-			return errors.New("variable does not exist")
+			return fmt.Errorf("variable '%s' does not exist on brick '%s'", name, brick.ID)
 		}
 		if value.DefaultValue == "" && reqValue == "" {
-			return errors.New("variable default value cannot be empty")
+			return fmt.Errorf("variable '%s' cannot be empty", name)
 		}
 	}
 
 	for _, brickVar := range brick.Variables {
 		if brickVar.DefaultValue == "" {
 			if _, exist := req.Variables[brickVar.Name]; !exist {
-				return errors.New("variable does not exist")
+				return fmt.Errorf("required variable '%s' is mandatory", brickVar.Name)
 			}
 		}
 	}
@@ -226,25 +226,20 @@ func (s *Service) BrickCreate(
 		if idx == -1 {
 			return fmt.Errorf("model %s does not exsist", *req.Model)
 		}
-
 		brickInstance.Model = models[idx].ID
 	}
 	brickInstance.Variables = req.Variables
 
 	if brickIndex == -1 {
-
 		appCurrent.Descriptor.Bricks = append(appCurrent.Descriptor.Bricks, brickInstance)
-
 	} else {
 		appCurrent.Descriptor.Bricks[brickIndex] = brickInstance
-
 	}
 
 	err := appCurrent.Save()
 	if err != nil {
 		return fmt.Errorf("cannot save brick instance with id %s", req.ID)
 	}
-
 	return nil
 }
 

@@ -28,6 +28,54 @@ import (
 	"github.com/arduino/go-paths-helper"
 )
 
+func TestBrickCreate(t *testing.T) {
+	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(paths.New("testdata"))
+	require.Nil(t, err)
+	brickService := NewService(nil, bricksIndex, nil)
+
+	t.Run("fails if brick id does not exist", func(t *testing.T) {
+		err = brickService.BrickCreate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load("./testdata/my-app")))
+		require.Error(t, err)
+		require.Equal(t, "brick 'not-existing-id' not found", err.Error())
+	})
+
+	t.Run("fails if the requestes variable is not present in the brick definition", func(t *testing.T) {
+		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
+			"NON_EXISTING_VARIABLE": "some-value",
+		}}
+		err = brickService.BrickCreate(req, f.Must(app.Load("./testdata/my-app")))
+		require.Error(t, err)
+		require.Equal(t, "variable 'NON_EXISTING_VARIABLE' does not exist on brick 'arduino:arduino_cloud'", err.Error())
+	})
+
+	t.Run("fails if a required variable is set empty", func(t *testing.T) {
+		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
+			"ARDUINO_DEVICE_ID": "",
+			"ARDUINO_SECRET":    "a-secret-a",
+		}}
+		err = brickService.BrickCreate(req, f.Must(app.Load("./testdata/my-app")))
+		require.Error(t, err)
+		require.Equal(t, "variable 'ARDUINO_DEVICE_ID' cannot be empty", err.Error())
+	})
+
+	t.Run("fails if a mandatory variable is not present in the request", func(t *testing.T) {
+		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
+			"ARDUINO_SECRET": "a-secret-a",
+		}}
+		err = brickService.BrickCreate(req, f.Must(app.Load("./testdata/my-app")))
+		require.Error(t, err)
+		require.Equal(t, "required variable 'ARDUINO_DEVICE_ID' is mandatory", err.Error())
+	})
+
+	t.Run("the brick is added if it does not exist in the app", func(t *testing.T) {
+		req := BrickCreateUpdateRequest{ID: "arduino:dbstorage_sqlstore"}
+		// TODO: find a better way to test if the brick has been added to the app.yaml
+		// Currently we only check that there is no error since the app.yaml is populated with the brick at every test execution.
+		err = brickService.BrickCreate(req, f.Must(app.Load("./testdata/my-app")))
+		require.Nil(t, err)
+	})
+}
+
 func TestOverrideBrickVariablesOfApp(t *testing.T) {
 	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(paths.New("testdata"))
 	require.Nil(t, err)
