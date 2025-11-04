@@ -164,6 +164,9 @@ tasks:
       VERSION: "0.6.3"
     cmds:
       - docker build --no-cache -t mock-apt-repo -f test.Dockerfile .
+      - docker run --rm -it --privileged -v /sys/fs/cgroup:/sys/fs/cgroup:ro --name apt-test-update mock-apt-repo
+      - docker exec -d apt-test-update /usr/bin/arduino-router
+
 
   arduino-app-cli:build:local:
     desc: "Build the arduino-app-cli locally"
