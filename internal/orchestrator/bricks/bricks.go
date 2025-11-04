@@ -204,7 +204,6 @@ func (s *Service) BrickCreate(
 			if _, exist := req.Variables[brickVar.Name]; !exist {
 				return errors.New("variable does not exist")
 			}
-			return errors.New("variable default value cannot be empty")
 		}
 	}
 
