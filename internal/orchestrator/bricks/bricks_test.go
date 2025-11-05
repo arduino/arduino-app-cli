@@ -21,9 +21,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.bug.st/f"
 
+	"github.com/arduino/go-paths-helper"
+
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/go-paths-helper"
 )
 
 func TestBrickCreate(t *testing.T) {
@@ -76,9 +77,10 @@ func TestBrickCreate(t *testing.T) {
 
 func TestOverrideBrickVariablesOfApp(t *testing.T) {
 	appWithOverride := paths.New("testdata/my-app.override")
-	appWithOverride.RemoveAll()
+	err := appWithOverride.RemoveAll()
+	require.Nil(t, err)
 
-	err := paths.New("testdata/my-app.source").CopyDirTo(appWithOverride)
+	err = paths.New("testdata/my-app.source").CopyDirTo(appWithOverride)
 	require.Nil(t, err)
 	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(paths.New("testdata"))
 	require.Nil(t, err)
