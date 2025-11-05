@@ -20,7 +20,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.bug.st/f"
-
 	"github.com/arduino/go-paths-helper"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
