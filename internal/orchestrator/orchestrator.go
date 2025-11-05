@@ -1254,10 +1254,8 @@ func configureMicroInRamMode(
 	inst *rpc.Instance,
 ) error {
 	emptyBinDir := paths.New("/tmp/empty")
-	defer emptyBinDir.RemoveAll()
-	if err := emptyBinDir.MkdirAll(); err != nil {
-		return err
-	}
+	_ = emptyBinDir.MkdirAll()
+	defer func() { _ = emptyBinDir.RemoveAll() }()
 
 	zeros, err := os.Open("/dev/zero")
 	if err != nil {
