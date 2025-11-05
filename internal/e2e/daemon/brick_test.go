@@ -24,12 +24,43 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
+	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/e2e/client"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
+
+func setupTestBrick(t *testing.T) (*client.CreateAppResp, *client.ClientWithResponses) {
+	httpClient := GetHttpclient(t)
+	createResp, err := httpClient.CreateAppWithResponse(
+		t.Context(),
+		&client.CreateAppParams{SkipSketch: f.Ptr(true)},
+		client.CreateAppRequest{
+			Icon:        f.Ptr("💻"),
+			Name:        "test-app",
+			Description: f.Ptr("My app description"),
+		},
+		func(ctx context.Context, req *http.Request) error { return nil },
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode())
+	require.NotNil(t, createResp.JSON201)
+
+	resp, err := httpClient.UpsertAppBrickInstanceWithResponse(
+		t.Context(),
+		*createResp.JSON201.Id,
+		ImageClassifactionBrickID,
+		client.BrickCreateUpdateRequest{Model: f.Ptr("mobilenet-image-classification")},
+		func(ctx context.Context, req *http.Request) error { return nil },
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode())
+
+	return createResp, httpClient
+}
 
 func TestBricksList(t *testing.T) {
 	httpClient := GetHttpclient(t)
@@ -56,8 +87,8 @@ func TestBricksList(t *testing.T) {
 }
 
 func TestBricksDetails(t *testing.T) {
+	_, httpClient := setupTestBrick(t)
 
-	httpClient := GetHttpclient(t)
 	t.Run("should return 404 Not Found for an invalid brick ID", func(t *testing.T) {
 		invalidBrickID := "notvalidBrickId"
 		var actualBody models.ErrorResponse
@@ -76,6 +107,14 @@ func TestBricksDetails(t *testing.T) {
 	t.Run("should return 200 OK with full details for a valid brick ID", func(t *testing.T) {
 		validBrickID := "arduino:image_classification"
 
+		expectedUsedByApps := []client.AppReference{
+			{
+				Id:   f.Ptr("dXNlcjp0ZXN0LWFwcA"),
+				Name: f.Ptr("test-app"),
+				Icon: f.Ptr("💻"),
+			},
+		}
+
 		response, err := httpClient.GetBrickDetailsWithResponse(t.Context(), validBrickID, func(ctx context.Context, req *http.Request) error { return nil })
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, response.StatusCode(), "status code should be 200 ok")
@@ -92,6 +131,7 @@ func TestBricksDetails(t *testing.T) {
 		require.Equal(t, "path to the model file", *(*response.JSON200.Variables)["EI_CLASSIFICATION_MODEL"].Description)
 		require.Equal(t, false, *(*response.JSON200.Variables)["EI_CLASSIFICATION_MODEL"].Required)
 		require.NotEmpty(t, *response.JSON200.Readme)
-		require.Nil(t, response.JSON200.UsedByApps)
+		require.NotNil(t, response.JSON200.UsedByApps, "UsedByApps should not be nil")
+		require.Equal(t, expectedUsedByApps, *(response.JSON200.UsedByApps))
 	})
 }

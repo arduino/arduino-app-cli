@@ -131,6 +131,9 @@ func StartApp(
 			yield(StreamMessage{error: fmt.Errorf("app %q is running", running.Name)})
 			return
 		}
+		if !yield(StreamMessage{data: fmt.Sprintf("Starting app %q", app.Name)}) {
+			return
+		}
 
 		if err := setStatusLeds(LedTriggerNone); err != nil {
 			slog.Debug("unable to set status leds", slog.String("error", err.Error()))
@@ -379,6 +382,9 @@ func stopAppWithCmd(ctx context.Context, app app.ArduinoApp, cmd string) iter.Se
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
+		if !yield(StreamMessage{data: fmt.Sprintf("Stopping app %q", app.Name)}) {
+			return
+		}
 		if err := setStatusLeds(LedTriggerDefault); err != nil {
 			slog.Debug("unable to set status leds", slog.String("error", err.Error()))
 		}
@@ -425,6 +431,46 @@ func StopApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
 
 func StopAndDestroyApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
 	return stopAppWithCmd(ctx, app, "down")
+}
+
+func RestartApp(
+	ctx context.Context,
+	docker command.Cli,
+	provisioner *Provision,
+	modelsIndex *modelsindex.ModelsIndex,
+	bricksIndex *bricksindex.BricksIndex,
+	appToStart app.ArduinoApp,
+	cfg config.Configuration,
+	staticStore *store.StaticStore,
+) iter.Seq[StreamMessage] {
+	return func(yield func(StreamMessage) bool) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		runningApp, err := getRunningApp(ctx, docker.Client())
+		if err != nil {
+			yield(StreamMessage{error: err})
+			return
+		}
+
+		if runningApp != nil {
+			if runningApp.FullPath.String() != appToStart.FullPath.String() {
+				yield(StreamMessage{error: fmt.Errorf("another app %q is running", runningApp.Name)})
+				return
+			}
+
+			stopStream := StopApp(ctx, *runningApp)
+			for msg := range stopStream {
+				if !yield(msg) {
+					return
+				}
+				if msg.error != nil {
+					return
+				}
+			}
+		}
+		startStream := StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, appToStart, cfg, staticStore)
+		startStream(yield)
+	}
 }
 
 func StartDefaultApp(

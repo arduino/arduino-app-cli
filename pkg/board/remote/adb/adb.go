@@ -82,12 +82,13 @@ func (a *ADBConnection) Forward(ctx context.Context, localPort int, remotePort i
 	if err != nil {
 		return err
 	}
-	if err := cmd.RunWithinContext(ctx); err != nil {
+	if out, err := cmd.RunAndCaptureCombinedOutput(ctx); err != nil {
 		return fmt.Errorf(
-			"failed to forward ADB port %s to %s: %w",
+			"failed to forward ADB port %s to %s: %w: %s",
 			local,
 			remote,
 			err,
+			out,
 		)
 	}
 
@@ -99,8 +100,8 @@ func (a *ADBConnection) ForwardKillAll(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := cmd.RunWithinContext(ctx); err != nil {
-		return fmt.Errorf("failed to kill all ADB forwarded ports: %w", err)
+	if out, err := cmd.RunAndCaptureCombinedOutput(ctx); err != nil {
+		return fmt.Errorf("failed to kill all ADB forwarded ports: %w: %s", err, out)
 	}
 	return nil
 }

@@ -48,7 +48,7 @@ func Load(appPath string) (ArduinoApp, error) {
 		return ArduinoApp{}, fmt.Errorf("app path is not valid: %w", err)
 	}
 	if !exist {
-		return ArduinoApp{}, fmt.Errorf("no such file or directory: %s", path)
+		return ArduinoApp{}, fmt.Errorf("app path must be a directory: %s", path)
 	}
 	path, err = path.Abs()
 	if err != nil {

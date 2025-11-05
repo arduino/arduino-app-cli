@@ -16,10 +16,18 @@
 package app
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/spf13/cobra"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
@@ -32,17 +40,63 @@ func newRestartCmd(cfg config.Configuration) *cobra.Command {
 			if len(args) == 0 {
 				return cmd.Help()
 			}
-			app, err := Load(args[0])
+			appToStart, err := Load(args[0])
 			if err != nil {
 				feedback.Fatal(err.Error(), feedback.ErrBadArgument)
-				return nil
 			}
-			if err := stopHandler(cmd.Context(), app); err != nil {
-				feedback.Warnf("failed to stop app: %s", err.Error())
-			}
-			return startHandler(cmd.Context(), cfg, app)
+			return restartHandler(cmd.Context(), cfg, appToStart)
 		},
 		ValidArgsFunction: completion.ApplicationNames(cfg),
 	}
 	return cmd
+}
+
+func restartHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp) error {
+	out, _, getResult := feedback.OutputStreams()
+
+	stream := orchestrator.RestartApp(
+		ctx,
+		servicelocator.GetDockerClient(),
+		servicelocator.GetProvisioner(),
+		servicelocator.GetModelsIndex(),
+		servicelocator.GetBricksIndex(),
+		app,
+		cfg,
+		servicelocator.GetStaticStore(),
+	)
+	for message := range stream {
+		switch message.GetType() {
+		case orchestrator.ProgressType:
+			fmt.Fprintf(out, "Progress[%s]: %.0f%%\n", message.GetProgress().Name, message.GetProgress().Progress)
+		case orchestrator.InfoType:
+			fmt.Fprintln(out, "[INFO]", message.GetData())
+		case orchestrator.ErrorType:
+			errMesg := cases.Title(language.AmericanEnglish).String(message.GetError().Error())
+			feedback.Fatal(fmt.Sprintf("[ERROR] %s", errMesg), feedback.ErrGeneric)
+			return nil
+		}
+	}
+
+	outputResult := getResult()
+	feedback.PrintResult(restartAppResult{
+		AppName: app.Name,
+		Status:  "restarted",
+		Output:  outputResult,
+	})
+
+	return nil
+}
+
+type restartAppResult struct {
+	AppName string                        `json:"app_name"`
+	Status  string                        `json:"status"`
+	Output  *feedback.OutputStreamsResult `json:"output,omitempty"`
+}
+
+func (r restartAppResult) String() string {
+	return fmt.Sprintf("✓ App %q restarted successfully", r.AppName)
+}
+
+func (r restartAppResult) Data() interface{} {
+	return r
 }
