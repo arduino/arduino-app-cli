@@ -1258,13 +1258,23 @@ func configureMicroInRamMode(
 		return err
 	}
 	defer zeros.Close()
-	empty, err := os.Create("/tmp/empty.elf-zsk.bin") //nolint:gosec
-	if err != nil {
-		return err
-	}
-	defer empty.Close()
-	if _, err := io.CopyN(empty, zeros, 50); err != nil {
-		return err
+
+	// FIXME: arduino-cli upload checks that a file exist but the extension is added after by the platform configuration.
+	// So we create two temporary files with some zeros.
+	for _, tmpFile := range paths.NewPathList("/tmp/empty", "/tmp/empty.elf-zsk.bin") {
+		if err := func(path *paths.Path) error {
+			empty, err := path.Create()
+			if err != nil {
+				return err
+			}
+			defer empty.Close()
+			if _, err := io.CopyN(empty, zeros, 50); err != nil {
+				return err
+			}
+			return nil
+		}(tmpFile); err != nil {
+			return fmt.Errorf("failed to write empty file %q: %w", tmpFile.String(), err)
+		}
 	}
 
 	stream, _ := commands.UploadToServerStreams(ctx, w, w)
