@@ -1,0 +1,124 @@
+name: Build & Update with Arduino CLI
+
+on:
+  push:
+    branches:
+      - main
+      - test_package_update
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-update:
+    runs-on: ubuntu-22.04
+
+    env:
+      TAG_VERSION: "v0.6.7"
+      ARCH: amd64
+      APPCLI_REPO: arduino/arduino-app-cli
+      ROUTER_REPO: arduino/arduino-router
+
+      APPCLI_TAG: ""
+      APPCLI_REGEX: "amd64\\.deb$"
+
+      ROUTER_TAG: ""
+      ROUTER_REGEX: "amd64\\.deb$"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build deb
+        run: |
+          go tool task build-deb VERSION=${TAG_VERSION} ARCH=${ARCH}
+
+      - name: Fetch .debs dynamically into build/stable
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/stable
+
+          fetch_deb () {
+            local repo="$1" tag="${2:-}" regex="$3"
+
+            echo "==> Resolving release for ${repo} (tag='${tag:-<latest>}')"
+            if [ -n "${tag}" ]; then
+              url="https://api.github.com/repos/${repo}/releases/tags/${tag}"
+            else
+              url="https://api.github.com/repos/${repo}/releases/latest"
+            fi
+
+            rel="$(curl -sfL -H "Authorization: token ${GH_TOKEN}" -H "Accept: application/vnd.github+json" "${url}")"
+
+            name="$(echo "$rel" | jq -r --arg re "${regex}" '.assets[] | select(.name | test($re)) | .name' | head -n1)"
+            dl="$(echo "$rel"   | jq -r --arg re "${regex}" '.assets[] | select(.name | test($re)) | .browser_download_url' | head -n1)"
+
+            if [ -z "${name}" ] || [ "${name}" = "null" ] || [ -z "${dl}" ] || [ "${dl}" = "null" ]; then
+              echo "!! No asset found in ${repo} matching regex: ${regex}"
+              echo "   Available assets:"
+              echo "$rel" | jq -r '.assets[].name'
+              exit 1
+            fi
+
+            echo "Found: ${name}"
+            echo "Downloading: ${dl}"
+
+            curl -sfL -H "Authorization: token ${GH_TOKEN}" \
+              -o "build/stable/${name}" \
+              "${dl}"
+
+            ls -lh "build/stable/${name}"
+          }
+
+          fetch_deb "${APPCLI_REPO}" "${APPCLI_TAG}" "${APPCLI_REGEX}"
+          fetch_deb "${ROUTER_REPO}" "${ROUTER_TAG}" "${ROUTER_REGEX}"
+
+          echo "✅ Downloaded files:"
+          ls -lh build/stable/
+          ls -lh build/
+
+      - name: Build Docker image (no cache)
+        run: |
+          docker build -t mock-apt-repo -f test.Dockerfile .
+
+      - name: Run mock-apt-repo container
+        run: |
+          docker run --rm -d \
+          --privileged \
+          --cgroupns=host \
+          -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
+          -v /var/run/docker.sock:/var/run/docker.sock \
+          -e DOCKER_HOST=unix:///var/run/docker.sock \
+          --name apt-test-update \
+          mock-apt-repo
+
+      - name: Run arduino-app-cli current version
+        run: |
+          docker exec --user arduino apt-test-update arduino-app-cli version
+
+      - name: Run arduino-app-cli with auto-yes (as arduino)
+        run: |
+          mkdir -p artifacts
+          docker exec apt-test-update sh -lc 'su - arduino -c "yes | arduino-app-cli system update"' \
+            | tee artifacts/arduino-system-update.log
+
+      - name: Run arduino-app-cli version updated
+        run: |
+          docker exec --user arduino apt-test-update arduino-app-cli version
+
+      - name: Restart arduino-app-cli service and verify
+        run: |
+          docker exec apt-test-update sh -lc '
+            sudo systemctl status arduino-app-cli --no-pager
+            sudo systemctl status arduino-router --no-pager
+          '
+
+
