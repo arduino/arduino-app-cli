@@ -1253,35 +1253,32 @@ func configureMicroInRamMode(
 	srv rpc.ArduinoCoreServiceServer,
 	inst *rpc.Instance,
 ) error {
+	emptyBinDir := paths.New("/tmp/empty")
+	defer emptyBinDir.RemoveAll()
+	if err := emptyBinDir.MkdirAll(); err != nil {
+		return err
+	}
+
 	zeros, err := os.Open("/dev/zero")
 	if err != nil {
 		return err
 	}
 	defer zeros.Close()
 
-	// FIXME: arduino-cli upload checks that a file exist but the extension is added after by the platform configuration.
-	// So we create two temporary files with some zeros.
-	for _, tmpFile := range paths.NewPathList("/tmp/empty", "/tmp/empty.elf-zsk.bin") {
-		if err := func(path *paths.Path) error {
-			empty, err := path.Create()
-			if err != nil {
-				return err
-			}
-			defer empty.Close()
-			if _, err := io.CopyN(empty, zeros, 50); err != nil {
-				return err
-			}
-			return nil
-		}(tmpFile); err != nil {
-			return fmt.Errorf("failed to write empty file %q: %w", tmpFile.String(), err)
-		}
+	empty, err := emptyBinDir.Join("empty.ino.elf-zsk.bin").Create()
+	if err != nil {
+		return err
+	}
+	defer empty.Close()
+	if _, err := io.CopyN(empty, zeros, 50); err != nil {
+		return err
 	}
 
 	stream, _ := commands.UploadToServerStreams(ctx, w, w)
 	return srv.Upload(&rpc.UploadRequest{
-		Instance:   inst,
-		Fqbn:       "arduino:zephyr:unoq:flash_mode=flash",
-		ImportFile: "/tmp/empty",
+		Instance:  inst,
+		Fqbn:      "arduino:zephyr:unoq:flash_mode=flash",
+		ImportDir: emptyBinDir.String(),
 	}, stream)
 }
 
