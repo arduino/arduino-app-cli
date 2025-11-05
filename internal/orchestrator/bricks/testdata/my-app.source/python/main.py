@@ -1,2 +1,2 @@
 def main():
-    # empty file
+    pass
