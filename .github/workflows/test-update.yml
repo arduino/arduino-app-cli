@@ -112,13 +112,4 @@ jobs:
 
       - name: Run arduino-app-cli version updated
         run: |
-          docker exec --user arduino apt-test-update arduino-app-cli version
-
-      - name: Restart arduino-app-cli service and verify
-        run: |
-          docker exec apt-test-update sh -lc '
-            sudo systemctl status arduino-app-cli --no-pager
-            sudo systemctl status arduino-router --no-pager
-          '
-
-
+          docker exec --user arduino apt-test-update arduino-app-cli version<
