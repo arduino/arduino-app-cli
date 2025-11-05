@@ -1,10 +1,10 @@
 name: Copy of Blinking LED from Arduino Cloud
 description: Control the LED from the Arduino IoT Cloud using RPC calls
+icon: ☁️
 ports: []
 bricks:
 - arduino:arduino_cloud:
     variables:
       ARDUINO_DEVICE_ID: my-device-id-79c4b05ef7b6a39
       ARDUINO_SECRET: my-device-secret-43f4a190b1ffb8ce
-- arduino:dbstorage_sqlstore: {}
-icon: ☁️
+- arduino:dbstorage_sqlstore
