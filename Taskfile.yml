@@ -13,7 +13,7 @@ vars:
   VERSION: # if version is not passed we hack the semver by encoding the commit as pre-release
     sh: echo "${VERSION:-0.0.0-$(git rev-parse --short HEAD)}"
   NEW_PACKAGE:
-    sh: ls -1 ./build/arduino-app-cli_*.deb 2>/dev/null | head -n 1 
+    sh: ls -1 ./build/arduino-app-cli_*.deb 2>/dev/null | head -n 1
   GITHUB_TOKEN_FILE: ./github_token.txt
 
 tasks:
@@ -130,26 +130,26 @@ tasks:
     desc: "Builds the mock-repo Docker image (requires GITHUB_TOKEN_FILE)"
     deps: [build-deb]
     vars:
-      PKG_PATH: '{{.NEW_PACKAGE}}'
+      PKG_PATH: "{{.NEW_PACKAGE}}"
     cmds:
       # --- MODIFIED ---
       # Check for both the package and the token file
       - |
-        if [ ! -f "{{.GITHUB_TOKEN_FILE}}" ]; then
-          echo "Error: GitHub token file not found at {{.GITHUB_TOKEN_FILE}}"
-          echo "Please create this file and add your GitHub PAT to it."
-          exit 1
-        fi
+          if [ ! -f "{{.GITHUB_TOKEN_FILE}}" ]; then
+            echo "Error: GitHub token file not found at {{.GITHUB_TOKEN_FILE}}"
+            echo "Please create this file and add your GitHub PAT to it."
+            exit 1
+          fi
       - |
-        echo "Using package: {{.PKG_PATH}}"
-        echo "Using GitHub token from: {{.GITHUB_TOKEN_FILE}}"
-        
-        # Enable BuildKit and pass the secret
-        DOCKER_BUILDKIT=1 docker build \
-          --secret id=github_token,src={{.GITHUB_TOKEN_FILE}} \
-          --build-arg NEW_PACKAGE_PATH={{.PKG_PATH}} \
-          -t newdeb \
-          -f test.Dockerfile .
+          echo "Using package: {{.PKG_PATH}}"
+          echo "Using GitHub token from: {{.GITHUB_TOKEN_FILE}}"
+
+          # Enable BuildKit and pass the secret
+          DOCKER_BUILDKIT=1 docker build \
+            --secret id=github_token,src={{.GITHUB_TOKEN_FILE}} \
+            --build-arg NEW_PACKAGE_PATH={{.PKG_PATH}} \
+            -t newdeb \
+            -f test.Dockerfile .
     status:
       - '[[ -f "{{.PKG_PATH}}" ]]'
       - '[[ -f "{{.DOCKERFILE_NAME}}" ]]'
@@ -166,7 +166,6 @@ tasks:
       - docker build --no-cache -t mock-apt-repo -f test.Dockerfile .
       - docker run --rm -it --privileged -v /sys/fs/cgroup:/sys/fs/cgroup:ro --name apt-test-update mock-apt-repo
       - docker exec -d apt-test-update /usr/bin/arduino-router
-
 
   arduino-app-cli:build:local:
     desc: "Build the arduino-app-cli locally"
