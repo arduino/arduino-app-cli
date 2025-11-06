@@ -202,7 +202,7 @@ func (s *Service) BrickCreate(
 	for _, brickVar := range brick.Variables {
 		if brickVar.DefaultValue == "" {
 			if _, exist := req.Variables[brickVar.Name]; !exist {
-				return fmt.Errorf("required variable '%s' is mandatory", brickVar.Name)
+				return fmt.Errorf("required variable %q is mandatory", brickVar.Name)
 			}
 		}
 	}
