@@ -48,6 +48,7 @@ type AIModel struct {
 	ModuleDescription  string            `yaml:"description"`
 	Runner             string            `yaml:"runner"`
 	Bricks             []string          `yaml:"bricks,omitempty"`
+	ModelLabels        []string          `yaml:"model_labels,omitempty"`
 	Metadata           map[string]string `yaml:"metadata,omitempty"`
 	ModelConfiguration map[string]string `yaml:"model_configuration,omitempty"`
 }

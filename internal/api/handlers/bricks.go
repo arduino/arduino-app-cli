@@ -26,6 +26,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
@@ -153,14 +154,15 @@ func HandleBrickCreate(
 	}
 }
 
-func HandleBrickDetails(brickService *bricks.Service) http.HandlerFunc {
+func HandleBrickDetails(brickService *bricks.Service, idProvider *app.IDProvider,
+	cfg config.Configuration) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("brickID")
 		if id == "" {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "id must be set"})
 			return
 		}
-		res, err := brickService.BricksDetails(id)
+		res, err := brickService.BricksDetails(id, idProvider, cfg)
 		if err != nil {
 			if errors.Is(err, bricks.ErrBrickNotFound) {
 				details := fmt.Sprintf("brick with id %q not found", id)

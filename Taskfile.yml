@@ -167,7 +167,7 @@ tasks:
     cmds:
       - docker rm -f adbd
 
-  board:install-arduino-app-cli:
+  board:install:
     desc: Install arduino-app-cli on the board
     interactive: true
     cmds:

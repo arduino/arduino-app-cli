@@ -1,0 +1,25 @@
+bricks:
+- id: arduino:arduino_cloud
+  name: Arduino Cloud
+  description: Connects to Arduino Cloud
+  require_container: false
+  require_model: false
+  require_devices: false
+  mount_devices_into_container: false
+  ports: []
+  category: null
+  variables:
+  - name: ARDUINO_DEVICE_ID
+    description: Arduino Cloud Device ID
+  - name: ARDUINO_SECRET
+    description: Arduino Cloud Secret
+- id: arduino:dbstorage_sqlstore
+  name: Database - SQL
+  description: Simplified database storage layer for Arduino sensor data using SQLite
+    local database.
+  require_container: false
+  require_model: false
+  require_devices: false
+  mount_devices_into_container: false
+  ports: []
+  category: storage
