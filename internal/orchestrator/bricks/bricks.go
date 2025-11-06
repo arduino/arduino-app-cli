@@ -80,7 +80,7 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 			return AppBrickInstancesResult{}, fmt.Errorf("brick not found with id %s", brickInstance.ID)
 		}
 
-		variablesMap, instanceVariables := getBrickConfigDetails(brick, brickInstance.Variables)
+		variablesMap, configVariables := getBrickConfigDetails(brick, brickInstance.Variables)
 
 		res.BrickInstances[i] = BrickInstance{
 			ID:              brick.ID,
@@ -90,7 +90,7 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 			Status:          "installed",
 			ModelID:         brickInstance.Model, // TODO: in case is not set by the user, should we return the default model?
 			Variables:       variablesMap,        // TODO: do we want to show also the default value of not explicitly set variables?
-			ConfigVariables: instanceVariables,
+			ConfigVariables: configVariables,
 		}
 
 	}
@@ -108,7 +108,7 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 		return BrickInstance{}, fmt.Errorf("brick %s not added in the app", brickID)
 	}
 
-	variables, instanceVariables := getBrickConfigDetails(brick, a.Descriptor.Bricks[brickIndex].Variables)
+	variables, configVariables := getBrickConfigDetails(brick, a.Descriptor.Bricks[brickIndex].Variables)
 
 	modelID := a.Descriptor.Bricks[brickIndex].Model
 	if modelID == "" {
@@ -122,7 +122,7 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 		Category:        brick.Category,
 		Status:          "installed", // For now every Arduino brick are installed
 		Variables:       variables,
-		ConfigVariables: instanceVariables,
+		ConfigVariables: configVariables,
 		ModelID:         modelID,
 	}, nil
 }

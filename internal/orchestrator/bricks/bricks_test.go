@@ -113,11 +113,11 @@ func TestBrickCreate(t *testing.T) {
 
 func TestGetBrickInstanceVariableDetails(t *testing.T) {
 	tests := []struct {
-		name                     string
-		brick                    *bricksindex.Brick
-		userVariables            map[string]string
-		expectedInstanceVariable []BrickConfigVariable
-		expectedVariableMap      map[string]string
+		name                    string
+		brick                   *bricksindex.Brick
+		userVariables           map[string]string
+		expectedConfigVariables []BrickConfigVariable
+		expectedVariableMap     map[string]string
 	}{
 		{
 			name: "variable is present in the map",
@@ -127,7 +127,7 @@ func TestGetBrickInstanceVariableDetails(t *testing.T) {
 				},
 			},
 			userVariables: map[string]string{"VAR1": "value1"},
-			expectedInstanceVariable: []BrickConfigVariable{
+			expectedConfigVariables: []BrickConfigVariable{
 				{Name: "VAR1", Value: "value1", Description: "desc", Required: true},
 			},
 			expectedVariableMap: map[string]string{"VAR1": "value1"},
@@ -140,7 +140,7 @@ func TestGetBrickInstanceVariableDetails(t *testing.T) {
 				},
 			},
 			userVariables: map[string]string{},
-			expectedInstanceVariable: []BrickConfigVariable{
+			expectedConfigVariables: []BrickConfigVariable{
 				{Name: "VAR1", Value: "", Description: "desc", Required: true},
 			},
 			expectedVariableMap: map[string]string{"VAR1": ""},
@@ -153,7 +153,7 @@ func TestGetBrickInstanceVariableDetails(t *testing.T) {
 				},
 			},
 			userVariables: map[string]string{},
-			expectedInstanceVariable: []BrickConfigVariable{
+			expectedConfigVariables: []BrickConfigVariable{
 				{Name: "VAR1", Value: "default", Description: "desc", Required: false},
 			},
 			expectedVariableMap: map[string]string{"VAR1": "default"},
@@ -167,26 +167,26 @@ func TestGetBrickInstanceVariableDetails(t *testing.T) {
 				},
 			},
 			userVariables: map[string]string{"VAR1": "v1"},
-			expectedInstanceVariable: []BrickConfigVariable{
+			expectedConfigVariables: []BrickConfigVariable{
 				{Name: "VAR1", Value: "v1", Description: "desc1", Required: true},
 				{Name: "VAR2", Value: "def2", Description: "desc2", Required: false},
 			},
 			expectedVariableMap: map[string]string{"VAR1": "v1", "VAR2": "def2"},
 		},
 		{
-			name:                     "no variables",
-			brick:                    &bricksindex.Brick{Variables: []bricksindex.BrickVariable{}},
-			userVariables:            map[string]string{},
-			expectedInstanceVariable: []BrickConfigVariable{},
-			expectedVariableMap:      map[string]string{},
+			name:                    "no variables",
+			brick:                   &bricksindex.Brick{Variables: []bricksindex.BrickVariable{}},
+			userVariables:           map[string]string{},
+			expectedConfigVariables: []BrickConfigVariable{},
+			expectedVariableMap:     map[string]string{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actualVariableMap, actualInstanceVariables := getBrickConfigDetails(tt.brick, tt.userVariables)
+			actualVariableMap, actualConfigVariables := getBrickConfigDetails(tt.brick, tt.userVariables)
 			require.Equal(t, tt.expectedVariableMap, actualVariableMap)
-			require.Equal(t, tt.expectedInstanceVariable, actualInstanceVariables)
+			require.Equal(t, tt.expectedConfigVariables, actualConfigVariables)
 		})
 	}
 }
