@@ -192,7 +192,7 @@ func (s *Service) BrickCreate(
 	for name, reqValue := range req.Variables {
 		value, exist := brick.GetVariable(name)
 		if !exist {
-			return fmt.Errorf("variable '%s' does not exist on brick '%s'", name, brick.ID)
+			return fmt.Errorf("variable %q does not exist on brick %q", name, brick.ID)
 		}
 		if value.DefaultValue == "" && reqValue == "" {
 			return fmt.Errorf("variable '%s' cannot be empty", name)
