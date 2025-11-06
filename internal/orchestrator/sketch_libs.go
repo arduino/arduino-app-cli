@@ -28,7 +28,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 )
 
-const indexUpdateInterval = 1 * time.Second // TODO change to a better value
+const indexUpdateInterval = 60 * time.Second
 
 func AddSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef LibraryReleaseID, addDeps bool) ([]LibraryReleaseID, error) {
 	srv := commands.NewArduinoCoreServer()
@@ -54,7 +54,7 @@ func AddSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef LibraryRel
 	})
 	req := &rpc.UpdateLibrariesIndexRequest{Instance: inst, UpdateIfOlderThanSecs: int64(indexUpdateInterval.Seconds())}
 	if err := srv.UpdateLibrariesIndex(req, stream); err != nil {
-		//TODO: only print a warn message instead of failing ? in order to avoid blocking the user to instal lthe lib in case it is present into the local index
+		// TODO: only print a warn message instead of failing ? in order to avoid blocking the user to install the lib in case it is present into the local index
 		return []LibraryReleaseID{}, fmt.Errorf("error updating library index: %v", err)
 	}
 	slog.Debug("Library index update", "status", res().GetLibrariesIndex().GetStatus())
