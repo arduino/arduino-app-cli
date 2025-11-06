@@ -66,43 +66,47 @@ func TestBrickCreate(t *testing.T) {
 	})
 
 	t.Run("the brick is added if it does not exist in the app", func(t *testing.T) {
-		req := BrickCreateUpdateRequest{ID: "arduino:dbstorage_sqlstore"}
-		// TODO: find a better way to test if the brick has been added to the app.yaml
-		// Currently we only check that there is no error since the app.yaml is populated with the brick at every test execution.
-		err = brickService.BrickCreate(req, f.Must(app.Load("testdata/dummy-app")))
+		tempDummyApp := paths.New("testdata/dummy-app.temp")
+		err := tempDummyApp.RemoveAll()
 		require.Nil(t, err)
+		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
+
+		req := BrickCreateUpdateRequest{ID: "arduino:dbstorage_sqlstore"}
+		err = brickService.BrickCreate(req, f.Must(app.Load(tempDummyApp.String())))
+		require.Nil(t, err)
+		after, err := app.Load(tempDummyApp.String())
+		require.Nil(t, err)
+		require.Len(t, after.Descriptor.Bricks, 2)
+		require.Equal(t, "arduino:dbstorage_sqlstore", after.Descriptor.Bricks[1].ID)
 	})
-}
+	t.Run("the variables of a brick are updated", func(t *testing.T) {
+		tempDummyApp := paths.New("testdata/dummy-app.brick-override.temp")
+		err := tempDummyApp.RemoveAll()
+		require.Nil(t, err)
+		err = paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp)
+		require.Nil(t, err)
+		bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(paths.New("testdata"))
+		require.Nil(t, err)
+		brickService := NewService(nil, bricksIndex, nil)
 
-func TestOverrideBrickVariablesOfApp(t *testing.T) {
-	appWithOverride := paths.New("testdata/my-app.override")
-	err := appWithOverride.RemoveAll()
-	require.Nil(t, err)
+		deviceID := "this-is-a-device-id"
+		secret := "this-is-a-secret"
+		req := BrickCreateUpdateRequest{
+			ID: "arduino:arduino_cloud",
+			Variables: map[string]string{
+				"ARDUINO_DEVICE_ID": deviceID,
+				"ARDUINO_SECRET":    secret,
+			},
+		}
 
-	err = paths.New("testdata/my-app.source").CopyDirTo(appWithOverride)
-	require.Nil(t, err)
-	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(paths.New("testdata"))
-	require.Nil(t, err)
-	brickService := NewService(nil, bricksIndex, nil)
+		err = brickService.BrickCreate(req, f.Must(app.Load(tempDummyApp.String())))
+		require.Nil(t, err)
 
-	deviceID := "this-is-a-device-id"
-	secret := "this-is-a-secret"
-
-	req := BrickCreateUpdateRequest{
-		ID: "arduino:arduino_cloud",
-		Variables: map[string]string{
-			"ARDUINO_DEVICE_ID": deviceID,
-			"ARDUINO_SECRET":    secret,
-		},
-	}
-
-	err = brickService.BrickCreate(req, f.Must(app.Load("testdata/my-app.override")))
-	require.Nil(t, err)
-
-	after, err := app.Load("testdata/my-app.override")
-	require.Nil(t, err)
-	require.Len(t, after.Descriptor.Bricks, 1)
-	require.Equal(t, "arduino:arduino_cloud", after.Descriptor.Bricks[0].ID)
-	require.Equal(t, deviceID, after.Descriptor.Bricks[0].Variables["ARDUINO_DEVICE_ID"])
-	require.Equal(t, secret, after.Descriptor.Bricks[0].Variables["ARDUINO_SECRET"])
+		after, err := app.Load(tempDummyApp.String())
+		require.Nil(t, err)
+		require.Len(t, after.Descriptor.Bricks, 1)
+		require.Equal(t, "arduino:arduino_cloud", after.Descriptor.Bricks[0].ID)
+		require.Equal(t, deviceID, after.Descriptor.Bricks[0].Variables["ARDUINO_DEVICE_ID"])
+		require.Equal(t, secret, after.Descriptor.Bricks[0].Variables["ARDUINO_SECRET"])
+	})
 }

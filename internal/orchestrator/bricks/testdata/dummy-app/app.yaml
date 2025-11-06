@@ -4,7 +4,3 @@ icon: ☁️
 ports: []
 bricks:
 - arduino:arduino_cloud:
-    variables:
-      ARDUINO_DEVICE_ID: my-device-id-79c4b05ef7b6a39
-      ARDUINO_SECRET: my-device-secret-43f4a190b1ffb8ce
-- arduino:dbstorage_sqlstore
