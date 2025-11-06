@@ -16,34 +16,132 @@
 package version
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/cmd/i18n"
 )
 
-func NewVersionCmd(version string) *cobra.Command {
+// The actual listening address for the daemon
+// is defined in the installation package
+const (
+	DefaultHostname = "localhost"
+	DefaultPort     = "8800"
+)
+
+func NewVersionCmd(clientVersion string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "version",
-		Short: "Print the version number of Arduino App CLI",
+		Short: "Print the client and server version numbers for the Arduino App CLI.",
 		Run: func(cmd *cobra.Command, args []string) {
-			feedback.PrintResult(versionResult{
-				AppName: "Arduino App CLI",
-				Version: version,
-			})
+			host, _ := cmd.Flags().GetString("host")
+
+			versionHandler(clientVersion, host)
 		},
 	}
+	cmd.Flags().String("host", fmt.Sprintf("%s:%s", DefaultHostname, DefaultPort),
+		"The daemon network address [host]:[port]")
 	return cmd
 }
 
-type versionResult struct {
-	AppName string `json:"appName"`
+func versionHandler(clientVersion string, host string) {
+	httpClient := http.Client{
+		Timeout: time.Second,
+	}
+	result := doVersionHandler(httpClient, clientVersion, host)
+	feedback.PrintResult(result)
+}
+
+func doVersionHandler(httpClient http.Client, clientVersion string, host string) versionResult {
+	url, err := getValidOrDefaultUrl(host)
+	if err != nil {
+		feedback.Fatal(i18n.Tr("Error: invalid host:port format"), feedback.ErrBadArgument)
+	}
+
+	serverVersion, err := getServerVersion(httpClient, url)
+	if err != nil {
+		serverVersion = fmt.Sprintf("n/a (cannot connect to the server %s://%s)", url.Scheme, url.Host)
+	}
+
+	return versionResult{
+		ClientVersion: clientVersion,
+		ServerVersion: serverVersion,
+	}
+}
+
+func getValidOrDefaultUrl(hostPort string) (url.URL, error) {
+	host := DefaultHostname
+	port := DefaultPort
+
+	if hostPort != "" {
+		h, p, err := net.SplitHostPort(hostPort)
+		if err != nil {
+			return url.URL{}, err
+		}
+		if h != "" {
+			host = h
+		}
+		if p != "" {
+			port = p
+		}
+
+	}
+
+	hostAndPort := net.JoinHostPort(host, port)
+
+	u := url.URL{
+		Scheme: "http",
+		Host:   hostAndPort,
+		Path:   "/v1/version",
+	}
+
+	return u, nil
+}
+
+func getServerVersion(httpClient http.Client, url url.URL) (string, error) {
+	resp, err := httpClient.Get(url.String())
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("request failed with status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	var serverResponse serverVersionResponse
+	if err := json.Unmarshal(body, &serverResponse); err != nil {
+		return "", err
+	}
+
+	return serverResponse.Version, nil
+}
+
+type serverVersionResponse struct {
 	Version string `json:"version"`
 }
 
+type versionResult struct {
+	ClientVersion string `json:"version"`
+	ServerVersion string `json:"serverVersion"`
+}
+
 func (r versionResult) String() string {
-	return fmt.Sprintf("%s v%s", r.AppName, r.Version)
+	return fmt.Sprintf("client: %s\nserver: %s",
+		r.ClientVersion, r.ServerVersion)
 }
 
 func (r versionResult) Data() interface{} {
