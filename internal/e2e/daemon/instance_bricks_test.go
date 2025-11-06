@@ -37,7 +37,7 @@ const (
 )
 
 var (
-	expectedConfigVariables = []client.BrickInstanceVariable{
+	expectedConfigVariables = []client.BrickConfigVariable{
 		{
 			Description: f.Ptr("path to the custom model directory"),
 			Name:        f.Ptr("CUSTOM_MODEL_PATH"),

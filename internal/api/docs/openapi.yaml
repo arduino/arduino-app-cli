@@ -1276,6 +1276,17 @@ components:
         name:
           type: string
       type: object
+    BrickConfigVariable:
+      properties:
+        description:
+          type: string
+        name:
+          type: string
+        required:
+          type: boolean
+        value:
+          type: string
+      type: object
     BrickCreateUpdateRequest:
       properties:
         model:
@@ -1327,7 +1338,7 @@ components:
           type: string
         config_variables:
           items:
-            $ref: '#/components/schemas/BrickInstanceVariable'
+            $ref: '#/components/schemas/BrickConfigVariable'
           type: array
         id:
           type: string
@@ -1343,17 +1354,6 @@ components:
           description: 'Deprecated: use config_variables instead. This field is kept
             for backward compatibility.'
           type: object
-      type: object
-    BrickInstanceVariable:
-      properties:
-        description:
-          type: string
-        name:
-          type: string
-        required:
-          type: boolean
-        value:
-          type: string
       type: object
     BrickListItem:
       properties:
