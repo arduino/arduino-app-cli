@@ -116,7 +116,7 @@ func TestGetBrickInstanceVariableDetails(t *testing.T) {
 		name                     string
 		brick                    *bricksindex.Brick
 		userVariables            map[string]string
-		expectedInstanceVariable []BrickInstanceVariable
+		expectedInstanceVariable []BrickConfigVariable
 		expectedVariableMap      map[string]string
 	}{
 		{
@@ -127,7 +127,7 @@ func TestGetBrickInstanceVariableDetails(t *testing.T) {
 				},
 			},
 			userVariables: map[string]string{"VAR1": "value1"},
-			expectedInstanceVariable: []BrickInstanceVariable{
+			expectedInstanceVariable: []BrickConfigVariable{
 				{Name: "VAR1", Value: "value1", Description: "desc", Required: true},
 			},
 			expectedVariableMap: map[string]string{"VAR1": "value1"},
@@ -140,7 +140,7 @@ func TestGetBrickInstanceVariableDetails(t *testing.T) {
 				},
 			},
 			userVariables: map[string]string{},
-			expectedInstanceVariable: []BrickInstanceVariable{
+			expectedInstanceVariable: []BrickConfigVariable{
 				{Name: "VAR1", Value: "", Description: "desc", Required: true},
 			},
 			expectedVariableMap: map[string]string{"VAR1": ""},
@@ -153,7 +153,7 @@ func TestGetBrickInstanceVariableDetails(t *testing.T) {
 				},
 			},
 			userVariables: map[string]string{},
-			expectedInstanceVariable: []BrickInstanceVariable{
+			expectedInstanceVariable: []BrickConfigVariable{
 				{Name: "VAR1", Value: "default", Description: "desc", Required: false},
 			},
 			expectedVariableMap: map[string]string{"VAR1": "default"},
@@ -167,7 +167,7 @@ func TestGetBrickInstanceVariableDetails(t *testing.T) {
 				},
 			},
 			userVariables: map[string]string{"VAR1": "v1"},
-			expectedInstanceVariable: []BrickInstanceVariable{
+			expectedInstanceVariable: []BrickConfigVariable{
 				{Name: "VAR1", Value: "v1", Description: "desc1", Required: true},
 				{Name: "VAR2", Value: "def2", Description: "desc2", Required: false},
 			},
@@ -177,7 +177,7 @@ func TestGetBrickInstanceVariableDetails(t *testing.T) {
 			name:                     "no variables",
 			brick:                    &bricksindex.Brick{Variables: []bricksindex.BrickVariable{}},
 			userVariables:            map[string]string{},
-			expectedInstanceVariable: []BrickInstanceVariable{},
+			expectedInstanceVariable: []BrickConfigVariable{},
 			expectedVariableMap:      map[string]string{},
 		},
 	}

@@ -129,9 +129,9 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 
 func getBrickConfigDetails(
 	brick *bricksindex.Brick, userVariables map[string]string,
-) (map[string]string, []BrickInstanceVariable) {
+) (map[string]string, []BrickConfigVariable) {
 	variablesMap := make(map[string]string, len(brick.Variables))
-	variableDetails := make([]BrickInstanceVariable, 0, len(brick.Variables))
+	variableDetails := make([]BrickConfigVariable, 0, len(brick.Variables))
 
 	for _, v := range brick.Variables {
 		finalValue := v.DefaultValue
@@ -142,7 +142,7 @@ func getBrickConfigDetails(
 		}
 		variablesMap[v.Name] = finalValue
 
-		variableDetails = append(variableDetails, BrickInstanceVariable{
+		variableDetails = append(variableDetails, BrickConfigVariable{
 			Name:        v.Name,
 			Value:       finalValue,
 			Description: v.Description,
