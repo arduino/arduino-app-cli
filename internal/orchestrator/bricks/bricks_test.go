@@ -34,7 +34,7 @@ func TestBrickCreate(t *testing.T) {
 	t.Run("fails if brick id does not exist", func(t *testing.T) {
 		err = brickService.BrickCreate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load("testdata/dummy-app")))
 		require.Error(t, err)
-		require.Equal(t, "brick 'not-existing-id' not found", err.Error())
+		require.Equal(t, "brick \"not-existing-id\" not found", err.Error())
 	})
 
 	t.Run("fails if the requestes variable is not present in the brick definition", func(t *testing.T) {
@@ -43,7 +43,7 @@ func TestBrickCreate(t *testing.T) {
 		}}
 		err = brickService.BrickCreate(req, f.Must(app.Load("testdata/dummy-app")))
 		require.Error(t, err)
-		require.Equal(t, "variable 'NON_EXISTING_VARIABLE' does not exist on brick 'arduino:arduino_cloud'", err.Error())
+		require.Equal(t, "variable \"NON_EXISTING_VARIABLE\" does not exist on brick \"arduino:arduino_cloud\"", err.Error())
 	})
 
 	t.Run("fails if a required variable is set empty", func(t *testing.T) {
@@ -53,7 +53,7 @@ func TestBrickCreate(t *testing.T) {
 		}}
 		err = brickService.BrickCreate(req, f.Must(app.Load("testdata/dummy-app")))
 		require.Error(t, err)
-		require.Equal(t, "variable 'ARDUINO_DEVICE_ID' cannot be empty", err.Error())
+		require.Equal(t, "variable \"ARDUINO_DEVICE_ID\" cannot be empty", err.Error())
 	})
 
 	t.Run("fails if a mandatory variable is not present in the request", func(t *testing.T) {
@@ -62,7 +62,7 @@ func TestBrickCreate(t *testing.T) {
 		}}
 		err = brickService.BrickCreate(req, f.Must(app.Load("testdata/dummy-app")))
 		require.Error(t, err)
-		require.Equal(t, "required variable 'ARDUINO_DEVICE_ID' is mandatory", err.Error())
+		require.Equal(t, "required variable \"ARDUINO_DEVICE_ID\" is mandatory", err.Error())
 	})
 
 	t.Run("the brick is added if it does not exist in the app", func(t *testing.T) {
