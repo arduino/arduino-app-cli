@@ -50,12 +50,11 @@ func AddSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef LibraryRel
 
 	// update the local library_index if it is older than a certain threshold, to ensure the library is found when added by the arduino-cli
 	stream, res := commands.UpdateLibrariesIndexStreamResponseToCallbackFunction(ctx, func(curr *rpc.DownloadProgress) {
-		// TODO: show log progres ?
 		slog.Debug("downloading library index", "progress", curr.Message)
 	})
 	req := &rpc.UpdateLibrariesIndexRequest{Instance: inst, UpdateIfOlderThanSecs: int64(indexUpdateInterval.Seconds())}
 	if err := srv.UpdateLibrariesIndex(req, stream); err != nil {
-		//TODO: only print a warn message instead of failing ?? The local-library could contain the lib even if the update fail
+		//TODO: only print a warn message instead of failing ? in order to avoid blocking the user to instal lthe lib in case it is present into the local index
 		return []LibraryReleaseID{}, fmt.Errorf("error updating library index: %v", err)
 	}
 	slog.Debug("Library index update", "status", res().GetLibrariesIndex().GetStatus())
