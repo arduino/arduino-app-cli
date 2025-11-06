@@ -195,7 +195,7 @@ func (s *Service) BrickCreate(
 			return fmt.Errorf("variable %q does not exist on brick %q", name, brick.ID)
 		}
 		if value.DefaultValue == "" && reqValue == "" {
-			return fmt.Errorf("variable '%s' cannot be empty", name)
+			return fmt.Errorf("variable %q cannot be empty", name)
 		}
 	}
 
