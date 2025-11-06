@@ -17,6 +17,9 @@ package orchestrator
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
+	"time"
 
 	"github.com/arduino/arduino-cli/commands"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
@@ -24,6 +27,8 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 )
+
+const indexUpdateInterval = 1 * time.Second // TODO change to a better value
 
 func AddSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef LibraryReleaseID, addDeps bool) ([]LibraryReleaseID, error) {
 	srv := commands.NewArduinoCoreServer()
@@ -59,6 +64,19 @@ func AddSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef LibraryRel
 	if err != nil {
 		return nil, err
 	}
+
+	// since the local library-index could be outofdate with respect the public  library index, w
+	stream, res := commands.UpdateLibrariesIndexStreamResponseToCallbackFunction(ctx, func(curr *rpc.DownloadProgress) {
+		// TODO: LOG progress ?
+		slog.Error("progress", "msg", curr.String())
+	})
+	req := &rpc.UpdateLibrariesIndexRequest{Instance: inst, UpdateIfOlderThanSecs: int64(indexUpdateInterval)}
+	if err := srv.UpdateLibrariesIndex(req, stream); err != nil {
+		// TODO: is it correct to step the add of a library even is the library index could not be updated ?
+		return []LibraryReleaseID{}, fmt.Errorf("error updating library index: %v", err)
+	}
+	slog.Error("OOOK Library index update", "index", res().GetLibrariesIndex())
+
 	return f.Map(resp.GetAddedLibraries(), rpcProfileLibReferenceToLibReleaseID), nil
 }
 
