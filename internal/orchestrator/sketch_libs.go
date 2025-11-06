@@ -48,6 +48,18 @@ func AddSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef LibraryRel
 		return nil, err
 	}
 
+	// update the local library_index if it is older than a certain threshold, to ensure the library is found when added by the arduino-cli
+	stream, res := commands.UpdateLibrariesIndexStreamResponseToCallbackFunction(ctx, func(curr *rpc.DownloadProgress) {
+		// TODO: show log progres ?
+		slog.Debug("downloading library index", "progress", curr.Message)
+	})
+	req := &rpc.UpdateLibrariesIndexRequest{Instance: inst, UpdateIfOlderThanSecs: int64(indexUpdateInterval.Seconds())}
+	if err := srv.UpdateLibrariesIndex(req, stream); err != nil {
+		//TODO: only print a warn message instead of failing ?? The local-library could contain the lib even if the update fail
+		return []LibraryReleaseID{}, fmt.Errorf("error updating library index: %v", err)
+	}
+	slog.Debug("Library index update", "status", res().GetLibrariesIndex().GetStatus())
+
 	resp, err := srv.ProfileLibAdd(ctx, &rpc.ProfileLibAddRequest{
 		Instance:   inst,
 		SketchPath: app.MainSketchPath.String(),
@@ -64,18 +76,6 @@ func AddSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef LibraryRel
 	if err != nil {
 		return nil, err
 	}
-
-	// since the local library-index could be outofdate with respect the public  library index, w
-	stream, res := commands.UpdateLibrariesIndexStreamResponseToCallbackFunction(ctx, func(curr *rpc.DownloadProgress) {
-		// TODO: LOG progress ?
-		slog.Error("progress", "msg", curr.String())
-	})
-	req := &rpc.UpdateLibrariesIndexRequest{Instance: inst, UpdateIfOlderThanSecs: int64(indexUpdateInterval)}
-	if err := srv.UpdateLibrariesIndex(req, stream); err != nil {
-		// TODO: is it correct to step the add of a library even is the library index could not be updated ?
-		return []LibraryReleaseID{}, fmt.Errorf("error updating library index: %v", err)
-	}
-	slog.Error("OOOK Library index update", "index", res().GetLibrariesIndex())
 
 	return f.Map(resp.GetAddedLibraries(), rpcProfileLibReferenceToLibReleaseID), nil
 }
