@@ -470,7 +470,7 @@ func TestDeleteApp(t *testing.T) {
 
 	t.Run("DeletingExampleApp_Fail", func(t *testing.T) {
 		var actualResponseBody models.ErrorResponse
-		deleteResp, err := httpClient.DeleteApp(t.Context(), noExisitingExample)
+		deleteResp, err := httpClient.DeleteApp(t.Context(), "ZXhhbXBsZXM6anVzdGJsaW5f")
 		require.NoError(t, err)
 		defer deleteResp.Body.Close()
 
@@ -818,7 +818,7 @@ func TestAppPorts(t *testing.T) {
 		respBrick, err := httpClient.UpsertAppBrickInstanceWithResponse(
 			t.Context(),
 			*createResp.JSON201.Id,
-			StreamLitUi,
+			"arduino:streamlit_ui",
 			client.BrickCreateUpdateRequest{},
 			func(ctx context.Context, req *http.Request) error { return nil },
 		)
