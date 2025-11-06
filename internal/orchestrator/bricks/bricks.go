@@ -186,7 +186,7 @@ func (s *Service) BrickCreate(
 ) error {
 	brick, present := s.bricksIndex.FindBrickByID(req.ID)
 	if !present {
-		return fmt.Errorf("brick '%s' not found", req.ID)
+		return fmt.Errorf("brick %q not found", req.ID)
 	}
 
 	for name, reqValue := range req.Variables {
