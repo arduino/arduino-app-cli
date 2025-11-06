@@ -37,7 +37,7 @@ const (
 )
 
 var (
-	expectedVariablesDetails = []client.BrickInstanceVariable{
+	expectedConfigVariables = []client.BrickInstanceVariable{
 		{
 			Description: f.Ptr("path to the custom model directory"),
 			Name:        f.Ptr("CUSTOM_MODEL_PATH"),
@@ -90,7 +90,7 @@ func TestGetAppBrickInstances(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, *brickInstances.JSON200.Bricks, 1)
 		require.Equal(t, ImageClassifactionBrickID, *(*brickInstances.JSON200.Bricks)[0].Id)
-		require.Equal(t, expectedVariablesDetails, *(*brickInstances.JSON200.Bricks)[0].VariablesDetails)
+		require.Equal(t, expectedConfigVariables, *(*brickInstances.JSON200.Bricks)[0].ConfigVariables)
 
 	})
 
@@ -134,7 +134,7 @@ func TestGetAppBrickInstanceById(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, brickInstance.JSON200)
 		require.Equal(t, ImageClassifactionBrickID, *brickInstance.JSON200.Id)
-		require.Equal(t, expectedVariablesDetails, (*brickInstance.JSON200.VariablesDetails))
+		require.Equal(t, expectedConfigVariables, (*brickInstance.JSON200.ConfigVariables))
 	})
 
 	t.Run("GetAppBrickInstanceByBrickID_InvalidAppID_Fails", func(t *testing.T) {

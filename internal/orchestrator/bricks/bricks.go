@@ -80,17 +80,17 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 			return AppBrickInstancesResult{}, fmt.Errorf("brick not found with id %s", brickInstance.ID)
 		}
 
-		variablesMap, instanceVariables := getBrickVariableDetails(brick, brickInstance.Variables)
+		variablesMap, instanceVariables := getBrickConfigDetails(brick, brickInstance.Variables)
 
 		res.BrickInstances[i] = BrickInstance{
-			ID:               brick.ID,
-			Name:             brick.Name,
-			Author:           "Arduino", // TODO: for now we only support our bricks
-			Category:         brick.Category,
-			Status:           "installed",
-			ModelID:          brickInstance.Model, // TODO: in case is not set by the user, should we return the default model?
-			Variables:        variablesMap,        // TODO: do we want to show also the default value of not explicitly set variables?
-			VariablesDetails: instanceVariables,
+			ID:              brick.ID,
+			Name:            brick.Name,
+			Author:          "Arduino", // TODO: for now we only support our bricks
+			Category:        brick.Category,
+			Status:          "installed",
+			ModelID:         brickInstance.Model, // TODO: in case is not set by the user, should we return the default model?
+			Variables:       variablesMap,        // TODO: do we want to show also the default value of not explicitly set variables?
+			ConfigVariables: instanceVariables,
 		}
 
 	}
@@ -108,7 +108,7 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 		return BrickInstance{}, fmt.Errorf("brick %s not added in the app", brickID)
 	}
 
-	variables, instanceVariables := getBrickVariableDetails(brick, a.Descriptor.Bricks[brickIndex].Variables)
+	variables, instanceVariables := getBrickConfigDetails(brick, a.Descriptor.Bricks[brickIndex].Variables)
 
 	modelID := a.Descriptor.Bricks[brickIndex].Model
 	if modelID == "" {
@@ -116,18 +116,18 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 	}
 
 	return BrickInstance{
-		ID:               brickID,
-		Name:             brick.Name,
-		Author:           "Arduino", // TODO: for now we only support our bricks
-		Category:         brick.Category,
-		Status:           "installed", // For now every Arduino brick are installed
-		Variables:        variables,
-		VariablesDetails: instanceVariables,
-		ModelID:          modelID,
+		ID:              brickID,
+		Name:            brick.Name,
+		Author:          "Arduino", // TODO: for now we only support our bricks
+		Category:        brick.Category,
+		Status:          "installed", // For now every Arduino brick are installed
+		Variables:       variables,
+		ConfigVariables: instanceVariables,
+		ModelID:         modelID,
 	}, nil
 }
 
-func getBrickVariableDetails(
+func getBrickConfigDetails(
 	brick *bricksindex.Brick, userVariables map[string]string,
 ) (map[string]string, []BrickInstanceVariable) {
 	variablesMap := make(map[string]string, len(brick.Variables))

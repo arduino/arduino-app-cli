@@ -184,7 +184,7 @@ func TestGetBrickInstanceVariableDetails(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actualVariableMap, actualInstanceVariables := getBrickVariableDetails(tt.brick, tt.userVariables)
+			actualVariableMap, actualInstanceVariables := getBrickConfigDetails(tt.brick, tt.userVariables)
 			require.Equal(t, tt.expectedVariableMap, actualVariableMap)
 			require.Equal(t, tt.expectedInstanceVariable, actualInstanceVariables)
 		})

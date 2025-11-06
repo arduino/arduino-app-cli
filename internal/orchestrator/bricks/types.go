@@ -34,14 +34,14 @@ type AppBrickInstancesResult struct {
 }
 
 type BrickInstance struct {
-	ID               string                  `json:"id"`
-	Name             string                  `json:"name"`
-	Author           string                  `json:"author"`
-	Category         string                  `json:"category"`
-	Status           string                  `json:"status"`
-	Variables        map[string]string       `json:"variables,omitempty" description:"Deprecated: use variables_details instead. This field is kept for backward compatibility."`
-	VariablesDetails []BrickInstanceVariable `json:"variables_details,omitempty"`
-	ModelID          string                  `json:"model,omitempty"`
+	ID              string                  `json:"id"`
+	Name            string                  `json:"name"`
+	Author          string                  `json:"author"`
+	Category        string                  `json:"category"`
+	Status          string                  `json:"status"`
+	Variables       map[string]string       `json:"variables,omitempty" description:"Deprecated: use config_variables instead. This field is kept for backward compatibility."`
+	ConfigVariables []BrickInstanceVariable `json:"config_variables,omitempty"`
+	ModelID         string                  `json:"model,omitempty"`
 }
 
 type BrickInstanceVariable struct {
