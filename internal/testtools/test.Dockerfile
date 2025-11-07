@@ -6,7 +6,7 @@ RUN apt update && \
     dpkg-dev apt-utils adduser gzip && \
     rm -rf /var/lib/apt/lists/*
 
-ARG ARCH=arm64
+ARG ARCH=amd64
 
 COPY build/stable/arduino-app-cli*.deb /tmp/stable.deb
 COPY build/arduino-app-cli*.deb /tmp/unstable.deb
