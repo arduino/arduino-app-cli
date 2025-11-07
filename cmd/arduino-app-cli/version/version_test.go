@@ -17,7 +17,6 @@ package version
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -26,50 +25,102 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestGetValidUrl(t *testing.T) {
+	testCases := []struct {
+		name           string
+		hostPort       string
+		expectedResult string
+	}{
+		{
+			name:           "Valid host and port should return default.",
+			hostPort:       "localhost:8800",
+			expectedResult: "localhost:8800",
+		},
+		{
+			name:           "Missing host should return default host.",
+			hostPort:       ":8800",
+			expectedResult: "localhost:8800",
+		},
+		{
+			name:           "Missing port should return default port.",
+			hostPort:       "localhost:",
+			expectedResult: "localhost:8800",
+		},
+		{
+			name:           "Custom host and port should return the default.",
+			hostPort:       "192.168.100.1:1234",
+			expectedResult: "192.168.100.1:1234",
+		},
+		{
+			name:           "Host only should return provided input and default port.",
+			hostPort:       "192.168.1.1",
+			expectedResult: "192.168.1.1:8800",
+		},
+		{
+			name:           "Missing host and port should return default.",
+			hostPort:       "",
+			expectedResult: "localhost:8800",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			url, _ := validateHost(tc.hostPort)
+			require.Equal(t, tc.expectedResult, url)
+		})
+	}
+}
+
 func TestServerVersion(t *testing.T) {
 	clientVersion := "5.1-dev"
+	unreacheableUrl := "unreacheable:123"
+	daemonVersion := ""
 
 	testCases := []struct {
 		name           string
 		serverStub     Tripper
 		expectedResult versionResult
-		host           string
+		hostAndPort    string
 	}{
 		{
 			name:       "return the server version when the server is up",
 			serverStub: successServer,
 			expectedResult: versionResult{
-				ClientVersion: "5.1-dev",
-				ServerVersion: "3.0",
+				Name:          ProgramName,
+				ClientVersion: clientVersion,
+				DaemonVersion: "3.0",
 			},
-			host: "",
+			hostAndPort: "localhost:8800",
 		},
 		{
 			name:       "return error if default server is not listening",
 			serverStub: failureServer,
 			expectedResult: versionResult{
-				ClientVersion: "5.1-dev",
-				ServerVersion: fmt.Sprintf("n/a (cannot connect to the server http://%s:%s)", DefaultHostname, DefaultPort),
+				Name:          ProgramName,
+				ClientVersion: clientVersion,
+				DaemonVersion: daemonVersion,
 			},
-			host: "",
+			hostAndPort: unreacheableUrl,
 		},
 		{
 			name:       "return error if provided server is not listening",
 			serverStub: failureServer,
 			expectedResult: versionResult{
-				ClientVersion: "5.1-dev",
-				ServerVersion: "n/a (cannot connect to the server http://unreacheable:123)",
+				Name:          ProgramName,
+				ClientVersion: clientVersion,
+				DaemonVersion: daemonVersion,
 			},
-			host: "unreacheable:123",
+			hostAndPort: unreacheableUrl,
 		},
 		{
 			name:       "return error for server resopnse 500 Internal Server Error",
 			serverStub: failureInternalServerError,
 			expectedResult: versionResult{
-				ClientVersion: "5.1-dev",
-				ServerVersion: "n/a (cannot connect to the server http://unreacheable:123)",
+				Name:          ProgramName,
+				ClientVersion: clientVersion,
+				DaemonVersion: daemonVersion,
 			},
-			host: "unreacheable:123",
+			hostAndPort: unreacheableUrl,
 		},
 	}
 	for _, tc := range testCases {
@@ -79,7 +130,7 @@ func TestServerVersion(t *testing.T) {
 			httpClient.Transport = tc.serverStub
 
 			// act
-			result := doVersionHandler(httpClient, clientVersion, tc.host)
+			result, _ := versionHandler(httpClient, clientVersion, tc.hostAndPort)
 
 			// assert
 			require.Equal(t, tc.expectedResult, result)
