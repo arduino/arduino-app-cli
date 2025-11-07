@@ -53,7 +53,6 @@ func AddSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef LibraryRel
 	// update the local library index after a certain time, to avoid if a library is added to the sketch but the local library index is not update, the compile can fail (because the lib is not found)
 	req := &rpc.UpdateLibrariesIndexRequest{Instance: inst, UpdateIfOlderThanSecs: int64(indexUpdateInterval.Seconds())}
 	if err := srv.UpdateLibrariesIndex(req, stream); err != nil {
-		// ignore the error because a missing connection should not stop the user from adding a library.
 		slog.Warn("error updating library index, skipping", slog.String("error", err.Error()))
 	}
 
