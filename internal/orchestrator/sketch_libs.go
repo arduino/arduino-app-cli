@@ -17,7 +17,6 @@ package orchestrator
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -48,15 +47,15 @@ func AddSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef LibraryRel
 		return nil, err
 	}
 
-	// update the local library_index if it is older than a certain threshold, to ensure the library is found when added by the arduino-cli
-	stream, res := commands.UpdateLibrariesIndexStreamResponseToCallbackFunction(ctx, func(curr *rpc.DownloadProgress) {
-		slog.Debug("downloading library index", "progress", curr.Message)
+	stream, _ := commands.UpdateLibrariesIndexStreamResponseToCallbackFunction(ctx, func(curr *rpc.DownloadProgress) {
+		slog.Debug("downloading library index", "progress", curr.GetMessage())
 	})
+	// update the local library index after a certain time, to avoid if a library is added to the sketch but the local library index is not update, the compile can fail (because the lib is not found)
 	req := &rpc.UpdateLibrariesIndexRequest{Instance: inst, UpdateIfOlderThanSecs: int64(indexUpdateInterval.Seconds())}
 	if err := srv.UpdateLibrariesIndex(req, stream); err != nil {
-		return []LibraryReleaseID{}, fmt.Errorf("error updating library index: %v", err)
+		// ignore the error because a missing connection should not stop the user from adding a library.
+		slog.Warn("error updating library index", slog.String("error", err.Error()))
 	}
-	slog.Debug("Library index update", "status", res().GetLibrariesIndex().GetStatus())
 
 	resp, err := srv.ProfileLibAdd(ctx, &rpc.ProfileLibAddRequest{
 		Instance:   inst,
