@@ -105,9 +105,10 @@ tasks:
     deps:
       - build-deb:clone-examples
     cmds:
-      - docker build --build-arg BINARY_NAME=arduino-app-cli --build-arg DEB_NAME=arduino-app-cli --build-arg VERSION={{ .VERSION }} --build-arg ARCH={{ .ARCH }} --build-arg RELEASE={{ .RELEASE }} --output=./build -f debian/Dockerfile .
+      - docker build --build-arg BINARY_NAME=arduino-app-cli --build-arg DEB_NAME=arduino-app-cli --build-arg VERSION={{ .VERSION }} --build-arg ARCH={{ .ARCH }} --build-arg RELEASE={{ .RELEASE }} --output={{ .OUTPUT }} -f debian/Dockerfile .
     vars:
       ARCH: '{{.ARCH | default "arm64"}}'
+      OUTPUT: '{{.OUTPUT | default "./build"}}'
 
   build-deb:clone-examples:
     desc: "Clones the examples repo directly into the debian structure"
