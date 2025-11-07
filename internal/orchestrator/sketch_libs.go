@@ -54,7 +54,7 @@ func AddSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef LibraryRel
 	req := &rpc.UpdateLibrariesIndexRequest{Instance: inst, UpdateIfOlderThanSecs: int64(indexUpdateInterval.Seconds())}
 	if err := srv.UpdateLibrariesIndex(req, stream); err != nil {
 		// ignore the error because a missing connection should not stop the user from adding a library.
-		slog.Warn("error updating library index", slog.String("error", err.Error()))
+		slog.Warn("error updating library index, skipping", slog.String("error", err.Error()))
 	}
 
 	resp, err := srv.ProfileLibAdd(ctx, &rpc.ProfileLibAddRequest{
