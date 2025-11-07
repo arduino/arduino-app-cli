@@ -3,7 +3,7 @@
 # Configure Avahi with the serial number.
 # This operation is non-blocking: if it fails,
 # the script will exit with success in order to 
-#not to interrupt the post-install process.
+# not to interrupt the post-install process.
 #
 
 TARGET_FILE="/etc/avahi/services/arduino.service"
