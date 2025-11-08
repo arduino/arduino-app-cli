@@ -24,6 +24,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
@@ -92,6 +93,27 @@ func ApplicationNamesWithFilterFunc(cfg config.Configuration, filter func(apps o
 		for _, a := range apps.Apps {
 			if filter(a) {
 				res = append(res, cmdutil.IDToAlias(a.ID))
+			}
+		}
+		return res, cobra.ShellCompDirectiveNoFileComp
+	}
+}
+
+func BrickIDs() cobra.CompletionFunc {
+	return BrickIDsWithFilterFunc(func(_ bricks.BrickListItem) bool { return true })
+}
+
+func BrickIDsWithFilterFunc(filter func(apps bricks.BrickListItem) bool) cobra.CompletionFunc {
+	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		brickList, err := servicelocator.GetBrickService().List()
+		if err != nil {
+			return nil, cobra.ShellCompDirectiveError
+		}
+
+		var res []string
+		for _, brick := range brickList.Bricks {
+			if filter(brick) {
+				res = append(res, brick.ID)
 			}
 		}
 		return res, cobra.ShellCompDirectiveNoFileComp

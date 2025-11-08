@@ -22,6 +22,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
@@ -36,6 +37,7 @@ func newBricksDetailsCmd(cfg config.Configuration) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			bricksDetailsHandler(args[0], cfg)
 		},
+		ValidArgsFunction: completion.BrickIDs(),
 	}
 }
 
