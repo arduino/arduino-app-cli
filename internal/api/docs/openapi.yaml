@@ -1669,3 +1669,24 @@ components:
         version:
           type: string
       type: object
+
+
+/v1/system/name:
+    get:
+      description: Returns the name of the board.
+      operationId: getBoardName
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                properties:
+                  name:
+                    type: string
+                type: object
+          description: Successful response
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Get the board's name
+      tags:
+      - System
