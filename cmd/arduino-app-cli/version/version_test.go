@@ -47,7 +47,7 @@ func TestGetValidUrl(t *testing.T) {
 			expectedResult: "localhost:8800",
 		},
 		{
-			name:           "Custom host and port should return the default.",
+			name:           "Custom host and port should return the provided host:port.",
 			hostPort:       "192.168.100.1:1234",
 			expectedResult: "192.168.100.1:1234",
 		},
@@ -87,7 +87,7 @@ func TestServerVersion(t *testing.T) {
 			serverStub: successServer,
 			expectedResult: versionResult{
 				Name:          ProgramName,
-				ClientVersion: clientVersion,
+				Version:       clientVersion,
 				DaemonVersion: "3.0",
 			},
 			hostAndPort: "localhost:8800",
@@ -97,7 +97,7 @@ func TestServerVersion(t *testing.T) {
 			serverStub: failureServer,
 			expectedResult: versionResult{
 				Name:          ProgramName,
-				ClientVersion: clientVersion,
+				Version:       clientVersion,
 				DaemonVersion: daemonVersion,
 			},
 			hostAndPort: unreacheableUrl,
@@ -107,7 +107,7 @@ func TestServerVersion(t *testing.T) {
 			serverStub: failureServer,
 			expectedResult: versionResult{
 				Name:          ProgramName,
-				ClientVersion: clientVersion,
+				Version:       clientVersion,
 				DaemonVersion: daemonVersion,
 			},
 			hostAndPort: unreacheableUrl,
@@ -117,7 +117,7 @@ func TestServerVersion(t *testing.T) {
 			serverStub: failureInternalServerError,
 			expectedResult: versionResult{
 				Name:          ProgramName,
-				ClientVersion: clientVersion,
+				Version:       clientVersion,
 				DaemonVersion: daemonVersion,
 			},
 			hostAndPort: unreacheableUrl,

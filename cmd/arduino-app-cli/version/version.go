@@ -40,7 +40,7 @@ const (
 func NewVersionCmd(clientVersion string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "version",
-		Short: "Print the client and server version numbers for the Arduino App CLI.",
+		Short: "Print the client and server versions for the Arduino App CLI.",
 		Run: func(cmd *cobra.Command, args []string) {
 			host, _ := cmd.Flags().GetString("host")
 
@@ -72,16 +72,16 @@ func versionHandler(httpClient http.Client, clientVersion string, hostAndPort st
 		Path:   "/v1/version",
 	}
 
-	daemonVersion := getServerVersion(httpClient, url.String())
+	daemonVersion, err := getDaemonVersion(httpClient, url.String())
 
 	result := versionResult{
 		Name:          ProgramName,
-		ClientVersion: clientVersion,
+		Version:       clientVersion,
 		DaemonVersion: daemonVersion,
 	}
 
-	if daemonVersion == "" {
-		return result, fmt.Errorf("cannot connect to %s", hostAndPort)
+	if err != nil {
+		return result, fmt.Errorf("error getting daemon version %s", hostAndPort)
 	}
 	return result, nil
 }
@@ -105,42 +105,42 @@ func validateHost(hostPort string) (string, error) {
 	return net.JoinHostPort(h, p), nil
 }
 
-func getServerVersion(httpClient http.Client, url string) string {
+func getDaemonVersion(httpClient http.Client, url string) (string, error) {
 	resp, err := httpClient.Get(url)
 	if err != nil {
-		return ""
+		return "", err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return ""
+		return "", fmt.Errorf("unexpected status code received")
 	}
 
-	var serverResponse struct {
+	var daemonResponse struct {
 		Version string `json:"version"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&serverResponse); err != nil {
-		return ""
+	if err := json.NewDecoder(resp.Body).Decode(&daemonResponse); err != nil {
+		return "", err
 	}
 
-	return serverResponse.Version
+	return daemonResponse.Version, nil
 }
 
 type versionResult struct {
 	Name          string `json:"name"`
-	ClientVersion string `json:"client_version"`
+	Version       string `json:"version"`
 	DaemonVersion string `json:"daemon_version,omitempty"`
 }
 
 func (r versionResult) String() string {
-	serverMessage := fmt.Sprintf("%s client version %s",
-		ProgramName, r.ClientVersion)
+	resultMessage := fmt.Sprintf("%s client version %s",
+		ProgramName, r.Version)
 
 	if r.DaemonVersion != "" {
-		serverMessage = fmt.Sprintf("%s\ndaemon version: %s",
-			serverMessage, r.DaemonVersion)
+		resultMessage = fmt.Sprintf("%s\ndaemon version: %s",
+			resultMessage, r.DaemonVersion)
 	}
-	return serverMessage
+	return resultMessage
 }
 
 func (r versionResult) Data() interface{} {
