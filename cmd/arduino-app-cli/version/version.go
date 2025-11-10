@@ -88,7 +88,7 @@ func versionHandler(httpClient http.Client, clientVersion string, hostAndPort st
 
 func validateHost(hostPort string) (string, error) {
 	if !strings.Contains(hostPort, ":") {
-		hostPort = hostPort + ":"
+		hostPort += ":"
 	}
 
 	h, p, err := net.SplitHostPort(hostPort)
