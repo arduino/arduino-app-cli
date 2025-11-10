@@ -26,16 +26,13 @@ if [ -z "$SERIAL_NUMBER" ]; then
     exit 1 
 fi
 
-if grep -q "serial_number=${SERIAL_NUMBER}" "$TARGET_FILE"; then
+if grep -q "serial_number=" "$TARGET_FILE"; then
     echo "Serial number ($SERIAL_NUMBER) already configured. Skipping."
     exit 0
 fi
 
-NEW_LINE="  <txt-record>serial_number=${SERIAL_NUMBER}</txt-record>"
-
 echo "Adding serial number to $TARGET_FILE..."
-
-sed -i "\#${MARKER_LINE}#i ${NEW_LINE}" "$TARGET_FILE"
+sed -i "/<\/service>/i <txt-record>serial_number=${SERIAL_NUMBER}<\/txt-record>" "$TARGET_FILE"
 
 echo "Avahi configuration attempt finished."
 exit 0

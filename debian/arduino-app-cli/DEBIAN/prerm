@@ -2,3 +2,4 @@
 
 systemctl disable arduino-app-cli
 systemctl disable arduino-burn-bootloader
+systemctl disable arduino-avahi-serial.service
