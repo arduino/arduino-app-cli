@@ -1,5 +1,5 @@
-
 ## Environment Variables
+
 The following environment variables are used to configure `arduino-app-cli`:
 
 ### Application Directories
