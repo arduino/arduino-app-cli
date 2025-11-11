@@ -34,7 +34,7 @@ e-mail contact: security@arduino.cc
 
 ## License
 
-Arduino CLI is licensed under the GPL-3.0 license.
+Arduino App CLI is licensed under the GPL-3.0 license.
 
 You can be released from the requirements of the above license by purchasing a commercial license. Buying such a license
 is mandatory if you want to modify or otherwise use the software for commercial activities involving the Arduino
