@@ -40,7 +40,7 @@ const (
 func NewVersionCmd(clientVersion string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "version",
-		Short: "Print the client and server versions for the Arduino App CLI",
+		Short: "Print the version number of Arduino App CLI",
 		Run: func(cmd *cobra.Command, args []string) {
 			port, _ := cmd.Flags().GetString("port")
 
