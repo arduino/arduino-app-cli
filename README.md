@@ -20,7 +20,7 @@ For guidance on installation and development, see the [User documentation].
 
 Contributions are welcome!
 
-Please read the document [How to contribute] which will show you how to build the source code, run the tests, and
+Please read the [Contributor Guide] document, which will show you how to build the source code, run the tests, and
 contribute your changes to the project.
 
 :sparkles: Thanks to all our [contributors]! :sparkles:
