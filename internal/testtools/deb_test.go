@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -38,36 +39,37 @@ func TestStableToUnstable(t *testing.T) {
 	buildDockerImage(t, "test.Dockerfile", "apt-test-update-image", *arch)
 	fmt.Println("**** RUN docker image *****")
 	runDockerContainer(t, "apt-test-update", "apt-test-update-image")
-	// preUpdateVersion := runDockerSystemVersion(t, "apt-test-update")
-	// runDockerSystemUpdate(t, "apt-test-update")
-	// postUpdateVersion := runDockerSystemVersion(t, "apt-test-update")
-	// //runDockerCleanUp(t, "apt-test-update")
-	// require.Equal(t, preUpdateVersion, "Arduino App CLI "+tagAppCli+"\n")
-	// require.Equal(t, postUpdateVersion, "Arduino App CLI "+majorTag+"\n")
+	preUpdateVersion := runDockerSystemVersion(t, "apt-test-update")
+	runDockerSystemUpdate(t, "apt-test-update")
+	postUpdateVersion := runDockerSystemVersion(t, "apt-test-update")
+	runDockerCleanUp(t, "apt-test-update")
+	require.Equal(t, preUpdateVersion, "Arduino App CLI "+tagAppCli+"\n")
+	require.Equal(t, postUpdateVersion, "Arduino App CLI "+majorTag+"\n")
 }
 
 func TestClientUpdate(t *testing.T) {
 
-	fmt.Printf("Check folder structure and deb downloaded\n")
-	ls(t)
-	// fmt.Println("**** BUILD docker image *****")
-	// buildDockerImage(t, "test.Dockerfile", "apt-test-update-image", *arch)
-	// fmt.Println("**** RUN docker image *****")
-	// runDockerContainer(t, "apt-test-update", "apt-test-update-image")
+	fmt.Println("**** BUILD docker image *****")
+	buildDockerImage(t, "test.Dockerfile", "apt-test-update-image", *arch)
+	fmt.Println("**** RUN docker image *****")
+	runDockerContainer(t, "apt-test-update", "apt-test-update-image")
 	//Start the daemon
 	runDockerDaemon(t, "apt-test-update")
+	time.Sleep(5 * time.Second) //wait for the daemon to be fully started
 	//PUT on the /v1/updates/apply
-	status := putUpdateRequest(t, "http://localhost:8080/v1/system/update/apply")
+	status := putUpdateRequest(t, "http://127.0.0.1:8800/v1/system/update/apply")
 	fmt.Printf("Response status: %s\n", status)
-	//ClientSSE
 
-	itr := NewSSEClient(context.Background(), "GET", "http://localhost:8080/v1/system/update/apply")
+	itr := NewSSEClient(context.Background(), "GET", "http://localhost:8800/v1/system/update/events")
 
 	for event, err := range itr {
 		if err != nil {
 			log.Fatalf("Error receiving SSE event: %v", err)
 		}
 		fmt.Printf("Received event: ID=%s, Event=%s, Data=%s\n", event.ID, event.Event, string(event.Data))
+		if string(event.Data) == "Download complete" {
+			break
+		}
 	}
 
 	runDockerCleanUp(t, "apt-test-update")
@@ -233,8 +235,10 @@ func runDockerContainer(t *testing.T, containerName string, containerImageName s
 
 	cmd := exec.Command(
 		"docker", "run", "--rm", "-d",
+		"-p", "8800:8800",
 		"--privileged",
 		"--cgroupns=host",
+		"--network", "host",
 		"-v", "/sys/fs/cgroup:/sys/fs/cgroup:rw",
 		"-v", "/var/run/docker.sock:/var/run/docker.sock",
 		"-e", "DOCKER_HOST=unix:///var/run/docker.sock",
@@ -287,22 +291,22 @@ func runDockerSystemUpdate(t *testing.T, containerName string) {
 
 }
 
-func runDockerDaemon(t *testing.T, containerName string) string {
+func runDockerDaemon(t *testing.T, containerName string) {
 	t.Helper()
 
 	cmd := exec.Command(
 		"docker", "exec",
-		"-d", // detached mode
+		"-d",
 		"--user", "arduino",
 		containerName,
-		"arduino-app-cli", "daemon",
+		"systemctl", "start", "arduino-app-cli",
 	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Fatalf("command failed: %v\nOutput: %s", err, output)
+		log.Fatalf("command failed: %v\n Output: %s", err, output)
 	}
 
-	return string(output)
+	fmt.Printf("Daemon started: %s\n", output)
 
 }
 
@@ -373,22 +377,21 @@ func putUpdateRequest(t *testing.T, url string) string {
 
 	t.Helper()
 
-	// Create PUT request
 	req, err := http.NewRequest(http.MethodPut, url, nil)
 	if err != nil {
 		log.Fatalf("Error creating request: %v", err)
 	}
 
-	// Optional: add headers if your API needs them
 	req.Header.Set("Content-Type", "application/json")
 
-	// Send the request
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatalf("Error making request: %v", err)
+		log.Fatalf("Error sending request: %v", err)
 	}
 	defer resp.Body.Close()
+
+	fmt.Printf("Response status: %s\n", resp.Status)
 
 	// Check status code
 	return resp.Status
