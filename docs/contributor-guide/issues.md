@@ -16,7 +16,7 @@ https://github.com/arduino/arduino-app-cli/issues/new/choose
 
 - Give the latest development version a test drive to see if your issue was already resolved:<br />
   <!-- TODO: Nightly build link -->
-- Search [existing pull requests and issues](https://github.com/arduino/TODO_REPO_NAME/issues?q=) to see if it was already reported.<br />
+- Search [existing pull requests and issues](https://github.com/arduino/arduino-app-cli/issues?q=) to see if it was already reported.<br />
   If you have additional information to provide about an existing issue, please comment there instead of creating a duplicate. You can use [GitHub's "Reactions" feature](https://github.blog/2016-03-10-add-reactions-to-pull-requests-issues-and-comments/) if you only want to express support 👍.
 
 ## Qualities of an Excellent Report
