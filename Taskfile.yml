@@ -145,8 +145,6 @@ tasks:
       - git tag -a "{{.CLI_ARGS}}" -m "Release {{.CLI_ARGS}}"
       - git push origin "{{.CLI_ARGS}}"
 
-
-
   # To to forward a port, using ssh, you can use this command:
   # ssh -L 8800:localhost:8800 arduino@<BOARD_IP>
   arduino-app-cli:pprof:
