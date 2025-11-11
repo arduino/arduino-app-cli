@@ -15,21 +15,21 @@ The following environment variables are used to configure Arduino App CLI:
 | `DOCKER_PYTHON_BASE_IMAGE` | `app-bricks/python-apps-base:<RUNNER_VERSION>` | Tag of the Docker image for the Python runner |
 
 ## Directory Structures
-Examples of user-defined apps stored into the  `ARDUINO_APP_CLI__APPS_DIR` folder.
+Examples of user-defined Arduino Apps stored into the  `ARDUINO_APP_CLI__APPS_DIR` folder.
 ```
 ├── my-first-app
 │   ├── app.yaml
 │   ├── README.md
 │   ├── python
 │   │   └── main.py
-│   sketch
+│   ├── sketch
 │   │    ├── sketch.ino
 │   │    └── sketch.yaml
 |   └──  .cache/       # Temporary files and dependencies
 └── my-second-app
     ├── app.yaml
     ├── python
-    │   └── main.py
+        └── main.py
 ```
 
 Examples of the `assets` and the builtin `examples` stored into the `ARDUINO_APP_CLI__DATA_DIR` folder.
@@ -39,12 +39,12 @@ Examples of the `assets` and the builtin `examples` stored into the `ARDUINO_APP
 ├── assets
 │   └── 0.5.0                 # Version-specific assets
 │       ├── bricks-list.yaml  # Available bricks
-│       ├── models-list.yaml   # Available models
+│       ├── models-list.yaml  # Available models
 │       └── ...
 ├── bootloader_burned.flag
-├── default.app
-├── properties.msgpack  # Variable values
-├── examples
+├── default.app               # Default App
+├── properties.msgpack        # Variable values
+├── examples                  # Built-in App examples
 │   ├── air-quality-monitoring
 │   │   ├── app.yaml
 │   │   ├── assets
