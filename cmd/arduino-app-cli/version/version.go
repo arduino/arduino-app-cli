@@ -99,8 +99,7 @@ type versionResult struct {
 }
 
 func (r versionResult) String() string {
-	resultMessage := fmt.Sprintf("%s version %s",
-		ProgramName, r.Version)
+	resultMessage := fmt.Sprintf("%s version %s", ProgramName, r.Version)
 
 	if r.DaemonVersion != "" {
 		resultMessage = fmt.Sprintf("%s\ndaemon version: %s",
