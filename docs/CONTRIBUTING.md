@@ -8,7 +8,7 @@ There are several ways you can get involved:
 | ----------------------------------------- | ---------------------------------------------------------------- |
 | - Support<br/>- Question<br/>- Discussion | Post on the [**Arduino Forum**][forum]                           |
 | - Bug report<br/>- Feature request        | Issue report (see the guide [**here**][issues])                  |
-| Testing                                   | Beta testing, PR review (see the guide [**here**][beta-testing]) |
+| Testing                                   | PR review (see the guide [**here**][prs])  |
 | - Bug fix<br/>- Enhancement               | Pull request (see the guide [**here**][prs])                     |
 | Monetary                                  | [Buy official products][store]                                   |
 
