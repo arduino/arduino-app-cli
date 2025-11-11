@@ -51,6 +51,6 @@ When running an app, persistent files will be saved in the `data` folder inside 
 
 ### Docker images registry
 
-Arduino Apps bricks might required a docker image, in that case the orchestrator will pull those from the registry configured with the `DOCKER_REGISTRY_BASE` environment variable. By default this points to an Arduino GitHub Container Registry (ghcr.io/arduino).
+Arduino Apps bricks might required a docker image, in that case the arduino-app-cli will pull those from the registry configured with the `DOCKER_REGISTRY_BASE` environment variable. By default this points to an Arduino GitHub Container Registry (ghcr.io/arduino).
 
-The only image that needs to be referenced directly is the base Python image (`DOCKER_PYTHON_BASE_IMAGE`), all other containers can be downloaded automatically by the orchestrator depending on the bricks specified as dependencies in the app.yml file.
+The only image that needs to be referenced directly is the base Python image (`DOCKER_PYTHON_BASE_IMAGE`), all other containers can be downloaded automatically by the arduino-app-cli depending on the bricks specified as dependencies in the app.yml file.
