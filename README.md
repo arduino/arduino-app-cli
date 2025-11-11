@@ -42,6 +42,6 @@ software without disclosing the source code of your own applications. To purchas
 license@arduino.cc
 
 [user documentation]: https://github.com/arduino/arduino-app-cli/docs/user-documentation.md
-[how to contribute]: https://arduino.github.io/arduino-app-cli/latest/CONTRIBUTING/
+[contributor guide]: https://arduino.github.io/arduino-app-cli/latest/CONTRIBUTING/
 [security policy]: https://github.com/arduino/arduino-app-cli/security/policy
 [contributors]: https://github.com/arduino/arduino-cli/graphs/contributors
