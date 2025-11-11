@@ -6,7 +6,7 @@ ConditionPathExists=!/var/lib/arduino-app-cli/avahi_serial_configured.flag
 [Service]
 Type=oneshot
 RemainAfterExit=true
-ExecStart=/usr/local/bin/arduino-avahi-serial.sh
+ExecStart=/var/lib/arduino-app-cli/arduino-avahi-serial.sh
 ExecStartPost=/bin/mkdir -p /var/lib/arduino-app-cli
 ExecStartPost=/bin/touch /var/lib/arduino-app-cli/avahi_serial_configured.flag
 

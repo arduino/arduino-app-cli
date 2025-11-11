@@ -3,7 +3,6 @@
 
 
 TARGET_FILE="/etc/avahi/services/arduino.service"
-MARKER_LINE="</service>"
 SERIAL_NUMBER_PATH="/sys/devices/soc0/serial_number"
 
 echo "Configuring Avahi with serial number for network discovery..."
@@ -27,7 +26,7 @@ if [ -z "$SERIAL_NUMBER" ]; then
 fi
 
 if grep -q "serial_number=" "$TARGET_FILE"; then
-    echo "Serial number ($SERIAL_NUMBER) already configured. Skipping."
+    echo "Serial number ($SERIAL_NUMBER) already configured."
     exit 0
 fi
 
