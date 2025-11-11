@@ -18,7 +18,6 @@ package version
 import (
 	"encoding/json"
 	"fmt"
-
 	"net"
 	"net/http"
 	"net/url"
