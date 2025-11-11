@@ -8,7 +8,7 @@ The following development tools must be available in your local environment:
 
 - [Go](https://go.dev/dl/)
 - [Task](https://taskfile.dev/)
-- [ddb client]//https://developer.android.com/tools/adb) [optionally]
+- [ddb client](https://developer.android.com/tools/adb) [optionally]
 
 ## Building the Project
 
