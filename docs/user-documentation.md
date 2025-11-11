@@ -1,6 +1,6 @@
 ## Environment Variables
 
-The following environment variables are used to configure `arduino-app-cli`:
+The following environment variables are used to configure Arduino App CLI:
 
 ### Application Directories
 
