@@ -123,10 +123,16 @@ tasks:
           echo "Examples successfully cloned."
     silent: false
 
-  arduino-app-cli:build:local:
+  build:
     desc: "Build the arduino-app-cli locally"
     cmds:
       - go build -v -o ./build/arduino-app-cli ./cmd/arduino-app-cli
+
+  start:
+    desc: "build and launch the arduino-app-cli in daemon mode"
+    cmds:
+      - task build
+      - ./build/arduino-app-cli daemon  --port 8800
 
   arduino-app-cli:release:
     desc: Create a tag on the current commit and push it to the remote to create the release
@@ -139,11 +145,7 @@ tasks:
       - git tag -a "{{.CLI_ARGS}}" -m "Release {{.CLI_ARGS}}"
       - git push origin "{{.CLI_ARGS}}"
 
-  arduino-app-cli:start:
-    desc: "build and launch the arduino-app-cli in daemon mode"
-    cmds:
-      - task arduino-app-cli:build:local
-      - ./build/arduino-app-cli daemon  --port 6060
+
 
   # To to forward a port, using ssh, you can use this command:
   # ssh -L 8800:localhost:8800 arduino@<BOARD_IP>
