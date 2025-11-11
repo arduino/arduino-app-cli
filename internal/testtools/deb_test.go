@@ -33,7 +33,7 @@ func TestStableToUnstable(t *testing.T) {
 	fmt.Println("**** BUILD docker image *****")
 	buildDockerImage(t, "test.Dockerfile", "apt-test-update-image", *arch)
 	fmt.Println("**** RUN docker image *****")
-	runDockerCommand(t, "apt-test-update-image")
+	runDockerContainer(t, "apt-test-update", "apt-test-update-image")
 	preUpdateVersion := runDockerSystemVersion(t, "apt-test-update")
 	runDockerSystemUpdate(t, "apt-test-update")
 	postUpdateVersion := runDockerSystemVersion(t, "apt-test-update")
@@ -52,16 +52,19 @@ func TestUnstableToStable(t *testing.T) {
 	fmt.Printf("Updating from unstable version %s to stable version %s \n", minorTag, tagAppCli)
 	fmt.Printf("Building local deb version %s \n", minorTag)
 	buildDebVersion(t, minorTag, *arch)
-	moveDeb(t, "build/", "build/stable", "arduino-app-cli", tagAppCli, *arch)
+	moveDeb(t, "build/", "build/stable", "arduino-app-cli", minorTag, *arch)
+
+	fmt.Printf("Check folder structure and deb downloaded\n")
+	ls(t)
 
 	fmt.Println("**** BUILD docker image *****")
-	buildDockerImage(t, "test.Dockerfile", "test-apt-update-unstable", *arch)
+	buildDockerImage(t, "test.Dockerfile", "test-apt-update-unstable-image", *arch)
 	fmt.Println("**** RUN docker image *****")
-	runDockerCommand(t, "test-apt-update-unstable")
-	preUpdateVersion := runDockerSystemVersion(t, "apt-test-update")
-	runDockerSystemUpdate(t, "apt-test-update")
-	postUpdateVersion := runDockerSystemVersion(t, "apt-test-update")
-	runDockerCleanUp(t, "apt-test-update")
+	runDockerContainer(t, "test-apt-update-unstable-image", "apt-test-update-unstable")
+	preUpdateVersion := runDockerSystemVersion(t, "apt-test-update-unstable")
+	runDockerSystemUpdate(t, "apt-test-update-unstable")
+	postUpdateVersion := runDockerSystemVersion(t, "apt-test-update-unstable")
+	runDockerCleanUp(t, "apt-test-update-unstable")
 	require.Equal(t, preUpdateVersion, "Arduino App CLI "+tagAppCli+"\n")
 	require.Equal(t, postUpdateVersion, "Arduino App CLI "+minorTag+"\n")
 
@@ -194,7 +197,7 @@ func buildDockerImage(t *testing.T, dockerfile, name, arch string) {
 
 }
 
-func runDockerCommand(t *testing.T, containerImageName string) {
+func runDockerContainer(t *testing.T, containerName string, containerImageName string) {
 	t.Helper()
 
 	cmd := exec.Command(
@@ -204,7 +207,7 @@ func runDockerCommand(t *testing.T, containerImageName string) {
 		"-v", "/sys/fs/cgroup:/sys/fs/cgroup:rw",
 		"-v", "/var/run/docker.sock:/var/run/docker.sock",
 		"-e", "DOCKER_HOST=unix:///var/run/docker.sock",
-		"--name", "apt-test-update",
+		"--name", containerName,
 		containerImageName,
 	)
 
@@ -253,6 +256,25 @@ func runDockerSystemUpdate(t *testing.T, containerName string) {
 
 }
 
+func runDockerDaemon(t *testing.T, containerName string) string {
+	t.Helper()
+
+	cmd := exec.Command(
+		"docker", "exec",
+		"--user", "arduino",
+		containerName,
+		"arduino-app-cli", "daemon",
+	)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Fatalf("command failed: %v\nOutput: %s", err, output)
+	}
+
+	return string(output)
+
+}
+
 func runDockerCleanUp(t *testing.T, containerName string) {
 	t.Helper()
 
@@ -277,6 +299,8 @@ func moveDeb(t *testing.T, startDir, targetDir, repo string, tagVersion string, 
 	if err := moveCmd.Run(); err != nil {
 		panic(fmt.Errorf("failed to move deb file: %w", err))
 	}
+
+	rm(t, debFile)
 }
 
 func ls(t *testing.T) {
@@ -298,5 +322,18 @@ func ls(t *testing.T) {
 		fmt.Println(path)
 		return nil
 	})
+
+}
+
+func rm(t *testing.T, pathFile string) {
+	t.Helper()
+	removeCmd := exec.Command("rm", pathFile)
+
+	err := removeCmd.Run()
+	if err != nil {
+		log.Fatalf("Failed to remove file: %v", err)
+	}
+
+	fmt.Printf("📦 Removed %s\n", pathFile)
 
 }
