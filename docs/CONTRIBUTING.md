@@ -1,5 +1,3 @@
-<!-- Source: https://github.com/arduino/tooling-project-assets/blob/main/documentation-templates/contributor-guide/general/CONTRIBUTING.md -->
-
 # Contributor Guide
 
 Thanks for your interest in contributing to this project!
