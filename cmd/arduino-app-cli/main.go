@@ -48,7 +48,7 @@ func run(configuration cfg.Configuration) error {
 	defer func() { _ = servicelocator.CloseDockerClient() }()
 	rootCmd := &cobra.Command{
 		Use:   "arduino-app-cli",
-		Short: "A CLI to manage the Arduino Apps",
+		Short: "A CLI to manage Arduino Apps",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			format, ok := feedback.ParseOutputFormat(format)
 			if !ok {
