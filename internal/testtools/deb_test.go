@@ -25,12 +25,11 @@ func TestStableToUnstable(t *testing.T) {
 	majorTag := majorTag(t, tagAppCli)
 	_ = minorTag(t, tagAppCli)
 
-	ls(t)
-
 	fmt.Printf("Updating from stable version %s to unstable version %s \n", tagAppCli, majorTag)
 	fmt.Printf("Building local deb version %s \n", majorTag)
 	buildDebVersion(t, majorTag, *arch)
-
+	fmt.Printf("Check folder structure and deb downloaded\n")
+	ls(t)
 	fmt.Println("**** BUILD docker image *****")
 	buildDockerImage(t, "test.Dockerfile", "apt-test-update-image", *arch)
 	fmt.Println("**** RUN docker image *****")
@@ -56,9 +55,9 @@ func TestUnstableToStable(t *testing.T) {
 	moveDeb(t, "build/", "build/stable", "arduino-app-cli", tagAppCli, *arch)
 
 	fmt.Println("**** BUILD docker image *****")
-	buildDockerImage(t, "test.Dockerfile", "test-apt-update", *arch)
+	buildDockerImage(t, "test.Dockerfile", "test-apt-update-unstable", *arch)
 	fmt.Println("**** RUN docker image *****")
-	runDockerCommand(t, "test-apt-update")
+	runDockerCommand(t, "test-apt-update-unstable")
 	preUpdateVersion := runDockerSystemVersion(t, "apt-test-update")
 	runDockerSystemUpdate(t, "apt-test-update")
 	postUpdateVersion := runDockerSystemVersion(t, "apt-test-update")
@@ -142,7 +141,6 @@ func majorTag(t *testing.T, tag string) string {
 	parts := strings.Split(tag, ".")
 	last := parts[len(parts)-1]
 
-	// Remove potential prefix 'v' from the first part, but not from the patch
 	lastNum, _ := strconv.Atoi(strings.TrimPrefix(last, "v"))
 	lastNum++
 
