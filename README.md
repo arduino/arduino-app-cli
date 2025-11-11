@@ -1,10 +1,6 @@
 # Arduino App CLI
 
-`arduino-app-cli` is a command line tool and a service running on Arduino UNO Q boards, that:
-
-- manages and runs Arduino Apps on the board (both Linux and microcontroller parts)
-- provides multiple APIs to perform actions and fetch data, used by the front-end (ArduinoAppsLab)
-- auto-updates itself and other components
+`arduino-app-cli` is a command line tool running on the [Arduino UNO Q](https://docs.arduino.cc/hardware/uno-q/) boards, that manages and runs Arduino Apps (both Linux and microcontroller parts), provides a HTTP daemon mode to expose RestFul APIs, and auto-updates itself and other components.
 
 [![Test Go status](https://github.com/arduino/arduino-app-cli/actions/workflows/go-test.yml/badge.svg)](https://github.com/arduino/arduino-app-cli/actions/workflows/go-test.yml)
 
