@@ -1,56 +1,60 @@
+# Arduino App CLI
+
 ## Environment Variables
 
 The following environment variables are used to configure Arduino App CLI:
 
-### Application Directories
+| Environment Variable | Default Value | Description |
+|---------------------|---------------|-------------|
+| `ARDUINO_APP_CLI__APPS_DIR` | `/home/arduino/ArduinoApps` | Path to the directory where Arduino Apps created by the user are stored |
+| `ARDUINO_APP_CLI__DATA_DIR` | `/home/arduino/.local/share/arduino-app-cli` | Path to the directory where internal data is stored (examples, assets, properties) |
+| `ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR` | `$HOME/.arduino-bricks/ei-models` | Path to the directory where custom AI models are stored |
+| `ARDUINO_APP_CLI__ALLOW_ROOT` | `false` | Allow running `arduino-app-cli` as root (**Not recommended to set to true**) |
+| `LIBRARIES_API_URL` | `https://api2.arduino.cc/libraries/v1/libraries` | URL of the external service used to search Arduino libraries |
+| `DOCKER_REGISTRY_BASE` | `ghcr.io/arduino/` | Docker registry used to pull docker images |
+| `DOCKER_PYTHON_BASE_IMAGE` | `app-bricks/python-apps-base:<RUNNER_VERSION>` | Tag of the Docker image for the Python runner |
 
-- **`ARDUINO_APP_CLI__APPS_DIR`** Path to the directory where Arduino Apps created by the user are stored.\
-  **Default:** `/home/arduino/ArduinoApps`
+## Directory Structures
+Examples of user-defined apps stored into the  `ARDUINO_APP_CLI__APPS_DIR` folder.
+```
+├── my-first-app
+│   ├── app.yaml
+│   ├── README.md
+│   ├── python
+│   │   └── main.py
+│   sketch
+│   │    ├── sketch.ino
+│   │    └── sketch.yaml
+|   └──  .cache/       # Temporary files and dependencies
+└── my-second-app
+    ├── app.yaml
+    ├── python
+    │   └── main.py
+```
 
-- **`ARDUINO_APP_CLI__DATA_DIR`** Path to the directory where internal data is stored.\
-  **Default:** `/home/arduino/.local/share/arduino-app-cli`\
-  This folder contains:
-  - **`examples/`** default example Apps (_e.g._ `/home/arduino/.local/share/arduino-app-cli/examples`)
-  - **`assets/`** contains a subfolder for each asset version (_e.g._ `/home/arduino/.local/share/arduino-app-cli/assets/0.4.5`)
-    - Each asset folder includes:
-      - `bricks-list.yaml`
-      - `models-list.yaml`
-  - **other data** such as `properties.msgpack` containing variable values
+Examples of the `assets` and the builtin `examples` stored into the `ARDUINO_APP_CLI__DATA_DIR` folder.
 
-- **`ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR`** Path to the directory where custom models are stored.\
-  **Default:** `$HOME/.arduino-bricks/ei-models`\
-  (_e.g._ `/home/arduino/.arduino-bricks/ei-models`)
-
----
-
-### Execution Settings
-
-- **`ARDUINO_APP_CLI__ALLOW_ROOT`** Allow running `arduino-app-cli` as root.\
-  **Default:** `false` **Not recommended to set to true.**
-
----
-
-### External Services
-
-- **`LIBRARIES_API_URL`** URL of the external service used to search libraries.\
-  **Default:** `https://api2.arduino.cc/libraries/v1/libraries`
-
----
-
-### Docker Settings
-
-- **`DOCKER_REGISTRY_BASE`** Docker registry used to pull images.\
-  **Default:** `ghcr.io/arduino/`
-
-- **`DOCKER_PYTHON_BASE_IMAGE`** Tag of the Docker image for the Python runner.\
-  **Default:** `app-bricks/python-apps-base:<RUNNER_VERSION>`
-
-### App folder and persistent data
-
-When running an app, persistent files will be saved in the `data` folder inside the app folder; other supporting files, including the Python venv are saved in the `.cache` folder inside the app folder.
-
-### Docker images registry
-
-Arduino Apps bricks might required a docker image, in that case the arduino-app-cli will pull those from the registry configured with the `DOCKER_REGISTRY_BASE` environment variable. By default this points to an Arduino GitHub Container Registry (ghcr.io/arduino).
-
-The only image that needs to be referenced directly is the base Python image (`DOCKER_PYTHON_BASE_IMAGE`), all other containers can be downloaded automatically by the arduino-app-cli depending on the bricks specified as dependencies in the app.yml file.
+```
+/home/arduino/.local/share/arduino-app-cli/
+├── assets
+│   └── 0.5.0                 # Version-specific assets
+│       ├── bricks-list.yaml  # Available bricks
+│       ├── models-list.yaml   # Available models
+│       └── ...
+├── bootloader_burned.flag
+├── default.app
+├── properties.msgpack  # Variable values
+├── examples
+│   ├── air-quality-monitoring
+│   │   ├── app.yaml
+│   │   ├── assets
+│   │   ├── python
+│   │   ├── README.md
+│   │   └── sketch
+│   ├── anomaly-detection
+│   │   ├── app.yaml
+│   │   ├── assets
+│   │   ├── python
+│   │   └── README.md
+│   └── ...
+```
