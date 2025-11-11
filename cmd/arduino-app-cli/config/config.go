@@ -29,7 +29,7 @@ import (
 func NewConfigCmd(cfg config.Configuration) *cobra.Command {
 	appCmd := &cobra.Command{
 		Use:   "config",
-		Short: "Manage arduino-app-cli config",
+		Short: "Manage Arduino App CLI config",
 	}
 
 	appCmd.AddCommand(newConfigGetCmd(cfg))
