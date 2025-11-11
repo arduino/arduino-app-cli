@@ -15,7 +15,7 @@ The following development tools must be available in your local environment:
 - `task init`
 
 ## Uploading the arduino-app-cli into the board
-Connect an [Arduino UNO Q](https://www.arduino.cc/product-uno-q) board to the PC via USB.
+Connect an [Arduino UNO Q](https://docs.arduino.cc/hardware/uno-q/) board to the PC via USB.
 
  - `task board:install` it installs the current `arduino-app-cli` inside the board (`adb` is needed). The password of the `ardiuno` username of the board is requested.
 
