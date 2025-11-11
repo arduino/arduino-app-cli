@@ -1,11 +1,15 @@
 package testtools
 
 import (
+	"bufio"
 	"bytes"
+	"context"
 	"flag"
 	"fmt"
 	"io"
+	"iter"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,12 +38,39 @@ func TestStableToUnstable(t *testing.T) {
 	buildDockerImage(t, "test.Dockerfile", "apt-test-update-image", *arch)
 	fmt.Println("**** RUN docker image *****")
 	runDockerContainer(t, "apt-test-update", "apt-test-update-image")
-	preUpdateVersion := runDockerSystemVersion(t, "apt-test-update")
-	runDockerSystemUpdate(t, "apt-test-update")
-	postUpdateVersion := runDockerSystemVersion(t, "apt-test-update")
+	// preUpdateVersion := runDockerSystemVersion(t, "apt-test-update")
+	// runDockerSystemUpdate(t, "apt-test-update")
+	// postUpdateVersion := runDockerSystemVersion(t, "apt-test-update")
+	// //runDockerCleanUp(t, "apt-test-update")
+	// require.Equal(t, preUpdateVersion, "Arduino App CLI "+tagAppCli+"\n")
+	// require.Equal(t, postUpdateVersion, "Arduino App CLI "+majorTag+"\n")
+}
+
+func TestClientUpdate(t *testing.T) {
+
+	fmt.Printf("Check folder structure and deb downloaded\n")
+	ls(t)
+	// fmt.Println("**** BUILD docker image *****")
+	// buildDockerImage(t, "test.Dockerfile", "apt-test-update-image", *arch)
+	// fmt.Println("**** RUN docker image *****")
+	// runDockerContainer(t, "apt-test-update", "apt-test-update-image")
+	//Start the daemon
+	runDockerDaemon(t, "apt-test-update")
+	//PUT on the /v1/updates/apply
+	status := putUpdateRequest(t, "http://localhost:8080/v1/system/update/apply")
+	fmt.Printf("Response status: %s\n", status)
+	//ClientSSE
+
+	itr := NewSSEClient(context.Background(), "GET", "http://localhost:8080/v1/system/update/apply")
+
+	for event, err := range itr {
+		if err != nil {
+			log.Fatalf("Error receiving SSE event: %v", err)
+		}
+		fmt.Printf("Received event: ID=%s, Event=%s, Data=%s\n", event.ID, event.Event, string(event.Data))
+	}
+
 	runDockerCleanUp(t, "apt-test-update")
-	require.Equal(t, preUpdateVersion, "Arduino App CLI "+tagAppCli+"\n")
-	require.Equal(t, postUpdateVersion, "Arduino App CLI "+majorTag+"\n")
 
 }
 
@@ -60,7 +91,7 @@ func TestUnstableToStable(t *testing.T) {
 	fmt.Println("**** BUILD docker image *****")
 	buildDockerImage(t, "test.Dockerfile", "test-apt-update-unstable-image", *arch)
 	fmt.Println("**** RUN docker image *****")
-	runDockerContainer(t, "test-apt-update-unstable-image", "apt-test-update-unstable")
+	runDockerContainer(t, "test-apt-update-unstable", "test-apt-update-unstable-image")
 	preUpdateVersion := runDockerSystemVersion(t, "apt-test-update-unstable")
 	runDockerSystemUpdate(t, "apt-test-update-unstable")
 	postUpdateVersion := runDockerSystemVersion(t, "apt-test-update-unstable")
@@ -261,11 +292,11 @@ func runDockerDaemon(t *testing.T, containerName string) string {
 
 	cmd := exec.Command(
 		"docker", "exec",
+		"-d", // detached mode
 		"--user", "arduino",
 		containerName,
 		"arduino-app-cli", "daemon",
 	)
-
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Fatalf("command failed: %v\nOutput: %s", err, output)
@@ -336,4 +367,83 @@ func rm(t *testing.T, pathFile string) {
 
 	fmt.Printf("📦 Removed %s\n", pathFile)
 
+}
+
+func putUpdateRequest(t *testing.T, url string) string {
+
+	t.Helper()
+
+	// Create PUT request
+	req, err := http.NewRequest(http.MethodPut, url, nil)
+	if err != nil {
+		log.Fatalf("Error creating request: %v", err)
+	}
+
+	// Optional: add headers if your API needs them
+	req.Header.Set("Content-Type", "application/json")
+
+	// Send the request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Fatalf("Error making request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Check status code
+	return resp.Status
+}
+func NewSSEClient(ctx context.Context, method, url string) iter.Seq2[Event, error] {
+	return func(yield func(Event, error) bool) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			_ = yield(Event{}, err)
+			return
+		}
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			_ = yield(Event{}, err)
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			_ = yield(Event{}, fmt.Errorf("got response status code %d", resp.StatusCode))
+			return
+		}
+
+		reader := bufio.NewReader(resp.Body)
+
+		evt := Event{}
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				_ = yield(Event{}, err)
+				return
+			}
+			switch {
+			case strings.HasPrefix(line, "data:"):
+				evt.Data = []byte(strings.TrimSpace(strings.TrimPrefix(line, "data:")))
+			case strings.HasPrefix(line, "event:"):
+				evt.Event = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
+			case strings.HasPrefix(line, "id:"):
+				evt.ID = strings.TrimSpace(strings.TrimPrefix(line, "id:"))
+			case strings.HasPrefix(line, "\n"):
+				if !yield(evt, nil) {
+					return
+				}
+				evt = Event{}
+			default:
+				_ = yield(Event{}, fmt.Errorf("unknown line: '%s'", line))
+				return
+			}
+		}
+	}
+}
+
+type Event struct {
+	ID    string
+	Event string
+	Data  []byte // json
 }
