@@ -23,11 +23,11 @@ Examples of user-defined Arduino Apps stored into the `ARDUINO_APP_CLI__APPS_DIR
 │   ├── app.yaml
 │   ├── README.md
 │   ├── python
-│   │   └── main.py
+│   │    └── main.py
 │   ├── sketch
 │   │    ├── sketch.ino
 │   │    └── sketch.yaml
-|   └──  .cache/       # Temporary files and dependencies
+|   └──  .cache/       # Temporary files and dependencies of the App
 └── my-second-app
     ├── app.yaml
     ├── python
