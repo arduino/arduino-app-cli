@@ -1,4 +1,4 @@
-# arduino-app-cli
+# Arduino App CLI
 
 `arduino-app-cli` is a command line tool and a service running on Arduino UNO Q boards, that:
 
