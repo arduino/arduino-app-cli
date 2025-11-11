@@ -25,6 +25,8 @@ func TestStableToUnstable(t *testing.T) {
 	majorTag := majorTag(t, tagAppCli)
 	_ = minorTag(t, tagAppCli)
 
+	ls(t)
+
 	fmt.Printf("Updating from stable version %s to unstable version %s \n", tagAppCli, majorTag)
 	fmt.Printf("Building local deb version %s \n", majorTag)
 	buildDebVersion(t, majorTag, *arch)
@@ -173,13 +175,7 @@ func minorTag(t *testing.T, tag string) string {
 func buildDockerImage(t *testing.T, dockerfile, name, arch string) {
 	t.Helper()
 
-	cmd := exec.Command(
-		"docker", "buildx", "build",
-		"--platform", "linux/amd64",
-		"-t", name,
-		"-f", dockerfile,
-		".",
-	)
+	cmd := exec.Command("docker", "build", "--build-arg", "ARCH="+arch, "-t", name, "-f", dockerfile, ".")
 	// Capture both stdout and stderr
 	var out bytes.Buffer
 	var stderr bytes.Buffer
@@ -197,10 +193,6 @@ func buildDockerImage(t *testing.T, dockerfile, name, arch string) {
 
 	fmt.Println("✅ Docker build succeeded!")
 	fmt.Println(out.String())
-	// out, err := cmd.CombinedOutput()
-	// if err != nil {
-	// 	t.Fatalf("docker build failed: %v\nOutput:\n%s", err, string(out))
-	// }
 
 }
 
@@ -287,4 +279,26 @@ func moveDeb(t *testing.T, startDir, targetDir, repo string, tagVersion string, 
 	if err := moveCmd.Run(); err != nil {
 		panic(fmt.Errorf("failed to move deb file: %w", err))
 	}
+}
+
+func ls(t *testing.T) {
+	t.Helper()
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Println("Error getting working directory:", err)
+		return
+	}
+
+	fmt.Println("Current directory:", cwd)
+	fmt.Println("Listing all files and folders recursively:")
+
+	// Walk through all files and subdirectories
+	err = filepath.Walk(cwd, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		fmt.Println(path)
+		return nil
+	})
+
 }

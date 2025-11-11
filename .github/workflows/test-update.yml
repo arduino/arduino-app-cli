@@ -28,5 +28,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.ARDUINOBOT_TOKEN }} 
         run: |
-          cd internal/testtools
-          go test -v ./deb_test.go --arch amd64
+          go test -v ./internal/testtools/deb_test.go --arch arm64
