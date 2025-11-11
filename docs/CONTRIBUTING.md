@@ -4,13 +4,13 @@ Thanks for your interest in contributing to this project!
 
 There are several ways you can get involved:
 
-| Type of contribution                      | Contribution method                                              |
-| ----------------------------------------- | ---------------------------------------------------------------- |
-| - Support<br/>- Question<br/>- Discussion | Post on the [**Arduino Forum**][forum]                           |
-| - Bug report<br/>- Feature request        | Issue report (see the guide [**here**][issues])                  |
-| Testing                                   | PR review (see the guide [**here**][prs])  |
-| - Bug fix<br/>- Enhancement               | Pull request (see the guide [**here**][prs])                     |
-| Monetary                                  | [Buy official products][store]                                   |
+| Type of contribution                      | Contribution method                             |
+| ----------------------------------------- | ----------------------------------------------- |
+| - Support<br/>- Question<br/>- Discussion | Post on the [**Arduino Forum**][forum]          |
+| - Bug report<br/>- Feature request        | Issue report (see the guide [**here**][issues]) |
+| Testing                                   | PR review (see the guide [**here**][prs])       |
+| - Bug fix<br/>- Enhancement               | Pull request (see the guide [**here**][prs])    |
+| Monetary                                  | [Buy official products][store]                  |
 
 [forum]: https://forum.arduino.cc
 [issues]: contributor-guide/issues.md#issue-report-guide
