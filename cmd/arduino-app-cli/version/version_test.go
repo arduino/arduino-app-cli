@@ -25,104 +25,52 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetValidUrl(t *testing.T) {
+func TestDaemonVersion(t *testing.T) {
 	testCases := []struct {
-		name           string
-		hostPort       string
-		expectedResult string
+		name                 string
+		serverStub           Tripper
+		port                 string
+		expectedResult       string
+		expectedErrorMessage string
 	}{
 		{
-			name:           "Valid host and port should return default.",
-			hostPort:       "localhost:8800",
-			expectedResult: "localhost:8800",
+			name:                 "return the server version when the server is up",
+			serverStub:           successServer,
+			port:                 "8800",
+			expectedResult:       "3.0-server",
+			expectedErrorMessage: "",
 		},
 		{
-			name:           "Missing host should return default host.",
-			hostPort:       ":8800",
-			expectedResult: "localhost:8800",
+			name:                 "return error if default server is not listening on default port",
+			serverStub:           failureServer,
+			port:                 "8800",
+			expectedResult:       "",
+			expectedErrorMessage: `Get "http://localhost:8800/v1/version": connection refused`,
 		},
 		{
-			name:           "Missing port should return default port.",
-			hostPort:       "localhost:",
-			expectedResult: "localhost:8800",
+			name:                 "return error if provided server is not listening on provided port",
+			serverStub:           failureServer,
+			port:                 "1234",
+			expectedResult:       "",
+			expectedErrorMessage: `Get "http://localhost:1234/v1/version": connection refused`,
 		},
 		{
-			name:           "Custom host and port should return the provided host:port.",
-			hostPort:       "192.168.100.1:1234",
-			expectedResult: "192.168.100.1:1234",
+			name:                 "return error for server response 500 Internal Server Error",
+			serverStub:           failureInternalServerError,
+			port:                 "0",
+			expectedResult:       "",
+			expectedErrorMessage: "unexpected status code received",
 		},
+
 		{
-			name:           "Host only should return provided input and default port.",
-			hostPort:       "192.168.1.1",
-			expectedResult: "192.168.1.1:8800",
-		},
-		{
-			name:           "Missing host and port should return default.",
-			hostPort:       "",
-			expectedResult: "localhost:8800",
+			name:                 "return error for server up and wrong json response",
+			serverStub:           successServerWrongJson,
+			port:                 "8800",
+			expectedResult:       "",
+			expectedErrorMessage: "invalid character '<' looking for beginning of value",
 		},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			url, _ := validateHost(tc.hostPort)
-			require.Equal(t, tc.expectedResult, url)
-		})
-	}
-}
-
-func TestServerVersion(t *testing.T) {
-	clientVersion := "5.1-dev"
-	unreacheableUrl := "unreacheable:123"
-	daemonVersion := ""
-
-	testCases := []struct {
-		name           string
-		serverStub     Tripper
-		expectedResult versionResult
-		hostAndPort    string
-	}{
-		{
-			name:       "return the server version when the server is up",
-			serverStub: successServer,
-			expectedResult: versionResult{
-				Name:          ProgramName,
-				Version:       clientVersion,
-				DaemonVersion: "3.0",
-			},
-			hostAndPort: "localhost:8800",
-		},
-		{
-			name:       "return error if default server is not listening",
-			serverStub: failureServer,
-			expectedResult: versionResult{
-				Name:          ProgramName,
-				Version:       clientVersion,
-				DaemonVersion: daemonVersion,
-			},
-			hostAndPort: unreacheableUrl,
-		},
-		{
-			name:       "return error if provided server is not listening",
-			serverStub: failureServer,
-			expectedResult: versionResult{
-				Name:          ProgramName,
-				Version:       clientVersion,
-				DaemonVersion: daemonVersion,
-			},
-			hostAndPort: unreacheableUrl,
-		},
-		{
-			name:       "return error for server resopnse 500 Internal Server Error",
-			serverStub: failureInternalServerError,
-			expectedResult: versionResult{
-				Name:          ProgramName,
-				Version:       clientVersion,
-				DaemonVersion: daemonVersion,
-			},
-			hostAndPort: unreacheableUrl,
-		},
-	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// arrange
@@ -130,10 +78,13 @@ func TestServerVersion(t *testing.T) {
 			httpClient.Transport = tc.serverStub
 
 			// act
-			result, _ := versionHandler(httpClient, clientVersion, tc.hostAndPort)
+			result, err := getDaemonVersion(httpClient, tc.port)
 
 			// assert
 			require.Equal(t, tc.expectedResult, result)
+			if err != nil {
+				require.Equal(t, tc.expectedErrorMessage, err.Error())
+			}
 		})
 	}
 }
@@ -147,7 +98,15 @@ func (t Tripper) RoundTrip(request *http.Request) (*http.Response, error) {
 }
 
 var successServer = Tripper(func(*http.Request) (*http.Response, error) {
-	body := io.NopCloser(strings.NewReader(`{"version":"3.0"}`))
+	body := io.NopCloser(strings.NewReader(`{"version":"3.0-server"}`))
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       body,
+	}, nil
+})
+
+var successServerWrongJson = Tripper(func(*http.Request) (*http.Response, error) {
+	body := io.NopCloser(strings.NewReader(`<!doctype html><html lang="en"`))
 	return &http.Response{
 		StatusCode: http.StatusOK,
 		Body:       body,
@@ -155,7 +114,7 @@ var successServer = Tripper(func(*http.Request) (*http.Response, error) {
 })
 
 var failureServer = Tripper(func(*http.Request) (*http.Response, error) {
-	return nil, errors.New("connetion refused")
+	return nil, errors.New("connection refused")
 })
 
 var failureInternalServerError = Tripper(func(*http.Request) (*http.Response, error) {

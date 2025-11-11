@@ -18,10 +18,10 @@ package version
 import (
 	"encoding/json"
 	"fmt"
+
 	"net"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -40,73 +40,39 @@ const (
 func NewVersionCmd(clientVersion string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "version",
-		Short: "Print the client and server versions for the Arduino App CLI.",
+		Short: "Print the client and server versions for the Arduino App CLI",
 		Run: func(cmd *cobra.Command, args []string) {
-			host, _ := cmd.Flags().GetString("host")
+			port, _ := cmd.Flags().GetString("port")
 
-			validatedHostAndPort, err := validateHost(host)
+			daemonVersion, err := getDaemonVersion(http.Client{}, port)
 			if err != nil {
-				feedback.Fatal("Error: invalid host:port format", feedback.ErrBadArgument)
+				feedback.Warnf("Warning: cannot get the running daemon version on %s:%s\n", DefaultHostname, port)
 			}
 
-			httpClient := http.Client{
-				Timeout: time.Second,
+			result := versionResult{
+				Name:          ProgramName,
+				Version:       clientVersion,
+				DaemonVersion: daemonVersion,
 			}
 
-			result, err := versionHandler(httpClient, clientVersion, validatedHostAndPort)
-			if err != nil {
-				feedback.Warnf("Waning: " + err.Error() + "\n")
-			}
 			feedback.PrintResult(result)
 		},
 	}
-	cmd.Flags().String("host", fmt.Sprintf("%s:%s", DefaultHostname, DefaultPort),
-		"The daemon network address [host]:[port]")
+	cmd.Flags().String("port", DefaultPort, "The daemon network port")
 	return cmd
 }
 
-func versionHandler(httpClient http.Client, clientVersion string, hostAndPort string) (versionResult, error) {
+func getDaemonVersion(httpClient http.Client, port string) (string, error) {
+
+	httpClient.Timeout = time.Second
+
 	url := url.URL{
 		Scheme: "http",
-		Host:   hostAndPort,
+		Host:   net.JoinHostPort(DefaultHostname, port),
 		Path:   "/v1/version",
 	}
 
-	daemonVersion, err := getDaemonVersion(httpClient, url.String())
-
-	result := versionResult{
-		Name:          ProgramName,
-		Version:       clientVersion,
-		DaemonVersion: daemonVersion,
-	}
-
-	if err != nil {
-		return result, fmt.Errorf("error getting daemon version %s", hostAndPort)
-	}
-	return result, nil
-}
-
-func validateHost(hostPort string) (string, error) {
-	if !strings.Contains(hostPort, ":") {
-		hostPort += ":"
-	}
-
-	h, p, err := net.SplitHostPort(hostPort)
-	if err != nil {
-		return "", err
-	}
-	if h == "" {
-		h = DefaultHostname
-	}
-	if p == "" {
-		p = DefaultPort
-	}
-
-	return net.JoinHostPort(h, p), nil
-}
-
-func getDaemonVersion(httpClient http.Client, url string) (string, error) {
-	resp, err := httpClient.Get(url)
+	resp, err := httpClient.Get(url.String())
 	if err != nil {
 		return "", err
 	}
@@ -133,7 +99,7 @@ type versionResult struct {
 }
 
 func (r versionResult) String() string {
-	resultMessage := fmt.Sprintf("%s client version %s",
+	resultMessage := fmt.Sprintf("%s version %s",
 		ProgramName, r.Version)
 
 	if r.DaemonVersion != "" {
