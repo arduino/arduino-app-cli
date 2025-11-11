@@ -10,7 +10,7 @@
 
 High quality bug reports and feature requests are valuable contributions to this project. These can be made by submitting an issue report to the project's GitHub repository:
 
-https://github.com/arduino/TODO_REPO_NAME/issues/new/choose
+https://github.com/arduino/arduino-app-cli/issues/new/choose
 
 ## Before Reporting an Issue
 
