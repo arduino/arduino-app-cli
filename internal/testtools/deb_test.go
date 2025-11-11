@@ -44,29 +44,29 @@ func TestStableToUnstable(t *testing.T) {
 
 }
 
-// func TestUnstableToStable(t *testing.T) {
-// 	tagAppCli := FetchDebPackage(t, "arduino-app-cli", "latest", *arch)
-// 	FetchDebPackage(t, "arduino-router", "latest", *arch)
-// 	minorTag := minorTag(t, tagAppCli)
-// 	moveDeb(t, "build/stable", "build/", "arduino-app-cli", tagAppCli, *arch)
+func TestUnstableToStable(t *testing.T) {
+	tagAppCli := FetchDebPackage(t, "arduino-app-cli", "latest", *arch)
+	FetchDebPackage(t, "arduino-router", "latest", *arch)
+	minorTag := minorTag(t, tagAppCli)
+	moveDeb(t, "build/stable", "build/", "arduino-app-cli", tagAppCli, *arch)
 
-// 	fmt.Printf("Updating from unstable version %s to stable version %s \n", minorTag, tagAppCli)
-// 	fmt.Printf("Building local deb version %s \n", minorTag)
-// 	buildDebVersion(t, minorTag, *arch)
-// 	moveDeb(t, "build/", "build/stable", "arduino-app-cli", tagAppCli, *arch)
+	fmt.Printf("Updating from unstable version %s to stable version %s \n", minorTag, tagAppCli)
+	fmt.Printf("Building local deb version %s \n", minorTag)
+	buildDebVersion(t, minorTag, *arch)
+	moveDeb(t, "build/", "build/stable", "arduino-app-cli", tagAppCli, *arch)
 
-// 	fmt.Println("**** BUILD docker image *****")
-// 	buildDockerImage(t, "test.Dockerfile", "test-apt-update")
-// 	fmt.Println("**** RUN docker image *****")
-// 	runDockerCommand(t, "test-apt-update")
-// 	preUpdateVersion := runDockerSystemVersion(t, "apt-test-update")
-// 	runDockerSystemUpdate(t, "apt-test-update")
-// 	postUpdateVersion := runDockerSystemVersion(t, "apt-test-update")
-// 	runDockerCleanUp(t, "apt-test-update")
-// 	require.Equal(t, preUpdateVersion, "Arduino App CLI "+tagAppCli)
-// 	require.Equal(t, postUpdateVersion, "Arduino App CLI "+minorTag)
+	fmt.Println("**** BUILD docker image *****")
+	buildDockerImage(t, "test.Dockerfile", "test-apt-update", *arch)
+	fmt.Println("**** RUN docker image *****")
+	runDockerCommand(t, "test-apt-update")
+	preUpdateVersion := runDockerSystemVersion(t, "apt-test-update")
+	runDockerSystemUpdate(t, "apt-test-update")
+	postUpdateVersion := runDockerSystemVersion(t, "apt-test-update")
+	runDockerCleanUp(t, "apt-test-update")
+	require.Equal(t, preUpdateVersion, "Arduino App CLI "+tagAppCli+"\n")
+	require.Equal(t, postUpdateVersion, "Arduino App CLI "+minorTag+"\n")
 
-// }
+}
 
 func FetchDebPackage(t *testing.T, repo, version, arch string) string {
 	t.Helper()
