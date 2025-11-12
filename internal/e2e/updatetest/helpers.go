@@ -1,11 +1,11 @@
-package testtools
+package updatetest
 
 import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
-	"io"
 	"iter"
 	"log"
 	"net"
@@ -17,14 +17,17 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
-func FetchDebPackage(t *testing.T, path, repo, version, arch string) string {
+func fetchDebPackageLatest(t *testing.T, path, repo string) string {
 	t.Helper()
 
+	repo = fmt.Sprintf("github.com/arduino/%s", repo)
 	cmd := exec.Command(
 		"gh", "release", "list",
-		"--repo", "github.com/arduino/"+repo,
+		"--repo", repo,
 		"--exclude-pre-releases",
 		"--limit", "1",
 	)
@@ -41,20 +44,13 @@ func FetchDebPackage(t *testing.T, path, repo, version, arch string) string {
 		log.Fatal("could not parse tag from gh release list output")
 	}
 	tag := fields[0]
-	tagPath := strings.TrimPrefix(tag, "v")
 
-	debFile := fmt.Sprintf("%s/%s_%s-1_%s.deb", path, repo, tagPath, arch)
-	fmt.Println(debFile)
-	if _, err := os.Stat(debFile); err == nil {
-		fmt.Printf("✅ %s already exists, skipping download.\n", debFile)
-		return tag
-	}
 	fmt.Println("Detected tag:", tag)
 	cmd2 := exec.Command(
 		"gh", "release", "download",
 		tag,
-		"--repo", "github.com/arduino/"+repo,
-		"--pattern", "*",
+		"--repo", repo,
+		"--pattern", "*.deb",
 		"--dir", path,
 	)
 
@@ -75,11 +71,15 @@ func buildDebVersion(t *testing.T, storePath, tagVersion, arch string) {
 	}
 	outputDir := filepath.Join(cwd, storePath)
 
+	tagVersion = fmt.Sprintf("VERSION=%s", tagVersion)
+	arch = fmt.Sprintf("ARCH=%s", arch)
+	outputDir = fmt.Sprintf("OUTPUT=%s", outputDir)
+
 	cmd := exec.Command(
 		"go", "tool", "task", "build-deb",
-		fmt.Sprintf("VERSION=%s", tagVersion),
-		fmt.Sprintf("ARCH=%s", arch),
-		fmt.Sprintf("OUTPUT=%s", outputDir),
+		tagVersion,
+		arch,
+		outputDir,
 	)
 
 	if err := cmd.Run(); err != nil {
@@ -87,7 +87,7 @@ func buildDebVersion(t *testing.T, storePath, tagVersion, arch string) {
 	}
 }
 
-func majorTag(t *testing.T, tag string) string {
+func genMajorTag(t *testing.T, tag string) string {
 	t.Helper()
 
 	parts := strings.Split(tag, ".")
@@ -102,7 +102,7 @@ func majorTag(t *testing.T, tag string) string {
 	return newTag
 }
 
-func minorTag(t *testing.T, tag string) string {
+func genMinorTag(t *testing.T, tag string) string {
 	t.Helper()
 
 	parts := strings.Split(tag, ".")
@@ -125,7 +125,9 @@ func minorTag(t *testing.T, tag string) string {
 func buildDockerImage(t *testing.T, dockerfile, name, arch string) {
 	t.Helper()
 
-	cmd := exec.Command("docker", "build", "--build-arg", "ARCH="+arch, "-t", name, "-f", dockerfile, ".")
+	arch = fmt.Sprintf("ARCH=%s", arch)
+
+	cmd := exec.Command("docker", "build", "--build-arg", arch, "-t", name, "-f", dockerfile, ".")
 	// Capture both stdout and stderr
 	var out bytes.Buffer
 	var stderr bytes.Buffer
@@ -133,7 +135,6 @@ func buildDockerImage(t *testing.T, dockerfile, name, arch string) {
 	cmd.Stderr = &stderr
 
 	err := cmd.Run()
-
 	if err != nil {
 		fmt.Printf("❌ Docker build failed: %v\n", err)
 		fmt.Printf("---- STDERR ----\n%s\n", stderr.String())
@@ -142,11 +143,9 @@ func buildDockerImage(t *testing.T, dockerfile, name, arch string) {
 	}
 
 	fmt.Println("✅ Docker build succeeded!")
-	fmt.Println(out.String())
-
 }
 
-func runDockerContainer(t *testing.T, containerName string, containerImageName string) {
+func startDockerContainer(t *testing.T, containerName string, containerImageName string) {
 	t.Helper()
 
 	cmd := exec.Command(
@@ -168,64 +167,48 @@ func runDockerContainer(t *testing.T, containerName string, containerImageName s
 
 }
 
-func runDockerSystemVersion(t *testing.T, containerName string) string {
+func getAppCliVersion(t *testing.T, containerName string) string {
 	t.Helper()
 
 	cmd := exec.Command(
 		"docker", "exec",
 		"--user", "arduino",
 		containerName,
-		"arduino-app-cli", "version",
+		"arduino-app-cli", "version", "--format", "json",
 	)
-
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Fatalf("command failed: %v\nOutput: %s", err, output)
 	}
 
-	return string(output)
-
-}
-
-func runDockerSystemUpdate(t *testing.T, containerName string) {
-	t.Helper()
-	var buf bytes.Buffer
-
-	cmd := exec.Command(
-		"docker", "exec",
-		containerName,
-		"sh", "-lc",
-		`su - arduino -c "yes | arduino-app-cli system update"`,
-	)
-
-	cmd.Stdout = io.MultiWriter(os.Stdout, &buf)
-
-	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error running system update: %v\n", err)
-		os.Exit(1)
+	var version struct {
+		Version       string `json:"version"`
+		DaemonVersion string `json:"daemon_version"`
 	}
+	err = json.Unmarshal(output, &version)
+	require.NoError(t, err)
+	//TODO to enable after 0.6.7
+	//require.Equal(t, version.Version, version.DaemonVersion, "client and daemon versions should match")
+	require.NotEmpty(t, version.Version)
+	return version.Version
 
 }
 
-func runDockerDaemon(t *testing.T, containerName string) string {
+func runSystemUpdate(t *testing.T, containerName string) {
 	t.Helper()
 
 	cmd := exec.Command(
 		"docker", "exec",
-		"-d",
 		"--user", "arduino",
 		containerName,
-		"systemctl", "start", "arduino-app-cli",
+		"arduino-app-cli", "system", "update", "--yes",
 	)
 	output, err := cmd.CombinedOutput()
-	if err != nil {
-		log.Fatalf("command failed: %v\n Output: %s", err, output)
-	}
-
-	return string(output)
+	require.NoError(t, err, "system update failed: %s", output)
+	t.Logf("system update output: %s", output)
 }
 
-func runDockerCleanUp(t *testing.T, containerName string) {
+func stopDockerContainer(t *testing.T, containerName string) {
 	t.Helper()
 
 	cleanupCmd := exec.Command("docker", "rm", "-f", containerName)
@@ -237,60 +220,11 @@ func runDockerCleanUp(t *testing.T, containerName string) {
 
 }
 
-func moveDeb(t *testing.T, startDir, targetDir, repo string, tagVersion string, arch string) {
-	t.Helper()
-	tagPath := strings.TrimPrefix(tagVersion, "v")
-
-	debFile := fmt.Sprintf("%s/%s_%s-1_%s.deb", startDir, repo, tagPath, arch)
-
-	moveCmd := exec.Command("cp", debFile, targetDir)
-
-	fmt.Printf("📦 Moving %s → %s\n", debFile, targetDir)
-	if err := moveCmd.Run(); err != nil {
-		panic(fmt.Errorf("failed to move deb file: %w", err))
-	}
-
-	rm(t, debFile)
-}
-
-func ls(t *testing.T) {
-	t.Helper()
-	cwd, err := os.Getwd()
-	if err != nil {
-		fmt.Println("Error getting working directory:", err)
-		return
-	}
-
-	fmt.Println("Current directory:", cwd)
-	fmt.Println("Listing all files and folders recursively:")
-
-	// Walk through all files and subdirectories
-	err = filepath.Walk(cwd, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		fmt.Println(path)
-		return nil
-	})
-
-}
-
-func rm(t *testing.T, pathFile string) {
-	t.Helper()
-	removeCmd := exec.Command("rm", pathFile)
-
-	err := removeCmd.Run()
-	if err != nil {
-		log.Fatalf("Failed to remove file: %v", err)
-	}
-
-	fmt.Printf("📦 Removed %s\n", pathFile)
-
-}
-
-func putUpdateRequest(t *testing.T, url string) string {
+func putUpdateRequest(t *testing.T, host string) {
 
 	t.Helper()
+
+	url := fmt.Sprintf("http://%s/v1/system/update/apply", host)
 
 	req, err := http.NewRequest(http.MethodPut, url, nil)
 	if err != nil {
@@ -306,30 +240,8 @@ func putUpdateRequest(t *testing.T, url string) string {
 	}
 	defer resp.Body.Close()
 
-	return resp.Status
-}
+	require.Equal(t, 202, resp.StatusCode)
 
-func rmrf(t *testing.T, pathFile string) {
-	t.Helper()
-	// Check if the folder exists
-	if _, err := os.Stat(pathFile); os.IsNotExist(err) {
-		fmt.Println("No build directory found.")
-		return
-	}
-
-	// Run the Linux command to remove it
-	cmd := exec.Command("rm", "-rf", pathFile)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	fmt.Println("Removing build directory...")
-
-	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error removing build folder: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Println("Build directory removed successfully.")
 }
 
 func NewSSEClient(ctx context.Context, method, url string) iter.Seq2[Event, error] {
@@ -387,20 +299,35 @@ type Event struct {
 	Data  []byte // json
 }
 
-// WaitForPort waits until a TCP port is open or fails after timeout.
-func WaitForPort(t *testing.T, host string, port string, timeout time.Duration) {
+// waitForPort waits until a TCP port is open or fails after timeout.
+func waitForPort(t *testing.T, host string, timeout time.Duration) {
 	t.Helper()
-	addr := fmt.Sprintf("%s:%s", host, port)
 
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)
+		conn, err := net.DialTimeout("tcp", host, 500*time.Millisecond)
 		if err == nil {
 			_ = conn.Close()
-			t.Logf("Server is up on %s", addr)
+			t.Logf("Server is up on %s", host)
 			return
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	t.Fatalf("Server at %s did not start within %v", addr, timeout)
+	t.Fatalf("Server at %s did not start within %v", host, timeout)
+}
+
+func waitForUpgrade(t *testing.T, host string) {
+	t.Helper()
+
+	url := fmt.Sprintf("http://%s/v1/system/update/events", host)
+
+	itr := NewSSEClient(t.Context(), "GET", url)
+	for event, err := range itr {
+		require.NoError(t, err)
+		t.Logf("Received event: ID=%s, Event=%s, Data=%s\n", event.ID, event.Event, string(event.Data))
+		if event.Event == "restarting" {
+			break
+		}
+	}
+
 }
