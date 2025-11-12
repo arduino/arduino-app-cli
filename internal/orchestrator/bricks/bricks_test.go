@@ -26,13 +26,13 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
 
-func TestBrickCreate(t *testing.T) {
+func TestBrickCreateFromAppExample(t *testing.T) {
 	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(paths.New("testdata"))
 	require.Nil(t, err)
 	brickService := NewService(nil, bricksIndex, nil)
 
 	t.Run("fails if brick id does not exist", func(t *testing.T) {
-		err = brickService.BrickCreate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load("testdata/dummy-app")))
+		err = brickService.BrickCreate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load("testdata/AppFromExample")))
 		require.Error(t, err)
 		require.Equal(t, "brick \"not-existing-id\" not found", err.Error())
 	})
@@ -41,7 +41,7 @@ func TestBrickCreate(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"NON_EXISTING_VARIABLE": "some-value",
 		}}
-		err = brickService.BrickCreate(req, f.Must(app.Load("testdata/dummy-app")))
+		err = brickService.BrickCreate(req, f.Must(app.Load("testdata/AppFromExample")))
 		require.Error(t, err)
 		require.Equal(t, "variable \"NON_EXISTING_VARIABLE\" does not exist on brick \"arduino:arduino_cloud\"", err.Error())
 	})
@@ -51,7 +51,7 @@ func TestBrickCreate(t *testing.T) {
 			"ARDUINO_DEVICE_ID": "",
 			"ARDUINO_SECRET":    "a-secret-a",
 		}}
-		err = brickService.BrickCreate(req, f.Must(app.Load("testdata/dummy-app")))
+		err = brickService.BrickCreate(req, f.Must(app.Load("testdata/AppFromExample")))
 		require.Error(t, err)
 		require.Equal(t, "variable \"ARDUINO_DEVICE_ID\" cannot be empty", err.Error())
 	})
@@ -60,31 +60,27 @@ func TestBrickCreate(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"ARDUINO_SECRET": "a-secret-a",
 		}}
-		err = brickService.BrickCreate(req, f.Must(app.Load("testdata/dummy-app")))
+		err = brickService.BrickCreate(req, f.Must(app.Load("testdata/AppFromExample")))
 		require.Error(t, err)
 		require.Equal(t, "required variable \"ARDUINO_DEVICE_ID\" is mandatory", err.Error())
 	})
 
 	t.Run("the brick is added if it does not exist in the app", func(t *testing.T) {
-		tempDummyApp := paths.New("testdata/dummy-app.temp")
-		err := tempDummyApp.RemoveAll()
-		require.Nil(t, err)
-		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
+		tempApp, cleanUp := copyToTempApp(t, paths.New("testdata/AppFromExample"))
+		defer cleanUp()
 
 		req := BrickCreateUpdateRequest{ID: "arduino:dbstorage_sqlstore"}
-		err = brickService.BrickCreate(req, f.Must(app.Load(tempDummyApp.String())))
+		err = brickService.BrickCreate(req, f.Must(app.Load(tempApp.String())))
 		require.Nil(t, err)
-		after, err := app.Load(tempDummyApp.String())
+		after, err := app.Load(tempApp.String())
 		require.Nil(t, err)
 		require.Len(t, after.Descriptor.Bricks, 2)
 		require.Equal(t, "arduino:dbstorage_sqlstore", after.Descriptor.Bricks[1].ID)
 	})
 	t.Run("the variables of a brick are updated", func(t *testing.T) {
-		tempDummyApp := paths.New("testdata/dummy-app.brick-override.temp")
-		err := tempDummyApp.RemoveAll()
-		require.Nil(t, err)
-		err = paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp)
-		require.Nil(t, err)
+		tempApp, cleanUp := copyToTempApp(t, paths.New("testdata/AppFromExample"))
+		defer cleanUp()
+
 		bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(paths.New("testdata"))
 		require.Nil(t, err)
 		brickService := NewService(nil, bricksIndex, nil)
@@ -99,16 +95,24 @@ func TestBrickCreate(t *testing.T) {
 			},
 		}
 
-		err = brickService.BrickCreate(req, f.Must(app.Load(tempDummyApp.String())))
+		err = brickService.BrickCreate(req, f.Must(app.Load(tempApp.String())))
 		require.Nil(t, err)
 
-		after, err := app.Load(tempDummyApp.String())
+		after, err := app.Load(tempApp.String())
 		require.Nil(t, err)
 		require.Len(t, after.Descriptor.Bricks, 1)
 		require.Equal(t, "arduino:arduino_cloud", after.Descriptor.Bricks[0].ID)
 		require.Equal(t, deviceID, after.Descriptor.Bricks[0].Variables["ARDUINO_DEVICE_ID"])
 		require.Equal(t, secret, after.Descriptor.Bricks[0].Variables["ARDUINO_SECRET"])
 	})
+}
+
+func copyToTempApp(t *testing.T, srcApp *paths.Path) (tmpApp *paths.Path, cleanUp func()) {
+	tmpAppPath := paths.New(srcApp.String() + ".temp")
+	require.Nil(t, srcApp.CopyDirTo(tmpAppPath))
+	return tmpAppPath, func() {
+		require.Nil(t, tmpAppPath.RemoveAll())
+	}
 }
 
 func TestGetBrickInstanceVariableDetails(t *testing.T) {
