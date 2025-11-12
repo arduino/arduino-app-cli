@@ -16,6 +16,7 @@
 package bricks
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -47,7 +48,7 @@ func TestBrickCreate(t *testing.T) {
 		require.Equal(t, "variable \"NON_EXISTING_VARIABLE\" does not exist on brick \"arduino:arduino_cloud\"", err.Error())
 	})
 
-	//TODO: allow a variable to have empty string
+	//TODO: currently we do not accept an empty string as a valid value for a variable
 	t.Run("fails if a required variable is set empty", func(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"ARDUINO_DEVICE_ID": "",
@@ -59,8 +60,8 @@ func TestBrickCreate(t *testing.T) {
 	})
 
 	t.Run("log a warning if a mandatory variable is not present in the request", func(t *testing.T) {
-		tempApp, cleanUp := copyToTempApp(t, paths.New("testdata/AppFromExample"))
-		defer cleanUp()
+		tempApp, _ := copyToTempApp(t, paths.New("testdata/AppFromExample"))
+		// defer cleanUp()
 
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"ARDUINO_SECRET": "a-secret-a",
@@ -72,7 +73,7 @@ func TestBrickCreate(t *testing.T) {
 		require.Nil(t, err)
 		require.Len(t, after.Descriptor.Bricks, 1)
 		require.Equal(t, "arduino:arduino_cloud", after.Descriptor.Bricks[0].ID)
-		require.Equal(t, "", after.Descriptor.Bricks[0].Variables["ARDUINO_DEVICE_ID"]) // <-- the DEVICE_ID is set to empty
+		require.Equal(t, "", after.Descriptor.Bricks[0].Variables["ARDUINO_DEVICE_ID"]) // <-- the DEVICE_ID is empty
 		require.Equal(t, "a-secret-a", after.Descriptor.Bricks[0].Variables["ARDUINO_SECRET"])
 	})
 
@@ -119,7 +120,7 @@ func TestBrickCreate(t *testing.T) {
 }
 
 func copyToTempApp(t *testing.T, srcApp *paths.Path) (tmpApp *paths.Path, cleanUp func()) {
-	tmpAppPath := paths.New(srcApp.String() + time.Now().Format(time.RFC3339) + ".temp")
+	tmpAppPath := paths.New(srcApp.String() + "-" + fmt.Sprint(time.Now().UnixMicro()) + ".temp")
 	require.Nil(t, srcApp.CopyDirTo(tmpAppPath))
 	return tmpAppPath, func() {
 		require.Nil(t, tmpAppPath.RemoveAll())
