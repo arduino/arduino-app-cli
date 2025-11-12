@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-func FetchDebPackage(t *testing.T, repo, version, arch string) string {
+func FetchDebPackage(t *testing.T, path, repo, version, arch string) string {
 	t.Helper()
 
 	cmd := exec.Command(
@@ -43,7 +43,7 @@ func FetchDebPackage(t *testing.T, repo, version, arch string) string {
 	tag := fields[0]
 	tagPath := strings.TrimPrefix(tag, "v")
 
-	debFile := fmt.Sprintf("build/stable/%s_%s-1_%s.deb", repo, tagPath, arch)
+	debFile := fmt.Sprintf("%s/%s_%s-1_%s.deb", path, repo, tagPath, arch)
 	fmt.Println(debFile)
 	if _, err := os.Stat(debFile); err == nil {
 		fmt.Printf("✅ %s already exists, skipping download.\n", debFile)
@@ -55,7 +55,7 @@ func FetchDebPackage(t *testing.T, repo, version, arch string) string {
 		tag,
 		"--repo", "github.com/arduino/"+repo,
 		"--pattern", "*",
-		"--dir", "./build/stable",
+		"--dir", path,
 	)
 
 	out, err := cmd2.CombinedOutput()
@@ -67,13 +67,13 @@ func FetchDebPackage(t *testing.T, repo, version, arch string) string {
 
 }
 
-func buildDebVersion(t *testing.T, tagVersion, arch string) {
+func buildDebVersion(t *testing.T, storePath, tagVersion, arch string) {
 	t.Helper()
 	cwd, err := os.Getwd()
 	if err != nil {
 		panic(err)
 	}
-	outputDir := filepath.Join(cwd, "build")
+	outputDir := filepath.Join(cwd, storePath)
 
 	cmd := exec.Command(
 		"go", "tool", "task", "build-deb",
@@ -207,7 +207,7 @@ func runDockerSystemUpdate(t *testing.T, containerName string) {
 
 }
 
-func runDockerDaemon(t *testing.T, containerName string) {
+func runDockerDaemon(t *testing.T, containerName string) string {
 	t.Helper()
 
 	cmd := exec.Command(
@@ -222,8 +222,7 @@ func runDockerDaemon(t *testing.T, containerName string) {
 		log.Fatalf("command failed: %v\n Output: %s", err, output)
 	}
 
-	fmt.Printf("Daemon started: %s\n", output)
-
+	return string(output)
 }
 
 func runDockerCleanUp(t *testing.T, containerName string) {
@@ -307,9 +306,6 @@ func putUpdateRequest(t *testing.T, url string) string {
 	}
 	defer resp.Body.Close()
 
-	fmt.Printf("Response status: %s\n", resp.Status)
-
-	// Check status code
 	return resp.Status
 }
 func NewSSEClient(ctx context.Context, method, url string) iter.Seq2[Event, error] {
@@ -368,9 +364,9 @@ type Event struct {
 }
 
 // WaitForPort waits until a TCP port is open or fails after timeout.
-func WaitForPort(t *testing.T, host string, port int, timeout time.Duration) {
+func WaitForPort(t *testing.T, host string, port string, timeout time.Duration) {
 	t.Helper()
-	addr := fmt.Sprintf("%s:%d", host, port)
+	addr := fmt.Sprintf("%s:%s", host, port)
 
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
