@@ -182,9 +182,10 @@ func FromFQBN(ctx context.Context, fqbn string) ([]Board, error) {
 		if len(port.GetMatchingBoards()) > 0 {
 			boardName = port.GetMatchingBoards()[0].GetName()
 		}
-		serial := strings.ToLower(port.GetPort().GetHardwareId()) // in windows this is uppercase.
+
 		switch port.GetPort().GetProtocol() {
 		case SerialProtocol:
+			serial := strings.ToLower(port.GetPort().GetHardwareId()) // in windows this is uppercase.
 			// TODO: we should store the board custom name in the product id so we can get it from the discovery service.
 			var customName string
 			if conn, err := adb.FromSerial(serial, ""); err == nil {
@@ -208,6 +209,10 @@ func FromFQBN(ctx context.Context, fqbn string) ([]Board, error) {
 					idx = len(name)
 				}
 				customName = name[:idx]
+			}
+			var serial string
+			if sn, ok := port.GetPort().GetProperties()["serial_number"]; ok {
+				serial = sn
 			}
 
 			boards = append(boards, Board{
