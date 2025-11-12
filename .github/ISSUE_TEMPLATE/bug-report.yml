@@ -31,10 +31,17 @@ body:
     attributes:
       label: Arduino App CLI version
       description: |
-        Which version of Arduino App CLI are you using? (output of `arduino-app-cli version`)
+        Which version of Arduino App CLI are you using? (output of `arduino-app-cli version` executed inside the board)
         _This should be the most recent version available._
     validations:
       required: true
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Add any additional information here.
+    validations:
+      required: false
   - type: checkboxes
     id: checklist
     attributes:
