@@ -146,7 +146,7 @@ func HandleBrickCreate(
 		err = brickService.BrickCreate(req, app)
 		if err != nil {
 			// TODO: handle specific errors
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
+			slog.Error("Unable to create brick", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "error while creating or updating brick"})
 			return
 		}
