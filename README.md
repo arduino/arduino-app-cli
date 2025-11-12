@@ -40,4 +40,4 @@ license@arduino.cc
 [user documentation]: https://github.com/arduino/arduino-app-cli/docs/user-documentation.md
 [contributor guide]: https://arduino.github.io/arduino-app-cli/latest/CONTRIBUTING/
 [security policy]: https://github.com/arduino/arduino-app-cli/security/policy
-[contributors]: https://github.com/arduino/arduino-cli/graphs/contributors
+[contributors]: https://github.com/arduino/arduino-app-cli/graphs/contributors
