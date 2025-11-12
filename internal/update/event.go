@@ -26,6 +26,7 @@ const (
 	RestartEvent
 	DoneEvent
 	ErrorEvent
+	CanceledEvent
 )
 
 // Event represents a single event in the upgrade process.
@@ -48,6 +49,8 @@ func (t EventType) String() string {
 		return "done"
 	case ErrorEvent:
 		return "error"
+	case CanceledEvent:
+		return "canceled"
 	default:
 		panic("unreachable")
 	}

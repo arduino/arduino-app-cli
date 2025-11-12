@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/arduino/arduino-cli/commands"
 	"github.com/arduino/arduino-cli/commands/cmderrors"
@@ -155,7 +156,10 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 		defer a.lock.Unlock()
 		defer close(eventsCh)
 
-		eventsCh <- update.NewDataEvent(update.StartEvent, "Upgrade is starting")
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+		defer cancel()
+
+		eventsCh <- update.NewDataEvent(update.StartEvent, "arduino core upgrade is starting")
 
 		logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 		srv := commands.NewArduinoCoreServer()
@@ -167,7 +171,14 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 
 		var inst *rpc.Instance
 		if resp, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
-			eventsCh <- update.NewErrorEvent(fmt.Errorf("error creating arduino-cli instance: %w", err))
+			if ctx.Err() != nil {
+				slog.Info("Arduino instance creation canceled by user.")
+				eventsCh <- update.NewDataEvent(update.CanceledEvent, "Arduino instance creation canceled")
+
+			} else {
+				slog.Error("Error creating Arduino instance", "error", err)
+				eventsCh <- update.NewErrorEvent(fmt.Errorf("error creating Arduino instance: %w", err))
+			}
 			return
 		} else {
 			inst = resp.GetInstance()
@@ -181,13 +192,27 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 		}()
 
 		{
+
 			stream, _ := commands.UpdateIndexStreamResponseToCallbackFunction(ctx, downloadProgressCB)
 			if err := srv.UpdateIndex(&rpc.UpdateIndexRequest{Instance: inst}, stream); err != nil {
-				eventsCh <- update.NewErrorEvent(fmt.Errorf("error updating index: %w", err))
+				if ctx.Err() != nil {
+					slog.Info("Update index canceled by user.")
+					eventsCh <- update.NewDataEvent(update.CanceledEvent, "Update index canceled")
+				} else {
+					slog.Error("Error updating index", "error", err)
+					eventsCh <- update.NewErrorEvent(fmt.Errorf("error updating index: %w", err))
+				}
 				return
 			}
 			if err := srv.Init(&rpc.InitRequest{Instance: inst}, commands.InitStreamResponseToCallbackFunction(ctx, nil)); err != nil {
-				eventsCh <- update.NewErrorEvent(fmt.Errorf("error initializing instance: %w", err))
+				if ctx.Err() != nil {
+					slog.Info("Init Streaming Response canceled by user.")
+					eventsCh <- update.NewDataEvent(update.CanceledEvent, "Init Streaming Response canceled")
+
+				} else {
+					slog.Error("Error initializing Arduino instance", "error", err)
+					eventsCh <- update.NewErrorEvent(fmt.Errorf("error initializing Arduino instance: %w", err))
+				}
 				return
 			}
 		}
@@ -217,6 +242,23 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 			if !errors.As(err, &notFound) {
 				eventsCh <- update.NewErrorEvent(fmt.Errorf("error upgrading platform: %w", err))
 				return
+			} else {
+				var alreadyPresent *cmderrors.PlatformAlreadyAtTheLatestVersionError
+				if errors.As(err, &alreadyPresent) {
+					if ctx.Err() != nil {
+						slog.Info("Platform upgrade canceled by user.")
+						eventsCh <- update.NewDataEvent(update.CanceledEvent, "Platform upgrade canceled")
+						return
+					}
+					eventsCh <- update.NewDataEvent(update.UpgradeLineEvent, alreadyPresent.Error())
+					return
+				}
+
+				var notFound *cmderrors.PlatformNotFoundError
+				if !errors.As(err, &notFound) {
+					eventsCh <- update.NewErrorEvent(fmt.Errorf("error upgrading platform: %w", err))
+					return
+				}
 			}
 			// If the platform is not found, we will try to install it
 			err := srv.PlatformInstall(
@@ -232,7 +274,12 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 				),
 			)
 			if err != nil {
-				eventsCh <- update.NewErrorEvent(fmt.Errorf("error installing platform: %w", err))
+				if ctx.Err() != nil {
+					slog.Info("Platform Install stream canceled by user.")
+					eventsCh <- update.NewDataEvent(update.CanceledEvent, "Platform Install stream canceled")
+				} else {
+					eventsCh <- update.NewErrorEvent(fmt.Errorf("error installing platform: %w", err))
+				}
 				return
 			}
 		} else if respCB().GetPlatform() == nil {
@@ -253,7 +300,12 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 			commands.BurnBootloaderToServerStreams(ctx, cbw, cbw),
 		)
 		if err != nil {
-			eventsCh <- update.NewErrorEvent(fmt.Errorf("error burning bootloader: %w", err))
+			if ctx.Err() != nil {
+				slog.Info("burning bootloader operation canceled by user.")
+				eventsCh <- update.NewDataEvent(update.CanceledEvent, "burning bootloader operation canceled")
+			} else {
+				eventsCh <- update.NewErrorEvent(fmt.Errorf("error burning bootloader: %w", err))
+			}
 			return
 		}
 	}()

@@ -18,6 +18,7 @@ package apt
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"iter"
@@ -25,6 +26,8 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"syscall"
+	"time"
 
 	"github.com/arduino/go-paths-helper"
 	"go.bug.st/f"
@@ -94,12 +97,20 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan u
 				return
 			}
 		}()
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+		defer cancel()
 
 		eventsCh <- update.NewDataEvent(update.StartEvent, "Upgrade is starting")
 		stream := runUpgradeCommand(ctx, names)
 		for line, err := range stream {
 			if err != nil {
-				eventsCh <- update.NewErrorEvent(fmt.Errorf("error running upgrade command: %w", err))
+				if errors.Is(err, context.Canceled) {
+					eventsCh <- update.NewDataEvent(update.CanceledEvent, "Run upgrade operation canceled")
+					slog.Info("Upgrade operation canceled by user")
+				} else {
+					eventsCh <- update.NewErrorEvent(fmt.Errorf("error running upgrade command: %w", err))
+					slog.Error("error processing upgrade command output", "error", err)
+				}
 				return
 			}
 			eventsCh <- update.NewDataEvent(update.UpgradeLineEvent, line)
@@ -118,14 +129,19 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan u
 		streamCleanup := cleanupDockerContainers(ctx)
 		for line, err := range streamCleanup {
 			if err != nil {
-				// TODO: maybe we should retun an error or a better feedback to the user?
-				// currently, we just log the error and continue considenring not blocking
-				slog.Warn("Error stopping and destroying docker containers", "error", err)
+				if errors.Is(err, context.Canceled) {
+					eventsCh <- update.NewDataEvent(update.CanceledEvent, "Stop and destroy docker containers and images operation canceled")
+					slog.Info("Stop and destroy docker containers and images canceled by user")
+					return
+				} else {
+					// TODO: maybe we should retun an error or a better feedback to the user?
+					// currently, we just log the error and continue considenring not blocking
+					slog.Warn("Error stopping and destroying docker containers", "error", err)
+				}
 			} else {
 				eventsCh <- update.NewDataEvent(update.UpgradeLineEvent, line)
 			}
 		}
-
 		// TODO: Remove this workaround once docker image versions are no longer hardcoded in arduino-app-cli.
 		// Tracking issue: https://github.com/arduino/arduino-app-cli/issues/600
 		// Currently, we need to launch `arduino-app-cli system init` to pull the latest docker images because
@@ -170,39 +186,15 @@ func runUpdateCommand(ctx context.Context) error {
 
 func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, error] {
 	env := []string{"NEEDRESTART_MODE=l"}
+	args := append([]string{"sudo", "apt-get", "install", "--only-upgrade", "-y"}, names...)
 
-	aptOptions := []string{
-		"-o", "Acquire::Retries=3",
-		"-o", "Acquire::http::Timeout=30",
-		"-o", "Acquire::https::Timeout=30",
-	}
-	args := []string{"sudo", "apt-get", "install", "--only-upgrade", "-y"}
-	args = append(args, aptOptions...)
-	args = append(args, names...)
-
-	return func(yield func(string, error) bool) {
-		cmd, err := paths.NewProcess(env, args...)
-		if err != nil {
-			_ = yield("", err)
-			return
-		}
-
-		stdout := orchestrator.NewCallbackWriter(func(line string) {
-			if !yield(line, nil) {
-				if err := cmd.Kill(); err != nil {
-					slog.Error("Failed to kill upgrade command", slog.String("error", err.Error()))
-				}
-			}
-		})
-		cmd.RedirectStderrTo(stdout)
-		cmd.RedirectStdoutTo(stdout)
-
-		if err := cmd.RunWithinContext(ctx); err != nil {
-			_ = yield("", err)
-			return
+	upgradeCmd, err := paths.NewProcess(env, args...)
+	if err != nil {
+		return func(yield func(string, error) bool) {
+			yield("", err)
 		}
 	}
-
+	return runWithLogStream(ctx, upgradeCmd)
 }
 
 func runAptCleanCommand(ctx context.Context) iter.Seq2[string, error] {
@@ -231,54 +223,24 @@ func runAptCleanCommand(ctx context.Context) iter.Seq2[string, error] {
 }
 
 func pullDockerImages(ctx context.Context) iter.Seq2[string, error] {
-	return func(yield func(string, error) bool) {
-		cmd, err := paths.NewProcess(nil, "arduino-app-cli", "system", "init")
-		if err != nil {
-			_ = yield("", err)
-			return
-		}
-
-		stdout := orchestrator.NewCallbackWriter(func(line string) {
-			if !yield(line, nil) {
-				if err := cmd.Kill(); err != nil {
-					slog.Error("Failed to kill 'arduino-app-cli system init' command", slog.String("error", err.Error()))
-				}
-			}
-		})
-		cmd.RedirectStderrTo(stdout)
-		cmd.RedirectStdoutTo(stdout)
-
-		if err = cmd.RunWithinContext(ctx); err != nil {
-			_ = yield("", err)
-			return
+	cmd, err := paths.NewProcess(nil, "arduino-app-cli", "system", "init")
+	if err != nil {
+		return func(yield func(string, error) bool) {
+			yield("", err)
 		}
 	}
+	return runWithLogStream(ctx, cmd)
 }
 
 // Remove all stopped containers
 func cleanupDockerContainers(ctx context.Context) iter.Seq2[string, error] {
-	return func(yield func(string, error) bool) {
-		cmd, err := paths.NewProcess(nil, "arduino-app-cli", "system", "cleanup")
-		if err != nil {
-			_ = yield("", err)
-			return
-		}
-
-		stdout := orchestrator.NewCallbackWriter(func(line string) {
-			if !yield(line, nil) {
-				if err := cmd.Kill(); err != nil {
-					slog.Error("Failed to kill 'arduino-app-cli system cleanup' command", slog.String("error", err.Error()))
-				}
-			}
-		})
-		cmd.RedirectStderrTo(stdout)
-		cmd.RedirectStdoutTo(stdout)
-
-		if err = cmd.RunWithinContext(ctx); err != nil {
-			_ = yield("", err)
-			return
+	cmd, err := paths.NewProcess(nil, "arduino-app-cli", "system", "cleanup")
+	if err != nil {
+		return func(yield func(string, error) bool) {
+			yield("", err)
 		}
 	}
+	return runWithLogStream(ctx, cmd)
 }
 
 // RestartServices restarts services that need to be restarted after an upgrade.
@@ -292,10 +254,7 @@ func restartServices(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if out, err := needRestartCmd.RunAndCaptureCombinedOutput(ctx); err != nil {
-		return fmt.Errorf("error running needrestart command: %w: %s", err, out)
-	}
-	return nil
+	return runWithSigterm(ctx, needRestartCmd)
 }
 
 func listUpgradablePackages(ctx context.Context, matcher func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
@@ -353,4 +312,55 @@ func parseListUpgradableOutput(r io.Reader) []update.UpgradablePackage {
 		res = append(res, pkg)
 	}
 	return res
+}
+func runWithLogStream(ctx context.Context, cmd *paths.Process) iter.Seq2[string, error] {
+	return func(yield func(string, error) bool) {
+		outputWriter := orchestrator.NewCallbackWriter(func(line string) {
+			if !yield(line, nil) {
+				err := cmd.Kill()
+				if err != nil {
+					slog.Error("Failed to kill command after yield failed", "command", strings.Join(cmd.GetArgs(), " "), "error", err.Error())
+				}
+				return
+			}
+		})
+
+		cmd.RedirectStderrTo(outputWriter)
+		cmd.RedirectStdoutTo(outputWriter)
+
+		go func() {
+			<-ctx.Done()
+			slog.Debug("Context canceled, sending SIGTERM to process", "command", strings.Join(cmd.GetArgs(), " "))
+			err := cmd.Signal(syscall.SIGTERM)
+			if err != nil {
+				slog.Warn("Failed to send SIGTERM to process", "command", strings.Join(cmd.GetArgs(), " "), "error", err.Error())
+			}
+		}()
+		if err := runWithSigterm(ctx, cmd); err != nil {
+			if ctx.Err() != nil {
+				_ = yield("", ctx.Err())
+			} else {
+				_ = yield("", err)
+			}
+		}
+	}
+}
+
+func runWithSigterm(ctx context.Context, cmd *paths.Process) error {
+	go func() {
+		<-ctx.Done()
+		slog.Debug("Context canceled, sending SIGTERM to process ", "command", strings.Join(cmd.GetArgs(), " "))
+		err := cmd.Signal(syscall.SIGTERM)
+		if err != nil {
+			slog.Warn("Failed to send SIGTERM to process", "command", strings.Join(cmd.GetArgs(), " "), "error", err.Error())
+		}
+	}()
+	if err := cmd.Run(); err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		} else {
+			return err
+		}
+	}
+	return nil
 }

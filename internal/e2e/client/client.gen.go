@@ -693,6 +693,9 @@ type ClientInterface interface {
 	// EventsUpdate request
 	EventsUpdate(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// StopUpdate request
+	StopUpdate(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetVersions request
 	GetVersions(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
@@ -1167,6 +1170,18 @@ func (c *Client) CheckUpdate(ctx context.Context, params *CheckUpdateParams, req
 
 func (c *Client) EventsUpdate(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewEventsUpdateRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) StopUpdate(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStopUpdateRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -2685,6 +2700,33 @@ func NewEventsUpdateRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewStopUpdateRequest generates requests for StopUpdate
+func NewStopUpdateRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/system/update/stop")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetVersionsRequest generates requests for GetVersions
 func NewGetVersionsRequest(server string) (*http.Request, error) {
 	var err error
@@ -2868,6 +2910,9 @@ type ClientWithResponsesInterface interface {
 
 	// EventsUpdateWithResponse request
 	EventsUpdateWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*EventsUpdateResp, error)
+
+	// StopUpdateWithResponse request
+	StopUpdateWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*StopUpdateResp, error)
 
 	// GetVersionsWithResponse request
 	GetVersionsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetVersionsResp, error)
@@ -3685,6 +3730,28 @@ func (r EventsUpdateResp) StatusCode() int {
 	return 0
 }
 
+type StopUpdateResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON409      *Conflict
+}
+
+// Status returns HTTPResponse.Status
+func (r StopUpdateResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r StopUpdateResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetVersionsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4060,6 +4127,15 @@ func (c *ClientWithResponses) EventsUpdateWithResponse(ctx context.Context, reqE
 		return nil, err
 	}
 	return ParseEventsUpdateResp(rsp)
+}
+
+// StopUpdateWithResponse request returning *StopUpdateResp
+func (c *ClientWithResponses) StopUpdateWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*StopUpdateResp, error) {
+	rsp, err := c.StopUpdate(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseStopUpdateResp(rsp)
 }
 
 // GetVersionsWithResponse request returning *GetVersionsResp
@@ -5397,6 +5473,32 @@ func ParseEventsUpdateResp(rsp *http.Response) (*EventsUpdateResp, error) {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseStopUpdateResp parses an HTTP response from a StopUpdateWithResponse call
+func ParseStopUpdateResp(rsp *http.Response) (*StopUpdateResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &StopUpdateResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	}
 

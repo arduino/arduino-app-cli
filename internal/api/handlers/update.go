@@ -125,6 +125,16 @@ func HandleUpdateApply(updater *update.Manager) http.HandlerFunc {
 	}
 }
 
+func HandlerUpdateStop(updater *update.Manager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if updater.StopUpgrade() {
+			render.EncodeResponse(w, http.StatusOK, "Upgrade operation cancellation requested")
+		} else {
+			render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: "No upgrade operation in progress"})
+		}
+	}
+}
+
 func HandleUpdateEvents(updater *update.Manager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// HOTFIX: app-lab use HEAD requests to check endpoint availability

@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -54,8 +55,10 @@ type Manager struct {
 	debUpdateService             ServiceUpdater
 	arduinoPlatformUpdateService ServiceUpdater
 
-	mu   sync.RWMutex
-	subs map[chan Event]struct{}
+	mu                   sync.RWMutex
+	subs                 map[chan Event]struct{}
+	currentUpgradeCancel atomic.Pointer[context.CancelFunc]
+	currentCheckCancel   atomic.Pointer[context.CancelFunc]
 }
 
 func NewManager(debUpdateService ServiceUpdater, arduinoPlatformUpdateService ServiceUpdater) *Manager {
@@ -72,6 +75,12 @@ func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(Upgra
 	}
 	defer m.lock.Unlock()
 
+	opCtx, opCancel := context.WithCancel(ctx)
+	m.setCurrentCheckCancel(opCancel)
+	defer func() {
+		opCancel()
+		m.setCurrentCheckCancel(nil)
+	}()
 	// Make sure to be connected to the internet, before checking for updates.
 	// This is needed because the checks below work also when offline (using cached data).
 	if !isConnected() {
@@ -79,7 +88,7 @@ func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(Upgra
 	}
 
 	// Get the list of upgradable packages from two sources (deb and platform) in parallel.
-	g, ctx := errgroup.WithContext(ctx)
+	g, ctx := errgroup.WithContext(opCtx)
 	var (
 		debPkgs     []UpgradablePackage
 		arduinoPkgs []UpgradablePackage
@@ -111,11 +120,11 @@ func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(Upgra
 	return append(arduinoPkgs, debPkgs...), nil
 }
 
-func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage) error {
+func (m *Manager) UpgradePackages(_ context.Context, pkgs []UpgradablePackage) error {
 	if !m.lock.TryLock() {
 		return ErrOperationAlreadyInProgress
 	}
-	ctx = context.WithoutCancel(ctx)
+
 	var debPkgs []string
 	var arduinoPlatform []string
 	for _, v := range pkgs {
@@ -131,6 +140,14 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 
 	go func() {
 		defer m.lock.Unlock()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		m.setCurrentUpgradeCancel(cancel)
+		defer func() {
+			cancel()
+			m.setCurrentUpgradeCancel(nil)
+		}()
+
 		// We are launching on purpose the update sequentially. The reason is that
 		// the deb pkgs restart the orchestrator, and if we run in parallel the
 		// update of the cores we will end up with inconsistent state, or
@@ -144,6 +161,10 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 		for e := range arduinoEvents {
 			m.broadcast(e)
 		}
+		if ctx.Err() != nil {
+			slog.Info("Update workflow stopped due to cancellation.")
+			return
+		}
 
 		aptEvents, err := m.debUpdateService.UpgradePackages(ctx, debPkgs)
 		if err != nil {
@@ -153,10 +174,45 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 		for e := range aptEvents {
 			m.broadcast(e)
 		}
-
+		if ctx.Err() != nil {
+			slog.Info("Update workflow stopped due to cancellation.")
+			return
+		}
 		m.broadcast(NewDataEvent(DoneEvent, "Update completed"))
 	}()
 	return nil
+}
+
+func (m *Manager) StopUpgrade() bool {
+	stopped := false
+
+	if cancelFuncPtr := m.currentUpgradeCancel.Swap(nil); cancelFuncPtr != nil {
+		(*cancelFuncPtr)()
+		stopped = true
+	}
+
+	if cancelFuncPtr := m.currentCheckCancel.Swap(nil); cancelFuncPtr != nil {
+		(*cancelFuncPtr)()
+		stopped = true
+	}
+
+	return stopped
+}
+
+func (m *Manager) setCurrentUpgradeCancel(cancel context.CancelFunc) {
+	if cancel == nil {
+		m.currentUpgradeCancel.Store(nil)
+	} else {
+		m.currentUpgradeCancel.Store(&cancel)
+	}
+}
+
+func (m *Manager) setCurrentCheckCancel(cancel context.CancelFunc) {
+	if cancel == nil {
+		m.currentCheckCancel.Store(nil)
+	} else {
+		m.currentCheckCancel.Store(&cancel)
+	}
 }
 
 // Subscribe creates a new channel for receiving APT events.
