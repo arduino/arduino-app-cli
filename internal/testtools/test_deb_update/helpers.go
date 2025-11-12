@@ -8,6 +8,7 @@ import (
 	"io"
 	"iter"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -15,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func FetchDebPackage(t *testing.T, repo, version, arch string) string {
@@ -363,4 +365,22 @@ type Event struct {
 	ID    string
 	Event string
 	Data  []byte // json
+}
+
+// WaitForPort waits until a TCP port is open or fails after timeout.
+func WaitForPort(t *testing.T, host string, port int, timeout time.Duration) {
+	t.Helper()
+	addr := fmt.Sprintf("%s:%d", host, port)
+
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)
+		if err == nil {
+			_ = conn.Close()
+			t.Logf("Server is up on %s", addr)
+			return
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	t.Fatalf("Server at %s did not start within %v", addr, timeout)
 }
