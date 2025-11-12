@@ -17,6 +17,7 @@ package bricks
 
 import (
 	"testing"
+	"time"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
@@ -46,6 +47,7 @@ func TestBrickCreateFromAppExample(t *testing.T) {
 		require.Equal(t, "variable \"NON_EXISTING_VARIABLE\" does not exist on brick \"arduino:arduino_cloud\"", err.Error())
 	})
 
+	//TODO: allow a variable to have empty string
 	t.Run("fails if a required variable is set empty", func(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"ARDUINO_DEVICE_ID": "",
@@ -56,13 +58,22 @@ func TestBrickCreateFromAppExample(t *testing.T) {
 		require.Equal(t, "variable \"ARDUINO_DEVICE_ID\" cannot be empty", err.Error())
 	})
 
-	t.Run("fails if a mandatory variable is not present in the request", func(t *testing.T) {
+	t.Run("log a warning if a mandatory variable is not present in the request", func(t *testing.T) {
+		tempApp, cleanUp := copyToTempApp(t, paths.New("testdata/AppFromExample"))
+		defer cleanUp()
+
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"ARDUINO_SECRET": "a-secret-a",
 		}}
-		err = brickService.BrickCreate(req, f.Must(app.Load("testdata/AppFromExample")))
-		require.Error(t, err)
-		require.Equal(t, "required variable \"ARDUINO_DEVICE_ID\" is mandatory", err.Error())
+		err = brickService.BrickCreate(req, f.Must(app.Load(tempApp.String())))
+		require.Nil(t, err)
+
+		after, err := app.Load(tempApp.String())
+		require.Nil(t, err)
+		require.Len(t, after.Descriptor.Bricks, 1)
+		require.Equal(t, "arduino:arduino_cloud", after.Descriptor.Bricks[0].ID)
+		require.Equal(t, "", after.Descriptor.Bricks[0].Variables["ARDUINO_DEVICE_ID"]) // <-- the DEVICE_ID is set to empty
+		require.Equal(t, "a-secret-a", after.Descriptor.Bricks[0].Variables["ARDUINO_SECRET"])
 	})
 
 	t.Run("the brick is added if it does not exist in the app", func(t *testing.T) {
@@ -108,7 +119,7 @@ func TestBrickCreateFromAppExample(t *testing.T) {
 }
 
 func copyToTempApp(t *testing.T, srcApp *paths.Path) (tmpApp *paths.Path, cleanUp func()) {
-	tmpAppPath := paths.New(srcApp.String() + ".temp")
+	tmpAppPath := paths.New(srcApp.String() + time.Now().Format(time.RFC3339) + ".temp")
 	require.Nil(t, srcApp.CopyDirTo(tmpAppPath))
 	return tmpAppPath, func() {
 		require.Nil(t, tmpAppPath.RemoveAll())
