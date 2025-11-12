@@ -132,27 +132,51 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 	}
 	eventsCh := make(chan eventstream.Event, 100)
 
-	downloadProgressCB := func(curr *rpc.DownloadProgress) {
-		data := helpers.ArduinoCLIDownloadProgressToString(curr)
-		slog.Debug("Download progress", slog.String("download_progress", data))
-		eventsCh <- eventstream.Event{Type: eventstream.UpgradeLineEvent, Data: data}
-	}
-	taskProgressCB := func(msg *rpc.TaskProgress) {
-		data := helpers.ArduinoCLITaskProgressToString(msg)
-		slog.Debug("Task progress", slog.String("task_progress", data))
-		eventsCh <- eventstream.Event{Type: eventstream.UpgradeLineEvent, Data: data}
-	}
-
 	go func() {
 		defer a.lock.Unlock()
 		defer close(eventsCh)
+		const indexWeight float32 = 30.0
+		const indexBase float32 = 0.0
+		const upgradeBase float32 = 30.0
+		const upgradeWeight float32 = 60.0
 
+		makeDownloadProgressCallback := func(basePercentage, phaseWeight float32) func(*rpc.DownloadProgress) {
+			return func(curr *rpc.DownloadProgress) {
+				data := helpers.ArduinoCLIDownloadProgressToString(curr)
+				eventsCh <- eventstream.Event{Type: eventstream.UpgradeLineEvent, Data: data}
+				if updateInfo := curr.GetUpdate(); updateInfo != nil {
+					if updateInfo.GetTotalSize() <= 0 {
+						return
+					}
+					localProgress := (float32(updateInfo.GetDownloaded()) / float32(updateInfo.GetTotalSize())) * 100.0
+					totalArduinoProgress := basePercentage + (localProgress/100.0)*phaseWeight
+					eventsCh <- eventstream.Event{
+						Type:     eventstream.ProgressEvent,
+						Progress: totalArduinoProgress,
+					}
+				}
+			}
+		}
+		makeTaskProgressCallback := func(basePercentage, phaseWeight float32) func(*rpc.TaskProgress) {
+			return func(msg *rpc.TaskProgress) {
+				data := helpers.ArduinoCLITaskProgressToString(msg)
+				eventsCh <- eventstream.Event{Type: eventstream.UpgradeLineEvent, Data: data}
+				if !msg.GetCompleted() {
+					localProgress := msg.GetPercent()
+					totalArduinoProgress := basePercentage + (localProgress/100.0)*phaseWeight
+					eventsCh <- eventstream.Event{
+						Type:     eventstream.ProgressEvent,
+						Progress: totalArduinoProgress,
+					}
+				}
+			}
+		}
 		ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 		defer cancel()
 
 		eventsCh <- eventstream.Event{Type: eventstream.StartEvent, Data: "Upgrade is starting"}
 
-		logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
+		logrus.SetLevel(logrus.ErrorLevel)
 		srv := commands.NewArduinoCoreServer()
 
 		if err := setConfig(ctx, srv); err != nil {
@@ -184,7 +208,8 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 		}()
 
 		{
-			stream, _ := commands.UpdateIndexStreamResponseToCallbackFunction(ctx, downloadProgressCB)
+			updateIndexProgressCB := makeDownloadProgressCallback(indexBase, indexWeight)
+			stream, _ := commands.UpdateIndexStreamResponseToCallbackFunction(ctx, updateIndexProgressCB)
 			if err := srv.UpdateIndex(&rpc.UpdateIndexRequest{Instance: inst}, stream); err != nil {
 				eventsCh <- eventstream.Event{
 					Type: eventstream.ErrorEvent,
@@ -193,6 +218,8 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 				}
 				return
 			}
+			eventsCh <- eventstream.Event{Type: eventstream.ProgressEvent, Progress: indexBase + indexWeight}
+
 			if err := srv.Init(&rpc.InitRequest{Instance: inst}, commands.InitStreamResponseToCallbackFunction(ctx, nil)); err != nil {
 				eventsCh <- eventstream.Event{
 					Type: eventstream.ErrorEvent,
@@ -203,10 +230,13 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 			}
 		}
 
+		platformDownloadCB := makeDownloadProgressCallback(upgradeBase, upgradeWeight)
+		platformTaskCB := makeTaskProgressCallback(upgradeBase, upgradeWeight)
+
 		stream, respCB := commands.PlatformUpgradeStreamResponseToCallbackFunction(
 			ctx,
-			downloadProgressCB,
-			taskProgressCB,
+			platformDownloadCB,
+			platformTaskCB,
 		)
 		if err := srv.PlatformUpgrade(
 			&rpc.PlatformUpgradeRequest{
@@ -242,8 +272,8 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 				},
 				commands.PlatformInstallStreamResponseToCallbackFunction(
 					ctx,
-					downloadProgressCB,
-					taskProgressCB,
+					platformDownloadCB,
+					platformTaskCB,
 				),
 			)
 			if err != nil {
@@ -282,6 +312,7 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 			}
 			return
 		}
+		eventsCh <- eventstream.Event{Type: eventstream.ProgressEvent, Progress: 100.0}
 	}()
 
 	return eventsCh, nil

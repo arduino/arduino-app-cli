@@ -141,6 +141,12 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 		// update of the cores we will end up with inconsistent state, or
 		// we need to re run the upgrade because the orchestrator interrupted
 		// in the middle the upgrade of the cores.
+
+		const arduinoWeight float32 = 20.0
+		const aptWeight float32 = 80.0
+
+		m.broadcast(eventstream.Event{Type: eventstream.ProgressEvent, Progress: 0.0})
+
 		arduinoEvents, err := m.arduinoPlatformUpdateService.UpgradePackages(ctx, arduinoPlatform)
 		if err != nil {
 			m.broadcast(
@@ -152,9 +158,15 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 			return
 		}
 		for e := range arduinoEvents {
-			m.broadcast(e)
+			if e.Type == eventstream.ProgressEvent {
+				globalProgress := (e.Progress / 100.0) * arduinoWeight
+				m.broadcast(eventstream.Event{Type: eventstream.ProgressEvent, Progress: globalProgress})
+			} else {
+				m.broadcast(e)
+			}
 		}
 
+		m.broadcast(eventstream.Event{Type: eventstream.ProgressEvent, Progress: arduinoWeight})
 		aptEvents, err := m.debUpdateService.UpgradePackages(ctx, debPkgs)
 		if err != nil {
 			m.broadcast(
@@ -166,8 +178,14 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 			return
 		}
 		for e := range aptEvents {
-			m.broadcast(e)
+			if e.Type == eventstream.ProgressEvent {
+				globalProgress := arduinoWeight + (e.Progress/100.0)*aptWeight
+				m.broadcast(eventstream.Event{Type: eventstream.ProgressEvent, Progress: globalProgress})
+			} else {
+				m.broadcast(e)
+			}
 		}
+		m.broadcast(eventstream.Event{Type: eventstream.ProgressEvent, Progress: 100.0})
 		m.broadcast(eventstream.Event{Type: eventstream.DoneEvent, Data: "Upgrade completed successfully"})
 	}()
 	return nil

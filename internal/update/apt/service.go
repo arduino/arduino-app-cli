@@ -103,6 +103,8 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan e
 			eventsCh <- eventstream.Event{Type: eventstream.UpgradeLineEvent, Data: line}
 		}
 		eventsCh <- eventstream.Event{Type: eventstream.StartEvent, Data: "apt cleaning cache is starting"}
+		eventsCh <- eventstream.Event{Type: eventstream.ProgressEvent, Progress: 80.0}
+		eventsCh <- eventstream.Event{Type: eventstream.StartEvent, Data: "apt cleaning cache is starting"}
 		for line, err := range runAptCleanCommand(ctx) {
 			if err != nil {
 				eventsCh <- eventstream.Event{
@@ -115,6 +117,7 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan e
 			}
 			eventsCh <- eventstream.Event{Type: eventstream.UpgradeLineEvent, Data: line}
 		}
+		eventsCh <- eventstream.Event{Type: eventstream.ProgressEvent, Progress: 85.0}
 		// TEMPORARY PATCH: stopping and destroying docker containers and images since IDE does not implement it yet.
 		// TODO: Remove this workaround once IDE implements it.
 		// Tracking issue: https://github.com/arduino/arduino-app-cli/issues/623
@@ -128,7 +131,7 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan e
 			}
 			eventsCh <- eventstream.Event{Type: eventstream.UpgradeLineEvent, Data: line}
 		}
-
+		eventsCh <- eventstream.Event{Type: eventstream.ProgressEvent, Progress: 90.0}
 		// TEMPORARY PATCH: Install the latest docker images and show the logs to the users.
 		// TODO: Remove this workaround once docker image versions are no longer hardcoded in arduino-app-cli.
 		// Tracking issue: https://github.com/arduino/arduino-app-cli/issues/600
@@ -148,6 +151,7 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan e
 			}
 			eventsCh <- eventstream.Event{Type: eventstream.UpgradeLineEvent, Data: line}
 		}
+		eventsCh <- eventstream.Event{Type: eventstream.ProgressEvent, Progress: 100.0}
 		eventsCh <- eventstream.Event{Type: eventstream.RestartEvent, Data: "Upgrade completed. Restarting ..."}
 
 		err := restartServices(ctx)
