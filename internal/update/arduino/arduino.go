@@ -27,6 +27,7 @@ import (
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/sirupsen/logrus"
 
+	"github.com/arduino/arduino-app-cli/internal/eventstream"
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/update"
@@ -117,7 +118,7 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ f
 	}
 
 	return []update.UpgradablePackage{{
-		Type:        update.Arduino,
+		Type:        eventstream.Arduino,
 		Name:        "arduino:zephyr",
 		FromVersion: platformSummary.GetInstalledVersion(),
 		ToVersion:   platformSummary.GetLatestVersion(),
@@ -125,21 +126,21 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ f
 }
 
 // UpgradePackages implements ServiceUpdater.
-func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []string) (<-chan update.Event, error) {
+func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []string) (<-chan eventstream.Event, error) {
 	if !a.lock.TryLock() {
 		return nil, update.ErrOperationAlreadyInProgress
 	}
-	eventsCh := make(chan update.Event, 100)
+	eventsCh := make(chan eventstream.Event, 100)
 
 	downloadProgressCB := func(curr *rpc.DownloadProgress) {
 		data := helpers.ArduinoCLIDownloadProgressToString(curr)
 		slog.Debug("Download progress", slog.String("download_progress", data))
-		eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: data}
+		eventsCh <- eventstream.Event{Type: eventstream.UpgradeLineEvent, Data: data}
 	}
 	taskProgressCB := func(msg *rpc.TaskProgress) {
 		data := helpers.ArduinoCLITaskProgressToString(msg)
 		slog.Debug("Task progress", slog.String("task_progress", data))
-		eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: data}
+		eventsCh <- eventstream.Event{Type: eventstream.UpgradeLineEvent, Data: data}
 	}
 
 	go func() {
@@ -149,14 +150,14 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 		ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 		defer cancel()
 
-		eventsCh <- update.Event{Type: update.StartEvent, Data: "Upgrade is starting"}
+		eventsCh <- eventstream.Event{Type: eventstream.StartEvent, Data: "Upgrade is starting"}
 
 		logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 		srv := commands.NewArduinoCoreServer()
 
 		if err := setConfig(ctx, srv); err != nil {
-			eventsCh <- update.Event{
-				Type: update.ErrorEvent,
+			eventsCh <- eventstream.Event{
+				Type: eventstream.ErrorEvent,
 				Err:  err,
 				Data: "Error setting additional URLs",
 			}
@@ -165,8 +166,8 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 
 		var inst *rpc.Instance
 		if resp, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
-			eventsCh <- update.Event{
-				Type: update.ErrorEvent,
+			eventsCh <- eventstream.Event{
+				Type: eventstream.ErrorEvent,
 				Err:  err,
 				Data: "Error creating Arduino instance",
 			}
@@ -185,16 +186,16 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 		{
 			stream, _ := commands.UpdateIndexStreamResponseToCallbackFunction(ctx, downloadProgressCB)
 			if err := srv.UpdateIndex(&rpc.UpdateIndexRequest{Instance: inst}, stream); err != nil {
-				eventsCh <- update.Event{
-					Type: update.ErrorEvent,
+				eventsCh <- eventstream.Event{
+					Type: eventstream.ErrorEvent,
 					Err:  err,
 					Data: "Error updating index",
 				}
 				return
 			}
 			if err := srv.Init(&rpc.InitRequest{Instance: inst}, commands.InitStreamResponseToCallbackFunction(ctx, nil)); err != nil {
-				eventsCh <- update.Event{
-					Type: update.ErrorEvent,
+				eventsCh <- eventstream.Event{
+					Type: eventstream.ErrorEvent,
 					Err:  err,
 					Data: "Error initializing Arduino instance",
 				}
@@ -219,14 +220,14 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 		); err != nil {
 			var alreadyPresent *cmderrors.PlatformAlreadyAtTheLatestVersionError
 			if errors.As(err, &alreadyPresent) {
-				eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: alreadyPresent.Error()}
+				eventsCh <- eventstream.Event{Type: eventstream.UpgradeLineEvent, Data: alreadyPresent.Error()}
 				return
 			}
 
 			var notFound *cmderrors.PlatformNotFoundError
 			if !errors.As(err, &notFound) {
-				eventsCh <- update.Event{
-					Type: update.ErrorEvent,
+				eventsCh <- eventstream.Event{
+					Type: eventstream.ErrorEvent,
 					Err:  err,
 					Data: "Error upgrading platform",
 				}
@@ -246,23 +247,23 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 				),
 			)
 			if err != nil {
-				eventsCh <- update.Event{
-					Type: update.ErrorEvent,
+				eventsCh <- eventstream.Event{
+					Type: eventstream.ErrorEvent,
 					Err:  err,
 					Data: "Error installing platform",
 				}
 				return
 			}
 		} else if respCB().GetPlatform() == nil {
-			eventsCh <- update.Event{
-				Type: update.ErrorEvent,
+			eventsCh <- eventstream.Event{
+				Type: eventstream.ErrorEvent,
 				Data: "platform upgrade failed",
 			}
 			return
 		}
 
 		cbw := orchestrator.NewCallbackWriter(func(line string) {
-			eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: line}
+			eventsCh <- eventstream.Event{Type: eventstream.UpgradeLineEvent, Data: line}
 		})
 
 		err := srv.BurnBootloader(
@@ -274,8 +275,8 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 			commands.BurnBootloaderToServerStreams(ctx, cbw, cbw),
 		)
 		if err != nil {
-			eventsCh <- update.Event{
-				Type: update.ErrorEvent,
+			eventsCh <- eventstream.Event{
+				Type: eventstream.ErrorEvent,
 				Err:  err,
 				Data: "Error burning bootloader",
 			}

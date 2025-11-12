@@ -25,6 +25,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/internal/eventstream"
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -115,7 +116,7 @@ func newUpdateCmd() *cobra.Command {
 			for event := range events {
 				feedback.Printf("[%s] %s", event.Type.String(), event.Data)
 
-				if event.Type == update.DoneEvent {
+				if event.Type == eventstream.DoneEvent {
 					break
 				}
 			}

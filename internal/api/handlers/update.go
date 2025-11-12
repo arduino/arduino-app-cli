@@ -23,6 +23,7 @@ import (
 	"log/slog"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/eventstream"
 	"github.com/arduino/arduino-app-cli/internal/render"
 	"github.com/arduino/arduino-app-cli/internal/update"
 )
@@ -127,7 +128,7 @@ func HandleUpdateEvents(updater *update.Manager) http.HandlerFunc {
 					slog.Info("APT event channel closed, stopping SSE stream")
 					return
 				}
-				if event.Type == update.ErrorEvent {
+				if event.Type == eventstream.ErrorEvent {
 					sseStream.SendError(render.SSEErrorData{
 						Code:    render.InternalServiceErr,
 						Message: event.Data,

@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/arduino/arduino-app-cli/internal/eventstream"
 	"github.com/arduino/arduino-app-cli/internal/update"
 )
 
@@ -46,7 +47,7 @@ func TestParseListUpgradableOutput(t *testing.T) {
 				input: "nano/bionic-updates 2.9.3-2 amd64",
 				expected: []update.UpgradablePackage{
 					{
-						Type:         update.Debian,
+						Type:         eventstream.Debian,
 						Name:         "nano",
 						ToVersion:    "2.9.3-2",
 						FromVersion:  "",
@@ -59,7 +60,7 @@ func TestParseListUpgradableOutput(t *testing.T) {
 				input: "apt/focal-updates 2.0.11 amd64 [upgradable from: 2.0.10]",
 				expected: []update.UpgradablePackage{
 					{
-						Type:         update.Debian,
+						Type:         eventstream.Debian,
 						Name:         "apt",
 						ToVersion:    "2.0.11",
 						FromVersion:  "2.0.10",
@@ -77,28 +78,28 @@ containerd.io/focal 1.7.27-1 amd64 [upgradable from: 1.7.25-1]
 `,
 				expected: []update.UpgradablePackage{
 					{
-						Type:         update.Debian,
+						Type:         eventstream.Debian,
 						Name:         "distro-info-data",
 						ToVersion:    "0.43ubuntu1.18",
 						FromVersion:  "0.43ubuntu1.16",
 						Architecture: "all",
 					},
 					{
-						Type:         update.Debian,
+						Type:         eventstream.Debian,
 						Name:         "apt",
 						ToVersion:    "2.0.11",
 						FromVersion:  "2.0.10",
 						Architecture: "amd64",
 					},
 					{
-						Type:         update.Debian,
+						Type:         eventstream.Debian,
 						Name:         "code",
 						ToVersion:    "1.100.3-1748872405",
 						FromVersion:  "1.100.2-1747260578",
 						Architecture: "amd64",
 					},
 					{
-						Type:         update.Debian,
+						Type:         eventstream.Debian,
 						Name:         "containerd.io",
 						ToVersion:    "1.7.27-1",
 						FromVersion:  "1.7.25-1",

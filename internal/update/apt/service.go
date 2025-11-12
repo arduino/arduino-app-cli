@@ -30,6 +30,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"go.bug.st/f"
 
+	"github.com/arduino/arduino-app-cli/internal/eventstream"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/update"
 )
@@ -74,11 +75,11 @@ func (s *Service) ListUpgradablePackages(ctx context.Context, matcher func(updat
 // UpgradePackages upgrades the specified packages using the `apt-get upgrade` command.
 // It publishes events to subscribers during the upgrade process.
 // It returns an error if the upgrade is already in progress or if the upgrade command fails.
-func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan update.Event, error) {
+func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan eventstream.Event, error) {
 	if !s.lock.TryLock() {
 		return nil, update.ErrOperationAlreadyInProgress
 	}
-	eventsCh := make(chan update.Event, 100)
+	eventsCh := make(chan eventstream.Event, 100)
 
 	go func() {
 		defer s.lock.Unlock()
@@ -87,37 +88,37 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan u
 		ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 		defer cancel()
 
-		eventsCh <- update.Event{Type: update.StartEvent, Data: "Upgrade is starting"}
+		eventsCh <- eventstream.Event{Type: eventstream.StartEvent, Data: "Upgrade is starting"}
 		stream := runUpgradeCommand(ctx, names)
 		for line, err := range stream {
 			if err != nil {
-				eventsCh <- update.Event{
-					Type: update.ErrorEvent,
+				eventsCh <- eventstream.Event{
+					Type: eventstream.ErrorEvent,
 					Err:  err,
 					Data: "Error running upgrade command",
 				}
 				slog.Error("error processing upgrade command output", "error", err)
 				return
 			}
-			eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: line}
+			eventsCh <- eventstream.Event{Type: eventstream.UpgradeLineEvent, Data: line}
 		}
-		eventsCh <- update.Event{Type: update.StartEvent, Data: "apt cleaning cache is starting"}
+		eventsCh <- eventstream.Event{Type: eventstream.StartEvent, Data: "apt cleaning cache is starting"}
 		for line, err := range runAptCleanCommand(ctx) {
 			if err != nil {
-				eventsCh <- update.Event{
-					Type: update.ErrorEvent,
+				eventsCh <- eventstream.Event{
+					Type: eventstream.ErrorEvent,
 					Err:  err,
 					Data: "Error running apt clean command",
 				}
 				slog.Error("error processing apt clean command output", "error", err)
 				return
 			}
-			eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: line}
+			eventsCh <- eventstream.Event{Type: eventstream.UpgradeLineEvent, Data: line}
 		}
 		// TEMPORARY PATCH: stopping and destroying docker containers and images since IDE does not implement it yet.
 		// TODO: Remove this workaround once IDE implements it.
 		// Tracking issue: https://github.com/arduino/arduino-app-cli/issues/623
-		eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: "Stop and destroy docker containers and images ..."}
+		eventsCh <- eventstream.Event{Type: eventstream.UpgradeLineEvent, Data: "Stop and destroy docker containers and images ..."}
 		streamCleanup := cleanupDockerContainers(ctx)
 		for line, err := range streamCleanup {
 			if err != nil {
@@ -125,7 +126,7 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan u
 				// currently, we just log the error and continue considenring not blocking
 				slog.Error("Error stopping and destroying docker containers", "error", err)
 			}
-			eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: line}
+			eventsCh <- eventstream.Event{Type: eventstream.UpgradeLineEvent, Data: line}
 		}
 
 		// TEMPORARY PATCH: Install the latest docker images and show the logs to the users.
@@ -133,26 +134,26 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan u
 		// Tracking issue: https://github.com/arduino/arduino-app-cli/issues/600
 		// Currently, we need to launch `arduino-app-cli system init` to pull the latest docker images because
 		// the version of the docker images are hardcoded in the (new downloaded) version of the arduino-app-cli.
-		eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: "Pulling the latest docker images ..."}
+		eventsCh <- eventstream.Event{Type: eventstream.UpgradeLineEvent, Data: "Pulling the latest docker images ..."}
 		streamDocker := pullDockerImages(ctx)
 		for line, err := range streamDocker {
 			if err != nil {
-				eventsCh <- update.Event{
-					Type: update.ErrorEvent,
+				eventsCh <- eventstream.Event{
+					Type: eventstream.ErrorEvent,
 					Err:  err,
 					Data: "Error upgrading docker images",
 				}
 				slog.Error("error upgrading docker images", "error", err)
 				return
 			}
-			eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: line}
+			eventsCh <- eventstream.Event{Type: eventstream.UpgradeLineEvent, Data: line}
 		}
-		eventsCh <- update.Event{Type: update.RestartEvent, Data: "Upgrade completed. Restarting ..."}
+		eventsCh <- eventstream.Event{Type: eventstream.RestartEvent, Data: "Upgrade completed. Restarting ..."}
 
 		err := restartServices(ctx)
 		if err != nil {
-			eventsCh <- update.Event{
-				Type: update.ErrorEvent,
+			eventsCh <- eventstream.Event{
+				Type: eventstream.ErrorEvent,
 				Err:  err,
 				Data: "Error restart services after upgrade",
 			}
@@ -361,7 +362,7 @@ func parseListUpgradableOutput(r io.Reader) []update.UpgradablePackage {
 		name := strings.Split(matches[1], "/")[0]
 
 		pkg := update.UpgradablePackage{
-			Type:         update.Debian,
+			Type:         eventstream.Debian,
 			Name:         name,
 			ToVersion:    matches[2],
 			Architecture: matches[3],

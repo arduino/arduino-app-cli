@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"golang.org/x/sync/errgroup"
+
+	"github.com/arduino/arduino-app-cli/internal/eventstream"
 )
 
 var ErrOperationAlreadyInProgress = errors.New("an operation is already in progress")
@@ -40,16 +42,16 @@ var MatchAllPackages = func(p UpgradablePackage) bool {
 }
 
 type UpgradablePackage struct {
-	Type         PackageType `json:"type"` // e.g., "arduino", "deb"
-	Name         string      `json:"name"` // Package name without repository information
-	Architecture string      `json:"-"`
-	FromVersion  string      `json:"from_version"`
-	ToVersion    string      `json:"to_version"`
+	Type         eventstream.PackageType `json:"type"` // e.g., "arduino", "deb"
+	Name         string                  `json:"name"` // Package name without repository information
+	Architecture string                  `json:"-"`
+	FromVersion  string                  `json:"from_version"`
+	ToVersion    string                  `json:"to_version"`
 }
 
 type ServiceUpdater interface {
 	ListUpgradablePackages(ctx context.Context, matcher func(UpgradablePackage) bool) ([]UpgradablePackage, error)
-	UpgradePackages(ctx context.Context, names []string) (<-chan Event, error)
+	UpgradePackages(ctx context.Context, names []string) (<-chan eventstream.Event, error)
 }
 
 type Manager struct {
@@ -58,14 +60,14 @@ type Manager struct {
 	arduinoPlatformUpdateService ServiceUpdater
 
 	mu   sync.RWMutex
-	subs map[chan Event]struct{}
+	subs map[chan eventstream.Event]struct{}
 }
 
 func NewManager(debUpdateService ServiceUpdater, arduinoPlatformUpdateService ServiceUpdater) *Manager {
 	return &Manager{
 		debUpdateService:             debUpdateService,
 		arduinoPlatformUpdateService: arduinoPlatformUpdateService,
-		subs:                         make(map[chan Event]struct{}),
+		subs:                         make(map[chan eventstream.Event]struct{}),
 	}
 }
 
@@ -123,9 +125,9 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 	var arduinoPlatform []string
 	for _, v := range pkgs {
 		switch v.Type {
-		case Arduino:
+		case eventstream.Arduino:
 			arduinoPlatform = append(arduinoPlatform, v.Name)
-		case Debian:
+		case eventstream.Debian:
 			debPkgs = append(debPkgs, v.Name)
 		default:
 			return fmt.Errorf("unknown package type %s", v.Type)
@@ -142,8 +144,8 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 		arduinoEvents, err := m.arduinoPlatformUpdateService.UpgradePackages(ctx, arduinoPlatform)
 		if err != nil {
 			m.broadcast(
-				Event{
-					Type: ErrorEvent,
+				eventstream.Event{
+					Type: eventstream.ErrorEvent,
 					Data: "failed to upgrade Arduino packages",
 					Err:  err,
 				})
@@ -156,8 +158,8 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 		aptEvents, err := m.debUpdateService.UpgradePackages(ctx, debPkgs)
 		if err != nil {
 			m.broadcast(
-				Event{
-					Type: ErrorEvent,
+				eventstream.Event{
+					Type: eventstream.ErrorEvent,
 					Data: "failed to upgrade APT packages",
 					Err:  err,
 				})
@@ -166,14 +168,14 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 		for e := range aptEvents {
 			m.broadcast(e)
 		}
-		m.broadcast(Event{Type: DoneEvent, Data: "Upgrade completed successfully"})
+		m.broadcast(eventstream.Event{Type: eventstream.DoneEvent, Data: "Upgrade completed successfully"})
 	}()
 	return nil
 }
 
 // Subscribe creates a new channel for receiving APT events.
-func (b *Manager) Subscribe() chan Event {
-	eventCh := make(chan Event, 100)
+func (b *Manager) Subscribe() chan eventstream.Event {
+	eventCh := make(chan eventstream.Event, 100)
 	b.mu.Lock()
 	b.subs[eventCh] = struct{}{}
 	b.mu.Unlock()
@@ -181,18 +183,18 @@ func (b *Manager) Subscribe() chan Event {
 }
 
 // Unsubscribe removes the channel from the list of subscribers and closes it.
-func (b *Manager) Unsubscribe(eventCh chan Event) {
+func (b *Manager) Unsubscribe(eventCh chan eventstream.Event) {
 	b.mu.Lock()
 	delete(b.subs, eventCh)
 	close(eventCh)
 	b.mu.Unlock()
 }
 
-func (b *Manager) broadcast(event Event) {
+func (b *Manager) broadcast(event eventstream.Event) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
-	if event.Type == ErrorEvent {
+	if event.Type == eventstream.ErrorEvent {
 		slog.Error("An error occurred", slog.Any("event", event))
 	}
 	for ch := range b.subs {

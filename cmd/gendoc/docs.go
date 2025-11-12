@@ -31,10 +31,10 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/eventstream"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
-	"github.com/arduino/arduino-app-cli/internal/update"
 )
 
 type Tag string
@@ -81,10 +81,10 @@ func NewOpenApiGenerator(version string) *Generator {
 		openapi3.SchemaOrRef{
 			Schema: &openapi3.Schema{
 				UniqueItems: f.Ptr(true),
-				Enum:        f.Map(update.PackageType("").AllowedStatuses(), func(v update.PackageType) interface{} { return v }),
+				Enum:        f.Map(eventstream.PackageType("").AllowedStatuses(), func(v eventstream.PackageType) interface{} { return v }),
 				Type:        f.Ptr(openapi3.SchemaTypeString),
 				Description: f.Ptr("Package type"),
-				ReflectType: reflect.TypeOf(update.PackageType("")),
+				ReflectType: reflect.TypeOf(eventstream.PackageType("")),
 			},
 		},
 	)
@@ -216,7 +216,7 @@ func NewOpenApiGenerator(version string) *Generator {
 				})
 			}
 
-			if params.Value.Type() == reflect.TypeOf(update.PackageType("")) {
+			if params.Value.Type() == reflect.TypeOf(eventstream.PackageType("")) {
 				params.Schema.WithRef("#/components/schemas/PackageType")
 				return true, nil
 			}

@@ -13,7 +13,7 @@
 // Arduino software without disclosing the source code of your own applications.
 // To purchase a commercial license, send an email to license@arduino.cc.
 
-package update
+package eventstream
 
 // EventType defines the type of upgrade event.
 type EventType int
@@ -24,13 +24,15 @@ const (
 	RestartEvent
 	DoneEvent
 	ErrorEvent
+	ProgressEvent
 )
 
 // Event represents a single event in the upgrade process.
 type Event struct {
-	Type EventType
-	Data string
-	Err  error // Optional error field for error events
+	Type     EventType
+	Data     string
+	Err      error // Optional error field for error events
+	Progress float32
 }
 
 func (t EventType) String() string {
@@ -45,6 +47,8 @@ func (t EventType) String() string {
 		return "done"
 	case ErrorEvent:
 		return "error"
+	case ProgressEvent:
+		return "progress"
 	default:
 		panic("unreachable")
 	}
