@@ -290,9 +290,7 @@ func (s *Service) BrickCreate(
 	for _, brickVar := range brick.Variables {
 		if brickVar.DefaultValue == "" {
 			if _, exist := req.Variables[brickVar.Name]; !exist {
-				// PATCH: to allow the AppLab to add a brick to a app created from scratch because currently
-				// the FE does not send the required variables in the request.
-				slog.Warn("[Skip] variable has no default value and it is not set by user", "variable", brickVar.Name)
+				slog.Warn("[Skip] a required variable is not set by user", "variable", brickVar.Name)
 			}
 		}
 	}

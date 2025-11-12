@@ -59,9 +59,9 @@ func TestBrickCreate(t *testing.T) {
 		require.Equal(t, "variable \"ARDUINO_DEVICE_ID\" cannot be empty", err.Error())
 	})
 
-	t.Run("log a warning if a mandatory variable is not present in the request", func(t *testing.T) {
-		tempApp, _ := copyToTempApp(t, paths.New("testdata/AppFromExample"))
-		// defer cleanUp()
+	t.Run("omit a mandatory variable is not present in the request", func(t *testing.T) {
+		tempApp, cleanUp := copyToTempApp(t, paths.New("testdata/AppFromExample"))
+		defer cleanUp()
 
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"ARDUINO_SECRET": "a-secret-a",
@@ -73,7 +73,10 @@ func TestBrickCreate(t *testing.T) {
 		require.Nil(t, err)
 		require.Len(t, after.Descriptor.Bricks, 1)
 		require.Equal(t, "arduino:arduino_cloud", after.Descriptor.Bricks[0].ID)
-		require.Equal(t, "", after.Descriptor.Bricks[0].Variables["ARDUINO_DEVICE_ID"]) // <-- the DEVICE_ID is empty
+		// NOTE: currently it is not possible to distinguish a field with empty string or missing field into the yaml.
+		// The 'ARDUINO_DEVICE_ID' is missing from the app.yaml but here we check the empty string.
+		// A better aproach is to use golden files
+		require.Equal(t, "", after.Descriptor.Bricks[0].Variables["ARDUINO_DEVICE_ID"])
 		require.Equal(t, "a-secret-a", after.Descriptor.Bricks[0].Variables["ARDUINO_SECRET"])
 	})
 
