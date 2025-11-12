@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - test_package_update
+      - test_package_update_rebase
   workflow_dispatch:
 
 permissions:

@@ -308,6 +308,30 @@ func putUpdateRequest(t *testing.T, url string) string {
 
 	return resp.Status
 }
+
+func rmrf(t *testing.T, pathFile string) {
+	t.Helper()
+	// Check if the folder exists
+	if _, err := os.Stat(pathFile); os.IsNotExist(err) {
+		fmt.Println("No build directory found.")
+		return
+	}
+
+	// Run the Linux command to remove it
+	cmd := exec.Command("rm", "-rf", pathFile)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	fmt.Println("Removing build directory...")
+
+	if err := cmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error removing build folder: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Build directory removed successfully.")
+}
+
 func NewSSEClient(ctx context.Context, method, url string) iter.Seq2[Event, error] {
 	return func(yield func(Event, error) bool) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
