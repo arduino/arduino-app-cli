@@ -27,7 +27,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
 
-func TestBrickCreateFromAppExample(t *testing.T) {
+func TestBrickCreate(t *testing.T) {
 	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(paths.New("testdata"))
 	require.Nil(t, err)
 	brickService := NewService(nil, bricksIndex, nil)
