@@ -1,0 +1,4 @@
+name: App with empty bricks
+description: App with empty bricks
+
+bricks: []

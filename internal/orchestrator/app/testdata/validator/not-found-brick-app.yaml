@@ -1,0 +1,4 @@
+name: App no existing brick
+description: App no existing brick
+bricks:
+  - arduino:not_existing_brick

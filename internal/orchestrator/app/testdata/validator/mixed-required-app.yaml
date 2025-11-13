@@ -1,0 +1,6 @@
+name: App only one required variable filled
+description: App only one required variable filled
+bricks:
+  - arduino:arduino_cloud:
+      variables:
+        ARDUINO_DEVICE_ID: "my-device-id"
