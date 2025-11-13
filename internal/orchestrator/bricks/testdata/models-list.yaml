@@ -1,0 +1,10 @@
+models:
+- glass-breaking:
+    runner: brick
+    name : "Glass breaking classifier"
+    description: "A glass breaking classifier model to detect glass breaking sounds in audio recordings"
+    model_configuration:
+      EI_AUDIO_CLASSIFICATION_MODEL: /models/ootb/ei/glass-breaking.eim
+      MODEL_VAR2: model variable 2
+    bricks:
+      - arduino:test_brick

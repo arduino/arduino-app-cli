@@ -23,3 +23,15 @@ bricks:
   mount_devices_into_container: false
   ports: []
   category: storage
+- id: arduino:test_brick
+  name: Test brick
+  description: This is a test brick
+  variables:
+  - name: BRICK_VAR1
+    description: Brick level variable
+  - name: BRICK_VAR2
+    default_value: Brick level var2 default value
+  model: glass-breaking
+  model_configuration_variables:
+     - MODEL_VAR1
+     - MODEL_VAR2
