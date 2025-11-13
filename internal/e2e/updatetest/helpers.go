@@ -187,8 +187,8 @@ func getAppCliVersion(t *testing.T, containerName string) string {
 	}
 	err = json.Unmarshal(output, &version)
 	require.NoError(t, err)
-	//TODO to enable after 0.6.7
-	//require.Equal(t, version.Version, version.DaemonVersion, "client and daemon versions should match")
+	// TODO to enable after 0.6.7
+	// require.Equal(t, version.Version, version.DaemonVersion, "client and daemon versions should match")
 	require.NotEmpty(t, version.Version)
 	return version.Version
 
@@ -299,10 +299,8 @@ type Event struct {
 	Data  []byte // json
 }
 
-// waitForPort waits until a TCP port is open or fails after timeout.
-func waitForPort(t *testing.T, host string, timeout time.Duration) {
+func waitForPort(t *testing.T, host string, timeout time.Duration) { // nolint:unparam
 	t.Helper()
-
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		conn, err := net.DialTimeout("tcp", host, 500*time.Millisecond)

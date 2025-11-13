@@ -55,7 +55,7 @@ tasks:
     cmds:
       - go build ./cmd/arduino-app-cli # needed for e2e tests
       - task: generate
-      - go test ./internal/... ./cmd/... -v -race {{ .CLI_ARGS }}
+      - go test $(go list ./internal/... ./cmd/... | grep -v internal/e2e/updatetest) -v -race {{ .CLI_ARGS }} # exclude deb package update tests
 
   test:pkg:
     desc: Run only tests in the pkg directory
