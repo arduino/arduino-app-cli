@@ -1,4 +1,4 @@
-name: Build & Update with Arduino CLI
+name: test the system update flow
 
 on:
   push:
@@ -28,4 +28,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.ARDUINOBOT_TOKEN }}
         run: |
-          go test -count=1 --timeout 30m -v ./internal/e2e/updatetest -- --arch amd64
+          go tool task test:update

@@ -12,9 +12,6 @@ vars:
   RUNNER_VERSION: "0.5.0"
   VERSION: # if version is not passed we hack the semver by encoding the commit as pre-release
     sh: echo "${VERSION:-0.0.0-$(git rev-parse --short HEAD)}"
-  NEW_PACKAGE:
-    sh: ls -1 ./build/arduino-app-cli_*.deb 2>/dev/null | head -n 1
-  GITHUB_TOKEN_FILE: ./github_token.txt
 
 tasks:
   init:
@@ -53,9 +50,13 @@ tasks:
 
   test:internal:
     cmds:
-      - go build ./cmd/arduino-app-cli # needed for e2e tests
+      - go build ./cmd/arduino-app-cli
       - task: generate
-      - go test $(go list ./internal/... ./cmd/... | grep -v internal/e2e/updatetest) -v -race {{ .CLI_ARGS }} # exclude deb package update tests
+      - go test $(go list ./internal/... ./cmd/... | grep -v internal/e2e/updatetest) -v -race {{ .CLI_ARGS }} 
+
+  test:update:
+    cmds:
+      - go test --timeout 30m -v ./internal/e2e/updatetest
 
   test:pkg:
     desc: Run only tests in the pkg directory
@@ -126,44 +127,6 @@ tasks:
           rm -rf "${TMP_PATH}/examples"
           echo "Examples successfully cloned."
     silent: false
-
-  build-image:
-    desc: "Builds the mock-repo Docker image (requires GITHUB_TOKEN_FILE)"
-    deps: [build-deb]
-    vars:
-      PKG_PATH: "{{.NEW_PACKAGE}}"
-    cmds:
-      # --- MODIFIED ---
-      # Check for both the package and the token file
-      - |
-          if [ ! -f "{{.GITHUB_TOKEN_FILE}}" ]; then
-            echo "Error: GitHub token file not found at {{.GITHUB_TOKEN_FILE}}"
-            echo "Please create this file and add your GitHub PAT to it."
-            exit 1
-          fi
-      - |
-          echo "Using package: {{.PKG_PATH}}"
-          echo "Using GitHub token from: {{.GITHUB_TOKEN_FILE}}"
-
-          # Enable BuildKit and pass the secret
-          DOCKER_BUILDKIT=1 docker build \
-            --secret id=github_token,src={{.GITHUB_TOKEN_FILE}} \
-            --build-arg NEW_PACKAGE_PATH={{.PKG_PATH}} \
-            -t newdeb \
-            -f test.Dockerfile .
-    status:
-      - '[[ -f "{{.PKG_PATH}}" ]]'
-      - '[[ -f "{{.DOCKERFILE_NAME}}" ]]'
-      # Re-build if token file changes
-      - '[[ -f "{{.GITHUB_TOKEN_FILE}}" ]]'
-
-  test-deb:
-    desc: Test the debian package locally
-    deps:
-      - build-deb
-    cmds:
-      - docker build --no-cache -t mock-apt-repo -f test.Dockerfile .
-      - docker run --rm -it --privileged -v /sys/fs/cgroup:/sys/fs/cgroup:ro --name apt-test-update mock-apt-repo
 
   arduino-app-cli:build:local:
     desc: "Build the arduino-app-cli locally"
