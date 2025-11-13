@@ -27,6 +27,7 @@ The following development tools must be available in your local environment:
 Checks and tests are set up to ensure the project content is functional and compliant with the established standards.
 
 - `task fmt-check`
+- `task lint`
 - `task test`
 
 ## Installing arduino-app-cli into the board
