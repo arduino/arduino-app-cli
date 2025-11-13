@@ -41,7 +41,6 @@ This is reccomended way to test a local development version of the arduino-app-c
 
 Tools are provided to automatically bring the project into compliance with some of the required checks.
 
-- `task lint`
 - `task fmt`
 
 ## Generate API docs
