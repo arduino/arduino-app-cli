@@ -1,22 +1,22 @@
 package updatetest
 
 import (
-	"flag"
 	"fmt"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
-var arch = flag.String("arch", "amd64", "target architecture")
+var arch = runtime.GOARCH
 
 const dockerFile = "test.Dockerfile"
 const daemonHost = "127.0.0.1:8800"
 
 func TestUpdatePackage(t *testing.T) {
-	fmt.Printf("***** ARCH %s ***** \n", *arch)
+	fmt.Printf("***** ARCH %s ***** \n", arch)
 
 	t.Run("Stable To Current", func(t *testing.T) {
 		t.Cleanup(func() { os.RemoveAll("build") })
@@ -27,11 +27,11 @@ func TestUpdatePackage(t *testing.T) {
 
 		fmt.Printf("Updating from stable version %s to unstable version %s \n", tagAppCli, majorTag)
 		fmt.Printf("Building local deb version %s \n", majorTag)
-		buildDebVersion(t, "build", majorTag, *arch)
+		buildDebVersion(t, "build", majorTag, arch)
 
 		const dockerImageName = "apt-test-update-image"
 		fmt.Println("**** BUILD docker image *****")
-		buildDockerImage(t, dockerFile, dockerImageName, *arch)
+		buildDockerImage(t, dockerFile, dockerImageName, arch)
 		//TODO: t cleanup remove docker image
 
 		t.Run("CLI Command", func(t *testing.T) {
@@ -77,12 +77,12 @@ func TestUpdatePackage(t *testing.T) {
 
 		fmt.Printf("Updating from unstable version %s to stable version %s \n", minorTag, tagAppCli)
 		fmt.Printf("Building local deb version %s \n", minorTag)
-		buildDebVersion(t, "build/stable", minorTag, *arch)
+		buildDebVersion(t, "build/stable", minorTag, arch)
 
 		fmt.Println("**** BUILD docker image *****")
 		const dockerImageName = "test-apt-update-unstable-image"
 
-		buildDockerImage(t, dockerFile, dockerImageName, *arch)
+		buildDockerImage(t, dockerFile, dockerImageName, arch)
 		//TODO: t cleanup remove docker image
 
 		t.Run("CLI Command", func(t *testing.T) {
