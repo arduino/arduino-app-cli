@@ -141,19 +141,19 @@ func (a *AppDescriptor) IsValid() error {
 
 // ValidateBricks checks that all bricks referenced in the given AppDescriptor exist in the provided BricksIndex,
 // and that all required variables for each brick are present and valid. It collects and returns all validation
-// errors found, allowing the caller to see all issues at once rather than stopping at the first error.
+// errors found as a slice, allowing the caller to see all issues at once rather than stopping at the first error.
 // If the index is nil, validation is skipped and nil is returned.
-func (a *AppDescriptor) ValidateBricks(index *bricksindex.BricksIndex) error {
+func (a *AppDescriptor) ValidateBricks(index *bricksindex.BricksIndex) []error {
 	if index == nil {
 		return nil
 	}
 
-	var allErrors error
+	var allErrors []error
 
 	for _, appBrick := range a.Bricks {
 		indexBrick, found := index.FindBrickByID(appBrick.ID)
 		if !found {
-			allErrors = errors.Join(allErrors, fmt.Errorf("brick %q not found", appBrick.ID))
+			allErrors = append(allErrors, fmt.Errorf("brick %q not found", appBrick.ID))
 			continue // Skip further validation for this brick since it doesn't exist
 		}
 
@@ -161,7 +161,7 @@ func (a *AppDescriptor) ValidateBricks(index *bricksindex.BricksIndex) error {
 		for appBrickName := range appBrick.Variables {
 			_, exist := indexBrick.GetVariable(appBrickName)
 			if !exist {
-				allErrors = errors.Join(allErrors, fmt.Errorf("variable %q does not exist on brick %q", appBrickName, indexBrick.ID))
+				allErrors = append(allErrors, fmt.Errorf("variable %q does not exist on brick %q", appBrickName, indexBrick.ID))
 			}
 		}
 
@@ -169,7 +169,7 @@ func (a *AppDescriptor) ValidateBricks(index *bricksindex.BricksIndex) error {
 		for _, indexBrickVariable := range indexBrick.Variables {
 			if indexBrickVariable.IsRequired() {
 				if _, exist := appBrick.Variables[indexBrickVariable.Name]; !exist {
-					allErrors = errors.Join(allErrors, fmt.Errorf("variable %q is required by brick %q", indexBrickVariable.Name, indexBrick.ID))
+					allErrors = append(allErrors, fmt.Errorf("variable %q is required by brick %q", indexBrickVariable.Name, indexBrick.ID))
 				}
 			}
 		}
