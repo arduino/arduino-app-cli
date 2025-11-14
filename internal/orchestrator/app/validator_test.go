@@ -43,15 +43,19 @@ func TestValidateAppDescriptorBricks(t *testing.T) {
 			expectedErr: f.Ptr("variable \"ARDUINO_DEVICE_ID\" is required by brick \"arduino:arduino_cloud\""),
 		},
 		{
-			name:        "invalid if required variable among two is omitted",
+			name:        "invalid if a required variable among two is omitted",
 			filename:    "omitted-mixed-required-app.yaml",
 			expectedErr: f.Ptr("variable \"ARDUINO_SECRET\" is required by brick \"arduino:arduino_cloud\""),
 		},
-
 		{
 			name:        "invalid if brick id not found",
 			filename:    "not-found-brick-app.yaml",
 			expectedErr: f.Ptr("brick \"arduino:not_existing_brick\" not found"),
+		},
+		{
+			name:        "invalid variable does not exist in the brick",
+			filename:    "not-found-variable-app.yaml",
+			expectedErr: f.Ptr("variable \"NOT_EXISTING_VARIABLE\" does not exist on brick \"arduino:arduino_cloud\""),
 		},
 	}
 

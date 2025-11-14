@@ -1,0 +1,6 @@
+name: App with non existing variable
+description: App with non existing variable
+bricks:
+  - arduino:arduino_cloud:
+      variables:
+        NOT_EXISTING_VARIABLE: "this-is-a-not-existing-variable-for-the-brick"
