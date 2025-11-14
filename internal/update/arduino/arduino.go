@@ -22,6 +22,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/arduino/arduino-cli/commands"
 	"github.com/arduino/arduino-cli/commands/cmderrors"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/update"
 )
 
@@ -53,7 +55,7 @@ func setConfig(ctx context.Context, srv rpc.ArduinoCoreServiceServer) error {
 }
 
 // ListUpgradablePackages implements ServiceUpdater.
-func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
+func (a *ArduinoPlatformUpdater) ListUpgradablePackages(cfg config.Configuration, ctx context.Context, _ func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
 	if !a.lock.TryLock() {
 		return nil, update.ErrOperationAlreadyInProgress
 	}
@@ -121,15 +123,51 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ f
 		return nil, nil // No platform found
 	}
 
-	if platformSummary.GetLatestVersion() == platformSummary.GetInstalledVersion() {
-		return nil, nil // No update available
+	installedVersionString := platformSummary.GetInstalledVersion()
+
+	installedV, err := semver.NewVersion(installedVersionString)
+	if err != nil {
+		slog.Warn("Failed to parse installed version", "version", installedVersionString, "error", err)
+		return nil, nil
 	}
 
+	var maxMajor uint64
+	if cfg.MaxAllowedMajorVersion > 0 {
+		maxMajor = uint64(cfg.MaxAllowedMajorVersion)
+	}
+	var bestUpdateV *semver.Version
+
+	allReleases := platformSummary.GetReleases()
+	for versionString := range allReleases {
+		candidateV, err := semver.NewVersion(versionString)
+		if err != nil {
+			slog.Debug("Skipping unparsable version", "version", versionString, "error", err)
+			continue
+		}
+
+		if candidateV.Major() > maxMajor {
+			continue
+		}
+
+		if !candidateV.GreaterThan(installedV) {
+			continue
+		}
+
+		if bestUpdateV == nil || candidateV.GreaterThan(bestUpdateV) {
+			bestUpdateV = candidateV
+		}
+	}
+	if bestUpdateV == nil {
+		slog.Debug("No suitable updates found within major version constraint")
+		return nil, nil
+	}
+	slog.Debug(" bestUpdateV.Original()", bestUpdateV.Original(), "")
+	slog.Debug(" bestUpdateV.String()", bestUpdateV.String(), "")
 	return []update.UpgradablePackage{{
 		Type:        update.Arduino,
 		Name:        "arduino:zephyr",
 		FromVersion: platformSummary.GetInstalledVersion(),
-		ToVersion:   platformSummary.GetLatestVersion(),
+		ToVersion:   bestUpdateV.Original(),
 	}}, nil
 }
 

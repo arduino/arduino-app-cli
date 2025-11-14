@@ -25,6 +25,8 @@ import (
 	"time"
 
 	"golang.org/x/sync/errgroup"
+
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
 var MatchArduinoPackage = func(p UpgradablePackage) bool {
@@ -45,8 +47,8 @@ type UpgradablePackage struct {
 }
 
 type ServiceUpdater interface {
-	ListUpgradablePackages(ctx context.Context, matcher func(UpgradablePackage) bool) ([]UpgradablePackage, error)
-	UpgradePackages(ctx context.Context, names []string, eventCB EventCallback) error
+	ListUpgradablePackages(cfg config.Configuration, ctx context.Context, matcher func(UpgradablePackage) bool) ([]UpgradablePackage, error)
+	UpgradePackages(ctx context.Context, names []string) (<-chan Event, error)
 }
 
 type Manager struct {
@@ -66,7 +68,7 @@ func NewManager(debUpdateService ServiceUpdater, arduinoPlatformUpdateService Se
 	}
 }
 
-func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(UpgradablePackage) bool) ([]UpgradablePackage, error) {
+func (m *Manager) ListUpgradablePackages(cfg config.Configuration, ctx context.Context, matcher func(UpgradablePackage) bool) ([]UpgradablePackage, error) {
 	if !m.lock.TryLock() {
 		return nil, ErrOperationAlreadyInProgress
 	}
@@ -86,7 +88,7 @@ func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(Upgra
 	)
 
 	g.Go(func() error {
-		pkgs, err := m.debUpdateService.ListUpgradablePackages(ctx, matcher)
+		pkgs, err := m.debUpdateService.ListUpgradablePackages(cfg, ctx, matcher)
 		if err != nil {
 			return err
 		}
@@ -95,7 +97,7 @@ func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(Upgra
 	})
 
 	g.Go(func() error {
-		pkgs, err := m.arduinoPlatformUpdateService.ListUpgradablePackages(ctx, matcher)
+		pkgs, err := m.arduinoPlatformUpdateService.ListUpgradablePackages(cfg, ctx, matcher)
 		if err != nil {
 			return err
 		}

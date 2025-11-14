@@ -31,15 +31,16 @@ import (
 var RunnerVersion = "0.6.2"
 
 type Configuration struct {
-	appsDir            *paths.Path
-	dataDir            *paths.Path
-	routerSocketPath   *paths.Path
-	customEIModelsDir  *paths.Path
-	PythonImage        string
-	UsedPythonImageTag string
-	RunnerVersion      string
-	AllowRoot          bool
-	LibrariesAPIURL    *url.URL
+	appsDir                *paths.Path
+	dataDir                *paths.Path
+	routerSocketPath       *paths.Path
+	customEIModelsDir      *paths.Path
+	PythonImage            string
+	UsedPythonImageTag     string
+	RunnerVersion          string
+	AllowRoot              bool
+	LibrariesAPIURL        *url.URL
+	MaxAllowedMajorVersion int
 }
 
 func NewFromEnv() (Configuration, error) {
@@ -101,17 +102,25 @@ func NewFromEnv() (Configuration, error) {
 	if err != nil {
 		return Configuration{}, fmt.Errorf("invalid LIBRARIES_API_URL: %w", err)
 	}
+	maxVersionStr := os.Getenv("ARDUINO_APP_CLI__MAX_UPDATE_MAJOR_VERSION")
+
+	maxVersion, err := strconv.Atoi(maxVersionStr)
+	if err != nil || maxVersion <= 0 {
+		maxVersion = 1
+	}
+	slog.Debug("Using max update major version", slog.Int("version", maxVersion))
 
 	c := Configuration{
-		appsDir:            appsDir,
-		dataDir:            dataDir,
-		routerSocketPath:   routerSocket,
-		customEIModelsDir:  customEIModelsDir,
-		PythonImage:        pythonImage,
-		UsedPythonImageTag: usedPythonImageTag,
-		RunnerVersion:      RunnerVersion,
-		AllowRoot:          allowRoot,
-		LibrariesAPIURL:    parsedLibrariesURL,
+		appsDir:                appsDir,
+		dataDir:                dataDir,
+		routerSocketPath:       routerSocket,
+		customEIModelsDir:      customEIModelsDir,
+		PythonImage:            pythonImage,
+		UsedPythonImageTag:     usedPythonImageTag,
+		RunnerVersion:          RunnerVersion,
+		AllowRoot:              allowRoot,
+		LibrariesAPIURL:        parsedLibrariesURL,
+		MaxAllowedMajorVersion: maxVersion,
 	}
 	if err := c.init(); err != nil {
 		return Configuration{}, err

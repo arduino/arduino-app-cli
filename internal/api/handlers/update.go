@@ -22,11 +22,12 @@ import (
 	"log/slog"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/render"
 	"github.com/arduino/arduino-app-cli/internal/update"
 )
 
-func HandleCheckUpgradable(updater *update.Manager) http.HandlerFunc {
+func HandleCheckUpgradable(cfg config.Configuration, updater *update.Manager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		queryParams := r.URL.Query()
 
@@ -40,7 +41,7 @@ func HandleCheckUpgradable(updater *update.Manager) http.HandlerFunc {
 			filterFunc = update.MatchArduinoPackage
 		}
 
-		pkgs, err := updater.ListUpgradablePackages(r.Context(), filterFunc)
+		pkgs, err := updater.ListUpgradablePackages(cfg, r.Context(), filterFunc)
 		if err != nil {
 			code := update.GetUpdateErrorCode(err)
 			if code == update.OperationInProgressCode {
@@ -69,7 +70,7 @@ type UpdateCheckResult struct {
 	Packages []update.UpgradablePackage `json:"updates"`
 }
 
-func HandleUpdateApply(updater *update.Manager) http.HandlerFunc {
+func HandleUpdateApply(cfg config.Configuration, updater *update.Manager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		queryParams := r.URL.Query()
 		onlyArduinoPackages := false
@@ -82,7 +83,7 @@ func HandleUpdateApply(updater *update.Manager) http.HandlerFunc {
 			filterFunc = update.MatchArduinoPackage
 		}
 
-		pkgs, err := updater.ListUpgradablePackages(r.Context(), filterFunc)
+		pkgs, err := updater.ListUpgradablePackages(cfg, r.Context(), filterFunc)
 		if err != nil {
 			code := update.GetUpdateErrorCode(err)
 			if code == update.OperationInProgressCode {

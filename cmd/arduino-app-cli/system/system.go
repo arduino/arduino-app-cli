@@ -42,7 +42,7 @@ func NewSystemCmd(cfg config.Configuration) *cobra.Command {
 	}
 
 	cmd.AddCommand(newDownloadImageCmd(cfg))
-	cmd.AddCommand(newUpdateCmd())
+	cmd.AddCommand(newUpdateCmd(cfg))
 	cmd.AddCommand(newCleanUpCmd(cfg, servicelocator.GetDockerClient()))
 	cmd.AddCommand(newNetworkModeCmd())
 	cmd.AddCommand(newKeyboardSetCmd())
@@ -64,7 +64,7 @@ func newDownloadImageCmd(cfg config.Configuration) *cobra.Command {
 	return cmd
 }
 
-func newUpdateCmd() *cobra.Command {
+func newUpdateCmd(cfg config.Configuration) *cobra.Command {
 	var onlyArduino bool
 	var forceYes bool
 	cmd := &cobra.Command{
@@ -76,7 +76,7 @@ func newUpdateCmd() *cobra.Command {
 
 			updater := getUpdater()
 
-			pkgs, err := updater.ListUpgradablePackages(cmd.Context(), filterFunc)
+			pkgs, err := updater.ListUpgradablePackages(cfg, cmd.Context(), filterFunc)
 			if err != nil {
 				return err
 			}
