@@ -40,7 +40,7 @@ func TestValidateAppDescriptor(t *testing.T) {
 		app, err := ParseDescriptorFile(paths.New("testdata/validator/mixed-required-app.yaml"))
 		require.NoError(t, err)
 		err = ValidateAppDescriptor(app, bricksIndex)
-		assert.Equal(t, "variable \"ARDUINO_DEVICE_ID\" is required by brick \"arduino:arduino_cloud\"", err.Error())
+		assert.Equal(t, "variable \"ARDUINO_SECRET\" is required by brick \"arduino:arduino_cloud\"", err.Error())
 	})
 
 	t.Run("invalid app descriptor with not found brick id", func(t *testing.T) {
