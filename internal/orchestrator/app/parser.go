@@ -21,10 +21,11 @@ import (
 	"io"
 
 	emoji "github.com/Andrew-M-C/go.emoji"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/go-paths-helper"
 	"github.com/goccy/go-yaml"
 	"github.com/goccy/go-yaml/ast"
+
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
 
 type Brick struct {
