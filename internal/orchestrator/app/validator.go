@@ -6,18 +6,20 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
 
-func ValidateAppDescriptor(a AppDescriptor, index *bricksindex.BricksIndex) error {
-	return validatebricks(a, index)
-}
-
-func validatebricks(a AppDescriptor, index *bricksindex.BricksIndex) error {
+// ValidateBricks checks that all bricks referenced in the given AppDescriptor exist in the provided BricksIndex,
+// and that all required variables for each brick are present and valid. It returns an error if any brick is missing,
+// if any variable referenced by the app does not exist in the corresponding brick, or if any required variable is missing.
+// If the index is nil, validation is skipped and nil is returned.
+func ValidateBricks(a AppDescriptor, index *bricksindex.BricksIndex) error {
+	if index == nil {
+		return nil
+	}
 	for _, appBrick := range a.Bricks {
 		indexBrick, found := index.FindBrickByID(appBrick.ID)
 		if !found {
 			return fmt.Errorf("brick %q not found", appBrick.ID)
 		}
 
-		// check the bricks variables inside the app.yaml are valid given a brick definition
 		for appBrickName := range appBrick.Variables {
 			_, exist := indexBrick.GetVariable(appBrickName)
 			if !exist {
@@ -25,7 +27,6 @@ func validatebricks(a AppDescriptor, index *bricksindex.BricksIndex) error {
 			}
 		}
 
-		// check all required variables has a value
 		for _, indexBrickVariable := range indexBrick.Variables {
 			if indexBrickVariable.IsRequired() {
 				if _, exist := appBrick.Variables[indexBrickVariable.Name]; !exist {
