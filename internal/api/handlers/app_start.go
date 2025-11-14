@@ -65,9 +65,10 @@ func HandleAppStart(
 		err = app.ValidateBricks(appLoaded.Descriptor, bricksIndex)
 		if err != nil {
 			sseStream.SendError(render.SSEErrorData{
-				Code:    render.InternalServiceErr,
+				Code:    render.BadRequestErr,
 				Message: err.Error(),
 			})
+			return
 		}
 
 		type progress struct {

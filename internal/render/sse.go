@@ -30,6 +30,7 @@ type SSEErrCode string
 
 const (
 	InternalServiceErr SSEErrCode = "INTERNAL_SERVER_ERROR"
+	BadRequestErr      SSEErrCode = "BAD_REQUEST_ERROR"
 )
 
 type SSEErrorData struct {
