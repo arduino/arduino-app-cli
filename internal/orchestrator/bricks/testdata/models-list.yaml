@@ -7,4 +7,10 @@ models:
       EI_AUDIO_CLASSIFICATION_MODEL: /models/ootb/ei/glass-breaking.eim
       MODEL_VAR2: model variable 2
     bricks:
-      - arduino:test_brick
+      - arduino:test_brick_object_detection:
+          model_configuration:
+            "EI_OBJ_DETECTION_MODEL": "/models/ootb/ei/lw-face-det.eim"
+      - arduino:test_brick_video_object_detection:
+          model_configuration:
+            "EI_V_OBJ_DETECTION_MODEL": "/models/ootb/ei/lw-face-det.eim"
+

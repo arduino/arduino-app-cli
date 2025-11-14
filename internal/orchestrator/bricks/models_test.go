@@ -69,7 +69,7 @@ func TestBrickCreateWithModulesUpdate(t *testing.T) {
 
 		model := "glass-breaking"
 		req := BrickCreateUpdateRequest{
-			ID:        "arduino:test_brick",
+			ID:        "arduino:test_brick_object_detection",
 			Variables: map[string]string{"BRICK_VAR1": "user-provided-brick-level-var1"},
 			Model:     &model,
 		}
@@ -82,7 +82,7 @@ func TestBrickCreateWithModulesUpdate(t *testing.T) {
 		after, err := app.Load(dummyApp.String())
 		require.Nil(t, err)
 		require.Len(t, after.Descriptor.Bricks, 2)
-		require.Equal(t, "arduino:test_brick", after.Descriptor.Bricks[1].ID)
+		require.Equal(t, "arduino:test_brick_object_detection", after.Descriptor.Bricks[1].ID)
 	})
 
 }
