@@ -15,6 +15,7 @@ import (
 func TestValidateAppDescriptorBricks(t *testing.T) {
 	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(paths.New("testdata/validator"))
 	require.Nil(t, err)
+	require.NotNil(t, bricksIndex)
 
 	testCases := []struct {
 		name        string
@@ -53,7 +54,7 @@ func TestValidateAppDescriptorBricks(t *testing.T) {
 			appDescriptor, err := ParseDescriptorFile(paths.New("testdata/validator/" + tc.filename))
 			require.NoError(t, err)
 
-			appDescriptor.ValidateBricks(bricksIndex)
+			err = appDescriptor.ValidateBricks(bricksIndex)
 			if tc.expectedErr == nil {
 				assert.NoError(t, err)
 			} else {
