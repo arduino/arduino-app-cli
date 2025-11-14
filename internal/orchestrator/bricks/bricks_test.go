@@ -16,6 +16,8 @@
 package bricks
 
 import (
+	"errors"
+	"slices"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
@@ -24,6 +26,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
 func TestBrickCreate(t *testing.T) {
@@ -189,4 +192,97 @@ func TestGetBrickInstanceVariableDetails(t *testing.T) {
 			require.Equal(t, tt.expectedConfigVariables, actualConfigVariables)
 		})
 	}
+}
+
+func TestBrickCreateWithModulesUpdate(t *testing.T) {
+	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(paths.New("testdata"))
+	require.Nil(t, err)
+	modelsIndex, err := modelsindex.GenerateModelsIndexFromFile(paths.New("testdata"))
+	require.Nil(t, err)
+	brickService := NewService(modelsIndex, bricksIndex, nil)
+	model := "glass-breaking"
+	missingModel := "missing-model"
+
+	tests := []struct {
+		name                         string
+		model                        string
+		updateRequest                BrickCreateUpdateRequest
+		expectedErr                  error
+		expectedBrickModelDescriptor string
+	}{
+		{
+			name:  "add a brick with a defined model to an App",
+			model: "glass-breaking",
+			updateRequest: BrickCreateUpdateRequest{
+				ID:        "arduino:audio_classification",
+				Variables: nil,
+				Model:     &model,
+			},
+			expectedErr:                  nil,
+			expectedBrickModelDescriptor: "arduino:audio_classification",
+		},
+		{
+			name:  "add a brick with not existent model to an App",
+			model: "glass-breaking",
+			updateRequest: BrickCreateUpdateRequest{
+				ID:        "arduino:audio_classification",
+				Variables: nil,
+				Model:     &missingModel,
+			},
+			expectedErr:                  errors.New("model missing-model does not exist"),
+			expectedBrickModelDescriptor: "arduino:audio_classification",
+		},
+	}
+
+	for _, tt := range tests {
+		dummyApp := appDummySetup(t)
+		t.Run(tt.name, func(t *testing.T) {
+
+			brickErr := brickService.BrickCreate(tt.updateRequest, f.Must(app.Load(dummyApp.String())))
+			require.Equal(t, brickErr, tt.expectedErr)
+
+			after, err := app.Load(dummyApp.String())
+			require.Nil(t, err)
+			brickAddedToApp := slices.ContainsFunc(after.Descriptor.Bricks, func(b app.Brick) bool {
+				return b.ID == tt.expectedBrickModelDescriptor
+			})
+			if brickErr != nil {
+				require.False(t, brickAddedToApp)
+			} else {
+				require.True(t, brickAddedToApp)
+			}
+
+		})
+	}
+}
+
+/*
+	t.Run("add a brick to an App", func(t *testing.T) {
+		dummyApp := appDummySetup(t)
+
+		model := "glass-breaking"
+		req := BrickCreateUpdateRequest{
+			ID:        "arduino:audio_classification",
+			Variables: nil,
+			Model:     &model,
+		}
+
+		// act
+		err = brickService.BrickCreate(req, f.Must(app.Load(dummyApp.String())))
+		require.Nil(t, err)
+
+		// assert
+		after, err := app.Load(dummyApp.String())
+		require.Nil(t, err)
+		require.Len(t, after.Descriptor.Bricks, 2)
+		require.Equal(t, "arduino:audio_classification", after.Descriptor.Bricks[1].ID)
+	})
+*/
+
+func appDummySetup(t *testing.T) *paths.Path {
+	tempDummyApp := paths.New("testdata/dummy-app.temp")
+	err := tempDummyApp.RemoveAll()
+	require.Nil(t, err)
+	require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
+	return tempDummyApp
 }

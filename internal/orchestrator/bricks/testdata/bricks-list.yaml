@@ -23,18 +23,11 @@ bricks:
   mount_devices_into_container: false
   ports: []
   category: storage
-- id: arduino:test_brick_object_detection
-  name: Test brick
-  description: This is a test brick
-  variables:
-  - name: BRICK_VAR1
-    description: Brick level variable
-  - name: BRICK_VAR2
-    default_value: Brick level var2 default value
-  model: glass-breaking
-  #model_configuration_variables:
-  #   - MODEL_VAR1
-  #   - MODEL_VAR2
-- id: arduino:test_brick_video_object_detection
-  name: Test brick
-  description: This is a test brick
+- id: arduino:audio_classification
+  name: Audio Classification
+  description: 
+  require_container: true
+  require_model: true
+  require_devices: false
+  category: audio
+  model_name: glass-breaking

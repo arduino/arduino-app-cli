@@ -312,7 +312,7 @@ func (s *Service) BrickCreate(
 		models := s.modelsIndex.GetModelsByBrick(brickInstance.ID)
 		idx := slices.IndexFunc(models, func(m modelsindex.AIModel) bool { return m.ID == *req.Model })
 		if idx == -1 {
-			return fmt.Errorf("model %s does not exsist", *req.Model)
+			return fmt.Errorf("model %s does not exist", *req.Model)
 		}
 		brickInstance.Model = models[idx].ID
 	}
