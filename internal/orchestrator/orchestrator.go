@@ -122,6 +122,12 @@ func StartApp(
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
+		err := app.Descriptor.ValidateBricks(bricksIndex)
+		if err != nil {
+			yield(StreamMessage{error: err})
+			return
+		}
+
 		running, err := getRunningApp(ctx, docker.Client())
 		if err != nil {
 			yield(StreamMessage{error: err})
@@ -446,6 +452,13 @@ func RestartApp(
 	return func(yield func(StreamMessage) bool) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
+
+		err := appToStart.Descriptor.ValidateBricks(bricksIndex)
+		if err != nil {
+			yield(StreamMessage{error: err})
+			return
+		}
+
 		runningApp, err := getRunningApp(ctx, docker.Client())
 		if err != nil {
 			yield(StreamMessage{error: err})

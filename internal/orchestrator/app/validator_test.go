@@ -12,7 +12,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
 
-func TestValidateBricksOnAppDescriptor(t *testing.T) {
+func TestValidateAppDescriptorBricks(t *testing.T) {
 	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(paths.New("testdata/validator"))
 	require.Nil(t, err)
 
@@ -50,11 +50,10 @@ func TestValidateBricksOnAppDescriptor(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			app, err := ParseDescriptorFile(paths.New("testdata/validator/" + tc.filename))
+			appDescriptor, err := ParseDescriptorFile(paths.New("testdata/validator/" + tc.filename))
 			require.NoError(t, err)
 
-			err = ValidateBricks(app, bricksIndex)
-
+			appDescriptor.ValidateBricks(bricksIndex)
 			if tc.expectedErr == nil {
 				assert.NoError(t, err)
 			} else {

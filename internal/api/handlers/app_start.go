@@ -47,7 +47,7 @@ func HandleAppStart(
 			return
 		}
 
-		appLoaded, err := app.Load(id.ToPath().String())
+		app, err := app.Load(id.ToPath().String())
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", id.String()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
@@ -62,15 +62,6 @@ func HandleAppStart(
 		}
 		defer sseStream.Close()
 
-		err = app.ValidateBricks(appLoaded.Descriptor, bricksIndex)
-		if err != nil {
-			sseStream.SendError(render.SSEErrorData{
-				Code:    render.BadRequestErr,
-				Message: err.Error(),
-			})
-			return
-		}
-
 		type progress struct {
 			Name     string  `json:"name"`
 			Progress float32 `json:"progress"`
@@ -78,7 +69,7 @@ func HandleAppStart(
 		type log struct {
 			Message string `json:"message"`
 		}
-		for item := range orchestrator.StartApp(r.Context(), dockerCli, provisioner, modelsIndex, bricksIndex, appLoaded, cfg, staticStore) {
+		for item := range orchestrator.StartApp(r.Context(), dockerCli, provisioner, modelsIndex, bricksIndex, app, cfg, staticStore) {
 			switch item.GetType() {
 			case orchestrator.ProgressType:
 				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress(*item.GetProgress())})
