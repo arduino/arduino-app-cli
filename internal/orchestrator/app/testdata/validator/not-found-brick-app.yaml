@@ -1,4 +1,7 @@
 name: App no existing brick
 description: App no existing brick
 bricks:
-  - arduino:not_existing_brick
+  - arduino:not_existing_brick:
+      variables:
+        ARDUINO_DEVICE_ID: "my-device-id"
+        ARDUINO_SECRET: "LAKDJ"

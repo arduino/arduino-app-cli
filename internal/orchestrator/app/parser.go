@@ -140,35 +140,41 @@ func (a *AppDescriptor) IsValid() error {
 }
 
 // ValidateBricks checks that all bricks referenced in the given AppDescriptor exist in the provided BricksIndex,
-// and that all required variables for each brick are present and valid. It returns an error if any brick is missing,
-// if any variable referenced by the app does not exist in the corresponding brick, or if any required variable is missing.
+// and that all required variables for each brick are present and valid. It collects and returns all validation
+// errors found, allowing the caller to see all issues at once rather than stopping at the first error.
 // If the index is nil, validation is skipped and nil is returned.
 func (a *AppDescriptor) ValidateBricks(index *bricksindex.BricksIndex) error {
 	if index == nil {
 		return nil
 	}
+
+	var allErrors error
+
 	for _, appBrick := range a.Bricks {
 		indexBrick, found := index.FindBrickByID(appBrick.ID)
 		if !found {
-			return fmt.Errorf("brick %q not found", appBrick.ID)
+			allErrors = errors.Join(allErrors, fmt.Errorf("brick %q not found", appBrick.ID))
+			continue // Skip further validation for this brick since it doesn't exist
 		}
 
+		// Check that all app variables exist in brick definition
 		for appBrickName := range appBrick.Variables {
 			_, exist := indexBrick.GetVariable(appBrickName)
 			if !exist {
-				return fmt.Errorf("variable %q does not exist on brick %q", appBrickName, indexBrick.ID)
+				allErrors = errors.Join(allErrors, fmt.Errorf("variable %q does not exist on brick %q", appBrickName, indexBrick.ID))
 			}
 		}
 
+		// Check that all required brick variables are provided by app
 		for _, indexBrickVariable := range indexBrick.Variables {
 			if indexBrickVariable.IsRequired() {
 				if _, exist := appBrick.Variables[indexBrickVariable.Name]; !exist {
-					return fmt.Errorf("variable %q is required by brick %q", indexBrickVariable.Name, indexBrick.ID)
+					allErrors = errors.Join(allErrors, fmt.Errorf("variable %q is required by brick %q", indexBrickVariable.Name, indexBrick.ID))
 				}
 			}
 		}
 	}
-	return nil
+	return allErrors
 }
 
 func isSingleEmoji(s string) bool {

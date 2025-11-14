@@ -23,6 +23,11 @@ func TestValidateAppDescriptorBricks(t *testing.T) {
 		expectedErr *string
 	}{
 		{
+			name:        "valid with all required filled",
+			filename:    "all-required-app.yaml",
+			expectedErr: nil,
+		},
+		{
 			name:        "valid with missing bricks",
 			filename:    "no-bricks-app.yaml",
 			expectedErr: nil,
@@ -40,7 +45,7 @@ func TestValidateAppDescriptorBricks(t *testing.T) {
 		{
 			name:        "invalid if required variable is omitted",
 			filename:    "omitted-required-app.yaml",
-			expectedErr: f.Ptr("variable \"ARDUINO_DEVICE_ID\" is required by brick \"arduino:arduino_cloud\""),
+			expectedErr: f.Ptr("variable \"ARDUINO_DEVICE_ID\" is required by brick \"arduino:arduino_cloud\"\nvariable \"ARDUINO_SECRET\" is required by brick \"arduino:arduino_cloud\""),
 		},
 		{
 			name:        "invalid if a required variable among two is omitted",
@@ -53,7 +58,7 @@ func TestValidateAppDescriptorBricks(t *testing.T) {
 			expectedErr: f.Ptr("brick \"arduino:not_existing_brick\" not found"),
 		},
 		{
-			name:        "invalid variable does not exist in the brick",
+			name:        "invalid if variable does not exist in the brick",
 			filename:    "not-found-variable-app.yaml",
 			expectedErr: f.Ptr("variable \"NOT_EXISTING_VARIABLE\" does not exist on brick \"arduino:arduino_cloud\""),
 		},

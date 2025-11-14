@@ -4,3 +4,5 @@ bricks:
   - arduino:arduino_cloud:
       variables:
         NOT_EXISTING_VARIABLE: "this-is-a-not-existing-variable-for-the-brick"
+        ARDUINO_DEVICE_ID: "my-device-id"
+        ARDUINO_SECRET: "my-secret"
