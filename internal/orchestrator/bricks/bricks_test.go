@@ -75,13 +75,15 @@ func TestBrickCreate(t *testing.T) {
 		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
 
 		req := BrickCreateUpdateRequest{ID: "arduino:dbstorage_sqlstore"}
-		err = brickService.BrickCreate(req, f.Must(app.Load(tempDummyApp.String())))
+		before := f.Must(app.Load(tempDummyApp.String()))
+		err = brickService.BrickCreate(req, before)
 		require.Nil(t, err)
 		after, err := app.Load(tempDummyApp.String())
 		require.Nil(t, err)
-		require.Len(t, after.Descriptor.Bricks, 2)
-		require.Equal(t, "arduino:dbstorage_sqlstore", after.Descriptor.Bricks[1].ID)
+		requireBricksSizeUpdatedBy(t, before.Descriptor, after.Descriptor, 1)
+		requireBricksContain(t, after.Descriptor, "arduino:dbstorage_sqlstore")
 	})
+
 	t.Run("the variables of a brick are updated", func(t *testing.T) {
 		tempDummyApp := paths.New("testdata/dummy-app.brick-override.temp")
 		err := tempDummyApp.RemoveAll()
@@ -102,13 +104,14 @@ func TestBrickCreate(t *testing.T) {
 			},
 		}
 
-		err = brickService.BrickCreate(req, f.Must(app.Load(tempDummyApp.String())))
+		before := f.Must(app.Load(tempDummyApp.String()))
+		err = brickService.BrickCreate(req, before)
 		require.Nil(t, err)
 
 		after, err := app.Load(tempDummyApp.String())
 		require.Nil(t, err)
-		require.Len(t, after.Descriptor.Bricks, 1)
-		require.Equal(t, "arduino:arduino_cloud", after.Descriptor.Bricks[0].ID)
+		requireBricksSizeUpdatedBy(t, before.Descriptor, after.Descriptor, 0)
+		requireBricksContain(t, after.Descriptor, "arduino:arduino_cloud")
 		require.Equal(t, deviceID, after.Descriptor.Bricks[0].Variables["ARDUINO_DEVICE_ID"])
 		require.Equal(t, secret, after.Descriptor.Bricks[0].Variables["ARDUINO_SECRET"])
 	})
@@ -256,28 +259,51 @@ func TestBrickCreateWithModulesUpdate(t *testing.T) {
 	}
 }
 
-/*
-	t.Run("add a brick to an App", func(t *testing.T) {
+func TestAppBrickInstanceDetails(t *testing.T) {
+	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(paths.New("testdata"))
+	require.Nil(t, err)
+	modelsIndex, err := modelsindex.GenerateModelsIndexFromFile(paths.New("testdata"))
+	require.Nil(t, err)
+	brickService := NewService(modelsIndex, bricksIndex, nil)
+
+	tests := []struct {
+		name                 string
+		brickId              string
+		expectedErrorMessage string
+		expectedModelId      string
+	}{
+		{
+			name:                 "details for a brick defined in the app",
+			brickId:              "arduino:video_object_detection",
+			expectedErrorMessage: "",
+			expectedModelId:      "yolox-object-detection",
+		},
+
+		{
+			name:                 "details should be not available for a brick not defined in the app",
+			brickId:              "arduino:audio_classification",
+			expectedErrorMessage: "brick arduino:audio_classification not added in the app",
+		},
+
+		{
+			name:                 "details for a not exitent brick",
+			brickId:              "arduino:notExistentBrick",
+			expectedErrorMessage: "brick not found",
+		},
+	}
+
+	for _, tt := range tests {
 		dummyApp := appDummySetup(t)
-
-		model := "glass-breaking"
-		req := BrickCreateUpdateRequest{
-			ID:        "arduino:audio_classification",
-			Variables: nil,
-			Model:     &model,
+		ymlApp := f.Must(app.Load(dummyApp.String()))
+		brickInstance, err := brickService.AppBrickInstanceDetails(&ymlApp, tt.brickId)
+		if err == nil {
+			require.Equal(t, tt.brickId, brickInstance.ID)
+			require.Equal(t, tt.expectedModelId, brickInstance.ModelID)
+		} else {
+			require.Equal(t, tt.expectedErrorMessage, err.Error())
 		}
-
-		// act
-		err = brickService.BrickCreate(req, f.Must(app.Load(dummyApp.String())))
-		require.Nil(t, err)
-
-		// assert
-		after, err := app.Load(dummyApp.String())
-		require.Nil(t, err)
-		require.Len(t, after.Descriptor.Bricks, 2)
-		require.Equal(t, "arduino:audio_classification", after.Descriptor.Bricks[1].ID)
-	})
-*/
+	}
+}
 
 func appDummySetup(t *testing.T) *paths.Path {
 	tempDummyApp := paths.New("testdata/dummy-app.temp")
@@ -285,4 +311,22 @@ func appDummySetup(t *testing.T) *paths.Path {
 	require.Nil(t, err)
 	require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
 	return tempDummyApp
+}
+
+func requireBricksSizeUpdatedBy(t *testing.T, before app.AppDescriptor, after app.AppDescriptor, value int) {
+	require.Len(t, after.Bricks, len(before.Bricks)+value)
+}
+
+// getBrickIndexByBrickId searches the Bricks slice within the AppDescriptor
+// for a Brick whose ID matches the provided brickId.
+func getBrickIndexByBrickId(application app.AppDescriptor, brickId string) int {
+	idx := slices.IndexFunc(application.Bricks, func(b app.Brick) bool {
+		return brickId == b.ID
+	})
+	return idx
+}
+
+func requireBricksContain(t *testing.T, application app.AppDescriptor, brickID string) {
+	idx := getBrickIndexByBrickId(application, brickID)
+	require.NotEqual(t, idx, -1)
 }

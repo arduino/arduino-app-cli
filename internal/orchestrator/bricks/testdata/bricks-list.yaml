@@ -31,3 +31,13 @@ bricks:
   require_devices: false
   category: audio
   model_name: glass-breaking
+- id: arduino:video_object_detection
+  name: Video Object Detection
+  description: This object analyze video streams from a camera.
+  require_container: true
+  require_model: true
+  require_devices: true
+  mount_devices_into_container: true
+  ports: []
+  category: null
+  model_name: yolox-object-detection

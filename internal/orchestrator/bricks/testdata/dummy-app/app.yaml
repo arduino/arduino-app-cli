@@ -4,3 +4,4 @@ icon: ☁️
 ports: []
 bricks:
 - arduino:arduino_cloud:
+- arduino:video_object_detection:
