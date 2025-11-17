@@ -9,7 +9,7 @@ import (
 )
 
 // ValidateBricks checks that all bricks referenced in the given AppDescriptor exist in the provided BricksIndex,
-// It collects and returns all validatio errors as a single joined error, allowing the caller to see all issues at once rather than stopping at the first error.
+// It collects and returns all validation errors as a single joined error, allowing the caller to see all issues at once rather than stopping at the first error.
 // If the index or the app is nil, validation is skipped and nil is returned.
 func ValidateBricks(a AppDescriptor, index *bricksindex.BricksIndex) error {
 	if index == nil {
