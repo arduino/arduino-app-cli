@@ -16,6 +16,7 @@ The following development tools must be available in your local environment:
 - [adb client](https://developer.android.com/tools/adb) [optionally]
 
 ## Building the Project
+
 ---
 ❗ Building on Windows machines is not supported.
 ---
