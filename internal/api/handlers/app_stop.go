@@ -60,7 +60,7 @@ func HandleAppStop(
 		type log struct {
 			Message string `json:"message"`
 		}
-		for item := range orchestrator.StopApp(r.Context(), app) {
+		for item := range orchestrator.StopApp(r.Context(), dockerClient, app) {
 			switch item.GetType() {
 			case orchestrator.ProgressType:
 				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress(*item.GetProgress())})
