@@ -290,6 +290,7 @@ func (s *Service) BrickCreate(
 	for _, brickVar := range brick.Variables {
 		if brickVar.DefaultValue == "" {
 			if _, exist := req.Variables[brickVar.Name]; !exist {
+				// See issue https://github.com/arduino/arduino-app-cli/issues/68
 				slog.Warn("[Skip] a required variable is not set by user", "variable", brickVar.Name)
 			}
 		}
