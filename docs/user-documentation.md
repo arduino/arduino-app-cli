@@ -16,7 +16,7 @@ The following environment variables are used to configure Arduino App CLI:
 
 ## Directory Structures
 
-Examples of user-defined Arduino Apps stored into the `ARDUINO_APP_CLI__APPS_DIR` folder.
+Examples of user-defined Arduino Apps stored under the `ARDUINO_APP_CLI__APPS_DIR` folder.
 
 ```
 ├── my-first-app
