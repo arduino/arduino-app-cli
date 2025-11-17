@@ -19,10 +19,15 @@ The following development tools must be available in your local environment:
 
 ## Building the Project
 
+Build the project (run once):
 - `task init`
 - `task build`
 - `task generate:assets` to download locally the assets of the [Arduino Bricks](`https://github.com/arduino/app-bricks-py`)
-- `ARDUINO_APP_CLI__DATA_DIR=debian/arduino-app-cli/home/arduino/.local/share/arduino-app-cli task start` to build and start the arduino-app-cli in daemon mode.
+
+Start the arduino-app-cli in daemon mode:
+- `ARDUINO_APP_CLI__DATA_DIR=debian/arduino-app-cli/home/arduino/.local/share/arduino-app-cli task start`
+
+NOTE: only a subset of HTTP APIs are working by running the daemon mode into a development PC. To run the `arduino-app-cli` into the board see `Running `arduino-app-cli` into the board` section.
 
 ## Running Checks
 
@@ -39,7 +44,7 @@ In particular, `task test` runs the following tests
 - `test:pkg` which exposes cross-platform api for working with the board (those should run for every platform)
 - `test:internal` runs test of the internal component of the app-cli, which targets only Linux
 
-## Installing arduino-app-cli into the board
+## Running `arduino-app-cli` into the board
 
 This is reccomended way to test a local development version of the arduino-app-cli into a board.
 
