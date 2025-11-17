@@ -20,4 +20,4 @@ There are several ways you can get involved:
 
 ## Resources
 
-- [**Development Guide**](development.md#development-guide)
+- [**Development Guide**](contributor-guide/development.md#development-guide)
