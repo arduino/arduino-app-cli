@@ -30,12 +30,12 @@ Start the arduino-app-cli in daemon mode:
 
 - `ARDUINO_APP_CLI__DATA_DIR=debian/arduino-app-cli/home/arduino/.local/share/arduino-app-cli go tool task start`
 
-NOTE: only a subset of HTTP APIs are working by running the daemon mode into a development PC. To run the `arduino-app-cli` into the board see `Running`arduino-app-cli`into the board` section.
+NOTE: only a subset of HTTP APIs are working by running the daemon mode on a development PC. To run Arduino App CLI on the board see the **Running Arduino App CLI on the board** section below.
 
 ## Running Checks
 
 > [!NOTE]
-> Since the `arduino-app-cli` runs on a debian-based OS, some tests do not work on Windows and macOS
+> Since Arduino App CLI runs on a Debian-based OS, some tests do not work on Windows and macOS
 
 Checks and tests are set up to ensure the project content is functional and compliant with the established standards.
 
@@ -45,12 +45,12 @@ Checks and tests are set up to ensure the project content is functional and comp
 
 In particular, `go tool task test` runs the following tests
 
-- `test:pkg` which exposes cross-platform api for working with the board (those should run for every platform)
-- `test:internal` runs test of the internal component of the app-cli, which targets only Linux
+- `test:pkg` which exposes a cross-platform API for working with the board (those should run for every platform)
+- `test:internal` runs tests of the internal components, which targets only Linux
 
-## Running `arduino-app-cli` into the board
+## Running Arduino App CLI on the board
 
-This is reccomended way to test a local development version of the arduino-app-cli into a board.
+This is reccomended way to test a local development version of Arduino App CLI on a board.
 
 1. Connect an [Arduino UNO Q](https://docs.arduino.cc/hardware/uno-q/) board via USB.
 1. `go tool task board:install` installs the current version of Arduino App CLI on the board (`adb` is needed). The password of the `arduino` username of the board is requested.
