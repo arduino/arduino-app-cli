@@ -16,6 +16,9 @@ The following development tools must be available in your local environment:
 - [adb client](https://developer.android.com/tools/adb) [optionally]
 
 ## Building the Project
+---
+❗ Building on Windows machines is not supported.
+---
 
 Build the project (run once):
 
@@ -25,7 +28,7 @@ Build the project (run once):
 
 Start the arduino-app-cli in daemon mode:
 
-- `ARDUINO_APP_CLI__DATA_DIR=debian/arduino-app-cli/home/arduino/.local/share/arduino-app-cli task start`
+- `ARDUINO_APP_CLI__DATA_DIR=debian/arduino-app-cli/home/arduino/.local/share/arduino-app-cli go tool task start`
 
 NOTE: only a subset of HTTP APIs are working by running the daemon mode into a development PC. To run the `arduino-app-cli` into the board see `Running`arduino-app-cli`into the board` section.
 
