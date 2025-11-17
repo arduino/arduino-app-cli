@@ -16,10 +16,10 @@ The following development tools must be available in your local environment:
 - [Docker](https://docs.docker.com/engine/install/)
 - [adb client](https://developer.android.com/tools/adb) [optionally]
 
-
 ## Building the Project
 
 Build the project (run once):
+
 - `task init`
 - `task build`
 - `go tool task init`
@@ -27,14 +27,15 @@ Build the project (run once):
 - `go tool task generate:assets` to download locally the assets of the [Arduino Bricks](https://github.com/arduino/app-bricks-py)
 
 Start the arduino-app-cli in daemon mode:
+
 - `ARDUINO_APP_CLI__DATA_DIR=debian/arduino-app-cli/home/arduino/.local/share/arduino-app-cli task start`
 
-NOTE: only a subset of HTTP APIs are working by running the daemon mode into a development PC. To run the `arduino-app-cli` into the board see `Running `arduino-app-cli` into the board` section.
+NOTE: only a subset of HTTP APIs are working by running the daemon mode into a development PC. To run the `arduino-app-cli` into the board see `Running`arduino-app-cli`into the board` section.
 
 ## Running Checks
 
 > [!NOTE]
->  Since the `arduino-app-cli` runs on a debian-based OS, some tests do not work on Windows and macOS
+> Since the `arduino-app-cli` runs on a debian-based OS, some tests do not work on Windows and macOS
 
 Checks and tests are set up to ensure the project content is functional and compliant with the established standards.
 
@@ -43,6 +44,7 @@ Checks and tests are set up to ensure the project content is functional and comp
 - `task test`
 
 In particular, `task test` runs the following tests
+
 - `test:pkg` which exposes cross-platform api for working with the board (those should run for every platform)
 - `test:internal` runs test of the internal component of the app-cli, which targets only Linux
 
