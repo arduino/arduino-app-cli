@@ -44,7 +44,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/micro"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	appspecification "github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	appgenerator "github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -115,7 +114,7 @@ func StartApp(
 	provisioner *Provision,
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
-	app appspecification.ArduinoApp,
+	appToStart app.ArduinoApp,
 	cfg config.Configuration,
 	staticStore *store.StaticStore,
 ) iter.Seq[StreamMessage] {
@@ -123,7 +122,7 @@ func StartApp(
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		err := appspecification.ValidateBricks(app.Descriptor, bricksIndex)
+		err := app.ValidateBricks(appToStart.Descriptor, bricksIndex)
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return
@@ -138,7 +137,7 @@ func StartApp(
 			yield(StreamMessage{error: fmt.Errorf("app %q is running", running.Name)})
 			return
 		}
-		if !yield(StreamMessage{data: fmt.Sprintf("Starting app %q", app.Name)}) {
+		if !yield(StreamMessage{data: fmt.Sprintf("Starting app %q", appToStart.Name)}) {
 			return
 		}
 
@@ -155,11 +154,11 @@ func StartApp(
 		if !yield(StreamMessage{progress: &Progress{Name: "preparing", Progress: 0.0}}) {
 			return
 		}
-		if app.MainSketchPath != nil {
+		if appToStart.MainSketchPath != nil {
 			if !yield(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}}) {
 				return
 			}
-			if err := compileUploadSketch(ctx, &app, sketchCallbackWriter); err != nil {
+			if err := compileUploadSketch(ctx, &appToStart, sketchCallbackWriter); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
@@ -168,15 +167,15 @@ func StartApp(
 			}
 		}
 
-		if app.MainPythonFile != nil {
-			envs := getAppEnvironmentVariables(app, bricksIndex, modelsIndex)
+		if appToStart.MainPythonFile != nil {
+			envs := getAppEnvironmentVariables(appToStart, bricksIndex, modelsIndex)
 
 			if !yield(StreamMessage{data: "python provisioning"}) {
 				cancel()
 				return
 			}
 			provisionStartProgress := float32(0.0)
-			if app.MainSketchPath != nil {
+			if appToStart.MainSketchPath != nil {
 				provisionStartProgress = 10.0
 			}
 
@@ -184,7 +183,7 @@ func StartApp(
 				return
 			}
 
-			if err := provisioner.App(ctx, bricksIndex, &app, cfg, envs, staticStore); err != nil {
+			if err := provisioner.App(ctx, bricksIndex, &appToStart, cfg, envs, staticStore); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
@@ -195,10 +194,10 @@ func StartApp(
 			}
 
 			// Launch the docker compose command to start the app
-			overrideComposeFile := app.AppComposeOverrideFilePath()
+			overrideComposeFile := appToStart.AppComposeOverrideFilePath()
 
 			commands := []string{}
-			commands = append(commands, "docker", "compose", "-f", app.AppComposeFilePath().String())
+			commands = append(commands, "docker", "compose", "-f", appToStart.AppComposeFilePath().String())
 			if ok, _ := overrideComposeFile.ExistCheck(); ok {
 				commands = append(commands, "-f", overrideComposeFile.String())
 			}
@@ -256,7 +255,7 @@ func StartApp(
 // - model configuration variables (variables defined in the model configuration)
 // - brick instance variables (variables defined in the app.yaml for the brick instance)
 // In addition, it adds some useful environment variables like APP_HOME and HOST_IP.
-func getAppEnvironmentVariables(app appspecification.ArduinoApp, brickIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex) helpers.EnvVars {
+func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex) helpers.EnvVars {
 	envs := make(helpers.EnvVars)
 
 	for _, brick := range app.Descriptor.Bricks {
@@ -384,7 +383,7 @@ func getVideoDevices() map[int]string {
 	return deviceMap
 }
 
-func stopAppWithCmd(ctx context.Context, app appspecification.ArduinoApp, cmd string) iter.Seq[StreamMessage] {
+func stopAppWithCmd(ctx context.Context, app app.ArduinoApp, cmd string) iter.Seq[StreamMessage] {
 	return func(yield func(StreamMessage) bool) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -432,11 +431,11 @@ func stopAppWithCmd(ctx context.Context, app appspecification.ArduinoApp, cmd st
 	}
 }
 
-func StopApp(ctx context.Context, app appspecification.ArduinoApp) iter.Seq[StreamMessage] {
+func StopApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
 	return stopAppWithCmd(ctx, app, "stop")
 }
 
-func StopAndDestroyApp(ctx context.Context, app appspecification.ArduinoApp) iter.Seq[StreamMessage] {
+func StopAndDestroyApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
 	return stopAppWithCmd(ctx, app, "down")
 }
 
@@ -446,7 +445,7 @@ func RestartApp(
 	provisioner *Provision,
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
-	appToStart appspecification.ArduinoApp,
+	appToStart app.ArduinoApp,
 	cfg config.Configuration,
 	staticStore *store.StaticStore,
 ) iter.Seq[StreamMessage] {
@@ -454,7 +453,7 @@ func RestartApp(
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		err := appspecification.ValidateBricks(appToStart.Descriptor, bricksIndex)
+		err := app.ValidateBricks(appToStart.Descriptor, bricksIndex)
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return
@@ -678,7 +677,7 @@ type AppDetailedBrick struct {
 func AppDetails(
 	ctx context.Context,
 	docker command.Cli,
-	userApp appspecification.ArduinoApp,
+	userApp app.ArduinoApp,
 	bricksIndex *bricksindex.BricksIndex,
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
@@ -902,7 +901,7 @@ func CloneApp(
 	return CloneAppResponse{ID: id}, nil
 }
 
-func DeleteApp(ctx context.Context, app appspecification.ArduinoApp) error {
+func DeleteApp(ctx context.Context, app app.ArduinoApp) error {
 	for msg := range StopApp(ctx, app) {
 		if msg.error != nil {
 			return fmt.Errorf("failed to stop app: %w", msg.error)
@@ -913,7 +912,7 @@ func DeleteApp(ctx context.Context, app appspecification.ArduinoApp) error {
 
 const defaultAppFileName = "default.app"
 
-func SetDefaultApp(app *appspecification.ArduinoApp, cfg config.Configuration) error {
+func SetDefaultApp(app *app.ArduinoApp, cfg config.Configuration) error {
 	defaultAppPath := cfg.DataDir().Join(defaultAppFileName)
 
 	// Remove the default app file if the app is nil.
@@ -928,7 +927,7 @@ func SetDefaultApp(app *appspecification.ArduinoApp, cfg config.Configuration) e
 	return fatomic.WriteFile(defaultAppPath.String(), []byte(app.FullPath.String()), os.FileMode(0644))
 }
 
-func GetDefaultApp(cfg config.Configuration) (*appspecification.ArduinoApp, error) {
+func GetDefaultApp(cfg config.Configuration) (*app.ArduinoApp, error) {
 	defaultAppFilePath := cfg.DataDir().Join(defaultAppFileName)
 	if !defaultAppFilePath.Exist() {
 		return nil, nil
@@ -966,7 +965,7 @@ type AppEditRequest struct {
 
 func EditApp(
 	req AppEditRequest,
-	editApp *appspecification.ArduinoApp,
+	editApp *app.ArduinoApp,
 	cfg config.Configuration,
 ) (editErr error) {
 	if req.Default != nil {
@@ -1006,7 +1005,7 @@ func EditApp(
 	return nil
 }
 
-func editAppDefaults(userApp *appspecification.ArduinoApp, isDefault bool, cfg config.Configuration) error {
+func editAppDefaults(userApp *app.ArduinoApp, isDefault bool, cfg config.Configuration) error {
 	if isDefault {
 		if err := SetDefaultApp(userApp, cfg); err != nil {
 			return fmt.Errorf("failed to set default app: %w", err)
@@ -1135,7 +1134,7 @@ func addLedControl(volumes []volume) []volume {
 
 func compileUploadSketch(
 	ctx context.Context,
-	arduinoApp *appspecification.ArduinoApp,
+	arduinoApp *app.ArduinoApp,
 	w io.Writer,
 ) error {
 	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
