@@ -34,7 +34,7 @@ Examples of user-defined Arduino Apps stored under the `ARDUINO_APP_CLI__APPS_DI
         └── main.py
 ```
 
-Examples of the `assets` and the builtin `examples` stored into the `ARDUINO_APP_CLI__DATA_DIR` folder.
+Examples of the `assets` and the builtin `examples` stored under the `ARDUINO_APP_CLI__DATA_DIR` folder.
 
 ```
 /home/arduino/.local/share/arduino-app-cli/
