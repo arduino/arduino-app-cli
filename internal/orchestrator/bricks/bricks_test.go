@@ -57,13 +57,18 @@ func TestBrickCreate(t *testing.T) {
 	})
 
 	t.Run("do not fail if a mandatory variable is not present", func(t *testing.T) {
+		tempDummyApp := paths.New("testdata/dummy-app.temp")
+		err := tempDummyApp.RemoveAll()
+		require.Nil(t, err)
+		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
+
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"ARDUINO_SECRET": "a-secret-a",
 		}}
-		err = brickService.BrickCreate(req, f.Must(app.Load("testdata/dummy-app")))
+		err = brickService.BrickCreate(req, f.Must(app.Load(tempDummyApp.String())))
 		require.NoError(t, err)
 
-		after, err := app.Load("testdata/dummy-app")
+		after, err := app.Load(tempDummyApp.String())
 		require.Nil(t, err)
 		require.Len(t, after.Descriptor.Bricks, 1)
 		require.Equal(t, "arduino:arduino_cloud", after.Descriptor.Bricks[0].ID)
