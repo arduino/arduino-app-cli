@@ -3,7 +3,7 @@
 # Development Guide
 
 > [!NOTE]
-> The `arduino-app-cli` is designed to run on the Board and access peripherals that are not available on a development PC (e.g., the microcontroller).
+> The `arduino-app-cli` is designed to run on the Board and access peripherals that are not available on a development PC.
 >
 > For easier testing, using an **Arduino UNO Q** is recommended, as local testing is limited to functionalities that do not require board-specific features.
 
@@ -13,7 +13,9 @@ The following development tools must be available in your local environment:
 
 - [Go](https://go.dev/dl/)
 - [Task](https://taskfile.dev/)
+- [Docker](https://docs.docker.com/engine/install/)
 - [adb client](https://developer.android.com/tools/adb) [optionally]
+
 
 ## Building the Project
 
@@ -24,11 +26,18 @@ The following development tools must be available in your local environment:
 
 ## Running Checks
 
+> [!NOTE]
+>  Since the `arduino-app-cli` runs on a debian-based OS, some tests do not work on Windows and macOS
+
 Checks and tests are set up to ensure the project content is functional and compliant with the established standards.
 
 - `task fmt-check`
 - `task lint`
 - `task test`
+
+In particular, `task test` runs the following tests
+- `test:pkg` which exposes cross-platform api for working with the board (those should run for every platform)
+- `test:internal` runs test of the internal component of the app-cli, which targets only Linux
 
 ## Installing arduino-app-cli into the board
 
