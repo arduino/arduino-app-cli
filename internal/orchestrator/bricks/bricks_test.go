@@ -16,9 +16,7 @@
 package bricks
 
 import (
-	"fmt"
 	"testing"
-	"time"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
@@ -34,7 +32,7 @@ func TestBrickCreate(t *testing.T) {
 	brickService := NewService(nil, bricksIndex, nil)
 
 	t.Run("fails if brick id does not exist", func(t *testing.T) {
-		err = brickService.BrickCreate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load("testdata/AppFromExample")))
+		err = brickService.BrickCreate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load("testdata/dummy-app")))
 		require.Error(t, err)
 		require.Equal(t, "brick \"not-existing-id\" not found", err.Error())
 	})
@@ -43,59 +41,56 @@ func TestBrickCreate(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"NON_EXISTING_VARIABLE": "some-value",
 		}}
-		err = brickService.BrickCreate(req, f.Must(app.Load("testdata/AppFromExample")))
+		err = brickService.BrickCreate(req, f.Must(app.Load("testdata/dummy-app")))
 		require.Error(t, err)
 		require.Equal(t, "variable \"NON_EXISTING_VARIABLE\" does not exist on brick \"arduino:arduino_cloud\"", err.Error())
 	})
 
-	//TODO: currently we do not accept an empty string as a valid value for a variable
 	t.Run("fails if a required variable is set empty", func(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"ARDUINO_DEVICE_ID": "",
 			"ARDUINO_SECRET":    "a-secret-a",
 		}}
-		err = brickService.BrickCreate(req, f.Must(app.Load("testdata/AppFromExample")))
+		err = brickService.BrickCreate(req, f.Must(app.Load("testdata/dummy-app")))
 		require.Error(t, err)
 		require.Equal(t, "variable \"ARDUINO_DEVICE_ID\" cannot be empty", err.Error())
 	})
 
-	t.Run("omit a mandatory variable is not present in the request", func(t *testing.T) {
-		tempApp, cleanUp := copyToTempApp(t, paths.New("testdata/AppFromExample"))
-		defer cleanUp()
-
+	t.Run("do not fail if a mandatory variable is not present", func(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"ARDUINO_SECRET": "a-secret-a",
 		}}
-		err = brickService.BrickCreate(req, f.Must(app.Load(tempApp.String())))
-		require.Nil(t, err)
+		err = brickService.BrickCreate(req, f.Must(app.Load("testdata/dummy-app")))
+		require.NoError(t, err)
 
-		after, err := app.Load(tempApp.String())
+		after, err := app.Load("testdata/dummy-app")
 		require.Nil(t, err)
 		require.Len(t, after.Descriptor.Bricks, 1)
 		require.Equal(t, "arduino:arduino_cloud", after.Descriptor.Bricks[0].ID)
-		// NOTE: currently it is not possible to distinguish a field with empty string or missing field into the yaml.
-		// The 'ARDUINO_DEVICE_ID' is missing from the app.yaml but here we check the empty string.
-		// A better aproach is to use golden files
 		require.Equal(t, "", after.Descriptor.Bricks[0].Variables["ARDUINO_DEVICE_ID"])
 		require.Equal(t, "a-secret-a", after.Descriptor.Bricks[0].Variables["ARDUINO_SECRET"])
 	})
 
 	t.Run("the brick is added if it does not exist in the app", func(t *testing.T) {
-		tempApp, cleanUp := copyToTempApp(t, paths.New("testdata/AppFromExample"))
-		defer cleanUp()
+		tempDummyApp := paths.New("testdata/dummy-app.temp")
+		err := tempDummyApp.RemoveAll()
+		require.Nil(t, err)
+		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
 
 		req := BrickCreateUpdateRequest{ID: "arduino:dbstorage_sqlstore"}
-		err = brickService.BrickCreate(req, f.Must(app.Load(tempApp.String())))
+		err = brickService.BrickCreate(req, f.Must(app.Load(tempDummyApp.String())))
 		require.Nil(t, err)
-		after, err := app.Load(tempApp.String())
+		after, err := app.Load(tempDummyApp.String())
 		require.Nil(t, err)
 		require.Len(t, after.Descriptor.Bricks, 2)
 		require.Equal(t, "arduino:dbstorage_sqlstore", after.Descriptor.Bricks[1].ID)
 	})
 	t.Run("the variables of a brick are updated", func(t *testing.T) {
-		tempApp, cleanUp := copyToTempApp(t, paths.New("testdata/AppFromExample"))
-		defer cleanUp()
-
+		tempDummyApp := paths.New("testdata/dummy-app.brick-override.temp")
+		err := tempDummyApp.RemoveAll()
+		require.Nil(t, err)
+		err = paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp)
+		require.Nil(t, err)
 		bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(paths.New("testdata"))
 		require.Nil(t, err)
 		brickService := NewService(nil, bricksIndex, nil)
@@ -110,24 +105,16 @@ func TestBrickCreate(t *testing.T) {
 			},
 		}
 
-		err = brickService.BrickCreate(req, f.Must(app.Load(tempApp.String())))
+		err = brickService.BrickCreate(req, f.Must(app.Load(tempDummyApp.String())))
 		require.Nil(t, err)
 
-		after, err := app.Load(tempApp.String())
+		after, err := app.Load(tempDummyApp.String())
 		require.Nil(t, err)
 		require.Len(t, after.Descriptor.Bricks, 1)
 		require.Equal(t, "arduino:arduino_cloud", after.Descriptor.Bricks[0].ID)
 		require.Equal(t, deviceID, after.Descriptor.Bricks[0].Variables["ARDUINO_DEVICE_ID"])
 		require.Equal(t, secret, after.Descriptor.Bricks[0].Variables["ARDUINO_SECRET"])
 	})
-}
-
-func copyToTempApp(t *testing.T, srcApp *paths.Path) (tmpApp *paths.Path, cleanUp func()) {
-	tmpAppPath := paths.New(srcApp.String() + "-" + fmt.Sprint(time.Now().UnixMicro()) + ".temp")
-	require.Nil(t, srcApp.CopyDirTo(tmpAppPath))
-	return tmpAppPath, func() {
-		require.Nil(t, tmpAppPath.RemoveAll())
-	}
 }
 
 func TestGetBrickInstanceVariableDetails(t *testing.T) {
