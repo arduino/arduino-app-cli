@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
@@ -27,7 +28,7 @@ func ValidateBricks(a AppDescriptor, index *bricksindex.BricksIndex) error {
 		for appBrickName := range appBrick.Variables {
 			_, exist := indexBrick.GetVariable(appBrickName)
 			if !exist {
-				allErrors = errors.Join(allErrors, fmt.Errorf("variable %q does not exist on brick %q", appBrickName, indexBrick.ID))
+				slog.Warn("variable is referenced but not declared in the brick configuration", "variable", appBrickName, "brick", indexBrick.ID)
 			}
 		}
 

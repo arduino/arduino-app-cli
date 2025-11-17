@@ -61,9 +61,9 @@ func TestValidateAppDescriptorBricks(t *testing.T) {
 			expectedError: errors.New("brick \"arduino:not_existing_brick\" not found"),
 		},
 		{
-			name:          "invalid if variable does not exist in the brick",
+			name:          "log a warning if variable does not exist in the brick",
 			filename:      "not-found-variable-app.yaml",
-			expectedError: errors.New("variable \"NOT_EXISTING_VARIABLE\" does not exist on brick \"arduino:arduino_cloud\""),
+			expectedError: nil,
 		},
 	}
 
