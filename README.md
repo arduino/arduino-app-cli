@@ -37,7 +37,7 @@ is mandatory if you want to modify or otherwise use the software for commercial 
 software without disclosing the source code of your own applications. To purchase a commercial license, send an email to
 license@arduino.cc
 
-[user documentation]: https://github.com/arduino/arduino-app-cli/docs/user-documentation.md
-[contributor guide]: https://arduino.github.io/arduino-app-cli/latest/CONTRIBUTING/
+[user documentation]: docs/user-documentation.md
+[contributor guide]: docs/CONTRIBUTING.md
 [security policy]: https://github.com/arduino/arduino-app-cli/security/policy
 [contributors]: https://github.com/arduino/arduino-app-cli/graphs/contributors
