@@ -12,7 +12,6 @@
 The following development tools must be available in your local environment:
 
 - [Go](https://go.dev/dl/)
-- [Task](https://taskfile.dev/)
 - [Docker](https://docs.docker.com/engine/install/)
 - [adb client](https://developer.android.com/tools/adb) [optionally]
 
@@ -20,11 +19,9 @@ The following development tools must be available in your local environment:
 
 Build the project (run once):
 
-- `task init`
-- `task build`
 - `go tool task init`
 - `go tool task build`
-- `go tool task generate:assets` to download locally the assets of the [Arduino Bricks](https://github.com/arduino/app-bricks-py)
+- `go tool task generate:assets` to download locally the assets of the [Arduino Bricks](`https://github.com/arduino/app-bricks-py`)
 
 Start the arduino-app-cli in daemon mode:
 
@@ -39,11 +36,11 @@ NOTE: only a subset of HTTP APIs are working by running the daemon mode into a d
 
 Checks and tests are set up to ensure the project content is functional and compliant with the established standards.
 
-- `task fmt-check`
-- `task lint`
-- `task test`
+- `go tool task fmt-check`
+- `go tool task lint`
+- `go tool task test`
 
-In particular, `task test` runs the following tests
+In particular, `go tool task test` runs the following tests
 
 - `test:pkg` which exposes cross-platform api for working with the board (those should run for every platform)
 - `test:internal` runs test of the internal component of the app-cli, which targets only Linux
@@ -53,17 +50,17 @@ In particular, `task test` runs the following tests
 This is reccomended way to test a local development version of the arduino-app-cli into a board.
 
 1. Connect an [Arduino UNO Q](https://docs.arduino.cc/hardware/uno-q/) board via USB.
-1. `task board:install` installs the current version of Arduino App CLI on the board (`adb` is needed). The password of the `arduino` username of the board is requested.
+1. `go tool task board:install` installs the current version of Arduino App CLI on the board (`adb` is needed). The password of the `arduino` username of the board is requested.
 
 ## Automatic Corrections
 
 Tools are provided to automatically bring the project into compliance with some of the required checks.
 
-- `task fmt`
+- `go tool task fmt`
 
 ## Generate API docs
 
 If a PR, change the HTTP API definitions, the following steps are needed:
 
 1. Open the `cmd/gendoc/docs.go` and modify/add/remove the definitions
-1. Run `task doc` to generate the docs (i.e., the files `internal/api/docs/openapi.yaml` and `internal/e2e/client/client.gen.go` are generated)
+1. Run `go tool task doc` to generate the docs (i.e., the files `internal/api/docs/openapi.yaml` and `internal/e2e/client/client.gen.go` are generated)
