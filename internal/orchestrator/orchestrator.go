@@ -122,13 +122,9 @@ func StartApp(
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		errs := app.Descriptor.ValidateBricks(bricksIndex)
-		if errs != nil {
-			for _, e := range errs {
-				if !yield(StreamMessage{error: e}) {
-					return
-				}
-			}
+		err := app.Descriptor.ValidateBricks(bricksIndex)
+		if err != nil {
+			yield(StreamMessage{error: err})
 			return
 		}
 
@@ -457,13 +453,9 @@ func RestartApp(
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		errs := appToStart.Descriptor.ValidateBricks(bricksIndex)
-		if errs != nil {
-			for _, e := range errs {
-				if !yield(StreamMessage{error: e}) {
-					return
-				}
-			}
+		err := appToStart.Descriptor.ValidateBricks(bricksIndex)
+		if err != nil {
+			yield(StreamMessage{error: err})
 			return
 		}
 
