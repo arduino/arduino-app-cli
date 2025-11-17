@@ -44,6 +44,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/micro"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	appspecification "github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	appgenerator "github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -114,7 +115,7 @@ func StartApp(
 	provisioner *Provision,
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
-	app app.ArduinoApp,
+	app appspecification.ArduinoApp,
 	cfg config.Configuration,
 	staticStore *store.StaticStore,
 ) iter.Seq[StreamMessage] {
@@ -122,7 +123,7 @@ func StartApp(
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		err := app.Descriptor.ValidateBricks(bricksIndex)
+		err := appspecification.ValidateBricks(app.Descriptor, bricksIndex)
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return
@@ -255,7 +256,7 @@ func StartApp(
 // - model configuration variables (variables defined in the model configuration)
 // - brick instance variables (variables defined in the app.yaml for the brick instance)
 // In addition, it adds some useful environment variables like APP_HOME and HOST_IP.
-func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex) helpers.EnvVars {
+func getAppEnvironmentVariables(app appspecification.ArduinoApp, brickIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex) helpers.EnvVars {
 	envs := make(helpers.EnvVars)
 
 	for _, brick := range app.Descriptor.Bricks {
@@ -383,7 +384,7 @@ func getVideoDevices() map[int]string {
 	return deviceMap
 }
 
-func stopAppWithCmd(ctx context.Context, app app.ArduinoApp, cmd string) iter.Seq[StreamMessage] {
+func stopAppWithCmd(ctx context.Context, app appspecification.ArduinoApp, cmd string) iter.Seq[StreamMessage] {
 	return func(yield func(StreamMessage) bool) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -431,11 +432,11 @@ func stopAppWithCmd(ctx context.Context, app app.ArduinoApp, cmd string) iter.Se
 	}
 }
 
-func StopApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
+func StopApp(ctx context.Context, app appspecification.ArduinoApp) iter.Seq[StreamMessage] {
 	return stopAppWithCmd(ctx, app, "stop")
 }
 
-func StopAndDestroyApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
+func StopAndDestroyApp(ctx context.Context, app appspecification.ArduinoApp) iter.Seq[StreamMessage] {
 	return stopAppWithCmd(ctx, app, "down")
 }
 
@@ -445,7 +446,7 @@ func RestartApp(
 	provisioner *Provision,
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
-	appToStart app.ArduinoApp,
+	appToStart appspecification.ArduinoApp,
 	cfg config.Configuration,
 	staticStore *store.StaticStore,
 ) iter.Seq[StreamMessage] {
@@ -453,7 +454,7 @@ func RestartApp(
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		err := appToStart.Descriptor.ValidateBricks(bricksIndex)
+		err := appspecification.ValidateBricks(appToStart.Descriptor, bricksIndex)
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return
@@ -677,7 +678,7 @@ type AppDetailedBrick struct {
 func AppDetails(
 	ctx context.Context,
 	docker command.Cli,
-	userApp app.ArduinoApp,
+	userApp appspecification.ArduinoApp,
 	bricksIndex *bricksindex.BricksIndex,
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
@@ -901,7 +902,7 @@ func CloneApp(
 	return CloneAppResponse{ID: id}, nil
 }
 
-func DeleteApp(ctx context.Context, app app.ArduinoApp) error {
+func DeleteApp(ctx context.Context, app appspecification.ArduinoApp) error {
 	for msg := range StopApp(ctx, app) {
 		if msg.error != nil {
 			return fmt.Errorf("failed to stop app: %w", msg.error)
@@ -912,7 +913,7 @@ func DeleteApp(ctx context.Context, app app.ArduinoApp) error {
 
 const defaultAppFileName = "default.app"
 
-func SetDefaultApp(app *app.ArduinoApp, cfg config.Configuration) error {
+func SetDefaultApp(app *appspecification.ArduinoApp, cfg config.Configuration) error {
 	defaultAppPath := cfg.DataDir().Join(defaultAppFileName)
 
 	// Remove the default app file if the app is nil.
@@ -927,7 +928,7 @@ func SetDefaultApp(app *app.ArduinoApp, cfg config.Configuration) error {
 	return fatomic.WriteFile(defaultAppPath.String(), []byte(app.FullPath.String()), os.FileMode(0644))
 }
 
-func GetDefaultApp(cfg config.Configuration) (*app.ArduinoApp, error) {
+func GetDefaultApp(cfg config.Configuration) (*appspecification.ArduinoApp, error) {
 	defaultAppFilePath := cfg.DataDir().Join(defaultAppFileName)
 	if !defaultAppFilePath.Exist() {
 		return nil, nil
@@ -965,7 +966,7 @@ type AppEditRequest struct {
 
 func EditApp(
 	req AppEditRequest,
-	editApp *app.ArduinoApp,
+	editApp *appspecification.ArduinoApp,
 	cfg config.Configuration,
 ) (editErr error) {
 	if req.Default != nil {
@@ -1005,7 +1006,7 @@ func EditApp(
 	return nil
 }
 
-func editAppDefaults(userApp *app.ArduinoApp, isDefault bool, cfg config.Configuration) error {
+func editAppDefaults(userApp *appspecification.ArduinoApp, isDefault bool, cfg config.Configuration) error {
 	if isDefault {
 		if err := SetDefaultApp(userApp, cfg); err != nil {
 			return fmt.Errorf("failed to set default app: %w", err)
@@ -1134,7 +1135,7 @@ func addLedControl(volumes []volume) []volume {
 
 func compileUploadSketch(
 	ctx context.Context,
-	arduinoApp *app.ArduinoApp,
+	arduinoApp *appspecification.ArduinoApp,
 	w io.Writer,
 ) error {
 	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli

@@ -72,7 +72,7 @@ func TestValidateAppDescriptorBricks(t *testing.T) {
 			appDescriptor, err := ParseDescriptorFile(paths.New("testdata/validator/" + tc.filename))
 			require.NoError(t, err)
 
-			err = appDescriptor.ValidateBricks(bricksIndex)
+			err = ValidateBricks(appDescriptor, bricksIndex)
 			if tc.expectedError == nil {
 				assert.NoError(t, err, "Expected no validation errors")
 			} else {
