@@ -3,9 +3,7 @@ package startapp
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 
@@ -31,16 +29,9 @@ func TestStartApp(t *testing.T) {
 	fmt.Println("Fetching 'arduino-router' dependency...")
 	fetchDebPackageLatest(t, "build", "arduino-router")
 
-	cmd := exec.Command("stat", "-c", "%g", "/var/run/docker.sock")
-	outputBytes, err := cmd.Output()
-	require.NoError(t, err, "could not get docker socket GID: %v", err)
-
-	dockerGid := strings.TrimSpace(string(outputBytes))
-	fmt.Printf("**** Using Docker GID from Host: %s *****\n", dockerGid)
-
 	const dockerImageName = "e2e-start-test-image"
 	fmt.Println("**** BUILD docker image (e2e-test-runner) *****")
-	buildDockerImage(t, dockerFile, dockerImageName, arch, dockerGid)
+	buildDockerImage(t, dockerFile, dockerImageName, arch)
 	// TODO: aggiungere t.Cleanup per rimuovere l'immagine docker. da controllare se mi serve!
 
 	t.Run("Test App Start Command", func(t *testing.T) {

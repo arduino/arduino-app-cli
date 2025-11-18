@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"iter"
 	"log"
@@ -13,7 +12,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -87,50 +85,13 @@ func buildDebVersion(t *testing.T, storePath, tagVersion, arch string) {
 	}
 }
 
-func genMajorTag(t *testing.T, tag string) string {
-	t.Helper()
-
-	parts := strings.Split(tag, ".")
-	last := parts[len(parts)-1]
-
-	lastNum, _ := strconv.Atoi(strings.TrimPrefix(last, "v"))
-	lastNum++
-
-	parts[len(parts)-1] = strconv.Itoa(lastNum)
-	newTag := strings.Join(parts, ".")
-
-	return newTag
-}
-
-func genMinorTag(t *testing.T, tag string) string {
-	t.Helper()
-
-	parts := strings.Split(tag, ".")
-	last := parts[len(parts)-1]
-
-	lastNum, _ := strconv.Atoi(strings.TrimPrefix(last, "v"))
-	if lastNum > 0 {
-		lastNum--
-	}
-
-	parts[len(parts)-1] = strconv.Itoa(lastNum)
-	newTag := strings.Join(parts, ".")
-
-	if !strings.HasPrefix(newTag, "v") {
-		newTag = "v" + newTag
-	}
-	return newTag
-}
-
-func buildDockerImage(t *testing.T, dockerfile, name, arch, dockerGid string) {
+func buildDockerImage(t *testing.T, dockerfile, name, arch string) {
 	t.Helper()
 
 	archArg := fmt.Sprintf("ARCH=%s", arch)
-	gidArg := fmt.Sprintf("DOCKER_GID=%s", dockerGid)
 
 	cmd := exec.Command("docker", "build",
 		"--build-arg", archArg,
-		"--build-arg", gidArg,
 		"-t", name, "-f", dockerfile, ".")
 	// Capture both stdout and stderr
 	var out bytes.Buffer
@@ -157,10 +118,9 @@ func startDockerContainer(t *testing.T, containerName string, containerImageName
 		"-p", "8800:8800",
 		"--privileged",
 		"--cgroupns=host",
-		//"--network", "host",
 		"-v", "/sys/fs/cgroup:/sys/fs/cgroup:rw",
-		"-v", "/var/run/docker.sock:/var/run/docker.sock",
-		"-e", "DOCKER_HOST=unix:///var/run/docker.sock",
+		"-v", "/var/run/docker.sock:/host/docker.sock",
+		"-e", "DOCKER_HOST=unix:///host/docker.sock",
 		"--name", containerName,
 		containerImageName,
 	)
@@ -169,47 +129,6 @@ func startDockerContainer(t *testing.T, containerName string, containerImageName
 		t.Fatalf("failed to run container: %v", err)
 	}
 
-}
-
-func getAppCliVersion(t *testing.T, containerName string) string {
-	t.Helper()
-
-	cmd := exec.Command(
-		"docker", "exec",
-		"--user", "arduino",
-		containerName,
-		"arduino-app-cli", "version", "--format", "json",
-	)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		log.Fatalf("command failed: %v\nOutput: %s", err, output)
-	}
-
-	var version struct {
-		Version       string `json:"version"`
-		DaemonVersion string `json:"daemon_version"`
-	}
-	err = json.Unmarshal(output, &version)
-	require.NoError(t, err)
-	// TODO to enable after 0.6.7
-	// require.Equal(t, version.Version, version.DaemonVersion, "client and daemon versions should match")
-	require.NotEmpty(t, version.Version)
-	return version.Version
-
-}
-
-func runSystemUpdate(t *testing.T, containerName string) {
-	t.Helper()
-
-	cmd := exec.Command(
-		"docker", "exec",
-		"--user", "arduino",
-		containerName,
-		"arduino-app-cli", "system", "update", "--yes",
-	)
-	output, err := cmd.CombinedOutput()
-	require.NoError(t, err, "system update failed: %s", output)
-	t.Logf("system update output: %s", output)
 }
 
 func stopDockerContainer(t *testing.T, containerName string) {
@@ -221,30 +140,6 @@ func stopDockerContainer(t *testing.T, containerName string) {
 	if err := cleanupCmd.Run(); err != nil {
 		fmt.Printf("⚠️  Warning: could not remove container (might not exist): %v\n", err)
 	}
-
-}
-
-func putUpdateRequest(t *testing.T, host string) {
-
-	t.Helper()
-
-	url := fmt.Sprintf("http://%s/v1/system/update/apply", host)
-
-	req, err := http.NewRequest(http.MethodPut, url, nil)
-	if err != nil {
-		log.Fatalf("Error creating request: %v", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Fatalf("Error sending request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	require.Equal(t, 202, resp.StatusCode)
 
 }
 
@@ -320,17 +215,21 @@ func waitForPort(t *testing.T, host string, timeout time.Duration) { // nolint:u
 
 func runAppStart(t *testing.T, containerName, appName string) {
 	t.Helper()
-	appCommand := fmt.Sprintf("arduino-app-cli app start %s", appName)
+	fixCmd := exec.Command("docker", "exec", containerName,
+		"chmod", "666", "/host/docker.sock")
+
+	outputFix, errFix := fixCmd.CombinedOutput()
+	require.NoError(t, errFix, "Failed to chmod docker socket: %s", outputFix)
+	appCommand := fmt.Sprintf("/usr/bin/arduino-app-cli app start %s", appName)
 
 	cmd := exec.Command(
 		"docker", "exec",
 		containerName,
-		"su", "-", "arduino",
-		"-c", appCommand,
+		"su", "arduino", "-c", appCommand,
 	)
 
 	output, err := cmd.CombinedOutput()
-	require.NoError(t, err, "start command filed: %s", output)
+	require.NoError(t, err, "Start command failed: %s", output)
 	t.Logf("Output comando 'start': %s", output)
 }
 
