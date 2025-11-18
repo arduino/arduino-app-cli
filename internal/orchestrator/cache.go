@@ -32,7 +32,7 @@ func CleanAppCache(
 			return ErrCleanCacheRunningApp
 		}
 		// We try to remove docker related resources at best effort
-		for range StopAndDestroyApp(ctx, app) {
+		for range StopAndDestroyApp(ctx, docker, app) {
 			// just consume the iterator
 		}
 	}

@@ -388,7 +388,7 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, app app.ArduinoApp,
 			return
 		}
 		if appStatus.Status != StatusStarting && appStatus.Status != StatusRunning {
-			yield(StreamMessage{error: fmt.Errorf("App %q is not running", app.Name)})
+			yield(StreamMessage{data: fmt.Sprintf("app %q is not running", app.Name)})
 			return
 		}
 
@@ -406,7 +406,6 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, app app.ArduinoApp,
 			}
 		})
 
-		fmt.Printf("this is the main sketch path:%s", app.MainSketchPath)
 		if app.MainSketchPath != nil {
 			// TODO: check that the app sketch is running before attempting to stop it.
 
@@ -901,11 +900,18 @@ func CloneApp(
 }
 
 func DeleteApp(ctx context.Context, dockerClient command.Cli, app app.ArduinoApp) error {
-	for msg := range StopApp(ctx, dockerClient, app) {
-		if msg.error != nil {
-			return fmt.Errorf("failed to stop app: %w", msg.error)
+
+	runningApp, err := getRunningApp(ctx, dockerClient.Client())
+	if err != nil {
+		return err
+	}
+	if runningApp != nil && runningApp.FullPath.EqualsTo(app.FullPath) {
+		// We try to remove docker related resources at best effort
+		for range StopAndDestroyApp(ctx, dockerClient, app) {
+			// just consume the iterator
 		}
 	}
+
 	return app.FullPath.RemoveAll()
 }
 
