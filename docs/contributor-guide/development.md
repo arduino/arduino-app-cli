@@ -25,7 +25,7 @@ Build the project (run once):
 
 - `go tool task init`
 - `go tool task build`
-- `go tool task generate:assets` to download locally the assets of the [Arduino Bricks](`https://github.com/arduino/app-bricks-py`)
+- `go tool task generate:assets` to download locally the assets of the [Arduino Bricks](https://github.com/arduino/app-bricks-py)
 
 Start the arduino-app-cli in daemon mode:
 
