@@ -381,16 +381,17 @@ func (s *Service) BrickUpdate(
 		}
 	}
 
+	appCurrent.Descriptor.Bricks[brickPosition].Model = brickModel
+	appCurrent.Descriptor.Bricks[brickPosition].Variables = brickVariables
+
 	for _, brickVar := range brickFromIndex.Variables {
 		if brickVar.IsRequired() {
-			if _, exist := req.Variables[brickVar.Name]; !exist {
+			newVariables := appCurrent.Descriptor.Bricks[brickPosition].Variables
+			if _, exist := newVariables[brickVar.Name]; !exist {
 				return fmt.Errorf("required variable %q must be set", brickVar.Name)
 			}
 		}
 	}
-
-	appCurrent.Descriptor.Bricks[brickPosition].Model = brickModel
-	appCurrent.Descriptor.Bricks[brickPosition].Variables = brickVariables
 
 	err := appCurrent.Save()
 	if err != nil {
