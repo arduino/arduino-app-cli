@@ -32,18 +32,15 @@ func TestStartApp(t *testing.T) {
 	const dockerImageName = "e2e-start-test-image"
 	fmt.Println("**** BUILD docker image (e2e-test-runner) *****")
 	buildDockerImage(t, dockerFile, dockerImageName, arch)
-	// TODO: aggiungere t.Cleanup per rimuovere l'immagine docker. da controllare se mi serve!
 
 	t.Run("Test App Start Command", func(t *testing.T) {
 
 		const containerA_Name = "e2e-test-runner"
-		const containerB_AppName = "examples:object-detection"
-
-		//todo devo creare un app senza sketch, ma con qualche brick magari! oppure usare un esempio?
+		const appToStart = "user:helloworld"
 
 		t.Cleanup(func() {
-			stopDockerContainer(t, containerA_Name)
-			stopAppContainer(t, containerB_AppName)
+			//stopDockerContainer(t, containerA_Name)
+			//stopAppContainer(t, appToStart)
 		})
 
 		fmt.Println("**** RUN docker image (board container) *****")
@@ -51,17 +48,20 @@ func TestStartApp(t *testing.T) {
 
 		waitForPort(t, daemonHost, 20*time.Second)
 
-		fmt.Printf("**** Telling e2e-test-runner to start app '%s' *****\n", containerB_AppName)
-		runAppStart(t, containerA_Name, containerB_AppName)
+		fmt.Println("**** Creating user app 'user:helloworld' *****")
+		postCreateApp(t, daemonHost)
 
-		fmt.Printf("**** Verifying on HOST if '%s' (Container B) is running *****\n", containerB_AppName)
+		fmt.Printf("**** Telling e2e-test-runner to start app '%s' *****\n", appToStart)
+		runAppStart(t, containerA_Name, appToStart)
+
+		fmt.Printf("**** Verifying on HOST if '%s' ( app to start) is running *****\n", appToStart)
 
 		time.Sleep(1 * time.Second)
 
-		isRunning := checkContainerRunningOnHost(t, containerB_AppName)
+		isRunning := checkContainerRunningOnHost(t, appToStart)
 
-		require.True(t, isRunning, "Il container B (%s) not foud", containerB_AppName)
+		require.True(t, isRunning, "Il container B (%s) not foud", appToStart)
 
-		fmt.Printf("Success: e2e-test-runner successfully launched Container B (%s) on host.\n", containerB_AppName)
+		fmt.Printf("Success: e2e-test-runner successfully launched  app to start (%s) on host.\n", appToStart)
 	})
 }

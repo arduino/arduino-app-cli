@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"iter"
 	"log"
 	"net"
@@ -118,6 +119,7 @@ func startDockerContainer(t *testing.T, containerName string, containerImageName
 		"-p", "8800:8800",
 		"--privileged",
 		"--cgroupns=host",
+		"--network", "host",
 		"-v", "/sys/fs/cgroup:/sys/fs/cgroup:rw",
 		"-v", "/var/run/docker.sock:/host/docker.sock",
 		"-e", "DOCKER_HOST=unix:///host/docker.sock",
@@ -252,4 +254,26 @@ func checkContainerRunningOnHost(t *testing.T, appContainerName string) bool {
 func stopAppContainer(t *testing.T, appContainerName string) {
 	t.Helper()
 	stopDockerContainer(t, appContainerName)
+}
+
+func postCreateApp(t *testing.T, host string) {
+	t.Helper()
+
+	url := fmt.Sprintf("http://%s/v1/apps?skip-python=false&skip-sketch=true", host)
+
+	payload := `{"name": "HelloWorld","description": "My HelloWorld description","icon": ""}`
+	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(payload))
+	require.NoError(t, err)
+
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, 200, resp.StatusCode)
+
+	body, _ := io.ReadAll(resp.Body)
+	t.Logf("Response body: %s", body)
 }
