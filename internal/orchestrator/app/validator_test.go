@@ -2,6 +2,9 @@ package app
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,59 +22,120 @@ func TestValidateAppDescriptorBricks(t *testing.T) {
 
 	testCases := []struct {
 		name          string
-		filename      string
+		yamlContent   string
 		expectedError error
 	}{
 		{
-			name:          "valid with all required filled",
-			filename:      "all-required-app.yaml",
+			name: "valid with all required filled",
+			yamlContent: `
+name: App ok
+description: App ok
+bricks:
+  - arduino:arduino_cloud:
+      variables:
+        ARDUINO_DEVICE_ID: "my-device-id"
+        ARDUINO_SECRET: "my-secret"
+`,
 			expectedError: nil,
 		},
 		{
-			name:          "valid with missing bricks",
-			filename:      "no-bricks-app.yaml",
+			name: "valid with missing bricks",
+			yamlContent: `
+name: App with no bricks
+description: App with no bricks description
+`,
 			expectedError: nil,
 		},
 		{
-			name:          "valid with empty list of bricks",
-			filename:      "empty-bricks-app.yaml",
+			name: "valid with empty list of bricks",
+			yamlContent: `
+name: App with empty bricks
+description: App with empty bricks
+
+bricks: []
+`,
 			expectedError: nil,
 		},
 		{
-			name:          "valid if required variable is empty string",
-			filename:      "empty-required-app.yaml",
+			name: "valid if required variable is empty string",
+			yamlContent: `
+name: App with an empty variable
+description: App with an empty variable
+bricks:
+  - arduino:arduino_cloud:
+      variables:
+        ARDUINO_DEVICE_ID: "my-device-id"
+        ARDUINO_SECRET:
+`,
 			expectedError: nil,
 		},
 		{
-			name:     "invalid if required variable is omitted",
-			filename: "omitted-required-app.yaml",
+			name: "invalid if required variable is omitted",
+			yamlContent: `
+name: App with no required variables
+description: App with no required variables
+bricks:
+  - arduino:arduino_cloud
+`,
 			expectedError: errors.Join(
 				errors.New("variable \"ARDUINO_DEVICE_ID\" is required by brick \"arduino:arduino_cloud\""),
 				errors.New("variable \"ARDUINO_SECRET\" is required by brick \"arduino:arduino_cloud\""),
 			),
 		},
 		{
-			name:          "invalid if a required variable among two is omitted",
-			filename:      "omitted-mixed-required-app.yaml",
+			name: "invalid if a required variable among two is omitted",
+			yamlContent: `
+name: App only one required variable filled
+description: App only one required variable filled
+bricks:
+  - arduino:arduino_cloud:
+      variables:
+        ARDUINO_DEVICE_ID: "my-device-id"
+`,
 			expectedError: errors.New("variable \"ARDUINO_SECRET\" is required by brick \"arduino:arduino_cloud\""),
 		},
 		{
-			name:          "invalid if brick id not found",
-			filename:      "not-found-brick-app.yaml",
+			name: "invalid if brick id not found",
+			yamlContent: `
+name: App no existing brick
+description: App no existing brick
+bricks:
+  - arduino:not_existing_brick:
+      variables:
+        ARDUINO_DEVICE_ID: "my-device-id"
+        ARDUINO_SECRET: "LAKDJ"
+`,
 			expectedError: errors.New("brick \"arduino:not_existing_brick\" not found"),
 		},
 		{
-			name:          "log a warning if variable does not exist in the brick",
-			filename:      "not-found-variable-app.yaml",
+			name: "log a warning if variable does not exist in the brick",
+			yamlContent: `
+name: App with non existing variable
+description: App with non existing variable
+bricks:
+  - arduino:arduino_cloud:
+      variables:
+        NOT_EXISTING_VARIABLE: "this-is-a-not-existing-variable-for-the-brick"
+        ARDUINO_DEVICE_ID: "my-device-id"
+        ARDUINO_SECRET: "my-secret"
+`,
 			expectedError: nil,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			appDescriptor, err := ParseDescriptorFile(paths.New("testdata/validator/" + tc.filename))
+			tempDir := t.TempDir()
+			err := paths.New(tempDir).MkdirAll()
+			require.NoError(t, err)
+			appYaml := paths.New(tempDir, "app.yaml")
+			err = os.WriteFile(appYaml.String(), []byte(tc.yamlContent), 0600)
 			require.NoError(t, err)
 
+			appDescriptor, err := ParseDescriptorFile(appYaml)
+			require.NoError(t, err)
+
+			// Validate the bricks
 			err = ValidateBricks(appDescriptor, bricksIndex)
 			if tc.expectedError == nil {
 				assert.NoError(t, err, "Expected no validation errors")
@@ -81,4 +145,22 @@ func TestValidateAppDescriptorBricks(t *testing.T) {
 			}
 		})
 	}
+}
+
+func writeYAMLToTempFile(t *testing.T, yamlContent string) *paths.Path {
+	// Create a temporary directory
+	tempDir, err := os.MkdirTemp("", "validator_test_*")
+	require.NoError(t, err)
+
+	// Clean up the temporary directory after the test
+	t.Cleanup(func() {
+		os.RemoveAll(tempDir)
+	})
+
+	// Write YAML content to a temporary file
+	yamlFile := filepath.Join(tempDir, "app.yaml")
+	err = os.WriteFile(yamlFile, []byte(strings.TrimSpace(yamlContent)), 0644)
+	require.NoError(t, err)
+
+	return paths.New(yamlFile)
 }
