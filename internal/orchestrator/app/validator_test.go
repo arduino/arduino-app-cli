@@ -14,7 +14,7 @@ import (
 
 func TestValidateAppDescriptorBricks(t *testing.T) {
 	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(paths.New("testdata/validator"))
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.NotNil(t, bricksIndex)
 
 	testCases := []struct {

@@ -10,10 +10,9 @@ import (
 
 // ValidateBricks checks that all bricks referenced in the given AppDescriptor exist in the provided BricksIndex,
 // It collects and returns all validation errors as a single joined error, allowing the caller to see all issues at once rather than stopping at the first error.
-// If the index or the app is nil, validation is skipped and nil is returned.
 func ValidateBricks(a AppDescriptor, index *bricksindex.BricksIndex) error {
 	if index == nil {
-		return nil
+		return fmt.Errorf("bricks index cannot be nil")
 	}
 
 	var allErrors error
@@ -28,6 +27,7 @@ func ValidateBricks(a AppDescriptor, index *bricksindex.BricksIndex) error {
 		for appBrickVariableName := range appBrick.Variables {
 			_, exist := indexBrick.GetVariable(appBrickVariableName)
 			if !exist {
+				// TODO: we should return warnings
 				slog.Warn("variable is referenced but not declared in the brick configuration", "variable", appBrickVariableName, "brick", indexBrick.ID)
 			}
 		}
