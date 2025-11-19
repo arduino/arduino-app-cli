@@ -151,7 +151,6 @@ bricks:
 			appDescriptor, err := ParseDescriptorFile(appYaml)
 			require.NoError(t, err)
 
-			// Validate the bricks
 			err = ValidateBricks(appDescriptor, bricksIndex)
 			if tc.expectedError == nil {
 				assert.NoError(t, err, "Expected no validation errors")

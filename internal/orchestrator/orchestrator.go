@@ -453,12 +453,6 @@ func RestartApp(
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		err := app.ValidateBricks(appToStart.Descriptor, bricksIndex)
-		if err != nil {
-			yield(StreamMessage{error: err})
-			return
-		}
-
 		runningApp, err := getRunningApp(ctx, docker.Client())
 		if err != nil {
 			yield(StreamMessage{error: err})
