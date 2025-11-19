@@ -283,7 +283,7 @@ func (s *Service) BrickCreate(
 			return fmt.Errorf("variable %q does not exist on brick %q", name, brick.ID)
 		}
 		if value.IsRequired() && reqValue == "" {
-			return fmt.Errorf("requried variable %q cannot be empty", name)
+			return fmt.Errorf("required variable %q cannot be empty", name)
 		}
 	}
 
