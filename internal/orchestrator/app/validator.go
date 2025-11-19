@@ -28,7 +28,7 @@ func ValidateBricks(a AppDescriptor, index *bricksindex.BricksIndex) error {
 			_, exist := indexBrick.GetVariable(appBrickVariableName)
 			if !exist {
 				// TODO: we should return warnings
-				slog.Warn("variable is referenced but not declared in the brick configuration", "variable", appBrickVariableName, "brick", indexBrick.ID)
+				slog.Warn("[skip] variable does not exist into the brick definition", "variable", appBrickVariableName, "brick", indexBrick.ID)
 			}
 		}
 

@@ -213,7 +213,7 @@ func HandleBrickUpdates(
 		req.ID = id
 		err = brickService.BrickUpdate(req, app)
 		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
+			slog.Error("Unable to update the brick", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to update the brick"})
 
 			return
