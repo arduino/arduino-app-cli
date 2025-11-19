@@ -1,4 +1,0 @@
-name: App with no required variables
-description: App with no required variables
-bricks:
-  - arduino:arduino_cloud

@@ -3,8 +3,6 @@ package app
 import (
 	"errors"
 	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,9 +14,27 @@ import (
 )
 
 func TestValidateAppDescriptorBricks(t *testing.T) {
-	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(paths.New("testdata/validator"))
-	require.NoError(t, err)
-	require.NotNil(t, bricksIndex)
+	bricksIndex := &bricksindex.BricksIndex{
+		Bricks: []bricksindex.Brick{
+			{
+				ID:          "arduino:arduino_cloud",
+				Name:        "Arduino Cloud",
+				Description: "Connects to Arduino Cloud",
+				Variables: []bricksindex.BrickVariable{
+					{
+						Name:         "ARDUINO_DEVICE_ID",
+						Description:  "Arduino Cloud Device ID",
+						DefaultValue: "", // Required (no default value)
+					},
+					{
+						Name:         "ARDUINO_SECRET",
+						Description:  "Arduino Cloud Secret",
+						DefaultValue: "", // Required (no default value)
+					},
+				},
+			},
+		},
+	}
 
 	testCases := []struct {
 		name          string
@@ -145,22 +161,4 @@ bricks:
 			}
 		})
 	}
-}
-
-func writeYAMLToTempFile(t *testing.T, yamlContent string) *paths.Path {
-	// Create a temporary directory
-	tempDir, err := os.MkdirTemp("", "validator_test_*")
-	require.NoError(t, err)
-
-	// Clean up the temporary directory after the test
-	t.Cleanup(func() {
-		os.RemoveAll(tempDir)
-	})
-
-	// Write YAML content to a temporary file
-	yamlFile := filepath.Join(tempDir, "app.yaml")
-	err = os.WriteFile(yamlFile, []byte(strings.TrimSpace(yamlContent)), 0644)
-	require.NoError(t, err)
-
-	return paths.New(yamlFile)
 }

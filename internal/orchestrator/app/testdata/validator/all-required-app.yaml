@@ -1,7 +1,0 @@
-name: App ok
-description: App ok
-bricks:
-  - arduino:arduino_cloud:
-      variables:
-        ARDUINO_DEVICE_ID: "my-device-id"
-        ARDUINO_SECRET: "my-secret"

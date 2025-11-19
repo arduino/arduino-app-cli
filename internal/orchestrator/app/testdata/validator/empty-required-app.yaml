@@ -1,7 +1,0 @@
-name: App with an empty variable
-description: App withan empty variable
-bricks:
-  - arduino:arduino_cloud:
-      variables:
-        ARDUINO_DEVICE_ID: "my-device-id"
-        ARDUINO_SECRET:
