@@ -157,6 +157,15 @@ If this becomes technically impossible in the future, we can then add a more spe
 
 4. Check the use case of the Figma where we go to EI and come back with a model
 
-# Changes from the current model/brick definition
-Put in this section changes to brick, model and app configuration files.
+# Proposed Changes to Bricks and Models Configuration
+This section details the proposed changes to the current implementation.
+
+A Model definition contains a list of categories.
+
+A Brick definition containes a list of supported categories supported and a default_mode_name.
+ 
+
+![Model](model.png)
+![Brick](brick.png)
+![App](app.png)
 
