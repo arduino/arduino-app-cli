@@ -452,7 +452,6 @@ func RestartApp(
 	return func(yield func(StreamMessage) bool) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
-
 		runningApp, err := getRunningApp(ctx, docker.Client())
 		if err != nil {
 			yield(StreamMessage{error: err})

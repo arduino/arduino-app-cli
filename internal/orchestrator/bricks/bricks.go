@@ -282,13 +282,13 @@ func (s *Service) BrickCreate(
 		if !exist {
 			return fmt.Errorf("variable %q does not exist on brick %q", name, brick.ID)
 		}
-		if value.DefaultValue == "" && reqValue == "" {
-			return fmt.Errorf("variable %q cannot be empty", name)
+		if value.IsRequired() && reqValue == "" {
+			return fmt.Errorf("requried variable %q cannot be empty", name)
 		}
 	}
 
 	for _, brickVar := range brick.Variables {
-		if brickVar.DefaultValue == "" {
+		if brickVar.IsRequired() {
 			if _, exist := req.Variables[brickVar.Name]; !exist {
 				slog.Warn("[Skip] a required variable is not set by user", "variable", brickVar.Name, "brick", brickVar.Name)
 			}
@@ -335,9 +335,13 @@ func (s *Service) BrickUpdate(
 	req BrickCreateUpdateRequest,
 	appCurrent app.ArduinoApp,
 ) error {
+	_, present := s.bricksIndex.FindBrickByID(req.ID)
+	if !present {
+		return fmt.Errorf("brick %q not found into the brick index", req.ID)
+	}
 	index := slices.IndexFunc(appCurrent.Descriptor.Bricks, func(b app.Brick) bool { return b.ID == req.ID })
 	if index == -1 {
-		return fmt.Errorf("brick not found with id %s", req.ID)
+		return fmt.Errorf("brick %q not found into the bricks of the app", req.ID)
 	}
 	brickID := appCurrent.Descriptor.Bricks[index].ID
 	brickVariables := appCurrent.Descriptor.Bricks[index].Variables
@@ -356,15 +360,16 @@ func (s *Service) BrickUpdate(
 	}
 	brick, present := s.bricksIndex.FindBrickByID(brickID)
 	if !present {
-		return fmt.Errorf("brick not found with id %s", brickID)
+		return fmt.Errorf("brick %q not found in the brick index", brickID)
 	}
+
 	for name, updateValue := range req.Variables {
 		value, exist := brick.GetVariable(name)
 		if !exist {
-			return errors.New("variable does not exist")
+			return fmt.Errorf("variable %q does not exist on brick %q", name, brick.ID)
 		}
-		if value.DefaultValue == "" && updateValue == "" {
-			return errors.New("variable default value cannot be empty")
+		if value.IsRequired() && updateValue == "" {
+			return fmt.Errorf("required variable %q cannot be empty", name)
 		}
 		updated := false
 		for _, v := range brickVariables {
@@ -374,9 +379,16 @@ func (s *Service) BrickUpdate(
 				break
 			}
 		}
-
 		if !updated {
 			brickVariables[name] = updateValue
+		}
+	}
+
+	for _, brickVar := range brick.Variables {
+		if brickVar.IsRequired() {
+			if _, exist := req.Variables[brickVar.Name]; !exist {
+				return fmt.Errorf("required variable %q must be set", brickVar.Name)
+			}
 		}
 	}
 
