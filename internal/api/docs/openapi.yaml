@@ -1091,6 +1091,8 @@ paths:
           description: Successful response
         "409":
           $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
       summary: Stop the upgrade process in background
       tags:
       - System

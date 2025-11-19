@@ -836,6 +836,7 @@ Contains a JSON object with the details of an error.
 			Tags:        []Tag{SystemTag},
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusConflict, Reference: "#/components/responses/Conflict"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
 			},
 		},
 		{
