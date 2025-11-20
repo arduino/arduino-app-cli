@@ -1,17 +1,29 @@
 # Arduino App specification
 
-This is the specification for the `Arduino App` (from now on called App) format to be used with `arduino-app-cli` and `Arduino App Lab`.
+This is the specification for the Arduino App format to be used with `arduino-app-cli` and `Arduino App Lab`.
+An Arduino App is a combination of multiple pieces of software that interacts with each other as single application. In particular an Arduino App may be composed by:
+
+- An Arduino Sketch that runs on a microcontroller (MCU) which performs real-time tasks interacting with sensors and actuators.
+- A Python program that runs on a Linux OS which performs CPU intensive tasks (like network API, database, GUI, etc.).
+- One or more AI models and runners.
+- Docker containers.
+
+The list above is not meant to be complete, and other type of components may be added in the future.
+The Arduino App CLI and the Arduino AppLab Desktop IDE offers a simplified and automated way to deploy an Arduino App, taking care of all the steps needed to run the whole application (including building and uploading the firmware, or handling Docker containers).
 
 # Arduino App Folder structure
 
-An App is a self-contained folder that includes the following components:
+An Arduino App is a folder including:
 
-- `app.yaml` (mandatory) the file descriptor of the app in YAML format.
-- `sketch` (optional) the folder containing an Arduino [Sketch](https://arduino.github.io/arduino-cli/1.3/sketch-specification/)).
-- `python` (optional) the folder containing the Python code.
+- The `app.yaml` file: this is the descriptor of the application in YAML format.
+- A `sketch` folder: containing an [Arduino Sketch](https://arduino.github.io/arduino-cli/1.3/sketch-specification/)).
+- A `python` folder: containing Python code.
+- A `docs` folder reserved for the app documentation.
+- A `README.md` file
 
-At least one on `sketch` or `python` folder must be present.
-The App must be self-contained (it does not contain references to external files) because this means it can be exported, shared, or zipped easily.
+The `app.yaml` file and at least one of the `sketch` or `python` folder must be present.
+
+The Arduino App must be self-contained (it does not contain references to external files) because this means it can be exported, shared, or zipped easily.
 
 The user-defined apps are saved into `/home/arduino/ArduinoApps` folder.
 The builtin-apps are stored into `home/arduino/.local/share/arduino-app-cli/examples` folder.
@@ -29,20 +41,15 @@ my-app/
         main.py
 ```
 
-## `README.md` file
-
-An (optional) readme file in markdown.
-The link to local resources must be in the same folder of the app. For example, a png inside the folder `myapp/docs/my-banner.png` can be referenced using ![My App](docs/my-banner.png) syntax.
-
 ### `app.yaml` file descriptor
 
-The `app.yaml` (or `app.yml`) is a YAML file that describes an App.
+The `app.yaml` is a YAML file that describes an App. The field available in this file are:
 
-- `name`: (optional) a short name of the app.
-- `description`: (optional) a brief description of the app.
-- `icon`: (optional) the emoji of the app
-- `ports`: (optional) a list of ports to be exposed externally. If not given a random port is opened (if necessary).
-- `bricks` (optional) a list of bricks used by the app with its variable definitions.
+- `name`: A short name of the app.
+- `description`: A brief description of the app.
+- `icon`: The emoji of the app.
+- `ports`: A list of TCP ports to be exposed externally. If not given a random port is opened (if necessary).
+- `bricks`: A list of bricks used by the app with its variable definitions.
 
 Example:
 
@@ -64,19 +71,22 @@ bricks:
       model: yolo
 ```
 
-### `sketch` sub folder
+### `README.md` file
 
-The content of the `sketch` subfolder contains the Ardiuno skecth.
-It must omply with the [Sketch specification](https://arduino.github.io/arduino-cli/1.3/sketch-specification/).
+This is a readme file in markdown format. Resources in the app may be linked directly, in particular images or other documentation pages in the `docs` folder.
 
-If present it must contain the followign files:
+### `sketch` folder
 
-- `sketch.ino`
-- `sketch.yaml` that is compliant to the [Sketch project file](https://arduino.github.io/arduino-cli/1.3/sketch-project-file/)
+The `sketch` subfolder contains an Arduino Skecth, it must comply with the [Sketch specification](https://arduino.github.io/arduino-cli/1.3/sketch-specification/).
 
-### `python` sub folder
+If present it must contain at least the following files:
 
-The content of the `python` contains the python code.
+- `sketch.ino`: The main sketch source code.
+- `sketch.yaml`: The sketch project file (more info in the [Sketch Project file specification](https://arduino.github.io/arduino-cli/1.3/sketch-project-file/)).
+
+### `python` folder
+
+The `python` contains the Python code.
 
 If present, it must contain the `main.py` with the python code of the main.
 Optionally, a `requirements.txt` with additional python package dependencies to be installed.
