@@ -24,6 +24,8 @@ import (
 
 	"github.com/jub0bs/cors"
 	"github.com/spf13/cobra"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/internal/api"
@@ -120,12 +122,15 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 		panic(err)
 	}
 	apiSrv = corsMiddlware.Wrap(apiSrv)
+	apiSrv = httprecover.RecoverPanic(apiSrv)
 
 	// Start the HTTP server
 	address := "127.0.0.1:" + daemonPort
 	httpSrv := http.Server{
-		Addr:              address,
-		Handler:           httprecover.RecoverPanic(apiSrv),
+		Addr: address,
+		Handler: h2c.NewHandler(apiSrv, &http2.Server{
+			MaxConcurrentStreams: 250,
+		}),
 		ReadHeaderTimeout: 60 * time.Second,
 	}
 	go func() {
