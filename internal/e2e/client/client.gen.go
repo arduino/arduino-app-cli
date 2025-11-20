@@ -53,7 +53,11 @@ type AIModelItem struct {
 }
 
 // AIModelLite defines model for AIModelLite.
-type AIModelLite = map[string]interface{}
+type AIModelLite struct {
+	Description *string `json:"description,omitempty"`
+	Id          *string `json:"id,omitempty"`
+	Name        *string `json:"name,omitempty"`
+}
 
 // AIModelsListResult defines model for AIModelsListResult.
 type AIModelsListResult struct {

@@ -30,7 +30,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
@@ -116,16 +115,16 @@ func TestBricksDetails(t *testing.T) {
 			},
 		}
 
-		expectedModelLiteInfo := []modelsindex.AIModelLite{
+		expectedModelLiteInfo := []client.AIModelLite{
 			{
-				ID:                "mobilenet-image-classification",
-				Name:              "General purpose image classification",
-				ModuleDescription: "General purpose image classification model based on MobileNetV2. This model is trained on the ImageNet dataset and can classify images into 1000 categories.",
+				Id:          f.Ptr("mobilenet-image-classification"),
+				Name:        f.Ptr("General purpose image classification"),
+				Description: f.Ptr("General purpose image classification model based on MobileNetV2. This model is trained on the ImageNet dataset and can classify images into 1000 categories."),
 			},
 			{
-				ID:                "person-classification",
-				Name:              "Person classification",
-				ModuleDescription: "Person classification model based on WakeVision dataset. This model is trained to classify images into two categories: person and not-person.",
+				Id:          f.Ptr("person-classification"),
+				Name:        f.Ptr("Person classification"),
+				Description: f.Ptr("Person classification model based on WakeVision dataset. This model is trained to classify images into two categories: person and not-person."),
 			}}
 		response, err := httpClient.GetBrickDetailsWithResponse(t.Context(), validBrickID, func(ctx context.Context, req *http.Request) error { return nil })
 		require.NoError(t, err)

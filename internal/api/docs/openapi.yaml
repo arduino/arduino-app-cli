@@ -1172,6 +1172,13 @@ components:
           type: string
       type: object
     AIModelLite:
+      properties:
+        description:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
       type: object
     AIModelsListResult:
       properties:

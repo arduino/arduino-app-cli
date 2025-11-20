@@ -54,9 +54,9 @@ type AIModel struct {
 }
 
 type AIModelLite struct {
-	ID                string `yaml:"-"`
-	Name              string `yaml:"name"`
-	ModuleDescription string `yaml:"description"`
+	ID                string `json:"id"`
+	Name              string `json:"name"`
+	ModuleDescription string `json:"description"`
 }
 
 type ModelsIndex struct {
