@@ -128,6 +128,12 @@ func HandleUpdateApply(updater *update.Manager) http.HandlerFunc {
 
 func HandleUpdateEvents(updater *update.Manager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Handle HEAD requests with erly return
+		if r.Method == http.MethodHead {
+			render.EncodeResponse(w, http.StatusOK, nil)
+			return
+		}
+
 		slog.Info("Client connected to SSE stream", slog.String("client", r.RemoteAddr), slog.String("path", r.URL.Path), slog.String("method", r.Method))
 		sseStream, err := render.NewSSEStream(context.WithValue(r.Context(), "remote_addr", r.RemoteAddr), w)
 		if err != nil {
