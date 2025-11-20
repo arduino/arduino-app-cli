@@ -123,6 +123,7 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 		Author:          "Arduino", // TODO: for now we only support our bricks
 		Category:        brick.Category,
 		Status:          "installed", // For now every Arduino brick are installed
+		ModelRequired:   brick.ModelRequired,
 		Variables:       variables,
 		ConfigVariables: configVariables,
 		ModelID:         modelID,
