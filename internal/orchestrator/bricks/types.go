@@ -20,12 +20,14 @@ type BrickListResult struct {
 }
 
 type BrickListItem struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Author      string `json:"author"`
-	Description string `json:"description"`
-	Category    string `json:"category"`
-	Status      string `json:"status"`
+	ID            string   `json:"id"`
+	Name          string   `json:"name"`
+	Author        string   `json:"author"`
+	Description   string   `json:"description"`
+	Category      string   `json:"category"`
+	Status        string   `json:"status"`
+	ModelRequired bool     `json:"model_required"`
+	Models        []string `json:"models"`
 }
 
 type AppBrickInstancesResult struct {
@@ -78,6 +80,7 @@ type BrickDetailsResult struct {
 	Description      string                   `json:"description"`
 	Category         string                   `json:"category"`
 	Status           string                   `json:"status"`
+	ModelRequired    bool                     `json:"model_required"`
 	Variables        map[string]BrickVariable `json:"variables,omitempty"`
 	Readme           string                   `json:"readme"`
 	ApiDocsPath      string                   `json:"api_docs_path"`

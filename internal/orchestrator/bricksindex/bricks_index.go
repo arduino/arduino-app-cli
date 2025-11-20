@@ -58,6 +58,7 @@ type Brick struct {
 	RequireModel              bool            `yaml:"require_model"`
 	Variables                 []BrickVariable `yaml:"variables,omitempty"`
 	Ports                     []string        `yaml:"ports,omitempty"`
+	ModelRequired             bool            `yaml:"model_required,omitempty"`
 	ModelName                 string          `yaml:"model_name,omitempty"`
 	MountDevicesIntoContainer bool            `yaml:"mount_devices_into_container,omitempty"`
 	RequiredDevices           []string        `yaml:"required_devices,omitempty"`

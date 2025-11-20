@@ -58,12 +58,16 @@ func (s *Service) List() (BrickListResult, error) {
 	res := BrickListResult{Bricks: make([]BrickListItem, len(s.bricksIndex.Bricks))}
 	for i, brick := range s.bricksIndex.Bricks {
 		res.Bricks[i] = BrickListItem{
-			ID:          brick.ID,
-			Name:        brick.Name,
-			Author:      "Arduino", // TODO: for now we only support our bricks
-			Description: brick.Description,
-			Category:    brick.Category,
-			Status:      "installed",
+			ID:            brick.ID,
+			Name:          brick.Name,
+			Author:        "Arduino", // TODO: for now we only support our bricks
+			Description:   brick.Description,
+			Category:      brick.Category,
+			Status:        "installed",
+			ModelRequired: brick.ModelRequired,
+			Models: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModel) string {
+				return m.ID
+			}),
 		}
 	}
 	return res, nil
@@ -198,17 +202,18 @@ func (s *Service) BricksDetails(id string, idProvider *app.IDProvider,
 		return BrickDetailsResult{}, fmt.Errorf("unable to get used by apps: %w", err)
 	}
 	return BrickDetailsResult{
-		ID:           id,
-		Name:         brick.Name,
-		Author:       "Arduino", // TODO: for now we only support our bricks
-		Description:  brick.Description,
-		Category:     brick.Category,
-		Status:       "installed", // For now every Arduino brick are installed
-		Variables:    variables,
-		Readme:       readme,
-		ApiDocsPath:  apiDocsPath,
-		CodeExamples: codeExamples,
-		UsedByApps:   usedByApps,
+		ID:            id,
+		Name:          brick.Name,
+		Author:        "Arduino", // TODO: for now we only support our bricks
+		Description:   brick.Description,
+		Category:      brick.Category,
+		ModelRequired: brick.ModelRequired,
+		Status:        "installed", // For now every Arduino brick are installed
+		Variables:     variables,
+		Readme:        readme,
+		ApiDocsPath:   apiDocsPath,
+		CodeExamples:  codeExamples,
+		UsedByApps:    usedByApps,
 		CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModel) AIModel {
 			return AIModel{
 				ID:          m.ID,
