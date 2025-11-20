@@ -141,7 +141,7 @@ func HandleUpdateEvents(updater *update.Manager) http.HandlerFunc {
 		}()
 
 		// Send an initial heartbeat to return a feedback to the client
-		sseStream.Send(render.SSEEvent{Type: "heartbeat"})
+		sseStream.Send(render.SSEEvent{Type: update.UpgradeLineEvent.String(), Data: "connected to update events stream"})
 
 		ch := updater.Subscribe()
 		defer updater.Unsubscribe(ch)
