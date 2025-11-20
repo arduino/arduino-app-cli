@@ -127,13 +127,17 @@ func HandleUpdateApply(updater *update.Manager) http.HandlerFunc {
 
 func HandleUpdateEvents(updater *update.Manager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		slog.Info("Client connected to SSE stream", slog.String("client", r.RemoteAddr))
 		sseStream, err := render.NewSSEStream(r.Context(), w)
 		if err != nil {
 			slog.Error("Unable to create SSE stream", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to create SSE stream"})
 			return
 		}
-		defer sseStream.Close()
+		defer func() {
+			sseStream.Close()
+			slog.Info("SSE stream closed", slog.String("client", r.RemoteAddr))
+		}()
 
 		ch := updater.Subscribe()
 		defer updater.Unsubscribe(ch)
@@ -142,9 +146,10 @@ func HandleUpdateEvents(updater *update.Manager) http.HandlerFunc {
 			select {
 			case event, ok := <-ch:
 				if !ok {
-					slog.Info("APT event channel closed, stopping SSE stream")
+					slog.Info("event channel closed, stopping SSE stream")
 					return
 				}
+				slog.Debug("Sending update event to SSE stream", slog.String("type", event.Type.String()), slog.String("client", r.RemoteAddr))
 				if event.Type == update.ErrorEvent {
 					err := event.GetError()
 					code := render.InternalServiceErr
@@ -163,6 +168,7 @@ func HandleUpdateEvents(updater *update.Manager) http.HandlerFunc {
 				}
 
 			case <-r.Context().Done():
+				slog.Info("context killed SSE stream", slog.String("client", r.RemoteAddr))
 				return
 			}
 		}
