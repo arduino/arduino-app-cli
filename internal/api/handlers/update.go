@@ -140,6 +140,9 @@ func HandleUpdateEvents(updater *update.Manager) http.HandlerFunc {
 			slog.Info("SSE stream closed", slog.String("client", r.RemoteAddr))
 		}()
 
+		// Send an initial heartbeat to return a feedback to the client
+		sseStream.Send(render.SSEEvent{Type: "heartbeat"})
+
 		ch := updater.Subscribe()
 		defer updater.Unsubscribe(ch)
 
