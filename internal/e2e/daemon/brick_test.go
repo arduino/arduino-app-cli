@@ -30,6 +30,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
@@ -115,6 +116,17 @@ func TestBricksDetails(t *testing.T) {
 			},
 		}
 
+		expectedModelLiteInfo := []modelsindex.AIModelLite{
+			{
+				ID:                "mobilenet-image-classification",
+				Name:              "General purpose image classification",
+				ModuleDescription: "General purpose image classification model based on MobileNetV2. This model is trained on the ImageNet dataset and can classify images into 1000 categories.",
+			},
+			{
+				ID:                "person-classification",
+				Name:              "Person classification",
+				ModuleDescription: "Person classification model based on WakeVision dataset. This model is trained to classify images into two categories: person and not-person.",
+			}}
 		response, err := httpClient.GetBrickDetailsWithResponse(t.Context(), validBrickID, func(ctx context.Context, req *http.Request) error { return nil })
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, response.StatusCode(), "status code should be 200 ok")
@@ -133,5 +145,7 @@ func TestBricksDetails(t *testing.T) {
 		require.NotEmpty(t, *response.JSON200.Readme)
 		require.NotNil(t, response.JSON200.UsedByApps, "UsedByApps should not be nil")
 		require.Equal(t, expectedUsedByApps, *(response.JSON200.UsedByApps))
+		require.NotNil(t, response.JSON200.Models, "Models should not be nil")
+		require.Equal(t, expectedModelLiteInfo, *(response.JSON200.Models))
 	})
 }

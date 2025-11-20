@@ -52,6 +52,9 @@ type AIModelItem struct {
 	Runner             *string            `json:"runner,omitempty"`
 }
 
+// AIModelLite defines model for AIModelLite.
+type AIModelLite = map[string]interface{}
+
 // AIModelsListResult defines model for AIModelsListResult.
 type AIModelsListResult struct {
 	Models *[]AIModelItem `json:"models"`
@@ -141,6 +144,7 @@ type BrickDetailsResult struct {
 	CodeExamples *[]CodeExample            `json:"code_examples"`
 	Description  *string                   `json:"description,omitempty"`
 	Id           *string                   `json:"id,omitempty"`
+	Models       *[]AIModelLite            `json:"models"`
 	Name         *string                   `json:"name,omitempty"`
 	Readme       *string                   `json:"readme,omitempty"`
 	Status       *string                   `json:"status,omitempty"`

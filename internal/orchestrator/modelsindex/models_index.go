@@ -53,6 +53,12 @@ type AIModel struct {
 	ModelConfiguration map[string]string `yaml:"model_configuration,omitempty"`
 }
 
+type AIModelLite struct {
+	ID                string `yaml:"-"`
+	Name              string `yaml:"name"`
+	ModuleDescription string `yaml:"description"`
+}
+
 type ModelsIndex struct {
 	models []AIModel
 }
@@ -78,6 +84,25 @@ func (m *ModelsIndex) GetModelsByBrick(brick string) []AIModel {
 	}
 	if len(matches) == 0 {
 		return nil
+	}
+	return matches
+}
+
+func (m *ModelsIndex) GetModelsLiteInfoByBrick(brick string) []AIModelLite {
+	var matches []AIModelLite
+	for i := range m.models {
+		if len(m.models[i].Bricks) > 0 && slices.Contains(m.models[i].Bricks, brick) {
+			matches = append(matches,
+				AIModelLite{
+					ID:                m.models[i].ID,
+					Name:              m.models[i].Name,
+					ModuleDescription: m.models[i].ModuleDescription,
+				},
+			)
+		}
+	}
+	if len(matches) == 0 {
+		return []AIModelLite{}
 	}
 	return matches
 }

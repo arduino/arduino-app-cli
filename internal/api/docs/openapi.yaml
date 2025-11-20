@@ -1171,6 +1171,8 @@ components:
         runner:
           type: string
       type: object
+    AIModelLite:
+      type: object
     AIModelsListResult:
       properties:
         models:
@@ -1314,6 +1316,11 @@ components:
           type: string
         id:
           type: string
+        models:
+          items:
+            $ref: '#/components/schemas/AIModelLite'
+          nullable: true
+          type: array
         name:
           type: string
         readme:

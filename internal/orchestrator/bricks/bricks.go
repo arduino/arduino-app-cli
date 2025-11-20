@@ -190,7 +190,6 @@ func (s *Service) BricksDetails(id string, idProvider *app.IDProvider,
 	if err != nil {
 		return BrickDetailsResult{}, fmt.Errorf("unable to get used by apps: %w", err)
 	}
-
 	return BrickDetailsResult{
 		ID:           id,
 		Name:         brick.Name,
@@ -203,6 +202,7 @@ func (s *Service) BricksDetails(id string, idProvider *app.IDProvider,
 		ApiDocsPath:  apiDocsPath,
 		CodeExamples: codeExamples,
 		UsedByApps:   usedByApps,
+		Models:       s.modelsIndex.GetModelsLiteInfoByBrick(brick.ID),
 	}, nil
 }
 
