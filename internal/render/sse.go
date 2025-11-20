@@ -39,7 +39,7 @@ type SSEErrorData struct {
 
 type SSEEvent struct {
 	Type string `json:"type"`
-	Data any    `json:"data"`
+	Data any    `json:"data,omitempty"`
 }
 
 func NewErrorEvent(data any) SSEEvent {
