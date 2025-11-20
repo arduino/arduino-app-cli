@@ -64,9 +64,6 @@ func (s *Service) List() (BrickListResult, error) {
 			Description: brick.Description,
 			Category:    brick.Category,
 			Status:      "installed",
-			Models: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModel) string {
-				return m.ID
-			}),
 		}
 	}
 	return res, nil
