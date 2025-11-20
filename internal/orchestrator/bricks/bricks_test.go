@@ -123,7 +123,7 @@ func TestBrickCreate(t *testing.T) {
 	})
 }
 
-func TestUdateBrick(t *testing.T) {
+func TestUpdateBrick(t *testing.T) {
 	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(paths.New("testdata"))
 	require.Nil(t, err)
 	brickService := NewService(nil, bricksIndex, nil)
