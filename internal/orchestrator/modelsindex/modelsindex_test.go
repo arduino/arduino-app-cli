@@ -72,7 +72,7 @@ func TestModelsIndex(t *testing.T) {
 
 	t.Run("it gets models lite by a brick", func(t *testing.T) {
 		model := modelsIndex.GetModelsLiteInfoByBrick("not-existing-brick")
-		assert.Nil(t, model)
+		assert.Empty(t, model)
 
 		model = modelsIndex.GetModelsLiteInfoByBrick("arduino:object_detection")
 		assert.Len(t, model, 1)
