@@ -16,6 +16,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -128,7 +129,7 @@ func HandleUpdateApply(updater *update.Manager) http.HandlerFunc {
 func HandleUpdateEvents(updater *update.Manager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		slog.Info("Client connected to SSE stream", slog.String("client", r.RemoteAddr))
-		sseStream, err := render.NewSSEStream(r.Context(), w)
+		sseStream, err := render.NewSSEStream(context.WithValue(r.Context(), "remote_addr", r.RemoteAddr), w)
 		if err != nil {
 			slog.Error("Unable to create SSE stream", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to create SSE stream"})

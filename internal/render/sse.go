@@ -114,11 +114,11 @@ func (s *SSEStream) loop() {
 	for {
 		select {
 		case <-s.ctx.Done():
-			slog.Debug("stream SSE request context done")
+			slog.Debug("stream SSE request context done", slog.Any("remote_addr", s.ctx.Value("remote_addr")))
 			return
 		case <-time.After(s.heartbeatInterval):
 			if err := s.heartbeat(); err != nil {
-				slog.Error("failed to send ping", slog.Any("error", err))
+				slog.Error("failed to send ping", slog.Any("error", err), slog.Any("remote_addr", s.ctx.Value("remote_addr")))
 				return
 			}
 		case event, canProduce := <-s.messageCh:
@@ -127,7 +127,7 @@ func (s *SSEStream) loop() {
 				return
 			}
 			if err := s.send(event); err != nil {
-				slog.Debug("failed to send SSE event", slog.String("event", event.Type), slog.Any("error", err))
+				slog.Debug("failed to send SSE event", slog.String("event", event.Type), slog.Any("error", err), slog.Any("remote_addr", s.ctx.Value("remote_addr")))
 				return
 			}
 		}
