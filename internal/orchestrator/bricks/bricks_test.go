@@ -149,7 +149,7 @@ func TestUdateBrick(t *testing.T) {
 		require.Equal(t, "variable \"NON_EXISTING_VARIABLE\" does not exist on brick \"arduino:arduino_cloud\"", err.Error())
 	})
 
-	// TODO: allow to set an empty "" varaible
+	// TODO: allow to set an empty "" variable
 	t.Run("fails if a required variable is set empty", func(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"ARDUINO_DEVICE_ID": "",
