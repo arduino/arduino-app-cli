@@ -676,7 +676,7 @@ type AppDetailedBrick struct {
 	ID            string `json:"id" required:"true"`
 	Name          string `json:"name" required:"true"`
 	Category      string `json:"category,omitempty"`
-	ModelRequired bool   `json:"model_required,omitempty"`
+	ModelRequired bool   `json:"require_model,omitempty"`
 }
 
 func AppDetails(
