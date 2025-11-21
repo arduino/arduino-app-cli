@@ -1204,6 +1204,8 @@ components:
           type: string
         name:
           type: string
+        require_model:
+          type: boolean
       required:
       - id
       - name
@@ -1332,6 +1334,8 @@ components:
           type: string
         readme:
           type: string
+        require_model:
+          type: boolean
         status:
           type: string
         used_by_apps:
@@ -1365,6 +1369,8 @@ components:
           type: string
         name:
           type: string
+        require_model:
+          type: boolean
         status:
           type: string
         variables:
@@ -1386,6 +1392,8 @@ components:
           type: string
         name:
           type: string
+        require_model:
+          type: boolean
         status:
           type: string
       type: object

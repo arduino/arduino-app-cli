@@ -37,7 +37,7 @@ func TestGenerateBricksIndexFromFile(t *testing.T) {
 	require.True(t, found)
 	require.Equal(t, "Image Classification", b.Name)
 	require.Equal(t, "mobilenet-image-classification", b.ModelName)
-	require.True(t, b.ModelRequired)
+	require.True(t, b.RequireModel)
 	require.Len(t, b.Variables, 2)
 	require.Equal(t, "CUSTOM_MODEL_PATH", b.Variables[0].Name)
 	require.Equal(t, "/opt/models/ei/", b.Variables[0].DefaultValue)
