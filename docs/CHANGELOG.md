@@ -45,7 +45,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 - Improve `arduino-app-cli restart` command (#37)
 - Return adb stdout/err in case of error (#40)
-- Add `used_by_apps` field to the `GET /v1/bricks/{brickID}` (#30()
+- Add `used_by_apps` field to the `GET /v1/bricks/{brickID}` (#30)
 
 ### Fixed
 
