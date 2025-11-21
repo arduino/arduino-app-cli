@@ -156,7 +156,7 @@ func TestBricksIndex(t *testing.T) {
   - name: EI_V_ANOMALY_DETECTION_MODEL
     default_value: /models/ootb/ei/concrete-crack-anomaly-detection.eim
     description: path to the model file
-- id: arduino:fake_no_model
+- id: arduino:missing-model-require
   name: Camera Scanner
   description: Scans a camera for barcodes and QR codes
   require_container: false
@@ -178,7 +178,7 @@ func TestBricksIndex(t *testing.T) {
 	require.True(t, found)
 	require.Equal(t, "Image Classification", b_ic.Name)
 	require.Equal(t, "mobilenet-image-classification", b_ic.ModelName)
-	require.True(t, b_ic.ModelRequired)
+	require.True(t, b_ic.RequireModel)
 	require.Len(t, b_ic.Variables, 2)
 	require.Equal(t, "CUSTOM_MODEL_PATH", b_ic.Variables[0].Name)
 	require.Equal(t, "/opt/models/ei/", b_ic.Variables[0].DefaultValue)
@@ -191,9 +191,9 @@ func TestBricksIndex(t *testing.T) {
 
 	b_db, found := index.FindBrickByID("arduino:dbstorage_tsstore")
 	require.True(t, found)
-	require.False(t, b_db.ModelRequired)
+	require.False(t, b_db.RequireModel)
 
-	b_fake, found := index.FindBrickByID("arduino:fake_no_model")
+	bNoRequiredModel, found := index.FindBrickByID("arduino:missing-model-require")
 	require.True(t, found)
-	require.False(t, b_fake.ModelRequired)
+	require.False(t, bNoRequiredModel.RequireModel)
 }

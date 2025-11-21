@@ -83,7 +83,7 @@ func TestBricksList(t *testing.T) {
 		require.Equal(t, bIdx.Description, *brick.Description)
 		require.Equal(t, "Arduino", *brick.Author)
 		require.Equal(t, "installed", *brick.Status)
-		require.Equal(t, bIdx.ModelRequired, *brick.RequireModel)
+		require.Equal(t, bIdx.RequireModel, *brick.RequireModel)
 	}
 }
 
