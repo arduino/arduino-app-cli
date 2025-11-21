@@ -15,7 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - pkg/board/board: expose the `serial_number` in network mode [#63](https://github.com/arduino/arduino-app-cli/pull/63)
 - pkg/board/remote/adb: return `failed to create command` error when `GetCmd` fails [#79](https://github.com/arduino/arduino-app-cli/pull/79)
 - Update `arduino-cli` dependencies [#86](https://github.com/arduino/arduino-app-cli/pull/86)
-- Add `code` field with `NO_INTERNET_CONNECTION`, `OPERATION_IN_PROGRESS` and `UNKNOWN_ERROR` values in the update handlers and CLI [#62](https://github.com/arduino/arduino-app-cl/pull/62)
+- Add `code` field with `NO_INTERNET_CONNECTION`, `OPERATION_IN_PROGRESS` and `UNKNOWN_ERROR` values in the update handlers and CLI [#62](https://github.com/arduino/arduino-app-cli/pull/62)
 - Refactor README.md and contribution guidelines [#58](https://github.com/arduino/arduino-app-cli/pull/58)
 - Return detailed `error running needrestart command` error information during updates [#95](https://github.com/arduino/arduino-app-cli/pull/95)
 
