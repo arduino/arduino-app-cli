@@ -158,13 +158,14 @@ type BrickDetailsResult struct {
 
 // BrickInstance defines model for BrickInstance.
 type BrickInstance struct {
-	Author          *string                `json:"author,omitempty"`
-	Category        *string                `json:"category,omitempty"`
-	ConfigVariables *[]BrickConfigVariable `json:"config_variables,omitempty"`
-	Id              *string                `json:"id,omitempty"`
-	Model           *string                `json:"model,omitempty"`
-	Name            *string                `json:"name,omitempty"`
-	Status          *string                `json:"status,omitempty"`
+	Author           *string                `json:"author,omitempty"`
+	Category         *string                `json:"category,omitempty"`
+	CompatibleModels *[]AIModel             `json:"compatible_models,omitempty"`
+	ConfigVariables  *[]BrickConfigVariable `json:"config_variables,omitempty"`
+	Id               *string                `json:"id,omitempty"`
+	Model            *string                `json:"model,omitempty"`
+	Name             *string                `json:"name,omitempty"`
+	Status           *string                `json:"status,omitempty"`
 
 	// Variables Deprecated: use config_variables instead. This field is kept for backward compatibility.
 	Variables *map[string]string `json:"variables,omitempty"`

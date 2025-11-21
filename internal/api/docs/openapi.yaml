@@ -1350,6 +1350,10 @@ components:
           type: string
         category:
           type: string
+        compatible_models:
+          items:
+            $ref: '#/components/schemas/AIModel'
+          type: array
         config_variables:
           items:
             $ref: '#/components/schemas/BrickConfigVariable'
