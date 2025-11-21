@@ -63,7 +63,3 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ## [0.6.3] - 2025-10-27 [YANKED]
 
 The index of the zephyr core is wrong, so the update to the next version fails.
-
-
-Other releases:
-- [0.1.13] - 2025-08-07. Version of the `arduino-app-cli` present into the fista batch of board (R0).
