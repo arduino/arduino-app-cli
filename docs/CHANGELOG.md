@@ -7,16 +7,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ## [Unreleased]
 
 ### Added
+- Add  `arduino-app-cli app clean-cache <app-id>` command (#59)
+- pkg/board/board: expose the `serial_number` in network mode (#63)
+- Add `arduino-avahi-serial.service` systemd service which runs once adding the `serial_number` to the avahi daemon (#48)
+- Add the `daemon_version` in the  `arduino-app-cli version` command (#49)
+- Improve the help message of `arduino-app-cli` (#61)
 
 ### Changed
-
-### Deprecated
+- Update `arduino-cli` dependencies (#86)
+- Refactor README.md + contribution guidelines (#58)
 
 ### Removed
+- Remove `arduino-app-cli app ps` command (#65)
 
 ### Fixed
-
-### Security
+- Allow missing required variable when a brick is added (#74)
+- Return the `error running needrestart command` error detail during the update (#95)
+- Add `code` field with `NO_INTERNET_CONNECTION`,  `OPERATION_IN_PROGRESS` and `UNKNOWN_ERROR` values in the update handlers and CLI (#62)
+- Check if the app is running/starting before stopping it in `arduino-app-cli app stop` and `DELETE /v1/apps/{appID}` (#84)
+- pkg/board/remote/adb: fix zombie process in adb resulting in  `fork failed: resource temporarily unavailable` error (#81)
+- pkg/board/remote/adb: return error if the `GetCmd` fails (#79)
 
 ## [0.6.7] - 2025-11-10
 
@@ -56,4 +66,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 The index of the zephyr core is wrong, so the update to the next version fails.
 
-## [0.6.2]
+
+Other releases:
+- [0.1.13] - 2025-08-07. Version of the `arduino-app-cli` present into the fista batch of board (R0).
