@@ -673,10 +673,10 @@ type AppDetailedInfo struct {
 }
 
 type AppDetailedBrick struct {
-	ID            string `json:"id" required:"true"`
-	Name          string `json:"name" required:"true"`
-	Category      string `json:"category,omitempty"`
-	ModelRequired bool   `json:"require_model,omitempty"`
+	ID           string `json:"id" required:"true"`
+	Name         string `json:"name" required:"true"`
+	Category     string `json:"category,omitempty"`
+	RequireModel bool   `json:"require_model"`
 }
 
 func AppDetails(
@@ -739,7 +739,7 @@ func AppDetails(
 			}
 			res.Name = bi.Name
 			res.Category = bi.Category
-			res.ModelRequired = bi.ModelRequired
+			res.RequireModel = bi.RequireModel
 			return res
 		}),
 	}, nil
