@@ -69,15 +69,4 @@ func TestModelsIndex(t *testing.T) {
 		assert.Equal(t, "face-detection", models[0].ID)
 		assert.Equal(t, "yolox-object-detection", models[1].ID)
 	})
-
-	t.Run("it gets models lite by a brick", func(t *testing.T) {
-		model := modelsIndex.GetModelsLiteInfoByBrick("not-existing-brick")
-		assert.Empty(t, model)
-
-		model = modelsIndex.GetModelsLiteInfoByBrick("arduino:object_detection")
-		assert.Len(t, model, 1)
-		assert.Equal(t, "face-detection", model[0].ID)
-		assert.Equal(t, "Face bounding box detection. This model is trained on the WIDER FACE dataset and can detect faces in images.", model[0].ModuleDescription)
-		assert.Equal(t, "Lightweight-Face-Detection", model[0].Name)
-	})
 }

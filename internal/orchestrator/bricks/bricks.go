@@ -202,7 +202,13 @@ func (s *Service) BricksDetails(id string, idProvider *app.IDProvider,
 		ApiDocsPath:  apiDocsPath,
 		CodeExamples: codeExamples,
 		UsedByApps:   usedByApps,
-		Models:       s.modelsIndex.GetModelsLiteInfoByBrick(brick.ID),
+		Models: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModel) AIModelLite {
+			return AIModelLite{
+				ID:          m.ID,
+				Name:        m.Name,
+				Description: m.ModuleDescription,
+			}
+		}),
 	}, nil
 }
 
