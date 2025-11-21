@@ -1147,6 +1147,15 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
       description: Precondition Failed
   schemas:
+    AIModel:
+      properties:
+        description:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+      type: object
     AIModelItem:
       properties:
         brick_ids:
@@ -1169,15 +1178,6 @@ components:
         name:
           type: string
         runner:
-          type: string
-      type: object
-    AIModelLite:
-      properties:
-        description:
-          type: string
-        id:
-          type: string
-        name:
           type: string
       type: object
     AIModelsListResult:
@@ -1325,7 +1325,7 @@ components:
           type: string
         models:
           items:
-            $ref: '#/components/schemas/AIModelLite'
+            $ref: '#/components/schemas/AIModel'
           nullable: true
           type: array
         name:

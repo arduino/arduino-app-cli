@@ -77,10 +77,10 @@ type BrickDetailsResult struct {
 	ApiDocsPath  string                   `json:"api_docs_path"`
 	CodeExamples []CodeExample            `json:"code_examples"`
 	UsedByApps   []AppReference           `json:"used_by_apps"`
-	Models       []AIModelLite            `json:"models"`
+	Models       []AIModel                `json:"models"`
 }
 
-type AIModelLite struct {
+type AIModel struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`

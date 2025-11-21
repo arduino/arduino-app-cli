@@ -202,8 +202,8 @@ func (s *Service) BricksDetails(id string, idProvider *app.IDProvider,
 		ApiDocsPath:  apiDocsPath,
 		CodeExamples: codeExamples,
 		UsedByApps:   usedByApps,
-		Models: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModel) AIModelLite {
-			return AIModelLite{
+		Models: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModel) AIModel {
+			return AIModel{
 				ID:          m.ID,
 				Name:        m.Name,
 				Description: m.ModuleDescription,

@@ -41,6 +41,13 @@ const (
 	StarsDesc  ListLibrariesParamsSort = "stars_desc"
 )
 
+// AIModel defines model for AIModel.
+type AIModel struct {
+	Description *string `json:"description,omitempty"`
+	Id          *string `json:"id,omitempty"`
+	Name        *string `json:"name,omitempty"`
+}
+
 // AIModelItem defines model for AIModelItem.
 type AIModelItem struct {
 	BrickIds           *[]string          `json:"brick_ids"`
@@ -50,13 +57,6 @@ type AIModelItem struct {
 	ModelConfiguration *map[string]string `json:"model_configuration,omitempty"`
 	Name               *string            `json:"name,omitempty"`
 	Runner             *string            `json:"runner,omitempty"`
-}
-
-// AIModelLite defines model for AIModelLite.
-type AIModelLite struct {
-	Description *string `json:"description,omitempty"`
-	Id          *string `json:"id,omitempty"`
-	Name        *string `json:"name,omitempty"`
 }
 
 // AIModelsListResult defines model for AIModelsListResult.
@@ -148,7 +148,7 @@ type BrickDetailsResult struct {
 	CodeExamples *[]CodeExample            `json:"code_examples"`
 	Description  *string                   `json:"description,omitempty"`
 	Id           *string                   `json:"id,omitempty"`
-	Models       *[]AIModelLite            `json:"models"`
+	Models       *[]AIModel                `json:"models"`
 	Name         *string                   `json:"name,omitempty"`
 	Readme       *string                   `json:"readme,omitempty"`
 	Status       *string                   `json:"status,omitempty"`
