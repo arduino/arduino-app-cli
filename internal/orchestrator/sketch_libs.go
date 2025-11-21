@@ -85,7 +85,8 @@ func RemoveSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef Library
 		Library: &rpc.ProfileLibraryReference{
 			Library: &rpc.ProfileLibraryReference_IndexLibrary_{
 				IndexLibrary: &rpc.ProfileLibraryReference_IndexLibrary{
-					Name: libRef.Name,
+					Name:    libRef.Name,
+					Version: libRef.Version,
 				},
 			},
 		},
