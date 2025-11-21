@@ -115,7 +115,7 @@ func TestBricksDetails(t *testing.T) {
 			},
 		}
 
-		expectedModelLiteInfo := []client.AIModelLite{
+		expectedModelLiteInfo := []client.AIModel{
 			{
 				Id:          f.Ptr("mobilenet-image-classification"),
 				Name:        f.Ptr("General purpose image classification"),
