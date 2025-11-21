@@ -384,15 +384,6 @@ func (s *Service) BrickUpdate(
 	appCurrent.Descriptor.Bricks[brickPosition].Model = brickModel
 	appCurrent.Descriptor.Bricks[brickPosition].Variables = brickVariables
 
-	for _, brickVar := range brickFromIndex.Variables {
-		if brickVar.IsRequired() {
-			newVariables := appCurrent.Descriptor.Bricks[brickPosition].Variables
-			if _, exist := newVariables[brickVar.Name]; !exist {
-				return fmt.Errorf("required variable %q must be set", brickVar.Name)
-			}
-		}
-	}
-
 	err := appCurrent.Save()
 	if err != nil {
 		return fmt.Errorf("cannot save brick instance with id %s", req.ID)

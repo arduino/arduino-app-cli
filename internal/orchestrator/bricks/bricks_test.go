@@ -160,7 +160,7 @@ func TestUpdateBrick(t *testing.T) {
 		require.Equal(t, "required variable \"ARDUINO_DEVICE_ID\" cannot be empty", err.Error())
 	})
 
-	t.Run("fails if a mandatory variable is not present", func(t *testing.T) {
+	t.Run("allow updating only one mandatory variable among two", func(t *testing.T) {
 		tempDummyApp := paths.New("testdata/dummy-app.temp")
 		err := tempDummyApp.RemoveAll()
 		require.Nil(t, err)
@@ -170,8 +170,14 @@ func TestUpdateBrick(t *testing.T) {
 			"ARDUINO_SECRET": "a-secret-a",
 		}}
 		err = brickService.BrickUpdate(req, f.Must(app.Load(tempDummyApp.String())))
-		require.Error(t, err)
-		require.Equal(t, "required variable \"ARDUINO_DEVICE_ID\" must be set", err.Error())
+		require.NoError(t, err)
+
+		after, err := app.Load(tempDummyApp.String())
+		require.Nil(t, err)
+		require.Len(t, after.Descriptor.Bricks, 1)
+		require.Equal(t, "arduino:arduino_cloud", after.Descriptor.Bricks[0].ID)
+		require.Equal(t, "", after.Descriptor.Bricks[0].Variables["ARDUINO_DEVICE_ID"])
+		require.Equal(t, "a-secret-a", after.Descriptor.Bricks[0].Variables["ARDUINO_SECRET"])
 	})
 
 	t.Run("update a single variables of a brick correctly", func(t *testing.T) {
