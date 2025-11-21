@@ -156,31 +156,44 @@ func TestBricksIndex(t *testing.T) {
   - name: EI_V_ANOMALY_DETECTION_MODEL
     default_value: /models/ootb/ei/concrete-crack-anomaly-detection.eim
     description: path to the model file
+- id: arduino:fake_no_model
+  name: Camera Scanner
+  description: Scans a camera for barcodes and QR codes
+  require_container: false
+  ports: []
 `
 
 	var index BricksIndex
 	err := yaml.Unmarshal([]byte(x), &index)
 	require.NoError(t, err)
-	require.Len(t, index.Bricks, 11)
+	require.Len(t, index.Bricks, 12)
 
 	// Check if ports are correctly set
-	b, found := index.FindBrickByID("arduino:web_ui")
+	b_ic, found := index.FindBrickByID("arduino:web_ui")
 	require.True(t, found)
-	require.Equal(t, []string{"7000"}, b.Ports)
+	require.Equal(t, []string{"7000"}, b_ic.Ports)
 
 	// Check if variables are correctly set
-	b, found = index.FindBrickByID("arduino:image_classification")
+	b_ic, found = index.FindBrickByID("arduino:image_classification")
 	require.True(t, found)
-	require.Equal(t, "Image Classification", b.Name)
-	require.Equal(t, "mobilenet-image-classification", b.ModelName)
-	require.True(t, b.ModelRequired)
-	require.Len(t, b.Variables, 2)
-	require.Equal(t, "CUSTOM_MODEL_PATH", b.Variables[0].Name)
-	require.Equal(t, "/opt/models/ei/", b.Variables[0].DefaultValue)
-	require.Equal(t, "path to the custom model directory", b.Variables[0].Description)
-	require.Equal(t, "EI_CLASSIFICATION_MODEL", b.Variables[1].Name)
-	require.Equal(t, "/models/ootb/ei/mobilenet-v2-224px.eim", b.Variables[1].DefaultValue)
-	require.Equal(t, "path to the model file", b.Variables[1].Description)
-	require.False(t, b.Variables[0].IsRequired())
-	require.False(t, b.Variables[1].IsRequired())
+	require.Equal(t, "Image Classification", b_ic.Name)
+	require.Equal(t, "mobilenet-image-classification", b_ic.ModelName)
+	require.True(t, b_ic.ModelRequired)
+	require.Len(t, b_ic.Variables, 2)
+	require.Equal(t, "CUSTOM_MODEL_PATH", b_ic.Variables[0].Name)
+	require.Equal(t, "/opt/models/ei/", b_ic.Variables[0].DefaultValue)
+	require.Equal(t, "path to the custom model directory", b_ic.Variables[0].Description)
+	require.Equal(t, "EI_CLASSIFICATION_MODEL", b_ic.Variables[1].Name)
+	require.Equal(t, "/models/ootb/ei/mobilenet-v2-224px.eim", b_ic.Variables[1].DefaultValue)
+	require.Equal(t, "path to the model file", b_ic.Variables[1].Description)
+	require.False(t, b_ic.Variables[0].IsRequired())
+	require.False(t, b_ic.Variables[1].IsRequired())
+
+	b_db, found := index.FindBrickByID("arduino:dbstorage_tsstore")
+	require.True(t, found)
+	require.False(t, b_db.ModelRequired)
+
+	b_fake, found := index.FindBrickByID("arduino:fake_no_model")
+	require.True(t, found)
+	require.False(t, b_fake.ModelRequired)
 }

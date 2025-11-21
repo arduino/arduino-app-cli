@@ -71,9 +71,10 @@ type AppBrickInstancesResult struct {
 
 // AppDetailedBrick defines model for AppDetailedBrick.
 type AppDetailedBrick struct {
-	Category *string `json:"category,omitempty"`
-	Id       string  `json:"id"`
-	Name     string  `json:"name"`
+	Category     *string `json:"category,omitempty"`
+	Id           string  `json:"id"`
+	Name         string  `json:"name"`
+	RequireModel *bool   `json:"require_model,omitempty"`
 }
 
 // AppDetailedInfo defines model for AppDetailedInfo.
@@ -151,6 +152,7 @@ type BrickDetailsResult struct {
 	Id               *string                   `json:"id,omitempty"`
 	Name             *string                   `json:"name,omitempty"`
 	Readme           *string                   `json:"readme,omitempty"`
+	RequireModel     *bool                     `json:"require_model,omitempty"`
 	Status           *string                   `json:"status,omitempty"`
 	UsedByApps       *[]AppReference           `json:"used_by_apps"`
 	Variables        *map[string]BrickVariable `json:"variables,omitempty"`
@@ -165,6 +167,7 @@ type BrickInstance struct {
 	Id               *string                `json:"id,omitempty"`
 	Model            *string                `json:"model,omitempty"`
 	Name             *string                `json:"name,omitempty"`
+	RequireModel     *bool                  `json:"require_model,omitempty"`
 	Status           *string                `json:"status,omitempty"`
 
 	// Variables Deprecated: use config_variables instead. This field is kept for backward compatibility.
@@ -173,12 +176,14 @@ type BrickInstance struct {
 
 // BrickListItem defines model for BrickListItem.
 type BrickListItem struct {
-	Author      *string `json:"author,omitempty"`
-	Category    *string `json:"category,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Id          *string `json:"id,omitempty"`
-	Name        *string `json:"name,omitempty"`
-	Status      *string `json:"status,omitempty"`
+	Author       *string   `json:"author,omitempty"`
+	Category     *string   `json:"category,omitempty"`
+	Description  *string   `json:"description,omitempty"`
+	Id           *string   `json:"id,omitempty"`
+	Models       *[]string `json:"models"`
+	Name         *string   `json:"name,omitempty"`
+	RequireModel *bool     `json:"require_model,omitempty"`
+	Status       *string   `json:"status,omitempty"`
 }
 
 // BrickListResult defines model for BrickListResult.

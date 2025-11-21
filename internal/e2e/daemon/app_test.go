@@ -783,9 +783,10 @@ func TestAppDetails(t *testing.T) {
 		require.Len(t, *detailsResp.JSON200.Bricks, 1)
 		require.Equal(t,
 			client.AppDetailedBrick{
-				Id:       ImageClassifactionBrickID,
-				Name:     "Image Classification",
-				Category: f.Ptr("video"),
+				Id:           ImageClassifactionBrickID,
+				Name:         "Image Classification",
+				Category:     f.Ptr("video"),
+				RequireModel: f.Ptr(true),
 			},
 			(*detailsResp.JSON200.Bricks)[0],
 		)
