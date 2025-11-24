@@ -140,24 +140,44 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 	}
 	eventsCh := make(chan update.Event, 100)
 
-	downloadProgressCB := func(curr *rpc.DownloadProgress) {
-		data := helpers.ArduinoCLIDownloadProgressToString(curr)
-		slog.Debug("Download progress", slog.String("download_progress", data))
-		eventsCh <- update.NewDataEvent(update.UpgradeLineEvent, data)
-	}
-	taskProgressCB := func(msg *rpc.TaskProgress) {
-		data := helpers.ArduinoCLITaskProgressToString(msg)
-		slog.Debug("Task progress", slog.String("task_progress", data))
-		eventsCh <- update.NewDataEvent(update.UpgradeLineEvent, data)
-	}
-
 	go func() {
 		defer a.lock.Unlock()
 		defer close(eventsCh)
 
+		const indexWeight float32 = 30.0
+		const indexBase float32 = 0.0
+		const upgradeBase float32 = 30.0
+		const upgradeWeight float32 = 60.0
+
+		makeDownloadProgressCallback := func(basePercentage, phaseWeight float32) func(*rpc.DownloadProgress) {
+			return func(curr *rpc.DownloadProgress) {
+				data := helpers.ArduinoCLIDownloadProgressToString(curr)
+				eventsCh <- update.NewDataEvent(update.UpgradeLineEvent, data)
+				if updateInfo := curr.GetUpdate(); updateInfo != nil {
+					if updateInfo.GetTotalSize() <= 0 {
+						return
+					}
+					localProgress := (float32(updateInfo.GetDownloaded()) / float32(updateInfo.GetTotalSize())) * 100.0
+					totalArduinoProgress := basePercentage + (localProgress/100.0)*phaseWeight
+					eventsCh <- update.NewProgressEvent(totalArduinoProgress)
+				}
+			}
+		}
+		makeTaskProgressCallback := func(basePercentage, phaseWeight float32) func(*rpc.TaskProgress) {
+			return func(msg *rpc.TaskProgress) {
+				data := helpers.ArduinoCLITaskProgressToString(msg)
+				eventsCh <- update.NewDataEvent(update.UpgradeLineEvent, data)
+				if !msg.GetCompleted() {
+					localProgress := msg.GetPercent()
+					totalArduinoProgress := basePercentage + (localProgress/100.0)*phaseWeight
+					eventsCh <- update.NewProgressEvent(totalArduinoProgress)
+				}
+			}
+		}
+
 		eventsCh <- update.NewDataEvent(update.StartEvent, "Upgrade is starting")
 
-		logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
+		logrus.SetLevel(logrus.ErrorLevel)
 		srv := commands.NewArduinoCoreServer()
 
 		if err := setConfig(ctx, srv); err != nil {
@@ -181,21 +201,28 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 		}()
 
 		{
-			stream, _ := commands.UpdateIndexStreamResponseToCallbackFunction(ctx, downloadProgressCB)
+			updateIndexProgressCB := makeDownloadProgressCallback(indexBase, indexWeight)
+			stream, _ := commands.UpdateIndexStreamResponseToCallbackFunction(ctx, updateIndexProgressCB)
 			if err := srv.UpdateIndex(&rpc.UpdateIndexRequest{Instance: inst}, stream); err != nil {
 				eventsCh <- update.NewErrorEvent(fmt.Errorf("error updating index: %w", err))
 				return
 			}
+
+			eventsCh <- update.NewProgressEvent(indexBase + indexWeight)
+
 			if err := srv.Init(&rpc.InitRequest{Instance: inst}, commands.InitStreamResponseToCallbackFunction(ctx, nil)); err != nil {
 				eventsCh <- update.NewErrorEvent(fmt.Errorf("error initializing instance: %w", err))
 				return
 			}
 		}
 
+		platformDownloadCB := makeDownloadProgressCallback(upgradeBase, upgradeWeight)
+		platformTaskCB := makeTaskProgressCallback(upgradeBase, upgradeWeight)
+
 		stream, respCB := commands.PlatformUpgradeStreamResponseToCallbackFunction(
 			ctx,
-			downloadProgressCB,
-			taskProgressCB,
+			platformDownloadCB,
+			platformTaskCB,
 		)
 		if err := srv.PlatformUpgrade(
 			&rpc.PlatformUpgradeRequest{
@@ -227,8 +254,8 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 				},
 				commands.PlatformInstallStreamResponseToCallbackFunction(
 					ctx,
-					downloadProgressCB,
-					taskProgressCB,
+					platformDownloadCB,
+					platformTaskCB,
 				),
 			)
 			if err != nil {
@@ -256,6 +283,7 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 			eventsCh <- update.NewErrorEvent(fmt.Errorf("error burning bootloader: %w", err))
 			return
 		}
+		eventsCh <- update.NewProgressEvent(100.0)
 	}()
 
 	return eventsCh, nil

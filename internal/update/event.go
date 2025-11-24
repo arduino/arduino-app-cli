@@ -15,7 +15,11 @@
 
 package update
 
-import "go.bug.st/f"
+import (
+	"fmt"
+
+	"go.bug.st/f"
+)
 
 // EventType defines the type of upgrade event.
 type EventType int
@@ -24,16 +28,17 @@ const (
 	UpgradeLineEvent EventType = iota
 	StartEvent
 	RestartEvent
+	ProgressEvent
 	DoneEvent
 	ErrorEvent
 )
 
 // Event represents a single event in the upgrade process.
 type Event struct {
-	Type EventType
-
-	data string
-	err  error // error field for error events
+	Type     EventType
+	Progress float32
+	data     string
+	err      error // error field for error events
 }
 
 func (t EventType) String() string {
@@ -44,6 +49,8 @@ func (t EventType) String() string {
 		return "restarting"
 	case StartEvent:
 		return "starting"
+	case ProgressEvent:
+		return "progress"
 	case DoneEvent:
 		return "done"
 	case ErrorEvent:
@@ -57,6 +64,13 @@ func NewDataEvent(t EventType, data string) Event {
 	return Event{
 		Type: t,
 		data: data,
+	}
+}
+
+func NewProgressEvent(progress float32) Event {
+	return Event{
+		Type: ProgressEvent,
+		data: fmt.Sprintf("%.2f", progress),
 	}
 }
 

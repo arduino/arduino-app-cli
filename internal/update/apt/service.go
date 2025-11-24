@@ -106,6 +106,7 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan u
 		}
 
 		eventsCh <- update.NewDataEvent(update.StartEvent, "apt cleaning cache is starting")
+		eventsCh <- update.NewProgressEvent(80.0)
 		for line, err := range runAptCleanCommand(ctx) {
 			if err != nil {
 				eventsCh <- update.NewErrorEvent(fmt.Errorf("error running apt clean command: %w", err))
@@ -113,7 +114,7 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan u
 			}
 			eventsCh <- update.NewDataEvent(update.UpgradeLineEvent, line)
 		}
-
+		eventsCh <- update.NewProgressEvent(85.0)
 		eventsCh <- update.NewDataEvent(update.UpgradeLineEvent, "Stop and destroy docker containers and images ....")
 		streamCleanup := cleanupDockerContainers(ctx)
 		for line, err := range streamCleanup {
@@ -125,6 +126,7 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan u
 				eventsCh <- update.NewDataEvent(update.UpgradeLineEvent, line)
 			}
 		}
+		eventsCh <- update.NewProgressEvent(90.0)
 
 		// TODO: Remove this workaround once docker image versions are no longer hardcoded in arduino-app-cli.
 		// Tracking issue: https://github.com/arduino/arduino-app-cli/issues/600
