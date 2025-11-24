@@ -64,7 +64,3 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 - Remove the `arduino-app-cli board` sub-command [#27](https://github.com/arduino/arduino-app-cli/pull/27)
 - Remove the internal zephyr core [#28](https://github.com/arduino/arduino-app-cli/pull/28)
-
-## [0.6.3] - 2025-10-27 [YANKED]
-
-The zephyr core index contains errors, causing updates to the next version to fail.
