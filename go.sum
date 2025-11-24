@@ -170,8 +170,8 @@ github.com/cloudflare/cfssl v0.0.0-20180223231731-4e2dcbde5004 h1:lkAMpLVBDaj17e
 github.com/cloudflare/cfssl v0.0.0-20180223231731-4e2dcbde5004/go.mod h1:yMWuSON2oQp+43nFtAV/uvKQIFpSPerB57DCt9t8sSA=
 github.com/cloudflare/circl v1.6.1 h1:zqIqSPIndyBh1bjLVVDHMPpVKqp8Su/V+6MeDzzQBQ0=
 github.com/cloudflare/circl v1.6.1/go.mod h1:uddAzsPgqdMAYatqJ0lsjX1oECcQLIlRpzZh3pJrofs=
-github.com/cmaglie/arduino-cli v0.0.0-20251029100020-2327b357349d h1:Hpm/DaAji25rxW1JPr1DK7A1wnUygOw0ftAs6UiHAq0=
-github.com/cmaglie/arduino-cli v0.0.0-20251029100020-2327b357349d/go.mod h1:aH/Lfub80ymf3vpF0gUWx/sckVUNB0gDoPlABAx97SE=
+github.com/cmaglie/arduino-cli v0.0.0-20251121175149-7c9f5052fad6 h1:3EwsysN8HToyksejfh9kq+TNfl4n3SLZK21TQfaIupY=
+github.com/cmaglie/arduino-cli v0.0.0-20251121175149-7c9f5052fad6/go.mod h1:aH/Lfub80ymf3vpF0gUWx/sckVUNB0gDoPlABAx97SE=
 github.com/cmaglie/pb v1.0.27 h1:ynGj8vBXR+dtj4B7Q/W/qGt31771Ux5iFfRQBnwdQiA=
 github.com/cmaglie/pb v1.0.27/go.mod h1:GilkKZMXYjBA4NxItWFfO+lwkp59PLHQ+IOW/b/kmZI=
 github.com/cncf/udpa/go v0.0.0-20191209042840-269d4d468f6f/go.mod h1:M8M6+tZqaGXZJjfX53e64911xZQV5JYwmTeXPW+k8Sc=

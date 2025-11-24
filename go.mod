@@ -14,7 +14,7 @@ replace (
 )
 
 // Required until https://github.com/arduino/arduino-cli/pull/3019 is merged and released
-replace github.com/arduino/arduino-cli => github.com/cmaglie/arduino-cli v0.0.0-20251029100020-2327b357349d
+replace github.com/arduino/arduino-cli => github.com/cmaglie/arduino-cli v0.0.0-20251121175149-7c9f5052fad6
 
 require (
 	github.com/Andrew-M-C/go.emoji v1.1.4
