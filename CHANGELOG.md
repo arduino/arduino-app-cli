@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ### Deprecated
 ### Removed
 ### Fixed
-### Secirity
+### Security
 
 
 ## [0.6.8] - 2025-11-24
