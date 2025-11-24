@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
-## [Unreleased]
+## [0.6.8] - 2025-11-24
 
 ### Added
 
@@ -27,7 +27,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 - pkg/board/remote/adb: fix zombie process in adb that resulted in `fork failed: resource temporarily unavailable` error [#81](https://github.com/arduino/arduino-app-cli/pull/81)
 - Check if the app is running/starting before stopping it in `arduino-app-cli app stop` and `DELETE /v1/apps/{appID}` [#84](https://github.com/arduino/arduino-app-cli/pull/84)
-- Allow missing required variables when adding a brick [#74](https://github.com/arduino/arduino-app-cli/pull/74)
+- Allow missing required variables when a brick is added [#74](https://github.com/arduino/arduino-app-cli/pull/74)
+- Early return without opening SSE stream when `HEAD /system/update/events` is called [#96](https://github.com/arduino/arduino-app-cli/pull/96)
+
 
 ## [0.6.7] - 2025-11-10
 
