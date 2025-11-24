@@ -30,7 +30,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - Allow missing required variables when a brick is added [#74](https://github.com/arduino/arduino-app-cli/pull/74)
 - Early return without opening SSE stream when `HEAD /system/update/events` is called [#96](https://github.com/arduino/arduino-app-cli/pull/96)
 
-
 ## [0.6.7] - 2025-11-10
 
 ### Added
