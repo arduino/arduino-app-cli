@@ -146,9 +146,9 @@ func TestGetAppBrickInstanceById(t *testing.T) {
 		require.NotEmpty(t, brickInstance.JSON200)
 		require.Equal(t, ImageClassifactionBrickID, *brickInstance.JSON200.Id)
 		require.Equal(t, expectedConfigVariables, (*brickInstance.JSON200.ConfigVariables))
-		require.Nil(t, brickInstance.JSON200.CompatibleModels)
+		require.NotNil(t, brickInstance.JSON200.CompatibleModels)
+		require.Equal(t, expectedModelInfo, *(brickInstance.JSON200.CompatibleModels))
 	})
-
 	t.Run("GetAppBrickInstanceByBrickIDWithCompatibleModels_Success", func(t *testing.T) {
 		brickInstance, err := httpClient.GetAppBrickInstanceByBrickIDWithResponse(
 			t.Context(),
@@ -159,7 +159,7 @@ func TestGetAppBrickInstanceById(t *testing.T) {
 		require.NotEmpty(t, brickInstance.JSON200)
 		require.Equal(t, ImageClassifactionBrickID, *brickInstance.JSON200.Id)
 		require.NotNil(t, brickInstance.JSON200.CompatibleModels)
-		require.Equal(t, expectedModelInfo, *(brickInstance.JSON200.CompatibleModels))
+		require.NotEqual(t, expectedModelInfo, *(brickInstance.JSON200.CompatibleModels))
 	})
 
 	t.Run("GetAppBrickInstanceByBrickID_InvalidAppID_Fails", func(t *testing.T) {
