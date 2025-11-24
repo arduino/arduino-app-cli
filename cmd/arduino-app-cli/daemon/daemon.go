@@ -38,7 +38,7 @@ import (
 func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 	daemonCmd := &cobra.Command{
 		Use:   "daemon",
-		Short: "Run an HTTP server to expose arduino-app-cli functionality through REST API",
+		Short: "Run the Arduino App CLI as an HTTP daemon",
 		Run: func(cmd *cobra.Command, args []string) {
 			daemonPort, _ := cmd.Flags().GetString("port")
 

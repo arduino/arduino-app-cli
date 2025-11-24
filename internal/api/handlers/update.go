@@ -16,7 +16,6 @@
 package handlers
 
 import (
-	"errors"
 	"net/http"
 	"strings"
 
@@ -43,14 +42,20 @@ func HandleCheckUpgradable(updater *update.Manager) http.HandlerFunc {
 
 		pkgs, err := updater.ListUpgradablePackages(r.Context(), filterFunc)
 		if err != nil {
-			if errors.Is(err, update.ErrOperationAlreadyInProgress) {
-				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: err.Error()})
+			code := update.GetUpdateErrorCode(err)
+			if code == update.OperationInProgressCode {
+				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{
+					Code:    string(code),
+					Details: err.Error(),
+				})
 				return
 			}
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "Error checking for upgradable packages: " + err.Error()})
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{
+				Code:    string(code),
+				Details: err.Error(),
+			})
 			return
 		}
-
 		if len(pkgs) == 0 {
 			render.EncodeResponse(w, http.StatusNoContent, nil)
 			return
@@ -79,27 +84,40 @@ func HandleUpdateApply(updater *update.Manager) http.HandlerFunc {
 
 		pkgs, err := updater.ListUpgradablePackages(r.Context(), filterFunc)
 		if err != nil {
-			if errors.Is(err, update.ErrOperationAlreadyInProgress) {
-				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: err.Error()})
+			code := update.GetUpdateErrorCode(err)
+			if code == update.OperationInProgressCode {
+				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{
+					Code:    string(code),
+					Details: err.Error(),
+				})
 				return
 			}
 			slog.Error("Unable to get upgradable packages", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "Error checking for upgradable packages"})
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{
+				Code:    string(code),
+				Details: err.Error(),
+			})
 			return
 		}
-
 		if len(pkgs) == 0 {
-			render.EncodeResponse(w, http.StatusNoContent, models.ErrorResponse{Details: "System is up to date, no upgradable packages found"})
+			render.EncodeResponse(w, http.StatusNoContent, nil)
 			return
 		}
 
 		err = updater.UpgradePackages(r.Context(), pkgs)
 		if err != nil {
-			if errors.Is(err, update.ErrOperationAlreadyInProgress) {
-				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: err.Error()})
+			code := update.GetUpdateErrorCode(err)
+			if code == update.OperationInProgressCode {
+				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{
+					Code:    string(code),
+					Details: err.Error(),
+				})
 				return
 			}
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "Error upgrading packages"})
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{
+				Code:    string(code),
+				Details: err.Error(),
+			})
 			return
 		}
 
@@ -109,6 +127,13 @@ func HandleUpdateApply(updater *update.Manager) http.HandlerFunc {
 
 func HandleUpdateEvents(updater *update.Manager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// HOTFIX: app-lab use HEAD requests to check endpoint availability
+		// so we need to handle them here by early return without opening SSE stream
+		if r.Method == http.MethodHead {
+			render.EncodeResponse(w, http.StatusOK, nil)
+			return
+		}
+
 		sseStream, err := render.NewSSEStream(r.Context(), w)
 		if err != nil {
 			slog.Error("Unable to create SSE stream", slog.String("error", err.Error()))
@@ -128,14 +153,19 @@ func HandleUpdateEvents(updater *update.Manager) http.HandlerFunc {
 					return
 				}
 				if event.Type == update.ErrorEvent {
+					err := event.GetError()
+					code := render.InternalServiceErr
+					if c := update.GetUpdateErrorCode(err); c != update.UnknownErrorCode {
+						code = render.SSEErrCode(string(c))
+					}
 					sseStream.SendError(render.SSEErrorData{
-						Code:    render.InternalServiceErr,
-						Message: event.Data,
+						Code:    code,
+						Message: err.Error(),
 					})
 				} else {
 					sseStream.Send(render.SSEEvent{
 						Type: event.Type.String(),
-						Data: event.Data,
+						Data: event.GetData(),
 					})
 				}
 

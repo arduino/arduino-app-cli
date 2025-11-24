@@ -31,6 +31,28 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
 )
 
+const (
+	expectedDetailsAppInvalidAppId = "invalid app id"
+	expectedDetailsAppNotfound     = "unable to find the app"
+)
+
+var (
+	expectedConfigVariables = []client.BrickConfigVariable{
+		{
+			Description: f.Ptr("path to the custom model directory"),
+			Name:        f.Ptr("CUSTOM_MODEL_PATH"),
+			Required:    f.Ptr(false),
+			Value:       f.Ptr("/home/arduino/.arduino-bricks/ei-models"),
+		},
+		{
+			Description: f.Ptr("path to the model file"),
+			Name:        f.Ptr("EI_CLASSIFICATION_MODEL"),
+			Required:    f.Ptr(false),
+			Value:       f.Ptr("/models/ootb/ei/mobilenet-v2-224px.eim"),
+		},
+	}
+)
+
 func setupTestApp(t *testing.T) (*client.CreateAppResp, *client.ClientWithResponses) {
 	httpClient := GetHttpclient(t)
 	createResp, err := httpClient.CreateAppWithResponse(
@@ -68,6 +90,7 @@ func TestGetAppBrickInstances(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, *brickInstances.JSON200.Bricks, 1)
 		require.Equal(t, ImageClassifactionBrickID, *(*brickInstances.JSON200.Bricks)[0].Id)
+		require.Equal(t, expectedConfigVariables, *(*brickInstances.JSON200.Bricks)[0].ConfigVariables)
 
 	})
 
@@ -111,6 +134,7 @@ func TestGetAppBrickInstanceById(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, brickInstance.JSON200)
 		require.Equal(t, ImageClassifactionBrickID, *brickInstance.JSON200.Id)
+		require.Equal(t, expectedConfigVariables, (*brickInstance.JSON200.ConfigVariables))
 	})
 
 	t.Run("GetAppBrickInstanceByBrickID_InvalidAppID_Fails", func(t *testing.T) {

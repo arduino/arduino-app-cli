@@ -82,12 +82,13 @@ func (a *ADBConnection) Forward(ctx context.Context, localPort int, remotePort i
 	if err != nil {
 		return err
 	}
-	if err := cmd.RunWithinContext(ctx); err != nil {
+	if out, err := cmd.RunAndCaptureCombinedOutput(ctx); err != nil {
 		return fmt.Errorf(
-			"failed to forward ADB port %s to %s: %w",
+			"failed to forward ADB port %s to %s: %w: %s",
 			local,
 			remote,
 			err,
+			out,
 		)
 	}
 
@@ -99,8 +100,8 @@ func (a *ADBConnection) ForwardKillAll(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := cmd.RunWithinContext(ctx); err != nil {
-		return fmt.Errorf("failed to kill all ADB forwarded ports: %w", err)
+	if out, err := cmd.RunAndCaptureCombinedOutput(ctx); err != nil {
+		return fmt.Errorf("failed to kill all ADB forwarded ports: %w: %s", err, out)
 	}
 	return nil
 }
@@ -119,6 +120,7 @@ func (a *ADBConnection) List(path string) ([]remote.FileInfo, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
+	defer func() { _ = cmd.Wait() }()
 
 	r := bufio.NewReader(output)
 	_, err = r.ReadBytes('\n') // Skip the first line
@@ -166,6 +168,7 @@ func (a *ADBConnection) Stats(p string) (remote.FileInfo, error) {
 	if err := cmd.Start(); err != nil {
 		return remote.FileInfo{}, err
 	}
+	defer func() { _ = cmd.Wait() }()
 
 	r := bufio.NewReader(output)
 	line, err := r.ReadBytes('\n')
@@ -226,6 +229,7 @@ func (a *ADBConnection) Remove(path string) error {
 
 type ADBCommand struct {
 	cmd *paths.Process
+	err error
 }
 
 func (a *ADBConnection) GetCmd(cmd string, args ...string) remote.Cmder {
@@ -242,19 +246,31 @@ func (a *ADBConnection) GetCmd(cmd string, args ...string) remote.Cmder {
 		cmds = append(cmds, args...)
 	}
 
-	command, _ := paths.NewProcess(nil, cmds...)
-	return &ADBCommand{cmd: command}
+	command, err := paths.NewProcess(nil, cmds...)
+	return &ADBCommand{cmd: command, err: err}
 }
 
 func (a *ADBCommand) Run(ctx context.Context) error {
+	if a.err != nil {
+		return fmt.Errorf("failed to create command: %w", a.err)
+	}
+
 	return a.cmd.RunWithinContext(ctx)
 }
 
 func (a *ADBCommand) Output(ctx context.Context) ([]byte, error) {
+	if a.err != nil {
+		return nil, fmt.Errorf("failed to create command: %w", a.err)
+	}
+
 	return a.cmd.RunAndCaptureCombinedOutput(ctx)
 }
 
 func (a *ADBCommand) Interactive() (io.WriteCloser, io.Reader, io.Reader, remote.Closer, error) {
+	if a.err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to create command: %w", a.err)
+	}
+
 	stdin, err := a.cmd.StdinPipe()
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to get stdin pipe: %w", err)

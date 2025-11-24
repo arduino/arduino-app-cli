@@ -119,6 +119,14 @@ type AppReference struct {
 	Name *string `json:"name,omitempty"`
 }
 
+// BrickConfigVariable defines model for BrickConfigVariable.
+type BrickConfigVariable struct {
+	Description *string `json:"description,omitempty"`
+	Name        *string `json:"name,omitempty"`
+	Required    *bool   `json:"required,omitempty"`
+	Value       *string `json:"value,omitempty"`
+}
+
 // BrickCreateUpdateRequest defines model for BrickCreateUpdateRequest.
 type BrickCreateUpdateRequest struct {
 	Model     *string            `json:"model"`
@@ -142,12 +150,15 @@ type BrickDetailsResult struct {
 
 // BrickInstance defines model for BrickInstance.
 type BrickInstance struct {
-	Author    *string            `json:"author,omitempty"`
-	Category  *string            `json:"category,omitempty"`
-	Id        *string            `json:"id,omitempty"`
-	Model     *string            `json:"model,omitempty"`
-	Name      *string            `json:"name,omitempty"`
-	Status    *string            `json:"status,omitempty"`
+	Author          *string                `json:"author,omitempty"`
+	Category        *string                `json:"category,omitempty"`
+	ConfigVariables *[]BrickConfigVariable `json:"config_variables,omitempty"`
+	Id              *string                `json:"id,omitempty"`
+	Model           *string                `json:"model,omitempty"`
+	Name            *string                `json:"name,omitempty"`
+	Status          *string                `json:"status,omitempty"`
+
+	// Variables Deprecated: use config_variables instead. This field is kept for backward compatibility.
 	Variables *map[string]string `json:"variables,omitempty"`
 }
 

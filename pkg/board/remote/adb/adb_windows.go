@@ -26,7 +26,7 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 
-	"github.com/arduino/arduino-app-cli/pkg/board/remote/ssh"
+	"github.com/arduino/arduino-app-cli/pkg/board/remote"
 )
 
 func adbReadFile(a *ADBConnection, path string) (io.ReadCloser, error) {
@@ -44,7 +44,7 @@ func adbReadFile(a *ADBConnection, path string) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	return ssh.WithCloser{
+	return remote.WithCloser{
 		Reader: decoded,
 		CloseFun: func() error {
 			err1 := output.Close()

@@ -219,18 +219,6 @@ func (a *SSHConnection) WriteFile(r io.Reader, path string) error {
 	return nil
 }
 
-type WithCloser struct {
-	io.Reader
-	CloseFun func() error
-}
-
-func (w WithCloser) Close() error {
-	if w.CloseFun != nil {
-		return w.CloseFun()
-	}
-	return nil
-}
-
 func (a *SSHConnection) ReadFile(path string) (io.ReadCloser, error) {
 	session, err := a.client.NewSession()
 	if err != nil {
@@ -247,7 +235,7 @@ func (a *SSHConnection) ReadFile(path string) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("failed to start command: %w", err)
 	}
 
-	return WithCloser{
+	return remote.WithCloser{
 		Reader:   output,
 		CloseFun: session.Close,
 	}, nil

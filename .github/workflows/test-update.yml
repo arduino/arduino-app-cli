@@ -1,0 +1,29 @@
+name: test the system update flow
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-update:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run dep package update test
+        env:
+          GH_TOKEN: ${{ secrets.ARDUINOBOT_TOKEN }}
+        run: |
+          go tool task test:update

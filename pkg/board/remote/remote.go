@@ -59,3 +59,17 @@ type Cmder interface {
 	Output(ctx context.Context) ([]byte, error)
 	Interactive() (io.WriteCloser, io.Reader, io.Reader, Closer, error)
 }
+
+// WithCloser is a helper to create an io.ReadCloser from an io.Reader
+// and a close function.
+type WithCloser struct {
+	io.Reader
+	CloseFun func() error
+}
+
+func (w WithCloser) Close() error {
+	if w.CloseFun != nil {
+		return w.CloseFun()
+	}
+	return nil
+}

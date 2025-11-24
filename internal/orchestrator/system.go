@@ -235,7 +235,7 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, staticStore *s
 		feedback.Warnf("failed to get running app - %v", err)
 	}
 	if runningApp != nil {
-		for item := range StopAndDestroyApp(ctx, *runningApp) {
+		for item := range StopAndDestroyApp(ctx, docker, *runningApp) {
 			if item.GetType() == ErrorType {
 				feedback.Warnf("failed to stop and destroy running app - %v", item.GetError())
 				break

@@ -25,7 +25,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/arduino/go-paths-helper"
 	"go.bug.st/f"
@@ -84,79 +83,55 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan u
 		defer s.lock.Unlock()
 		defer close(eventsCh)
 
-		ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
-		defer cancel()
-
-		eventsCh <- update.Event{Type: update.StartEvent, Data: "Upgrade is starting"}
+		eventsCh <- update.NewDataEvent(update.StartEvent, "Upgrade is starting")
 		stream := runUpgradeCommand(ctx, names)
 		for line, err := range stream {
 			if err != nil {
-				eventsCh <- update.Event{
-					Type: update.ErrorEvent,
-					Err:  err,
-					Data: "Error running upgrade command",
-				}
-				slog.Error("error processing upgrade command output", "error", err)
+				eventsCh <- update.NewErrorEvent(fmt.Errorf("error running upgrade command: %w", err))
 				return
 			}
-			eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: line}
+			eventsCh <- update.NewDataEvent(update.UpgradeLineEvent, line)
 		}
-		eventsCh <- update.Event{Type: update.StartEvent, Data: "apt cleaning cache is starting"}
+
+		eventsCh <- update.NewDataEvent(update.StartEvent, "apt cleaning cache is starting")
 		for line, err := range runAptCleanCommand(ctx) {
 			if err != nil {
-				eventsCh <- update.Event{
-					Type: update.ErrorEvent,
-					Err:  err,
-					Data: "Error running apt clean command",
-				}
-				slog.Error("error processing apt clean command output", "error", err)
+				eventsCh <- update.NewErrorEvent(fmt.Errorf("error running apt clean command: %w", err))
 				return
 			}
-			eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: line}
+			eventsCh <- update.NewDataEvent(update.UpgradeLineEvent, line)
 		}
-		// TEMPORARY PATCH: stopping and destroying docker containers and images since IDE does not implement it yet.
-		// TODO: Remove this workaround once IDE implements it.
-		// Tracking issue: https://github.com/arduino/arduino-app-cli/issues/623
-		eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: "Stop and destroy docker containers and images ..."}
+
+		eventsCh <- update.NewDataEvent(update.UpgradeLineEvent, "Stop and destroy docker containers and images ....")
 		streamCleanup := cleanupDockerContainers(ctx)
 		for line, err := range streamCleanup {
 			if err != nil {
 				// TODO: maybe we should retun an error or a better feedback to the user?
 				// currently, we just log the error and continue considenring not blocking
-				slog.Error("Error stopping and destroying docker containers", "error", err)
+				slog.Warn("Error stopping and destroying docker containers", "error", err)
+			} else {
+				eventsCh <- update.NewDataEvent(update.UpgradeLineEvent, line)
 			}
-			eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: line}
 		}
 
-		// TEMPORARY PATCH: Install the latest docker images and show the logs to the users.
 		// TODO: Remove this workaround once docker image versions are no longer hardcoded in arduino-app-cli.
 		// Tracking issue: https://github.com/arduino/arduino-app-cli/issues/600
 		// Currently, we need to launch `arduino-app-cli system init` to pull the latest docker images because
 		// the version of the docker images are hardcoded in the (new downloaded) version of the arduino-app-cli.
-		eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: "Pulling the latest docker images ..."}
+		eventsCh <- update.NewDataEvent(update.UpgradeLineEvent, "Pulling the latest docker images ...")
 		streamDocker := pullDockerImages(ctx)
 		for line, err := range streamDocker {
 			if err != nil {
-				eventsCh <- update.Event{
-					Type: update.ErrorEvent,
-					Err:  err,
-					Data: "Error upgrading docker images",
-				}
-				slog.Error("error upgrading docker images", "error", err)
+				eventsCh <- update.NewErrorEvent(fmt.Errorf("error pulling docker images: %w", err))
 				return
 			}
-			eventsCh <- update.Event{Type: update.UpgradeLineEvent, Data: line}
+			eventsCh <- update.NewDataEvent(update.UpgradeLineEvent, line)
 		}
-		eventsCh <- update.Event{Type: update.RestartEvent, Data: "Upgrade completed. Restarting ..."}
+		eventsCh <- update.NewDataEvent(update.RestartEvent, "Upgrade completed. Restarting ...")
 
 		err := restartServices(ctx)
 		if err != nil {
-			eventsCh <- update.Event{
-				Type: update.ErrorEvent,
-				Err:  err,
-				Data: "Error restart services after upgrade",
-			}
-			slog.Error("failed to restart services", "error", err)
+			eventsCh <- update.NewErrorEvent(fmt.Errorf("error restarting services after upgrade: %w", err))
 			return
 		}
 	}()
@@ -312,7 +287,10 @@ func restartServices(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return needRestartCmd.RunWithinContext(ctx)
+	if out, err := needRestartCmd.RunAndCaptureCombinedOutput(ctx); err != nil {
+		return fmt.Errorf("error running needrestart command: %w: %s", err, out)
+	}
+	return nil
 }
 
 func listUpgradablePackages(ctx context.Context, matcher func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {

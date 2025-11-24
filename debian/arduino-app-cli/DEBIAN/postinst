@@ -4,3 +4,4 @@ chown -R arduino:arduino /home/arduino/.local/share/arduino-app-cli
 
 systemctl enable arduino-app-cli
 systemctl enable arduino-burn-bootloader
+systemctl enable arduino-avahi-serial.service

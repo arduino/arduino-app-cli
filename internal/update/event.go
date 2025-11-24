@@ -15,6 +15,8 @@
 
 package update
 
+import "go.bug.st/f"
+
 // EventType defines the type of upgrade event.
 type EventType int
 
@@ -29,8 +31,9 @@ const (
 // Event represents a single event in the upgrade process.
 type Event struct {
 	Type EventType
-	Data string
-	Err  error // Optional error field for error events
+
+	data string
+	err  error // error field for error events
 }
 
 func (t EventType) String() string {
@@ -48,6 +51,30 @@ func (t EventType) String() string {
 	default:
 		panic("unreachable")
 	}
+}
+
+func NewDataEvent(t EventType, data string) Event {
+	return Event{
+		Type: t,
+		data: data,
+	}
+}
+
+func NewErrorEvent(err error) Event {
+	return Event{
+		Type: ErrorEvent,
+		err:  err,
+	}
+}
+
+func (e Event) GetData() string {
+	f.Assert(e.Type != ErrorEvent, "not a data event")
+	return e.data
+}
+
+func (e Event) GetError() error {
+	f.Assert(e.Type == ErrorEvent, "not an error event")
+	return e.err
 }
 
 type PackageType string

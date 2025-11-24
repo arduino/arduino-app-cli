@@ -114,13 +114,19 @@ func StartApp(
 	provisioner *Provision,
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
-	app app.ArduinoApp,
+	appToStart app.ArduinoApp,
 	cfg config.Configuration,
 	staticStore *store.StaticStore,
 ) iter.Seq[StreamMessage] {
 	return func(yield func(StreamMessage) bool) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
+
+		err := app.ValidateBricks(appToStart.Descriptor, bricksIndex)
+		if err != nil {
+			yield(StreamMessage{error: err})
+			return
+		}
 
 		running, err := getRunningApp(ctx, docker.Client())
 		if err != nil {
@@ -129,6 +135,9 @@ func StartApp(
 		}
 		if running != nil {
 			yield(StreamMessage{error: fmt.Errorf("app %q is running", running.Name)})
+			return
+		}
+		if !yield(StreamMessage{data: fmt.Sprintf("Starting app %q", appToStart.Name)}) {
 			return
 		}
 
@@ -145,11 +154,11 @@ func StartApp(
 		if !yield(StreamMessage{progress: &Progress{Name: "preparing", Progress: 0.0}}) {
 			return
 		}
-		if app.MainSketchPath != nil {
+		if appToStart.MainSketchPath != nil {
 			if !yield(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}}) {
 				return
 			}
-			if err := compileUploadSketch(ctx, &app, sketchCallbackWriter); err != nil {
+			if err := compileUploadSketch(ctx, &appToStart, sketchCallbackWriter); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
@@ -158,15 +167,15 @@ func StartApp(
 			}
 		}
 
-		if app.MainPythonFile != nil {
-			envs := getAppEnvironmentVariables(app, bricksIndex, modelsIndex)
+		if appToStart.MainPythonFile != nil {
+			envs := getAppEnvironmentVariables(appToStart, bricksIndex, modelsIndex)
 
 			if !yield(StreamMessage{data: "python provisioning"}) {
 				cancel()
 				return
 			}
 			provisionStartProgress := float32(0.0)
-			if app.MainSketchPath != nil {
+			if appToStart.MainSketchPath != nil {
 				provisionStartProgress = 10.0
 			}
 
@@ -174,7 +183,7 @@ func StartApp(
 				return
 			}
 
-			if err := provisioner.App(ctx, bricksIndex, &app, cfg, envs, staticStore); err != nil {
+			if err := provisioner.App(ctx, bricksIndex, &appToStart, cfg, envs, staticStore); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
@@ -185,10 +194,10 @@ func StartApp(
 			}
 
 			// Launch the docker compose command to start the app
-			overrideComposeFile := app.AppComposeOverrideFilePath()
+			overrideComposeFile := appToStart.AppComposeOverrideFilePath()
 
 			commands := []string{}
-			commands = append(commands, "docker", "compose", "-f", app.AppComposeFilePath().String())
+			commands = append(commands, "docker", "compose", "-f", appToStart.AppComposeFilePath().String())
 			if ok, _ := overrideComposeFile.ExistCheck(); ok {
 				commands = append(commands, "-f", overrideComposeFile.String())
 			}
@@ -374,11 +383,24 @@ func getVideoDevices() map[int]string {
 	return deviceMap
 }
 
-func stopAppWithCmd(ctx context.Context, app app.ArduinoApp, cmd string) iter.Seq[StreamMessage] {
+func stopAppWithCmd(ctx context.Context, docker command.Cli, app app.ArduinoApp, cmd string) iter.Seq[StreamMessage] {
 	return func(yield func(StreamMessage) bool) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
+		appStatus, err := getAppStatus(ctx, docker, app)
+		if err != nil {
+			yield(StreamMessage{error: err})
+			return
+		}
+		if appStatus.Status != StatusStarting && appStatus.Status != StatusRunning {
+			yield(StreamMessage{data: fmt.Sprintf("app %q is not running", app.Name)})
+			return
+		}
+
+		if !yield(StreamMessage{data: fmt.Sprintf("Stopping app %q", app.Name)}) {
+			return
+		}
 		if err := setStatusLeds(LedTriggerDefault); err != nil {
 			slog.Debug("unable to set status leds", slog.String("error", err.Error()))
 		}
@@ -389,6 +411,7 @@ func stopAppWithCmd(ctx context.Context, app app.ArduinoApp, cmd string) iter.Se
 				return
 			}
 		})
+
 		if app.MainSketchPath != nil {
 			// TODO: check that the app sketch is running before attempting to stop it.
 
@@ -419,12 +442,52 @@ func stopAppWithCmd(ctx context.Context, app app.ArduinoApp, cmd string) iter.Se
 	}
 }
 
-func StopApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
-	return stopAppWithCmd(ctx, app, "stop")
+func StopApp(ctx context.Context, dockerClient command.Cli, app app.ArduinoApp) iter.Seq[StreamMessage] {
+	return stopAppWithCmd(ctx, dockerClient, app, "stop")
 }
 
-func StopAndDestroyApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
-	return stopAppWithCmd(ctx, app, "down")
+func StopAndDestroyApp(ctx context.Context, dockerClient command.Cli, app app.ArduinoApp) iter.Seq[StreamMessage] {
+	return stopAppWithCmd(ctx, dockerClient, app, "down")
+}
+
+func RestartApp(
+	ctx context.Context,
+	docker command.Cli,
+	provisioner *Provision,
+	modelsIndex *modelsindex.ModelsIndex,
+	bricksIndex *bricksindex.BricksIndex,
+	appToStart app.ArduinoApp,
+	cfg config.Configuration,
+	staticStore *store.StaticStore,
+) iter.Seq[StreamMessage] {
+	return func(yield func(StreamMessage) bool) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		runningApp, err := getRunningApp(ctx, docker.Client())
+		if err != nil {
+			yield(StreamMessage{error: err})
+			return
+		}
+
+		if runningApp != nil {
+			if runningApp.FullPath.String() != appToStart.FullPath.String() {
+				yield(StreamMessage{error: fmt.Errorf("another app %q is running", runningApp.Name)})
+				return
+			}
+
+			stopStream := StopApp(ctx, docker, *runningApp)
+			for msg := range stopStream {
+				if !yield(msg) {
+					return
+				}
+				if msg.error != nil {
+					return
+				}
+			}
+		}
+		startStream := StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, appToStart, cfg, staticStore)
+		startStream(yield)
+	}
 }
 
 func StartDefaultApp(
@@ -842,12 +905,19 @@ func CloneApp(
 	return CloneAppResponse{ID: id}, nil
 }
 
-func DeleteApp(ctx context.Context, app app.ArduinoApp) error {
-	for msg := range StopApp(ctx, app) {
-		if msg.error != nil {
-			return fmt.Errorf("failed to stop app: %w", msg.error)
+func DeleteApp(ctx context.Context, dockerClient command.Cli, app app.ArduinoApp) error {
+
+	runningApp, err := getRunningApp(ctx, dockerClient.Client())
+	if err != nil {
+		return err
+	}
+	if runningApp != nil && runningApp.FullPath.EqualsTo(app.FullPath) {
+		// We try to remove docker related resources at best effort
+		for range StopAndDestroyApp(ctx, dockerClient, app) {
+			// just consume the iterator
 		}
 	}
+
 	return app.FullPath.RemoveAll()
 }
 
@@ -1078,8 +1148,6 @@ func compileUploadSketch(
 	arduinoApp *app.ArduinoApp,
 	w io.Writer,
 ) error {
-	const fqbn = "arduino:zephyr:unoq"
-
 	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 	srv := commands.NewArduinoCoreServer()
 
@@ -1101,6 +1169,9 @@ func compileUploadSketch(
 	}
 	sketch := sketchResp.GetSketch()
 	profile := sketch.GetDefaultProfile().GetName()
+	if profile == "" {
+		return fmt.Errorf("sketch %q has no default profile", sketchPath)
+	}
 	initReq := &rpc.InitRequest{
 		Instance:   inst,
 		SketchPath: sketchPath,
@@ -1140,17 +1211,12 @@ func compileUploadSketch(
 
 	// build the sketch
 	server, getCompileResult := commands.CompilerServerToStreams(ctx, w, w, nil)
-
-	// TODO: add build cache
 	compileReq := rpc.CompileRequest{
 		Instance:   inst,
-		Fqbn:       fqbn,
+		Fqbn:       "arduino:zephyr:unoq",
 		SketchPath: sketchPath,
 		BuildPath:  buildPath,
 		Jobs:       2,
-	}
-	if profile == "" {
-		compileReq.Libraries = []string{sketchPath + "/../../sketch-libraries"}
 	}
 
 	err = srv.Compile(&compileReq, server)
@@ -1174,12 +1240,67 @@ func compileUploadSketch(
 		slog.Info("Used library " + lib.GetName() + " (" + lib.GetVersion() + ") in " + lib.GetInstallDir())
 	}
 
+	if err := uploadSketchInRam(ctx, w, srv, inst, sketchPath, buildPath); err != nil {
+		slog.Warn("failed to upload in ram mode, trying to configure the board in ram mode, and retry", slog.String("error", err.Error()))
+		if err := configureMicroInRamMode(ctx, w, srv, inst); err != nil {
+			return err
+		}
+		return uploadSketchInRam(ctx, w, srv, inst, sketchPath, buildPath)
+	}
+	return nil
+}
+
+func uploadSketchInRam(ctx context.Context,
+	w io.Writer,
+	srv rpc.ArduinoCoreServiceServer,
+	inst *rpc.Instance,
+	sketchPath string,
+	buildPath string,
+) error {
 	stream, _ := commands.UploadToServerStreams(ctx, w, w)
-	return srv.Upload(&rpc.UploadRequest{
+	if err := srv.Upload(&rpc.UploadRequest{
 		Instance:   inst,
-		Fqbn:       fqbn,
+		Fqbn:       "arduino:zephyr:unoq:flash_mode=ram",
 		SketchPath: sketchPath,
 		ImportDir:  buildPath,
+	}, stream); err != nil {
+		return err
+	}
+	return nil
+}
+
+// configureMicroInRamMode uploads an empty binary overing any sketch previously uploaded in flash.
+// This is required to be able to upload sketches in ram mode after if there is already a sketch in flash.
+func configureMicroInRamMode(
+	ctx context.Context,
+	w io.Writer,
+	srv rpc.ArduinoCoreServiceServer,
+	inst *rpc.Instance,
+) error {
+	emptyBinDir := paths.New("/tmp/empty")
+	_ = emptyBinDir.MkdirAll()
+	defer func() { _ = emptyBinDir.RemoveAll() }()
+
+	zeros, err := os.Open("/dev/zero")
+	if err != nil {
+		return err
+	}
+	defer zeros.Close()
+
+	empty, err := emptyBinDir.Join("empty.ino.elf-zsk.bin").Create()
+	if err != nil {
+		return err
+	}
+	defer empty.Close()
+	if _, err := io.CopyN(empty, zeros, 50); err != nil {
+		return err
+	}
+
+	stream, _ := commands.UploadToServerStreams(ctx, w, w)
+	return srv.Upload(&rpc.UploadRequest{
+		Instance:  inst,
+		Fqbn:      "arduino:zephyr:unoq:flash_mode=flash",
+		ImportDir: emptyBinDir.String(),
 	}, stream)
 }
 

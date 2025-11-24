@@ -41,7 +41,7 @@ const (
 	SkipPython
 )
 
-//go:embed app_template
+//go:embed all:app_template
 var fsApp embed.FS
 
 func GenerateApp(basePath *paths.Path, app app.AppDescriptor, options Opts) error {
@@ -50,6 +50,7 @@ func GenerateApp(basePath *paths.Path, app app.AppDescriptor, options Opts) erro
 	}
 	isSkipSketchSet := options&SkipSketch != 0
 	isSkipPythonSet := options&SkipPython != 0
+
 	if !isSkipSketchSet {
 		if err := generateSketch(basePath); err != nil {
 			return fmt.Errorf("failed to create sketch: %w", err)
@@ -60,58 +61,109 @@ func GenerateApp(basePath *paths.Path, app app.AppDescriptor, options Opts) erro
 			return fmt.Errorf("failed to create python: %w", err)
 		}
 	}
-	if err := generateReadme(basePath, app); err != nil {
-		slog.Warn("error generating readme for app %q: %w", app.Name, err)
-	}
-	if err := generateAppYaml(basePath, app); err != nil {
-		return fmt.Errorf("failed to create app content: %w", err)
+
+	if err := generateApp(basePath, app); err != nil {
+		return fmt.Errorf("failed to create app.yaml: %w", err)
 	}
 
 	return nil
 }
 
-func generateAppYaml(basePath *paths.Path, app app.AppDescriptor) error {
-	appYamlTmpl := template.Must(
-		template.New("app.yaml").
-			Funcs(template.FuncMap{"joinInts": formatPorts}).
-			ParseFS(fsApp, path.Join(templateRoot, "app.yaml.template")),
-	)
+func generateApp(basePath *paths.Path, appDesc app.AppDescriptor) error {
+	generateAppYaml := func(basePath *paths.Path, app app.AppDescriptor) error {
+		appYamlTmpl := template.Must(
+			template.New("app.yaml").
+				Funcs(template.FuncMap{"joinInts": formatPorts}).
+				ParseFS(fsApp, path.Join(templateRoot, "app.yaml.template")),
+		)
 
-	outputPath := basePath.Join("app.yaml")
-	file, err := os.Create(outputPath.String())
-	if err != nil {
-		return fmt.Errorf("failed to create file %s: %w", outputPath.String(), err)
-	}
-	defer file.Close()
+		outputPath := basePath.Join("app.yaml")
+		file, err := os.Create(outputPath.String())
+		if err != nil {
+			return fmt.Errorf("failed to create file %s: %w", outputPath.String(), err)
+		}
+		defer file.Close()
 
-	return appYamlTmpl.ExecuteTemplate(file, "app.yaml.template", app)
-}
-
-func generateReadme(basePath *paths.Path, app app.AppDescriptor) error {
-	readmeTmpl := template.Must(template.ParseFS(fsApp, path.Join(templateRoot, "README.md.template")))
-	data := struct {
-		Title       string
-		Icon        string
-		Description string
-		Ports       string
-	}{
-		Title:       app.Name,
-		Icon:        app.Icon,
-		Description: app.Description,
+		return appYamlTmpl.ExecuteTemplate(file, "app.yaml.template", app)
 	}
 
-	if len(app.Ports) > 0 {
-		data.Ports = "Available application ports: " + formatPorts(app.Ports)
+	generateReadme := func(basePath *paths.Path, app app.AppDescriptor) error {
+		readmeTmpl := template.Must(template.ParseFS(fsApp, path.Join(templateRoot, "README.md.template")))
+		data := struct {
+			Title       string
+			Icon        string
+			Description string
+			Ports       string
+		}{
+			Title:       app.Name,
+			Icon:        app.Icon,
+			Description: app.Description,
+		}
+
+		if len(app.Ports) > 0 {
+			data.Ports = "Available application ports: " + formatPorts(app.Ports)
+		}
+
+		outputPath := basePath.Join("README.md")
+		file, err := os.Create(outputPath.String())
+		if err != nil {
+			return fmt.Errorf("failed to create file %s: %w", outputPath.String(), err)
+		}
+		defer file.Close()
+
+		return readmeTmpl.Execute(file, data)
 	}
 
-	outputPath := basePath.Join("README.md")
-	file, err := os.Create(outputPath.String())
-	if err != nil {
-		return fmt.Errorf("failed to create file %s: %w", outputPath.String(), err)
-	}
-	defer file.Close()
+	copyRootFiles := func() error {
+		fileList, err := fsApp.ReadDir(templateRoot)
+		if err != nil {
+			return fmt.Errorf("read template directory: %w", err)
+		}
+		for _, filePath := range fileList {
+			if filePath.IsDir() {
+				continue
+			}
+			if path.Ext(filePath.Name()) == ".template" {
+				continue
+			}
 
-	return readmeTmpl.Execute(file, data)
+			srcPath := path.Join(templateRoot, filePath.Name())
+			destPath := basePath.Join(filePath.Name())
+
+			if err := func() error {
+				srcFile, err := fsApp.Open(srcPath)
+				if err != nil {
+					return err
+				}
+				defer srcFile.Close()
+
+				destFile, err := destPath.Create()
+				if err != nil {
+					return fmt.Errorf("create %q file: %w", destPath, err)
+				}
+				defer destFile.Close()
+
+				_, err = io.Copy(destFile, srcFile)
+				return err
+			}(); err != nil {
+				return fmt.Errorf("copy file %s: %w", filePath.Name(), err)
+			}
+		}
+		return nil
+	}
+
+	if err := copyRootFiles(); err != nil {
+		slog.Warn("error copying root files for app %q: %w", appDesc.Name, err)
+	}
+	if err := generateReadme(basePath, appDesc); err != nil {
+		slog.Warn("error generating readme for app %q: %w", appDesc.Name, err)
+	}
+
+	if err := generateAppYaml(basePath, appDesc); err != nil {
+		return fmt.Errorf("generate app.yaml: %w", err)
+	}
+
+	return nil
 }
 
 func generatePython(basePath *paths.Path) error {

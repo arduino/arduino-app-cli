@@ -1,0 +1,17 @@
+[Unit]
+Description=Configure Avahi with board serial number
+Before=avahi-daemon.service
+ConditionPathExists=!/var/lib/arduino-app-cli/avahi_serial_configured.flag
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+ExecStart=/var/lib/arduino-app-cli/arduino-avahi-serial.sh
+ExecStartPost=/bin/mkdir -p /var/lib/arduino-app-cli
+ExecStartPost=/bin/touch /var/lib/arduino-app-cli/avahi_serial_configured.flag
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

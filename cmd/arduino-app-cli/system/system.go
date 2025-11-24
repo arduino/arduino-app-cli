@@ -37,7 +37,8 @@ import (
 
 func NewSystemCmd(cfg config.Configuration) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "system",
+		Use:   "system",
+		Short: "Manage the board’s system configuration",
 	}
 
 	cmd.AddCommand(newDownloadImageCmd(cfg))
@@ -112,7 +113,13 @@ func newUpdateCmd() *cobra.Command {
 
 			events := updater.Subscribe()
 			for event := range events {
-				feedback.Printf("[%s] %s", event.Type.String(), event.Data)
+				if event.Type == update.ErrorEvent {
+					// TODO: add colors to error messages
+					err := event.GetError()
+					feedback.Printf("Error: %s [%s]", err.Error(), update.GetUpdateErrorCode(err))
+				} else {
+					feedback.Printf("[%s] %s", event.Type.String(), event.GetData())
+				}
 
 				if event.Type == update.DoneEvent {
 					break

@@ -17,7 +17,6 @@ package update
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -27,8 +26,6 @@ import (
 
 	"golang.org/x/sync/errgroup"
 )
-
-var ErrOperationAlreadyInProgress = errors.New("an operation is already in progress")
 
 var MatchArduinoPackage = func(p UpgradablePackage) bool {
 	return strings.HasPrefix(p.Name, "arduino-") ||
@@ -78,7 +75,7 @@ func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(Upgra
 	// Make sure to be connected to the internet, before checking for updates.
 	// This is needed because the checks below work also when offline (using cached data).
 	if !isConnected() {
-		return nil, errors.New("no internet connectivity")
+		return nil, ErrNoInternetConnection
 	}
 
 	// Get the list of upgradable packages from two sources (deb and platform) in parallel.
@@ -141,12 +138,7 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 		// in the middle the upgrade of the cores.
 		arduinoEvents, err := m.arduinoPlatformUpdateService.UpgradePackages(ctx, arduinoPlatform)
 		if err != nil {
-			m.broadcast(
-				Event{
-					Type: ErrorEvent,
-					Data: "failed to upgrade Arduino packages",
-					Err:  err,
-				})
+			m.broadcast(NewErrorEvent(fmt.Errorf("failed to upgrade Arduino packages: %w", err)))
 			return
 		}
 		for e := range arduinoEvents {
@@ -155,18 +147,14 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 
 		aptEvents, err := m.debUpdateService.UpgradePackages(ctx, debPkgs)
 		if err != nil {
-			m.broadcast(
-				Event{
-					Type: ErrorEvent,
-					Data: "failed to upgrade APT packages",
-					Err:  err,
-				})
+			m.broadcast(NewErrorEvent(fmt.Errorf("failed to upgrade APT packages: %w", err)))
 			return
 		}
 		for e := range aptEvents {
 			m.broadcast(e)
 		}
-		m.broadcast(Event{Type: DoneEvent, Data: "Upgrade completed successfully"})
+
+		m.broadcast(NewDataEvent(DoneEvent, "Update completed"))
 	}()
 	return nil
 }
@@ -175,17 +163,17 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 func (b *Manager) Subscribe() chan Event {
 	eventCh := make(chan Event, 100)
 	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.subs[eventCh] = struct{}{}
-	b.mu.Unlock()
 	return eventCh
 }
 
 // Unsubscribe removes the channel from the list of subscribers and closes it.
 func (b *Manager) Unsubscribe(eventCh chan Event) {
 	b.mu.Lock()
+	defer b.mu.Unlock()
 	delete(b.subs, eventCh)
 	close(eventCh)
-	b.mu.Unlock()
 }
 
 func (b *Manager) broadcast(event Event) {
@@ -201,8 +189,7 @@ func (b *Manager) broadcast(event Event) {
 		default:
 			slog.Warn("Discarding event (channel full)",
 				slog.String("type", event.Type.String()),
-				slog.String("data", fmt.Sprintf("%v", event.Data)),
-				slog.Any("error", event.Err),
+				slog.Any("event", event),
 			)
 		}
 	}

@@ -17,6 +17,8 @@ package orchestrator
 
 import (
 	"context"
+	"log/slog"
+	"time"
 
 	"github.com/arduino/arduino-cli/commands"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
@@ -24,6 +26,8 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 )
+
+const indexUpdateInterval = 10 * time.Minute
 
 func AddSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef LibraryReleaseID, addDeps bool) ([]LibraryReleaseID, error) {
 	srv := commands.NewArduinoCoreServer()
@@ -43,6 +47,15 @@ func AddSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef LibraryRel
 		return nil, err
 	}
 
+	stream, _ := commands.UpdateLibrariesIndexStreamResponseToCallbackFunction(ctx, func(curr *rpc.DownloadProgress) {
+		slog.Debug("downloading library index", "progress", curr.GetMessage())
+	})
+	// update the local library index after a certain time, to avoid if a library is added to the sketch but the local library index is not update, the compile can fail (because the lib is not found)
+	req := &rpc.UpdateLibrariesIndexRequest{Instance: inst, UpdateIfOlderThanSecs: int64(indexUpdateInterval.Seconds())}
+	if err := srv.UpdateLibrariesIndex(req, stream); err != nil {
+		slog.Warn("error updating library index, skipping", slog.String("error", err.Error()))
+	}
+
 	resp, err := srv.ProfileLibAdd(ctx, &rpc.ProfileLibAddRequest{
 		Instance:   inst,
 		SketchPath: app.MainSketchPath.String(),
@@ -59,6 +72,7 @@ func AddSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef LibraryRel
 	if err != nil {
 		return nil, err
 	}
+
 	return f.Map(resp.GetAddedLibraries(), rpcProfileLibReferenceToLibReleaseID), nil
 }
 

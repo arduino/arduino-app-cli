@@ -50,9 +50,13 @@ tasks:
 
   test:internal:
     cmds:
-      - go build ./cmd/arduino-app-cli # needed for e2e tests
+      - go build ./cmd/arduino-app-cli
       - task: generate
-      - go test ./internal/... ./cmd/... -v -race {{ .CLI_ARGS }}
+      - go test $(go list ./internal/... ./cmd/... | grep -v internal/e2e/updatetest) -v -race {{ .CLI_ARGS }}
+
+  test:update:
+    cmds:
+      - go test --timeout 30m -v ./internal/e2e/updatetest
 
   test:pkg:
     desc: Run only tests in the pkg directory
@@ -102,9 +106,10 @@ tasks:
     deps:
       - build-deb:clone-examples
     cmds:
-      - docker build --build-arg BINARY_NAME=arduino-app-cli --build-arg DEB_NAME=arduino-app-cli --build-arg VERSION={{ .VERSION }} --build-arg ARCH={{ .ARCH }} --build-arg RELEASE={{ .RELEASE }} --output=./build -f debian/Dockerfile .
+      - docker build --build-arg BINARY_NAME=arduino-app-cli --build-arg DEB_NAME=arduino-app-cli --build-arg VERSION={{ .VERSION }} --build-arg ARCH={{ .ARCH }} --build-arg RELEASE={{ .RELEASE }} --output={{ .OUTPUT }} -f debian/Dockerfile .
     vars:
       ARCH: '{{.ARCH | default "arm64"}}'
+      OUTPUT: '{{.OUTPUT | default "./build"}}'
 
   build-deb:clone-examples:
     desc: "Clones the examples repo directly into the debian structure"
@@ -114,7 +119,7 @@ tasks:
           echo "Runner version set as: {{ .EXAMPLE_VERSION }}"
           TMP_PATH="$(mktemp -d)"
           DEST_PATH="debian/arduino-app-cli/home/arduino/.local/share/arduino-app-cli/"
-          echo "Cloning arduino/app-bricks-example into temporary directory ${TMP_PATH}..."
+          echo "Cloning arduino/app-bricks-examples into temporary directory ${TMP_PATH}..."
           git clone --depth 1 --branch "{{ .EXAMPLE_VERSION }}" https://github.com/arduino/app-bricks-examples "${TMP_PATH}"
           rm -rf "${DEST_PATH}/examples"
           mkdir -p "${DEST_PATH}"
@@ -123,10 +128,16 @@ tasks:
           echo "Examples successfully cloned."
     silent: false
 
-  arduino-app-cli:build:local:
+  build:
     desc: "Build the arduino-app-cli locally"
     cmds:
       - go build -v -o ./build/arduino-app-cli ./cmd/arduino-app-cli
+
+  start:
+    desc: "build and launch the arduino-app-cli in daemon mode"
+    cmds:
+      - task build
+      - ./build/arduino-app-cli daemon  --port 8800
 
   arduino-app-cli:release:
     desc: Create a tag on the current commit and push it to the remote to create the release
@@ -138,12 +149,6 @@ tasks:
           fi
       - git tag -a "{{.CLI_ARGS}}" -m "Release {{.CLI_ARGS}}"
       - git push origin "{{.CLI_ARGS}}"
-
-  arduino-app-cli:start:
-    desc: "build and launch the arduino-app-cli in daemon mode"
-    cmds:
-      - task arduino-app-cli:build:local
-      - ./build/arduino-app-cli daemon  --port 6060
 
   # To to forward a port, using ssh, you can use this command:
   # ssh -L 8800:localhost:8800 arduino@<BOARD_IP>
@@ -167,7 +172,7 @@ tasks:
     cmds:
       - docker rm -f adbd
 
-  board:install-arduino-app-cli:
+  board:install:
     desc: Install arduino-app-cli on the board
     interactive: true
     cmds:
@@ -190,7 +195,7 @@ tasks:
           TMP_PATH="$(mktemp -d)"
 
           echo "Cloning examples into temporary directory ${TMP_PATH}..."
-          git clone --depth 1 https://github.com/arduino/app-bricks-example.git "${TMP_PATH}"
+          git clone --depth 1 https://github.com/arduino/app-bricks-examples.git "${TMP_PATH}"
 
           echo "Installing examples to ${DEST_PATH}examples"
           rm -rf "${DEST_PATH}examples"
