@@ -72,7 +72,7 @@ func TestBricksList(t *testing.T) {
 	require.NoError(t, err)
 
 	staticStore := store.NewStaticStore(paths.New("testdata", "assets", cfg.RunnerVersion).String())
-	brickIndex, err := bricksindex.GenerateBricksIndexFromFile(staticStore.GetAssetsFolder())
+	brickIndex, err := bricksindex.Load(staticStore.GetAssetsFolder())
 	require.NoError(t, err)
 
 	// Compare the response with the bricks index

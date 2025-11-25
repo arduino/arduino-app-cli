@@ -461,7 +461,7 @@ bricks:
 `)
 	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
-	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
 	assert.NoError(t, err)
 
 	modelsIndexContent := []byte(`
@@ -483,7 +483,7 @@ models:
 `)
 	err = cfg.AssetsDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
 	require.NoError(t, err)
-	modelIndex, err := modelsindex.GenerateModelsIndexFromFile(cfg.AssetsDir())
+	modelIndex, err := modelsindex.Load(cfg.AssetsDir())
 	require.NoError(t, err)
 
 	env := getAppEnvironmentVariables(appDesc, bricksIndex, modelIndex)
@@ -546,7 +546,7 @@ bricks:
 `)
 	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
-	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
 	assert.NoError(t, err)
 
 	modelsIndexContent := []byte(`
@@ -568,7 +568,7 @@ models:
 `)
 	err = cfg.AssetsDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
 	require.NoError(t, err)
-	modelIndex, err := modelsindex.GenerateModelsIndexFromFile(cfg.AssetsDir())
+	modelIndex, err := modelsindex.Load(cfg.AssetsDir())
 	require.NoError(t, err)
 
 	env := getAppEnvironmentVariables(appDesc, bricksIndex, modelIndex)

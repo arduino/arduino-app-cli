@@ -32,7 +32,7 @@ import (
 )
 
 func TestBrickCreate(t *testing.T) {
-	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(paths.New("testdata"))
+	bricksIndex, err := bricksindex.Load(paths.New("testdata"))
 	require.Nil(t, err)
 	brickService := NewService(nil, bricksIndex, nil)
 
@@ -102,7 +102,7 @@ func TestBrickCreate(t *testing.T) {
 		require.Nil(t, err)
 		err = paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp)
 		require.Nil(t, err)
-		bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(paths.New("testdata"))
+		bricksIndex, err := bricksindex.Load(paths.New("testdata"))
 		require.Nil(t, err)
 		brickService := NewService(nil, bricksIndex, nil)
 
@@ -129,7 +129,7 @@ func TestBrickCreate(t *testing.T) {
 }
 
 func TestUpdateBrick(t *testing.T) {
-	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(paths.New("testdata"))
+	bricksIndex, err := bricksindex.Load(paths.New("testdata"))
 	require.Nil(t, err)
 	brickService := NewService(nil, bricksIndex, nil)
 
@@ -189,7 +189,7 @@ func TestUpdateBrick(t *testing.T) {
 		tempDummyApp := paths.New("testdata/dummy-app.temp")
 		require.Nil(t, tempDummyApp.RemoveAll())
 		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
-		bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(paths.New("testdata"))
+		bricksIndex, err := bricksindex.Load(paths.New("testdata"))
 		require.Nil(t, err)
 		brickService := NewService(nil, bricksIndex, nil)
 
@@ -218,7 +218,7 @@ func TestUpdateBrick(t *testing.T) {
 		tempDummyApp := paths.New("testdata/dummy-app-for-update.temp")
 		require.Nil(t, tempDummyApp.RemoveAll())
 		require.Nil(t, paths.New("testdata/dummy-app-for-update").CopyDirTo(tempDummyApp))
-		bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(paths.New("testdata"))
+		bricksIndex, err := bricksindex.Load(paths.New("testdata"))
 		require.Nil(t, err)
 		brickService := NewService(nil, bricksIndex, nil)
 

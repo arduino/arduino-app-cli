@@ -104,7 +104,7 @@ bricks:
 	require.NoError(t, err)
 
 	// Override brick index with custom test content
-	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
 	require.Nil(t, err, "Failed to load bricks index with custom content")
 
 	br, ok := bricksIndex.FindBrickByID("arduino:video_object_detection")
@@ -301,7 +301,7 @@ bricks:
 	err := cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
 
-	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
 	require.Nil(t, err, "Failed to load bricks index with custom content")
 	br, ok := bricksIndex.FindBrickByID("arduino:dbstorage_tsstore")
 	require.True(t, ok, "Brick arduino:dbstorage_tsstore should exist in the index")

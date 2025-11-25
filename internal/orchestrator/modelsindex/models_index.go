@@ -95,7 +95,7 @@ func (m *ModelsIndex) GetModelsByBricks(bricks []string) []AIModel {
 	return matchingModels
 }
 
-func GenerateModelsIndexFromFile(dir *paths.Path) (*ModelsIndex, error) {
+func Load(dir *paths.Path) (*ModelsIndex, error) {
 	content, err := dir.Join("models-list.yaml").ReadFile()
 	if err != nil {
 		return nil, err

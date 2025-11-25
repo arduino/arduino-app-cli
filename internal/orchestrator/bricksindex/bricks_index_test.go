@@ -24,7 +24,7 @@ import (
 )
 
 func TestGenerateBricksIndexFromFile(t *testing.T) {
-	index, err := GenerateBricksIndexFromFile(paths.New("testdata"))
+	index, err := Load(paths.New("testdata"))
 	require.NoError(t, err)
 
 	// Check if ports are correctly set
@@ -189,7 +189,7 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 			err := os.WriteFile(brickIndex.String(), []byte(tc.yamlContent), 0600)
 			require.NoError(t, err)
 
-			index, err := GenerateBricksIndexFromFile(paths.New(tempDir))
+			index, err := Load(paths.New(tempDir))
 			if tc.expectedError != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.expectedError)
