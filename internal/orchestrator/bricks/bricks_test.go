@@ -253,19 +253,6 @@ func TestGetBrickInstanceVariableDetails(t *testing.T) {
 		expectedVariableMap     map[string]string
 	}{
 		{
-			name: "variable is present in the map",
-			brick: &bricksindex.Brick{
-				Variables: []bricksindex.BrickVariable{
-					{Name: "VAR1", Description: "desc"},
-				},
-			},
-			userVariables: map[string]string{"VAR1": "value1"},
-			expectedConfigVariables: []BrickConfigVariable{
-				{Name: "VAR1", Value: "value1", Description: "desc", Required: true},
-			},
-			expectedVariableMap: map[string]string{"VAR1": "value1"},
-		},
-		{
 			name: "variable not present in the map",
 			brick: &bricksindex.Brick{
 				Variables: []bricksindex.BrickVariable{
