@@ -16,6 +16,8 @@
 package bricks
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
@@ -24,6 +26,9 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
 func TestBrickCreate(t *testing.T) {
@@ -189,4 +194,170 @@ func TestGetBrickInstanceVariableDetails(t *testing.T) {
 			require.Equal(t, tt.expectedConfigVariables, actualConfigVariables)
 		})
 	}
+}
+
+func TestBricksDetails(t *testing.T) {
+	tmpDir := t.TempDir()
+	appsDir := filepath.Join(tmpDir, "ArduinoApps")
+	dataDir := filepath.Join(tmpDir, "Data")
+	assetsDir := filepath.Join(dataDir, "assets")
+
+	require.NoError(t, os.MkdirAll(appsDir, 0755))
+	require.NoError(t, os.MkdirAll(assetsDir, 0755))
+
+	t.Setenv("ARDUINO_APP_CLI__APPS_DIR", appsDir)
+	t.Setenv("ARDUINO_APP_CLI__DATA_DIR", dataDir)
+
+	cfg, err := config.NewFromEnv()
+	require.NoError(t, err)
+
+	for _, brick := range []string{"object_detection", "weather_forecast", "one_model_brick"} {
+		createFakeBrickAssets(t, assetsDir, brick)
+	}
+	createFakeApp(t, appsDir)
+
+	bIndex := &bricksindex.BricksIndex{
+		Bricks: []bricksindex.Brick{
+			{
+				ID:        "arduino:object_detection",
+				Name:      "Object Detection",
+				Category:  "video",
+				ModelName: "yolox-object-detection", // Default model
+				Variables: []bricksindex.BrickVariable{
+					{Name: "EI_OBJ_DETECTION_MODEL", DefaultValue: "default_path", Description: "path to the model file"},
+					{Name: "CUSTOM_MODEL_PATH", DefaultValue: "/home/arduino/.arduino-bricks/ei-models", Description: "path to the custom model directory"},
+				},
+			},
+			{
+				ID:        "arduino:weather_forecast",
+				Name:      "Weather Forecast",
+				Category:  "miscellaneous",
+				ModelName: "",
+			},
+			{
+				ID:        "arduino:one_model_brick",
+				Name:      "one model brick",
+				Category:  "video",
+				ModelName: "face-detection", // Default model
+				Variables: []bricksindex.BrickVariable{},
+			},
+		},
+	}
+	mIndex := &modelsindex.ModelsIndex{
+		Models: []modelsindex.AIModel{
+
+			{
+				ID:                "yolox-object-detection",
+				Name:              "General purpose object detection - YoloX",
+				ModuleDescription: "General purpose object detection...",
+				Bricks:            []string{"arduino:object_detection", "arduino:video_object_detection"},
+			},
+			{
+				ID:     "face-detection",
+				Name:   "Lightweight-Face-Detection",
+				Bricks: []string{"arduino:object_detection", "arduino:video_object_detection", "arduino:one_model_brick"},
+			},
+		}}
+
+	svc := &Service{
+		bricksIndex: bIndex,
+		modelsIndex: mIndex,
+		staticStore: store.NewStaticStore(assetsDir),
+	}
+	idProvider := app.NewAppIDProvider(cfg)
+
+	t.Run("Brick Not Found", func(t *testing.T) {
+		res, err := svc.BricksDetails("arduino:non_existing", idProvider, cfg)
+		require.Error(t, err)
+		require.Equal(t, ErrBrickNotFound, err)
+		require.Empty(t, res.ID)
+	})
+
+	t.Run("Success - Full Details - multiple models", func(t *testing.T) {
+		res, err := svc.BricksDetails("arduino:object_detection", idProvider, cfg)
+		require.NoError(t, err)
+
+		require.Equal(t, "arduino:object_detection", res.ID)
+		require.Equal(t, "Object Detection", res.Name)
+		require.Equal(t, "Arduino", res.Author)
+		require.Equal(t, "installed", res.Status)
+		require.Contains(t, res.Variables, "EI_OBJ_DETECTION_MODEL")
+		require.Equal(t, "default_path", res.Variables["EI_OBJ_DETECTION_MODEL"].DefaultValue)
+		require.Equal(t, "# Documentation", res.Readme)
+		require.Contains(t, res.ApiDocsPath, filepath.Join("arduino", "app_bricks", "object_detection", "API.md"))
+		require.Len(t, res.CodeExamples, 1)
+		require.Contains(t, res.CodeExamples[0].Path, "blink.ino")
+		require.Len(t, res.UsedByApps, 1)
+		require.Equal(t, "My App", res.UsedByApps[0].Name)
+		require.NotEmpty(t, res.UsedByApps[0].ID)
+		require.Len(t, res.Models, 2)
+		require.Equal(t, "yolox-object-detection", res.Models[0].ID)
+		require.Equal(t, "General purpose object detection - YoloX", res.Models[0].Name)
+		require.Equal(t, "General purpose object detection...", res.Models[0].Description)
+		require.Equal(t, "face-detection", res.Models[1].ID)
+		require.Equal(t, "Lightweight-Face-Detection", res.Models[1].Name)
+		require.Equal(t, "", res.Models[1].Description)
+	})
+
+	t.Run("Success - Full Details - no models", func(t *testing.T) {
+		res, err := svc.BricksDetails("arduino:weather_forecast", idProvider, cfg)
+		require.NoError(t, err)
+
+		require.Equal(t, "arduino:weather_forecast", res.ID)
+		require.Equal(t, "Weather Forecast", res.Name)
+		require.Equal(t, "Arduino", res.Author)
+		require.Equal(t, "installed", res.Status)
+		require.Empty(t, res.Variables)
+		require.Equal(t, "# Documentation", res.Readme)
+		require.Contains(t, res.ApiDocsPath, filepath.Join("arduino", "app_bricks", "weather_forecast", "API.md"))
+		require.Len(t, res.CodeExamples, 1)
+		require.Contains(t, res.CodeExamples[0].Path, "blink.ino")
+		require.Len(t, res.UsedByApps, 1)
+		require.Equal(t, "My App", res.UsedByApps[0].Name)
+		require.NotEmpty(t, res.UsedByApps[0].ID)
+		require.Len(t, res.Models, 0)
+	})
+
+	t.Run("Success - Full Details - one model", func(t *testing.T) {
+		res, err := svc.BricksDetails("arduino:one_model_brick", idProvider, cfg)
+		require.NoError(t, err)
+
+		require.Equal(t, "arduino:one_model_brick", res.ID)
+		require.Equal(t, "one model brick", res.Name)
+		require.Len(t, res.Models, 1)
+		require.Equal(t, "face-detection", res.Models[0].ID)
+		require.Equal(t, "Lightweight-Face-Detection", res.Models[0].Name)
+		require.Equal(t, "", res.Models[0].Description)
+	})
+}
+
+func createFakeBrickAssets(t *testing.T, assetsDir, brick string) {
+	t.Helper()
+
+	brickDocDir := filepath.Join(assetsDir, "docs", "arduino", brick)
+	require.NoError(t, os.MkdirAll(brickDocDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(brickDocDir, "README.md"),
+		[]byte("# Documentation"), 0600))
+
+	brickExDir := filepath.Join(assetsDir, "examples", "arduino", brick)
+	require.NoError(t, os.MkdirAll(brickExDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(brickExDir, "blink.ino"),
+		[]byte("void setup() {}"), 0600))
+}
+
+func createFakeApp(t *testing.T, appsDir string) {
+	t.Helper()
+	myAppDir := filepath.Join(appsDir, "MyApp")
+	require.NoError(t, os.MkdirAll(myAppDir, 0755))
+
+	appYamlContent := `
+name: My App
+bricks:
+  - arduino:object_detection:
+  - arduino:weather_forecast:
+`
+	require.NoError(t, os.WriteFile(filepath.Join(myAppDir, "app.yaml"), []byte(appYamlContent), 0600))
+	pythonDir := filepath.Join(myAppDir, "python")
+	require.NoError(t, os.MkdirAll(pythonDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(pythonDir, "main.py"), []byte("print('hello')"), 0600))
 }

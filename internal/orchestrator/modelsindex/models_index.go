@@ -54,26 +54,26 @@ type AIModel struct {
 }
 
 type ModelsIndex struct {
-	models []AIModel
+	Models []AIModel
 }
 
 func (m *ModelsIndex) GetModels() []AIModel {
-	return m.models
+	return m.Models
 }
 
 func (m *ModelsIndex) GetModelByID(id string) (*AIModel, bool) {
-	idx := slices.IndexFunc(m.models, func(v AIModel) bool { return v.ID == id })
+	idx := slices.IndexFunc(m.Models, func(v AIModel) bool { return v.ID == id })
 	if idx == -1 {
 		return nil, false
 	}
-	return &m.models[idx], true
+	return &m.Models[idx], true
 }
 
 func (m *ModelsIndex) GetModelsByBrick(brick string) []AIModel {
 	var matches []AIModel
-	for i := range m.models {
-		if len(m.models[i].Bricks) > 0 && slices.Contains(m.models[i].Bricks, brick) {
-			matches = append(matches, m.models[i])
+	for i := range m.Models {
+		if len(m.Models[i].Bricks) > 0 && slices.Contains(m.Models[i].Bricks, brick) {
+			matches = append(matches, m.Models[i])
 		}
 	}
 	if len(matches) == 0 {
@@ -84,7 +84,7 @@ func (m *ModelsIndex) GetModelsByBrick(brick string) []AIModel {
 
 func (m *ModelsIndex) GetModelsByBricks(bricks []string) []AIModel {
 	var matchingModels []AIModel
-	for _, model := range m.models {
+	for _, model := range m.Models {
 		for _, modelBrick := range model.Bricks {
 			if slices.Contains(bricks, modelBrick) {
 				matchingModels = append(matchingModels, model)
@@ -113,5 +113,5 @@ func GenerateModelsIndexFromFile(dir *paths.Path) (*ModelsIndex, error) {
 			models[i] = model
 		}
 	}
-	return &ModelsIndex{models: models}, nil
+	return &ModelsIndex{Models: models}, nil
 }
