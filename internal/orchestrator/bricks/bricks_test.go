@@ -489,3 +489,155 @@ bricks:
 	require.NoError(t, os.MkdirAll(pythonDir, 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(pythonDir, "main.py"), []byte("print('hello')"), 0600))
 }
+
+func TestAppBrickInstanceModelsDetails(t *testing.T) {
+
+	bIndex := &bricksindex.BricksIndex{
+		Bricks: []bricksindex.Brick{
+			{
+				ID:        "arduino:object_detection",
+				Name:      "Object Detection",
+				Category:  "video",
+				ModelName: "yolox-object-detection", // Default model
+				Variables: []bricksindex.BrickVariable{
+					{Name: "EI_OBJ_DETECTION_MODEL", DefaultValue: "default_path", Description: "path to the model file"},
+					{Name: "CUSTOM_MODEL_PATH", DefaultValue: "/home/arduino/.arduino-bricks/ei-models", Description: "path to the custom model directory"},
+				},
+			},
+			{
+				ID:        "arduino:weather_forecast",
+				Name:      "Weather Forecast",
+				Category:  "miscellaneous",
+				ModelName: "",
+			},
+		},
+	}
+
+	mIndex := &modelsindex.ModelsIndex{
+		Models: []modelsindex.AIModel{
+
+			{
+				ID:                "yolox-object-detection",
+				Name:              "General purpose object detection - YoloX",
+				ModuleDescription: "General purpose object detection...",
+				Bricks:            []string{"arduino:object_detection", "arduino:video_object_detection"},
+			},
+			{
+				ID:     "face-detection",
+				Name:   "Lightweight-Face-Detection",
+				Bricks: []string{"arduino:object_detection", "arduino:video_object_detection"},
+			},
+		}}
+
+	svc := &Service{
+		bricksIndex: bIndex,
+		modelsIndex: mIndex,
+	}
+
+	tests := []struct {
+		name          string
+		app           *app.ArduinoApp
+		brickID       string
+		expectedError string
+		validate      func(*testing.T, BrickInstance)
+	}{
+		{
+			name:    "Brick not found in global Index",
+			brickID: "arduino:non_existent_brick",
+			app: &app.ArduinoApp{
+				Descriptor: app.AppDescriptor{Bricks: []app.Brick{}},
+			},
+			expectedError: "brick not found",
+		},
+		{
+			name:    "Brick found in Index but not added to App",
+			brickID: "arduino:object_detection",
+			app: &app.ArduinoApp{
+				Descriptor: app.AppDescriptor{
+					Bricks: []app.Brick{
+						{ID: "arduino:weather_forecast"},
+					},
+				},
+			},
+			expectedError: "brick arduino:object_detection not added in the app",
+		},
+		{
+			name:    "Success - Standard Brick without Model",
+			brickID: "arduino:weather_forecast",
+			app: &app.ArduinoApp{
+				Descriptor: app.AppDescriptor{
+					Bricks: []app.Brick{
+						{ID: "arduino:weather_forecast"},
+					},
+				},
+			},
+			validate: func(t *testing.T, res BrickInstance) {
+				require.Equal(t, "arduino:weather_forecast", res.ID)
+				require.Equal(t, "Weather Forecast", res.Name)
+				require.Equal(t, "installed", res.Status)
+				require.Empty(t, res.ModelID)
+				require.Empty(t, res.CompatibleModels)
+			},
+		},
+		{
+			name:    "Success - Brick with Default Model",
+			brickID: "arduino:object_detection",
+			app: &app.ArduinoApp{
+				Descriptor: app.AppDescriptor{
+					Bricks: []app.Brick{
+						{
+							ID: "arduino:object_detection",
+						},
+					},
+				},
+			},
+			validate: func(t *testing.T, res BrickInstance) {
+				require.Equal(t, "arduino:object_detection", res.ID)
+				require.Equal(t, "yolox-object-detection", res.ModelID)
+				require.Len(t, res.CompatibleModels, 2)
+				require.Equal(t, "yolox-object-detection", res.CompatibleModels[0].ID)
+				require.Equal(t, "face-detection", res.CompatibleModels[1].ID)
+			},
+		},
+		{
+			name:    "Success - Brick with Overridden Model in App",
+			brickID: "arduino:object_detection",
+			app: &app.ArduinoApp{
+				Descriptor: app.AppDescriptor{
+					Bricks: []app.Brick{
+						{
+							ID:    "arduino:object_detection",
+							Model: "face-detection",
+						},
+					},
+				},
+			},
+			validate: func(t *testing.T, res BrickInstance) {
+				require.Equal(t, "arduino:object_detection", res.ID)
+				require.Equal(t, "face-detection", res.ModelID)
+				require.Len(t, res.CompatibleModels, 2)
+				require.Equal(t, "yolox-object-detection", res.CompatibleModels[0].ID)
+				require.Equal(t, "face-detection", res.CompatibleModels[1].ID)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := svc.AppBrickInstanceDetails(tt.app, tt.brickID)
+
+			if tt.expectedError != "" {
+				require.Error(t, err)
+				if err != nil {
+					require.Contains(t, err.Error(), tt.expectedError)
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			if tt.validate != nil {
+				tt.validate(t, result)
+			}
+		})
+	}
+}

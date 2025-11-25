@@ -85,9 +85,3 @@ type BrickDetailsResult struct {
 	UsedByApps   []AppReference           `json:"used_by_apps"`
 	Models       []AIModel                `json:"models"`
 }
-
-type AIModel struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-}
