@@ -37,25 +37,25 @@ type ArduinoApp struct {
 
 // Load creates an App instance by reading all the files composing an app and grouping them
 // by file type.
-func Load(dir *paths.Path) (ArduinoApp, error) {
-	if dir == nil {
+func Load(appPath *paths.Path) (ArduinoApp, error) {
+	if appPath == nil {
 		return ArduinoApp{}, errors.New("empty app path")
 	}
 
-	exist, err := dir.IsDirCheck()
+	exist, err := appPath.IsDirCheck()
 	if err != nil {
 		return ArduinoApp{}, fmt.Errorf("app path is not valid: %w", err)
 	}
 	if !exist {
-		return ArduinoApp{}, fmt.Errorf("app path must be a directory: %s", dir)
+		return ArduinoApp{}, fmt.Errorf("app path must be a directory: %s", appPath)
 	}
-	dir, err = dir.Abs()
+	appPath, err = appPath.Abs()
 	if err != nil {
 		return ArduinoApp{}, fmt.Errorf("cannot get absolute path for app: %w", err)
 	}
 
 	app := ArduinoApp{
-		FullPath:   dir,
+		FullPath:   appPath,
 		Descriptor: AppDescriptor{},
 	}
 
@@ -70,13 +70,13 @@ func Load(dir *paths.Path) (ArduinoApp, error) {
 		return ArduinoApp{}, errors.New("descriptor app.yaml file missing from app")
 	}
 
-	if dir.Join("python", "main.py").Exist() {
-		app.MainPythonFile = dir.Join("python", "main.py")
+	if appPath.Join("python", "main.py").Exist() {
+		app.MainPythonFile = appPath.Join("python", "main.py")
 	}
 
-	if dir.Join("sketch", "sketch.ino").Exist() {
+	if appPath.Join("sketch", "sketch.ino").Exist() {
 		// TODO: check sketch casing?
-		app.MainSketchPath = dir.Join("sketch")
+		app.MainSketchPath = appPath.Join("sketch")
 	}
 
 	if app.MainPythonFile == nil && app.MainSketchPath == nil {
