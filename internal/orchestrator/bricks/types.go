@@ -41,7 +41,7 @@ type BrickInstance struct {
 	Variables        map[string]string     `json:"variables,omitempty" description:"Deprecated: use config_variables instead. This field is kept for backward compatibility."`
 	ConfigVariables  []BrickConfigVariable `json:"config_variables,omitempty"`
 	ModelID          string                `json:"model,omitempty"`
-	CompatibleModels []AIModel             `json:"compatible_models,omitempty"`
+	CompatibleModels []AIModel             `json:"compatible_models"`
 }
 
 type AIModel struct {
