@@ -39,7 +39,7 @@ type ArduinoApp struct {
 // by file type.
 func Load(dir *paths.Path) (ArduinoApp, error) {
 	if dir == nil {
-		return ArduinoApp{}, errors.New("path cannot be empty")
+		return ArduinoApp{}, errors.New("empty app path")
 	}
 
 	exist, err := dir.IsDirCheck()
