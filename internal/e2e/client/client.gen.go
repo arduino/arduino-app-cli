@@ -142,25 +142,25 @@ type BrickCreateUpdateRequest struct {
 
 // BrickDetailsResult defines model for BrickDetailsResult.
 type BrickDetailsResult struct {
-	ApiDocsPath  *string                   `json:"api_docs_path,omitempty"`
-	Author       *string                   `json:"author,omitempty"`
-	Category     *string                   `json:"category,omitempty"`
-	CodeExamples *[]CodeExample            `json:"code_examples"`
-	Description  *string                   `json:"description,omitempty"`
-	Id           *string                   `json:"id,omitempty"`
-	Models       *[]AIModel                `json:"models"`
-	Name         *string                   `json:"name,omitempty"`
-	Readme       *string                   `json:"readme,omitempty"`
-	Status       *string                   `json:"status,omitempty"`
-	UsedByApps   *[]AppReference           `json:"used_by_apps"`
-	Variables    *map[string]BrickVariable `json:"variables,omitempty"`
+	ApiDocsPath      *string                   `json:"api_docs_path,omitempty"`
+	Author           *string                   `json:"author,omitempty"`
+	Category         *string                   `json:"category,omitempty"`
+	CodeExamples     *[]CodeExample            `json:"code_examples"`
+	CompatibleModels *[]AIModel                `json:"compatible_models"`
+	Description      *string                   `json:"description,omitempty"`
+	Id               *string                   `json:"id,omitempty"`
+	Name             *string                   `json:"name,omitempty"`
+	Readme           *string                   `json:"readme,omitempty"`
+	Status           *string                   `json:"status,omitempty"`
+	UsedByApps       *[]AppReference           `json:"used_by_apps"`
+	Variables        *map[string]BrickVariable `json:"variables,omitempty"`
 }
 
 // BrickInstance defines model for BrickInstance.
 type BrickInstance struct {
 	Author           *string                `json:"author,omitempty"`
 	Category         *string                `json:"category,omitempty"`
-	CompatibleModels *[]AIModel             `json:"compatible_models,omitempty"`
+	CompatibleModels *[]AIModel             `json:"compatible_models"`
 	ConfigVariables  *[]BrickConfigVariable `json:"config_variables,omitempty"`
 	Id               *string                `json:"id,omitempty"`
 	Model            *string                `json:"model,omitempty"`

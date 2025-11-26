@@ -418,13 +418,13 @@ func TestBricksDetails(t *testing.T) {
 		require.Len(t, res.UsedByApps, 1)
 		require.Equal(t, "My App", res.UsedByApps[0].Name)
 		require.NotEmpty(t, res.UsedByApps[0].ID)
-		require.Len(t, res.Models, 2)
-		require.Equal(t, "yolox-object-detection", res.Models[0].ID)
-		require.Equal(t, "General purpose object detection - YoloX", res.Models[0].Name)
-		require.Equal(t, "General purpose object detection...", res.Models[0].Description)
-		require.Equal(t, "face-detection", res.Models[1].ID)
-		require.Equal(t, "Lightweight-Face-Detection", res.Models[1].Name)
-		require.Equal(t, "", res.Models[1].Description)
+		require.Len(t, res.CompatibleModels, 2)
+		require.Equal(t, "yolox-object-detection", res.CompatibleModels[0].ID)
+		require.Equal(t, "General purpose object detection - YoloX", res.CompatibleModels[0].Name)
+		require.Equal(t, "General purpose object detection...", res.CompatibleModels[0].Description)
+		require.Equal(t, "face-detection", res.CompatibleModels[1].ID)
+		require.Equal(t, "Lightweight-Face-Detection", res.CompatibleModels[1].Name)
+		require.Equal(t, "", res.CompatibleModels[1].Description)
 	})
 
 	t.Run("Success - Full Details - no models", func(t *testing.T) {
@@ -443,7 +443,7 @@ func TestBricksDetails(t *testing.T) {
 		require.Len(t, res.UsedByApps, 1)
 		require.Equal(t, "My App", res.UsedByApps[0].Name)
 		require.NotEmpty(t, res.UsedByApps[0].ID)
-		require.Len(t, res.Models, 0)
+		require.Len(t, res.CompatibleModels, 0)
 	})
 
 	t.Run("Success - Full Details - one model", func(t *testing.T) {
@@ -452,10 +452,10 @@ func TestBricksDetails(t *testing.T) {
 
 		require.Equal(t, "arduino:one_model_brick", res.ID)
 		require.Equal(t, "one model brick", res.Name)
-		require.Len(t, res.Models, 1)
-		require.Equal(t, "face-detection", res.Models[0].ID)
-		require.Equal(t, "Lightweight-Face-Detection", res.Models[0].Name)
-		require.Equal(t, "", res.Models[0].Description)
+		require.Len(t, res.CompatibleModels, 1)
+		require.Equal(t, "face-detection", res.CompatibleModels[0].ID)
+		require.Equal(t, "Lightweight-Face-Detection", res.CompatibleModels[0].Name)
+		require.Equal(t, "", res.CompatibleModels[0].Description)
 	})
 }
 

@@ -144,7 +144,7 @@ func TestBricksDetails(t *testing.T) {
 		require.NotEmpty(t, *response.JSON200.Readme)
 		require.NotNil(t, response.JSON200.UsedByApps, "UsedByApps should not be nil")
 		require.Equal(t, expectedUsedByApps, *(response.JSON200.UsedByApps))
-		require.NotNil(t, response.JSON200.Models, "Models should not be nil")
-		require.Equal(t, expectedModelLiteInfo, *(response.JSON200.Models))
+		require.NotNil(t, response.JSON200.CompatibleModels, "Models should not be nil")
+		require.Equal(t, expectedModelLiteInfo, *(response.JSON200.CompatibleModels))
 	})
 }

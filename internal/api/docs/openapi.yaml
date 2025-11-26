@@ -1319,15 +1319,15 @@ components:
             $ref: '#/components/schemas/CodeExample'
           nullable: true
           type: array
-        description:
-          type: string
-        id:
-          type: string
-        models:
+        compatible_models:
           items:
             $ref: '#/components/schemas/AIModel'
           nullable: true
           type: array
+        description:
+          type: string
+        id:
+          type: string
         name:
           type: string
         readme:
@@ -1353,6 +1353,7 @@ components:
         compatible_models:
           items:
             $ref: '#/components/schemas/AIModel'
+          nullable: true
           type: array
         config_variables:
           items:
