@@ -25,8 +25,15 @@ import (
 )
 
 func TestLoad(t *testing.T) {
+	t.Run("it fails if the app path is nil", func(t *testing.T) {
+		app, err := Load(nil)
+		assert.Error(t, err)
+		assert.Empty(t, app)
+		assert.Contains(t, err.Error(), "empty app path")
+	})
+
 	t.Run("it fails if the app path is empty", func(t *testing.T) {
-		app, err := Load(path.New(""))
+		app, err := Load(paths.New(""))
 		assert.Error(t, err)
 		assert.Empty(t, app)
 		assert.Contains(t, err.Error(), "empty app path")
