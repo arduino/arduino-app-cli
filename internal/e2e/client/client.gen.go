@@ -176,14 +176,13 @@ type BrickInstance struct {
 
 // BrickListItem defines model for BrickListItem.
 type BrickListItem struct {
-	Author       *string   `json:"author,omitempty"`
-	Category     *string   `json:"category,omitempty"`
-	Description  *string   `json:"description,omitempty"`
-	Id           *string   `json:"id,omitempty"`
-	Models       *[]string `json:"models"`
-	Name         *string   `json:"name,omitempty"`
-	RequireModel *bool     `json:"require_model,omitempty"`
-	Status       *string   `json:"status,omitempty"`
+	Author       *string `json:"author,omitempty"`
+	Category     *string `json:"category,omitempty"`
+	Description  *string `json:"description,omitempty"`
+	Id           *string `json:"id,omitempty"`
+	Name         *string `json:"name,omitempty"`
+	RequireModel *bool   `json:"require_model,omitempty"`
+	Status       *string `json:"status,omitempty"`
 }
 
 // BrickListResult defines model for BrickListResult.

@@ -20,14 +20,13 @@ type BrickListResult struct {
 }
 
 type BrickListItem struct {
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	Author       string   `json:"author"`
-	Description  string   `json:"description"`
-	Category     string   `json:"category"`
-	Status       string   `json:"status"`
-	RequireModel bool     `json:"require_model"`
-	Models       []string `json:"models"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Author       string `json:"author"`
+	Description  string `json:"description"`
+	Category     string `json:"category"`
+	Status       string `json:"status"`
+	RequireModel bool   `json:"require_model"`
 }
 
 type AppBrickInstancesResult struct {
