@@ -503,12 +503,14 @@ func TestAppBrickInstanceModelsDetails(t *testing.T) {
 					{Name: "EI_OBJ_DETECTION_MODEL", DefaultValue: "default_path", Description: "path to the model file"},
 					{Name: "CUSTOM_MODEL_PATH", DefaultValue: "/home/arduino/.arduino-bricks/ei-models", Description: "path to the custom model directory"},
 				},
+				RequireModel: true,
 			},
 			{
-				ID:        "arduino:weather_forecast",
-				Name:      "Weather Forecast",
-				Category:  "miscellaneous",
-				ModelName: "",
+				ID:           "arduino:weather_forecast",
+				Name:         "Weather Forecast",
+				Category:     "miscellaneous",
+				ModelName:    "",
+				RequireModel: false,
 			},
 		},
 	}
@@ -577,6 +579,7 @@ func TestAppBrickInstanceModelsDetails(t *testing.T) {
 				require.Equal(t, "installed", res.Status)
 				require.Empty(t, res.ModelID)
 				require.Empty(t, res.CompatibleModels)
+				require.False(t, res.RequireModel)
 			},
 		},
 		{
@@ -597,6 +600,7 @@ func TestAppBrickInstanceModelsDetails(t *testing.T) {
 				require.Len(t, res.CompatibleModels, 2)
 				require.Equal(t, "yolox-object-detection", res.CompatibleModels[0].ID)
 				require.Equal(t, "face-detection", res.CompatibleModels[1].ID)
+				require.True(t, res.RequireModel)
 			},
 		},
 		{
@@ -618,6 +622,7 @@ func TestAppBrickInstanceModelsDetails(t *testing.T) {
 				require.Len(t, res.CompatibleModels, 2)
 				require.Equal(t, "yolox-object-detection", res.CompatibleModels[0].ID)
 				require.Equal(t, "face-detection", res.CompatibleModels[1].ID)
+				require.True(t, res.RequireModel)
 			},
 		},
 	}
