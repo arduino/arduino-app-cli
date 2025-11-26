@@ -69,8 +69,9 @@ func NewDataEvent(t EventType, data string) Event {
 
 func NewProgressEvent(progress float32) Event {
 	return Event{
-		Type: ProgressEvent,
-		data: fmt.Sprintf("%.2f", progress),
+		Type:     ProgressEvent,
+		data:     fmt.Sprintf("%.2f", progress),
+		Progress: progress,
 	}
 }
 

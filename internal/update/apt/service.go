@@ -78,7 +78,6 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan u
 		return nil, update.ErrOperationAlreadyInProgress
 	}
 	eventsCh := make(chan update.Event, 100)
-
 	go func() {
 		defer s.lock.Unlock()
 		defer close(eventsCh)
@@ -96,6 +95,7 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan u
 		}()
 
 		eventsCh <- update.NewDataEvent(update.StartEvent, "Upgrade is starting")
+		eventsCh <- update.NewProgressEvent(0.0)
 		stream := runUpgradeCommand(ctx, names)
 		for line, err := range stream {
 			if err != nil {
@@ -104,7 +104,6 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan u
 			}
 			eventsCh <- update.NewDataEvent(update.UpgradeLineEvent, line)
 		}
-
 		eventsCh <- update.NewDataEvent(update.StartEvent, "apt cleaning cache is starting")
 		eventsCh <- update.NewProgressEvent(80.0)
 		for line, err := range runAptCleanCommand(ctx) {
@@ -112,6 +111,7 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan u
 				eventsCh <- update.NewErrorEvent(fmt.Errorf("error running apt clean command: %w", err))
 				return
 			}
+
 			eventsCh <- update.NewDataEvent(update.UpgradeLineEvent, line)
 		}
 		eventsCh <- update.NewProgressEvent(85.0)

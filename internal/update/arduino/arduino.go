@@ -144,8 +144,8 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 		defer a.lock.Unlock()
 		defer close(eventsCh)
 
-		const indexWeight float32 = 30.0
 		const indexBase float32 = 0.0
+		const indexWeight float32 = 30.0
 		const upgradeBase float32 = 30.0
 		const upgradeWeight float32 = 60.0
 

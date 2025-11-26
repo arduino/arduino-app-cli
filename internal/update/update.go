@@ -148,14 +148,11 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 		for e := range arduinoEvents {
 			if e.Type == ProgressEvent {
 				globalProgress := (e.Progress / 100.0) * arduinoWeight
-				fmt.Println("++++++++++++++++++++++++ globalProgress arduinoEvents:", globalProgress)
-				slog.Debug("Arduino upgrade progress", slog.Float64("globalProgress", float64(globalProgress)))
 				m.broadcast(NewProgressEvent(globalProgress))
 			} else {
 				m.broadcast(e)
 			}
 		}
-
 		aptEvents, err := m.debUpdateService.UpgradePackages(ctx, debPkgs)
 		if err != nil {
 			m.broadcast(NewErrorEvent(fmt.Errorf("failed to upgrade APT packages: %w", err)))
@@ -164,14 +161,12 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 		for e := range aptEvents {
 			if e.Type == ProgressEvent {
 				globalProgress := arduinoWeight + (e.Progress/100.0)*aptWeight
-				fmt.Println("++++++++++++++++++++++++ globalProgress APT:", globalProgress)
-				slog.Debug("APT upgrade progress", slog.Float64("globalProgress", float64(globalProgress)))
 				m.broadcast(NewProgressEvent(globalProgress))
 			} else {
 				m.broadcast(e)
 			}
 		}
-
+		m.broadcast(NewProgressEvent(100.0))
 		m.broadcast(NewDataEvent(DoneEvent, "Update completed"))
 	}()
 	return nil
