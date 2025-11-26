@@ -193,7 +193,7 @@ func TestBricksIndex(t *testing.T) {
 	require.True(t, found)
 	require.False(t, b_db.RequireModel)
 
-	bNoRequiredModel, found := index.FindBrickByID("arduino:missing-model-require")
+	bNoRequireModel, found := index.FindBrickByID("arduino:missing-model-require")
 	require.True(t, found)
-	require.False(t, bNoRequiredModel.RequireModel)
+	require.False(t, bNoRequireModel.RequireModel)
 }
