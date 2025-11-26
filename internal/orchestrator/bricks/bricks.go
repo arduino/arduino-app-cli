@@ -247,7 +247,7 @@ func getUsedByApps(
 	}
 
 	for _, file := range appPaths {
-		app, err := app.Load(file.String())
+		app, err := app.Load(file)
 		if err != nil {
 			// we are not considering the broken apps
 			slog.Warn("unable to parse app.yaml, skipping", "path", file.String(), "error", err.Error())

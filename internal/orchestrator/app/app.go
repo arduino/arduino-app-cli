@@ -37,10 +37,10 @@ type ArduinoApp struct {
 
 // Load creates an App instance by reading all the files composing an app and grouping them
 // by file type.
-func Load(appPath string) (ArduinoApp, error) {
-	path := paths.New(appPath)
+// TODO: use the *paths.Path as argument
+func Load(path *paths.Path) (ArduinoApp, error) {
 	if path == nil {
-		return ArduinoApp{}, errors.New("empty app path")
+		return ArduinoApp{}, errors.New("path cannot be empty")
 	}
 
 	exist, err := path.IsDirCheck()

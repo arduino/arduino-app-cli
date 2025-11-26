@@ -55,7 +55,7 @@ func HandleAppBrickInstancesList(
 		}
 		appPath := appId.ToPath()
 
-		app, err := app.Load(appPath.String())
+		app, err := app.Load(appPath)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", appId.String()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
@@ -85,7 +85,7 @@ func HandleAppBrickInstanceDetails(
 		}
 		appPath := appId.ToPath()
 
-		app, err := app.Load(appPath.String())
+		app, err := app.Load(appPath)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", appId.String()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
@@ -120,7 +120,7 @@ func HandleBrickCreate(
 		}
 		appPath := appId.ToPath()
 
-		app, err := app.Load(appPath.String())
+		app, err := app.Load(appPath)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", appId.String()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
@@ -190,7 +190,7 @@ func HandleBrickUpdates(
 		}
 		appPath := appId.ToPath()
 
-		app, err := app.Load(appPath.String())
+		app, err := app.Load(appPath)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", appId.String()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
@@ -236,7 +236,7 @@ func HandleBrickDelete(
 		}
 		appPath := appId.ToPath()
 
-		app, err := app.Load(appPath.String())
+		app, err := app.Load(appPath)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", appId.String()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})

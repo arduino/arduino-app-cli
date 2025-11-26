@@ -36,7 +36,7 @@ func HandleSketchAddLibrary(idProvider *app.IDProvider) http.HandlerFunc {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "cannot alter examples"})
 			return
 		}
-		app, err := app.Load(id.ToPath().String())
+		app, err := app.Load(id.ToPath())
 
 		// Get query param addDeps (default false)
 		addDeps, _ := strconv.ParseBool(r.URL.Query().Get("add_deps"))
@@ -78,7 +78,7 @@ func HandleSketchRemoveLibrary(idProvider *app.IDProvider) http.HandlerFunc {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "cannot alter examples"})
 			return
 		}
-		app, err := app.Load(id.ToPath().String())
+		app, err := app.Load(id.ToPath())
 		if err != nil {
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
 			return
@@ -114,7 +114,7 @@ func HandleSketchListLibraries(idProvider *app.IDProvider) http.HandlerFunc {
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid id"})
 			return
 		}
-		app, err := app.Load(id.ToPath().String())
+		app, err := app.Load(id.ToPath())
 		if err != nil {
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
 			return

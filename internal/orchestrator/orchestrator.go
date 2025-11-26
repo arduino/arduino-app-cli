@@ -614,7 +614,7 @@ func ListApps(
 	}
 
 	for _, file := range appPaths {
-		app, err := app.Load(file.String())
+		app, err := app.Load(file)
 		if err != nil {
 			result.BrokenApps = append(result.BrokenApps, BrokenAppInfo{
 				Name:  file.Base(),
@@ -956,7 +956,7 @@ func GetDefaultApp(cfg config.Configuration) (*app.ArduinoApp, error) {
 		return nil, nil
 	}
 
-	app, err := app.Load(string(defaultAppPath))
+	app, err := app.Load(paths.New(string(defaultAppPath)))
 	if err != nil {
 		// If the app is not valid, we remove the file
 		slog.Warn("default app is not valid", slog.String("path", string(defaultAppPath)), slog.String("error", err.Error()))

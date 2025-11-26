@@ -37,7 +37,7 @@ func TestBrickCreate(t *testing.T) {
 	brickService := NewService(nil, bricksIndex, nil)
 
 	t.Run("fails if brick id does not exist", func(t *testing.T) {
-		err = brickService.BrickCreate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load("testdata/dummy-app")))
+		err = brickService.BrickCreate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "brick \"not-existing-id\" not found", err.Error())
 	})
@@ -46,7 +46,7 @@ func TestBrickCreate(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"NON_EXISTING_VARIABLE": "some-value",
 		}}
-		err = brickService.BrickCreate(req, f.Must(app.Load("testdata/dummy-app")))
+		err = brickService.BrickCreate(req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "variable \"NON_EXISTING_VARIABLE\" does not exist on brick \"arduino:arduino_cloud\"", err.Error())
 	})
@@ -56,7 +56,7 @@ func TestBrickCreate(t *testing.T) {
 			"ARDUINO_DEVICE_ID": "",
 			"ARDUINO_SECRET":    "a-secret-a",
 		}}
-		err = brickService.BrickCreate(req, f.Must(app.Load("testdata/dummy-app")))
+		err = brickService.BrickCreate(req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "required variable \"ARDUINO_DEVICE_ID\" cannot be empty", err.Error())
 	})
@@ -70,10 +70,10 @@ func TestBrickCreate(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"ARDUINO_SECRET": "a-secret-a",
 		}}
-		err = brickService.BrickCreate(req, f.Must(app.Load(tempDummyApp.String())))
+		err = brickService.BrickCreate(req, f.Must(app.Load(tempDummyApp)))
 		require.NoError(t, err)
 
-		after, err := app.Load(tempDummyApp.String())
+		after, err := app.Load(tempDummyApp)
 		require.Nil(t, err)
 		require.Len(t, after.Descriptor.Bricks, 1)
 		require.Equal(t, "arduino:arduino_cloud", after.Descriptor.Bricks[0].ID)
@@ -88,9 +88,9 @@ func TestBrickCreate(t *testing.T) {
 		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
 
 		req := BrickCreateUpdateRequest{ID: "arduino:dbstorage_sqlstore"}
-		err = brickService.BrickCreate(req, f.Must(app.Load(tempDummyApp.String())))
+		err = brickService.BrickCreate(req, f.Must(app.Load(tempDummyApp)))
 		require.Nil(t, err)
-		after, err := app.Load(tempDummyApp.String())
+		after, err := app.Load(tempDummyApp)
 		require.Nil(t, err)
 		require.Len(t, after.Descriptor.Bricks, 2)
 		require.Equal(t, "arduino:dbstorage_sqlstore", after.Descriptor.Bricks[1].ID)
@@ -116,10 +116,10 @@ func TestBrickCreate(t *testing.T) {
 			},
 		}
 
-		err = brickService.BrickCreate(req, f.Must(app.Load(tempDummyApp.String())))
+		err = brickService.BrickCreate(req, f.Must(app.Load(tempDummyApp)))
 		require.Nil(t, err)
 
-		after, err := app.Load(tempDummyApp.String())
+		after, err := app.Load(tempDummyApp)
 		require.Nil(t, err)
 		require.Len(t, after.Descriptor.Bricks, 1)
 		require.Equal(t, "arduino:arduino_cloud", after.Descriptor.Bricks[0].ID)
@@ -134,13 +134,13 @@ func TestUpdateBrick(t *testing.T) {
 	brickService := NewService(nil, bricksIndex, nil)
 
 	t.Run("fails if brick id does not exist into brick index", func(t *testing.T) {
-		err = brickService.BrickUpdate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load("testdata/dummy-app")))
+		err = brickService.BrickUpdate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "brick \"not-existing-id\" not found into the brick index", err.Error())
 	})
 
 	t.Run("fails if brick is present into the index but not in the app ", func(t *testing.T) {
-		err = brickService.BrickUpdate(BrickCreateUpdateRequest{ID: "arduino:dbstorage_sqlstore"}, f.Must(app.Load("testdata/dummy-app")))
+		err = brickService.BrickUpdate(BrickCreateUpdateRequest{ID: "arduino:dbstorage_sqlstore"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "brick \"arduino:dbstorage_sqlstore\" not found into the bricks of the app", err.Error())
 	})
@@ -149,7 +149,7 @@ func TestUpdateBrick(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"NON_EXISTING_VARIABLE": "some-value",
 		}}
-		err = brickService.BrickUpdate(req, f.Must(app.Load("testdata/dummy-app")))
+		err = brickService.BrickUpdate(req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "variable \"NON_EXISTING_VARIABLE\" does not exist on brick \"arduino:arduino_cloud\"", err.Error())
 	})
@@ -160,7 +160,7 @@ func TestUpdateBrick(t *testing.T) {
 			"ARDUINO_DEVICE_ID": "",
 			"ARDUINO_SECRET":    "a-secret-a",
 		}}
-		err = brickService.BrickUpdate(req, f.Must(app.Load("testdata/dummy-app")))
+		err = brickService.BrickUpdate(req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "required variable \"ARDUINO_DEVICE_ID\" cannot be empty", err.Error())
 	})
@@ -174,10 +174,10 @@ func TestUpdateBrick(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"ARDUINO_SECRET": "a-secret-a",
 		}}
-		err = brickService.BrickUpdate(req, f.Must(app.Load(tempDummyApp.String())))
+		err = brickService.BrickUpdate(req, f.Must(app.Load(tempDummyApp)))
 		require.NoError(t, err)
 
-		after, err := app.Load(tempDummyApp.String())
+		after, err := app.Load(tempDummyApp)
 		require.Nil(t, err)
 		require.Len(t, after.Descriptor.Bricks, 1)
 		require.Equal(t, "arduino:arduino_cloud", after.Descriptor.Bricks[0].ID)
@@ -203,10 +203,10 @@ func TestUpdateBrick(t *testing.T) {
 			},
 		}
 
-		err = brickService.BrickUpdate(req, f.Must(app.Load(tempDummyApp.String())))
+		err = brickService.BrickUpdate(req, f.Must(app.Load(tempDummyApp)))
 		require.Nil(t, err)
 
-		after, err := app.Load(tempDummyApp.String())
+		after, err := app.Load(tempDummyApp)
 		require.Nil(t, err)
 		require.Len(t, after.Descriptor.Bricks, 1)
 		require.Equal(t, "arduino:arduino_cloud", after.Descriptor.Bricks[0].ID)
@@ -231,10 +231,10 @@ func TestUpdateBrick(t *testing.T) {
 			},
 		}
 
-		err = brickService.BrickUpdate(req, f.Must(app.Load(tempDummyApp.String())))
+		err = brickService.BrickUpdate(req, f.Must(app.Load(tempDummyApp)))
 		require.Nil(t, err)
 
-		after, err := app.Load(tempDummyApp.String())
+		after, err := app.Load(tempDummyApp)
 		require.Nil(t, err)
 		require.Len(t, after.Descriptor.Bricks, 1)
 		require.Equal(t, "arduino:arduino_cloud", after.Descriptor.Bricks[0].ID)
