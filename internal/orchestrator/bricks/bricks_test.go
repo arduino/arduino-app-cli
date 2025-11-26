@@ -628,9 +628,7 @@ func TestAppBrickInstanceModelsDetails(t *testing.T) {
 
 			if tt.expectedError != "" {
 				require.Error(t, err)
-				if err != nil {
-					require.Contains(t, err.Error(), tt.expectedError)
-				}
+				require.Equal(t, err.Error(), tt.expectedError)
 				return
 			}
 
