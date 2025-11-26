@@ -23,25 +23,8 @@ bricks:
   mount_devices_into_container: false
   ports: []
   category: storage
-- id: arduino:image_classification
-  name: Image Classification
-  description: "Brick for image classification using a pre-trained model. It processes\
-    \ images and returns the predicted class label and confidence score.\nBrick is\
-    \ designed to work with pre-trained models provided by framework or with custom\
-    \ image classification models trained on Edge Impulse platform. \n"
-  require_container: true
+- id: arduino:brick-with-require-model
+  name: A brick with required model
+  description: "Brick with required model"
   require_model: true
-  require_devices: false
-  mount_devices_into_container: false
-  ports: []
-  category: video
   model_name: mobilenet-image-classification
-  variables:
-  - name: CUSTOM_MODEL_PATH
-    default_value: /home/arduino/.arduino-bricks/ei-models
-    description: path to the custom model directory
-  - name: EI_CLASSIFICATION_MODEL
-    default_value: /models/ootb/ei/mobilenet-v2-224px.eim
-    description: path to the model file
-
-
