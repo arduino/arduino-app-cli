@@ -43,3 +43,5 @@ bricks:
   - name: EI_CLASSIFICATION_MODEL
     default_value: /models/ootb/ei/mobilenet-v2-224px.eim
     description: path to the model file
+
+

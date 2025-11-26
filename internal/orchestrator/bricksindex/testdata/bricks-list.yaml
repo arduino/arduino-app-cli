@@ -131,3 +131,8 @@ bricks:
   - name: EI_V_ANOMALY_DETECTION_MODEL
     default_value: /models/ootb/ei/concrete-crack-anomaly-detection.eim
     description: path to the model file
+- id: arduino:missing-model-require
+  name: Camera Scanner
+  description: Scans a camera for barcodes and QR codes
+  require_container: false
+  ports: []

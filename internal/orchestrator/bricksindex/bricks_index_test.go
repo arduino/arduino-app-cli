@@ -33,20 +33,33 @@ func TestGenerateBricksIndexFromFile(t *testing.T) {
 	require.Equal(t, []string{"7000"}, b.Ports)
 
 	// Check if variables are correctly set
-	b, found = index.FindBrickByID("arduino:image_classification")
+	bWebUI, found := index.FindBrickByID("arduino:web_ui")
 	require.True(t, found)
-	require.Equal(t, "Image Classification", b.Name)
-	require.Equal(t, "mobilenet-image-classification", b.ModelName)
-	require.True(t, b.RequireModel)
-	require.Len(t, b.Variables, 2)
-	require.Equal(t, "CUSTOM_MODEL_PATH", b.Variables[0].Name)
-	require.Equal(t, "/opt/models/ei/", b.Variables[0].DefaultValue)
-	require.Equal(t, "path to the custom model directory", b.Variables[0].Description)
-	require.Equal(t, "EI_CLASSIFICATION_MODEL", b.Variables[1].Name)
-	require.Equal(t, "/models/ootb/ei/mobilenet-v2-224px.eim", b.Variables[1].DefaultValue)
-	require.Equal(t, "path to the model file", b.Variables[1].Description)
-	require.False(t, b.Variables[0].IsRequired())
-	require.False(t, b.Variables[1].IsRequired())
+	require.Equal(t, []string{"7000"}, bWebUI.Ports)
+
+	// Check if variables are correctly set
+	bWebUI, found = index.FindBrickByID("arduino:image_classification")
+	require.True(t, found)
+	require.Equal(t, "Image Classification", bWebUI.Name)
+	require.Equal(t, "mobilenet-image-classification", bWebUI.ModelName)
+	require.True(t, bWebUI.RequireModel)
+	require.Len(t, bWebUI.Variables, 2)
+	require.Equal(t, "CUSTOM_MODEL_PATH", bWebUI.Variables[0].Name)
+	require.Equal(t, "/opt/models/ei/", bWebUI.Variables[0].DefaultValue)
+	require.Equal(t, "path to the custom model directory", bWebUI.Variables[0].Description)
+	require.Equal(t, "EI_CLASSIFICATION_MODEL", bWebUI.Variables[1].Name)
+	require.Equal(t, "/models/ootb/ei/mobilenet-v2-224px.eim", bWebUI.Variables[1].DefaultValue)
+	require.Equal(t, "path to the model file", bWebUI.Variables[1].Description)
+	require.False(t, bWebUI.Variables[0].IsRequired())
+	require.False(t, bWebUI.Variables[1].IsRequired())
+
+	bDb, found := index.FindBrickByID("arduino:dbstorage_tsstore")
+	require.True(t, found)
+	require.False(t, bDb.RequireModel)
+
+	bNoRequireModel, found := index.FindBrickByID("arduino:missing-model-require")
+	require.True(t, found)
+	require.False(t, bNoRequireModel.RequireModel)
 }
 
 func TestBricksIndexYAMLFormats(t *testing.T) {

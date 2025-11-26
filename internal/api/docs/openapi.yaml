@@ -1390,6 +1390,11 @@ components:
           type: string
         id:
           type: string
+        models:
+          items:
+            type: string
+          nullable: true
+          type: array
         name:
           type: string
         require_model:
