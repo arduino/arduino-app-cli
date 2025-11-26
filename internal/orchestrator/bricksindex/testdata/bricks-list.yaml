@@ -136,3 +136,7 @@ bricks:
   description: Scans a camera for barcodes and QR codes
   require_container: false
   ports: []
+- id: arduino:model_required
+  name: Model Required Brick
+  description: A brick that requires a model
+  require_model: true
