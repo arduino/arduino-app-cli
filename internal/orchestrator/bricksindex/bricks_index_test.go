@@ -28,30 +28,28 @@ func TestGenerateBricksIndexFromFile(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check if ports are correctly set
-	b, found := index.FindBrickByID("arduino:web_ui")
-	require.True(t, found)
-	require.Equal(t, []string{"7000"}, b.Ports)
-
-	// Check if variables are correctly set
 	bWebUI, found := index.FindBrickByID("arduino:web_ui")
 	require.True(t, found)
 	require.Equal(t, []string{"7000"}, bWebUI.Ports)
 
 	// Check if variables are correctly set
-	bWebUI, found = index.FindBrickByID("arduino:image_classification")
+	bIC, found := index.FindBrickByID("arduino:image_classification")
 	require.True(t, found)
-	require.Equal(t, "Image Classification", bWebUI.Name)
-	require.Equal(t, "mobilenet-image-classification", bWebUI.ModelName)
-	require.True(t, bWebUI.RequireModel)
-	require.Len(t, bWebUI.Variables, 2)
-	require.Equal(t, "CUSTOM_MODEL_PATH", bWebUI.Variables[0].Name)
-	require.Equal(t, "/opt/models/ei/", bWebUI.Variables[0].DefaultValue)
-	require.Equal(t, "path to the custom model directory", bWebUI.Variables[0].Description)
-	require.Equal(t, "EI_CLASSIFICATION_MODEL", bWebUI.Variables[1].Name)
-	require.Equal(t, "/models/ootb/ei/mobilenet-v2-224px.eim", bWebUI.Variables[1].DefaultValue)
-	require.Equal(t, "path to the model file", bWebUI.Variables[1].Description)
-	require.False(t, bWebUI.Variables[0].IsRequired())
-	require.False(t, bWebUI.Variables[1].IsRequired())
+	require.Equal(t, "Image Classification", bIC.Name)
+	require.Equal(t, "mobilenet-image-classification", bIC.ModelName)
+	require.Len(t, bIC.Variables, 2)
+	require.Equal(t, "CUSTOM_MODEL_PATH", bIC.Variables[0].Name)
+	require.Equal(t, "/opt/models/ei/", bIC.Variables[0].DefaultValue)
+	require.Equal(t, "path to the custom model directory", bIC.Variables[0].Description)
+	require.Equal(t, "EI_CLASSIFICATION_MODEL", bIC.Variables[1].Name)
+	require.Equal(t, "/models/ootb/ei/mobilenet-v2-224px.eim", bIC.Variables[1].DefaultValue)
+	require.Equal(t, "path to the model file", bIC.Variables[1].Description)
+	require.False(t, bIC.Variables[0].IsRequired())
+	require.False(t, bIC.Variables[1].IsRequired())
+
+	bRequireModel, found := index.FindBrickByID("arduino:model_required")
+	require.True(t, found)
+	require.True(t, bRequireModel.RequireModel)
 
 	bDb, found := index.FindBrickByID("arduino:dbstorage_tsstore")
 	require.True(t, found)
