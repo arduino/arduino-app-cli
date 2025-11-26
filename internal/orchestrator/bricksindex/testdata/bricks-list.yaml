@@ -16,10 +16,6 @@ bricks:
   - name: EI_CLASSIFICATION_MODEL
     default_value: /models/ootb/ei/mobilenet-v2-224px.eim
     description: path to the model file
-- id: arduino:model_required
-  name: Model Required Brick
-  description: A brick that requires a model
-  require_model: true
 - id: arduino:camera_scanner
   name: Camera Scanner
   description: Scans a camera for barcodes and QR codes
