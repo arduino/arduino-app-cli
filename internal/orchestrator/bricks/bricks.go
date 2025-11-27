@@ -86,7 +86,6 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 			Author:          "Arduino", // TODO: for now we only support our bricks
 			Category:        brick.Category,
 			Status:          "installed",
-			RequireModel:    brick.RequireModel,
 			ModelID:         brickInstance.Model, // TODO: in case is not set by the user, should we return the default model?
 			Variables:       variablesMap,        // TODO: do we want to show also the default value of not explicitly set variables?
 			ConfigVariables: configVariables,
