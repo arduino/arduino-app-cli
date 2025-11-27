@@ -46,7 +46,7 @@ func TestParseAppStatus(t *testing.T) {
 		},
 		{
 			name:           "failed container takes precedence over stopping and starting",
-			containerState: []container.ContainerState{container.StateRunning, container.StateDead, container.StateRemoving, container.StateRestarting},
+			containerState: []container.ContainerState{container.StateRunning, container.StateDead, container.StateRemoving, container.StateRestarting, container.StateExited},
 			want:           StatusFailed,
 		},
 		{
@@ -61,7 +61,7 @@ func TestParseAppStatus(t *testing.T) {
 		},
 		{
 			name:           "starting",
-			containerState: []container.ContainerState{container.StateRestarting, container.StateExited},
+			containerState: []container.ContainerState{container.StateRestarting},
 			want:           StatusStarting,
 		},
 	}

@@ -44,11 +44,11 @@ type AppStatusInfo struct {
 // For app that have at least 1 dependency, we calculate the overall state
 // as follow:
 //
-//	running: all running
-//	stopped: all stopped
-//	failed: at least one failed
-//	stopping: at least one stopping
-//	starting: at least one starting
+//		running: all running
+//		stopped: all stopped
+//		failed: at least one failed
+//	    stopped: at least one stopped
+//		starting: at least one starting
 func parseAppStatus(containers []container.Summary) []AppStatusInfo {
 	apps := make([]AppStatusInfo, 0, len(containers))
 	appsStatusMap := make(map[string][]Status)
@@ -91,6 +91,10 @@ func parseAppStatus(containers []container.Summary) []AppStatusInfo {
 		}
 		if slices.ContainsFunc(s, func(v Status) bool { return v == StatusStopping }) {
 			appendResult(appPath, StatusStopping)
+			continue
+		}
+		if slices.ContainsFunc(s, func(v Status) bool { return v == StatusStopped }) {
+			appendResult(appPath, StatusFailed)
 			continue
 		}
 		if slices.ContainsFunc(s, func(v Status) bool { return v == StatusStarting }) {
