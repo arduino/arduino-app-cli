@@ -7,12 +7,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ## [Unreleased]
 
 ### Added
-### Changed
-### Deprecated
-### Removed
-### Fixed
-### Security
 
+- add the `require_model` to the `GET /v1/bricks` and `GET /v1/bricks/id` [#93](https://github.com/arduino/arduino-app-cli/pull/93)
+- add the `require_model` to the `GET /v1/apps/{id}/bricks` and `GET /v1/apps/{id}/bricks/{id}` [#93](https://github.com/arduino/arduino-app-cli/pull/93)
+- add the `compatible_models` to the `GET /v1/bricks/{id}` [#94](https://github.com/arduino/arduino-app-cli/pull/94)
+- add the `compatible_models` to the `GET /v1/apps/{id}/bricks/{id}` [#99](https://github.com/arduino/arduino-app-cli/pull/99)
+- bump [examples](https://github.com/arduino/app-bricks-examples) to 0.5.1 [#100](https://github.com/arduino/arduino-app-cli/pull/100)
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+- remove the `models` fields from the `GET /v1/bricks` response [#94](https://github.com/arduino/arduino-app-cli/pull/94)
+- remove depreacted `require_devices` field from the brick-list [#111](https://github.com/arduino/arduino-app-cli/pull/111)
+
+### Fixed
+
+- pkg/board/remote/adb/: use `adb get-state` for checking if the board is there and it is connecteed [#98](https://github.com/arduino/arduino-app-cli/pull/98)
+
+### Security
 
 ## [0.6.8] - 2025-11-24
 
