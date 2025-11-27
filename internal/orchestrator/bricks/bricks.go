@@ -93,6 +93,7 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 		}
 
 	}
+
 	return res, nil
 }
 
