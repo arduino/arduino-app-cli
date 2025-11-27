@@ -644,3 +644,191 @@ func TestAppBrickInstanceModelsDetails(t *testing.T) {
 		})
 	}
 }
+
+func TestAppBrickInstancesList(t *testing.T) {
+
+	bIndex := &bricksindex.BricksIndex{
+		Bricks: []bricksindex.Brick{
+			{
+				ID:           "arduino:weather_forecast",
+				Name:         "Weather Forecast",
+				Category:     "miscellaneous",
+				RequireModel: false,
+				Variables:    []bricksindex.BrickVariable{},
+			},
+			{
+				ID:           "arduino:object_detection",
+				Name:         "Object Detection",
+				Category:     "video",
+				ModelName:    "yolox-object-detection",
+				RequireModel: true,
+				Variables: []bricksindex.BrickVariable{
+					{Name: "CUSTOM_MODEL_PATH", DefaultValue: "/home/arduino/.arduino-bricks/ei-models", Description: "path to the custom model directory"},
+					{Name: "EI_OBJ_DETECTION_MODEL", DefaultValue: "/models/ootb/ei/yolo-x-nano.eim", Description: "path to the model file"},
+				},
+			},
+			{
+				ID:           "arduino:audio_classification",
+				Name:         "Audio Classification",
+				Category:     "audio",
+				ModelName:    "glass-breaking",
+				RequireModel: true,
+				Variables: []bricksindex.BrickVariable{
+					{Name: "CUSTOM_MODEL_PATH", DefaultValue: "/home/arduino/.arduino-bricks/ei-models"},
+					{Name: "EI_AUDIO_CLASSIFICATION_MODEL", DefaultValue: "/models/ootb/ei/glass-breaking.eim"},
+				},
+			},
+			{
+				ID:           "arduino:streamlit_ui",
+				Name:         "WebUI - Streamlit",
+				Category:     "ui",
+				RequireModel: false,
+				Ports:        []string{"7000", "8000"},
+			},
+		},
+	}
+
+	svc := &Service{
+		bricksIndex: bIndex,
+		modelsIndex: &modelsindex.ModelsIndex{},
+	}
+
+	tests := []struct {
+		name          string
+		app           *app.ArduinoApp
+		expectedError string
+		validate      func(*testing.T, AppBrickInstancesResult)
+	}{
+		{
+			name: "Error - Brick not found in Index",
+			app: &app.ArduinoApp{
+				Descriptor: app.AppDescriptor{
+					Bricks: []app.Brick{
+						{ID: "arduino:non_existent_brick"},
+					},
+				},
+			},
+			expectedError: "brick not found with id arduino:non_existent_brick",
+		},
+		{
+			name: "Success - Empty App",
+			app: &app.ArduinoApp{
+				Descriptor: app.AppDescriptor{
+					Bricks: []app.Brick{},
+				},
+			},
+			validate: func(t *testing.T, res AppBrickInstancesResult) {
+				require.Empty(t, res.BrickInstances)
+			},
+		},
+		{
+			name: "Success - Simple Brick",
+			app: &app.ArduinoApp{
+				Descriptor: app.AppDescriptor{
+					Bricks: []app.Brick{
+						{ID: "arduino:weather_forecast"},
+					},
+				},
+			},
+			validate: func(t *testing.T, res AppBrickInstancesResult) {
+				require.Len(t, res.BrickInstances, 1)
+				brick := res.BrickInstances[0]
+
+				require.Equal(t, "arduino:weather_forecast", brick.ID)
+				require.Equal(t, "Weather Forecast", brick.Name)
+				require.Equal(t, "miscellaneous", brick.Category)
+				require.Equal(t, "installed", brick.Status)
+				require.Equal(t, "Arduino", brick.Author)
+				require.False(t, brick.RequireModel)
+				require.Empty(t, brick.ModelID)
+			},
+		},
+		{
+			name: "Success - Brick with Model Configured",
+			app: &app.ArduinoApp{
+				Descriptor: app.AppDescriptor{
+					Bricks: []app.Brick{
+						{
+							ID:    "arduino:object_detection",
+							Model: "face-detection", // default model overridden
+							Variables: map[string]string{
+								"CUSTOM_MODEL_PATH": "/custom/path",
+							},
+						},
+					},
+				},
+			},
+			validate: func(t *testing.T, res AppBrickInstancesResult) {
+				require.Len(t, res.BrickInstances, 1)
+				brick := res.BrickInstances[0]
+
+				require.Equal(t, "arduino:object_detection", brick.ID)
+				require.Equal(t, "video", brick.Category)
+				require.True(t, brick.RequireModel)
+				require.Equal(t, "face-detection", brick.ModelID)
+
+				foundCustom := false
+				for _, v := range brick.ConfigVariables {
+					if v.Name == "CUSTOM_MODEL_PATH" {
+						require.Equal(t, "/custom/path", v.Value)
+						foundCustom = true
+					}
+				}
+				require.True(t, foundCustom, "Variable CUSTOM_MODEL_PATH should be present and overridden")
+			},
+		},
+		{
+			name: "Success - Multiple Bricks",
+			app: &app.ArduinoApp{
+				Descriptor: app.AppDescriptor{
+					Bricks: []app.Brick{
+						{ID: "arduino:streamlit_ui"},
+						{ID: "arduino:audio_classification", Model: "glass-breaking"},
+					},
+				},
+			},
+			validate: func(t *testing.T, res AppBrickInstancesResult) {
+				require.Len(t, res.BrickInstances, 2)
+
+				// Brick 1: Streamlit UI
+				b1 := res.BrickInstances[0]
+				require.Equal(t, "arduino:streamlit_ui", b1.ID)
+				require.Equal(t, "WebUI - Streamlit", b1.Name)
+				require.Equal(t, "Arduino", b1.Author)
+				require.Equal(t, "ui", b1.Category)
+				require.Equal(t, "installed", b1.Status)
+				require.Equal(t, "", b1.ModelID)
+				require.Empty(t, b1.Variables)
+				require.Empty(t, b1.ConfigVariables)
+				require.False(t, b1.RequireModel)
+
+				// Brick 2: Audio Classification
+				b2 := res.BrickInstances[1]
+				require.Equal(t, "arduino:audio_classification", b2.ID)
+				require.Equal(t, "audio", b2.Category)
+				require.True(t, b2.RequireModel)
+				require.Equal(t, "glass-breaking", b2.ModelID)
+				require.Equal(t, 2, len(b2.ConfigVariables))
+				require.Equal(t, "/home/arduino/.arduino-bricks/ei-models", b2.ConfigVariables[0].Value)
+				require.Equal(t, "/models/ootb/ei/glass-breaking.eim", b2.ConfigVariables[1].Value)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := svc.AppBrickInstancesList(tt.app)
+
+			if tt.expectedError != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.expectedError)
+				return
+			}
+
+			require.NoError(t, err)
+			if tt.validate != nil {
+				tt.validate(t, result)
+			}
+		})
+	}
+}
