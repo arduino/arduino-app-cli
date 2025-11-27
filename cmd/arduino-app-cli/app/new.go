@@ -52,7 +52,6 @@ func newCreateCmd(cfg config.Configuration) *cobra.Command {
 	cmd.Flags().StringVarP(&fromApp, "from-app", "", "", "Create the new app from the path of an existing app")
 	cmd.Flags().StringArrayVarP(&bricks, "bricks", "b", []string{}, "List of bricks to include in the app")
 	cmd.Flags().BoolVarP(&noSketch, "no-sketch", "", false, "Do not include Sketch files")
-	cmd.MarkFlagsMutuallyExclusive("no-python", "no-sketch")
 
 	return cmd
 }
