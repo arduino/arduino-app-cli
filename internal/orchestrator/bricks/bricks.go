@@ -71,7 +71,7 @@ func (s *Service) List() (BrickListResult, error) {
 }
 
 func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesResult, error) {
-	res := AppBrickInstancesResult{BrickInstances: make([]BrickInstance, len(a.Descriptor.Bricks))}
+	res := AppBrickInstancesResult{BrickInstances: make([]BrickInstanceListItem, len(a.Descriptor.Bricks))}
 	for i, brickInstance := range a.Descriptor.Bricks {
 		brick, found := s.bricksIndex.FindBrickByID(brickInstance.ID)
 		if !found {
@@ -80,7 +80,7 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 
 		variablesMap, configVariables := getBrickConfigDetails(brick, brickInstance.Variables)
 
-		res.BrickInstances[i] = BrickInstance{
+		res.BrickInstances[i] = BrickInstanceListItem{
 			ID:              brick.ID,
 			Name:            brick.Name,
 			Author:          "Arduino", // TODO: for now we only support our bricks
