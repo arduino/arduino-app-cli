@@ -66,7 +66,7 @@ type AIModelsListResult struct {
 
 // AppBrickInstancesResult defines model for AppBrickInstancesResult.
 type AppBrickInstancesResult struct {
-	Bricks *[]BrickInstance `json:"bricks"`
+	Bricks *[]BrickInstanceListItem `json:"bricks"`
 }
 
 // AppDetailedBrick defines model for AppDetailedBrick.
@@ -169,6 +169,21 @@ type BrickInstance struct {
 	Name             *string                `json:"name,omitempty"`
 	RequireModel     *bool                  `json:"require_model,omitempty"`
 	Status           *string                `json:"status,omitempty"`
+
+	// Variables Deprecated: use config_variables instead. This field is kept for backward compatibility.
+	Variables *map[string]string `json:"variables,omitempty"`
+}
+
+// BrickInstanceListItem defines model for BrickInstanceListItem.
+type BrickInstanceListItem struct {
+	Author          *string                `json:"author,omitempty"`
+	Category        *string                `json:"category,omitempty"`
+	ConfigVariables *[]BrickConfigVariable `json:"config_variables,omitempty"`
+	Id              *string                `json:"id,omitempty"`
+	Model           *string                `json:"model,omitempty"`
+	Name            *string                `json:"name,omitempty"`
+	RequireModel    *bool                  `json:"require_model,omitempty"`
+	Status          *string                `json:"status,omitempty"`
 
 	// Variables Deprecated: use config_variables instead. This field is kept for backward compatibility.
 	Variables *map[string]string `json:"variables,omitempty"`
