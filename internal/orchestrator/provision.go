@@ -257,7 +257,7 @@ func generateMainComposeFile(
 		}
 
 		// 4. Retrieve the required devices that we have to mount
-		slog.Debug("Brick config", slog.Bool("require_devices", idxBrick.MountDevicesIntoContainer), slog.Any("ports", ports), slog.Any("required_devices", idxBrick.RequiredDevices))
+		slog.Debug("Brick config", slog.Bool("mount_devices_into_container", idxBrick.MountDevicesIntoContainer), slog.Any("ports", ports), slog.Any("required_devices", idxBrick.RequiredDevices))
 		if idxBrick.MountDevicesIntoContainer {
 			servicesThatRequireDevices = slices.AppendSeq(servicesThatRequireDevices, maps.Keys(svcs))
 		}

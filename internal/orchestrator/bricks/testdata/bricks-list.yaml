@@ -4,7 +4,6 @@ bricks:
   description: Connects to Arduino Cloud
   require_container: false
   require_model: false
-  require_devices: false
   mount_devices_into_container: false
   ports: []
   category: null
@@ -19,7 +18,6 @@ bricks:
     local database.
   require_container: false
   require_model: false
-  require_devices: false
   mount_devices_into_container: false
   ports: []
   category: storage

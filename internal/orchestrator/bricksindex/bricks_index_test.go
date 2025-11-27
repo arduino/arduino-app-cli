@@ -148,7 +148,6 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
   category: storage
   require_container: true
   require_model: true
-  require_devices: false
   mount_devices_into_container: true
   model_name: a-complex-model
   required_devices:

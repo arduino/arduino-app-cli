@@ -447,7 +447,6 @@ bricks:
     \ or with custom object detection models trained on Edge Impulse platform. \n"
   require_container: true
   require_model: true
-  require_devices: false
   ports: []
   category: video
   model_name: yolox-object-detection
@@ -533,7 +532,6 @@ bricks:
     \ or with custom object detection models trained on Edge Impulse platform. \n"
   require_container: true
   require_model: true
-  require_devices: false
   category: video
   model_name: yolox-object-detection
   variables:
