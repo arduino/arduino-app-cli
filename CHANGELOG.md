@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - bump [examples](https://github.com/arduino/app-bricks-examples) to 0.5.1 [#100](https://github.com/arduino/arduino-app-cli/pull/100)
 
 ### Changed
+- do not exit from default Python script  [#106](https://github.com/arduino/arduino-app-cli/pull/106)
 
 ### Deprecated
 
