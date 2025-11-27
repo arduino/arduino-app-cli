@@ -335,6 +335,16 @@ func generateMainComposeFile(
 			})
 		}
 	}
+	if devices.hasSoundDevice {
+		// If we are adding sound devices, mount also /dev/snd/by-id if it exists to allow access to by-id links
+		if paths.New("/dev/snd/by-id").Exist() {
+			volumes = append(volumes, volume{
+				Type:   "bind",
+				Source: "/dev/snd/by-id",
+				Target: "/dev/snd/by-id",
+			})
+		}
+	}
 
 	volumes = addLedControl(volumes)
 
