@@ -749,7 +749,6 @@ type CreateAppRequest struct {
 	Name        string
 	Icon        string
 	Description string
-	SkipPython  bool
 	SkipSketch  bool
 }
 
@@ -763,9 +762,6 @@ func CreateApp(
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
 ) (CreateAppResponse, error) {
-	if req.SkipPython && req.SkipSketch {
-		return CreateAppResponse{}, fmt.Errorf("cannot skip both python and sketch")
-	}
 	if req.Name == "" {
 		return CreateAppResponse{}, fmt.Errorf("app name cannot be empty")
 	}
@@ -784,16 +780,8 @@ func CreateApp(
 	if err := newApp.IsValid(); err != nil {
 		return CreateAppResponse{}, fmt.Errorf("%w: %v", app.ErrInvalidApp, err)
 	}
-	var options appgenerator.Opts = 0
 
-	if req.SkipSketch {
-		options |= appgenerator.SkipSketch
-	}
-	if req.SkipPython {
-		options |= appgenerator.SkipPython
-	}
-
-	if err := appgenerator.GenerateApp(basePath, newApp, options); err != nil {
+	if err := appgenerator.GenerateApp(basePath, newApp, req.SkipSketch); err != nil {
 		return CreateAppResponse{}, fmt.Errorf("failed to create app: %w", err)
 	}
 	id, err := idProvider.IDFromPath(basePath)
