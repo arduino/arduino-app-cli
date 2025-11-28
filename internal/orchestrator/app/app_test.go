@@ -58,9 +58,22 @@ func TestLoad(t *testing.T) {
 
 		assert.NotNil(t, app.MainPythonFile)
 		assert.Equal(t, f.Must(filepath.Abs("testdata/AppSimple/python/main.py")), app.MainPythonFile.String())
+		sketchPath, ok := app.GetSketchPath()
+		assert.True(t, ok)
+		assert.NotNil(t, sketchPath)
+		assert.Equal(t, f.Must(filepath.Abs("testdata/AppSimple/sketch")), sketchPath.String())
+	})
 
-		assert.NotNil(t, app.MainSketchPath)
-		assert.Equal(t, f.Must(filepath.Abs("testdata/AppSimple/sketch")), app.MainSketchPath.String())
+	t.Run("it loads an app with misssing sketch folder", func(t *testing.T) {
+		app, err := Load(paths.New("testdata/MissingSketch"))
+		assert.NoError(t, err)
+		assert.NotEmpty(t, app)
+
+		assert.NotNil(t, app.MainPythonFile)
+
+		sketchPath, ok := app.GetSketchPath()
+		assert.False(t, ok)
+		assert.Nil(t, sketchPath)
 	})
 }
 

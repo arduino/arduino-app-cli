@@ -30,7 +30,7 @@ import (
 type ArduinoApp struct {
 	Name           string
 	MainPythonFile *paths.Path
-	MainSketchPath *paths.Path
+	mainSketchPath *paths.Path
 	FullPath       *paths.Path // FullPath is the path to the App folder
 	Descriptor     AppDescriptor
 }
@@ -76,10 +76,10 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 
 	if appPath.Join("sketch", "sketch.ino").Exist() {
 		// TODO: check sketch casing?
-		app.MainSketchPath = appPath.Join("sketch")
+		app.mainSketchPath = appPath.Join("sketch")
 	}
 
-	if app.MainPythonFile == nil && app.MainSketchPath == nil {
+	if app.MainPythonFile == nil && app.mainSketchPath == nil {
 		return ArduinoApp{}, errors.New("main python file and sketch file missing from app")
 	}
 
@@ -89,6 +89,13 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 	}
 
 	return app, nil
+}
+
+func (a *ArduinoApp) GetSketchPath() (*paths.Path, bool) {
+	if a == nil || a.mainSketchPath == nil {
+		return nil, false
+	}
+	return a.mainSketchPath, true
 }
 
 // GetDescriptorPath returns the path to the app descriptor file (app.yaml or app.yml)
