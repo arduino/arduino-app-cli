@@ -408,9 +408,6 @@ type GetAppsParams struct {
 
 // CreateAppParams defines parameters for CreateApp.
 type CreateAppParams struct {
-	// SkipPython If true, the app will not be created with the python part.
-	SkipPython *bool `form:"skip-python,omitempty" json:"skip-python,omitempty"`
-
 	// SkipSketch If true, the app will not be created with the sketch part.
 	SkipSketch *bool `form:"skip-sketch,omitempty" json:"skip-sketch,omitempty"`
 }
@@ -1271,22 +1268,6 @@ func NewCreateAppRequestWithBody(server string, params *CreateAppParams, content
 
 	if params != nil {
 		queryValues := queryURL.Query()
-
-		if params.SkipPython != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "skip-python", runtime.ParamLocationQuery, *params.SkipPython); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
 
 		if params.SkipSketch != nil {
 

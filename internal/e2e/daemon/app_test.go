@@ -93,7 +93,6 @@ func TestCreateApp(t *testing.T) {
 		{
 			name: "should return 400 bad request when icon is not a single emoji",
 			parameters: client.CreateAppParams{
-				SkipPython: f.Ptr(false),
 				SkipSketch: f.Ptr(false),
 			},
 			body: client.CreateAppRequest{
@@ -107,7 +106,6 @@ func TestCreateApp(t *testing.T) {
 		{
 			name: "should create app successfully when icon is empty",
 			parameters: client.CreateAppParams{
-				SkipPython: f.Ptr(false),
 				SkipSketch: f.Ptr(false),
 			},
 			body: client.CreateAppRequest{
@@ -121,7 +119,6 @@ func TestCreateApp(t *testing.T) {
 		{
 			name: "should return 201 Created on first successful creation",
 			parameters: client.CreateAppParams{
-				SkipPython: f.Ptr(false),
 				SkipSketch: f.Ptr(false),
 			},
 			body:               defaultRequestBody,
@@ -130,7 +127,6 @@ func TestCreateApp(t *testing.T) {
 		{
 			name: "should return 409 Conflict when creating a duplicate app",
 			parameters: client.CreateAppParams{
-				SkipPython: f.Ptr(false),
 				SkipSketch: f.Ptr(false),
 			},
 			body:                 defaultRequestBody,
@@ -138,22 +134,8 @@ func TestCreateApp(t *testing.T) {
 			expectedErrorDetails: f.Ptr("app already exists"),
 		},
 		{
-			name: "should return 201 Created on successful creation with skip_python",
-			parameters: client.CreateAppParams{
-				SkipPython: f.Ptr(true),
-				SkipSketch: f.Ptr(false),
-			},
-			body: client.CreateAppRequest{
-				Icon:        f.Ptr("🌎"),
-				Name:        "HelloWorld_2",
-				Description: f.Ptr("My HelloWorld_2 description"),
-			},
-			expectedStatusCode: http.StatusCreated,
-		},
-		{
 			name: "should return 201 Created on successful creation with skip_sketch",
 			parameters: client.CreateAppParams{
-				SkipPython: f.Ptr(false),
 				SkipSketch: f.Ptr(true),
 			},
 			body: client.CreateAppRequest{
@@ -166,7 +148,6 @@ func TestCreateApp(t *testing.T) {
 		{
 			name: "should return 400 Bad Request when creating an app with both filters set to true",
 			parameters: client.CreateAppParams{
-				SkipPython: f.Ptr(true),
 				SkipSketch: f.Ptr(true),
 			},
 			body:                 defaultRequestBody,
@@ -985,7 +966,6 @@ func TestAppList(t *testing.T) {
 		expectedAppNumber := 5
 		for i := 0; i < expectedAppNumber; i++ {
 			r, err := httpClient.CreateApp(t.Context(), &client.CreateAppParams{
-				SkipPython: f.Ptr(false),
 				SkipSketch: f.Ptr(false),
 			}, client.CreateAppRequest{
 				Icon:        f.Ptr("🌎"),
@@ -1003,7 +983,6 @@ func TestAppList(t *testing.T) {
 
 	t.Run("AppListDefault_success", func(t *testing.T) {
 		r, err := httpClient.CreateApp(t.Context(), &client.CreateAppParams{
-			SkipPython: f.Ptr(false),
 			SkipSketch: f.Ptr(false),
 		}, client.CreateAppRequest{
 			Icon:        f.Ptr("🌎"),
