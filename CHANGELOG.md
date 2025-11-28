@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ### Fixed
 
 - pkg/board/remote/adb/: use `adb get-state` for checking if the board is there and it is connected [#98](https://github.com/arduino/arduino-app-cli/pull/98)
+- add the `/needrestart/conf.d/arduino-adbd.conf` to exclude `adbd` service to be restarted [#117](https://github.com/arduino/arduino-app-cli/pull/117)
 
 ### Security
 
