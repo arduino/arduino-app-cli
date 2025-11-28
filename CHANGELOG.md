@@ -8,25 +8,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ### Added
 
-- add the `require_model` to the `GET /v1/bricks` and `GET /v1/bricks/id` [#93](https://github.com/arduino/arduino-app-cli/pull/93)
-- add the `require_model` to the `GET /v1/apps/{id}/bricks` and `GET /v1/apps/{id}/bricks/{id}` [#93](https://github.com/arduino/arduino-app-cli/pull/93)
-- add the `compatible_models` to the `GET /v1/bricks/{id}` [#94](https://github.com/arduino/arduino-app-cli/pull/94)
-- add the `compatible_models` to the `GET /v1/apps/{id}/bricks/{id}` [#99](https://github.com/arduino/arduino-app-cli/pull/99)
-- bump [examples](https://github.com/arduino/app-bricks-examples) to 0.5.1 [#100](https://github.com/arduino/arduino-app-cli/pull/100)
+- Add the `require_model` to the `GET /v1/bricks` and `GET /v1/bricks/id` [#93](https://github.com/arduino/arduino-app-cli/pull/93)
+- Add the `require_model` to the `GET /v1/apps/{id}/bricks` and `GET /v1/apps/{id}/bricks/{id}` [#93](https://github.com/arduino/arduino-app-cli/pull/93)
+- Add the `compatible_models` to the `GET /v1/bricks/{id}` [#94](https://github.com/arduino/arduino-app-cli/pull/94)
+- Add the `compatible_models` to the `GET /v1/apps/{id}/bricks/{id}` [#99](https://github.com/arduino/arduino-app-cli/pull/99)
+- Bump [examples](https://github.com/arduino/app-bricks-examples) to 0.5.1 [#100](https://github.com/arduino/arduino-app-cli/pull/100)
 
 ### Changed
-- do not exit from default Python script  [#106](https://github.com/arduino/arduino-app-cli/pull/106)
+- Do not exit from default Python script  [#106](https://github.com/arduino/arduino-app-cli/pull/106)
 
 ### Deprecated
 
 ### Removed
 
-- remove the `models` fields from the `GET /v1/bricks` response [#94](https://github.com/arduino/arduino-app-cli/pull/94)
-- remove depreacted `require_devices` field from the brick-list [#111](https://github.com/arduino/arduino-app-cli/pull/111)
+- Remove the `models` fields from the `GET /v1/bricks` response [#94](https://github.com/arduino/arduino-app-cli/pull/94)
+- Remove depreacted `require_devices` field from the brick-list [#111](https://github.com/arduino/arduino-app-cli/pull/111)
+- Remove the `compatible_models` field from the `/v1/apps/{id}/bricks` response [#114](https://github.com/arduino/arduino-app-cli/pull/114)
+
 
 ### Fixed
 
-- pkg/board/remote/adb/: use `adb get-state` for checking if the board is there and it is connecteed [#98](https://github.com/arduino/arduino-app-cli/pull/98)
+- pkg/board/remote/adb/: use `adb get-state` for checking if the board is there and it is connected [#98](https://github.com/arduino/arduino-app-cli/pull/98)
 
 ### Security
 
