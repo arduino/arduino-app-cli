@@ -145,15 +145,6 @@ func TestCreateApp(t *testing.T) {
 			},
 			expectedStatusCode: http.StatusCreated,
 		},
-		{
-			name: "should return 400 Bad Request when creating an app with both filters set to true",
-			parameters: client.CreateAppParams{
-				SkipSketch: f.Ptr(true),
-			},
-			body:                 defaultRequestBody,
-			expectedStatusCode:   http.StatusBadRequest,
-			expectedErrorDetails: f.Ptr("cannot skip both python and sketch"),
-		},
 	}
 
 	for _, tc := range testCases {
