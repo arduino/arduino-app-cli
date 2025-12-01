@@ -91,7 +91,7 @@ type BrickDetailsResult struct {
 	Category         string                   `json:"category"`
 	Status           string                   `json:"status"`
 	RequireModel     bool                     `json:"require_model"`
-	Variables        map[string]BrickVariable `json:"variables, omitempty" description:"Deprecated: use config_variables instead. This field is kept for backward compatibility."`
+	Variables        map[string]BrickVariable `json:"variables,omitempty" description:"Deprecated: use config_variables instead. This field is kept for backward compatibility."`
 	Readme           string                   `json:"readme"`
 	ApiDocsPath      string                   `json:"api_docs_path"`
 	CodeExamples     []CodeExample            `json:"code_examples"`
