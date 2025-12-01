@@ -78,7 +78,7 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 			return AppBrickInstancesResult{}, fmt.Errorf("brick not found with id %s", brickInstance.ID)
 		}
 
-		variablesMap, configVariables := getInstanceBrickConfigVAriableDetails(brick, brickInstance.Variables)
+		variablesMap, configVariables := getInstanceBrickConfigVariableDetails(brick, brickInstance.Variables)
 
 		res.BrickInstances[i] = BrickInstanceListItem{
 			ID:              brick.ID,
@@ -107,7 +107,7 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 		return BrickInstance{}, fmt.Errorf("brick %s not added in the app", brickID)
 	}
 
-	variables, configVariables := getInstanceBrickConfigVAriableDetails(brick, a.Descriptor.Bricks[brickIndex].Variables)
+	variables, configVariables := getInstanceBrickConfigVariableDetails(brick, a.Descriptor.Bricks[brickIndex].Variables)
 
 	modelID := a.Descriptor.Bricks[brickIndex].Model
 	if modelID == "" {
@@ -134,7 +134,7 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 	}, nil
 }
 
-func getInstanceBrickConfigVAriableDetails(
+func getInstanceBrickConfigVariableDetails(
 	brick *bricksindex.Brick, userVariables map[string]string,
 ) (map[string]string, []BrickConfigVariable) {
 	variablesMap := make(map[string]string, len(brick.Variables))
