@@ -402,6 +402,21 @@ func TestBricksDetails(t *testing.T) {
 	})
 
 	t.Run("Success - Full Details - multiple models", func(t *testing.T) {
+		expectConfigVariables := []BrickConfigVariable{
+			{
+				Name:        "EI_OBJ_DETECTION_MODEL",
+				Value:       "default_path",
+				Description: "path to the model file",
+				Required:    false,
+			},
+			{
+				Name:        "CUSTOM_MODEL_PATH",
+				Value:       "/home/arduino/.arduino-bricks/ei-models",
+				Description: "path to the custom model directory",
+				Required:    false,
+			},
+		}
+
 		res, err := svc.BricksDetails("arduino:object_detection", idProvider, cfg)
 		require.NoError(t, err)
 
@@ -425,6 +440,8 @@ func TestBricksDetails(t *testing.T) {
 		require.Equal(t, "face-detection", res.CompatibleModels[1].ID)
 		require.Equal(t, "Lightweight-Face-Detection", res.CompatibleModels[1].Name)
 		require.Equal(t, "", res.CompatibleModels[1].Description)
+		require.Len(t, res.ConfigVariables, 2)
+		require.Equal(t, expectConfigVariables, res.ConfigVariables)
 	})
 
 	t.Run("Success - Full Details - no models", func(t *testing.T) {
@@ -444,6 +461,7 @@ func TestBricksDetails(t *testing.T) {
 		require.Equal(t, "My App", res.UsedByApps[0].Name)
 		require.NotEmpty(t, res.UsedByApps[0].ID)
 		require.Len(t, res.CompatibleModels, 0)
+		require.Empty(t, res.ConfigVariables)
 	})
 
 	t.Run("Success - Full Details - one model", func(t *testing.T) {
@@ -456,6 +474,8 @@ func TestBricksDetails(t *testing.T) {
 		require.Equal(t, "face-detection", res.CompatibleModels[0].ID)
 		require.Equal(t, "Lightweight-Face-Detection", res.CompatibleModels[0].Name)
 		require.Equal(t, "", res.CompatibleModels[0].Description)
+		require.Empty(t, res.ConfigVariables)
+		require.Empty(t, res.Variables)
 	})
 }
 
