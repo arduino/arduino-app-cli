@@ -13,6 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - Add the `compatible_models` to the `GET /v1/bricks/{id}` [#94](https://github.com/arduino/arduino-app-cli/pull/94)
 - Add the `compatible_models` to the `GET /v1/apps/{id}/bricks/{id}` [#99](https://github.com/arduino/arduino-app-cli/pull/99)
 - Bump [examples](https://github.com/arduino/app-bricks-examples) to 0.5.1 [#100](https://github.com/arduino/arduino-app-cli/pull/100)
+- mount `/dev/snd/by-id` in python container [#119](https://github.com/arduino/arduino-app-cli/pull/119)
+
 
 ### Changed
 - Do not exit from default Python script  [#106](https://github.com/arduino/arduino-app-cli/pull/106)
@@ -34,8 +36,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 - pkg/board/remote/adb/: use `adb get-state` for checking if the board is there and it is connected [#98](https://github.com/arduino/arduino-app-cli/pull/98)
 - add the `/needrestart/conf.d/arduino-adbd.conf` to exclude `adbd` service to be restarted [#117](https://github.com/arduino/arduino-app-cli/pull/117)
-- manage missing sketch folder when adding a library [#123](https://github.com/arduino/arduino-app-cli/pull/123)
 - remove `compatible_models` from the `GET /v1/apps/{id}/bricks` endpoint [#120](https://github.com/arduino/arduino-app-cli/pull/120)
+- manage missing sketch folder when adding a library [#123](https://github.com/arduino/arduino-app-cli/pull/123)
 
 ### Security
 
