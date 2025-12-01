@@ -1320,6 +1320,11 @@ components:
             $ref: '#/components/schemas/AIModel'
           nullable: true
           type: array
+        config_variables:
+          items:
+            $ref: '#/components/schemas/BrickConfigVariable'
+          nullable: true
+          type: array
         description:
           type: string
         id:
@@ -1340,6 +1345,9 @@ components:
         variables:
           additionalProperties:
             $ref: '#/components/schemas/BrickVariable'
+          description: 'Deprecated: use config_variables instead. This field is kept
+            for backward compatibility.'
+          nullable: true
           type: object
       type: object
     BrickInstance:

@@ -143,19 +143,22 @@ type BrickCreateUpdateRequest struct {
 
 // BrickDetailsResult defines model for BrickDetailsResult.
 type BrickDetailsResult struct {
-	ApiDocsPath      *string                   `json:"api_docs_path,omitempty"`
-	Author           *string                   `json:"author,omitempty"`
-	Category         *string                   `json:"category,omitempty"`
-	CodeExamples     *[]CodeExample            `json:"code_examples"`
-	CompatibleModels *[]AIModel                `json:"compatible_models"`
-	Description      *string                   `json:"description,omitempty"`
-	Id               *string                   `json:"id,omitempty"`
-	Name             *string                   `json:"name,omitempty"`
-	Readme           *string                   `json:"readme,omitempty"`
-	RequireModel     *bool                     `json:"require_model,omitempty"`
-	Status           *string                   `json:"status,omitempty"`
-	UsedByApps       *[]AppReference           `json:"used_by_apps"`
-	Variables        *map[string]BrickVariable `json:"variables,omitempty"`
+	ApiDocsPath      *string                `json:"api_docs_path,omitempty"`
+	Author           *string                `json:"author,omitempty"`
+	Category         *string                `json:"category,omitempty"`
+	CodeExamples     *[]CodeExample         `json:"code_examples"`
+	CompatibleModels *[]AIModel             `json:"compatible_models"`
+	ConfigVariables  *[]BrickConfigVariable `json:"config_variables"`
+	Description      *string                `json:"description,omitempty"`
+	Id               *string                `json:"id,omitempty"`
+	Name             *string                `json:"name,omitempty"`
+	Readme           *string                `json:"readme,omitempty"`
+	RequireModel     *bool                  `json:"require_model,omitempty"`
+	Status           *string                `json:"status,omitempty"`
+	UsedByApps       *[]AppReference        `json:"used_by_apps"`
+
+	// Variables Deprecated: use config_variables instead. This field is kept for backward compatibility.
+	Variables *map[string]BrickVariable `json:"variables"`
 }
 
 // BrickInstance defines model for BrickInstance.
