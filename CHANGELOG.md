@@ -22,14 +22,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ### Removed
 
 - Remove the `models` fields from the `GET /v1/bricks` response [#94](https://github.com/arduino/arduino-app-cli/pull/94)
-- Remove depreacted `require_devices` field from the brick-list [#111](https://github.com/arduino/arduino-app-cli/pull/111)
-- Remove the `compatible_models` field from the `/v1/apps/{id}/bricks` response [#114](https://github.com/arduino/arduino-app-cli/pull/114)
+- Remove deprecated `require_devices` field from the `brick-list.yaml` [#111](https://github.com/arduino/arduino-app-cli/pull/111)
+- Remove the `compatible_models` field from the `GET /v1/apps/{id}/bricks` response [#114](https://github.com/arduino/arduino-app-cli/pull/114)
+- Remove `--no-python` from the CLI `arduino-app-cli app new name` command [#121](https://github.com/arduino/arduino-app-cli/pull/121)
+- Remove `skip-python` from the HTTP  `POST /v1/apps` request endpoint [#121](https://github.com/arduino/arduino-app-cli/pull/121)
+
+
 
 
 ### Fixed
 
 - pkg/board/remote/adb/: use `adb get-state` for checking if the board is there and it is connected [#98](https://github.com/arduino/arduino-app-cli/pull/98)
 - add the `/needrestart/conf.d/arduino-adbd.conf` to exclude `adbd` service to be restarted [#117](https://github.com/arduino/arduino-app-cli/pull/117)
+- manage missing sketch folder when adding a library [#123](https://github.com/arduino/arduino-app-cli/pull/123)
+- remove `compatible_models` from the `GET /v1/apps/{id}/bricks` endpoint [#120](https://github.com/arduino/arduino-app-cli/pull/120)
 
 ### Security
 
