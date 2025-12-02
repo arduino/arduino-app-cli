@@ -450,6 +450,91 @@ func StopAndDestroyApp(ctx context.Context, dockerClient command.Cli, app app.Ar
 	return stopAppWithCmd(ctx, dockerClient, app, "down")
 }
 
+func DestroyAndCleanApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
+	return func(yield func(StreamMessage) bool) {
+
+		for msg := range destroyAppContainers(ctx, app) {
+			if !yield(msg) {
+				return
+			}
+		}
+		for msg := range cleanAppCacheFiles(app) {
+			if !yield(msg) {
+				return
+			}
+		}
+	}
+}
+
+func destroyAppContainers(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
+	return func(yield func(StreamMessage) bool) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		if !yield(StreamMessage{data: fmt.Sprintf("Destroying app %q containers and data...", app.Name)}) {
+			return
+		}
+		callbackWriter := NewCallbackWriter(func(line string) {
+			if !yield(StreamMessage{data: line}) {
+				cancel()
+				return
+			}
+		})
+		if _, ok := app.GetSketchPath(); ok {
+			if err := micro.Disable(); err != nil {
+				slog.Debug("unable to disable micro (might be already stopped)", slog.String("error", err.Error()))
+			}
+		}
+		if app.MainPythonFile != nil {
+			mainCompose := app.AppComposeFilePath()
+			if mainCompose.Exist() {
+				process, err := paths.NewProcess(
+					nil,
+					"docker", "compose",
+					"-f", mainCompose.String(),
+					"down",
+					"--volumes",
+					"--remove-orphans",
+					fmt.Sprintf("--timeout=%d", DefaultDockerStopTimeoutSeconds),
+				)
+
+				if err != nil {
+					yield(StreamMessage{error: err})
+					return
+				}
+
+				process.RedirectStderrTo(callbackWriter)
+				process.RedirectStdoutTo(callbackWriter)
+				if err := process.RunWithinContext(ctx); err != nil {
+					yield(StreamMessage{error: fmt.Errorf("failed to destroy containers: %w", err)})
+					return
+				}
+			}
+		}
+		yield(StreamMessage{data: "App containers and volumes removed."})
+	}
+}
+
+func cleanAppCacheFiles(app app.ArduinoApp) iter.Seq[StreamMessage] {
+	return func(yield func(StreamMessage) bool) {
+		cachePath := app.FullPath.Join(".cache")
+
+		if exists, _ := cachePath.ExistCheck(); !exists {
+			yield(StreamMessage{data: "No cache to clean."})
+			return
+		}
+		if !yield(StreamMessage{data: "Removing app cache files..."}) {
+			return
+		}
+		slog.Debug("removing app cache", slog.String("path", cachePath.String()))
+		if err := cachePath.RemoveAll(); err != nil {
+			yield(StreamMessage{error: fmt.Errorf("unable to remove app cache: %w", err)})
+			return
+		}
+		yield(StreamMessage{data: "Cache removed successfully."})
+	}
+}
+
 func RestartApp(
 	ctx context.Context,
 	docker command.Cli,

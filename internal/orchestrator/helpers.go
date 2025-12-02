@@ -150,7 +150,10 @@ func getAppStatusByPath(
 		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
 	if len(containers) == 0 {
-		return nil, nil
+		return &AppStatusInfo{
+			AppPath: paths.New(pathLabel),
+			Status:  StatusUninitialized,
+		}, nil
 	}
 
 	app := parseAppStatus(containers)

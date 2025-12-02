@@ -24,11 +24,12 @@ import (
 type Status string
 
 const (
-	StatusStarting Status = "starting"
-	StatusRunning  Status = "running"
-	StatusStopping Status = "stopping"
-	StatusStopped  Status = "stopped"
-	StatusFailed   Status = "failed"
+	StatusStarting      Status = "starting"
+	StatusRunning       Status = "running"
+	StatusStopping      Status = "stopping"
+	StatusStopped       Status = "stopped"
+	StatusFailed        Status = "failed"
+	StatusUninitialized Status = "uninitialized"
 )
 
 func StatusFromDockerState(s container.ContainerState) Status {
