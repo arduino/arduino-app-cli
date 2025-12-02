@@ -13,24 +13,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - Add the `compatible_models` to the `GET /v1/bricks/{id}` [#94](https://github.com/arduino/arduino-app-cli/pull/94)
 - Add the `compatible_models` to the `GET /v1/apps/{id}/bricks/{id}` [#99](https://github.com/arduino/arduino-app-cli/pull/99)
 - Bump [examples](https://github.com/arduino/app-bricks-examples) to 0.5.1 [#100](https://github.com/arduino/arduino-app-cli/pull/100)
-- mount `/dev/snd/by-id` in python container [#119](https://github.com/arduino/arduino-app-cli/pull/119)
-
+- Mount `/dev/snd/by-id` in python container [#119](https://github.com/arduino/arduino-app-cli/pull/119)
+- Add the `config_variables` field in the  `GET /v1/bricks/{id} ` response  [#126](https://github.com/arduino/arduino-app-cli/pull/126)
 
 ### Changed
+
 - Do not exit from default Python script  [#106](https://github.com/arduino/arduino-app-cli/pull/106)
 
 ### Deprecated
 
+- Deprecate the `variables` field from the `GET /v1/bricks/{id} ` response  [#126](https://github.com/arduino/arduino-app-cli/pull/126)
+
 ### Removed
 
-- Remove the `models` fields from the `GET /v1/bricks` response [#94](https://github.com/arduino/arduino-app-cli/pull/94)
+- Remove the `models` fields from the `GET https://github.com/arduino/arduino-app-cli/pull/126/v1/bricks` response [#94](https://github.com/arduino/arduino-app-cli/pull/94)
 - Remove deprecated `require_devices` field from the `brick-list.yaml` [#111](https://github.com/arduino/arduino-app-cli/pull/111)
 - Remove the `compatible_models` field from the `GET /v1/apps/{id}/bricks` response [#114](https://github.com/arduino/arduino-app-cli/pull/114)
 - Remove `--no-python` from the CLI `arduino-app-cli app new name` command [#121](https://github.com/arduino/arduino-app-cli/pull/121)
 - Remove `skip-python` from the HTTP  `POST /v1/apps` request endpoint [#121](https://github.com/arduino/arduino-app-cli/pull/121)
-
-
-
 
 ### Fixed
 
