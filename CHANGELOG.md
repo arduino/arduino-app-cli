@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ### Removed
 
 - Remove `--no-python` option from the CLI `arduino-app-cli app new` command [#121](https://github.com/arduino/arduino-app-cli/pull/121)
+-  Remove `skip-python` from the HTTP  `POST /v1/apps` request endpoint [#121](https://github.com/arduino/arduino-app-cli/pull/121)
 
 ## Fixed
 
@@ -43,7 +44,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - Remove the `models` fields from the `GET https://github.com/arduino/arduino-app-cli/pull/126/v1/bricks` response [#94](https://github.com/arduino/arduino-app-cli/pull/94)
 - Remove deprecated `require_devices` field from the `brick-list.yaml` [#111](https://github.com/arduino/arduino-app-cli/pull/111)
 - Remove the `compatible_models` field from the `GET /v1/apps/{id}/bricks` response [#114](https://github.com/arduino/arduino-app-cli/pull/114)
-- Remove `skip-python` from the HTTP  `POST /v1/apps` request endpoint [#121](https://github.com/arduino/arduino-app-cli/pull/121)
 
 ### Fixed
 
