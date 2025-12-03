@@ -18,7 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ### Removed
 
 - Remove `--no-python` option from the CLI `arduino-app-cli app new` command [#121](https://github.com/arduino/arduino-app-cli/pull/121)
--  Remove `skip-python` from the HTTP  `POST /v1/apps` request endpoint [#121](https://github.com/arduino/arduino-app-cli/pull/121)
+- Remove `skip-python` from the HTTP  `POST /v1/apps` request endpoint [#121](https://github.com/arduino/arduino-app-cli/pull/121)
 
 ## Fixed
 
