@@ -1,0 +1,29 @@
+# BIND_ADDRESS = external container address
+# BIND_PORT = container port
+# DB_USERNAME = Edge Impulse project API key
+# DB_PASSWORD = Database password
+# INFLUXDB_ADMIN_TOKEN = InfluxDB admin token
+services:
+  dbstorage-influx:
+    image: influxdb:2.7
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"     
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${BIND_PORT:-8086}:8086"
+    volumes:
+      - "${APP_HOME:-.}/data/influx-data:/var/lib/influxdb2"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: "${DB_USERNAME:-admin}"
+      DOCKER_INFLUXDB_INIT_PASSWORD: "${DB_PASSWORD:-Arduino15}"
+      DOCKER_INFLUXDB_INIT_ORG: arduino
+      DOCKER_INFLUXDB_INIT_BUCKET: arduinostorage
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: "${INFLUXDB_ADMIN_TOKEN:-392edbf2-b8a2-481f-979d-3f188b2c05f0}"
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:8086/health || exit 1" ]
+      interval: 2s
+      timeout: 3s
+      retries: 10
