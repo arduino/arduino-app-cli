@@ -307,6 +307,11 @@ func generateMainComposeFile(
 			Source: app.FullPath.String(),
 			Target: "/app",
 		},
+		{
+			Type:   "bind",
+			Source: app.ProvisioningStateDir().String(),
+			Target: "/app/.cache",
+		},
 	}
 	slog.Debug("Adding UNIX socket", slog.Any("sock", cfg.RouterSocketPath().String()), slog.Bool("exists", cfg.RouterSocketPath().Exist()))
 	if cfg.RouterSocketPath().Exist() {

@@ -16,9 +16,13 @@
 package app
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
+	"path/filepath"
 
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
@@ -140,11 +144,14 @@ func (a *ArduinoApp) writeApp() error {
 }
 
 func (a *ArduinoApp) SketchBuildPath() *paths.Path {
-	return a.FullPath.Join(".cache", "sketch")
+	return a.ProvisioningStateDir().Join("sketch")
 }
 
 func (a *ArduinoApp) ProvisioningStateDir() *paths.Path {
-	return a.FullPath.Join(".cache")
+	cachePath := filepath.Join("/", "var", "cache", "arduino-app-cli")
+	hash := md5.Sum([]byte(a.FullPath.String()))
+	slog.Error("Provision for %s to %s", a.FullPath.String(), paths.New(filepath.Join(cachePath, hex.EncodeToString((hash[:])), ".cache")).String())
+	return paths.New(filepath.Join(cachePath, hex.EncodeToString((hash[:])), ".cache"))
 }
 
 func (a *ArduinoApp) AppComposeFilePath() *paths.Path {
