@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+### Added 
+- Mount `/dev/snd/by-id` in python container [#119](https://github.com/arduino/arduino-app-cli/pull/119)
+- Add the `config_variables` field in the  `GET /v1/bricks/{id} ` response  [#126](https://github.com/arduino/arduino-app-cli/pull/126)
+- Bump the examples to `0.6.0 [#132](https://github.com/arduino/arduino-app-cli/pull/132)
+
+### Removed
+
+- Remove `--no-python` from the CLI `arduino-app-cli app new name` command [#121](https://github.com/arduino/arduino-app-cli/pull/121)
+
+## Fixed
+
+- Add a library when a sketch folder is missing  [#123](https://github.com/arduino/arduino-app-cli/pull/123)
+ 
+## [0.7.0]
+
 ### Added
 
 - Add the `require_model` to the `GET /v1/bricks` and `GET /v1/bricks/id` [#93](https://github.com/arduino/arduino-app-cli/pull/93)
@@ -13,8 +28,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - Add the `compatible_models` to the `GET /v1/bricks/{id}` [#94](https://github.com/arduino/arduino-app-cli/pull/94)
 - Add the `compatible_models` to the `GET /v1/apps/{id}/bricks/{id}` [#99](https://github.com/arduino/arduino-app-cli/pull/99)
 - Bump [examples](https://github.com/arduino/app-bricks-examples) to 0.5.1 [#100](https://github.com/arduino/arduino-app-cli/pull/100)
-- Mount `/dev/snd/by-id` in python container [#119](https://github.com/arduino/arduino-app-cli/pull/119)
-- Add the `config_variables` field in the  `GET /v1/bricks/{id} ` response  [#126](https://github.com/arduino/arduino-app-cli/pull/126)
 
 ### Changed
 
@@ -29,15 +42,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - Remove the `models` fields from the `GET https://github.com/arduino/arduino-app-cli/pull/126/v1/bricks` response [#94](https://github.com/arduino/arduino-app-cli/pull/94)
 - Remove deprecated `require_devices` field from the `brick-list.yaml` [#111](https://github.com/arduino/arduino-app-cli/pull/111)
 - Remove the `compatible_models` field from the `GET /v1/apps/{id}/bricks` response [#114](https://github.com/arduino/arduino-app-cli/pull/114)
-- Remove `--no-python` from the CLI `arduino-app-cli app new name` command [#121](https://github.com/arduino/arduino-app-cli/pull/121)
 - Remove `skip-python` from the HTTP  `POST /v1/apps` request endpoint [#121](https://github.com/arduino/arduino-app-cli/pull/121)
 
 ### Fixed
 
 - pkg/board/remote/adb/: use `adb get-state` for checking if the board is there and it is connected [#98](https://github.com/arduino/arduino-app-cli/pull/98)
-- add the `/needrestart/conf.d/arduino-adbd.conf` to exclude `adbd` service to be restarted [#117](https://github.com/arduino/arduino-app-cli/pull/117)
-- remove `compatible_models` from the `GET /v1/apps/{id}/bricks` endpoint [#120](https://github.com/arduino/arduino-app-cli/pull/120)
-- manage missing sketch folder when adding a library [#123](https://github.com/arduino/arduino-app-cli/pull/123)
+- Add the `/needrestart/conf.d/arduino-adbd.conf` to exclude `adbd` service to be restarted [#117](https://github.com/arduino/arduino-app-cli/pull/117)
+- Remove `compatible_models` from the `GET /v1/apps/{id}/bricks` endpoint [#120](https://github.com/arduino/arduino-app-cli/pull/120)
+- Force app stop also if it isn't running [#112](https://github.com/arduino/arduino-app-cli/pull/112)
 
 ### Security
 
