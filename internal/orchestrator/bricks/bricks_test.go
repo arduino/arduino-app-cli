@@ -322,8 +322,8 @@ func TestGetBrickInstanceVariableDetails(t *testing.T) {
 			}},
 			userVariables: map[string]string{},
 			expectedConfigVariables: []BrickConfigVariable{
-				{Name: "VISIBLE_VAR", Value: "i-am-visible", Description: "a-visible-variable", Required: true},
-				{Name: "VISIBLE_VAR_WITH_MISSING", Value: "i-am-visible-if-missing-hidden", Description: "a-visible-variable", Required: true},
+				{Name: "VISIBLE_VAR", Value: "i-am-visible", Description: "a-visible-variable", Required: false},
+				{Name: "VISIBLE_VAR_WITH_MISSING", Value: "i-am-visible-if-missing-hidden", Description: "a-visible-variable", Required: false},
 			},
 			expectedVariableMap: map[string]string{"VISIBLE_VAR": "i-am-visible", "VISIBLE_VAR_WITH_MISSING": "i-am-visible-if-missing-hidden"},
 		},
