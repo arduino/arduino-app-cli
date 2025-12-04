@@ -63,13 +63,7 @@ func NewFromEnv() (Configuration, error) {
 
 	dataDir := paths.New(os.Getenv("ARDUINO_APP_CLI__DATA_DIR"))
 	if dataDir == nil {
-		dataDir = paths.New("/", "usr", "share", "arduino-app-cli")
-		slog.Info("ARDUINO_APP_CLI__DATA_DIR unset, use default", slog.String("ARDUINO_APP_CLI__DATA_DIR", dataDir.String()))
-		if dataDir == nil {
-			return Configuration{}, errors.New("unable to create data dir")
-		}
-	} else {
-		slog.Info("ARDUINO_APP_CLI__DATA_DIR override", slog.String("ARDUINO_APP_CLI__DATA_DIR", dataDir.String()))
+		dataDir = paths.New("/usr/share/arduino-app-cli")
 	}
 
 	routerSocket := paths.New(os.Getenv("ARDUINO_ROUTER_SOCKET"))

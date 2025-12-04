@@ -1,6 +1,5 @@
 #!/bin/sh
 
-#chown -R arduino:arduino /home/arduino/.local/share/arduino-app-cli
 mkdir /var/cache/arduino-app-cli
 chown -R arduino:arduino /var/cache/arduino-app-cli
 mkdir /home/arduino/.arduino-app-cli

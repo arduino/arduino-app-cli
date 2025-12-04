@@ -7,7 +7,7 @@ The following environment variables are used to configure Arduino App CLI:
 | Environment Variable                   | Default Value                                    | Description                                                                        |
 | -------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------- |
 | `ARDUINO_APP_CLI__APPS_DIR`            | `/home/arduino/ArduinoApps`                      | Path to the directory where Arduino Apps created by the user are stored            |
-| `ARDUINO_APP_CLI__DATA_DIR`            | `/home/arduino/.local/share/arduino-app-cli`     | Path to the directory where internal data is stored (examples, assets, properties) |
+| `ARDUINO_APP_CLI__DATA_DIR`            | `/usr/share/arduino-app-cli`                     | Path to the directory where internal data is stored (examples, assets) |
 | `ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR` | `$HOME/.arduino-bricks/ei-models`                | Path to the directory where custom AI models are stored                            |
 | `ARDUINO_APP_CLI__ALLOW_ROOT`          | `false`                                          | Allow running `arduino-app-cli` as root (**Not recommended to set to true**)       |
 | `LIBRARIES_API_URL`                    | `https://api2.arduino.cc/libraries/v1/libraries` | URL of the external service used to search Arduino libraries                       |
@@ -33,19 +33,14 @@ Examples of user-defined Arduino Apps stored under the `ARDUINO_APP_CLI__APPS_DI
     ├── python
         └── main.py
 ```
-
-Examples of the `assets` and the builtin `examples` stored under the `ARDUINO_APP_CLI__DATA_DIR` folder.
-
+Examples of the `assets` and the builtin `examples` are stored under the `ARDUINO_APP_CLI__DATA_DIR` folder.
 ```
-/home/arduino/.local/share/arduino-app-cli/
+/usr/share/arduino-app-cli/
 ├── assets
 │   └── 0.5.0                 # Version-specific assets
 │       ├── bricks-list.yaml  # Available bricks
 │       ├── models-list.yaml  # Available models
 │       └── ...
-├── bootloader_burned.flag
-├── default.app               # Default App
-├── properties.msgpack        # Variable values
 ├── examples                  # Built-in App examples
 │   ├── air-quality-monitoring
 │   │   ├── app.yaml
@@ -60,3 +55,6 @@ Examples of the `assets` and the builtin `examples` stored under the `ARDUINO_AP
 │   │   └── README.md
 │   └── ...
 ```
+
+Package configurations are located in ```/home/arduino/.arduino-app-cli```
+Runtime data are other files are in ```/var/lib/arduino-app-cli```

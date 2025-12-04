@@ -1,6 +1,5 @@
 #!/bin/sh
 
-# TODO delete /var/cache
 rm -rf /var/cache/arduino-app-cli
 
 if [ -d /run/systemd/system ]; then

@@ -30,10 +30,10 @@ import (
 )
 
 func getPropertiesDir() string {
-	xdgHome, _ := os.UserHomeDir()
-	//if err != nil {
-	//	slog.Error("Unable to retrieve list", slog.String("error", err.Error()))
-	//}
+	xdgHome, err := os.UserHomeDir()
+	if err != nil {
+		slog.Error("Unable to set user home", slog.String("error", err.Error()))
+	}
 	return paths.New(xdgHome).Join(".arduino-app-cli", "properties.msgpack").String()
 }
 
