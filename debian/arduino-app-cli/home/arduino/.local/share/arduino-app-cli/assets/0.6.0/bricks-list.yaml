@@ -93,8 +93,6 @@ bricks:
   mount_devices_into_container: false
   ports: []
   category: audio
-  required_devices:
-  - speaker
 - id: arduino:image_classification
   name: Image Classification
   description: "Brick for image classification using a pre-trained model. It processes\
