@@ -141,6 +141,9 @@ func getInstanceBrickConfigVariableDetails(
 	variableDetails := make([]BrickConfigVariable, 0, len(brick.Variables))
 
 	for _, v := range brick.Variables {
+		if v.Hidden {
+			continue
+		}
 		finalValue := v.DefaultValue
 
 		userValue, ok := userVariables[v.Name]
@@ -224,6 +227,9 @@ func getBrickConfigVariableDetails(
 	variableDetails := make([]BrickConfigVariable, 0, len(brick.Variables))
 
 	for _, v := range brick.Variables {
+		if v.Hidden {
+			continue
+		}
 		variablesMap[v.Name] = BrickVariable{
 			DefaultValue: v.DefaultValue,
 			Description:  v.Description,

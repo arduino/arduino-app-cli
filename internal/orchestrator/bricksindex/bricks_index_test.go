@@ -61,11 +61,11 @@ func TestGenerateBricksIndexFromFile(t *testing.T) {
 
 	withHidden, found := index.FindBrickByID("arduino:with-hidden-variables")
 	require.True(t, found)
-	require.Equal(t, "HIDDEN_VAR", withHidden.Variables[0].Name)
+	require.Equal(t, "HIDDEN_VARIABLE", withHidden.Variables[0].Name)
 	require.True(t, withHidden.Variables[0].Hidden)
 	require.Equal(t, "VISIBLE_VARIABLE", withHidden.Variables[1].Name)
 	require.False(t, withHidden.Variables[1].Hidden)
-	require.Equal(t, "VISIBLE_VARIABLE_IF_MISSING", withHidden.Variables[2].Name)
+	require.Equal(t, "VISIBLE_VARIABLE_IF_MISSING_HIDDEN", withHidden.Variables[2].Name)
 	require.False(t, withHidden.Variables[2].Hidden)
 }
 

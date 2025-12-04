@@ -313,6 +313,20 @@ func TestGetBrickInstanceVariableDetails(t *testing.T) {
 			expectedConfigVariables: []BrickConfigVariable{},
 			expectedVariableMap:     map[string]string{},
 		},
+		{
+			name: "hidden variables",
+			brick: &bricksindex.Brick{Variables: []bricksindex.BrickVariable{
+				{Name: "HIDDEN_VAR", DefaultValue: "i-am-hidden", Description: "a-hidden-variable", Hidden: true},
+				{Name: "VISIBLE_VAR", DefaultValue: "i-am-visible", Description: "a-visible-variable", Hidden: false},
+				{Name: "VISIBLE_VAR_WITH_MISSING", DefaultValue: "i-am-visible-if-missing-hidden", Description: "a-visible-variable"},
+			}},
+			userVariables: map[string]string{},
+			expectedConfigVariables: []BrickConfigVariable{
+				{Name: "VISIBLE_VAR", Value: "i-am-visible", Description: "a-visible-variable", Required: true},
+				{Name: "VISIBLE_VAR_WITH_MISSING", Value: "i-am-visible-if-missing-hidden", Description: "a-visible-variable", Required: true},
+			},
+			expectedVariableMap: map[string]string{"VISIBLE_VAR": "i-am-visible", "VISIBLE_VAR_WITH_MISSING": "i-am-visible-if-missing-hidden"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -705,6 +719,15 @@ func TestAppBrickInstancesList(t *testing.T) {
 				RequireModel: false,
 				Ports:        []string{"7000", "8000"},
 			},
+			{
+				ID:   "arduino:with-hidden-vars",
+				Name: "I have some hidden variables",
+				Variables: []bricksindex.BrickVariable{
+					{Name: "HIDDEN_VAR", DefaultValue: "/i/am/hidden", Hidden: true},
+					{Name: "VISIBLE_VAR", DefaultValue: "/i/am/visible"},
+					{Name: "VISIBLE_VAR_IF_MISSING", DefaultValue: "/i/am/visible", Hidden: false},
+				},
+			},
 		},
 	}
 
@@ -831,6 +854,32 @@ func TestAppBrickInstancesList(t *testing.T) {
 				require.Equal(t, 2, len(b2.ConfigVariables))
 				require.Equal(t, "/home/arduino/.arduino-bricks/ei-models", b2.ConfigVariables[0].Value)
 				require.Equal(t, "/models/ootb/ei/glass-breaking.eim", b2.ConfigVariables[1].Value)
+			},
+		},
+		{
+			name: "Success - hidden variables are not included",
+			app: &app.ArduinoApp{
+				Descriptor: app.AppDescriptor{
+					Bricks: []app.Brick{
+						{
+							ID: "arduino:with-hidden-vars",
+							Variables: map[string]string{
+								"HIDDEN_VAR":  "/this/is/a/new/hidden/value",
+								"VISIBLE_VAR": "/this/isa/new/visible/value",
+							},
+						},
+					},
+				},
+			},
+			validate: func(t *testing.T, res AppBrickInstancesResult) {
+				require.Len(t, res.BrickInstances, 1)
+				brick := res.BrickInstances[0]
+				require.Equal(t, "arduino:with-hidden-vars", brick.ID)
+				want := []BrickConfigVariable{
+					{Name: "VISIBLE_VAR", Value: "/this/is/a/new/visible/value"},
+					{Name: "VISIBLE_VAR_IF_MISSING", Value: "/i/am/visible"},
+				}
+				require.Equal(t, want, brick.ConfigVariables)
 			},
 		},
 	}
