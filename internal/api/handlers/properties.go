@@ -20,16 +20,26 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	properties "github.com/arduino/arduino-app-cli/internal/orchestrator/system_properties"
 	"github.com/arduino/arduino-app-cli/internal/render"
+	"github.com/arduino/go-paths-helper"
 )
+
+func getPropertiesDir() string {
+	xdgHome, _ := os.UserHomeDir()
+	//if err != nil {
+	//	slog.Error("Unable to retrieve list", slog.String("error", err.Error()))
+	//}
+	return paths.New(xdgHome).Join(".arduino-app-cli", "properties.msgpack").String()
+}
 
 func HandlePropertyKeys(cfg config.Configuration) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		propertyList, err := properties.ReadPropertyKeys(cfg.DataDir().Join("properties.msgpack").String())
+		propertyList, err := properties.ReadPropertyKeys(getPropertiesDir())
 		if err != nil {
 			slog.Error("Unable to retrieve list", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the list"})
@@ -43,7 +53,7 @@ func HandlePropertyGet(cfg config.Configuration) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		key := r.PathValue("key")
 
-		property, found, err := properties.GetProperty(cfg.DataDir().Join("properties.msgpack").String(), key)
+		property, found, err := properties.GetProperty(getPropertiesDir(), key)
 		if err != nil {
 			if errors.Is(err, properties.ErrInvalidKey) {
 				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
@@ -79,7 +89,7 @@ func HandlePropertyUpsert(cfg config.Configuration) http.HandlerFunc {
 			return
 		}
 
-		err = properties.UpsertProperty(cfg.DataDir().Join("properties.msgpack").String(), key, reqBody)
+		err = properties.UpsertProperty(getPropertiesDir(), key, reqBody)
 		if err != nil {
 			if errors.Is(err, properties.ErrInvalidKey) {
 				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
@@ -96,7 +106,7 @@ func HandlePropertyUpsert(cfg config.Configuration) http.HandlerFunc {
 func HandlePropertyDelete(cfg config.Configuration) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		key := r.PathValue("key")
-		found, err := properties.DeleteProperty(cfg.DataDir().Join("properties.msgpack").String(), key)
+		found, err := properties.DeleteProperty(getPropertiesDir(), key)
 		if err != nil {
 			if errors.Is(err, properties.ErrInvalidKey) {
 				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})

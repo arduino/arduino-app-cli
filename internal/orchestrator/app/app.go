@@ -20,7 +20,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -150,7 +149,6 @@ func (a *ArduinoApp) SketchBuildPath() *paths.Path {
 func (a *ArduinoApp) ProvisioningStateDir() *paths.Path {
 	cachePath := filepath.Join("/", "var", "cache", "arduino-app-cli")
 	hash := md5.Sum([]byte(a.FullPath.String()))
-	slog.Error("Provision for %s to %s", a.FullPath.String(), paths.New(filepath.Join(cachePath, hex.EncodeToString((hash[:])), ".cache")).String())
 	return paths.New(filepath.Join(cachePath, hex.EncodeToString((hash[:])), ".cache"))
 }
 

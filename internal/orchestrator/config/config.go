@@ -16,6 +16,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -62,11 +63,13 @@ func NewFromEnv() (Configuration, error) {
 
 	dataDir := paths.New(os.Getenv("ARDUINO_APP_CLI__DATA_DIR"))
 	if dataDir == nil {
-		xdgHome, err := os.UserHomeDir()
-		if err != nil {
-			return Configuration{}, err
+		dataDir = paths.New("/", "usr", "share", "arduino-app-cli")
+		slog.Info("ARDUINO_APP_CLI__DATA_DIR unset, use default", slog.String("ARDUINO_APP_CLI__DATA_DIR", dataDir.String()))
+		if dataDir == nil {
+			return Configuration{}, errors.New("unable to create data dir")
 		}
-		dataDir = paths.New(xdgHome).Join(".local", "share", "arduino-app-cli")
+	} else {
+		slog.Info("ARDUINO_APP_CLI__DATA_DIR override", slog.String("ARDUINO_APP_CLI__DATA_DIR", dataDir.String()))
 	}
 
 	routerSocket := paths.New(os.Getenv("ARDUINO_ROUTER_SOCKET"))
