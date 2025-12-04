@@ -16,7 +16,6 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
