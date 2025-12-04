@@ -1,9 +1,9 @@
 ---
-name: go.opentelemetry.io/otel/semconv/v1.26.0
+name: go.opentelemetry.io/otel/semconv/v1.37.0
 version: v1.38.0
 type: go
 summary: Package semconv implements OpenTelemetry semantic conventions.
-homepage: https://pkg.go.dev/go.opentelemetry.io/otel/semconv/v1.26.0
+homepage: https://pkg.go.dev/go.opentelemetry.io/otel/semconv/v1.37.0
 license: apache-2.0
 licenses:
 - sources: otel@v1.38.0/LICENSE
