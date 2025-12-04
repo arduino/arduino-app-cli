@@ -86,7 +86,7 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ f
 		slog.Debug("downloading library index", "progress", curr.GetMessage())
 	})
 
-	req := &rpc.UpdateLibrariesIndexRequest{Instance: inst, UpdateIfOlderThanSecs: 0}
+	req := &rpc.UpdateLibrariesIndexRequest{Instance: inst}
 	if err := srv.UpdateLibrariesIndex(req, streamLibIndex); err != nil {
 		slog.Warn("error updating library index, skipping", slog.String("error", err.Error()))
 	}
