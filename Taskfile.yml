@@ -115,17 +115,17 @@ tasks:
     desc: "Clones the examples repo directly into the debian structure"
     cmds:
       - |
-        set -e
-        echo "Runner version set as: {{ .EXAMPLE_VERSION }}"
-        TMP_PATH="$(mktemp -d)"
-        DEST_PATH="debian/arduino-app-cli/home/arduino/.local/share/arduino-app-cli/"
-        echo "Cloning arduino/app-bricks-examples into temporary directory ${TMP_PATH}..."
-        git clone --depth 1 --branch "{{ .EXAMPLE_VERSION }}" https://github.com/arduino/app-bricks-examples "${TMP_PATH}"
-        rm -rf "${DEST_PATH}/examples"
-        mkdir -p "${DEST_PATH}"
-        mv "${TMP_PATH}/examples" "${DEST_PATH}"
-        rm -rf "${TMP_PATH}/examples"
-        echo "Examples successfully cloned."
+          set -e
+          echo "Runner version set as: {{ .EXAMPLE_VERSION }}"
+          TMP_PATH="$(mktemp -d)"
+          DEST_PATH="debian/arduino-app-cli/home/arduino/.local/share/arduino-app-cli/"
+          echo "Cloning arduino/app-bricks-examples into temporary directory ${TMP_PATH}..."
+          git clone --depth 1 --branch "{{ .EXAMPLE_VERSION }}" https://github.com/arduino/app-bricks-examples "${TMP_PATH}"
+          rm -rf "${DEST_PATH}/examples"
+          mkdir -p "${DEST_PATH}"
+          mv "${TMP_PATH}/examples" "${DEST_PATH}"
+          rm -rf "${TMP_PATH}/examples"
+          echo "Examples successfully cloned."
     silent: false
 
   build:
@@ -143,10 +143,10 @@ tasks:
     desc: Create a tag on the current commit and push it to the remote to create the release
     cmds:
       - |
-        if [ -z "{{.CLI_ARGS}}" ]; then
-          echo "Error: Version argument is required. Usage: task orchestrator:trigger:release -- <version>"
-          exit 1
-        fi
+          if [ -z "{{.CLI_ARGS}}" ]; then
+            echo "Error: Version argument is required. Usage: task orchestrator:trigger:release -- <version>"
+            exit 1
+          fi
       - git tag -a "{{.CLI_ARGS}}" -m "Release {{.CLI_ARGS}}"
       - git push origin "{{.CLI_ARGS}}"
 
@@ -186,25 +186,25 @@ tasks:
     desc: Download and locally install the official examples
     cmds:
       - |
-        set -e
-        DEST_PATH=$(case "$(uname)" in
-          Darwin) echo "$HOME/Library/Application Support/arduino-app-cli/" ;;
-          Linux) echo "$HOME/.config/arduino-app-cli/" ;;
-          *) echo "$AppData/arduino-app-cli/" ;;
-        esac)
-        TMP_PATH="$(mktemp -d)"
+          set -e
+          DEST_PATH=$(case "$(uname)" in
+            Darwin) echo "$HOME/Library/Application Support/arduino-app-cli/" ;;
+            Linux) echo "$HOME/.config/arduino-app-cli/" ;;
+            *) echo "$AppData/arduino-app-cli/" ;;
+          esac)
+          TMP_PATH="$(mktemp -d)"
 
-        echo "Cloning examples into temporary directory ${TMP_PATH}..."
-        git clone --depth 1 https://github.com/arduino/app-bricks-examples.git "${TMP_PATH}"
+          echo "Cloning examples into temporary directory ${TMP_PATH}..."
+          git clone --depth 1 https://github.com/arduino/app-bricks-examples.git "${TMP_PATH}"
 
-        echo "Installing examples to ${DEST_PATH}examples"
-        rm -rf "${DEST_PATH}examples"
-        mkdir -p "${DEST_PATH}"
+          echo "Installing examples to ${DEST_PATH}examples"
+          rm -rf "${DEST_PATH}examples"
+          mkdir -p "${DEST_PATH}"
 
-        mv "${TMP_PATH}/examples" "${DEST_PATH}"
+          mv "${TMP_PATH}/examples" "${DEST_PATH}"
 
-        rm -rf "${TMP_PATH}"
-        echo "Examples installed successfully."
+          rm -rf "${TMP_PATH}"
+          echo "Examples installed successfully."
 
   generate:assets:
     desc: This generates the models and bricks index. Also updates the corresponding testdata.
@@ -220,15 +220,15 @@ tasks:
         msg: "Both assets folder are already at version '{{.RUNNER_VERSION}}'. Nothing to do."
     cmds:
       - |
-        # Get the corresponding models and bricks release, and unzip it.
-        gh release download -R arduino/app-bricks-py "release/{{.SEMVER_TAG}}" -p '*.whl' -D "{{.TMPDIR}}" --clobber
-        unzip -o "{{.TMPDIR}}/arduino_app_bricks-{{.SEMVER_TAG}}-py3-none-any.whl" -d "{{.OUTPUT_DIR}}"
+          # Get the corresponding models and bricks release, and unzip it.
+          gh release download -R arduino/app-bricks-py "release/{{.SEMVER_TAG}}" -p '*.whl' -D "{{.TMPDIR}}" --clobber
+          unzip -o "{{.TMPDIR}}/arduino_app_bricks-{{.SEMVER_TAG}}-py3-none-any.whl" -d "{{.OUTPUT_DIR}}"
       - |
-        # Copy the assets to the assets dir and testdata dir, replacing the previous version.
-        rm -rf "{{.ASSETS_DIR}}" && mkdir -p "{{.ASSETS_DIR}}"
-        cp -r "{{.OUTPUT_DIR}}/arduino/app_bricks/static" "{{.ASSETS_DIR}}/{{.SEMVER_TAG}}"
-        rm -rf "{{.TESTDATA_DIR}}" && mkdir -p "{{.TESTDATA_DIR}}"
-        cp -r "{{.OUTPUT_DIR}}/arduino/app_bricks/static" "{{.TESTDATA_DIR}}/{{.SEMVER_TAG}}"
+          # Copy the assets to the assets dir and testdata dir, replacing the previous version.
+          rm -rf "{{.ASSETS_DIR}}" && mkdir -p "{{.ASSETS_DIR}}"
+          cp -r "{{.OUTPUT_DIR}}/arduino/app_bricks/static" "{{.ASSETS_DIR}}/{{.SEMVER_TAG}}"
+          rm -rf "{{.TESTDATA_DIR}}" && mkdir -p "{{.TESTDATA_DIR}}"
+          cp -r "{{.OUTPUT_DIR}}/arduino/app_bricks/static" "{{.TESTDATA_DIR}}/{{.SEMVER_TAG}}"
       - cmd: rm -rf {{.TMPDIR}}
       - cmd: echo "Updating the runnerVersion in config.go to '{{.RUNNER_VERSION}}'"
       - cmd: sed -i "{{.sed_replacement}}" internal/orchestrator/config/config.go
@@ -243,19 +243,19 @@ tasks:
       - task: general:prepare-deps
     cmds:
       - |
-        if
-          ! which licensed \
-          &>/dev/null
-        then
-          if [[ {{OS}} == "windows" ]]; then
-            echo "Licensed does not have Windows support."
-            echo "Please use Linux/macOS or download the dependencies cache from the GitHub Actions workflow artifact."
-          else
-            echo "licensed not found or not in PATH."
-            echo "Please install: https://github.com/licensee/licensed#installation"
+          if
+            ! which licensed \
+            &>/dev/null
+          then
+            if [[ {{OS}} == "windows" ]]; then
+              echo "Licensed does not have Windows support."
+              echo "Please use Linux/macOS or download the dependencies cache from the GitHub Actions workflow artifact."
+            else
+              echo "licensed not found or not in PATH."
+              echo "Please install: https://github.com/licensee/licensed#installation"
+            fi
+            exit 1
           fi
-          exit 1
-        fi
       - licensed cache
       - licensed notices
 
