@@ -865,7 +865,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 							ID: "arduino:with-hidden-vars",
 							Variables: map[string]string{
 								"HIDDEN_VAR":  "/this/is/a/new/hidden/value",
-								"VISIBLE_VAR": "/this/isa/new/visible/value",
+								"VISIBLE_VAR": "/this/is/a/new/visible/value",
 							},
 						},
 					},
@@ -875,11 +875,11 @@ func TestAppBrickInstancesList(t *testing.T) {
 				require.Len(t, res.BrickInstances, 1)
 				brick := res.BrickInstances[0]
 				require.Equal(t, "arduino:with-hidden-vars", brick.ID)
-				want := []BrickConfigVariable{
+				expected := []BrickConfigVariable{
 					{Name: "VISIBLE_VAR", Value: "/this/is/a/new/visible/value"},
 					{Name: "VISIBLE_VAR_IF_MISSING", Value: "/i/am/visible"},
 				}
-				require.Equal(t, want, brick.ConfigVariables)
+				require.Equal(t, expected, brick.ConfigVariables)
 			},
 		},
 	}
