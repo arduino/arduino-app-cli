@@ -40,23 +40,17 @@ func TestGenerateApp(t *testing.T) {
 
 	testCases := []struct {
 		name       string
-		options    Opts
+		skipSketch bool
 		goldenPath string
 	}{
 		{
 			name:       "generate complete app",
-			options:    None,
 			goldenPath: "testdata/app-all.golden",
 		},
 		{
 			name:       "skip sketch",
-			options:    SkipSketch,
+			skipSketch: true,
 			goldenPath: "testdata/app-no-sketch.golden",
-		},
-		{
-			name:       "skip python",
-			options:    SkipPython,
-			goldenPath: "testdata/app-no-python.golden",
 		},
 	}
 
@@ -64,7 +58,7 @@ func TestGenerateApp(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tempDir := t.TempDir()
 
-			err := GenerateApp(paths.New(tempDir), baseApp, tc.options)
+			err := GenerateApp(paths.New(tempDir), baseApp, tc.skipSketch)
 			require.NoError(t, err)
 
 			if os.Getenv("UPDATE_GOLDEN") == "true" {

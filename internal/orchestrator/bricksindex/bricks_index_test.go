@@ -16,171 +16,197 @@
 package bricksindex
 
 import (
+	"os"
 	"testing"
 
-	yaml "github.com/goccy/go-yaml"
+	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
 )
 
-func TestBricksIndex(t *testing.T) {
-	x := `bricks:
-- id: arduino:image_classification
-  name: Image Classification
-  description: "Brick for image classification using a pre-trained model. It processes\
-    \ images and returns the predicted class label and confidence score.\nBrick is\
-    \ designed to work with pre-trained models provided by framework or with custom\
-    \ image classification models trained on Edge Impulse platform. \n"
-  require_container: true
-  require_model: true
-  ports: []
-  model_name: mobilenet-image-classification
-  variables:
-  - name: CUSTOM_MODEL_PATH
-    default_value: /opt/models/ei/
-    description: path to the custom model directory
-  - name: EI_CLASSIFICATION_MODEL
-    default_value: /models/ootb/ei/mobilenet-v2-224px.eim
-    description: path to the model file
-- id: arduino:camera_scanner
-  name: Camera Scanner
-  description: Scans a camera for barcodes and QR codes
-  require_container: false
-  require_model: false
-  ports: []
-- id: arduino:streamlit_ui
-  name: Streamlit UI
-  description: A simplified user interface based on Streamlit and Python.
-  require_container: false
-  require_model: false
-  ports:
-  - 7000
-- id: arduino:keyword_spotter
-  name: Keyword Spotter
-  description: 'Brick for keyword spotting using a pre-trained model. It processes
-    audio input to detect specific keywords or phrases.
-
-    Brick is designed to work with pre-trained models provided by framework or with
-    custom audio classification models trained on Edge Impulse platform.
-
-    '
-  require_container: true
-  require_model: true
-  ports: []
-  model_name: keyword-spotting-hello-world
-  variables:
-  - name: CUSTOM_MODEL_PATH
-    default_value: /opt/models/ei/
-    description: path to the custom model directory
-  - name: EI_KEYWORK_SPOTTING_MODEL
-    default_value: /models/ootb/ei/keyword-spotting-hello-world.eim
-    description: path to the model file
-- id: arduino:mqtt
-  name: MQTT Connector
-  description: MQTT connector module. Acts as a client for receiving and publishing
-    messages to an MQTT broker.
-  require_container: false
-  require_model: false
-  ports: []
-- id: arduino:web_ui
-  name: Web UI
-  description: A user interface based on HTML and JavaScript that can rely on additional
-    APIs and a WebSocket exposed by a web server.
-  require_container: false
-  require_model: false
-  ports:
-  - 7000
-- id: arduino:dbstorage_tsstore
-  name: Database Storage - Time Series Store
-  description: Simplified time series database storage layer for Arduino sensor samples
-    built on top of InfluxDB.
-  require_container: true
-  require_model: false
-  ports: []
-  variables:
-  - name: APP_HOME
-    default_value: .
-  - name: DB_PASSWORD
-    default_value: Arduino15
-    description: Database password
-  - name: DB_USERNAME
-    default_value: admin
-    description: Edge Impulse project API key
-  - name: INFLUXDB_ADMIN_TOKEN
-    default_value: 392edbf2-b8a2-481f-979d-3f188b2c05f0
-    description: InfluxDB admin token
-- id: arduino:dbstorage_sqlstore
-  name: Database Storage - SQLStore
-  description: Simplified database storage layer for Arduino sensor data using SQLite
-    local database.
-  require_container: false
-  require_model: false
-  ports: []
-- id: arduino:object_detection
-  name: Object Detection
-  description: "Brick for object detection using a pre-trained model. It processes\
-    \ images and returns the predicted class label, bounding-boxes and confidence\
-    \ score.\nBrick is designed to work with pre-trained models provided by framework\
-    \ or with custom object detection models trained on Edge Impulse platform. \n"
-  require_container: true
-  require_model: true
-  ports: []
-  model_name: yolox-object-detection
-  variables:
-  - name: CUSTOM_MODEL_PATH
-    default_value: /opt/models/ei/
-    description: path to the custom model directory
-  - name: EI_OBJ_DETECTION_MODEL
-    default_value: /models/ootb/ei/yolo-x-nano.eim
-    description: path to the model file
-- id: arduino:weather_forecast
-  name: Weather Forecast
-  description: Online weather forecast module for Arduino using open-meteo.com geolocation
-    and weather APIs. Requires an internet connection.
-  require_container: false
-  require_model: false
-  ports: []
-- id: arduino:visual_anomaly_detection
-  name: Visual Anomaly Detection
-  description: "Brick for visual anomaly detection using a pre-trained model. It processes\
-    \ images and returns detected anomalies and bounding-boxes.\nBrick is designed\
-    \ to work with pre-trained models provided by framework or with custom object\
-    \ detection models trained on Edge Impulse platform. \n"
-  require_container: true
-  require_model: true
-  ports: []
-  model_name: concreate-crack-anomaly-detection
-  variables:
-  - name: CUSTOM_MODEL_PATH
-    default_value: /opt/models/ei/
-    description: path to the custom model directory
-  - name: EI_V_ANOMALY_DETECTION_MODEL
-    default_value: /models/ootb/ei/concrete-crack-anomaly-detection.eim
-    description: path to the model file
-`
-
-	var index BricksIndex
-	err := yaml.Unmarshal([]byte(x), &index)
+func TestGenerateBricksIndexFromFile(t *testing.T) {
+	index, err := Load(paths.New("testdata"))
 	require.NoError(t, err)
-	require.Len(t, index.Bricks, 11)
 
 	// Check if ports are correctly set
-	b, found := index.FindBrickByID("arduino:web_ui")
+	bWebUI, found := index.FindBrickByID("arduino:web_ui")
 	require.True(t, found)
-	require.Equal(t, []string{"7000"}, b.Ports)
+	require.Equal(t, []string{"7000"}, bWebUI.Ports)
 
 	// Check if variables are correctly set
-	b, found = index.FindBrickByID("arduino:image_classification")
+	bIC, found := index.FindBrickByID("arduino:image_classification")
 	require.True(t, found)
-	require.Equal(t, "Image Classification", b.Name)
-	require.Equal(t, "mobilenet-image-classification", b.ModelName)
-	require.True(t, b.RequireModel)
-	require.Len(t, b.Variables, 2)
-	require.Equal(t, "CUSTOM_MODEL_PATH", b.Variables[0].Name)
-	require.Equal(t, "/opt/models/ei/", b.Variables[0].DefaultValue)
-	require.Equal(t, "path to the custom model directory", b.Variables[0].Description)
-	require.Equal(t, "EI_CLASSIFICATION_MODEL", b.Variables[1].Name)
-	require.Equal(t, "/models/ootb/ei/mobilenet-v2-224px.eim", b.Variables[1].DefaultValue)
-	require.Equal(t, "path to the model file", b.Variables[1].Description)
-	require.False(t, b.Variables[0].IsRequired())
-	require.False(t, b.Variables[1].IsRequired())
+	require.Equal(t, "Image Classification", bIC.Name)
+	require.Equal(t, "mobilenet-image-classification", bIC.ModelName)
+	require.Len(t, bIC.Variables, 2)
+	require.Equal(t, "CUSTOM_MODEL_PATH", bIC.Variables[0].Name)
+	require.Equal(t, "/opt/models/ei/", bIC.Variables[0].DefaultValue)
+	require.Equal(t, "path to the custom model directory", bIC.Variables[0].Description)
+	require.Equal(t, "EI_CLASSIFICATION_MODEL", bIC.Variables[1].Name)
+	require.Equal(t, "/models/ootb/ei/mobilenet-v2-224px.eim", bIC.Variables[1].DefaultValue)
+	require.Equal(t, "path to the model file", bIC.Variables[1].Description)
+	require.False(t, bIC.Variables[0].IsRequired())
+	require.False(t, bIC.Variables[1].IsRequired())
+
+	bRequireModel, found := index.FindBrickByID("arduino:model_required")
+	require.True(t, found)
+	require.True(t, bRequireModel.RequireModel)
+
+	bDb, found := index.FindBrickByID("arduino:dbstorage_tsstore")
+	require.True(t, found)
+	require.False(t, bDb.RequireModel)
+
+	bNoRequireModel, found := index.FindBrickByID("arduino:missing-model-require")
+	require.True(t, found)
+	require.False(t, bNoRequireModel.RequireModel)
+}
+
+func TestBricksIndexYAMLFormats(t *testing.T) {
+	testCases := []struct {
+		name           string
+		yamlContent    string
+		expectedError  string
+		expectedBricks []Brick
+	}{
+		{
+			// TODO: add a validator fo the bricks-list to validate the field
+			name:           "missing bricks field does not cuase error",
+			yamlContent:    `other_field: value`,
+			expectedBricks: nil,
+		},
+		{
+			name: "bad YAML format invalid indentation",
+			yamlContent: `bricks:
+		- id: arduino:test_brick
+		name: Test Brick
+		  description: A test brick`,
+			expectedError: "found character '\t' that cannot start any token",
+		},
+		{
+			name:           "empty bricks",
+			yamlContent:    `bricks: []`,
+			expectedBricks: []Brick{},
+		},
+		{
+			name: "bad YAML format unclosed quotes",
+			yamlContent: `bricks:
+- id: "arduino:test_brick
+  name: Test Brick
+  description: A test brick`,
+			expectedError: "could not find end character of double-quoted text",
+		},
+		{
+			name: "bad YAML format missing colon",
+			yamlContent: `bricks:
+- id arduino:test_brick
+  name: Test Brick`,
+			expectedError: "unexpected key name",
+		},
+		{
+			name: "bad YAML format invalid syntax",
+			yamlContent: `bricks:
+- id: arduino:test_brick
+  name: Test Brick
+  description: A test brick
+  ports: [7000,`,
+			expectedError: "sequence end token ']' not found",
+		},
+		{
+			name:          "bad YAML format tab characters",
+			yamlContent:   "bricks:\n\t- id: arduino:test_brick\n\t  name: Test Brick",
+			expectedError: "found character '\t' that cannot start any token",
+		},
+		{
+			name: "simple brick",
+			yamlContent: `bricks:
+- id: arduino:simple_brick
+  name: Test Brick
+  description: A test brick
+`,
+			expectedBricks: []Brick{
+				{
+					ID:                        "arduino:simple_brick",
+					Name:                      "Test Brick",
+					Description:               "A test brick",
+					Category:                  "",
+					RequiresDisplay:           "",
+					RequireContainer:          false,
+					RequireModel:              false,
+					RequiredDevices:           nil,
+					Variables:                 nil,
+					Ports:                     nil,
+					ModelName:                 "",
+					MountDevicesIntoContainer: false,
+				},
+			},
+		},
+		{
+			name: "valid YAML with complex variables",
+			yamlContent: `bricks:
+- id: arduino:complex_brick
+  name: Complex Brick
+  description: A complex test brick
+  category: storage
+  require_container: true
+  require_model: true
+  mount_devices_into_container: true
+  model_name: a-complex-model
+  required_devices:
+  - camera
+  ports:
+  - 7000
+  - 8080
+  variables:
+  - name: REQUIRED_VAR
+    default_value: ""
+    description: A required variable
+  - name: OPTIONAL_VAR
+    default_value: "default_value"
+    description: An optional variable`,
+			expectedBricks: []Brick{
+				{
+					ID:                        "arduino:complex_brick",
+					Name:                      "Complex Brick",
+					Description:               "A complex test brick",
+					Category:                  "storage",
+					RequiresDisplay:           "",
+					RequireContainer:          true,
+					RequireModel:              true,
+					RequiredDevices:           []string{"camera"},
+					MountDevicesIntoContainer: true,
+					Variables: []BrickVariable{
+						{
+							Name:         "REQUIRED_VAR",
+							DefaultValue: "",
+							Description:  "A required variable",
+						},
+						{
+							Name:         "OPTIONAL_VAR",
+							DefaultValue: "default_value",
+							Description:  "An optional variable",
+						},
+					},
+					Ports:     []string{"7000", "8080"},
+					ModelName: "a-complex-model",
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+			brickIndex := paths.New(tempDir, "bricks-list.yaml")
+			err := os.WriteFile(brickIndex.String(), []byte(tc.yamlContent), 0600)
+			require.NoError(t, err)
+
+			index, err := Load(paths.New(tempDir))
+			if tc.expectedError != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.expectedError)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, index.Bricks, tc.expectedBricks, "bricsk mistmatch")
+			}
+		})
+	}
 }

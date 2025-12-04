@@ -44,16 +44,8 @@ func HandleAppCreate(
 		defer r.Body.Close()
 
 		queryParams := r.URL.Query()
-		skipPythonStr := queryParams.Get("skip-python")
 		skipSketchStr := queryParams.Get("skip-sketch")
-
-		skipPython := queryParamsValidator(skipPythonStr)
 		skipSketch := queryParamsValidator(skipSketchStr)
-
-		if skipPython && skipSketch {
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "cannot skip both python and sketch"})
-			return
-		}
 
 		var req CreateAppRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -68,7 +60,6 @@ func HandleAppCreate(
 				Name:        req.Name,
 				Icon:        req.Icon,
 				Description: req.Description,
-				SkipPython:  skipPython,
 				SkipSketch:  skipSketch,
 			},
 			idProvider,

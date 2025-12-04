@@ -4,7 +4,6 @@ bricks:
   description: Connects to Arduino Cloud
   require_container: false
   require_model: false
-  require_devices: false
   mount_devices_into_container: false
   ports: []
   category: null
@@ -19,7 +18,11 @@ bricks:
     local database.
   require_container: false
   require_model: false
-  require_devices: false
   mount_devices_into_container: false
   ports: []
   category: storage
+- id: arduino:brick-with-require-model
+  name: A brick with required model
+  description: "Brick with required model"
+  require_model: true
+  model_name: mobilenet-image-classification

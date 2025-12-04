@@ -97,7 +97,7 @@ func parseDockerStatusEvent(ctx context.Context, cfg config.Configuration, docke
 		}
 
 		// FIXME: create an helper function to transform an app.ArduinoApp into an ortchestrator.AppInfo
-		app, err := app.Load(appStatus.AppPath.String())
+		app, err := app.Load(appStatus.AppPath)
 		if err != nil {
 			slog.Warn("error loading app", "appPath", appStatus.AppPath.String(), "error", err)
 			return AppInfo{}, err

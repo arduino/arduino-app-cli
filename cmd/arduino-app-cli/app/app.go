@@ -50,5 +50,5 @@ func Load(idOrPath string) (app.ArduinoApp, error) {
 		return app.ArduinoApp{}, fmt.Errorf("invalid app path: %s", idOrPath)
 	}
 
-	return app.Load(id.ToPath().String())
+	return app.Load(id.ToPath())
 }

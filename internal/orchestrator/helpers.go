@@ -193,7 +193,7 @@ func getRunningApp(
 	if idx == -1 {
 		return nil, nil
 	}
-	app, err := app.Load(apps[idx].AppPath.String())
+	app, err := app.Load(apps[idx].AppPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load running app: %w", err)
 	}

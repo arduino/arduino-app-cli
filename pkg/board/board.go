@@ -192,6 +192,8 @@ func FromFQBN(ctx context.Context, fqbn string) ([]Board, error) {
 				if name, err := GetCustomName(ctx, conn); err == nil {
 					customName = name
 				}
+			} else {
+				slog.Warn("failed to get custom name", "serial", serial, "error", err)
 			}
 
 			boards = append(boards, Board{

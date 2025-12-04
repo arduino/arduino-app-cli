@@ -51,6 +51,18 @@ var (
 			Value:       f.Ptr("/models/ootb/ei/mobilenet-v2-224px.eim"),
 		},
 	}
+
+	expectedModelInfo = []client.AIModel{
+		{
+			Id:          f.Ptr("mobilenet-image-classification"),
+			Name:        f.Ptr("General purpose image classification"),
+			Description: f.Ptr("General purpose image classification model based on MobileNetV2. This model is trained on the ImageNet dataset and can classify images into 1000 categories."),
+		},
+		{
+			Id:          f.Ptr("person-classification"),
+			Name:        f.Ptr("Person classification"),
+			Description: f.Ptr("Person classification model based on WakeVision dataset. This model is trained to classify images into two categories: person and not-person."),
+		}}
 )
 
 func setupTestApp(t *testing.T) (*client.CreateAppResp, *client.ClientWithResponses) {
@@ -78,7 +90,6 @@ func setupTestApp(t *testing.T) (*client.CreateAppResp, *client.ClientWithRespon
 	)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode())
-
 	return createResp, httpClient
 }
 
@@ -86,11 +97,20 @@ func TestGetAppBrickInstances(t *testing.T) {
 	var actualBody models.ErrorResponse
 	createResp, httpClient := setupTestApp(t)
 	t.Run("GetAppBrickInstances_Success", func(t *testing.T) {
+		expectedVariables := map[string]string{
+			"CUSTOM_MODEL_PATH":       "/home/arduino/.arduino-bricks/ei-models",
+			"EI_CLASSIFICATION_MODEL": "/models/ootb/ei/mobilenet-v2-224px.eim",
+		}
+
 		brickInstances, err := httpClient.GetAppBrickInstancesWithResponse(t.Context(), *createResp.JSON201.Id, func(ctx context.Context, req *http.Request) error { return nil })
 		require.NoError(t, err)
 		require.Len(t, *brickInstances.JSON200.Bricks, 1)
 		require.Equal(t, ImageClassifactionBrickID, *(*brickInstances.JSON200.Bricks)[0].Id)
 		require.Equal(t, expectedConfigVariables, *(*brickInstances.JSON200.Bricks)[0].ConfigVariables)
+		require.Equal(t, "Arduino", *(*brickInstances.JSON200.Bricks)[0].Author)
+		require.Equal(t, "video", *(*brickInstances.JSON200.Bricks)[0].Category)
+		require.True(t, *(*brickInstances.JSON200.Bricks)[0].RequireModel)
+		require.Equal(t, expectedVariables, *(*brickInstances.JSON200.Bricks)[0].Variables)
 
 	})
 
@@ -135,6 +155,20 @@ func TestGetAppBrickInstanceById(t *testing.T) {
 		require.NotEmpty(t, brickInstance.JSON200)
 		require.Equal(t, ImageClassifactionBrickID, *brickInstance.JSON200.Id)
 		require.Equal(t, expectedConfigVariables, (*brickInstance.JSON200.ConfigVariables))
+		require.NotNil(t, brickInstance.JSON200.CompatibleModels)
+		require.Equal(t, expectedModelInfo, *(brickInstance.JSON200.CompatibleModels))
+	})
+	t.Run("GetAppBrickInstanceByBrickIDWithCompatibleModels_Success", func(t *testing.T) {
+		brickInstance, err := httpClient.GetAppBrickInstanceByBrickIDWithResponse(
+			t.Context(),
+			*createResp.JSON201.Id,
+			ImageClassifactionBrickID,
+			func(ctx context.Context, req *http.Request) error { return nil })
+		require.NoError(t, err)
+		require.NotEmpty(t, brickInstance.JSON200)
+		require.Equal(t, ImageClassifactionBrickID, *brickInstance.JSON200.Id)
+		require.NotNil(t, brickInstance.JSON200.CompatibleModels)
+		require.Equal(t, expectedModelInfo, *(brickInstance.JSON200.CompatibleModels))
 	})
 
 	t.Run("GetAppBrickInstanceByBrickID_InvalidAppID_Fails", func(t *testing.T) {

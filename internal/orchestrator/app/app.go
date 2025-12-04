@@ -30,33 +30,32 @@ import (
 type ArduinoApp struct {
 	Name           string
 	MainPythonFile *paths.Path
-	MainSketchPath *paths.Path
+	mainSketchPath *paths.Path
 	FullPath       *paths.Path // FullPath is the path to the App folder
 	Descriptor     AppDescriptor
 }
 
 // Load creates an App instance by reading all the files composing an app and grouping them
 // by file type.
-func Load(appPath string) (ArduinoApp, error) {
-	path := paths.New(appPath)
-	if path == nil {
+func Load(appPath *paths.Path) (ArduinoApp, error) {
+	if appPath == nil {
 		return ArduinoApp{}, errors.New("empty app path")
 	}
 
-	exist, err := path.IsDirCheck()
+	exist, err := appPath.IsDirCheck()
 	if err != nil {
 		return ArduinoApp{}, fmt.Errorf("app path is not valid: %w", err)
 	}
 	if !exist {
-		return ArduinoApp{}, fmt.Errorf("app path must be a directory: %s", path)
+		return ArduinoApp{}, fmt.Errorf("app path must be a directory: %s", appPath)
 	}
-	path, err = path.Abs()
+	appPath, err = appPath.Abs()
 	if err != nil {
 		return ArduinoApp{}, fmt.Errorf("cannot get absolute path for app: %w", err)
 	}
 
 	app := ArduinoApp{
-		FullPath:   path,
+		FullPath:   appPath,
 		Descriptor: AppDescriptor{},
 	}
 
@@ -71,16 +70,16 @@ func Load(appPath string) (ArduinoApp, error) {
 		return ArduinoApp{}, errors.New("descriptor app.yaml file missing from app")
 	}
 
-	if path.Join("python", "main.py").Exist() {
-		app.MainPythonFile = path.Join("python", "main.py")
+	if appPath.Join("python", "main.py").Exist() {
+		app.MainPythonFile = appPath.Join("python", "main.py")
 	}
 
-	if path.Join("sketch", "sketch.ino").Exist() {
+	if appPath.Join("sketch", "sketch.ino").Exist() {
 		// TODO: check sketch casing?
-		app.MainSketchPath = path.Join("sketch")
+		app.mainSketchPath = appPath.Join("sketch")
 	}
 
-	if app.MainPythonFile == nil && app.MainSketchPath == nil {
+	if app.MainPythonFile == nil && app.mainSketchPath == nil {
 		return ArduinoApp{}, errors.New("main python file and sketch file missing from app")
 	}
 
@@ -90,6 +89,13 @@ func Load(appPath string) (ArduinoApp, error) {
 	}
 
 	return app, nil
+}
+
+func (a *ArduinoApp) GetSketchPath() (*paths.Path, bool) {
+	if a == nil || a.mainSketchPath == nil {
+		return nil, false
+	}
+	return a.mainSketchPath, true
 }
 
 // GetDescriptorPath returns the path to the app descriptor file (app.yaml or app.yml)

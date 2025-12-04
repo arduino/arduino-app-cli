@@ -33,35 +33,22 @@ import (
 
 const templateRoot = "app_template"
 
-type Opts int
-
-const (
-	None       Opts = 0
-	SkipSketch Opts = 1 << iota
-	SkipPython
-)
-
 //go:embed all:app_template
 var fsApp embed.FS
 
-func GenerateApp(basePath *paths.Path, app app.AppDescriptor, options Opts) error {
+func GenerateApp(basePath *paths.Path, app app.AppDescriptor, skipSketch bool) error {
 	if err := basePath.MkdirAll(); err != nil {
 		return fmt.Errorf("failed to create app directory: %w", err)
 	}
-	isSkipSketchSet := options&SkipSketch != 0
-	isSkipPythonSet := options&SkipPython != 0
-
-	if !isSkipSketchSet {
+	if !skipSketch {
 		if err := generateSketch(basePath); err != nil {
 			return fmt.Errorf("failed to create sketch: %w", err)
 		}
 	}
-	if !isSkipPythonSet {
-		if err := generatePython(basePath); err != nil {
-			return fmt.Errorf("failed to create python: %w", err)
-		}
-	}
 
+	if err := generatePython(basePath); err != nil {
+		return fmt.Errorf("failed to create python: %w", err)
+	}
 	if err := generateApp(basePath, app); err != nil {
 		return fmt.Errorf("failed to create app.yaml: %w", err)
 	}

@@ -58,22 +58,20 @@ func (s *Service) List() (BrickListResult, error) {
 	res := BrickListResult{Bricks: make([]BrickListItem, len(s.bricksIndex.Bricks))}
 	for i, brick := range s.bricksIndex.Bricks {
 		res.Bricks[i] = BrickListItem{
-			ID:          brick.ID,
-			Name:        brick.Name,
-			Author:      "Arduino", // TODO: for now we only support our bricks
-			Description: brick.Description,
-			Category:    brick.Category,
-			Status:      "installed",
-			Models: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModel) string {
-				return m.ID
-			}),
+			ID:           brick.ID,
+			Name:         brick.Name,
+			Author:       "Arduino", // TODO: for now we only support our bricks
+			Description:  brick.Description,
+			Category:     brick.Category,
+			Status:       "installed",
+			RequireModel: brick.RequireModel,
 		}
 	}
 	return res, nil
 }
 
 func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesResult, error) {
-	res := AppBrickInstancesResult{BrickInstances: make([]BrickInstance, len(a.Descriptor.Bricks))}
+	res := AppBrickInstancesResult{BrickInstances: make([]BrickInstanceListItem, len(a.Descriptor.Bricks))}
 	for i, brickInstance := range a.Descriptor.Bricks {
 		brick, found := s.bricksIndex.FindBrickByID(brickInstance.ID)
 		if !found {
@@ -82,12 +80,13 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 
 		variablesMap, configVariables := getBrickConfigDetails(brick, brickInstance.Variables)
 
-		res.BrickInstances[i] = BrickInstance{
+		res.BrickInstances[i] = BrickInstanceListItem{
 			ID:              brick.ID,
 			Name:            brick.Name,
 			Author:          "Arduino", // TODO: for now we only support our bricks
 			Category:        brick.Category,
 			Status:          "installed",
+			RequireModel:    brick.RequireModel,
 			ModelID:         brickInstance.Model, // TODO: in case is not set by the user, should we return the default model?
 			Variables:       variablesMap,        // TODO: do we want to show also the default value of not explicitly set variables?
 			ConfigVariables: configVariables,
@@ -121,9 +120,17 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 		Author:          "Arduino", // TODO: for now we only support our bricks
 		Category:        brick.Category,
 		Status:          "installed", // For now every Arduino brick are installed
+		RequireModel:    brick.RequireModel,
 		Variables:       variables,
 		ConfigVariables: configVariables,
 		ModelID:         modelID,
+		CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModel) AIModel {
+			return AIModel{
+				ID:          m.ID,
+				Name:        m.Name,
+				Description: m.ModuleDescription,
+			}
+		}),
 	}, nil
 }
 
@@ -193,19 +200,26 @@ func (s *Service) BricksDetails(id string, idProvider *app.IDProvider,
 	if err != nil {
 		return BrickDetailsResult{}, fmt.Errorf("unable to get used by apps: %w", err)
 	}
-
 	return BrickDetailsResult{
 		ID:           id,
 		Name:         brick.Name,
 		Author:       "Arduino", // TODO: for now we only support our bricks
 		Description:  brick.Description,
 		Category:     brick.Category,
+		RequireModel: brick.RequireModel,
 		Status:       "installed", // For now every Arduino brick are installed
 		Variables:    variables,
 		Readme:       readme,
 		ApiDocsPath:  apiDocsPath,
 		CodeExamples: codeExamples,
 		UsedByApps:   usedByApps,
+		CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModel) AIModel {
+			return AIModel{
+				ID:          m.ID,
+				Name:        m.Name,
+				Description: m.ModuleDescription,
+			}
+		}),
 	}, nil
 }
 
@@ -237,7 +251,7 @@ func getUsedByApps(
 	}
 
 	for _, file := range appPaths {
-		app, err := app.Load(file.String())
+		app, err := app.Load(file)
 		if err != nil {
 			// we are not considering the broken apps
 			slog.Warn("unable to parse app.yaml, skipping", "path", file.String(), "error", err.Error())

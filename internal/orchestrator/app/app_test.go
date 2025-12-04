@@ -25,35 +25,55 @@ import (
 )
 
 func TestLoad(t *testing.T) {
+	t.Run("it fails if the app path is nil", func(t *testing.T) {
+		app, err := Load(nil)
+		assert.Error(t, err)
+		assert.Empty(t, app)
+		assert.Contains(t, err.Error(), "empty app path")
+	})
+
 	t.Run("it fails if the app path is empty", func(t *testing.T) {
-		app, err := Load("")
+		app, err := Load(paths.New(""))
 		assert.Error(t, err)
 		assert.Empty(t, app)
 		assert.Contains(t, err.Error(), "empty app path")
 	})
 
 	t.Run("it fails if the app path exist but it's a file", func(t *testing.T) {
-		_, err := Load("testdata/app.yaml")
+		_, err := Load(paths.New("testdata/app.yaml"))
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "app path must be a directory")
 	})
 
 	t.Run("it fails if the app path does not exist", func(t *testing.T) {
-		_, err := Load("testdata/this-folder-does-not-exist")
+		_, err := Load(paths.New("testdata/this-folder-does-not-exist"))
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "app path is not valid")
 	})
 
 	t.Run("it loads an app correctly", func(t *testing.T) {
-		app, err := Load("testdata/AppSimple")
+		app, err := Load(paths.New("testdata/AppSimple"))
 		assert.NoError(t, err)
 		assert.NotEmpty(t, app)
 
 		assert.NotNil(t, app.MainPythonFile)
 		assert.Equal(t, f.Must(filepath.Abs("testdata/AppSimple/python/main.py")), app.MainPythonFile.String())
+		sketchPath, ok := app.GetSketchPath()
+		assert.True(t, ok)
+		assert.NotNil(t, sketchPath)
+		assert.Equal(t, f.Must(filepath.Abs("testdata/AppSimple/sketch")), sketchPath.String())
+	})
 
-		assert.NotNil(t, app.MainSketchPath)
-		assert.Equal(t, f.Must(filepath.Abs("testdata/AppSimple/sketch")), app.MainSketchPath.String())
+	t.Run("it loads an app with misssing sketch folder", func(t *testing.T) {
+		app, err := Load(paths.New("testdata/MissingSketch"))
+		assert.NoError(t, err)
+		assert.NotEmpty(t, app)
+
+		assert.NotNil(t, app.MainPythonFile)
+
+		sketchPath, ok := app.GetSketchPath()
+		assert.False(t, ok)
+		assert.Nil(t, sketchPath)
 	})
 }
 
@@ -61,7 +81,7 @@ func TestMissingDescriptor(t *testing.T) {
 	appFolderPath := paths.New("testdata", "MissingDescriptor")
 
 	// Load app
-	app, err := Load(appFolderPath.String())
+	app, err := Load(appFolderPath)
 	assert.Error(t, err)
 	assert.ErrorContains(t, err, "descriptor app.yaml file missing from app")
 	assert.Empty(t, app)
@@ -71,7 +91,7 @@ func TestMissingMains(t *testing.T) {
 	appFolderPath := paths.New("testdata", "MissingMains")
 
 	// Load app
-	app, err := Load(appFolderPath.String())
+	app, err := Load(appFolderPath)
 	assert.Error(t, err)
 	assert.ErrorContains(t, err, "main python file and sketch file missing from app")
 	assert.Empty(t, app)

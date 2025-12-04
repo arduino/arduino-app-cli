@@ -42,11 +42,11 @@ func Init(cfg config.Configuration) {
 
 var (
 	GetBricksIndex = sync.OnceValue(func() *bricksindex.BricksIndex {
-		return f.Must(bricksindex.GenerateBricksIndexFromFile(GetStaticStore().GetAssetsFolder()))
+		return f.Must(bricksindex.Load(GetStaticStore().GetAssetsFolder()))
 	})
 
 	GetModelsIndex = sync.OnceValue(func() *modelsindex.ModelsIndex {
-		return f.Must(modelsindex.GenerateModelsIndexFromFile(GetStaticStore().GetAssetsFolder()))
+		return f.Must(modelsindex.Load(GetStaticStore().GetAssetsFolder()))
 	})
 
 	GetProvisioner = sync.OnceValue(func() *orchestrator.Provision {

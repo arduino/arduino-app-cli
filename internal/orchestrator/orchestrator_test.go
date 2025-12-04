@@ -90,7 +90,7 @@ func TestCloneApp(t *testing.T) {
 			})
 
 			// The app.yaml will have the name set to the new-name
-			clonedApp := f.Must(app.Load(appDir.String()))
+			clonedApp := f.Must(app.Load(appDir))
 			require.Equal(t, "new-name", clonedApp.Name)
 		})
 		t.Run("with icon", func(t *testing.T) {
@@ -108,7 +108,7 @@ func TestCloneApp(t *testing.T) {
 			})
 
 			// The app.yaml will have the icon set to 🦄
-			clonedApp := f.Must(app.Load(appDir.String()))
+			clonedApp := f.Must(app.Load(appDir))
 			require.Equal(t, "with-icon", clonedApp.Name)
 			require.Equal(t, "🦄", clonedApp.Descriptor.Icon)
 		})
@@ -164,7 +164,7 @@ func TestEditApp(t *testing.T) {
 		appDir := cfg.AppsDir().Join("app-default")
 
 		t.Run("previously not default", func(t *testing.T) {
-			app := f.Must(app.Load(appDir.String()))
+			app := f.Must(app.Load(appDir))
 
 			previousDefaultApp, err := GetDefaultApp(cfg)
 			require.NoError(t, err)
@@ -178,7 +178,7 @@ func TestEditApp(t *testing.T) {
 			require.True(t, appDir.EquivalentTo(currentDefaultApp.FullPath))
 		})
 		t.Run("previously default", func(t *testing.T) {
-			app := f.Must(app.Load(appDir.String()))
+			app := f.Must(app.Load(appDir))
 			err := SetDefaultApp(&app, cfg)
 			require.NoError(t, err)
 
@@ -200,12 +200,12 @@ func TestEditApp(t *testing.T) {
 		_, err := CreateApp(t.Context(), CreateAppRequest{Name: originalAppName}, idProvider, cfg)
 		require.NoError(t, err)
 		appDir := cfg.AppsDir().Join(originalAppName)
-		userApp := f.Must(app.Load(appDir.String()))
+		userApp := f.Must(app.Load(appDir))
 		originalPath := userApp.FullPath
 
 		err = EditApp(AppEditRequest{Name: f.Ptr("new-name")}, &userApp, cfg)
 		require.NoError(t, err)
-		editedApp, err := app.Load(cfg.AppsDir().Join("new-name").String())
+		editedApp, err := app.Load(cfg.AppsDir().Join("new-name"))
 		require.NoError(t, err)
 		require.Equal(t, "new-name", editedApp.Name)
 		require.True(t, originalPath.NotExist()) // The original app directory should be removed after renaming
@@ -215,7 +215,7 @@ func TestEditApp(t *testing.T) {
 			_, err := CreateApp(t.Context(), CreateAppRequest{Name: existingAppName}, idProvider, cfg)
 			require.NoError(t, err)
 			appDir := cfg.AppsDir().Join(existingAppName)
-			existingApp := f.Must(app.Load(appDir.String()))
+			existingApp := f.Must(app.Load(appDir))
 
 			err = EditApp(AppEditRequest{Name: f.Ptr(existingAppName)}, &existingApp, cfg)
 			require.ErrorIs(t, err, ErrAppAlreadyExists)
@@ -227,14 +227,14 @@ func TestEditApp(t *testing.T) {
 		_, err := CreateApp(t.Context(), CreateAppRequest{Name: commonAppName}, idProvider, cfg)
 		require.NoError(t, err)
 		commonAppDir := cfg.AppsDir().Join(commonAppName)
-		commonApp := f.Must(app.Load(commonAppDir.String()))
+		commonApp := f.Must(app.Load(commonAppDir))
 
 		err = EditApp(AppEditRequest{
 			Icon:        f.Ptr("💻"),
 			Description: f.Ptr("new desc"),
 		}, &commonApp, cfg)
 		require.NoError(t, err)
-		editedApp := f.Must(app.Load(commonAppDir.String()))
+		editedApp := f.Must(app.Load(commonAppDir))
 		require.Equal(t, "new desc", editedApp.Descriptor.Description)
 		require.Equal(t, "💻", editedApp.Descriptor.Icon)
 	})
@@ -427,7 +427,7 @@ func TestGetAppEnvironmentVariablesWithDefaults(t *testing.T) {
 	require.NoError(t, err)
 
 	appId := createApp(t, "app1", false, idProvider, cfg)
-	appDesc, err := app.Load(appId.ToPath().String())
+	appDesc, err := app.Load(appId.ToPath())
 	require.NoError(t, err)
 	appDesc.Descriptor.Bricks = []app.Brick{
 		{
@@ -447,7 +447,6 @@ bricks:
     \ or with custom object detection models trained on Edge Impulse platform. \n"
   require_container: true
   require_model: true
-  require_devices: false
   ports: []
   category: video
   model_name: yolox-object-detection
@@ -461,7 +460,7 @@ bricks:
 `)
 	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
-	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
 	assert.NoError(t, err)
 
 	modelsIndexContent := []byte(`
@@ -483,7 +482,7 @@ models:
 `)
 	err = cfg.AssetsDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
 	require.NoError(t, err)
-	modelIndex, err := modelsindex.GenerateModelsIndexFromFile(cfg.AssetsDir())
+	modelIndex, err := modelsindex.Load(cfg.AssetsDir())
 	require.NoError(t, err)
 
 	env := getAppEnvironmentVariables(appDesc, bricksIndex, modelIndex)
@@ -512,7 +511,7 @@ func TestGetAppEnvironmentVariablesWithCustomModelOverrides(t *testing.T) {
 	require.NoError(t, err)
 
 	appId := createApp(t, "app1", false, idProvider, cfg)
-	appDesc, err := app.Load(appId.ToPath().String())
+	appDesc, err := app.Load(appId.ToPath())
 	require.NoError(t, err)
 	appDesc.Descriptor.Bricks = []app.Brick{
 		{
@@ -533,7 +532,6 @@ bricks:
     \ or with custom object detection models trained on Edge Impulse platform. \n"
   require_container: true
   require_model: true
-  require_devices: false
   category: video
   model_name: yolox-object-detection
   variables:
@@ -546,7 +544,7 @@ bricks:
 `)
 	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
-	bricksIndex, err := bricksindex.GenerateBricksIndexFromFile(cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
 	assert.NoError(t, err)
 
 	modelsIndexContent := []byte(`
@@ -568,7 +566,7 @@ models:
 `)
 	err = cfg.AssetsDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
 	require.NoError(t, err)
-	modelIndex, err := modelsindex.GenerateModelsIndexFromFile(cfg.AssetsDir())
+	modelIndex, err := modelsindex.Load(cfg.AssetsDir())
 	require.NoError(t, err)
 
 	env := getAppEnvironmentVariables(appDesc, bricksIndex, modelIndex)

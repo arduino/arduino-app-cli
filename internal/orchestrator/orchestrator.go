@@ -154,7 +154,8 @@ func StartApp(
 		if !yield(StreamMessage{progress: &Progress{Name: "preparing", Progress: 0.0}}) {
 			return
 		}
-		if appToStart.MainSketchPath != nil {
+
+		if _, ok := appToStart.GetSketchPath(); ok {
 			if !yield(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}}) {
 				return
 			}
@@ -175,7 +176,7 @@ func StartApp(
 				return
 			}
 			provisionStartProgress := float32(0.0)
-			if appToStart.MainSketchPath != nil {
+			if _, ok := appToStart.GetSketchPath(); ok {
 				provisionStartProgress = 10.0
 			}
 
@@ -388,16 +389,6 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, app app.ArduinoApp,
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		appStatus, err := getAppStatus(ctx, docker, app)
-		if err != nil {
-			yield(StreamMessage{error: err})
-			return
-		}
-		if appStatus.Status != StatusStarting && appStatus.Status != StatusRunning {
-			yield(StreamMessage{data: fmt.Sprintf("app %q is not running", app.Name)})
-			return
-		}
-
 		if !yield(StreamMessage{data: fmt.Sprintf("Stopping app %q", app.Name)}) {
 			return
 		}
@@ -412,8 +403,17 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, app app.ArduinoApp,
 			}
 		})
 
-		if app.MainSketchPath != nil {
-			// TODO: check that the app sketch is running before attempting to stop it.
+		if _, ok := app.GetSketchPath(); ok {
+			// Before stopping the microcontroller we want to make sure that the app was running.
+			appStatus, err := getAppStatus(ctx, docker, app)
+			if err != nil {
+				yield(StreamMessage{error: err})
+				return
+			}
+			if appStatus.Status != StatusStarting && appStatus.Status != StatusRunning {
+				yield(StreamMessage{data: fmt.Sprintf("app %q is not running", app.Name)})
+				return
+			}
 
 			if err := micro.Disable(); err != nil {
 				yield(StreamMessage{error: err})
@@ -614,7 +614,7 @@ func ListApps(
 	}
 
 	for _, file := range appPaths {
-		app, err := app.Load(file.String())
+		app, err := app.Load(file)
 		if err != nil {
 			result.BrokenApps = append(result.BrokenApps, BrokenAppInfo{
 				Name:  file.Base(),
@@ -673,9 +673,10 @@ type AppDetailedInfo struct {
 }
 
 type AppDetailedBrick struct {
-	ID       string `json:"id" required:"true"`
-	Name     string `json:"name" required:"true"`
-	Category string `json:"category,omitempty"`
+	ID           string `json:"id" required:"true"`
+	Name         string `json:"name" required:"true"`
+	Category     string `json:"category,omitempty"`
+	RequireModel bool   `json:"require_model"`
 }
 
 func AppDetails(
@@ -738,6 +739,7 @@ func AppDetails(
 			}
 			res.Name = bi.Name
 			res.Category = bi.Category
+			res.RequireModel = bi.RequireModel
 			return res
 		}),
 	}, nil
@@ -747,7 +749,6 @@ type CreateAppRequest struct {
 	Name        string
 	Icon        string
 	Description string
-	SkipPython  bool
 	SkipSketch  bool
 }
 
@@ -761,9 +762,6 @@ func CreateApp(
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
 ) (CreateAppResponse, error) {
-	if req.SkipPython && req.SkipSketch {
-		return CreateAppResponse{}, fmt.Errorf("cannot skip both python and sketch")
-	}
 	if req.Name == "" {
 		return CreateAppResponse{}, fmt.Errorf("app name cannot be empty")
 	}
@@ -782,16 +780,8 @@ func CreateApp(
 	if err := newApp.IsValid(); err != nil {
 		return CreateAppResponse{}, fmt.Errorf("%w: %v", app.ErrInvalidApp, err)
 	}
-	var options appgenerator.Opts = 0
 
-	if req.SkipSketch {
-		options |= appgenerator.SkipSketch
-	}
-	if req.SkipPython {
-		options |= appgenerator.SkipPython
-	}
-
-	if err := appgenerator.GenerateApp(basePath, newApp, options); err != nil {
+	if err := appgenerator.GenerateApp(basePath, newApp, req.SkipSketch); err != nil {
 		return CreateAppResponse{}, fmt.Errorf("failed to create app: %w", err)
 	}
 	id, err := idProvider.IDFromPath(basePath)
@@ -956,7 +946,7 @@ func GetDefaultApp(cfg config.Configuration) (*app.ArduinoApp, error) {
 		return nil, nil
 	}
 
-	app, err := app.Load(string(defaultAppPath))
+	app, err := app.Load(paths.New(string(defaultAppPath)))
 	if err != nil {
 		// If the app is not valid, we remove the file
 		slog.Warn("default app is not valid", slog.String("path", string(defaultAppPath)), slog.String("error", err.Error()))
@@ -1161,9 +1151,12 @@ func compileUploadSketch(
 	defer func() {
 		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
 	}()
-	sketchPath := arduinoApp.MainSketchPath.String()
+	sketchPath, ok := arduinoApp.GetSketchPath()
+	if !ok {
+		return fmt.Errorf("no sketch path found in the Arduino app")
+	}
 	buildPath := arduinoApp.SketchBuildPath().String()
-	sketchResp, err := srv.LoadSketch(ctx, &rpc.LoadSketchRequest{SketchPath: sketchPath})
+	sketchResp, err := srv.LoadSketch(ctx, &rpc.LoadSketchRequest{SketchPath: sketchPath.String()})
 	if err != nil {
 		return err
 	}
@@ -1174,7 +1167,7 @@ func compileUploadSketch(
 	}
 	initReq := &rpc.InitRequest{
 		Instance:   inst,
-		SketchPath: sketchPath,
+		SketchPath: sketchPath.String(),
 		Profile:    profile,
 	}
 
@@ -1214,7 +1207,7 @@ func compileUploadSketch(
 	compileReq := rpc.CompileRequest{
 		Instance:   inst,
 		Fqbn:       "arduino:zephyr:unoq",
-		SketchPath: sketchPath,
+		SketchPath: sketchPath.String(),
 		BuildPath:  buildPath,
 		Jobs:       2,
 	}
@@ -1240,12 +1233,12 @@ func compileUploadSketch(
 		slog.Info("Used library " + lib.GetName() + " (" + lib.GetVersion() + ") in " + lib.GetInstallDir())
 	}
 
-	if err := uploadSketchInRam(ctx, w, srv, inst, sketchPath, buildPath); err != nil {
+	if err := uploadSketchInRam(ctx, w, srv, inst, sketchPath.String(), buildPath); err != nil {
 		slog.Warn("failed to upload in ram mode, trying to configure the board in ram mode, and retry", slog.String("error", err.Error()))
 		if err := configureMicroInRamMode(ctx, w, srv, inst); err != nil {
 			return err
 		}
-		return uploadSketchInRam(ctx, w, srv, inst, sketchPath, buildPath)
+		return uploadSketchInRam(ctx, w, srv, inst, sketchPath.String(), buildPath)
 	}
 	return nil
 }

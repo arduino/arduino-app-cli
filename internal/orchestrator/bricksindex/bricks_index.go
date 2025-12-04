@@ -91,7 +91,7 @@ func unmarshalBricksIndex(content io.Reader) (*BricksIndex, error) {
 	return &index, nil
 }
 
-func GenerateBricksIndexFromFile(dir *paths.Path) (*BricksIndex, error) {
+func Load(dir *paths.Path) (*BricksIndex, error) {
 	content, err := dir.Join("bricks-list.yaml").Open()
 	if err != nil {
 		return nil, err

@@ -17,6 +17,7 @@ package orchestrator
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -30,6 +31,11 @@ import (
 const indexUpdateInterval = 10 * time.Minute
 
 func AddSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef LibraryReleaseID, addDeps bool) ([]LibraryReleaseID, error) {
+	sketchPath, ok := app.GetSketchPath()
+	if !ok {
+		return nil, errors.New("cannot add a library. Missing sketch folder")
+	}
+
 	srv := commands.NewArduinoCoreServer()
 	var inst *rpc.Instance
 	if res, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
@@ -58,7 +64,7 @@ func AddSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef LibraryRel
 
 	resp, err := srv.ProfileLibAdd(ctx, &rpc.ProfileLibAddRequest{
 		Instance:   inst,
-		SketchPath: app.MainSketchPath.String(),
+		SketchPath: sketchPath.String(),
 		Library: &rpc.ProfileLibraryReference{
 			Library: &rpc.ProfileLibraryReference_IndexLibrary_{
 				IndexLibrary: &rpc.ProfileLibraryReference_IndexLibrary{
@@ -77,6 +83,10 @@ func AddSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef LibraryRel
 }
 
 func RemoveSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef LibraryReleaseID, removeDeps bool) ([]LibraryReleaseID, error) {
+	sketchPath, ok := app.GetSketchPath()
+	if !ok {
+		return nil, errors.New("cannot remove a library. Missing sketch folder")
+	}
 	srv := commands.NewArduinoCoreServer()
 	var inst *rpc.Instance
 	if res, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
@@ -104,8 +114,8 @@ func RemoveSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef Library
 				},
 			},
 		},
-		SketchPath:         app.MainSketchPath.String(),
 		RemoveDependencies: &removeDeps,
+		SketchPath:         sketchPath.String(),
 	})
 	if err != nil {
 		return nil, err
@@ -114,10 +124,15 @@ func RemoveSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef Library
 }
 
 func ListSketchLibraries(ctx context.Context, app app.ArduinoApp) ([]LibraryReleaseID, error) {
+	sketchPath, ok := app.GetSketchPath()
+	if !ok {
+		return nil, errors.New("cannot list libraries. Missing sketch folder")
+	}
+
 	srv := commands.NewArduinoCoreServer()
 
 	resp, err := srv.ProfileLibList(ctx, &rpc.ProfileLibListRequest{
-		SketchPath: app.MainSketchPath.String(),
+		SketchPath: sketchPath.String(),
 	})
 	if err != nil {
 		return nil, err

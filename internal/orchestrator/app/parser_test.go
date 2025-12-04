@@ -115,7 +115,7 @@ bricks:
 	err = os.WriteFile(appYaml.String(), []byte(appDescriptor), 0600)
 	require.NoError(t, err)
 
-	app, err := Load(tempDir)
+	app, err := Load(paths.New(tempDir))
 	require.NoError(t, err)
 	require.Equal(t, "Test App", app.Name)
 	require.Equal(t, 1, len(app.Descriptor.Bricks))

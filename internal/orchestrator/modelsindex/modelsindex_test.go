@@ -9,7 +9,7 @@ import (
 )
 
 func TestModelsIndex(t *testing.T) {
-	modelsIndex, err := GenerateModelsIndexFromFile(paths.New("testdata"))
+	modelsIndex, err := Load(paths.New("testdata"))
 	require.NoError(t, err)
 	require.NotNil(t, modelsIndex)
 
@@ -40,7 +40,7 @@ func TestModelsIndex(t *testing.T) {
 
 	t.Run("it fails if model-list.yaml does not exist", func(t *testing.T) {
 		nonExistentPath := paths.New("nonexistentdir")
-		modelsIndex, err := GenerateModelsIndexFromFile(nonExistentPath)
+		modelsIndex, err := Load(nonExistentPath)
 		assert.Error(t, err)
 		assert.Nil(t, modelsIndex)
 	})

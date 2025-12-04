@@ -46,14 +46,50 @@ type ADBConnection struct {
 // Ensures ADBConnection implements the RemoteConn interface at compile time.
 var _ remote.RemoteConn = (*ADBConnection)(nil)
 
+var (
+	// ErrNotFound is returned when the ADB device is not found.
+	ErrNotFound = fmt.Errorf("ADB device not found")
+	// ErrDeviceOffline is returned when the ADB device is not reachable.
+	// This usually requires a restart of the adbd server daemon on the device.
+	ErrDeviceOffline = fmt.Errorf("ADB device is offline")
+)
+
+// FromSerial creates an ADBConnection from a device serial number.
+// returns an error NotFoundErr if the device is not found, and DeviceOfflineErr if the device is offline.
 func FromSerial(serial string, adbPath string) (*ADBConnection, error) {
 	if adbPath == "" {
 		adbPath = FindAdbPath()
 	}
 
+	isConnected := func(serial, adbPath string) (bool, error) {
+		cmd, err := paths.NewProcess(nil, adbPath, "-s", serial, "get-state")
+		if err != nil {
+			return false, fmt.Errorf("failed to create ADB command: %w", err)
+		}
+
+		output, err := cmd.RunAndCaptureCombinedOutput(context.TODO())
+		if err != nil {
+			slog.Error("unable to connect to ADB device", "error", err, "output", string(output), "serial", serial)
+			if bytes.Contains(output, []byte("device offline")) {
+				return false, ErrDeviceOffline
+			} else if bytes.Contains(output, []byte("not found")) {
+				return false, ErrNotFound
+			}
+			return false, fmt.Errorf("failed to get ADB device state: %w: %s", err, output)
+		}
+
+		return string(bytes.TrimSpace(output)) == "device", nil
+	}
+
+	if connected, err := isConnected(serial, adbPath); err != nil {
+		return nil, err
+	} else if !connected {
+		return nil, fmt.Errorf("device %s is not connected", serial)
+	}
+
 	return &ADBConnection{
-		host:    serial,
 		adbPath: adbPath,
+		host:    serial,
 	}, nil
 }
 
@@ -65,8 +101,8 @@ func FromHost(host string, adbPath string) (*ADBConnection, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("failed to connect to ADB host %s: %w", host, err)
+	if out, err := cmd.RunAndCaptureCombinedOutput(context.TODO()); err != nil {
+		return nil, fmt.Errorf("failed to connect to ADB host %s: %w: %s", host, err, out)
 	}
 	return FromSerial(host, adbPath)
 }

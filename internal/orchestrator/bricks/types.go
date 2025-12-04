@@ -20,20 +20,19 @@ type BrickListResult struct {
 }
 
 type BrickListItem struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Author      string   `json:"author"`
-	Description string   `json:"description"`
-	Category    string   `json:"category"`
-	Status      string   `json:"status"`
-	Models      []string `json:"models"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Author       string `json:"author"`
+	Description  string `json:"description"`
+	Category     string `json:"category"`
+	Status       string `json:"status"`
+	RequireModel bool   `json:"require_model"`
 }
 
 type AppBrickInstancesResult struct {
-	BrickInstances []BrickInstance `json:"bricks"`
+	BrickInstances []BrickInstanceListItem `json:"bricks"`
 }
-
-type BrickInstance struct {
+type BrickInstanceListItem struct {
 	ID              string                `json:"id"`
 	Name            string                `json:"name"`
 	Author          string                `json:"author"`
@@ -41,9 +40,27 @@ type BrickInstance struct {
 	Status          string                `json:"status"`
 	Variables       map[string]string     `json:"variables,omitempty" description:"Deprecated: use config_variables instead. This field is kept for backward compatibility."`
 	ConfigVariables []BrickConfigVariable `json:"config_variables,omitempty"`
+	RequireModel    bool                  `json:"require_model"`
 	ModelID         string                `json:"model,omitempty"`
 }
+type BrickInstance struct {
+	ID               string                `json:"id"`
+	Name             string                `json:"name"`
+	Author           string                `json:"author"`
+	Category         string                `json:"category"`
+	Status           string                `json:"status"`
+	Variables        map[string]string     `json:"variables,omitempty" description:"Deprecated: use config_variables instead. This field is kept for backward compatibility."`
+	ConfigVariables  []BrickConfigVariable `json:"config_variables,omitempty"`
+	RequireModel     bool                  `json:"require_model"`
+	ModelID          string                `json:"model,omitempty"`
+	CompatibleModels []AIModel             `json:"compatible_models"`
+}
 
+type AIModel struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
 type BrickConfigVariable struct {
 	Name        string `json:"name"`
 	Value       string `json:"value"`
@@ -67,15 +84,17 @@ type AppReference struct {
 }
 
 type BrickDetailsResult struct {
-	ID           string                   `json:"id"`
-	Name         string                   `json:"name"`
-	Author       string                   `json:"author"`
-	Description  string                   `json:"description"`
-	Category     string                   `json:"category"`
-	Status       string                   `json:"status"`
-	Variables    map[string]BrickVariable `json:"variables,omitempty"`
-	Readme       string                   `json:"readme"`
-	ApiDocsPath  string                   `json:"api_docs_path"`
-	CodeExamples []CodeExample            `json:"code_examples"`
-	UsedByApps   []AppReference           `json:"used_by_apps"`
+	ID               string                   `json:"id"`
+	Name             string                   `json:"name"`
+	Author           string                   `json:"author"`
+	Description      string                   `json:"description"`
+	Category         string                   `json:"category"`
+	Status           string                   `json:"status"`
+	RequireModel     bool                     `json:"require_model"`
+	Variables        map[string]BrickVariable `json:"variables,omitempty"`
+	Readme           string                   `json:"readme"`
+	ApiDocsPath      string                   `json:"api_docs_path"`
+	CodeExamples     []CodeExample            `json:"code_examples"`
+	UsedByApps       []AppReference           `json:"used_by_apps"`
+	CompatibleModels []AIModel                `json:"compatible_models"`
 }

@@ -32,7 +32,6 @@ func newCreateCmd(cfg config.Configuration) *cobra.Command {
 		icon        string
 		description string
 		bricks      []string
-		noPyton     bool
 		noSketch    bool
 		fromApp     string
 	)
@@ -44,7 +43,7 @@ func newCreateCmd(cfg config.Configuration) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cobra.MinimumNArgs(1)
 			name := args[0]
-			return createHandler(cmd.Context(), cfg, name, icon, description, noPyton, noSketch, fromApp)
+			return createHandler(cmd.Context(), cfg, name, icon, description, noSketch, fromApp)
 		},
 	}
 
@@ -52,14 +51,12 @@ func newCreateCmd(cfg config.Configuration) *cobra.Command {
 	cmd.Flags().StringVarP(&description, "description", "d", "", "Description for the app")
 	cmd.Flags().StringVarP(&fromApp, "from-app", "", "", "Create the new app from the path of an existing app")
 	cmd.Flags().StringArrayVarP(&bricks, "bricks", "b", []string{}, "List of bricks to include in the app")
-	cmd.Flags().BoolVarP(&noPyton, "no-python", "", false, "Do not include Python files")
 	cmd.Flags().BoolVarP(&noSketch, "no-sketch", "", false, "Do not include Sketch files")
-	cmd.MarkFlagsMutuallyExclusive("no-python", "no-sketch")
 
 	return cmd
 }
 
-func createHandler(ctx context.Context, cfg config.Configuration, name string, icon string, description string, noPython, noSketch bool, fromApp string) error {
+func createHandler(ctx context.Context, cfg config.Configuration, name string, icon string, description string, noSketch bool, fromApp string) error {
 	if fromApp != "" {
 		id, err := servicelocator.GetAppIDProvider().ParseID(fromApp)
 		if err != nil {
@@ -88,7 +85,6 @@ func createHandler(ctx context.Context, cfg config.Configuration, name string, i
 			Name:        name,
 			Icon:        icon,
 			Description: description,
-			SkipPython:  noPython,
 			SkipSketch:  noSketch,
 		}, servicelocator.GetAppIDProvider(), cfg)
 		if err != nil {

@@ -257,7 +257,7 @@ func generateMainComposeFile(
 		}
 
 		// 4. Retrieve the required devices that we have to mount
-		slog.Debug("Brick config", slog.Bool("require_devices", idxBrick.MountDevicesIntoContainer), slog.Any("ports", ports), slog.Any("required_devices", idxBrick.RequiredDevices))
+		slog.Debug("Brick config", slog.Bool("mount_devices_into_container", idxBrick.MountDevicesIntoContainer), slog.Any("ports", ports), slog.Any("required_devices", idxBrick.RequiredDevices))
 		if idxBrick.MountDevicesIntoContainer {
 			servicesThatRequireDevices = slices.AppendSeq(servicesThatRequireDevices, maps.Keys(svcs))
 		}
@@ -332,6 +332,16 @@ func generateMainComposeFile(
 				Type:   "bind",
 				Source: "/dev/v4l",
 				Target: "/dev/v4l",
+			})
+		}
+	}
+	if devices.hasSoundDevice {
+		// If we are adding sound devices, mount also /dev/snd/by-id if it exists to allow access to by-id links
+		if paths.New("/dev/snd/by-id").Exist() {
+			volumes = append(volumes, volume{
+				Type:   "bind",
+				Source: "/dev/snd/by-id",
+				Target: "/dev/snd/by-id",
 			})
 		}
 	}

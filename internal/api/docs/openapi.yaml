@@ -45,12 +45,6 @@ paths:
       description: Creates a new app in the default app location.
       operationId: createApp
       parameters:
-      - description: If true, the app will not be created with the python part.
-        in: query
-        name: skip-python
-        schema:
-          description: If true, the app will not be created with the python part.
-          type: boolean
       - description: If true, the app will not be created with the sketch part.
         in: query
         name: skip-sketch
@@ -1155,6 +1149,15 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
       description: Precondition Failed
   schemas:
+    AIModel:
+      properties:
+        description:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+      type: object
     AIModelItem:
       properties:
         brick_ids:
@@ -1191,7 +1194,7 @@ components:
       properties:
         bricks:
           items:
-            $ref: '#/components/schemas/BrickInstance'
+            $ref: '#/components/schemas/BrickInstanceListItem'
           nullable: true
           type: array
       type: object
@@ -1203,6 +1206,8 @@ components:
           type: string
         name:
           type: string
+        require_model:
+          type: boolean
       required:
       - id
       - name
@@ -1318,6 +1323,11 @@ components:
             $ref: '#/components/schemas/CodeExample'
           nullable: true
           type: array
+        compatible_models:
+          items:
+            $ref: '#/components/schemas/AIModel'
+          nullable: true
+          type: array
         description:
           type: string
         id:
@@ -1326,6 +1336,8 @@ components:
           type: string
         readme:
           type: string
+        require_model:
+          type: boolean
         status:
           type: string
         used_by_apps:
@@ -1344,6 +1356,11 @@ components:
           type: string
         category:
           type: string
+        compatible_models:
+          items:
+            $ref: '#/components/schemas/AIModel'
+          nullable: true
+          type: array
         config_variables:
           items:
             $ref: '#/components/schemas/BrickConfigVariable'
@@ -1354,6 +1371,35 @@ components:
           type: string
         name:
           type: string
+        require_model:
+          type: boolean
+        status:
+          type: string
+        variables:
+          additionalProperties:
+            type: string
+          description: 'Deprecated: use config_variables instead. This field is kept
+            for backward compatibility.'
+          type: object
+      type: object
+    BrickInstanceListItem:
+      properties:
+        author:
+          type: string
+        category:
+          type: string
+        config_variables:
+          items:
+            $ref: '#/components/schemas/BrickConfigVariable'
+          type: array
+        id:
+          type: string
+        model:
+          type: string
+        name:
+          type: string
+        require_model:
+          type: boolean
         status:
           type: string
         variables:
@@ -1373,13 +1419,10 @@ components:
           type: string
         id:
           type: string
-        models:
-          items:
-            type: string
-          nullable: true
-          type: array
         name:
           type: string
+        require_model:
+          type: boolean
         status:
           type: string
       type: object
