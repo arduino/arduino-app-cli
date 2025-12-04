@@ -1187,8 +1187,8 @@ func compileUploadSketch(
 				response = "Error: " + msg.Error.String()
 			case *rpc.InitResponse_Profile:
 				response = fmt.Sprintf(
-					"Sketch profile configured: FQBN=%q, Port=%q",
-					msg.Profile.GetFqbn(),
+					"Sketch profile configured: Name=%q, Port=%q",
+					msg.Profile.GetName(),
 					msg.Profile.GetPort(),
 				)
 			}
