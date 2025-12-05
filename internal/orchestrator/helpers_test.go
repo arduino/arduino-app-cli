@@ -27,7 +27,7 @@ func TestParseAppStatus(t *testing.T) {
 	tests := []struct {
 		name           string
 		containerState []container.ContainerState
-		want           State
+		want           Status
 	}{
 		{
 			name:           "everything running",
@@ -46,7 +46,7 @@ func TestParseAppStatus(t *testing.T) {
 		},
 		{
 			name:           "failed container takes precedence over stopping and starting",
-			containerState: []container.ContainerState{container.StateRunning, container.StateDead, container.StateRemoving, container.StateRestarting, container.StateExited},
+			containerState: []container.ContainerState{container.StateRunning, container.StateDead, container.StateRemoving, container.StateRestarting},
 			want:           StatusFailed,
 		},
 		{
@@ -61,7 +61,7 @@ func TestParseAppStatus(t *testing.T) {
 		},
 		{
 			name:           "starting",
-			containerState: []container.ContainerState{container.StateRestarting},
+			containerState: []container.ContainerState{container.StateRestarting, container.StateExited},
 			want:           StatusStarting,
 		},
 	}
@@ -76,7 +76,7 @@ func TestParseAppStatus(t *testing.T) {
 			})
 			res := parseAppStatus(input)
 			require.Len(t, res, 1)
-			require.Equal(t, tc.want, res[0].State)
+			require.Equal(t, tc.want, res[0].Status)
 			require.Equal(t, "path1", res[0].AppPath.String())
 		})
 	}

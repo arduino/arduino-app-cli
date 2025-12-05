@@ -47,8 +47,8 @@ func newStartCmd(cfg config.Configuration) *cobra.Command {
 			return startHandler(cmd.Context(), cfg, app)
 		},
 		ValidArgsFunction: completion.ApplicationNamesWithFilterFunc(cfg, func(apps orchestrator.AppInfo) bool {
-			return apps.State != orchestrator.StatusStarting &&
-				apps.State != orchestrator.StatusRunning
+			return apps.Status != orchestrator.StatusStarting &&
+				apps.Status != orchestrator.StatusRunning
 		}),
 	}
 }

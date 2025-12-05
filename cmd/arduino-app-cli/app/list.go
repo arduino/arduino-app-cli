@@ -83,7 +83,7 @@ func (r appListResult) String() string {
 			cmdutil.IDToAlias(app.ID),
 			app.Name,
 			app.Icon,
-			app.State,
+			app.Status,
 			app.Example,
 		})
 	}

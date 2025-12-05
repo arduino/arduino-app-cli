@@ -47,7 +47,7 @@ func HandlerAppStatus(
 			sseStream.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: err.Error()})
 		}
 		for _, app := range result.Apps {
-			if app.State != "" {
+			if app.Status != "" {
 				sseStream.Send(render.SSEEvent{Type: "app", Data: app})
 			}
 		}
