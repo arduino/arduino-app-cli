@@ -27,7 +27,7 @@ func TestParseAppStatus(t *testing.T) {
 	tests := []struct {
 		name           string
 		containerState []container.ContainerState
-		want           Status
+		want           State
 	}{
 		{
 			name:           "everything running",
@@ -76,7 +76,7 @@ func TestParseAppStatus(t *testing.T) {
 			})
 			res := parseAppStatus(input)
 			require.Len(t, res, 1)
-			require.Equal(t, tc.want, res[0].Status)
+			require.Equal(t, tc.want, res[0].State)
 			require.Equal(t, "path1", res[0].AppPath.String())
 		})
 	}

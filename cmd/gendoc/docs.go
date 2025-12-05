@@ -69,10 +69,10 @@ func NewOpenApiGenerator(version string) *Generator {
 		openapi3.SchemaOrRef{
 			Schema: &openapi3.Schema{
 				UniqueItems: f.Ptr(true),
-				Enum:        f.Map(orchestrator.Status("").AllowedStatuses(), func(v orchestrator.Status) interface{} { return v }),
+				Enum:        f.Map(orchestrator.State("").AllowedStatuses(), func(v orchestrator.State) interface{} { return v }),
 				Type:        f.Ptr(openapi3.SchemaTypeString),
 				Description: f.Ptr("Application status"),
-				ReflectType: reflect.TypeOf(orchestrator.Status("")),
+				ReflectType: reflect.TypeOf(orchestrator.State("")),
 			},
 		},
 	)
@@ -205,7 +205,7 @@ func NewOpenApiGenerator(version string) *Generator {
 	reflector.DefaultOptions = append(reflector.DefaultOptions,
 		jsonschema.InterceptSchema(func(params jsonschema.InterceptSchemaParams) (stop bool, err error) {
 
-			if params.Value.Type() == reflect.TypeOf(orchestrator.Status("")) {
+			if params.Value.Type() == reflect.TypeOf(orchestrator.State("")) {
 				params.Schema.WithRef("#/components/schemas/Status")
 				return true, nil
 			}
@@ -632,8 +632,8 @@ Contains a JSON object with the details of an error.
 			Path:        "/v1/apps",
 			Request:     (*orchestrator.ListAppRequest)(nil),
 			Parameters: (*struct {
-				Filter string              `query:"filter" description:"Filters apps by apps,examples,default"`
-				Status orchestrator.Status `query:"status" description:"Filters applications by status"`
+				Filter string             `query:"filter" description:"Filters apps by apps,examples,default"`
+				Status orchestrator.State `query:"status" description:"Filters applications by status"`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",

@@ -51,21 +51,21 @@ func HandleAppList(
 			showApps = slices.Contains(filters, "apps")
 		}
 
-		var statusFilter orchestrator.Status
+		var stateFilter orchestrator.State
 		if status := queryParams.Get("status"); status != "" {
 			status, err := orchestrator.ParseStatus(status)
 			if err != nil {
 				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "invalid status filter"})
 				return
 			}
-			statusFilter = status
+			stateFilter = status
 		}
 
 		res, err := orchestrator.ListApps(r.Context(), dockerCli, orchestrator.ListAppRequest{
 			ShowApps:        showApps,
 			ShowExamples:    showExamples,
 			ShowOnlyDefault: showOnlyDefault,
-			StatusFilter:    statusFilter,
+			StateFilter:     stateFilter,
 		}, idProvider, cfg)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))

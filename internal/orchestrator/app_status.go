@@ -115,7 +115,7 @@ func parseDockerStatusEvent(ctx context.Context, cfg config.Configuration, docke
 			Name:        app.Descriptor.Name,
 			Description: app.Descriptor.Description,
 			Icon:        app.Descriptor.Icon,
-			Status:      appStatus.Status,
+			State:       appStatus.State,
 			Example:     id.IsExample(),
 			Default:     isDefault,
 		}, nil

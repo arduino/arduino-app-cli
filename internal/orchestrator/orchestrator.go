@@ -389,6 +389,16 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, app app.ArduinoApp,
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
+		appStatus, err := getAppStatus(ctx, docker, app)
+		if err != nil {
+			yield(StreamMessage{error: err})
+			return
+		}
+		if appStatus.State != StatusStarting && appStatus.State != StatusRunning {
+			yield(StreamMessage{data: fmt.Sprintf("app %q is not running", app.Name)})
+			return
+		}
+
 		if !yield(StreamMessage{data: fmt.Sprintf("Stopping app %q", app.Name)}) {
 			return
 		}
@@ -410,7 +420,7 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, app app.ArduinoApp,
 				yield(StreamMessage{error: err})
 				return
 			}
-			if appStatus.Status != StatusStarting && appStatus.Status != StatusRunning {
+			if appStatus.State != StatusStarting && appStatus.State != StatusRunning {
 				yield(StreamMessage{data: fmt.Sprintf("app %q is not running", app.Name)})
 				return
 			}
@@ -513,7 +523,7 @@ func StartDefaultApp(
 	if err != nil {
 		return fmt.Errorf("failed to get app details: %w", err)
 	}
-	if status.Status == "running" {
+	if status.State == "running" {
 		return nil
 	}
 
@@ -537,7 +547,7 @@ type AppInfo struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Icon        string `json:"icon"`
-	Status      Status `json:"status,omitempty"`
+	State       State  `json:"state,omitempty"`
 	Example     bool   `json:"example"`
 	Default     bool   `json:"default"`
 }
@@ -551,8 +561,7 @@ type ListAppRequest struct {
 	ShowExamples    bool
 	ShowOnlyDefault bool
 	ShowApps        bool
-	StatusFilter    Status
-
+	StateFilter     State
 	// IncludeNonStandardLocationApps will include apps that are not in the standard apps directory.
 	// We will search by looking for docker container metadata, and add the app not present in the
 	// standard apps directory in the result list.
@@ -628,14 +637,14 @@ func ListApps(
 			continue
 		}
 
-		var status Status
+		var state State
 		if idx := slices.IndexFunc(apps, func(a AppStatusInfo) bool {
 			return a.AppPath.EqualsTo(app.FullPath)
 		}); idx != -1 {
-			status = apps[idx].Status
+			state = apps[idx].State
 		}
 
-		if req.StatusFilter != "" && req.StatusFilter != status {
+		if req.StateFilter != "" && req.StateFilter != state {
 			continue
 		}
 
@@ -650,7 +659,7 @@ func ListApps(
 				Name:        app.Name,
 				Description: app.Descriptor.Description,
 				Icon:        app.Descriptor.Icon,
-				Status:      status,
+				State:       state,
 				Example:     id.IsExample(),
 				Default:     isDefault,
 			},
@@ -666,7 +675,7 @@ type AppDetailedInfo struct {
 	Path        string             `json:"path"`
 	Description string             `json:"description"`
 	Icon        string             `json:"icon"`
-	Status      Status             `json:"status" required:"true"`
+	State       State              `json:"state" required:"true"`
 	Example     bool               `json:"example"`
 	Default     bool               `json:"default"`
 	Bricks      []AppDetailedBrick `json:"bricks,omitempty"`
@@ -690,15 +699,15 @@ func AppDetails(
 	var wg sync.WaitGroup
 	wg.Add(2)
 	var defaultAppPath string
-	var status Status
+	var state State
 	go func() {
 		defer wg.Done()
 		app, err := getAppStatus(ctx, docker, userApp)
 		if err != nil {
 			slog.Warn("unable to get app status", slog.String("error", err.Error()), slog.String("path", userApp.FullPath.String()))
-			status = StatusStopped
+			state = StatusStopped
 		} else {
-			status = app.Status
+			state = app.State
 		}
 	}()
 	go func() {
@@ -727,7 +736,7 @@ func AppDetails(
 		Path:        userApp.FullPath.String(),
 		Description: userApp.Descriptor.Description,
 		Icon:        userApp.Descriptor.Icon,
-		Status:      status,
+		State:       state,
 		Example:     id.IsExample(),
 		Default:     defaultAppPath == userApp.FullPath.String(),
 		Bricks: f.Map(userApp.Descriptor.Bricks, func(b app.Brick) AppDetailedBrick {

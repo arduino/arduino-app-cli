@@ -266,7 +266,7 @@ func TestListApp(t *testing.T) {
 		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
 			ShowApps:     true,
 			ShowExamples: true,
-			StatusFilter: "",
+			StateFilter:  "",
 		}, idProvider, cfg)
 		require.NoError(t, err)
 		assert.Empty(t, res.BrokenApps)
@@ -276,7 +276,7 @@ func TestListApp(t *testing.T) {
 				Name:        "example1",
 				Description: "",
 				Icon:        "😃",
-				Status:      "",
+				State:       "",
 				Example:     true,
 				Default:     false,
 			},
@@ -285,7 +285,7 @@ func TestListApp(t *testing.T) {
 				Name:        "app1",
 				Description: "",
 				Icon:        "😃",
-				Status:      "",
+				State:       "",
 				Example:     false,
 				Default:     false,
 			},
@@ -294,7 +294,7 @@ func TestListApp(t *testing.T) {
 				Name:        "app2",
 				Description: "",
 				Icon:        "😃",
-				Status:      "",
+				State:       "",
 				Example:     false,
 				Default:     false,
 			},
@@ -305,7 +305,7 @@ func TestListApp(t *testing.T) {
 		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
 			ShowApps:     true,
 			ShowExamples: false,
-			StatusFilter: "",
+			StateFilter:  "",
 		}, idProvider, cfg)
 		require.NoError(t, err)
 		assert.Empty(t, res.BrokenApps)
@@ -315,7 +315,7 @@ func TestListApp(t *testing.T) {
 				Name:        "app1",
 				Description: "",
 				Icon:        "😃",
-				Status:      "",
+				State:       "",
 				Example:     false,
 				Default:     false,
 			},
@@ -324,7 +324,7 @@ func TestListApp(t *testing.T) {
 				Name:        "app2",
 				Description: "",
 				Icon:        "😃",
-				Status:      "",
+				State:       "",
 				Example:     false,
 				Default:     false,
 			},
@@ -335,7 +335,7 @@ func TestListApp(t *testing.T) {
 		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
 			ShowApps:     false,
 			ShowExamples: true,
-			StatusFilter: "",
+			StateFilter:  "",
 		}, idProvider, cfg)
 		require.NoError(t, err)
 		assert.Empty(t, res.BrokenApps)
@@ -345,7 +345,7 @@ func TestListApp(t *testing.T) {
 				Name:        "example1",
 				Description: "",
 				Icon:        "😃",
-				Status:      "",
+				State:       "",
 				Example:     true,
 				Default:     false,
 			},

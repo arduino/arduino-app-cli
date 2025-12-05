@@ -21,17 +21,17 @@ import (
 	"github.com/docker/docker/api/types/container"
 )
 
-type Status string
+type State string
 
 const (
-	StatusStarting Status = "starting"
-	StatusRunning  Status = "running"
-	StatusStopping Status = "stopping"
-	StatusStopped  Status = "stopped"
-	StatusFailed   Status = "failed"
+	StatusStarting State = "starting"
+	StatusRunning  State = "running"
+	StatusStopping State = "stopping"
+	StatusStopped  State = "stopped"
+	StatusFailed   State = "failed"
 )
 
-func StatusFromDockerState(s container.ContainerState) Status {
+func StatusFromDockerState(s container.ContainerState) State {
 	switch s {
 	case container.StateRunning:
 		return StatusRunning
@@ -48,12 +48,12 @@ func StatusFromDockerState(s container.ContainerState) Status {
 	}
 }
 
-func ParseStatus(s string) (Status, error) {
-	s1 := Status(s)
+func ParseStatus(s string) (State, error) {
+	s1 := State(s)
 	return s1, s1.Validate()
 }
 
-func (s Status) Validate() error {
+func (s State) Validate() error {
 	switch s {
 	case StatusStarting, StatusRunning, StatusStopping, StatusStopped, StatusFailed:
 		return nil
@@ -62,6 +62,6 @@ func (s Status) Validate() error {
 	}
 }
 
-func (s Status) AllowedStatuses() []Status {
-	return []Status{StatusStarting, StatusRunning, StatusStopping, StatusStopped, StatusFailed}
+func (s State) AllowedStatuses() []State {
+	return []State{StatusStarting, StatusRunning, StatusStopping, StatusStopped, StatusFailed}
 }

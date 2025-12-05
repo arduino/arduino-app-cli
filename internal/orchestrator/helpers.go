@@ -19,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 
@@ -36,7 +37,12 @@ import (
 
 type AppStatusInfo struct {
 	AppPath *paths.Path
-	Status  Status
+	State   State
+}
+
+type containerStateInfo struct {
+	State         State
+	StatusMessage string
 }
 
 // parseAppStatus takes all the containers that matches the DockerAppLabel,
@@ -52,19 +58,29 @@ type AppStatusInfo struct {
 //			starting: at least one starting
 func parseAppStatus(containers []container.Summary) []AppStatusInfo {
 	apps := make([]AppStatusInfo, 0, len(containers))
-	appsStatusMap := make(map[string][]Status)
+	appsStatusMap := make(map[string][]containerStateInfo)
 	for _, c := range containers {
 		appPath, ok := c.Labels[DockerAppPathLabel]
 		if !ok {
 			continue
 		}
-		appsStatusMap[appPath] = append(appsStatusMap[appPath], StatusFromDockerState(c.State))
+		appsStatusMap[appPath] = append(appsStatusMap[appPath], containerStateInfo{
+			State:         StatusFromDockerState(c.State),
+			StatusMessage: c.Status,
+		})
+
+		slog.Debug("Container status",
+			slog.String("appPath", appPath),
+			slog.String("containerID", c.ID),
+			slog.String("state", string(c.State)),
+			slog.String("statusMessage", c.Status),
+		)
 	}
 
-	appendResult := func(appPath *paths.Path, status Status) {
+	appendResult := func(appPath *paths.Path, status State) {
 		apps = append(apps, AppStatusInfo{
 			AppPath: appPath,
-			Status:  status,
+			State:   status,
 		})
 	}
 
@@ -74,31 +90,33 @@ func parseAppStatus(containers []container.Summary) []AppStatusInfo {
 		appPath := paths.New(appPath)
 
 		//	running: all running
-		if !slices.ContainsFunc(s, func(v Status) bool { return v != StatusRunning }) {
+		if !slices.ContainsFunc(s, func(v containerStateInfo) bool { return v.State != StatusRunning }) {
 			appendResult(appPath, StatusRunning)
 			continue
 		}
 		//	stopped: all stopped
-		if !slices.ContainsFunc(s, func(v Status) bool { return v != StatusStopped }) {
+		if !slices.ContainsFunc(s, func(v containerStateInfo) bool { return v.State != StatusStopped }) {
 			appendResult(appPath, StatusStopped)
 			continue
 		}
 
 		// ...else we have multiple different status we calculate the status
 		// among the possible left: {failed, stopping, starting}
-		if slices.ContainsFunc(s, func(v Status) bool { return v == StatusFailed }) {
+		if slices.ContainsFunc(s, func(v containerStateInfo) bool { return v.State == StatusFailed }) {
 			appendResult(appPath, StatusFailed)
 			continue
 		}
-		if slices.ContainsFunc(s, func(v Status) bool { return v == StatusStopping }) {
+		if slices.ContainsFunc(s, func(v containerStateInfo) bool {
+			return v.State == StatusStopped && strings.Contains(v.StatusMessage, "Exited (0)")
+		}) {
+			appendResult(appPath, StatusFailed)
+			continue
+		}
+		if slices.ContainsFunc(s, func(v containerStateInfo) bool { return v.State == StatusStopping }) {
 			appendResult(appPath, StatusStopping)
 			continue
 		}
-		if slices.ContainsFunc(s, func(v Status) bool { return v == StatusStopped }) {
-			appendResult(appPath, StatusFailed)
-			continue
-		}
-		if slices.ContainsFunc(s, func(v Status) bool { return v == StatusStarting }) {
+		if slices.ContainsFunc(s, func(v containerStateInfo) bool { return v.State == StatusStarting }) {
 			appendResult(appPath, StatusStarting)
 			continue
 		}
@@ -193,7 +211,7 @@ func getRunningApp(
 		return nil, fmt.Errorf("failed to get running apps: %w", err)
 	}
 	idx := slices.IndexFunc(apps, func(a AppStatusInfo) bool {
-		return a.Status == StatusRunning || a.Status == StatusStarting
+		return a.State == StatusRunning || a.State == StatusStarting
 	})
 	if idx == -1 {
 		return nil, nil

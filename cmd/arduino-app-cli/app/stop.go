@@ -45,8 +45,8 @@ func newStopCmd(cfg config.Configuration) *cobra.Command {
 			return stopHandler(cmd.Context(), app)
 		},
 		ValidArgsFunction: completion.ApplicationNamesWithFilterFunc(cfg, func(apps orchestrator.AppInfo) bool {
-			return apps.Status == orchestrator.StatusStarting ||
-				apps.Status == orchestrator.StatusRunning
+			return apps.State == orchestrator.StatusStarting ||
+				apps.State == orchestrator.StatusRunning
 		}),
 	}
 }
