@@ -53,7 +53,7 @@ func HandleAppList(
 
 		var stateFilter orchestrator.State
 		if status := queryParams.Get("status"); status != "" {
-			status, err := orchestrator.ParseStatus(status)
+			status, err := orchestrator.ParseStates(status)
 			if err != nil {
 				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "invalid status filter"})
 				return

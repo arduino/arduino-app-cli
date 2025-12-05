@@ -69,7 +69,7 @@ func NewOpenApiGenerator(version string) *Generator {
 		openapi3.SchemaOrRef{
 			Schema: &openapi3.Schema{
 				UniqueItems: f.Ptr(true),
-				Enum:        f.Map(orchestrator.State("").AllowedStatuses(), func(v orchestrator.State) interface{} { return v }),
+				Enum:        f.Map(orchestrator.State("").AllowedStates(), func(v orchestrator.State) interface{} { return v }),
 				Type:        f.Ptr(openapi3.SchemaTypeString),
 				Description: f.Ptr("Application status"),
 				ReflectType: reflect.TypeOf(orchestrator.State("")),

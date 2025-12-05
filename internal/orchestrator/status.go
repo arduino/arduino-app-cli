@@ -48,7 +48,7 @@ func StatusFromDockerState(s container.ContainerState) State {
 	}
 }
 
-func ParseStatus(s string) (State, error) {
+func ParseStates(s string) (State, error) {
 	s1 := State(s)
 	return s1, s1.Validate()
 }
@@ -58,10 +58,10 @@ func (s State) Validate() error {
 	case StatusStarting, StatusRunning, StatusStopping, StatusStopped, StatusFailed:
 		return nil
 	default:
-		return fmt.Errorf("status should be one of %v", s.AllowedStatuses())
+		return fmt.Errorf("status should be one of %v", s.AllowedStates())
 	}
 }
 
-func (s State) AllowedStatuses() []State {
+func (s State) AllowedStates() []State {
 	return []State{StatusStarting, StatusRunning, StatusStopping, StatusStopped, StatusFailed}
 }
