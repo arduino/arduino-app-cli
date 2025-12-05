@@ -1,6 +1,6 @@
 #!/bin/sh
 
-rm -rf /var/cache/arduino-app-cli
+rm -rf /var/cache/arduino-app-cli/*
 
 if [ -d /run/systemd/system ]; then
   systemctl daemon-reload

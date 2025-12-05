@@ -18,6 +18,7 @@ package orchestrator
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"iter"
@@ -908,7 +909,9 @@ func DeleteApp(ctx context.Context, dockerClient command.Cli, app app.ArduinoApp
 		}
 	}
 
-	return app.FullPath.RemoveAll()
+	cache_err := app.ProvisioningStateDir().RemoveAll()
+	data_err := app.FullPath.RemoveAll()
+	return errors.Join(cache_err, data_err)
 }
 
 const defaultAppFileName = "default.app"
