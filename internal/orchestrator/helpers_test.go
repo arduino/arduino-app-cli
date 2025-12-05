@@ -64,6 +64,11 @@ func TestParseAppStatus(t *testing.T) {
 			containerState: []container.ContainerState{container.StateRestarting, container.StateExited},
 			want:           StatusStarting,
 		},
+		{
+			name:           "failed",
+			containerState: []container.ContainerState{container.StateRestarting, container.StateExited},
+			want:           StatusFailed,
+		},
 	}
 
 	for _, tc := range tests {
