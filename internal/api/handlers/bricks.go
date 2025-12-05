@@ -32,80 +32,45 @@ import (
 
 func HandleBrickList(brickService *bricks.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		res, err := brickService.List()
+		bricks, err := brickService.List()
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to retrieve brick list"})
 
 			return
 		}
-		render.EncodeResponse(w, http.StatusOK, res)
+		render.EncodeResponse(w, http.StatusOK, buildListBricksResponse(bricks))
 	}
 }
 
-func HandleAppBrickInstancesList(
-	brickService *bricks.Service,
-	idProvider *app.IDProvider,
-) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		appId, err := idProvider.IDFromBase64(r.PathValue("appID"))
-		if err != nil {
-			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
-			return
-		}
-		appPath := appId.ToPath()
-
-		app, err := app.Load(appPath)
-		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", appId.String()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
-			return
-		}
-
-		res, err := brickService.AppBrickInstancesList(&app)
-		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
-			details := fmt.Sprintf("unable to find brick list for app %q", appId)
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: details})
-			return
-		}
-		render.EncodeResponse(w, http.StatusOK, res)
-	}
+type BrickListResponse struct {
+	Bricks []BrickItem `json:"bricks"`
 }
 
-func HandleAppBrickInstanceDetails(
-	brickService *bricks.Service,
-	idProvider *app.IDProvider,
-) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		appId, err := idProvider.IDFromBase64(r.PathValue("appID"))
-		if err != nil {
-			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
-			return
-		}
-		appPath := appId.ToPath()
+type BrickItem struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Author       string `json:"author"`
+	Description  string `json:"description"`
+	Category     string `json:"category"`
+	Status       string `json:"status"`
+	RequireModel bool   `json:"require_model"`
+}
 
-		app, err := app.Load(appPath)
-		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", appId.String()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
-			return
-		}
-
-		brickID := r.PathValue("brickID")
-		if brickID == "" {
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "brickID must be set"})
-			return
-		}
-
-		res, err := brickService.AppBrickInstanceDetails(&app, brickID)
-		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to obtain brick details"})
-			return
-		}
-		render.EncodeResponse(w, http.StatusOK, res)
+func buildListBricksResponse(bricks []bricks.Brick) BrickListResponse {
+	items := make([]BrickItem, 0, len(bricks))
+	for _, b := range bricks {
+		items = append(items, BrickItem{
+			ID:           b.ID,
+			Name:         b.Name,
+			Author:       b.Author,
+			Description:  b.Description,
+			Category:     b.Category,
+			Status:       b.Status,
+			RequireModel: b.RequireModel,
+		})
 	}
+	return BrickListResponse{Bricks: items}
 }
 
 func HandleBrickCreate(

@@ -15,18 +15,14 @@
 
 package bricks
 
-type BrickListResult struct {
-	Bricks []BrickListItem `json:"bricks"`
-}
-
-type BrickListItem struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Author       string `json:"author"`
-	Description  string `json:"description"`
-	Category     string `json:"category"`
-	Status       string `json:"status"`
-	RequireModel bool   `json:"require_model"`
+type Brick struct {
+	ID           string
+	Name         string
+	Author       string
+	Description  string
+	Category     string
+	Status       string
+	RequireModel bool
 }
 
 type AppBrickInstancesResult struct {

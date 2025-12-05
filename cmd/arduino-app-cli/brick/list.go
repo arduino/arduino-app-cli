@@ -21,7 +21,6 @@ import (
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/tablestyle"
 )
 
@@ -40,10 +39,6 @@ func bricksListHandler() {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}
 	feedback.PrintResult(brickListResult{Bricks: res.Bricks})
-}
-
-type brickListResult struct {
-	Bricks []bricks.BrickListItem `json:"bricks"`
 }
 
 func (r brickListResult) String() string {

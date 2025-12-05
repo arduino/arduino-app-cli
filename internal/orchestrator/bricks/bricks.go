@@ -54,10 +54,10 @@ func NewService(
 	}
 }
 
-func (s *Service) List() (BrickListResult, error) {
-	res := BrickListResult{Bricks: make([]BrickListItem, len(s.bricksIndex.Bricks))}
+func (s *Service) List() ([]Brick, error) {
+	bricks := make([]Brick, len(s.bricksIndex.Bricks))
 	for i, brick := range s.bricksIndex.Bricks {
-		res.Bricks[i] = BrickListItem{
+		bricks[i] = Brick{
 			ID:           brick.ID,
 			Name:         brick.Name,
 			Author:       "Arduino", // TODO: for now we only support our bricks
@@ -67,7 +67,7 @@ func (s *Service) List() (BrickListResult, error) {
 			RequireModel: brick.RequireModel,
 		}
 	}
-	return res, nil
+	return bricks, nil
 }
 
 func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesResult, error) {
