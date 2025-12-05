@@ -7,9 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ## [Unreleased]
 
 ### Added 
+
 - Mount `/dev/snd/by-id` in python container [#119](https://github.com/arduino/arduino-app-cli/pull/119)
 - Add the `config_variables` field in the  `GET /v1/bricks/{id} ` response  [#126](https://github.com/arduino/arduino-app-cli/pull/126)
-- Bump  [examples](https://github.com/arduino/app-bricks-examples)  to `0.6.0 [#132](https://github.com/arduino/arduino-app-cli/pull/132)
+- Bump [examples](https://github.com/arduino/app-bricks-examples)  to `0.6.1` [#132](https://github.com/arduino/arduino-app-cli/pull/132)
+- Bump [examples](https://github.com/arduino/app-bricks-examples)  to `0.6.1` [#140](https://github.com/arduino/arduino-app-cli/pull/140)
+- Support `hidden` field of the brick index to hide variables from the `GET /v1/bricks/{id}` and `GET /v1/apps/{id}/bricks/{id}` endpoints [#143](https://github.com/arduino/arduino-app-cli/pull/143)
 
 ### Deprecated
 
@@ -23,6 +26,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ## Fixed
 
 - Add a library when a sketch folder is missing  [#123](https://github.com/arduino/arduino-app-cli/pull/123)
+- Check `required_devices` also in case there are no linked containers [#137](https://github.com/arduino/arduino-app-cli/pull/137)
+- Update local library index on `arduino-app-cli system update` and `GET /v1/system/update/check` [#133](https://github.com/arduino/arduino-app-cli/pull/133)
  
 ## [0.7.0]
 
