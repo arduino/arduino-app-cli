@@ -1,7 +1,21 @@
 #!/bin/sh
+echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX postrm $1 $2"
 
-rm -rf /var/cache/arduino-app-cli/*
+set -e
 
 if [ -d /run/systemd/system ]; then
   systemctl daemon-reload
 fi
+
+EXAMPLES_DIR="/var/lib/arduino-app-cli"
+	for i in ${EXAMPLES_DIR}/*; do
+	  CACHE_DIR=${EXAMPLES_DIR}/.cache
+	  [ -d "CACHE_DIR" ] && rm -r ${CACHE_DIR};
+	done
+
+if [ "$1" = "purge" ]; then
+	CONF_DIR="/home/arduino/.config/arduino-app-cli"
+    echo "Purging configuration directory: $CONF_DIR"
+    [ -d "$CONF_DIR" ] && rm -rf "$CONF_DIR"
+fi
+

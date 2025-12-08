@@ -34,7 +34,7 @@ func getPropertiesDir() string {
 	if err != nil {
 		slog.Error("Unable to set user home", slog.String("error", err.Error()))
 	}
-	return paths.New(xdgHome).Join(".arduino-app-cli", "properties.msgpack").String()
+	return paths.New(xdgHome).Join(".config", "arduino-app-cli", "properties.msgpack").String()
 }
 
 func HandlePropertyKeys(cfg config.Configuration) http.HandlerFunc {

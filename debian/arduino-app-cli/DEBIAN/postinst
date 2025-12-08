@@ -1,10 +1,22 @@
 #!/bin/sh
 
-mkdir /var/cache/arduino-app-cli
-chown -R arduino:arduino /var/cache/arduino-app-cli
-mkdir /home/arduino/.arduino-app-cli
-chown -R arduino:arduino /home/arduino/.arduino-app-cli
+set -e
 
 systemctl enable arduino-app-cli
 systemctl enable arduino-burn-bootloader
 systemctl enable arduino-avahi-serial.service
+
+echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX postinst $1 $2"
+
+# The following case will be executed for an upgrade from
+# any version before 0.7.0 (the last version with examples and assets in the home dir)
+if [ "$1" = "configure" ]; then
+    if dpkg --compare-versions "$2" lt "0.7.0"; then
+        echo "Detected upgrade from an older version, delete obsolete examples and assets."
+        OBSOLETE_DIR="home/arduino/.local/share/arduino-app-cli"
+          for i in ${OBSOLETE_DIR}/*; do
+            CACHE_DIR=${OBSOLETE_DIR}/.cache
+            [ -d "CACHE_DIR" ] && rm -r ${CACHE_DIR};
+          done
+    fi
+fi

@@ -118,7 +118,7 @@ tasks:
           set -e
           echo "Runner version set as: {{ .EXAMPLE_VERSION }}"
           TMP_PATH="$(mktemp -d)"
-          DEST_PATH="debian/arduino-app-cli/usr/share/arduino-app-cli/"
+          DEST_PATH="debian/arduino-app-cli/var/lib/arduino-app-cli/"
           echo "Cloning arduino/app-bricks-examples into temporary directory ${TMP_PATH}..."
           git clone --depth 1 --branch "{{ .EXAMPLE_VERSION }}" https://github.com/arduino/app-bricks-examples "${TMP_PATH}"
           rm -rf "${DEST_PATH}/examples"
@@ -165,7 +165,7 @@ tasks:
     cmds:
       - docker build -t adbd -f adbd.Dockerfile .
       - docker rm -f adbd || true
-      - docker run --rm --name adbd -d -p 5555:5555 -p 2222:22 -v $HOME/.arduino-app-cli/examples:/apps adbd
+      - docker run --rm --name adbd -d -p 5555:5555 -p 2222:22 -v /var/lib/arduino-app-cli/examples:/apps adbd
 
   adbd:stop:
     desc: stop adbd

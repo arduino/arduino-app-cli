@@ -1,13 +1,6 @@
 #!/bin/sh
+echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX prerm $1 $2"
 
 systemctl disable arduino-app-cli
 systemctl disable arduino-burn-bootloader
 systemctl disable arduino-avahi-serial.service
-
-OLD_EXAMPLES_DIR="/home/arduino/.local/share/arduino-app-cli/examples"
-
-if [ -d "OLD_EXAMPLES_DIR" ]; then
-	for i in /home/arduino/.local/share/arduino-app-cli/examples/*; do
-		rm -r $i/.cache;
-	done
-fi
