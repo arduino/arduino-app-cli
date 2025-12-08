@@ -1,5 +1,4 @@
 #!/bin/sh
-echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX postrm $1 $2"
 
 set -e
 

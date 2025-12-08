@@ -1,5 +1,4 @@
 #!/bin/sh
-echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX preinst $1 $2"
 
 set -e
 

@@ -1,5 +1,4 @@
 #!/bin/sh
-echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX prerm $1 $2"
 
 systemctl disable arduino-app-cli
 systemctl disable arduino-burn-bootloader
