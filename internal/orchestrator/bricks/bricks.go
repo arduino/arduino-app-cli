@@ -78,7 +78,7 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 			return AppBrickInstancesResult{}, fmt.Errorf("brick not found with id %s", brickInstance.ID)
 		}
 
-		variablesMap, configVariables := getBrickConfigDetails(brick, brickInstance.Variables)
+		variablesMap, configVariables := getInstanceBrickConfigVariableDetails(brick, brickInstance.Variables)
 
 		res.BrickInstances[i] = BrickInstanceListItem{
 			ID:              brick.ID,
@@ -107,7 +107,7 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 		return BrickInstance{}, fmt.Errorf("brick %s not added in the app", brickID)
 	}
 
-	variables, configVariables := getBrickConfigDetails(brick, a.Descriptor.Bricks[brickIndex].Variables)
+	variables, configVariables := getInstanceBrickConfigVariableDetails(brick, a.Descriptor.Bricks[brickIndex].Variables)
 
 	modelID := a.Descriptor.Bricks[brickIndex].Model
 	if modelID == "" {
@@ -134,13 +134,16 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 	}, nil
 }
 
-func getBrickConfigDetails(
+func getInstanceBrickConfigVariableDetails(
 	brick *bricksindex.Brick, userVariables map[string]string,
 ) (map[string]string, []BrickConfigVariable) {
 	variablesMap := make(map[string]string, len(brick.Variables))
 	variableDetails := make([]BrickConfigVariable, 0, len(brick.Variables))
 
 	for _, v := range brick.Variables {
+		if v.Hidden {
+			continue
+		}
 		finalValue := v.DefaultValue
 
 		userValue, ok := userVariables[v.Name]
@@ -167,15 +170,6 @@ func (s *Service) BricksDetails(id string, idProvider *app.IDProvider,
 		return BrickDetailsResult{}, ErrBrickNotFound
 	}
 
-	variables := make(map[string]BrickVariable, len(brick.Variables))
-	for _, v := range brick.Variables {
-		variables[v.Name] = BrickVariable{
-			DefaultValue: v.DefaultValue,
-			Description:  v.Description,
-			Required:     v.IsRequired(),
-		}
-	}
-
 	readme, err := s.staticStore.GetBrickReadmeFromID(brick.ID)
 	if err != nil {
 		return BrickDetailsResult{}, fmt.Errorf("cannot open docs for brick %s: %w", id, err)
@@ -200,6 +194,9 @@ func (s *Service) BricksDetails(id string, idProvider *app.IDProvider,
 	if err != nil {
 		return BrickDetailsResult{}, fmt.Errorf("unable to get used by apps: %w", err)
 	}
+
+	variables, configVariables := getBrickConfigVariableDetails(brick)
+
 	return BrickDetailsResult{
 		ID:           id,
 		Name:         brick.Name,
@@ -220,7 +217,34 @@ func (s *Service) BricksDetails(id string, idProvider *app.IDProvider,
 				Description: m.ModuleDescription,
 			}
 		}),
+		ConfigVariables: configVariables,
 	}, nil
+}
+
+func getBrickConfigVariableDetails(
+	brick *bricksindex.Brick) (map[string]BrickVariable, []BrickConfigVariable) {
+	variablesMap := make(map[string]BrickVariable, len(brick.Variables))
+	variableDetails := make([]BrickConfigVariable, 0, len(brick.Variables))
+
+	for _, v := range brick.Variables {
+		if v.Hidden {
+			continue
+		}
+		variablesMap[v.Name] = BrickVariable{
+			DefaultValue: v.DefaultValue,
+			Description:  v.Description,
+			Required:     v.IsRequired(),
+		}
+
+		variableDetails = append(variableDetails, BrickConfigVariable{
+			Name:        v.Name,
+			Value:       v.DefaultValue,
+			Description: v.Description,
+			Required:    v.IsRequired(),
+		})
+	}
+
+	return variablesMap, variableDetails
 }
 
 func getUsedByApps(

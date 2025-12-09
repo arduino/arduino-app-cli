@@ -82,6 +82,15 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ f
 		return nil, err
 	}
 
+	streamLibIndex, _ := commands.UpdateLibrariesIndexStreamResponseToCallbackFunction(ctx, func(curr *rpc.DownloadProgress) {
+		slog.Debug("downloading library index", "progress", curr.GetMessage())
+	})
+
+	req := &rpc.UpdateLibrariesIndexRequest{Instance: inst}
+	if err := srv.UpdateLibrariesIndex(req, streamLibIndex); err != nil {
+		slog.Warn("error updating library index, skipping", slog.String("error", err.Error()))
+	}
+
 	if err := srv.Init(
 		&rpc.InitRequest{Instance: inst},
 		commands.InitStreamResponseToCallbackFunction(ctx, func(r *rpc.InitResponse) error {

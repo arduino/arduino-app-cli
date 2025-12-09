@@ -132,7 +132,7 @@ func (a *ADBConnection) Forward(ctx context.Context, localPort int, remotePort i
 }
 
 func (a *ADBConnection) ForwardKillAll(ctx context.Context) error {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "killforward-all")
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "forward", "--remove-all")
 	if err != nil {
 		return err
 	}

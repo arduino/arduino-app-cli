@@ -127,6 +127,21 @@ func TestBricksDetails(t *testing.T) {
 				Name:        f.Ptr("Person classification"),
 				Description: f.Ptr("Person classification model based on WakeVision dataset. This model is trained to classify images into two categories: person and not-person."),
 			}}
+		expectConfigVariables := []client.BrickConfigVariable{
+			{
+				Name:        f.Ptr("CUSTOM_MODEL_PATH"),
+				Value:       f.Ptr("/home/arduino/.arduino-bricks/ei-models"),
+				Description: f.Ptr("path to the custom model directory"),
+				Required:    f.Ptr(false),
+			},
+			{
+				Name:        f.Ptr("EI_CLASSIFICATION_MODEL"),
+				Value:       f.Ptr("/models/ootb/ei/mobilenet-v2-224px.eim"),
+				Description: f.Ptr("path to the model file"),
+				Required:    f.Ptr(false),
+			},
+		}
+
 		response, err := httpClient.GetBrickDetailsWithResponse(t.Context(), validBrickID, func(ctx context.Context, req *http.Request) error { return nil })
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, response.StatusCode(), "status code should be 200 ok")
@@ -147,5 +162,7 @@ func TestBricksDetails(t *testing.T) {
 		require.Equal(t, expectedUsedByApps, *(response.JSON200.UsedByApps))
 		require.NotNil(t, response.JSON200.CompatibleModels, "Models should not be nil")
 		require.Equal(t, expectedModelLiteInfo, *(response.JSON200.CompatibleModels))
+		require.NotNil(t, response.JSON200.ConfigVariables, "ConfigVariables should not be nil")
+		require.Equal(t, expectConfigVariables, *(response.JSON200.ConfigVariables))
 	})
 }
