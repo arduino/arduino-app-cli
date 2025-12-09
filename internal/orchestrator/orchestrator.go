@@ -713,7 +713,7 @@ func ListApps(
 			continue
 		}
 
-		var status Status
+		status := StatusUninitialized
 		if idx := slices.IndexFunc(apps, func(a AppStatusInfo) bool {
 			return a.AppPath.EqualsTo(app.FullPath)
 		}); idx != -1 {

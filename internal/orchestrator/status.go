@@ -56,7 +56,7 @@ func ParseStatus(s string) (Status, error) {
 
 func (s Status) Validate() error {
 	switch s {
-	case StatusStarting, StatusRunning, StatusStopping, StatusStopped, StatusFailed:
+	case StatusStarting, StatusRunning, StatusStopping, StatusStopped, StatusFailed, StatusUninitialized:
 		return nil
 	default:
 		return fmt.Errorf("status should be one of %v", s.AllowedStatuses())
@@ -64,5 +64,5 @@ func (s Status) Validate() error {
 }
 
 func (s Status) AllowedStatuses() []Status {
-	return []Status{StatusStarting, StatusRunning, StatusStopping, StatusStopped, StatusFailed}
+	return []Status{StatusStarting, StatusRunning, StatusStopping, StatusStopped, StatusFailed, StatusUninitialized}
 }
