@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ### Added 
 - Support `hidden` field of the brick index to hide variables from the `GET /v1/bricks/{id}` and `GET /v1/apps/{id}/bricks/{id}` endpoints [#143](https://github.com/arduino/arduino-app-cli/pull/143)
+- Add `arduino-app-cli monitor` command [#66](https://github.com/arduino/arduino-app-cli/pull/66)
+
+## Removed
+- Remove the `arduino-app-cli app monitor` command [#66](https://github.com/arduino/arduino-app-cli/pull/66)
 
 ## Fixed
 - Update local library index on `arduino-app-cli system update` and `GET /v1/system/update/check` [#133](https://github.com/arduino/arduino-app-cli/pull/133)
