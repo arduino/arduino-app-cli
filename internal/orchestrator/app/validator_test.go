@@ -33,6 +33,22 @@ func TestValidateAppDescriptorBricks(t *testing.T) {
 					},
 				},
 			},
+			{
+				ID:   "arduino:brick-with-hidden-variable",
+				Name: "Hidden variable brick",
+				Variables: []bricksindex.BrickVariable{
+					{
+						Name:        "I_AM_HIDDEN",
+						Description: "I am an hidden variable",
+						Hidden:      true,
+					},
+					{
+						Name:         "I_AM_HIDDEN_AND_REQUIRED",
+						Description:  "I am an hidden and required variable",
+						DefaultValue: "", // Required (no default value)
+					},
+				},
+			},
 		},
 	}
 
@@ -134,6 +150,15 @@ bricks:
         NOT_EXISTING_VARIABLE: "this-is-a-not-existing-variable-for-the-brick"
         ARDUINO_DEVICE_ID: "my-device-id"
         ARDUINO_SECRET: "my-secret"
+`,
+			expectedError: nil,
+		},
+		{
+			name: "hidden variables are not required to be set",
+			yamlContent: `
+name: App with
+bricks:
+  - arduino:brick-with-hidden-variable:
 `,
 			expectedError: nil,
 		},
