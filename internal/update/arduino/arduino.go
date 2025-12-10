@@ -122,26 +122,45 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(cfg config.Configuration
 	if platformSummary == nil {
 		return nil, nil // No platform found
 	}
+	releasesMap := platformSummary.GetReleases()
 
-	installedVersionString := platformSummary.GetInstalledVersion()
+	releases := make([]string, 0, len(releasesMap))
 
-	installedV, err := semver.NewVersion(installedVersionString)
-	if err != nil {
-		slog.Warn("Failed to parse installed version", "version", installedVersionString, "error", err)
+	for k := range releasesMap {
+		releases = append(releases, k)
+	}
+	bestVersion, err := findBestCandidate(
+		platformSummary.GetInstalledVersion(),
+		releases,
+		cfg.MaxAllowedMajorVersion,
+	)
+
+	if bestVersion == "" || err != nil {
 		return nil, nil
 	}
-
-	var maxMajor uint64
-	if cfg.MaxAllowedMajorVersion > 0 {
-		maxMajor = uint64(cfg.MaxAllowedMajorVersion)
+	return []update.UpgradablePackage{{
+		Type:        update.Arduino,
+		Name:        "arduino:zephyr",
+		FromVersion: platformSummary.GetInstalledVersion(),
+		ToVersion:   bestVersion,
+	}}, nil
+}
+func findBestCandidate(installedStr string, availableVersions []string, maxMajorConfig int) (string, error) {
+	installedV, err := semver.NewVersion(installedStr)
+	if err != nil {
+		return "", err
 	}
+
+	maxMajor := uint64(maxMajorConfig)
+	if maxMajorConfig <= 0 {
+		maxMajor = installedV.Major()
+	}
+
 	var bestUpdateV *semver.Version
 
-	allReleases := platformSummary.GetReleases()
-	for versionString := range allReleases {
-		candidateV, err := semver.NewVersion(versionString)
+	for _, vStr := range availableVersions {
+		candidateV, err := semver.NewVersion(vStr)
 		if err != nil {
-			slog.Debug("Skipping unparsable version", "version", versionString, "error", err)
 			continue
 		}
 
@@ -152,23 +171,15 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(cfg config.Configuration
 		if !candidateV.GreaterThan(installedV) {
 			continue
 		}
-
 		if bestUpdateV == nil || candidateV.GreaterThan(bestUpdateV) {
 			bestUpdateV = candidateV
 		}
 	}
+
 	if bestUpdateV == nil {
-		slog.Debug("No suitable updates found within major version constraint")
-		return nil, nil
+		return "", nil
 	}
-	slog.Debug(" bestUpdateV.Original()", bestUpdateV.Original(), "")
-	slog.Debug(" bestUpdateV.String()", bestUpdateV.String(), "")
-	return []update.UpgradablePackage{{
-		Type:        update.Arduino,
-		Name:        "arduino:zephyr",
-		FromVersion: platformSummary.GetInstalledVersion(),
-		ToVersion:   bestUpdateV.Original(),
-	}}, nil
+	return bestUpdateV.Original(), nil
 }
 
 // UpgradePackages implements ServiceUpdater.
