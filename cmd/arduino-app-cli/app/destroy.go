@@ -22,6 +22,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -52,7 +53,7 @@ func newDestroyCmd(cfg config.Configuration) *cobra.Command {
 func destroyHandler(ctx context.Context, app app.ArduinoApp) error {
 	out, _, getResult := feedback.OutputStreams()
 
-	for message := range orchestrator.DestroyAndCleanApp(ctx, app) {
+	for message := range orchestrator.StopAndDestroyApp(ctx, servicelocator.GetDockerClient(), app) {
 		switch message.GetType() {
 		case orchestrator.ProgressType:
 			fmt.Fprintf(out, "Progress[%s]: %.0f%%\n", message.GetProgress().Name, message.GetProgress().Progress)

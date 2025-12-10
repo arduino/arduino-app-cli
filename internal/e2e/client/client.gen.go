@@ -24,11 +24,12 @@ const (
 
 // Defines values for Status.
 const (
-	Failed   Status = "failed"
-	Running  Status = "running"
-	Starting Status = "starting"
-	Stopped  Status = "stopped"
-	Stopping Status = "stopping"
+	Failed        Status = "failed"
+	Running       Status = "running"
+	Starting      Status = "starting"
+	Stopped       Status = "stopped"
+	Stopping      Status = "stopping"
+	Uninitialized Status = "uninitialized"
 )
 
 // Defines values for ListLibrariesParamsSort.

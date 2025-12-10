@@ -384,12 +384,27 @@ func getVideoDevices() map[int]string {
 	return deviceMap
 }
 
-func stopAppWithCmd(ctx context.Context, docker command.Cli, app app.ArduinoApp, cmd string) iter.Seq[StreamMessage] {
+type StopOptions struct {
+	Command        string
+	RequireRunning bool
+	RemoveVolumes  bool
+	RemoveOrphans  bool
+}
+
+func stopAppWithCmd(ctx context.Context, docker command.Cli, app app.ArduinoApp, opts StopOptions) iter.Seq[StreamMessage] {
 	return func(yield func(StreamMessage) bool) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		if !yield(StreamMessage{data: fmt.Sprintf("Stopping app %q", app.Name)}) {
+		var message string
+		switch opts.Command {
+		case "stop":
+			message = fmt.Sprintf("Stopping app %q", app.Name)
+		case "down":
+			message = fmt.Sprintf("destroying app %q", app.Name)
+		}
+
+		if !yield(StreamMessage{data: message}) {
 			return
 		}
 		if err := setStatusLeds(LedTriggerDefault); err != nil {
@@ -410,7 +425,7 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, app app.ArduinoApp,
 				yield(StreamMessage{error: err})
 				return
 			}
-			if appStatus.Status != StatusStarting && appStatus.Status != StatusRunning {
+			if opts.RequireRunning && appStatus.Status != StatusStarting && appStatus.Status != StatusRunning {
 				yield(StreamMessage{data: fmt.Sprintf("app %q is not running", app.Name)})
 				return
 			}
@@ -425,11 +440,26 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, app app.ArduinoApp,
 			mainCompose := app.AppComposeFilePath()
 			// In case the app was never started
 			if mainCompose.Exist() {
-				process, err := paths.NewProcess(nil, "docker", "compose", "-f", mainCompose.String(), cmd, fmt.Sprintf("--timeout=%d", DefaultDockerStopTimeoutSeconds))
+				cmd := "docker"
+				args := []string{
+					"compose",
+					"-f", mainCompose.String(),
+					opts.Command,
+					fmt.Sprintf("--timeout=%d", DefaultDockerStopTimeoutSeconds),
+				}
+				if opts.RemoveVolumes {
+					args = append(args, "--volumes")
+				}
+				if opts.RemoveOrphans {
+					args = append(args, "--remove-orphans")
+				}
+				fullCommand := append([]string{cmd}, args...)
+				process, err := paths.NewProcess(nil, fullCommand...)
 				if err != nil {
 					yield(StreamMessage{error: err})
 					return
 				}
+
 				process.RedirectStderrTo(callbackWriter)
 				process.RedirectStdoutTo(callbackWriter)
 				if err := process.RunWithinContext(ctx); err != nil {
@@ -443,17 +473,20 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, app app.ArduinoApp,
 }
 
 func StopApp(ctx context.Context, dockerClient command.Cli, app app.ArduinoApp) iter.Seq[StreamMessage] {
-	return stopAppWithCmd(ctx, dockerClient, app, "stop")
+	return stopAppWithCmd(ctx, dockerClient, app, StopOptions{
+		Command:        "stop",
+		RequireRunning: true,
+	})
 }
 
 func StopAndDestroyApp(ctx context.Context, dockerClient command.Cli, app app.ArduinoApp) iter.Seq[StreamMessage] {
-	return stopAppWithCmd(ctx, dockerClient, app, "down")
-}
-
-func DestroyAndCleanApp(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
 	return func(yield func(StreamMessage) bool) {
-
-		for msg := range destroyAppContainers(ctx, app) {
+		for msg := range stopAppWithCmd(ctx, dockerClient, app, StopOptions{
+			Command:        "down",
+			RemoveVolumes:  true,
+			RemoveOrphans:  true,
+			RequireRunning: false,
+		}) {
 			if !yield(msg) {
 				return
 			}
@@ -463,55 +496,6 @@ func DestroyAndCleanApp(ctx context.Context, app app.ArduinoApp) iter.Seq[Stream
 				return
 			}
 		}
-	}
-}
-
-func destroyAppContainers(ctx context.Context, app app.ArduinoApp) iter.Seq[StreamMessage] {
-	return func(yield func(StreamMessage) bool) {
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		if !yield(StreamMessage{data: fmt.Sprintf("Destroying app %q containers and data...", app.Name)}) {
-			return
-		}
-		callbackWriter := NewCallbackWriter(func(line string) {
-			if !yield(StreamMessage{data: line}) {
-				cancel()
-				return
-			}
-		})
-		if _, ok := app.GetSketchPath(); ok {
-			if err := micro.Disable(); err != nil {
-				slog.Debug("unable to disable micro (might be already stopped)", slog.String("error", err.Error()))
-			}
-		}
-		if app.MainPythonFile != nil {
-			mainCompose := app.AppComposeFilePath()
-			if mainCompose.Exist() {
-				process, err := paths.NewProcess(
-					nil,
-					"docker", "compose",
-					"-f", mainCompose.String(),
-					"down",
-					"--volumes",
-					"--remove-orphans",
-					fmt.Sprintf("--timeout=%d", DefaultDockerStopTimeoutSeconds),
-				)
-
-				if err != nil {
-					yield(StreamMessage{error: err})
-					return
-				}
-
-				process.RedirectStderrTo(callbackWriter)
-				process.RedirectStdoutTo(callbackWriter)
-				if err := process.RunWithinContext(ctx); err != nil {
-					yield(StreamMessage{error: fmt.Errorf("failed to destroy containers: %w", err)})
-					return
-				}
-			}
-		}
-		yield(StreamMessage{data: "App containers and volumes removed."})
 	}
 }
 
