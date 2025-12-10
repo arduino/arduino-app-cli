@@ -106,7 +106,7 @@ func NewFromEnv() (Configuration, error) {
 
 	maxVersion, err := strconv.Atoi(maxVersionStr)
 	if err != nil || maxVersion <= 0 {
-		maxVersion = 1
+		maxVersion = 0
 	}
 	slog.Debug("Using max update major version", slog.Int("version", maxVersion))
 
