@@ -27,46 +27,55 @@ func TestParseAppStatus(t *testing.T) {
 	tests := []struct {
 		name           string
 		containerState []container.ContainerState
+		statusMessage  []string
 		want           Status
 	}{
 		{
 			name:           "everything running",
 			containerState: []container.ContainerState{container.StateRunning, container.StateRunning},
+			statusMessage:  []string{"Up 5 minutes", "Up 10 minutes"},
 			want:           StatusRunning,
 		},
 		{
 			name:           "everything stopped",
 			containerState: []container.ContainerState{container.StateCreated, container.StatePaused, container.StateExited},
+			statusMessage:  []string{"Created", "Paused", "Exited (137)"},
 			want:           StatusStopped,
 		},
 		{
 			name:           "failed container",
 			containerState: []container.ContainerState{container.StateRunning, container.StateDead},
+			statusMessage:  []string{"Up 5 minutes", "Dead"},
 			want:           StatusFailed,
 		},
 		{
 			name:           "failed container takes precedence over stopping and starting",
 			containerState: []container.ContainerState{container.StateRunning, container.StateDead, container.StateRemoving, container.StateRestarting},
+			statusMessage:  []string{"Up 5 minutes", "Dead", "Removing", "Restarting"},
 			want:           StatusFailed,
 		},
 		{
 			name:           "stopping",
 			containerState: []container.ContainerState{container.StateRunning, container.StateRemoving},
+			statusMessage:  []string{"Up 5 minutes", "Removing"},
 			want:           StatusStopping,
 		},
 		{
 			name:           "stopping takes precedence over starting",
 			containerState: []container.ContainerState{container.StateRunning, container.StateRestarting, container.StateRemoving},
+			statusMessage:  []string{"Up 5 minutes", "Restarting", "Removing"},
 			want:           StatusStopping,
 		},
 		{
 			name:           "starting",
 			containerState: []container.ContainerState{container.StateRestarting, container.StateExited},
+			statusMessage:  []string{"Restarting", "Exited (129)"},
 			want:           StatusStarting,
 		},
 		{
 			name:           "failed",
 			containerState: []container.ContainerState{container.StateRestarting, container.StateExited},
+			statusMessage:  []string{"Restarting", "Exited (0)"},
 			want:           StatusFailed,
 		},
 	}
@@ -77,8 +86,10 @@ func TestParseAppStatus(t *testing.T) {
 				return container.Summary{
 					Labels: map[string]string{DockerAppPathLabel: "path1"},
 					State:  c,
+					Status: "Exited (129)",
 				}
 			})
+
 			res := parseAppStatus(input)
 			require.Len(t, res, 1)
 			require.Equal(t, tc.want, res[0].Status)

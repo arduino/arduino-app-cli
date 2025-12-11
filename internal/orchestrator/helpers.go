@@ -20,7 +20,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -50,12 +52,11 @@ type containerState struct {
 // For app that have at least 1 dependency, we calculate the overall state
 // as follow:
 //
-//			running: all running
-//			stopped: all stopped
-//			failed: at least one failed
-//	     	stopping: at least one stopping
-//		    stopped: at least one stopped
-//			starting: at least one starting
+//	running: all running
+//	stopped: all stopped
+//	failed: at least one failed
+//	stopping: at least one stopping
+//	starting: at least one starting
 func parseAppStatus(containers []container.Summary) []AppStatusInfo {
 	apps := make([]AppStatusInfo, 0, len(containers))
 	appsStatusMap := make(map[string][]containerState)
@@ -68,12 +69,6 @@ func parseAppStatus(containers []container.Summary) []AppStatusInfo {
 			Status:        StatusFromDockerState(c.State),
 			StatusMessage: c.Status,
 		})
-		slog.Debug("Container status",
-			slog.String("appPath", appPath),
-			slog.String("containerID", c.ID),
-			slog.String("state", string(c.State)),
-			slog.String("statusMessage", c.Status),
-		)
 	}
 
 	appendResult := func(appPath *paths.Path, status Status) {
@@ -105,9 +100,7 @@ func parseAppStatus(containers []container.Summary) []AppStatusInfo {
 			appendResult(appPath, StatusFailed)
 			continue
 		}
-		if slices.ContainsFunc(s, func(v containerState) bool {
-			return v.Status == StatusStopped && strings.Contains(v.StatusMessage, "Exited (0)")
-		}) {
+		if slices.ContainsFunc(s, func(v containerState) bool { return v.Status == StatusStopped && checkExitCode(v) }) {
 			appendResult(appPath, StatusFailed)
 			continue
 		}
@@ -271,4 +264,21 @@ func setStatusLeds(trigger LedTrigger) error {
 		}
 	}
 	return nil
+}
+
+func checkExitCode(state containerState) bool {
+	var exitCodeRegex = regexp.MustCompile(`Exited \((\d+)\)`)
+	result := false
+	matches := exitCodeRegex.FindStringSubmatch(state.StatusMessage)
+
+	exitCode, err := strconv.Atoi(matches[1])
+	if err != nil {
+		slog.Error("Failed to parse exit code from status message", slog.String("statusMessage", state.StatusMessage), slog.String("error", err.Error()))
+		return false
+	}
+	if exitCode >= 0 && exitCode < 128 {
+		result = true
+	}
+
+	return result
 }
