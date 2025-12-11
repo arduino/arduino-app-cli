@@ -20,7 +20,6 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/stretchr/testify/require"
-	"go.bug.st/f"
 )
 
 func TestParseAppStatus(t *testing.T) {
@@ -82,14 +81,14 @@ func TestParseAppStatus(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			input := f.Map(tc.containerState, func(c container.ContainerState) container.Summary {
-				return container.Summary{
+			var input []container.Summary
+			for i, c := range tc.containerState {
+				input = append(input, container.Summary{
 					Labels: map[string]string{DockerAppPathLabel: "path1"},
 					State:  c,
-					Status: "Exited (129)",
-				}
-			})
-
+					Status: tc.statusMessage[i],
+				})
+			}
 			res := parseAppStatus(input)
 			require.Len(t, res, 1)
 			require.Equal(t, tc.want, res[0].Status)
