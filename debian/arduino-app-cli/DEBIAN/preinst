@@ -23,3 +23,21 @@ if ! getent group "$SYSUPGRADE_GROUP" >/dev/null 2>&1; then
     groupadd --system "$SYSUPGRADE_GROUP"
 fi
 usermod -aG "$SYSUPGRADE_GROUP" "$APP_USER"
+
+delete_obsolete_files() {
+  OBSOLETE_DIR="/home/arduino/.local/share/arduino-app-cli/examples"
+    for i in "${OBSOLETE_DIR}"/*; do
+      rm -rf "${i}"/.cache;
+    done
+}
+
+if [ "$1" = "upgrade" ]; then
+  # if $2 is not empty, this is an upgrade
+  if [ -n "$2" ]; then
+    # check if this is an upgrade from an old version
+    if dpkg --compare-versions "$2" lt "0.9.0"; then
+        echo "Running pre-0.8.0 legacy cleanup/migration..."
+        delete_obsolete_files
+    fi
+  fi
+fi
