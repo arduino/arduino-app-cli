@@ -15,7 +15,10 @@
 
 package flasherapi
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseOSImageVersion(t *testing.T) {
 	tests := []struct {
@@ -44,7 +47,7 @@ func TestParseOSImageVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, ok := ParseOSImageVersion(tt.input)
+			got, ok := parseOSImageVersion(strings.NewReader(tt.input))
 			if ok != tt.found || got != tt.expected {
 				t.Fatalf("got (%q, %v), expected (%q, %v)", got, ok, tt.expected, tt.found)
 			}

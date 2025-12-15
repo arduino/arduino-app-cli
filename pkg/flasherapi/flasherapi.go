@@ -16,7 +16,9 @@
 package flasherapi
 
 import (
+	"bufio"
 	"context"
+	"io"
 	"log/slog"
 	"strings"
 
@@ -27,34 +29,42 @@ const R0_IMAGE_VERSION_ID = "20250807-136"
 
 // GetOSImageVersion returns the version of the OS image used in the board.
 // It is used by the AppLab to enforce image version compatibility.
-func GetOSImageVersion(ctx context.Context, conn remote.RemoteConn) (string, error) {
+func GetOSImageVersion(ctx context.Context, conn remote.RemoteConn) string {
 
-	output, err := conn.GetCmd("cat", "/etc/buildinfo").Output(ctx)
+	f, err := conn.ReadFile("/etc/buildinfo")
 	if err != nil {
-		return R0_IMAGE_VERSION_ID, err
+		slog.Warn("Unable to read buildinfo file", "err", err, "using_default", R0_IMAGE_VERSION_ID)
+		return R0_IMAGE_VERSION_ID
 	}
+	defer f.Close()
 
-	if version, ok := ParseOSImageVersion(string(output)); ok {
-		slog.Info("find OS Image version", "version", version)
-		return version, nil
+	if version, ok := parseOSImageVersion(f); ok {
+		slog.Info("found OS Image version", "version", version)
+		return version
 	}
-	slog.Info("Unable to find OS Image version", "using default version", R0_IMAGE_VERSION_ID)
-	return R0_IMAGE_VERSION_ID, nil
+	slog.Warn("Unable to find OS Image version", "using_default", R0_IMAGE_VERSION_ID)
+	return R0_IMAGE_VERSION_ID
 }
 
-func ParseOSImageVersion(buildInfo string) (string, bool) {
-	for _, line := range strings.Split(buildInfo, "\n") {
-		line = strings.TrimSpace(line)
+func parseOSImageVersion(r io.Reader) (string, bool) {
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
 
 		key, value, ok := strings.Cut(line, "=")
 		if !ok || key != "BUILD_ID" {
 			continue
 		}
 
-		version := strings.Trim(value, "\"' ")
+		version := strings.Trim(value, `"' `)
 		if version != "" {
 			return version, true
 		}
 	}
+
+	if err := scanner.Err(); err != nil {
+		return "", false
+	}
+
 	return "", false
 }
