@@ -41,6 +41,11 @@ func TestValidateAppDescriptorBricks(t *testing.T) {
 						Name:   "I_AM_HIDDEN_WITHOUT_DEFAULT",
 						Hidden: true,
 					},
+					{
+						Name:         "I_AM_HIDDEN_WITH_DEFAULT",
+						Hidden:       true,
+						DefaultValue: "default-value",
+					},
 				},
 			},
 		},
@@ -155,6 +160,17 @@ bricks:
   - arduino:brick-with-hidden-variable:
 `,
 			expectedError: errors.New("variable \"I_AM_HIDDEN_WITHOUT_DEFAULT\" is required by brick \"arduino:brick-with-hidden-variable\""),
+		},
+		{
+			name: "an hiddden variable with default value is not required",
+			yamlContent: `
+name: App with
+bricks:
+  - arduino:brick-with-hidden-variable:
+  	  variables:
+        I_AM_HIDDEN_WITHOUT_DEFAULT: "some-value"
+`,
+			expectedError: nil,
 		},
 	}
 
