@@ -77,7 +77,7 @@ type OSImageRelease struct {
 // according to the current and target OS image versions.
 //
 // Preservation is supported if both versions are not the R0 image.
-func IsUserPartitionPreservationSupported(ctx context.Context, conn remote.RemoteConn, targetImageVersion OSImageRelease) bool {
-	currentImageVersion := GetOSImageVersion(ctx, conn)
+func IsUserPartitionPreservationSupported(conn remote.RemoteConn, targetImageVersion OSImageRelease) bool {
+	currentImageVersion := GetOSImageVersion(conn)
 	return targetImageVersion.ID != R0_IMAGE_VERSION_ID && currentImageVersion != R0_IMAGE_VERSION_ID
 }
