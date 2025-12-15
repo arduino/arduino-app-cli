@@ -19,10 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
-	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -42,11 +39,6 @@ type AppStatusInfo struct {
 	Status  Status
 }
 
-type containerState struct {
-	Status        Status
-	StatusMessage string
-}
-
 // parseAppStatus takes all the containers that matches the DockerAppLabel,
 // and construct a map of the state of an app and all its dependencies state.
 // For app that have at least 1 dependency, we calculate the overall state
@@ -59,16 +51,14 @@ type containerState struct {
 //	starting: at least one starting
 func parseAppStatus(containers []container.Summary) []AppStatusInfo {
 	apps := make([]AppStatusInfo, 0, len(containers))
-	appsStatusMap := make(map[string][]containerState)
+	appsStatusMap := make(map[string][]Status)
 	for _, c := range containers {
 		appPath, ok := c.Labels[DockerAppPathLabel]
 		if !ok {
 			continue
 		}
-		appsStatusMap[appPath] = append(appsStatusMap[appPath], containerState{
-			Status:        StatusFromDockerState(c.State),
-			StatusMessage: c.Status,
-		})
+		appsStatusMap[appPath] = append(appsStatusMap[appPath], StatusFromDockerState(c.State, c.Status))
+
 	}
 
 	appendResult := func(appPath *paths.Path, status Status) {
@@ -84,31 +74,27 @@ func parseAppStatus(containers []container.Summary) []AppStatusInfo {
 		appPath := paths.New(appPath)
 
 		//	running: all running
-		if !slices.ContainsFunc(s, func(v containerState) bool { return v.Status != StatusRunning }) {
+		if !slices.ContainsFunc(s, func(v Status) bool { return v != StatusRunning }) {
 			appendResult(appPath, StatusRunning)
 			continue
 		}
 		//	stopped: all stopped
-		if !slices.ContainsFunc(s, func(v containerState) bool { return v.Status != StatusStopped }) {
+		if !slices.ContainsFunc(s, func(v Status) bool { return v != StatusStopped }) {
 			appendResult(appPath, StatusStopped)
 			continue
 		}
 
 		// ...else we have multiple different status we calculate the status
 		// among the possible left: {failed, stopping, starting}
-		if slices.ContainsFunc(s, func(v containerState) bool { return v.Status == StatusFailed }) {
+		if slices.ContainsFunc(s, func(v Status) bool { return v == StatusFailed }) {
 			appendResult(appPath, StatusFailed)
 			continue
 		}
-		if slices.ContainsFunc(s, func(v containerState) bool { return v.Status == StatusStopped && checkExitCode(v) }) {
-			appendResult(appPath, StatusFailed)
-			continue
-		}
-		if slices.ContainsFunc(s, func(v containerState) bool { return v.Status == StatusStopping }) {
+		if slices.ContainsFunc(s, func(v Status) bool { return v == StatusStopping }) {
 			appendResult(appPath, StatusStopping)
 			continue
 		}
-		if slices.ContainsFunc(s, func(v containerState) bool { return v.Status == StatusStarting }) {
+		if slices.ContainsFunc(s, func(v Status) bool { return v == StatusStarting }) {
 			appendResult(appPath, StatusStarting)
 			continue
 		}
@@ -264,21 +250,4 @@ func setStatusLeds(trigger LedTrigger) error {
 		}
 	}
 	return nil
-}
-
-func checkExitCode(state containerState) bool {
-	var exitCodeRegex = regexp.MustCompile(`Exited \((\d+)\)`)
-	result := false
-	matches := exitCodeRegex.FindStringSubmatch(state.StatusMessage)
-
-	exitCode, err := strconv.Atoi(matches[1])
-	if err != nil {
-		slog.Error("Failed to parse exit code from status message", slog.String("statusMessage", state.StatusMessage), slog.String("error", err.Error()))
-		return false
-	}
-	if exitCode >= 0 && exitCode < 128 {
-		result = true
-	}
-
-	return result
 }

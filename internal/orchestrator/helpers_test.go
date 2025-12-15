@@ -74,7 +74,7 @@ func TestParseAppStatus(t *testing.T) {
 		{
 			name:           "failed",
 			containerState: []container.ContainerState{container.StateRestarting, container.StateExited},
-			statusMessage:  []string{"Restarting", "Exited (0)"},
+			statusMessage:  []string{"Restarting", "Exited (1)"},
 			want:           StatusFailed,
 		},
 	}
