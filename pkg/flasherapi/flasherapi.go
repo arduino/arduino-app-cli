@@ -1,3 +1,18 @@
+// This file is part of arduino-app-cli.
+//
+// Copyright 2025 ARDUINO SA (http://www.arduino.cc/)
+//
+// This software is released under the GNU General Public License version 3,
+// which covers the main part of arduino-app-cli.
+// The terms of this license can be found at:
+// https://www.gnu.org/licenses/gpl-3.0.en.html
+//
+// You can be released from the requirements of the above licenses by purchasing
+// a commercial license. Buying such a license is mandatory if you want to
+// modify or otherwise use the software for commercial activities involving the
+// Arduino software without disclosing the source code of your own applications.
+// To purchase a commercial license, send an email to license@arduino.cc.
+
 package flasherapi
 
 import (
@@ -8,7 +23,7 @@ import (
 
 // GetOSImageVersion returns the version of the OS image used in the board.
 // It is used by the AppLab to enforce image version compatibility.
-func GetOSImageVersion(conn remote.RemoteConn) string {
+func GetOSImageVersion(ctx context.Context, conn remote.RemoteConn) string {
 	// if no version is set, return a default value
 	return "20251123-159"
 }
@@ -29,11 +44,15 @@ func ListAvailableOSImages() []OSImageRelease {
 	}
 }
 
-func IsUserPartitionPreservationSupported(conn remote.RemoteConn, targetImageVersion OSImageRelease) bool {
-	// targetImageVersion is the version of the image to be flashed
-	// some older versions do not support user partition preservation
-	// so this has to be considered here
-	return true
+const R0_IMAGE_VERSION_ID = "20250807-136"
+
+// Calculates whether user partition preservation is supported,
+// according to the current and target OS image versions.
+//
+// Preservation is supported if both versions are not the R0 image.
+func IsUserPartitionPreservationSupported(ctx context.Context, conn remote.RemoteConn, targetImageVersion OSImageRelease) bool {
+	currentImageVersion := GetOSImageVersion(ctx, conn)
+	return !(targetImageVersion.ID == R0_IMAGE_VERSION_ID || currentImageVersion == R0_IMAGE_VERSION_ID)
 }
 
 type FlashStep string
