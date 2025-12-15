@@ -2,15 +2,45 @@ package flasherapi
 
 import (
 	"context"
+	"log/slog"
+	"strings"
 
 	"github.com/arduino/arduino-app-cli/pkg/board/remote"
 )
 
 // GetOSImageVersion returns the version of the OS image used in the board.
 // It is used by the AppLab to enforce image version compatibility.
-func GetOSImageVersion(conn remote.RemoteConn) string {
-	// if no version is set, return a default value
-	return "20251123-159"
+func GetOSImageVersion(ctx context.Context, conn remote.RemoteConn) (string, error) {
+	const defaultVersion = "20250807-136"
+
+	output, err := conn.GetCmd("cat /etc/buildinfo").Output(ctx)
+	if err != nil {
+		return defaultVersion, err
+	}
+
+	if version, ok := ParseOSImageVersion(string(output)); ok {
+		slog.Info("find OS Image version", "version", version)
+		return version, nil
+	}
+	slog.Info("Unable to find OS Image version", "using default version", defaultVersion)
+	return defaultVersion, nil
+}
+
+func ParseOSImageVersion(buildInfo string) (string, bool) {
+	for _, line := range strings.Split(buildInfo, "\n") {
+		line = strings.TrimSpace(line)
+
+		key, value, ok := strings.Cut(line, "=")
+		if !ok || key != "BUILD_ID" {
+			continue
+		}
+
+		version := strings.Trim(value, "\"' ")
+		if version != "" {
+			return version, true
+		}
+	}
+	return "", false
 }
 
 type OSImageRelease struct {
