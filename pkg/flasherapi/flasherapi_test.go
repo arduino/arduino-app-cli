@@ -28,8 +28,10 @@ func TestParseOSImageVersion(t *testing.T) {
 		found    bool
 	}{
 		{
-			name:     "valid build id",
-			input:    "BUILD_ID=\"20251006-395\"\nVARIANT_ID=xfce",
+			name: "valid build id",
+			input: `BUILD_ID="20251006-395"
+			VARIANT_ID=xfce"
+			`,
 			expected: "20251006-395",
 			found:    true,
 		},

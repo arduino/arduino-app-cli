@@ -30,7 +30,6 @@ const R0_IMAGE_VERSION_ID = "20250807-136"
 // GetOSImageVersion returns the version of the OS image used in the board.
 // It is used by the AppLab to enforce image version compatibility.
 func GetOSImageVersion(ctx context.Context, conn remote.RemoteConn) string {
-
 	f, err := conn.ReadFile("/etc/buildinfo")
 	if err != nil {
 		slog.Warn("Unable to read buildinfo file", "err", err, "using_default", R0_IMAGE_VERSION_ID)
