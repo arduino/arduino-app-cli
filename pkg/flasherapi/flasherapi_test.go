@@ -18,6 +18,8 @@ package flasherapi
 import (
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseOSImageVersion(t *testing.T) {
@@ -50,9 +52,8 @@ func TestParseOSImageVersion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, ok := parseOSImageVersion(strings.NewReader(tt.input))
-			if ok != tt.found || got != tt.expected {
-				t.Fatalf("got (%q, %v), expected (%q, %v)", got, ok, tt.expected, tt.found)
-			}
+			require.Equal(t, tt.found, ok)
+			require.Equal(t, tt.expected, got)
 		})
 	}
 }
