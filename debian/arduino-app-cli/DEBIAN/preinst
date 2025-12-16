@@ -34,5 +34,7 @@ if [ "$1" = "upgrade" ]; then
     cleanup_arduino_examples /home/arduino/.local/share/arduino-app-cli/examples
     mkdir -p /var/lib/arduino-app-cli
     cp -rf /home/arduino/.local/share/arduino-app-cli/examples /var/lib/arduino-app-cli
+    cp -rf /home/arduino/.local/share/arduino-app-cli/properties.msgpack* /var/lib/arduino-app-cli
+    cp -rf /home/arduino/.local/share/arduino-app-cli/bootloader_burned.flag /var/lib/arduino-app-cli
   fi
 fi
