@@ -147,7 +147,7 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 		}
 		for e := range arduinoEvents {
 			if e.Type == ProgressEvent {
-				globalProgress := (e.Progress / 100.0) * arduinoWeight
+				globalProgress := (e.progress / 100.0) * arduinoWeight
 				m.broadcast(NewProgressEvent(globalProgress))
 			} else {
 				m.broadcast(e)
@@ -160,7 +160,7 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 		}
 		for e := range aptEvents {
 			if e.Type == ProgressEvent {
-				globalProgress := arduinoWeight + (e.Progress/100.0)*aptWeight
+				globalProgress := arduinoWeight + (e.progress/100.0)*aptWeight
 				m.broadcast(NewProgressEvent(globalProgress))
 			} else {
 				m.broadcast(e)

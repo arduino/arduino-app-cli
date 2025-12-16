@@ -113,11 +113,14 @@ func newUpdateCmd() *cobra.Command {
 
 			events := updater.Subscribe()
 			for event := range events {
-				if event.Type == update.ErrorEvent {
+				switch event.Type {
+				case update.ErrorEvent:
 					// TODO: add colors to error messages
 					err := event.GetError()
 					feedback.Printf("Error: %s [%s]", err.Error(), update.GetUpdateErrorCode(err))
-				} else {
+				case update.ProgressEvent:
+					feedback.Printf("[%s] %.2f", event.Type.String(), event.GetProgress())
+				default:
 					feedback.Printf("[%s] %s", event.Type.String(), event.GetData())
 				}
 

@@ -16,8 +16,6 @@
 package update
 
 import (
-	"fmt"
-
 	"go.bug.st/f"
 )
 
@@ -36,7 +34,7 @@ const (
 // Event represents a single event in the upgrade process.
 type Event struct {
 	Type     EventType
-	Progress float32
+	progress float32
 	data     string
 	err      error // error field for error events
 }
@@ -70,8 +68,7 @@ func NewDataEvent(t EventType, data string) Event {
 func NewProgressEvent(progress float32) Event {
 	return Event{
 		Type:     ProgressEvent,
-		data:     fmt.Sprintf("%.2f", progress),
-		Progress: progress,
+		progress: progress,
 	}
 }
 
@@ -90,6 +87,11 @@ func (e Event) GetData() string {
 func (e Event) GetError() error {
 	f.Assert(e.Type == ErrorEvent, "not an error event")
 	return e.err
+}
+
+func (e Event) GetProgress() float32 {
+	f.Assert(e.Type == ProgressEvent, "not a progress event")
+	return e.progress
 }
 
 type PackageType string
