@@ -401,7 +401,7 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, app app.ArduinoApp,
 		case "stop":
 			message = fmt.Sprintf("Stopping app %q", app.Name)
 		case "down":
-			message = fmt.Sprintf("destroying app %q", app.Name)
+			message = fmt.Sprintf("Destroying  app %q", app.Name)
 		}
 
 		if !yield(StreamMessage{data: message}) {
@@ -440,8 +440,8 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, app app.ArduinoApp,
 			mainCompose := app.AppComposeFilePath()
 			// In case the app was never started
 			if mainCompose.Exist() {
-				cmd := "docker"
 				args := []string{
+					"docker",
 					"compose",
 					"-f", mainCompose.String(),
 					opts.Command,
@@ -453,8 +453,7 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, app app.ArduinoApp,
 				if opts.RemoveOrphans {
 					args = append(args, "--remove-orphans")
 				}
-				fullCommand := append([]string{cmd}, args...)
-				process, err := paths.NewProcess(nil, fullCommand...)
+				process, err := paths.NewProcess(nil, args...)
 				if err != nil {
 					yield(StreamMessage{error: err})
 					return
