@@ -112,37 +112,35 @@ func TestGetOSImageVersion(t *testing.T) {
 
 func TestIsUserPartitionPreservationSupported(t *testing.T) {
 	const R0_IMAGE_VERSION_ID = "20250807-136"
-
-	R0Version := createBuildInfoConnection(R0_IMAGE_VERSION_ID)
-	AnotherVersion := createBuildInfoConnection("BUILD_ID=20250101-001")
+	anotherVersionId := "20250101-001"
 
 	tests := []struct {
 		name                    string
-		currentVersion          remote.RemoteConn
+		currentVersion          string
 		targetVersion           string
 		isPreservationSupported bool
 	}{
 		{
 			name:                    "both versions are *not* R0",
-			currentVersion:          AnotherVersion,
+			currentVersion:          anotherVersionId,
 			targetVersion:           "20250101-001",
 			isPreservationSupported: true,
 		},
 		{
 			name:                    "current version is R0",
-			currentVersion:          R0Version,
+			currentVersion:          R0_IMAGE_VERSION_ID,
 			targetVersion:           "20250101-001",
 			isPreservationSupported: false,
 		},
 		{
 			name:                    "target version is R0",
-			currentVersion:          AnotherVersion,
+			currentVersion:          anotherVersionId,
 			targetVersion:           R0_IMAGE_VERSION_ID,
 			isPreservationSupported: false,
 		},
 		{
 			name:                    "both versions are R0",
-			currentVersion:          R0Version,
+			currentVersion:          R0_IMAGE_VERSION_ID,
 			targetVersion:           R0_IMAGE_VERSION_ID,
 			isPreservationSupported: false,
 		},
@@ -150,7 +148,7 @@ func TestIsUserPartitionPreservationSupported(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			isPreservationSupported := IsUserPartitionPreservationSupported(tt.currentVersion, OSImageRelease{ID: tt.targetVersion})
+			isPreservationSupported := IsUserPartitionPreservationSupported(tt.currentVersion, tt.targetVersion)
 			require.Equal(t, isPreservationSupported, tt.isPreservationSupported)
 		})
 	}

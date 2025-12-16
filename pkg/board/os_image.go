@@ -67,17 +67,10 @@ func parseOSImageVersion(r io.Reader) (string, bool) {
 	return "", false
 }
 
-type OSImageRelease struct {
-	VersionLabel string
-	ID           string
-	Latest       bool
-}
-
 // Calculates whether user partition preservation is supported,
 // according to the current and target OS image versions.
 //
 // Preservation is supported if both versions are not the R0 image.
-func IsUserPartitionPreservationSupported(conn remote.RemoteConn, targetImageVersion OSImageRelease) bool {
-	currentImageVersion := GetOSImageVersion(conn)
-	return targetImageVersion.ID != R0_IMAGE_VERSION_ID && currentImageVersion != R0_IMAGE_VERSION_ID
+func IsUserPartitionPreservationSupported(currentImageVersion string, targetImageVersion string) bool {
+	return targetImageVersion != R0_IMAGE_VERSION_ID && currentImageVersion != R0_IMAGE_VERSION_ID
 }
