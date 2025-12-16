@@ -13,8 +13,6 @@ cleanup_arduino_examples() {
         local EXAMPLES=$(find "${EXAMPLES_DIR}" -maxdepth 1 -mindepth 1 -type d 2>/dev/null)
         echo "Stopping apps and clearing cache in: ${EXAMPLES_DIR}"
         for dir_path in ${EXAMPLES}; do
-            echo "  -> Stopping app/removing cache in: ${dir_path}"
-            
             # 1. Stop the application (suppress output and errors)
             sudo -u arduino /usr/bin/arduino-app-cli app stop "${dir_path}" > /dev/null 2>&1 || true
             

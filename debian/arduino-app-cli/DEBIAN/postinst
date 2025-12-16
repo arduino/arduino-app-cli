@@ -5,3 +5,10 @@ chown -R arduino:arduino /var/lib/arduino-app-cli
 systemctl enable arduino-app-cli
 systemctl enable arduino-burn-bootloader
 systemctl enable arduino-avahi-serial.service
+
+if [ "$1" = "configure" ]; then
+  if dpkg --compare-versions "$2" lt "0.9.0"; then
+    echo "Running pre-0.9.0 legacy migration..."
+    rm -rf /home/arduino/.local/share/arduino-app-cli/examples
+  fi
+fi
