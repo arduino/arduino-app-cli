@@ -209,7 +209,7 @@ tasks:
   generate:assets:
     desc: This generates the models and bricks index. Also updates the corresponding testdata.
     vars:
-      sed_replacement: s#runnerVersion = \".*#runnerVersion = \"{{.RUNNER_VERSION}}\"#
+      sed_replacement: s#RunnerVersion = \".*#RunnerVersion = \"{{.RUNNER_VERSION}}\"#
       TMPDIR: '{{trimSuffix "/" (env "TMPDIR")| default "/tmp"}}/generate-assets'
       SEMVER_TAG: "{{.RUNNER_VERSION}}"
       OUTPUT_DIR: "{{.TMPDIR}}/{{.SEMVER_TAG}}"
