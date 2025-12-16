@@ -53,7 +53,7 @@ func parseOSImageVersion(r io.Reader) (string, bool) {
 			continue
 		}
 
-		version := strings.Trim(value, `"' `)
+		version := strings.TrimSpace(value)
 		if version != "" {
 			return version, true
 		}
