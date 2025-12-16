@@ -15,8 +15,8 @@ replace (
 
 require (
 	github.com/Andrew-M-C/go.emoji v1.1.4
-	github.com/arduino/arduino-cli v1.4.0
 	github.com/Masterminds/semver/v3 v3.4.0
+	github.com/arduino/arduino-cli v1.4.0
 	github.com/arduino/go-paths-helper v1.14.0
 	github.com/compose-spec/compose-go/v2 v2.8.1
 	github.com/containerd/errdefs v1.0.0
