@@ -83,7 +83,8 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan u
 		defer s.lock.Unlock()
 		defer close(eventsCh)
 
-		// We try anyway to restart the service.
+		// At the end of the upgrade, always try to restart the services (that need it).
+		// This makes sure key services are restarted even if an error happens in the upgrade steps (for examples container images download).
 		defer func() {
 			eventsCh <- update.NewDataEvent(update.RestartEvent, "Upgrade completed. Restarting ...")
 
