@@ -37,7 +37,6 @@ func GetOSImageVersion(conn remote.RemoteConn) string {
 	defer f.Close()
 
 	if version, ok := parseOSImageVersion(f); ok {
-		slog.Info("found OS Image version", "version", version)
 		return version
 	}
 	slog.Warn("Unable to find OS Image version", "using_default", R0_IMAGE_VERSION_ID)
@@ -54,7 +53,7 @@ func parseOSImageVersion(r io.Reader) (string, bool) {
 			continue
 		}
 
-		version := strings.Trim(value, `"' `)
+		version := strings.TrimSpace(value)
 		if version != "" {
 			return version, true
 		}
