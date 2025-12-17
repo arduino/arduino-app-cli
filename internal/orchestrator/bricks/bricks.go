@@ -138,11 +138,8 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 }
 
 func getSelectedModelOrDefault(appBrick app.Brick, brickIndex *bricksindex.Brick) string {
-	if appBrick.Model != "" {
-		return appBrick.Model
-	}
 	f.Assert(brickIndex != nil, "bricksindex should be set")
-	return cmp.Or(brickIndex.ModelName, appBrick.Model)
+	return cmp.Or(appBrick.Model, appBrick.Model.ModelName)
 }
 
 func getInstanceBrickConfigVariableDetails(
