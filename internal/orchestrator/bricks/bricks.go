@@ -140,9 +140,7 @@ func getSelectedModelOrDefault(appBrick app.Brick, brickIndex *bricksindex.Brick
 	if appBrick.Model != "" {
 		return appBrick.Model
 	}
-	if brickIndex == nil {
-		return ""
-	}
+	f.Assert(brickIndex != nil, "bricksindex should be set")
 	return brickIndex.ModelName
 }
 
