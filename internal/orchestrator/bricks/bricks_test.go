@@ -733,7 +733,21 @@ func TestAppBrickInstancesList(t *testing.T) {
 
 	svc := &Service{
 		bricksIndex: bIndex,
-		modelsIndex: &modelsindex.ModelsIndex{},
+		modelsIndex: &modelsindex.ModelsIndex{
+			Models: []modelsindex.AIModel{
+				{
+					ID:                "yolox-object-detection",
+					Name:              "General purpose object detection - YoloX",
+					ModuleDescription: "a-model-description",
+					Bricks:            []string{"arduino:object_detection"},
+				},
+				{
+					ID:     "face-detection",
+					Name:   "Lightweight-Face-Detection",
+					Bricks: []string{"arduino:object_detection"},
+				},
+			},
+		},
 	}
 
 	tests := []struct {
@@ -809,6 +823,10 @@ func TestAppBrickInstancesList(t *testing.T) {
 				require.Equal(t, "video", brick.Category)
 				require.True(t, brick.RequireModel)
 				require.Equal(t, "face-detection", brick.ModelID)
+				require.Equal(t, []AIModel{
+					{ID: "yolox-object-detection", Name: "General purpose object detection - YoloX", Description: "a-model-description"},
+					{ID: "face-detection", Name: "Lightweight-Face-Detection", Description: ""},
+				}, brick.CompatibleModels)
 
 				foundCustom := false
 				for _, v := range brick.ConfigVariables {
@@ -818,6 +836,30 @@ func TestAppBrickInstancesList(t *testing.T) {
 					}
 				}
 				require.True(t, foundCustom, "Variable CUSTOM_MODEL_PATH should be present and overridden")
+			},
+		},
+		{
+			name: "Success - Brick using brick default model",
+			app: &app.ArduinoApp{
+				Descriptor: app.AppDescriptor{
+					Bricks: []app.Brick{
+						{
+							ID: "arduino:object_detection",
+						},
+					},
+				},
+			},
+			validate: func(t *testing.T, res AppBrickInstancesResult) {
+				require.Len(t, res.BrickInstances, 1)
+				brick := res.BrickInstances[0]
+
+				require.Equal(t, "arduino:object_detection", brick.ID)
+				require.True(t, brick.RequireModel)
+				require.Equal(t, "yolox-object-detection", brick.ModelID)
+				require.Equal(t, []AIModel{
+					{ID: "yolox-object-detection", Name: "General purpose object detection - YoloX", Description: "a-model-description"},
+					{ID: "face-detection", Name: "Lightweight-Face-Detection", Description: ""},
+				}, brick.CompatibleModels)
 			},
 		},
 		{
