@@ -141,7 +141,7 @@ func getSelectedModelOrDefault(appBrick app.Brick, brickIndex *bricksindex.Brick
 		return appBrick.Model
 	}
 	f.Assert(brickIndex != nil, "bricksindex should be set")
-	return brickIndex.ModelName
+	return cmp.Or(brickIndex.ModelName, appBrick.Model)
 }
 
 func getInstanceBrickConfigVariableDetails(
