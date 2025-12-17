@@ -11,8 +11,6 @@ on:
         description: "Branch to compare against (used in manual runs)"
         required: false
         default: "main"
-env:
-  GO_VERSION: "1.25.1"
 
 jobs:
   oasdiff:
