@@ -1194,7 +1194,7 @@ components:
       properties:
         bricks:
           items:
-            $ref: '#/components/schemas/BrickInstanceListItem'
+            $ref: '#/components/schemas/BrickInstance'
           nullable: true
           type: array
       type: object
@@ -1355,7 +1355,6 @@ components:
             $ref: '#/components/schemas/BrickVariable'
           description: 'Deprecated: use config_variables instead. This field is kept
             for backward compatibility.'
-          nullable: true
           type: object
       type: object
     BrickInstance:
@@ -1369,33 +1368,6 @@ components:
             $ref: '#/components/schemas/AIModel'
           nullable: true
           type: array
-        config_variables:
-          items:
-            $ref: '#/components/schemas/BrickConfigVariable'
-          type: array
-        id:
-          type: string
-        model:
-          type: string
-        name:
-          type: string
-        require_model:
-          type: boolean
-        status:
-          type: string
-        variables:
-          additionalProperties:
-            type: string
-          description: 'Deprecated: use config_variables instead. This field is kept
-            for backward compatibility.'
-          type: object
-      type: object
-    BrickInstanceListItem:
-      properties:
-        author:
-          type: string
-        category:
-          type: string
         config_variables:
           items:
             $ref: '#/components/schemas/BrickConfigVariable'
