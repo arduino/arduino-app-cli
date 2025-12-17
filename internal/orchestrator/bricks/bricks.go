@@ -88,7 +88,7 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 			Category:        brick.Category,
 			Status:          "installed",
 			RequireModel:    brick.RequireModel,
-			ModelID:         getSelectedModelOrDefault(brickInstance, brick),
+			ModelID:         cmp.Or(brickInstance.Model, brick.ModelName),
 			Variables:       variablesMap,
 			ConfigVariables: configVariables,
 			CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModel) AIModel {
@@ -126,7 +126,7 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 		RequireModel:    brick.RequireModel,
 		Variables:       variables,
 		ConfigVariables: configVariables,
-		ModelID:         getSelectedModelOrDefault(a.Descriptor.Bricks[brickIndex], brick),
+		ModelID:         cmp.Or(a.Descriptor.Bricks[brickIndex].Model, brick.ModelName),
 		CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModel) AIModel {
 			return AIModel{
 				ID:          m.ID,
@@ -135,11 +135,6 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 			}
 		}),
 	}, nil
-}
-
-func getSelectedModelOrDefault(appBrick app.Brick, brickIndex *bricksindex.Brick) string {
-	f.Assert(brickIndex != nil, "bricksindex should be set")
-	return cmp.Or(appBrick.Model, appBrick.Model.ModelName)
 }
 
 func getInstanceBrickConfigVariableDetails(
