@@ -29,7 +29,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Install oasdiff
-        run: go install github.com/oasdiff/oasdiff@latest
+        run: go install github.com/oasdiff/oasdiff@v1.11.7
 
       - name: Add Go bin to PATH
         run: echo "${HOME}/go/bin" >> $GITHUB_PATH
