@@ -897,15 +897,9 @@ func CloneApp(
 
 func DeleteApp(ctx context.Context, dockerClient command.Cli, app app.ArduinoApp) error {
 
-	runningApp, err := getRunningApp(ctx, dockerClient.Client())
-	if err != nil {
-		return err
-	}
-	if runningApp != nil && runningApp.FullPath.EqualsTo(app.FullPath) {
-		// We try to remove docker related resources at best effort
-		for range StopAndDestroyApp(ctx, dockerClient, app) {
-			// just consume the iterator
-		}
+	// We try to remove docker related resources at best effort
+	for range StopAndDestroyApp(ctx, dockerClient, app) {
+		// just consume the iterator
 	}
 
 	return app.FullPath.RemoveAll()
