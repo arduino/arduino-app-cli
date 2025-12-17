@@ -88,7 +88,7 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 			Status:          "installed",
 			RequireModel:    brick.RequireModel,
 			ModelID:         getSelectedModelOrDefault(brickInstance, brick),
-			Variables:       variablesMap, // TODO: do we want to show also the default value of not explicitly set variables?
+			Variables:       variablesMap,
 			ConfigVariables: configVariables,
 			CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModel) AIModel {
 				return AIModel{
