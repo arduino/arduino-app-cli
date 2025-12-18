@@ -177,7 +177,7 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 
 		eventsCh <- update.NewDataEvent(update.StartEvent, "Upgrade is starting")
 
-		logrus.SetLevel(logrus.ErrorLevel)
+		logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 		srv := commands.NewArduinoCoreServer()
 
 		if err := setConfig(ctx, srv); err != nil {
