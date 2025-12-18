@@ -211,9 +211,6 @@ func getLock(flock *flock.Flock, lockFn lockFunc, errorMsg string) (UnlockFunc, 
 		if err := flock.Unlock(); err != nil {
 			return fmt.Errorf("failed to unlock file lock for %s: %w", flock.Path(), err)
 		}
-		if err := os.Remove(flock.Path()); err != nil && !os.IsNotExist(err) {
-			slog.Warn("failed to remove lock file", "path", flock.Path(), "error", err)
-		}
 		return nil
 	}, nil
 }
