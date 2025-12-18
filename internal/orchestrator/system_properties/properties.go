@@ -56,6 +56,10 @@ func ReadPropertyKeys(filePath string) ([]string, error) {
 	return mapKeys, err
 }
 
+// We use renameio to ensure atomic writes. This prevents data corruption (partial writes)
+// in case of a system crash or power loss during the save operation.
+// NOTE: This mechanism changes the file's Inode on every write, which is why we cannot
+// use the data file itself for file locking (flock).
 func UpsertProperty(filePath string, key string, value []byte) error {
 	if err := validateKey(key); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidKey, err)
@@ -184,6 +188,14 @@ func emptyUnlockFunc() error {
 	return nil
 }
 
+// getLock attempts to acquire a file lock.
+// We explicitly do NOT remove the lock file in case of timeout or failure, nor after a successful unlock.
+// Removing the lock file would introduce a "TOCTOU" (Time-of-check to Time-of-use) race condition:
+// 1. Process A holds the lock on Inode X.
+// 2. Process B times out and deletes the file (removing the directory entry for Inode X).
+// 3. Process C creates a NEW lock file (Inode Y) and acquires the lock.
+// Result: Process A and Process C would both hold valid locks on different Inodes, leading to data corruption.
+// Therefore, we leave the file on disk; it acts as a persistent anchor for synchronization.
 func getLock(flock *flock.Flock, lockFn lockFunc, errorMsg string) (UnlockFunc, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -191,17 +203,9 @@ func getLock(flock *flock.Flock, lockFn lockFunc, errorMsg string) (UnlockFunc, 
 	locked, err := lockFn(ctx, 100*time.Millisecond)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			if err := flock.Unlock(); err != nil {
-				slog.Error("failed to unlock file lock", "path", flock.Path(), "error", err)
-			}
-			if err := os.Remove(flock.Path()); err != nil {
-				slog.Error("failed to delete lock file", "path", flock.Path(), "error", err)
-			}
-			locked = false
-			slog.Warn("lock file removed due to timeout", "path", flock.Path())
-		} else {
-			return emptyUnlockFunc, fmt.Errorf("failed trying to acquire %s for %s: %w", errorMsg, flock.Path(), err)
+			return emptyUnlockFunc, fmt.Errorf("timeout acquiring lock for %s", flock.Path())
 		}
+		return emptyUnlockFunc, fmt.Errorf("failed trying to acquire %s for %s: %w", errorMsg, flock.Path(), err)
 	}
 	if !locked {
 		return emptyUnlockFunc, fmt.Errorf("unable to acquire %s for %s", errorMsg, flock.Path())
@@ -225,6 +229,10 @@ func getReadLock(filePath string) (UnlockFunc, error) {
 	return getLock(fileLock, fileLock.TryRLockContext, "read lock")
 }
 
+// getLockFilePath returns the path to a sidecar lock file (e.g., "data.json.lock").
+// We must use a separate file for locking because the main data file is written atomically
+// (via renameio), which changes its Inode on every save.
+// This sidecar file remains stable (same Inode) and acts as a persistent mutex anchor.
 func getLockFilePath(path string) string {
 	return path + ".lock"
 }
