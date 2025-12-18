@@ -59,9 +59,11 @@ var (
 const (
 	DefaultDockerStopTimeoutSeconds = 5
 
-	CameraDevice     = "camera"
-	MicrophoneDevice = "microphone"
-	SpeakerDevice    = "speaker"
+	CameraDevice           = "camera"
+	RemoteCameraDevice     = "remote_camera"
+	MicrophoneDevice       = "microphone"
+	RemoteMicrophoneDevice = "remote_microphone"
+	SpeakerDevice          = "speaker"
 )
 
 type AppStreamMessage struct {
@@ -1090,6 +1092,12 @@ func validateDevices(res *deviceResult, requiredDeviceClasses map[string]any) er
 	if len(requiredDeviceClasses) > 0 {
 		for class := range requiredDeviceClasses {
 			switch class {
+			case RemoteCameraDevice:
+				// Remote camera does not require a local camera device to be present
+				continue
+			case RemoteMicrophoneDevice:
+				// Remote microphone does not require a local microphone device to be present
+				continue
 			case CameraDevice:
 				if !res.hasVideoDevice {
 					return fmt.Errorf("no camera found")
