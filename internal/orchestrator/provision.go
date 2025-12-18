@@ -276,7 +276,7 @@ func generateMainComposeFile(
 	// 6. Collect all the required device classes from the app descriptor
 	if len(app.Descriptor.RequiredDevices) > 0 {
 		// Required devices defined at app level take precedence over brick defined ones
-		requiredDeviceClasses := make(map[string]any)
+		requiredDeviceClasses = make(map[string]any)
 		for _, deviceClass := range app.Descriptor.RequiredDevices {
 			requiredDeviceClasses[deviceClass] = true
 		}
