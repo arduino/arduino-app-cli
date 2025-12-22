@@ -46,6 +46,7 @@ func StatusFromDockerState(s container.ContainerState, statusMessage string) Sta
 		return StatusStopped
 	case container.StateExited:
 		if !isExitBySignal(statusMessage) {
+            // The app exited on its own, which we consider a failure.
 			return StatusFailed
 		}
 		return StatusStopped
