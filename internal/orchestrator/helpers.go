@@ -163,6 +163,7 @@ func getAppStatusByPath(
 	return &app[0], nil
 }
 
+// TODO: merge this with the more efficient getAppStatusByPath
 func getAppStatus(
 	ctx context.Context,
 	docker command.Cli,
