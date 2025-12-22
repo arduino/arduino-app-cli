@@ -105,7 +105,7 @@ func NewFromEnv() (Configuration, error) {
 	maxVersionStr := os.Getenv("ARDUINO_APP_CLI__MAX_UPDATE_MAJOR_VERSION")
 
 	// If the value is 0 (or unset), the updater logic defaults to the currently installed major version.
-	//This ensures we don't accidentally upgrade to a new major version (breaking changes) unless explicitly allowed.
+	// This ensures we don't accidentally upgrade to a new major version (breaking changes) unless explicitly allowed.
 
 	maxVersion, err := strconv.Atoi(maxVersionStr)
 	if err != nil || maxVersion <= 0 {
