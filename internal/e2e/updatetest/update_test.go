@@ -87,7 +87,7 @@ func TestUpdatePackage(t *testing.T) {
 		const dockerImageName = "test-apt-update-unstable-image"
 
 		buildDockerImage(t, dockerFile, dockerImageName, arch)
-		// 	//TODO: t cleanup remove docker image
+		// TODO: t cleanup remove docker image
 
 		t.Run("CLI Command", func(t *testing.T) {
 			const containerName = "apt-test-update-unstable"
