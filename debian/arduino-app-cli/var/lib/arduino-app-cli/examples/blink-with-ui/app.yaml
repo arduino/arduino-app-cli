@@ -1,6 +1,0 @@
-name: Blink LED with UI
-icon: 💡
-description: Blink an LED via microcontroller using RPC calls
-
-bricks:
-  - arduino:web_ui
