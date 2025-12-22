@@ -169,12 +169,17 @@ func getAppStatus(
 	docker command.Cli,
 	app app.ArduinoApp,
 ) (AppStatusInfo, error) {
-	statusInfo, err := getAppStatusByPath(ctx, docker.Client(), app.FullPath.String())
-
+	apps, err := getAppsStatus(ctx, docker.Client())
 	if err != nil {
 		return AppStatusInfo{}, fmt.Errorf("failed to get app status: %w", err)
 	}
-	return *statusInfo, nil
+	idx := slices.IndexFunc(apps, func(a AppStatusInfo) bool {
+		return a.AppPath.String() == app.FullPath.String()
+	})
+	if idx == -1 {
+		return AppStatusInfo{}, fmt.Errorf("app %s not found", app.FullPath)
+	}
+	return apps[idx], nil
 }
 
 func getRunningApp(
