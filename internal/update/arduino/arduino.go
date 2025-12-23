@@ -158,14 +158,12 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 	srv := commands.NewArduinoCoreServer()
 
 	if err := setConfig(ctx, srv); err != nil {
-		eventCB(update.NewErrorEvent(fmt.Errorf("error setting config: %w", err)))
-		return nil
+		return fmt.Errorf("error setting config: %w", err)
 	}
 
 	var inst *rpc.Instance
 	if resp, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
-		eventCB(update.NewErrorEvent(fmt.Errorf("error creating arduino-cli instance: %w", err)))
-		return nil
+		return fmt.Errorf("error creating arduino-cli instance: %w", err)
 	} else {
 		inst = resp.GetInstance()
 	}
@@ -180,12 +178,10 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 	{
 		stream, _ := commands.UpdateIndexStreamResponseToCallbackFunction(ctx, downloadProgressCB)
 		if err := srv.UpdateIndex(&rpc.UpdateIndexRequest{Instance: inst}, stream); err != nil {
-			eventCB(update.NewErrorEvent(fmt.Errorf("error updating index: %w", err)))
-			return nil
+			return fmt.Errorf("error updating index: %w", err)
 		}
 		if err := srv.Init(&rpc.InitRequest{Instance: inst}, commands.InitStreamResponseToCallbackFunction(ctx, nil)); err != nil {
-			eventCB(update.NewErrorEvent(fmt.Errorf("error initializing instance: %w", err)))
-			return nil
+			return fmt.Errorf("error initializing instance: %w", err)
 		}
 	}
 
@@ -212,8 +208,7 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 
 		var notFound *cmderrors.PlatformNotFoundError
 		if !errors.As(err, &notFound) {
-			eventCB(update.NewErrorEvent(fmt.Errorf("error upgrading platform: %w", err)))
-			return nil
+			return fmt.Errorf("error upgrading platform: %w", err)
 		}
 		// If the platform is not found, we will try to install it
 		err := srv.PlatformInstall(
@@ -229,12 +224,10 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 			),
 		)
 		if err != nil {
-			eventCB(update.NewErrorEvent(fmt.Errorf("error installing platform: %w", err)))
-			return nil
+			return fmt.Errorf("error installing platform: %w", err)
 		}
 	} else if respCB().GetPlatform() == nil {
-		eventCB(update.NewErrorEvent(fmt.Errorf("platform upgrade failed")))
-		return nil
+		return fmt.Errorf("platform upgrade failed")
 	}
 
 	cbw := orchestrator.NewCallbackWriter(func(line string) {
@@ -250,8 +243,7 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 		commands.BurnBootloaderToServerStreams(ctx, cbw, cbw),
 	)
 	if err != nil {
-		eventCB(update.NewErrorEvent(fmt.Errorf("error burning bootloader: %w", err)))
-		return nil
+		return fmt.Errorf("error burning bootloader: %w", err)
 	}
 
 	return nil

@@ -96,8 +96,7 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string, eventCB f
 	stream := runUpgradeCommand(ctx, names)
 	for line, err := range stream {
 		if err != nil {
-			eventCB(update.NewErrorEvent(fmt.Errorf("error running upgrade command: %w", err)))
-			return nil
+			return fmt.Errorf("error running upgrade command: %w", err)
 		}
 		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 	}
@@ -105,8 +104,7 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string, eventCB f
 	eventCB(update.NewDataEvent(update.StartEvent, "apt cleaning cache is starting"))
 	for line, err := range runAptCleanCommand(ctx) {
 		if err != nil {
-			eventCB(update.NewErrorEvent(fmt.Errorf("error running apt clean command: %w", err)))
-			return nil
+			return fmt.Errorf("error running apt clean command: %w", err)
 		}
 		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 	}
@@ -131,8 +129,7 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string, eventCB f
 	streamDocker := pullDockerImages(ctx)
 	for line, err := range streamDocker {
 		if err != nil {
-			eventCB(update.NewErrorEvent(fmt.Errorf("error pulling docker images: %w", err)))
-			return nil
+			return fmt.Errorf("error pulling docker images: %w", err)
 		}
 		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 	}
