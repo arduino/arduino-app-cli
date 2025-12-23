@@ -522,6 +522,43 @@ paths:
       summary: Get application events
       tags:
       - Application
+  /v1/apps/{id}/export:
+    get:
+      description: Exports the application folder structure as a ZIP file.
+      operationId: exportApp
+      parameters:
+      - description: application identifier.
+        in: path
+        name: id
+        required: true
+        schema:
+          description: application identifier.
+          type: string
+      - description: If true, the exported archive will include the 'data' directory.
+          Default is false.
+        in: query
+        name: include_data
+        schema:
+          description: If true, the exported archive will include the 'data' directory.
+            Default is false.
+          type: boolean
+      responses:
+        "200":
+          content:
+            application/zip:
+              schema:
+                format: base64
+                type: string
+          description: The ZIP archive containing the application structure.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Exports an app as ZIP
+      tags:
+      - Application
   /v1/apps/{id}/logs:
     get:
       description: Obtain a ServerSentEvnt stream of logs. It is possible to apply

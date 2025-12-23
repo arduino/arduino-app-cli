@@ -17,6 +17,7 @@ package render
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 )
@@ -54,4 +55,19 @@ func EncodeByteResponse(w http.ResponseWriter, statusCode int, resp []byte) {
 		return
 	}
 	_, _ = w.Write(resp)
+}
+
+func EncodeZipResponse(w http.ResponseWriter, statusCode int, resp []byte, filename string) {
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+
+	w.WriteHeader(statusCode)
+
+	if resp == nil {
+		return
+	}
+
+	if _, err := w.Write(resp); err != nil {
+		slog.Error("failed to write zip response", slog.String("error", err.Error()))
+	}
 }

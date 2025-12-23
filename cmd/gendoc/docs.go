@@ -563,6 +563,31 @@ Contains a JSON object with the details of an error.
 			},
 		},
 		{
+			OperationId: "exportApp",
+			Method:      http.MethodGet,
+			Path:        "/v1/apps/{id}/export",
+			Request: (*struct {
+				ID string `path:"id" description:"application identifier."`
+			})(nil),
+			Parameters: (*struct {
+				IncludeData bool `query:"include_data" description:"If true, the exported archive will include the 'data' directory. Default is false."`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/zip",
+				DataStructure: []byte{},
+				Description:   "The ZIP archive containing the application structure.",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "Exports the application folder structure as a ZIP file.",
+			Summary:     "Exports an app as ZIP",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusNotFound, Reference: "#/components/responses/NotFound"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
 			OperationId: "getAppEvents",
 			Method:      http.MethodGet,
 			Path:        "/v1/apps/{id}/events",

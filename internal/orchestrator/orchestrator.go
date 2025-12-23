@@ -16,6 +16,7 @@
 package orchestrator
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"fmt"
@@ -54,6 +55,7 @@ import (
 var (
 	ErrAppAlreadyExists = fmt.Errorf("app already exists")
 	ErrAppDoesntExists  = fmt.Errorf("app doesn't exist")
+	ErrAppNotFound      = fmt.Errorf("app not found")
 )
 
 const (
@@ -954,6 +956,96 @@ func DeleteApp(ctx context.Context, dockerClient command.Cli, app app.ArduinoApp
 	}
 
 	return app.FullPath.RemoveAll()
+}
+
+func ExportApp(
+	ctx context.Context,
+	app app.ArduinoApp,
+	includeData bool,
+) ([]byte, string, error) {
+
+	appName := sanitizeFilename(app.Name)
+	if appName == "" {
+		appName = "app-export"
+	}
+	filename := fmt.Sprintf("%s.zip", appName)
+	zipBytes, err := zipAppToBuffer(app.FullPath.String(), includeData)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to create zip archive: %w", err)
+	}
+	return zipBytes, filename, nil
+}
+
+func zipAppToBuffer(sourcePath string, includeData bool) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	zipWriter := zip.NewWriter(buf)
+
+	err := filepath.Walk(sourcePath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		relPath, err := filepath.Rel(sourcePath, path)
+		if err != nil {
+			return err
+		}
+		if relPath == "." {
+			return nil
+		}
+		if strings.HasPrefix(relPath, ".cache") {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !includeData && strings.HasPrefix(relPath, "data") {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return err
+		}
+
+		header.Name = filepath.ToSlash(relPath)
+		if info.IsDir() {
+			header.Name += "/"
+		} else {
+			header.Method = zip.Deflate
+		}
+		writer, err := zipWriter.CreateHeader(header)
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		_, err = io.Copy(writer, file)
+		return err
+	})
+
+	if err != nil {
+		zipWriter.Close()
+		return nil, err
+	}
+
+	if err := zipWriter.Close(); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+func sanitizeFilename(name string) string {
+	safe := strings.ReplaceAll(name, " ", "-")
+	return strings.ToLower(safe)
 }
 
 const defaultAppFileName = "default.app"
