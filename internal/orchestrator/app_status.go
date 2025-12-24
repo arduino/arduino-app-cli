@@ -87,17 +87,13 @@ func parseDockerStatusEvent(ctx context.Context, cfg config.Configuration, docke
 			return AppInfo{}, err
 		}
 
-		if appStatus == nil {
-			return AppInfo{}, fmt.Errorf("app containers not found for: %s", pathLabel)
-		}
-
 		defaultApp, err := GetDefaultApp(cfg)
 		if err != nil {
 			slog.Warn("unable to get default app", slog.String("error", err.Error()))
 		}
 
 		// FIXME: create an helper function to transform an app.ArduinoApp into an ortchestrator.AppInfo
-		app, err := app.Load(appStatus.AppPath)
+		app, err := appStatus.GetApp()
 		if err != nil {
 			slog.Warn("error loading app", "appPath", appStatus.AppPath.String(), "error", err)
 			return AppInfo{}, err

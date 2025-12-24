@@ -37,6 +37,21 @@ import (
 type AppStatusInfo struct {
 	AppPath *paths.Path
 	Status  Status
+
+	appCache *app.ArduinoApp
+}
+
+func (a AppStatusInfo) GetApp() (app.ArduinoApp, error) {
+	if a.appCache != nil {
+		return *a.appCache, nil
+	}
+
+	loadedApp, err := app.Load(a.AppPath)
+	if err != nil {
+		return app.ArduinoApp{}, err
+	}
+	a.appCache = &loadedApp
+	return loadedApp, nil
 }
 
 // parseAppStatus takes all the containers that matches the DockerAppLabel,
@@ -142,26 +157,37 @@ func getAppStatusByPath(
 	ctx context.Context,
 	docker dockerClient.APIClient,
 	pathLabel string,
-) (*AppStatusInfo, error) {
+) (AppStatusInfo, error) {
 	containers, err := docker.ContainerList(ctx, container.ListOptions{
 		All:     true,
 		Filters: filters.NewArgs(filters.Arg("label", DockerAppPathLabel+"="+pathLabel)),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list containers: %w", err)
+		return AppStatusInfo{}, fmt.Errorf("failed to list containers: %w", err)
 	}
+
+	notFoundOrUninitialized := func(pathLabel string) (AppStatusInfo, error) {
+		path := paths.New(pathLabel)
+		if app, err := app.Load(path); err != nil {
+			return AppStatusInfo{}, err
+		} else {
+			return AppStatusInfo{
+				AppPath:  path,
+				Status:   StatusUninitialized,
+				appCache: &app,
+			}, nil
+		}
+	}
+
 	if len(containers) == 0 {
-		return &AppStatusInfo{
-			AppPath: paths.New(pathLabel),
-			Status:  StatusUninitialized,
-		}, nil
+		return notFoundOrUninitialized(pathLabel)
 	}
 
 	app := parseAppStatus(containers)
 	if len(app) == 0 {
-		return nil, nil
+		return notFoundOrUninitialized(pathLabel)
 	}
-	return &app[0], nil
+	return app[0], nil
 }
 
 // TODO: merge this with the more efficient getAppStatusByPath
