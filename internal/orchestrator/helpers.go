@@ -152,9 +152,8 @@ func getAppStatus(
 
 	if len(containers) == 0 {
 		return AppStatusInfo{
-			AppPath:  app.FullPath,
-			Status:   StatusUninitialized,
-			appCache: &app,
+			AppPath: app.FullPath,
+			Status:  StatusUninitialized,
 		}, nil
 	}
 
