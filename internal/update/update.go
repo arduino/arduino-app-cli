@@ -143,7 +143,7 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 
 		if err := m.arduinoPlatformUpdateService.UpgradePackages(ctx, arduinoPlatform, func(e Event) {
 			if e.Type == ProgressEvent {
-				globalProgress := (e.progress / 100.0) * arduinoWeight
+				globalProgress := (e.GetProgress() / 100.0) * arduinoWeight
 				m.broadcast(NewProgressEvent(globalProgress))
 			} else {
 				m.broadcast(e)
@@ -156,7 +156,7 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 
 		if err := m.debUpdateService.UpgradePackages(ctx, debPkgs, func(e Event) {
 			if e.Type == ProgressEvent {
-				globalProgress := arduinoWeight + (e.progress/100.0)*aptWeight
+				globalProgress := arduinoWeight + (e.GetProgress()/100.0)*aptWeight
 				m.broadcast(NewProgressEvent(globalProgress))
 			} else {
 				m.broadcast(e)
