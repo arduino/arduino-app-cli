@@ -203,9 +203,11 @@ func runSystemUpdate(t *testing.T, containerName string) {
 		containerName,
 		"arduino-app-cli", "system", "update", "--yes",
 	)
-	output, err := cmd.CombinedOutput()
-	require.NoError(t, err, "system update failed: %s", output)
-	t.Logf("system update output: %s", output)
+
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stdout
+	err := cmd.Run()
+	require.NoError(t, err, "system update failed")
 }
 
 func stopDockerContainer(t *testing.T, containerName string) {
