@@ -152,41 +152,32 @@ func getAppsStatus(
 	return nil, nil
 }
 
-func getAppStatusByPath(
+func getAppStatus(
 	ctx context.Context,
 	docker dockerClient.APIClient,
-	pathLabel string,
+	app app.ArduinoApp,
 ) (AppStatusInfo, error) {
 	containers, err := docker.ContainerList(ctx, container.ListOptions{
 		All:     true,
-		Filters: filters.NewArgs(filters.Arg("label", DockerAppPathLabel+"="+pathLabel)),
+		Filters: filters.NewArgs(filters.Arg("label", DockerAppPathLabel+"="+app.FullPath.String())),
 	})
 	if err != nil {
 		return AppStatusInfo{}, fmt.Errorf("failed to list containers: %w", err)
 	}
 
-	notFoundOrUninitialized := func(pathLabel string) (AppStatusInfo, error) {
-		path := paths.New(pathLabel)
-		if app, err := app.Load(path); err != nil {
-			return AppStatusInfo{}, err
-		} else {
-			return AppStatusInfo{
-				AppPath:  path,
-				Status:   StatusUninitialized,
-				appCache: &app,
-			}, nil
-		}
-	}
-
 	if len(containers) == 0 {
-		return notFoundOrUninitialized(pathLabel)
+		return AppStatusInfo{
+			AppPath:  app.FullPath,
+			Status:   StatusUninitialized,
+			appCache: &app,
+		}, nil
 	}
 
-	app := parseAppStatus(containers)
-	if len(app) == 0 {
-		return notFoundOrUninitialized(pathLabel)
+	appInfo := parseAppStatus(containers)
+	if len(appInfo) == 0 {
+		return AppStatusInfo{}, fmt.Errorf("no app status found for app at path %s", app.FullPath)
 	}
-	return app[0], nil
+	return appInfo[0], nil
 }
 
 func getRunningApp(
