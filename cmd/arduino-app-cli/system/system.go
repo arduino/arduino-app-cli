@@ -119,7 +119,7 @@ func newUpdateCmd() *cobra.Command {
 					err := event.GetError()
 					feedback.Printf("Error: %s [%s]", err.Error(), update.GetUpdateErrorCode(err))
 				case update.ProgressEvent:
-					feedback.Printf("[%s] %.2f", event.Type.String(), event.GetProgress())
+					feedback.Printf("[%s] %s %.2f", event.Type.String(), event.GetProgress().Name, event.GetProgress().Progress)
 				default:
 					feedback.Printf("[%s] %s", event.Type.String(), event.GetData())
 				}

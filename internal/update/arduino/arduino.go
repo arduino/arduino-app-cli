@@ -202,7 +202,7 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 			return fmt.Errorf("error updating index: %w", err)
 		}
 
-		eventCB(update.NewProgressEvent(indexBase + indexWeight))
+		eventCB(update.NewProgressEvent("update index", indexBase+indexWeight))
 
 		if err := srv.Init(&rpc.InitRequest{Instance: inst}, commands.InitStreamResponseToCallbackFunction(ctx, nil)); err != nil {
 			return fmt.Errorf("error initializing instance: %w", err)
