@@ -134,129 +134,117 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ f
 }
 
 // UpgradePackages implements ServiceUpdater.
-func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []string) (<-chan update.Event, error) {
+func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []string, eventCB func(update.Event)) error {
 	if !a.lock.TryLock() {
-		return nil, update.ErrOperationAlreadyInProgress
+		return update.ErrOperationAlreadyInProgress
 	}
-	eventsCh := make(chan update.Event, 100)
 
 	downloadProgressCB := func(curr *rpc.DownloadProgress) {
 		data := helpers.ArduinoCLIDownloadProgressToString(curr)
 		slog.Debug("Download progress", slog.String("download_progress", data))
-		eventsCh <- update.NewDataEvent(update.UpgradeLineEvent, data)
+		eventCB(update.NewDataEvent(update.UpgradeLineEvent, data))
 	}
 	taskProgressCB := func(msg *rpc.TaskProgress) {
 		data := helpers.ArduinoCLITaskProgressToString(msg)
 		slog.Debug("Task progress", slog.String("task_progress", data))
-		eventsCh <- update.NewDataEvent(update.UpgradeLineEvent, data)
+		eventCB(update.NewDataEvent(update.UpgradeLineEvent, data))
 	}
 
-	go func() {
-		defer a.lock.Unlock()
-		defer close(eventsCh)
+	defer a.lock.Unlock()
 
-		eventsCh <- update.NewDataEvent(update.StartEvent, "Upgrade is starting")
+	eventCB(update.NewDataEvent(update.StartEvent, "Upgrade is starting"))
 
-		logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
-		srv := commands.NewArduinoCoreServer()
+	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
+	srv := commands.NewArduinoCoreServer()
 
-		if err := setConfig(ctx, srv); err != nil {
-			eventsCh <- update.NewErrorEvent(fmt.Errorf("error setting config: %w", err))
-			return
-		}
+	if err := setConfig(ctx, srv); err != nil {
+		return fmt.Errorf("error setting config: %w", err)
+	}
 
-		var inst *rpc.Instance
-		if resp, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
-			eventsCh <- update.NewErrorEvent(fmt.Errorf("error creating arduino-cli instance: %w", err))
-			return
-		} else {
-			inst = resp.GetInstance()
-		}
-		defer func() {
-			_, err := srv.CleanDownloadCacheDirectory(ctx, &rpc.CleanDownloadCacheDirectoryRequest{})
-			if err != nil {
-				slog.Error("Error cleaning cache directory", slog.Any("error", err))
-			}
-			_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
-		}()
-
-		{
-			stream, _ := commands.UpdateIndexStreamResponseToCallbackFunction(ctx, downloadProgressCB)
-			if err := srv.UpdateIndex(&rpc.UpdateIndexRequest{Instance: inst}, stream); err != nil {
-				eventsCh <- update.NewErrorEvent(fmt.Errorf("error updating index: %w", err))
-				return
-			}
-			if err := srv.Init(&rpc.InitRequest{Instance: inst}, commands.InitStreamResponseToCallbackFunction(ctx, nil)); err != nil {
-				eventsCh <- update.NewErrorEvent(fmt.Errorf("error initializing instance: %w", err))
-				return
-			}
-		}
-
-		stream, respCB := commands.PlatformUpgradeStreamResponseToCallbackFunction(
-			ctx,
-			downloadProgressCB,
-			taskProgressCB,
-		)
-		if err := srv.PlatformUpgrade(
-			&rpc.PlatformUpgradeRequest{
-				Instance:         inst,
-				PlatformPackage:  "arduino",
-				Architecture:     "zephyr",
-				SkipPostInstall:  false,
-				SkipPreUninstall: false,
-			},
-			stream,
-		); err != nil {
-			var alreadyPresent *cmderrors.PlatformAlreadyAtTheLatestVersionError
-			if errors.As(err, &alreadyPresent) {
-				eventsCh <- update.NewDataEvent(update.UpgradeLineEvent, alreadyPresent.Error())
-				return
-			}
-
-			var notFound *cmderrors.PlatformNotFoundError
-			if !errors.As(err, &notFound) {
-				eventsCh <- update.NewErrorEvent(fmt.Errorf("error upgrading platform: %w", err))
-				return
-			}
-			// If the platform is not found, we will try to install it
-			err := srv.PlatformInstall(
-				&rpc.PlatformInstallRequest{
-					Instance:        inst,
-					PlatformPackage: "arduino",
-					Architecture:    "zephyr",
-				},
-				commands.PlatformInstallStreamResponseToCallbackFunction(
-					ctx,
-					downloadProgressCB,
-					taskProgressCB,
-				),
-			)
-			if err != nil {
-				eventsCh <- update.NewErrorEvent(fmt.Errorf("error installing platform: %w", err))
-				return
-			}
-		} else if respCB().GetPlatform() == nil {
-			eventsCh <- update.NewErrorEvent(fmt.Errorf("platform upgrade failed"))
-			return
-		}
-
-		cbw := orchestrator.NewCallbackWriter(func(line string) {
-			eventsCh <- update.NewDataEvent(update.UpgradeLineEvent, line)
-		})
-
-		err := srv.BurnBootloader(
-			&rpc.BurnBootloaderRequest{
-				Instance:   inst,
-				Fqbn:       "arduino:zephyr:unoq",
-				Programmer: "jlink",
-			},
-			commands.BurnBootloaderToServerStreams(ctx, cbw, cbw),
-		)
+	var inst *rpc.Instance
+	if resp, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
+		return fmt.Errorf("error creating arduino-cli instance: %w", err)
+	} else {
+		inst = resp.GetInstance()
+	}
+	defer func() {
+		_, err := srv.CleanDownloadCacheDirectory(ctx, &rpc.CleanDownloadCacheDirectoryRequest{})
 		if err != nil {
-			eventsCh <- update.NewErrorEvent(fmt.Errorf("error burning bootloader: %w", err))
-			return
+			slog.Error("Error cleaning cache directory", slog.Any("error", err))
 		}
+		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
 	}()
 
-	return eventsCh, nil
+	{
+		stream, _ := commands.UpdateIndexStreamResponseToCallbackFunction(ctx, downloadProgressCB)
+		if err := srv.UpdateIndex(&rpc.UpdateIndexRequest{Instance: inst}, stream); err != nil {
+			return fmt.Errorf("error updating index: %w", err)
+		}
+		if err := srv.Init(&rpc.InitRequest{Instance: inst}, commands.InitStreamResponseToCallbackFunction(ctx, nil)); err != nil {
+			return fmt.Errorf("error initializing instance: %w", err)
+		}
+	}
+
+	stream, respCB := commands.PlatformUpgradeStreamResponseToCallbackFunction(
+		ctx,
+		downloadProgressCB,
+		taskProgressCB,
+	)
+	if err := srv.PlatformUpgrade(
+		&rpc.PlatformUpgradeRequest{
+			Instance:         inst,
+			PlatformPackage:  "arduino",
+			Architecture:     "zephyr",
+			SkipPostInstall:  false,
+			SkipPreUninstall: false,
+		},
+		stream,
+	); err != nil {
+		var alreadyPresent *cmderrors.PlatformAlreadyAtTheLatestVersionError
+		if errors.As(err, &alreadyPresent) {
+			eventCB(update.NewDataEvent(update.UpgradeLineEvent, alreadyPresent.Error()))
+			return nil
+		}
+
+		var notFound *cmderrors.PlatformNotFoundError
+		if !errors.As(err, &notFound) {
+			return fmt.Errorf("error upgrading platform: %w", err)
+		}
+		// If the platform is not found, we will try to install it
+		err := srv.PlatformInstall(
+			&rpc.PlatformInstallRequest{
+				Instance:        inst,
+				PlatformPackage: "arduino",
+				Architecture:    "zephyr",
+			},
+			commands.PlatformInstallStreamResponseToCallbackFunction(
+				ctx,
+				downloadProgressCB,
+				taskProgressCB,
+			),
+		)
+		if err != nil {
+			return fmt.Errorf("error installing platform: %w", err)
+		}
+	} else if respCB().GetPlatform() == nil {
+		return fmt.Errorf("platform upgrade failed")
+	}
+
+	cbw := orchestrator.NewCallbackWriter(func(line string) {
+		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+	})
+
+	err := srv.BurnBootloader(
+		&rpc.BurnBootloaderRequest{
+			Instance:   inst,
+			Fqbn:       "arduino:zephyr:unoq",
+			Programmer: "jlink",
+		},
+		commands.BurnBootloaderToServerStreams(ctx, cbw, cbw),
+	)
+	if err != nil {
+		return fmt.Errorf("error burning bootloader: %w", err)
+	}
+
+	return nil
 }
