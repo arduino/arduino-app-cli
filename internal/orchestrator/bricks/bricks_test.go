@@ -313,11 +313,25 @@ func TestGetBrickInstanceVariableDetails(t *testing.T) {
 			expectedConfigVariables: []BrickConfigVariable{},
 			expectedVariableMap:     map[string]string{},
 		},
+		{
+			name: "hidden variables",
+			brick: &bricksindex.Brick{Variables: []bricksindex.BrickVariable{
+				{Name: "HIDDEN_VAR", DefaultValue: "i-am-hidden", Description: "a-hidden-variable", Hidden: true},
+				{Name: "VISIBLE_VAR", DefaultValue: "i-am-visible", Description: "a-visible-variable", Hidden: false},
+				{Name: "VISIBLE_VAR_WITH_MISSING", DefaultValue: "i-am-visible-if-missing-hidden", Description: "a-visible-variable"},
+			}},
+			userVariables: map[string]string{},
+			expectedConfigVariables: []BrickConfigVariable{
+				{Name: "VISIBLE_VAR", Value: "i-am-visible", Description: "a-visible-variable", Required: false},
+				{Name: "VISIBLE_VAR_WITH_MISSING", Value: "i-am-visible-if-missing-hidden", Description: "a-visible-variable", Required: false},
+			},
+			expectedVariableMap: map[string]string{"VISIBLE_VAR": "i-am-visible", "VISIBLE_VAR_WITH_MISSING": "i-am-visible-if-missing-hidden"},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actualVariableMap, actualConfigVariables := getBrickConfigDetails(tt.brick, tt.userVariables)
+			actualVariableMap, actualConfigVariables := getInstanceBrickConfigVariableDetails(tt.brick, tt.userVariables)
 			require.Equal(t, tt.expectedVariableMap, actualVariableMap)
 			require.Equal(t, tt.expectedConfigVariables, actualConfigVariables)
 		})
@@ -402,6 +416,21 @@ func TestBricksDetails(t *testing.T) {
 	})
 
 	t.Run("Success - Full Details - multiple models", func(t *testing.T) {
+		expectConfigVariables := []BrickConfigVariable{
+			{
+				Name:        "EI_OBJ_DETECTION_MODEL",
+				Value:       "default_path",
+				Description: "path to the model file",
+				Required:    false,
+			},
+			{
+				Name:        "CUSTOM_MODEL_PATH",
+				Value:       "/home/arduino/.arduino-bricks/ei-models",
+				Description: "path to the custom model directory",
+				Required:    false,
+			},
+		}
+
 		res, err := svc.BricksDetails("arduino:object_detection", idProvider, cfg)
 		require.NoError(t, err)
 
@@ -425,6 +454,8 @@ func TestBricksDetails(t *testing.T) {
 		require.Equal(t, "face-detection", res.CompatibleModels[1].ID)
 		require.Equal(t, "Lightweight-Face-Detection", res.CompatibleModels[1].Name)
 		require.Equal(t, "", res.CompatibleModels[1].Description)
+		require.Len(t, res.ConfigVariables, 2)
+		require.Equal(t, expectConfigVariables, res.ConfigVariables)
 	})
 
 	t.Run("Success - Full Details - no models", func(t *testing.T) {
@@ -444,6 +475,7 @@ func TestBricksDetails(t *testing.T) {
 		require.Equal(t, "My App", res.UsedByApps[0].Name)
 		require.NotEmpty(t, res.UsedByApps[0].ID)
 		require.Len(t, res.CompatibleModels, 0)
+		require.Empty(t, res.ConfigVariables)
 	})
 
 	t.Run("Success - Full Details - one model", func(t *testing.T) {
@@ -456,6 +488,8 @@ func TestBricksDetails(t *testing.T) {
 		require.Equal(t, "face-detection", res.CompatibleModels[0].ID)
 		require.Equal(t, "Lightweight-Face-Detection", res.CompatibleModels[0].Name)
 		require.Equal(t, "", res.CompatibleModels[0].Description)
+		require.Empty(t, res.ConfigVariables)
+		require.Empty(t, res.Variables)
 	})
 }
 
@@ -685,12 +719,35 @@ func TestAppBrickInstancesList(t *testing.T) {
 				RequireModel: false,
 				Ports:        []string{"7000", "8000"},
 			},
+			{
+				ID:   "arduino:with-hidden-vars",
+				Name: "I have some hidden variables",
+				Variables: []bricksindex.BrickVariable{
+					{Name: "HIDDEN_VAR", DefaultValue: "/i/am/hidden", Hidden: true},
+					{Name: "VISIBLE_VAR", DefaultValue: "/i/am/visible"},
+					{Name: "VISIBLE_VAR_IF_MISSING", DefaultValue: "/i/am/visible", Hidden: false},
+				},
+			},
 		},
 	}
 
 	svc := &Service{
 		bricksIndex: bIndex,
-		modelsIndex: &modelsindex.ModelsIndex{},
+		modelsIndex: &modelsindex.ModelsIndex{
+			Models: []modelsindex.AIModel{
+				{
+					ID:                "yolox-object-detection",
+					Name:              "General purpose object detection - YoloX",
+					ModuleDescription: "a-model-description",
+					Bricks:            []string{"arduino:object_detection"},
+				},
+				{
+					ID:     "face-detection",
+					Name:   "Lightweight-Face-Detection",
+					Bricks: []string{"arduino:object_detection"},
+				},
+			},
+		},
 	}
 
 	tests := []struct {
@@ -766,6 +823,10 @@ func TestAppBrickInstancesList(t *testing.T) {
 				require.Equal(t, "video", brick.Category)
 				require.True(t, brick.RequireModel)
 				require.Equal(t, "face-detection", brick.ModelID)
+				require.Equal(t, []AIModel{
+					{ID: "yolox-object-detection", Name: "General purpose object detection - YoloX", Description: "a-model-description"},
+					{ID: "face-detection", Name: "Lightweight-Face-Detection", Description: ""},
+				}, brick.CompatibleModels)
 
 				foundCustom := false
 				for _, v := range brick.ConfigVariables {
@@ -775,6 +836,30 @@ func TestAppBrickInstancesList(t *testing.T) {
 					}
 				}
 				require.True(t, foundCustom, "Variable CUSTOM_MODEL_PATH should be present and overridden")
+			},
+		},
+		{
+			name: "Success - Brick using brick default model",
+			app: &app.ArduinoApp{
+				Descriptor: app.AppDescriptor{
+					Bricks: []app.Brick{
+						{
+							ID: "arduino:object_detection",
+						},
+					},
+				},
+			},
+			validate: func(t *testing.T, res AppBrickInstancesResult) {
+				require.Len(t, res.BrickInstances, 1)
+				brick := res.BrickInstances[0]
+
+				require.Equal(t, "arduino:object_detection", brick.ID)
+				require.True(t, brick.RequireModel)
+				require.Equal(t, "yolox-object-detection", brick.ModelID)
+				require.Equal(t, []AIModel{
+					{ID: "yolox-object-detection", Name: "General purpose object detection - YoloX", Description: "a-model-description"},
+					{ID: "face-detection", Name: "Lightweight-Face-Detection", Description: ""},
+				}, brick.CompatibleModels)
 			},
 		},
 		{
@@ -811,6 +896,32 @@ func TestAppBrickInstancesList(t *testing.T) {
 				require.Equal(t, 2, len(b2.ConfigVariables))
 				require.Equal(t, "/home/arduino/.arduino-bricks/ei-models", b2.ConfigVariables[0].Value)
 				require.Equal(t, "/models/ootb/ei/glass-breaking.eim", b2.ConfigVariables[1].Value)
+			},
+		},
+		{
+			name: "Success - hidden variables are not included",
+			app: &app.ArduinoApp{
+				Descriptor: app.AppDescriptor{
+					Bricks: []app.Brick{
+						{
+							ID: "arduino:with-hidden-vars",
+							Variables: map[string]string{
+								"HIDDEN_VAR":  "/this/is/a/new/hidden/value",
+								"VISIBLE_VAR": "/this/is/a/new/visible/value",
+							},
+						},
+					},
+				},
+			},
+			validate: func(t *testing.T, res AppBrickInstancesResult) {
+				require.Len(t, res.BrickInstances, 1)
+				brick := res.BrickInstances[0]
+				require.Equal(t, "arduino:with-hidden-vars", brick.ID)
+				expected := []BrickConfigVariable{
+					{Name: "VISIBLE_VAR", Value: "/this/is/a/new/visible/value"},
+					{Name: "VISIBLE_VAR_IF_MISSING", Value: "/i/am/visible"},
+				}
+				require.Equal(t, expected, brick.ConfigVariables)
 			},
 		},
 	}

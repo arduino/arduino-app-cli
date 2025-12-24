@@ -1,0 +1,53 @@
+name: Check for breaking OpenAPI changes
+
+on:
+  push:
+  pull_request:
+    paths:
+      - "internal/api/docs/openapi.yaml"
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: "Branch to compare against (used in manual runs)"
+        required: false
+        default: "main"
+
+jobs:
+  oasdiff:
+    name: OASDiff Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install oasdiff
+        run: go install github.com/oasdiff/oasdiff@v1.11.7
+
+      - name: Add Go bin to PATH
+        run: echo "${HOME}/go/bin" >> $GITHUB_PATH
+
+      - name: Determine base branch and fetch OpenAPI file
+        id: get_base_openapi
+        run: |
+          BASE_BRANCH="${{ github.event.pull_request.base.ref || github.event.inputs.target_branch || 'main' }}"
+          echo "Comparing against base branch: $BASE_BRANCH"
+          git fetch origin "$BASE_BRANCH"
+          git show origin/"$BASE_BRANCH":internal/api/docs/openapi.yaml > /tmp/base-openapi.yaml \
+            || (touch /tmp/base-openapi.yaml; echo "No base OpenAPI file found, using empty file.")
+
+      - name: Run oasdiff to check for breaking changes
+        run: |
+          if oasdiff breaking --format githubactions --filter-extension request-parameter-enum-value-added --fail-on ERR /tmp/base-openapi.yaml internal/api/docs/openapi.yaml; then
+            echo "✅ No breaking changes detected in OpenAPI spec."
+          else
+            echo "❌ Breaking changes detected! Please review the OpenAPI spec."
+            exit 1
+          fi

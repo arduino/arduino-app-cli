@@ -965,15 +965,9 @@ func CloneApp(
 
 func DeleteApp(ctx context.Context, dockerClient command.Cli, app app.ArduinoApp) error {
 
-	runningApp, err := getRunningApp(ctx, dockerClient.Client())
-	if err != nil {
-		return err
-	}
-	if runningApp != nil && runningApp.FullPath.EqualsTo(app.FullPath) {
-		// We try to remove docker related resources at best effort
-		for range StopAndDestroyApp(ctx, dockerClient, app) {
-			// just consume the iterator
-		}
+	// We try to remove docker related resources at best effort
+	for range StopAndDestroyApp(ctx, dockerClient, app) {
+		// just consume the iterator
 	}
 
 	return app.FullPath.RemoveAll()
@@ -1255,8 +1249,8 @@ func compileUploadSketch(
 				response = "Error: " + msg.Error.String()
 			case *rpc.InitResponse_Profile:
 				response = fmt.Sprintf(
-					"Sketch profile configured: FQBN=%q, Port=%q",
-					msg.Profile.GetFqbn(),
+					"Sketch profile configured: Name=%q, Port=%q",
+					msg.Profile.GetName(),
 					msg.Profile.GetPort(),
 				)
 			}

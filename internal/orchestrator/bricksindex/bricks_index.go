@@ -42,6 +42,7 @@ type BrickVariable struct {
 	Name         string `yaml:"name"`
 	DefaultValue string `yaml:"default_value"`
 	Description  string `yaml:"description,omitempty"`
+	Hidden       bool   `yaml:"hidden"`
 }
 
 func (v BrickVariable) IsRequired() bool {

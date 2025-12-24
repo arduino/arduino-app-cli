@@ -16,71 +16,50 @@
 package handlers
 
 import (
-	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gorilla/websocket"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/monitor"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
-func monitorStream(mon net.Conn, ws *websocket.Conn) {
-	logWebsocketError := func(msg string, err error) {
-		// Do not log simple close or interruption errors
-		if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseNoStatusReceived, websocket.CloseAbnormalClosure) {
-			if e, ok := err.(*websocket.CloseError); ok {
-				slog.Error(msg, slog.String("closecause", fmt.Sprintf("%d: %s", e.Code, err)))
-			} else {
-				slog.Error(msg, slog.String("error", err.Error()))
-			}
-		}
+func HandleMonitorWS(allowedOrigins []string) http.HandlerFunc {
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			return checkOrigin(r.Header.Get("Origin"), allowedOrigins)
+		},
 	}
-	logSocketError := func(msg string, err error) {
-		if !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.EOF) {
-			slog.Error(msg, slog.String("error", err.Error()))
-		}
-	}
-	go func() {
-		defer mon.Close()
-		defer ws.Close()
-		for {
-			// Read from websocket and write to monitor
-			_, msg, err := ws.ReadMessage()
-			if err != nil {
-				logWebsocketError("Error reading from websocket", err)
-				return
-			}
-			if _, err := mon.Write(msg); err != nil {
-				logSocketError("Error writing to monitor", err)
-				return
-			}
-		}
-	}()
-	go func() {
-		defer mon.Close()
-		defer ws.Close()
-		buff := [1024]byte{}
-		for {
-			// Read from monitor and write to websocket
-			n, err := mon.Read(buff[:])
-			if err != nil {
-				logSocketError("Error reading from monitor", err)
-				return
-			}
 
-			if err := ws.WriteMessage(websocket.BinaryMessage, buff[:n]); err != nil {
-				logWebsocketError("Error writing to websocket", err)
-				return
-			}
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Upgrade the connection to websocket
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			// Remember to close monitor connection if websocket upgrade fails.
+
+			slog.Error("Failed to upgrade connection", slog.String("error", err.Error()))
+			render.EncodeResponse(w, http.StatusInternalServerError, map[string]string{"error": "Failed to upgrade connection: " + err.Error()})
+			return
 		}
-	}()
+
+		// Now the connection is managed by the websocket library, let's move the handlers in the goroutine
+		start, err := monitor.NewMonitorHandler(&wsReadWriteCloser{conn: conn})
+		if err != nil {
+			slog.Error("Unable to start monitor handler", slog.String("error", err.Error()))
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "Unable to start monitor handler: " + err.Error()})
+			return
+		}
+		go start()
+
+		// and return nothing to the http library
+	}
 }
 
 func splitOrigin(origin string) (scheme, host, port string, err error) {
@@ -126,41 +105,47 @@ func checkOrigin(origin string, allowedOrigins []string) bool {
 	return false
 }
 
-func HandleMonitorWS(allowedOrigins []string) http.HandlerFunc {
-	// Do a dry-run of checkorigin, so it can panic if misconfigured now, not on first request
-	_ = checkOrigin("http://localhost", allowedOrigins)
+type wsReadWriteCloser struct {
+	conn *websocket.Conn
 
-	upgrader := websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-		CheckOrigin: func(r *http.Request) bool {
-			return checkOrigin(r.Header.Get("Origin"), allowedOrigins)
-		},
+	buff []byte
+}
+
+func (w *wsReadWriteCloser) Read(p []byte) (n int, err error) {
+	if len(w.buff) > 0 {
+		n = copy(p, w.buff)
+		w.buff = w.buff[n:]
+		return n, nil
 	}
 
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Connect to monitor
-		mon, err := net.DialTimeout("tcp", "127.0.0.1:7500", time.Second)
-		if err != nil {
-			slog.Error("Unable to connect to monitor", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusServiceUnavailable, models.ErrorResponse{Details: "Unable to connect to monitor: " + err.Error()})
-			return
-		}
-
-		// Upgrade the connection to websocket
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			// Remember to close monitor connection if websocket upgrade fails.
-			mon.Close()
-
-			slog.Error("Failed to upgrade connection", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusInternalServerError, map[string]string{"error": "Failed to upgrade connection: " + err.Error()})
-			return
-		}
-
-		// Now the connection is managed by the websocket library, let's move the handlers in the goroutine
-		go monitorStream(mon, conn)
-
-		// and return nothing to the http library
+	ty, message, err := w.conn.ReadMessage()
+	if err != nil {
+		return 0, mapWebSocketErrors(err)
 	}
+	if ty != websocket.BinaryMessage && ty != websocket.TextMessage {
+		return
+	}
+	n = copy(p, message)
+	w.buff = message[n:]
+	return n, nil
+}
+
+func (w *wsReadWriteCloser) Write(p []byte) (n int, err error) {
+	err = w.conn.WriteMessage(websocket.BinaryMessage, p)
+	if err != nil {
+		return 0, mapWebSocketErrors(err)
+	}
+	return len(p), nil
+}
+
+func (w *wsReadWriteCloser) Close() error {
+	w.buff = nil
+	return w.conn.Close()
+}
+
+func mapWebSocketErrors(err error) error {
+	if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseNoStatusReceived, websocket.CloseAbnormalClosure) {
+		return net.ErrClosed
+	}
+	return err
 }

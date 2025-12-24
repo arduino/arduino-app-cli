@@ -140,3 +140,19 @@ bricks:
   name: Model Required Brick
   description: A brick that requires a model
   require_model: true
+- id: arduino:with-hidden-variables
+  name: Visual Anomaly Detection
+  description: "Brick with hidden variables"
+  variables:
+    - name: HIDDEN_VARIABLE
+      default_value: a_hidden_value
+      description: this variable is hidden
+      hidden: true
+    - name: VISIBLE_VARIABLE
+      default_value: a_visible_value
+      description: this variable is visible because 'hidden' is set to false
+      hidden: false
+    - name: VISIBLE_VARIABLE_IF_MISSING_HIDDEN
+      default_value: another_visible_value
+      description: this variable is visiable because 'hidden' field is missing
+      hidden: false

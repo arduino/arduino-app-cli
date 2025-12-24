@@ -51,7 +51,7 @@ func TestListSketchLibraries(t *testing.T) {
 		pythonApp, err := app.Load(createTestAppPythonOnly(t))
 		require.NoError(t, err)
 
-		id, err := RemoveSketchLibrary(context.Background(), pythonApp, LibraryReleaseID{})
+		id, err := RemoveSketchLibrary(context.Background(), pythonApp, LibraryReleaseID{}, true)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot remove a library. Missing sketch folder")
 		assert.Empty(t, id)

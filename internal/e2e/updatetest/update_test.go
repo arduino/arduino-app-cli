@@ -21,8 +21,10 @@ func TestUpdatePackage(t *testing.T) {
 	t.Run("Stable To Current", func(t *testing.T) {
 		t.Cleanup(func() { os.RemoveAll("build") })
 
-		tagAppCli := fetchDebPackageLatest(t, "build/stable", "arduino-app-cli")
-		fetchDebPackageLatest(t, "build/stable", "arduino-router")
+		tagAppCli := fetchDebPackageLatest(t, "build/stable", "arduino/arduino-app-cli")
+		fetchDebPackageLatest(t, "build/stable", "arduino/arduino-router")
+		fetchDebPackageLatest(t, "build/stable", "bcmi-labs/arduino-deb-packages")
+
 		majorTag := genMajorTag(t, tagAppCli)
 
 		fmt.Printf("Updating from stable version %s to unstable version %s \n", tagAppCli, majorTag)
@@ -71,8 +73,10 @@ func TestUpdatePackage(t *testing.T) {
 	t.Run("CurrentToStable", func(t *testing.T) {
 		t.Cleanup(func() { os.RemoveAll("build") })
 
-		tagAppCli := fetchDebPackageLatest(t, "build", "arduino-app-cli")
-		fetchDebPackageLatest(t, "build/stable", "arduino-router")
+		tagAppCli := fetchDebPackageLatest(t, "build", "arduino/arduino-app-cli")
+		fetchDebPackageLatest(t, "build/stable", "arduino/arduino-router")
+		fetchDebPackageLatest(t, "build/stable", "bcmi-labs/arduino-deb-packages")
+
 		minorTag := genMinorTag(t, tagAppCli)
 
 		fmt.Printf("Updating from unstable version %s to stable version %s \n", minorTag, tagAppCli)
@@ -83,7 +87,7 @@ func TestUpdatePackage(t *testing.T) {
 		const dockerImageName = "test-apt-update-unstable-image"
 
 		buildDockerImage(t, dockerFile, dockerImageName, arch)
-		//TODO: t cleanup remove docker image
+		// TODO: t cleanup remove docker image
 
 		t.Run("CLI Command", func(t *testing.T) {
 			const containerName = "apt-test-update-unstable"

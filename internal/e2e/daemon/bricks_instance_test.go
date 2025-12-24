@@ -37,21 +37,6 @@ const (
 )
 
 var (
-	expectedConfigVariables = []client.BrickConfigVariable{
-		{
-			Description: f.Ptr("path to the custom model directory"),
-			Name:        f.Ptr("CUSTOM_MODEL_PATH"),
-			Required:    f.Ptr(false),
-			Value:       f.Ptr("/home/arduino/.arduino-bricks/ei-models"),
-		},
-		{
-			Description: f.Ptr("path to the model file"),
-			Name:        f.Ptr("EI_CLASSIFICATION_MODEL"),
-			Required:    f.Ptr(false),
-			Value:       f.Ptr("/models/ootb/ei/mobilenet-v2-224px.eim"),
-		},
-	}
-
 	expectedModelInfo = []client.AIModel{
 		{
 			Id:          f.Ptr("mobilenet-image-classification"),
@@ -97,21 +82,15 @@ func TestGetAppBrickInstances(t *testing.T) {
 	var actualBody models.ErrorResponse
 	createResp, httpClient := setupTestApp(t)
 	t.Run("GetAppBrickInstances_Success", func(t *testing.T) {
-		expectedVariables := map[string]string{
-			"CUSTOM_MODEL_PATH":       "/home/arduino/.arduino-bricks/ei-models",
-			"EI_CLASSIFICATION_MODEL": "/models/ootb/ei/mobilenet-v2-224px.eim",
-		}
-
 		brickInstances, err := httpClient.GetAppBrickInstancesWithResponse(t.Context(), *createResp.JSON201.Id, func(ctx context.Context, req *http.Request) error { return nil })
 		require.NoError(t, err)
 		require.Len(t, *brickInstances.JSON200.Bricks, 1)
 		require.Equal(t, ImageClassifactionBrickID, *(*brickInstances.JSON200.Bricks)[0].Id)
-		require.Equal(t, expectedConfigVariables, *(*brickInstances.JSON200.Bricks)[0].ConfigVariables)
+		require.Nil(t, (*brickInstances.JSON200.Bricks)[0].ConfigVariables)
 		require.Equal(t, "Arduino", *(*brickInstances.JSON200.Bricks)[0].Author)
 		require.Equal(t, "video", *(*brickInstances.JSON200.Bricks)[0].Category)
 		require.True(t, *(*brickInstances.JSON200.Bricks)[0].RequireModel)
-		require.Equal(t, expectedVariables, *(*brickInstances.JSON200.Bricks)[0].Variables)
-
+		require.Nil(t, (*brickInstances.JSON200.Bricks)[0].Variables)
 	})
 
 	t.Run("GetAppBrickInstances_InvalidAppID_Fail", func(t *testing.T) {
@@ -154,7 +133,7 @@ func TestGetAppBrickInstanceById(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, brickInstance.JSON200)
 		require.Equal(t, ImageClassifactionBrickID, *brickInstance.JSON200.Id)
-		require.Equal(t, expectedConfigVariables, (*brickInstance.JSON200.ConfigVariables))
+		require.Nil(t, brickInstance.JSON200.ConfigVariables)
 		require.NotNil(t, brickInstance.JSON200.CompatibleModels)
 		require.Equal(t, expectedModelInfo, *(brickInstance.JSON200.CompatibleModels))
 	})
@@ -220,7 +199,7 @@ func TestUpsertAppBrickInstance(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, brickInstance.JSON200)
 	require.Equal(t, ImageClassifactionBrickID, *brickInstance.JSON200.Id)
-	require.Equal(t, "/home/arduino/.arduino-bricks/ei-models", (*brickInstance.JSON200.Variables)["CUSTOM_MODEL_PATH"])
+	require.Nil(t, brickInstance.JSON200.Variables)
 	require.Equal(t, "mobilenet-image-classification", *brickInstance.JSON200.Model)
 
 	t.Run("OverrideBrickInstance", func(t *testing.T) {
@@ -243,7 +222,7 @@ func TestUpsertAppBrickInstance(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, brickInstance.JSON200)
 		require.Equal(t, ImageClassifactionBrickID, *brickInstance.JSON200.Id)
-		require.NotEqual(t, "overidden", (*brickInstance.JSON200.Variables)["CUSTOM_MODEL_PATH"])
+		require.Nil(t, brickInstance.JSON200.Variables)
 		require.Equal(t, "mobilenet-image-classification", *brickInstance.JSON200.Model)
 	})
 
@@ -369,7 +348,7 @@ func TestUpdateAppBrickInstance(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, brickInstance.JSON200)
 		require.Equal(t, ImageClassifactionBrickID, *brickInstance.JSON200.Id)
-		require.Equal(t, "overidden", (*brickInstance.JSON200.Variables)["CUSTOM_MODEL_PATH"])
+		require.Nil(t, brickInstance.JSON200.Variables)
 		require.Equal(t, "person-classification", *brickInstance.JSON200.Model)
 	})
 	t.Run("UpdateOnlyModel", func(t *testing.T) {

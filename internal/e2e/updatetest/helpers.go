@@ -24,7 +24,7 @@ import (
 func fetchDebPackageLatest(t *testing.T, path, repo string) string {
 	t.Helper()
 
-	repo = fmt.Sprintf("github.com/arduino/%s", repo)
+	repo = fmt.Sprintf("github.com/%s", repo)
 	cmd := exec.Command(
 		"gh", "release", "list",
 		"--repo", repo,

@@ -83,6 +83,18 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan u
 		defer s.lock.Unlock()
 		defer close(eventsCh)
 
+		// At the end of the upgrade, always try to restart the services (that need it).
+		// This makes sure key services are restarted even if an error happens in the upgrade steps (for examples container images download).
+		defer func() {
+			eventsCh <- update.NewDataEvent(update.RestartEvent, "Upgrade completed. Restarting ...")
+
+			err := restartServices(ctx)
+			if err != nil {
+				eventsCh <- update.NewErrorEvent(fmt.Errorf("error restarting services after upgrade: %w", err))
+				return
+			}
+		}()
+
 		eventsCh <- update.NewDataEvent(update.StartEvent, "Upgrade is starting")
 		stream := runUpgradeCommand(ctx, names)
 		for line, err := range stream {
@@ -126,13 +138,6 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string) (<-chan u
 				return
 			}
 			eventsCh <- update.NewDataEvent(update.UpgradeLineEvent, line)
-		}
-		eventsCh <- update.NewDataEvent(update.RestartEvent, "Upgrade completed. Restarting ...")
-
-		err := restartServices(ctx)
-		if err != nil {
-			eventsCh <- update.NewErrorEvent(fmt.Errorf("error restarting services after upgrade: %w", err))
-			return
 		}
 	}()
 

@@ -27,3 +27,15 @@ jobs:
           GH_TOKEN: ${{ secrets.ARDUINOBOT_TOKEN }}
         run: |
           go tool task test:update
+
+      - name: Slack notification of unexpected failure
+        if: ${{ failure() }}
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.TEAM_TOOLING_CHANNEL_SLACK_WEBHOOK }}
+          SLACK_MESSAGE: |
+            :warning::warning::warning::warning:
+            WARNING: ${{ github.repository }} ${{ github.workflow }} workflow run had an unexpected failure!!!
+            :warning::warning::warning::warning:
+          SLACK_COLOR: danger
+          MSG_MINIMAL: true

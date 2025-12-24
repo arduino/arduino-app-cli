@@ -57,7 +57,8 @@ func parseAppStatus(containers []container.Summary) []AppStatusInfo {
 		if !ok {
 			continue
 		}
-		appsStatusMap[appPath] = append(appsStatusMap[appPath], StatusFromDockerState(c.State))
+		appsStatusMap[appPath] = append(appsStatusMap[appPath], StatusFromDockerState(c.State, c.Status))
+
 	}
 
 	appendResult := func(appPath *paths.Path, status Status) {

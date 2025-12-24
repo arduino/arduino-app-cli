@@ -1,6 +1,6 @@
 ---
 name: go.opentelemetry.io/auto/sdk
-version: v1.1.0
+version: v1.2.1
 type: go
 summary: Package sdk provides an auto-instrumentable OpenTelemetry SDK.
 homepage: https://pkg.go.dev/go.opentelemetry.io/auto/sdk
