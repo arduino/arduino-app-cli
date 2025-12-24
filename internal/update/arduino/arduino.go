@@ -148,6 +148,7 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 
 	makeDownloadProgressCallback := func(name string, basePercentage, phaseWeight float32) func(*rpc.DownloadProgress) {
 		return func(curr *rpc.DownloadProgress) {
+			// FIXME: update this helper function
 			data := helpers.ArduinoCLIDownloadProgressToString(curr)
 			eventCB(update.NewDataEvent(update.UpgradeLineEvent, data))
 			if updateInfo := curr.GetUpdate(); updateInfo != nil {
@@ -162,6 +163,7 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 	}
 	makeTaskProgressCallback := func(name string, basePercentage, phaseWeight float32) func(*rpc.TaskProgress) {
 		return func(msg *rpc.TaskProgress) {
+			// FIXME: update this helper function
 			data := helpers.ArduinoCLITaskProgressToString(msg)
 			eventCB(update.NewDataEvent(update.UpgradeLineEvent, data))
 			if !msg.GetCompleted() {
