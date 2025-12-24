@@ -26,10 +26,9 @@ usermod -aG "$SYSUPGRADE_GROUP" "$APP_USER"
 
 # SHARED_FUNCTIONS
 if [ "$1" = "upgrade" ]; then
-  # check if this is an upgrade from an old version
     cleanup_arduino_examples /home/arduino/.local/share/arduino-app-cli/examples
     mkdir -p /var/lib/arduino-app-cli
-    cp -rf /home/arduino/.local/share/arduino-app-cli/examples /var/lib/arduino-app-cli
-    cp -rf /home/arduino/.local/share/arduino-app-cli/properties.msgpack* /var/lib/arduino-app-cli
-    cp -rf /home/arduino/.local/share/arduino-app-cli/bootloader_burned.flag /var/lib/arduino-app-cli
+    copy_if_exists /home/arduino/.local/share/arduino-app-cli/examples /var/lib/arduino-app-cli
+    copy_if_exists /home/arduino/.local/share/arduino-app-cli/properties.msgpack* /var/lib/arduino-app-cli
+    copy_if_exists /home/arduino/.local/share/arduino-app-cli/bootloader_burned.flag /var/lib/arduino-app-cli
 fi

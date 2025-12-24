@@ -8,7 +8,5 @@ systemctl enable arduino-avahi-serial.service
 
 if [ "$1" = "configure" ]; then
     echo "Running pre-0.9.0 legacy migration..."
-    rm -rf /home/arduino/.local/share/arduino-app-cli/examples
-    rm -rf /home/arduino/.local/share/arduino-app-cli/properties.msgpack*
-    rm -rf /home/arduino/.local/share/arduino-app-cli/bootloader_burned.flag
+    rm -rf /home/arduino/.local/share/arduino-app-cli
 fi
