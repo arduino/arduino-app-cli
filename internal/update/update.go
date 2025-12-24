@@ -140,9 +140,7 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 		if err := m.arduinoPlatformUpdateService.UpgradePackages(ctx, arduinoPlatform, m.broadcast); err != nil {
 			m.broadcast(NewErrorEvent(fmt.Errorf("failed to upgrade Arduino packages: %w", err)))
 
-			// TODO: decide if we want to continue with deb packages or not
-
-			// ... continue with deb packages upgrade anyway
+			// continue with deb packages upgrade.
 		}
 
 		if err := m.debUpdateService.UpgradePackages(ctx, debPkgs, m.broadcast); err != nil {
