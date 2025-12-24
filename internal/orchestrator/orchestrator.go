@@ -438,9 +438,11 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, app app.ArduinoApp,
 					"-f", mainCompose.String(),
 					cmd,
 					fmt.Sprintf("--timeout=%d", DefaultDockerStopTimeoutSeconds),
-					"--volumes",
-					"--remove-orphans",
 				}
+				if cmd == "down" {
+					args = append(args, "--volumes", "--remove-orphans")
+				}
+
 				process, err := paths.NewProcess(nil, args...)
 				if err != nil {
 					yield(StreamMessage{error: err})
