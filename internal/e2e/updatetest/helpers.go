@@ -24,7 +24,7 @@ import (
 func fetchDebPackageLatest(t *testing.T, path, repo string) string {
 	t.Helper()
 
-	repo = fmt.Sprintf("github.com/arduino/%s", repo)
+	repo = fmt.Sprintf("github.com/%s", repo)
 	cmd := exec.Command(
 		"gh", "release", "list",
 		"--repo", repo,
@@ -203,9 +203,11 @@ func runSystemUpdate(t *testing.T, containerName string) {
 		containerName,
 		"arduino-app-cli", "system", "update", "--yes",
 	)
-	output, err := cmd.CombinedOutput()
-	require.NoError(t, err, "system update failed: %s", output)
-	t.Logf("system update output: %s", output)
+
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stdout
+	err := cmd.Run()
+	require.NoError(t, err, "system update failed")
 }
 
 func stopDockerContainer(t *testing.T, containerName string) {

@@ -46,7 +46,7 @@ type UpgradablePackage struct {
 
 type ServiceUpdater interface {
 	ListUpgradablePackages(ctx context.Context, matcher func(UpgradablePackage) bool) ([]UpgradablePackage, error)
-	UpgradePackages(ctx context.Context, names []string) (<-chan Event, error)
+	UpgradePackages(ctx context.Context, names []string, eventCB func(Event)) error
 }
 
 type Manager struct {
@@ -131,6 +131,7 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 
 	go func() {
 		defer m.lock.Unlock()
+
 		// We are launching on purpose the update sequentially. The reason is that
 		// the deb pkgs restart the orchestrator, and if we run in parallel the
 		// update of the cores we will end up with inconsistent state, or
@@ -140,33 +141,32 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 		const arduinoWeight float32 = 20.0
 		const aptWeight float32 = 80.0
 
-		arduinoEvents, err := m.arduinoPlatformUpdateService.UpgradePackages(ctx, arduinoPlatform)
-		if err != nil {
-			m.broadcast(NewErrorEvent(fmt.Errorf("failed to upgrade Arduino packages: %w", err)))
-			return
-		}
-		for e := range arduinoEvents {
+		if err := m.arduinoPlatformUpdateService.UpgradePackages(ctx, arduinoPlatform, func(e Event) {
 			if e.Type == ProgressEvent {
 				globalProgress := (e.progress / 100.0) * arduinoWeight
 				m.broadcast(NewProgressEvent(globalProgress))
 			} else {
 				m.broadcast(e)
 			}
+		}); err != nil {
+			m.broadcast(NewErrorEvent(fmt.Errorf("failed to upgrade Arduino packages: %w", err)))
+
+			// continue with deb packages upgrade.
 		}
-		aptEvents, err := m.debUpdateService.UpgradePackages(ctx, debPkgs)
-		if err != nil {
-			m.broadcast(NewErrorEvent(fmt.Errorf("failed to upgrade APT packages: %w", err)))
-			return
-		}
-		for e := range aptEvents {
+
+		if err := m.debUpdateService.UpgradePackages(ctx, debPkgs, func(e Event) {
 			if e.Type == ProgressEvent {
 				globalProgress := arduinoWeight + (e.progress/100.0)*aptWeight
 				m.broadcast(NewProgressEvent(globalProgress))
 			} else {
 				m.broadcast(e)
 			}
+		}); err != nil {
+			m.broadcast(NewErrorEvent(fmt.Errorf("failed to upgrade APT packages: %w", err)))
+			return
 		}
 		m.broadcast(NewProgressEvent(100.0))
+
 		m.broadcast(NewDataEvent(DoneEvent, "Update completed"))
 	}()
 	return nil

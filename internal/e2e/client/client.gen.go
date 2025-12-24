@@ -24,11 +24,12 @@ const (
 
 // Defines values for Status.
 const (
-	Failed   Status = "failed"
-	Running  Status = "running"
-	Starting Status = "starting"
-	Stopped  Status = "stopped"
-	Stopping Status = "stopping"
+	Failed        Status = "failed"
+	Running       Status = "running"
+	Starting      Status = "starting"
+	Stopped       Status = "stopped"
+	Stopping      Status = "stopping"
+	Uninitialized Status = "uninitialized"
 )
 
 // Defines values for ListLibrariesParamsSort.
@@ -66,7 +67,7 @@ type AIModelsListResult struct {
 
 // AppBrickInstancesResult defines model for AppBrickInstancesResult.
 type AppBrickInstancesResult struct {
-	Bricks *[]BrickInstanceListItem `json:"bricks"`
+	Bricks *[]BrickInstance `json:"bricks"`
 }
 
 // AppDetailedBrick defines model for AppDetailedBrick.
@@ -158,7 +159,7 @@ type BrickDetailsResult struct {
 	UsedByApps       *[]AppReference        `json:"used_by_apps"`
 
 	// Variables Deprecated: use config_variables instead. This field is kept for backward compatibility.
-	Variables *map[string]BrickVariable `json:"variables"`
+	Variables *map[string]BrickVariable `json:"variables,omitempty"`
 }
 
 // BrickInstance defines model for BrickInstance.
@@ -172,21 +173,6 @@ type BrickInstance struct {
 	Name             *string                `json:"name,omitempty"`
 	RequireModel     *bool                  `json:"require_model,omitempty"`
 	Status           *string                `json:"status,omitempty"`
-
-	// Variables Deprecated: use config_variables instead. This field is kept for backward compatibility.
-	Variables *map[string]string `json:"variables,omitempty"`
-}
-
-// BrickInstanceListItem defines model for BrickInstanceListItem.
-type BrickInstanceListItem struct {
-	Author          *string                `json:"author,omitempty"`
-	Category        *string                `json:"category,omitempty"`
-	ConfigVariables *[]BrickConfigVariable `json:"config_variables,omitempty"`
-	Id              *string                `json:"id,omitempty"`
-	Model           *string                `json:"model,omitempty"`
-	Name            *string                `json:"name,omitempty"`
-	RequireModel    *bool                  `json:"require_model,omitempty"`
-	Status          *string                `json:"status,omitempty"`
 
 	// Variables Deprecated: use config_variables instead. This field is kept for backward compatibility.
 	Variables *map[string]string `json:"variables,omitempty"`
@@ -430,6 +416,12 @@ type CreateAppParams struct {
 	SkipSketch *bool `form:"skip-sketch,omitempty" json:"skip-sketch,omitempty"`
 }
 
+// AppSketchRemoveLibraryParams defines parameters for AppSketchRemoveLibrary.
+type AppSketchRemoveLibraryParams struct {
+	// RemoveDeps if set to "true", the library's dependencies will be removed as well if not needed anymore.
+	RemoveDeps *string `form:"remove_deps,omitempty" json:"remove_deps,omitempty"`
+}
+
 // AppSketchAddLibraryParams defines parameters for AppSketchAddLibrary.
 type AppSketchAddLibraryParams struct {
 	// AddDeps if set to "true", the library's dependencies will be added as well.
@@ -616,7 +608,7 @@ type ClientInterface interface {
 	AppSketchListLibraries(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// AppSketchRemoveLibrary request
-	AppSketchRemoveLibrary(ctx context.Context, appID string, libRef string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	AppSketchRemoveLibrary(ctx context.Context, appID string, libRef string, params *AppSketchRemoveLibraryParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// AppSketchAddLibrary request
 	AppSketchAddLibrary(ctx context.Context, appID string, libRef string, params *AppSketchAddLibraryParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -853,8 +845,8 @@ func (c *Client) AppSketchListLibraries(ctx context.Context, appID string, reqEd
 	return c.Client.Do(req)
 }
 
-func (c *Client) AppSketchRemoveLibrary(ctx context.Context, appID string, libRef string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewAppSketchRemoveLibraryRequest(c.Server, appID, libRef)
+func (c *Client) AppSketchRemoveLibrary(ctx context.Context, appID string, libRef string, params *AppSketchRemoveLibraryParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAppSketchRemoveLibraryRequest(c.Server, appID, libRef, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1636,7 +1628,7 @@ func NewAppSketchListLibrariesRequest(server string, appID string) (*http.Reques
 }
 
 // NewAppSketchRemoveLibraryRequest generates requests for AppSketchRemoveLibrary
-func NewAppSketchRemoveLibraryRequest(server string, appID string, libRef string) (*http.Request, error) {
+func NewAppSketchRemoveLibraryRequest(server string, appID string, libRef string, params *AppSketchRemoveLibraryParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -1666,6 +1658,28 @@ func NewAppSketchRemoveLibraryRequest(server string, appID string, libRef string
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.RemoveDeps != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "remove_deps", runtime.ParamLocationQuery, *params.RemoveDeps); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
@@ -2792,7 +2806,7 @@ type ClientWithResponsesInterface interface {
 	AppSketchListLibrariesWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*AppSketchListLibrariesResp, error)
 
 	// AppSketchRemoveLibraryWithResponse request
-	AppSketchRemoveLibraryWithResponse(ctx context.Context, appID string, libRef string, reqEditors ...RequestEditorFn) (*AppSketchRemoveLibraryResp, error)
+	AppSketchRemoveLibraryWithResponse(ctx context.Context, appID string, libRef string, params *AppSketchRemoveLibraryParams, reqEditors ...RequestEditorFn) (*AppSketchRemoveLibraryResp, error)
 
 	// AppSketchAddLibraryWithResponse request
 	AppSketchAddLibraryWithResponse(ctx context.Context, appID string, libRef string, params *AppSketchAddLibraryParams, reqEditors ...RequestEditorFn) (*AppSketchAddLibraryResp, error)
@@ -3823,8 +3837,8 @@ func (c *ClientWithResponses) AppSketchListLibrariesWithResponse(ctx context.Con
 }
 
 // AppSketchRemoveLibraryWithResponse request returning *AppSketchRemoveLibraryResp
-func (c *ClientWithResponses) AppSketchRemoveLibraryWithResponse(ctx context.Context, appID string, libRef string, reqEditors ...RequestEditorFn) (*AppSketchRemoveLibraryResp, error) {
-	rsp, err := c.AppSketchRemoveLibrary(ctx, appID, libRef, reqEditors...)
+func (c *ClientWithResponses) AppSketchRemoveLibraryWithResponse(ctx context.Context, appID string, libRef string, params *AppSketchRemoveLibraryParams, reqEditors ...RequestEditorFn) (*AppSketchRemoveLibraryResp, error) {
+	rsp, err := c.AppSketchRemoveLibrary(ctx, appID, libRef, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

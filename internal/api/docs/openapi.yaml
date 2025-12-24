@@ -1674,6 +1674,7 @@ components:
       - stopping
       - stopped
       - failed
+      - uninitialized
       type: string
       uniqueItems: true
     UpdateCheckResult:

@@ -21,6 +21,7 @@ import (
 	"iter"
 	"log/slog"
 
+	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
@@ -81,14 +82,15 @@ func AppStatusEvents(ctx context.Context, cfg config.Configuration, docker comma
 func parseDockerStatusEvent(ctx context.Context, cfg config.Configuration, docker command.Cli, idProvider *app.IDProvider, event events.Message) (AppInfo, error) {
 
 	if pathLabel, ok := event.Actor.Attributes[DockerAppPathLabel]; ok {
-
-		appStatus, err := getAppStatusByPath(ctx, docker.Client(), pathLabel)
+		app, err := app.Load(paths.New(pathLabel))
 		if err != nil {
+			slog.Warn("error loading app", "appPath", pathLabel, "error", err)
 			return AppInfo{}, err
 		}
 
-		if appStatus == nil {
-			return AppInfo{}, fmt.Errorf("app containers not found for: %s", pathLabel)
+		appStatus, err := getAppStatus(ctx, docker.Client(), app)
+		if err != nil {
+			return AppInfo{}, err
 		}
 
 		defaultApp, err := GetDefaultApp(cfg)
@@ -97,12 +99,6 @@ func parseDockerStatusEvent(ctx context.Context, cfg config.Configuration, docke
 		}
 
 		// FIXME: create an helper function to transform an app.ArduinoApp into an ortchestrator.AppInfo
-		app, err := app.Load(appStatus.AppPath)
-		if err != nil {
-			slog.Warn("error loading app", "appPath", appStatus.AppPath.String(), "error", err)
-			return AppInfo{}, err
-		}
-
 		id, err := idProvider.IDFromPath(appStatus.AppPath)
 		if err != nil {
 			return AppInfo{}, err

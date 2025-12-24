@@ -35,6 +35,7 @@ func NewAppCmd(cfg config.Configuration) *cobra.Command {
 	appCmd.AddCommand(newCreateCmd(cfg))
 	appCmd.AddCommand(newStartCmd(cfg))
 	appCmd.AddCommand(newStopCmd(cfg))
+	appCmd.AddCommand(newDestroyCmd(cfg))
 	appCmd.AddCommand(newRestartCmd(cfg))
 	appCmd.AddCommand(newLogsCmd(cfg))
 	appCmd.AddCommand(newListCmd(cfg))

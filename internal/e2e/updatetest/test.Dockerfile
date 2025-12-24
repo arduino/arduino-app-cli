@@ -1,7 +1,7 @@
 FROM debian:trixie
 
 RUN apt update && \
-    apt install -y systemd systemd-sysv dbus \
+    apt install -y systemd systemd-sysv dbus initramfs-tools\
     sudo docker.io ca-certificates curl gnupg \
     dpkg-dev apt-utils adduser gzip && \
     rm -rf /var/lib/apt/lists/*
@@ -11,9 +11,10 @@ ARG ARCH=amd64
 COPY build/stable/arduino-app-cli*_${ARCH}.deb /tmp/stable.deb
 COPY build/arduino-app-cli*_${ARCH}.deb /tmp/unstable.deb
 COPY build/stable/arduino-router*_${ARCH}.deb /tmp/router.deb
+COPY build/stable/arduino-unoq-radio-firmware*_${ARCH}.deb /tmp/radio-firmware.deb
 
-RUN apt update && apt install -y /tmp/stable.deb /tmp/router.deb \
-    && rm /tmp/stable.deb /tmp/router.deb \
+RUN apt update && apt install -y /tmp/stable.deb  /tmp/radio-firmware.deb /tmp/router.deb \
+    && rm /tmp/stable.deb /tmp/router.deb /tmp/radio-firmware.deb \
     && mkdir -p /var/www/html/myrepo/dists/trixie/main/binary-${ARCH} \
     && mv /tmp/unstable.deb /var/www/html/myrepo/dists/trixie/main/binary-${ARCH}/
 

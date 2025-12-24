@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
-	"github.com/docker/cli/cli/command"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	dockerClient "github.com/docker/docker/client"
@@ -57,7 +56,8 @@ func parseAppStatus(containers []container.Summary) []AppStatusInfo {
 		if !ok {
 			continue
 		}
-		appsStatusMap[appPath] = append(appsStatusMap[appPath], StatusFromDockerState(c.State))
+		appsStatusMap[appPath] = append(appsStatusMap[appPath], StatusFromDockerState(c.State, c.Status))
+
 	}
 
 	appendResult := func(appPath *paths.Path, status Status) {
@@ -137,46 +137,31 @@ func getAppsStatus(
 	return nil, nil
 }
 
-func getAppStatusByPath(
-	ctx context.Context,
-	docker dockerClient.APIClient,
-	pathLabel string,
-) (*AppStatusInfo, error) {
-	containers, err := docker.ContainerList(ctx, container.ListOptions{
-		All:     true,
-		Filters: filters.NewArgs(filters.Arg("label", DockerAppPathLabel+"="+pathLabel)),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list containers: %w", err)
-	}
-	if len(containers) == 0 {
-		return nil, nil
-	}
-
-	app := parseAppStatus(containers)
-	if len(app) == 0 {
-		return nil, nil
-	}
-	return &app[0], nil
-}
-
-// TODO: merge this with the more efficient getAppStatusByPath
 func getAppStatus(
 	ctx context.Context,
-	docker command.Cli,
+	docker dockerClient.APIClient,
 	app app.ArduinoApp,
 ) (AppStatusInfo, error) {
-	apps, err := getAppsStatus(ctx, docker.Client())
-	if err != nil {
-		return AppStatusInfo{}, fmt.Errorf("failed to get app status: %w", err)
-	}
-	idx := slices.IndexFunc(apps, func(a AppStatusInfo) bool {
-		return a.AppPath.String() == app.FullPath.String()
+	containers, err := docker.ContainerList(ctx, container.ListOptions{
+		All:     true,
+		Filters: filters.NewArgs(filters.Arg("label", DockerAppPathLabel+"="+app.FullPath.String())),
 	})
-	if idx == -1 {
-		return AppStatusInfo{}, fmt.Errorf("app %s not found", app.FullPath)
+	if err != nil {
+		return AppStatusInfo{}, fmt.Errorf("failed to list containers: %w", err)
 	}
-	return apps[idx], nil
+
+	if len(containers) == 0 {
+		return AppStatusInfo{
+			AppPath: app.FullPath,
+			Status:  StatusUninitialized,
+		}, nil
+	}
+
+	appInfo := parseAppStatus(containers)
+	if len(appInfo) == 0 {
+		return AppStatusInfo{}, fmt.Errorf("no app status found for app at path %s", app.FullPath)
+	}
+	return appInfo[0], nil
 }
 
 func getRunningApp(
