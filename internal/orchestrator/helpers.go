@@ -36,21 +36,6 @@ import (
 type AppStatusInfo struct {
 	AppPath *paths.Path
 	Status  Status
-
-	appCache *app.ArduinoApp
-}
-
-func (a *AppStatusInfo) GetApp() (app.ArduinoApp, error) {
-	if a.appCache != nil {
-		return *a.appCache, nil
-	}
-
-	loadedApp, err := app.Load(a.AppPath)
-	if err != nil {
-		return app.ArduinoApp{}, err
-	}
-	a.appCache = &loadedApp
-	return loadedApp, nil
 }
 
 // parseAppStatus takes all the containers that matches the DockerAppLabel,
