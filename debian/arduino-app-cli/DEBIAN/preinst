@@ -24,17 +24,12 @@ if ! getent group "$SYSUPGRADE_GROUP" >/dev/null 2>&1; then
 fi
 usermod -aG "$SYSUPGRADE_GROUP" "$APP_USER"
 
-
 # SHARED_FUNCTIONS
-
 if [ "$1" = "upgrade" ]; then
   # check if this is an upgrade from an old version
-  if dpkg --compare-versions "$2" lt "0.9.0"; then
-    echo "Running pre-0.9.0 legacy migration..."
     cleanup_arduino_examples /home/arduino/.local/share/arduino-app-cli/examples
     mkdir -p /var/lib/arduino-app-cli
     cp -rf /home/arduino/.local/share/arduino-app-cli/examples /var/lib/arduino-app-cli
     cp -rf /home/arduino/.local/share/arduino-app-cli/properties.msgpack* /var/lib/arduino-app-cli
     cp -rf /home/arduino/.local/share/arduino-app-cli/bootloader_burned.flag /var/lib/arduino-app-cli
-  fi
 fi
