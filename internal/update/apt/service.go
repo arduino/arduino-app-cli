@@ -92,7 +92,7 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string, eventCB f
 	}()
 
 	eventCB(update.NewDataEvent(update.StartEvent, "Upgrade is starting"))
-	eventCB(update.NewProgressEvent(0.0))
+	eventCB(update.NewProgressEvent("apt upgrade", 0.0))
 	stream := runUpgradeCommand(ctx, names)
 	for line, err := range stream {
 		if err != nil {
@@ -101,7 +101,7 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string, eventCB f
 		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 	}
 	eventCB(update.NewDataEvent(update.StartEvent, "apt cleaning cache is starting"))
-	eventCB(update.NewProgressEvent(80.0))
+	eventCB(update.NewProgressEvent("apt cleanup", 80.0))
 	for line, err := range runAptCleanCommand(ctx) {
 		if err != nil {
 			return fmt.Errorf("error running apt clean command: %w", err)
@@ -109,7 +109,7 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string, eventCB f
 
 		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 	}
-	eventCB(update.NewProgressEvent(85.0))
+	eventCB(update.NewProgressEvent("remove old bricks", 85.0))
 	eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Stop and destroy docker containers and images ...."))
 	streamCleanup := cleanupDockerContainers(ctx)
 	for line, err := range streamCleanup {
@@ -121,7 +121,7 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string, eventCB f
 			eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 		}
 	}
-	eventCB(update.NewProgressEvent(90.0))
+	eventCB(update.NewProgressEvent("pull new bricks", 90.0))
 
 	// TODO: Remove this workaround once docker image versions are no longer hardcoded in arduino-app-cli.
 	// Tracking issue: https://github.com/arduino/arduino-app-cli/issues/600

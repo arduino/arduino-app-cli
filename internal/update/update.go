@@ -143,8 +143,9 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 
 		if err := m.arduinoPlatformUpdateService.UpgradePackages(ctx, arduinoPlatform, func(e Event) {
 			if e.Type == ProgressEvent {
-				globalProgress := (e.GetProgress() / 100.0) * arduinoWeight
-				m.broadcast(NewProgressEvent(globalProgress))
+				progress := e.GetProgress()
+				globalProgress := (progress.Progress / 100.0) * arduinoWeight
+				m.broadcast(NewProgressEvent(progress.Name, globalProgress))
 			} else {
 				m.broadcast(e)
 			}
@@ -156,8 +157,9 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 
 		if err := m.debUpdateService.UpgradePackages(ctx, debPkgs, func(e Event) {
 			if e.Type == ProgressEvent {
-				globalProgress := arduinoWeight + (e.GetProgress()/100.0)*aptWeight
-				m.broadcast(NewProgressEvent(globalProgress))
+				progress := e.GetProgress()
+				globalProgress := arduinoWeight + (progress.Progress/100.0)*aptWeight
+				m.broadcast(NewProgressEvent(progress.Name, globalProgress))
 			} else {
 				m.broadcast(e)
 			}
@@ -165,7 +167,8 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 			m.broadcast(NewErrorEvent(fmt.Errorf("failed to upgrade APT packages: %w", err)))
 			return
 		}
-		m.broadcast(NewProgressEvent(100.0))
+
+		m.broadcast(NewProgressEvent("upgrade", 100.0))
 
 		m.broadcast(NewDataEvent(DoneEvent, "Update completed"))
 	}()

@@ -34,9 +34,14 @@ const (
 // Event represents a single event in the upgrade process.
 type Event struct {
 	Type     EventType
-	progress float32
+	progress *ProgressInfo
 	data     string
 	err      error // error field for error events
+}
+
+type ProgressInfo struct {
+	Name     string
+	Progress float32
 }
 
 func (t EventType) String() string {
@@ -65,10 +70,10 @@ func NewDataEvent(t EventType, data string) Event {
 	}
 }
 
-func NewProgressEvent(progress float32) Event {
+func NewProgressEvent(name string, progress float32) Event {
 	return Event{
 		Type:     ProgressEvent,
-		progress: progress,
+		progress: &ProgressInfo{Name: name, Progress: progress},
 	}
 }
 
@@ -89,9 +94,9 @@ func (e Event) GetError() error {
 	return e.err
 }
 
-func (e Event) GetProgress() float32 {
+func (e Event) GetProgress() ProgressInfo {
 	f.Assert(e.Type == ProgressEvent, "not a progress event")
-	return e.progress
+	return *e.progress
 }
 
 type PackageType string
