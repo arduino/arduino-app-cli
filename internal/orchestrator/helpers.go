@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
-	"github.com/docker/cli/cli/command"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	dockerClient "github.com/docker/docker/client"
@@ -188,25 +187,6 @@ func getAppStatusByPath(
 		return notFoundOrUninitialized(pathLabel)
 	}
 	return app[0], nil
-}
-
-// TODO: merge this with the more efficient getAppStatusByPath
-func getAppStatus(
-	ctx context.Context,
-	docker command.Cli,
-	app app.ArduinoApp,
-) (AppStatusInfo, error) {
-	apps, err := getAppsStatus(ctx, docker.Client())
-	if err != nil {
-		return AppStatusInfo{}, fmt.Errorf("failed to get app status: %w", err)
-	}
-	idx := slices.IndexFunc(apps, func(a AppStatusInfo) bool {
-		return a.AppPath.String() == app.FullPath.String()
-	})
-	if idx == -1 {
-		return AppStatusInfo{}, fmt.Errorf("app %s not found", app.FullPath)
-	}
-	return apps[idx], nil
 }
 
 func getRunningApp(

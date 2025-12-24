@@ -420,7 +420,7 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, app app.ArduinoApp,
 
 		if _, ok := app.GetSketchPath(); ok {
 			// Before stopping the microcontroller we want to make sure that the app was running.
-			appStatus, err := getAppStatus(ctx, docker, app)
+			appStatus, err := getAppStatusByPath(ctx, docker.Client(), app.FullPath.String())
 			if err != nil {
 				yield(StreamMessage{error: err})
 				return
@@ -761,7 +761,7 @@ func AppDetails(
 	var status Status
 	go func() {
 		defer wg.Done()
-		app, err := getAppStatus(ctx, docker, userApp)
+		app, err := getAppStatusByPath(ctx, docker.Client(), userApp.FullPath.String())
 		if err != nil {
 			slog.Warn("unable to get app status", slog.String("error", err.Error()), slog.String("path", userApp.FullPath.String()))
 			status = StatusStopped
