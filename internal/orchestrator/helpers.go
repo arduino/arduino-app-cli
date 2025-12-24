@@ -41,7 +41,7 @@ type AppStatusInfo struct {
 	appCache *app.ArduinoApp
 }
 
-func (a AppStatusInfo) GetApp() (app.ArduinoApp, error) {
+func (a *AppStatusInfo) GetApp() (app.ArduinoApp, error) {
 	if a.appCache != nil {
 		return *a.appCache, nil
 	}
