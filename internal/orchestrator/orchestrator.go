@@ -418,7 +418,7 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, app app.ArduinoApp,
 				yield(StreamMessage{error: err})
 				return
 			}
-			if running != nil || running.FullPath.String() == app.FullPath.String() {
+			if running != nil && running.FullPath.String() == app.FullPath.String() {
 				if !yield(StreamMessage{data: "Stopping microcontroller..."}) {
 					return
 				}
