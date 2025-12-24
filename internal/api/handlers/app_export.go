@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
@@ -25,7 +27,11 @@ func HandleAppExport(
 		app, err := app.Load(id.ToPath())
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", id.String()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
+			if errors.Is(err, os.ErrNotExist) {
+				render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: "unable to find the app"})
+			} else {
+				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to parse the app"})
+			}
 			return
 		}
 

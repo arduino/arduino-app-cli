@@ -428,6 +428,12 @@ type AppSketchAddLibraryParams struct {
 	AddDeps *string `form:"add_deps,omitempty" json:"add_deps,omitempty"`
 }
 
+// ExportAppParams defines parameters for ExportApp.
+type ExportAppParams struct {
+	// IncludeData If true, the exported archive will include the 'data' directory. Default is false.
+	IncludeData *bool `form:"include_data,omitempty" json:"include_data,omitempty"`
+}
+
 // GetAppLogsParams defines parameters for GetAppLogs.
 type GetAppLogsParams struct {
 	Filter   *string `form:"filter,omitempty" json:"filter,omitempty"`
@@ -631,6 +637,9 @@ type ClientInterface interface {
 
 	// GetAppEvents request
 	GetAppEvents(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ExportApp request
+	ExportApp(ctx context.Context, id string, params *ExportAppParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAppLogs request
 	GetAppLogs(ctx context.Context, id string, params *GetAppLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -943,6 +952,18 @@ func (c *Client) CloneApp(ctx context.Context, id string, body CloneAppJSONReque
 
 func (c *Client) GetAppEvents(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAppEventsRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ExportApp(ctx context.Context, id string, params *ExportAppParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewExportAppRequest(c.Server, id, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1949,6 +1970,62 @@ func NewGetAppEventsRequest(server string, id string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewExportAppRequest generates requests for ExportApp
+func NewExportAppRequest(server string, id string, params *ExportAppParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/apps/%s/export", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.IncludeData != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "include_data", runtime.ParamLocationQuery, *params.IncludeData); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetAppLogsRequest generates requests for GetAppLogs
 func NewGetAppLogsRequest(server string, id string, params *GetAppLogsParams) (*http.Request, error) {
 	var err error
@@ -2830,6 +2907,9 @@ type ClientWithResponsesInterface interface {
 	// GetAppEventsWithResponse request
 	GetAppEventsWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetAppEventsResp, error)
 
+	// ExportAppWithResponse request
+	ExportAppWithResponse(ctx context.Context, id string, params *ExportAppParams, reqEditors ...RequestEditorFn) (*ExportAppResp, error)
+
 	// GetAppLogsWithResponse request
 	GetAppLogsWithResponse(ctx context.Context, id string, params *GetAppLogsParams, reqEditors ...RequestEditorFn) (*GetAppLogsResp, error)
 
@@ -3293,6 +3373,30 @@ func (r GetAppEventsResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetAppEventsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ExportAppResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r ExportAppResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ExportAppResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3913,6 +4017,15 @@ func (c *ClientWithResponses) GetAppEventsWithResponse(ctx context.Context, id s
 		return nil, err
 	}
 	return ParseGetAppEventsResp(rsp)
+}
+
+// ExportAppWithResponse request returning *ExportAppResp
+func (c *ClientWithResponses) ExportAppWithResponse(ctx context.Context, id string, params *ExportAppParams, reqEditors ...RequestEditorFn) (*ExportAppResp, error) {
+	rsp, err := c.ExportApp(ctx, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseExportAppResp(rsp)
 }
 
 // GetAppLogsWithResponse request returning *GetAppLogsResp
@@ -4781,6 +4894,46 @@ func ParseGetAppEventsResp(rsp *http.Response) (*GetAppEventsResp, error) {
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseExportAppResp parses an HTTP response from a ExportAppWithResponse call
+func ParseExportAppResp(rsp *http.Response) (*ExportAppResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ExportAppResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

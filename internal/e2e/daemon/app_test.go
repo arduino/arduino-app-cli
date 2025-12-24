@@ -16,7 +16,9 @@
 package daemon
 
 import (
+	"archive/zip"
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -28,6 +30,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.bug.st/f"
 
@@ -1008,5 +1011,119 @@ func TestAppList(t *testing.T) {
 		require.Equal(t, true, *(*resp.JSON200.Apps)[0].Default, "The app should be default")
 		app := (*resp.JSON200.Apps)[0]
 		require.Equal(t, "HelloWorld-default", *app.Name, "The app name should be 'HelloWorld-default'")
+	})
+}
+
+func TestExportApp(t *testing.T) {
+	httpClient := GetHttpclient(t)
+
+	appName := "AppToExport"
+	createResp, err := httpClient.CreateAppWithResponse(
+		t.Context(),
+		&client.CreateAppParams{SkipSketch: f.Ptr(true)},
+		client.CreateAppRequest{
+			Icon:        f.Ptr("📦"),
+			Name:        appName,
+			Description: f.Ptr("An app to test export functionality"),
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode())
+	require.NotNil(t, createResp.JSON201)
+
+	validAppId := *createResp.JSON201.Id
+
+	readZipFiles := func(t *testing.T, body io.Reader) []string {
+		bodyBytes, err := io.ReadAll(body)
+		require.NoError(t, err)
+
+		zipReader, err := zip.NewReader(bytes.NewReader(bodyBytes), int64(len(bodyBytes)))
+		require.NoError(t, err, "Response body is not a valid zip archive")
+
+		var files []string
+		for _, f := range zipReader.File {
+			files = append(files, f.Name)
+		}
+		return files
+	}
+
+	t.Run("ExportDefault_Success", func(t *testing.T) {
+		exportResp, err := httpClient.ExportApp(
+			t.Context(),
+			validAppId,
+			&client.ExportAppParams{},
+		)
+		require.NoError(t, err)
+		defer exportResp.Body.Close()
+
+		require.Equal(t, http.StatusOK, exportResp.StatusCode)
+		require.Equal(t, "application/zip", exportResp.Header.Get("Content-Type"))
+		require.Contains(t, exportResp.Header.Get("Content-Disposition"), "attachment; filename=")
+
+		files := readZipFiles(t, exportResp.Body)
+		assert.Contains(t, files, "app.yaml")
+		assert.Contains(t, files, "python/main.py")
+		assert.NotContains(t, files, ".cache")
+	})
+
+	t.Run("ExportWithIncludeData_Success", func(t *testing.T) {
+		exportResp, err := httpClient.ExportApp(
+			t.Context(),
+			validAppId,
+			&client.ExportAppParams{
+				IncludeData: f.Ptr(true),
+			},
+		)
+		require.NoError(t, err)
+		defer exportResp.Body.Close()
+
+		require.Equal(t, http.StatusOK, exportResp.StatusCode)
+		require.Equal(t, "application/zip", exportResp.Header.Get("Content-Type"))
+		files := readZipFiles(t, exportResp.Body)
+		assert.Contains(t, files, "app.yaml")
+	})
+
+	t.Run("InvalidAppId_Fail", func(t *testing.T) {
+		malformedId := "user:test-plain-text"
+
+		exportResp, err := httpClient.ExportApp(
+			t.Context(),
+			malformedId,
+			&client.ExportAppParams{},
+		)
+		require.NoError(t, err)
+		defer exportResp.Body.Close()
+
+		require.Equal(t, http.StatusPreconditionFailed, exportResp.StatusCode)
+
+		var actualResponseBody models.ErrorResponse
+		body, err := io.ReadAll(exportResp.Body)
+		require.NoError(t, err)
+
+		err = json.Unmarshal(body, &actualResponseBody)
+		require.NoError(t, err)
+		require.Equal(t, "invalid id", actualResponseBody.Details)
+	})
+
+	t.Run("NonExistentAppId_Fail", func(t *testing.T) {
+		nonExistentId := "dXNlcjpub24tZXhpc3RlbnQtYXBw"
+
+		exportResp, err := httpClient.ExportApp(
+			t.Context(),
+			nonExistentId,
+			&client.ExportAppParams{},
+		)
+		require.NoError(t, err)
+		defer exportResp.Body.Close()
+
+		require.Equal(t, http.StatusNotFound, exportResp.StatusCode)
+
+		var actualResponseBody models.ErrorResponse
+		body, err := io.ReadAll(exportResp.Body)
+		require.NoError(t, err)
+
+		err = json.Unmarshal(body, &actualResponseBody)
+		require.NoError(t, err)
+		require.Contains(t, actualResponseBody.Details, "unable to find the app")
 	})
 }
