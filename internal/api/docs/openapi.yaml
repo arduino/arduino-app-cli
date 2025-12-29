@@ -710,6 +710,53 @@ paths:
       summary: Get application events
       tags:
       - Application
+  /v1/apps/import:
+    post:
+      description: Imports a new application from a ZIP file. The system extracts
+        the archive, validates the app.yaml manifest, sanitizes the name, and returns
+        the ID in Base64.
+      operationId: importApp
+      parameters:
+      - description: The ZIP archive containing the application structure. Must contain
+          app.yaml. and python folder
+        in: query
+        name: file
+        schema:
+          description: The ZIP archive containing the application structure. Must
+            contain app.yaml. and python folder
+          format: base64
+          type: string
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                file:
+                  description: The ZIP archive containing the application structure.
+                    Must contain app.yaml. and python folder
+                  format: base64
+                  type: string
+              type: object
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    description: The Base64 encoded identifier of the imported application.
+                    type: string
+                type: object
+          description: Application imported successfully.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Imports an app from ZIP
+      tags:
+      - Application
   /v1/bricks:
     get:
       description: Returns all the existing bricks. Bricks that are ready to use are

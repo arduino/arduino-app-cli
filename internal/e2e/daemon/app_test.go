@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
@@ -1125,5 +1126,101 @@ func TestExportApp(t *testing.T) {
 		err = json.Unmarshal(body, &actualResponseBody)
 		require.NoError(t, err)
 		require.Contains(t, actualResponseBody.Details, "unable to find the app")
+	})
+}
+
+func TestImportApp(t *testing.T) {
+	httpClient := GetHttpclient(t)
+
+	createZipBytes := func(t *testing.T, files map[string]string) []byte {
+		buf := new(bytes.Buffer)
+		zipWriter := zip.NewWriter(buf)
+
+		for name, content := range files {
+			f, err := zipWriter.Create(name)
+			require.NoError(t, err)
+			_, err = f.Write([]byte(content))
+			require.NoError(t, err)
+		}
+		require.NoError(t, zipWriter.Close())
+		return buf.Bytes()
+	}
+
+	createMultipartBody := func(t *testing.T, zipData []byte) (*bytes.Buffer, string) {
+		body := new(bytes.Buffer)
+		writer := multipart.NewWriter(body)
+		part, err := writer.CreateFormFile("file", "test-app.zip")
+		require.NoError(t, err)
+
+		_, err = part.Write(zipData)
+		require.NoError(t, err)
+
+		err = writer.Close()
+		require.NoError(t, err)
+
+		return body, writer.FormDataContentType()
+	}
+
+	t.Run("Import_ValidApp_Success", func(t *testing.T) {
+		appName := "imported-app-e2e"
+		zipData := createZipBytes(t, map[string]string{
+			"app.yaml":       fmt.Sprintf("name: %s\ndescription: my app", appName),
+			"python/main.py": "print('Hello imported world')",
+		})
+
+		bodyBuf, contentType := createMultipartBody(t, zipData)
+
+		importResp, err := httpClient.ImportAppWithBodyWithResponse(
+			t.Context(),
+			&client.ImportAppParams{},
+			contentType,
+			bodyBuf,
+		)
+		require.NoError(t, err)
+
+		require.Equal(t, http.StatusCreated, importResp.StatusCode())
+		require.NotNil(t, importResp.JSON201)
+		require.NotEmpty(t, importResp.JSON201.Id)
+
+		importedAppId := *importResp.JSON201.Id
+
+		getResp, err := httpClient.GetAppDetailsWithResponse(t.Context(), importedAppId)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, getResp.StatusCode())
+
+		require.Equal(t, appName, getResp.JSON200.Name)
+	})
+
+	t.Run("Import_MissingManifest_Fail", func(t *testing.T) {
+		zipData := createZipBytes(t, map[string]string{
+			"python/main.py": "print('No manifest here')",
+		})
+
+		bodyBuf, contentType := createMultipartBody(t, zipData)
+
+		importResp, err := httpClient.ImportAppWithBodyWithResponse(
+			t.Context(),
+			&client.ImportAppParams{},
+			contentType,
+			bodyBuf,
+		)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusBadRequest, importResp.StatusCode())
+
+	})
+
+	t.Run("Import_InvalidZip_Fail", func(t *testing.T) {
+		fakeZipData := []byte("not valid zip content")
+
+		bodyBuf, contentType := createMultipartBody(t, fakeZipData)
+
+		importResp, err := httpClient.ImportAppWithBodyWithResponse(
+			t.Context(),
+			&client.ImportAppParams{},
+			contentType,
+			bodyBuf,
+		)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusBadRequest, importResp.StatusCode())
 	})
 }

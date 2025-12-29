@@ -563,6 +563,31 @@ Contains a JSON object with the details of an error.
 			},
 		},
 		{
+			OperationId: "importApp",
+			Method:      http.MethodPost,
+			Path:        "/v1/apps/import",
+			Parameters:  nil,
+			Request: (*struct {
+				File []byte `form:"file" description:"The ZIP archive containing the application structure. Must contain app.yaml. and python folder" validate:"required"`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType: "application/json",
+				StatusCode:  http.StatusCreated,
+				DataStructure: struct {
+					ID string `json:"id" description:"The Base64 encoded identifier of the imported application."`
+				}{},
+				Description: "Application imported successfully.",
+			},
+			Description: "Imports a new application from a ZIP file. The system extracts the archive, validates the app.yaml manifest, sanitizes the name, and returns the ID in Base64.",
+			Summary:     "Imports an app from ZIP",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusConflict, Reference: "#/components/responses/Conflict"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
 			OperationId: "exportApp",
 			Method:      http.MethodGet,
 			Path:        "/v1/apps/{id}/export",
