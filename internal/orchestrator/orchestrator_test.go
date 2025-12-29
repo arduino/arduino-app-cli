@@ -16,7 +16,10 @@
 package orchestrator
 
 import (
+	"archive/zip"
+	"bytes"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
@@ -627,4 +630,104 @@ func TestValidateDevice(t *testing.T) {
 		err := validateDevices(&dev, requiredDeviceClasses)
 		assert.Error(t, err)
 	})
+}
+
+func createMockZip(t *testing.T, files map[string]string) *zip.Reader {
+	buf := new(bytes.Buffer)
+	w := zip.NewWriter(buf)
+
+	for name, content := range files {
+		f, err := w.Create(name)
+		if err != nil {
+			t.Fatalf("Failed to create mock zip entry: %v", err)
+		}
+		_, err = f.Write([]byte(content))
+		if err != nil {
+			t.Fatalf("Failed to write mock zip content: %v", err)
+		}
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("Failed to close zip writer: %v", err)
+	}
+
+	r, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatalf("Failed to create zip reader: %v", err)
+	}
+	return r
+}
+
+func TestScanZipContent(t *testing.T) {
+	tests := []struct {
+		name          string
+		files         map[string]string
+		wantAppName   string
+		wantErr       bool
+		errorContains string
+	}{
+		{
+			name: "Success - Simple Name",
+			files: map[string]string{
+				"app.yaml": "name: my-app\ndescription: my app",
+				"main.py":  "print('hello')",
+			},
+			wantAppName: "my-app",
+			wantErr:     false,
+		},
+		{
+			name: "Success - Sanitize Spaces and Case",
+			files: map[string]string{
+				"app.yaml": "name: My App \n",
+			},
+			wantAppName: "my-app",
+			wantErr:     false,
+		},
+		{
+			name: "Error - Missing app.yaml",
+			files: map[string]string{
+				"main.py": "print('hello')",
+			},
+			wantErr:       true,
+			errorContains: "app.yaml not found",
+		},
+		{
+			name: "Error - Invalid YAML",
+			files: map[string]string{
+				"app.yaml": "name: [invalid yaml content...",
+			},
+			wantErr:       true,
+			errorContains: "decode app.yaml",
+		},
+		{
+			name: "Error - Missing Name Field",
+			files: map[string]string{
+				"app.yaml": "description: my app",
+			},
+			wantErr:       true,
+			errorContains: "missing required 'name'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := createMockZip(t, tt.files)
+
+			gotName, _, err := scanZipContent(r)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("scanZipContent() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if err != nil && tt.errorContains != "" {
+				if !strings.Contains(err.Error(), tt.errorContains) {
+					t.Errorf("scanZipContent() error = %v, expected to contain %v", err, tt.errorContains)
+				}
+			}
+
+			if !tt.wantErr && gotName != tt.wantAppName {
+				t.Errorf("scanZipContent() gotName = %v, want %v", gotName, tt.wantAppName)
+			}
+		})
+	}
 }
