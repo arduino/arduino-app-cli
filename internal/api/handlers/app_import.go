@@ -6,6 +6,7 @@
 package handlers
 
 import (
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
@@ -24,6 +26,7 @@ type ImportResponse struct {
 
 func HandleAppImport(
 	cfg config.Configuration,
+	idProvider *app.IDProvider,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		file, _, err := r.FormFile("file")
@@ -51,7 +54,7 @@ func HandleAppImport(
 		}
 		tempFile.Close()
 
-		appID, err := orchestrator.ImportAppFromZip(tempPath, cfg.AppsDir())
+		appID, err := orchestrator.ImportAppFromZip(cfg, tempPath, idProvider)
 		if err != nil {
 			handleImportError(w, err)
 			return
@@ -65,14 +68,15 @@ func HandleAppImport(
 func handleImportError(w http.ResponseWriter, err error) {
 	slog.Error("import failed", slog.String("error", err.Error()))
 
-	if strings.Contains(err.Error(), "already exists") {
+	if errors.Is(err, orchestrator.ErrAppAlreadyExists) {
 		render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: err.Error()})
 		return
 	}
-	if strings.Contains(err.Error(), "invalid") || strings.Contains(err.Error(), "missing") {
+	if errors.Is(err, orchestrator.ErrBadRequest) ||
+		strings.Contains(err.Error(), "not a valid zip file") {
 		render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
 		return
 	}
 
-	render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "failed to process the archive"})
+	render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "failed to process the archive: " + err.Error()})
 }

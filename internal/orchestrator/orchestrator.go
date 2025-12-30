@@ -56,6 +56,7 @@ var (
 	ErrAppAlreadyExists = fmt.Errorf("app already exists")
 	ErrAppDoesntExists  = fmt.Errorf("app doesn't exist")
 	ErrAppNotFound      = fmt.Errorf("app not found")
+	ErrBadRequest       = fmt.Errorf("bad request")
 )
 
 const (
@@ -1043,10 +1044,12 @@ func zipAppToBuffer(sourcePath string, includeData bool) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func ImportAppFromZip(zipPath string, appsBasePath *paths.Path) (string, error) {
+func ImportAppFromZip(cfg config.Configuration, zipPath string, idProvider *app.IDProvider) (string, error) {
+
+	appsBasePath := cfg.AppsDir()
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
-		return "", fmt.Errorf("open zip archive: %w", err)
+		return "", fmt.Errorf("unable to open zip archive. %w", err)
 	}
 	defer r.Close()
 
@@ -1056,20 +1059,21 @@ func ImportAppFromZip(zipPath string, appsBasePath *paths.Path) (string, error) 
 	}
 
 	if err := app.ValidateStructure(fileList); err != nil {
-		return "", fmt.Errorf("invalid app structure: %w", err)
+		return "", fmt.Errorf("invalid app structure. %w", err)
 	}
 
 	if err := validateAppName(appName); err != nil {
 		return "", err
 	}
 
-	finalDestPath := appsBasePath.Join(appName).String()
-	if err := ensureAppDoesNotExist(finalDestPath, appName); err != nil {
-		return "", err
+	basePath, appExists := findAppPathByName(appName, cfg)
+	if appExists {
+		return "", ErrAppAlreadyExists
 	}
+	finalDestPath := basePath.String()
 
 	if err := os.MkdirAll(finalDestPath, 0755); err != nil {
-		return "", fmt.Errorf("create app directory: %w", err)
+		return "", fmt.Errorf("unable to create app directory. %w", err)
 	}
 
 	if err := extractZip(&r.Reader, finalDestPath); err != nil {
@@ -1077,7 +1081,11 @@ func ImportAppFromZip(zipPath string, appsBasePath *paths.Path) (string, error) 
 		return "", err
 	}
 
-	return appName, nil
+	id, err := idProvider.IDFromPath(appsBasePath.Join(appName))
+	if err != nil {
+		return "", err
+	}
+	return id.String(), nil
 }
 
 func scanZipContent(r *zip.Reader) (string, []string, error) {
@@ -1095,7 +1103,7 @@ func scanZipContent(r *zip.Reader) (string, []string, error) {
 		if name == "app.yaml" {
 			rc, err := f.Open()
 			if err != nil {
-				return "", nil, fmt.Errorf("open app.yaml: %w", err)
+				return "", nil, fmt.Errorf("unable to open app.yaml: %w", err)
 			}
 
 			limitReader := io.LimitReader(rc, 1024*1024)
@@ -1103,7 +1111,7 @@ func scanZipContent(r *zip.Reader) (string, []string, error) {
 			var partial partialManifest
 			if err := yaml.NewDecoder(limitReader).Decode(&partial); err != nil {
 				rc.Close()
-				return "", nil, fmt.Errorf("decode app.yaml: %w", err)
+				return "", nil, fmt.Errorf("%w: decode app.yaml failed. %v", ErrBadRequest, err)
 			}
 			rc.Close()
 
@@ -1116,11 +1124,11 @@ func scanZipContent(r *zip.Reader) (string, []string, error) {
 	}
 
 	if !foundAppYaml {
-		return "", nil, fmt.Errorf("app.yaml not found in archive")
+		return "", nil, fmt.Errorf("%w: app.yaml not found in archive", ErrBadRequest)
 	}
 
 	if appName == "" {
-		return "", nil, fmt.Errorf("app.yaml missing required 'name' field")
+		return "", nil, fmt.Errorf("%w: app.yaml missing required 'name' field", ErrBadRequest)
 	}
 
 	return appName, fileList, nil
@@ -1138,14 +1146,7 @@ func validateAppName(name string) error {
 
 	return nil
 }
-func ensureAppDoesNotExist(path string, appName string) error {
-	if _, err := os.Stat(path); err == nil {
-		return fmt.Errorf("app with ID '%s' already exists", appName)
-	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("check app directory: %w", err)
-	}
-	return nil
-}
+
 func extractZip(r *zip.Reader, dest string) error {
 	dest = filepath.Clean(dest) + string(os.PathSeparator)
 
@@ -1195,7 +1196,7 @@ func extractZip(r *zip.Reader, dest string) error {
 		rc, err := f.Open()
 		if err != nil {
 			outFile.Close()
-			return fmt.Errorf("open zip entry %s: %w", f.Name, err)
+			return fmt.Errorf("unable to open entry %s: %w", f.Name, err)
 		}
 
 		lr := io.LimitReader(rc, maxFileSize+1)

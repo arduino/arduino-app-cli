@@ -35,6 +35,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.bug.st/f"
 
+	"github.com/arduino/arduino-app-cli/internal/api/handlers"
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
 )
@@ -1170,7 +1171,7 @@ func TestImportApp(t *testing.T) {
 
 		bodyBuf, contentType := createMultipartBody(t, zipData)
 
-		importResp, err := httpClient.ImportAppWithBodyWithResponse(
+		importResp, err := httpClient.ImportAppWithBody(
 			t.Context(),
 			&client.ImportAppParams{},
 			contentType,
@@ -1178,12 +1179,17 @@ func TestImportApp(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		require.Equal(t, http.StatusCreated, importResp.StatusCode())
-		require.NotNil(t, importResp.JSON201)
-		require.NotEmpty(t, importResp.JSON201.Id)
+		require.Equal(t, http.StatusCreated, importResp.StatusCode)
+		require.NotNil(t, importResp.Body)
+		defer importResp.Body.Close()
 
-		importedAppId := *importResp.JSON201.Id
-
+		var importRespBody handlers.ImportResponse
+		body, err := io.ReadAll(importResp.Body)
+		require.NoError(t, err)
+		err = json.Unmarshal(body, &importRespBody)
+		require.NoError(t, err)
+		require.NotNil(t, importRespBody.ID)
+		importedAppId := importRespBody.ID
 		getResp, err := httpClient.GetAppDetailsWithResponse(t.Context(), importedAppId)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, getResp.StatusCode())
@@ -1191,22 +1197,30 @@ func TestImportApp(t *testing.T) {
 		require.Equal(t, appName, getResp.JSON200.Name)
 	})
 
-	t.Run("Import_MissingManifest_Fail", func(t *testing.T) {
+	t.Run("Import_MissingAppYaml_Fail", func(t *testing.T) {
 		zipData := createZipBytes(t, map[string]string{
-			"python/main.py": "print('No manifest here')",
+			"python/main.py": "print('No app.yaml here')",
 		})
 
 		bodyBuf, contentType := createMultipartBody(t, zipData)
 
-		importResp, err := httpClient.ImportAppWithBodyWithResponse(
+		importResp, err := httpClient.ImportAppWithBody(
 			t.Context(),
 			&client.ImportAppParams{},
 			contentType,
 			bodyBuf,
 		)
 		require.NoError(t, err)
-		require.Equal(t, http.StatusBadRequest, importResp.StatusCode())
+		require.Equal(t, http.StatusBadRequest, importResp.StatusCode)
+		require.NotNil(t, importResp.Body)
+		defer importResp.Body.Close()
 
+		var importRespBody models.ErrorResponse
+		body, err := io.ReadAll(importResp.Body)
+		require.NoError(t, err)
+		err = json.Unmarshal(body, &importRespBody)
+		require.NoError(t, err)
+		require.Equal(t, "bad request: app.yaml not found in archive", importRespBody.Details)
 	})
 
 	t.Run("Import_InvalidZip_Fail", func(t *testing.T) {
@@ -1214,13 +1228,22 @@ func TestImportApp(t *testing.T) {
 
 		bodyBuf, contentType := createMultipartBody(t, fakeZipData)
 
-		importResp, err := httpClient.ImportAppWithBodyWithResponse(
+		importResp, err := httpClient.ImportAppWithBody(
 			t.Context(),
 			&client.ImportAppParams{},
 			contentType,
 			bodyBuf,
 		)
 		require.NoError(t, err)
-		require.Equal(t, http.StatusBadRequest, importResp.StatusCode())
+		require.Equal(t, http.StatusBadRequest, importResp.StatusCode)
+		require.NotNil(t, importResp.Body)
+		defer importResp.Body.Close()
+
+		var importRespBody models.ErrorResponse
+		body, err := io.ReadAll(importResp.Body)
+		require.NoError(t, err)
+		err = json.Unmarshal(body, &importRespBody)
+		require.NoError(t, err)
+		require.Equal(t, "unable to open zip archive. zip: not a valid zip file", importRespBody.Details)
 	})
 }
