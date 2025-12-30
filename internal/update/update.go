@@ -48,7 +48,7 @@ type UpgradablePackage struct {
 
 type ServiceUpdater interface {
 	ListUpgradablePackages(cfg config.Configuration, ctx context.Context, matcher func(UpgradablePackage) bool) ([]UpgradablePackage, error)
-	UpgradePackages(ctx context.Context, names []string) (<-chan Event, error)
+	UpgradePackages(ctx context.Context, names []string, eventCB EventCallback) error
 }
 
 type Manager struct {
