@@ -74,7 +74,7 @@ func (s *Service) ListUpgradablePackages(cfg config.Configuration, ctx context.C
 // UpgradePackages upgrades the specified packages using the `apt-get upgrade` command.
 // It publishes events to subscribers during the upgrade process.
 // It returns an error if the upgrade is already in progress or if the upgrade command fails.
-func (s *Service) UpgradePackages(ctx context.Context, names []string, eventCB update.EventCallback) error {
+func (s *Service) UpgradePackages(ctx context.Context, packages []update.PackageInfo, eventCB update.EventCallback) error {
 	if !s.lock.TryLock() {
 		return update.ErrOperationAlreadyInProgress
 	}
@@ -92,7 +92,10 @@ func (s *Service) UpgradePackages(ctx context.Context, names []string, eventCB u
 			return
 		}
 	}()
-
+	names := make([]string, 0, len(packages))
+	for _, pkg := range packages {
+		names = append(names, pkg.Name)
+	}
 	eventCB(update.NewDataEvent(update.StartEvent, "Upgrade is starting"))
 	stream := runUpgradeCommand(ctx, names)
 	for line, err := range stream {
