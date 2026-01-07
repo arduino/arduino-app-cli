@@ -189,24 +189,32 @@ func emptyUnlockFunc() error {
 }
 
 // getLock attempts to acquire a file lock.
-// We explicitly do NOT remove the lock file in case of timeout or failure, nor after a successful unlock.
-// Removing the lock file would introduce a "TOCTOU" (Time-of-check to Time-of-use) race condition:
-// 1. Process A holds the lock on Inode X.
-// 2. Process B times out and deletes the file (removing the directory entry for Inode X).
-// 3. Process C creates a NEW lock file (Inode Y) and acquires the lock.
-// Result: Process A and Process C would both hold valid locks on different Inodes, leading to data corruption.
-// Therefore, we leave the file on disk; it acts as a persistent anchor for synchronization.
+//
+// STRATEGY: "Force on Timeout"
+// If we cannot acquire the lock within the timeout (3 seconds), we assume the
+// lock file is stale (orphaned by a crashed process). In this scenario, we
+// force a recovery by deleting the lock file and attempting to acquire a new one.
 func getLock(flock *flock.Flock, lockFn lockFunc, errorMsg string) (UnlockFunc, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-
 	locked, err := lockFn(ctx, 100*time.Millisecond)
 	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			return emptyUnlockFunc, fmt.Errorf("timeout acquiring lock for %s", flock.Path())
+		if !errors.Is(err, context.DeadlineExceeded) {
+			return emptyUnlockFunc, fmt.Errorf("failed trying to acquire %s for %s: %w", errorMsg, flock.Path(), err)
 		}
-		return emptyUnlockFunc, fmt.Errorf("failed trying to acquire %s for %s: %w", errorMsg, flock.Path(), err)
+		slog.Warn("lock acquisition timed out; assuming stale lock and forcing reset", "path", flock.Path())
+		if removeErr := os.Remove(flock.Path()); removeErr != nil && !os.IsNotExist(removeErr) {
+			slog.Error("failed to remove stale lock file", "path", flock.Path(), "error", removeErr)
+		}
+		forceCtx, forceCancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer forceCancel()
+
+		locked, err = lockFn(forceCtx, 100*time.Millisecond)
+		if err != nil {
+			return emptyUnlockFunc, fmt.Errorf("failed to force acquire %s after removing stale file: %w", errorMsg, err)
+		}
 	}
+
 	if !locked {
 		return emptyUnlockFunc, fmt.Errorf("unable to acquire %s for %s", errorMsg, flock.Path())
 	}
