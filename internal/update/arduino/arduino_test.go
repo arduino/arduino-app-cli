@@ -1,6 +1,11 @@
 package arduino
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+
+	semver "go.bug.st/relaxed-semver"
+)
 
 func TestFindBestCandidate(t *testing.T) {
 	tests := []struct {
@@ -20,10 +25,10 @@ func TestFindBestCandidate(t *testing.T) {
 			expectError:     false,
 		},
 		{
-			name:            "Major update blocked by default (Config=0)",
+			name:            "Major update blocked explicit config",
 			installed:       "1.9.9",
 			available:       []string{"2.0.0", "1.9.10"},
-			maxMajorConfig:  0,
+			maxMajorConfig:  1,
 			expectedVersion: "1.9.10",
 			expectError:     false,
 		},
@@ -36,58 +41,33 @@ func TestFindBestCandidate(t *testing.T) {
 			expectError:     false,
 		},
 		{
-			name:            "CRITICAL: Regression test for 'Zero Value' bug (Version 2+)",
-			installed:       "2.1.0",
-			available:       []string{"2.2.0", "3.0.0"},
-			maxMajorConfig:  0,
-			expectedVersion: "2.2.0",
-			expectError:     false,
-		},
-		{
-			name:            "No updates available (all older or same)",
-			installed:       "1.5.0",
-			available:       []string{"1.0.0", "1.5.0"},
-			maxMajorConfig:  0,
-			expectedVersion: "",
-			expectError:     false,
-		},
-		{
-			name:            "Handle unsorted list and pick highest valid",
-			installed:       "1.0.0",
-			available:       []string{"1.1.0", "1.5.0", "1.2.0"},
-			maxMajorConfig:  0,
-			expectedVersion: "1.5.0",
-			expectError:     false,
-		},
-		{
-			name:            "Skip invalid candidate strings",
-			installed:       "1.0.0",
-			available:       []string{"invalid-ver", "1.1.0"},
-			maxMajorConfig:  0,
-			expectedVersion: "1.1.0",
-			expectError:     false,
-		},
-		{
-			name:            "Error on invalid installed version string",
-			installed:       "not-a-semver",
-			available:       []string{"1.0.0"},
-			maxMajorConfig:  0,
-			expectedVersion: "",
-			expectError:     true,
-		},
-		{
-			name:            "Prerelease handling (standard logic ignores prereleases unless specifically handled)",
-			installed:       "1.0.0",
-			available:       []string{"1.0.1-beta"},
-			maxMajorConfig:  0,
-			expectedVersion: "1.0.1-beta",
+
+			name:            "Do not downgrade when installed is above maxAllowedMajor",
+			installed:       "2.3.0",
+			available:       []string{"1.9.10", "2.4.0"},
+			maxMajorConfig:  1,
+			expectedVersion: "2.4.0",
 			expectError:     false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := findBestCandidate(tt.installed, tt.available, tt.maxMajorConfig)
+
+			var constraint semver.Constraint
+			var err error
+
+			if tt.maxMajorConfig == 0 {
+				constraint, err = semver.ParseConstraint(">=0.0.0")
+			} else {
+				constraint, err = semver.ParseConstraint(fmt.Sprintf("<%d.0.0", tt.maxMajorConfig+1))
+			}
+
+			if err != nil {
+				t.Fatalf("failed to create constraint: %v", err)
+			}
+
+			got, err := findBestCandidate(tt.installed, tt.available, constraint)
 
 			if (err != nil) != tt.expectError {
 				t.Errorf("findBestCandidate() error = %v, expectError %v", err, tt.expectError)

@@ -20,13 +20,15 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
+	"strings"
 	"sync"
 
-	"github.com/Masterminds/semver/v3"
 	"github.com/arduino/arduino-cli/commands"
 	"github.com/arduino/arduino-cli/commands/cmderrors"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/sirupsen/logrus"
+	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
@@ -132,7 +134,7 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(cfg config.Configuration
 	bestVersion, err := findBestCandidate(
 		platformSummary.GetInstalledVersion(),
 		releases,
-		cfg.MaxAllowedMajorVersion,
+		cfg.VersionConstraint,
 	)
 
 	if bestVersion == "" || err != nil {
@@ -145,41 +147,56 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(cfg config.Configuration
 		ToVersion:   bestVersion,
 	}}, nil
 }
-func findBestCandidate(installedStr string, availableVersions []string, maxMajorConfig int) (string, error) {
-	installedV, err := semver.NewVersion(installedStr)
+
+func findBestCandidate(installedStr string, availableVersions []string, constraint semver.Constraint) (string, error) {
+	installedV, err := semver.Parse(installedStr)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("invalid installed version '%s': %w", installedStr, err)
 	}
 
-	maxMajor := uint64(maxMajorConfig)
-	if maxMajorConfig <= 0 {
-		maxMajor = installedV.Major()
+	if !constraint.Match(installedV) {
+
+		vStr := string(installedV.NormalizedString())
+		vStr = strings.TrimPrefix(vStr, "v")
+		parts := strings.Split(vStr, ".")
+		if len(parts) > 0 {
+			majorInt, err := strconv.Atoi(parts[0])
+			if err == nil {
+				newConstraintStr := fmt.Sprintf("<%d.0.0", majorInt+1)
+				newC, err := semver.ParseConstraint(newConstraintStr)
+				if err == nil {
+					constraint = newC
+				}
+			}
+		}
 	}
 
 	var bestUpdateV *semver.Version
 
-	for _, vStr := range availableVersions {
-		candidateV, err := semver.NewVersion(vStr)
+	for _, verStr := range availableVersions {
+		candidate, err := semver.Parse(verStr)
 		if err != nil {
 			continue
 		}
 
-		if candidateV.Major() > maxMajor {
+		if !constraint.Match(candidate) {
 			continue
 		}
 
-		if !candidateV.GreaterThan(installedV) {
+		if candidate.LessThan(installedV) {
 			continue
 		}
-		if bestUpdateV == nil || candidateV.GreaterThan(bestUpdateV) {
-			bestUpdateV = candidateV
+
+		if bestUpdateV == nil || candidate.GreaterThan(bestUpdateV) {
+			bestUpdateV = candidate
 		}
 	}
 
 	if bestUpdateV == nil {
 		return "", nil
 	}
-	return bestUpdateV.Original(), nil
+
+	return bestUpdateV.String(), nil
 }
 
 // UpgradePackages implements ServiceUpdater.

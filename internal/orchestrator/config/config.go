@@ -25,22 +25,23 @@ import (
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
+	semver "go.bug.st/relaxed-semver"
 )
 
 // runnerVersion do not edit, this is generate with `task generate:assets`
 var RunnerVersion = "0.6.2"
 
 type Configuration struct {
-	appsDir                *paths.Path
-	dataDir                *paths.Path
-	routerSocketPath       *paths.Path
-	customEIModelsDir      *paths.Path
-	PythonImage            string
-	UsedPythonImageTag     string
-	RunnerVersion          string
-	AllowRoot              bool
-	LibrariesAPIURL        *url.URL
-	MaxAllowedMajorVersion int
+	appsDir            *paths.Path
+	dataDir            *paths.Path
+	routerSocketPath   *paths.Path
+	customEIModelsDir  *paths.Path
+	PythonImage        string
+	UsedPythonImageTag string
+	RunnerVersion      string
+	AllowRoot          bool
+	LibrariesAPIURL    *url.URL
+	VersionConstraint  semver.Constraint
 }
 
 func NewFromEnv() (Configuration, error) {
@@ -102,28 +103,31 @@ func NewFromEnv() (Configuration, error) {
 	if err != nil {
 		return Configuration{}, fmt.Errorf("invalid LIBRARIES_API_URL: %w", err)
 	}
-	maxVersionStr := os.Getenv("ARDUINO_APP_CLI__MAX_UPDATE_MAJOR_VERSION")
 
-	// If the value is 0 (or unset), the updater logic defaults to the currently installed major version.
-	// This ensures we don't accidentally upgrade to a new major version (breaking changes) unless explicitly allowed.
+	constraintStr := os.Getenv("ARDUINO_APP_CLI__UPDATE_VERSION_CONSTRAINT")
 
-	maxVersion, err := strconv.Atoi(maxVersionStr)
-	if err != nil || maxVersion <= 0 {
-		maxVersion = 0
+	if constraintStr == "" {
+		constraintStr = "<1.0.0"
 	}
-	slog.Debug("Using max update major version", slog.Int("version", maxVersion))
+
+	// Parsing usando relaxed-semver
+	constraint, err := semver.ParseConstraint(constraintStr)
+	if err != nil {
+		return Configuration{}, fmt.Errorf("invalid version constraint: %w", err)
+	}
+	slog.Debug("Using update version constraint", slog.String("constraint", constraintStr))
 
 	c := Configuration{
-		appsDir:                appsDir,
-		dataDir:                dataDir,
-		routerSocketPath:       routerSocket,
-		customEIModelsDir:      customEIModelsDir,
-		PythonImage:            pythonImage,
-		UsedPythonImageTag:     usedPythonImageTag,
-		RunnerVersion:          RunnerVersion,
-		AllowRoot:              allowRoot,
-		LibrariesAPIURL:        parsedLibrariesURL,
-		MaxAllowedMajorVersion: maxVersion,
+		appsDir:            appsDir,
+		dataDir:            dataDir,
+		routerSocketPath:   routerSocket,
+		customEIModelsDir:  customEIModelsDir,
+		PythonImage:        pythonImage,
+		UsedPythonImageTag: usedPythonImageTag,
+		RunnerVersion:      RunnerVersion,
+		AllowRoot:          allowRoot,
+		LibrariesAPIURL:    parsedLibrariesURL,
+		VersionConstraint:  constraint,
 	}
 	if err := c.init(); err != nil {
 		return Configuration{}, err
