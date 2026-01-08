@@ -99,7 +99,7 @@ tasks:
   api:docs:
     desc: Open api docs
     cmds:
-      - python3 -m http.server 8000 -d docs
+      - python3 -m http.server 8000 -d internal/api/docs/
 
   build-deb:
     desc: Build debian package
