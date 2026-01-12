@@ -37,6 +37,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
 	"github.com/goccy/go-yaml"
+	"github.com/google/uuid"
 	"github.com/gosimple/slug"
 	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
@@ -1044,17 +1045,23 @@ func ImportAppFromZip(
 	idProvider *app.IDProvider,
 ) (string, error) {
 	appsBasePath := cfg.AppsDir()
-	appName, err := sanitizeAndValidateFolderName(folderName)
+	appFolderName, err := sanitizeAndValidateFolderName(folderName)
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrBadRequest, err)
 	}
-
-	basePath, appExists := findAppPathByName(appName, cfg)
+	basePath, appExists := findAppPathByName(appFolderName, cfg)
 	if appExists {
 		return "", ErrAppAlreadyExists
 	}
 
 	finalDestPath := basePath.String()
+	tempDirName := fmt.Sprintf(".tmp_%s_%s", appFolderName, uuid.New().String())
+	tempDestPath := filepath.Join(filepath.Dir(finalDestPath), tempDirName)
+	defer os.RemoveAll(tempDestPath)
+
+	if err := os.MkdirAll(tempDestPath, 0755); err != nil {
+		return "", fmt.Errorf("unable to create temp app directory: %w", err)
+	}
 
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
@@ -1066,16 +1073,19 @@ func ImportAppFromZip(
 		return "", err
 	}
 
-	if err := os.MkdirAll(finalDestPath, 0755); err != nil {
-		return "", fmt.Errorf("unable to create app directory: %w", err)
-	}
-
-	if err := extractZip(&r.Reader, finalDestPath); err != nil {
-		_ = os.RemoveAll(finalDestPath)
+	if err := extractZip(&r.Reader, tempDestPath); err != nil {
 		return "", err
 	}
 
-	id, err := idProvider.IDFromPath(appsBasePath.Join(appName))
+	if _, statErr := os.Stat(finalDestPath); statErr == nil {
+		return "", ErrAppAlreadyExists
+	}
+
+	// Atomic swap: only after successful extraction
+	if err := os.Rename(tempDestPath, finalDestPath); err != nil {
+		return "", fmt.Errorf("failed to finalize app import (swap): %w", err)
+	}
+	id, err := idProvider.IDFromPath(appsBasePath.Join(appFolderName))
 	if err != nil {
 		return "", err
 	}
