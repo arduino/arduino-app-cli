@@ -1139,7 +1139,7 @@ func TestImportApp(t *testing.T) {
 		require.NoError(t, err)
 
 		if appName != "" {
-			err = writer.WriteField("name", appName)
+			err = writer.WriteField("folder_name", appName)
 			require.NoError(t, err)
 		}
 
