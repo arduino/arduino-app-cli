@@ -1040,11 +1040,11 @@ func zipAppToBuffer(sourcePath string) ([]byte, error) {
 func ImportAppFromZip(
 	cfg config.Configuration,
 	zipPath string,
-	targetName string,
+	folderName string,
 	idProvider *app.IDProvider,
 ) (string, error) {
 	appsBasePath := cfg.AppsDir()
-	appName, err := sanitizeAndValidateName(targetName)
+	appName, err := sanitizeAndValidateFolderName(folderName)
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrBadRequest, err)
 	}
@@ -1082,6 +1082,7 @@ func ImportAppFromZip(
 	return id.String(), nil
 }
 
+// TODO implement centralized app validator to use everywhere is needed
 func validateZipContent(r *zip.Reader) error {
 	hasAppYaml := false
 	hasMainPy := false
@@ -1130,20 +1131,13 @@ func validateZipContent(r *zip.Reader) error {
 	return nil
 }
 
-func sanitizeAndValidateName(name string) (string, error) {
+func sanitizeAndValidateFolderName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return "", fmt.Errorf("app name cannot be empty")
+		return "", fmt.Errorf("app folder name cannot be empty")
 	}
-
 	name = strings.ToLower(name)
 	name = strings.ReplaceAll(name, " ", "-")
-
-	for _, r := range name {
-		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' && r != '_' {
-			return "", fmt.Errorf("invalid app name format: only a-z, 0-9, - and _ allowed")
-		}
-	}
 
 	return name, nil
 }

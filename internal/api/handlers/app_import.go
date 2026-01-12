@@ -29,9 +29,9 @@ func HandleAppImport(
 	idProvider *app.IDProvider,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		appName := strings.TrimSpace(r.FormValue("name"))
-		if appName == "" {
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "missing required 'name' parameter"})
+		folderName := strings.TrimSpace(r.FormValue("folder_name"))
+		if folderName == "" {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "missing required 'folder_name' parameter"})
 			return
 		}
 
@@ -60,7 +60,7 @@ func HandleAppImport(
 		}
 		tempFile.Close()
 
-		appID, err := orchestrator.ImportAppFromZip(cfg, tempPath, appName, idProvider)
+		appID, err := orchestrator.ImportAppFromZip(cfg, tempPath, folderName, idProvider)
 		if err != nil {
 			handleImportError(w, err)
 			return

@@ -709,13 +709,19 @@ paths:
         the ID in Base64.
       operationId: importApp
       parameters:
+      - description: The name of the folder where the app will be stored.
+        in: query
+        name: folder_name
+        schema:
+          description: The name of the folder where the app will be stored.
+          type: string
       - description: The ZIP archive containing the application structure. Must contain
-          app.yaml. and python folder
+          app.yaml and python folder.
         in: query
         name: file
         schema:
           description: The ZIP archive containing the application structure. Must
-            contain app.yaml. and python folder
+            contain app.yaml and python folder.
           format: base64
           type: string
       requestBody:
@@ -725,8 +731,11 @@ paths:
               properties:
                 file:
                   description: The ZIP archive containing the application structure.
-                    Must contain app.yaml. and python folder
+                    Must contain app.yaml and python folder.
                   format: base64
+                  type: string
+                folder_name:
+                  description: The name of the folder where the app will be stored.
                   type: string
               type: object
       responses:

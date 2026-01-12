@@ -1114,6 +1114,7 @@ func TestImportApp(t *testing.T) {
 	httpClient := GetHttpclient(t)
 
 	createZipBytes := func(t *testing.T, files map[string]string) []byte {
+		t.Helper()
 		buf := new(bytes.Buffer)
 		zipWriter := zip.NewWriter(buf)
 
@@ -1127,14 +1128,20 @@ func TestImportApp(t *testing.T) {
 		return buf.Bytes()
 	}
 
-	createMultipartBody := func(t *testing.T, zipData []byte) (*bytes.Buffer, string) {
+	createMultipartBody := func(t *testing.T, zipData []byte, appName string) (*bytes.Buffer, string) {
+		t.Helper()
 		body := new(bytes.Buffer)
 		writer := multipart.NewWriter(body)
+
 		part, err := writer.CreateFormFile("file", "test-app.zip")
 		require.NoError(t, err)
-
 		_, err = part.Write(zipData)
 		require.NoError(t, err)
+
+		if appName != "" {
+			err = writer.WriteField("name", appName)
+			require.NoError(t, err)
+		}
 
 		err = writer.Close()
 		require.NoError(t, err)
@@ -1143,13 +1150,12 @@ func TestImportApp(t *testing.T) {
 	}
 
 	t.Run("Import_ValidApp_Success", func(t *testing.T) {
-		appName := "imported-app-e2e"
+		appFolderName := "imported-app-e2e"
 		zipData := createZipBytes(t, map[string]string{
-			"app.yaml":       fmt.Sprintf("name: %s\ndescription: my app", appName),
+			"app.yaml":       "name: my-imported-app\ndescription: my app",
 			"python/main.py": "print('Hello imported world')",
 		})
-
-		bodyBuf, contentType := createMultipartBody(t, zipData)
+		bodyBuf, contentType := createMultipartBody(t, zipData, appFolderName)
 
 		importResp, err := httpClient.ImportAppWithBody(
 			t.Context(),
@@ -1169,12 +1175,14 @@ func TestImportApp(t *testing.T) {
 		err = json.Unmarshal(body, &importRespBody)
 		require.NoError(t, err)
 		require.NotNil(t, importRespBody.ID)
+
 		importedAppId := importRespBody.ID
 		getResp, err := httpClient.GetAppDetailsWithResponse(t.Context(), importedAppId)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, getResp.StatusCode())
-
-		require.Equal(t, appName, getResp.JSON200.Name)
+		require.Equal(t, "my-imported-app", getResp.JSON200.Name)
+		expectedID := base64.StdEncoding.EncodeToString([]byte("user:" + appFolderName))
+		require.Equal(t, expectedID, getResp.JSON200.Id)
 	})
 
 	t.Run("Import_MissingAppYaml_Fail", func(t *testing.T) {
@@ -1182,7 +1190,7 @@ func TestImportApp(t *testing.T) {
 			"python/main.py": "print('No app.yaml here')",
 		})
 
-		bodyBuf, contentType := createMultipartBody(t, zipData)
+		bodyBuf, contentType := createMultipartBody(t, zipData, "dummy-folder-name")
 
 		importResp, err := httpClient.ImportAppWithBody(
 			t.Context(),
@@ -1192,21 +1200,24 @@ func TestImportApp(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusBadRequest, importResp.StatusCode)
+
 		require.NotNil(t, importResp.Body)
 		defer importResp.Body.Close()
 
-		var importRespBody models.ErrorResponse
-		body, err := io.ReadAll(importResp.Body)
+		bodyBytes, err := io.ReadAll(importResp.Body)
 		require.NoError(t, err)
-		err = json.Unmarshal(body, &importRespBody)
+		var errorResponse models.ErrorResponse
+		err = json.Unmarshal(bodyBytes, &errorResponse)
 		require.NoError(t, err)
-		require.Equal(t, "bad request: app.yaml not found in archive", importRespBody.Details)
+		expectedMsg := "bad request: missing app.yaml"
+		require.Equal(t, expectedMsg, errorResponse.Details)
+
 	})
 
 	t.Run("Import_InvalidZip_Fail", func(t *testing.T) {
 		fakeZipData := []byte("not valid zip content")
 
-		bodyBuf, contentType := createMultipartBody(t, fakeZipData)
+		bodyBuf, contentType := createMultipartBody(t, fakeZipData, "dummy-folder-name")
 
 		importResp, err := httpClient.ImportAppWithBody(
 			t.Context(),
@@ -1216,14 +1227,42 @@ func TestImportApp(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusBadRequest, importResp.StatusCode)
+
 		require.NotNil(t, importResp.Body)
 		defer importResp.Body.Close()
 
-		var importRespBody models.ErrorResponse
-		body, err := io.ReadAll(importResp.Body)
+		bodyBytes, err := io.ReadAll(importResp.Body)
 		require.NoError(t, err)
-		err = json.Unmarshal(body, &importRespBody)
+		var errorResponse models.ErrorResponse
+		err = json.Unmarshal(bodyBytes, &errorResponse)
 		require.NoError(t, err)
-		require.Equal(t, "unable to open zip archive. zip: not a valid zip file", importRespBody.Details)
+		expectedMsg := "unable to open zip archive: zip: not a valid zip file"
+		require.Equal(t, expectedMsg, errorResponse.Details)
+	})
+
+	t.Run("Import_MissingName_Fail", func(t *testing.T) {
+		zipData := createZipBytes(t, map[string]string{"app.yaml": "name: x"})
+		bodyBuf, contentType := createMultipartBody(t, zipData, "")
+
+		importResp, err := httpClient.ImportAppWithBody(
+			t.Context(),
+			&client.ImportAppParams{},
+			contentType,
+			bodyBuf,
+		)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusBadRequest, importResp.StatusCode)
+
+		require.NotNil(t, importResp.Body)
+		defer importResp.Body.Close()
+
+		bodyBytes, err := io.ReadAll(importResp.Body)
+		require.NoError(t, err)
+		var errorResponse models.ErrorResponse
+		err = json.Unmarshal(bodyBytes, &errorResponse)
+		require.NoError(t, err)
+		expectedMsg := "missing required 'folder_name' parameter"
+		require.Equal(t, expectedMsg, errorResponse.Details)
+
 	})
 }
