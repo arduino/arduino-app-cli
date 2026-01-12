@@ -1037,35 +1037,37 @@ func zipAppToBuffer(sourcePath string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func ImportAppFromZip(cfg config.Configuration, zipPath string, idProvider *app.IDProvider) (string, error) {
+func ImportAppFromZip(
+	cfg config.Configuration,
+	zipPath string,
+	targetName string,
+	idProvider *app.IDProvider,
+) (string, error) {
 	appsBasePath := cfg.AppsDir()
-	r, err := zip.OpenReader(zipPath)
+	appName, err := sanitizeAndValidateName(targetName)
 	if err != nil {
-		return "", fmt.Errorf("unable to open zip archive. %w", err)
-	}
-	defer r.Close()
-
-	appName, fileList, err := scanZipContent(&r.Reader)
-	if err != nil {
-		return "", err
-	}
-
-	if err := app.ValidateStructure(fileList); err != nil {
-		return "", fmt.Errorf("invalid app structure. %w", err)
-	}
-
-	if err := validateAppName(appName); err != nil {
-		return "", err
+		return "", fmt.Errorf("%w: %v", ErrBadRequest, err)
 	}
 
 	basePath, appExists := findAppPathByName(appName, cfg)
 	if appExists {
 		return "", ErrAppAlreadyExists
 	}
+
 	finalDestPath := basePath.String()
 
+	r, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return "", fmt.Errorf("unable to open zip archive: %w", err)
+	}
+	defer r.Close()
+
+	if err := validateZipContent(&r.Reader); err != nil {
+		return "", err
+	}
+
 	if err := os.MkdirAll(finalDestPath, 0755); err != nil {
-		return "", fmt.Errorf("unable to create app directory. %w", err)
+		return "", fmt.Errorf("unable to create app directory: %w", err)
 	}
 
 	if err := extractZip(&r.Reader, finalDestPath); err != nil {
@@ -1080,90 +1082,79 @@ func ImportAppFromZip(cfg config.Configuration, zipPath string, idProvider *app.
 	return id.String(), nil
 }
 
-func scanZipContent(r *zip.Reader) (string, []string, error) {
-	fileList := make([]string, 0, len(r.File))
-	foundAppYaml := false
-	var appName string
-	type partialManifest struct {
-		Name string `yaml:"name"`
-	}
+func validateZipContent(r *zip.Reader) error {
+	hasAppYaml := false
+	hasMainPy := false
+
+	hasSketchFolder := false
+	hasIno := false
+	hasSketchYaml := false
 
 	for _, f := range r.File {
 		name := filepath.ToSlash(f.Name)
-		fileList = append(fileList, name)
 
-		if name == "app.yaml" {
-			rc, err := f.Open()
-			if err != nil {
-				return "", nil, fmt.Errorf("unable to open app.yaml: %w", err)
+		if name == "app.yaml" || name == "app.yml" {
+			hasAppYaml = true
+		}
+		if name == "python/main.py" {
+			hasMainPy = true
+		}
+
+		if strings.HasPrefix(name, "sketch/") {
+			hasSketchFolder = true
+			if strings.HasSuffix(name, ".ino") {
+				hasIno = true
 			}
-
-			limitReader := io.LimitReader(rc, 1024*1024)
-
-			var partial partialManifest
-			if err := yaml.NewDecoder(limitReader).Decode(&partial); err != nil {
-				rc.Close()
-				return "", nil, fmt.Errorf("%w: decode app.yaml failed. %v", ErrBadRequest, err)
+			if strings.HasSuffix(name, ".yaml") {
+				hasSketchYaml = true
 			}
-			rc.Close()
-
-			appName = strings.TrimSpace(partial.Name)
-			appName = strings.ToLower(appName)
-			appName = strings.ReplaceAll(appName, " ", "-")
-
-			foundAppYaml = true
 		}
 	}
 
-	if !foundAppYaml {
-		return "", nil, fmt.Errorf("%w: app.yaml not found in archive", ErrBadRequest)
+	if !hasAppYaml {
+		return fmt.Errorf("%w: missing app.yaml", ErrBadRequest)
+	}
+	if !hasMainPy {
+		return fmt.Errorf("%w: missing python/main.py", ErrBadRequest)
 	}
 
-	return appName, fileList, nil
-}
-
-func validateAppName(name string) error {
-	if name == "" {
-		return fmt.Errorf("app name cannot be empty")
-	}
-
-	if strings.Contains(name, "..") ||
-		strings.ContainsRune(name, os.PathSeparator) {
-		return fmt.Errorf("invalid app name: %q", name)
+	if hasSketchFolder {
+		if !hasIno {
+			return fmt.Errorf("%w: sketch folder present but missing .ino file", ErrBadRequest)
+		}
+		if !hasSketchYaml {
+			return fmt.Errorf("%w: sketch folder present but missing .yaml file", ErrBadRequest)
+		}
 	}
 
 	return nil
 }
 
+func sanitizeAndValidateName(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", fmt.Errorf("app name cannot be empty")
+	}
+
+	name = strings.ToLower(name)
+	name = strings.ReplaceAll(name, " ", "-")
+
+	for _, r := range name {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' && r != '_' {
+			return "", fmt.Errorf("invalid app name format: only a-z, 0-9, - and _ allowed")
+		}
+	}
+
+	return name, nil
+}
+
 func extractZip(r *zip.Reader, dest string) error {
 	dest = filepath.Clean(dest) + string(os.PathSeparator)
-
-	const maxFileSize = 100 * 1024 * 1024
+	const maxFileSize = 100 * 1024 * 1024 // 100MB limit per file
 
 	for _, f := range r.File {
 		cleanName := filepath.Clean(filepath.FromSlash(f.Name))
-		slashPath := filepath.ToSlash(cleanName)
-
-		isAllowed := slashPath == "app.yaml" ||
-			slashPath == "README.md" ||
-			strings.HasPrefix(slashPath, "python/") ||
-			strings.HasPrefix(slashPath, "sketch/")
-
-		if !isAllowed {
-			continue
-		}
-
-		if cleanName == "." ||
-			cleanName == ".." ||
-			strings.HasPrefix(cleanName, ".."+string(os.PathSeparator)) ||
-			filepath.IsAbs(cleanName) {
-			return fmt.Errorf("illegal file path in zip: %s", f.Name)
-		}
 		fpath := filepath.Join(dest, cleanName)
-
-		if !strings.HasPrefix(fpath, dest) {
-			return fmt.Errorf("illegal file path in zip: %s", f.Name)
-		}
 
 		if f.FileInfo().IsDir() {
 			if err := os.MkdirAll(fpath, 0755); err != nil {
@@ -1196,9 +1187,8 @@ func extractZip(r *zip.Reader, dest string) error {
 		if err != nil {
 			return fmt.Errorf("write file %s: %w", fpath, err)
 		}
-
 		if written > maxFileSize {
-			return fmt.Errorf("file %s too large (exceeds %d bytes)", f.Name, maxFileSize)
+			return fmt.Errorf("file %s too large", f.Name)
 		}
 	}
 

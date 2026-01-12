@@ -632,80 +632,76 @@ func TestValidateDevice(t *testing.T) {
 	})
 }
 
-func createMockZip(t *testing.T, files map[string]string) *zip.Reader {
-	buf := new(bytes.Buffer)
-	w := zip.NewWriter(buf)
-
-	for name, content := range files {
-		f, err := w.Create(name)
-		if err != nil {
-			t.Fatalf("Failed to create mock zip entry: %v", err)
-		}
-		_, err = f.Write([]byte(content))
-		if err != nil {
-			t.Fatalf("Failed to write mock zip content: %v", err)
-		}
-	}
-
-	if err := w.Close(); err != nil {
-		t.Fatalf("Failed to close zip writer: %v", err)
-	}
-
-	r, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
-	if err != nil {
-		t.Fatalf("Failed to create zip reader: %v", err)
-	}
-	return r
-}
-
-func TestScanZipContent(t *testing.T) {
+func TestValidateZipContent(t *testing.T) {
 	tests := []struct {
 		name          string
 		files         map[string]string
-		wantAppName   string
 		wantErr       bool
 		errorContains string
 	}{
 		{
-			name: "Success - Simple Name",
+			name: "Success - Minimal (app.yaml + python)",
 			files: map[string]string{
-				"app.yaml": "name: my-app\ndescription: my app",
-				"main.py":  "print('hello')",
+				"app.yaml":       "",
+				"python/main.py": "print('hello')",
 			},
-			wantAppName: "my-app",
-			wantErr:     false,
+			wantErr: false,
 		},
 		{
-			name: "Success - Sanitize Spaces and Case",
+			name: "Success - Full with Sketch",
 			files: map[string]string{
-				"app.yaml": "name: My App \n",
+				"app.yaml":         "",
+				"python/main.py":   "",
+				"sketch/main.ino":  "",
+				"sketch/meta.yaml": "",
 			},
-			wantAppName: "my-app",
-			wantErr:     false,
+			wantErr: false,
 		},
 		{
 			name: "Error - Missing app.yaml",
 			files: map[string]string{
-				"main.py": "print('hello')",
+				"python/main.py": "",
 			},
 			wantErr:       true,
-			errorContains: "app.yaml not found",
+			errorContains: "missing app.yaml",
 		},
 		{
-			name: "Error - Invalid YAML",
+			name: "Error - Missing python/main.py",
 			files: map[string]string{
-				"app.yaml": "name: [invalid yaml content...",
+				"app.yaml": "",
 			},
 			wantErr:       true,
-			errorContains: "decode app.yaml",
+			errorContains: "missing python/main.py",
 		},
 		{
-			name: "Error - Missing Name Field",
+			name: "Error - Sketch folder present but missing .ino",
 			files: map[string]string{
-				"app.yaml": "description: my app",
+				"app.yaml":         "",
+				"python/main.py":   "",
+				"sketch/meta.yaml": "",
 			},
 			wantErr:       true,
-			errorContains: "missing required 'name'",
+			errorContains: "missing .ino file",
+		},
+		{
+			name: "Error - Sketch folder present but missing .yaml",
+			files: map[string]string{
+				"app.yaml":        "",
+				"python/main.py":  "",
+				"sketch/main.ino": "",
+			},
+			wantErr:       true,
+			errorContains: "missing .yaml file",
+		},
+		{
+			name: "Success - Extra files are allowed (logic moved to extract)",
+			files: map[string]string{
+				"app.yaml":       "",
+				"python/main.py": "",
+				"README.md":      "",
+				"data/image.png": "",
+			},
+			wantErr: false,
 		},
 	}
 
@@ -713,20 +709,108 @@ func TestScanZipContent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := createMockZip(t, tt.files)
 
-			gotName, _, err := scanZipContent(r)
+			err := validateZipContent(r)
 
 			if (err != nil) != tt.wantErr {
-				t.Errorf("scanZipContent() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("validateZipContent() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if err != nil && tt.errorContains != "" {
 				if !strings.Contains(err.Error(), tt.errorContains) {
-					t.Errorf("scanZipContent() error = %v, expected to contain %v", err, tt.errorContains)
+					t.Errorf("validateZipContent() error = %v, expected to contain %v", err, tt.errorContains)
 				}
 			}
+		})
+	}
+}
 
-			if !tt.wantErr && gotName != tt.wantAppName {
-				t.Errorf("scanZipContent() gotName = %v, want %v", gotName, tt.wantAppName)
+func createMockZip(t *testing.T, files map[string]string) *zip.Reader {
+	buf := new(bytes.Buffer)
+	w := zip.NewWriter(buf)
+
+	for name, content := range files {
+		f, err := w.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = f.Write([]byte(content))
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
+}
+
+func TestSanitizeAndValidateName(t *testing.T) {
+	tests := []struct {
+		name      string
+		inputName string
+		wantName  string
+		wantErr   bool
+	}{
+		{
+			name:      "Valid Simple",
+			inputName: "MyApp",
+			wantName:  "myapp",
+			wantErr:   false,
+		},
+		{
+			name:      "Valid with Spaces",
+			inputName: "My Cool App",
+			wantName:  "my-cool-app",
+			wantErr:   false,
+		},
+		{
+			name:      "Valid with existing dashes",
+			inputName: "already-clean",
+			wantName:  "already-clean",
+			wantErr:   false,
+		},
+		{
+			name:      "Trim Spaces",
+			inputName: "  spaced-app  ",
+			wantName:  "spaced-app",
+			wantErr:   false,
+		},
+		{
+			name:      "Error Empty",
+			inputName: "",
+			wantErr:   true,
+		},
+		{
+			name:      "Error Path Traversal",
+			inputName: "../badapp",
+			wantErr:   true,
+		},
+		{
+			name:      "Error Invalid Characters",
+			inputName: "app/with/slashes",
+			wantErr:   true,
+		},
+		{
+			name:      "Error Special Characters",
+			inputName: "app$name!",
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := sanitizeAndValidateName(tt.inputName)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("sanitizeAndValidateName() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && got != tt.wantName {
+				t.Errorf("sanitizeAndValidateName() = %v, want %v", got, tt.wantName)
 			}
 		})
 	}
