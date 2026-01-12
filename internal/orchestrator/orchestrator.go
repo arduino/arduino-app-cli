@@ -1150,6 +1150,10 @@ func extractZip(r *zip.Reader, dest string) error {
 		cleanName := filepath.Clean(filepath.FromSlash(f.Name))
 		fpath := filepath.Join(dest, cleanName)
 
+		if !strings.HasPrefix(fpath, dest) {
+			return fmt.Errorf("illegal file path: %s", fpath)
+		}
+
 		if f.FileInfo().IsDir() {
 			if err := os.MkdirAll(fpath, 0755); err != nil {
 				return fmt.Errorf("create directory %s: %w", fpath, err)
