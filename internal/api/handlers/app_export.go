@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"strconv"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
@@ -35,19 +34,7 @@ func HandleAppExport(
 			return
 		}
 
-		includeData := false
-		if val := r.URL.Query().Get("include_data"); val != "" {
-			var err error
-			includeData, err = strconv.ParseBool(val)
-			if err != nil {
-				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{
-					Details: "The parameter 'include_data' must be a boolean.",
-				})
-				return
-			}
-		}
-
-		zipBytes, fileName, err := orchestrator.ExportApp(r.Context(), app, includeData)
+		zipBytes, fileName, err := orchestrator.ExportApp(r.Context(), app)
 		if err != nil {
 			slog.Error("failed to export app", slog.String("app_id", id.String()), slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{

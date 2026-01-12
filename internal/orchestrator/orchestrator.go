@@ -962,7 +962,6 @@ func DeleteApp(ctx context.Context, dockerClient command.Cli, app app.ArduinoApp
 func ExportApp(
 	ctx context.Context,
 	app app.ArduinoApp,
-	includeData bool,
 ) ([]byte, string, error) {
 
 	appName := strings.ToLower(strings.ReplaceAll(app.Name, " ", "-"))
@@ -970,14 +969,14 @@ func ExportApp(
 		appName = "app-export"
 	}
 	filename := fmt.Sprintf("%s.zip", appName)
-	zipBytes, err := zipAppToBuffer(app.FullPath.String(), includeData)
+	zipBytes, err := zipAppToBuffer(app.FullPath.String())
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create zip archive: %w", err)
 	}
 	return zipBytes, filename, nil
 }
 
-func zipAppToBuffer(sourcePath string, includeData bool) ([]byte, error) {
+func zipAppToBuffer(sourcePath string) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	zipWriter := zip.NewWriter(buf)
 
@@ -993,12 +992,6 @@ func zipAppToBuffer(sourcePath string, includeData bool) ([]byte, error) {
 			return nil
 		}
 		if strings.HasPrefix(relPath, ".cache") {
-			if info.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !includeData && strings.HasPrefix(relPath, "data") {
 			if info.IsDir() {
 				return filepath.SkipDir
 			}
@@ -1045,7 +1038,6 @@ func zipAppToBuffer(sourcePath string, includeData bool) ([]byte, error) {
 }
 
 func ImportAppFromZip(cfg config.Configuration, zipPath string, idProvider *app.IDProvider) (string, error) {
-
 	appsBasePath := cfg.AppsDir()
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
@@ -1125,10 +1117,6 @@ func scanZipContent(r *zip.Reader) (string, []string, error) {
 
 	if !foundAppYaml {
 		return "", nil, fmt.Errorf("%w: app.yaml not found in archive", ErrBadRequest)
-	}
-
-	if appName == "" {
-		return "", nil, fmt.Errorf("%w: app.yaml missing required 'name' field", ErrBadRequest)
 	}
 
 	return appName, fileList, nil
