@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -1055,7 +1056,7 @@ func ImportAppFromZip(
 	}
 
 	finalDestPath := basePath.String()
-	tempDirName := fmt.Sprintf(".tmp_%s_%s", appFolderName, uuid.New().String())
+	tempDirName := fmt.Sprintf(".tmp_%s", uuid.New().String())
 	tempDestPath := filepath.Join(filepath.Dir(finalDestPath), tempDirName)
 	defer os.RemoveAll(tempDestPath)
 
@@ -1081,14 +1082,15 @@ func ImportAppFromZip(
 		return "", ErrAppAlreadyExists
 	}
 
-	// Atomic swap: only after successful extraction
 	if err := os.Rename(tempDestPath, finalDestPath); err != nil {
 		return "", fmt.Errorf("failed to finalize app import (swap): %w", err)
 	}
+
 	id, err := idProvider.IDFromPath(appsBasePath.Join(appFolderName))
 	if err != nil {
 		return "", err
 	}
+
 	return id.String(), nil
 }
 
@@ -1141,14 +1143,16 @@ func validateZipContent(r *zip.Reader) error {
 	return nil
 }
 
+var validFolderName = regexp.MustCompile(`^[a-z0-9_-]{1,50}$`)
+
 func sanitizeAndValidateFolderName(name string) (string, error) {
 	name = strings.TrimSpace(name)
-	if name == "" {
-		return "", fmt.Errorf("app folder name cannot be empty")
-	}
 	name = strings.ToLower(name)
 	name = strings.ReplaceAll(name, " ", "-")
 
+	if !validFolderName.MatchString(name) {
+		return "", fmt.Errorf("invalid folder name: only a-z, 0-9, '-' and '_' are allowed (max 50 chars)")
+	}
 	return name, nil
 }
 
