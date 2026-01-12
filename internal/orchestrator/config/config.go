@@ -16,6 +16,7 @@
 package config
 
 import (
+	"cmp"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -104,11 +105,7 @@ func NewFromEnv() (Configuration, error) {
 		return Configuration{}, fmt.Errorf("invalid LIBRARIES_API_URL: %w", err)
 	}
 
-	constraintStr := os.Getenv("ARDUINO_APP_CLI__UPDATE_VERSION_CONSTRAINT")
-
-	if constraintStr == "" {
-		constraintStr = "<1.0.0"
-	}
+	constraintStr := cmp.Or(os.Getenv("ARDUINO_APP_CLI__UPDATE_VERSION_CONSTRAINT"), "<1.0.0")
 
 	// Parsing usando relaxed-semver
 	constraint, err := semver.ParseConstraint(constraintStr)

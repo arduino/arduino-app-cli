@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -122,79 +123,63 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(cfg config.Configuration
 	if platformSummary == nil {
 		return nil, nil // No platform found
 	}
-	releasesMap := platformSummary.GetReleases()
 
-	releases := make([]string, 0, len(releasesMap))
-
-	for k := range releasesMap {
-		releases = append(releases, k)
-	}
-	bestVersion, err := findBestCandidate(
-		platformSummary.GetInstalledVersion(),
-		releases,
-		cfg.VersionConstraint,
-	)
-
-	if bestVersion == "" || err != nil {
-		return nil, nil
-	}
-	return []update.UpgradablePackage{{
-		Type:        update.Arduino,
-		Name:        "arduino:zephyr",
-		FromVersion: platformSummary.GetInstalledVersion(),
-		ToVersion:   bestVersion,
-	}}, nil
-}
-
-func findBestCandidate(installedStr string, availableVersions []string, constraint semver.Constraint) (string, error) {
-	installedV, err := semver.Parse(installedStr)
+	installedV, err := semver.Parse(platformSummary.GetInstalledVersion())
 	if err != nil {
-		return "", fmt.Errorf("invalid installed version '%s': %w", installedStr, err)
+		return nil, fmt.Errorf("invalid installed version '%s': %w", platformSummary.GetInstalledVersion(), err)
 	}
+
+	constraint := cfg.VersionConstraint
 
 	if !constraint.Match(installedV) {
-
-		vStr := string(installedV.NormalizedString())
-		vStr = strings.TrimPrefix(vStr, "v")
-		parts := strings.Split(vStr, ".")
+		parts := strings.Split(strings.TrimPrefix(installedV.String(), "v"), ".")
 		if len(parts) > 0 {
-			majorInt, err := strconv.Atoi(parts[0])
+			major, err := strconv.Atoi(parts[0])
 			if err == nil {
-				newConstraintStr := fmt.Sprintf("<%d.0.0", majorInt+1)
-				newC, err := semver.ParseConstraint(newConstraintStr)
-				if err == nil {
+				newConstraintStr := fmt.Sprintf("<%d.0.0", major+1)
+				if newC, err := semver.ParseConstraint(newConstraintStr); err == nil {
 					constraint = newC
 				}
 			}
 		}
 	}
 
-	var bestUpdateV *semver.Version
+	releases := make([]*semver.Version, 0, len(platformSummary.GetReleases()))
 
-	for _, verStr := range availableVersions {
-		candidate, err := semver.Parse(verStr)
+	for k := range platformSummary.GetReleases() {
+		v, err := semver.Parse(k)
 		if err != nil {
+			slog.Warn("Skipping invalid version",
+				slog.String("version", k),
+				slog.String("error", err.Error()))
+			continue
+		}
+		if !constraint.Match(v) {
+			continue
+		}
+		if v.LessThan(installedV) {
 			continue
 		}
 
-		if !constraint.Match(candidate) {
-			continue
-		}
-
-		if candidate.LessThan(installedV) {
-			continue
-		}
-
-		if bestUpdateV == nil || candidate.GreaterThan(bestUpdateV) {
-			bestUpdateV = candidate
-		}
+		releases = append(releases, v)
 	}
 
-	if bestUpdateV == nil {
-		return "", nil
+	if len(releases) == 0 {
+		return nil, nil
 	}
 
-	return bestUpdateV.String(), nil
+	slices.SortFunc(releases, func(a, b *semver.Version) int {
+		return a.CompareTo(b)
+	})
+
+	bestVersion := releases[len(releases)-1].String()
+
+	return []update.UpgradablePackage{{
+		Type:        update.Arduino,
+		Name:        "arduino:zephyr",
+		FromVersion: platformSummary.GetInstalledVersion(),
+		ToVersion:   bestVersion,
+	}}, nil
 }
 
 // UpgradePackages implements ServiceUpdater.
@@ -254,30 +239,28 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 		downloadProgressCB,
 		taskProgressCB,
 	)
-
-	var targetVersion string
-
-	const CorePackageName = "arduino"
-
-	for _, pkg := range packages {
-		if pkg.Name == CorePackageName {
-			targetVersion = pkg.ToVersion
-			break
-		}
-	}
+	targetVersion := packages[0].ToVersion
+	name := packages[0].Name
 
 	if targetVersion == "" {
 		if len(packages) > 0 {
-			return fmt.Errorf("no package of type '%s' found in the upgrade request", CorePackageName)
+			return fmt.Errorf("no package of type '%s' found in the upgrade request", name)
 		}
 		return fmt.Errorf("package list is empty")
 	}
 
+	parts := strings.Split(name, ":")
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid package name")
+	}
+
+	platformPackage := parts[0]
+	architecture := parts[1]
 	if err := srv.PlatformInstall(
 		&rpc.PlatformInstallRequest{
 			Instance:        inst,
-			PlatformPackage: "arduino",
-			Architecture:    "zephyr",
+			PlatformPackage: platformPackage,
+			Architecture:    architecture,
 			Version:         targetVersion,
 		},
 		stream,
