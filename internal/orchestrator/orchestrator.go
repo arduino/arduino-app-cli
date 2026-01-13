@@ -961,7 +961,7 @@ func DeleteApp(ctx context.Context, dockerClient command.Cli, app app.ArduinoApp
 	return app.FullPath.RemoveAll()
 }
 
-func ExportApp(
+func ExportAppZip(
 	ctx context.Context,
 	app app.ArduinoApp,
 ) ([]byte, string, error) {
