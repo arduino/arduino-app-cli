@@ -29,6 +29,11 @@ if [ "$1" = "upgrade" ]; then
     cleanup_arduino_examples /home/arduino/.local/share/arduino-app-cli/examples
     mkdir -p /var/lib/arduino-app-cli
     copy_if_exists /home/arduino/.local/share/arduino-app-cli/examples /var/lib/arduino-app-cli
-    copy_if_exists /home/arduino/.local/share/arduino-app-cli/properties.msgpack* /var/lib/arduino-app-cli
+    copy_if_exists /home/arduino/.local/share/arduino-app-cli/properties.msgpack.lock /var/lib/arduino-app-cli
+    copy_if_exists /home/arduino/.local/share/arduino-app-cli/properties.msgpack /var/lib/arduino-app-cli
     copy_if_exists /home/arduino/.local/share/arduino-app-cli/bootloader_burned.flag /var/lib/arduino-app-cli
+    DEFAULT_APP_FILE="/home/arduino/.local/share/arduino-app-cli/default.app"
+    if [ -f "${DEFAULT_APP_FILE}" ]; then
+        sed -e "s|/home/arduino/.local/share|/var/lib|" ${DEFAULT_APP_FILE} > /var/lib/arduino-app-cli/default.app
+    fi
 fi

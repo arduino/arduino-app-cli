@@ -34,7 +34,8 @@ copy_if_exists() {
     local SRC="$1"
     local DST="$2"
 
-    if [ -d "${SRC}" ]; then
+    if [ -e "${SRC}" ]; then
         cp -r "${SRC}" "${DST}"
     fi
+
 }
