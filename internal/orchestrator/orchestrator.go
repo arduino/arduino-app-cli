@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"iter"
 	"log/slog"
 	"maps"
@@ -982,10 +983,11 @@ func zipAppToBuffer(sourcePath string) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	zipWriter := zip.NewWriter(buf)
 
-	err := filepath.Walk(sourcePath, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(sourcePath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
+
 		relPath, err := filepath.Rel(sourcePath, path)
 		if err != nil {
 			return err
@@ -994,10 +996,15 @@ func zipAppToBuffer(sourcePath string) ([]byte, error) {
 			return nil
 		}
 		if strings.HasPrefix(relPath, ".cache") {
-			if info.IsDir() {
+			if d.IsDir() {
 				return filepath.SkipDir
 			}
 			return nil
+		}
+
+		info, err := d.Info()
+		if err != nil {
+			return err
 		}
 		header, err := zip.FileInfoHeader(info)
 		if err != nil {
