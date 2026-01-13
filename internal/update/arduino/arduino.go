@@ -130,42 +130,57 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, cfg
 
 	constraint := cfg.VersionConstraint
 
-	releases := make([]*semver.Version, 0, len(platformSummary.GetReleases()))
-
+	availableReleases := make([]string, 0, len(platformSummary.GetReleases()))
 	for k := range platformSummary.GetReleases() {
-		v, err := semver.Parse(k)
-		if err != nil {
-			slog.Warn("Skipping invalid version",
-				slog.String("version", k),
-				slog.String("error", err.Error()))
-			continue
-		}
-		if !constraint.Match(v) {
-			continue
-		}
-		if v.LessThan(installedV) {
-			continue
-		}
-
-		releases = append(releases, v)
+		availableReleases = append(availableReleases, k)
 	}
 
-	if len(releases) == 0 {
+	bestVersion := selectBestVersion(availableReleases, installedV, constraint)
+
+	if bestVersion == nil {
 		return nil, nil
 	}
 
-	slices.SortFunc(releases, func(a, b *semver.Version) int {
-		return a.CompareTo(b)
-	})
-
-	bestVersion := releases[len(releases)-1].String()
+	if bestVersion.Equal(installedV) {
+		return nil, nil
+	}
 
 	return []update.UpgradablePackage{{
 		Type:        update.Arduino,
 		Name:        "arduino:zephyr",
 		FromVersion: platformSummary.GetInstalledVersion(),
-		ToVersion:   bestVersion,
+		ToVersion:   bestVersion.String(),
 	}}, nil
+}
+
+func selectBestVersion(available []string, installed *semver.Version, constraint semver.Constraint) *semver.Version {
+	candidates := make([]*semver.Version, 0, len(available))
+
+	for _, verStr := range available {
+		v, err := semver.Parse(verStr)
+		if err != nil {
+			continue
+		}
+
+		if !constraint.Match(v) {
+			continue
+		}
+		if installed != nil && v.LessThan(installed) {
+			continue
+		}
+
+		candidates = append(candidates, v)
+	}
+
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	slices.SortFunc(candidates, func(a, b *semver.Version) int {
+		return a.CompareTo(b)
+	})
+
+	return candidates[len(candidates)-1]
 }
 
 // UpgradePackages implements ServiceUpdater.

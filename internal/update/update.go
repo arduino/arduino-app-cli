@@ -52,7 +52,7 @@ type PackageInfo struct {
 }
 
 type ServiceUpdater interface {
-	ListUpgradablePackages(cfg config.Configuration, ctx context.Context, matcher func(UpgradablePackage) bool) ([]UpgradablePackage, error)
+	ListUpgradablePackages(ctx context.Context, cfg config.Configuration, matcher func(UpgradablePackage) bool) ([]UpgradablePackage, error)
 	UpgradePackages(ctx context.Context, packages []PackageInfo, eventCB EventCallback) error
 }
 
@@ -93,7 +93,7 @@ func (m *Manager) ListUpgradablePackages(cfg config.Configuration, ctx context.C
 	)
 
 	g.Go(func() error {
-		pkgs, err := m.debUpdateService.ListUpgradablePackages(cfg, ctx, matcher)
+		pkgs, err := m.debUpdateService.ListUpgradablePackages(ctx, cfg, matcher)
 		if err != nil {
 			return err
 		}
@@ -102,7 +102,7 @@ func (m *Manager) ListUpgradablePackages(cfg config.Configuration, ctx context.C
 	})
 
 	g.Go(func() error {
-		pkgs, err := m.arduinoPlatformUpdateService.ListUpgradablePackages(cfg, ctx, matcher)
+		pkgs, err := m.arduinoPlatformUpdateService.ListUpgradablePackages(ctx, cfg, matcher)
 		if err != nil {
 			return err
 		}
