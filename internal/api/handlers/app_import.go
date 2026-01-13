@@ -6,6 +6,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -20,6 +21,10 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
+type ImportOptions struct {
+	FolderName string `json:"folder_name"`
+}
+
 type ImportResponse struct {
 	ID string `json:"id"`
 }
@@ -29,12 +34,6 @@ func HandleAppImport(
 	idProvider *app.IDProvider,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		folderName := strings.TrimSpace(r.FormValue("folder_name"))
-		if folderName == "" {
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "missing required 'folder_name' parameter"})
-			return
-		}
-
 		file, _, err := r.FormFile("file")
 		if err != nil {
 			slog.Error("missing file parameter", slog.String("error", err.Error()))
@@ -42,6 +41,24 @@ func HandleAppImport(
 			return
 		}
 		defer file.Close()
+
+		optionsStr := r.FormValue("options")
+		if optionsStr == "" {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "missing required 'options' JSON parameter"})
+			return
+		}
+
+		var opts ImportOptions
+		if err := json.Unmarshal([]byte(optionsStr), &opts); err != nil {
+			slog.Error("invalid options json", slog.String("error", err.Error()))
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "invalid 'options' JSON format"})
+			return
+		}
+
+		if strings.TrimSpace(opts.FolderName) == "" {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "json field 'folder_name' is required"})
+			return
+		}
 
 		tempFile, err := os.CreateTemp("", "app-import-*.zip")
 		if err != nil {
@@ -60,29 +77,22 @@ func HandleAppImport(
 		}
 		tempFile.Close()
 
-		appID, err := orchestrator.ImportAppFromZip(cfg, tempPath, folderName, idProvider)
+		appID, err := orchestrator.ImportAppFromZip(cfg, tempPath, opts.FolderName, idProvider)
 		if err != nil {
-			handleImportError(w, err)
+			slog.Error("import failed", slog.String("error", err.Error()))
+
+			switch {
+			case errors.Is(err, orchestrator.ErrAppAlreadyExists):
+				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: err.Error()})
+			case errors.Is(err, orchestrator.ErrBadRequest) || strings.Contains(err.Error(), "not a valid zip file"):
+				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
+			default:
+				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "failed to process the archive: " + err.Error()})
+			}
 			return
 		}
 
 		slog.Info("app imported successfully", slog.String("app_id", appID))
 		render.EncodeResponse(w, http.StatusCreated, ImportResponse{ID: appID})
 	}
-}
-
-func handleImportError(w http.ResponseWriter, err error) {
-	slog.Error("import failed", slog.String("error", err.Error()))
-
-	if errors.Is(err, orchestrator.ErrAppAlreadyExists) {
-		render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: err.Error()})
-		return
-	}
-	if errors.Is(err, orchestrator.ErrBadRequest) ||
-		strings.Contains(err.Error(), "not a valid zip file") {
-		render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
-		return
-	}
-
-	render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "failed to process the archive: " + err.Error()})
 }
