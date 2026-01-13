@@ -1169,6 +1169,23 @@ func (g *Generator) AddOperation(config OperationConfig) error {
 		cu.HTTPStatus = config.CustomSuccessResponse.StatusCode
 		cu.ContentType = config.CustomSuccessResponse.ContentType
 		cu.Description = config.CustomSuccessResponse.Description
+
+		if cu.ContentType == "application/zip" {
+			cu.Customize = func(cor openapi.ContentOrReference) {
+				respOrRef, ok := cor.(*openapi3.ResponseOrRef)
+				if !ok || respOrRef.Response == nil {
+					return
+				}
+				content, exists := respOrRef.Response.Content[cu.ContentType]
+				if !exists {
+					return
+				}
+				if content.Schema != nil && content.Schema.Schema != nil {
+					content.Schema.Schema.Type = f.Ptr(openapi3.SchemaTypeString)
+					content.Schema.Schema.Format = f.Ptr("binary")
+				}
+			}
+		}
 	})
 	for _, e := range config.PossibleErrors {
 		opCtx.AddRespStructure(e, func(cu *openapi.ContentUnit) {
