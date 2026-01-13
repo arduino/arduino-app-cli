@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -130,19 +129,6 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(cfg config.Configuration
 	}
 
 	constraint := cfg.VersionConstraint
-
-	if !constraint.Match(installedV) {
-		parts := strings.Split(strings.TrimPrefix(installedV.String(), "v"), ".")
-		if len(parts) > 0 {
-			major, err := strconv.Atoi(parts[0])
-			if err == nil {
-				newConstraintStr := fmt.Sprintf("<%d.0.0", major+1)
-				if newC, err := semver.ParseConstraint(newConstraintStr); err == nil {
-					constraint = newC
-				}
-			}
-		}
-	}
 
 	releases := make([]*semver.Version, 0, len(platformSummary.GetReleases()))
 
