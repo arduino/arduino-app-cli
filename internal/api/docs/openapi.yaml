@@ -709,11 +709,13 @@ paths:
         the ID in Base64.
       operationId: importApp
       parameters:
-      - description: The name of the folder where the app will be stored.
+      - description: 'A JSON string containing import options. Example: {"folder_name":
+          "my-custom-id"}'
         in: query
-        name: folder_name
+        name: options
         schema:
-          description: The name of the folder where the app will be stored.
+          description: 'A JSON string containing import options. Example: {"folder_name":
+            "my-custom-id"}'
           type: string
       - description: The ZIP archive containing the application structure. Must contain
           app.yaml and python folder.
@@ -734,8 +736,9 @@ paths:
                     Must contain app.yaml and python folder.
                   format: base64
                   type: string
-                folder_name:
-                  description: The name of the folder where the app will be stored.
+                options:
+                  description: 'A JSON string containing import options. Example:
+                    {"folder_name": "my-custom-id"}'
                   type: string
               type: object
       responses:

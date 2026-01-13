@@ -421,14 +421,14 @@ type ImportAppFormdataBody struct {
 	// File The ZIP archive containing the application structure. Must contain app.yaml and python folder.
 	File *string `form:"file,omitempty" json:"file,omitempty"`
 
-	// FolderName The name of the folder where the app will be stored.
-	FolderName *string `form:"folder_name,omitempty" json:"folder_name,omitempty"`
+	// Options A JSON string containing import options. Example: {"folder_name": "my-custom-id"}
+	Options *string `form:"options,omitempty" json:"options,omitempty"`
 }
 
 // ImportAppParams defines parameters for ImportApp.
 type ImportAppParams struct {
-	// FolderName The name of the folder where the app will be stored.
-	FolderName *string `form:"folder_name,omitempty" json:"folder_name,omitempty"`
+	// Options A JSON string containing import options. Example: {"folder_name": "my-custom-id"}
+	Options *string `form:"options,omitempty" json:"options,omitempty"`
 
 	// File The ZIP archive containing the application structure. Must contain app.yaml and python folder.
 	File *string `form:"file,omitempty" json:"file,omitempty"`
@@ -1433,9 +1433,9 @@ func NewImportAppRequestWithBody(server string, params *ImportAppParams, content
 	if params != nil {
 		queryValues := queryURL.Query()
 
-		if params.FolderName != nil {
+		if params.Options != nil {
 
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "folder_name", runtime.ParamLocationQuery, *params.FolderName); err != nil {
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "options", runtime.ParamLocationQuery, *params.Options); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

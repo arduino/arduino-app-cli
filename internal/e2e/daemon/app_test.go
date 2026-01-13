@@ -1128,7 +1128,7 @@ func TestImportApp(t *testing.T) {
 		return buf.Bytes()
 	}
 
-	createMultipartBody := func(t *testing.T, zipData []byte, appName string) (*bytes.Buffer, string) {
+	createMultipartBody := func(t *testing.T, zipData []byte, optionsJson string) (*bytes.Buffer, string) {
 		t.Helper()
 		body := new(bytes.Buffer)
 		writer := multipart.NewWriter(body)
@@ -1138,8 +1138,8 @@ func TestImportApp(t *testing.T) {
 		_, err = part.Write(zipData)
 		require.NoError(t, err)
 
-		if appName != "" {
-			err = writer.WriteField("folder_name", appName)
+		if optionsJson != "" {
+			err = writer.WriteField("options", optionsJson)
 			require.NoError(t, err)
 		}
 
@@ -1155,7 +1155,8 @@ func TestImportApp(t *testing.T) {
 			"app.yaml":       "name: my-imported-app\ndescription: my app",
 			"python/main.py": "print('Hello imported world')",
 		})
-		bodyBuf, contentType := createMultipartBody(t, zipData, appFolderName)
+		options := fmt.Sprintf(`{"folder_name": "%s"}`, appFolderName)
+		bodyBuf, contentType := createMultipartBody(t, zipData, options)
 
 		importResp, err := httpClient.ImportAppWithBody(
 			t.Context(),
@@ -1190,7 +1191,8 @@ func TestImportApp(t *testing.T) {
 			"python/main.py": "print('No app.yaml here')",
 		})
 
-		bodyBuf, contentType := createMultipartBody(t, zipData, "dummy-folder-name")
+		options := `{"folder_name": "dummy-folder-name"}`
+		bodyBuf, contentType := createMultipartBody(t, zipData, options)
 
 		importResp, err := httpClient.ImportAppWithBody(
 			t.Context(),
@@ -1217,7 +1219,8 @@ func TestImportApp(t *testing.T) {
 	t.Run("Import_InvalidZip_Fail", func(t *testing.T) {
 		fakeZipData := []byte("not valid zip content")
 
-		bodyBuf, contentType := createMultipartBody(t, fakeZipData, "dummy-folder-name")
+		options := `{"folder_name": "dummy-folder-name"}`
+		bodyBuf, contentType := createMultipartBody(t, fakeZipData, options)
 
 		importResp, err := httpClient.ImportAppWithBody(
 			t.Context(),
@@ -1261,7 +1264,7 @@ func TestImportApp(t *testing.T) {
 		var errorResponse models.ErrorResponse
 		err = json.Unmarshal(bodyBytes, &errorResponse)
 		require.NoError(t, err)
-		expectedMsg := "missing required 'folder_name' parameter"
+		expectedMsg := "missing required 'options' JSON parameter"
 		require.Equal(t, expectedMsg, errorResponse.Details)
 
 	})
