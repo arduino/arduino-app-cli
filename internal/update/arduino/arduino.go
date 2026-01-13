@@ -239,6 +239,11 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 		downloadProgressCB,
 		taskProgressCB,
 	)
+
+	if len(packages) == 0 {
+		return nil
+	}
+
 	targetVersion := packages[0].ToVersion
 	name := packages[0].Name
 

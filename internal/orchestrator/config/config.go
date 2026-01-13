@@ -107,7 +107,6 @@ func NewFromEnv() (Configuration, error) {
 
 	constraintStr := cmp.Or(os.Getenv("ARDUINO_APP_CLI__UPDATE_VERSION_CONSTRAINT"), "<1.0.0")
 
-	// Parsing usando relaxed-semver
 	constraint, err := semver.ParseConstraint(constraintStr)
 	if err != nil {
 		return Configuration{}, fmt.Errorf("invalid version constraint: %w", err)
