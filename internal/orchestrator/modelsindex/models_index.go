@@ -113,5 +113,6 @@ func Load(dir *paths.Path) (*ModelsIndex, error) {
 			models[i] = model
 		}
 	}
+	// TODO load the ei-models as well
 	return &ModelsIndex{Models: models}, nil
 }

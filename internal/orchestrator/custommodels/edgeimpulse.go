@@ -1,11 +1,9 @@
 package custommodels
 
 import (
-	"fmt"
 	"io/fs"
 	"path/filepath"
 
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
 )
@@ -24,20 +22,14 @@ type EdgeImpulseModel struct {
 	Path        string `yaml:"-"`
 }
 
-func (m EdgeImpulseModel) ToArduinoAIModel() modelsindex.AIModel {
-	return modelsindex.AIModel{
-		ID:                fmt.Sprintf("ei:%d-%d", m.ProjectId, m.ImpulseID), // TODO : generate a base 64 id from the project and impulse id
-		Name:              m.Name,
-		ModuleDescription: m.Description,
-		Runner:            "bricks",
-		Bricks:            []string{eiCategoryToArduinoBrick[m.Category]},
-	}
+type EIModelIndex struct {
+	ModelsPath *paths.Path
 }
 
-func List(eiModelsPath *paths.Path) ([]EdgeImpulseModel, error) {
+func (e EIModelIndex) List() ([]EdgeImpulseModel, error) {
 	models := make([]EdgeImpulseModel, 0)
 
-	err := filepath.WalkDir(eiModelsPath.String(), func(path string, d fs.DirEntry, walkErr error) error {
+	err := filepath.WalkDir(e.ModelsPath.String(), func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -74,8 +66,8 @@ func List(eiModelsPath *paths.Path) ([]EdgeImpulseModel, error) {
 	return models, nil
 }
 
-func GetModelsByBrick(eiModelsPath *paths.Path, brickId string) ([]EdgeImpulseModel, error) {
-	models, err := List(eiModelsPath)
+func (e EIModelIndex) GetModelsByBrick(brickId string) ([]EdgeImpulseModel, error) {
+	models, err := e.List()
 	if err != nil {
 		return nil, err
 	}

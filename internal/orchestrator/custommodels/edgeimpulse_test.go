@@ -11,7 +11,9 @@ import (
 func TestListEdgeImpulseModels(t *testing.T) {
 	t.Parallel()
 
-	models, err := List(paths.New("testdata/ei-models-a"))
+	ei := EIModelIndex{ModelsPath: paths.New("testdata/ei-models-a")}
+
+	models, err := ei.List()
 	require.NoError(t, err, "List should not return an error when reading valid testdata")
 	require.Len(t, models, 1, "expected exactly one model loaded from testdata")
 
@@ -29,11 +31,13 @@ func TestListEdgeImpulseModels(t *testing.T) {
 func TestGetModelsByBrick(t *testing.T) {
 	t.Parallel()
 
-	models, err := GetModelsByBrick(paths.New("testdata/ei-models-a"), "non-existing-brick")
+	ei := EIModelIndex{ModelsPath: paths.New("testdata/ei-models-a")}
+
+	models, err := ei.GetModelsByBrick("non-existing-brick")
 	require.NoError(t, err, "List should not return an error when reading valid testdata")
 	require.Len(t, models, 0, "expected no models loaded for non-existing brick")
 
-	models, err = GetModelsByBrick(paths.New("testdata/ei-models-a"), "object-detection")
+	models, err = ei.GetModelsByBrick("object-detection")
 	require.NoError(t, err, "List should not return an error when reading valid testdata")
 	require.Len(t, models, 1, "expected exactly one model loaded from testdata")
 	assert.Equal(t, 152350, models[0].ProjectId, "loaded model does not match expected project id")
