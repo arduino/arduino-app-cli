@@ -1264,7 +1264,6 @@ func TestImportApp(t *testing.T) {
 		expectedMsg := "bad request: app name is missing"
 		require.Equal(t, expectedMsg, errorResponse.Details)
 	})
-
 	t.Run("Import_Conflict_Fail", func(t *testing.T) {
 		appName := "conflict-app"
 		zipData := createZipBytes(t, map[string]string{
