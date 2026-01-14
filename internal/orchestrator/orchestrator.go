@@ -19,6 +19,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -1048,30 +1049,13 @@ func zipAppToBuffer(sourcePath string) ([]byte, error) {
 
 func ImportAppFromZip(
 	cfg config.Configuration,
-	zipPath string,
-	folderName string,
+	zipPath *paths.Path,
 	idProvider *app.IDProvider,
 ) (string, error) {
-	appsBasePath := cfg.AppsDir()
-	appFolderName, err := sanitizeAndValidateFolderName(folderName)
-	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrBadRequest, err)
+	if zipPath == nil {
+		return "", fmt.Errorf("internal error: zipPath cannot be nil")
 	}
-	basePath, appExists := findAppPathByName(appFolderName, cfg)
-	if appExists {
-		return "", ErrAppAlreadyExists
-	}
-
-	finalDestPath := basePath.String()
-	tempDirName := fmt.Sprintf(".tmp_%s", uuid.New().String())
-	tempDestPath := filepath.Join(filepath.Dir(finalDestPath), tempDirName)
-	defer os.RemoveAll(tempDestPath)
-
-	if err := os.MkdirAll(tempDestPath, 0755); err != nil {
-		return "", fmt.Errorf("unable to create temp app directory: %w", err)
-	}
-
-	r, err := zip.OpenReader(zipPath)
+	r, err := zip.OpenReader(zipPath.String())
 	if err != nil {
 		return "", fmt.Errorf("unable to open zip archive: %w", err)
 	}
@@ -1081,24 +1065,69 @@ func ImportAppFromZip(
 		return "", err
 	}
 
-	if err := extractZip(&r.Reader, tempDestPath); err != nil {
-		return "", err
+	appDescriptor, err := readAppDescriptorFromZip(&r.Reader)
+	if err != nil {
+		return "", fmt.Errorf("failed to read app.yaml: %w", err)
 	}
 
-	if _, statErr := os.Stat(finalDestPath); statErr == nil {
+	if strings.TrimSpace(appDescriptor.Name) == "" {
+		return "", fmt.Errorf("%w: app name is missing", ErrBadRequest)
+	}
+
+	finalDestPath, appExists := findAppPathByName(appDescriptor.Name, cfg)
+	if appExists {
 		return "", ErrAppAlreadyExists
 	}
 
-	if err := os.Rename(tempDestPath, finalDestPath); err != nil {
+	tempDirName := fmt.Sprintf(".tmp_%s", uuid.New().String())
+	tempDestDir := finalDestPath.Parent().Join(tempDirName)
+	defer func() { _ = tempDestDir.RemoveAll() }()
+
+	if err := tempDestDir.MkdirAll(); err != nil {
+		return "", fmt.Errorf("unable to create temp app directory: %w", err)
+	}
+
+	if err := extractZip(&r.Reader, tempDestDir.String()); err != nil {
+		return "", err
+	}
+
+	if finalDestPath.Exist() {
+		return "", ErrAppAlreadyExists
+	}
+
+	if err := tempDestDir.Rename(finalDestPath); err != nil {
 		return "", fmt.Errorf("failed to finalize app import (swap): %w", err)
 	}
 
-	id, err := idProvider.IDFromPath(appsBasePath.Join(appFolderName))
+	id, err := idProvider.IDFromPath(finalDestPath)
 	if err != nil {
 		return "", err
 	}
 
 	return id.String(), nil
+}
+
+func readAppDescriptorFromZip(r *zip.Reader) (app.AppDescriptor, error) {
+	var descriptor app.AppDescriptor
+
+	for _, f := range r.File {
+		if f.Name == "app.yaml" || f.Name == "app.yml" {
+			rc, err := f.Open()
+			if err != nil {
+				return descriptor, err
+			}
+			defer rc.Close()
+
+			if err := yaml.NewDecoder(rc).Decode(&descriptor); err != nil {
+				if errors.Is(err, io.EOF) {
+					return descriptor, fmt.Errorf("app.yaml is empty")
+				}
+				return descriptor, err
+			}
+			return descriptor, nil
+		}
+	}
+	return descriptor, fmt.Errorf("app.yaml not found in archive")
 }
 
 // TODO implement centralized app validator to use everywhere is needed

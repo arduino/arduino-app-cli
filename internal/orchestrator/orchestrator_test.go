@@ -955,18 +955,18 @@ func TestImportAppFromZip(t *testing.T) {
 	tests := []testCase{
 		{
 			name:       "Success - Standard App",
-			folderName: "my-test-app",
+			folderName: "test-app",
 			zipFiles: map[string]string{
-				"app.yaml":       "name: test",
+				"app.yaml":       "name: Test App",
 				"python/main.py": "print('hello')",
 			},
 			wantErr: false,
 		},
 		{
 			name:       "Success - App with Sketch",
-			folderName: "arduino-sketch-app",
+			folderName: "app",
 			zipFiles: map[string]string{
-				"app.yaml":           "name: sketch",
+				"app.yaml":           "name: app",
 				"python/main.py":     "pass",
 				"sketch/sketch.ino":  "void setup() {}",
 				"sketch/sketch.yaml": "board: unoQ",
@@ -975,7 +975,7 @@ func TestImportAppFromZip(t *testing.T) {
 		},
 		{
 			name:       "Success - Ignores junk files",
-			folderName: "mac-archive",
+			folderName: "test",
 			zipFiles: map[string]string{
 				"app.yaml":       "name: test",
 				"python/main.py": "print('hello')",
@@ -984,21 +984,21 @@ func TestImportAppFromZip(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:       "Error - Invalid Folder Name",
-			folderName: "invalid@name",
+			name:       "Error - Empty App Name in YAML",
+			folderName: "",
 			zipFiles: map[string]string{
-				"app.yaml":       "",
-				"python/main.py": "",
+				"app.yaml":       "name: \"   \"",
+				"python/main.py": "print('h')",
 			},
 			wantErr:       true,
 			expectedErr:   ErrBadRequest,
-			errorContains: "invalid folder name",
+			errorContains: "app name is missing",
 		},
 		{
 			name:       "Error - App Already Exists",
 			folderName: "existing-app",
 			zipFiles: map[string]string{
-				"app.yaml":       "name: new",
+				"app.yaml":       "name: Existing App",
 				"python/main.py": "print('hello')",
 			},
 			preExisting: true,
@@ -1007,7 +1007,7 @@ func TestImportAppFromZip(t *testing.T) {
 		},
 		{
 			name:       "Error - Missing app.yaml",
-			folderName: "no-yaml-app",
+			folderName: "no-yaml",
 			zipFiles: map[string]string{
 				"python/main.py": "print('hello')",
 			},
@@ -1017,7 +1017,7 @@ func TestImportAppFromZip(t *testing.T) {
 		},
 		{
 			name:       "Error - Missing python/main.py",
-			folderName: "no-python-app",
+			folderName: "test",
 			zipFiles: map[string]string{
 				"app.yaml": "name: test",
 			},
@@ -1029,7 +1029,7 @@ func TestImportAppFromZip(t *testing.T) {
 			name:       "Error - Sketch missing .ino",
 			folderName: "broken-sketch",
 			zipFiles: map[string]string{
-				"app.yaml":           "",
+				"app.yaml":           "name: Broken Sketch",
 				"python/main.py":     "",
 				"sketch/sketch.yaml": "",
 			},
@@ -1041,7 +1041,7 @@ func TestImportAppFromZip(t *testing.T) {
 			name:       "Error - Zip Slip Attack",
 			folderName: "hacker-app",
 			zipFiles: map[string]string{
-				"app.yaml":       "",
+				"app.yaml":       "name: hacker",
 				"python/main.py": "",
 				"../../evil.sh":  "echo pwned",
 			},
@@ -1067,10 +1067,11 @@ func TestImportAppFromZip(t *testing.T) {
 				existsPath := filepath.Join(appsDirPath, tc.folderName)
 				require.NoError(t, os.MkdirAll(existsPath, 0755))
 			}
+
 			zipPath := filepath.Join(tmpRoot, "import.zip")
 			createZipFile(t, zipPath, tc.zipFiles)
 
-			id, err := ImportAppFromZip(cfg, zipPath, tc.folderName, idProvider)
+			id, err := ImportAppFromZip(cfg, paths.New(zipPath), idProvider)
 
 			if tc.wantErr {
 				require.Error(t, err)
@@ -1088,14 +1089,12 @@ func TestImportAppFromZip(t *testing.T) {
 				require.NoError(t, err)
 				require.NotEmpty(t, id)
 
-				sanitizedName, _ := sanitizeAndValidateFolderName(tc.folderName)
-				finalPath := cfg.AppsDir().Join(sanitizedName)
+				finalPath := cfg.AppsDir().Join(tc.folderName)
 
 				require.True(t, finalPath.Exist(), "App folder should exist at %s", finalPath)
 				require.True(t, finalPath.Join("app.yaml").Exist(), "app.yaml missing")
 				require.True(t, finalPath.Join("python/main.py").Exist(), "main.py missing")
 
-				// Verify that temporary folders were cleaned up
 				files, _ := finalPath.Parent().ReadDir()
 				for _, f := range files {
 					name := f.Base()

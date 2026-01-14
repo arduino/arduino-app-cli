@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"path"
-	"strings"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
@@ -44,56 +42,4 @@ func ValidateBricks(a AppDescriptor, index *bricksindex.BricksIndex) error {
 		}
 	}
 	return allErrors
-}
-
-func ValidateStructure(filePaths []string) error {
-	var (
-		hasAppYaml    bool
-		hasMainPy     bool
-		hasSketchDir  bool
-		hasSketchIno  bool
-		hasSketchYaml bool
-	)
-
-	for _, p := range filePaths {
-		p = strings.TrimSpace(p)
-
-		if p == "app.yaml" {
-			hasAppYaml = true
-		}
-
-		if p == "python/main.py" {
-			hasMainPy = true
-		}
-
-		if strings.HasPrefix(p, "sketch/") {
-			hasSketchDir = true
-			base := path.Base(p)
-			if base == "sketch.ino" {
-				hasSketchIno = true
-			}
-			if base == "sketch.yaml" {
-				hasSketchYaml = true
-			}
-		}
-	}
-
-	var errs error
-
-	if !hasAppYaml {
-		errs = errors.Join(errs, errors.New("missing required file 'app.yaml'"))
-	}
-	if !hasMainPy {
-		errs = errors.Join(errs, errors.New("missing required file 'python/main.py'"))
-	}
-	if hasSketchDir {
-		if !hasSketchIno {
-			errs = errors.Join(errs, errors.New("sketch directory present but 'sketch/sketch.ino' is missing"))
-		}
-		if !hasSketchYaml {
-			errs = errors.Join(errs, errors.New("sketch directory present but 'sketch/sketch.yaml' is missing"))
-		}
-	}
-
-	return errs
 }

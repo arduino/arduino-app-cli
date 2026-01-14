@@ -709,21 +709,15 @@ paths:
         the ID in Base64.
       operationId: importApp
       parameters:
-      - description: 'A JSON string containing import options. Example: {"folder_name":
-          "my-custom-id"}'
-        in: query
-        name: options
-        schema:
-          description: 'A JSON string containing import options. Example: {"folder_name":
-            "my-custom-id"}'
-          type: string
-      - description: The ZIP archive containing the application structure. Must contain
-          app.yaml and python folder.
+      - description: The ZIP archive. Must contain app.yaml (with a valid 'name')
+          and python/main.py. The app folder name will be calculated from the app
+          name.
         in: query
         name: file
         schema:
-          description: The ZIP archive containing the application structure. Must
-            contain app.yaml and python folder.
+          description: The ZIP archive. Must contain app.yaml (with a valid 'name')
+            and python/main.py. The app folder name will be calculated from the app
+            name.
           format: base64
           type: string
       requestBody:
@@ -732,13 +726,10 @@ paths:
             schema:
               properties:
                 file:
-                  description: The ZIP archive containing the application structure.
-                    Must contain app.yaml and python folder.
+                  description: The ZIP archive. Must contain app.yaml (with a valid
+                    'name') and python/main.py. The app folder name will be calculated
+                    from the app name.
                   format: base64
-                  type: string
-                options:
-                  description: 'A JSON string containing import options. Example:
-                    {"folder_name": "my-custom-id"}'
                   type: string
               type: object
       responses:

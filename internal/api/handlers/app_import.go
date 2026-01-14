@@ -6,7 +6,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -14,16 +13,14 @@ import (
 	"os"
 	"strings"
 
+	"github.com/arduino/go-paths-helper"
+
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
-
-type ImportOptions struct {
-	FolderName string `json:"folder_name"`
-}
 
 type ImportResponse struct {
 	ID string `json:"id"`
@@ -42,44 +39,26 @@ func HandleAppImport(
 		}
 		defer file.Close()
 
-		optionsStr := r.FormValue("options")
-		if optionsStr == "" {
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "missing required 'options' JSON parameter"})
-			return
-		}
-
-		var opts ImportOptions
-		if err := json.Unmarshal([]byte(optionsStr), &opts); err != nil {
-			slog.Error("invalid options json", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "invalid 'options' JSON format"})
-			return
-		}
-
-		if strings.TrimSpace(opts.FolderName) == "" {
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "json field 'folder_name' is required"})
-			return
-		}
-
 		tempFile, err := os.CreateTemp("", "app-import-*.zip")
 		if err != nil {
-			slog.Error("unable to create temp file", slog.String("error", err.Error()))
+			slog.Error("unable to create temp file", "err", err)
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "internal server error"})
 			return
 		}
-		tempPath := tempFile.Name()
-		defer os.Remove(tempPath)
+		tempFilePath := paths.New(tempFile.Name())
+		defer os.Remove(tempFilePath.String())
 
 		if _, err := io.Copy(tempFile, file); err != nil {
 			tempFile.Close()
-			slog.Error("unable to save upload to temp file", slog.String("error", err.Error()))
+			slog.Error("unable to save upload to temp file", "err", err)
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "failed to save uploaded file"})
 			return
 		}
 		tempFile.Close()
 
-		appID, err := orchestrator.ImportAppFromZip(cfg, tempPath, opts.FolderName, idProvider)
+		appID, err := orchestrator.ImportAppFromZip(cfg, tempFilePath, idProvider)
 		if err != nil {
-			slog.Error("import failed", slog.String("error", err.Error()))
+			slog.Error("import failed", "err", err)
 
 			switch {
 			case errors.Is(err, orchestrator.ErrAppAlreadyExists):
@@ -92,7 +71,7 @@ func HandleAppImport(
 			return
 		}
 
-		slog.Info("app imported successfully", slog.String("app_id", appID))
+		slog.Info("app imported successfully", "app_id", appID)
 		render.EncodeResponse(w, http.StatusCreated, ImportResponse{ID: appID})
 	}
 }

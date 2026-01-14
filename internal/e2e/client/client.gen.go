@@ -418,19 +418,13 @@ type CreateAppParams struct {
 
 // ImportAppFormdataBody defines parameters for ImportApp.
 type ImportAppFormdataBody struct {
-	// File The ZIP archive containing the application structure. Must contain app.yaml and python folder.
+	// File The ZIP archive. Must contain app.yaml (with a valid 'name') and python/main.py. The app folder name will be calculated from the app name.
 	File *string `form:"file,omitempty" json:"file,omitempty"`
-
-	// Options A JSON string containing import options. Example: {"folder_name": "my-custom-id"}
-	Options *string `form:"options,omitempty" json:"options,omitempty"`
 }
 
 // ImportAppParams defines parameters for ImportApp.
 type ImportAppParams struct {
-	// Options A JSON string containing import options. Example: {"folder_name": "my-custom-id"}
-	Options *string `form:"options,omitempty" json:"options,omitempty"`
-
-	// File The ZIP archive containing the application structure. Must contain app.yaml and python folder.
+	// File The ZIP archive. Must contain app.yaml (with a valid 'name') and python/main.py. The app folder name will be calculated from the app name.
 	File *string `form:"file,omitempty" json:"file,omitempty"`
 }
 
@@ -1432,22 +1426,6 @@ func NewImportAppRequestWithBody(server string, params *ImportAppParams, content
 
 	if params != nil {
 		queryValues := queryURL.Query()
-
-		if params.Options != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "options", runtime.ParamLocationQuery, *params.Options); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
 
 		if params.File != nil {
 

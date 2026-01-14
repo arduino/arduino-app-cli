@@ -568,8 +568,7 @@ Contains a JSON object with the details of an error.
 			Path:        "/v1/apps/import",
 			Parameters:  nil,
 			Request: (*struct {
-				Options string `form:"options" description:"A JSON string containing import options. Example: {\"folder_name\": \"my-custom-id\"}" validate:"required"`
-				File    []byte `form:"file" description:"The ZIP archive containing the application structure. Must contain app.yaml and python folder." validate:"required"`
+				File []byte `form:"file" description:"The ZIP archive. Must contain app.yaml (with a valid 'name') and python/main.py. The app folder name will be calculated from the app name." validate:"required"`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType: "application/json",
