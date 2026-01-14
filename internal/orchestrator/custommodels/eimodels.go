@@ -1,25 +1,37 @@
 package custommodels
 
 import (
+	"fmt"
 	"io/fs"
 	"path/filepath"
 
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/go-paths-helper"
-	"gopkg.in/yaml.v3"
+	yaml "github.com/goccy/go-yaml"
 )
 
+// map Edge Impulse categories to Arduino bricks
 var eiCategoryToArduinoBrick = map[string]string{
 	"Images": "object-detection",
 }
 
 type EdgeImpulseModel struct {
-	Id          string `yaml:"-"`
 	ProjectId   int    `yaml:"project-id"`
 	ImpulseID   int    `yaml:"impulse-id"`
 	Name        string `yaml:"name"`
 	Description string `yaml:"description"`
 	Category    string `yaml:"category"`
 	Path        string `yaml:"-"`
+}
+
+func (m EdgeImpulseModel) ToArduinoAIModel() modelsindex.AIModel {
+	return modelsindex.AIModel{
+		ID:                fmt.Sprintf("ei:%d-%d", m.ProjectId, m.ImpulseID), // TODO : generate a base 64 id from the project and impulse id
+		Name:              m.Name,
+		ModuleDescription: m.Description,
+		Runner:            "bricks",
+		Bricks:            []string{eiCategoryToArduinoBrick[m.Category]},
+	}
 }
 
 func List(eiModelsPath *paths.Path) ([]EdgeImpulseModel, error) {

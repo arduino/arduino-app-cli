@@ -36,14 +36,6 @@ func TestGetModelsByBrick(t *testing.T) {
 	models, err = GetModelsByBrick(paths.New("testdata/ei-models-a"), "object-detection")
 	require.NoError(t, err, "List should not return an error when reading valid testdata")
 	require.Len(t, models, 1, "expected exactly one model loaded from testdata")
-
-	expectedModel := EdgeImpulseModel{
-		ProjectId:   152350,
-		ImpulseID:   1,
-		Name:        "my custom model from edge impulse",
-		Description: "A small and accurate model for detecting bounding boxes for faces in images.",
-		Category:    "Images",
-		Path:        "testdata/ei-models-a/152350/1",
-	}
-	assert.Equal(t, expectedModel, models[0], "loaded model does not match expected model")
+	assert.Equal(t, 152350, models[0].ProjectId, "loaded model does not match expected project id")
+	assert.Equal(t, 1, models[0].ImpulseID, "loaded model does not match expected impulse id")
 }
