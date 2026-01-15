@@ -15,7 +15,7 @@ func TestModelsIndex(t *testing.T) {
 
 	t.Run("it parses a valid model-list.yaml", func(t *testing.T) {
 		models := modelsIndex.GetModels()
-		assert.Len(t, models, 4, "Expected 4 models to be parsed")
+		assert.Len(t, models, 3, "Expected 3 models to be parsed")
 	})
 
 	t.Run("it gets a model by ID", func(t *testing.T) {
@@ -37,7 +37,7 @@ func TestModelsIndex(t *testing.T) {
 		assert.Equal(t, "face-det-lite", model.Metadata["source-model-id"])
 		assert.Equal(t, "https://aihub.qualcomm.com/models/face_det_lite", model.Metadata["source-model-url"])
 
-		eimodel, found := modelsIndex.GetModelByID("11111-1")
+		eimodel, found := modelsIndex.GetModelByID("111111-1")
 		assert.True(t, found)
 		assert.NotNil(t, eimodel)
 	})
