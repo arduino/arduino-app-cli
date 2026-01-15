@@ -7,6 +7,6 @@ systemctl enable arduino-burn-bootloader
 systemctl enable arduino-avahi-serial.service
 
 if [ "$1" = "configure" ]; then
-    echo "Running pre-0.9.0 legacy migration..."
+    # remove old data directory
     rm -rf /home/arduino/.local/share/arduino-app-cli
 fi
