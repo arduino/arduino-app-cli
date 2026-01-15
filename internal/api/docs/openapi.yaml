@@ -1603,6 +1603,13 @@ components:
       type: object
     LibraryReleaseID:
       type: object
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        is_dependency:
+          type: boolean
     PackageType:
       description: Package type
       enum:

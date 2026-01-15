@@ -16,7 +16,6 @@
 package orchestrator
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -27,9 +26,9 @@ import (
 // - name[@version]
 // Version is optional, if not provided, the latest version available will be used.
 type LibraryReleaseID struct {
-	Name         string
-	Version      string
-	IsDependency bool
+	Name         string `json:"name"`
+	Version      string `json:"version"`
+	IsDependency bool   `json:"is_dependency"`
 }
 
 func NewLibraryReleaseID(name string, version string) LibraryReleaseID {
@@ -62,9 +61,4 @@ func (l LibraryReleaseID) String() string {
 		return l.Name
 	}
 	return l.Name + "@" + l.Version
-}
-
-// MarshalJSON implements the json.Marshaler interface for LibraryID.
-func (l LibraryReleaseID) MarshalJSON() ([]byte, error) {
-	return json.Marshal(l.String())
 }

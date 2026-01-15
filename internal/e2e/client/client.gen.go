@@ -313,7 +313,11 @@ type LibraryListResponse struct {
 }
 
 // LibraryReleaseID defines model for LibraryReleaseID.
-type LibraryReleaseID = map[string]interface{}
+type LibraryReleaseID struct {
+	IsDependency *bool   `json:"is_dependency,omitempty"`
+	Name         *string `json:"name,omitempty"`
+	Version      *string `json:"version,omitempty"`
+}
 
 // PackageType Package type
 type PackageType string
