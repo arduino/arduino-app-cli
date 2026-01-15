@@ -23,6 +23,8 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/render"
+
+	"go.bug.st/f"
 )
 
 func HandleSketchAddLibrary(idProvider *app.IDProvider) http.HandlerFunc {
@@ -122,10 +124,16 @@ func HandleSketchListLibraries(idProvider *app.IDProvider) http.HandlerFunc {
 			return
 		}
 
+		// Get query param hideDeps (default false)
+		hideDeps, _ := strconv.ParseBool(r.URL.Query().Get("hide_deps"))
+
 		libraries, err := orchestrator.ListSketchLibraries(r.Context(), app)
 		if err != nil {
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to list sketch libraries: " + err.Error()})
 			return
+		}
+		if hideDeps {
+			libraries = f.Filter(libraries, func(lri orchestrator.LibraryReleaseID) bool { return !lri.IsDependency })
 		}
 		render.EncodeResponse(w, http.StatusOK, SketchListLibraryResponse{
 			Libraries: libraries,
