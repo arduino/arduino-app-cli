@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"errors"
 	"fmt"
 	"io"
 	"iter"
@@ -1001,7 +1000,7 @@ func ImportAppFromZip(
 		return app.ID{}, err
 	}
 
-	appDescriptor, err := readAppDescriptorFromZip(&r.Reader)
+	appDescriptor, err := app.ReadAppDescriptorFromZip(&r.Reader)
 	if err != nil {
 		return app.ID{}, fmt.Errorf("failed to read app.yaml: %w", err)
 	}
@@ -1043,29 +1042,6 @@ func ImportAppFromZip(
 	}
 
 	return id, nil
-}
-
-func readAppDescriptorFromZip(r *zip.Reader) (app.AppDescriptor, error) {
-	var descriptor app.AppDescriptor
-
-	for _, f := range r.File {
-		if f.Name == "app.yaml" || f.Name == "app.yml" {
-			rc, err := f.Open()
-			if err != nil {
-				return descriptor, err
-			}
-			defer rc.Close()
-
-			if err := yaml.NewDecoder(rc).Decode(&descriptor); err != nil {
-				if errors.Is(err, io.EOF) {
-					return descriptor, fmt.Errorf("app.yaml is empty")
-				}
-				return descriptor, err
-			}
-			return descriptor, nil
-		}
-	}
-	return descriptor, fmt.Errorf("app.yaml not found in archive")
 }
 
 // TODO implement centralized app validator to use everywhere is needed

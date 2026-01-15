@@ -18,10 +18,14 @@ package app
 import (
 	"archive/zip"
 	"bytes"
+	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+
+	yaml "github.com/goccy/go-yaml"
 )
 
 func ZipAppToBuffer(sourcePath string, includeData bool) ([]byte, error) {
@@ -94,4 +98,27 @@ func ZipAppToBuffer(sourcePath string, includeData bool) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+func ReadAppDescriptorFromZip(r *zip.Reader) (AppDescriptor, error) {
+	var descriptor AppDescriptor
+
+	for _, f := range r.File {
+		if f.Name == "app.yaml" || f.Name == "app.yml" {
+			rc, err := f.Open()
+			if err != nil {
+				return descriptor, err
+			}
+			defer rc.Close()
+
+			if err := yaml.NewDecoder(rc).Decode(&descriptor); err != nil {
+				if errors.Is(err, io.EOF) {
+					return descriptor, fmt.Errorf("app.yaml is empty")
+				}
+				return descriptor, err
+			}
+			return descriptor, nil
+		}
+	}
+	return descriptor, fmt.Errorf("app.yaml not found in archive")
 }
