@@ -754,35 +754,54 @@ func createMockZip(t *testing.T, files map[string]string) *zip.Reader {
 
 func TestExportAppZip(t *testing.T) {
 	type testCase struct {
-		name          string
-		appName       string
-		files         map[string]string
-		nonExistent   bool
-		wantErr       bool
-		wantFilename  string
-		wantZipNotNil bool
+		name             string
+		appName          string
+		files            map[string]string
+		nonExistent      bool
+		includeData      bool
+		wantFiles        []string
+		wantMissingFiles []string
+		wantErr          bool
+		wantFilename     string
 	}
 
 	tests := []testCase{
 		{
-			name:    "Standard app name",
+			name:    "Standard app name (include_data=false)",
 			appName: "My Test App",
 			files: map[string]string{
-				"app.yaml": "content file",
+				"app.yaml":     "content",
+				"data/foo.txt": "data content",
 			},
-			wantErr:       false,
-			wantFilename:  "my-test-app.zip",
-			wantZipNotNil: true,
+			includeData:      false,
+			wantErr:          false,
+			wantFilename:     "my-test-app.zip",
+			wantFiles:        []string{"app.yaml"},
+			wantMissingFiles: []string{"data/foo.txt"},
+		},
+		{
+			name:    "Include Data directory (include_data=true)",
+			appName: "Data App",
+			files: map[string]string{
+				"app.yaml":     "content",
+				"data/foo.txt": "data content",
+			},
+			includeData:      true,
+			wantErr:          false,
+			wantFilename:     "data-app.zip",
+			wantFiles:        []string{"app.yaml", "data/foo.txt"},
+			wantMissingFiles: []string{},
 		},
 		{
 			name:    "Empty app name uses default",
 			appName: "",
 			files: map[string]string{
-				"app.yaml": "content file",
+				"app.yaml": "content",
 			},
-			wantErr:       false,
-			wantFilename:  "app-export.zip",
-			wantZipNotNil: true,
+			includeData:  false,
+			wantErr:      false,
+			wantFilename: "app-export.zip",
+			wantFiles:    []string{"app.yaml"},
 		},
 		{
 			name:        "Error on non existent path",
@@ -811,8 +830,7 @@ func TestExportAppZip(t *testing.T) {
 				Name:     tc.appName,
 				FullPath: paths.New(appPath),
 			}
-
-			zipData, filename, err := ExportAppZip(context.Background(), app)
+			zipData, filename, err := ExportAppZip(context.Background(), app, tc.includeData)
 
 			if tc.wantErr {
 				require.Error(t, err)
@@ -823,9 +841,22 @@ func TestExportAppZip(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, tc.wantFilename, filename)
+			require.NotEmpty(t, zipData)
 
-			if tc.wantZipNotNil {
-				require.NotEmpty(t, zipData)
+			zipReader, err := zip.NewReader(bytes.NewReader(zipData), int64(len(zipData)))
+			require.NoError(t, err)
+
+			presentFiles := make(map[string]bool)
+			for _, f := range zipReader.File {
+				presentFiles[f.Name] = true
+			}
+
+			for _, file := range tc.wantFiles {
+				require.True(t, presentFiles[file], "File expected in zip but missing: %s", file)
+			}
+
+			for _, file := range tc.wantMissingFiles {
+				require.False(t, presentFiles[file], "File should NOT be in zip but was found: %s", file)
 			}
 		})
 	}
@@ -836,6 +867,7 @@ func TestZipAppToBuffer(t *testing.T) {
 		name        string
 		files       map[string]string
 		nonExistent bool
+		includeData bool
 		wantErr     bool
 		wantInZip   []string
 		wantMissing []string
@@ -848,8 +880,32 @@ func TestZipAppToBuffer(t *testing.T) {
 				"app.yaml":        "content file",
 				"assets/icon.png": "image-data",
 			},
+			includeData: false,
 			wantErr:     false,
 			wantInZip:   []string{"app.yaml", "assets/icon.png"},
+			wantMissing: []string{},
+		},
+		{
+			name: "Exclude 'data' directory (includeData=false)",
+			files: map[string]string{
+				"app.yaml":       "content",
+				"data/file.txt":  "should be ignored",
+				"data/image.png": "should be ignored",
+			},
+			includeData: false,
+			wantErr:     false,
+			wantInZip:   []string{"app.yaml"},
+			wantMissing: []string{"data/file.txt", "data/image.png"},
+		},
+		{
+			name: "Include 'data' directory (includeData=true)",
+			files: map[string]string{
+				"app.yaml":      "content",
+				"data/file.txt": "should be included",
+			},
+			includeData: true,
+			wantErr:     false,
+			wantInZip:   []string{"app.yaml", "data/file.txt"},
 			wantMissing: []string{},
 		},
 		{
@@ -859,6 +915,7 @@ func TestZipAppToBuffer(t *testing.T) {
 				".cache/temp_file":  "junk",
 				".cache/sub/folder": "junk",
 			},
+			includeData: false,
 			wantErr:     false,
 			wantInZip:   []string{"app.yaml"},
 			wantMissing: []string{".cache/temp_file", ".cache/sub/folder"},
@@ -869,6 +926,7 @@ func TestZipAppToBuffer(t *testing.T) {
 				".env":           "SECRET=123",
 				"assets/.hidden": "hidden-asset",
 			},
+			includeData: false,
 			wantErr:     false,
 			wantInZip:   []string{".env", "assets/.hidden"},
 			wantMissing: []string{},
@@ -879,6 +937,7 @@ func TestZipAppToBuffer(t *testing.T) {
 				"app.js":              "code",
 				".cache/v1/data.json": "cache-data",
 			},
+			includeData: false,
 			wantErr:     false,
 			wantInZip:   []string{"app.js"},
 			wantMissing: []string{".cache/v1/data.json"},
@@ -908,8 +967,7 @@ func TestZipAppToBuffer(t *testing.T) {
 			if tc.nonExistent {
 				sourcePath = filepath.Join(tmpDir, "not existing path")
 			}
-
-			zipData, err := zipAppToBuffer(sourcePath)
+			zipData, err := zipAppToBuffer(sourcePath, tc.includeData)
 
 			if tc.wantErr {
 				require.Error(t, err)

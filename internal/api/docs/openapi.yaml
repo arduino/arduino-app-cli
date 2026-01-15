@@ -534,6 +534,14 @@ paths:
         schema:
           description: application identifier.
           type: string
+      - description: If true, the exported archive will include the 'data' directory.
+          Default is false.
+        in: query
+        name: include_data
+        schema:
+          description: If true, the exported archive will include the 'data' directory.
+            Default is false.
+          type: boolean
       responses:
         "200":
           content:

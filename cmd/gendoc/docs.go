@@ -594,7 +594,9 @@ Contains a JSON object with the details of an error.
 			Request: (*struct {
 				ID string `path:"id" description:"application identifier."`
 			})(nil),
-			Parameters: nil,
+			Parameters: (*struct {
+				IncludeData bool `query:"include_data" description:"If true, the exported archive will include the 'data' directory. Default is false."`
+			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/zip",
 				DataStructure: []byte{},

@@ -966,6 +966,7 @@ func DeleteApp(ctx context.Context, dockerClient command.Cli, app app.ArduinoApp
 func ExportAppZip(
 	ctx context.Context,
 	app app.ArduinoApp,
+	includeData bool,
 ) ([]byte, string, error) {
 
 	appName := strings.ToLower(strings.ReplaceAll(app.Name, " ", "-"))
@@ -973,14 +974,14 @@ func ExportAppZip(
 		appName = "app-export"
 	}
 	filename := fmt.Sprintf("%s.zip", appName)
-	zipBytes, err := zipAppToBuffer(app.FullPath.String())
+	zipBytes, err := zipAppToBuffer(app.FullPath.String(), includeData)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create zip archive: %w", err)
 	}
 	return zipBytes, filename, nil
 }
 
-func zipAppToBuffer(sourcePath string) ([]byte, error) {
+func zipAppToBuffer(sourcePath string, includeData bool) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	zipWriter := zip.NewWriter(buf)
 
@@ -997,6 +998,13 @@ func zipAppToBuffer(sourcePath string) ([]byte, error) {
 			return nil
 		}
 		if strings.HasPrefix(relPath, ".cache") {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		if !includeData && strings.HasPrefix(relPath, "data") {
 			if d.IsDir() {
 				return filepath.SkipDir
 			}

@@ -440,6 +440,12 @@ type AppSketchAddLibraryParams struct {
 	AddDeps *string `form:"add_deps,omitempty" json:"add_deps,omitempty"`
 }
 
+// ExportAppParams defines parameters for ExportApp.
+type ExportAppParams struct {
+	// IncludeData If true, the exported archive will include the 'data' directory. Default is false.
+	IncludeData *bool `form:"include_data,omitempty" json:"include_data,omitempty"`
+}
+
 // GetAppLogsParams defines parameters for GetAppLogs.
 type GetAppLogsParams struct {
 	Filter   *string `form:"filter,omitempty" json:"filter,omitempty"`
@@ -653,7 +659,7 @@ type ClientInterface interface {
 	GetAppEvents(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ExportApp request
-	ExportApp(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ExportApp(ctx context.Context, id string, params *ExportAppParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAppLogs request
 	GetAppLogs(ctx context.Context, id string, params *GetAppLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1000,8 +1006,8 @@ func (c *Client) GetAppEvents(ctx context.Context, id string, reqEditors ...Requ
 	return c.Client.Do(req)
 }
 
-func (c *Client) ExportApp(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewExportAppRequest(c.Server, id)
+func (c *Client) ExportApp(ctx context.Context, id string, params *ExportAppParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewExportAppRequest(c.Server, id, params)
 	if err != nil {
 		return nil, err
 	}
@@ -2071,7 +2077,7 @@ func NewGetAppEventsRequest(server string, id string) (*http.Request, error) {
 }
 
 // NewExportAppRequest generates requests for ExportApp
-func NewExportAppRequest(server string, id string) (*http.Request, error) {
+func NewExportAppRequest(server string, id string, params *ExportAppParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -2094,6 +2100,28 @@ func NewExportAppRequest(server string, id string) (*http.Request, error) {
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.IncludeData != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "include_data", runtime.ParamLocationQuery, *params.IncludeData); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -2991,7 +3019,7 @@ type ClientWithResponsesInterface interface {
 	GetAppEventsWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetAppEventsResp, error)
 
 	// ExportAppWithResponse request
-	ExportAppWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*ExportAppResp, error)
+	ExportAppWithResponse(ctx context.Context, id string, params *ExportAppParams, reqEditors ...RequestEditorFn) (*ExportAppResp, error)
 
 	// GetAppLogsWithResponse request
 	GetAppLogsWithResponse(ctx context.Context, id string, params *GetAppLogsParams, reqEditors ...RequestEditorFn) (*GetAppLogsResp, error)
@@ -4148,8 +4176,8 @@ func (c *ClientWithResponses) GetAppEventsWithResponse(ctx context.Context, id s
 }
 
 // ExportAppWithResponse request returning *ExportAppResp
-func (c *ClientWithResponses) ExportAppWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*ExportAppResp, error) {
-	rsp, err := c.ExportApp(ctx, id, reqEditors...)
+func (c *ClientWithResponses) ExportAppWithResponse(ctx context.Context, id string, params *ExportAppParams, reqEditors ...RequestEditorFn) (*ExportAppResp, error) {
+	rsp, err := c.ExportApp(ctx, id, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

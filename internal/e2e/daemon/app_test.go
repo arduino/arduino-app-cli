@@ -1053,6 +1053,7 @@ func TestExportApp(t *testing.T) {
 		exportResp, err := httpClient.ExportApp(
 			t.Context(),
 			validAppId,
+			&client.ExportAppParams{},
 		)
 		require.NoError(t, err)
 		defer exportResp.Body.Close()
@@ -1067,12 +1068,30 @@ func TestExportApp(t *testing.T) {
 		assert.NotContains(t, files, ".cache")
 	})
 
+	t.Run("ExportWithIncludeData_Success", func(t *testing.T) {
+		exportResp, err := httpClient.ExportApp(
+			t.Context(),
+			validAppId,
+			&client.ExportAppParams{
+				IncludeData: f.Ptr(true),
+			},
+		)
+		require.NoError(t, err)
+		defer exportResp.Body.Close()
+
+		require.Equal(t, http.StatusOK, exportResp.StatusCode)
+		require.Equal(t, "application/zip", exportResp.Header.Get("Content-Type"))
+		files := readZipFiles(t, exportResp.Body)
+		assert.Contains(t, files, "app.yaml")
+	})
+
 	t.Run("InvalidAppId_Fail", func(t *testing.T) {
 		malformedId := "user:test-plain-text"
 
 		exportResp, err := httpClient.ExportApp(
 			t.Context(),
 			malformedId,
+			&client.ExportAppParams{},
 		)
 		require.NoError(t, err)
 		defer exportResp.Body.Close()
@@ -1094,6 +1113,7 @@ func TestExportApp(t *testing.T) {
 		exportResp, err := httpClient.ExportApp(
 			t.Context(),
 			nonExistentId,
+			&client.ExportAppParams{},
 		)
 		require.NoError(t, err)
 		defer exportResp.Body.Close()
