@@ -156,6 +156,10 @@ func (c *Configuration) AssetsDir() *paths.Path {
 	return c.dataDir.Join("assets")
 }
 
+func (c *Configuration) CustomEiModelsDir() *paths.Path {
+	return c.customEIModelsDir
+}
+
 func getPythonImageAndTag() (string, string) {
 	registryBase := os.Getenv("DOCKER_REGISTRY_BASE")
 	if registryBase == "" {

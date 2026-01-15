@@ -44,6 +44,7 @@ func AIModelsList(req AIModelsListRequest, modelsIndex *modelsindex.ModelsIndex)
 	} else {
 		collection = modelsIndex.GetModelsByBricks(req.FilterByBrickID)
 	}
+
 	res := AIModelsListResult{Models: make([]AIModelItem, len(collection))}
 	for i, model := range collection {
 		res.Models[i] = AIModelItem{

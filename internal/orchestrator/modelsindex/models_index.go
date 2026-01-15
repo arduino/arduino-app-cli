@@ -16,11 +16,20 @@
 package modelsindex
 
 import (
+	"fmt"
+	"log/slog"
 	"slices"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/goccy/go-yaml"
+
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/edgeimpulse"
 )
+
+// map Edge Impulse categories to Arduino bricks
+var eiCategoryToArduinoBrick = map[string]string{
+	"Images": "object-detection",
+}
 
 type assetsModelList struct {
 	Models []map[string]AIModel `yaml:"models"`
@@ -43,7 +52,9 @@ func (b *assetsModelList) UnmarshalYAML(unmarshal func(any) error) error {
 }
 
 type AIModel struct {
-	ID                 string            `yaml:"-"`
+	ID string `yaml:"-"`
+	// fixme: define a custom type
+	Source             string            `yaml:"-"`
 	Name               string            `yaml:"name"`
 	ModuleDescription  string            `yaml:"description"`
 	Runner             string            `yaml:"runner"`
@@ -55,10 +66,38 @@ type AIModel struct {
 
 type ModelsIndex struct {
 	Models []AIModel
+
+	eiLoader *edgeimpulse.Loader
 }
 
 func (m *ModelsIndex) GetModels() []AIModel {
-	return m.Models
+	if m.eiLoader == nil {
+		return m.Models
+	}
+
+	allModels := m.Models
+	eimodels, err := m.eiLoader.List()
+	if err != nil {
+		// TODO: continue even if the edge impulse fail ?
+		slog.Warn("error loading  EI models", "err", err)
+		return m.Models
+	}
+
+	for _, ei := range eimodels {
+		allModels = append(allModels, AIModel{
+			ID:                fmt.Sprintf("%d-%d", ei.ProjectId, ei.ImpulseID), // TODO: generation of ID
+			Source:            "edgeimpulse",
+			Name:              ei.Name,
+			ModuleDescription: ei.Description,
+			Runner:            "bricks",
+			Bricks:            []string{eiCategoryToArduinoBrick[ei.Category]},
+			Metadata: map[string]string{
+				"project-id": fmt.Sprintf("%d", ei.ProjectId),
+				"impulse-id": fmt.Sprintf("%d", ei.ImpulseID),
+			},
+		})
+	}
+	return allModels
 }
 
 func (m *ModelsIndex) GetModelByID(id string) (*AIModel, bool) {
@@ -95,7 +134,7 @@ func (m *ModelsIndex) GetModelsByBricks(bricks []string) []AIModel {
 	return matchingModels
 }
 
-func Load(dir *paths.Path) (*ModelsIndex, error) {
+func Load(dir *paths.Path, eiLoader *edgeimpulse.Loader) (*ModelsIndex, error) {
 	content, err := dir.Join("models-list.yaml").ReadFile()
 	if err != nil {
 		return nil, err
@@ -110,9 +149,9 @@ func Load(dir *paths.Path) (*ModelsIndex, error) {
 	for i, modelMap := range list.Models {
 		for id, model := range modelMap {
 			model.ID = id
+			model.Source = "arduino" // TODO: define a global enum source
 			models[i] = model
 		}
 	}
-	// TODO load the ei-models as well
-	return &ModelsIndex{Models: models}, nil
+	return &ModelsIndex{Models: models, eiLoader: eiLoader}, nil
 }

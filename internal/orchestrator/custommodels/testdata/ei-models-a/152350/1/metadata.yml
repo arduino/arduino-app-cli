@@ -1,8 +1,0 @@
-project-id: 152350
-impulse-id: 1
-name: "my custom model from edge impulse"
-description: "A small and accurate model for detecting bounding boxes for faces in images."
-category: "Images"
-brick_ids:
-  - "arduino:object_detection"
-  - "arduino:video_object_detection"
