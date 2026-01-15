@@ -1010,3 +1010,113 @@ func TestAppList(t *testing.T) {
 		require.Equal(t, "HelloWorld-default", *app.Name, "The app name should be 'HelloWorld-default'")
 	})
 }
+
+func TestSkeatAppLibrariesCommands(t *testing.T) {
+	httpClient := GetHttpclient(t)
+
+	// Create a new App
+	createResp, err := httpClient.CreateAppWithResponse(
+		t.Context(),
+		&client.CreateAppParams{SkipSketch: f.Ptr(false)},
+		client.CreateAppRequest{
+			Icon:        f.Ptr("📚"),
+			Name:        "test-app-libraries",
+			Description: f.Ptr("Test app for library operations"),
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode())
+	require.NotNil(t, createResp.JSON201)
+	appID := *createResp.JSON201.Id
+
+	// Install "Arduino_RouterBridge" library with dependencies
+	addResp, err := httpClient.AppSketchAddLibraryWithResponse(
+		t.Context(),
+		appID,
+		"Arduino_RouterBridge",
+		&client.AppSketchAddLibraryParams{AddDeps: f.Ptr("true")},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, addResp.StatusCode())
+	require.NotNil(t, addResp.JSON200)
+	require.NotNil(t, addResp.JSON200.Libraries)
+	require.NotEmpty(t, *addResp.JSON200.Libraries, "Added libraries list should not be empty")
+
+	// List libraries and verify "Arduino_RouterBridge" is in the list with its dependencies
+	listResp, err := httpClient.AppSketchListLibrariesWithResponse(
+		t.Context(),
+		appID,
+		&client.AppSketchListLibrariesParams{HideDeps: f.Ptr("false")},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, listResp.StatusCode())
+	require.NotNil(t, listResp.JSON200)
+	require.NotNil(t, listResp.JSON200.Libraries)
+	require.NotEmpty(t, *listResp.JSON200.Libraries, "Libraries list should not be empty")
+	fmt.Println("List Libraries Response:", *listResp.JSON200.Libraries)
+
+	// Verify Arduino_RouterBridge is in the list
+	libraries := *listResp.JSON200.Libraries
+	foundRouterBridge := false
+	for _, lib := range libraries {
+		require.NotNil(t, lib.Name)
+		if *lib.Name == "Arduino_RouterBridge" {
+			foundRouterBridge = true
+			require.False(t, *lib.IsDependency, "Arduino_RouterBridge should not be marked as a dependency")
+		}
+	}
+	require.True(t, foundRouterBridge, "Arduino_RouterBridge should be in the libraries list")
+	require.Greater(t, len(libraries), 1, "Should have Arduino_RouterBridge plus at least one dependency")
+
+	// List libraries without dependencies (filter dependencies)
+	listNoDepsResp, err := httpClient.AppSketchListLibrariesWithResponse(
+		t.Context(),
+		appID,
+		&client.AppSketchListLibrariesParams{HideDeps: f.Ptr("true")},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, listNoDepsResp.StatusCode())
+	require.NotNil(t, listNoDepsResp.JSON200)
+	require.NotNil(t, listNoDepsResp.JSON200.Libraries)
+
+	// Verify only direct dependencies are listed (no transitive dependencies)
+	librariesNoDeps := *listNoDepsResp.JSON200.Libraries
+	require.NotEmpty(t, librariesNoDeps, "Should have at least Arduino_RouterBridge")
+	require.Less(t, len(librariesNoDeps), len(libraries), "Filtered list should have fewer libraries than the full list")
+
+	// Verify all returned libraries are not marked as dependencies
+	for _, lib := range librariesNoDeps {
+		require.False(t, *lib.IsDependency, "When hide_deps=true, all libraries should have is_dependency=false")
+	}
+
+	// Remove library with dependencies
+	removeResp, err := httpClient.AppSketchRemoveLibraryWithResponse(
+		t.Context(),
+		appID,
+		"Arduino_RouterBridge",
+		&client.AppSketchRemoveLibraryParams{RemoveDeps: f.Ptr("true")},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, removeResp.StatusCode())
+	require.NotNil(t, removeResp.JSON200)
+	require.NotNil(t, removeResp.JSON200.Libraries)
+	require.NotEmpty(t, *removeResp.JSON200.Libraries, "Removed libraries list should not be empty")
+
+	// List libraries again and verify the library is removed
+	finalListResp, err := httpClient.AppSketchListLibrariesWithResponse(
+		t.Context(),
+		appID,
+		&client.AppSketchListLibrariesParams{HideDeps: f.Ptr("false")},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, finalListResp.StatusCode())
+	require.NotNil(t, finalListResp.JSON200)
+
+	// Verify Arduino_RouterBridge is no longer in the list
+	if finalListResp.JSON200.Libraries != nil {
+		finalLibraries := *finalListResp.JSON200.Libraries
+		for _, lib := range finalLibraries {
+			require.NotEqual(t, "Arduino_RouterBridge", *lib.Name, "Arduino_RouterBridge should be removed from the list")
+		}
+	}
+}
