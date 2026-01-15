@@ -996,8 +996,8 @@ func ImportAppFromZip(
 	}
 	defer r.Close()
 
-	if err := validateZipContent(&r.Reader); err != nil {
-		return app.ID{}, err
+	if err := app.ValidateAppZipContent(&r.Reader); err != nil {
+		return app.ID{}, fmt.Errorf("%w: %v", ErrBadRequest, err)
 	}
 
 	appDescriptor, err := app.ReadAppDescriptorFromZip(&r.Reader)
@@ -1042,55 +1042,6 @@ func ImportAppFromZip(
 	}
 
 	return id, nil
-}
-
-// TODO implement centralized app validator to use everywhere is needed
-func validateZipContent(r *zip.Reader) error {
-	hasAppYaml := false
-	hasMainPy := false
-
-	hasSketchFolder := false
-	hasIno := false
-	hasSketchYaml := false
-
-	for _, f := range r.File {
-		name := filepath.ToSlash(f.Name)
-
-		if name == "app.yaml" || name == "app.yml" {
-			hasAppYaml = true
-		}
-		if name == "python/main.py" {
-			hasMainPy = true
-		}
-
-		if strings.HasPrefix(name, "sketch/") {
-			hasSketchFolder = true
-			if strings.HasSuffix(name, ".ino") {
-				hasIno = true
-			}
-			if strings.HasSuffix(name, ".yaml") {
-				hasSketchYaml = true
-			}
-		}
-	}
-
-	if !hasAppYaml {
-		return fmt.Errorf("%w: missing app.yaml", ErrBadRequest)
-	}
-	if !hasMainPy {
-		return fmt.Errorf("%w: missing python/main.py", ErrBadRequest)
-	}
-
-	if hasSketchFolder {
-		if !hasIno {
-			return fmt.Errorf("%w: sketch folder present but missing .ino file", ErrBadRequest)
-		}
-		if !hasSketchYaml {
-			return fmt.Errorf("%w: sketch folder present but missing .yaml file", ErrBadRequest)
-		}
-	}
-
-	return nil
 }
 
 func extractZip(r *zip.Reader, dest string) error {

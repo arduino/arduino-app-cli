@@ -24,6 +24,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	yaml "github.com/goccy/go-yaml"
 )
@@ -121,4 +122,53 @@ func ReadAppDescriptorFromZip(r *zip.Reader) (AppDescriptor, error) {
 		}
 	}
 	return descriptor, fmt.Errorf("app.yaml not found in archive")
+}
+
+// TODO implement centralized app validator to use everywhere is needed
+func ValidateAppZipContent(r *zip.Reader) error {
+	hasAppYaml := false
+	hasMainPy := false
+
+	hasSketchFolder := false
+	hasIno := false
+	hasSketchYaml := false
+
+	for _, f := range r.File {
+		name := filepath.ToSlash(f.Name)
+
+		if name == "app.yaml" || name == "app.yml" {
+			hasAppYaml = true
+		}
+		if name == "python/main.py" {
+			hasMainPy = true
+		}
+
+		if strings.HasPrefix(name, "sketch/") {
+			hasSketchFolder = true
+			if strings.HasSuffix(name, ".ino") {
+				hasIno = true
+			}
+			if strings.HasSuffix(name, ".yaml") {
+				hasSketchYaml = true
+			}
+		}
+	}
+
+	if !hasAppYaml {
+		return fmt.Errorf(" missing app.yaml")
+	}
+	if !hasMainPy {
+		return fmt.Errorf(" missing python/main.py")
+	}
+
+	if hasSketchFolder {
+		if !hasIno {
+			return fmt.Errorf(" sketch folder present but missing .ino file")
+		}
+		if !hasSketchYaml {
+			return fmt.Errorf("sketch folder present but missing .yaml file")
+		}
+	}
+
+	return nil
 }

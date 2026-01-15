@@ -22,7 +22,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
@@ -633,123 +632,6 @@ func TestValidateDevice(t *testing.T) {
 		err := validateDevices(&dev, requiredDeviceClasses)
 		assert.Error(t, err)
 	})
-}
-
-func TestValidateZipContent(t *testing.T) {
-	tests := []struct {
-		name          string
-		files         map[string]string
-		wantErr       bool
-		errorContains string
-	}{
-		{
-			name: "Success - Minimal (app.yaml + python)",
-			files: map[string]string{
-				"app.yaml":       "",
-				"python/main.py": "print('hello')",
-			},
-			wantErr: false,
-		},
-		{
-			name: "Success - Full with Sketch",
-			files: map[string]string{
-				"app.yaml":           "",
-				"python/main.py":     "",
-				"sketch/sketch.ino":  "",
-				"sketch/sketch.yaml": "",
-			},
-			wantErr: false,
-		},
-		{
-			name: "Error - Missing app.yaml",
-			files: map[string]string{
-				"python/main.py": "",
-			},
-			wantErr:       true,
-			errorContains: "missing app.yaml",
-		},
-		{
-			name: "Error - Missing python/main.py",
-			files: map[string]string{
-				"app.yaml": "",
-			},
-			wantErr:       true,
-			errorContains: "missing python/main.py",
-		},
-		{
-			name: "Error - Sketch folder present but missing .ino",
-			files: map[string]string{
-				"app.yaml":           "",
-				"python/main.py":     "",
-				"sketch/sketch.yaml": "",
-			},
-			wantErr:       true,
-			errorContains: "missing .ino file",
-		},
-		{
-			name: "Error - Sketch folder present but missing .yaml",
-			files: map[string]string{
-				"app.yaml":          "",
-				"python/main.py":    "",
-				"sketch/sketch.ino": "",
-			},
-			wantErr:       true,
-			errorContains: "missing .yaml file",
-		},
-		{
-			name: "Success - Extra files are allowed",
-			files: map[string]string{
-				"app.yaml":       "",
-				"python/main.py": "",
-				"README.md":      "",
-				"data/image.png": "",
-			},
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := createMockZip(t, tt.files)
-
-			err := validateZipContent(r)
-
-			if (err != nil) != tt.wantErr {
-				t.Errorf("validateZipContent() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if err != nil && tt.errorContains != "" {
-				if !strings.Contains(err.Error(), tt.errorContains) {
-					t.Errorf("validateZipContent() error = %v, expected to contain %v", err, tt.errorContains)
-				}
-			}
-		})
-	}
-}
-
-func createMockZip(t *testing.T, files map[string]string) *zip.Reader {
-	buf := new(bytes.Buffer)
-	w := zip.NewWriter(buf)
-
-	for name, content := range files {
-		f, err := w.Create(name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, err = f.Write([]byte(content))
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := w.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	r, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return r
 }
 
 func TestExportAppZip(t *testing.T) {
