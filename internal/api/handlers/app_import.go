@@ -20,7 +20,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -49,14 +48,15 @@ func HandleAppImport(
 		}
 		defer file.Close()
 
-		tempFile, err := os.CreateTemp("", "app-import-*.zip")
+		tempFile, err := paths.MkTempFile(nil, "app-import-*.zip")
 		if err != nil {
 			slog.Error("unable to create temp file", "err", err)
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "internal server error"})
 			return
 		}
-		tempFilePath := paths.New(tempFile.Name())
-		defer os.Remove(tempFilePath.String())
+
+		tempFilePath := paths.NewFromFile(tempFile)
+		defer func() { _ = tempFilePath.Remove() }()
 
 		if _, err := io.Copy(tempFile, file); err != nil {
 			tempFile.Close()
