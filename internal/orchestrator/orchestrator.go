@@ -69,6 +69,7 @@ const (
 	CameraDevice     = "camera"
 	MicrophoneDevice = "microphone"
 	SpeakerDevice    = "speaker"
+	TmpAppPrefix     = ".tmp_"
 )
 
 type AppStreamMessage struct {
@@ -653,6 +654,9 @@ func ListApps(
 			if file.Base() == ".cache" {
 				return false
 			}
+			if strings.HasPrefix(file.Base(), TmpAppPrefix) {
+				return false
+			}
 			if file.Join("app.yaml").NotExist() && file.Join("app.yml").NotExist() {
 				// Let's continue the scan, we might be in an parent folder
 				return true
@@ -1087,7 +1091,7 @@ func ImportAppFromZip(
 		return app.ID{}, ErrAppAlreadyExists
 	}
 
-	tempDirName := fmt.Sprintf(".tmp_%s", rand.Text())
+	tempDirName := fmt.Sprintf(TmpAppPrefix+"%s", rand.Text())
 	tempDestDir := finalDestPath.Parent().Join(tempDirName)
 	defer func() { _ = tempDestDir.RemoveAll() }()
 
