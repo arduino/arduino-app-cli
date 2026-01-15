@@ -1088,6 +1088,8 @@ func ImportAppFromZip(
 		return app.ID{}, ErrAppAlreadyExists
 	}
 
+	// Extracting to a temporary directory first allows for an atomic swap
+	// to the final destination. This prevents a corrupted state and reduces race conditions.
 	tempDirName := fmt.Sprintf(TmpAppPrefix+"%s", rand.Text())
 	tempDestDir := finalDestPath.Parent().Join(tempDirName)
 	defer func() { _ = tempDestDir.RemoveAll() }()
