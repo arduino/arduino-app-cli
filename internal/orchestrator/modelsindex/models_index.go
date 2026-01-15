@@ -44,8 +44,7 @@ func (b *assetsModelList) UnmarshalYAML(unmarshal func(any) error) error {
 }
 
 type AIModel struct {
-	ID string `yaml:"-"`
-	// fixme: define a custom type
+	ID                 string            `yaml:"-"`
 	Source             string            `yaml:"-"`
 	Name               string            `yaml:"name"`
 	ModuleDescription  string            `yaml:"description"`
@@ -71,18 +70,20 @@ func (m *ModelsIndex) GetModels() []AIModel {
 }
 
 func (m *ModelsIndex) GetModelByID(id string) (*AIModel, bool) {
-	idx := slices.IndexFunc(m.GetModels(), func(v AIModel) bool { return v.ID == id })
+	models := m.GetModels()
+	idx := slices.IndexFunc(models, func(v AIModel) bool { return v.ID == id })
 	if idx == -1 {
 		return nil, false
 	}
-	return &m.Models[idx], true
+	return &models[idx], true
 }
 
 func (m *ModelsIndex) GetModelsByBrick(brick string) []AIModel {
 	var matches []AIModel
-	for i := range m.GetModels() {
-		if len(m.Models[i].Bricks) > 0 && slices.Contains(m.Models[i].Bricks, brick) {
-			matches = append(matches, m.Models[i])
+	models := m.GetModels()
+	for i := range models {
+		if len(models[i].Bricks) > 0 && slices.Contains(models[i].Bricks, brick) {
+			matches = append(matches, models[i])
 		}
 	}
 	if len(matches) == 0 {
@@ -119,7 +120,7 @@ func Load(dir *paths.Path, edgeImpulseDir *paths.Path) (*ModelsIndex, error) {
 	for i, modelMap := range list.Models {
 		for id, model := range modelMap {
 			model.ID = id
-			model.Source = "arduino" // TODO: define a global enum source
+			model.Source = "arduino"
 			models[i] = model
 		}
 	}

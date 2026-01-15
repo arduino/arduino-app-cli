@@ -12,6 +12,7 @@ import (
 // map Edge Impulse categories to Arduino bricks
 var eiCategoryToArduinoBrick = map[string]string{
 	"Images": "object-detection",
+	// TODO: define the mapping missing
 }
 
 func LoadEdgeImpulseModels(dir *paths.Path) ([]AIModel, error) {
