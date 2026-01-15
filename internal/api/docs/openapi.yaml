@@ -267,6 +267,12 @@ paths:
       description: Lists the libraries used in the App' sketch.
       operationId: appSketchListLibraries
       parameters:
+      - description: if set to "true", dependencies will be omitted from the result.
+        in: query
+        name: hide_deps
+        schema:
+          description: if set to "true", dependencies will be omitted from the result.
+          type: string
       - description: application identifier.
         in: path
         name: appID
