@@ -17,6 +17,7 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -36,7 +37,7 @@ func HandleAppExport(
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {
-			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: err.Error()})
+			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: fmt.Sprintf("invalid id: %s", err.Error())})
 			return
 		}
 		app, err := app.Load(id.ToPath())

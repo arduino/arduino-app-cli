@@ -1104,7 +1104,7 @@ func TestExportApp(t *testing.T) {
 
 		err = json.Unmarshal(body, &actualResponseBody)
 		require.NoError(t, err)
-		require.Equal(t, "invalid id", actualResponseBody.Details)
+		require.Equal(t, "invalid id: illegal base64 data at input byte 4", actualResponseBody.Details)
 	})
 
 	t.Run("NonExistentAppId_Fail", func(t *testing.T) {
@@ -1126,7 +1126,7 @@ func TestExportApp(t *testing.T) {
 
 		err = json.Unmarshal(body, &actualResponseBody)
 		require.NoError(t, err)
-		require.Contains(t, actualResponseBody.Details, "unable to find the app")
+		require.Contains(t, actualResponseBody.Details, "app path is not valid")
 	})
 }
 
