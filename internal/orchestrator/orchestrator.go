@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"iter"
 	"log/slog"
 	"maps"
@@ -968,92 +967,20 @@ func DeleteApp(ctx context.Context, dockerClient command.Cli, app app.ArduinoApp
 
 func ExportAppZip(
 	ctx context.Context,
-	app app.ArduinoApp,
+	appTarget app.ArduinoApp,
 	includeData bool,
 ) ([]byte, string, error) {
 
-	appName := strings.ToLower(strings.ReplaceAll(app.Name, " ", "-"))
+	appName := strings.ToLower(strings.ReplaceAll(appTarget.Name, " ", "-"))
 	if appName == "" {
 		appName = "app-export"
 	}
 	filename := fmt.Sprintf("%s.zip", appName)
-	zipBytes, err := zipAppToBuffer(app.FullPath.String(), includeData)
+	zipBytes, err := app.ZipAppToBuffer(appTarget.FullPath.String(), includeData)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create zip archive: %w", err)
 	}
 	return zipBytes, filename, nil
-}
-
-func zipAppToBuffer(sourcePath string, includeData bool) ([]byte, error) {
-	buf := new(bytes.Buffer)
-	zipWriter := zip.NewWriter(buf)
-
-	err := filepath.WalkDir(sourcePath, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		relPath, err := filepath.Rel(sourcePath, path)
-		if err != nil {
-			return err
-		}
-		if relPath == "." {
-			return nil
-		}
-		if d.IsDir() {
-			name := d.Name()
-			// Always skip .cache
-			if name == ".cache" {
-				return filepath.SkipDir
-			}
-			// Conditionally skip data
-			if !includeData && name == "data" {
-				return filepath.SkipDir
-			}
-		}
-
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-		header, err := zip.FileInfoHeader(info)
-		if err != nil {
-			return err
-		}
-
-		header.Name = filepath.ToSlash(relPath)
-		if info.IsDir() {
-			header.Name += "/"
-		} else {
-			header.Method = zip.Deflate
-		}
-		writer, err := zipWriter.CreateHeader(header)
-		if err != nil {
-			return err
-		}
-
-		if info.IsDir() {
-			return nil
-		}
-		file, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-		_, err = io.Copy(writer, file)
-		return err
-	})
-
-	if err != nil {
-		zipWriter.Close()
-		return nil, err
-	}
-
-	if err := zipWriter.Close(); err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
 }
 
 func ImportAppFromZip(
