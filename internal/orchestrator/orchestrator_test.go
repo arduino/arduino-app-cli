@@ -22,6 +22,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
@@ -355,6 +356,34 @@ func TestListApp(t *testing.T) {
 				Default:     false,
 			},
 		}, res.Apps))
+	})
+
+	t.Run("ignore temporary apps starting with .tmp_", func(t *testing.T) {
+		tmpAppName := TmpAppPrefix + "should_be_ignored"
+
+		tmpAppPath := cfg.AppsDir().Join(tmpAppName)
+		err := os.MkdirAll(tmpAppPath.String(), 0755)
+		require.NoError(t, err)
+		_, err = os.Create(tmpAppPath.Join("app.yaml").String())
+		require.NoError(t, err)
+
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
+			ShowApps: true,
+		}, idProvider, cfg)
+		require.NoError(t, err)
+
+		for _, a := range res.Apps {
+			assert.NotEqual(t, tmpAppName, a.Name, ".temp_ app should be ignored")
+
+			if strings.Contains(a.ID.String(), tmpAppName) {
+				t.Errorf("the app %s was not filtered out", a.Name)
+			}
+		}
+
+		// check on broken apps
+		for _, b := range res.BrokenApps {
+			assert.NotContains(t, b.Name, tmpAppName, "the temporary app should not be in the broken apps list")
+		}
 	})
 }
 
