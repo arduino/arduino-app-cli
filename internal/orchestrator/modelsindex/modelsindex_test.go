@@ -3,19 +3,20 @@ package modelsindex
 import (
 	"testing"
 
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/edgeimpulse"
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestModelsIndex(t *testing.T) {
-	modelsIndex, err := Load(paths.New("testdata"), nil)
+	modelsIndex, err := Load(paths.New("testdata"), edgeimpulse.New(paths.New("testdata/ei-models")))
 	require.NoError(t, err)
 	require.NotNil(t, modelsIndex)
 
 	t.Run("it parses a valid model-list.yaml", func(t *testing.T) {
 		models := modelsIndex.GetModels()
-		assert.Len(t, models, 2, "Expected 2 models to be parsed")
+		assert.Len(t, models, 4, "Expected 4 models to be parsed")
 	})
 
 	t.Run("it gets a model by ID", func(t *testing.T) {
@@ -36,6 +37,10 @@ func TestModelsIndex(t *testing.T) {
 		assert.Equal(t, "false", model.Metadata["ei-gpu-mode"])
 		assert.Equal(t, "face-det-lite", model.Metadata["source-model-id"])
 		assert.Equal(t, "https://aihub.qualcomm.com/models/face_det_lite", model.Metadata["source-model-url"])
+
+		eimodel, found := modelsIndex.GetModelByID("11111-1")
+		assert.True(t, found)
+		assert.NotNil(t, eimodel)
 	})
 
 	t.Run("it fails if model-list.yaml does not exist", func(t *testing.T) {

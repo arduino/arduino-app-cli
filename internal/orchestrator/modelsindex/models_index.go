@@ -79,7 +79,7 @@ func (m *ModelsIndex) GetModels() []AIModel {
 	eimodels, err := m.eiLoader.List()
 	if err != nil {
 		// TODO: continue even if the edge impulse fail ?
-		slog.Warn("error loading  EI models", "err", err)
+		slog.Warn("error loading EI models", "err", err)
 		return m.Models
 	}
 
@@ -98,6 +98,10 @@ func (m *ModelsIndex) GetModels() []AIModel {
 		})
 	}
 	return allModels
+}
+
+func (m *ModelsIndex) refresh() {
+
 }
 
 func (m *ModelsIndex) GetModelByID(id string) (*AIModel, bool) {
