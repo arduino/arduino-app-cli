@@ -56,7 +56,7 @@ func HandleSketchAddLibrary(idProvider *app.IDProvider) http.HandlerFunc {
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to add sketch library: " + err.Error()})
 			return
 		} else {
-			render.EncodeResponse(w, http.StatusCreated, SketchAddLibraryResponse{
+			render.EncodeResponse(w, http.StatusOK, SketchAddLibraryResponse{
 				AddedLibraries: addedLibs,
 			})
 			return
