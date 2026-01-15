@@ -1615,7 +1615,7 @@ func NewAppSketchListLibrariesRequest(server string, appID string, params *AppSk
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/v1/apps/%s/sketch/libraries/", pathParam0)
+	operationPath := fmt.Sprintf("/v1/apps/%s/sketch/libraries", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}

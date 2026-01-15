@@ -262,7 +262,7 @@ paths:
       summary: Get app exposed ports
       tags:
       - Application
-  /v1/apps/{appID}/sketch/libraries/:
+  /v1/apps/{appID}/sketch/libraries:
     get:
       description: Lists the libraries used in the App' sketch.
       operationId: appSketchListLibraries
