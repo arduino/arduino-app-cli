@@ -19,6 +19,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -40,7 +41,6 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
 	"github.com/goccy/go-yaml"
-	"github.com/google/uuid"
 	"github.com/gosimple/slug"
 	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
@@ -1087,7 +1087,7 @@ func ImportAppFromZip(
 		return app.ID{}, ErrAppAlreadyExists
 	}
 
-	tempDirName := fmt.Sprintf(".tmp_%s", uuid.New().String())
+	tempDirName := fmt.Sprintf(".tmp_%s", rand.Text())
 	tempDestDir := finalDestPath.Parent().Join(tempDirName)
 	defer func() { _ = tempDestDir.RemoveAll() }()
 
