@@ -32,7 +32,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
-type ImportResponse struct {
+type AppImportResponse struct {
 	ID string `json:"id"`
 }
 
@@ -43,7 +43,7 @@ func HandleAppImport(
 	return func(w http.ResponseWriter, r *http.Request) {
 		file, _, err := r.FormFile("file")
 		if err != nil {
-			slog.Error("missing file parameter", slog.String("error", err.Error()))
+			slog.Error("missing file parameter", "err", err)
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "missing required file parameter"})
 			return
 		}
@@ -81,7 +81,6 @@ func HandleAppImport(
 			return
 		}
 
-		slog.Info("app imported successfully", "app_id", appID)
-		render.EncodeResponse(w, http.StatusCreated, ImportResponse{ID: appID})
+		render.EncodeResponse(w, http.StatusCreated, AppImportResponse{ID: appID.String()})
 	}
 }

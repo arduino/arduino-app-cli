@@ -1185,7 +1185,7 @@ func TestImportApp(t *testing.T) {
 		require.NotNil(t, importResp.Body)
 		defer importResp.Body.Close()
 
-		var importRespBody handlers.ImportResponse
+		var importRespBody handlers.AppImportResponse
 		body, err := io.ReadAll(importResp.Body)
 		require.NoError(t, err)
 		err = json.Unmarshal(body, &importRespBody)

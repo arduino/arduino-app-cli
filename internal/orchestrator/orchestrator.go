@@ -1059,32 +1059,32 @@ func ImportAppFromZip(
 	cfg config.Configuration,
 	zipPath *paths.Path,
 	idProvider *app.IDProvider,
-) (string, error) {
+) (app.ID, error) {
 	if zipPath == nil {
-		return "", fmt.Errorf("internal error: zipPath cannot be nil")
+		return app.ID{}, fmt.Errorf("internal error: zipPath cannot be nil")
 	}
 	r, err := zip.OpenReader(zipPath.String())
 	if err != nil {
-		return "", fmt.Errorf("unable to open zip archive: %w", err)
+		return app.ID{}, fmt.Errorf("unable to open zip archive: %w", err)
 	}
 	defer r.Close()
 
 	if err := validateZipContent(&r.Reader); err != nil {
-		return "", err
+		return app.ID{}, err
 	}
 
 	appDescriptor, err := readAppDescriptorFromZip(&r.Reader)
 	if err != nil {
-		return "", fmt.Errorf("failed to read app.yaml: %w", err)
+		return app.ID{}, fmt.Errorf("failed to read app.yaml: %w", err)
 	}
 
 	if strings.TrimSpace(appDescriptor.Name) == "" {
-		return "", fmt.Errorf("%w: app name is missing", ErrBadRequest)
+		return app.ID{}, fmt.Errorf("%w: app name is missing", ErrBadRequest)
 	}
 
 	finalDestPath, appExists := findAppPathByName(appDescriptor.Name, cfg)
 	if appExists {
-		return "", ErrAppAlreadyExists
+		return app.ID{}, ErrAppAlreadyExists
 	}
 
 	tempDirName := fmt.Sprintf(".tmp_%s", uuid.New().String())
@@ -1092,27 +1092,27 @@ func ImportAppFromZip(
 	defer func() { _ = tempDestDir.RemoveAll() }()
 
 	if err := tempDestDir.MkdirAll(); err != nil {
-		return "", fmt.Errorf("unable to create temp app directory: %w", err)
+		return app.ID{}, fmt.Errorf("unable to create temp app directory: %w", err)
 	}
 
 	if err := extractZip(&r.Reader, tempDestDir.String()); err != nil {
-		return "", err
+		return app.ID{}, err
 	}
 
 	if finalDestPath.Exist() {
-		return "", ErrAppAlreadyExists
+		return app.ID{}, ErrAppAlreadyExists
 	}
 
 	if err := tempDestDir.Rename(finalDestPath); err != nil {
-		return "", fmt.Errorf("failed to finalize app import (swap): %w", err)
+		return app.ID{}, fmt.Errorf("failed to finalize app import (swap): %w", err)
 	}
 
 	id, err := idProvider.IDFromPath(finalDestPath)
 	if err != nil {
-		return "", err
+		return app.ID{}, err
 	}
 
-	return id.String(), nil
+	return id, nil
 }
 
 func readAppDescriptorFromZip(r *zip.Reader) (app.AppDescriptor, error) {
