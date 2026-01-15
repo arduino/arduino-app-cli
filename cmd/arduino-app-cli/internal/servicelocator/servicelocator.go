@@ -31,7 +31,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
@@ -47,7 +46,7 @@ var (
 	})
 
 	GetModelsIndex = sync.OnceValue(func() *modelsindex.ModelsIndex {
-		return f.Must(modelsindex.Load(GetStaticStore().GetAssetsFolder(), edgeimpulse.New(globalConfig.CustomEiModelsDir())))
+		return f.Must(modelsindex.Load(GetStaticStore().GetAssetsFolder(), globalConfig.CustomEiModelsDir()))
 	})
 
 	GetProvisioner = sync.OnceValue(func() *orchestrator.Provision {

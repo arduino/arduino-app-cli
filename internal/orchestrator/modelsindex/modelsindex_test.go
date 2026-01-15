@@ -3,14 +3,13 @@ package modelsindex
 import (
 	"testing"
 
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/edgeimpulse"
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestModelsIndex(t *testing.T) {
-	modelsIndex, err := Load(paths.New("testdata"), edgeimpulse.New(paths.New("testdata/ei-models")))
+	modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata/ei-models"))
 	require.NoError(t, err)
 	require.NotNil(t, modelsIndex)
 

@@ -16,20 +16,12 @@
 package modelsindex
 
 import (
-	"fmt"
 	"log/slog"
 	"slices"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/goccy/go-yaml"
-
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/edgeimpulse"
 )
-
-// map Edge Impulse categories to Arduino bricks
-var eiCategoryToArduinoBrick = map[string]string{
-	"Images": "object-detection",
-}
 
 type assetsModelList struct {
 	Models []map[string]AIModel `yaml:"models"`
@@ -67,45 +59,19 @@ type AIModel struct {
 type ModelsIndex struct {
 	Models []AIModel
 
-	eiLoader *edgeimpulse.Loader
+	edgeImpulseModelsDir *paths.Path
 }
 
 func (m *ModelsIndex) GetModels() []AIModel {
-	if m.eiLoader == nil {
-		return m.Models
-	}
-
-	allModels := m.Models
-	eimodels, err := m.eiLoader.List()
+	eimodels, err := LoadEdgeImpulseModels(m.edgeImpulseModelsDir)
 	if err != nil {
-		// TODO: continue even if the edge impulse fail ?
-		slog.Warn("error loading EI models", "err", err)
-		return m.Models
+		slog.Error("cannot load edge impulse custom models", "err", err)
 	}
-
-	for _, ei := range eimodels {
-		allModels = append(allModels, AIModel{
-			ID:                fmt.Sprintf("%d-%d", ei.ProjectId, ei.ImpulseID), // TODO: generation of ID
-			Source:            "edgeimpulse",
-			Name:              ei.Name,
-			ModuleDescription: ei.Description,
-			Runner:            "bricks",
-			Bricks:            []string{eiCategoryToArduinoBrick[ei.Category]},
-			Metadata: map[string]string{
-				"project-id": fmt.Sprintf("%d", ei.ProjectId),
-				"impulse-id": fmt.Sprintf("%d", ei.ImpulseID),
-			},
-		})
-	}
-	return allModels
-}
-
-func (m *ModelsIndex) refresh() {
-
+	return append(m.Models, eimodels...)
 }
 
 func (m *ModelsIndex) GetModelByID(id string) (*AIModel, bool) {
-	idx := slices.IndexFunc(m.Models, func(v AIModel) bool { return v.ID == id })
+	idx := slices.IndexFunc(m.GetModels(), func(v AIModel) bool { return v.ID == id })
 	if idx == -1 {
 		return nil, false
 	}
@@ -114,7 +80,7 @@ func (m *ModelsIndex) GetModelByID(id string) (*AIModel, bool) {
 
 func (m *ModelsIndex) GetModelsByBrick(brick string) []AIModel {
 	var matches []AIModel
-	for i := range m.Models {
+	for i := range m.GetModels() {
 		if len(m.Models[i].Bricks) > 0 && slices.Contains(m.Models[i].Bricks, brick) {
 			matches = append(matches, m.Models[i])
 		}
@@ -127,7 +93,7 @@ func (m *ModelsIndex) GetModelsByBrick(brick string) []AIModel {
 
 func (m *ModelsIndex) GetModelsByBricks(bricks []string) []AIModel {
 	var matchingModels []AIModel
-	for _, model := range m.Models {
+	for _, model := range m.GetModels() {
 		for _, modelBrick := range model.Bricks {
 			if slices.Contains(bricks, modelBrick) {
 				matchingModels = append(matchingModels, model)
@@ -138,7 +104,7 @@ func (m *ModelsIndex) GetModelsByBricks(bricks []string) []AIModel {
 	return matchingModels
 }
 
-func Load(dir *paths.Path, eiLoader *edgeimpulse.Loader) (*ModelsIndex, error) {
+func Load(dir *paths.Path, edgeImpulseDir *paths.Path) (*ModelsIndex, error) {
 	content, err := dir.Join("models-list.yaml").ReadFile()
 	if err != nil {
 		return nil, err
@@ -157,5 +123,6 @@ func Load(dir *paths.Path, eiLoader *edgeimpulse.Loader) (*ModelsIndex, error) {
 			models[i] = model
 		}
 	}
-	return &ModelsIndex{Models: models, eiLoader: eiLoader}, nil
+
+	return &ModelsIndex{Models: models, edgeImpulseModelsDir: edgeImpulseDir}, nil
 }
