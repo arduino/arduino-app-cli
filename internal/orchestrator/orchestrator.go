@@ -30,7 +30,6 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -1001,18 +1000,16 @@ func zipAppToBuffer(sourcePath string, includeData bool) ([]byte, error) {
 		if relPath == "." {
 			return nil
 		}
-		if strings.HasPrefix(relPath, ".cache") {
-			if d.IsDir() {
+		if d.IsDir() {
+			name := d.Name()
+			// Always skip .cache
+			if name == ".cache" {
 				return filepath.SkipDir
 			}
-			return nil
-		}
-
-		if !includeData && strings.HasPrefix(relPath, "data") {
-			if d.IsDir() {
+			// Conditionally skip data
+			if !includeData && name == "data" {
 				return filepath.SkipDir
 			}
-			return nil
 		}
 
 		info, err := d.Info()
@@ -1189,19 +1186,6 @@ func validateZipContent(r *zip.Reader) error {
 	}
 
 	return nil
-}
-
-var validFolderName = regexp.MustCompile(`^[a-z0-9_-]{1,50}$`)
-
-func sanitizeAndValidateFolderName(name string) (string, error) {
-	name = strings.TrimSpace(name)
-	name = strings.ToLower(name)
-	name = strings.ReplaceAll(name, " ", "-")
-
-	if !validFolderName.MatchString(name) {
-		return "", fmt.Errorf("invalid folder name: only a-z, 0-9, '-' and '_' are allowed (max 50 chars)")
-	}
-	return name, nil
 }
 
 func extractZip(r *zip.Reader, dest string) error {
