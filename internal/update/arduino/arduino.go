@@ -53,7 +53,7 @@ func setConfig(ctx context.Context, srv rpc.ArduinoCoreServiceServer) error {
 }
 
 // ListUpgradablePackages implements ServiceUpdater.
-func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
+func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context) ([]update.UpgradablePackage, error) {
 	if !a.lock.TryLock() {
 		return nil, update.ErrOperationAlreadyInProgress
 	}

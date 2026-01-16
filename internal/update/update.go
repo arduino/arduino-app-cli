@@ -44,8 +44,10 @@ type UpgradablePackage struct {
 	ToVersion    string      `json:"to_version"`
 }
 
+type MatcherFunc func(UpgradablePackage) bool
+
 type ServiceUpdater interface {
-	ListUpgradablePackages(ctx context.Context, matcher func(UpgradablePackage) bool) ([]UpgradablePackage, error)
+	ListUpgradablePackages(ctx context.Context) ([]UpgradablePackage, error)
 	UpgradePackages(ctx context.Context, names []string, eventCB EventCallback) error
 }
 
@@ -66,7 +68,7 @@ func NewManager(debUpdateService ServiceUpdater, arduinoPlatformUpdateService Se
 	}
 }
 
-func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(UpgradablePackage) bool) ([]UpgradablePackage, error) {
+func (m *Manager) ListUpgradablePackages(ctx context.Context, matchers ...MatcherFunc) ([]UpgradablePackage, error) {
 	if !m.lock.TryLock() {
 		return nil, ErrOperationAlreadyInProgress
 	}
@@ -86,20 +88,20 @@ func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(Upgra
 	)
 
 	g.Go(func() error {
-		pkgs, err := m.debUpdateService.ListUpgradablePackages(ctx, matcher)
+		pkgs, err := m.debUpdateService.ListUpgradablePackages(ctx)
 		if err != nil {
 			return err
 		}
-		debPkgs = pkgs
+		debPkgs = filterPackagesByMatchers(pkgs, matchers...)
 		return nil
 	})
 
 	g.Go(func() error {
-		pkgs, err := m.arduinoPlatformUpdateService.ListUpgradablePackages(ctx, matcher)
+		pkgs, err := m.arduinoPlatformUpdateService.ListUpgradablePackages(ctx)
 		if err != nil {
 			return err
 		}
-		arduinoPkgs = pkgs
+		arduinoPkgs = filterPackagesByMatchers(pkgs, matchers...)
 		return nil
 	})
 
@@ -109,6 +111,23 @@ func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(Upgra
 	}
 
 	return append(arduinoPkgs, debPkgs...), nil
+}
+
+func filterPackagesByMatchers(pkgs []UpgradablePackage, matchers ...MatcherFunc) []UpgradablePackage {
+	filtered := make([]UpgradablePackage, 0, len(pkgs))
+	for _, pkg := range pkgs {
+		matched := true
+		for _, matcher := range matchers {
+			if !matcher(pkg) {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			filtered = append(filtered, pkg)
+		}
+	}
+	return filtered
 }
 
 func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage) error {

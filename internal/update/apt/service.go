@@ -27,7 +27,6 @@ import (
 	"sync"
 
 	"github.com/arduino/go-paths-helper"
-	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/update"
@@ -47,7 +46,7 @@ func New() *Service {
 // It runs the `apt-get update` command before listing the packages to ensure the package list is up to date.
 // It filters the packages using the provided matcher function.
 // It returns a slice of UpgradablePackage or an error if the command fails.
-func (s *Service) ListUpgradablePackages(ctx context.Context, matcher func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
+func (s *Service) ListUpgradablePackages(ctx context.Context) ([]update.UpgradablePackage, error) {
 	if !s.lock.TryLock() {
 		return nil, update.ErrOperationAlreadyInProgress
 	}
@@ -63,7 +62,7 @@ func (s *Service) ListUpgradablePackages(ctx context.Context, matcher func(updat
 		return nil, err
 	}
 
-	pkgs, err := listUpgradablePackages(ctx, matcher)
+	pkgs, err := listUpgradablePackages(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list upgradable packages: %w", err)
 	}
@@ -291,7 +290,7 @@ func restartServices(ctx context.Context) error {
 	return nil
 }
 
-func listUpgradablePackages(ctx context.Context, matcher func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
+func listUpgradablePackages(ctx context.Context) ([]update.UpgradablePackage, error) {
 	listUpgradable, err := paths.NewProcess(nil, "apt", "list", "--upgradable")
 	if err != nil {
 		return nil, err
@@ -313,9 +312,7 @@ func listUpgradablePackages(ctx context.Context, matcher func(update.UpgradableP
 		return nil, err
 	}
 
-	filtered := f.Filter(packages, matcher)
-
-	return filtered, nil
+	return packages, nil
 }
 
 // parseListUpgradableOutput parses the output of `apt list --upgradable` command
