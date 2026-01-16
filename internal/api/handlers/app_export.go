@@ -24,6 +24,7 @@ import (
 	"strconv"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/render"
@@ -62,7 +63,7 @@ func HandleAppExport(
 			}
 		}
 
-		zipBytes, fileName, err := app.ExportAppZip(r.Context(), appToExport, includeData)
+		zipBytes, fileName, err := orchestrator.ExportAppZip(r.Context(), appToExport, includeData)
 		if err != nil {
 			slog.Error("failed to export app", "app_id", id.String(), "error", err)
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{

@@ -16,10 +16,8 @@
 package orchestrator
 
 import (
-	"archive/zip"
 	"bytes"
 	"context"
-	"crypto/rand"
 	"fmt"
 	"io"
 	"iter"
@@ -66,7 +64,6 @@ const (
 	CameraDevice     = "camera"
 	MicrophoneDevice = "microphone"
 	SpeakerDevice    = "speaker"
-	TmpAppPrefix     = ".tmp_"
 )
 
 type AppStreamMessage struct {
@@ -725,7 +722,7 @@ func ListApps(
 // returns true if the app path is a temporary app
 // that should not be listed (neither in the brocken apps)
 func IsTmpApp(p *paths.Path) bool {
-	return strings.HasPrefix(p.Base(), TmpAppPrefix)
+	return strings.HasPrefix(p.Base(), tmpAppPrefix)
 }
 
 type AppDetailedInfo struct {
@@ -971,119 +968,6 @@ func DeleteApp(ctx context.Context, dockerClient command.Cli, app app.ArduinoApp
 	}
 
 	return app.FullPath.RemoveAll()
-}
-
-func ImportAppFromZip(
-	cfg config.Configuration,
-	zipPath *paths.Path,
-	idProvider *app.IDProvider,
-) (app.ID, error) {
-	if zipPath == nil {
-		return app.ID{}, fmt.Errorf("internal error: zipPath cannot be nil")
-	}
-	r, err := zip.OpenReader(zipPath.String())
-	if err != nil {
-		return app.ID{}, fmt.Errorf("unable to open zip archive: %w", err)
-	}
-	defer r.Close()
-
-	if err := app.ValidateAppZipContent(&r.Reader); err != nil {
-		return app.ID{}, fmt.Errorf("%w:%v", ErrBadRequest, err)
-	}
-
-	appDescriptor, err := app.ReadAppDescriptorFromZip(&r.Reader)
-	if err != nil {
-		return app.ID{}, fmt.Errorf("failed to read app.yaml: %w", err)
-	}
-
-	if strings.TrimSpace(appDescriptor.Name) == "" {
-		return app.ID{}, fmt.Errorf("%w: app name is missing", ErrBadRequest)
-	}
-
-	finalDestPath, appExists := findAppPathByName(appDescriptor.Name, cfg)
-	if appExists {
-		return app.ID{}, ErrAppAlreadyExists
-	}
-
-	// Extracting to a temporary directory first allows for an atomic swap
-	// to the final destination. This prevents a corrupted state and reduces race conditions.
-	tempDirName := fmt.Sprintf(TmpAppPrefix+"%s", rand.Text())
-	tempDestDir := finalDestPath.Parent().Join(tempDirName)
-	defer func() { _ = tempDestDir.RemoveAll() }()
-
-	if err := tempDestDir.MkdirAll(); err != nil {
-		return app.ID{}, fmt.Errorf("unable to create temp app directory: %w", err)
-	}
-
-	if err := extractZip(&r.Reader, tempDestDir.String()); err != nil {
-		return app.ID{}, err
-	}
-
-	if finalDestPath.Exist() {
-		return app.ID{}, ErrAppAlreadyExists
-	}
-
-	if err := tempDestDir.Rename(finalDestPath); err != nil {
-		return app.ID{}, fmt.Errorf("failed to finalize app import (swap): %w", err)
-	}
-
-	id, err := idProvider.IDFromPath(finalDestPath)
-	if err != nil {
-		return app.ID{}, err
-	}
-
-	return id, nil
-}
-
-func extractZip(r *zip.Reader, dest string) error {
-	dest = filepath.Clean(dest) + string(os.PathSeparator)
-	const maxFileSize = 100 * 1024 * 1024 // 100MB limit per file
-
-	for _, f := range r.File {
-		cleanName := filepath.Clean(filepath.FromSlash(f.Name))
-		fpath := filepath.Join(dest, cleanName)
-
-		if !strings.HasPrefix(fpath, dest) {
-			return fmt.Errorf("illegal file path: %s", fpath)
-		}
-
-		if f.FileInfo().IsDir() {
-			if err := os.MkdirAll(fpath, 0755); err != nil {
-				return fmt.Errorf("create directory %s: %w", fpath, err)
-			}
-			continue
-		}
-
-		if err := os.MkdirAll(filepath.Dir(fpath), 0755); err != nil {
-			return fmt.Errorf("create parent directory: %w", err)
-		}
-
-		outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
-		if err != nil {
-			return fmt.Errorf("create file %s: %w", fpath, err)
-		}
-
-		rc, err := f.Open()
-		if err != nil {
-			outFile.Close()
-			return fmt.Errorf("unable to open entry %s: %w", f.Name, err)
-		}
-
-		lr := io.LimitReader(rc, maxFileSize+1)
-		written, err := io.Copy(outFile, lr)
-
-		outFile.Close()
-		rc.Close()
-
-		if err != nil {
-			return fmt.Errorf("write file %s: %w", fpath, err)
-		}
-		if written > maxFileSize {
-			return fmt.Errorf("file %s too large", f.Name)
-		}
-	}
-
-	return nil
 }
 
 const defaultAppFileName = "default.app"
