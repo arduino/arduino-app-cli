@@ -40,12 +40,7 @@ func HandleCheckUpgradable(updater *update.Manager) http.HandlerFunc {
 			filterFunc = update.MatchArduinoPackage
 		}
 
-		newFilter := func(update.UpgradablePackage) bool {
-
-			return true
-		}
-
-		pkgs, err := updater.ListUpgradablePackages(r.Context(), filterFunc, newFilter)
+		pkgs, err := updater.ListUpgradablePackages(r.Context(), filterFunc)
 		if err != nil {
 			code := update.GetUpdateErrorCode(err)
 			if code == update.OperationInProgressCode {
