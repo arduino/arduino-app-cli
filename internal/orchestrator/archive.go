@@ -271,7 +271,7 @@ func validateAppZipContent(r *zip.Reader) error {
 	hasMainPy := false
 
 	hasSketchFolder := false
-	hasIno := false
+	hasSketchIno := false
 	hasSketchYaml := false
 
 	for _, f := range r.File {
@@ -286,10 +286,11 @@ func validateAppZipContent(r *zip.Reader) error {
 
 		if strings.HasPrefix(name, "sketch/") {
 			hasSketchFolder = true
-			if strings.HasSuffix(name, ".ino") {
-				hasIno = true
+			if name == "sketch/sketch.ino" {
+				hasSketchIno = true
 			}
-			if strings.HasSuffix(name, ".yaml") {
+
+			if name == "sketch/sketch.yaml" {
 				hasSketchYaml = true
 			}
 		}
@@ -303,7 +304,7 @@ func validateAppZipContent(r *zip.Reader) error {
 	}
 
 	if hasSketchFolder {
-		if !hasIno {
+		if !hasSketchIno {
 			return fmt.Errorf(" sketch folder present but missing .ino file")
 		}
 		if !hasSketchYaml {

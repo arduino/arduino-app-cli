@@ -370,6 +370,123 @@ func TestValidateZipContent(t *testing.T) {
 	}
 }
 
+func TestValidateAppZipContent(t *testing.T) {
+	tests := []struct {
+		name        string
+		files       map[string]string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name: "Valid standard app",
+			files: map[string]string{
+				"app.yaml":       "",
+				"python/main.py": "",
+			},
+			wantErr: false,
+		},
+		{
+			name: "Valid app with yaml variant (.yml)",
+			files: map[string]string{
+				"app.yml":        "",
+				"python/main.py": "",
+			},
+			wantErr: false,
+		},
+		{
+			name: "Valid app with full sketch folder",
+			files: map[string]string{
+				"app.yaml":           "",
+				"python/main.py":     "",
+				"sketch/sketch.ino":  "",
+				"sketch/sketch.yaml": "",
+			},
+			wantErr: false,
+		},
+		{
+			name: "Valid Windows paths (Backslash handling)",
+			files: map[string]string{
+				"app.yaml":            "",
+				"python/main.py":      "",
+				"sketch\\sketch.ino":  "",
+				"sketch\\sketch.yaml": "",
+			},
+			wantErr: false,
+		},
+		{
+			name: "Ignore unrelated folders with similar prefix",
+			files: map[string]string{
+				"app.yaml":               "",
+				"python/main.py":         "",
+				"sketch_backup/main.cpp": "",
+			},
+			wantErr: false,
+		},
+
+		{
+			name: "Missing app.yaml",
+			files: map[string]string{
+				"python/main.py": "",
+			},
+			wantErr:     true,
+			errContains: "missing app.yaml",
+		},
+		{
+			name: "Missing python/main.py",
+			files: map[string]string{
+				"app.yaml": "",
+			},
+			wantErr:     true,
+			errContains: "missing python/main.py",
+		},
+		{
+			name: "Sketch folder present but missing .ino",
+			files: map[string]string{
+				"app.yaml":           "",
+				"python/main.py":     "",
+				"sketch/readme.txt":  "",
+				"sketch/sketch.yaml": "",
+			},
+			wantErr:     true,
+			errContains: "missing .ino file",
+		},
+		{
+			name: "Sketch folder present but missing .yaml",
+			files: map[string]string{
+				"app.yaml":          "",
+				"python/main.py":    "",
+				"sketch/sketch.ino": "",
+			},
+			wantErr:     true,
+			errContains: "missing .yaml file",
+		},
+		{
+			name: "Sketch file exists but in wrong folder",
+			files: map[string]string{
+				"app.yaml":              "",
+				"python/main.py":        "",
+				"sketch/lib/sketch.ino": "",
+				"sketch/sketch.yaml":    "",
+			},
+			wantErr:     true,
+			errContains: "missing .ino file",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := createMockZip(t, tt.files)
+			gotErr := validateAppZipContent(r)
+			if tt.wantErr {
+				require.Error(t, gotErr)
+				require.Contains(t, gotErr.Error(), tt.errContains, "Error message mismatch")
+			} else {
+				require.NoError(t, gotErr, "Expected success but got an error")
+			}
+		})
+	}
+}
+
 func createMockZip(t *testing.T, files map[string]string) *zip.Reader {
 	buf := new(bytes.Buffer)
 	w := zip.NewWriter(buf)
