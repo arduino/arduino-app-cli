@@ -43,11 +43,6 @@ RUN apt-get update && apt-get install -y sed
 COPY ./debian/${DEB_NAME} /${DEB_NAME}/
 COPY --from=go /app/${BINARY_NAME} /${DEB_NAME}/usr/bin/${BINARY_NAME}
 
-RUN (cd /${DEB_NAME}/DEBIAN && \
-  sed -e '/# SHARED_FUNCTIONS/r helper_func.sh' ./prerm > prerm.tmp && mv prerm.tmp ./prerm && \
-  sed -e '/# SHARED_FUNCTIONS/r helper_func.sh' ./preinst > preinst.tmp && mv preinst.tmp ./preinst &&\
-  chmod a+x ./prerm ./preinst)
-
 # Go application are tagged with `v` prefix, this remove the first v if present
 RUN export VERSION=$(echo "${VERSION}" | sed -e "s/^v\(.*\)/\1/") && \
   sed -i "s/\$ARCH/${ARCH}/" /${DEB_NAME}/DEBIAN/control && \

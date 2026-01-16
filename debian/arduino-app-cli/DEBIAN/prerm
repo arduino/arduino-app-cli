@@ -1,12 +1,5 @@
 #!/bin/sh
 
-set -e
-
 systemctl disable arduino-app-cli
 systemctl disable arduino-burn-bootloader
 systemctl disable arduino-avahi-serial.service
-
-# SHARED_FUNCTIONS
-
-echo "Cache cleanup..."
-cleanup_arduino_examples /var/lib/arduino-app-cli/examples
