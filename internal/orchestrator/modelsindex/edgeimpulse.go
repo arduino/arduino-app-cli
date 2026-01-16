@@ -16,6 +16,9 @@ var eiCategoryToArduinoBrick = map[string]string{
 }
 
 func LoadEdgeImpulseModels(dir *paths.Path) ([]AIModel, error) {
+	if dir == nil {
+		return []AIModel{}, nil
+	}
 	type modelDescriptor struct {
 		ProjectId   int    `yaml:"project-id"`
 		ImpulseID   int    `yaml:"impulse-id"`
