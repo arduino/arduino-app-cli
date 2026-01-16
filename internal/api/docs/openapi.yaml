@@ -1656,29 +1656,29 @@ components:
           type: array
       type: object
     SketchAddLibraryResponse:
+      type: object
       properties:
         libraries:
+          type: array
           items:
             $ref: '#/components/schemas/LibraryReleaseID'
           nullable: true
-          type: array
-      type: object
     SketchListLibraryResponse:
+      type: object
       properties:
         libraries:
+          type: array
           items:
             $ref: '#/components/schemas/LibraryReleaseID'
           nullable: true
-          type: array
-      type: object
     SketchRemoveLibraryResponse:
+      type: object
       properties:
         libraries:
+          type: array
           items:
             $ref: '#/components/schemas/LibraryReleaseID'
           nullable: true
-          type: array
-      type: object
     Status:
       description: Application status
       enum:
