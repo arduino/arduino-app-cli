@@ -297,18 +297,18 @@ func validateAppZipContent(r *zip.Reader) error {
 	}
 
 	if !hasAppYaml {
-		return errors.New("missing app.yaml")
+		return errors.New(" missing app.yaml")
 	}
 	if !hasMainPy {
-		return errors.New("missing python/main.py")
+		return errors.New(" missing python/main.py")
 	}
 
 	if hasSketchFolder {
 		if !hasSketchIno {
-			return errors.New("sketch folder present but missing .ino file")
+			return errors.New(" sketch folder present but missing .ino file")
 		}
 		if !hasSketchYaml {
-			return errors.New("sketch folder present but missing .yaml file")
+			return errors.New(" sketch folder present but missing .yaml file")
 		}
 	}
 
