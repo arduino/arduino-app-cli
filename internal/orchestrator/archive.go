@@ -297,7 +297,7 @@ func validateAppZipContent(r *zip.Reader) error {
 	}
 
 	if !hasAppYaml {
-		return fmt.Errorf(" missing app.yaml")
+		return errors.New(" missing app.yaml")
 	}
 	if !hasMainPy {
 		return fmt.Errorf(" missing python/main.py")
