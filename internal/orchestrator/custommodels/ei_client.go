@@ -48,8 +48,8 @@ type Job struct {
 	Created             time.Time              `json:"created"`
 	JobNotificationUids []int                  `json:"jobNotificationUids"`
 	Started             time.Time              `json:"started"`
-	Finished            time.Time              `json:"finished"`
-	FinishedSuccessful  bool                   `json:"finishedSuccessful"`
+	Finished            *time.Time             `json:"finished,omitempty"`
+	FinishedSuccessful  *bool                  `json:"finishedSuccessful,omitempty"`
 	AdditionalInfo      string                 `json:"additionalInfo"`
 	ComputeTime         int                    `json:"computeTime"`
 	CreatedByUser       User                   `json:"createdByUser"`
@@ -174,9 +174,11 @@ func (c *EIClient) GetJobStatus(ctx context.Context, projectID string, jobID str
 	}
 	defer reader.Close()
 
-	fmt.Println(resp)
 	if resp.Success {
-		return &resp.Job.FinishedSuccessful, nil
+		if resp.Job.FinishedSuccessful != nil && resp.Job.Finished != nil {
+			return resp.Job.FinishedSuccessful, nil
+		}
+		return nil, nil
 	}
 
 	return nil, fmt.Errorf("Error fetching job status: %s", resp.Error)
@@ -202,10 +204,13 @@ func (c EIClient) WaitForBuildCompletion(ctx context.Context, projectID, jobID s
 		if err != nil {
 			return err
 		}
-		fmt.Println("Build status:", *status)
 
-		if *status {
-			return nil
+		if status != nil {
+			if *status {
+				return nil
+			} else {
+				return fmt.Errorf("Creating deployment failed for job %s in project %s", jobID, projectID)
+			}
 		}
 
 		select {
