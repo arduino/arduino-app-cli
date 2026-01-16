@@ -57,7 +57,7 @@ func HandleSketchAddLibrary(idProvider *app.IDProvider) http.HandlerFunc {
 			return
 		} else {
 			render.EncodeResponse(w, http.StatusOK, SketchAddLibraryResponse{
-				AddedLibraries: addedLibs,
+				AddedLibraries: f.Map(addedLibs, (orchestrator.LibraryReleaseID).String),
 			})
 			return
 		}
@@ -66,7 +66,7 @@ func HandleSketchAddLibrary(idProvider *app.IDProvider) http.HandlerFunc {
 
 // NOTE: this is only to generate the openapi docs.
 type SketchAddLibraryResponse struct {
-	AddedLibraries []orchestrator.LibraryReleaseID `json:"libraries"`
+	AddedLibraries []string `json:"libraries"`
 }
 
 func HandleSketchRemoveLibrary(idProvider *app.IDProvider) http.HandlerFunc {
@@ -99,7 +99,7 @@ func HandleSketchRemoveLibrary(idProvider *app.IDProvider) http.HandlerFunc {
 			return
 		} else {
 			render.EncodeResponse(w, http.StatusOK, SketchRemoveLibraryResponse{
-				RemovedLibraries: removedLibs,
+				RemovedLibraries: f.Map(removedLibs, (orchestrator.LibraryReleaseID).String),
 			})
 			return
 		}
@@ -108,7 +108,7 @@ func HandleSketchRemoveLibrary(idProvider *app.IDProvider) http.HandlerFunc {
 
 // NOTE: this is only to generate the openapi docs.
 type SketchRemoveLibraryResponse struct {
-	RemovedLibraries []orchestrator.LibraryReleaseID `json:"libraries"`
+	RemovedLibraries []string `json:"libraries"`
 }
 
 func HandleSketchListLibraries(idProvider *app.IDProvider) http.HandlerFunc {
@@ -124,24 +124,23 @@ func HandleSketchListLibraries(idProvider *app.IDProvider) http.HandlerFunc {
 			return
 		}
 
-		// Get query param hideDeps (default false)
-		hideDeps, _ := strconv.ParseBool(r.URL.Query().Get("hide_deps"))
-
-		libraries, err := orchestrator.ListSketchLibraries(r.Context(), app)
+		allLibraries, err := orchestrator.ListSketchLibraries(r.Context(), app)
 		if err != nil {
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to list sketch libraries: " + err.Error()})
 			return
 		}
-		if hideDeps {
-			libraries = f.Filter(libraries, func(lri orchestrator.LibraryReleaseID) bool { return !lri.IsDependency })
-		}
+
+		libs := f.Filter(allLibraries, func(l orchestrator.LibraryReleaseID) bool { return !l.IsDependency })
+		deps := f.Filter(allLibraries, func(l orchestrator.LibraryReleaseID) bool { return l.IsDependency })
 		render.EncodeResponse(w, http.StatusOK, SketchListLibraryResponse{
-			Libraries: libraries,
+			Libraries:    f.Map(libs, (orchestrator.LibraryReleaseID).String),
+			Dependencies: f.Map(deps, (orchestrator.LibraryReleaseID).String),
 		})
 	}
 }
 
 // NOTE: this is only to generate the openapi docs.
 type SketchListLibraryResponse struct {
-	Libraries []orchestrator.LibraryReleaseID `json:"libraries"`
+	Libraries    []string `json:"libraries"`
+	Dependencies []string `json:"dependencies"`
 }

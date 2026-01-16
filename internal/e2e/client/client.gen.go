@@ -313,11 +313,7 @@ type LibraryListResponse struct {
 }
 
 // LibraryReleaseID defines model for LibraryReleaseID.
-type LibraryReleaseID struct {
-	IsDependency *bool   `json:"is_dependency,omitempty"`
-	Name         *string `json:"name,omitempty"`
-	Version      *string `json:"version,omitempty"`
-}
+type LibraryReleaseID = string
 
 // PackageType Package type
 type PackageType string
@@ -356,7 +352,8 @@ type SketchAddLibraryResponse struct {
 
 // SketchListLibraryResponse defines model for SketchListLibraryResponse.
 type SketchListLibraryResponse struct {
-	Libraries *[]LibraryReleaseID `json:"libraries"`
+	Dependencies *[]LibraryReleaseID `json:"dependencies"`
+	Libraries    *[]LibraryReleaseID `json:"libraries"`
 }
 
 // SketchRemoveLibraryResponse defines model for SketchRemoveLibraryResponse.

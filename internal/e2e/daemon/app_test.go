@@ -1011,7 +1011,7 @@ func TestAppList(t *testing.T) {
 	})
 }
 
-func TestSkeatAppLibrariesCommands(t *testing.T) {
+func TestSketchAppLibrariesCommands(t *testing.T) {
 	httpClient := GetHttpclient(t)
 
 	// Create a new App
@@ -1057,37 +1057,15 @@ func TestSkeatAppLibrariesCommands(t *testing.T) {
 
 	// Verify Arduino_RouterBridge is in the list
 	libraries := *listResp.JSON200.Libraries
+	dependencies := *listResp.JSON200.Dependencies
 	foundRouterBridge := false
 	for _, lib := range libraries {
-		require.NotNil(t, lib.Name)
-		if *lib.Name == "Arduino_RouterBridge" {
+		if strings.Contains(lib, "Arduino_RouterBridge") {
 			foundRouterBridge = true
-			require.False(t, *lib.IsDependency, "Arduino_RouterBridge should not be marked as a dependency")
 		}
 	}
 	require.True(t, foundRouterBridge, "Arduino_RouterBridge should be in the libraries list")
-	require.Greater(t, len(libraries), 1, "Should have Arduino_RouterBridge plus at least one dependency")
-
-	// List libraries without dependencies (filter dependencies)
-	listNoDepsResp, err := httpClient.AppSketchListLibrariesWithResponse(
-		t.Context(),
-		appID,
-		&client.AppSketchListLibrariesParams{HideDeps: f.Ptr("true")},
-	)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, listNoDepsResp.StatusCode())
-	require.NotNil(t, listNoDepsResp.JSON200)
-	require.NotNil(t, listNoDepsResp.JSON200.Libraries)
-
-	// Verify only direct dependencies are listed (no transitive dependencies)
-	librariesNoDeps := *listNoDepsResp.JSON200.Libraries
-	require.NotEmpty(t, librariesNoDeps, "Should have at least Arduino_RouterBridge")
-	require.Less(t, len(librariesNoDeps), len(libraries), "Filtered list should have fewer libraries than the full list")
-
-	// Verify all returned libraries are not marked as dependencies
-	for _, lib := range librariesNoDeps {
-		require.False(t, *lib.IsDependency, "When hide_deps=true, all libraries should have is_dependency=false")
-	}
+	require.Greater(t, len(dependencies), 1, "Should have at least one dependency")
 
 	// Remove library with dependencies
 	removeResp, err := httpClient.AppSketchRemoveLibraryWithResponse(
@@ -1116,7 +1094,7 @@ func TestSkeatAppLibrariesCommands(t *testing.T) {
 	if finalListResp.JSON200.Libraries != nil {
 		finalLibraries := *finalListResp.JSON200.Libraries
 		for _, lib := range finalLibraries {
-			require.NotEqual(t, "Arduino_RouterBridge", *lib.Name, "Arduino_RouterBridge should be removed from the list")
+			require.NotContains(t, lib, "Arduino_RouterBridge", "Arduino_RouterBridge should be removed from the list")
 		}
 	}
 }

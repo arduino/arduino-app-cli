@@ -1602,14 +1602,7 @@ components:
           $ref: '#/components/schemas/Pagination'
       type: object
     LibraryReleaseID:
-      type: object
-      properties:
-        name:
-          type: string
-        version:
-          type: string
-        is_dependency:
-          type: boolean
+      type: string
     PackageType:
       description: Package type
       enum:
@@ -1667,6 +1660,11 @@ components:
       type: object
       properties:
         libraries:
+          type: array
+          items:
+            $ref: '#/components/schemas/LibraryReleaseID'
+          nullable: true
+        dependencies:
           type: array
           items:
             $ref: '#/components/schemas/LibraryReleaseID'
