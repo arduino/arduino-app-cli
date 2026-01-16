@@ -417,12 +417,6 @@ type CreateAppParams struct {
 	SkipSketch *bool `form:"skip-sketch,omitempty" json:"skip-sketch,omitempty"`
 }
 
-// AppSketchListLibrariesParams defines parameters for AppSketchListLibraries.
-type AppSketchListLibrariesParams struct {
-	// HideDeps if set to "true", dependencies will be omitted from the result.
-	HideDeps *string `form:"hide_deps,omitempty" json:"hide_deps,omitempty"`
-}
-
 // AppSketchRemoveLibraryParams defines parameters for AppSketchRemoveLibrary.
 type AppSketchRemoveLibraryParams struct {
 	// RemoveDeps if set to "true", the library's dependencies will be removed as well if not needed anymore.
@@ -612,7 +606,7 @@ type ClientInterface interface {
 	GetAppPorts(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// AppSketchListLibraries request
-	AppSketchListLibraries(ctx context.Context, appID string, params *AppSketchListLibrariesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	AppSketchListLibraries(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// AppSketchRemoveLibrary request
 	AppSketchRemoveLibrary(ctx context.Context, appID string, libRef string, params *AppSketchRemoveLibraryParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -840,8 +834,8 @@ func (c *Client) GetAppPorts(ctx context.Context, appID string, reqEditors ...Re
 	return c.Client.Do(req)
 }
 
-func (c *Client) AppSketchListLibraries(ctx context.Context, appID string, params *AppSketchListLibrariesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewAppSketchListLibrariesRequest(c.Server, appID, params)
+func (c *Client) AppSketchListLibraries(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAppSketchListLibrariesRequest(c.Server, appID)
 	if err != nil {
 		return nil, err
 	}
@@ -1601,7 +1595,7 @@ func NewGetAppPortsRequest(server string, appID string) (*http.Request, error) {
 }
 
 // NewAppSketchListLibrariesRequest generates requests for AppSketchListLibraries
-func NewAppSketchListLibrariesRequest(server string, appID string, params *AppSketchListLibrariesParams) (*http.Request, error) {
+func NewAppSketchListLibrariesRequest(server string, appID string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -1624,28 +1618,6 @@ func NewAppSketchListLibrariesRequest(server string, appID string, params *AppSk
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.HideDeps != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "hide_deps", runtime.ParamLocationQuery, *params.HideDeps); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -2832,7 +2804,7 @@ type ClientWithResponsesInterface interface {
 	GetAppPortsWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*GetAppPortsResp, error)
 
 	// AppSketchListLibrariesWithResponse request
-	AppSketchListLibrariesWithResponse(ctx context.Context, appID string, params *AppSketchListLibrariesParams, reqEditors ...RequestEditorFn) (*AppSketchListLibrariesResp, error)
+	AppSketchListLibrariesWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*AppSketchListLibrariesResp, error)
 
 	// AppSketchRemoveLibraryWithResponse request
 	AppSketchRemoveLibraryWithResponse(ctx context.Context, appID string, libRef string, params *AppSketchRemoveLibraryParams, reqEditors ...RequestEditorFn) (*AppSketchRemoveLibraryResp, error)
@@ -3857,8 +3829,8 @@ func (c *ClientWithResponses) GetAppPortsWithResponse(ctx context.Context, appID
 }
 
 // AppSketchListLibrariesWithResponse request returning *AppSketchListLibrariesResp
-func (c *ClientWithResponses) AppSketchListLibrariesWithResponse(ctx context.Context, appID string, params *AppSketchListLibrariesParams, reqEditors ...RequestEditorFn) (*AppSketchListLibrariesResp, error) {
-	rsp, err := c.AppSketchListLibraries(ctx, appID, params, reqEditors...)
+func (c *ClientWithResponses) AppSketchListLibrariesWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*AppSketchListLibrariesResp, error) {
+	rsp, err := c.AppSketchListLibraries(ctx, appID, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
