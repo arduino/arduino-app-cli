@@ -1006,7 +1006,7 @@ func ImportAppFromZip(
 	defer r.Close()
 
 	if err := app.ValidateAppZipContent(&r.Reader); err != nil {
-		return app.ID{}, fmt.Errorf("%w: %v", ErrBadRequest, err)
+		return app.ID{}, fmt.Errorf("%w:%v", ErrBadRequest, err)
 	}
 
 	appDescriptor, err := app.ReadAppDescriptorFromZip(&r.Reader)
