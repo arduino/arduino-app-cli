@@ -105,7 +105,7 @@ func (m *ModelsIndex) GetModelsByBricks(bricks []string) []AIModel {
 	return matchingModels
 }
 
-func Load(dir *paths.Path, edgeImpulseDir *paths.Path) (*ModelsIndex, error) {
+func Load(dir *paths.Path, customModelDir *paths.Path) (*ModelsIndex, error) {
 	content, err := dir.Join("models-list.yaml").ReadFile()
 	if err != nil {
 		return nil, err
@@ -125,5 +125,7 @@ func Load(dir *paths.Path, edgeImpulseDir *paths.Path) (*ModelsIndex, error) {
 		}
 	}
 
-	return &ModelsIndex{Models: models, edgeImpulseModelsDir: edgeImpulseDir}, nil
+	edgeimpulseModelsDir := customModelDir.Join("ei-models")
+
+	return &ModelsIndex{Models: models, edgeImpulseModelsDir: edgeimpulseModelsDir}, nil
 }

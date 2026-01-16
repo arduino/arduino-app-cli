@@ -34,7 +34,7 @@ type Configuration struct {
 	appsDir            *paths.Path
 	dataDir            *paths.Path
 	routerSocketPath   *paths.Path
-	customEIModelsDir  *paths.Path
+	customModelsDir    *paths.Path
 	PythonImage        string
 	UsedPythonImageTag string
 	RunnerVersion      string
@@ -74,17 +74,17 @@ func NewFromEnv() (Configuration, error) {
 		routerSocket = paths.New("/var/run/arduino-router.sock")
 	}
 
-	// Ensure the custom EI modules directory exists
-	customEIModelsDir := paths.New(os.Getenv("ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR"))
-	if customEIModelsDir == nil {
+	// Ensure the custom modules directory exists
+	customModelsDir := paths.New(os.Getenv("ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR"))
+	if customModelsDir == nil {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
 			return Configuration{}, err
 		}
-		customEIModelsDir = paths.New(homeDir, ".arduino-bricks/ei-models")
+		customModelsDir = paths.New(homeDir, ".arduino-bricks/")
 	}
-	if customEIModelsDir.NotExist() {
-		if err := customEIModelsDir.MkdirAll(); err != nil {
+	if customModelsDir.NotExist() {
+		if err := customModelsDir.MkdirAll(); err != nil {
 			slog.Warn("failed create custom model directory", "error", err)
 		}
 	}
@@ -110,7 +110,7 @@ func NewFromEnv() (Configuration, error) {
 		appsDir:            appsDir,
 		dataDir:            dataDir,
 		routerSocketPath:   routerSocket,
-		customEIModelsDir:  customEIModelsDir,
+		customModelsDir:    customModelsDir,
 		PythonImage:        pythonImage,
 		UsedPythonImageTag: usedPythonImageTag,
 		RunnerVersion:      runnerVersion,
@@ -156,8 +156,8 @@ func (c *Configuration) AssetsDir() *paths.Path {
 	return c.dataDir.Join("assets")
 }
 
-func (c *Configuration) CustomEiModelsDir() *paths.Path {
-	return c.customEIModelsDir
+func (c *Configuration) CustomModelsDir() *paths.Path {
+	return c.customModelsDir
 }
 
 func getPythonImageAndTag() (string, string) {

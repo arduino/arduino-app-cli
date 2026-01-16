@@ -46,7 +46,7 @@ var (
 	})
 
 	GetModelsIndex = sync.OnceValue(func() *modelsindex.ModelsIndex {
-		return f.Must(modelsindex.Load(GetStaticStore().GetAssetsFolder(), globalConfig.CustomEiModelsDir()))
+		return f.Must(modelsindex.Load(GetStaticStore().GetAssetsFolder(), globalConfig.CustomModelsDir()))
 	})
 
 	GetProvisioner = sync.OnceValue(func() *orchestrator.Provision {
