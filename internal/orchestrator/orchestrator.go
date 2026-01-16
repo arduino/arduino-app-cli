@@ -973,24 +973,6 @@ func DeleteApp(ctx context.Context, dockerClient command.Cli, app app.ArduinoApp
 	return app.FullPath.RemoveAll()
 }
 
-func ExportAppZip(
-	ctx context.Context,
-	appTarget app.ArduinoApp,
-	includeData bool,
-) ([]byte, string, error) {
-
-	appName := strings.ToLower(strings.ReplaceAll(appTarget.Name, " ", "-"))
-	if appName == "" {
-		appName = "app-export"
-	}
-	filename := fmt.Sprintf("%s.zip", appName)
-	zipBytes, err := app.ZipAppToBuffer(appTarget.FullPath.String(), includeData)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to create zip archive: %w", err)
-	}
-	return zipBytes, filename, nil
-}
-
 func ImportAppFromZip(
 	cfg config.Configuration,
 	zipPath *paths.Path,

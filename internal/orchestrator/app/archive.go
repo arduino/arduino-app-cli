@@ -18,6 +18,7 @@ package app
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -29,7 +30,25 @@ import (
 	yaml "github.com/goccy/go-yaml"
 )
 
-func ZipAppToBuffer(sourcePath string, includeData bool) ([]byte, error) {
+func ExportAppZip(
+	ctx context.Context,
+	appTarget ArduinoApp,
+	includeData bool,
+) ([]byte, string, error) {
+
+	appName := strings.ToLower(strings.ReplaceAll(appTarget.Name, " ", "-"))
+	if appName == "" {
+		appName = "app-export"
+	}
+	filename := fmt.Sprintf("%s.zip", appName)
+	zipBytes, err := zipAppToBuffer(appTarget.FullPath.String(), includeData)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to create zip archive: %w", err)
+	}
+	return zipBytes, filename, nil
+}
+
+func zipAppToBuffer(sourcePath string, includeData bool) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	zipWriter := zip.NewWriter(buf)
 

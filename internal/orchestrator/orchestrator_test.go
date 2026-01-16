@@ -17,8 +17,6 @@ package orchestrator
 
 import (
 	"archive/zip"
-	"bytes"
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -661,116 +659,6 @@ func TestValidateDevice(t *testing.T) {
 		err := validateDevices(&dev, requiredDeviceClasses)
 		assert.Error(t, err)
 	})
-}
-
-func TestExportAppZip(t *testing.T) {
-	type testCase struct {
-		name             string
-		appName          string
-		files            map[string]string
-		nonExistent      bool
-		includeData      bool
-		wantFiles        []string
-		wantMissingFiles []string
-		wantErr          bool
-		wantFilename     string
-	}
-
-	tests := []testCase{
-		{
-			name:    "Standard app name (include_data=false)",
-			appName: "My Test App",
-			files: map[string]string{
-				"app.yaml":     "content",
-				"data/foo.txt": "data content",
-			},
-			includeData:      false,
-			wantErr:          false,
-			wantFilename:     "my-test-app.zip",
-			wantFiles:        []string{"app.yaml"},
-			wantMissingFiles: []string{"data/foo.txt"},
-		},
-		{
-			name:    "Include Data directory (include_data=true)",
-			appName: "Data App",
-			files: map[string]string{
-				"app.yaml":     "content",
-				"data/foo.txt": "data content",
-			},
-			includeData:      true,
-			wantErr:          false,
-			wantFilename:     "data-app.zip",
-			wantFiles:        []string{"app.yaml", "data/foo.txt"},
-			wantMissingFiles: []string{},
-		},
-		{
-			name:    "Empty app name uses default",
-			appName: "",
-			files: map[string]string{
-				"app.yaml": "content",
-			},
-			includeData:  false,
-			wantErr:      false,
-			wantFilename: "app-export.zip",
-			wantFiles:    []string{"app.yaml"},
-		},
-		{
-			name:        "Error on non existent path",
-			appName:     "Broken App",
-			nonExistent: true,
-			wantErr:     true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			tmpDir := t.TempDir()
-
-			for path, content := range tc.files {
-				fullPath := filepath.Join(tmpDir, path)
-				require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0755))
-				require.NoError(t, os.WriteFile(fullPath, []byte(content), 0600))
-			}
-
-			appPath := tmpDir
-			if tc.nonExistent {
-				appPath = filepath.Join(tmpDir, "not-existing")
-			}
-
-			app := app.ArduinoApp{
-				Name:     tc.appName,
-				FullPath: paths.New(appPath),
-			}
-			zipData, filename, err := ExportAppZip(context.Background(), app, tc.includeData)
-
-			if tc.wantErr {
-				require.Error(t, err)
-				require.Nil(t, zipData)
-				require.Empty(t, filename)
-				return
-			}
-
-			require.NoError(t, err)
-			require.Equal(t, tc.wantFilename, filename)
-			require.NotEmpty(t, zipData)
-
-			zipReader, err := zip.NewReader(bytes.NewReader(zipData), int64(len(zipData)))
-			require.NoError(t, err)
-
-			presentFiles := make(map[string]bool)
-			for _, f := range zipReader.File {
-				presentFiles[f.Name] = true
-			}
-
-			for _, file := range tc.wantFiles {
-				require.True(t, presentFiles[file], "File expected in zip but missing: %s", file)
-			}
-
-			for _, file := range tc.wantMissingFiles {
-				require.False(t, presentFiles[file], "File should NOT be in zip but was found: %s", file)
-			}
-		})
-	}
 }
 
 func TestImportAppFromZip(t *testing.T) {

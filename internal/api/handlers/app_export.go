@@ -24,7 +24,6 @@ import (
 	"strconv"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/render"
@@ -40,7 +39,7 @@ func HandleAppExport(
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: fmt.Sprintf("invalid id: %s", err.Error())})
 			return
 		}
-		app, err := app.Load(id.ToPath())
+		appToExport, err := app.Load(id.ToPath())
 		if err != nil {
 			slog.Error("Unable to load the app", "error", err.Error(), "path", id.String())
 			if errors.Is(err, os.ErrNotExist) {
@@ -63,7 +62,7 @@ func HandleAppExport(
 			}
 		}
 
-		zipBytes, fileName, err := orchestrator.ExportAppZip(r.Context(), app, includeData)
+		zipBytes, fileName, err := app.ExportAppZip(r.Context(), appToExport, includeData)
 		if err != nil {
 			slog.Error("failed to export app", "app_id", id.String(), "error", err)
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{
