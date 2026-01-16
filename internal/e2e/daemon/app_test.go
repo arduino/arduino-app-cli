@@ -1046,7 +1046,6 @@ func TestSketchAppLibrariesCommands(t *testing.T) {
 	listResp, err := httpClient.AppSketchListLibrariesWithResponse(
 		t.Context(),
 		appID,
-		&client.AppSketchListLibrariesParams{HideDeps: f.Ptr("false")},
 	)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, listResp.StatusCode())
@@ -1084,7 +1083,6 @@ func TestSketchAppLibrariesCommands(t *testing.T) {
 	finalListResp, err := httpClient.AppSketchListLibrariesWithResponse(
 		t.Context(),
 		appID,
-		&client.AppSketchListLibrariesParams{HideDeps: f.Ptr("false")},
 	)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, finalListResp.StatusCode())
