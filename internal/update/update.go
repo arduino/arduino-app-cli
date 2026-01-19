@@ -24,8 +24,12 @@ import (
 	"sync"
 	"time"
 
+	"go.bug.st/f"
 	"golang.org/x/sync/errgroup"
 )
+
+type DebianMatcher func(UpgradablePackage) bool
+type ArduinoMatcher func(UpgradablePackage) bool
 
 var MatchArduinoPackage = func(p UpgradablePackage) bool {
 	return strings.HasPrefix(p.Name, "arduino-") ||
@@ -43,9 +47,6 @@ type UpgradablePackage struct {
 	FromVersion  string      `json:"from_version"`
 	ToVersion    string      `json:"to_version"`
 }
-
-type MatcherFunc func(UpgradablePackage) bool
-
 type ServiceUpdater interface {
 	ListUpgradablePackages(ctx context.Context) ([]UpgradablePackage, error)
 	UpgradePackages(ctx context.Context, names []string, eventCB EventCallback) error
@@ -68,7 +69,7 @@ func NewManager(debUpdateService ServiceUpdater, arduinoPlatformUpdateService Se
 	}
 }
 
-func (m *Manager) ListUpgradablePackages(ctx context.Context, matchers ...MatcherFunc) ([]UpgradablePackage, error) {
+func (m *Manager) ListUpgradablePackages(ctx context.Context, arduinoMatcher ArduinoMatcher, debianMatcher DebianMatcher) ([]UpgradablePackage, error) {
 	if !m.lock.TryLock() {
 		return nil, ErrOperationAlreadyInProgress
 	}
@@ -88,20 +89,30 @@ func (m *Manager) ListUpgradablePackages(ctx context.Context, matchers ...Matche
 	)
 
 	g.Go(func() error {
-		pkgs, err := m.debUpdateService.ListUpgradablePackages(ctx)
+		debs, err := m.debUpdateService.ListUpgradablePackages(ctx)
 		if err != nil {
 			return err
 		}
-		debPkgs = filterPackagesByMatchers(pkgs, matchers...)
+		debPkgs = f.Filter(debs, func(p UpgradablePackage) bool {
+			if debianMatcher == nil {
+				return true
+			}
+			return debianMatcher(p)
+		})
 		return nil
 	})
 
 	g.Go(func() error {
-		pkgs, err := m.arduinoPlatformUpdateService.ListUpgradablePackages(ctx)
+		arduino, err := m.arduinoPlatformUpdateService.ListUpgradablePackages(ctx)
 		if err != nil {
 			return err
 		}
-		arduinoPkgs = filterPackagesByMatchers(pkgs, matchers...)
+		arduinoPkgs = f.Filter(arduino, func(p UpgradablePackage) bool {
+			if arduinoMatcher == nil {
+				return true
+			}
+			return arduinoMatcher(p)
+		})
 		return nil
 	})
 
@@ -111,23 +122,6 @@ func (m *Manager) ListUpgradablePackages(ctx context.Context, matchers ...Matche
 	}
 
 	return append(arduinoPkgs, debPkgs...), nil
-}
-
-func filterPackagesByMatchers(pkgs []UpgradablePackage, matchers ...MatcherFunc) []UpgradablePackage {
-	filtered := make([]UpgradablePackage, 0, len(pkgs))
-	for _, pkg := range pkgs {
-		matched := true
-		for _, matcher := range matchers {
-			if !matcher(pkg) {
-				matched = false
-				break
-			}
-		}
-		if matched {
-			filtered = append(filtered, pkg)
-		}
-	}
-	return filtered
 }
 
 func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage) error {
