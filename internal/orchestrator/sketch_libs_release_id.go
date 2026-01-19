@@ -26,9 +26,9 @@ import (
 // - name[@version]
 // Version is optional, if not provided, the latest version available will be used.
 type LibraryReleaseID struct {
-	Name         string `json:"name"`
-	Version      string `json:"version"`
-	IsDependency bool   `json:"is_dependency"`
+	Name         string
+	Version      string
+	IsDependency bool
 }
 
 func NewLibraryReleaseID(name string, version string) LibraryReleaseID {
