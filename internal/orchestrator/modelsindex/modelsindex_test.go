@@ -9,16 +9,16 @@ import (
 )
 
 func TestModelsIndex(t *testing.T) {
-	modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata/ei-models"))
+	modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata"))
 	require.NoError(t, err)
 	require.NotNil(t, modelsIndex)
 
-	t.Run("it parses a valid model-list.yaml", func(t *testing.T) {
+	t.Run("it parses a valid model-list.yaml and edgeimpulse", func(t *testing.T) {
 		models := modelsIndex.GetModels()
 		assert.Len(t, models, 3, "Expected 3 models to be parsed")
 	})
 
-	t.Run("it gets a model by ID", func(t *testing.T) {
+	t.Run("it gets a preloaded model by ID", func(t *testing.T) {
 		model, found := modelsIndex.GetModelByID("not-existing-model")
 		assert.False(t, found)
 		assert.Nil(t, model)
@@ -36,10 +36,28 @@ func TestModelsIndex(t *testing.T) {
 		assert.Equal(t, "false", model.Metadata["ei-gpu-mode"])
 		assert.Equal(t, "face-det-lite", model.Metadata["source-model-id"])
 		assert.Equal(t, "https://aihub.qualcomm.com/models/face_det_lite", model.Metadata["source-model-url"])
+	})
 
+	t.Run("it get edgeimpule model by id", func(t *testing.T) {
 		eimodel, found := modelsIndex.GetModelByID("111111-1")
 		assert.True(t, found)
 		assert.NotNil(t, eimodel)
+		assert.Equal(t, &AIModel{
+			ID:                "111111-1",
+			Source:            "edgeimpulse",
+			Name:              "my custom model from edge impulse",
+			ModuleDescription: "A small and accurate model for detecting bounding boxes for faces in images.",
+			Runner:            "bricks",
+			Bricks: []string{
+				"object-detection",
+			},
+			Metadata: map[string]string{
+				"impulse-id": "1",
+				"project-id": "111111",
+			},
+			ModelLabels:        nil,
+			ModelConfiguration: nil,
+		}, eimodel)
 	})
 
 	t.Run("it fails if model-list.yaml does not exist", func(t *testing.T) {
