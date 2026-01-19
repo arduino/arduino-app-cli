@@ -1052,7 +1052,6 @@ func TestSketchAppLibrariesCommands(t *testing.T) {
 	require.NotNil(t, listResp.JSON200)
 	require.NotNil(t, listResp.JSON200.Libraries)
 	require.NotEmpty(t, *listResp.JSON200.Libraries, "Libraries list should not be empty")
-	fmt.Println("List Libraries Response:", *listResp.JSON200.Libraries)
 
 	// Verify Arduino_RouterBridge is in the list
 	libraries := *listResp.JSON200.Libraries
