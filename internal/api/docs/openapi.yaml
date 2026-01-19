@@ -303,7 +303,7 @@ paths:
         schema:
           description: if set to "true", the library's dependencies will be removed
             as well if not needed anymore.
-          type: string
+          type: boolean
       - description: application identifier.
         in: path
         name: appID
@@ -347,7 +347,7 @@ paths:
         schema:
           description: if set to "true", the library's dependencies will be added
             as well.
-          type: string
+          type: boolean
       - description: application identifier.
         in: path
         name: appID
@@ -1595,8 +1595,6 @@ components:
         pagination:
           $ref: '#/components/schemas/Pagination'
       type: object
-    LibraryReleaseID:
-      type: string
     PackageType:
       description: Package type
       enum:
@@ -1643,34 +1641,34 @@ components:
           type: array
       type: object
     SketchAddLibraryResponse:
-      type: object
       properties:
         libraries:
-          type: array
           items:
-            $ref: '#/components/schemas/LibraryReleaseID'
+            type: string
           nullable: true
+          type: array
+      type: object
     SketchListLibraryResponse:
-      type: object
       properties:
-        libraries:
-          type: array
-          items:
-            $ref: '#/components/schemas/LibraryReleaseID'
-          nullable: true
         dependencies:
-          type: array
           items:
-            $ref: '#/components/schemas/LibraryReleaseID'
+            type: string
           nullable: true
-    SketchRemoveLibraryResponse:
+          type: array
+        libraries:
+          items:
+            type: string
+          nullable: true
+          type: array
       type: object
+    SketchRemoveLibraryResponse:
       properties:
         libraries:
-          type: array
           items:
-            $ref: '#/components/schemas/LibraryReleaseID'
+            type: string
           nullable: true
+          type: array
+      type: object
     Status:
       description: Application status
       enum:
