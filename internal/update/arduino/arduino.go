@@ -125,14 +125,12 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context) ([]
 		return nil, nil // No update available
 	}
 
-	return []update.UpgradablePackage{
-		{
-			Type:        update.Arduino,
-			Name:        "arduino:zephyr",
-			FromVersion: platformSummary.GetInstalledVersion(),
-			ToVersion:   platformSummary.GetLatestVersion(),
-		},
-	}, nil
+	return []update.UpgradablePackage{{
+		Type:        update.Arduino,
+		Name:        "arduino:zephyr",
+		FromVersion: platformSummary.GetInstalledVersion(),
+		ToVersion:   platformSummary.GetLatestVersion(),
+	}}, nil
 }
 
 // UpgradePackages implements ServiceUpdater.
