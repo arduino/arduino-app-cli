@@ -511,7 +511,7 @@ models:
 `)
 	err = cfg.AssetsDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
 	require.NoError(t, err)
-	modelIndex, err := modelsindex.Load(cfg.AssetsDir(), nil)
+	modelIndex, err := modelsindex.Load(cfg.AssetsDir(), nil, nil, nil)
 	require.NoError(t, err)
 
 	env := getAppEnvironmentVariables(appDesc, bricksIndex, modelIndex)
@@ -595,7 +595,7 @@ models:
 `)
 	err = cfg.AssetsDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
 	require.NoError(t, err)
-	modelIndex, err := modelsindex.Load(cfg.AssetsDir(), nil)
+	modelIndex, err := modelsindex.Load(cfg.AssetsDir(), nil, nil, nil)
 	require.NoError(t, err)
 
 	env := getAppEnvironmentVariables(appDesc, bricksIndex, modelIndex)
@@ -675,7 +675,7 @@ path: "my-super-model.eim"
 	require.NoError(t, eiModelpath.Join("metadata.yaml").WriteFile(metadata))
 	require.NoError(t, eiModelpath.Join("my-super-model.eim").WriteFile([]byte(`a fake model file`)))
 
-	modelIndex, err := modelsindex.Load(cfg.AssetsDir(), cfg.CustomModelsDir())
+	modelIndex, err := modelsindex.Load(cfg.AssetsDir(), cfg.CustomModelsDir(), nil, nil)
 	require.NoError(t, err)
 
 	env := getAppEnvironmentVariables(appDesc, bricksIndex, modelIndex)
