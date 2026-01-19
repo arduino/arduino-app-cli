@@ -312,9 +312,6 @@ type LibraryListResponse struct {
 	Pagination *Pagination `json:"pagination,omitempty"`
 }
 
-// LibraryReleaseID defines model for LibraryReleaseID.
-type LibraryReleaseID = string
-
 // PackageType Package type
 type PackageType string
 
@@ -347,18 +344,18 @@ type PropertyKeysResponse struct {
 
 // SketchAddLibraryResponse defines model for SketchAddLibraryResponse.
 type SketchAddLibraryResponse struct {
-	Libraries *[]LibraryReleaseID `json:"libraries"`
+	Libraries *[]string `json:"libraries"`
 }
 
 // SketchListLibraryResponse defines model for SketchListLibraryResponse.
 type SketchListLibraryResponse struct {
-	Dependencies *[]LibraryReleaseID `json:"dependencies"`
-	Libraries    *[]LibraryReleaseID `json:"libraries"`
+	Dependencies *[]string `json:"dependencies"`
+	Libraries    *[]string `json:"libraries"`
 }
 
 // SketchRemoveLibraryResponse defines model for SketchRemoveLibraryResponse.
 type SketchRemoveLibraryResponse struct {
-	Libraries *[]LibraryReleaseID `json:"libraries"`
+	Libraries *[]string `json:"libraries"`
 }
 
 // Status Application status
@@ -420,13 +417,13 @@ type CreateAppParams struct {
 // AppSketchRemoveLibraryParams defines parameters for AppSketchRemoveLibrary.
 type AppSketchRemoveLibraryParams struct {
 	// RemoveDeps if set to "true", the library's dependencies will be removed as well if not needed anymore.
-	RemoveDeps *string `form:"remove_deps,omitempty" json:"remove_deps,omitempty"`
+	RemoveDeps *bool `form:"remove_deps,omitempty" json:"remove_deps,omitempty"`
 }
 
 // AppSketchAddLibraryParams defines parameters for AppSketchAddLibrary.
 type AppSketchAddLibraryParams struct {
 	// AddDeps if set to "true", the library's dependencies will be added as well.
-	AddDeps *string `form:"add_deps,omitempty" json:"add_deps,omitempty"`
+	AddDeps *bool `form:"add_deps,omitempty" json:"add_deps,omitempty"`
 }
 
 // GetAppLogsParams defines parameters for GetAppLogs.
