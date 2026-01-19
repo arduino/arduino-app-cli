@@ -89,11 +89,11 @@ func (m *Manager) ListUpgradablePackages(ctx context.Context, arduinoMatcher Ard
 	)
 
 	g.Go(func() error {
-		debs, err := m.debUpdateService.ListUpgradablePackages(ctx)
+		pkgs, err := m.debUpdateService.ListUpgradablePackages(ctx)
 		if err != nil {
 			return err
 		}
-		debPkgs = f.Filter(debs, func(p UpgradablePackage) bool {
+		debPkgs = f.Filter(pkgs, func(p UpgradablePackage) bool {
 			if debianMatcher == nil {
 				return true
 			}
@@ -103,11 +103,11 @@ func (m *Manager) ListUpgradablePackages(ctx context.Context, arduinoMatcher Ard
 	})
 
 	g.Go(func() error {
-		arduino, err := m.arduinoPlatformUpdateService.ListUpgradablePackages(ctx)
+		pkgs, err := m.arduinoPlatformUpdateService.ListUpgradablePackages(ctx)
 		if err != nil {
 			return err
 		}
-		arduinoPkgs = f.Filter(arduino, func(p UpgradablePackage) bool {
+		arduinoPkgs = f.Filter(pkgs, func(p UpgradablePackage) bool {
 			if arduinoMatcher == nil {
 				return true
 			}
