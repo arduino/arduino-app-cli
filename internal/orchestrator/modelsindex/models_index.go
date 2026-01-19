@@ -56,21 +56,25 @@ type AIModel struct {
 }
 
 type ModelsIndex struct {
-	Models []AIModel
+	PreInstalledModels []AIModel
 
 	edgeImpulseModelsDir *paths.Path
 }
 
 func (m *ModelsIndex) GetModels() []AIModel {
+	return m.buildModels()
+}
+
+func (m *ModelsIndex) buildModels() []AIModel {
 	eimodels, err := LoadEdgeImpulseModels(m.edgeImpulseModelsDir)
 	if err != nil {
 		slog.Error("cannot load edge impulse custom models", "err", err)
 	}
-	return append(m.Models, eimodels...)
+	return append(m.PreInstalledModels, eimodels...)
 }
 
 func (m *ModelsIndex) GetModelByID(id string) (*AIModel, bool) {
-	models := m.GetModels()
+	models := m.buildModels()
 	idx := slices.IndexFunc(models, func(v AIModel) bool { return v.ID == id })
 	if idx == -1 {
 		return nil, false
@@ -80,7 +84,7 @@ func (m *ModelsIndex) GetModelByID(id string) (*AIModel, bool) {
 
 func (m *ModelsIndex) GetModelsByBrick(brick string) []AIModel {
 	var matches []AIModel
-	models := m.GetModels()
+	models := m.buildModels()
 	for i := range models {
 		if len(models[i].Bricks) > 0 && slices.Contains(models[i].Bricks, brick) {
 			matches = append(matches, models[i])
@@ -94,7 +98,7 @@ func (m *ModelsIndex) GetModelsByBrick(brick string) []AIModel {
 
 func (m *ModelsIndex) GetModelsByBricks(bricks []string) []AIModel {
 	var matchingModels []AIModel
-	for _, model := range m.GetModels() {
+	for _, model := range m.buildModels() {
 		for _, modelBrick := range model.Bricks {
 			if slices.Contains(bricks, modelBrick) {
 				matchingModels = append(matchingModels, model)
@@ -127,5 +131,5 @@ func Load(dir *paths.Path, customModelDir *paths.Path) (*ModelsIndex, error) {
 
 	edgeimpulseModelsDir := customModelDir.Join("ei-models")
 
-	return &ModelsIndex{Models: models, edgeImpulseModelsDir: edgeimpulseModelsDir}, nil
+	return &ModelsIndex{PreInstalledModels: models, edgeImpulseModelsDir: edgeimpulseModelsDir}, nil
 }
