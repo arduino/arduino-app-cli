@@ -41,7 +41,7 @@ func HandleCheckUpgradable(cfg config.Configuration, updater *update.Manager) ht
 			filterFunc = update.MatchArduinoPackage
 		}
 
-		pkgs, err := updater.ListUpgradablePackages(cfg, r.Context(), filterFunc)
+		pkgs, err := updater.ListUpgradablePackages(r.Context(), filterFunc)
 		if err != nil {
 			code := update.GetUpdateErrorCode(err)
 			if code == update.OperationInProgressCode {
@@ -70,7 +70,7 @@ type UpdateCheckResult struct {
 	Packages []update.UpgradablePackage `json:"updates"`
 }
 
-func HandleUpdateApply(cfg config.Configuration, updater *update.Manager) http.HandlerFunc {
+func HandleUpdateApply(updater *update.Manager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		queryParams := r.URL.Query()
 		onlyArduinoPackages := false
@@ -83,7 +83,7 @@ func HandleUpdateApply(cfg config.Configuration, updater *update.Manager) http.H
 			filterFunc = update.MatchArduinoPackage
 		}
 
-		pkgs, err := updater.ListUpgradablePackages(cfg, r.Context(), filterFunc)
+		pkgs, err := updater.ListUpgradablePackages(r.Context(), filterFunc)
 		if err != nil {
 			code := update.GetUpdateErrorCode(err)
 			if code == update.OperationInProgressCode {

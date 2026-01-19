@@ -30,7 +30,6 @@ import (
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/update"
 )
 
@@ -48,7 +47,7 @@ func New() *Service {
 // It runs the `apt-get update` command before listing the packages to ensure the package list is up to date.
 // It filters the packages using the provided matcher function.
 // It returns a slice of UpgradablePackage or an error if the command fails.
-func (s *Service) ListUpgradablePackages(ctx context.Context, _ config.Configuration, matcher func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
+func (s *Service) ListUpgradablePackages(ctx context.Context, matcher func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
 	if !s.lock.TryLock() {
 		return nil, update.ErrOperationAlreadyInProgress
 	}

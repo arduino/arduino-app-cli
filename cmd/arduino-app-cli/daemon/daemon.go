@@ -102,7 +102,7 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 		version,
 		update.NewManager(
 			apt.New(),
-			arduino.NewArduinoPlatformUpdater(),
+			arduino.NewArduinoPlatformUpdater(cfg.VersionConstraint),
 		),
 		servicelocator.GetProvisioner(),
 		servicelocator.GetStaticStore(),

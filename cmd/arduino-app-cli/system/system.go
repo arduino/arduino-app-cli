@@ -22,6 +22,7 @@ import (
 
 	"github.com/docker/cli/cli/command"
 	"github.com/spf13/cobra"
+	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
@@ -74,9 +75,9 @@ func newUpdateCmd(cfg config.Configuration) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			filterFunc := getFilterFunc(onlyArduino)
 
-			updater := getUpdater()
+			updater := getUpdater(cfg.VersionConstraint)
 
-			pkgs, err := updater.ListUpgradablePackages(cfg, cmd.Context(), filterFunc)
+			pkgs, err := updater.ListUpgradablePackages(cmd.Context(), filterFunc)
 			if err != nil {
 				return err
 			}
@@ -135,10 +136,10 @@ func newUpdateCmd(cfg config.Configuration) *cobra.Command {
 	return cmd
 }
 
-func getUpdater() *update.Manager {
+func getUpdater(versionConstraint semver.Constraint) *update.Manager {
 	return update.NewManager(
 		apt.New(),
-		arduino.NewArduinoPlatformUpdater(),
+		arduino.NewArduinoPlatformUpdater(versionConstraint),
 	)
 }
 

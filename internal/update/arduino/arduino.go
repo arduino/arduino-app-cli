@@ -30,16 +30,18 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/update"
 )
 
 type ArduinoPlatformUpdater struct {
-	lock sync.Mutex
+	lock       sync.Mutex
+	constraint semver.Constraint
 }
 
-func NewArduinoPlatformUpdater() *ArduinoPlatformUpdater {
-	return &ArduinoPlatformUpdater{}
+func NewArduinoPlatformUpdater(versionConstraint semver.Constraint) *ArduinoPlatformUpdater {
+	return &ArduinoPlatformUpdater{
+		constraint: versionConstraint,
+	}
 }
 
 func setConfig(ctx context.Context, srv rpc.ArduinoCoreServiceServer) error {
@@ -55,7 +57,7 @@ func setConfig(ctx context.Context, srv rpc.ArduinoCoreServiceServer) error {
 }
 
 // ListUpgradablePackages implements ServiceUpdater.
-func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, cfg config.Configuration, _ func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
+func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
 	if !a.lock.TryLock() {
 		return nil, update.ErrOperationAlreadyInProgress
 	}
@@ -128,14 +130,12 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, cfg
 		return nil, fmt.Errorf("invalid installed version '%s': %w", platformSummary.GetInstalledVersion(), err)
 	}
 
-	constraint := cfg.VersionConstraint
-
 	availableReleases := make([]string, 0, len(platformSummary.GetReleases()))
 	for k := range platformSummary.GetReleases() {
 		availableReleases = append(availableReleases, k)
 	}
 
-	bestVersion := selectBestVersion(availableReleases, installedV, constraint)
+	bestVersion := selectBestVersion(availableReleases, installedV, a.constraint)
 
 	if bestVersion == nil {
 		return nil, nil
