@@ -76,7 +76,7 @@ func newUpdateCmd() *cobra.Command {
 
 			updater := getUpdater()
 
-			pkgs, err := updater.ListUpgradablePackages(cmd.Context(), filterFunc, nil)
+			pkgs, err := updater.ListUpgradablePackages(cmd.Context(), filterFunc, update.MatchAllPackages)
 			if err != nil {
 				return err
 			}

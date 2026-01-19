@@ -35,12 +35,12 @@ func HandleCheckUpgradable(updater *update.Manager) http.HandlerFunc {
 			onlyArduinoPackages = strings.ToLower(val) == "true"
 		}
 
-		filterFunc := update.MatchAllPackages
+		filterArduinoFunc := update.MatchAllPackages
 		if onlyArduinoPackages {
-			filterFunc = update.MatchArduinoPackage
+			filterArduinoFunc = update.MatchArduinoPackage
 		}
 
-		pkgs, err := updater.ListUpgradablePackages(r.Context(), filterFunc, update.MatchAllPackages)
+		pkgs, err := updater.ListUpgradablePackages(r.Context(), filterArduinoFunc, update.MatchAllPackages)
 		if err != nil {
 			code := update.GetUpdateErrorCode(err)
 			if code == update.OperationInProgressCode {
@@ -77,12 +77,12 @@ func HandleUpdateApply(updater *update.Manager) http.HandlerFunc {
 			onlyArduinoPackages = strings.ToLower(val) == "true"
 		}
 
-		filterFunc := update.MatchAllPackages
+		filterArduinoFunc := update.MatchAllPackages
 		if onlyArduinoPackages {
-			filterFunc = update.MatchArduinoPackage
+			filterArduinoFunc = update.MatchArduinoPackage
 		}
 
-		pkgs, err := updater.ListUpgradablePackages(r.Context(), filterFunc, nil)
+		pkgs, err := updater.ListUpgradablePackages(r.Context(), filterArduinoFunc, update.MatchAllPackages)
 		if err != nil {
 			code := update.GetUpdateErrorCode(err)
 			if code == update.OperationInProgressCode {
