@@ -9,10 +9,20 @@ import (
 	yaml "github.com/goccy/go-yaml"
 )
 
+type arduinoBrickConfig struct {
+	brickID               string
+	configurationVariable string
+}
+
 // map Edge Impulse categories to Arduino bricks
-var eiCategoryToArduinoBrick = map[string]string{
-	"Images": "object-detection",
-	// TODO: define the mapping missing
+var eiCategoryToArduinoBrick = map[string][]arduinoBrickConfig{
+	"Images": []arduinoBrickConfig{
+		{
+			brickID:               "object-detection",
+			configurationVariable: "EI_OBJ_DETECTION_MODEL",
+		},
+	},
+	// TODO: define missing mapping
 }
 
 func LoadEdgeImpulseModels(dir *paths.Path) ([]AIModel, error) {
@@ -25,7 +35,7 @@ func LoadEdgeImpulseModels(dir *paths.Path) ([]AIModel, error) {
 		Name        string `yaml:"name"`
 		Description string `yaml:"description"`
 		Category    string `yaml:"category"`
-		Path        string `yaml:"-"`
+		Path        string `yaml:"path"`
 	}
 	var models []AIModel
 	err := filepath.WalkDir(dir.String(), func(path string, d fs.DirEntry, walkErr error) error {
@@ -52,7 +62,13 @@ func LoadEdgeImpulseModels(dir *paths.Path) ([]AIModel, error) {
 		if err := yaml.NewDecoder(f).Decode(&mf); err != nil {
 			return err
 		}
-		mf.Path = filepath.Dir(path)
+		var bricks []string
+		var modelConfig = make(map[string]string)
+		for _, b := range eiCategoryToArduinoBrick[mf.Category] {
+			bricks = append(bricks, b.brickID)
+			// FIXME: based on the name of the config differnt value myust be resolved
+			modelConfig[b.configurationVariable] = paths.New(path).Parent().Join(mf.Path).String()
+		}
 
 		models = append(models, AIModel{
 			ID:                fmt.Sprintf("%d-%d", mf.ProjectId, mf.ImpulseID), // TODO: generation of ID
@@ -60,11 +76,12 @@ func LoadEdgeImpulseModels(dir *paths.Path) ([]AIModel, error) {
 			Name:              mf.Name,
 			ModuleDescription: mf.Description,
 			Runner:            "bricks",
-			Bricks:            []string{eiCategoryToArduinoBrick[mf.Category]},
 			Metadata: map[string]string{
 				"project-id": fmt.Sprintf("%d", mf.ProjectId),
 				"impulse-id": fmt.Sprintf("%d", mf.ImpulseID),
 			},
+			Bricks:             bricks,
+			ModelConfiguration: modelConfig,
 		})
 
 		return nil

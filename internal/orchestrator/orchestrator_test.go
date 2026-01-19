@@ -605,6 +605,85 @@ models:
 	// we ignore HOST_IP since it's dynamic
 }
 
+func TestUseEdgeImpulseModel(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	idProvider := app.NewAppIDProvider(cfg)
+
+	docker, err := dockerClient.NewClientWithOpts(
+		dockerClient.FromEnv,
+		dockerClient.WithAPIVersionNegotiation(),
+	)
+	require.NoError(t, err)
+	dockerCli, err := command.NewDockerCli(
+		command.WithAPIClient(docker),
+		command.WithBaseContext(t.Context()),
+	)
+	require.NoError(t, err)
+
+	err = dockerCli.Initialize(&flags.ClientOptions{})
+	require.NoError(t, err)
+
+	appId := createApp(t, "app-with-edge-impulse", false, idProvider, cfg)
+	appDesc, err := app.Load(appId.ToPath())
+	require.NoError(t, err)
+	appDesc.Descriptor.Bricks = []app.Brick{
+		{
+			ID:    "arduino:object_detection",
+			Model: "111111-1",
+		},
+	}
+
+	bricksIndexContent := []byte(`
+bricks:
+- id: arduino:object_detection
+  name: Object Detection
+  description: "Brick for object detection"
+  require_container: true
+  require_model: true
+  category: video
+  model_name: yolox-object-detection
+  variables:
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: path to the custom model directory
+  - name: EI_OBJ_DETECTION_MODEL
+    default_value: /models/ootb/ei/yolo-x-nano.eim
+    description: path to the model file
+`)
+	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
+	require.NoError(t, err)
+	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
+	assert.NoError(t, err)
+
+	emptyModelList := []byte(`
+models:
+`)
+	err = cfg.AssetsDir().Join("models-list.yaml").WriteFile(emptyModelList)
+	require.NoError(t, err)
+
+	metadata := []byte(`
+project-id: 111111
+impulse-id: 1
+name: "my custom model from edge impulse"
+description: "A  custom edge-impusle models description"
+category: "Images"
+path: "my-super-model.eim"
+`)
+	eiModelpath := cfg.CustomModelsDir().Join("ei-models").Join("1234").Join("1")
+	require.NoError(t, eiModelpath.MkdirAll())
+	require.NoError(t, eiModelpath.Join("metadata.yaml").WriteFile(metadata))
+	require.NoError(t, eiModelpath.Join("my-super-model.eim").WriteFile(metadata))
+
+	modelIndex, err := modelsindex.Load(cfg.AssetsDir(), cfg.CustomModelsDir())
+	require.NoError(t, err)
+
+	env := getAppEnvironmentVariables(appDesc, bricksIndex, modelIndex)
+	require.Equal(t, cfg.AppsDir().Join("app-with-edge-impulse").String(), env["APP_HOME"])
+	require.Equal(t, eiModelpath.Join("my-super-model.eim").String(), env["EI_OBJ_DETECTION_MODEL"])
+	// require.Equal(t, "/home/arduino/.arduino-bricks/ei-models", env["CUSTOM_MODEL_PATH"])
+	// we ignore HOST_IP since it's dynamic
+}
+
 func TestValidateDevice(t *testing.T) {
 
 	t.Run("valid", func(t *testing.T) {
