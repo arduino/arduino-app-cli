@@ -1034,7 +1034,7 @@ func TestSketchAppLibrariesCommands(t *testing.T) {
 		t.Context(),
 		appID,
 		"Arduino_RouterBridge",
-		&client.AppSketchAddLibraryParams{AddDeps: f.Ptr("true")},
+		&client.AppSketchAddLibraryParams{AddDeps: f.Ptr(true)},
 	)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, addResp.StatusCode())
@@ -1070,7 +1070,7 @@ func TestSketchAppLibrariesCommands(t *testing.T) {
 		t.Context(),
 		appID,
 		"Arduino_RouterBridge",
-		&client.AppSketchRemoveLibraryParams{RemoveDeps: f.Ptr("true")},
+		&client.AppSketchRemoveLibraryParams{RemoveDeps: f.Ptr(true)},
 	)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, removeResp.StatusCode())
