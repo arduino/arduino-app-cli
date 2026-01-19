@@ -118,7 +118,7 @@ tasks:
           set -e
           echo "Runner version set as: {{ .EXAMPLE_VERSION }}"
           TMP_PATH="$(mktemp -d)"
-          DEST_PATH="debian/arduino-app-cli/home/arduino/.local/share/arduino-app-cli/"
+          DEST_PATH="debian/arduino-app-cli/var/lib/arduino-app-cli/"
           echo "Cloning arduino/app-bricks-examples into temporary directory ${TMP_PATH}..."
           git clone --depth 1 --branch "{{ .EXAMPLE_VERSION }}" https://github.com/arduino/app-bricks-examples "${TMP_PATH}"
           rm -rf "${DEST_PATH}/examples"
@@ -209,11 +209,11 @@ tasks:
   generate:assets:
     desc: This generates the models and bricks index. Also updates the corresponding testdata.
     vars:
-      sed_replacement: s#runnerVersion = \".*#runnerVersion = \"{{.RUNNER_VERSION}}\"#
+      sed_replacement: s#RunnerVersion = \".*#RunnerVersion = \"{{.RUNNER_VERSION}}\"#
       TMPDIR: '{{trimSuffix "/" (env "TMPDIR")| default "/tmp"}}/generate-assets'
       SEMVER_TAG: "{{.RUNNER_VERSION}}"
       OUTPUT_DIR: "{{.TMPDIR}}/{{.SEMVER_TAG}}"
-      ASSETS_DIR: debian/arduino-app-cli/home/arduino/.local/share/arduino-app-cli/assets
+      ASSETS_DIR: debian/arduino-app-cli/var/lib/arduino-app-cli/assets
       TESTDATA_DIR: internal/e2e/daemon/testdata/assets
     preconditions:
       - sh: '[ ! -d "{{.ASSETS_DIR}}/{{.SEMVER_TAG}}" ] || [ ! -d "{{.TESTDATA_DIR}}/{{.SEMVER_TAG}}" ]'

@@ -54,6 +54,8 @@ import (
 var (
 	ErrAppAlreadyExists = fmt.Errorf("app already exists")
 	ErrAppDoesntExists  = fmt.Errorf("app doesn't exist")
+	ErrAppNotFound      = fmt.Errorf("app not found")
+	ErrBadRequest       = fmt.Errorf("bad request")
 )
 
 const (
@@ -646,6 +648,9 @@ func ListApps(
 			if file.Base() == ".cache" {
 				return false
 			}
+			if IsTmpApp(file) {
+				return false
+			}
 			if file.Join("app.yaml").NotExist() && file.Join("app.yml").NotExist() {
 				// Let's continue the scan, we might be in an parent folder
 				return true
@@ -665,6 +670,9 @@ func ListApps(
 	}
 
 	for _, file := range appPaths {
+		if IsTmpApp(file) {
+			continue
+		}
 		app, err := app.Load(file)
 		if err != nil {
 			result.BrokenApps = append(result.BrokenApps, BrokenAppInfo{
@@ -709,6 +717,12 @@ func ListApps(
 	}
 
 	return result, nil
+}
+
+// returns true if the app path is a temporary app
+// that should not be listed (neither in the brocken apps)
+func IsTmpApp(p *paths.Path) bool {
+	return strings.HasPrefix(p.Base(), tmpAppPrefix)
 }
 
 type AppDetailedInfo struct {

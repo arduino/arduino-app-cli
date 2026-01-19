@@ -563,6 +563,56 @@ Contains a JSON object with the details of an error.
 			},
 		},
 		{
+			OperationId: "importApp",
+			Method:      http.MethodPost,
+			Path:        "/v1/apps/import",
+			Parameters:  nil,
+			Request: (*struct {
+				File []byte `form:"file" description:"The ZIP archive. Must contain app.yaml (with a valid 'name') and python/main.py. The app folder name will be calculated from the app name." validate:"required"`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType: "application/json",
+				StatusCode:  http.StatusCreated,
+				DataStructure: struct {
+					ID string `json:"id" description:"The Base64 encoded identifier of the imported application."`
+				}{},
+				Description: "Application imported successfully.",
+			},
+			Description: "Imports a new application from a ZIP file. The system extracts the archive, validates the app.yaml manifest, sanitizes the name, and returns the ID in Base64.",
+			Summary:     "Imports an app from ZIP",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusConflict, Reference: "#/components/responses/Conflict"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "exportApp",
+			Method:      http.MethodGet,
+			Path:        "/v1/apps/{id}/export",
+			Request: (*struct {
+				ID string `path:"id" description:"application identifier."`
+			})(nil),
+			Parameters: (*struct {
+				IncludeData bool `query:"include_data" description:"If true, the exported archive will include the 'data' directory. Default is false."`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/zip",
+				DataStructure: []byte{},
+				Description:   "The ZIP archive containing the application structure.",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "Exports the application folder structure as a ZIP file.",
+			Summary:     "Exports an app as ZIP",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusNotFound, Reference: "#/components/responses/NotFound"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
 			OperationId: "getAppEvents",
 			Method:      http.MethodGet,
 			Path:        "/v1/apps/{id}/events",
@@ -1120,6 +1170,23 @@ func (g *Generator) AddOperation(config OperationConfig) error {
 		cu.HTTPStatus = config.CustomSuccessResponse.StatusCode
 		cu.ContentType = config.CustomSuccessResponse.ContentType
 		cu.Description = config.CustomSuccessResponse.Description
+
+		if cu.ContentType == "application/zip" {
+			cu.Customize = func(cor openapi.ContentOrReference) {
+				respOrRef, ok := cor.(*openapi3.ResponseOrRef)
+				if !ok || respOrRef.Response == nil {
+					return
+				}
+				content, exists := respOrRef.Response.Content[cu.ContentType]
+				if !exists {
+					return
+				}
+				if content.Schema != nil && content.Schema.Schema != nil {
+					content.Schema.Schema.Type = f.Ptr(openapi3.SchemaTypeString)
+					content.Schema.Schema.Format = f.Ptr("binary")
+				}
+			}
+		}
 	})
 	for _, e := range config.PossibleErrors {
 		opCtx.AddRespStructure(e, func(cu *openapi.ContentUnit) {

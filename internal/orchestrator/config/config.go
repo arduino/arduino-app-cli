@@ -28,7 +28,7 @@ import (
 )
 
 // runnerVersion do not edit, this is generate with `task generate:assets`
-var runnerVersion = "0.6.2"
+var RunnerVersion = "0.6.2"
 
 type Configuration struct {
 	appsDir            *paths.Path
@@ -62,11 +62,7 @@ func NewFromEnv() (Configuration, error) {
 
 	dataDir := paths.New(os.Getenv("ARDUINO_APP_CLI__DATA_DIR"))
 	if dataDir == nil {
-		xdgHome, err := os.UserHomeDir()
-		if err != nil {
-			return Configuration{}, err
-		}
-		dataDir = paths.New(xdgHome).Join(".local", "share", "arduino-app-cli")
+		dataDir = paths.New("/var/lib/arduino-app-cli")
 	}
 
 	routerSocket := paths.New(os.Getenv("ARDUINO_ROUTER_SOCKET"))
@@ -113,7 +109,7 @@ func NewFromEnv() (Configuration, error) {
 		customEIModelsDir:  customEIModelsDir,
 		PythonImage:        pythonImage,
 		UsedPythonImageTag: usedPythonImageTag,
-		RunnerVersion:      runnerVersion,
+		RunnerVersion:      RunnerVersion,
 		AllowRoot:          allowRoot,
 		LibrariesAPIURL:    parsedLibrariesURL,
 	}
@@ -165,7 +161,7 @@ func getPythonImageAndTag() (string, string) {
 	// Python image: image name (repository) and optionally a tag.
 	pythonImageAndTag := os.Getenv("DOCKER_PYTHON_BASE_IMAGE")
 	if pythonImageAndTag == "" {
-		pythonImageAndTag = fmt.Sprintf("app-bricks/python-apps-base:%s", runnerVersion)
+		pythonImageAndTag = fmt.Sprintf("app-bricks/python-apps-base:%s", RunnerVersion)
 	}
 	pythonImage := path.Join(registryBase, pythonImageAndTag)
 	var usedPythonImageTag string
