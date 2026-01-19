@@ -1,7 +1,11 @@
 #!/bin/sh
 
-chown -R arduino:arduino /home/arduino/.local/share/arduino-app-cli
+chown -R arduino:arduino /var/lib/arduino-app-cli
 
 systemctl enable arduino-app-cli
 systemctl enable arduino-burn-bootloader
 systemctl enable arduino-avahi-serial.service
+
+if [ "$1" = "configure" ]; then
+    rm -rf /home/arduino/.local/share/arduino-app-cli
+fi

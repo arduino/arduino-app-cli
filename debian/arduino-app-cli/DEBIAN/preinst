@@ -23,3 +23,17 @@ if ! getent group "$SYSUPGRADE_GROUP" >/dev/null 2>&1; then
     groupadd --system "$SYSUPGRADE_GROUP"
 fi
 usermod -aG "$SYSUPGRADE_GROUP" "$APP_USER"
+
+# Starting with this version, the arduino-app-cli user directory is
+# no longer located at /home/arduino/.local/share/arduino-app-cli
+# Move the related file to the new location
+if [ "$1" = "upgrade" ]; then
+    mkdir -p /var/lib/arduino-app-cli
+    cp /home/arduino/.local/share/arduino-app-cli/properties.msgpack /var/lib/arduino-app-cli || true
+    cp /home/arduino/.local/share/arduino-app-cli/bootloader_burned.flag /var/lib/arduino-app-cli/default.app || true
+
+    DEFAULT_APP_FILE="/home/arduino/.local/share/arduino-app-cli/default.app"
+    if [ -f "${DEFAULT_APP_FILE}" ]; then
+        sed -s "s|/home/arduino/.local/share|/var/lib|" ${DEFAULT_APP_FILE} > /var/lib/arduino-app-cli/default.app
+    fi
+fi

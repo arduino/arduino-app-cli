@@ -29,7 +29,7 @@ Build the project (run once):
 
 Start the arduino-app-cli in daemon mode:
 
-- `ARDUINO_APP_CLI__DATA_DIR=debian/arduino-app-cli/home/arduino/.local/share/arduino-app-cli go tool task start`
+- `ARDUINO_APP_CLI__DATA_DIR=debian/arduino-app-cli/var/lib/arduino-app-cli go tool task start`
 
 NOTE: only a subset of HTTP APIs are working by running the daemon mode on a development PC. To run Arduino App CLI on the board see the **Running Arduino App CLI on the board** section below.
 

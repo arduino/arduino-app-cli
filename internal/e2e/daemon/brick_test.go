@@ -68,10 +68,8 @@ func TestBricksList(t *testing.T) {
 	response, err := httpClient.GetBricksWithResponse(t.Context(), func(ctx context.Context, req *http.Request) error { return nil })
 	require.NoError(t, err)
 	require.NotEmpty(t, response.JSON200.Bricks)
-	cfg, err := config.NewFromEnv()
-	require.NoError(t, err)
 
-	staticStore := store.NewStaticStore(paths.New("testdata", "assets", cfg.RunnerVersion).String())
+	staticStore := store.NewStaticStore(paths.New("testdata", "assets", config.RunnerVersion).String())
 	brickIndex, err := bricksindex.Load(staticStore.GetAssetsFolder())
 	require.NoError(t, err)
 

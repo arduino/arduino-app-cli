@@ -1,7 +1,7 @@
 [Unit]
 Description=Burn arduino zephyr bootloader on first boot
 After=fs-local.target
-ConditionPathExists=!/home/arduino/.local/share/arduino-app-cli/bootloader_burned.flag
+ConditionPathExists=!/var/lib/arduino-app-cli/bootloader_burned.flag
 
 [Service]
 Type=oneshot
@@ -9,8 +9,8 @@ RemainAfterExit=true
 User=arduino
 Group=arduino
 ExecStart=/usr/bin/arduino-cli burn-bootloader -b arduino:zephyr:unoq -P jlink
-ExecStartPost=/bin/mkdir -p /home/arduino/.local/share/arduino-app-cli
-ExecStartPost=/bin/touch /home/arduino/.local/share/arduino-app-cli/bootloader_burned.flag
+ExecStartPost=/bin/mkdir -p /var/lib/arduino-app-cli
+ExecStartPost=/bin/touch /var/lib/arduino-app-cli/bootloader_burned.flag
 StandardOutput=journal
 StandardError=journal
 

@@ -1,0 +1,316 @@
+// This file is part of arduino-app-cli.
+//
+// Copyright 2025 ARDUINO SA (http://www.arduino.cc/)
+//
+// This software is released under the GNU General Public License version 3,
+// which covers the main part of arduino-app-cli.
+// The terms of this license can be found at:
+// https://www.gnu.org/licenses/gpl-3.0.en.html
+//
+// You can be released from the requirements of the above licenses by purchasing
+// a commercial license. Buying such a license is mandatory if you want to
+// modify or otherwise use the software for commercial activities involving the
+// Arduino software without disclosing the source code of your own applications.
+// To purchase a commercial license, send an email to license@arduino.cc.
+
+package orchestrator
+
+import (
+	"archive/zip"
+	"bytes"
+	"context"
+	"crypto/rand"
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/arduino/go-paths-helper"
+	yaml "github.com/goccy/go-yaml"
+
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+)
+
+var (
+	tmpAppPrefix = ".tmp_"
+)
+
+func ExportAppZip(
+	ctx context.Context,
+	appTarget app.ArduinoApp,
+	includeData bool,
+) ([]byte, string, error) {
+
+	appName := strings.ToLower(strings.ReplaceAll(appTarget.Name, " ", "-"))
+	if appName == "" {
+		appName = "app-export"
+	}
+	filename := fmt.Sprintf("%s.zip", appName)
+	zipBytes, err := zipAppToBuffer(appTarget.FullPath.String(), includeData)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to create zip archive: %w", err)
+	}
+	return zipBytes, filename, nil
+}
+
+func zipAppToBuffer(sourcePath string, includeData bool) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	zipWriter := zip.NewWriter(buf)
+
+	err := filepath.WalkDir(sourcePath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		relPath, err := filepath.Rel(sourcePath, path)
+		if err != nil {
+			return err
+		}
+		if relPath == "." {
+			return nil
+		}
+		if d.IsDir() {
+			name := d.Name()
+			// Always skip .cache
+			if name == ".cache" {
+				return filepath.SkipDir
+			}
+			// Conditionally skip data
+			if !includeData && name == "data" {
+				return filepath.SkipDir
+			}
+		}
+
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return err
+		}
+
+		header.Name = filepath.ToSlash(relPath)
+		if info.IsDir() {
+			header.Name += "/"
+		} else {
+			header.Method = zip.Deflate
+		}
+		writer, err := zipWriter.CreateHeader(header)
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		_, err = io.Copy(writer, file)
+		return err
+	})
+
+	if err != nil {
+		zipWriter.Close()
+		return nil, err
+	}
+
+	if err := zipWriter.Close(); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+func ImportAppFromZip(
+	cfg config.Configuration,
+	zipPath *paths.Path,
+	idProvider *app.IDProvider,
+) (app.ID, error) {
+	if zipPath == nil {
+		return app.ID{}, fmt.Errorf("internal error: zipPath cannot be nil")
+	}
+	r, err := zip.OpenReader(zipPath.String())
+	if err != nil {
+		return app.ID{}, fmt.Errorf("unable to open zip archive: %w", err)
+	}
+	defer r.Close()
+
+	if err := validateAppZipContent(&r.Reader); err != nil {
+		return app.ID{}, fmt.Errorf("%w:%v", ErrBadRequest, err)
+	}
+
+	appDescriptor, err := readAppDescriptorFromZip(&r.Reader)
+	if err != nil {
+		return app.ID{}, fmt.Errorf("failed to read app.yaml: %w", err)
+	}
+
+	if strings.TrimSpace(appDescriptor.Name) == "" {
+		return app.ID{}, fmt.Errorf("%w: app name is missing", ErrBadRequest)
+	}
+
+	finalDestPath, appExists := findAppPathByName(appDescriptor.Name, cfg)
+	if appExists {
+		return app.ID{}, ErrAppAlreadyExists
+	}
+
+	// Extracting to a temporary directory first allows for an atomic swap
+	// to the final destination. This prevents a corrupted state and reduces race conditions.
+	tempDirName := fmt.Sprintf(tmpAppPrefix+"%s", rand.Text())
+	tempDestDir := finalDestPath.Parent().Join(tempDirName)
+	defer func() { _ = tempDestDir.RemoveAll() }()
+
+	if err := tempDestDir.MkdirAll(); err != nil {
+		return app.ID{}, fmt.Errorf("unable to create temp app directory: %w", err)
+	}
+
+	if err := extractZip(&r.Reader, tempDestDir.String()); err != nil {
+		return app.ID{}, err
+	}
+
+	if finalDestPath.Exist() {
+		return app.ID{}, ErrAppAlreadyExists
+	}
+
+	if err := tempDestDir.Rename(finalDestPath); err != nil {
+		return app.ID{}, fmt.Errorf("failed to finalize app import (swap): %w", err)
+	}
+
+	id, err := idProvider.IDFromPath(finalDestPath)
+	if err != nil {
+		return app.ID{}, err
+	}
+
+	return id, nil
+}
+
+func extractZip(r *zip.Reader, dest string) error {
+	dest = filepath.Clean(dest) + string(os.PathSeparator)
+	const maxFileSize = 100 * 1024 * 1024 // 100MB limit per file
+
+	for _, f := range r.File {
+		cleanName := filepath.Clean(filepath.FromSlash(f.Name))
+		fpath := filepath.Join(dest, cleanName)
+
+		if !strings.HasPrefix(fpath, dest) {
+			return fmt.Errorf("illegal file path: %s", fpath)
+		}
+
+		if f.FileInfo().IsDir() {
+			if err := os.MkdirAll(fpath, 0755); err != nil {
+				return fmt.Errorf("create directory %s: %w", fpath, err)
+			}
+			continue
+		}
+
+		if err := os.MkdirAll(filepath.Dir(fpath), 0755); err != nil {
+			return fmt.Errorf("create parent directory: %w", err)
+		}
+
+		outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+		if err != nil {
+			return fmt.Errorf("create file %s: %w", fpath, err)
+		}
+
+		rc, err := f.Open()
+		if err != nil {
+			outFile.Close()
+			return fmt.Errorf("unable to open entry %s: %w", f.Name, err)
+		}
+
+		lr := io.LimitReader(rc, maxFileSize+1)
+		written, err := io.Copy(outFile, lr)
+
+		outFile.Close()
+		rc.Close()
+
+		if err != nil {
+			return fmt.Errorf("write file %s: %w", fpath, err)
+		}
+		if written > maxFileSize {
+			return fmt.Errorf("file %s too large", f.Name)
+		}
+	}
+
+	return nil
+}
+
+func readAppDescriptorFromZip(r *zip.Reader) (app.AppDescriptor, error) {
+	var descriptor app.AppDescriptor
+
+	for _, f := range r.File {
+		if f.Name == "app.yaml" || f.Name == "app.yml" {
+			rc, err := f.Open()
+			if err != nil {
+				return descriptor, err
+			}
+			defer rc.Close()
+
+			if err := yaml.NewDecoder(rc).Decode(&descriptor); err != nil {
+				if errors.Is(err, io.EOF) {
+					return descriptor, fmt.Errorf("app.yaml is empty")
+				}
+				return descriptor, err
+			}
+			return descriptor, nil
+		}
+	}
+	return descriptor, fmt.Errorf("app.yaml not found in archive")
+}
+
+// TODO implement centralized app validator to use everywhere is needed
+func validateAppZipContent(r *zip.Reader) error {
+	hasAppYaml := false
+	hasMainPy := false
+
+	hasSketchFolder := false
+	hasSketchIno := false
+	hasSketchYaml := false
+
+	for _, f := range r.File {
+		name := filepath.ToSlash(f.Name)
+
+		if name == "app.yaml" || name == "app.yml" {
+			hasAppYaml = true
+		}
+		if name == "python/main.py" {
+			hasMainPy = true
+		}
+
+		if strings.HasPrefix(name, "sketch/") {
+			hasSketchFolder = true
+			if name == "sketch/sketch.ino" {
+				hasSketchIno = true
+			}
+
+			if name == "sketch/sketch.yaml" {
+				hasSketchYaml = true
+			}
+		}
+	}
+
+	if !hasAppYaml {
+		return errors.New(" missing app.yaml")
+	}
+	if !hasMainPy {
+		return errors.New(" missing python/main.py")
+	}
+
+	if hasSketchFolder {
+		if !hasSketchIno {
+			return errors.New(" sketch folder present but missing .ino file")
+		}
+		if !hasSketchYaml {
+			return errors.New(" sketch folder present but missing .yaml file")
+		}
+	}
+
+	return nil
+}
