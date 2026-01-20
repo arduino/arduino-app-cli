@@ -1,6 +1,7 @@
 package modelsindex
 
 import (
+	"slices"
 	"testing"
 
 	paths "github.com/arduino/go-paths-helper"
@@ -11,8 +12,7 @@ import (
 func TestListEdgeImpulseModels(t *testing.T) {
 	t.Parallel()
 
-	eimodels, err := LoadEdgeImpulseModels(paths.New("testdata/ei-models"))
-	require.NoError(t, err, "List should not return an error when reading valid testdata")
+	eimodels := slices.Collect(LoadEdgeImpulseModels(paths.New("testdata/ei-models")))
 	require.Len(t, eimodels, 1, "expected exactly one model loaded from testdata")
 
 	expectedModel := AIModel{

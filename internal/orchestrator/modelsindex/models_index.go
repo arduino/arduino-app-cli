@@ -16,7 +16,7 @@
 package modelsindex
 
 import (
-	"log/slog"
+	"iter"
 	"slices"
 
 	"github.com/arduino/go-paths-helper"
@@ -55,39 +55,38 @@ type AIModel struct {
 	ModelConfiguration map[string]string `yaml:"model_configuration,omitempty"`
 }
 
-type ModelsIndex struct {
-	PreInstalledModels []AIModel
+type Loader func() iter.Seq[AIModel]
 
-	edgeImpulseModelsDir *paths.Path
+type ModelsIndex struct {
+	loaders []Loader
 }
 
 func (m *ModelsIndex) GetModels() []AIModel {
-	return m.buildModels()
+	return slices.Collect(m.getIter())
 }
 
-func (m *ModelsIndex) buildModels() []AIModel {
-	eimodels, err := LoadEdgeImpulseModels(m.edgeImpulseModelsDir)
-	if err != nil {
-		slog.Error("cannot load edge impulse custom models", "err", err)
+func (m *ModelsIndex) getIter() iter.Seq[AIModel] {
+	return func(yield func(AIModel) bool) {
+		for _, loaders := range m.loaders {
+			loaders()(yield)
+		}
 	}
-	return append(m.PreInstalledModels, eimodels...)
 }
 
 func (m *ModelsIndex) GetModelByID(id string) (*AIModel, bool) {
-	models := m.buildModels()
-	idx := slices.IndexFunc(models, func(v AIModel) bool { return v.ID == id })
-	if idx == -1 {
-		return nil, false
+	for model := range m.getIter() {
+		if model.ID == id {
+			return &model, true
+		}
 	}
-	return &models[idx], true
+	return nil, false
 }
 
 func (m *ModelsIndex) GetModelsByBrick(brick string) []AIModel {
 	var matches []AIModel
-	models := m.buildModels()
-	for i := range models {
-		if len(models[i].Bricks) > 0 && slices.Contains(models[i].Bricks, brick) {
-			matches = append(matches, models[i])
+	for model := range m.getIter() {
+		if len(model.Bricks) > 0 && slices.Contains(model.Bricks, brick) {
+			matches = append(matches, model)
 		}
 	}
 	if len(matches) == 0 {
@@ -98,7 +97,7 @@ func (m *ModelsIndex) GetModelsByBrick(brick string) []AIModel {
 
 func (m *ModelsIndex) GetModelsByBricks(bricks []string) []AIModel {
 	var matchingModels []AIModel
-	for _, model := range m.buildModels() {
+	for model := range m.getIter() {
 		for _, modelBrick := range model.Bricks {
 			if slices.Contains(bricks, modelBrick) {
 				matchingModels = append(matchingModels, model)
@@ -134,5 +133,19 @@ func Load(dir *paths.Path, customModelDir *paths.Path) (*ModelsIndex, error) {
 		edgeimpulseModelsDir = customModelDir.Join("ei-models")
 	}
 
-	return &ModelsIndex{PreInstalledModels: models, edgeImpulseModelsDir: edgeimpulseModelsDir}, nil
+	return &ModelsIndex{loaders: []Loader{
+		func() iter.Seq[AIModel] {
+			return func(yield func(AIModel) bool) {
+				for _, model := range models {
+					if !yield(model) {
+						return
+					}
+				}
+			}
+		},
+		func() iter.Seq[AIModel] {
+			return LoadEdgeImpulseModels(edgeimpulseModelsDir)
+		},
+	},
+	}, nil
 }
