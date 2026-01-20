@@ -672,7 +672,7 @@ path: "my-super-model.eim"
 	eiModelpath := cfg.CustomModelsDir().Join("ei-models").Join("1234").Join("1")
 	require.NoError(t, eiModelpath.MkdirAll())
 	require.NoError(t, eiModelpath.Join("metadata.yaml").WriteFile(metadata))
-	require.NoError(t, eiModelpath.Join("my-super-model.eim").WriteFile(metadata))
+	require.NoError(t, eiModelpath.Join("my-super-model.eim").WriteFile([]byte(`a fake model file`)))
 
 	modelIndex, err := modelsindex.Load(cfg.AssetsDir(), cfg.CustomModelsDir())
 	require.NoError(t, err)
@@ -680,7 +680,6 @@ path: "my-super-model.eim"
 	env := getAppEnvironmentVariables(appDesc, bricksIndex, modelIndex)
 	require.Equal(t, cfg.AppsDir().Join("app-with-edge-impulse").String(), env["APP_HOME"])
 	require.Equal(t, eiModelpath.Join("my-super-model.eim").String(), env["EI_OBJ_DETECTION_MODEL"])
-	// require.Equal(t, "/home/arduino/.arduino-bricks/ei-models", env["CUSTOM_MODEL_PATH"])
 	// we ignore HOST_IP since it's dynamic
 }
 

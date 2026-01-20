@@ -55,8 +55,10 @@ func TestModelsIndex(t *testing.T) {
 				"impulse-id": "1",
 				"project-id": "111111",
 			},
-			ModelLabels:        nil,
-			ModelConfiguration: nil,
+			ModelLabels: nil,
+			ModelConfiguration: map[string]string{
+				"EI_OBJ_DETECTION_MODEL": "testdata/ei-models/111111/1/my-model.eim",
+			},
 		}, eimodel)
 	})
 

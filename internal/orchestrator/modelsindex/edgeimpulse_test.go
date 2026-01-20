@@ -26,6 +26,7 @@ func TestListEdgeImpulseModels(t *testing.T) {
 			"project-id": "111111",
 			"impulse-id": "1",
 		},
+		ModelConfiguration: map[string]string{"EI_OBJ_DETECTION_MODEL": "testdata/ei-models/111111/1/my-model.eim"},
 	}
 	assert.Equal(t, expectedModel, eimodels[0], "loaded model does not match expected model")
 }
