@@ -91,10 +91,9 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 			return
 		}
 	}()
-	names := make([]string, 0, len(packages))
-	for _, pkg := range packages {
-		names = append(names, pkg.Name)
-	}
+	names := f.Map(packages, func(pkg update.PackageInfo) string {
+		return pkg.Name
+	})
 	eventCB(update.NewDataEvent(update.StartEvent, "Upgrade is starting"))
 	stream := runUpgradeCommand(ctx, names)
 	for line, err := range stream {

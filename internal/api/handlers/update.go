@@ -22,12 +22,11 @@ import (
 	"log/slog"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/render"
 	"github.com/arduino/arduino-app-cli/internal/update"
 )
 
-func HandleCheckUpgradable(cfg config.Configuration, updater *update.Manager) http.HandlerFunc {
+func HandleCheckUpgradable(updater *update.Manager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		queryParams := r.URL.Query()
 

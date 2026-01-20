@@ -33,16 +33,16 @@ import (
 var RunnerVersion = "0.6.2"
 
 type Configuration struct {
-	appsDir            *paths.Path
-	dataDir            *paths.Path
-	routerSocketPath   *paths.Path
-	customEIModelsDir  *paths.Path
-	PythonImage        string
-	UsedPythonImageTag string
-	RunnerVersion      string
-	AllowRoot          bool
-	LibrariesAPIURL    *url.URL
-	VersionConstraint  semver.Constraint
+	appsDir                          *paths.Path
+	dataDir                          *paths.Path
+	routerSocketPath                 *paths.Path
+	customEIModelsDir                *paths.Path
+	PythonImage                      string
+	UsedPythonImageTag               string
+	RunnerVersion                    string
+	AllowRoot                        bool
+	LibrariesAPIURL                  *url.URL
+	ArduinoPlatformVersionConstraint semver.Constraint
 }
 
 func NewFromEnv() (Configuration, error) {
@@ -114,16 +114,16 @@ func NewFromEnv() (Configuration, error) {
 	slog.Debug("Using update version constraint", slog.String("constraint", constraintStr))
 
 	c := Configuration{
-		appsDir:            appsDir,
-		dataDir:            dataDir,
-		routerSocketPath:   routerSocket,
-		customEIModelsDir:  customEIModelsDir,
-		PythonImage:        pythonImage,
-		UsedPythonImageTag: usedPythonImageTag,
-		RunnerVersion:      RunnerVersion,
-		AllowRoot:          allowRoot,
-		LibrariesAPIURL:    parsedLibrariesURL,
-		VersionConstraint:  constraint,
+		appsDir:                          appsDir,
+		dataDir:                          dataDir,
+		routerSocketPath:                 routerSocket,
+		customEIModelsDir:                customEIModelsDir,
+		PythonImage:                      pythonImage,
+		UsedPythonImageTag:               usedPythonImageTag,
+		RunnerVersion:                    RunnerVersion,
+		AllowRoot:                        allowRoot,
+		LibrariesAPIURL:                  parsedLibrariesURL,
+		ArduinoPlatformVersionConstraint: constraint,
 	}
 	if err := c.init(); err != nil {
 		return Configuration{}, err

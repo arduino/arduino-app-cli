@@ -138,11 +138,11 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ f
 	bestVersion := selectBestVersion(availableReleases, installedV, a.constraint)
 
 	if bestVersion == nil {
-		return nil, nil
+		return []update.UpgradablePackage{}, nil
 	}
 
 	if bestVersion.Equal(installedV) {
-		return nil, nil
+		return []update.UpgradablePackage{}, nil
 	}
 
 	return []update.UpgradablePackage{{
@@ -241,32 +241,30 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 		taskProgressCB,
 	)
 
-	if len(packages) == 0 {
-		return nil
+	if len(packages) != 1 {
+		return fmt.Errorf("expected exactly one package to upgrade, got %d", len(packages))
+	}
+	pkg := packages[0]
+	if pkg.Name != "arduino:zephyr" {
+		return fmt.Errorf("unexpected package name '%s': this updater only supports '%s'", pkg.Name, "arduino:zephyr")
 	}
 
-	targetVersion := packages[0].ToVersion
-	name := packages[0].Name
-
+	targetVersion := pkg.ToVersion
 	if targetVersion == "" {
-		if len(packages) > 0 {
-			return fmt.Errorf("no package of type '%s' found in the upgrade request", name)
-		}
-		return fmt.Errorf("package list is empty")
+		return fmt.Errorf("target version is empty for package '%s'", pkg.Name)
 	}
+	name := pkg.Name
 
 	parts := strings.Split(name, ":")
 	if len(parts) != 2 {
-		return fmt.Errorf("invalid package name")
+		return fmt.Errorf("invalid package name %s", name)
 	}
 
-	platformPackage := parts[0]
-	architecture := parts[1]
 	if err := srv.PlatformInstall(
 		&rpc.PlatformInstallRequest{
 			Instance:        inst,
-			PlatformPackage: platformPackage,
-			Architecture:    architecture,
+			PlatformPackage: "arduino",
+			Architecture:    "zephyr",
 			Version:         targetVersion,
 		},
 		stream,
