@@ -129,7 +129,10 @@ func Load(dir *paths.Path, customModelDir *paths.Path) (*ModelsIndex, error) {
 		}
 	}
 
-	edgeimpulseModelsDir := customModelDir.Join("ei-models")
+	var edgeimpulseModelsDir *paths.Path = nil
+	if customModelDir != nil {
+		edgeimpulseModelsDir = customModelDir.Join("ei-models")
+	}
 
 	return &ModelsIndex{PreInstalledModels: models, edgeImpulseModelsDir: edgeimpulseModelsDir}, nil
 }
