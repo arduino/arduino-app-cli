@@ -271,3 +271,19 @@ tasks:
   general:prepare-deps:
     desc: Prepare project dependencies for license check
     # No preparation is needed for Go module-based projects.
+  generate:edgeimpulse-client:
+    desc: Generate Edge Impulse Go client from OpenAPI spec
+    cmds:
+      - curl -fsSL https://studio.edgeimpulse.com/openapi.yml -o /tmp/edgeimpulse.openapi.yml
+      - mkdir -p internal/orchestrator/modelsindex
+      - |
+        oapi-codegen \
+          --package=modelsindex \
+          --generate types,client \
+          --response-type-suffix=HTTPResponse \
+          /tmp/edgeimpulse.openapi.yml \
+          > internal/orchestrator/modelsindex/client.gen.go
+    sources:
+      - https://studio.edgeimpulse.com/openapi.yml
+    generates:
+      - internal/orchestrator/modelsindex/client.gen.go
