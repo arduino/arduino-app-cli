@@ -629,7 +629,7 @@ func TestUseEdgeImpulseModel(t *testing.T) {
 	appDesc.Descriptor.Bricks = []app.Brick{
 		{
 			ID:    "arduino:object_detection",
-			Model: "111111-1",
+			Model: "a-custom-model-id",
 		},
 	}
 
@@ -662,6 +662,7 @@ models:
 	require.NoError(t, err)
 
 	metadata := []byte(`
+id: a-custom-model-id
 project-id: 111111
 impulse-id: 1
 name: "my custom model from edge impulse"
