@@ -1,3 +1,4 @@
+id: my-model-id
 project-id: 111111
 impulse-id: 1
 name: "my custom model from edge impulse"

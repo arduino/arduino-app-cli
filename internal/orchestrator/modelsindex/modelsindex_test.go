@@ -39,11 +39,11 @@ func TestModelsIndex(t *testing.T) {
 	})
 
 	t.Run("it get edgeimpule model by id", func(t *testing.T) {
-		eimodel, found := modelsIndex.GetModelByID("111111-1")
+		eimodel, found := modelsIndex.GetModelByID("my-model-id")
 		assert.True(t, found)
 		assert.NotNil(t, eimodel)
 		assert.Equal(t, &AIModel{
-			ID:                "111111-1",
+			ID:                "my-model-id",
 			Source:            "edgeimpulse",
 			Name:              "my custom model from edge impulse",
 			ModuleDescription: "A small and accurate model for detecting bounding boxes for faces in images.",

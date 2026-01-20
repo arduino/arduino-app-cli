@@ -16,7 +16,7 @@ func TestListEdgeImpulseModels(t *testing.T) {
 	require.Len(t, eimodels, 1, "expected exactly one model loaded from testdata")
 
 	expectedModel := AIModel{
-		ID:                "111111-1",
+		ID:                "my-model-id",
 		Source:            "edgeimpulse",
 		Runner:            "bricks",
 		Name:              "my custom model from edge impulse",

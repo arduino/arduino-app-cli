@@ -30,6 +30,7 @@ func LoadEdgeImpulseModels(dir *paths.Path) ([]AIModel, error) {
 		return []AIModel{}, nil
 	}
 	type modelDescriptor struct {
+		ID          string `yaml:"id"`
 		ProjectId   int    `yaml:"project-id"`
 		ImpulseID   int    `yaml:"impulse-id"`
 		Name        string `yaml:"name"`
@@ -71,7 +72,7 @@ func LoadEdgeImpulseModels(dir *paths.Path) ([]AIModel, error) {
 		}
 
 		models = append(models, AIModel{
-			ID:                fmt.Sprintf("%d-%d", mf.ProjectId, mf.ImpulseID), // TODO: generation of ID
+			ID:                mf.ID,
 			Source:            "edgeimpulse",
 			Name:              mf.Name,
 			ModuleDescription: mf.Description,
