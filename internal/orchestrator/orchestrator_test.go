@@ -665,7 +665,7 @@ models:
 project-id: 111111
 impulse-id: 1
 name: "my custom model from edge impulse"
-description: "A  custom edge-impusle models description"
+description: "A  custom edge-impulse models description"
 category: "Images"
 path: "my-super-model.eim"
 `)
