@@ -16,7 +16,6 @@
 package orchestrator
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -62,9 +61,4 @@ func (l LibraryReleaseID) String() string {
 		return l.Name
 	}
 	return l.Name + "@" + l.Version
-}
-
-// MarshalJSON implements the json.Marshaler interface for LibraryID.
-func (l LibraryReleaseID) MarshalJSON() ([]byte, error) {
-	return json.Marshal(l.String())
 }

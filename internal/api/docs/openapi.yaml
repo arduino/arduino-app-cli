@@ -262,7 +262,7 @@ paths:
       summary: Get app exposed ports
       tags:
       - Application
-  /v1/apps/{appID}/sketch/libraries/:
+  /v1/apps/{appID}/sketch/libraries:
     get:
       description: Lists the libraries used in the App' sketch.
       operationId: appSketchListLibraries
@@ -303,7 +303,7 @@ paths:
         schema:
           description: if set to "true", the library's dependencies will be removed
             as well if not needed anymore.
-          type: string
+          type: boolean
       - description: application identifier.
         in: path
         name: appID
@@ -347,7 +347,7 @@ paths:
         schema:
           description: if set to "true", the library's dependencies will be added
             as well.
-          type: string
+          type: boolean
       - description: application identifier.
         in: path
         name: appID
@@ -1682,8 +1682,6 @@ components:
         pagination:
           $ref: '#/components/schemas/Pagination'
       type: object
-    LibraryReleaseID:
-      type: object
     PackageType:
       description: Package type
       enum:
@@ -1733,15 +1731,20 @@ components:
       properties:
         libraries:
           items:
-            $ref: '#/components/schemas/LibraryReleaseID'
+            type: string
           nullable: true
           type: array
       type: object
     SketchListLibraryResponse:
       properties:
+        dependencies:
+          items:
+            type: string
+          nullable: true
+          type: array
         libraries:
           items:
-            $ref: '#/components/schemas/LibraryReleaseID'
+            type: string
           nullable: true
           type: array
       type: object
@@ -1749,7 +1752,7 @@ components:
       properties:
         libraries:
           items:
-            $ref: '#/components/schemas/LibraryReleaseID'
+            type: string
           nullable: true
           type: array
       type: object
