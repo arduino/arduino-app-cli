@@ -45,11 +45,11 @@ func TestInstallEIModel(t *testing.T) {
 		log.Fatalf("failed to create directory %s: %v", customEIModelsDir, err)
 	}
 
-	eiClient := NewEIClient(ApiKey, ApiUrl)
+	eiClient := NewEIClient(ApiKey, ApiUrl, "v1")
 	ProjectID := 876194
 	ImpulseID := 1
 
-	err := InstallEIModel(context.TODO(), eiClient, *customEIModelsDir, ProjectID, ImpulseID)
+	err := InstallEIModel(context.TODO(), eiClient, *customEIModelsDir, ProjectID, ImpulseID, "int8", "tflite")
 	if err != nil {
 		log.Fatalf("failed to install EI model: %v", err)
 	}

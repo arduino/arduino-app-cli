@@ -6,191 +6,141 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"time"
 )
 
 type EIClient struct {
-	ApiUrl string
-	APIKey string
+	ApiUrl     string
+	APIKey     string
+	ApiVersion string
+	HttpClient *ClientWithResponses
 }
 
-type GetDeploymentResponse struct {
-	Success       bool   `json:"success"`
-	HasDeployment bool   `json:"hasDeployment"`
-	Error         string `json:"error"`
-	Version       int    `json:"version"`
-}
+func NewEIClient(apiKey string, ApiUrl string, ApiVersion string) *EIClient {
 
-type BuildJobResponse struct {
-	Success bool   `json:"success"`
-	JobID   int    `json:"id"`
-	Error   string `json:"error"`
-}
-
-type JobStatusResponse struct {
-	Success bool   `json:"success"`
-	Job     Job    `json:"job"`
-	Error   string `json:"error"`
-}
-
-type Job struct {
-	ID                  int                    `json:"id"`
-	Category            string                 `json:"category"`
-	CategoryKey         string                 `json:"categoryKey"`
-	Key                 string                 `json:"key"`
-	Created             time.Time              `json:"created"`
-	JobNotificationUids []int                  `json:"jobNotificationUids"`
-	Started             time.Time              `json:"started"`
-	Finished            *time.Time             `json:"finished,omitempty"`
-	FinishedSuccessful  *bool                  `json:"finishedSuccessful,omitempty"`
-	AdditionalInfo      string                 `json:"additionalInfo"`
-	ComputeTime         int                    `json:"computeTime"`
-	CreatedByUser       User                   `json:"createdByUser"`
-	CategoryCount       int                    `json:"categoryCount"`
-	Metadata            map[string]interface{} `json:"metadata"`
-}
-
-type User struct {
-	ID       int    `json:"id"`
-	Name     string `json:"name"`
-	Username string `json:"username"`
-	Photo    string `json:"photo"`
-}
-
-type Project struct {
-	ID           int       `json:"id"`
-	Name         string    `json:"name"`
-	Description  string    `json:"description"`
-	Created      time.Time `json:"created"`
-	Owner        string    `json:"owner"`
-	Tier         string    `json:"tier"`
-	IsPublic     bool      `json:"isPublic"`
-	Tags         []string  `json:"tags"`
-	Category     string    `json:"category"`
-	License      string    `json:"license"`
-	LastAccessed time.Time `json:"lastAccessed"`
-	LastModified time.Time `json:"lastModified"`
-}
-
-type ProjectResponse struct {
-	Project Project `json:"project"`
-}
-
-func NewEIClient(apiKey string, ApiUrl string) *EIClient {
-	return &EIClient{APIKey: apiKey, ApiUrl: ApiUrl}
-}
-
-func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath string, projectID int, impulseID int) error {
-	queryParams := map[string]string{
-		"type":      "arduino-uno-q",
-		"modelType": "int8",   //TODO make it configurable
-		"engine":    "tflite", //TODO make it configurable
-		"impulseId": fmt.Sprintf("%d", impulseID),
+	ClientOptions := []ClientOption{
+		WithBaseURL(ApiUrl + ApiVersion),
+		WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
+			fmt.Println("Request URL:", req.URL.String())
+			req.Header.Add("x-api-key", apiKey)
+			req.Header.Set("Content-Type", "application/json")
+			return nil
+		}),
+	}
+	httpClient, err := NewClientWithResponses(ApiUrl, ClientOptions...)
+	if err != nil {
+		panic(fmt.Sprintf("failed to create EI OpenClient: %v", err))
 	}
 
-	reader, err := c.doRequest(ctx, "GET", fmt.Sprintf("/v1/api/%d/deployment/download", projectID), queryParams, nil, nil)
-	if err != nil {
-		return err
-	}
-	defer reader.Close()
+	return &EIClient{APIKey: apiKey, ApiUrl: ApiUrl, ApiVersion: ApiVersion, HttpClient: httpClient}
+}
 
-	outFile, err := os.Create(modelPath + "/model.eim")
-	if err != nil {
-		return fmt.Errorf("failed to create model file: %w", err)
-	}
-	defer outFile.Close()
+func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath string, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter) error {
 
-	_, err = io.Copy(outFile, reader)
+	opt := &DownloadBuildParams{ImpulseId: &impulseID, ModelType: &modelType, Engine: &engine, Type: "arduino-uno-q"}
+
+	response, err := c.HttpClient.DownloadBuildWithResponse(ctx, projectID, opt)
 	if err != nil {
-		return fmt.Errorf("failed to write model file: %w", err)
+		return fmt.Errorf("failed to download model: %w", err)
+	}
+
+	if response.StatusCode() != http.StatusOK {
+		return fmt.Errorf("failed to download model, status code: %d", response.StatusCode())
+	}
+
+	modelFolder := fmt.Sprintf("ei-model-%d-%d", projectID, impulseID)
+
+	filepath := filepath.Join(modelPath+"/", modelFolder)
+
+	if err := os.Mkdir(filepath, 0o755); err != nil {
+		log.Fatalf("failed to create directory %s: %v", filepath, err)
+	}
+
+	err = os.WriteFile(filepath+"/model.eim", []byte(response.Status()), 0755)
+	if err != nil {
+		return fmt.Errorf("failed to write file: %v", err)
 	}
 
 	return nil
 }
 
-func (c *EIClient) GetDeployment(ctx context.Context, projectID int) (*int, error) {
-	queryParams := map[string]string{
-		"type":      "arduino-uno-q",
-		"modelType": "int8",
-		"engine":    "tflite",
-	}
-	var resp GetDeploymentResponse
-	reader, err := c.doRequest(ctx, "GET", fmt.Sprintf("/v1/api/%d/deployment", projectID), queryParams, nil, &resp)
+func (c *EIClient) GetDeployment(ctx context.Context, projectID int, modelType ModelTypeParameter, engine ModelEngineParameter) (*int, error) {
+
+	params := &GetDeploymentParams{ModelType: &modelType, Engine: &engine, Type: "arduino-uno-q"}
+	resp, err := c.HttpClient.GetDeploymentWithResponse(ctx, projectID, params)
 	if err != nil {
 		return nil, err
 	}
-	defer reader.Close()
 
-	if resp.Success {
-		if resp.HasDeployment {
-			return &resp.Version, nil
+	if resp.JSON200.Success {
+		if resp.JSON200.HasDeployment {
+			return resp.JSON200.Version, nil
 		}
 		return nil, nil
 	}
 
-	return nil, fmt.Errorf("Error fetching deployment info: %s", resp.Error)
+	return nil, fmt.Errorf("Error fetching deployment info: %s", *resp.JSON200.Error)
 }
 
-func (c *EIClient) Build(ctx context.Context, projectID int) (*int, error) {
+func (c *EIClient) Build(ctx context.Context, projectID int, modelType ModelTypeParameter, engine ModelEngineParameter) (*int, error) {
 
-	queryParams := map[string]string{
-		"type": "arduino-uno-q",
+	params := &BuildOnDeviceModelJobParams{Type: "arduino-uno-q"}
+
+	//TODO is the map parameters needed?
+	body := BuildOnDeviceModelJobJSONRequestBody{
+		Engine:    engine,
+		ModelType: &modelType,
 	}
 
-	body := map[string]interface{}{
-		"engine":     "tflite",
-		"modelType":  "int8",
-		"parameters": map[string]interface{}{},
-	}
-	var resp BuildJobResponse
-	reader, err := c.doRequest(ctx, "POST", fmt.Sprintf("/v1/api/%d/jobs/build-ondevice-model", projectID), queryParams, body, &resp)
+	resp, err := c.HttpClient.BuildOnDeviceModelJobWithResponse(ctx, projectID, params, body)
 	if err != nil {
 		return nil, err
 	}
-	defer reader.Close()
 
-	if resp.Success {
+	if resp.JSON200.Success {
 
-		return &resp.JobID, nil
+		return &resp.JSON200.Id, nil
 	}
 
-	return nil, fmt.Errorf("Error building model: %s", resp.Error)
+	return nil, fmt.Errorf("Error building model: %s", *resp.JSON200.Error)
 
 }
 
 func (c *EIClient) GetJobStatus(ctx context.Context, projectID int, jobID int) (*bool, error) {
 
-	var resp JobStatusResponse
-	reader, err := c.doRequest(ctx, "GET", fmt.Sprintf("/v1/api/%d/jobs/%d/status", projectID, jobID), nil, nil, &resp)
+	resp, err := c.HttpClient.GetJobStatusWithResponse(ctx, projectID, jobID)
 	if err != nil {
 		return nil, err
 	}
-	defer reader.Close()
 
-	if resp.Success {
-		if resp.Job.FinishedSuccessful != nil && resp.Job.Finished != nil {
-			return resp.Job.FinishedSuccessful, nil
+	if resp.JSON200.Success {
+		if resp.JSON200.Job.FinishedSuccessful != nil && resp.JSON200.Job.Finished != nil {
+			return resp.JSON200.Job.FinishedSuccessful, nil
 		}
 		return nil, nil
 	}
 
-	return nil, fmt.Errorf("Error fetching job status: %s", resp.Error)
+	return nil, fmt.Errorf("Error fetching job status: %s", *resp.JSON200.Error)
 
 }
 
-func (c *EIClient) GetProjectInfo(ctx context.Context, projectID int) (*Project, error) {
+func (c *EIClient) GetProjectInfo(ctx context.Context, projectID int, impulseID int) (*Project, error) {
 
-	var resp ProjectResponse
-	reader, err := c.doRequest(ctx, "GET", fmt.Sprintf("/v1/api/%d", projectID), nil, nil, &resp)
+	resp, err := c.HttpClient.GetProjectInfoWithResponse(ctx, projectID, &GetProjectInfoParams{ImpulseId: &impulseID})
 	if err != nil {
 		return nil, err
 	}
-	defer reader.Close()
+	if resp.JSON200.Success {
+		return &resp.JSON200.Project, nil
+	}
 
-	return &resp.Project, nil
+	return nil, fmt.Errorf("Error fetching project info: %s", *resp.JSON200.Error)
+
 }
 
 func (c EIClient) WaitForBuildCompletion(ctx context.Context, projectID, jobID int) error {

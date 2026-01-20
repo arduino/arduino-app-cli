@@ -110,9 +110,9 @@ func (m *ModelsIndex) GetModelsByBricks(bricks []string) []AIModel {
 	return matchingModels
 }
 
-func (m *ModelsIndex) InstallEIModels(ctx context.Context, EIprojectID, EIimpulseID int) (*AIModel, error) {
+func (m *ModelsIndex) InstallEIModels(ctx context.Context, EIprojectID, EIimpulseID int, modelType string, engine string) (*AIModel, error) {
 
-	err := InstallEIModel(ctx, m.EIClient, *m.edgeImpulseModelsDir, EIprojectID, EIimpulseID)
+	err := InstallEIModel(ctx, m.EIClient, *m.edgeImpulseModelsDir, EIprojectID, EIimpulseID, modelType, engine)
 	if err != nil {
 		slog.Error("failed to install EI model", "err", err)
 		return nil, err
@@ -152,7 +152,7 @@ func Load(dir *paths.Path, customModelDir *paths.Path, EIApiKey *string, EIApiUr
 	if customModelDir != nil {
 		edgeimpulseModelsDir = customModelDir.Join("ei-models")
 	}
-	EIClient := NewEIClient(*EIApiKey, *EIApiUrl)
+	EIClient := NewEIClient(*EIApiKey, *EIApiUrl, "v1")
 
 	return &ModelsIndex{PreInstalledModels: models, edgeImpulseModelsDir: edgeimpulseModelsDir, EIClient: EIClient}, nil
 }

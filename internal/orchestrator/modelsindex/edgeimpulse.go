@@ -40,14 +40,17 @@ type modelDescriptor struct {
 	BrickIDs    []string  `yaml:"brick_ids" json:"brick_ids"`
 }
 
-func InstallEIModel(ctx context.Context, eiClient *EIClient, EImodelPath paths.Path, EIprojectID int, EIimpulseID int) error {
+func InstallEIModel(ctx context.Context, eiClient *EIClient, EImodelPath paths.Path, EIprojectID int, EIimpulseID int, modelType string, engine string) error {
 
-	version, err := eiClient.GetDeployment(ctx, EIprojectID)
+	modelTypeParam := ModelTypeParameter(modelType)
+	engineParam := ModelEngineParameter(engine)
+
+	version, err := eiClient.GetDeployment(ctx, EIprojectID, modelTypeParam, engineParam)
 	if err != nil {
 		return err
 	}
 	if version == nil {
-		jobId, err := eiClient.Build(ctx, EIprojectID)
+		jobId, err := eiClient.Build(ctx, EIprojectID, modelTypeParam, engineParam)
 		if err != nil {
 			return err
 		}
@@ -57,7 +60,7 @@ func InstallEIModel(ctx context.Context, eiClient *EIClient, EImodelPath paths.P
 		}
 	}
 
-	err = eiClient.DownloadAndInstallModel(ctx, EImodelPath.String(), EIprojectID, EIimpulseID)
+	err = eiClient.DownloadAndInstallModel(ctx, EImodelPath.String(), EIprojectID, EIimpulseID, modelTypeParam, engineParam)
 	if err != nil {
 		return err
 	}
@@ -87,7 +90,7 @@ func EItoArduinoModel(EICategory string, Impulse *string) []string {
 
 func SaveEIModel(ctx context.Context, eiClient *EIClient, modelPath paths.Path, projectID int, impulseID int) (*AIModel, error) {
 
-	project, err := eiClient.GetProjectInfo(ctx, projectID)
+	project, err := eiClient.GetProjectInfo(ctx, projectID, impulseID)
 	if err != nil {
 		return nil, err
 	}
@@ -98,9 +101,9 @@ func SaveEIModel(ctx context.Context, eiClient *EIClient, modelPath paths.Path, 
 		ImpulseID:   impulseID,
 		Name:        project.Name,
 		Description: project.Description,
-		Category:    project.Category,
-		LastBuildAt: project.LastModified,
-		BrickIDs:    EItoArduinoModel(project.Category, nil),
+		Category:    string(*project.Category),
+		LastBuildAt: *project.LastModified, //TODO lastModified could not be accurate
+		BrickIDs:    EItoArduinoModel(string(*project.Category), nil),
 	}
 
 	data, err := yaml.Marshal(metadataFile)
@@ -119,7 +122,7 @@ func SaveEIModel(ctx context.Context, eiClient *EIClient, modelPath paths.Path, 
 		Name:              project.Name,
 		ModuleDescription: project.Description,
 		Runner:            "bricks",
-		Bricks:            EItoArduinoModel(project.Category, nil),
+		Bricks:            EItoArduinoModel(string(*project.Category), nil),
 		Metadata: map[string]string{
 			"project-id": fmt.Sprintf("%d", projectID),
 			"impulse-id": fmt.Sprintf("%d", impulseID),
