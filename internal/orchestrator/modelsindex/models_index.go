@@ -16,6 +16,7 @@
 package modelsindex
 
 import (
+	"context"
 	"log/slog"
 	"slices"
 
@@ -56,9 +57,9 @@ type AIModel struct {
 }
 
 type ModelsIndex struct {
-	PreInstalledModels []AIModel
-
+	PreInstalledModels   []AIModel
 	edgeImpulseModelsDir *paths.Path
+	EIClient             *EIClient
 }
 
 func (m *ModelsIndex) GetModels() []AIModel {
@@ -109,7 +110,25 @@ func (m *ModelsIndex) GetModelsByBricks(bricks []string) []AIModel {
 	return matchingModels
 }
 
-func Load(dir *paths.Path, customModelDir *paths.Path) (*ModelsIndex, error) {
+func (m *ModelsIndex) InstallEIModels(ctx context.Context, EIprojectID, EIimpulseID int, modelType string, engine string) (*AIModel, error) {
+
+	err := InstallEIModel(ctx, m.EIClient, *m.edgeImpulseModelsDir, EIprojectID, EIimpulseID, modelType, engine)
+	if err != nil {
+		slog.Error("failed to install EI model", "err", err)
+		return nil, err
+	}
+
+	AIModel, err := SaveEIModel(ctx, m.EIClient, *m.edgeImpulseModelsDir, EIprojectID, EIimpulseID)
+	if err != nil {
+		slog.Error("failed to save EI model", "err", err)
+		return nil, err
+	}
+
+	return AIModel, nil
+
+}
+
+func Load(dir *paths.Path, customModelDir *paths.Path, EIApiKey *string, EIApiUrl *string) (*ModelsIndex, error) {
 	content, err := dir.Join("models-list.yaml").ReadFile()
 	if err != nil {
 		return nil, err
@@ -133,6 +152,7 @@ func Load(dir *paths.Path, customModelDir *paths.Path) (*ModelsIndex, error) {
 	if customModelDir != nil {
 		edgeimpulseModelsDir = customModelDir.Join("ei-models")
 	}
+	EIClient := NewEIClient(*EIApiKey, *EIApiUrl, "v1")
 
-	return &ModelsIndex{PreInstalledModels: models, edgeImpulseModelsDir: edgeimpulseModelsDir}, nil
+	return &ModelsIndex{PreInstalledModels: models, edgeImpulseModelsDir: edgeimpulseModelsDir, EIClient: EIClient}, nil
 }

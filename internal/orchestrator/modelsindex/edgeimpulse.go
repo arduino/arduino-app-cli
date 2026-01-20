@@ -1,9 +1,12 @@
 package modelsindex
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
@@ -22,7 +25,110 @@ var eiCategoryToArduinoBrick = map[string][]arduinoBrickConfig{
 			configurationVariable: "EI_OBJ_DETECTION_MODEL",
 		},
 	},
-	// TODO: define missing mapping
+}
+
+// TODO: define missing mapping
+type modelDescriptor struct {
+	ID          string    `yaml:"id"`
+	ProjectID   int       `yaml:"project-id"`
+	ImpulseID   int       `yaml:"impulse-id"`
+	Name        string    `yaml:"name"`
+	Description string    `yaml:"description"`
+	Category    string    `yaml:"category"`
+	Path        string    `yaml:"model_path"` //TODO do we need this?
+	LastBuildAt time.Time `yaml:"lastBuildAt" json:"lastBuildAt"`
+	BrickIDs    []string  `yaml:"brick_ids" json:"brick_ids"`
+}
+
+func InstallEIModel(ctx context.Context, eiClient *EIClient, EImodelPath paths.Path, EIprojectID int, EIimpulseID int, modelType string, engine string) error {
+
+	modelTypeParam := ModelTypeParameter(modelType)
+	engineParam := ModelEngineParameter(engine)
+
+	version, err := eiClient.GetDeployment(ctx, EIprojectID, modelTypeParam, engineParam)
+	if err != nil {
+		return err
+	}
+	if version == nil {
+		jobId, err := eiClient.Build(ctx, EIprojectID, modelTypeParam, engineParam)
+		if err != nil {
+			return err
+		}
+		err = eiClient.WaitForBuildCompletion(ctx, EIprojectID, *jobId)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = eiClient.DownloadAndInstallModel(ctx, EImodelPath.String(), EIprojectID, EIimpulseID, modelTypeParam, engineParam)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func EItoArduinoModel(EICategory string, Impulse *string) []string {
+	switch EICategory {
+	case "Object detection":
+		return []string{"arduino:object_detection", "arduino:video_object_detection"}
+	case "Images":
+		if Impulse != nil && *Impulse == "keras-visual-anomaly" {
+			return []string{"arduino:visual_anomaly_detection"}
+		}
+		return []string{"arduino:image_classification", "arduino:video_image_classification"}
+	case "Audio":
+		return []string{"arduino:audio_classification"}
+	case "Keyword spotting":
+		return []string{"arduino:audio_classification", "arduino:keyword_spotting"}
+	case "Accelerometer":
+		return []string{"arduino:gesture_recognition", "arduino:anomaly_detection"}
+	default:
+		panic("Unknown category")
+	}
+}
+
+func SaveEIModel(ctx context.Context, eiClient *EIClient, modelPath paths.Path, projectID int, impulseID int) (*AIModel, error) {
+
+	project, err := eiClient.GetProjectInfo(ctx, projectID, impulseID)
+	if err != nil {
+		return nil, err
+	}
+
+	metadataFile := modelDescriptor{
+		ID:          fmt.Sprintf("%d-%d", projectID, impulseID),
+		ProjectID:   projectID,
+		ImpulseID:   impulseID,
+		Name:        project.Name,
+		Description: project.Description,
+		Category:    string(*project.Category),
+		LastBuildAt: *project.LastModified, //TODO lastModified could not be accurate
+		BrickIDs:    EItoArduinoModel(string(*project.Category), nil),
+	}
+
+	data, err := yaml.Marshal(metadataFile)
+	if err != nil {
+		return nil, err
+	}
+
+	err = os.WriteFile(modelPath.String()+"/metadata.yaml", data, 0o644)
+	if err != nil {
+		return nil, err
+	}
+
+	return &AIModel{
+		ID:                fmt.Sprintf("%d-%d", projectID, impulseID),
+		Source:            "edgeimpulse",
+		Name:              project.Name,
+		ModuleDescription: project.Description,
+		Runner:            "bricks",
+		Bricks:            EItoArduinoModel(string(*project.Category), nil),
+		Metadata: map[string]string{
+			"project-id": fmt.Sprintf("%d", projectID),
+			"impulse-id": fmt.Sprintf("%d", impulseID),
+		},
+	}, nil
+
 }
 
 func LoadEdgeImpulseModels(dir *paths.Path) ([]AIModel, error) {
@@ -31,7 +137,7 @@ func LoadEdgeImpulseModels(dir *paths.Path) ([]AIModel, error) {
 	}
 	type modelDescriptor struct {
 		ID          string `yaml:"id"`
-		ProjectId   int    `yaml:"project-id"`
+		ProjectID   int    `yaml:"project-id"`
 		ImpulseID   int    `yaml:"impulse-id"`
 		Name        string `yaml:"name"`
 		Description string `yaml:"description"`
@@ -78,7 +184,7 @@ func LoadEdgeImpulseModels(dir *paths.Path) ([]AIModel, error) {
 			ModuleDescription: mf.Description,
 			Runner:            "bricks",
 			Metadata: map[string]string{
-				"project-id": fmt.Sprintf("%d", mf.ProjectId),
+				"project-id": fmt.Sprintf("%d", mf.ProjectID),
 				"impulse-id": fmt.Sprintf("%d", mf.ImpulseID),
 			},
 			Bricks:             bricks,

@@ -40,6 +40,8 @@ type Configuration struct {
 	RunnerVersion      string
 	AllowRoot          bool
 	LibrariesAPIURL    *url.URL
+	EIApiKey           string
+	EIApiUrl           string
 }
 
 func NewFromEnv() (Configuration, error) {

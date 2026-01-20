@@ -1,0 +1,4 @@
+package: modelsindex
+generate:
+  - types
+  - client
