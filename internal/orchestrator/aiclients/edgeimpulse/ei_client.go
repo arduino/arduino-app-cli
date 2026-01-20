@@ -1,4 +1,4 @@
-package modelsindex
+package edgeimpulse
 
 import (
 	"bytes"
@@ -76,6 +76,7 @@ func (c *EIClient) GetDeployment(ctx context.Context, projectID int, modelType M
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println(resp)
 
 	if resp.JSON200.Success {
 		if resp.JSON200.HasDeployment {

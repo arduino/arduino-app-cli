@@ -1,4 +1,4 @@
-package modelsindex
+package edgeimpulse
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	paths "github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,11 +15,11 @@ import (
 func TestListEdgeImpulseModels(t *testing.T) {
 	t.Parallel()
 
-	eimodels, err := LoadEdgeImpulseModels(paths.New("testdata/ei-models"))
+	eimodels, err := modelsindex.LoadEdgeImpulseModels(paths.New("testdata/ei-models"))
 	require.NoError(t, err)
 	require.Len(t, eimodels, 1, "expected exactly one model loaded from testdata")
 
-	expectedModel := AIModel{
+	expectedModel := modelsindex.AIModel{
 		ID:                "my-model-id",
 		Source:            "edgeimpulse",
 		Runner:            "bricks",
@@ -49,22 +50,22 @@ func TestInstallEIModel(t *testing.T) {
 	ProjectID := 876194
 	ImpulseID := 1
 
-	err := InstallEIModel(context.TODO(), eiClient, *customEIModelsDir, ProjectID, ImpulseID, "int8", "tflite")
+	err := InstallEIModel(context.TODO(), eiClient, customEIModelsDir, ProjectID, ImpulseID, "int8", "tflite")
 	if err != nil {
 		log.Fatalf("failed to install EI model: %v", err)
 	}
 
-	model, err := SaveEIModel(context.TODO(), eiClient, *customEIModelsDir, ProjectID, ImpulseID)
+	model, err := SaveEIModel(context.TODO(), eiClient, customEIModelsDir, ProjectID, ImpulseID)
 	if err != nil {
 		log.Fatalf("failed to save EI model metadata: %v", err)
 	}
 
-	models, err := LoadEdgeImpulseModels(customEIModelsDir)
+	models, err := modelsindex.LoadEdgeImpulseModels(customEIModelsDir)
 	if err != nil {
 		log.Fatalf("failed to load EI models: %v", err)
 	}
 
-	if found, ok := func() (*AIModel, bool) {
+	if found, ok := func() (*modelsindex.AIModel, bool) {
 		for _, m := range models {
 			if m.ID == model.ID {
 				return &m, true

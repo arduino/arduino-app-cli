@@ -16,8 +16,10 @@
 package modelsindex
 
 import (
-	"context"
+	"fmt"
+	"io/fs"
 	"log/slog"
+	"path/filepath"
 	"slices"
 
 	"github.com/arduino/go-paths-helper"
@@ -26,6 +28,20 @@ import (
 
 type assetsModelList struct {
 	Models []map[string]AIModel `yaml:"models"`
+}
+type arduinoBrickConfig struct {
+	brickID               string
+	configurationVariable string
+}
+
+// map Edge Impulse categories to Arduino bricks
+var eiCategoryToArduinoBrick = map[string][]arduinoBrickConfig{
+	"Images": {
+		{
+			brickID:               "object-detection",
+			configurationVariable: "EI_OBJ_DETECTION_MODEL",
+		},
+	},
 }
 
 func (b *assetsModelList) UnmarshalYAML(unmarshal func(any) error) error {
@@ -59,7 +75,6 @@ type AIModel struct {
 type ModelsIndex struct {
 	PreInstalledModels   []AIModel
 	edgeImpulseModelsDir *paths.Path
-	EIClient             *EIClient
 }
 
 func (m *ModelsIndex) GetModels() []AIModel {
@@ -110,24 +125,6 @@ func (m *ModelsIndex) GetModelsByBricks(bricks []string) []AIModel {
 	return matchingModels
 }
 
-func (m *ModelsIndex) InstallEIModels(ctx context.Context, EIprojectID, EIimpulseID int, modelType string, engine string) (*AIModel, error) {
-
-	err := InstallEIModel(ctx, m.EIClient, *m.edgeImpulseModelsDir, EIprojectID, EIimpulseID, modelType, engine)
-	if err != nil {
-		slog.Error("failed to install EI model", "err", err)
-		return nil, err
-	}
-
-	AIModel, err := SaveEIModel(ctx, m.EIClient, *m.edgeImpulseModelsDir, EIprojectID, EIimpulseID)
-	if err != nil {
-		slog.Error("failed to save EI model", "err", err)
-		return nil, err
-	}
-
-	return AIModel, nil
-
-}
-
 func Load(dir *paths.Path, customModelDir *paths.Path, EIApiKey *string, EIApiUrl *string) (*ModelsIndex, error) {
 	content, err := dir.Join("models-list.yaml").ReadFile()
 	if err != nil {
@@ -152,7 +149,76 @@ func Load(dir *paths.Path, customModelDir *paths.Path, EIApiKey *string, EIApiUr
 	if customModelDir != nil {
 		edgeimpulseModelsDir = customModelDir.Join("ei-models")
 	}
-	EIClient := NewEIClient(*EIApiKey, *EIApiUrl, "v1")
 
-	return &ModelsIndex{PreInstalledModels: models, edgeImpulseModelsDir: edgeimpulseModelsDir, EIClient: EIClient}, nil
+	return &ModelsIndex{PreInstalledModels: models, edgeImpulseModelsDir: edgeimpulseModelsDir}, nil
+}
+
+func LoadEdgeImpulseModels(dir *paths.Path) ([]AIModel, error) {
+	if dir == nil {
+		return []AIModel{}, nil
+	}
+	type modelDescriptor struct {
+		ID          string `yaml:"id"`
+		ProjectID   int    `yaml:"project-id"`
+		ImpulseID   int    `yaml:"impulse-id"`
+		Name        string `yaml:"name"`
+		Description string `yaml:"description"`
+		Category    string `yaml:"category"`
+		Path        string `yaml:"path"`
+	}
+	var models []AIModel
+	err := filepath.WalkDir(dir.String(), func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		base := filepath.Base(path)
+		if base != "metadata.yml" && base != "metadata.yaml" {
+			return nil
+		}
+
+		f, err := paths.New(path).Open()
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+
+		var mf modelDescriptor
+		if err := yaml.NewDecoder(f).Decode(&mf); err != nil {
+			return err
+		}
+		var bricks []string
+		var modelConfig = make(map[string]string)
+		for _, b := range eiCategoryToArduinoBrick[mf.Category] {
+			bricks = append(bricks, b.brickID)
+			// FIXME: based on the name of the config different value myust be resolved
+			modelConfig[b.configurationVariable] = paths.New(path).Parent().Join(mf.Path).String()
+		}
+
+		models = append(models, AIModel{
+			ID:                mf.ID,
+			Source:            "edgeimpulse",
+			Name:              mf.Name,
+			ModuleDescription: mf.Description,
+			Runner:            "bricks",
+			Metadata: map[string]string{
+				"project-id": fmt.Sprintf("%d", mf.ProjectID),
+				"impulse-id": fmt.Sprintf("%d", mf.ImpulseID),
+			},
+			Bricks:             bricks,
+			ModelConfiguration: modelConfig,
+		})
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return models, nil
 }

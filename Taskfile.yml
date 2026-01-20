@@ -275,15 +275,14 @@ tasks:
     desc: Generate Edge Impulse Go client from OpenAPI spec
     cmds:
       - curl -fsSL https://studio.edgeimpulse.com/openapi.yml -o /tmp/edgeimpulse.openapi.yml
-      - mkdir -p internal/orchestrator/modelsindex
       - |
         oapi-codegen \
-          --package=modelsindex \
+          --package=edgeimpulse \
           --generate types,client \
           --response-type-suffix=HTTPResponse \
           /tmp/edgeimpulse.openapi.yml \
-          > internal/orchestrator/modelsindex/client.gen.go
+          > internal/orchestrator/aiclients/edgeimpulse/client.gen.go
     sources:
       - https://studio.edgeimpulse.com/openapi.yml
     generates:
-      - internal/orchestrator/modelsindex/client.gen.go
+      - internal/orchestrator/aiclients/edgeimpulse/client.gen.go

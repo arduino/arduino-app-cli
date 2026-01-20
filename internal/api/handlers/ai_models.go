@@ -16,15 +16,27 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/aiclients/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/render"
+	"github.com/arduino/go-paths-helper"
 )
+
+type InstallEIModelRequest struct {
+	ProjectID int     `json:"project_id" description:"Edge Impulse project ID" example:"123456" required:"true"`
+	ImpulseID int     `json:"impulse_id" description:"Edge Impulse impulse ID" example:"1" required:"true"`
+	Token     string  `json:"token" description:"Edge Impulse API token" example:"your_edge_impulse_api_token" required:"true"`
+	ModelType *string `json:"model_type" description:"Type of model to build (e.g., 'object-detection')" example:"object-detection" required:"true"`
+	Engine    *string `json:"engine" description:"Model engine (e.g., 'tensorflow-lite')" example:"tensorflow-lite" required:"true"`
+}
 
 func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -55,5 +67,29 @@ func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 			return
 		}
 		render.EncodeResponse(w, http.StatusOK, res)
+	}
+}
+
+func HandleInstallEIModel(modelsDir *paths.Path) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		var req InstallEIModelRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			slog.Error("unable to decode app create request", slog.String("error", err.Error()))
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "unable to decode app create request"})
+			return
+		}
+		//TODO check parameters
+		eiClient := edgeimpulse.NewEIClient(req.Token, "https://studio.edgeimpulse.com/", "v1")
+
+		AImodel, err := orchestrator.InstallEIModel(r.Context(), eiClient, modelsDir, req.ProjectID, req.ImpulseID, *req.ModelType, *req.Engine)
+		if err != nil {
+			slog.Error("failed to install EI model", "err", err)
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "failed to install EI model"})
+			return
+		}
+
+		render.EncodeResponse(w, http.StatusOK, AImodel)
+
 	}
 }

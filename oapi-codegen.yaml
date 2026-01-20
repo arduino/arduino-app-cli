@@ -1,4 +1,4 @@
-package: modelsindex
+package: edgeimpulse
 generate:
   - types
   - client

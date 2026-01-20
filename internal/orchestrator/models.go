@@ -16,7 +16,12 @@
 package orchestrator
 
 import (
+	"context"
+	"log/slog"
+
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/aiclients/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/go-paths-helper"
 )
 
 type AIModelsListResult struct {
@@ -74,4 +79,23 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 		Metadata:           model.Metadata,
 		ModelConfiguration: model.ModelConfiguration,
 	}, true
+}
+
+func InstallEIModel(ctx context.Context, eiClient *edgeimpulse.EIClient, modelPath *paths.Path, projectID int, impulseID int, modelType string, engine string) (modelsindex.AIModel, error) {
+
+	err := edgeimpulse.InstallEIModel(ctx, eiClient, modelPath, projectID, impulseID, modelType, engine)
+	if err != nil {
+
+		slog.Error("failed to install EI model", "err", err)
+		return modelsindex.AIModel{}, err
+	}
+
+	AIModel, err := edgeimpulse.SaveEIModel(ctx, eiClient, modelPath, projectID, impulseID)
+	if err != nil {
+		slog.Error("failed to save EI model", "err", err)
+		return modelsindex.AIModel{}, err
+	}
+
+	return *AIModel, nil
+
 }
