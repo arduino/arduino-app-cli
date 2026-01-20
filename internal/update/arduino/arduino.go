@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
-	"strings"
 	"sync"
 
 	"github.com/arduino/arduino-cli/commands"
@@ -252,12 +251,6 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 	targetVersion := pkg.ToVersion
 	if targetVersion == "" {
 		return fmt.Errorf("target version is empty for package '%s'", pkg.Name)
-	}
-	name := pkg.Name
-
-	parts := strings.Split(name, ":")
-	if len(parts) != 2 {
-		return fmt.Errorf("invalid package name %s", name)
 	}
 
 	if err := srv.PlatformInstall(

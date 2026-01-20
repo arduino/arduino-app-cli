@@ -104,6 +104,14 @@ func TestSelectBestVersion(t *testing.T) {
 			expectedVer: "",
 			expectNil:   true,
 		},
+		{
+			name:        "Sorts RC versions correctly",
+			available:   []string{"1.1.0", "1.2.0-rc.3", "2.2.0-rc.4"},
+			installed:   "1.0.0",
+			constraint:  "<2.0.0",
+			expectedVer: "1.2.0-rc.3",
+			expectNil:   false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
