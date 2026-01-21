@@ -17,9 +17,12 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -27,10 +30,9 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
-func newExportCmd(cfg config.Configuration) *cobra.Command {
+func newExportCmd() *cobra.Command {
 	var includeData bool
 
 	cmd := &cobra.Command{
@@ -39,7 +41,7 @@ func newExportCmd(cfg config.Configuration) *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			appID := args[0]
-			return exportHandler(cmd.Context(), cfg, appID, includeData)
+			return exportHandler(cmd.Context(), appID, includeData)
 		},
 	}
 
@@ -48,7 +50,7 @@ func newExportCmd(cfg config.Configuration) *cobra.Command {
 	return cmd
 }
 
-func exportHandler(ctx context.Context, cfg config.Configuration, appIDStr string, includeData bool) error {
+func exportHandler(ctx context.Context, appIDStr string, includeData bool) error {
 	id, err := servicelocator.GetAppIDProvider().ParseID(appIDStr)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
@@ -62,21 +64,36 @@ func exportHandler(ctx context.Context, cfg config.Configuration, appIDStr strin
 		return nil
 	}
 
-	zipBytes, appName, err := orchestrator.ExportAppZip(ctx, appToExport, includeData)
+	zipBytes, originalName, err := orchestrator.ExportAppZip(ctx, appToExport, includeData)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 		return nil
 	}
 
-	if err := os.WriteFile(appName, zipBytes, 0644); err != nil {
+	finalName := originalName
+	ext := filepath.Ext(originalName)
+	nameNoExt := strings.TrimSuffix(originalName, ext)
+	for i := 1; i <= 100; i++ {
+		if fileExists(finalName) {
+			finalName = fmt.Sprintf("%s_%d%s", nameNoExt, i, ext)
+		} else {
+			break
+		}
+	}
+	if fileExists(finalName) {
+		feedback.Fatal(fmt.Sprintf("File '%s' already exists and too many renamed versions exist.", finalName), feedback.ErrGeneric)
+		return nil
+	}
+
+	if err := os.WriteFile(finalName, zipBytes, 0600); err != nil {
 		feedback.Fatal(fmt.Sprintf("Failed to save zip file: %s", err), feedback.ErrGeneric)
 		return nil
 	}
 
 	feedback.PrintResult(exportAppResult{
 		Result:  "ok",
-		Message: fmt.Sprintf("App '%s' exported successfully", appName),
-		AppName: appName,
+		Message: "Export successful",
+		AppName: finalName,
 	})
 
 	return nil
@@ -94,4 +111,9 @@ func (r exportAppResult) String() string {
 
 func (r exportAppResult) Data() interface{} {
 	return r
+}
+
+func fileExists(filename string) bool {
+	_, err := os.Stat(filename)
+	return !errors.Is(err, os.ErrNotExist)
 }

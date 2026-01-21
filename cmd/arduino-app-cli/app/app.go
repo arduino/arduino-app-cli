@@ -40,7 +40,8 @@ func NewAppCmd(cfg config.Configuration) *cobra.Command {
 	appCmd.AddCommand(newLogsCmd(cfg))
 	appCmd.AddCommand(newListCmd(cfg))
 	appCmd.AddCommand(newCacheCleanCmd(cfg))
-	appCmd.AddCommand(newExportCmd(cfg))
+	appCmd.AddCommand(newExportCmd())
+	appCmd.AddCommand(newImportCmd(cfg))
 
 	return appCmd
 }
