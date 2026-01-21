@@ -57,6 +57,12 @@ const (
 	Ingestion    DeviceRemoteMgmtMode = "ingestion"
 )
 
+// Defines values for GetJWTRequestSsoType.
+const (
+	Browser GetJWTRequestSsoType = "browser"
+	Cli     GetJWTRequestSsoType = "cli"
+)
+
 // Defines values for KerasModelTypeEnum.
 const (
 	KerasModelTypeEnumAkida           KerasModelTypeEnum = "akida"
@@ -323,6 +329,43 @@ type GetDeploymentResponse struct {
 	// Success Whether the operation succeeded
 	Success bool `json:"success"`
 	Version *int `json:"version,omitempty"`
+}
+
+// GetJWTRequest defines model for GetJWTRequest.
+type GetJWTRequest struct {
+	// Password Password
+	Password string `json:"password"`
+
+	// SessionId Session ID
+	SessionId *string               `json:"sessionId,omitempty"`
+	SsoType   *GetJWTRequestSsoType `json:"ssoType,omitempty"`
+
+	// TotpToken TOTP Token. Required if a user has multi-factor authentication with a TOTP token enabled. If a user has MFA enabled, but no totpToken is submitted; then an error starting with "ERR_TOTP_TOKEN IS REQUIRED" is returned. Use this to then prompt for an MFA token and re-login.
+	TotpToken *string `json:"totpToken,omitempty"`
+
+	// Username Username or e-mail address
+	Username string `json:"username"`
+
+	// Uuid Evaluation user UUID
+	Uuid *string `json:"uuid,omitempty"`
+}
+
+// GetJWTRequestSsoType defines model for GetJWTRequest.SsoType.
+type GetJWTRequestSsoType string
+
+// GetJWTResponse defines model for GetJWTResponse.
+type GetJWTResponse struct {
+	// Error Optional error description (set if 'success' was false)
+	Error *string `json:"error,omitempty"`
+
+	// RedirectUrl Redirect URL to follow to complete login
+	RedirectUrl *string `json:"redirectUrl,omitempty"`
+
+	// Success Whether the operation succeeded
+	Success bool `json:"success"`
+
+	// Token JWT token, to be used to log in in the future through JWTAuthentication
+	Token *string `json:"token,omitempty"`
 }
 
 // GetJobResponse defines model for GetJobResponse.
@@ -1045,6 +1088,9 @@ type BuildOnDeviceModelJobParams struct {
 	ImpulseId *OptionalImpulseIdParameter `form:"impulseId,omitempty" json:"impulseId,omitempty"`
 }
 
+// LoginJSONRequestBody defines body for Login for application/json ContentType.
+type LoginJSONRequestBody = GetJWTRequest
+
 // UpdateProjectJSONRequestBody defines body for UpdateProject for application/json ContentType.
 type UpdateProjectJSONRequestBody = UpdateProjectRequest
 
@@ -1124,6 +1170,11 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
+	// LoginWithBody request with any body
+	LoginWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	Login(ctx context.Context, body LoginJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// DeleteProject request
 	DeleteProject(ctx context.Context, projectId ProjectIdParameter, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1148,6 +1199,30 @@ type ClientInterface interface {
 
 	// GetJobStatus request
 	GetJobStatus(ctx context.Context, projectId ProjectIdParameter, jobId JobIdParameter, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+func (c *Client) LoginWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewLoginRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) Login(ctx context.Context, body LoginJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewLoginRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 func (c *Client) DeleteProject(ctx context.Context, projectId ProjectIdParameter, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1256,6 +1331,46 @@ func (c *Client) GetJobStatus(ctx context.Context, projectId ProjectIdParameter,
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewLoginRequest calls the generic Login builder with application/json body
+func NewLoginRequest(server string, body LoginJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewLoginRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewLoginRequestWithBody generates requests for Login with any type of body
+func NewLoginRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api-login")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
 }
 
 // NewDeleteProjectRequest generates requests for DeleteProject
@@ -1760,6 +1875,11 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
+	// LoginWithBodyWithResponse request with any body
+	LoginWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*LoginHTTPResponse, error)
+
+	LoginWithResponse(ctx context.Context, body LoginJSONRequestBody, reqEditors ...RequestEditorFn) (*LoginHTTPResponse, error)
+
 	// DeleteProjectWithResponse request
 	DeleteProjectWithResponse(ctx context.Context, projectId ProjectIdParameter, reqEditors ...RequestEditorFn) (*DeleteProjectHTTPResponse, error)
 
@@ -1784,6 +1904,28 @@ type ClientWithResponsesInterface interface {
 
 	// GetJobStatusWithResponse request
 	GetJobStatusWithResponse(ctx context.Context, projectId ProjectIdParameter, jobId JobIdParameter, reqEditors ...RequestEditorFn) (*GetJobStatusHTTPResponse, error)
+}
+
+type LoginHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GetJWTResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r LoginHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r LoginHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
 }
 
 type DeleteProjectHTTPResponse struct {
@@ -1939,6 +2081,23 @@ func (r GetJobStatusHTTPResponse) StatusCode() int {
 	return 0
 }
 
+// LoginWithBodyWithResponse request with arbitrary body returning *LoginHTTPResponse
+func (c *ClientWithResponses) LoginWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*LoginHTTPResponse, error) {
+	rsp, err := c.LoginWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseLoginHTTPResponse(rsp)
+}
+
+func (c *ClientWithResponses) LoginWithResponse(ctx context.Context, body LoginJSONRequestBody, reqEditors ...RequestEditorFn) (*LoginHTTPResponse, error) {
+	rsp, err := c.Login(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseLoginHTTPResponse(rsp)
+}
+
 // DeleteProjectWithResponse request returning *DeleteProjectHTTPResponse
 func (c *ClientWithResponses) DeleteProjectWithResponse(ctx context.Context, projectId ProjectIdParameter, reqEditors ...RequestEditorFn) (*DeleteProjectHTTPResponse, error) {
 	rsp, err := c.DeleteProject(ctx, projectId, reqEditors...)
@@ -2016,6 +2175,32 @@ func (c *ClientWithResponses) GetJobStatusWithResponse(ctx context.Context, proj
 		return nil, err
 	}
 	return ParseGetJobStatusHTTPResponse(rsp)
+}
+
+// ParseLoginHTTPResponse parses an HTTP response from a LoginWithResponse call
+func ParseLoginHTTPResponse(rsp *http.Response) (*LoginHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &LoginHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GetJWTResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
 }
 
 // ParseDeleteProjectHTTPResponse parses an HTTP response from a DeleteProjectWithResponse call

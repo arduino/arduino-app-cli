@@ -1,4 +1,0 @@
-package: edgeimpulse
-generate:
-  - types
-  - client
