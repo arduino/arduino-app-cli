@@ -18,9 +18,9 @@ func TestModelsIndex(t *testing.T) {
 		assert.Len(t, models, 3, "Expected 3 models to be parsed")
 	})
 
-	t.Run("custom models folder is optional", func(t *testing.T) {
+	t.Run("at least one folders must be provided", func(t *testing.T) {
 		_, err := Load(nil, nil)
-		require.NoError(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("custom models folder is optional", func(t *testing.T) {
