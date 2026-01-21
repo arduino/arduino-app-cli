@@ -17,12 +17,12 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -54,40 +54,32 @@ func exportHandler(ctx context.Context, appIDStr string, includeData bool) error
 	id, err := servicelocator.GetAppIDProvider().ParseID(appIDStr)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
-		return nil
 	}
 
 	appToExport, err := app.Load(id.ToPath())
 	if err != nil {
 		slog.Error("Unable to load the app", "error", err.Error(), "path", id.String())
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
-		return nil
 	}
 
 	zipBytes, originalName, err := orchestrator.ExportAppZip(ctx, appToExport, includeData)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
-		return nil
 	}
 
-	finalName := originalName
 	ext := filepath.Ext(originalName)
 	nameNoExt := strings.TrimSuffix(originalName, ext)
-	for i := 1; i <= 100; i++ {
-		if fileExists(finalName) {
-			finalName = fmt.Sprintf("%s_%d%s", nameNoExt, i, ext)
-		} else {
-			break
-		}
-	}
+	timestamp := time.Now().Format("2006-01-02_15-04-05")
+
+	finalName := fmt.Sprintf("%s_%s%s", nameNoExt, timestamp, ext)
+
 	if fileExists(finalName) {
 		feedback.Fatal(fmt.Sprintf("File '%s' already exists and too many renamed versions exist.", finalName), feedback.ErrGeneric)
-		return nil
+
 	}
 
 	if err := os.WriteFile(finalName, zipBytes, 0600); err != nil {
 		feedback.Fatal(fmt.Sprintf("Failed to save zip file: %s", err), feedback.ErrGeneric)
-		return nil
 	}
 
 	feedback.PrintResult(exportAppResult{
@@ -115,5 +107,5 @@ func (r exportAppResult) Data() interface{} {
 
 func fileExists(filename string) bool {
 	_, err := os.Stat(filename)
-	return !errors.Is(err, os.ErrNotExist)
+	return err == nil
 }
