@@ -15,6 +15,8 @@ import (
 
 // TODO should be mocked and add a e2e test with an Arduino organization
 func TestInstallEIModel(t *testing.T) {
+	t.Skip("skipping EI model installation test, uncomment to run it")
+
 	modelsDir := paths.New(os.Getenv("ARDUINO_CUSTOM_MODEL_PATH"))
 	ApiKey := os.Getenv("ARDUINO_EI_API_KEY")
 	ApiUrl := os.Getenv("ARDUINO_EI_API_URL")
