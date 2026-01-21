@@ -274,8 +274,8 @@ tasks:
 
   general:generate-login-client:
     desc: "Generate Go client for Edge Impulse API using oapi-codegen and filtering by used paths"
-    cmds: 
-      - | 
+    cmds:
+      - |
           curl -fsSL https://studio.edgeimpulse.com/openapi.yml | yq '.paths = {
           "/api/{projectId}/deployment": .paths."/api/{projectId}/deployment",
           "/api/{projectId}/deployment/download": .paths."/api/{projectId}/deployment/download",
@@ -285,4 +285,3 @@ tasks:
 
       - oapi-codegen --package=edgeimpulse --generate types,client --response-type-suffix=HTTPResponse openapi-filtered.yml > internal/orchestrator/aiclients/edgeimpulse/client.gen.go
       - rm openapi-filtered.yml
-
