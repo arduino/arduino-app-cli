@@ -22,9 +22,11 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 
+
 	"github.com/arduino/arduino-app-cli/internal/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/aimodel"
+
 )
 
 type AIModelsListResult struct {
@@ -112,7 +114,6 @@ func InstallEIModel(ctx context.Context, eiClient *edgeimpulse.EIClient, modelsD
 }
 
 func install(ctx context.Context, eiClient *edgeimpulse.EIClient, modelPath *paths.Path, projectID int, impulseID int, modelType string, engine string) error {
-
 	modelTypeParam := edgeimpulse.ModelTypeParameter(modelType)
 	engineParam := edgeimpulse.ModelEngineParameter(engine)
 
