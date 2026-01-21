@@ -50,12 +50,12 @@ func TestInstallEIModel(t *testing.T) {
 	ProjectID := 876194
 	ImpulseID := 1
 
-	err := InstallEIModel(context.TODO(), eiClient, customEIModelsDir, ProjectID, ImpulseID, "int8", "tflite")
+	err := InstallEIModel(context.TODO(), eiClient, customEIModelsDir.String(), ProjectID, ImpulseID, "int8", "tflite")
 	if err != nil {
 		log.Fatalf("failed to install EI model: %v", err)
 	}
 
-	model, err := SaveEIModel(context.TODO(), eiClient, customEIModelsDir, ProjectID, ImpulseID)
+	model, err := SaveEIModel(context.TODO(), eiClient, customEIModelsDir.String(), ProjectID, ImpulseID)
 	if err != nil {
 		log.Fatalf("failed to save EI model metadata: %v", err)
 	}

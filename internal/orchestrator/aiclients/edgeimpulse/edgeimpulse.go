@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
-	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
 )
 
@@ -24,7 +24,7 @@ type modelDescriptor struct {
 	BrickIDs    []string  `yaml:"brick_ids" json:"brick_ids"`
 }
 
-func InstallEIModel(ctx context.Context, eiClient *EIClient, EImodelPath *paths.Path, EIprojectID int, EIimpulseID int, modelType string, engine string) error {
+func InstallEIModel(ctx context.Context, eiClient *EIClient, EImodelPath string, EIprojectID int, EIimpulseID int, modelType string, engine string) error {
 
 	modelTypeParam := ModelTypeParameter(modelType)
 	engineParam := ModelEngineParameter(engine)
@@ -44,7 +44,7 @@ func InstallEIModel(ctx context.Context, eiClient *EIClient, EImodelPath *paths.
 		}
 	}
 
-	err = eiClient.DownloadAndInstallModel(ctx, EImodelPath.String(), EIprojectID, EIimpulseID, modelTypeParam, engineParam)
+	err = eiClient.DownloadAndInstallModel(ctx, EImodelPath, EIprojectID, EIimpulseID, modelTypeParam, engineParam)
 	if err != nil {
 		return err
 	}
@@ -72,7 +72,7 @@ func EItoArduinoModel(EICategory string, Impulse *string) []string {
 	}
 }
 
-func SaveEIModel(ctx context.Context, eiClient *EIClient, modelPath *paths.Path, projectID int, impulseID int) (*modelsindex.AIModel, error) {
+func SaveEIModel(ctx context.Context, eiClient *EIClient, modelPath string, projectID int, impulseID int) (*modelsindex.AIModel, error) {
 
 	project, err := eiClient.GetProjectInfo(ctx, projectID, impulseID)
 	if err != nil {
@@ -95,7 +95,7 @@ func SaveEIModel(ctx context.Context, eiClient *EIClient, modelPath *paths.Path,
 		return nil, err
 	}
 
-	err = os.WriteFile(modelPath.String()+"/metadata.yaml", data, 0o644)
+	err = os.WriteFile(filepath.Join(modelPath, "metadata.yaml"), data, 0o644)
 	if err != nil {
 		return nil, err
 	}

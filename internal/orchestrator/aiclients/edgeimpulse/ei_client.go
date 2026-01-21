@@ -1,16 +1,11 @@
 package edgeimpulse
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"log"
 	"net/http"
-	"net/url"
 	"os"
-	"path/filepath"
+	"path"
 	"time"
 )
 
@@ -53,15 +48,9 @@ func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath string
 		return fmt.Errorf("failed to download model, status code: %d", response.StatusCode())
 	}
 
-	modelFolder := fmt.Sprintf("ei-model-%d-%d", projectID, impulseID)
+	modelFile := path.Join(modelPath, "model.eim")
 
-	filepath := filepath.Join(modelPath+"/", modelFolder)
-
-	if err := os.Mkdir(filepath, 0o755); err != nil {
-		log.Fatalf("failed to create directory %s: %v", filepath, err)
-	}
-
-	err = os.WriteFile(filepath+"/model.eim", []byte(response.Status()), 0755)
+	err = os.WriteFile(modelFile, []byte(response.Status()), 0755)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %v", err)
 	}
@@ -166,64 +155,5 @@ func (c EIClient) WaitForBuildCompletion(ctx context.Context, projectID, jobID i
 		case <-time.After(5 * time.Second):
 		}
 	}
-
-}
-
-// TODO if the res.body is not used, close the body directly in doRequest
-func (c *EIClient) doRequest(ctx context.Context, method, path string, queryParams map[string]string, body interface{}, result interface{}) (io.ReadCloser, error) {
-	// Build URL
-	u, err := url.JoinPath(c.ApiUrl, path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build URL: %w", err)
-	}
-
-	// Query params
-	if len(queryParams) > 0 {
-		q := url.Values{}
-		for k, v := range queryParams {
-			q.Add(k, v)
-		}
-		u += "?" + q.Encode()
-	}
-
-	// Serialize body
-	var bodyReader io.Reader
-	if body != nil {
-		b, err := json.Marshal(body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal body: %w", err)
-		}
-		bodyReader = bytes.NewReader(b)
-	}
-
-	// Build request
-	req, err := http.NewRequestWithContext(ctx, method, u, bodyReader)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Add("x-api-key", c.APIKey)
-	req.Header.Set("Content-Type", "application/json")
-
-	// Do request
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
-	}
-
-	// Handle non-2xx responses
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		b, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("non-2xx response: %d: %s", resp.StatusCode, string(b))
-	}
-
-	// Decode response
-	if result != nil {
-		if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
-			return nil, fmt.Errorf("failed to decode response: %w", err)
-		}
-	}
-
-	return resp.Body, nil
 
 }

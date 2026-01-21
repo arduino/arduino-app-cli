@@ -17,7 +17,11 @@ package orchestrator
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"log/slog"
+	"os"
+	"path"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/aiclients/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
@@ -83,14 +87,24 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 
 func InstallEIModel(ctx context.Context, eiClient *edgeimpulse.EIClient, modelPath *paths.Path, projectID int, impulseID int, modelType string, engine string) (modelsindex.AIModel, error) {
 
-	err := edgeimpulse.InstallEIModel(ctx, eiClient, modelPath, projectID, impulseID, modelType, engine)
+	modelFolder := fmt.Sprintf("ei-model-%d-%d", projectID, impulseID)
+
+	savePath := path.Join(modelPath.String(), modelFolder)
+
+	//TODO: if not exist
+	//TODO check permissions
+	if err := os.Mkdir(savePath, 0o755); err != nil {
+		log.Fatalf("failed to create directory %s: %v", savePath, err)
+	}
+
+	err := edgeimpulse.InstallEIModel(ctx, eiClient, savePath, projectID, impulseID, modelType, engine)
 	if err != nil {
 
 		slog.Error("failed to install EI model", "err", err)
 		return modelsindex.AIModel{}, err
 	}
 
-	AIModel, err := edgeimpulse.SaveEIModel(ctx, eiClient, modelPath, projectID, impulseID)
+	AIModel, err := edgeimpulse.SaveEIModel(ctx, eiClient, savePath, projectID, impulseID)
 	if err != nil {
 		slog.Error("failed to save EI model", "err", err)
 		return modelsindex.AIModel{}, err
