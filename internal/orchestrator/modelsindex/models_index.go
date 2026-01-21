@@ -16,32 +16,18 @@
 package modelsindex
 
 import (
-	"fmt"
-	"io/fs"
+	"errors"
 	"log/slog"
-	"path/filepath"
 	"slices"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/goccy/go-yaml"
+
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/aimodel"
 )
 
 type assetsModelList struct {
 	Models []map[string]AIModel `yaml:"models"`
-}
-type arduinoBrickConfig struct {
-	brickID               string
-	configurationVariable string
-}
-
-// map Edge Impulse categories to Arduino bricks
-var eiCategoryToArduinoBrick = map[string][]arduinoBrickConfig{
-	"Images": {
-		{
-			brickID:               "object-detection",
-			configurationVariable: "EI_OBJ_DETECTION_MODEL",
-		},
-	},
 }
 
 func (b *assetsModelList) UnmarshalYAML(unmarshal func(any) error) error {
@@ -73,8 +59,8 @@ type AIModel struct {
 }
 
 type ModelsIndex struct {
-	PreInstalledModels   []AIModel
-	edgeImpulseModelsDir *paths.Path
+	PreInstalledModels []AIModel
+	modelsDir          *paths.Path
 }
 
 func (m *ModelsIndex) GetModels() []AIModel {
@@ -82,7 +68,7 @@ func (m *ModelsIndex) GetModels() []AIModel {
 }
 
 func (m *ModelsIndex) buildModels() []AIModel {
-	eimodels, err := LoadEdgeImpulseModels(m.edgeImpulseModelsDir)
+	eimodels, err := loadCustomModels(m.modelsDir)
 	if err != nil {
 		slog.Error("cannot load edge impulse custom models", "err", err)
 	}
@@ -125,7 +111,23 @@ func (m *ModelsIndex) GetModelsByBricks(bricks []string) []AIModel {
 	return matchingModels
 }
 
-func Load(dir *paths.Path, customModelDir *paths.Path, EIApiKey *string, EIApiUrl *string) (*ModelsIndex, error) {
+func Load(dir *paths.Path, modelsDir *paths.Path) (*ModelsIndex, error) {
+	if dir == nil && modelsDir == nil {
+		return &ModelsIndex{}, errors.New("either dir or modelsDir must be provided")
+	}
+	models, err := loadPreInstalledModels(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ModelsIndex{PreInstalledModels: models, modelsDir: modelsDir}, nil
+}
+
+func loadPreInstalledModels(dir *paths.Path) ([]AIModel, error) {
+	if dir == nil {
+		// skip loading pre-installed models
+		return []AIModel{}, nil
+	}
 	content, err := dir.Join("models-list.yaml").ReadFile()
 	if err != nil {
 		return nil, err
@@ -144,80 +146,40 @@ func Load(dir *paths.Path, customModelDir *paths.Path, EIApiKey *string, EIApiUr
 			models[i] = model
 		}
 	}
-
-	var edgeimpulseModelsDir *paths.Path = nil
-	if customModelDir != nil {
-		edgeimpulseModelsDir = customModelDir.Join("ei-models")
-	}
-
-	return &ModelsIndex{PreInstalledModels: models, edgeImpulseModelsDir: edgeimpulseModelsDir}, nil
+	return models, nil
 }
 
-func LoadEdgeImpulseModels(dir *paths.Path) ([]AIModel, error) {
+func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 	if dir == nil {
+		// skip loading custom models
 		return []AIModel{}, nil
 	}
-	type modelDescriptor struct {
-		ID          string `yaml:"id"`
-		ProjectID   int    `yaml:"project-id"`
-		ImpulseID   int    `yaml:"impulse-id"`
-		Name        string `yaml:"name"`
-		Description string `yaml:"description"`
-		Category    string `yaml:"category"`
-		Path        string `yaml:"path"`
-	}
-	var models []AIModel
-	err := filepath.WalkDir(dir.String(), func(path string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
+	models := make([]AIModel, 0)
+	res, err := dir.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
+		if file.Join("model.yaml").Exist() && file.Join("model.yml").Exist() {
+			return true
 		}
-
-		if d.IsDir() {
-			return nil
-		}
-
-		base := filepath.Base(path)
-		if base != "metadata.yml" && base != "metadata.yaml" {
-			return nil
-		}
-
-		f, err := paths.New(path).Open()
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-
-		var mf modelDescriptor
-		if err := yaml.NewDecoder(f).Decode(&mf); err != nil {
-			return err
-		}
-		var bricks []string
-		var modelConfig = make(map[string]string)
-		for _, b := range eiCategoryToArduinoBrick[mf.Category] {
-			bricks = append(bricks, b.brickID)
-			// FIXME: based on the name of the config different value myust be resolved
-			modelConfig[b.configurationVariable] = paths.New(path).Parent().Join(mf.Path).String()
-		}
-
-		models = append(models, AIModel{
-			ID:                mf.ID,
-			Source:            "edgeimpulse",
-			Name:              mf.Name,
-			ModuleDescription: mf.Description,
-			Runner:            "bricks",
-			Metadata: map[string]string{
-				"project-id": fmt.Sprintf("%d", mf.ProjectID),
-				"impulse-id": fmt.Sprintf("%d", mf.ImpulseID),
-			},
-			Bricks:             bricks,
-			ModelConfiguration: modelConfig,
-		})
-
-		return nil
-	})
-
+		return false
+	}, paths.FilterDirectories())
 	if err != nil {
-		return nil, err
+		slog.Error("unable to list models", slog.String("error", err.Error()), "dir", dir)
+		return models, err
+	}
+	for _, file := range res {
+		m, err := aimodel.Load(file)
+		if err != nil {
+			continue // FIXME: collect broken models
+		}
+		models = append(models, AIModel{
+			ID:                m.ModelDescriptor.ID,
+			Name:              m.ModelDescriptor.Name,
+			ModuleDescription: m.ModelDescriptor.Description,
+			Bricks:            m.ModelDescriptor.Bricks,
+			// TODO: build the model_configuration base on the bricks id
+			// ModelLabels        []string          `yaml:"model_labels,omitempty"`
+			// Metadata           map[string]string `yaml:"metadata,omitempty"`
+			// ModelConfiguration map[string]string `yaml:"model_configuration,omitempty"`
+		})
 	}
 
 	return models, nil

@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path"
 	"time"
+
+	"github.com/arduino/go-paths-helper"
 )
 
 type EIClient struct {
@@ -16,26 +17,26 @@ type EIClient struct {
 	HttpClient *ClientWithResponses
 }
 
-func NewEIClient(apiKey string, ApiUrl string, ApiVersion string) *EIClient {
+func NewEIClient(apiKey string, apiURL string, apiVersion string) *EIClient {
 
 	ClientOptions := []ClientOption{
-		WithBaseURL(ApiUrl + ApiVersion),
+		WithBaseURL(apiURL + apiVersion),
 		WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
-			fmt.Println("Request URL:", req.URL.String())
+			// fmt.Println("Request URL:", req.URL.String())
 			req.Header.Add("x-api-key", apiKey)
 			req.Header.Set("Content-Type", "application/json")
 			return nil
 		}),
 	}
-	httpClient, err := NewClientWithResponses(ApiUrl, ClientOptions...)
+	httpClient, err := NewClientWithResponses(apiURL, ClientOptions...)
 	if err != nil {
 		panic(fmt.Sprintf("failed to create EI OpenClient: %v", err))
 	}
 
-	return &EIClient{APIKey: apiKey, ApiUrl: ApiUrl, ApiVersion: ApiVersion, HttpClient: httpClient}
+	return &EIClient{APIKey: apiKey, ApiUrl: apiURL, ApiVersion: apiVersion, HttpClient: httpClient}
 }
 
-func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath string, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter) error {
+func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath *paths.Path, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter) error {
 
 	opt := &DownloadBuildParams{ImpulseId: &impulseID, ModelType: &modelType, Engine: &engine, Type: "arduino-uno-q"}
 
@@ -48,9 +49,10 @@ func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath string
 		return fmt.Errorf("failed to download model, status code: %d", response.StatusCode())
 	}
 
-	modelFile := path.Join(modelPath, "model.eim")
+	// TODO: remove the write from here
+	modelFile := modelPath.Join("model.eim").String()
 
-	err = os.WriteFile(modelFile, []byte(response.Status()), 0755)
+	err = os.WriteFile(modelFile, []byte(response.Status()), 0600)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %v", err)
 	}
@@ -65,7 +67,6 @@ func (c *EIClient) GetDeployment(ctx context.Context, projectID int, modelType M
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(resp)
 
 	if resp.JSON200.Success {
 		if resp.JSON200.HasDeployment {
@@ -74,14 +75,14 @@ func (c *EIClient) GetDeployment(ctx context.Context, projectID int, modelType M
 		return nil, nil
 	}
 
-	return nil, fmt.Errorf("Error fetching deployment info: %s", *resp.JSON200.Error)
+	return nil, fmt.Errorf("error fetching deployment info: %s", *resp.JSON200.Error)
 }
 
 func (c *EIClient) Build(ctx context.Context, projectID int, modelType ModelTypeParameter, engine ModelEngineParameter) (*int, error) {
 
 	params := &BuildOnDeviceModelJobParams{Type: "arduino-uno-q"}
 
-	//TODO is the map parameters needed?
+	// TODO is the map parameters needed?
 	body := BuildOnDeviceModelJobJSONRequestBody{
 		Engine:    engine,
 		ModelType: &modelType,
@@ -97,7 +98,7 @@ func (c *EIClient) Build(ctx context.Context, projectID int, modelType ModelType
 		return &resp.JSON200.Id, nil
 	}
 
-	return nil, fmt.Errorf("Error building model: %s", *resp.JSON200.Error)
+	return nil, fmt.Errorf("error building model: %s", *resp.JSON200.Error)
 
 }
 
@@ -115,7 +116,7 @@ func (c *EIClient) GetJobStatus(ctx context.Context, projectID int, jobID int) (
 		return nil, nil
 	}
 
-	return nil, fmt.Errorf("Error fetching job status: %s", *resp.JSON200.Error)
+	return nil, fmt.Errorf("error fetching job status: %s", *resp.JSON200.Error)
 
 }
 
@@ -129,7 +130,7 @@ func (c *EIClient) GetProjectInfo(ctx context.Context, projectID int, impulseID 
 		return &resp.JSON200.Project, nil
 	}
 
-	return nil, fmt.Errorf("Error fetching project info: %s", *resp.JSON200.Error)
+	return nil, fmt.Errorf("error fetching project info: %s", *resp.JSON200.Error)
 
 }
 
@@ -145,7 +146,7 @@ func (c EIClient) WaitForBuildCompletion(ctx context.Context, projectID, jobID i
 			if *status {
 				return nil
 			} else {
-				return fmt.Errorf("Creating deployment failed for job %d in project %d", jobID, projectID)
+				return fmt.Errorf("reating deployment failed for job %d in project %d", jobID, projectID)
 			}
 		}
 

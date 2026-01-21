@@ -18,15 +18,15 @@ package orchestrator
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
-	"os"
-	"path"
 
 	"github.com/arduino/go-paths-helper"
 
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/aiclients/edgeimpulse"
+
+	"github.com/arduino/arduino-app-cli/internal/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/aimodel"
+
 )
 
 type AIModelsListResult struct {
@@ -86,31 +86,77 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 	}, true
 }
 
-func InstallEIModel(ctx context.Context, eiClient *edgeimpulse.EIClient, modelPath *paths.Path, projectID int, impulseID int, modelType string, engine string) (modelsindex.AIModel, error) {
+func InstallEIModel(ctx context.Context, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, projectID int, impulseID int, modelType string, engine string) error {
+	project, err := eiClient.GetProjectInfo(ctx, projectID, impulseID)
+	if err != nil {
+		return err
+	}
+	// TODO: if it already exit, remove and create again
+	edgeModelsDir := modelsDir.Join(fmt.Sprintf("ei-model-%d-%d", projectID, impulseID))
 
-	modelFolder := fmt.Sprintf("ei-model-%d-%d", projectID, impulseID)
-
-	savePath := path.Join(modelPath.String(), modelFolder)
-
-	//TODO: if not exist
-	// TODO check permissions
-	if err := os.Mkdir(savePath, 0o755); err != nil {
-		log.Fatalf("failed to create directory %s: %v", savePath, err)
+	err = aimodel.Write(edgeModelsDir, aimodel.ModelDescriptor{
+		Name:        project.Name,
+		Description: project.Description,
+		Bricks:      EIToArduinoModel(string(*project.Category), nil),
+		// TODO: complete missing fields
+	})
+	if err != nil {
+		slog.Error("failed to write EI model metadata", "err", err)
+		return err
 	}
 
-	err := edgeimpulse.InstallEIModel(ctx, eiClient, savePath, projectID, impulseID, modelType, engine)
+	err = install(ctx, eiClient, edgeModelsDir, projectID, impulseID, modelType, engine)
 	if err != nil {
-
 		slog.Error("failed to install EI model", "err", err)
-		return modelsindex.AIModel{}, err
+		return err
 	}
+	return nil
+}
 
-	AIModel, err := edgeimpulse.SaveEIModel(ctx, eiClient, savePath, projectID, impulseID)
+func install(ctx context.Context, eiClient *edgeimpulse.EIClient, modelPath *paths.Path, projectID int, impulseID int, modelType string, engine string) error {
+	modelTypeParam := edgeimpulse.ModelTypeParameter(modelType)
+	engineParam := edgeimpulse.ModelEngineParameter(engine)
+
+	version, err := eiClient.GetDeployment(ctx, projectID, modelTypeParam, engineParam)
 	if err != nil {
-		slog.Error("failed to save EI model", "err", err)
-		return modelsindex.AIModel{}, err
+		return err
+	}
+	if version == nil {
+		jobId, err := eiClient.Build(ctx, projectID, modelTypeParam, engineParam)
+		if err != nil {
+			return err
+		}
+		err = eiClient.WaitForBuildCompletion(ctx, projectID, *jobId)
+		if err != nil {
+			return err
+		}
 	}
 
-	return *AIModel, nil
+	// TODO: receive the writer
+	err = eiClient.DownloadAndInstallModel(ctx, modelPath, projectID, impulseID, modelTypeParam, engineParam)
+	if err != nil {
+		return err
+	}
 
+	return nil
+}
+
+func EIToArduinoModel(category string, impulse *string) []string {
+	switch category {
+	case "Object detection":
+		return []string{"arduino:object_detection", "arduino:video_object_detection"}
+	case "Images":
+		if impulse != nil && *impulse == "keras-visual-anomaly" {
+			return []string{"arduino:visual_anomaly_detection"}
+		}
+		return []string{"arduino:image_classification", "arduino:video_image_classification"}
+	case "Audio":
+		return []string{"arduino:audio_classification"}
+	case "Keyword spotting":
+		return []string{"arduino:audio_classification", "arduino:keyword_spotting"}
+	case "Accelerometer":
+		return []string{"arduino:gesture_recognition", "arduino:anomaly_detection"}
+	default:
+		panic("Unknown category")
+	}
 }
