@@ -22,12 +22,13 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/arduino/go-paths-helper"
+
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/aiclients/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/render"
-	"github.com/arduino/go-paths-helper"
 )
 
 type InstallEIModelRequest struct {
@@ -72,24 +73,23 @@ func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 
 func HandleInstallEIModel(modelsDir *paths.Path) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
 		var req InstallEIModelRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			slog.Error("unable to decode app create request", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "unable to decode app create request"})
 			return
 		}
-		//TODO check parameters
+		// TODO check parameters
 		eiClient := edgeimpulse.NewEIClient(req.Token, "https://studio.edgeimpulse.com/", "v1")
 
-		AImodel, err := orchestrator.InstallEIModel(r.Context(), eiClient, modelsDir, req.ProjectID, req.ImpulseID, *req.ModelType, *req.Engine)
+		err := orchestrator.InstallEIModel(r.Context(), eiClient, modelsDir, req.ProjectID, req.ImpulseID, *req.ModelType, *req.Engine)
 		if err != nil {
 			slog.Error("failed to install EI model", "err", err)
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "failed to install EI model"})
 			return
 		}
 
-		render.EncodeResponse(w, http.StatusOK, AImodel)
-
+		// FIXME: read the installed model using the modelindex.getModelByID
+		render.EncodeResponse(w, http.StatusOK, nil)
 	}
 }

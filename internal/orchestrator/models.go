@@ -23,9 +23,10 @@ import (
 	"os"
 	"path"
 
+	"github.com/arduino/go-paths-helper"
+
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/aiclients/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
-	"github.com/arduino/go-paths-helper"
 )
 
 type AIModelsListResult struct {
@@ -92,7 +93,7 @@ func InstallEIModel(ctx context.Context, eiClient *edgeimpulse.EIClient, modelPa
 	savePath := path.Join(modelPath.String(), modelFolder)
 
 	//TODO: if not exist
-	//TODO check permissions
+	// TODO check permissions
 	if err := os.Mkdir(savePath, 0o755); err != nil {
 		log.Fatalf("failed to create directory %s: %v", savePath, err)
 	}
