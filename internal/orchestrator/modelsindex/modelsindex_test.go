@@ -9,13 +9,28 @@ import (
 )
 
 func TestModelsIndex(t *testing.T) {
-	modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata"), nil, nil)
+	modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata/models"))
 	require.NoError(t, err)
 	require.NotNil(t, modelsIndex)
 
-	t.Run("it parses a valid model-list.yaml and edgeimpulse", func(t *testing.T) {
+	t.Run("it parses a valid model-list.yaml and custom models", func(t *testing.T) {
 		models := modelsIndex.GetModels()
 		assert.Len(t, models, 3, "Expected 3 models to be parsed")
+	})
+
+	t.Run("custom models folder is optional", func(t *testing.T) {
+		_, err := Load(nil, nil)
+		require.NoError(t, err)
+	})
+
+	t.Run("custom models folder is optional", func(t *testing.T) {
+		modelsIndex, err := Load(paths.New("testdata"), nil)
+		require.NoError(t, err)
+		require.Len(t, modelsIndex.GetModels(), 2)
+
+		modelsIndex, err = Load(paths.New("testdata"), paths.New("not-existing-models-folder"))
+		require.NoError(t, err)
+		require.Len(t, modelsIndex.GetModels(), 2)
 	})
 
 	t.Run("it gets a preloaded model by ID", func(t *testing.T) {
@@ -38,33 +53,33 @@ func TestModelsIndex(t *testing.T) {
 		assert.Equal(t, "https://aihub.qualcomm.com/models/face_det_lite", model.Metadata["source-model-url"])
 	})
 
-	t.Run("it get edgeimpule model by id", func(t *testing.T) {
+	t.Run("it get custom model by id", func(t *testing.T) {
 		eimodel, found := modelsIndex.GetModelByID("my-model-id")
 		assert.True(t, found)
 		assert.NotNil(t, eimodel)
 		assert.Equal(t, &AIModel{
 			ID:                "my-model-id",
-			Source:            "edgeimpulse",
 			Name:              "my custom model from edge impulse",
 			ModuleDescription: "A small and accurate model for detecting bounding boxes for faces in images.",
-			Runner:            "bricks",
 			Bricks: []string{
 				"object-detection",
 			},
-			Metadata: map[string]string{
-				"impulse-id": "1",
-				"project-id": "111111",
-			},
-			ModelLabels: nil,
-			ModelConfiguration: map[string]string{
-				"EI_OBJ_DETECTION_MODEL": "testdata/ei-models/111111/1/my-model.eim",
-			},
+			// Runner:            "bricks",
+			// Source:            "edgeimpulse",
+			// Metadata: map[string]string{
+			// 	"impulse-id": "1",
+			// 	"project-id": "111111",
+			// },
+			// ModelLabels: nil,
+			// ModelConfiguration: map[string]string{
+			// 	"EI_OBJ_DETECTION_MODEL": "testdata/ei-models/111111/1/my-model.eim",
+			// },
 		}, eimodel)
 	})
 
 	t.Run("it fails if model-list.yaml does not exist", func(t *testing.T) {
 		nonExistentPath := paths.New("nonexistentdir")
-		modelsIndex, err := Load(nonExistentPath, nil, nil, nil)
+		modelsIndex, err := Load(nonExistentPath, nil)
 		assert.Error(t, err)
 		assert.Nil(t, modelsIndex)
 	})

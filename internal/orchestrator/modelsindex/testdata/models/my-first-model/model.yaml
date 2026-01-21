@@ -1,7 +1,8 @@
 id: my-model-id
-project-id: 111111
-impulse-id: 1
 name: "my custom model from edge impulse"
 description: "A small and accurate model for detecting bounding boxes for faces in images."
 category: "Images"
-path: "my-model.eim"
+bricks:
+  - "object-detection"
+# project-id: 111111
+# impulse-id: 1
