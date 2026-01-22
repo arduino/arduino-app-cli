@@ -66,6 +66,10 @@ type ModelsIndex struct {
 	modelsDir          *paths.Path
 }
 
+func (m *ModelsIndex) GetModelsDir() *paths.Path {
+	return m.modelsDir
+}
+
 func (m *ModelsIndex) GetModels() []AIModel {
 	return m.buildModels()
 }

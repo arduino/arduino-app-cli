@@ -17,10 +17,14 @@ package orchestrator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 
 	"github.com/arduino/go-paths-helper"
+	yaml "github.com/goccy/go-yaml"
 
 	"github.com/arduino/arduino-app-cli/internal/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
@@ -51,8 +55,11 @@ type AIModelItem struct {
 	Bricks             []string          `json:"brick_ids"`
 	Metadata           map[string]string `json:"metadata,omitempty"`
 	ModelConfiguration map[string]string `json:"model_configuration,omitempty"`
+	Resources          Resources         `json:"resources,omitempty"`
 }
-
+type Resources struct {
+	DiskUsageMB int `json:"disk_usage_mb"`
+}
 type AIModelsListRequest struct {
 	FilterByBrickID []string
 }
@@ -85,6 +92,23 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 	if !found {
 		return AIModelItem{}, false
 	}
+
+	modelDir, err := findModelDirByID(modelsIndex.GetModelsDir(), id)
+	if err != nil {
+		slog.Error("failed to find model directory", "err", err)
+		return AIModelItem{}, false
+	}
+
+	sizeMB, err := getModelSizeMB(modelDir)
+	if err != nil {
+		slog.Error("failed to calculate model size", "err", err)
+		return AIModelItem{}, false
+	}
+
+	modelResource := Resources{
+		DiskUsageMB: int(sizeMB),
+	}
+
 	return AIModelItem{
 		ID:                 model.ID,
 		Name:               model.Name,
@@ -93,7 +117,72 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 		Bricks:             model.Bricks,
 		Metadata:           model.Metadata,
 		ModelConfiguration: model.ModelConfiguration,
+		Resources:          modelResource,
 	}, true
+}
+
+func findModelDirByID(modelDir *paths.Path, id string) (*paths.Path, error) {
+	var foundDir string
+
+	err := filepath.WalkDir(modelDir.String(), func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || d.Name() != "model.yaml" {
+			return nil
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		var descriptor aimodel.ModelDescriptor
+		if err := yaml.Unmarshal(data, &descriptor); err != nil {
+			return err
+		}
+
+		if descriptor.ID == id {
+			foundDir = filepath.Dir(path)
+			return filepath.SkipDir
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if foundDir == "" {
+		return nil, errors.New("model not found with id: " + id)
+	}
+
+	return paths.New(foundDir), nil
+}
+
+func getModelSizeMB(dirPath *paths.Path) (float64, error) {
+	var totalSize int64
+
+	err := filepath.WalkDir(dirPath.String(), func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+			totalSize += info.Size()
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	sizeMB := float64(totalSize) / (1024 * 1024)
+	return sizeMB, nil
 }
 
 func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, projectID int, impulseID int, modelType string, engine string) error {
