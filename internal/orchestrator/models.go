@@ -90,9 +90,12 @@ func InstallEIModel(ctx context.Context, eiClient *edgeimpulse.EIClient, modelsD
 		return err
 	}
 	// TODO: if it already exit, remove and create again
-	edgeModelsDir := modelsDir.Join(fmt.Sprintf("ei-model-%d-%d", projectID, impulseID))
+	id := fmt.Sprintf("ei-model-%d-%d", projectID, impulseID)
+
+	edgeModelsDir := modelsDir.Join(id)
 
 	err = aimodel.Write(edgeModelsDir, aimodel.ModelDescriptor{
+		ID:          id,
 		Name:        project.Name,
 		Description: project.Description,
 		Bricks:      EIToArduinoModel(string(*project.Category), nil),
@@ -103,15 +106,6 @@ func InstallEIModel(ctx context.Context, eiClient *edgeimpulse.EIClient, modelsD
 		return err
 	}
 
-	err = install(ctx, eiClient, edgeModelsDir, projectID, impulseID, modelType, engine)
-	if err != nil {
-		slog.Error("failed to install EI model", "err", err)
-		return err
-	}
-	return nil
-}
-
-func install(ctx context.Context, eiClient *edgeimpulse.EIClient, modelPath *paths.Path, projectID int, impulseID int, modelType string, engine string) error {
 	modelTypeParam := edgeimpulse.ModelTypeParameter(modelType)
 	engineParam := edgeimpulse.ModelEngineParameter(engine)
 
@@ -131,7 +125,7 @@ func install(ctx context.Context, eiClient *edgeimpulse.EIClient, modelPath *pat
 	}
 
 	// TODO: receive the writer
-	err = eiClient.DownloadAndInstallModel(ctx, modelPath, projectID, impulseID, modelTypeParam, engineParam)
+	err = eiClient.DownloadAndInstallModel(ctx, edgeModelsDir, projectID, impulseID, modelTypeParam, engineParam)
 	if err != nil {
 		return err
 	}
