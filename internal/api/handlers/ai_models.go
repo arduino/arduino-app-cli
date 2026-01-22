@@ -72,6 +72,44 @@ func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	}
 }
 
+func HandlerDeleteModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("modelID")
+		if id == "" {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "id must be set"})
+			return
+		}
+		res, found := orchestrator.AIModelDetails(modelsIndex, id)
+		if !found {
+			details := fmt.Sprintf("models with id %q not found", id)
+			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})
+			return
+		}
+		if res.IsPreInstalled {
+			details := fmt.Sprintf("models with id %q is a pre installed model, can't be deleted", id)
+			render.EncodeResponse(w, http.StatusMethodNotAllowed, models.ErrorResponse{Details: details})
+			return
+		}
+		render.EncodeResponse(w, http.StatusOK, res)
+
+		// search for model usage in bricks
+		// check if it is running
+
+		// Message:
+		// The model %s is in use by the following bricks:
+		// brick1(appA, appB)
+		// brick2(appA, appB)
+		// The model % is in use in the running application %s
+		// Do you want to stop the application and delete the model
+		// from the following bricks?
+
+		//fmt.Sprintf("models with id %q will be deleted and its brick references will be removed", id)
+		// if deletion is ok response ok else generic error
+
+		render.EncodeResponse(w, http.StatusOK, res)
+	}
+}
+
 func HandleInstallEIModel(modelsDir *paths.Path, bricksIndex *bricksindex.BricksIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req InstallEIModelRequest
