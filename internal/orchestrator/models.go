@@ -23,8 +23,20 @@ import (
 	"github.com/arduino/go-paths-helper"
 
 	"github.com/arduino/arduino-app-cli/internal/edgeimpulse"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/aimodel"
+)
+
+// Brick variable names (centralized to avoid typos and ease maintenance)
+const (
+	VarCustomModelPath            = "CUSTOM_MODEL_PATH"
+	VarEIObjDetectionModel        = "EI_OBJ_DETECTION_MODEL"
+	VarEIAudioClassificationModel = "EI_AUDIO_CLASSIFICATION_MODEL"
+	VarEIClassificationModel      = "EI_CLASSIFICATION_MODEL"
+	VarEIKeywordSpottingModel     = "EI_KEYWORD_SPOTTING_MODEL"
+	VarEIMotionDetectionModel     = "EI_MOTION_DETECTION_MODEL"
+	VarEIVAnomalyDetectionModel   = "EI_V_ANOMALY_DETECTION_MODEL"
 )
 
 type AIModelsListResult struct {
@@ -84,7 +96,7 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 	}, true
 }
 
-func InstallEIModel(ctx context.Context, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, projectID int, impulseID int, modelType string, engine string) error {
+func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, projectID int, impulseID int, modelType string, engine string) error {
 	project, err := eiClient.GetProjectInfo(ctx, projectID, impulseID)
 	if err != nil {
 		return err
@@ -93,14 +105,45 @@ func InstallEIModel(ctx context.Context, eiClient *edgeimpulse.EIClient, modelsD
 	id := fmt.Sprintf("ei-model-%d-%d", projectID, impulseID)
 
 	edgeModelsDir := modelsDir.Join(id)
+	blobModelsDir := edgeModelsDir.Join("model.eim")
 
-	err = aimodel.Write(edgeModelsDir, aimodel.ModelDescriptor{
+	descr := aimodel.ModelDescriptor{
 		ID:          id,
 		Name:        project.Name,
 		Description: project.Description,
-		Bricks:      EIToArduinoModel(string(*project.Category), nil),
-		// TODO: complete missing fields
-	})
+	}
+	bricksConfig := make([]aimodel.BrickConfig, 0)
+	if project.Category != nil {
+		bricks := categoryToBricks(project.Category)
+
+		for _, b := range bricks {
+			brick, ok := bricksIndex.FindBrickByID(b)
+			if !ok {
+				slog.Warn("cannot load brick", "id", b)
+				continue
+			}
+			modelConfigPerBrick := map[string]any{}
+			for _, variable := range brick.Variables {
+				switch variable.Name {
+				case VarCustomModelPath:
+					modelConfigPerBrick[variable.Name] = edgeModelsDir.String()
+				case VarEIObjDetectionModel, VarEIAudioClassificationModel, VarEIClassificationModel, VarEIKeywordSpottingModel, VarEIMotionDetectionModel, VarEIVAnomalyDetectionModel:
+					modelConfigPerBrick[variable.Name] = blobModelsDir.String()
+				default:
+					slog.Warn("variable not found in the bricks config")
+				}
+			}
+
+			bricksConfig = append(bricksConfig, aimodel.BrickConfig{
+				ID:                 brick.ID,
+				ModelConfiguration: modelConfigPerBrick,
+			})
+		}
+	}
+
+	descr.Bricks = bricksConfig
+
+	err = aimodel.Write(edgeModelsDir, descr)
 	if err != nil {
 		slog.Error("failed to write EI model metadata", "err", err)
 		return err
@@ -133,23 +176,24 @@ func InstallEIModel(ctx context.Context, eiClient *edgeimpulse.EIClient, modelsD
 	return nil
 }
 
-// TODO Check impulse parameter should be Keras learnBlocks.type = keras-visual-anomaly
-func EIToArduinoModel(category string, impulse *string) []string {
-	switch category {
-	case "Object detection":
+func categoryToBricks(category *edgeimpulse.ProjectCategory) []string {
+	if category == nil {
+		return []string{}
+	}
+	switch *category {
+	case edgeimpulse.ProjectCategoryOther:
+		return []string{}
+	case edgeimpulse.ProjectCategoryObjectDetection:
 		return []string{"arduino:object_detection", "arduino:video_object_detection"}
-	case "Images":
-		if impulse != nil && *impulse == "keras-visual-anomaly" {
-			return []string{"arduino:visual_anomaly_detection"}
-		}
+	case edgeimpulse.ProjectCategoryImages:
 		return []string{"arduino:image_classification", "arduino:video_image_classification"}
-	case "Audio":
+	case edgeimpulse.ProjectCategoryAudio:
 		return []string{"arduino:audio_classification"}
-	case "Keyword spotting":
+	case edgeimpulse.ProjectCategoryKeywordSpotting:
 		return []string{"arduino:audio_classification", "arduino:keyword_spotting"}
-	case "Accelerometer":
+	case edgeimpulse.ProjectCategoryAccelerometer:
 		return []string{"arduino:gesture_recognition", "arduino:anomaly_detection"}
 	default:
-		panic("Unknown category")
+		return []string{}
 	}
 }

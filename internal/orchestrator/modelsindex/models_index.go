@@ -17,11 +17,14 @@ package modelsindex
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"slices"
+	"strconv"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/goccy/go-yaml"
+	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/aimodel"
 )
@@ -170,11 +173,20 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 		if err != nil {
 			continue // FIXME: collect broken models
 		}
+		modelConfigs := make(map[string]string)
+		for _, b := range m.ModelDescriptor.Bricks {
+			for k, v := range b.ModelConfiguration {
+				modelConfigs[k] = toStringStrict(v)
+			}
+		}
 		models = append(models, AIModel{
 			ID:                m.ModelDescriptor.ID,
 			Name:              m.ModelDescriptor.Name,
 			ModuleDescription: m.ModelDescriptor.Description,
-			Bricks:            m.ModelDescriptor.Bricks,
+			Bricks: f.Map(m.ModelDescriptor.Bricks, func(b aimodel.BrickConfig) string {
+				return b.ID
+			}),
+			ModelConfiguration: modelConfigs,
 			// TODO: build the model_configuration base on the bricks id
 			// ModelLabels        []string          `yaml:"model_labels,omitempty"`
 			// Metadata           map[string]string `yaml:"metadata,omitempty"`
@@ -183,4 +195,22 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 	}
 
 	return models, nil
+}
+
+func toStringStrict(v any) string {
+	switch x := v.(type) {
+	case string:
+		return x
+	case []byte:
+		return string(x)
+	case bool:
+		return strconv.FormatBool(x)
+	case int:
+		return strconv.Itoa(x)
+	case int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+		return fmt.Sprintf("%v", x)
+	default:
+		slog.Warn("unsupported type %T", v)
+		return ""
+	}
 }

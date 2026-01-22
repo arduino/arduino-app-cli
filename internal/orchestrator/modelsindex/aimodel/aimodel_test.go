@@ -51,7 +51,15 @@ func TestSave(t *testing.T) {
 				ID:          "my-model-id",
 				Name:        "my custom model",
 				Description: "test description",
-				Bricks:      []string{"object-detection"},
+				Bricks: []BrickConfig{
+					{
+						ID: "arduino:a-brick-id",
+						ModelConfiguration: map[string]any{
+							"MY_ENV_1": "prod",
+							"MY_ENV_2": true,
+						},
+					},
+				},
 			},
 		}
 

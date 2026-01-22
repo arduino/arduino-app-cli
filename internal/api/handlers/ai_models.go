@@ -27,6 +27,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
@@ -71,7 +72,7 @@ func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	}
 }
 
-func HandleInstallEIModel(modelsDir *paths.Path) http.HandlerFunc {
+func HandleInstallEIModel(modelsDir *paths.Path, bricksIndex *bricksindex.BricksIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req InstallEIModelRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -82,7 +83,7 @@ func HandleInstallEIModel(modelsDir *paths.Path) http.HandlerFunc {
 		// TODO check parameters
 		eiClient := edgeimpulse.NewEIClient(req.Token, "https://studio.edgeimpulse.com/", "v1")
 
-		err := orchestrator.InstallEIModel(r.Context(), eiClient, modelsDir, req.ProjectID, req.ImpulseID, *req.ModelType, *req.Engine)
+		err := orchestrator.InstallEIModel(r.Context(), bricksIndex, eiClient, modelsDir, req.ProjectID, req.ImpulseID, *req.ModelType, *req.Engine)
 		if err != nil {
 			slog.Error("failed to install EI model", "err", err)
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "failed to install EI model"})

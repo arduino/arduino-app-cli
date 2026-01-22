@@ -50,7 +50,7 @@ func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath *paths
 	}
 
 	modelFile := modelPath.Join("model.eim").String()
-	err = os.WriteFile(modelFile, []byte(response.Body), 0600)
+	err = os.WriteFile(modelFile, response.Body, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %v", err)
 	}

@@ -2,4 +2,7 @@ id: my-model-id
 name: my custom model
 description: test description
 bricks:
-- object-detection
+- id: arduino:a-brick-id
+  model_configuration:
+    MY_ENV_1: prod
+    MY_ENV_2: true

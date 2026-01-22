@@ -28,7 +28,8 @@ func TestInstallEIModel(t *testing.T) {
 	ProjectID := 876194
 	ImpulseID := 1
 
-	err := InstallEIModel(context.TODO(), eiClient, modelsDir, ProjectID, ImpulseID, "int8", "tflite")
+	// TODO: pass a brick index
+	err := InstallEIModel(context.TODO(), nil, eiClient, modelsDir, ProjectID, ImpulseID, "int8", "tflite")
 	if err != nil {
 		log.Fatalf("failed to install EI model: %v", err)
 	}

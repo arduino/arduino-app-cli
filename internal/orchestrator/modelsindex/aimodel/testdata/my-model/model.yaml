@@ -1,8 +1,7 @@
 name: "my custom model from edge impulse"
 description: "A small and accurate model for detecting bounding boxes for faces in images."
 bricks:
-  - "object-detection"
-
-category: "Images"
-project-id: 111111
-impulse-id: 1
+  - id: "object-detection"
+    model_configuration:
+      "EI_OBJ_DETECTION_MODEL": "/models/ootb/ei/lw-face-det.eim"
+      "ANOTHER_VARIABLE": true

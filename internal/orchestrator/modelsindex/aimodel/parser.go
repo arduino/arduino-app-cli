@@ -10,12 +10,11 @@ import (
 )
 
 type ModelDescriptor struct {
-	ID          string   `yaml:"id"`
-	Name        string   `yaml:"name"`
-	Description string   `yaml:"description"`
-	Bricks      []string `yaml:"bricks"`
+	ID          string        `yaml:"id"`
+	Name        string        `yaml:"name"`
+	Description string        `yaml:"description"`
+	Bricks      []BrickConfig `yaml:"bricks"`
 	// ModelLabels []string
-	// ModelConfiguration THIS MUST BE REMOVED IN FAVOR OF A LIST OF BRICK WITH MODEL CONFIGURATION
 
 	// TODO: put into a metadata field ??
 	// Source    string `yaml:source`
@@ -23,6 +22,11 @@ type ModelDescriptor struct {
 	// ProjectID int    `yaml:"project-id"`
 	// ImpulseID int    `yaml:"impulse-id"`
 	// LastBuildAt time.Time `yaml:"lastBuildAt" json:"lastBuildAt"`
+}
+
+type BrickConfig struct {
+	ID                 string         `yaml:"id"`
+	ModelConfiguration map[string]any `yaml:"model_configuration,omitempty"`
 }
 
 // ParseAppFile reads an app file
