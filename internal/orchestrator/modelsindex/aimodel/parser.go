@@ -10,7 +10,7 @@ import (
 )
 
 type ModelDescriptor struct {
-	ID          string   `yaml:"id"` // TODO: remove from here and generate at runtime ??
+	ID          string   `yaml:"id"`
 	Name        string   `yaml:"name"`
 	Description string   `yaml:"description"`
 	Bricks      []string `yaml:"bricks"`

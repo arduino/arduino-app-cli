@@ -10,6 +10,7 @@ import (
 
 func TestParseModelDescription(t *testing.T) {
 	modelDescriptor := `
+id: "my-model-id"
 name: "my custom model from edge impulse"
 description: "A small and accurate model for detecting bounding boxes for faces in images."
 bricks:
@@ -25,6 +26,7 @@ bricks:
 	require.NoError(t, err)
 
 	require.Equal(t, ModelDescriptor{
+		ID:          "my-model-id",
 		Name:        "my custom model from edge impulse",
 		Description: "A small and accurate model for detecting bounding boxes for faces in images.",
 		Bricks:      []string{"object-detection"},

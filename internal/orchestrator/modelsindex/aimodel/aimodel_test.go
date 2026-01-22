@@ -1,11 +1,13 @@
 package aimodel
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.bug.st/f"
 )
 
@@ -40,12 +42,13 @@ func TestLoad(t *testing.T) {
 }
 
 func TestSave(t *testing.T) {
-	t.Run("it writes model.yaml in empty dir", func(t *testing.T) {
+	t.Run("it writes model.yaml matching golden file", func(t *testing.T) {
 		tempDir := t.TempDir()
 
 		model := CustomAiModel{
 			FullPath: paths.New(tempDir),
 			ModelDescriptor: ModelDescriptor{
+				ID:          "my-model-id",
 				Name:        "my custom model",
 				Description: "test description",
 				Bricks:      []string{"object-detection"},
@@ -53,15 +56,18 @@ func TestSave(t *testing.T) {
 		}
 
 		err := model.Save()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		descriptorPath := model.GetDescriptorPath()
-		assert.True(t, descriptorPath.Exist())
+		require.True(t, descriptorPath.Exist())
 
-		loaded, err := ParseModelDescriptorFile(descriptorPath)
-		assert.NoError(t, err)
-		assert.Equal(t, model.ModelDescriptor.Name, loaded.Name)
-		assert.Equal(t, model.ModelDescriptor.Description, loaded.Description)
-		assert.Equal(t, model.ModelDescriptor.Bricks, loaded.Bricks)
+		got, err := os.ReadFile(descriptorPath.String())
+		require.NoError(t, err)
+
+		goldenPath := paths.New("testdata", "save-model.yaml.golden")
+		expected, err := os.ReadFile(goldenPath.String())
+		require.NoError(t, err)
+
+		assert.Equal(t, string(expected), string(got))
 	})
 }

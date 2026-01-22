@@ -1,0 +1,5 @@
+id: my-model-id
+name: my custom model
+description: test description
+bricks:
+- object-detection
