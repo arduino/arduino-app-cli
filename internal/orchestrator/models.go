@@ -133,6 +133,7 @@ func InstallEIModel(ctx context.Context, eiClient *edgeimpulse.EIClient, modelsD
 	return nil
 }
 
+// TODO Check impulse parameter should be Keras learnBlocks.type = keras-visual-anomaly
 func EIToArduinoModel(category string, impulse *string) []string {
 	switch category {
 	case "Object detection":

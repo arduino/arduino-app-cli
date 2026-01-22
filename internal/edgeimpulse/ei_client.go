@@ -49,10 +49,8 @@ func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath *paths
 		return fmt.Errorf("failed to download model, status code: %d", response.StatusCode())
 	}
 
-	// TODO: remove the write from here
 	modelFile := modelPath.Join("model.eim").String()
-
-	err = os.WriteFile(modelFile, []byte(response.Status()), 0600)
+	err = os.WriteFile(modelFile, []byte(response.Body), 0600)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %v", err)
 	}
