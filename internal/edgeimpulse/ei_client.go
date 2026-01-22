@@ -12,18 +12,18 @@ import (
 
 type EIClient struct {
 	ApiUrl     string
-	APIKey     string
+	UserToken  string
 	ApiVersion string
 	HttpClient *ClientWithResponses
 }
 
-func NewEIClient(apiKey string, apiURL string, apiVersion string) *EIClient {
+func NewEIClient(userToken string, apiURL string, apiVersion string) *EIClient {
 
 	ClientOptions := []ClientOption{
 		WithBaseURL(apiURL + apiVersion),
 		WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
 			// fmt.Println("Request URL:", req.URL.String())
-			req.Header.Add("x-api-key", apiKey)
+			req.Header.Add("x-jwt-token", userToken)
 			req.Header.Set("Content-Type", "application/json")
 			return nil
 		}),
@@ -33,7 +33,7 @@ func NewEIClient(apiKey string, apiURL string, apiVersion string) *EIClient {
 		panic(fmt.Sprintf("failed to create EI OpenClient: %v", err))
 	}
 
-	return &EIClient{APIKey: apiKey, ApiUrl: apiURL, ApiVersion: apiVersion, HttpClient: httpClient}
+	return &EIClient{UserToken: userToken, ApiUrl: apiURL, ApiVersion: apiVersion, HttpClient: httpClient}
 }
 
 func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath *paths.Path, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter) error {
