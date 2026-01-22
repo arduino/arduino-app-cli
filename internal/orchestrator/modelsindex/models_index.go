@@ -60,6 +60,7 @@ type AIModel struct {
 	ModelLabels        []string          `yaml:"model_labels,omitempty"`
 	Metadata           map[string]string `yaml:"metadata,omitempty"`
 	ModelConfiguration map[string]string `yaml:"model_configuration,omitempty"`
+	IsPreInstalled     bool              `json:"is_preinstalled"`
 }
 
 type ModelsIndex struct {
@@ -72,10 +73,12 @@ func (m *ModelsIndex) GetModels() []AIModel {
 }
 
 func (m *ModelsIndex) buildModels() []AIModel {
+	fmt.Print("Marta buildModels called\n")
 	eimodels, err := loadCustomModels(m.modelsDir)
 	if err != nil {
 		slog.Error("cannot load edge impulse custom models", "err", err)
 	}
+
 	return append(m.PreInstalledModels, eimodels...)
 }
 
@@ -148,6 +151,7 @@ func loadPreInstalledModels(dir *paths.Path) ([]AIModel, error) {
 			model.ID = id
 			model.Source = "arduino"
 			models[i] = model
+			model.IsPreInstalled = true
 		}
 	}
 	return models, nil
