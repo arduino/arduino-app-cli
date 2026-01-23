@@ -37,6 +37,26 @@ func TestLoad(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotEmpty(t, model)
 
+		assert.Equal(t, ModelDescriptor{
+			ID:          "my-model-id",
+			Name:        "my custom model name",
+			Description: "my description",
+			Bricks: []BrickConfig{
+				{
+					ID: "arduino:a-brick-id",
+					ModelConfiguration: map[string]any{
+						"MY_ENV_1": "prod",
+						"MY_ENV_2": true,
+					},
+				},
+			},
+			Metadata: map[string]any{
+				"a-string-metadata": "a-string-value",
+				"a-bool-metadata":   false,
+				"a-int-metadata":    uint64(717280),
+			},
+		}, model.ModelDescriptor)
+
 		assert.Equal(t, f.Must(filepath.Abs("testdata/my-model")), model.FullPath.String())
 	})
 }
@@ -60,6 +80,11 @@ func TestSave(t *testing.T) {
 						},
 					},
 				},
+				Metadata: map[string]any{
+					"a-string-metadata": "a-string-value",
+					"a-int-metadata":    1,
+					"a-bool-metadata":   true,
+				},
 			},
 		}
 
@@ -72,7 +97,7 @@ func TestSave(t *testing.T) {
 		got, err := os.ReadFile(descriptorPath.String())
 		require.NoError(t, err)
 
-		goldenPath := paths.New("testdata", "save-model.yaml.golden")
+		goldenPath := paths.New("testdata", "save-model.golden.yaml")
 		expected, err := os.ReadFile(goldenPath.String())
 		require.NoError(t, err)
 

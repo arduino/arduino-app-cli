@@ -1,7 +1,12 @@
-name: "my custom model from edge impulse"
-description: "A small and accurate model for detecting bounding boxes for faces in images."
+id: "my-model-id"
+name: "my custom model name"
+description: "my description"
 bricks:
-  - id: "object-detection"
+  - id: "arduino:a-brick-id"
     model_configuration:
-      "EI_OBJ_DETECTION_MODEL": "/models/ootb/ei/lw-face-det.eim"
-      "ANOTHER_VARIABLE": true
+      MY_ENV_1: "prod"
+      MY_ENV_2: true
+metadata:
+  a-string-metadata: "a-string-value"
+  a-bool-metadata: false
+  a-int-metadata: 717280

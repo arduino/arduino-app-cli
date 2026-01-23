@@ -10,18 +10,14 @@ import (
 )
 
 type ModelDescriptor struct {
-	ID          string        `yaml:"id"`
-	Name        string        `yaml:"name"`
-	Description string        `yaml:"description"`
-	Bricks      []BrickConfig `yaml:"bricks"`
-	// ModelLabels []string
-
-	// TODO: put into a metadata field ??
-	// Source    string `yaml:source`
-	// Category  string `yaml:"category"`
-	// ProjectID int    `yaml:"project-id"`
-	// ImpulseID int    `yaml:"impulse-id"`
-	// LastBuildAt time.Time `yaml:"lastBuildAt" json:"lastBuildAt"`
+	ID          string         `yaml:"id"`
+	Name        string         `yaml:"name"`
+	Description string         `yaml:"description"`
+	Bricks      []BrickConfig  `yaml:"bricks"`
+	Metadata    map[string]any `yaml:"metadata,omitempty"`
+	// TODO: add more fields as needed
+	// Runer
+	// ModelLabel
 }
 
 type BrickConfig struct {
@@ -29,7 +25,7 @@ type BrickConfig struct {
 	ModelConfiguration map[string]any `yaml:"model_configuration,omitempty"`
 }
 
-// ParseAppFile reads an app file
+// ParseModelDescriptorFile reads a model descriptor file
 func ParseModelDescriptorFile(file *paths.Path) (ModelDescriptor, error) {
 	f, err := file.Open()
 	if err != nil {

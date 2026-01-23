@@ -11,13 +11,20 @@ import (
 func TestParseModelDescription(t *testing.T) {
 	modelDescriptor := `
 id: "my-model-id"
-name: "my custom model from edge impulse"
-description: "A small and accurate model for detecting bounding boxes for faces in images."
+name: "my custom model name"
+description: "A small and accurate description."
 bricks:
-  - id: "arduino:object-detection"
+  - id: "arduino:a-brick-id"
     model_configuration:
-      "EI_OBJ_DETECTION_MODEL": "/models/ootb/ei/lw-face-det.eim"
-      "ANOTHER_VARIABLE": true
+      "A_STRING_VARIABLE": "i-am-a-string"
+      "A_BOOL_VARIABLE": true
+  - id: "arduino:another-brick-id"
+    model_configuration:
+      "A_STRING_VARIABLE": "i-am-a-string"
+      "A_BOOL_VARIABLE": false
+metadata:
+  a-string-metadata: "a-string-value"
+  a-int-metadata: 717280
 `
 	modelYamlPath := paths.New(t.TempDir(), "model.yaml")
 	err := os.WriteFile(modelYamlPath.String(), []byte(modelDescriptor), 0600)
@@ -28,16 +35,27 @@ bricks:
 
 	require.Equal(t, ModelDescriptor{
 		ID:          "my-model-id",
-		Name:        "my custom model from edge impulse",
-		Description: "A small and accurate model for detecting bounding boxes for faces in images.",
+		Name:        "my custom model name",
+		Description: "A small and accurate description.",
 		Bricks: []BrickConfig{
 			{
-				ID: "arduino:object-detection",
+				ID: "arduino:a-brick-id",
 				ModelConfiguration: map[string]any{
-					"EI_OBJ_DETECTION_MODEL": "/models/ootb/ei/lw-face-det.eim",
-					"ANOTHER_VARIABLE":       true,
+					"A_STRING_VARIABLE": "i-am-a-string",
+					"A_BOOL_VARIABLE":   true,
 				},
 			},
+			{
+				ID: "arduino:another-brick-id",
+				ModelConfiguration: map[string]any{
+					"A_STRING_VARIABLE": "i-am-a-string",
+					"A_BOOL_VARIABLE":   false,
+				},
+			},
+		},
+		Metadata: map[string]any{
+			"a-string-metadata": "a-string-value",
+			"a-int-metadata":    uint64(717280),
 		},
 	}, descr)
 
