@@ -272,7 +272,7 @@ tasks:
     desc: Prepare project dependencies for license check
     # No preparation is needed for Go module-based projects.
 
-  general:generate-login-client:
+  general:generate-ei-client:
     desc: "Generate Go client for Edge Impulse API using oapi-codegen and filtering by used paths"
     cmds:
       - |

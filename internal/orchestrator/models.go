@@ -87,6 +87,7 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 }
 
 func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, projectID int, impulseID int, modelType string, engine string) error {
+
 	project, err := eiClient.GetProjectInfo(ctx, projectID, impulseID)
 	if err != nil {
 		return err

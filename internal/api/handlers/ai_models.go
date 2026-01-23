@@ -22,12 +22,11 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/arduino/go-paths-helper"
-
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
@@ -72,7 +71,7 @@ func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	}
 }
 
-func HandleInstallEIModel(modelsDir *paths.Path, bricksIndex *bricksindex.BricksIndex) http.HandlerFunc {
+func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.BricksIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req InstallEIModelRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -80,13 +79,18 @@ func HandleInstallEIModel(modelsDir *paths.Path, bricksIndex *bricksindex.Bricks
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "unable to decode app create request"})
 			return
 		}
-		// TODO parameters as ENV variables or config
-		eiClient := edgeimpulse.NewEIClient(req.Token, "https://studio.edgeimpulse.com/", "v1")
+		defer r.Body.Close()
 
-		err := orchestrator.InstallEIModel(r.Context(), bricksIndex, eiClient, modelsDir, req.ProjectID, req.ImpulseID, *req.ModelType, *req.Engine)
+		if cfg.EdgeImpulseAPIURL() == nil {
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "Edge Impulse API URL is not configured"})
+			return
+		}
+		eiClient := edgeimpulse.NewEIClient(req.Token, *cfg.EdgeImpulseAPIURL())
+
+		err := orchestrator.InstallEIModel(r.Context(), bricksIndex, eiClient, cfg.CustomModelsDir(), req.ProjectID, req.ImpulseID, *req.ModelType, *req.Engine)
 		if err != nil {
 			slog.Error("failed to install EI model", "err", err)
-			// Code based on the error type could be improved
+			//Code based on the error type could be improved
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "failed to install EI model"})
 			return
 		}

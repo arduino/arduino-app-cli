@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -11,16 +12,15 @@ import (
 )
 
 type EIClient struct {
-	ApiUrl     string
+	ApiUrl     url.URL
 	UserToken  string
-	ApiVersion string
 	HttpClient *ClientWithResponses
 }
 
-func NewEIClient(userToken string, apiURL string, apiVersion string) *EIClient {
+func NewEIClient(userToken string, apiURL url.URL) *EIClient {
 
 	ClientOptions := []ClientOption{
-		WithBaseURL(apiURL + apiVersion),
+		WithBaseURL(apiURL.String()),
 		WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
 			// fmt.Println("Request URL:", req.URL.String())
 			req.Header.Add("x-jwt-token", userToken)
@@ -28,20 +28,17 @@ func NewEIClient(userToken string, apiURL string, apiVersion string) *EIClient {
 			return nil
 		}),
 	}
-	httpClient, err := NewClientWithResponses(apiURL, ClientOptions...)
+	httpClient, err := NewClientWithResponses(apiURL.String(), ClientOptions...)
 	if err != nil {
 		panic(fmt.Sprintf("failed to create EI OpenClient: %v", err))
 	}
 
-	return &EIClient{UserToken: userToken, ApiUrl: apiURL, ApiVersion: apiVersion, HttpClient: httpClient}
+	return &EIClient{UserToken: userToken, ApiUrl: apiURL, HttpClient: httpClient}
 }
 
-func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelFilePath *paths.Path, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter) error {
-	if modelFilePath == nil {
-		return fmt.Errorf("model file path cannot be nil")
-	}
+func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath *paths.Path, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter) error {
 
-	// TODO arduino-uno-q should be parameterized
+	//TODO arduino-uno-q should be parameterized
 	opt := &DownloadBuildParams{ImpulseId: &impulseID, ModelType: &modelType, Engine: &engine, Type: "arduino-uno-q"}
 
 	response, err := c.HttpClient.DownloadBuildWithResponse(ctx, projectID, opt)
@@ -53,7 +50,7 @@ func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelFilePath *p
 		return fmt.Errorf("failed to download model, status code: %d", response.StatusCode())
 	}
 
-	err = os.WriteFile(modelFilePath.String(), response.Body, 0600)
+	err = os.WriteFile(modelPath.String(), []byte(response.Body), 0600)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %v", err)
 	}
