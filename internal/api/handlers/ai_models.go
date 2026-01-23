@@ -86,7 +86,7 @@ func HandleInstallEIModel(modelsDir *paths.Path, bricksIndex *bricksindex.Bricks
 		err := orchestrator.InstallEIModel(r.Context(), bricksIndex, eiClient, modelsDir, req.ProjectID, req.ImpulseID, *req.ModelType, *req.Engine)
 		if err != nil {
 			slog.Error("failed to install EI model", "err", err)
-			//Code based on the error type could be improved
+			// Code based on the error type could be improved
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "failed to install EI model"})
 			return
 		}

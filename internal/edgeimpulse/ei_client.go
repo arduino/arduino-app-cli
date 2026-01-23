@@ -36,9 +36,12 @@ func NewEIClient(userToken string, apiURL string, apiVersion string) *EIClient {
 	return &EIClient{UserToken: userToken, ApiUrl: apiURL, ApiVersion: apiVersion, HttpClient: httpClient}
 }
 
-func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath *paths.Path, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter) error {
+func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelFilePath *paths.Path, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter) error {
+	if modelFilePath == nil {
+		return fmt.Errorf("model file path cannot be nil")
+	}
 
-	//TODO arduino-uno-q should be parameterized
+	// TODO arduino-uno-q should be parameterized
 	opt := &DownloadBuildParams{ImpulseId: &impulseID, ModelType: &modelType, Engine: &engine, Type: "arduino-uno-q"}
 
 	response, err := c.HttpClient.DownloadBuildWithResponse(ctx, projectID, opt)
@@ -50,8 +53,7 @@ func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath *paths
 		return fmt.Errorf("failed to download model, status code: %d", response.StatusCode())
 	}
 
-	modelFile := modelPath.Join("model.eim").String()
-	err = os.WriteFile(modelFile, response.Body, 0600)
+	err = os.WriteFile(modelFilePath.String(), response.Body, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %v", err)
 	}

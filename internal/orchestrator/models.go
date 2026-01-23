@@ -156,7 +156,7 @@ func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *
 	}
 	bricksIds := mapCategoryToBricks[*category]
 
-	var bricksConfig []aimodel.BrickConfig
+	bricksConfig := make([]aimodel.BrickConfig, 0)
 	for _, b := range bricksIds {
 		brick, ok := bricksIndex.FindBrickByID(b)
 		if !ok {
