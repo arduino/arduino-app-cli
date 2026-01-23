@@ -51,7 +51,6 @@ func (b *assetsModelList) UnmarshalYAML(unmarshal func(any) error) error {
 
 type AIModel struct {
 	ID                 string            `yaml:"-"`
-	Source             string            `yaml:"-"`
 	ModelPath          *paths.Path       `yaml:"-"` // Path to the model folder in the board. nil if pre-installed
 	Name               string            `yaml:"name"`
 	ModuleDescription  string            `yaml:"description"`
@@ -68,19 +67,11 @@ type ModelsIndex struct {
 }
 
 func (m *ModelsIndex) GetModels() []AIModel {
-	return m.buildModels()
-}
-
-func (m *ModelsIndex) buildModels() []AIModel {
-	eimodels, err := loadCustomModels(m.modelsDir)
-	if err != nil {
-		slog.Error("cannot load edge impulse custom models", "err", err)
-	}
-	return append(m.PreInstalledModels, eimodels...)
+	return m.loadModels()
 }
 
 func (m *ModelsIndex) GetModelByID(id string) (*AIModel, bool) {
-	models := m.buildModels()
+	models := m.loadModels()
 	idx := slices.IndexFunc(models, func(v AIModel) bool { return v.ID == id })
 	if idx == -1 {
 		return nil, false
@@ -90,7 +81,7 @@ func (m *ModelsIndex) GetModelByID(id string) (*AIModel, bool) {
 
 func (m *ModelsIndex) GetModelsByBrick(brick string) []AIModel {
 	var matches []AIModel
-	models := m.buildModels()
+	models := m.loadModels()
 	for i := range models {
 		if len(models[i].Bricks) > 0 && slices.Contains(models[i].Bricks, brick) {
 			matches = append(matches, models[i])
@@ -104,7 +95,7 @@ func (m *ModelsIndex) GetModelsByBrick(brick string) []AIModel {
 
 func (m *ModelsIndex) GetModelsByBricks(bricks []string) []AIModel {
 	var matchingModels []AIModel
-	for _, model := range m.buildModels() {
+	for _, model := range m.loadModels() {
 		for _, modelBrick := range model.Bricks {
 			if slices.Contains(bricks, modelBrick) {
 				matchingModels = append(matchingModels, model)
@@ -113,6 +104,13 @@ func (m *ModelsIndex) GetModelsByBricks(bricks []string) []AIModel {
 		}
 	}
 	return matchingModels
+}
+func (m *ModelsIndex) loadModels() []AIModel {
+	eimodels, err := loadCustomModels(m.modelsDir)
+	if err != nil {
+		slog.Error("cannot load edge impulse custom models", "err", err)
+	}
+	return append(m.PreInstalledModels, eimodels...)
 }
 
 func Load(dir *paths.Path, modelsDir *paths.Path) (*ModelsIndex, error) {
@@ -146,7 +144,6 @@ func loadPreInstalledModels(dir *paths.Path) ([]AIModel, error) {
 	for i, modelMap := range list.Models {
 		for id, model := range modelMap {
 			model.ID = id
-			model.Source = "arduino"
 			models[i] = model
 		}
 	}
