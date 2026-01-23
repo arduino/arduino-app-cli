@@ -112,6 +112,7 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 		ID:          id,
 		Name:        project.Name,
 		Description: project.Description,
+		Metadata:    buildMedataForEIModel(projectID, impulseID),
 	}
 	bricksConfig := make([]aimodel.BrickConfig, 0)
 	if project.Category != nil {
@@ -196,5 +197,13 @@ func categoryToBricks(category *edgeimpulse.ProjectCategory) []string {
 		return []string{"arduino:gesture_recognition", "arduino:anomaly_detection"}
 	default:
 		return []string{}
+	}
+}
+
+func buildMedataForEIModel(projectID int, impulseID int) map[string]any {
+	return map[string]any{
+		"source":        "edgeimpulse",
+		"ei-project-id": fmt.Sprintf("%d", projectID),
+		"ei-impulse-id": fmt.Sprintf("%d", impulseID),
 	}
 }
