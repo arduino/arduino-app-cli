@@ -11,7 +11,7 @@ import (
 )
 
 func TestModelsIndex(t *testing.T) {
-	modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata/models"))
+	modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata"))
 	require.NoError(t, err)
 	require.NotNil(t, modelsIndex)
 
@@ -20,7 +20,7 @@ func TestModelsIndex(t *testing.T) {
 		assert.Len(t, models, 3, "Expected 3 models to be parsed")
 	})
 
-	t.Run("at least one folders must be provided", func(t *testing.T) {
+	t.Run("at least one model folders must be provided", func(t *testing.T) {
 		_, err := Load(nil, nil)
 		require.Error(t, err)
 	})
@@ -68,7 +68,7 @@ func TestModelsIndex(t *testing.T) {
 				"object-detection",
 			},
 			ModelConfiguration: nil,
-			ModelPath:          paths.New(f.Must(filepath.Abs("testdata/models/my-first-model"))),
+			ModelPath:          paths.New(f.Must(filepath.Abs("testdata/my-custom-model"))),
 		}, eimodel)
 	})
 
