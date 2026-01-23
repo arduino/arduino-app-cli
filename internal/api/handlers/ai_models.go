@@ -20,14 +20,18 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/docker/cli/cli/command"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
@@ -72,42 +76,83 @@ func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	}
 }
 
-func HandlerDeleteModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
+func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("modelID")
 		if id == "" {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "id must be set"})
 			return
 		}
-		res, found := orchestrator.AIModelDetails(modelsIndex, id)
+
+		res, found := modelsIndex.GetModelByID(id)
 		if !found {
-			details := fmt.Sprintf("models with id %q not found", id)
+			details := fmt.Sprintf("model %s not found", id)
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})
 			return
 		}
-		if res.IsPreInstalled {
-			details := fmt.Sprintf("models with id %q is a pre installed model, can't be deleted", id)
+
+		if res.IsPreinstalled {
+			details := fmt.Sprintf("model %q is a pre-installed model, can't be deleted", id)
 			render.EncodeResponse(w, http.StatusMethodNotAllowed, models.ErrorResponse{Details: details})
 			return
 		}
-		render.EncodeResponse(w, http.StatusOK, res)
 
-		// search for model usage in bricks
-		// check if it is running
+		running, _ := orchestrator.GetRunningApp(r.Context(), dockerClient.Client())
+		if running != nil {
+			details := fmt.Sprintf("models %s is in use by the %s app. Stop the application before removing the model", id, running.Name)
+			render.EncodeResponse(w, http.StatusMethodNotAllowed, models.ErrorResponse{Details: details})
+			return
+		}
 
-		// Message:
-		// The model %s is in use by the following bricks:
-		// brick1(appA, appB)
-		// brick2(appA, appB)
-		// The model % is in use in the running application %s
-		// Do you want to stop the application and delete the model
-		// from the following bricks?
+		references := isModelReferencedInApp(cfg, id)
+		if len(references) != 0 {
+			details := fmt.Sprintf("The model is referenced by the following bricks: %s", strings.Join(references, ", "))
+			render.EncodeResponse(w, http.StatusMethodNotAllowed, models.ErrorResponse{Details: details})
+			return
+		}
 
-		//fmt.Sprintf("models with id %q will be deleted and its brick references will be removed", id)
-		// if deletion is ok response ok else generic error
+		if res.ModelPath == nil {
+			details := fmt.Sprintf("unexpected null path for model %q", id)
+			slog.Warn(details)
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: details})
+			return
+		}
 
+		if err := res.ModelPath.RemoveAll(); err != nil {
+			details := fmt.Sprintf("error removing path %q", res.ModelPath.String())
+			slog.Warn(details)
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: details})
+			return
+
+		}
+
+		slog.Warn("Deleted model", slog.Any("path", res.ModelPath.String()))
 		render.EncodeResponse(w, http.StatusOK, res)
 	}
+}
+
+func isModelReferencedInApp(cfg config.Configuration, modelId string) []string {
+	var references []string
+	pathList, _ := cfg.AppsDir().ReadDir()
+	for _, appFolderName := range pathList {
+		appDescriptor := app.ArduinoApp{
+			FullPath:   appFolderName,
+			Descriptor: app.AppDescriptor{},
+		}
+		if descriptorFile := appDescriptor.GetDescriptorPath(); descriptorFile.Exist() {
+			descriptor, err := app.ParseDescriptorFile(descriptorFile)
+			if err != nil {
+				continue
+			}
+			for _, b := range descriptor.Bricks {
+				if b.Model == modelId && !slices.Contains(references, b.ID) {
+					references = append(references, b.ID)
+				}
+			}
+		}
+	}
+
+	return references
 }
 
 func HandleInstallEIModel(modelsDir *paths.Path, bricksIndex *bricksindex.BricksIndex) http.HandlerFunc {

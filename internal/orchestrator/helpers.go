@@ -164,7 +164,7 @@ func getAppStatus(
 	return appInfo[0], nil
 }
 
-func getRunningApp(
+func GetRunningApp(
 	ctx context.Context,
 	docker dockerClient.APIClient,
 ) (*app.ArduinoApp, error) {

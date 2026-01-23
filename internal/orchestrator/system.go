@@ -230,7 +230,7 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, staticStore *s
 	var result SystemCleanupResult
 
 	// Remove running app and dangling containers
-	runningApp, err := getRunningApp(ctx, docker.Client())
+	runningApp, err := GetRunningApp(ctx, docker.Client())
 	if err != nil {
 		feedback.Warnf("failed to get running app - %v", err)
 	}

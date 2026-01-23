@@ -23,7 +23,7 @@ func CleanAppCache(
 	app app.ArduinoApp,
 	req CleanAppCacheRequest,
 ) error {
-	runningApp, err := getRunningApp(ctx, docker.Client())
+	runningApp, err := GetRunningApp(ctx, docker.Client())
 	if err != nil {
 		return err
 	}

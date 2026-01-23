@@ -60,7 +60,7 @@ type AIModel struct {
 	ModelLabels        []string          `yaml:"model_labels,omitempty"`
 	Metadata           map[string]string `yaml:"metadata,omitempty"`
 	ModelConfiguration map[string]string `yaml:"model_configuration,omitempty"`
-	IsPreInstalled     bool              `json:"is_preinstalled"`
+	IsPreinstalled     bool              `yaml:"-"`
 }
 
 type ModelsIndex struct {
@@ -148,8 +148,8 @@ func loadPreInstalledModels(dir *paths.Path) ([]AIModel, error) {
 		for id, model := range modelMap {
 			model.ID = id
 			model.Source = "arduino"
+			model.IsPreinstalled = true
 			models[i] = model
-			model.IsPreInstalled = true
 		}
 	}
 	return models, nil
@@ -198,9 +198,9 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 			}),
 			ModelConfiguration: modelConfigs,
 			ModelPath:          m.FullPath,
+			IsPreinstalled:     false,
 		})
 	}
-
 	return models, nil
 }
 

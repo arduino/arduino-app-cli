@@ -51,7 +51,7 @@ type AIModelItem struct {
 	Bricks             []string          `json:"brick_ids"`
 	Metadata           map[string]string `json:"metadata,omitempty"`
 	ModelConfiguration map[string]string `json:"model_configuration,omitempty"`
-	IsPreInstalled     bool              `json:"is_preinstalled"`
+	IsPreinstalled     bool              `json:"is_preinstalled"`
 }
 
 type AIModelsListRequest struct {
@@ -76,6 +76,7 @@ func AIModelsList(req AIModelsListRequest, modelsIndex *modelsindex.ModelsIndex)
 			Bricks:             model.Bricks,
 			Metadata:           model.Metadata,
 			ModelConfiguration: model.ModelConfiguration,
+			IsPreinstalled:     model.IsPreinstalled,
 		}
 	}
 	return res
@@ -94,7 +95,7 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 		Bricks:             model.Bricks,
 		Metadata:           model.Metadata,
 		ModelConfiguration: model.ModelConfiguration,
-		IsPreInstalled:     model.IsPreInstalled,
+		IsPreinstalled:     model.IsPreinstalled,
 	}, true
 }
 

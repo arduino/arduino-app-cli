@@ -130,7 +130,7 @@ func StartApp(
 			return
 		}
 
-		running, err := getRunningApp(ctx, docker.Client())
+		running, err := GetRunningApp(ctx, docker.Client())
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return
@@ -415,7 +415,7 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, app app.ArduinoApp,
 
 		if _, ok := app.GetSketchPath(); ok {
 			// Before stopping the microcontroller we want to make sure that the app was running.
-			running, err := getRunningApp(ctx, docker.Client())
+			running, err := GetRunningApp(ctx, docker.Client())
 			if err != nil {
 				yield(StreamMessage{error: err})
 				return
@@ -516,7 +516,7 @@ func RestartApp(
 	return func(yield func(StreamMessage) bool) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
-		runningApp, err := getRunningApp(ctx, docker.Client())
+		runningApp, err := GetRunningApp(ctx, docker.Client())
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return
