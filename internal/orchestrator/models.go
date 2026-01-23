@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/arduino/go-paths-helper"
 
@@ -90,7 +91,6 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 	if err != nil {
 		return err
 	}
-	// TODO: if it already exit, remove and create again
 	id := fmt.Sprintf("ei-model-%d-%d", projectID, impulseID)
 
 	edgeModelsDir := modelsDir.Join(id)
@@ -100,8 +100,14 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 		ID:          id,
 		Name:        project.Name,
 		Description: project.Description,
-		Metadata:    buildMedataForEIModel(projectID, impulseID),
-		Bricks:      buildBrickConfigForEIModel(bricksIndex, project.Category, edgeModelsDir, blobModelsDir),
+		Metadata: map[string]any{
+			"source":        "edgeimpulse",
+			"ei-project-id": projectID,
+			"ei-impulse-id": impulseID,
+			"ei-model-type": modelType,
+			"ei-engine":     engine,
+		},
+		Bricks: buildBrickConfigForEIModel(bricksIndex, project.Category, edgeModelsDir, blobModelsDir),
 	}
 
 	err = aimodel.Write(edgeModelsDir, descr)
@@ -128,33 +134,30 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 		}
 	}
 
-	// TODO: receive the writer
 	err = eiClient.DownloadAndInstallModel(ctx, blobModelsDir, projectID, impulseID, modelTypeParam, engineParam)
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
-const (
-	VarCustomModelPath            = "CUSTOM_MODEL_PATH"
-	VarEIObjDetectionModel        = "EI_OBJ_DETECTION_MODEL"
-	VarEIAudioClassificationModel = "EI_AUDIO_CLASSIFICATION_MODEL"
-	VarEIClassificationModel      = "EI_CLASSIFICATION_MODEL"
-	VarEIKeywordSpottingModel     = "EI_KEYWORD_SPOTTING_MODEL"
-	VarEIMotionDetectionModel     = "EI_MOTION_DETECTION_MODEL"
-	VarEIVAnomalyDetectionModel   = "EI_V_ANOMALY_DETECTION_MODEL"
-)
+var mapCategoryToBricks = map[edgeimpulse.ProjectCategory][]string{
+	edgeimpulse.ProjectCategoryOther:           {},
+	edgeimpulse.ProjectCategoryObjectDetection: {"arduino:object_detection", "arduino:video_object_detection"},
+	edgeimpulse.ProjectCategoryImages:          {"arduino:image_classification", "arduino:video_image_classification"},
+	edgeimpulse.ProjectCategoryAudio:           {"arduino:audio_classification"},
+	edgeimpulse.ProjectCategoryKeywordSpotting: {"arduino:audio_classification", "arduino:keyword_spotting"},
+	edgeimpulse.ProjectCategoryAccelerometer:   {"arduino:gesture_recognition", "arduino:anomaly_detection"},
+}
 
 func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *edgeimpulse.ProjectCategory, edgeModelsDir *paths.Path, blobModelsDir *paths.Path) []aimodel.BrickConfig {
 	if category == nil {
 		return []aimodel.BrickConfig{}
 	}
-	bricks := categoryToBricks(category)
+	bricksIds := mapCategoryToBricks[*category]
 
 	var bricksConfig []aimodel.BrickConfig
-	for _, b := range bricks {
+	for _, b := range bricksIds {
 		brick, ok := bricksIndex.FindBrickByID(b)
 		if !ok {
 			slog.Warn("cannot load brick", "id", b, "category", category)
@@ -162,13 +165,16 @@ func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *
 		}
 		modelConfigPerBrick := map[string]any{}
 		for _, variable := range brick.Variables {
-			switch variable.Name {
-			case VarCustomModelPath:
-				modelConfigPerBrick[variable.Name] = edgeModelsDir.String()
-			case VarEIObjDetectionModel, VarEIAudioClassificationModel, VarEIClassificationModel, VarEIKeywordSpottingModel, VarEIMotionDetectionModel, VarEIVAnomalyDetectionModel:
-				modelConfigPerBrick[variable.Name] = blobModelsDir.String()
+			name := variable.Name
+			switch {
+			case name == "CUSTOM_MODEL_PATH":
+				modelConfigPerBrick[name] = edgeModelsDir.String()
+			case strings.HasPrefix(name, "EI_") && strings.HasSuffix(name, "_MODEL"):
+				// EI model variables (EI_*_MODEL) get the blob path
+				modelConfigPerBrick[name] = blobModelsDir.String()
 			default:
-				slog.Warn("variable not found in the bricks config", "variable", variable.Name, "brick", brick.ID)
+				// Leave other variables unset here; they may be user-provided or have defaults
+				slog.Debug("skipping non-model variable for EI auto-config", "variable", name, "brick", brick.ID)
 			}
 		}
 
@@ -178,34 +184,4 @@ func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *
 		})
 	}
 	return bricksConfig
-}
-
-func categoryToBricks(category *edgeimpulse.ProjectCategory) []string {
-	if category == nil {
-		return []string{}
-	}
-	switch *category {
-	case edgeimpulse.ProjectCategoryOther:
-		return []string{}
-	case edgeimpulse.ProjectCategoryObjectDetection:
-		return []string{"arduino:object_detection", "arduino:video_object_detection"}
-	case edgeimpulse.ProjectCategoryImages:
-		return []string{"arduino:image_classification", "arduino:video_image_classification"}
-	case edgeimpulse.ProjectCategoryAudio:
-		return []string{"arduino:audio_classification"}
-	case edgeimpulse.ProjectCategoryKeywordSpotting:
-		return []string{"arduino:audio_classification", "arduino:keyword_spotting"}
-	case edgeimpulse.ProjectCategoryAccelerometer:
-		return []string{"arduino:gesture_recognition", "arduino:anomaly_detection"}
-	default:
-		return []string{}
-	}
-}
-
-func buildMedataForEIModel(projectID int, impulseID int) map[string]any {
-	return map[string]any{
-		"source":        "edgeimpulse",
-		"ei-project-id": projectID,
-		"ei-impulse-id": impulseID,
-	}
 }
