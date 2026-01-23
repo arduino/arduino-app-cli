@@ -28,17 +28,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/aimodel"
 )
 
-// Brick variable names (centralized to avoid typos and ease maintenance)
-const (
-	VarCustomModelPath            = "CUSTOM_MODEL_PATH"
-	VarEIObjDetectionModel        = "EI_OBJ_DETECTION_MODEL"
-	VarEIAudioClassificationModel = "EI_AUDIO_CLASSIFICATION_MODEL"
-	VarEIClassificationModel      = "EI_CLASSIFICATION_MODEL"
-	VarEIKeywordSpottingModel     = "EI_KEYWORD_SPOTTING_MODEL"
-	VarEIMotionDetectionModel     = "EI_MOTION_DETECTION_MODEL"
-	VarEIVAnomalyDetectionModel   = "EI_V_ANOMALY_DETECTION_MODEL"
-)
-
 type AIModelsListResult struct {
 	Models []AIModelItem `json:"models"`
 }
@@ -113,37 +102,8 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 		Name:        project.Name,
 		Description: project.Description,
 		Metadata:    buildMedataForEIModel(projectID, impulseID),
+		Bricks:      buildBrickConfigForEIModel(bricksIndex, project.Category, edgeModelsDir, blobModelsDir),
 	}
-	bricksConfig := make([]aimodel.BrickConfig, 0)
-	if project.Category != nil {
-		bricks := categoryToBricks(project.Category)
-
-		for _, b := range bricks {
-			brick, ok := bricksIndex.FindBrickByID(b)
-			if !ok {
-				slog.Warn("cannot load brick", "id", b)
-				continue
-			}
-			modelConfigPerBrick := map[string]any{}
-			for _, variable := range brick.Variables {
-				switch variable.Name {
-				case VarCustomModelPath:
-					modelConfigPerBrick[variable.Name] = edgeModelsDir.String()
-				case VarEIObjDetectionModel, VarEIAudioClassificationModel, VarEIClassificationModel, VarEIKeywordSpottingModel, VarEIMotionDetectionModel, VarEIVAnomalyDetectionModel:
-					modelConfigPerBrick[variable.Name] = blobModelsDir.String()
-				default:
-					slog.Warn("variable not found in the bricks config")
-				}
-			}
-
-			bricksConfig = append(bricksConfig, aimodel.BrickConfig{
-				ID:                 brick.ID,
-				ModelConfiguration: modelConfigPerBrick,
-			})
-		}
-	}
-
-	descr.Bricks = bricksConfig
 
 	err = aimodel.Write(edgeModelsDir, descr)
 	if err != nil {
@@ -178,6 +138,49 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 	return nil
 }
 
+const (
+	VarCustomModelPath            = "CUSTOM_MODEL_PATH"
+	VarEIObjDetectionModel        = "EI_OBJ_DETECTION_MODEL"
+	VarEIAudioClassificationModel = "EI_AUDIO_CLASSIFICATION_MODEL"
+	VarEIClassificationModel      = "EI_CLASSIFICATION_MODEL"
+	VarEIKeywordSpottingModel     = "EI_KEYWORD_SPOTTING_MODEL"
+	VarEIMotionDetectionModel     = "EI_MOTION_DETECTION_MODEL"
+	VarEIVAnomalyDetectionModel   = "EI_V_ANOMALY_DETECTION_MODEL"
+)
+
+func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *edgeimpulse.ProjectCategory, edgeModelsDir *paths.Path, blobModelsDir *paths.Path) []aimodel.BrickConfig {
+	if category == nil {
+		return []aimodel.BrickConfig{}
+	}
+	bricks := categoryToBricks(category)
+
+	var bricksConfig []aimodel.BrickConfig
+	for _, b := range bricks {
+		brick, ok := bricksIndex.FindBrickByID(b)
+		if !ok {
+			slog.Warn("cannot load brick", "id", b, "category", category)
+			continue
+		}
+		modelConfigPerBrick := map[string]any{}
+		for _, variable := range brick.Variables {
+			switch variable.Name {
+			case VarCustomModelPath:
+				modelConfigPerBrick[variable.Name] = edgeModelsDir.String()
+			case VarEIObjDetectionModel, VarEIAudioClassificationModel, VarEIClassificationModel, VarEIKeywordSpottingModel, VarEIMotionDetectionModel, VarEIVAnomalyDetectionModel:
+				modelConfigPerBrick[variable.Name] = blobModelsDir.String()
+			default:
+				slog.Warn("variable not found in the bricks config", "variable", variable.Name, "brick", brick.ID)
+			}
+		}
+
+		bricksConfig = append(bricksConfig, aimodel.BrickConfig{
+			ID:                 brick.ID,
+			ModelConfiguration: modelConfigPerBrick,
+		})
+	}
+	return bricksConfig
+}
+
 func categoryToBricks(category *edgeimpulse.ProjectCategory) []string {
 	if category == nil {
 		return []string{}
@@ -203,7 +206,7 @@ func categoryToBricks(category *edgeimpulse.ProjectCategory) []string {
 func buildMedataForEIModel(projectID int, impulseID int) map[string]any {
 	return map[string]any{
 		"source":        "edgeimpulse",
-		"ei-project-id": fmt.Sprintf("%d", projectID),
-		"ei-impulse-id": fmt.Sprintf("%d", impulseID),
+		"ei-project-id": projectID,
+		"ei-impulse-id": impulseID,
 	}
 }
