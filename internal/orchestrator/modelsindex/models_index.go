@@ -73,12 +73,10 @@ func (m *ModelsIndex) GetModels() []AIModel {
 }
 
 func (m *ModelsIndex) buildModels() []AIModel {
-	fmt.Print("Marta buildModels called\n")
 	eimodels, err := loadCustomModels(m.modelsDir)
 	if err != nil {
 		slog.Error("cannot load edge impulse custom models", "err", err)
 	}
-
 	return append(m.PreInstalledModels, eimodels...)
 }
 
