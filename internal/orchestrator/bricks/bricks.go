@@ -80,6 +80,7 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 		}
 
 		variablesMap, configVariables := getInstanceBrickConfigVariableDetails(brick, brickInstance.Variables)
+
 		res.BrickInstances[i] = BrickInstance{
 			ID:              brick.ID,
 			Name:            brick.Name,
@@ -90,7 +91,6 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 			ModelID:         cmp.Or(brickInstance.Model, brick.ModelName),
 			Variables:       variablesMap,
 			ConfigVariables: configVariables,
-
 			CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModel) AIModel {
 				return AIModel{
 					ID:          m.ID,
