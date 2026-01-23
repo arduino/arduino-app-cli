@@ -38,6 +38,7 @@ func NewEIClient(userToken string, apiURL string, apiVersion string) *EIClient {
 
 func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath *paths.Path, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter) error {
 
+	//TODO arduino-uno-q should be parameterized
 	opt := &DownloadBuildParams{ImpulseId: &impulseID, ModelType: &modelType, Engine: &engine, Type: "arduino-uno-q"}
 
 	response, err := c.HttpClient.DownloadBuildWithResponse(ctx, projectID, opt)

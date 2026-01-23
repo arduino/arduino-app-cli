@@ -94,7 +94,6 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 	id := fmt.Sprintf("ei-model-%d-%d", projectID, impulseID)
 
 	edgeModelsDir := modelsDir.Join(id)
-	//TODO: model file name is in two different position.
 	blobModelsDir := edgeModelsDir.Join("model.eim")
 
 	descr := aimodel.ModelDescriptor{
@@ -130,7 +129,7 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 	}
 
 	// TODO: receive the writer
-	err = eiClient.DownloadAndInstallModel(ctx, edgeModelsDir, projectID, impulseID, modelTypeParam, engineParam)
+	err = eiClient.DownloadAndInstallModel(ctx, blobModelsDir, projectID, impulseID, modelTypeParam, engineParam)
 	if err != nil {
 		return err
 	}

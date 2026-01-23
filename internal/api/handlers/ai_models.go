@@ -80,12 +80,13 @@ func HandleInstallEIModel(modelsDir *paths.Path, bricksIndex *bricksindex.Bricks
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "unable to decode app create request"})
 			return
 		}
-		// TODO check parameters
+		// TODO parameters as ENV variables or config
 		eiClient := edgeimpulse.NewEIClient(req.Token, "https://studio.edgeimpulse.com/", "v1")
 
 		err := orchestrator.InstallEIModel(r.Context(), bricksIndex, eiClient, modelsDir, req.ProjectID, req.ImpulseID, *req.ModelType, *req.Engine)
 		if err != nil {
 			slog.Error("failed to install EI model", "err", err)
+			//Code based on the error type could be improved
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "failed to install EI model"})
 			return
 		}
