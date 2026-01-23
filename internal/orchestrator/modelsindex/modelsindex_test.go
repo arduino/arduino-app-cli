@@ -1,11 +1,13 @@
 package modelsindex
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.bug.st/f"
 )
 
 func TestModelsIndex(t *testing.T) {
@@ -57,6 +59,7 @@ func TestModelsIndex(t *testing.T) {
 		eimodel, found := modelsIndex.GetModelByID("my-model-id")
 		assert.True(t, found)
 		assert.NotNil(t, eimodel)
+
 		assert.Equal(t, &AIModel{
 			ID:                "my-model-id",
 			Name:              "my custom model from edge impulse",
@@ -64,16 +67,8 @@ func TestModelsIndex(t *testing.T) {
 			Bricks: []string{
 				"object-detection",
 			},
-			// Runner:            "bricks",
-			// Source:            "edgeimpulse",
-			// Metadata: map[string]string{
-			// 	"impulse-id": "1",
-			// 	"project-id": "111111",
-			// },
-			// ModelLabels: nil,
-			// ModelConfiguration: map[string]string{
-			// 	"EI_OBJ_DETECTION_MODEL": "testdata/ei-models/111111/1/my-model.eim",
-			// },
+			ModelConfiguration: nil,
+			ModelPath:          paths.New(f.Must(filepath.Abs("testdata/models/my-first-model"))),
 		}, eimodel)
 	})
 

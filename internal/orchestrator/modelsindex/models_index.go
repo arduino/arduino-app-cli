@@ -52,6 +52,7 @@ func (b *assetsModelList) UnmarshalYAML(unmarshal func(any) error) error {
 type AIModel struct {
 	ID                 string            `yaml:"-"`
 	Source             string            `yaml:"-"`
+	ModelPath          *paths.Path       `yaml:"-"` // Path to the model folder in the board. nil if pre-installed
 	Name               string            `yaml:"name"`
 	ModuleDescription  string            `yaml:"description"`
 	Runner             string            `yaml:"runner"`
@@ -171,10 +172,17 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 	for _, file := range res {
 		m, err := aimodel.Load(file)
 		if err != nil {
+			slog.Warn("unable to load custom model", slog.String("error", err.Error()), "path", file)
 			continue // FIXME: collect broken models
 		}
-		modelConfigs := make(map[string]string)
+		var modelConfigs map[string]string
 		for _, b := range m.ModelDescriptor.Bricks {
+			if len(b.ModelConfiguration) == 0 {
+				continue
+			}
+			if modelConfigs == nil {
+				modelConfigs = make(map[string]string, len(b.ModelConfiguration))
+			}
 			for k, v := range b.ModelConfiguration {
 				modelConfigs[k] = toStringStrict(v)
 			}
@@ -187,10 +195,7 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 				return b.ID
 			}),
 			ModelConfiguration: modelConfigs,
-			// TODO: build the model_configuration base on the bricks id
-			// ModelLabels        []string          `yaml:"model_labels,omitempty"`
-			// Metadata           map[string]string `yaml:"metadata,omitempty"`
-			// ModelConfiguration map[string]string `yaml:"model_configuration,omitempty"`
+			ModelPath:          m.FullPath,
 		})
 	}
 
