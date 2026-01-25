@@ -1,0 +1,4 @@
+name: An app with a custom model
+description: An app with a custom model
+bricks:
+  - arduino:brick-with-custom-model:

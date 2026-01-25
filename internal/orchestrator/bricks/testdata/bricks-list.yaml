@@ -26,3 +26,9 @@ bricks:
   description: "Brick with required model"
   require_model: true
   model_name: mobilenet-image-classification
+- id: arduino:brick-with-custom-model
+  name: A brick with a custom model
+  description: "Brick with custom model"
+  variables:
+  - name: EI_OBJ_DETECTION_MODEL
+  - name: CUSTOM_MODEL_PATH
