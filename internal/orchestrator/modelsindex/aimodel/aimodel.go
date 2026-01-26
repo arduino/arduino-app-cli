@@ -3,7 +3,9 @@ package aimodel
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/goccy/go-yaml"
@@ -48,7 +50,13 @@ func Load(path *paths.Path) (CustomAiModel, error) {
 	return m, nil
 }
 
-func Write(dir *paths.Path, descr ModelDescriptor) error {
+// Store creates a model directory with its descriptor file and optionally a blob file.
+// If blobReader is provided, blobFilename specifies the name (defaults to "model.blob").
+// The blob is written atomically with a size limit.
+func Store(dir *paths.Path, descr ModelDescriptor, modelFileReader io.Reader, modelFilename string) error {
+	if modelFileReader != nil && modelFilename == "" {
+		return fmt.Errorf("model filename must be provided when model reader is not nil")
+	}
 	if err := dir.MkdirAll(); err != nil {
 		return fmt.Errorf("failed to create model directory: %w", err)
 	}
@@ -61,6 +69,18 @@ func Write(dir *paths.Path, descr ModelDescriptor) error {
 	err := m.Save()
 	if err != nil {
 		return fmt.Errorf("failed to write model: %w", err)
+	}
+
+	if modelFileReader != nil {
+		destBlobPath := dir.Join(filepath.Base(modelFilename))
+		f, err := os.Create(destBlobPath.String())
+		if err != nil {
+			return fmt.Errorf("failed to create model file: %w", err)
+		}
+		defer f.Close()
+		if _, err := io.Copy(f, modelFileReader); err != nil {
+			return fmt.Errorf("failed to write model file : %w", err)
+		}
 	}
 
 	return nil

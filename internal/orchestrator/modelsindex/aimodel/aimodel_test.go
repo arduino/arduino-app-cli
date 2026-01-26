@@ -1,6 +1,7 @@
 package aimodel
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -102,5 +103,117 @@ func TestSave(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, string(expected), string(got))
+	})
+}
+
+func TestStore(t *testing.T) {
+	t.Run("it creates model directory and writes descriptor", func(t *testing.T) {
+		tempDir := t.TempDir()
+		modelDir := paths.New(tempDir).Join("test-model")
+
+		descr := ModelDescriptor{
+			ID:          "test-id",
+			Name:        "test model",
+			Description: "test description",
+			Bricks: []BrickConfig{
+				{
+					ID: "arduino:test-brick",
+					ModelConfiguration: map[string]any{
+						"ENV_VAR": "value",
+					},
+				},
+			},
+		}
+
+		err := Store(modelDir, descr, nil, "")
+		require.NoError(t, err)
+
+		// Verify directory exists
+		require.True(t, modelDir.Exist())
+
+		// Verify model.yaml exists
+		descriptorPath := modelDir.Join("model.yaml")
+		require.True(t, descriptorPath.Exist())
+
+		// Verify descriptor can be loaded
+		loaded, err := Load(modelDir)
+		require.NoError(t, err)
+		assert.Equal(t, descr.ID, loaded.ModelDescriptor.ID)
+		assert.Equal(t, descr.Name, loaded.ModelDescriptor.Name)
+	})
+
+	t.Run("it writes descriptor and model file when reader provided", func(t *testing.T) {
+		tempDir := t.TempDir()
+		modelDir := paths.New(tempDir).Join("test-model-with-blob")
+
+		descr := ModelDescriptor{
+			ID:          "test-id-blob",
+			Name:        "test model with blob",
+			Description: "test description",
+		}
+
+		blobContent := []byte("this is model blob content")
+		blobReader := bytes.NewReader(blobContent)
+
+		err := Store(modelDir, descr, blobReader, "model.eim")
+		require.NoError(t, err)
+
+		// Verify model.yaml exists
+		descriptorPath := modelDir.Join("model.yaml")
+		require.True(t, descriptorPath.Exist())
+
+		// Verify model blob exists
+		blobPath := modelDir.Join("model.eim")
+		require.True(t, blobPath.Exist())
+
+		// Verify blob content
+		gotBlob, err := os.ReadFile(blobPath.String())
+		require.NoError(t, err)
+		assert.Equal(t, blobContent, gotBlob)
+	})
+
+	t.Run("it fails when model reader provided without filename", func(t *testing.T) {
+		tempDir := t.TempDir()
+		modelDir := paths.New(tempDir).Join("test-model-no-filename")
+
+		descr := ModelDescriptor{
+			ID:   "test-id",
+			Name: "test",
+		}
+
+		blobReader := bytes.NewReader([]byte("content"))
+
+		err := Store(modelDir, descr, blobReader, "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "model filename must be provided")
+	})
+
+	t.Run("it writes large model file successfully", func(t *testing.T) {
+		tempDir := t.TempDir()
+		modelDir := paths.New(tempDir).Join("test-model-large")
+
+		descr := ModelDescriptor{
+			ID:   "test-large",
+			Name: "large model",
+		}
+
+		// Create 1MB blob
+		largeBlob := make([]byte, 1024*1024)
+		for i := range largeBlob {
+			largeBlob[i] = byte(i % 256)
+		}
+		blobReader := bytes.NewReader(largeBlob)
+
+		err := Store(modelDir, descr, blobReader, "large-model.blob")
+		require.NoError(t, err)
+
+		// Verify blob was written correctly
+		blobPath := modelDir.Join("large-model.blob")
+		require.True(t, blobPath.Exist())
+
+		gotBlob, err := os.ReadFile(blobPath.String())
+		require.NoError(t, err)
+		assert.Equal(t, len(largeBlob), len(gotBlob))
+		assert.Equal(t, largeBlob, gotBlob)
 	})
 }
