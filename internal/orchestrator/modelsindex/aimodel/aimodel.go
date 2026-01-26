@@ -12,7 +12,7 @@ import (
 )
 
 type CustomAiModel struct {
-	FullPath        *paths.Path // Is the path to the model folder
+	FullPath        *paths.Path // Is the path to the folder containing the model and the descriptor file
 	ModelDescriptor ModelDescriptor
 }
 

@@ -51,7 +51,7 @@ func (b *assetsModelList) UnmarshalYAML(unmarshal func(any) error) error {
 
 type AIModel struct {
 	ID                 string            `yaml:"-"`
-	ModelPath          *paths.Path       `yaml:"-"` // Path to the model folder in the board. nil if pre-installed
+	ModelPath          *paths.Path       `yaml:"-"`
 	Name               string            `yaml:"name"`
 	ModuleDescription  string            `yaml:"description"`
 	Runner             string            `yaml:"runner"`
@@ -172,18 +172,6 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 			slog.Warn("unable to load custom model", slog.String("error", err.Error()), "path", file)
 			continue // FIXME: collect broken models
 		}
-		var modelConfigs map[string]string
-		for _, b := range m.ModelDescriptor.Bricks {
-			if len(b.ModelConfiguration) == 0 {
-				continue
-			}
-			if modelConfigs == nil {
-				modelConfigs = make(map[string]string, len(b.ModelConfiguration))
-			}
-			for k, v := range b.ModelConfiguration {
-				modelConfigs[k] = toStringStrict(v)
-			}
-		}
 		models = append(models, AIModel{
 			ID:                m.ModelDescriptor.ID,
 			Name:              m.ModelDescriptor.Name,
@@ -191,7 +179,7 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 			Bricks: f.Map(m.ModelDescriptor.Bricks, func(b aimodel.BrickConfig) string {
 				return b.ID
 			}),
-			ModelConfiguration: modelConfigs,
+			ModelConfiguration: toLegacyModelConfiguration(m.ModelDescriptor.Bricks),
 			ModelPath:          m.FullPath,
 		})
 	}
@@ -199,20 +187,36 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 	return models, nil
 }
 
-func toStringStrict(v any) string {
-	switch x := v.(type) {
-	case string:
-		return x
-	case []byte:
-		return string(x)
-	case bool:
-		return strconv.FormatBool(x)
-	case int:
-		return strconv.Itoa(x)
-	case int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
-		return fmt.Sprintf("%v", x)
-	default:
-		slog.Warn("unsupported type %T", v)
-		return ""
+func toLegacyModelConfiguration(bricks []aimodel.BrickConfig) map[string]string {
+	toString := func(v any) string {
+		switch x := v.(type) {
+		case string:
+			return x
+		case []byte:
+			return string(x)
+		case bool:
+			return strconv.FormatBool(x)
+		case int:
+			return strconv.Itoa(x)
+		case int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+			return fmt.Sprintf("%v", x)
+		default:
+			slog.Warn("unsupported type %T", v)
+			return ""
+		}
 	}
+
+	var modelConfigs map[string]string
+	for _, b := range bricks {
+		if len(b.ModelConfiguration) == 0 {
+			continue
+		}
+		if modelConfigs == nil {
+			modelConfigs = make(map[string]string, len(b.ModelConfiguration))
+		}
+		for k, v := range b.ModelConfiguration {
+			modelConfigs[k] = toString(v)
+		}
+	}
+	return modelConfigs
 }
