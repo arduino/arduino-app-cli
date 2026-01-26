@@ -40,7 +40,6 @@ type Configuration struct {
 	RunnerVersion      string
 	AllowRoot          bool
 	LibrariesAPIURL    *url.URL
-	edgeImpulseAPIURL  *url.URL
 }
 
 func NewFromEnv() (Configuration, error) {
@@ -103,15 +102,6 @@ func NewFromEnv() (Configuration, error) {
 		return Configuration{}, fmt.Errorf("invalid LIBRARIES_API_URL: %w", err)
 	}
 
-	edgeImpulseAPIURL := os.Getenv("EDGE_IMPULSE_API_URL")
-	if edgeImpulseAPIURL == "" {
-		edgeImpulseAPIURL = "https://studio.edgeimpulse.com/v1"
-	}
-	parsedEdgeImpulseURL, err := url.Parse(edgeImpulseAPIURL)
-	if err != nil {
-		return Configuration{}, fmt.Errorf("invalid EDGE_IMPULSE_API_URL: %w", err)
-	}
-
 	c := Configuration{
 		appsDir:            appsDir,
 		dataDir:            dataDir,
@@ -122,7 +112,6 @@ func NewFromEnv() (Configuration, error) {
 		RunnerVersion:      RunnerVersion,
 		AllowRoot:          allowRoot,
 		LibrariesAPIURL:    parsedLibrariesURL,
-		edgeImpulseAPIURL:  parsedEdgeImpulseURL,
 	}
 	if err := c.init(); err != nil {
 		return Configuration{}, err
@@ -165,10 +154,6 @@ func (c *Configuration) AssetsDir() *paths.Path {
 
 func (c *Configuration) CustomModelsDir() *paths.Path {
 	return c.customModelsDir
-}
-
-func (c *Configuration) EdgeImpulseAPIURL() *url.URL {
-	return c.edgeImpulseAPIURL
 }
 
 func getPythonImageAndTag() (string, string) {
