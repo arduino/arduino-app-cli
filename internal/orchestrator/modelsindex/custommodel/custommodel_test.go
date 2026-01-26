@@ -1,4 +1,4 @@
-package aimodel
+package custommodel
 
 import (
 	"bytes"
@@ -66,7 +66,7 @@ func TestSave(t *testing.T) {
 	t.Run("it writes model.yaml matching golden file", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		model := CustomAiModel{
+		model := AiModel{
 			FullPath: paths.New(tempDir),
 			ModelDescriptor: ModelDescriptor{
 				ID:          "my-model-id",

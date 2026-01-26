@@ -22,11 +22,11 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
+
 	"github.com/arduino/go-paths-helper"
 	"github.com/goccy/go-yaml"
 	"go.bug.st/f"
-
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/aimodel"
 )
 
 type assetsModelList struct {
@@ -167,7 +167,7 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 		return models, err
 	}
 	for _, file := range res {
-		m, err := aimodel.Load(file)
+		m, err := custommodel.Load(file)
 		if err != nil {
 			slog.Warn("unable to load custom model", slog.String("error", err.Error()), "path", file)
 			continue // FIXME: collect broken models
@@ -176,7 +176,7 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 			ID:                m.ModelDescriptor.ID,
 			Name:              m.ModelDescriptor.Name,
 			ModuleDescription: m.ModelDescriptor.Description,
-			Bricks: f.Map(m.ModelDescriptor.Bricks, func(b aimodel.BrickConfig) string {
+			Bricks: f.Map(m.ModelDescriptor.Bricks, func(b custommodel.BrickConfig) string {
 				return b.ID
 			}),
 			ModelConfiguration: toLegacyModelConfiguration(m.ModelDescriptor.Bricks),
@@ -187,7 +187,7 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 	return models, nil
 }
 
-func toLegacyModelConfiguration(bricks []aimodel.BrickConfig) map[string]string {
+func toLegacyModelConfiguration(bricks []custommodel.BrickConfig) map[string]string {
 	toString := func(v any) string {
 		switch x := v.(type) {
 		case string:

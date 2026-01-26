@@ -1,4 +1,4 @@
-package aimodel
+package custommodel
 
 import (
 	"errors"
@@ -13,38 +13,38 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 )
 
-type CustomAiModel struct {
+type AiModel struct {
 	FullPath        *paths.Path // Is the path to the folder containing the model and the descriptor file
 	ModelDescriptor ModelDescriptor
 }
 
-func Load(path *paths.Path) (CustomAiModel, error) {
+func Load(path *paths.Path) (AiModel, error) {
 	if path == nil {
-		return CustomAiModel{}, errors.New("empty model path")
+		return AiModel{}, errors.New("empty model path")
 	}
 
 	exist, err := path.IsDirCheck()
 	if err != nil {
-		return CustomAiModel{}, fmt.Errorf("model path is not valid: %w", err)
+		return AiModel{}, fmt.Errorf("model path is not valid: %w", err)
 	}
 	if !exist {
-		return CustomAiModel{}, fmt.Errorf("model path must be a directory: %s", path)
+		return AiModel{}, fmt.Errorf("model path must be a directory: %s", path)
 	}
 	modelPath, err := path.Abs()
 	if err != nil {
-		return CustomAiModel{}, fmt.Errorf("cannot get absolute path for model: %w", err)
+		return AiModel{}, fmt.Errorf("cannot get absolute path for model: %w", err)
 	}
 
-	m := CustomAiModel{FullPath: modelPath}
+	m := AiModel{FullPath: modelPath}
 
 	if descriptorFile := m.GetDescriptorPath(); descriptorFile.Exist() {
 		desc, err := ParseModelDescriptorFile(descriptorFile)
 		if err != nil {
-			return CustomAiModel{}, fmt.Errorf("error loading model descriptor file: %w", err)
+			return AiModel{}, fmt.Errorf("error loading model descriptor file: %w", err)
 		}
 		m.ModelDescriptor = desc
 	} else {
-		return CustomAiModel{}, errors.New("descriptor model.yaml file missing from app")
+		return AiModel{}, errors.New("descriptor model.yaml file missing from app")
 	}
 
 	return m, nil
@@ -61,7 +61,7 @@ func Store(dir *paths.Path, descr ModelDescriptor, modelFileReader io.Reader, mo
 		return fmt.Errorf("failed to create model directory: %w", err)
 	}
 
-	m := CustomAiModel{
+	m := AiModel{
 		FullPath:        dir,
 		ModelDescriptor: descr,
 	}
@@ -86,7 +86,7 @@ func Store(dir *paths.Path, descr ModelDescriptor, modelFileReader io.Reader, mo
 	return nil
 }
 
-func (a *CustomAiModel) GetDescriptorPath() *paths.Path {
+func (a *AiModel) GetDescriptorPath() *paths.Path {
 	descriptorFile := a.FullPath.Join("model.yaml")
 	if !descriptorFile.Exist() {
 		alternateDescriptorFile := a.FullPath.Join("model.yml")
@@ -99,7 +99,7 @@ func (a *CustomAiModel) GetDescriptorPath() *paths.Path {
 
 var ErrInvalidModel = fmt.Errorf("invalid model")
 
-func (a *CustomAiModel) Save() error {
+func (a *AiModel) Save() error {
 	if err := a.ModelDescriptor.IsValid(); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidModel, err)
 	}
@@ -109,7 +109,7 @@ func (a *CustomAiModel) Save() error {
 	return nil
 }
 
-func (a *CustomAiModel) write() error {
+func (a *AiModel) write() error {
 	descriptorPath := a.GetDescriptorPath()
 	if descriptorPath == nil {
 		return errors.New("model descriptor file path is not set")
