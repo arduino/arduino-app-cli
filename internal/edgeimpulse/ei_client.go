@@ -17,8 +17,8 @@ type EIClient struct {
 	HttpClient *ClientWithResponses
 }
 
-var InternalServerErr = fmt.Errorf("Service Unavailable")
-var UnauthorizedErr = fmt.Errorf("Unauthorized")
+var InternalServerErr = fmt.Errorf("service unavailable")
+var UnauthorizedErr = fmt.Errorf("unauthorized")
 
 func NewEIClient(userToken string, apiURL url.URL) (*EIClient, error) {
 
@@ -38,10 +38,9 @@ func NewEIClient(userToken string, apiURL url.URL) (*EIClient, error) {
 	return &EIClient{UserToken: userToken, ApiUrl: apiURL, HttpClient: httpClient}, nil
 }
 
-func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath *paths.Path, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter) error {
+func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath *paths.Path, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter, deviceType DeploymentTypeParameter) error {
 
-	//TODO arduino-uno-q should be parameterized
-	opt := &DownloadBuildParams{ImpulseId: &impulseID, ModelType: &modelType, Engine: &engine, Type: "arduino-uno-q"}
+	opt := &DownloadBuildParams{ImpulseId: &impulseID, ModelType: &modelType, Engine: &engine, Type: deviceType}
 
 	resp, err := c.HttpClient.DownloadBuildWithResponse(ctx, projectID, opt)
 	if err != nil {
@@ -52,7 +51,7 @@ func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath *paths
 		return errorMessage(resp.StatusCode())
 	}
 
-	err = os.WriteFile(modelPath.String(), []byte(resp.Body), 0600)
+	err = os.WriteFile(modelPath.String(), resp.Body, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to save model: %v", err)
 	}
@@ -60,9 +59,9 @@ func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath *paths
 	return nil
 }
 
-func (c *EIClient) GetDeployment(ctx context.Context, projectID int, modelType ModelTypeParameter, engine ModelEngineParameter) (*int, error) {
+func (c *EIClient) GetDeployment(ctx context.Context, projectID int, modelType ModelTypeParameter, engine ModelEngineParameter, deviceType DeploymentTypeParameter) (*int, error) {
 
-	params := &GetDeploymentParams{ModelType: &modelType, Engine: &engine, Type: "arduino-uno-q"}
+	params := &GetDeploymentParams{ModelType: &modelType, Engine: &engine, Type: deviceType}
 	resp, err := c.HttpClient.GetDeploymentWithResponse(ctx, projectID, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform get deployment request: %w", err)
@@ -81,9 +80,9 @@ func (c *EIClient) GetDeployment(ctx context.Context, projectID int, modelType M
 	return nil, fmt.Errorf("error fetching deployment info: %s", *resp.JSON200.Error)
 }
 
-func (c *EIClient) Build(ctx context.Context, projectID int, modelType ModelTypeParameter, engine ModelEngineParameter) (*int, error) {
+func (c *EIClient) Build(ctx context.Context, projectID int, modelType ModelTypeParameter, engine ModelEngineParameter, deviceType DeploymentTypeParameter) (*int, error) {
 
-	params := &BuildOnDeviceModelJobParams{Type: "arduino-uno-q"}
+	params := &BuildOnDeviceModelJobParams{Type: deviceType}
 
 	body := BuildOnDeviceModelJobJSONRequestBody{
 		Engine:    engine,
