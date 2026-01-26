@@ -16,30 +16,15 @@
 package handlers
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
-	"github.com/arduino/arduino-app-cli/internal/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
-
-type InstallEIModelRequest struct {
-	ProjectID  int    `json:"project_id" description:"Edge Impulse project ID" example:"123456" required:"true"`
-	ImpulseID  int    `json:"impulse_id" description:"Edge Impulse impulse ID" example:"1" required:"true"`
-	Token      string `json:"token" description:"Edge Impulse API token" example:"your_edge_impulse_api_token" required:"true"`
-	ModelType  string `json:"model_type" description:"Type of model to build (e.g., 'object-detection')" example:"object-detection" required:"true"`
-	Engine     string `json:"engine" description:"Model engine (e.g., 'tensorflow-lite')" example:"tensorflow-lite" required:"true"`
-	DeviceType string `json:"device_type" description:"Device type for deployment (e.g., 'arduino-uno-q')" example:"arduino-uno-q" required:"true"`
-}
 
 func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -70,45 +55,5 @@ func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 			return
 		}
 		render.EncodeResponse(w, http.StatusOK, res)
-	}
-}
-
-func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.BricksIndex) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req InstallEIModelRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			slog.Error("unable to decode app create request", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "unable to decode app create request"})
-			return
-		}
-		defer r.Body.Close()
-
-		if cfg.EdgeImpulseAPIURL() == nil {
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "Edge Impulse API URL is not configured"})
-			return
-		}
-		eiClient, err := edgeimpulse.NewEIClient(req.Token, *cfg.EdgeImpulseAPIURL())
-		if err != nil {
-			slog.Error("unable to create Edge Impulse client", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to create Edge Impulse client"})
-			return
-		}
-
-		err = orchestrator.InstallEIModel(r.Context(), bricksIndex, eiClient, cfg.CustomModelsDir(), req.ProjectID, req.ImpulseID, req.ModelType, req.Engine, req.DeviceType)
-		if err != nil {
-			switch {
-			case errors.Is(err, edgeimpulse.UnauthorizedErr):
-				slog.Error("unauthorized access to Edge Impulse API", slog.String("error", err.Error()))
-				render.EncodeResponse(w, http.StatusUnauthorized, models.ErrorResponse{Details: "unauthorized access to Edge Impulse API"})
-				return
-			default:
-				slog.Error("unable to install Edge Impulse model", slog.String("error", err.Error()))
-				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to install Edge Impulse model"})
-				return
-			}
-		}
-
-		// FIXME: read the installed model using the modelindex.getModelByID
-		render.EncodeResponse(w, http.StatusOK, nil)
 	}
 }
