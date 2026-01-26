@@ -86,34 +86,19 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "Edge Impulse API URL is not configured"})
 			return
 		}
-		eiClient := edgeimpulse.NewEIClient(req.Token, *cfg.EdgeImpulseAPIURL())
+		eiClient, err := edgeimpulse.NewEIClient(req.Token, *cfg.EdgeImpulseAPIURL())
+		if err != nil {
+			slog.Error("unable to create Edge Impulse client", slog.String("error", err.Error()))
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to create Edge Impulse client"})
+			return
+		}
 
-		err := orchestrator.InstallEIModel(r.Context(), bricksIndex, eiClient, cfg.CustomModelsDir(), req.ProjectID, req.ImpulseID, *req.ModelType, *req.Engine)
+		err = orchestrator.InstallEIModel(r.Context(), bricksIndex, eiClient, cfg.CustomModelsDir(), req.ProjectID, req.ImpulseID, *req.ModelType, *req.Engine)
 		if err != nil {
 			switch {
 			case errors.Is(err, edgeimpulse.UnauthorizedErr):
 				slog.Error("unauthorized access to Edge Impulse API", slog.String("error", err.Error()))
 				render.EncodeResponse(w, http.StatusUnauthorized, models.ErrorResponse{Details: "unauthorized access to Edge Impulse API"})
-				return
-			case errors.Is(err, edgeimpulse.BadRequestErr):
-				slog.Error("bad request to Edge Impulse API", slog.String("error", err.Error()))
-				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "bad request to Edge Impulse API"})
-				return
-			case errors.Is(err, edgeimpulse.ForbiddenErr):
-				slog.Error("forbidden access to Edge Impulse API", slog.String("error", err.Error()))
-				render.EncodeResponse(w, http.StatusForbidden, models.ErrorResponse{Details: "forbidden access to Edge Impulse API"})
-				return
-			case errors.Is(err, edgeimpulse.InternalServerErr):
-				slog.Error("Edge Impulse API internal server error", slog.String("error", err.Error()))
-				render.EncodeResponse(w, http.StatusBadGateway, models.ErrorResponse{Details: "Edge Impulse API internal server error"})
-				return
-			case errors.Is(err, edgeimpulse.UnexpectedErr):
-				slog.Error("unexpected error from Edge Impulse API", slog.String("error", err.Error()))
-				render.EncodeResponse(w, http.StatusBadGateway, models.ErrorResponse{Details: "unexpected error from Edge Impulse API"})
-				return
-			case errors.Is(err, edgeimpulse.TooManyReqErr):
-				slog.Error("too many requests to Edge Impulse API", slog.String("error", err.Error()))
-				render.EncodeResponse(w, http.StatusTooManyRequests, models.ErrorResponse{Details: "too many requests to Edge Impulse API"})
 				return
 			default:
 				slog.Error("unable to install Edge Impulse model", slog.String("error", err.Error()))

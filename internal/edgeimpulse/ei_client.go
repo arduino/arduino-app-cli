@@ -18,14 +18,9 @@ type EIClient struct {
 }
 
 var InternalServerErr = fmt.Errorf("Service Unavailable")
-var BadRequestErr = fmt.Errorf("Bad Request")
-var NotFoundErr = fmt.Errorf("Not Found")
 var UnauthorizedErr = fmt.Errorf("Unauthorized")
-var ForbiddenErr = fmt.Errorf("Forbidden")
-var TooManyReqErr = fmt.Errorf("Too Many Requests")
-var UnexpectedErr = fmt.Errorf("An unexpected error occurred")
 
-func NewEIClient(userToken string, apiURL url.URL) *EIClient {
+func NewEIClient(userToken string, apiURL url.URL) (*EIClient, error) {
 
 	ClientOptions := []ClientOption{
 		WithBaseURL(apiURL.String()),
@@ -37,11 +32,10 @@ func NewEIClient(userToken string, apiURL url.URL) *EIClient {
 	}
 	httpClient, err := NewClientWithResponses(apiURL.String(), ClientOptions...)
 	if err != nil {
-		//TODO should not panic?
-		panic(fmt.Sprintf("failed to create EI OpenClient: %v", err))
+		return nil, fmt.Errorf("failed to create EI OpenClient: %v", err)
 	}
 
-	return &EIClient{UserToken: userToken, ApiUrl: apiURL, HttpClient: httpClient}
+	return &EIClient{UserToken: userToken, ApiUrl: apiURL, HttpClient: httpClient}, nil
 }
 
 func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath *paths.Path, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter) error {
@@ -174,22 +168,9 @@ func (c EIClient) WaitForBuildCompletion(ctx context.Context, projectID, jobID i
 
 func errorMessage(statusCode int) error {
 	switch statusCode {
-
-	case http.StatusBadRequest:
-		return BadRequestErr
 	case http.StatusUnauthorized:
 		return UnauthorizedErr
-	case http.StatusForbidden:
-		return ForbiddenErr
-	case http.StatusNotFound:
-		return NotFoundErr
-	case http.StatusTooManyRequests:
-		return TooManyReqErr
-	case http.StatusInternalServerError:
-		return InternalServerErr
-	case http.StatusServiceUnavailable:
-		return InternalServerErr
 	default:
-		return UnexpectedErr
+		return InternalServerErr
 	}
 }
