@@ -1,4 +1,4 @@
-# video_imageclassification API Reference
+# video_image_classification API Reference
 
 ## Index
 

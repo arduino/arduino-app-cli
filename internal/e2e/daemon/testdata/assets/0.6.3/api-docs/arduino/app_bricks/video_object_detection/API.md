@@ -1,4 +1,4 @@
-# video_objectdetection API Reference
+# video_object_detection API Reference
 
 ## Index
 

@@ -17,15 +17,15 @@ package arduino
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 
 	"github.com/arduino/arduino-cli/commands"
-	"github.com/arduino/arduino-cli/commands/cmderrors"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/sirupsen/logrus"
+	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
@@ -33,11 +33,14 @@ import (
 )
 
 type ArduinoPlatformUpdater struct {
-	lock sync.Mutex
+	lock       sync.Mutex
+	constraint semver.Constraint
 }
 
-func NewArduinoPlatformUpdater() *ArduinoPlatformUpdater {
-	return &ArduinoPlatformUpdater{}
+func NewArduinoPlatformUpdater(versionConstraint semver.Constraint) *ArduinoPlatformUpdater {
+	return &ArduinoPlatformUpdater{
+		constraint: versionConstraint,
+	}
 }
 
 func setConfig(ctx context.Context, srv rpc.ArduinoCoreServiceServer) error {
@@ -121,20 +124,66 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ f
 		return nil, nil // No platform found
 	}
 
-	if platformSummary.GetLatestVersion() == platformSummary.GetInstalledVersion() {
-		return nil, nil // No update available
+	installedV, err := semver.Parse(platformSummary.GetInstalledVersion())
+	if err != nil {
+		return nil, fmt.Errorf("invalid installed version '%s': %w", platformSummary.GetInstalledVersion(), err)
+	}
+
+	availableReleases := make([]string, 0, len(platformSummary.GetReleases()))
+	for k := range platformSummary.GetReleases() {
+		availableReleases = append(availableReleases, k)
+	}
+
+	bestVersion := selectBestVersion(availableReleases, installedV, a.constraint)
+
+	if bestVersion == nil {
+		return []update.UpgradablePackage{}, nil
+	}
+
+	if bestVersion.Equal(installedV) {
+		return []update.UpgradablePackage{}, nil
 	}
 
 	return []update.UpgradablePackage{{
 		Type:        update.Arduino,
 		Name:        "arduino:zephyr",
 		FromVersion: platformSummary.GetInstalledVersion(),
-		ToVersion:   platformSummary.GetLatestVersion(),
+		ToVersion:   bestVersion.String(),
 	}}, nil
 }
 
+func selectBestVersion(available []string, installed *semver.Version, constraint semver.Constraint) *semver.Version {
+	candidates := make([]*semver.Version, 0, len(available))
+
+	for _, verStr := range available {
+		v, err := semver.Parse(verStr)
+		if err != nil {
+			continue
+		}
+
+		if !constraint.Match(v) {
+			continue
+		}
+		if installed != nil && v.LessThan(installed) {
+			continue
+		}
+
+		candidates = append(candidates, v)
+	}
+
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	slices.SortFunc(candidates, func(a, b *semver.Version) int {
+		return a.CompareTo(b)
+	})
+
+	return candidates[len(candidates)-1]
+}
+
 // UpgradePackages implements ServiceUpdater.
-func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []string, eventCB update.EventCallback) error {
+func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages []update.PackageInfo, eventCB update.EventCallback) error {
 	if !a.lock.TryLock() {
 		return update.ErrOperationAlreadyInProgress
 	}
@@ -185,49 +234,35 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, names []st
 		}
 	}
 
-	stream, respCB := commands.PlatformUpgradeStreamResponseToCallbackFunction(
+	stream := commands.PlatformInstallStreamResponseToCallbackFunction(
 		ctx,
 		downloadProgressCB,
 		taskProgressCB,
 	)
-	if err := srv.PlatformUpgrade(
-		&rpc.PlatformUpgradeRequest{
-			Instance:         inst,
-			PlatformPackage:  "arduino",
-			Architecture:     "zephyr",
-			SkipPostInstall:  false,
-			SkipPreUninstall: false,
+
+	if len(packages) != 1 {
+		return fmt.Errorf("expected exactly one package to upgrade, got %d", len(packages))
+	}
+	pkg := packages[0]
+	if pkg.Name != "arduino:zephyr" {
+		return fmt.Errorf("unexpected package name '%s': this updater only supports '%s'", pkg.Name, "arduino:zephyr")
+	}
+
+	targetVersion := pkg.ToVersion
+	if targetVersion == "" {
+		return fmt.Errorf("target version is empty for package '%s'", pkg.Name)
+	}
+
+	if err := srv.PlatformInstall(
+		&rpc.PlatformInstallRequest{
+			Instance:        inst,
+			PlatformPackage: "arduino",
+			Architecture:    "zephyr",
+			Version:         targetVersion,
 		},
 		stream,
 	); err != nil {
-		var alreadyPresent *cmderrors.PlatformAlreadyAtTheLatestVersionError
-		if errors.As(err, &alreadyPresent) {
-			eventCB(update.NewDataEvent(update.UpgradeLineEvent, alreadyPresent.Error()))
-			return nil
-		}
-
-		var notFound *cmderrors.PlatformNotFoundError
-		if !errors.As(err, &notFound) {
-			return fmt.Errorf("error upgrading platform: %w", err)
-		}
-		// If the platform is not found, we will try to install it
-		err := srv.PlatformInstall(
-			&rpc.PlatformInstallRequest{
-				Instance:        inst,
-				PlatformPackage: "arduino",
-				Architecture:    "zephyr",
-			},
-			commands.PlatformInstallStreamResponseToCallbackFunction(
-				ctx,
-				downloadProgressCB,
-				taskProgressCB,
-			),
-		)
-		if err != nil {
-			return fmt.Errorf("error installing platform: %w", err)
-		}
-	} else if respCB().GetPlatform() == nil {
-		return fmt.Errorf("platform upgrade failed")
+		return fmt.Errorf("error installing platform version %s: %w", targetVersion, err)
 	}
 
 	cbw := orchestrator.NewCallbackWriter(func(line string) {
