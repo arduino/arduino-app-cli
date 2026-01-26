@@ -33,11 +33,12 @@ import (
 )
 
 type InstallEIModelRequest struct {
-	ProjectID int     `json:"project_id" description:"Edge Impulse project ID" example:"123456" required:"true"`
-	ImpulseID int     `json:"impulse_id" description:"Edge Impulse impulse ID" example:"1" required:"true"`
-	Token     string  `json:"token" description:"Edge Impulse API token" example:"your_edge_impulse_api_token" required:"true"`
-	ModelType *string `json:"model_type" description:"Type of model to build (e.g., 'object-detection')" example:"object-detection" required:"true"`
-	Engine    *string `json:"engine" description:"Model engine (e.g., 'tensorflow-lite')" example:"tensorflow-lite" required:"true"`
+	ProjectID  int    `json:"project_id" description:"Edge Impulse project ID" example:"123456" required:"true"`
+	ImpulseID  int    `json:"impulse_id" description:"Edge Impulse impulse ID" example:"1" required:"true"`
+	Token      string `json:"token" description:"Edge Impulse API token" example:"your_edge_impulse_api_token" required:"true"`
+	ModelType  string `json:"model_type" description:"Type of model to build (e.g., 'object-detection')" example:"object-detection" required:"true"`
+	Engine     string `json:"engine" description:"Model engine (e.g., 'tensorflow-lite')" example:"tensorflow-lite" required:"true"`
+	DeviceType string `json:"device_type" description:"Device type for deployment (e.g., 'arduino-uno-q')" example:"arduino-uno-q" required:"true"`
 }
 
 func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
@@ -93,7 +94,7 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 			return
 		}
 
-		err = orchestrator.InstallEIModel(r.Context(), bricksIndex, eiClient, cfg.CustomModelsDir(), req.ProjectID, req.ImpulseID, *req.ModelType, *req.Engine)
+		err = orchestrator.InstallEIModel(r.Context(), bricksIndex, eiClient, cfg.CustomModelsDir(), req.ProjectID, req.ImpulseID, req.ModelType, req.Engine, req.DeviceType)
 		if err != nil {
 			switch {
 			case errors.Is(err, edgeimpulse.UnauthorizedErr):

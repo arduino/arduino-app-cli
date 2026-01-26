@@ -86,7 +86,7 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 	}, true
 }
 
-func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, projectID int, impulseID int, modelType string, engine string) error {
+func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, projectID int, impulseID int, modelType string, engine string, deviceType string) error {
 
 	project, err := eiClient.GetProjectInfo(ctx, projectID, impulseID)
 	if err != nil {
@@ -119,13 +119,12 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 
 	modelTypeParam := edgeimpulse.ModelTypeParameter(modelType)
 	engineParam := edgeimpulse.ModelEngineParameter(engine)
-
-	version, err := eiClient.GetDeployment(ctx, projectID, modelTypeParam, engineParam)
+	version, err := eiClient.GetDeployment(ctx, projectID, modelTypeParam, engineParam, deviceType)
 	if err != nil {
 		return err
 	}
 	if version == nil {
-		jobId, err := eiClient.Build(ctx, projectID, modelTypeParam, engineParam)
+		jobId, err := eiClient.Build(ctx, projectID, modelTypeParam, engineParam, deviceType)
 		if err != nil {
 			return err
 		}
@@ -135,7 +134,7 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 		}
 	}
 
-	err = eiClient.DownloadAndInstallModel(ctx, blobModelsDir, projectID, impulseID, modelTypeParam, engineParam)
+	err = eiClient.DownloadAndInstallModel(ctx, blobModelsDir, projectID, impulseID, modelTypeParam, engineParam, deviceType)
 	if err != nil {
 		return err
 	}
