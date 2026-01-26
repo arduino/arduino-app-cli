@@ -13,19 +13,19 @@ import (
 
 type EIClient struct {
 	ApiUrl     url.URL
-	UserToken  string
+	PrjApiKey  string
 	HttpClient *ClientWithResponses
 }
 
 var InternalServerErr = fmt.Errorf("service unavailable")
 var UnauthorizedErr = fmt.Errorf("unauthorized")
 
-func NewEIClient(userToken string, apiURL url.URL) (*EIClient, error) {
+func NewEIClient(prjApiKey string, apiURL url.URL) (*EIClient, error) {
 
 	ClientOptions := []ClientOption{
 		WithBaseURL(apiURL.String()),
 		WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
-			req.Header.Add("x-jwt-token", userToken)
+			req.Header.Add("x-api-key", prjApiKey)
 			req.Header.Set("Content-Type", "application/json")
 			return nil
 		}),
@@ -35,7 +35,7 @@ func NewEIClient(userToken string, apiURL url.URL) (*EIClient, error) {
 		return nil, fmt.Errorf("failed to create EI OpenClient: %v", err)
 	}
 
-	return &EIClient{UserToken: userToken, ApiUrl: apiURL, HttpClient: httpClient}, nil
+	return &EIClient{PrjApiKey: prjApiKey, ApiUrl: apiURL, HttpClient: httpClient}, nil
 }
 
 func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath *paths.Path, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter, deviceType DeploymentTypeParameter) error {

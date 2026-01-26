@@ -35,7 +35,7 @@ import (
 type InstallEIModelRequest struct {
 	ProjectID  int    `json:"project_id" description:"Edge Impulse project ID" example:"123456" required:"true"`
 	ImpulseID  int    `json:"impulse_id" description:"Edge Impulse impulse ID" example:"1" required:"true"`
-	Token      string `json:"token" description:"Edge Impulse API token" example:"your_edge_impulse_api_token" required:"true"`
+	PrjApiKey  string `json:"prj_api_key" description:"Edge Impulse API token" example:"your_edge_impulse_api_token" required:"true"`
 	ModelType  string `json:"model_type" description:"Type of model to build (e.g., 'object-detection')" example:"object-detection" required:"true"`
 	Engine     string `json:"engine" description:"Model engine (e.g., 'tensorflow-lite')" example:"tensorflow-lite" required:"true"`
 	DeviceType string `json:"device_type" description:"Device type for deployment (e.g., 'arduino-uno-q')" example:"arduino-uno-q" required:"true"`
@@ -87,7 +87,7 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "Edge Impulse API URL is not configured"})
 			return
 		}
-		eiClient, err := edgeimpulse.NewEIClient(req.Token, *cfg.EdgeImpulseAPIURL())
+		eiClient, err := edgeimpulse.NewEIClient(req.PrjApiKey, *cfg.EdgeImpulseAPIURL())
 		if err != nil {
 			slog.Error("unable to create Edge Impulse client", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to create Edge Impulse client"})
