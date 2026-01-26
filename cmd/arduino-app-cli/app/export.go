@@ -36,10 +36,14 @@ func newExportCmd() *cobra.Command {
 	var includeData bool
 
 	cmd := &cobra.Command{
-		Use:   "export APP_ID",
+		Use:   "export app_path",
 		Short: "Export an existing Arduino App to a zip file",
-		Args:  cobra.ExactArgs(1),
+
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return cmd.Help()
+			}
+
 			appID := args[0]
 			return exportHandler(cmd.Context(), appID, includeData)
 		},
@@ -53,7 +57,7 @@ func newExportCmd() *cobra.Command {
 func exportHandler(ctx context.Context, appIDStr string, includeData bool) error {
 	id, err := servicelocator.GetAppIDProvider().ParseID(appIDStr)
 	if err != nil {
-		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+		feedback.Fatal(fmt.Sprintf("Invalid App ID '%s': %s", appIDStr, err), feedback.ErrBadArgument)
 	}
 
 	appToExport, err := app.Load(id.ToPath())
