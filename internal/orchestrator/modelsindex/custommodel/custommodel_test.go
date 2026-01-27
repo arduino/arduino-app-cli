@@ -131,7 +131,7 @@ func TestStore(t *testing.T) {
 		blobContent := []byte("this is model blob content")
 		blobReader := io.NopCloser(bytes.NewReader(blobContent))
 
-		m, err := Store(modelDir, descr, blobReader, "model.eim")
+		m, err := Store(modelDir, descr, blobReader, "model.blob")
 		require.NoError(t, err)
 
 		assert.Equal(t, descr, m.ModelDescriptor)
@@ -140,7 +140,7 @@ func TestStore(t *testing.T) {
 		descriptorPath := modelDir.Join("model.yaml")
 		require.True(t, descriptorPath.Exist())
 
-		blobPath := modelDir.Join("model.eim")
+		blobPath := modelDir.Join("model.blob")
 		require.True(t, blobPath.Exist())
 
 		gotBlob, err := os.ReadFile(blobPath.String())
