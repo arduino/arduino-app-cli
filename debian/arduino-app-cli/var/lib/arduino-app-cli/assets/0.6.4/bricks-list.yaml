@@ -94,8 +94,10 @@ bricks:
   variables:
   - name: ARDUINO_DEVICE_ID
     description: Arduino Cloud Device ID
+    secret: true
   - name: ARDUINO_SECRET
     description: Arduino Cloud Secret
+    secret: true
 - id: arduino:wave_generator
   name: Wave Generator
   description: Continuous wave generator for audio synthesis. Generates sine, square,
@@ -305,12 +307,15 @@ bricks:
   - name: DB_USERNAME
     default_value: admin
     description: Database username
+    secret: true
   - name: DB_PASSWORD
     default_value: Arduino15
     description: Database password
+    secret: true
   - name: INFLUXDB_ADMIN_TOKEN
     default_value: 392edbf2-b8a2-481f-979d-3f188b2c05f0
     description: InfluxDB admin token
+    secret: true
   - name: BIND_ADDRESS
     default_value: 127.0.0.1
     description: External container address
@@ -392,3 +397,4 @@ bricks:
   variables:
   - name: API_KEY
     description: API Key for the cloud-based LLM service
+    secret: true
