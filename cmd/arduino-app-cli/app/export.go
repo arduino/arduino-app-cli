@@ -25,7 +25,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -41,16 +40,15 @@ func newExportCmd() *cobra.Command {
 		Args:  cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 
-			if len(args) == 0 {
-				return cmd.Help()
+			app, err := Load(args[0])
+			if err != nil {
+				feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 			}
-
-			appID := args[0]
 			outputPath := ""
 			if len(args) > 1 {
 				outputPath = args[1]
 			}
-			return exportHandler(cmd.Context(), appID, outputPath, includeData, override)
+			return exportHandler(cmd.Context(), app, outputPath, includeData, override)
 		},
 	}
 
@@ -60,19 +58,7 @@ func newExportCmd() *cobra.Command {
 	return cmd
 }
 
-func exportHandler(ctx context.Context, appIDStr string, outputDest string, includeData bool, override bool) error {
-	id, err := servicelocator.GetAppIDProvider().ParseID(appIDStr)
-	if err != nil {
-		feedback.Fatal(fmt.Sprintf("Invalid App ID '%s': %s", appIDStr, err), feedback.ErrBadArgument)
-	}
-
-	appToExport, err := app.Load(id.ToPath())
-	if err != nil {
-		feedback.Fatal(
-			fmt.Sprintf("Unable to load the app at '%s': %v", id.String(), err),
-			feedback.ErrGeneric,
-		)
-	}
+func exportHandler(ctx context.Context, appToExport app.ArduinoApp, outputDest string, includeData bool, override bool) error {
 
 	zipBytes, originalName, err := orchestrator.ExportAppZip(ctx, appToExport, includeData)
 	if err != nil {
