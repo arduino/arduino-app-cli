@@ -32,7 +32,7 @@ import (
 func newImportCmd(cfg config.Configuration) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "import FILE_PATH",
-		Short: "Import an existing Arduino App from a zip file",
+		Short: "Import an Arduino App from a zip file",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			filePath := args[0]
