@@ -28,10 +28,12 @@ func TestModelsIndex(t *testing.T) {
 		modelsIndex, err := Load(paths.New("testdata"), nil)
 		require.NoError(t, err)
 		require.Len(t, modelsIndex.GetModels(), 2)
+	})
 
-		modelsIndex, err = Load(paths.New("testdata"), paths.New("not-existing-models-folder"))
+	t.Run("custom models folder can be empty", func(t *testing.T) {
+		modelsIndex, err := Load(nil, paths.New(t.TempDir()))
 		require.NoError(t, err)
-		require.Len(t, modelsIndex.GetModels(), 2)
+		require.Len(t, modelsIndex.GetModels(), 0)
 	})
 
 	t.Run("it loads nested custom models correctly", func(t *testing.T) {
