@@ -11,11 +11,10 @@ import (
 )
 
 func TestModelsIndex(t *testing.T) {
-	modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata"))
-	require.NoError(t, err)
-	require.NotNil(t, modelsIndex)
-
 	t.Run("it parses a valid model-list.yaml and custom models", func(t *testing.T) {
+		modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata"))
+		require.NoError(t, err)
+		require.NotNil(t, modelsIndex)
 		models := modelsIndex.GetModels()
 		assert.Len(t, models, 3, "Expected 3 models to be parsed")
 	})
@@ -36,7 +35,7 @@ func TestModelsIndex(t *testing.T) {
 	})
 
 	t.Run("it loads nested custom models correctly", func(t *testing.T) {
-		modelsIndex, err = Load(nil, paths.New("testdata/parent-models"))
+		modelsIndex, err := Load(nil, paths.New("testdata/parent-models"))
 		assert.NoError(t, err)
 		assert.NotEmpty(t, modelsIndex)
 		assert.Len(t, modelsIndex.GetModels(), 2)
@@ -51,11 +50,14 @@ func TestModelsIndex(t *testing.T) {
 	})
 
 	t.Run("it gets a preloaded model by ID", func(t *testing.T) {
+		modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata"))
+		require.NoError(t, err)
 		model, found := modelsIndex.GetModelByID("not-existing-model")
 		assert.False(t, found)
 		assert.Nil(t, model)
 
 		model, found = modelsIndex.GetModelByID("face-detection")
+		require.True(t, found)
 		assert.Equal(t, "brick", model.Runner)
 		require.True(t, found, "face-detection should be found")
 		assert.Equal(t, "face-detection", model.ID)
@@ -71,6 +73,9 @@ func TestModelsIndex(t *testing.T) {
 	})
 
 	t.Run("it get custom model by id", func(t *testing.T) {
+		modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata"))
+		require.NoError(t, err)
+
 		eimodel, found := modelsIndex.GetModelByID("my-model-id")
 		assert.True(t, found)
 		assert.NotNil(t, eimodel)
@@ -95,6 +100,9 @@ func TestModelsIndex(t *testing.T) {
 	})
 
 	t.Run("it gets models by a brick", func(t *testing.T) {
+		modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata"))
+		require.NoError(t, err)
+
 		model := modelsIndex.GetModelsByBrick("not-existing-brick")
 		assert.Nil(t, model)
 
@@ -104,6 +112,9 @@ func TestModelsIndex(t *testing.T) {
 	})
 
 	t.Run("it gets models by bricks", func(t *testing.T) {
+		modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata"))
+		require.NoError(t, err)
+
 		models := modelsIndex.GetModelsByBricks([]string{"arduino:non_existing"})
 		assert.Len(t, models, 0)
 		assert.Nil(t, models)
