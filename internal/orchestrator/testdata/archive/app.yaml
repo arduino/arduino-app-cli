@@ -1,0 +1,9 @@
+name: Image detection with UI
+description: Image detection with UI
+ports:
+  - 7860
+bricks:
+  - arduino:arduino_cloud:
+    variables:
+      ARDUINO_DEVICE_ID: your_device_id
+      ARDUINO_SECRET: your_secret

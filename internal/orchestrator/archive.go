@@ -42,7 +42,7 @@ var (
 
 func ExportAppZip(
 	ctx context.Context,
-	bricksindex *bricksindex.BricksIndex,
+	bricksIndex *bricksindex.BricksIndex,
 	appTarget app.ArduinoApp,
 	includeData bool,
 ) ([]byte, string, error) {
@@ -52,14 +52,14 @@ func ExportAppZip(
 		appName = "app-export"
 	}
 	filename := fmt.Sprintf("%s.zip", appName)
-	zipBytes, err := zipAppToBuffer(bricksindex, appTarget.FullPath.String(), includeData)
+	zipBytes, err := zipAppToBuffer(bricksIndex, appTarget.FullPath.String(), includeData)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create zip archive: %w", err)
 	}
 	return zipBytes, filename, nil
 }
 
-func zipAppToBuffer(bricksindex *bricksindex.BricksIndex, sourcePath string, includeData bool) ([]byte, error) {
+func zipAppToBuffer(bricksIndex *bricksindex.BricksIndex, sourcePath string, includeData bool) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	zipWriter := zip.NewWriter(buf)
 
@@ -112,11 +112,12 @@ func zipAppToBuffer(bricksindex *bricksindex.BricksIndex, sourcePath string, inc
 		}
 
 		if d.Name() == "app.yaml" || d.Name() == "app.yml" {
+			fmt.Printf("Redacting secrets in %s\n", path)
 			desc, err := app.ParseDescriptorFile(paths.New(path))
 			if err != nil {
 				return err
 			}
-			redactSecrets(bricksindex, &desc)
+			redactSecrets(bricksIndex, &desc)
 			err = yaml.NewEncoder(writer).Encode(desc)
 			return err
 		} else {

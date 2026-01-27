@@ -18,7 +18,6 @@ package orchestrator
 import (
 	"archive/zip"
 	"bytes"
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -29,14 +28,33 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
+func writeFiles(t *testing.T, tmpPath string, files []string) error {
+	t.Helper()
+	for _, path := range files {
+		srcPath := filepath.Join("testdata", "archive", path)
+		content, err := os.ReadFile(srcPath)
+		require.NoError(t, err)
+
+		dstPath := filepath.Join(tmpPath, path)
+		require.NoError(t, os.MkdirAll(filepath.Dir(dstPath), 0755))
+		require.NoError(t, os.WriteFile(dstPath, content, 0600))
+	}
+	return nil
+}
+
 func TestExportAppZip(t *testing.T) {
+	bricksIndex, err := bricksindex.Load(paths.New("testdata", "archive"))
+	require.NoError(t, err)
+
 	type testCase struct {
 		name             string
 		appName          string
-		files            map[string]string
+		files            []string
 		nonExistent      bool
 		includeData      bool
 		wantFiles        []string
@@ -47,12 +65,9 @@ func TestExportAppZip(t *testing.T) {
 
 	tests := []testCase{
 		{
-			name:    "Standard app name (include_data=false)",
-			appName: "My Test App",
-			files: map[string]string{
-				"app.yaml":     "content",
-				"data/foo.txt": "data content",
-			},
+			name:             "Standard app name (include_data=false)",
+			appName:          "My Test App",
+			files:            []string{"app.yaml", "data/foo.txt"},
 			includeData:      false,
 			wantErr:          false,
 			wantFilename:     "my-test-app.zip",
@@ -60,12 +75,9 @@ func TestExportAppZip(t *testing.T) {
 			wantMissingFiles: []string{"data/foo.txt"},
 		},
 		{
-			name:    "Include Data directory (include_data=true)",
-			appName: "Data App",
-			files: map[string]string{
-				"app.yaml":     "content",
-				"data/foo.txt": "data content",
-			},
+			name:             "Include Data directory (include_data=true)",
+			appName:          "Data App",
+			files:            []string{"app.yaml", "data/foo.txt"},
 			includeData:      true,
 			wantErr:          false,
 			wantFilename:     "data-app.zip",
@@ -73,11 +85,9 @@ func TestExportAppZip(t *testing.T) {
 			wantMissingFiles: []string{},
 		},
 		{
-			name:    "Empty app name uses default",
-			appName: "",
-			files: map[string]string{
-				"app.yaml": "content",
-			},
+			name:         "Empty app name uses default",
+			appName:      "",
+			files:        []string{"app.yaml", "data/foo.txt"},
 			includeData:  false,
 			wantErr:      false,
 			wantFilename: "app-export.zip",
@@ -95,11 +105,7 @@ func TestExportAppZip(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tmpDir := t.TempDir()
 
-			for path, content := range tc.files {
-				fullPath := filepath.Join(tmpDir, path)
-				require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0755))
-				require.NoError(t, os.WriteFile(fullPath, []byte(content), 0600))
-			}
+			writeFiles(t, tmpDir, tc.files)
 
 			appPath := tmpDir
 			if tc.nonExistent {
@@ -110,7 +116,7 @@ func TestExportAppZip(t *testing.T) {
 				Name:     tc.appName,
 				FullPath: paths.New(appPath),
 			}
-			zipData, filename, err := ExportAppZip(context.Background(), app, tc.includeData)
+			zipData, filename, err := ExportAppZip(t.Context(), bricksIndex, app, tc.includeData)
 
 			if tc.wantErr {
 				require.Error(t, err)
@@ -142,9 +148,13 @@ func TestExportAppZip(t *testing.T) {
 	}
 }
 func TestZipAppToBuffer(t *testing.T) {
+	staticStore := store.NewStaticStore(paths.New("testdata", "assets", config.RunnerVersion).String())
+	bricksIndex, err := bricksindex.Load(staticStore.GetAssetsFolder())
+	require.NoError(t, err)
+
 	type testCase struct {
 		name        string
-		files       map[string]string
+		files       []string
 		nonExistent bool
 		includeData bool
 		wantErr     bool
@@ -155,9 +165,9 @@ func TestZipAppToBuffer(t *testing.T) {
 	tests := []testCase{
 		{
 			name: "Standard happy path",
-			files: map[string]string{
-				"app.yaml":        "content file",
-				"assets/icon.png": "image-data",
+			files: []string{
+				"app.yaml",
+				"assets/icon.png",
 			},
 			includeData: false,
 			wantErr:     false,
@@ -166,10 +176,10 @@ func TestZipAppToBuffer(t *testing.T) {
 		},
 		{
 			name: "Exclude 'data' directory (includeData=false)",
-			files: map[string]string{
-				"app.yaml":       "content",
-				"data/file.txt":  "should be ignored",
-				"data/image.png": "should be ignored",
+			files: []string{
+				"app.yaml",
+				"data/file.txt",
+				"data/image.png",
 			},
 			includeData: false,
 			wantErr:     false,
@@ -178,9 +188,9 @@ func TestZipAppToBuffer(t *testing.T) {
 		},
 		{
 			name: "Include 'data' directory (includeData=true)",
-			files: map[string]string{
-				"app.yaml":      "content",
-				"data/file.txt": "should be included",
+			files: []string{
+				"app.yaml",
+				"data/file.txt",
 			},
 			includeData: true,
 			wantErr:     false,
@@ -189,10 +199,10 @@ func TestZipAppToBuffer(t *testing.T) {
 		},
 		{
 			name: "Ignore .cache folder at root",
-			files: map[string]string{
-				"app.yaml":          "content",
-				".cache/temp_file":  "junk",
-				".cache/sub/folder": "junk",
+			files: []string{
+				"app.yaml",
+				".cache/temp_file",
+				".cache/sub/folder",
 			},
 			includeData: false,
 			wantErr:     false,
@@ -201,9 +211,9 @@ func TestZipAppToBuffer(t *testing.T) {
 		},
 		{
 			name: "Include hidden files not in .cache",
-			files: map[string]string{
-				".env":           "SECRET=123",
-				"assets/.hidden": "hidden-asset",
+			files: []string{
+				".env",
+				"assets/.hidden",
 			},
 			includeData: false,
 			wantErr:     false,
@@ -212,9 +222,9 @@ func TestZipAppToBuffer(t *testing.T) {
 		},
 		{
 			name: "Ignore nested directories inside .cache",
-			files: map[string]string{
-				"app.js":              "code",
-				".cache/v1/data.json": "cache-data",
+			files: []string{
+				"app.js",
+				".cache/v1/data.json",
 			},
 			includeData: false,
 			wantErr:     false,
@@ -223,7 +233,7 @@ func TestZipAppToBuffer(t *testing.T) {
 		},
 		{
 			name:        "Error on non-existent path",
-			files:       map[string]string{},
+			files:       []string{},
 			nonExistent: true,
 			wantErr:     true,
 			wantInZip:   nil,
@@ -234,19 +244,14 @@ func TestZipAppToBuffer(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			tmpDir := t.TempDir()
-			for path, content := range tc.files {
-				fullPath := filepath.Join(tmpDir, path)
-				err := os.MkdirAll(filepath.Dir(fullPath), 0755)
-				require.NoError(t, err)
-				err = os.WriteFile(fullPath, []byte(content), 0600)
-				require.NoError(t, err)
-			}
+
+			writeFiles(t, tmpDir, tc.files)
 
 			sourcePath := tmpDir
 			if tc.nonExistent {
 				sourcePath = filepath.Join(tmpDir, "not existing path")
 			}
-			zipData, err := zipAppToBuffer(sourcePath, tc.includeData)
+			zipData, err := zipAppToBuffer(bricksIndex, sourcePath, tc.includeData)
 
 			if tc.wantErr {
 				require.Error(t, err)
