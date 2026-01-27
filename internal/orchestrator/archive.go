@@ -32,6 +32,7 @@ import (
 	yaml "github.com/goccy/go-yaml"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
@@ -41,6 +42,7 @@ var (
 
 func ExportAppZip(
 	ctx context.Context,
+	bricksindex *bricksindex.BricksIndex,
 	appTarget app.ArduinoApp,
 	includeData bool,
 ) ([]byte, string, error) {
@@ -50,14 +52,14 @@ func ExportAppZip(
 		appName = "app-export"
 	}
 	filename := fmt.Sprintf("%s.zip", appName)
-	zipBytes, err := zipAppToBuffer(appTarget.FullPath.String(), includeData)
+	zipBytes, err := zipAppToBuffer(bricksindex, appTarget.FullPath.String(), includeData)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create zip archive: %w", err)
 	}
 	return zipBytes, filename, nil
 }
 
-func zipAppToBuffer(sourcePath string, includeData bool) ([]byte, error) {
+func zipAppToBuffer(bricksindex *bricksindex.BricksIndex, sourcePath string, includeData bool) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	zipWriter := zip.NewWriter(buf)
 
@@ -108,13 +110,24 @@ func zipAppToBuffer(sourcePath string, includeData bool) ([]byte, error) {
 		if info.IsDir() {
 			return nil
 		}
-		file, err := os.Open(path)
-		if err != nil {
+
+		if d.Name() == "app.yaml" || d.Name() == "app.yml" {
+			desc, err := app.ParseDescriptorFile(paths.New(path))
+			if err != nil {
+				return err
+			}
+			redactSecrets(bricksindex, &desc)
+			err = yaml.NewEncoder(writer).Encode(desc)
+			return err
+		} else {
+			file, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+			defer file.Close()
+			_, err = io.Copy(writer, file)
 			return err
 		}
-		defer file.Close()
-		_, err = io.Copy(writer, file)
-		return err
 	})
 
 	if err != nil {
@@ -313,4 +326,24 @@ func validateAppZipContent(r *zip.Reader) error {
 	}
 
 	return nil
+}
+
+func redactSecrets(bricksindex *bricksindex.BricksIndex, desc *app.AppDescriptor) {
+	for _, brick := range desc.Bricks {
+		brickDef, found := bricksindex.FindBrickByID(brick.ID)
+		if !found {
+			// Brick definition not found; skip secret redaction
+			continue
+		}
+
+		for k, v := range brick.Variables {
+			if v == "" {
+				continue // Only redact if variable is set
+			}
+			v, ok := brickDef.GetVariable(k)
+			if ok && v.Secret {
+				brick.Variables[k] = ""
+			}
+		}
+	}
 }
