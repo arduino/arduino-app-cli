@@ -50,15 +50,28 @@ func Load(path *paths.Path) (AiModel, error) {
 	return m, nil
 }
 
-// Store creates a model directory with its descriptor file and optionally a blob file.
-// If blobReader is provided, blobFilename specifies the name (defaults to "model.blob").
-// The blob is written atomically with a size limit.
-func Store(dir *paths.Path, descr ModelDescriptor, modelFileReader io.Reader, modelFilename string) error {
-	if modelFileReader != nil && modelFilename == "" {
+func Store(dir *paths.Path, descr ModelDescriptor, modelFileReader io.ReadCloser, modelFilename string) error {
+	if modelFileReader == nil {
+		return fmt.Errorf("model file reader cannot be nil")
+	}
+	if modelFilename == "" {
 		return fmt.Errorf("model filename must be provided when model reader is not nil")
 	}
+
 	if err := dir.MkdirAll(); err != nil {
 		return fmt.Errorf("failed to create model directory: %w", err)
+	}
+
+	defer modelFileReader.Close()
+
+	destBlobPath := dir.Join(filepath.Base(modelFilename))
+	f, err := os.Create(destBlobPath.String())
+	if err != nil {
+		return fmt.Errorf("failed to create model file: %w", err)
+	}
+	defer f.Close()
+	if _, err := io.Copy(f, modelFileReader); err != nil {
+		return fmt.Errorf("failed to write model file : %w", err)
 	}
 
 	m := AiModel{
@@ -66,23 +79,10 @@ func Store(dir *paths.Path, descr ModelDescriptor, modelFileReader io.Reader, mo
 		ModelDescriptor: descr,
 	}
 
-	err := m.Save()
+	err = m.Save()
 	if err != nil {
 		return fmt.Errorf("failed to write model: %w", err)
 	}
-
-	if modelFileReader != nil {
-		destBlobPath := dir.Join(filepath.Base(modelFilename))
-		f, err := os.Create(destBlobPath.String())
-		if err != nil {
-			return fmt.Errorf("failed to create model file: %w", err)
-		}
-		defer f.Close()
-		if _, err := io.Copy(f, modelFileReader); err != nil {
-			return fmt.Errorf("failed to write model file : %w", err)
-		}
-	}
-
 	return nil
 }
 

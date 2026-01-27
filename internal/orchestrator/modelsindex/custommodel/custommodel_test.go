@@ -2,6 +2,9 @@ package custommodel
 
 import (
 	"bytes"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -107,40 +110,6 @@ func TestSave(t *testing.T) {
 }
 
 func TestStore(t *testing.T) {
-	t.Run("it creates model directory and writes descriptor", func(t *testing.T) {
-		tempDir := t.TempDir()
-		modelDir := paths.New(tempDir).Join("test-model")
-
-		descr := ModelDescriptor{
-			ID:          "test-id",
-			Name:        "test model",
-			Description: "test description",
-			Bricks: []BrickConfig{
-				{
-					ID: "arduino:test-brick",
-					ModelConfiguration: map[string]any{
-						"ENV_VAR": "value",
-					},
-				},
-			},
-		}
-
-		err := Store(modelDir, descr, nil, "")
-		require.NoError(t, err)
-
-		// Verify directory exists
-		require.True(t, modelDir.Exist())
-
-		// Verify model.yaml exists
-		descriptorPath := modelDir.Join("model.yaml")
-		require.True(t, descriptorPath.Exist())
-
-		// Verify descriptor can be loaded
-		loaded, err := Load(modelDir)
-		require.NoError(t, err)
-		assert.Equal(t, descr.ID, loaded.ModelDescriptor.ID)
-		assert.Equal(t, descr.Name, loaded.ModelDescriptor.Name)
-	})
 
 	t.Run("it writes descriptor and model file when reader provided", func(t *testing.T) {
 		tempDir := t.TempDir()
@@ -153,7 +122,7 @@ func TestStore(t *testing.T) {
 		}
 
 		blobContent := []byte("this is model blob content")
-		blobReader := bytes.NewReader(blobContent)
+		blobReader := io.NopCloser(bytes.NewReader(blobContent))
 
 		err := Store(modelDir, descr, blobReader, "model.eim")
 		require.NoError(t, err)
@@ -181,7 +150,7 @@ func TestStore(t *testing.T) {
 			Name: "test",
 		}
 
-		blobReader := bytes.NewReader([]byte("content"))
+		blobReader := io.NopCloser(bytes.NewReader([]byte("content")))
 
 		err := Store(modelDir, descr, blobReader, "")
 		require.Error(t, err)
@@ -202,7 +171,7 @@ func TestStore(t *testing.T) {
 		for i := range largeBlob {
 			largeBlob[i] = byte(i % 256)
 		}
-		blobReader := bytes.NewReader(largeBlob)
+		blobReader := io.NopCloser(bytes.NewReader(largeBlob))
 
 		err := Store(modelDir, descr, blobReader, "large-model.blob")
 		require.NoError(t, err)
@@ -215,5 +184,37 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, len(largeBlob), len(gotBlob))
 		assert.Equal(t, largeBlob, gotBlob)
+	})
+
+	t.Run("it stores model file via HTTP response body", func(t *testing.T) {
+		tempDir := t.TempDir()
+		modelDir := paths.New(tempDir).Join("test-model-http")
+
+		descr := ModelDescriptor{
+			ID:   "test-http",
+			Name: "http model",
+		}
+
+		payload := []byte("http served model content")
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/octet-stream")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(payload)
+		}))
+		defer ts.Close()
+
+		resp, err := http.Get(ts.URL)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		err = Store(modelDir, descr, resp.Body, "model-http.blob")
+		require.NoError(t, err)
+
+		blobPath := modelDir.Join("model-http.blob")
+		require.True(t, blobPath.Exist())
+
+		got, err := os.ReadFile(blobPath.String())
+		require.NoError(t, err)
+		assert.Equal(t, payload, got)
 	})
 }
