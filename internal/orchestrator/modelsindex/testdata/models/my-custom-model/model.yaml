@@ -4,4 +4,7 @@ description: "A small and accurate model for detecting bounding boxes for faces 
 category: "Images"
 bricks:
   - id: "object-detection"
-
+metadata:
+  a-string-metadata: "a-string-value"
+  a-int-metadata: 717280
+  a-bool-metadata: true

@@ -12,6 +12,7 @@ func TestParseModelDescription(t *testing.T) {
 	modelDescriptor := `
 id: "my-model-id"
 name: "my custom model name"
+runner: "bricks"
 description: "A small and accurate description."
 bricks:
   - id: "arduino:a-brick-id"
@@ -36,6 +37,7 @@ metadata:
 	require.Equal(t, ModelDescriptor{
 		ID:          "my-model-id",
 		Name:        "my custom model name",
+		Runner:      "bricks",
 		Description: "A small and accurate description.",
 		Bricks: []BrickConfig{
 			{
@@ -53,9 +55,9 @@ metadata:
 				},
 			},
 		},
-		Metadata: map[string]any{
+		Metadata: map[string]string{
 			"a-string-metadata": "a-string-value",
-			"a-int-metadata":    uint64(717280),
+			"a-int-metadata":    "717280",
 		},
 	}, descr)
 

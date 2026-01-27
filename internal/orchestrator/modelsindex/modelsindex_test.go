@@ -89,6 +89,11 @@ func TestModelsIndex(t *testing.T) {
 			Bricks: []string{
 				"object-detection",
 			},
+			Metadata: map[string]string{
+				"a-string-metadata": "a-string-value",
+				"a-int-metadata":    "1",
+				"a-bool-metadata":   "true",
+			},
 			ModelConfiguration: nil,
 			ModelFolderPath:    paths.New(f.Must(filepath.Abs("testdata/models/my-custom-model"))),
 		}, eimodel)

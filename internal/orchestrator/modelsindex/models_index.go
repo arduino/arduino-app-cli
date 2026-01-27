@@ -180,6 +180,7 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 			Bricks: f.Map(m.ModelDescriptor.Bricks, func(b custommodel.BrickConfig) string {
 				return b.ID
 			}),
+			Metadata:           m.ModelDescriptor.Metadata,
 			ModelConfiguration: toLegacyModelConfiguration(m.ModelDescriptor.Bricks),
 			ModelFolderPath:    m.FullPath,
 		})

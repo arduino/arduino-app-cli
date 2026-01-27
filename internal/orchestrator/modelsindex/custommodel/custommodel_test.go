@@ -61,10 +61,10 @@ func TestLoad(t *testing.T) {
 					},
 				},
 			},
-			Metadata: map[string]any{
+			Metadata: map[string]string{
 				"a-string-metadata": "a-string-value",
-				"a-bool-metadata":   false,
-				"a-int-metadata":    uint64(717280),
+				"a-bool-metadata":   "false",
+				"a-int-metadata":    "717280",
 			},
 		}, model.ModelDescriptor)
 
