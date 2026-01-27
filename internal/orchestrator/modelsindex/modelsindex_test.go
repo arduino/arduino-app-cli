@@ -12,7 +12,7 @@ import (
 
 func TestModelsIndex(t *testing.T) {
 	t.Run("it parses a valid model-list.yaml and custom models", func(t *testing.T) {
-		modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata"))
+		modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata/models"))
 		require.NoError(t, err)
 		require.NotNil(t, modelsIndex)
 		models := modelsIndex.GetModels()
@@ -35,22 +35,22 @@ func TestModelsIndex(t *testing.T) {
 	})
 
 	t.Run("it loads nested custom models correctly", func(t *testing.T) {
-		modelsIndex, err := Load(nil, paths.New("testdata/parent-models"))
+		modelsIndex, err := Load(nil, paths.New("testdata/with-nested-models"))
 		assert.NoError(t, err)
 		assert.NotEmpty(t, modelsIndex)
 		assert.Len(t, modelsIndex.GetModels(), 2)
 
 		got := modelsIndex.GetModels()
 
-		assert.Equal(t, f.Must(filepath.Abs("testdata/parent-models/nested/nested-model")), got[1].ModelFolderPath.String())
+		assert.Equal(t, f.Must(filepath.Abs("testdata/with-nested-models/nested/nested-model")), got[1].ModelFolderPath.String())
 		assert.Equal(t, "my-nested-model-id", got[1].ID)
 
-		assert.Equal(t, f.Must(filepath.Abs("testdata/parent-models/another-model")), got[0].ModelFolderPath.String())
+		assert.Equal(t, f.Must(filepath.Abs("testdata/with-nested-models/another-model")), got[0].ModelFolderPath.String())
 		assert.Equal(t, "another-model-id", got[0].ID)
 	})
 
 	t.Run("it gets a preloaded model by ID", func(t *testing.T) {
-		modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata"))
+		modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata/models"))
 		require.NoError(t, err)
 		model, found := modelsIndex.GetModelByID("not-existing-model")
 		assert.False(t, found)
@@ -73,7 +73,7 @@ func TestModelsIndex(t *testing.T) {
 	})
 
 	t.Run("it get custom model by id", func(t *testing.T) {
-		modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata"))
+		modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata/models"))
 		require.NoError(t, err)
 
 		eimodel, found := modelsIndex.GetModelByID("my-model-id")
@@ -88,7 +88,7 @@ func TestModelsIndex(t *testing.T) {
 				"object-detection",
 			},
 			ModelConfiguration: nil,
-			ModelFolderPath:    paths.New(f.Must(filepath.Abs("testdata/my-custom-model"))),
+			ModelFolderPath:    paths.New(f.Must(filepath.Abs("testdata/models/my-custom-model"))),
 		}, eimodel)
 	})
 
@@ -100,7 +100,7 @@ func TestModelsIndex(t *testing.T) {
 	})
 
 	t.Run("it gets models by a brick", func(t *testing.T) {
-		modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata"))
+		modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata/models"))
 		require.NoError(t, err)
 
 		model := modelsIndex.GetModelsByBrick("not-existing-brick")
@@ -112,7 +112,7 @@ func TestModelsIndex(t *testing.T) {
 	})
 
 	t.Run("it gets models by bricks", func(t *testing.T) {
-		modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata"))
+		modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata/models"))
 		require.NoError(t, err)
 
 		models := modelsIndex.GetModelsByBricks([]string{"arduino:non_existing"})
