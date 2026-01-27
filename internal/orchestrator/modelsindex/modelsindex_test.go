@@ -90,9 +90,9 @@ func TestModelsIndex(t *testing.T) {
 				"object-detection",
 			},
 			Metadata: map[string]string{
-				"a-string-metadata": "a-string-value",
-				"a-int-metadata":    "1",
 				"a-bool-metadata":   "true",
+				"a-int-metadata":    "1",
+				"a-string-metadata": "a-string-value",
 			},
 			ModelConfiguration: nil,
 			ModelFolderPath:    paths.New(f.Must(filepath.Abs("testdata/models/my-custom-model"))),
