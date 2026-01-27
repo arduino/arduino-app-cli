@@ -157,7 +157,8 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 	}
 	models := make([]AIModel, 0)
 	res, err := dir.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
-		if file.Join("model.yaml").Exist() && file.Join("model.yml").Exist() {
+		if file.Join("model.yaml").NotExist() {
+			// let's continue scanning, the model can be in a subfolder
 			return true
 		}
 		return false

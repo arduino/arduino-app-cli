@@ -20,15 +20,15 @@ type AiModel struct {
 
 func Load(path *paths.Path) (AiModel, error) {
 	if path == nil {
-		return AiModel{}, errors.New("empty model path")
+		return AiModel{}, errors.New("empty model folder path")
 	}
 
 	exist, err := path.IsDirCheck()
 	if err != nil {
-		return AiModel{}, fmt.Errorf("model path is not valid: %w", err)
+		return AiModel{}, fmt.Errorf("model folder path is not valid: %w", err)
 	}
 	if !exist {
-		return AiModel{}, fmt.Errorf("model path must be a directory: %s", path)
+		return AiModel{}, fmt.Errorf("model folder path must be a directory: %s", path)
 	}
 	modelFolderPath, err := path.Abs()
 	if err != nil {
