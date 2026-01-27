@@ -79,7 +79,7 @@ func Store(dir *paths.Path, descr ModelDescriptor, modelFileReader io.ReadCloser
 		ModelDescriptor: descr,
 	}
 
-	err = m.Save()
+	err = m.writeDescriptorFile()
 	if err != nil {
 		return AiModel{}, fmt.Errorf("failed to write model: %w", err)
 	}
@@ -90,19 +90,11 @@ func (a *AiModel) GetDescriptorPath() *paths.Path {
 	return a.FullPath.Join("model.yaml")
 }
 
-var ErrInvalidModel = fmt.Errorf("invalid model")
-
-func (a *AiModel) Save() error {
-	if err := a.ModelDescriptor.IsValid(); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidModel, err)
+func (a *AiModel) writeDescriptorFile() error {
+	if !a.ModelDescriptor.IsValid() {
+		// TODO: provide more details about the invalidity
+		return errors.New("invalid model descriptor")
 	}
-	if err := a.write(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (a *AiModel) write() error {
 	descriptorPath := a.GetDescriptorPath()
 	if descriptorPath == nil {
 		return errors.New("model descriptor file path is not set")

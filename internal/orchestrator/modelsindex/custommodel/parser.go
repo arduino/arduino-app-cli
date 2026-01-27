@@ -40,13 +40,13 @@ func ParseModelDescriptorFile(file *paths.Path) (ModelDescriptor, error) {
 		}
 		return ModelDescriptor{}, fmt.Errorf("cannot decode descriptor: %w", err)
 	}
-	return descriptor, descriptor.IsValid()
+	return descriptor, nil
 }
 
-func (a *ModelDescriptor) IsValid() error {
+func (a *ModelDescriptor) IsValid() bool {
 	/*  TODO: check
 	1) brick list are present into the brick-list
 	2) metadata are coherent with the source
 	*/
-	return nil
+	return true
 }

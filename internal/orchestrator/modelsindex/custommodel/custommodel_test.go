@@ -72,50 +72,6 @@ func TestLoad(t *testing.T) {
 	})
 }
 
-func TestSave(t *testing.T) {
-	t.Run("it writes model.yaml matching golden file", func(t *testing.T) {
-		tempDir := t.TempDir()
-
-		model := AiModel{
-			FullPath: paths.New(tempDir),
-			ModelDescriptor: ModelDescriptor{
-				ID:          "my-model-id",
-				Name:        "my custom model",
-				Description: "test description",
-				Bricks: []BrickConfig{
-					{
-						ID: "arduino:a-brick-id",
-						ModelConfiguration: map[string]any{
-							"MY_ENV_1": "prod",
-							"MY_ENV_2": true,
-						},
-					},
-				},
-				Metadata: map[string]any{
-					"a-string-metadata": "a-string-value",
-					"a-int-metadata":    1,
-					"a-bool-metadata":   true,
-				},
-			},
-		}
-
-		err := model.Save()
-		require.NoError(t, err)
-
-		descriptorPath := model.GetDescriptorPath()
-		require.True(t, descriptorPath.Exist())
-
-		got, err := os.ReadFile(descriptorPath.String())
-		require.NoError(t, err)
-
-		goldenPath := paths.New("testdata", "save-model.golden.yaml")
-		expected, err := os.ReadFile(goldenPath.String())
-		require.NoError(t, err)
-
-		assert.Equal(t, string(expected), string(got))
-	})
-}
-
 func TestStore(t *testing.T) {
 
 	t.Run("it writes descriptor and model file when reader provided", func(t *testing.T) {
