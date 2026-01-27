@@ -35,7 +35,7 @@ An App may include firmware to be flashed on the integrated microcontroller.
 - Location: root-app-folder/sketch/ folder.
 - Constraints:
   - It should contain the source code sketch.ino.
-  - If the sketch.ino file exists, the app must contain a sketch.yaml configuration file ate in the same folder.
+  - If the sketch.ino file exists, the app must contain a sketch.yaml configuration file in the same folder.
   - Compilation Scope: Only files named sketch.ino and sketch.yaml located specifically in the root-app-folder/sketch path will be processed. Firmware files located elsewhere will be ignored by the host system.
 
 **Documentation (root-app-folder/README.md)**
@@ -64,6 +64,7 @@ Any other file or folder found in the main directory (or subfolders) is allowed 
 
 A hypothetical App named "SmartGarden" that adheres to the specification follows. Note that the root folder name (my-garden-project) differs from the App name defined in YAML.
 
+```
 my-garden-project/
 ├── app.yaml # Mandatory metadata (strict naming)
 ├── README.md # Documentation (Optional)
@@ -76,6 +77,7 @@ my-garden-project/
 │ └── sketch.ino # Arduino sketch
 ├── data/ # Reserved
 └── assets/ # Reserved
+```
 
 ## App Metadata
 
