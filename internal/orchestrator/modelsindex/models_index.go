@@ -51,7 +51,7 @@ func (b *assetsModelList) UnmarshalYAML(unmarshal func(any) error) error {
 
 type AIModel struct {
 	ID                 string            `yaml:"-"`
-	ModelPath          *paths.Path       `yaml:"-"`
+	ModelFolderPath    *paths.Path       `yaml:"-"`
 	Name               string            `yaml:"name"`
 	ModuleDescription  string            `yaml:"description"`
 	Runner             string            `yaml:"runner"`
@@ -180,7 +180,7 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 				return b.ID
 			}),
 			ModelConfiguration: toLegacyModelConfiguration(m.ModelDescriptor.Bricks),
-			ModelPath:          m.FullPath,
+			ModelFolderPath:    m.FullPath,
 		})
 	}
 

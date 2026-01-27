@@ -1,0 +1,12 @@
+id: "my-nested-model-id"
+name: "my nested model name"
+description: "my description"
+bricks:
+  - id: "arduino:a-brick-id"
+    model_configuration:
+      MY_ENV_1: "prod"
+      MY_ENV_2: true
+metadata:
+  a-string-metadata: "a-string-value"
+  a-bool-metadata: false
+  a-int-metadata: 717280

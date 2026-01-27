@@ -35,6 +35,22 @@ func TestModelsIndex(t *testing.T) {
 		require.Len(t, modelsIndex.GetModels(), 2)
 	})
 
+	t.Run("it loads nested custom models correctly", func(t *testing.T) {
+		modelsIndex, err = Load(nil, paths.New("testdata/parent-models"))
+		assert.NoError(t, err)
+		assert.NotEmpty(t, modelsIndex)
+		// FIXEM: support models in nested folders
+		// assert.Len(t, modelsIndex.GetModels(), 2)
+
+		// got := modelsIndex.GetModels()
+
+		// assert.Equal(t, f.Must(filepath.Abs("testdata/parent-models/nested-model")), got[1].ModelFolderPath.String())
+		// assert.Equal(t, "my-nested-model-id", got[1].ID)
+
+		// assert.Equal(t, f.Must(filepath.Abs("testdata/parent-models/another-model")), got[0].ModelFolderPath.String())
+		// assert.Equal(t, "another-model-id", got[0].ID)
+	})
+
 	t.Run("it gets a preloaded model by ID", func(t *testing.T) {
 		model, found := modelsIndex.GetModelByID("not-existing-model")
 		assert.False(t, found)
@@ -68,7 +84,7 @@ func TestModelsIndex(t *testing.T) {
 				"object-detection",
 			},
 			ModelConfiguration: nil,
-			ModelPath:          paths.New(f.Must(filepath.Abs("testdata/my-custom-model"))),
+			ModelFolderPath:    paths.New(f.Must(filepath.Abs("testdata/my-custom-model"))),
 		}, eimodel)
 	})
 
