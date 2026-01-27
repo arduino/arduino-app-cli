@@ -25,12 +25,14 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
-func newExportCmd() *cobra.Command {
+func newExportCmd(cfg config.Configuration) *cobra.Command {
 	var includeData bool
 	var override bool
 
@@ -39,7 +41,6 @@ func newExportCmd() *cobra.Command {
 		Short: "Export an existing Arduino App to a zip file",
 		Args:  cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-
 			app, err := Load(args[0])
 			if err != nil {
 				feedback.Fatal(err.Error(), feedback.ErrBadArgument)
@@ -49,6 +50,14 @@ func newExportCmd() *cobra.Command {
 				outputPath = args[1]
 			}
 			return exportHandler(cmd.Context(), app, outputPath, includeData, override)
+		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			if len(args) != 0 {
+				return nil, cobra.ShellCompDirectiveDefault
+			}
+			return completion.ApplicationNamesWithFilterFunc(cfg, func(apps orchestrator.AppInfo) bool {
+				return true
+			})(cmd, args, toComplete)
 		},
 	}
 
