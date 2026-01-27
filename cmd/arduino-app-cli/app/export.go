@@ -18,7 +18,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,27 +33,34 @@ import (
 
 func newExportCmd() *cobra.Command {
 	var includeData bool
+	var override bool
 
 	cmd := &cobra.Command{
-		Use:   "export app_path",
+		Use:   "export app_path [output_path]",
 		Short: "Export an existing Arduino App to a zip file",
-
+		Args:  cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+
 			if len(args) == 0 {
 				return cmd.Help()
 			}
 
 			appID := args[0]
-			return exportHandler(cmd.Context(), appID, includeData)
+			outputPath := ""
+			if len(args) > 1 {
+				outputPath = args[1]
+			}
+			return exportHandler(cmd.Context(), appID, outputPath, includeData, override)
 		},
 	}
 
 	cmd.Flags().BoolVar(&includeData, "include-data", false, "Include data directory in the archive")
+	cmd.Flags().BoolVar(&override, "override", false, "Overwrite output file if it exists")
 
 	return cmd
 }
 
-func exportHandler(ctx context.Context, appIDStr string, includeData bool) error {
+func exportHandler(ctx context.Context, appIDStr string, outputDest string, includeData bool, override bool) error {
 	id, err := servicelocator.GetAppIDProvider().ParseID(appIDStr)
 	if err != nil {
 		feedback.Fatal(fmt.Sprintf("Invalid App ID '%s': %s", appIDStr, err), feedback.ErrBadArgument)
@@ -62,8 +68,10 @@ func exportHandler(ctx context.Context, appIDStr string, includeData bool) error
 
 	appToExport, err := app.Load(id.ToPath())
 	if err != nil {
-		slog.Error("Unable to load the app", "error", err.Error(), "path", id.String())
-		feedback.Fatal(err.Error(), feedback.ErrGeneric)
+		feedback.Fatal(
+			fmt.Sprintf("Unable to load the app at '%s': %v", id.String(), err),
+			feedback.ErrGeneric,
+		)
 	}
 
 	zipBytes, originalName, err := orchestrator.ExportAppZip(ctx, appToExport, includeData)
@@ -74,22 +82,35 @@ func exportHandler(ctx context.Context, appIDStr string, includeData bool) error
 	ext := filepath.Ext(originalName)
 	nameNoExt := strings.TrimSuffix(originalName, ext)
 	timestamp := time.Now().Format("2006-01-02_15-04-05")
+	defaultFileName := fmt.Sprintf("%s_%s%s", nameNoExt, timestamp, ext)
 
-	finalName := fmt.Sprintf("%s_%s%s", nameNoExt, timestamp, ext)
+	var finalPath string
 
-	if fileExists(finalName) {
-		feedback.Fatal(fmt.Sprintf("File '%s' already exists and too many renamed versions exist.", finalName), feedback.ErrGeneric)
-
+	if outputDest == "" {
+		finalPath = defaultFileName
+	} else {
+		info, err := os.Stat(outputDest)
+		if err == nil && info.IsDir() {
+			finalPath = filepath.Join(outputDest, defaultFileName)
+		} else {
+			finalPath = outputDest
+		}
 	}
 
-	if err := os.WriteFile(finalName, zipBytes, 0600); err != nil {
+	if fileExists(finalPath) {
+		if !override {
+			feedback.Fatal(fmt.Sprintf("File '%s' already exists. Use --override to overwrite.", finalPath), feedback.ErrGeneric)
+		}
+	}
+
+	if err := os.WriteFile(finalPath, zipBytes, 0600); err != nil {
 		feedback.Fatal(fmt.Sprintf("Failed to save zip file: %s", err), feedback.ErrGeneric)
 	}
 
 	feedback.PrintResult(exportAppResult{
 		Result:  "ok",
 		Message: "Export successful",
-		AppName: finalName,
+		AppName: finalPath,
 	})
 
 	return nil
@@ -109,7 +130,7 @@ func (r exportAppResult) Data() interface{} {
 	return r
 }
 
-func fileExists(filename string) bool {
-	_, err := os.Stat(filename)
-	return err == nil
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }
