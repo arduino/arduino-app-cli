@@ -30,12 +30,12 @@ func Load(path *paths.Path) (AiModel, error) {
 	if !exist {
 		return AiModel{}, fmt.Errorf("model path must be a directory: %s", path)
 	}
-	modelPath, err := path.Abs()
+	modelFolderPath, err := path.Abs()
 	if err != nil {
 		return AiModel{}, fmt.Errorf("cannot get absolute path for model: %w", err)
 	}
 
-	m := AiModel{FullPath: modelPath}
+	m := AiModel{FullPath: modelFolderPath}
 
 	if descriptorFile := m.GetDescriptorPath(); descriptorFile.Exist() {
 		desc, err := ParseModelDescriptorFile(descriptorFile)
@@ -50,16 +50,16 @@ func Load(path *paths.Path) (AiModel, error) {
 	return m, nil
 }
 
-func Store(dir *paths.Path, descr ModelDescriptor, modelFileReader io.ReadCloser, modelFilename string) error {
+func Store(dir *paths.Path, descr ModelDescriptor, modelFileReader io.ReadCloser, modelFilename string) (AiModel, error) {
 	if modelFileReader == nil {
-		return fmt.Errorf("model file reader cannot be nil")
+		return AiModel{}, fmt.Errorf("model file reader cannot be nil")
 	}
 	if modelFilename == "" {
-		return fmt.Errorf("model filename must be provided when model reader is not nil")
+		return AiModel{}, fmt.Errorf("model filename must be provided when model reader is not nil")
 	}
 
 	if err := dir.MkdirAll(); err != nil {
-		return fmt.Errorf("failed to create model directory: %w", err)
+		return AiModel{}, fmt.Errorf("failed to create model directory: %w", err)
 	}
 
 	defer modelFileReader.Close()
@@ -67,11 +67,11 @@ func Store(dir *paths.Path, descr ModelDescriptor, modelFileReader io.ReadCloser
 	destBlobPath := dir.Join(filepath.Base(modelFilename))
 	f, err := os.Create(destBlobPath.String())
 	if err != nil {
-		return fmt.Errorf("failed to create model file: %w", err)
+		return AiModel{}, fmt.Errorf("failed to create model file: %w", err)
 	}
 	defer f.Close()
 	if _, err := io.Copy(f, modelFileReader); err != nil {
-		return fmt.Errorf("failed to write model file : %w", err)
+		return AiModel{}, fmt.Errorf("failed to write model file : %w", err)
 	}
 
 	m := AiModel{
@@ -81,20 +81,13 @@ func Store(dir *paths.Path, descr ModelDescriptor, modelFileReader io.ReadCloser
 
 	err = m.Save()
 	if err != nil {
-		return fmt.Errorf("failed to write model: %w", err)
+		return AiModel{}, fmt.Errorf("failed to write model: %w", err)
 	}
-	return nil
+	return m, nil
 }
 
 func (a *AiModel) GetDescriptorPath() *paths.Path {
-	descriptorFile := a.FullPath.Join("model.yaml")
-	if !descriptorFile.Exist() {
-		alternateDescriptorFile := a.FullPath.Join("model.yml")
-		if alternateDescriptorFile.Exist() {
-			return alternateDescriptorFile
-		}
-	}
-	return descriptorFile
+	return a.FullPath.Join("model.yaml")
 }
 
 var ErrInvalidModel = fmt.Errorf("invalid model")

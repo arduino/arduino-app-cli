@@ -16,24 +16,31 @@ import (
 )
 
 func TestLoad(t *testing.T) {
-	t.Run("it fails if the model path is nil", func(t *testing.T) {
+	t.Run("it fails if the model folder path is nil", func(t *testing.T) {
 		model, err := Load(nil)
 		assert.Error(t, err)
 		assert.Empty(t, model)
-		assert.Contains(t, err.Error(), "empty model path")
+		assert.Contains(t, err.Error(), "empty model folder path")
 	})
 
-	t.Run("it fails if the model path is empty", func(t *testing.T) {
+	t.Run("it fails if the model folder path is empty", func(t *testing.T) {
 		model, err := Load(paths.New(""))
 		assert.Error(t, err)
 		assert.Empty(t, model)
-		assert.Contains(t, err.Error(), "empty model path")
+		assert.Contains(t, err.Error(), "empty model folder path")
 	})
 
-	t.Run("it fails if the model path does not exist", func(t *testing.T) {
+	t.Run("it fails if the model folder path does not exist", func(t *testing.T) {
 		_, err := Load(paths.New("testdata/this-folder-does-not-exist"))
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "model path is not valid")
+		assert.Contains(t, err.Error(), "model folder path is not valid")
+	})
+
+	t.Run("it fails if the model descriptor does not exist", func(t *testing.T) {
+		dir := t.TempDir()
+		_, err := Load(paths.New(dir))
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "descriptor model.yaml file missing from app")
 	})
 
 	t.Run("it loads a model correctly", func(t *testing.T) {
@@ -124,18 +131,18 @@ func TestStore(t *testing.T) {
 		blobContent := []byte("this is model blob content")
 		blobReader := io.NopCloser(bytes.NewReader(blobContent))
 
-		err := Store(modelDir, descr, blobReader, "model.eim")
+		m, err := Store(modelDir, descr, blobReader, "model.eim")
 		require.NoError(t, err)
 
-		// Verify model.yaml exists
+		assert.Equal(t, descr, m.ModelDescriptor)
+		assert.Equal(t, modelDir, m.FullPath)
+
 		descriptorPath := modelDir.Join("model.yaml")
 		require.True(t, descriptorPath.Exist())
 
-		// Verify model blob exists
 		blobPath := modelDir.Join("model.eim")
 		require.True(t, blobPath.Exist())
 
-		// Verify blob content
 		gotBlob, err := os.ReadFile(blobPath.String())
 		require.NoError(t, err)
 		assert.Equal(t, blobContent, gotBlob)
@@ -152,7 +159,7 @@ func TestStore(t *testing.T) {
 
 		blobReader := io.NopCloser(bytes.NewReader([]byte("content")))
 
-		err := Store(modelDir, descr, blobReader, "")
+		_, err := Store(modelDir, descr, blobReader, "")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "model filename must be provided")
 	})
@@ -173,10 +180,9 @@ func TestStore(t *testing.T) {
 		}
 		blobReader := io.NopCloser(bytes.NewReader(largeBlob))
 
-		err := Store(modelDir, descr, blobReader, "large-model.blob")
+		_, err := Store(modelDir, descr, blobReader, "large-model.blob")
 		require.NoError(t, err)
 
-		// Verify blob was written correctly
 		blobPath := modelDir.Join("large-model.blob")
 		require.True(t, blobPath.Exist())
 
@@ -207,7 +213,7 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		err = Store(modelDir, descr, resp.Body, "model-http.blob")
+		_, err = Store(modelDir, descr, resp.Body, "model-http.blob")
 		require.NoError(t, err)
 
 		blobPath := modelDir.Join("model-http.blob")
