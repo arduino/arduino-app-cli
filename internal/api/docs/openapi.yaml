@@ -1323,6 +1323,14 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
       description: Precondition Failed
+    Unauthorized:
+      content:
+        application/json:
+          example:
+            details: Unauthorized access.
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      description: Unauthorized
   schemas:
     AIModel:
       properties:
