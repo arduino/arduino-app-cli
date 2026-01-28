@@ -112,8 +112,8 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req InstallEIModelRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			slog.Error("unable to decode app create request", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "unable to decode app create request"})
+			slog.Error("unable to decode download EI model request", slog.String("error", err.Error()))
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "unable to decode download EI model request"})
 			return
 		}
 		defer r.Body.Close()
