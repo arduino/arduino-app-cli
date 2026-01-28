@@ -10,4 +10,4 @@ bricks:
 - arduino:video_image_classification:
     model: vision/yolo11
     variables:
-      VIDEO_DEVICE: /dev/my_camera 
+      VIDEO_DEVICE: /dev/my_camera
