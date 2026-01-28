@@ -59,6 +59,7 @@ type AIModel struct {
 	ModelLabels        []string          `yaml:"model_labels,omitempty"`
 	Metadata           map[string]string `yaml:"metadata,omitempty"`
 	ModelConfiguration map[string]string `yaml:"model_configuration,omitempty"`
+	IsPreinstalled     bool              `yaml:"-"`
 }
 
 type ModelsIndex struct {

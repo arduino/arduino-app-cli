@@ -17,13 +17,16 @@ package handlers
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/render"
+	"github.com/docker/cli/cli/command"
 )
 
 func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
@@ -55,5 +58,26 @@ func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 			return
 		}
 		render.EncodeResponse(w, http.StatusOK, res)
+	}
+}
+
+func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("modelID")
+		if id == "" {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "id must be set"})
+			return
+		}
+
+		err := orchestrator.AIModelDelete(r.Context(), dockerClient, cfg, modelsIndex, id)
+		if err != nil {
+			details := fmt.Sprintf("Error deleting model %q", id)
+			// TODO Give error
+			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})
+			return
+		}
+
+		slog.Warn("Deleted model", slog.Any("id", id))
+		render.EncodeResponse(w, http.StatusOK, nil)
 	}
 }

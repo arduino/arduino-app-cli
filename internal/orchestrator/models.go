@@ -16,7 +16,18 @@
 package orchestrator
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"maps"
+	"slices"
+	"strings"
+
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/docker/cli/cli/command"
 )
 
 type AIModelsListResult struct {
@@ -31,6 +42,7 @@ type AIModelItem struct {
 	Bricks             []string          `json:"brick_ids"`
 	Metadata           map[string]string `json:"metadata,omitempty"`
 	ModelConfiguration map[string]string `json:"model_configuration,omitempty"`
+	IsPreinstalled     bool              `json:"is_preinstalled"`
 }
 
 type AIModelsListRequest struct {
@@ -54,6 +66,7 @@ func AIModelsList(req AIModelsListRequest, modelsIndex *modelsindex.ModelsIndex)
 			Bricks:             model.Bricks,
 			Metadata:           model.Metadata,
 			ModelConfiguration: model.ModelConfiguration,
+			IsPreinstalled:     model.IsPreinstalled,
 		}
 	}
 	return res
@@ -73,4 +86,75 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 		Metadata:           model.Metadata,
 		ModelConfiguration: model.ModelConfiguration,
 	}, true
+}
+
+func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, id string) (err error) {
+	res, found := modelsIndex.GetModelByID(id)
+	if !found {
+		details := fmt.Sprintf("model %s not found", id)
+		return errors.New(details)
+	}
+
+	if res.IsPreinstalled {
+		details := fmt.Sprintf("model %q is a pre-installed model, can't be deleted", id)
+		return errors.New(details)
+	}
+
+	running, _ := getRunningApp(ctx, dockerClient.Client())
+	if running != nil {
+		details := fmt.Sprintf("models %s is in use by the %s app. Stop the application before removing the model", id, running.Name)
+		return errors.New(details)
+	}
+
+	references := isModelReferencedInApp(cfg, id)
+	if len(references) != 0 {
+		details := fmt.Sprintf("The model is referenced by the following bricks: %s", strings.Join(references, ", "))
+		return errors.New(details)
+	}
+
+	if res.ModelFolderPath == nil {
+		details := fmt.Sprintf("unexpected null path for model %q", id)
+		slog.Warn(details)
+		return errors.New(details)
+	}
+
+	if err := res.ModelFolderPath.RemoveAll(); err != nil {
+		details := fmt.Sprintf("error removing path %q", res.ModelFolderPath.String())
+		slog.Warn(details)
+		return errors.New(details)
+	}
+
+	return nil
+}
+
+func isModelReferencedInApp(cfg config.Configuration, modelId string) []string {
+	references := make(map[string]struct{})
+
+	entries, _ := cfg.AppsDir().ReadDir()
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		appDescriptor := app.ArduinoApp{
+			FullPath:   entry,
+			Descriptor: app.AppDescriptor{},
+		}
+		descriptorFile := appDescriptor.GetDescriptorPath()
+		if !descriptorFile.Exist() {
+			continue
+		}
+
+		descriptor, err := app.ParseDescriptorFile(descriptorFile)
+		if err != nil {
+			continue
+		}
+		for _, b := range descriptor.Bricks {
+			if b.Model == modelId {
+				references[b.ID] = struct{}{}
+			}
+		}
+	}
+
+	return slices.Collect(maps.Keys(references))
 }
