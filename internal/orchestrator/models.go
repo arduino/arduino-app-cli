@@ -144,7 +144,7 @@ func isModelReferencedInApp(ctx context.Context, dockerClient command.Cli, cfg c
 		idProvider, cfg)
 
 	if err != nil {
-		return nil, errors.New("error retrieving applications.")
+		return nil, errors.New("error retrieving applications")
 	}
 
 	for _, a := range apps.Apps {
