@@ -25,6 +25,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -155,11 +156,16 @@ func ImportAppFromZip(
 	}
 	defer r.Close()
 
-	if err := validateAppZipContent(&r.Reader); err != nil {
+	rootPrefix, err := findZipRoot(&r.Reader)
+	if err != nil {
+		return app.ID{}, fmt.Errorf("%w: %v", ErrBadRequest, err)
+	}
+
+	if err := validateAppZipContent(&r.Reader, rootPrefix); err != nil {
 		return app.ID{}, fmt.Errorf("%w:%v", ErrBadRequest, err)
 	}
 
-	appDescriptor, err := readAppDescriptorFromZip(&r.Reader)
+	appDescriptor, err := readAppDescriptorFromZip(&r.Reader, rootPrefix)
 	if err != nil {
 		return app.ID{}, fmt.Errorf("failed to read app.yaml: %w", err)
 	}
@@ -173,8 +179,6 @@ func ImportAppFromZip(
 		return app.ID{}, ErrAppAlreadyExists
 	}
 
-	// Extracting to a temporary directory first allows for an atomic swap
-	// to the final destination. This prevents a corrupted state and reduces race conditions.
 	tempDirName := fmt.Sprintf(tmpAppPrefix+"%s", rand.Text())
 	tempDestDir := finalDestPath.Parent().Join(tempDirName)
 	defer func() { _ = tempDestDir.RemoveAll() }()
@@ -183,7 +187,7 @@ func ImportAppFromZip(
 		return app.ID{}, fmt.Errorf("unable to create temp app directory: %w", err)
 	}
 
-	if err := extractZip(&r.Reader, tempDestDir.String()); err != nil {
+	if err := extractZip(&r.Reader, tempDestDir.String(), rootPrefix); err != nil {
 		return app.ID{}, err
 	}
 
@@ -203,14 +207,31 @@ func ImportAppFromZip(
 	return id, nil
 }
 
-func extractZip(r *zip.Reader, dest string) error {
+func extractZip(r *zip.Reader, dest string, rootPrefix string) error {
 	dest = filepath.Clean(dest) + string(os.PathSeparator)
 	const maxFileSize = 100 * 1024 * 1024 // 100MB limit per file
 
-	for _, f := range r.File {
-		cleanName := filepath.Clean(filepath.FromSlash(f.Name))
-		fpath := filepath.Join(dest, cleanName)
+	rootPrefixClean := filepath.FromSlash(rootPrefix)
+	if rootPrefixClean == "." {
+		rootPrefixClean = ""
+	}
 
+	for _, f := range r.File {
+		zipName := filepath.Clean(filepath.FromSlash(f.Name))
+
+		if rootPrefixClean != "" {
+			if !strings.HasPrefix(zipName, rootPrefixClean) {
+				continue
+			}
+			zipName = strings.TrimPrefix(zipName, rootPrefixClean)
+			zipName = strings.TrimPrefix(zipName, string(os.PathSeparator))
+		}
+
+		if zipName == "" || zipName == "." {
+			continue
+		}
+
+		fpath := filepath.Join(dest, zipName)
 		if !strings.HasPrefix(fpath, dest) {
 			return fmt.Errorf("illegal file path: %s", fpath)
 		}
@@ -254,11 +275,16 @@ func extractZip(r *zip.Reader, dest string) error {
 	return nil
 }
 
-func readAppDescriptorFromZip(r *zip.Reader) (app.AppDescriptor, error) {
+func readAppDescriptorFromZip(r *zip.Reader, rootPrefix string) (app.AppDescriptor, error) {
 	var descriptor app.AppDescriptor
 
+	targetAppYaml := path.Join(rootPrefix, "app.yaml")
+	targetAppYml := path.Join(rootPrefix, "app.yml")
+
 	for _, f := range r.File {
-		if f.Name == "app.yaml" || f.Name == "app.yml" {
+		name := filepath.ToSlash(f.Name)
+
+		if name == targetAppYaml || name == targetAppYml {
 			rc, err := f.Open()
 			if err != nil {
 				return descriptor, err
@@ -278,7 +304,8 @@ func readAppDescriptorFromZip(r *zip.Reader) (app.AppDescriptor, error) {
 }
 
 // TODO implement centralized app validator to use everywhere is needed
-func validateAppZipContent(r *zip.Reader) error {
+// validateAppZipContent checks for mandatory files respecting the rootPrefix
+func validateAppZipContent(r *zip.Reader, rootPrefix string) error {
 	hasAppYaml := false
 	hasMainPy := false
 
@@ -286,41 +313,50 @@ func validateAppZipContent(r *zip.Reader) error {
 	hasSketchIno := false
 	hasSketchYaml := false
 
+	targetAppYaml := path.Join(rootPrefix, "app.yaml")
+	targetAppYml := path.Join(rootPrefix, "app.yml")
+	targetMainPy := path.Join(rootPrefix, "python/main.py")
+
+	targetSketchPrefix := path.Join(rootPrefix, "sketch") + "/"
+	if rootPrefix == "" {
+		targetSketchPrefix = "sketch/"
+	}
+
 	for _, f := range r.File {
 		name := filepath.ToSlash(f.Name)
 
-		if name == "app.yaml" || name == "app.yml" {
+		if name == targetAppYaml || name == targetAppYml {
 			hasAppYaml = true
 		}
-		if name == "python/main.py" {
+		if name == targetMainPy {
 			hasMainPy = true
 		}
 
-		if strings.HasPrefix(name, "sketch/") {
+		if strings.HasPrefix(name, targetSketchPrefix) {
 			hasSketchFolder = true
-			if name == "sketch/sketch.ino" {
+			if name == path.Join(rootPrefix, "sketch/sketch.ino") {
 				hasSketchIno = true
 			}
 
-			if name == "sketch/sketch.yaml" {
+			if name == path.Join(rootPrefix, "sketch/sketch.yaml") {
 				hasSketchYaml = true
 			}
 		}
 	}
 
 	if !hasAppYaml {
-		return errors.New(" missing app.yaml")
+		return errors.New("missing app.yaml")
 	}
 	if !hasMainPy {
-		return errors.New(" missing python/main.py")
+		return errors.New("missing python/main.py")
 	}
 
 	if hasSketchFolder {
 		if !hasSketchIno {
-			return errors.New(" sketch folder present but missing .ino file")
+			return errors.New("sketch folder present but missing .ino file")
 		}
 		if !hasSketchYaml {
-			return errors.New(" sketch folder present but missing .yaml file")
+			return errors.New("sketch folder present but missing .yaml file")
 		}
 	}
 
@@ -347,4 +383,17 @@ func redactSecrets(bricksindex *bricksindex.BricksIndex, desc *app.AppDescriptor
 			}
 		}
 	}
+}
+
+func findZipRoot(r *zip.Reader) (string, error) {
+	for _, f := range r.File {
+		name := filepath.ToSlash(f.Name)
+		if name == "app.yaml" || name == "app.yml" {
+			return "", nil
+		}
+		if strings.HasSuffix(name, "/app.yaml") || strings.HasSuffix(name, "/app.yml") {
+			return path.Dir(name), nil
+		}
+	}
+	return "", fmt.Errorf("missing app.yaml")
 }

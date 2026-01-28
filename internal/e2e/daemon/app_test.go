@@ -1164,6 +1164,40 @@ func TestImportApp(t *testing.T) {
 
 		return body, writer.FormDataContentType()
 	}
+	t.Run("Import_ValidNestedApp_Success", func(t *testing.T) {
+		appFolderName := "my-nested-app"
+		rootPrefix := "random-folder-root"
+
+		zipData := createZipBytes(t, map[string]string{
+			rootPrefix + "/app.yaml":       fmt.Sprintf("name: %s\ndescription: nested app", appFolderName),
+			rootPrefix + "/python/main.py": "print('Hello nested world')",
+		})
+		bodyBuf, contentType := createMultipartBody(t, zipData)
+
+		importResp, err := httpClient.ImportAppWithBody(
+			t.Context(),
+			&client.ImportAppParams{},
+			contentType,
+			bodyBuf,
+		)
+		require.NoError(t, err)
+
+		require.Equal(t, http.StatusCreated, importResp.StatusCode)
+		require.NotNil(t, importResp.Body)
+		defer importResp.Body.Close()
+
+		var importRespBody handlers.AppImportResponse
+		body, err := io.ReadAll(importResp.Body)
+		require.NoError(t, err)
+		err = json.Unmarshal(body, &importRespBody)
+		require.NoError(t, err)
+		require.NotNil(t, importRespBody.ID)
+
+		getResp, err := httpClient.GetAppDetailsWithResponse(t.Context(), importRespBody.ID)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, getResp.StatusCode())
+		require.Equal(t, appFolderName, getResp.JSON200.Name)
+	})
 
 	t.Run("Import_ValidApp_Success", func(t *testing.T) {
 		appFolderName := "my-imported-app"
