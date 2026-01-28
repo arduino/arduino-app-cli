@@ -54,7 +54,6 @@ type AIModelItem struct {
 	BrickIds           *[]string          `json:"brick_ids"`
 	Description        *string            `json:"description,omitempty"`
 	Id                 *string            `json:"id,omitempty"`
-	IsPreinstalled     *bool              `json:"is_preinstalled,omitempty"`
 	Metadata           *map[string]string `json:"metadata,omitempty"`
 	ModelConfiguration *map[string]string `json:"model_configuration,omitempty"`
 	Name               *string            `json:"name,omitempty"`
@@ -3812,6 +3811,8 @@ func (r GetAIModelsResp) StatusCode() int {
 type DeleteAIModelResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON404      *NotFound
+	JSON409      *Conflict
 	JSON412      *PreconditionFailed
 	JSON500      *InternalServerError
 }
@@ -5569,6 +5570,20 @@ func ParseDeleteAIModelResp(rsp *http.Response) (*DeleteAIModelResp, error) {
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
 		var dest PreconditionFailed
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

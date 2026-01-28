@@ -936,6 +936,10 @@ paths:
       responses:
         "204":
           description: AI model successfully deleted
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
         "412":
           $ref: '#/components/responses/PreconditionFailed'
         "500":
@@ -1284,8 +1288,6 @@ components:
           type: string
         id:
           type: string
-        is_preinstalled:
-          type: boolean
         metadata:
           additionalProperties:
             type: string
