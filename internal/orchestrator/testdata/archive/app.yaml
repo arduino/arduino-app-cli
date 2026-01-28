@@ -7,3 +7,7 @@ bricks:
     variables:
       ARDUINO_DEVICE_ID: your_device_id
       ARDUINO_SECRET: your_secret
+- arduino:video_image_classification:
+    model: vision/yolo11
+    variables:
+      VIDEO_DEVICE: /dev/my_camera 
