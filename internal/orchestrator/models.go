@@ -21,6 +21,8 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/arduino/go-paths-helper"
+
 	"context"
 	"errors"
 	"fmt"
@@ -41,7 +43,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
-	"github.com/arduino/go-paths-helper"
 )
 
 type AIModelsListResult struct {
