@@ -52,14 +52,14 @@ func ExportAppZip(
 		appName = "app-export"
 	}
 	filename := fmt.Sprintf("%s.zip", appName)
-	zipBytes, err := zipAppToBuffer(bricksIndex, appTarget.FullPath.String(), includeData)
+	zipBytes, err := zipAppToBuffer(bricksIndex, appTarget.FullPath.String(), appName, includeData)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create zip archive: %w", err)
 	}
 	return zipBytes, filename, nil
 }
 
-func zipAppToBuffer(bricksIndex *bricksindex.BricksIndex, sourcePath string, includeData bool) ([]byte, error) {
+func zipAppToBuffer(bricksIndex *bricksindex.BricksIndex, sourcePath string, rootFolderName string, includeData bool) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	zipWriter := zip.NewWriter(buf)
 
@@ -96,7 +96,7 @@ func zipAppToBuffer(bricksIndex *bricksindex.BricksIndex, sourcePath string, inc
 			return err
 		}
 
-		header.Name = filepath.ToSlash(relPath)
+		header.Name = filepath.ToSlash(filepath.Join(rootFolderName, relPath))
 		if info.IsDir() {
 			header.Name += "/"
 		} else {
