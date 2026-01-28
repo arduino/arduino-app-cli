@@ -1,7 +1,6 @@
 package edgeimpulse
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -20,6 +19,12 @@ type EIClient struct {
 
 var ErrInternalServerErr = fmt.Errorf("service unavailable")
 var ErrUnauthorized = fmt.Errorf("unauthorized")
+
+type JobLogEntry []struct {
+	Created  time.Time                        `json:"created"`
+	Data     string                           `json:"data"`
+	LogLevel *LogStdoutResponseStdoutLogLevel `json:"logLevel,omitempty"`
+}
 
 func NewEIClient(prjApiKey string, apiURL url.URL) (*EIClient, error) {
 
@@ -43,21 +48,21 @@ func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath *paths
 
 	opt := &DownloadBuildParams{ImpulseId: &impulseID, ModelType: &modelType, Engine: &engine, Type: deviceType}
 
-	resp, err := c.HttpClient.DownloadBuildWithResponse(ctx, projectID, opt)
+	resp, err := c.HttpClient.DownloadBuild(ctx, projectID, opt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform download model request: %w", err)
 	}
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errorMessage(resp.StatusCode())
+	if resp.StatusCode != http.StatusOK {
+		return nil, errorMessage(resp.StatusCode)
 	}
 
-	return io.NopCloser(bytes.NewReader(resp.Body)), nil
+	return resp.Body, nil
 }
 
-func (c *EIClient) GetDeployment(ctx context.Context, projectID int, modelType ModelTypeParameter, engine ModelEngineParameter, deviceType DeploymentTypeParameter) (*int, error) {
+func (c *EIClient) GetDeployment(ctx context.Context, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter, deviceType DeploymentTypeParameter) (*int, error) {
 
-	params := &GetDeploymentParams{ModelType: &modelType, Engine: &engine, Type: deviceType}
+	params := &GetDeploymentParams{ModelType: &modelType, Engine: &engine, ImpulseId: &impulseID, Type: deviceType}
 	resp, err := c.HttpClient.GetDeploymentWithResponse(ctx, projectID, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform get deployment request: %w", err)
@@ -108,15 +113,38 @@ func (c *EIClient) GetJobStatus(ctx context.Context, projectID int, jobID int) (
 		return nil, errorMessage(resp.StatusCode())
 	}
 
-	if resp.JSON200.Success {
-		if resp.JSON200.Job.FinishedSuccessful != nil && resp.JSON200.Job.Finished != nil {
+	if resp.JSON200.Success && resp.JSON200.Job.Finished != nil {
+		if *resp.JSON200.Job.FinishedSuccessful {
 			return resp.JSON200.Job.FinishedSuccessful, nil
+		} else {
+			logs, err := c.getJobLogs(ctx, projectID, jobID, 1, "error")
+			if err != nil {
+				return nil, fmt.Errorf("failed to get job logs: %w", err)
+			}
+			return resp.JSON200.Job.FinishedSuccessful, fmt.Errorf("job %d failed with error: %v", jobID, logs[0].Data)
 		}
-		return nil, nil
 	}
 
-	return nil, fmt.Errorf("error fetching job status: %s", *resp.JSON200.Error)
+	if !resp.JSON200.Success {
+		return nil, fmt.Errorf("error fetching job status: %s", *resp.JSON200.Error)
+	}
 
+	return nil, nil
+
+}
+
+func (c *EIClient) getJobLogs(ctx context.Context, projectID, jobID int, limit int, logLevel string) (logs JobLogEntry, err error) {
+
+	logLevelParam := GetJobsLogsParamsLogLevel(logLevel)
+	resp, err := c.HttpClient.GetJobsLogsWithResponse(ctx, projectID, jobID, &GetJobsLogsParams{Limit: &limit, LogLevel: &logLevelParam})
+	if err != nil {
+		return nil, fmt.Errorf("failed to perform get logs request: %w", err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return nil, errorMessage(resp.StatusCode())
+	}
+
+	return resp.JSON200.Stdout, nil
 }
 
 func (c *EIClient) GetProjectInfo(ctx context.Context, projectID int, impulseID int) (*Project, error) {
@@ -148,7 +176,7 @@ func (c EIClient) WaitForBuildCompletion(ctx context.Context, projectID, jobID i
 			if *status {
 				return nil
 			} else {
-				return fmt.Errorf("reating deployment failed for job %d in project %d", jobID, projectID)
+				return fmt.Errorf("Build failed for job %d in project %d", jobID, projectID)
 			}
 		}
 

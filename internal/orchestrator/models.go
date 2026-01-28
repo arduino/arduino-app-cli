@@ -225,7 +225,7 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 
 	modelTypeParam := edgeimpulse.ModelTypeParameter(modelType)
 	engineParam := edgeimpulse.ModelEngineParameter(engine)
-	version, err := eiClient.GetDeployment(ctx, projectID, modelTypeParam, engineParam, deviceType)
+	version, err := eiClient.GetDeployment(ctx, projectID, impulseID, modelTypeParam, engineParam, deviceType)
 	if err != nil {
 		return nil, err
 	}
