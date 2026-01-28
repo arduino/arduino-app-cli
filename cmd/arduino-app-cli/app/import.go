@@ -16,6 +16,7 @@
 package app
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -33,8 +34,10 @@ func newImportCmd(cfg config.Configuration) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "import FILE_PATH",
 		Short: "Import an Arduino App from a zip file",
-		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return cmd.Help()
+			}
 			filePath := args[0]
 			return importHandler(cfg, filePath)
 		},
@@ -76,7 +79,11 @@ type importAppResult struct {
 }
 
 func (r importAppResult) String() string {
-	return fmt.Sprintf("✓ Import successful.\n  App ID: %s", r.AppID)
+	appIDBytes, err := base64.RawURLEncoding.DecodeString(r.AppID)
+	if err != nil {
+		return fmt.Sprintf("✓ Import successful.\n  App ID: %s", r.AppID)
+	}
+	return fmt.Sprintf("✓ Import successful.\n  App ID: %s", appIDBytes)
 }
 
 func (r importAppResult) Data() interface{} {
