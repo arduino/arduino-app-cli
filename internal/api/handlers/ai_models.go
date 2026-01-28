@@ -25,6 +25,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/render"
@@ -63,7 +64,7 @@ func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	}
 }
 
-func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
+func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, idProvider *app.IDProvider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("modelID")
 		if id == "" {
@@ -76,7 +77,7 @@ func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, 
 			force = false
 		}
 
-		err = orchestrator.AIModelDelete(r.Context(), dockerClient, cfg, modelsIndex, id, force)
+		err = orchestrator.AIModelDelete(r.Context(), dockerClient, cfg, modelsIndex, id, idProvider, force)
 		if err != nil {
 			switch {
 			case errors.Is(err, orchestrator.ErrNotFound):

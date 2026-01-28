@@ -91,7 +91,7 @@ var (
 	ErrConflict = errors.New("model is currently in use")
 )
 
-func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, id string, force bool) (err error) {
+func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, id string, idProvider *app.IDProvider, force bool) (err error) {
 	res, found := modelsIndex.GetModelByID(id)
 	if !found {
 		return fmt.Errorf("model %s not found: %w", id, ErrNotFound)
@@ -102,7 +102,11 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 	}
 
 	running, _ := getRunningApp(ctx, dockerClient.Client())
-	references := isModelReferencedInApp(cfg, id)
+	references, err := isModelReferencedInApp(ctx, dockerClient, cfg, idProvider, id)
+	if err != nil {
+		return err
+	}
+
 	var sb strings.Builder
 	if running != nil {
 		sb.WriteString(fmt.Sprintf("The model %s is in use by the %s app. Stop the application before removing the model.\n", id, running.Name))
@@ -129,34 +133,32 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 	return nil
 }
 
-func isModelReferencedInApp(cfg config.Configuration, modelId string) []string {
+func isModelReferencedInApp(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, idProvider *app.IDProvider, modelId string) ([]string, error) {
 	references := make(map[string]struct{})
 
-	entries, _ := cfg.AppsDir().ReadDir()
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
+	apps, err := ListApps(ctx, dockerClient, ListAppRequest{
+		ShowExamples:                   true,
+		ShowApps:                       true,
+		IncludeNonStandardLocationApps: true,
+	},
+		idProvider, cfg)
 
-		appDescriptor := app.ArduinoApp{
-			FullPath:   entry,
-			Descriptor: app.AppDescriptor{},
-		}
-		descriptorFile := appDescriptor.GetDescriptorPath()
-		if !descriptorFile.Exist() {
-			continue
-		}
+	if err != nil {
+		return nil, errors.New("error retrieving applications.")
+	}
 
-		descriptor, err := app.ParseDescriptorFile(descriptorFile)
+	for _, a := range apps.Apps {
+		app, err := app.Load(a.ID.ToPath())
 		if err != nil {
+			slog.Warn("Unable to load app", slog.Any("application name", a.Name))
 			continue
 		}
-		for _, b := range descriptor.Bricks {
+		for _, b := range app.Descriptor.Bricks {
 			if b.Model == modelId {
 				references[b.ID] = struct{}{}
 			}
 		}
 	}
 
-	return slices.Collect(maps.Keys(references))
+	return slices.Collect(maps.Keys(references)), nil
 }
