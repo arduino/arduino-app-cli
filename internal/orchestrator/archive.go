@@ -328,7 +328,9 @@ func validateAppZipContent(r *zip.Reader) error {
 }
 
 func redactSecrets(bricksindex *bricksindex.BricksIndex, desc *app.AppDescriptor) {
-	for _, brick := range desc.Bricks {
+	for i := range desc.Bricks {
+		brick := &desc.Bricks[i]
+
 		brickDef, found := bricksindex.FindBrickByID(brick.ID)
 		if !found {
 			// Brick definition not found; skip secret redaction
