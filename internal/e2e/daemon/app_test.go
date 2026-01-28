@@ -1020,6 +1020,7 @@ func TestExportApp(t *testing.T) {
 	httpClient := GetHttpclient(t)
 
 	appName := "AppToExport"
+	rootFolder := strings.ToLower(appName)
 	createResp, err := httpClient.CreateAppWithResponse(
 		t.Context(),
 		&client.CreateAppParams{SkipSketch: f.Ptr(true)},
@@ -1063,9 +1064,9 @@ func TestExportApp(t *testing.T) {
 		require.Contains(t, exportResp.Header.Get("Content-Disposition"), "attachment; filename=")
 
 		files := readZipFiles(t, exportResp.Body)
-		assert.Contains(t, files, "app.yaml")
-		assert.Contains(t, files, "python/main.py")
-		assert.NotContains(t, files, ".cache")
+		assert.Contains(t, files, rootFolder+"/app.yaml")
+		assert.Contains(t, files, rootFolder+"/python/main.py")
+		assert.NotContains(t, files, rootFolder+"/.cache")
 	})
 
 	t.Run("ExportWithIncludeData_Success", func(t *testing.T) {
@@ -1082,7 +1083,7 @@ func TestExportApp(t *testing.T) {
 		require.Equal(t, http.StatusOK, exportResp.StatusCode)
 		require.Equal(t, "application/zip", exportResp.Header.Get("Content-Type"))
 		files := readZipFiles(t, exportResp.Body)
-		assert.Contains(t, files, "app.yaml")
+		assert.Contains(t, files, rootFolder+"/app.yaml")
 	})
 
 	t.Run("InvalidAppId_Fail", func(t *testing.T) {
