@@ -470,8 +470,9 @@ func createZipFile(t *testing.T, filename string, files map[string]string) {
 	require.NoError(t, w.Close())
 }
 
-func writeFiles(t *testing.T, tmpPath string, files []string) error {
+func writeFiles(t *testing.T, tmpPath string, files []string) {
 	t.Helper()
+
 	for _, path := range files {
 		srcPath := filepath.Join("testdata", "archive", path)
 		content, err := os.ReadFile(srcPath)
@@ -481,5 +482,4 @@ func writeFiles(t *testing.T, tmpPath string, files []string) error {
 		require.NoError(t, os.MkdirAll(filepath.Dir(dstPath), 0755))
 		require.NoError(t, os.WriteFile(dstPath, content, 0600))
 	}
-	return nil
 }

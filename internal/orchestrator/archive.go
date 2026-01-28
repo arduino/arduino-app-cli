@@ -111,7 +111,7 @@ func zipAppToBuffer(bricksIndex *bricksindex.BricksIndex, sourcePath string, inc
 			return nil
 		}
 
-		if d.Name() == "app.yaml" || d.Name() == "app.yml" {
+		if d.Name() == "app.yaml" || d.Name() == "app.yml" { // nolint:goconst
 			desc, err := app.ParseDescriptorFile(paths.New(path))
 			if err != nil {
 				return err
