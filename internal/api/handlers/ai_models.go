@@ -132,7 +132,7 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 		eiModel, err := orchestrator.InstallEIModel(r.Context(), bricksIndex, eiClient, cfg.CustomModelsDir(), req.ProjectID, req.ImpulseID, req.ModelType, req.Engine, req.DeviceType)
 		if err != nil {
 			switch {
-			case errors.Is(err, edgeimpulse.UnauthorizedErr):
+			case errors.Is(err, edgeimpulse.ErrUnauthorized):
 				slog.Error("unauthorized access to Edge Impulse API", slog.String("error", err.Error()))
 				render.EncodeResponse(w, http.StatusUnauthorized, models.ErrorResponse{Details: "unauthorized access to Edge Impulse API"})
 				return

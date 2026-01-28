@@ -18,8 +18,8 @@ type EIClient struct {
 	HttpClient *ClientWithResponses
 }
 
-var InternalServerErr = fmt.Errorf("service unavailable")
-var UnauthorizedErr = fmt.Errorf("unauthorized")
+var ErrInternalServerErr = fmt.Errorf("service unavailable")
+var ErrUnauthorized = fmt.Errorf("unauthorized")
 
 func NewEIClient(prjApiKey string, apiURL url.URL) (*EIClient, error) {
 
@@ -164,8 +164,8 @@ func (c EIClient) WaitForBuildCompletion(ctx context.Context, projectID, jobID i
 func errorMessage(statusCode int) error {
 	switch statusCode {
 	case http.StatusUnauthorized:
-		return UnauthorizedErr
+		return ErrUnauthorized
 	default:
-		return InternalServerErr
+		return ErrInternalServerErr
 	}
 }
