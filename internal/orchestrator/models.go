@@ -19,15 +19,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
-	"maps"
-	"slices"
-	"strings"
-
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/docker/cli/cli/command"
+	"log/slog"
+	"maps"
+	"slices"
+	"strings"
 )
 
 type AIModelsListResult struct {
