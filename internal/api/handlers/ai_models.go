@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
@@ -69,8 +70,13 @@ func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, 
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "id must be set"})
 			return
 		}
+		forceRaw := r.URL.Query().Get("force")
+		force, err := strconv.ParseBool(forceRaw)
+		if err != nil {
+			force = false
+		}
 
-		err := orchestrator.AIModelDelete(r.Context(), dockerClient, cfg, modelsIndex, id)
+		err = orchestrator.AIModelDelete(r.Context(), dockerClient, cfg, modelsIndex, id, force)
 		if err != nil {
 			switch {
 			case errors.Is(err, orchestrator.ErrNotFound):
