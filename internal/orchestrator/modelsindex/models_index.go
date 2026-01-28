@@ -145,6 +145,7 @@ func loadPreInstalledModels(dir *paths.Path) ([]AIModel, error) {
 	for i, modelMap := range list.Models {
 		for id, model := range modelMap {
 			model.ID = id
+			model.IsPreinstalled = true
 			models[i] = model
 		}
 	}
@@ -184,6 +185,7 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 			Metadata:           m.ModelDescriptor.Metadata,
 			ModelConfiguration: toLegacyModelConfiguration(m.ModelDescriptor.Bricks),
 			ModelFolderPath:    m.FullPath,
+			IsPreinstalled:     false,
 		})
 	}
 

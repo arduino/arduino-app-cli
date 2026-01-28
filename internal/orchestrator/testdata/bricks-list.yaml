@@ -1,0 +1,16 @@
+bricks:
+- id: arduino:brick-with-custom-model
+  name: Video Image Classification
+  description: 'Image classification brick'
+  require_model: true
+  category: video
+  model_name: mobilenet-image-classification
+  variables:
+  - name: EI_CLASSIFICATION_MODEL
+    default_value: /models/ootb/ei/mobilenet-v2-224px.eim
+    description: Path to the model file
+    hidden: true
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks
+    description: Path to the custom model directory
+    hidden: true
