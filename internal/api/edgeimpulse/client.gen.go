@@ -72,6 +72,14 @@ const (
 	Int8    KerasModelVariantEnum = "int8"
 )
 
+// Defines values for LogStdoutResponseStdoutLogLevel.
+const (
+	LogStdoutResponseStdoutLogLevelDebug LogStdoutResponseStdoutLogLevel = "debug"
+	LogStdoutResponseStdoutLogLevelError LogStdoutResponseStdoutLogLevel = "error"
+	LogStdoutResponseStdoutLogLevelInfo  LogStdoutResponseStdoutLogLevel = "info"
+	LogStdoutResponseStdoutLogLevelWarn  LogStdoutResponseStdoutLogLevel = "warn"
+)
+
 // Defines values for ModelEngineShortEnum.
 const (
 	Tflite                ModelEngineShortEnum = "tflite"
@@ -215,6 +223,22 @@ const (
 	UserTierEnumEnterprise    UserTierEnum = "enterprise"
 	UserTierEnumFree          UserTierEnum = "free"
 	UserTierEnumProfessional  UserTierEnum = "professional"
+)
+
+// Defines values for LogLevelParameter.
+const (
+	LogLevelParameterDebug LogLevelParameter = "debug"
+	LogLevelParameterError LogLevelParameter = "error"
+	LogLevelParameterInfo  LogLevelParameter = "info"
+	LogLevelParameterWarn  LogLevelParameter = "warn"
+)
+
+// Defines values for GetJobsLogsParamsLogLevel.
+const (
+	Debug GetJobsLogsParamsLogLevel = "debug"
+	Error GetJobsLogsParamsLogLevel = "error"
+	Info  GetJobsLogsParamsLogLevel = "info"
+	Warn  GetJobsLogsParamsLogLevel = "warn"
 )
 
 // ApplicationBudget Specifies limits for your specific application, as available RAM and ROM for the model's operation and the maximum allowed latency.
@@ -395,6 +419,26 @@ type LatencyDevice struct {
 	Name               string  `json:"name"`
 	Selected           bool    `json:"selected"`
 }
+
+// LogStdoutResponse defines model for LogStdoutResponse.
+type LogStdoutResponse struct {
+	// Error Optional error description (set if 'success' was false)
+	Error  *string `json:"error,omitempty"`
+	Stdout []struct {
+		Created  time.Time                        `json:"created"`
+		Data     string                           `json:"data"`
+		LogLevel *LogStdoutResponseStdoutLogLevel `json:"logLevel,omitempty"`
+	} `json:"stdout"`
+
+	// Success Whether the operation succeeded
+	Success bool `json:"success"`
+
+	// TotalCount Total number of logs (only the last 1000 lines are returned)
+	TotalCount int `json:"totalCount"`
+}
+
+// LogStdoutResponseStdoutLogLevel defines model for LogStdoutResponse.Stdout.LogLevel.
+type LogStdoutResponseStdoutLogLevel string
 
 // MemorySpec Describes performance characteristics of a particular memory type
 type MemorySpec struct {
@@ -988,6 +1032,12 @@ type DeploymentTypeParameter = string
 // JobIdParameter defines model for JobIdParameter.
 type JobIdParameter = int
 
+// LimitResultsParameter defines model for LimitResultsParameter.
+type LimitResultsParameter = int
+
+// LogLevelParameter defines model for LogLevelParameter.
+type LogLevelParameter string
+
 // ModelEngineParameter defines model for ModelEngineParameter.
 type ModelEngineParameter = DeploymentTargetEngine
 
@@ -1044,6 +1094,18 @@ type BuildOnDeviceModelJobParams struct {
 	// ImpulseId Impulse ID. If this is unset then the default impulse is used.
 	ImpulseId *OptionalImpulseIdParameter `form:"impulseId,omitempty" json:"impulseId,omitempty"`
 }
+
+// GetJobsLogsParams defines parameters for GetJobsLogs.
+type GetJobsLogsParams struct {
+	// Limit Maximum number of results
+	Limit *LimitResultsParameter `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// LogLevel Log level (error, warn, info, debug)
+	LogLevel *GetJobsLogsParamsLogLevel `form:"logLevel,omitempty" json:"logLevel,omitempty"`
+}
+
+// GetJobsLogsParamsLogLevel defines parameters for GetJobsLogs.
+type GetJobsLogsParamsLogLevel string
 
 // UpdateProjectJSONRequestBody defines body for UpdateProject for application/json ContentType.
 type UpdateProjectJSONRequestBody = UpdateProjectRequest
@@ -1148,6 +1210,9 @@ type ClientInterface interface {
 
 	// GetJobStatus request
 	GetJobStatus(ctx context.Context, projectId ProjectIdParameter, jobId JobIdParameter, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetJobsLogs request
+	GetJobsLogs(ctx context.Context, projectId ProjectIdParameter, jobId JobIdParameter, params *GetJobsLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) DeleteProject(ctx context.Context, projectId ProjectIdParameter, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1248,6 +1313,18 @@ func (c *Client) BuildOnDeviceModelJob(ctx context.Context, projectId ProjectIdP
 
 func (c *Client) GetJobStatus(ctx context.Context, projectId ProjectIdParameter, jobId JobIdParameter, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetJobStatusRequest(c.Server, projectId, jobId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetJobsLogs(ctx context.Context, projectId ProjectIdParameter, jobId JobIdParameter, params *GetJobsLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetJobsLogsRequest(c.Server, projectId, jobId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1717,6 +1794,85 @@ func NewGetJobStatusRequest(server string, projectId ProjectIdParameter, jobId J
 	return req, nil
 }
 
+// NewGetJobsLogsRequest generates requests for GetJobsLogs
+func NewGetJobsLogsRequest(server string, projectId ProjectIdParameter, jobId JobIdParameter, params *GetJobsLogsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "projectId", runtime.ParamLocationPath, projectId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "jobId", runtime.ParamLocationPath, jobId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/%s/jobs/%s/stdout", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.LogLevel != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "logLevel", runtime.ParamLocationQuery, *params.LogLevel); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -1784,6 +1940,9 @@ type ClientWithResponsesInterface interface {
 
 	// GetJobStatusWithResponse request
 	GetJobStatusWithResponse(ctx context.Context, projectId ProjectIdParameter, jobId JobIdParameter, reqEditors ...RequestEditorFn) (*GetJobStatusHTTPResponse, error)
+
+	// GetJobsLogsWithResponse request
+	GetJobsLogsWithResponse(ctx context.Context, projectId ProjectIdParameter, jobId JobIdParameter, params *GetJobsLogsParams, reqEditors ...RequestEditorFn) (*GetJobsLogsHTTPResponse, error)
 }
 
 type DeleteProjectHTTPResponse struct {
@@ -1939,6 +2098,28 @@ func (r GetJobStatusHTTPResponse) StatusCode() int {
 	return 0
 }
 
+type GetJobsLogsHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *LogStdoutResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetJobsLogsHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetJobsLogsHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 // DeleteProjectWithResponse request returning *DeleteProjectHTTPResponse
 func (c *ClientWithResponses) DeleteProjectWithResponse(ctx context.Context, projectId ProjectIdParameter, reqEditors ...RequestEditorFn) (*DeleteProjectHTTPResponse, error) {
 	rsp, err := c.DeleteProject(ctx, projectId, reqEditors...)
@@ -2016,6 +2197,15 @@ func (c *ClientWithResponses) GetJobStatusWithResponse(ctx context.Context, proj
 		return nil, err
 	}
 	return ParseGetJobStatusHTTPResponse(rsp)
+}
+
+// GetJobsLogsWithResponse request returning *GetJobsLogsHTTPResponse
+func (c *ClientWithResponses) GetJobsLogsWithResponse(ctx context.Context, projectId ProjectIdParameter, jobId JobIdParameter, params *GetJobsLogsParams, reqEditors ...RequestEditorFn) (*GetJobsLogsHTTPResponse, error) {
+	rsp, err := c.GetJobsLogs(ctx, projectId, jobId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetJobsLogsHTTPResponse(rsp)
 }
 
 // ParseDeleteProjectHTTPResponse parses an HTTP response from a DeleteProjectWithResponse call
@@ -2180,6 +2370,32 @@ func ParseGetJobStatusHTTPResponse(rsp *http.Response) (*GetJobStatusHTTPRespons
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest GetJobResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetJobsLogsHTTPResponse parses an HTTP response from a GetJobsLogsWithResponse call
+func ParseGetJobsLogsHTTPResponse(rsp *http.Response) (*GetJobsLogsHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetJobsLogsHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LogStdoutResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
