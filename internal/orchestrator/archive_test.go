@@ -21,7 +21,9 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
@@ -126,25 +128,29 @@ func TestExportAppZip(t *testing.T) {
 				assert.NoError(t, err)
 				r.Close()
 			}
+			rootFolder := strings.TrimSuffix(tc.wantFilename, ".zip")
 
 			for _, file := range tc.wantFiles {
-				_, ok := presentFiles[file]
-				require.True(t, ok, "File expected in zip but missing: %s", file)
+				expectedPathInZip := path.Join(rootFolder, file)
+
+				_, ok := presentFiles[expectedPathInZip]
+				require.True(t, ok, "File expected in zip but missing: %s", expectedPathInZip)
 			}
 
 			for _, file := range tc.wantMissingFiles {
-				_, ok := presentFiles[file]
-				require.False(t, ok, "File should NOT be in zip but was found: %s", file)
-			}
+				unexpectedPathInZip := path.Join(rootFolder, file)
 
+				_, ok := presentFiles[unexpectedPathInZip]
+				require.False(t, ok, "File should NOT be in zip but was found: %s", unexpectedPathInZip)
+			}
 			appYaml, err := os.ReadFile(filepath.Join("testdata", "archive", "app.redacted.yaml"))
 			assert.NoError(t, err)
-			assert.Equal(t, string(appYaml), string(presentFiles["app.yaml"]))
 
+			zipAppYamlPath := path.Join(rootFolder, "app.yaml")
+			assert.Equal(t, string(appYaml), string(presentFiles[zipAppYamlPath]), "Content of app.yaml mismatch")
 		})
 	}
 }
-
 func TestValidateAppZipContent(t *testing.T) {
 	tests := []struct {
 		name        string
