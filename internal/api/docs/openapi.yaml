@@ -970,6 +970,62 @@ paths:
       summary: Get AI model details
       tags:
       - AIModels
+  /v1/models/edge-impulse:
+    post:
+      description: Download and install a custom Edge Impulse AI model using the provided
+        project API key.
+      operationId: installEIModel
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                device_type:
+                  description: Device type for deployment (e.g., 'arduino-uno-q')
+                  example: arduino-uno-q
+                  type: string
+                engine:
+                  description: Model engine (e.g., 'tensorflow-lite')
+                  example: tensorflow-lite
+                  type: string
+                impulse_id:
+                  description: Edge Impulse impulse ID
+                  example: 1
+                  type: integer
+                model_type:
+                  description: Type of model to build (e.g., 'object-detection')
+                  example: object-detection
+                  type: string
+                prj_api_key:
+                  description: Edge Impulse API token
+                  example: your_edge_impulse_api_token
+                  type: string
+                project_id:
+                  description: Edge Impulse project ID
+                  example: 123456
+                  type: integer
+              required:
+              - project_id
+              - impulse_id
+              - prj_api_key
+              - model_type
+              - engine
+              - device_type
+              type: object
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIModelItem'
+          description: Successful response
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Download and install a custom Edge Impulse AI model
+      tags:
+      - AIModels
   /v1/properties:
     get:
       description: Return the list of system properties.

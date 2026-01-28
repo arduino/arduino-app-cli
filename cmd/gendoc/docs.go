@@ -836,6 +836,32 @@ Contains a JSON object with the details of an error.
 			},
 		},
 		{
+			OperationId: "installEIModel",
+			Method:      http.MethodPost,
+			Path:        "/v1/models/edge-impulse",
+			Request: (*struct {
+				ProjectID  int    `json:"project_id" description:"Edge Impulse project ID" example:"123456" required:"true"`
+				ImpulseID  int    `json:"impulse_id" description:"Edge Impulse impulse ID" example:"1" required:"true"`
+				PrjApiKey  string `json:"prj_api_key" description:"Edge Impulse API token" example:"your_edge_impulse_api_token" required:"true"`
+				ModelType  string `json:"model_type" description:"Type of model to build (e.g., 'object-detection')" example:"object-detection" required:"true"`
+				Engine     string `json:"engine" description:"Model engine (e.g., 'tensorflow-lite')" example:"tensorflow-lite" required:"true"`
+				DeviceType string `json:"device_type" description:"Device type for deployment (e.g., 'arduino-uno-q')" example:"arduino-uno-q" required:"true"`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: orchestrator.AIModelItem{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "Download and install a custom Edge Impulse AI model using the provided project API key.",
+			Summary:     "Download and install a custom Edge Impulse AI model",
+			Tags:        []Tag{AIModelsTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+				{StatusCode: http.StatusUnauthorized, Reference: "#/components/responses/Unauthorized"},
+			},
+		},
+		{
 			OperationId: "getSystemResources",
 			Method:      http.MethodGet,
 			Path:        "/v1/system/resources",
