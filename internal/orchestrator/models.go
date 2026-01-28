@@ -16,7 +16,16 @@
 package orchestrator
 
 import (
+	"context"
+	"fmt"
+	"log/slog"
+	"strings"
+
+	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
+	"github.com/arduino/go-paths-helper"
 )
 
 type AIModelsListResult struct {
@@ -73,4 +82,104 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 		Metadata:           model.Metadata,
 		ModelConfiguration: model.ModelConfiguration,
 	}, true
+}
+
+func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, projectID int, impulseID int, modelType string, engine string, deviceType string) (*custommodel.AiModel, error) {
+
+	project, err := eiClient.GetProjectInfo(ctx, projectID, impulseID)
+	if err != nil {
+		return nil, err
+	}
+	id := fmt.Sprintf("ei-model-%d-%d", projectID, impulseID)
+
+	edgeModelsDir := modelsDir.Join(id)
+	blobModelsDir := edgeModelsDir.Join("model.eim")
+
+	customModelDescriptor := custommodel.ModelDescriptor{
+		ID:          id,
+		Name:        project.Name,
+		Description: project.Description,
+		Metadata: map[string]string{
+			"source":        "edgeimpulse",
+			"ei-project-id": fmt.Sprintf("%d", projectID),
+			"ei-impulse-id": fmt.Sprintf("%d", impulseID),
+			"ei-model-type": modelType,
+			"ei-engine":     engine,
+		},
+		Bricks: buildBrickConfigForEIModel(bricksIndex, project.Category, edgeModelsDir, blobModelsDir),
+	}
+
+	modelTypeParam := edgeimpulse.ModelTypeParameter(modelType)
+	engineParam := edgeimpulse.ModelEngineParameter(engine)
+	version, err := eiClient.GetDeployment(ctx, projectID, modelTypeParam, engineParam, deviceType)
+	if err != nil {
+		return nil, err
+	}
+	if version == nil {
+		jobId, err := eiClient.Build(ctx, projectID, modelTypeParam, engineParam, deviceType)
+		if err != nil {
+			return nil, err
+		}
+		err = eiClient.WaitForBuildCompletion(ctx, projectID, *jobId)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	modelRC, err := eiClient.DownloadAndInstallModel(ctx, blobModelsDir, projectID, impulseID, modelTypeParam, engineParam, deviceType)
+	if err != nil {
+		return nil, err
+	}
+
+	aimodel, err := custommodel.Store(modelsDir, customModelDescriptor, modelRC, "adsads")
+	if err != nil {
+		return nil, err
+	}
+
+	return &aimodel, nil
+}
+
+var mapCategoryToBricks = map[edgeimpulse.ProjectCategory][]string{
+	edgeimpulse.ProjectCategoryOther:           {},
+	edgeimpulse.ProjectCategoryObjectDetection: {"arduino:object_detection", "arduino:video_object_detection"},
+	edgeimpulse.ProjectCategoryImages:          {"arduino:image_classification", "arduino:video_image_classification"},
+	edgeimpulse.ProjectCategoryAudio:           {"arduino:audio_classification"},
+	edgeimpulse.ProjectCategoryKeywordSpotting: {"arduino:audio_classification", "arduino:keyword_spotting"},
+	edgeimpulse.ProjectCategoryAccelerometer:   {"arduino:gesture_recognition", "arduino:anomaly_detection"},
+}
+
+func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *edgeimpulse.ProjectCategory, edgeModelsDir *paths.Path, blobModelsDir *paths.Path) []custommodel.BrickConfig {
+	if category == nil {
+		return []custommodel.BrickConfig{}
+	}
+	bricksIds := mapCategoryToBricks[*category]
+
+	bricksConfig := make([]custommodel.BrickConfig, 0)
+	for _, b := range bricksIds {
+		brick, ok := bricksIndex.FindBrickByID(b)
+		if !ok {
+			slog.Warn("cannot load brick", "id", b, "category", category)
+			continue
+		}
+		modelConfigPerBrick := map[string]any{}
+		for _, variable := range brick.Variables {
+			name := variable.Name
+			switch {
+			case name == "CUSTOM_MODEL_PATH":
+				modelConfigPerBrick[name] = edgeModelsDir.String()
+			case strings.HasPrefix(name, "EI_") && strings.HasSuffix(name, "_MODEL"):
+				// EI model variables (EI_*_MODEL) get the blob path
+				modelConfigPerBrick[name] = blobModelsDir.String()
+			default:
+				// Leave other variables unset here; they may be user-provided or have defaults
+				slog.Debug("skipping non-model variable for EI auto-config", "variable", name, "brick", brick.ID)
+			}
+		}
+
+		bricksConfig = append(bricksConfig, custommodel.BrickConfig{
+			ID:                 brick.ID,
+			ModelConfiguration: modelConfigPerBrick,
+		})
+	}
+	return bricksConfig
 }

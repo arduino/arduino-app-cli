@@ -42,6 +42,7 @@ type Configuration struct {
 	RunnerVersion                    string
 	AllowRoot                        bool
 	LibrariesAPIURL                  *url.URL
+	EdgeImpulseAPIURL                *url.URL
 	ArduinoPlatformVersionConstraint semver.Constraint
 }
 
@@ -107,6 +108,16 @@ func NewFromEnv() (Configuration, error) {
 
 	constraintStr := cmp.Or(os.Getenv("ARDUINO_APP_CLI__PLATFORM_VERSION_CONSTRAINT"), "<1.0.0")
 
+	edgeImpulseAPIURL := os.Getenv("EDGE_IMPULSE_API_URL")
+	if edgeImpulseAPIURL == "" {
+		edgeImpulseAPIURL = "https://studio.edgeimpulse.com/v1"
+	}
+
+	parsedEdgeImpulseURL, err := url.Parse(edgeImpulseAPIURL)
+	if err != nil {
+		return Configuration{}, fmt.Errorf("invalid EDGE_IMPULSE_API_URL: %w", err)
+	}
+
 	constraint, err := semver.ParseConstraint(constraintStr)
 	if err != nil {
 		return Configuration{}, fmt.Errorf("invalid version constraint: %w", err)
@@ -123,6 +134,7 @@ func NewFromEnv() (Configuration, error) {
 		RunnerVersion:                    RunnerVersion,
 		AllowRoot:                        allowRoot,
 		LibrariesAPIURL:                  parsedLibrariesURL,
+		EdgeImpulseAPIURL:                parsedEdgeImpulseURL,
 		ArduinoPlatformVersionConstraint: constraint,
 	}
 	if err := c.init(); err != nil {

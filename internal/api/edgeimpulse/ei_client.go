@@ -1,11 +1,12 @@
 package edgeimpulse
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"time"
 
 	"github.com/arduino/go-paths-helper"
@@ -38,25 +39,20 @@ func NewEIClient(prjApiKey string, apiURL url.URL) (*EIClient, error) {
 	return &EIClient{PrjApiKey: prjApiKey, ApiUrl: apiURL, HttpClient: httpClient}, nil
 }
 
-func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath *paths.Path, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter, deviceType DeploymentTypeParameter) error {
+func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath *paths.Path, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter, deviceType DeploymentTypeParameter) (io.ReadCloser, error) {
 
 	opt := &DownloadBuildParams{ImpulseId: &impulseID, ModelType: &modelType, Engine: &engine, Type: deviceType}
 
 	resp, err := c.HttpClient.DownloadBuildWithResponse(ctx, projectID, opt)
 	if err != nil {
-		return fmt.Errorf("failed to perform download model request: %w", err)
+		return nil, fmt.Errorf("failed to perform download model request: %w", err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return errorMessage(resp.StatusCode())
+		return nil, errorMessage(resp.StatusCode())
 	}
 
-	err = os.WriteFile(modelPath.String(), resp.Body, 0600)
-	if err != nil {
-		return fmt.Errorf("failed to save model: %v", err)
-	}
-
-	return nil
+	return io.NopCloser(bytes.NewReader(resp.Body)), nil
 }
 
 func (c *EIClient) GetDeployment(ctx context.Context, projectID int, modelType ModelTypeParameter, engine ModelEngineParameter, deviceType DeploymentTypeParameter) (*int, error) {
