@@ -88,38 +88,39 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 	}, true
 }
 
+var (
+	ErrNotFound = errors.New("model not found")
+	ErrConflict = errors.New("model is currently in use")
+)
+
 func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, id string) (err error) {
 	res, found := modelsIndex.GetModelByID(id)
 	if !found {
-		details := fmt.Sprintf("model %s not found", id)
-		return errors.New(details)
+		return fmt.Errorf("model %s not found: %w", id, ErrNotFound)
 	}
 
 	if res.IsPreinstalled {
-		details := fmt.Sprintf("model %q is a pre-installed model, can't be deleted", id)
-		return errors.New(details)
+		return fmt.Errorf("model %s is a pre-installed model, can't be deleted: %w", id, ErrConflict)
 	}
 
 	running, _ := getRunningApp(ctx, dockerClient.Client())
 	if running != nil {
-		details := fmt.Sprintf("models %s is in use by the %s app. Stop the application before removing the model", id, running.Name)
-		return errors.New(details)
+		return fmt.Errorf("models %s is in use by the %s app. Stop the application before removing the model: %w", id, running.Name, ErrConflict)
 	}
 
 	references := isModelReferencedInApp(cfg, id)
 	if len(references) != 0 {
-		details := fmt.Sprintf("The model is referenced by the following bricks: %s", strings.Join(references, ", "))
-		return errors.New(details)
+		return fmt.Errorf("The model is referenced by the following bricks: %s: %w", strings.Join(references, ", "), ErrConflict)
 	}
 
 	if res.ModelFolderPath == nil {
-		details := fmt.Sprintf("unexpected null path for model %q", id)
+		details := fmt.Sprintf("unexpected null path for model %s", res.ModelFolderPath.String())
 		slog.Warn(details)
-		return errors.New(details)
+		return fmt.Errorf("%s: %w", details, ErrNotFound)
 	}
 
 	if err := res.ModelFolderPath.RemoveAll(); err != nil {
-		details := fmt.Sprintf("error removing path %q", res.ModelFolderPath.String())
+		details := fmt.Sprintf("error removing path %s", res.ModelFolderPath.String())
 		slog.Warn(details)
 		return errors.New(details)
 	}

@@ -16,6 +16,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -65,15 +66,20 @@ func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, 
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("modelID")
 		if id == "" {
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "id must be set"})
+			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "id must be set"})
 			return
 		}
 
 		err := orchestrator.AIModelDelete(r.Context(), dockerClient, cfg, modelsIndex, id)
 		if err != nil {
-			details := fmt.Sprintf("Error deleting model %q", id)
-			// TODO Give error
-			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})
+			switch {
+			case errors.Is(err, orchestrator.ErrNotFound):
+				render.EncodeResponse(w, http.StatusNotFound, err.Error())
+			case errors.Is(err, orchestrator.ErrConflict):
+				render.EncodeResponse(w, http.StatusConflict, err.Error())
+			default:
+				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: err.Error()})
+			}
 			return
 		}
 
