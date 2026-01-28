@@ -245,7 +245,7 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 		return nil, err
 	}
 
-	aimodel, err := custommodel.Store(modelsDir, customModelDescriptor, modelRC, "adsads")
+	aimodel, err := custommodel.Store(modelsDir, customModelDescriptor, modelRC, "model.eim")
 	if err != nil {
 		return nil, err
 	}
