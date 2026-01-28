@@ -54,6 +54,7 @@ type AIModelItem struct {
 	BrickIds           *[]string          `json:"brick_ids"`
 	Description        *string            `json:"description,omitempty"`
 	Id                 *string            `json:"id,omitempty"`
+	IsPreinstalled     *bool              `json:"is_preinstalled,omitempty"`
 	Metadata           *map[string]string `json:"metadata,omitempty"`
 	ModelConfiguration *map[string]string `json:"model_configuration,omitempty"`
 	Name               *string            `json:"name,omitempty"`
@@ -481,6 +482,12 @@ type GetAIModelsParams struct {
 	Bricks *string `form:"bricks,omitempty" json:"bricks,omitempty"`
 }
 
+// DeleteAIModelParams defines parameters for DeleteAIModel.
+type DeleteAIModelParams struct {
+	// Force If true, deletes the model even if referenced by apps.
+	Force *bool `form:"force,omitempty" json:"force,omitempty"`
+}
+
 // UpdatePropertyJSONBody defines parameters for UpdateProperty.
 type UpdatePropertyJSONBody = string
 
@@ -682,6 +689,9 @@ type ClientInterface interface {
 
 	// GetAIModels request
 	GetAIModels(ctx context.Context, params *GetAIModelsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteAIModel request
+	DeleteAIModel(ctx context.Context, id string, params *DeleteAIModelParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAIModelDetails request
 	GetAIModelDetails(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1102,6 +1112,18 @@ func (c *Client) ListLibraries(ctx context.Context, params *ListLibrariesParams,
 
 func (c *Client) GetAIModels(ctx context.Context, params *GetAIModelsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAIModelsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteAIModel(ctx context.Context, id string, params *DeleteAIModelParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAIModelRequest(c.Server, id, params)
 	if err != nil {
 		return nil, err
 	}
@@ -2552,6 +2574,62 @@ func NewGetAIModelsRequest(server string, params *GetAIModelsParams) (*http.Requ
 	return req, nil
 }
 
+// NewDeleteAIModelRequest generates requests for DeleteAIModel
+func NewDeleteAIModelRequest(server string, id string, params *DeleteAIModelParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/models/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Force != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "force", runtime.ParamLocationQuery, *params.Force); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetAIModelDetailsRequest generates requests for GetAIModelDetails
 func NewGetAIModelDetailsRequest(server string, id string) (*http.Request, error) {
 	var err error
@@ -3042,6 +3120,9 @@ type ClientWithResponsesInterface interface {
 
 	// GetAIModelsWithResponse request
 	GetAIModelsWithResponse(ctx context.Context, params *GetAIModelsParams, reqEditors ...RequestEditorFn) (*GetAIModelsResp, error)
+
+	// DeleteAIModelWithResponse request
+	DeleteAIModelWithResponse(ctx context.Context, id string, params *DeleteAIModelParams, reqEditors ...RequestEditorFn) (*DeleteAIModelResp, error)
 
 	// GetAIModelDetailsWithResponse request
 	GetAIModelDetailsWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetAIModelDetailsResp, error)
@@ -3728,6 +3809,29 @@ func (r GetAIModelsResp) StatusCode() int {
 	return 0
 }
 
+type DeleteAIModelResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON412      *PreconditionFailed
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteAIModelResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteAIModelResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetAIModelDetailsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4252,6 +4356,15 @@ func (c *ClientWithResponses) GetAIModelsWithResponse(ctx context.Context, param
 		return nil, err
 	}
 	return ParseGetAIModelsResp(rsp)
+}
+
+// DeleteAIModelWithResponse request returning *DeleteAIModelResp
+func (c *ClientWithResponses) DeleteAIModelWithResponse(ctx context.Context, id string, params *DeleteAIModelParams, reqEditors ...RequestEditorFn) (*DeleteAIModelResp, error) {
+	rsp, err := c.DeleteAIModel(ctx, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAIModelResp(rsp)
 }
 
 // GetAIModelDetailsWithResponse request returning *GetAIModelDetailsResp
@@ -5429,6 +5542,39 @@ func ParseGetAIModelsResp(rsp *http.Response) (*GetAIModelsResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteAIModelResp parses an HTTP response from a DeleteAIModelWithResponse call
+func ParseDeleteAIModelResp(rsp *http.Response) (*DeleteAIModelResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteAIModelResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
