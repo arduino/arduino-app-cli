@@ -196,6 +196,23 @@ func NewOpenApiGenerator(version string) *Generator {
 						},
 					},
 				},
+				"Unauthorized": {
+					Response: &openapi3.Response{
+						Description: "Unauthorized",
+						Content: map[string]openapi3.MediaType{
+							"application/json": {
+								Example: f.Ptr(interface{}(map[string]interface{}{
+									"details": "Unauthorized access.",
+								})),
+								Schema: &openapi3.SchemaOrRef{
+									SchemaReference: &openapi3.SchemaReference{
+										Ref: ErrorResponseSchema,
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 	)
