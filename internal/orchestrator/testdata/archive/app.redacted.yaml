@@ -5,5 +5,5 @@ ports:
 bricks:
 - arduino:arduino_cloud:
     variables:
-      ARDUINO_DEVICE_ID: your_device_id
-      ARDUINO_SECRET: your_secret
+      ARDUINO_DEVICE_ID: ""
+      ARDUINO_SECRET: ""

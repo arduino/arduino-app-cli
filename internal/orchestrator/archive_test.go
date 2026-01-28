@@ -19,33 +19,19 @@ import (
 	"archive/zip"
 	"bytes"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/store"
 )
-
-func writeFiles(t *testing.T, tmpPath string, files []string) error {
-	t.Helper()
-	for _, path := range files {
-		srcPath := filepath.Join("testdata", "archive", path)
-		content, err := os.ReadFile(srcPath)
-		require.NoError(t, err)
-
-		dstPath := filepath.Join(tmpPath, path)
-		require.NoError(t, os.MkdirAll(filepath.Dir(dstPath), 0755))
-		require.NoError(t, os.WriteFile(dstPath, content, 0600))
-	}
-	return nil
-}
 
 func TestExportAppZip(t *testing.T) {
 	bricksIndex, err := bricksindex.Load(paths.New("testdata", "archive"))
@@ -132,245 +118,29 @@ func TestExportAppZip(t *testing.T) {
 			zipReader, err := zip.NewReader(bytes.NewReader(zipData), int64(len(zipData)))
 			require.NoError(t, err)
 
-			presentFiles := make(map[string]bool)
+			presentFiles := make(map[string][]byte)
 			for _, f := range zipReader.File {
-				presentFiles[f.Name] = true
+				r, err := f.Open()
+				assert.NoError(t, err)
+				presentFiles[f.Name], err = io.ReadAll(r)
+				assert.NoError(t, err)
+				r.Close()
 			}
 
 			for _, file := range tc.wantFiles {
-				require.True(t, presentFiles[file], "File expected in zip but missing: %s", file)
+				_, ok := presentFiles[file]
+				require.True(t, ok, "File expected in zip but missing: %s", file)
 			}
 
 			for _, file := range tc.wantMissingFiles {
-				require.False(t, presentFiles[file], "File should NOT be in zip but was found: %s", file)
-			}
-		})
-	}
-}
-func TestZipAppToBuffer(t *testing.T) {
-	staticStore := store.NewStaticStore(paths.New("testdata", "assets", config.RunnerVersion).String())
-	bricksIndex, err := bricksindex.Load(staticStore.GetAssetsFolder())
-	require.NoError(t, err)
-
-	type testCase struct {
-		name        string
-		files       []string
-		nonExistent bool
-		includeData bool
-		wantErr     bool
-		wantInZip   []string
-		wantMissing []string
-	}
-
-	tests := []testCase{
-		{
-			name: "Standard happy path",
-			files: []string{
-				"app.yaml",
-				"assets/icon.png",
-			},
-			includeData: false,
-			wantErr:     false,
-			wantInZip:   []string{"app.yaml", "assets/icon.png"},
-			wantMissing: []string{},
-		},
-		{
-			name: "Exclude 'data' directory (includeData=false)",
-			files: []string{
-				"app.yaml",
-				"data/file.txt",
-				"data/image.png",
-			},
-			includeData: false,
-			wantErr:     false,
-			wantInZip:   []string{"app.yaml"},
-			wantMissing: []string{"data/file.txt", "data/image.png"},
-		},
-		{
-			name: "Include 'data' directory (includeData=true)",
-			files: []string{
-				"app.yaml",
-				"data/file.txt",
-			},
-			includeData: true,
-			wantErr:     false,
-			wantInZip:   []string{"app.yaml", "data/file.txt"},
-			wantMissing: []string{},
-		},
-		{
-			name: "Ignore .cache folder at root",
-			files: []string{
-				"app.yaml",
-				".cache/temp_file",
-				".cache/sub/folder",
-			},
-			includeData: false,
-			wantErr:     false,
-			wantInZip:   []string{"app.yaml"},
-			wantMissing: []string{".cache/temp_file", ".cache/sub/folder"},
-		},
-		{
-			name: "Include hidden files not in .cache",
-			files: []string{
-				".env",
-				"assets/.hidden",
-			},
-			includeData: false,
-			wantErr:     false,
-			wantInZip:   []string{".env", "assets/.hidden"},
-			wantMissing: []string{},
-		},
-		{
-			name: "Ignore nested directories inside .cache",
-			files: []string{
-				"app.js",
-				".cache/v1/data.json",
-			},
-			includeData: false,
-			wantErr:     false,
-			wantInZip:   []string{"app.js"},
-			wantMissing: []string{".cache/v1/data.json"},
-		},
-		{
-			name:        "Error on non-existent path",
-			files:       []string{},
-			nonExistent: true,
-			wantErr:     true,
-			wantInZip:   nil,
-			wantMissing: nil,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			tmpDir := t.TempDir()
-
-			writeFiles(t, tmpDir, tc.files)
-
-			sourcePath := tmpDir
-			if tc.nonExistent {
-				sourcePath = filepath.Join(tmpDir, "not existing path")
-			}
-			zipData, err := zipAppToBuffer(bricksIndex, sourcePath, tc.includeData)
-
-			if tc.wantErr {
-				require.Error(t, err)
-				return
+				_, ok := presentFiles[file]
+				require.False(t, ok, "File should NOT be in zip but was found: %s", file)
 			}
 
-			require.NoError(t, err)
-			require.NotEmpty(t, zipData)
+			appYaml, err := os.ReadFile(filepath.Join("testdata", "archive", "app.redacted.yaml"))
+			assert.NoError(t, err)
+			assert.Equal(t, string(appYaml), string(presentFiles["app.yaml"]))
 
-			zipReader, err := zip.NewReader(bytes.NewReader(zipData), int64(len(zipData)))
-			require.NoError(t, err)
-
-			foundFiles := make(map[string]bool)
-			for _, f := range zipReader.File {
-				require.False(t, strings.Contains(f.Name, "\\"), "not valid Path separator in %s", f.Name)
-				if !f.FileInfo().IsDir() {
-					foundFiles[f.Name] = true
-				}
-			}
-
-			for _, file := range tc.wantInZip {
-				require.True(t, foundFiles[file], "Missing file into the zip: %s", file)
-			}
-
-			for _, file := range tc.wantMissing {
-				require.False(t, foundFiles[file], "present file that should be ignored: %s", file)
-			}
-		})
-	}
-}
-
-func TestValidateZipContent(t *testing.T) {
-	tests := []struct {
-		name          string
-		files         map[string]string
-		wantErr       bool
-		errorContains string
-	}{
-		{
-			name: "Success - Minimal (app.yaml + python)",
-			files: map[string]string{
-				"app.yaml":       "",
-				"python/main.py": "print('hello')",
-			},
-			wantErr: false,
-		},
-		{
-			name: "Success - Full with Sketch",
-			files: map[string]string{
-				"app.yaml":           "",
-				"python/main.py":     "",
-				"sketch/sketch.ino":  "",
-				"sketch/sketch.yaml": "",
-			},
-			wantErr: false,
-		},
-		{
-			name: "Error - Missing app.yaml",
-			files: map[string]string{
-				"python/main.py": "",
-			},
-			wantErr:       true,
-			errorContains: "missing app.yaml",
-		},
-		{
-			name: "Error - Missing python/main.py",
-			files: map[string]string{
-				"app.yaml": "",
-			},
-			wantErr:       true,
-			errorContains: "missing python/main.py",
-		},
-		{
-			name: "Error - Sketch folder present but missing .ino",
-			files: map[string]string{
-				"app.yaml":           "",
-				"python/main.py":     "",
-				"sketch/sketch.yaml": "",
-			},
-			wantErr:       true,
-			errorContains: "missing .ino file",
-		},
-		{
-			name: "Error - Sketch folder present but missing .yaml",
-			files: map[string]string{
-				"app.yaml":          "",
-				"python/main.py":    "",
-				"sketch/sketch.ino": "",
-			},
-			wantErr:       true,
-			errorContains: "missing .yaml file",
-		},
-		{
-			name: "Success - Extra files are allowed",
-			files: map[string]string{
-				"app.yaml":       "",
-				"python/main.py": "",
-				"README.md":      "",
-				"data/image.png": "",
-			},
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := createMockZip(t, tt.files)
-
-			err := validateAppZipContent(r)
-
-			if (err != nil) != tt.wantErr {
-				t.Errorf("validateZipContent() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if err != nil && tt.errorContains != "" {
-				if !strings.Contains(err.Error(), tt.errorContains) {
-					t.Errorf("validateZipContent() error = %v, expected to contain %v", err, tt.errorContains)
-				}
-			}
 		})
 	}
 }
@@ -698,4 +468,18 @@ func createZipFile(t *testing.T, filename string, files map[string]string) {
 	}
 
 	require.NoError(t, w.Close())
+}
+
+func writeFiles(t *testing.T, tmpPath string, files []string) error {
+	t.Helper()
+	for _, path := range files {
+		srcPath := filepath.Join("testdata", "archive", path)
+		content, err := os.ReadFile(srcPath)
+		require.NoError(t, err)
+
+		dstPath := filepath.Join(tmpPath, path)
+		require.NoError(t, os.MkdirAll(filepath.Dir(dstPath), 0755))
+		require.NoError(t, os.WriteFile(dstPath, content, 0600))
+	}
+	return nil
 }

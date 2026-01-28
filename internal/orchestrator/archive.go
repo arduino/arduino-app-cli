@@ -112,7 +112,6 @@ func zipAppToBuffer(bricksIndex *bricksindex.BricksIndex, sourcePath string, inc
 		}
 
 		if d.Name() == "app.yaml" || d.Name() == "app.yml" {
-			fmt.Printf("Redacting secrets in %s\n", path)
 			desc, err := app.ParseDescriptorFile(paths.New(path))
 			if err != nil {
 				return err
@@ -130,7 +129,6 @@ func zipAppToBuffer(bricksIndex *bricksindex.BricksIndex, sourcePath string, inc
 			return err
 		}
 	})
-
 	if err != nil {
 		zipWriter.Close()
 		return nil, err
