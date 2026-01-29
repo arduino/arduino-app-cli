@@ -1,6 +1,0 @@
-id: "custom-classification-model-eim"
-name: "Test custom model"
-description: "Test custom model."
-category: "Video detection TODO"
-bricks:
-  - id: "arduino:image_classification"

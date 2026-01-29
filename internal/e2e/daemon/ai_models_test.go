@@ -249,7 +249,7 @@ func copyModel(t *testing.T) error {
 	baseDir := e2e.FindRepositoryRootPath(t).Join("internal", "e2e", "daemon", "testdata")
 
 	src := baseDir.Join("template", "test-model").String()
-	dst := baseDir.Join("custom-models", "test-model").String()
+	dst := baseDir.Join("custom_models", "test-model.tmp").String()
 	os.RemoveAll(dst)
 	if err := os.MkdirAll(dst, 0755); err != nil {
 		return fmt.Errorf("failed to create dst dir: %w", err)
