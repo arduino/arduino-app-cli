@@ -492,7 +492,7 @@ func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services map[strin
 		}
 		// If service defines a user, do not override it
 		if svcInfo.user == nil {
-			override.User = svcInfo.user
+			override.User = &user
 		}
 		if slices.Contains(servicesThatRequireDevices, svc) {
 			override.Devices = &devices
