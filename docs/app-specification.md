@@ -1,55 +1,153 @@
 # Arduino App specification
 
 This is the specification for the Arduino App format to be used with `arduino-app-cli` and `Arduino App Lab`.
+
+Arduino Apps are self-contained logical units designed for the `Arduino Uno Q board ecosystem`, used by `arduino-app-cli` and `Arduino App Lab`. 
+They leverage the board's operating system and the integrated microcontroller to perform a wide range of tasks, from high-level logic, data processing, executing AI models and more.
+
+
 An Arduino App is a combination of multiple pieces of software that interacts with each other as single application. In particular an Arduino App may be composed by:
 
 - An Arduino Sketch that runs on a microcontroller (MCU) which performs real-time tasks interacting with sensors and actuators.
 - A Python program that runs on a Linux OS which performs CPU intensive tasks (like network API, database, GUI, etc.).
-- One or more AI models and runners.
+- Apps can be extended through `Bricks`. Bricks act as modular plugins providing standardized services—such as databases or AI models—exposed via their own interfaces. capabilities to the App.
 - Docker containers.
 
 The list above is not meant to be complete, and other type of components may be added in the future.
 The Arduino App CLI and the Arduino AppLab Desktop IDE offers a simplified and automated way to deploy an Arduino App, taking care of all the steps needed to run the whole application (including building and uploading the firmware, or handling Docker containers).
 
-# Arduino App Folder structure
+## Arduino App Folder structure
 
-An Arduino App is a folder including:
+An Arduino App is defined by a root folder containing its metadata, source code, and bundled resources.
 
-- The `app.yaml` file: this is the descriptor of the application in YAML format.
-- A `sketch` folder: containing an [Arduino Sketch](https://arduino.github.io/arduino-cli/1.3/sketch-specification/)).
-- A `python` folder: containing Python code.
-- A `docs` folder reserved for the app documentation.
-- A `README.md` file
+**Important on Folder Naming & Location**:
+- The name of the folder containing an Arduino App has no relation with the App name (defined in root-app-folder/app.yaml). It must not be assumed to be the same.
+- Arduino Apps can be stored in sub-folders of a main directory (e.g., for categorization). The parsing logic is designed to handle nested structures.
 
-The `app.yaml` file and at least one of the `sketch` or `python` folder must be present.
+While the App folder holds the application logic and local resources, the App may depend on Bricks. These dependencies are declared in the App's configuration, but the Bricks themselves are not stored inside the App folder. They are downloaded and managed externally by the host system.
 
-The Arduino App must be self-contained (it does not contain references to external files) because this means it can be exported, shared, or zipped easily.
+### Mandatory Files
 
-The user-defined apps are saved into `/home/arduino/ArduinoApps` folder.
-The builtin-apps are stored into `home/arduino/.local/share/arduino-app-cli/examples` folder.
+The following files and folders must be present for an App to be considered valid.
 
-Example of a `my-app` folder structure
+- **root-app-folder/app.yaml**: The metadata file describing the App.
+  - **Constraint**: The filename must be exactly `root-app-folder/app.yaml`. Extensions like .yml are not supported.
+
+- **root-app-folder/python/main.py**: The entry point of the application logic.
+  - **Constraint**: The `python` folder must exist, and it must contain a `main.py` file.
+
+### Optional Components
+
+**Firmware (sketch/)**
+An App may include firmware to be flashed on the integrated microcontroller.
+- **Location**: `root-app-folder/sketch/` folder.
+- **Constraints**:
+  - The folder content must comply with the official [Sketch specification](https://arduino.github.io/arduino-cli/1.3/sketch-specification/).
+  - Compilation Scope: Only files named sketch.ino and sketch.yaml located specifically in the `root-app-folder/sketch` path will be processed. Firmware files located elsewhere will be ignored by the host system.
+  - It should contain the source code `sketch.ino`.
+  - If the sketch.ino file exists, the app must contain a `sketch.yaml`: the sketch project file (see [Sketch Project file specification](https://arduino.github.io/arduino-cli/1.3/sketch-project-file/)).
+
+
+
+#### Documentation (README.md)
+This is a readme file in markdown format. Resources in the app may be linked directly, in particular images or other documentation pages in the `docs` folder.
+- **Location**: root-app-folder/
+- **Constraints**:
+  - This file is optional.
+  - [Not implemented yet] If present, the first paragraph of this file will be automatically parsed and used as the App description in the UI, overriding the description field in app.yaml.
+
+
+#### Dependencies (root-app-folder/python/requirements.txt)
+An App may include a list of external Python libraries required for execution.
+- **Location**: root-app-folder/python/
+- **Constraints**:
+  - It must be a standard requirements.txt file format.
+  - The runtime environment will automatically process this file to ensure all listed dependencies are installed.
+
+
+
+#### Reserved Folders
+The following folders are reserved for specific uses:
+
+**Data Storage (data/)**
+- **Location**: `root-app-folder/data/`
+- **Usage**: Optional.
+  - **Constraints**:
+  - It contains volumes and other data generated by the App and its dependencies (e.g., database storage).
+  - The content is accessible to the user to allow backups or deletion to reset the App state.
+  - This folder should be emptied before sharing the App to avoid leaking personal data.
+
+**Assets (assets/)**
+
+- **Location**: `root-app-folder/assets/`
+- **Usage**: Optional.
+- **Constraints**:
+  - It contains static resources bundled with the App, such as images, icons, frontend media, or other read-only files required for the user interface.
+
+**Cache (.cache/)**
+
+- **Location**: `root-app-folder/.cache/`
+- **Usage**: Optional.
+- **Constraints**:
+  - It contains volatile data needed to run the App (e.g., the Python `venv` folder or Docker Compose support files).
+  - The content is transient and might change in the future.
+  - It can be safely deleted at any time when the App is not running.
+
+
+#### Extra Files
+Any other file or folder found in the main directory (or subfolders) is allowed and preserved, but otherwise ignored by the runtime system.
+
+### A complete example
+
+A hypothetical App named "SmartGarden" that adheres to the specification follows. Note that the root folder name (my-garden-project) differs from the App name defined in YAML.
 
 ```
 my-app/
-    README.md
-    app.yaml
-    sketch/
-        sketch.ino
-        sketch.yaml
-    python/
-        main.py
+├── app.yaml # Mandatory metadata (strict naming)
+├── README.md # Documentation (Optional)
+├── python/ # Mandatory source folder
+│ ├── main.py # Mandatory entry point
+│ ├── requirements.txt # Python dependencies(optional)
+│ └── logic/ # Additional user code (extra file)
+├── sketch/ # Optional firmware folder
+│ ├── sketch.yaml # Mandatory if sketch.ino exists
+│ └── sketch.ino # Arduino sketch
+├── data/ # Reserved
+└── assets/ # Reserved
 ```
 
-### `app.yaml` file descriptor
 
-The `app.yaml` is a YAML file that describes an App. The field available in this file are:
 
-- `name`: A short name of the app.
-- `description`: A brief description of the app.
-- `icon`: The emoji of the app.
-- `ports`: A list of TCP ports to be exposed externally. If not given a random port is opened (if necessary).
-- `bricks`: A list of bricks used by the app with its variable definitions.
+## App Metadata
+The core of the App definition is the metadata file called **app.yaml**.
+This file allows the host system to identify and manage the App and its dependencies. It **must** be located in the root of the App folder (e.g., `root-app-folder/app.yaml`).
+
+### app.yaml file format
+
+The `app.yaml` file is a YAML document.
+
+The available fields are:
+
+- **name** - (Optional) The human-readable name of the App. It must contain only basic letters (a-z, A-Z), numbers (0-9), underscores (`_`), and dashes (`-`). It must not start with a dash.
+  - _TODO: DEFINE NAME VALIDATION RULES_
+- **icon** - (Optional) A single emoji character.
+- **description** - (Optional) A human-readable description of what the App does.
+  - _Note: This field will be deprecated and replaced by the first paragraph of the README.md file._
+- **ports** - (Optional) List of integers.
+  - _TODO: Describe usage._
+- **required_devices** - (Optional) A list of strings representing the hardware devices used by the app.
+- **bricks** - (Optional) A list of "Bricks". Additional bricks needed by the app to perform specific tasks.
+
+### Brick Object Definition
+Bricks are Python-first modular dependencies, distributed as PIP packages, that encapsulate both application logic and infrastructure configurations (such as Docker Compose files) to extend an App's capabilities.
+
+
+This section describes the structure of a single item within the bricks list in app.yaml.
+- **id** - (Mandatory) The unique identifier string of the Brick (e.g., web_ui, image_classification).
+  - TODO: Update the spec after custom bricks validation rules are defined.
+- **model** - (Optional) A string specifying a specific model or configuration profile to load within the Brick (e.g., specific AI weights or logic flavor).
+- **variables** - (Optional) A map of key-value pairs (both must be strings) representing configuration parameters or environment variables passed to the Brick container.
+- **ports** - (Optional) A list of integers representing the network ports that the Brick must expose to interact with the App.
 
 Example:
 
@@ -71,28 +169,3 @@ bricks:
       model: yolo
 ```
 
-### `README.md` file
-
-This is a readme file in markdown format. Resources in the app may be linked directly, in particular images or other documentation pages in the `docs` folder.
-
-### `sketch` folder
-
-The `sketch` subfolder contains an Arduino Skecth, it must comply with the [Sketch specification](https://arduino.github.io/arduino-cli/1.3/sketch-specification/).
-
-If present it must contain at least the following files:
-
-- `sketch.ino`: The main sketch source code.
-- `sketch.yaml`: The sketch project file (more info in the [Sketch Project file specification](https://arduino.github.io/arduino-cli/1.3/sketch-project-file/)).
-
-### `python` folder
-
-The `python` contains the Python code.
-
-If present, it must contain the `main.py` with the python code of the main.
-Optionally, a `requirements.txt` with additional python package dependencies to be installed.
-
-### Other
-
-Other sub-folders or files can be added to the app folder.
-The reserved folder names are `sketch` and `python`.
-The reserved file names are `app.yaml` and `sketch.yaml`.
