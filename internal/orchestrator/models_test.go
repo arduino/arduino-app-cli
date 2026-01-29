@@ -56,19 +56,13 @@ func TestDeleteModel(t *testing.T) {
 		require.Equal(t, modelId, after.Descriptor.Bricks[0].Variables["EI_CLASSIFICATION_MODEL"])
 		require.Equal(t, modelPath, after.Descriptor.Bricks[0].Variables["CUSTOM_MODEL_PATH"])
 
-		// test model %s not found
+		// test model not found
 		cfg, err := config.NewFromEnv()
-		err = AIModelDelete(nil, nil, cfg, modelsIndex, "missing-model-id", nil, false)
+		err = AIModelDelete(t.Context(), nil, cfg, modelsIndex, "missing-model-id", nil, false)
 		assert.ErrorIs(t, err, ErrNotFound)
 
-		// test 		return fmt.Errorf("model %s is a pre-installed model, can't be deleted: %w", id, ErrConflict)
-		err = AIModelDelete(nil, nil, cfg, modelsIndex, "face-detection", nil, false)
+		// test delete a pre installed model
+		err = AIModelDelete(t.Context(), nil, cfg, modelsIndex, "face-detection", nil, false)
 		assert.ErrorIs(t, err, ErrConflict)
-
-		/* delete the model */
-
-		//err = AIModelDelete(nil, nil, cfg, modelsIndex, modelId, nil, false)
-		//print(err)
-		/* verify the error reference the brick */
 	})
 }

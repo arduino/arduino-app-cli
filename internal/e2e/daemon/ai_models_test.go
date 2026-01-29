@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
@@ -121,6 +122,54 @@ func TestAIModelDetails(t *testing.T) {
 		require.NoError(t, err, "Failed to unmarshal the JSON error response body")
 
 		require.Equal(t, expectedDetails, actualBody.Details, "The error detail message is not what was expected")
+	})
+
+}
+
+func TestAIModelDelete(t *testing.T) {
+
+	httpClient := GetHttpclient(t)
+
+	t.Run("error on empty model id", func(t *testing.T) {
+		modelId := " "
+		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
+		expectedDetails := fmt.Sprintf("id must be set")
+		var actualBody models.ErrorResponse
+
+		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), modelId, &client.DeleteAIModelParams{Force: f.Ptr(false)}, requestEditor)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusPreconditionFailed, response.StatusCode())
+		err = json.Unmarshal(response.Body, &actualBody)
+		require.NoError(t, err)
+		require.Equal(t, expectedDetails, actualBody.Details)
+	})
+
+	t.Run("not found error on model not found", func(t *testing.T) {
+		modelId := "invalid_model_id"
+		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
+		expectedDetails := fmt.Sprintf("%q: model not found", modelId)
+		var actualBody models.ErrorResponse
+
+		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), modelId, &client.DeleteAIModelParams{Force: f.Ptr(false)}, requestEditor)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusNotFound, response.StatusCode())
+		err = json.Unmarshal(response.Body, &actualBody)
+		require.NoError(t, err)
+		require.Equal(t, expectedDetails, actualBody.Details)
+	})
+
+	t.Run("conflict error on pre installed model deletion", func(t *testing.T) {
+		modelId := "face-detection"
+		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
+		expectedDetails := fmt.Sprintf("model face-detection is a pre-installed model, can't be deleted: model is currently in use")
+		var actualBody models.ErrorResponse
+
+		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), modelId, &client.DeleteAIModelParams{Force: f.Ptr(false)}, requestEditor)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusConflict, response.StatusCode())
+		err = json.Unmarshal(response.Body, &actualBody)
+		require.NoError(t, err)
+		require.Equal(t, expectedDetails, actualBody.Details)
 	})
 
 }

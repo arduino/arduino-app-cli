@@ -67,7 +67,7 @@ func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, idProvider *app.IDProvider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("modelID")
-		if id == "" {
+		if strings.TrimSpace(id) == "" {
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "id must be set"})
 			return
 		}
@@ -81,9 +81,9 @@ func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, 
 		if err != nil {
 			switch {
 			case errors.Is(err, orchestrator.ErrNotFound):
-				render.EncodeResponse(w, http.StatusNotFound, err.Error())
+				render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: err.Error()})
 			case errors.Is(err, orchestrator.ErrConflict):
-				render.EncodeResponse(w, http.StatusConflict, err.Error())
+				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: err.Error()})
 			default:
 				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: err.Error()})
 			}

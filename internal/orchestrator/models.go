@@ -94,7 +94,7 @@ var (
 func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, id string, idProvider *app.IDProvider, force bool) (err error) {
 	res, found := modelsIndex.GetModelByID(id)
 	if !found {
-		return fmt.Errorf("model %s not found: %w", id, ErrNotFound)
+		return fmt.Errorf("%q: %w", id, ErrNotFound)
 	}
 
 	if res.IsPreinstalled {
