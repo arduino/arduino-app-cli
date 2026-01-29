@@ -88,7 +88,7 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 
 var (
 	ErrNotFound = errors.New("model not found")
-	ErrConflict = errors.New("model is currently in use")
+	ErrConflict = errors.New("can't delete the model")
 )
 
 func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, id string, idProvider *app.IDProvider, force bool) (err error) {
@@ -98,7 +98,7 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 	}
 
 	if res.IsPreinstalled {
-		return fmt.Errorf("model %s is a pre-installed model, can't be deleted: %w", id, ErrConflict)
+		return fmt.Errorf("model %s is a pre-installed model: %w", id, ErrConflict)
 	}
 
 	running, _ := getRunningApp(ctx, dockerClient.Client())
@@ -109,10 +109,10 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 
 	var sb strings.Builder
 	if running != nil {
-		sb.WriteString(fmt.Sprintf("The model %s is in use by the %s app. Stop the application before removing the model.\n", id, running.Name))
+		sb.WriteString(fmt.Sprintf("The model %s is in use by the %s app. Stop the application before removing the model", id, running.Name))
 	}
 	if len(references) != 0 {
-		sb.WriteString(fmt.Sprintf("The model is referenced by the following bricks: %s. Remove the model references before removing the model.\n", strings.Join(references, ", ")))
+		sb.WriteString(fmt.Sprintf("The model is referenced by the following bricks: %s. Remove the model references before removing the model", strings.Join(references, ", ")))
 	}
 	if !force {
 		return fmt.Errorf("%s: %w", sb.String(), ErrConflict)

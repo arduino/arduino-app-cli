@@ -17,6 +17,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -161,9 +162,59 @@ func TestAIModelDelete(t *testing.T) {
 	t.Run("conflict error on pre installed model deletion", func(t *testing.T) {
 		modelId := "face-detection"
 		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
-		expectedDetails := fmt.Sprintf("model face-detection is a pre-installed model, can't be deleted: model is currently in use")
+		expectedDetails := fmt.Sprintf("model face-detection is a pre-installed model: can't delete the model")
 		var actualBody models.ErrorResponse
 
+		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), modelId, &client.DeleteAIModelParams{Force: f.Ptr(false)}, requestEditor)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusConflict, response.StatusCode())
+		err = json.Unmarshal(response.Body, &actualBody)
+		require.NoError(t, err)
+		require.Equal(t, expectedDetails, actualBody.Details)
+	})
+
+	t.Run("delete a referenced model", func(t *testing.T) {
+		modelId := "custom-classification-model-eim"
+		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
+		expectedDetails := fmt.Sprintf("The model is referenced by the following bricks: arduino:image_classification. Remove the model references before removing the model: can't delete the model")
+		var actualBody models.ErrorResponse
+
+		/* Create an app */
+		appName := "test-app-details"
+		icon := "💻"
+		createResp, err := httpClient.CreateAppWithResponse(
+			t.Context(),
+			&client.CreateAppParams{SkipSketch: f.Ptr(true)},
+			client.CreateAppRequest{
+				Icon: &icon,
+				Name: appName,
+			},
+		)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusCreated, createResp.StatusCode())
+		require.NotNil(t, createResp.JSON201)
+		fmt.Println(*createResp.JSON201.Id)
+		fmt.Println(string(f.Must(base64.StdEncoding.DecodeString(*createResp.JSON201.Id))))
+		appID := createResp.JSON201.Id
+
+		/* Check if the custom model is loaded */
+		aiModelsList, err := httpClient.GetAIModelsWithResponse(t.Context(), nil)
+		require.NoError(t, err, "The HTTP client should not return an error for a 200 response")
+		require.NotNil(t, aiModelsList.JSON200, "Setup failed: API returned a nil success body")
+		require.NotEmpty(t, aiModelsList.JSON200.Models)
+
+		/* Set the custom model in app.yaml */
+		appUpdate, err := httpClient.UpsertAppBrickInstanceWithResponse(
+			t.Context(),
+			*appID,
+			ImageClassifactionBrickID,
+			client.BrickCreateUpdateRequest{Model: &modelId},
+			func(ctx context.Context, req *http.Request) error { return nil },
+		)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, appUpdate.StatusCode())
+
+		/* Delete the model */
 		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), modelId, &client.DeleteAIModelParams{Force: f.Ptr(false)}, requestEditor)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusConflict, response.StatusCode())
