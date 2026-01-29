@@ -1,9 +1,0 @@
-name: Test custom models application
-description: Application to test a custom model configuration
-ports: []
-bricks:
-- arduino:brick-with-custom-model:
-    variables:
-      CUSTOM_MODEL_PATH: /home/arduino/.arduino-bricks/custom-model-123/model.eim
-      EI_CLASSIFICATION_MODEL: custom-classification-model-eim
-icon: ☁️

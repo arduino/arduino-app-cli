@@ -1,6 +1,0 @@
-name: Test custom models application
-description: Application to test a custom model configuration
-icon: ☁️
-ports: []
-bricks:
-- arduino:brick-with-custom-model
