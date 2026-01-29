@@ -15,23 +15,29 @@ import (
 )
 
 type ProjectDownloader struct {
-	client    *ClientWithResponses
-	ProjectID int
-
+	client         *ClientWithResponses
+	ProjectID      int
 	deploymentType DeploymentTypeParameter
-
-	// OnBuildProgress func(string)
 }
 
 func NewProjectDownloader(
-	client *ClientWithResponses,
+	urlStr string,
+	projectApiKey string,
 	projectID int,
-) *ProjectDownloader {
+) (*ProjectDownloader, error) {
+	httpClient, err := NewClientWithResponses(urlStr, WithRequestEditorFn(func(ctx context.Context, ri *http.Request) error {
+		ri.Header.Add("x-api-key", projectApiKey)
+		ri.Header.Set("Content-Type", "application/json")
+		return nil
+	}))
+	if err != nil {
+		return nil, err
+	}
 	return &ProjectDownloader{
 		ProjectID:      projectID,
-		client:         client,
-		deploymentType: "runner-linux-aarch64", // TODO: make dynamic based on board ?
-	}
+		client:         httpClient,
+		deploymentType: "runner-linux-aarch64",
+	}, nil
 }
 
 func (r *ProjectDownloader) GetProjectInfo(ctx context.Context, impulseID *OptionalImpulseIdParameter) (*Project, error) {

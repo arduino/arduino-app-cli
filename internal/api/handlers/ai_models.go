@@ -16,7 +16,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -34,11 +33,30 @@ import (
 
 type InstallEIModelRequest struct {
 	ProjectID int    `json:"project_id" description:"Edge Impulse project ID" example:"123456" required:"true"`
-	ImpulseID int    `json:"impulse_id" description:"Edge Impulse impulse ID" example:"1" required:"true"`
+	ImpulseID *int   `json:"impulse_id" description:"Edge Impulse impulse ID" example:"1" required:"true"`
 	PrjApiKey string `json:"prj_api_key" description:"Edge Impulse API token" example:"your_edge_impulse_api_token" required:"true"`
 	ModelType string `json:"model_type" description:"Type of model to build" example:"int8" required:"true"`
-	// Engine     string `json:"engine" description:"Model engine (e.g., 'tensorflow-lite')" example:"tensorflow-lite" required:"true"`
-	// DeviceType string `json:"device_type" description:"Device type for deployment (e.g., 'arduino-uno-q')" example:"arduino-uno-q" required:"true"`
+}
+
+func (r InstallEIModelRequest) Validate() error {
+	if r.ProjectID <= 0 {
+		return fmt.Errorf("project_id must be a positive integer")
+	}
+	if r.ImpulseID != nil && *r.ImpulseID < 0 {
+		return fmt.Errorf("impulse_id must be a non-negative integer")
+	}
+	if strings.TrimSpace(r.PrjApiKey) == "" {
+		return fmt.Errorf("prj_api_key must be provided")
+	}
+	if strings.TrimSpace(r.ModelType) == "" {
+		// TODO ok ??
+		return fmt.Errorf("model_type must be provided")
+	}
+	return nil
+}
+
+type InstallEIModelResponse struct {
+	Model orchestrator.AIModelItem `json:"model"`
 }
 
 func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
@@ -83,33 +101,34 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 		}
 		defer r.Body.Close()
 
+		if err := req.Validate(); err != nil {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
+			return
+		}
+
 		if cfg.EdgeImpulseAPIURL == nil {
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "Edge Impulse API URL is not configured"})
 			return
 		}
 
-		httpClient, err := edgeimpulse.NewClientWithResponses((*cfg.EdgeImpulseAPIURL).String(), edgeimpulse.WithRequestEditorFn(func(ctx context.Context, ri *http.Request) error {
-			ri.Header.Add("x-api-key", req.PrjApiKey)
-			ri.Header.Set("Content-Type", "application/json")
-			return nil
-		}))
+		downloader, err := edgeimpulse.NewProjectDownloader((*cfg.EdgeImpulseAPIURL).String(), req.PrjApiKey, req.ProjectID)
 		if err != nil {
 			slog.Error("unable to create Edge Impulse client", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to create Edge Impulse client"})
 			return
 		}
-
-		eiModel, err := orchestrator.InstallEIModel(r.Context(),
+		res, err := orchestrator.InstallEIModel(r.Context(),
 			bricksIndex,
-			edgeimpulse.NewProjectDownloader(httpClient, req.ProjectID),
+			downloader,
 			cfg.CustomModelsDir(),
 			edgeimpulse.ModelTypeParameter(req.ModelType),
-			&req.ImpulseID,
+			req.ImpulseID,
 		)
 		if err != nil {
 			slog.Error("unable to  download model", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to create Edge Impulse client"})
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to download Edge Impulse model"})
 			return
+			// FIXME. check UnauthorizedErr
 			// switch {
 			// case errors.Is(err, edgeimpulse.UnauthorizedErr):
 			// 	slog.Error("unauthorized access to Edge Impulse API", slog.String("error", err.Error()))
@@ -122,7 +141,6 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 			// }
 		}
 
-		// FIXME: read the installed model using the modelindex.getModelByID
-		render.EncodeResponse(w, http.StatusOK, eiModel)
+		render.EncodeResponse(w, http.StatusOK, InstallEIModelResponse{Model: res})
 	}
 }

@@ -15,6 +15,7 @@ import (
 
 type AiModel struct {
 	FullPath        *paths.Path // Is the path to the folder containing the model and the descriptor file
+	BlobPath        *paths.Path // is the path to the model file (binary, tflite, etc)
 	ModelDescriptor ModelDescriptor
 }
 
@@ -76,6 +77,7 @@ func Store(dir *paths.Path, descr ModelDescriptor, modelFileReader io.ReadCloser
 
 	m := AiModel{
 		FullPath:        dir,
+		BlobPath:        destBlobPath,
 		ModelDescriptor: descr,
 	}
 
@@ -88,6 +90,10 @@ func Store(dir *paths.Path, descr ModelDescriptor, modelFileReader io.ReadCloser
 
 func (a *AiModel) GetDescriptorPath() *paths.Path {
 	return a.FullPath.Join("model.yaml")
+}
+
+func (a *AiModel) WriteDescriptorFile() error {
+	return a.writeDescriptorFile()
 }
 
 func (a *AiModel) writeDescriptorFile() error {

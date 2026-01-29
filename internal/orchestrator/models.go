@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
+	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
@@ -85,42 +86,55 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 	}, true
 }
 
-func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, downloader *edgeimpulse.ProjectDownloader, modelsDir *paths.Path, modelType edgeimpulse.ModelTypeParameter, impulseID *edgeimpulse.OptionalImpulseIdParameter) (*custommodel.AiModel, error) {
+func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, downloader *edgeimpulse.ProjectDownloader, modelsDir *paths.Path, modelType edgeimpulse.ModelTypeParameter, impulseID *edgeimpulse.OptionalImpulseIdParameter) (AIModelItem, error) {
 	project, err := downloader.GetProjectInfo(ctx, impulseID)
 	if err != nil {
-		return nil, err
+		return AIModelItem{}, err
 	}
-	id := fmt.Sprintf("ei-model-%d-%d", downloader.ProjectID, *impulseID)
+	id := fmt.Sprintf("ei-model-%d", downloader.ProjectID)
+	if impulseID != nil {
+		id = fmt.Sprintf("ei-model-%d-%d", downloader.ProjectID, *impulseID)
+	}
 
-	fileName := "model.eim"
-	edgeModelsDir := modelsDir.Join(id)
-	blobModelsDir := edgeModelsDir.Join(fileName)
-
-	customModelDescriptor := custommodel.ModelDescriptor{
+	descr := custommodel.ModelDescriptor{
 		ID:          id,
+		Runner:      "bricks",
 		Name:        project.Name,
 		Description: project.Description,
 		Metadata: map[string]string{
-			"source":        "edgeimpulse",
-			"ei-project-id": fmt.Sprintf("%d", downloader.ProjectID),
-			"ei-impulse-id": fmt.Sprintf("%d", *impulseID),
-			"ei-model-type": string(modelType),
+			"source":           "edgeimpulse",
+			"ei-project-id":    fmt.Sprintf("%d", project.Id),
+			"ei-impulse-id":    fmt.Sprintf("%d", *impulseID), // TODO check if impulseID is nil here
+			"ei-model-type":    string(modelType),
+			"ei-last-modified": project.LastModified.String(), // TODO: write the last-modified only if the write succesede?
 		},
-		Bricks: buildBrickConfigForEIModel(bricksIndex, project.Category, edgeModelsDir, blobModelsDir),
 	}
 
 	reader, err := downloader.DownloadDeployment(ctx, impulseID, modelType)
 	if err != nil {
-		return nil, err
+		return AIModelItem{}, err
 	}
 	defer reader.Close()
 
-	aimodel, err := custommodel.Store(modelsDir, customModelDescriptor, reader, fileName)
+	aimodel, err := custommodel.Store(modelsDir.Join(id), descr, reader, "model.eim")
 	if err != nil {
-		return nil, err
+		return AIModelItem{}, err
 	}
 
-	return &aimodel, nil
+	aimodel.ModelDescriptor.Bricks = buildBrickConfigForEIModel(bricksIndex, project.Category, aimodel.FullPath, aimodel.BlobPath)
+	err = aimodel.WriteDescriptorFile()
+	if err != nil {
+		return AIModelItem{}, fmt.Errorf("failed to update model descriptor file: %w", err)
+	}
+
+	return AIModelItem{
+		ID:                aimodel.ModelDescriptor.ID,
+		Name:              aimodel.ModelDescriptor.Name,
+		ModuleDescription: aimodel.ModelDescriptor.Description,
+		Runner:            aimodel.ModelDescriptor.Runner,
+		Bricks:            f.Map(aimodel.ModelDescriptor.Bricks, func(b custommodel.BrickConfig) string { return b.ID }),
+		Metadata:          aimodel.ModelDescriptor.Metadata,
+	}, nil
 }
 
 var mapCategoryToBricks = map[edgeimpulse.ProjectCategory][]string{
