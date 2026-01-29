@@ -136,7 +136,7 @@ func TestAIModelDelete(t *testing.T) {
 	t.Run("error on empty model id", func(t *testing.T) {
 		modelId := " "
 		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
-		expectedDetails := fmt.Sprintf("id must be set")
+		expectedDetails := "id must be set"
 		var actualBody models.ErrorResponse
 
 		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), modelId, &client.DeleteAIModelParams{Force: f.Ptr(false)}, requestEditor)
@@ -164,7 +164,7 @@ func TestAIModelDelete(t *testing.T) {
 	t.Run("conflict error on pre installed model deletion", func(t *testing.T) {
 		modelId := "face-detection"
 		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
-		expectedDetails := fmt.Sprintf("model face-detection is a pre-installed model: can't delete the model")
+		expectedDetails := "model face-detection is a pre-installed model: can't delete the model"
 		var actualBody models.ErrorResponse
 
 		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), modelId, &client.DeleteAIModelParams{Force: f.Ptr(false)}, requestEditor)
@@ -179,7 +179,7 @@ func TestAIModelDelete(t *testing.T) {
 		availableModels := 0
 		modelId := "custom-classification-model-eim"
 		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
-		expectedDetails := fmt.Sprintf("The model is referenced by the following bricks: arduino:image_classification. Remove the model references before removing the model: can't delete the model")
+		expectedDetails := "The model is referenced by the following bricks: arduino:image_classification. Remove the model references before removing the model: can't delete the model"
 		var actualBody models.ErrorResponse
 		err := copyModel(t)
 		if err != nil {
