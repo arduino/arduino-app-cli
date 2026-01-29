@@ -21,12 +21,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
 )
 
@@ -174,10 +176,15 @@ func TestAIModelDelete(t *testing.T) {
 	})
 
 	t.Run("delete a referenced model", func(t *testing.T) {
+		availableModels := 0
 		modelId := "custom-classification-model-eim"
 		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
 		expectedDetails := fmt.Sprintf("The model is referenced by the following bricks: arduino:image_classification. Remove the model references before removing the model: can't delete the model")
 		var actualBody models.ErrorResponse
+		err := copyModel(t)
+		if err != nil {
+			require.FailNow(t, "unable to create model file")
+		}
 
 		/* Create an app */
 		appName := "test-app-details"
@@ -202,6 +209,7 @@ func TestAIModelDelete(t *testing.T) {
 		require.NoError(t, err, "The HTTP client should not return an error for a 200 response")
 		require.NotNil(t, aiModelsList.JSON200, "Setup failed: API returned a nil success body")
 		require.NotEmpty(t, aiModelsList.JSON200.Models)
+		availableModels = len(*aiModelsList.JSON200.Models)
 
 		/* Set the custom model in app.yaml */
 		appUpdate, err := httpClient.UpsertAppBrickInstanceWithResponse(
@@ -214,13 +222,41 @@ func TestAIModelDelete(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, appUpdate.StatusCode())
 
-		/* Delete the model */
+		/* Delete the model, not forced */
 		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), modelId, &client.DeleteAIModelParams{Force: f.Ptr(false)}, requestEditor)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusConflict, response.StatusCode())
 		err = json.Unmarshal(response.Body, &actualBody)
 		require.NoError(t, err)
 		require.Equal(t, expectedDetails, actualBody.Details)
-	})
 
+		/* Delete the model, forced */
+		response, err = httpClient.DeleteAIModelWithResponse(t.Context(), modelId, &client.DeleteAIModelParams{Force: f.Ptr(true)}, requestEditor)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, response.StatusCode())
+		require.NoError(t, err)
+
+		/* Check there is one less model available */
+		aiModelsList, err = httpClient.GetAIModelsWithResponse(t.Context(), nil)
+		require.NoError(t, err, "The HTTP client should not return an error for a 200 response")
+		require.NotNil(t, aiModelsList.JSON200, "Setup failed: API returned a nil success body")
+		require.NotEmpty(t, aiModelsList.JSON200.Models)
+		require.Equal(t, availableModels-1, len(*aiModelsList.JSON200.Models))
+	})
+}
+
+func copyModel(t *testing.T) error {
+	baseDir := e2e.FindRepositoryRootPath(t).Join("internal", "e2e", "daemon", "testdata")
+
+	src := baseDir.Join("template", "test-model").String()
+	dst := baseDir.Join("custom-models", "test-model").String()
+	os.RemoveAll(dst)
+	if err := os.MkdirAll(dst, 0755); err != nil {
+		return fmt.Errorf("failed to create dst dir: %w", err)
+	}
+	err := os.CopyFS(dst, os.DirFS(src))
+	if err != nil {
+		return fmt.Errorf("CopyFS failed from %s to %s: %w", src, dst, err)
+	}
+	return nil
 }
