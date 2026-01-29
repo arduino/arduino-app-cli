@@ -21,11 +21,12 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/arduino/go-paths-helper"
+
 	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
-	"github.com/arduino/go-paths-helper"
 )
 
 type AIModelsListResult struct {
@@ -84,16 +85,16 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 	}, true
 }
 
-func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, projectID int, impulseID int, modelType string, engine string, deviceType string) (*custommodel.AiModel, error) {
-
-	project, err := eiClient.GetProjectInfo(ctx, projectID, impulseID)
+func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, downloader *edgeimpulse.ProjectDownloader, modelsDir *paths.Path, modelType edgeimpulse.ModelTypeParameter, impulseID *edgeimpulse.OptionalImpulseIdParameter) (*custommodel.AiModel, error) {
+	project, err := downloader.GetProjectInfo(ctx, impulseID)
 	if err != nil {
 		return nil, err
 	}
-	id := fmt.Sprintf("ei-model-%d-%d", projectID, impulseID)
+	id := fmt.Sprintf("ei-model-%d-%d", downloader.ProjectID, *impulseID)
 
+	fileName := "model.eim"
 	edgeModelsDir := modelsDir.Join(id)
-	blobModelsDir := edgeModelsDir.Join("model.eim")
+	blobModelsDir := edgeModelsDir.Join(fileName)
 
 	customModelDescriptor := custommodel.ModelDescriptor{
 		ID:          id,
@@ -101,37 +102,20 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 		Description: project.Description,
 		Metadata: map[string]string{
 			"source":        "edgeimpulse",
-			"ei-project-id": fmt.Sprintf("%d", projectID),
-			"ei-impulse-id": fmt.Sprintf("%d", impulseID),
-			"ei-model-type": modelType,
-			"ei-engine":     engine,
+			"ei-project-id": fmt.Sprintf("%d", downloader.ProjectID),
+			"ei-impulse-id": fmt.Sprintf("%d", *impulseID),
+			"ei-model-type": string(modelType),
 		},
 		Bricks: buildBrickConfigForEIModel(bricksIndex, project.Category, edgeModelsDir, blobModelsDir),
 	}
 
-	modelTypeParam := edgeimpulse.ModelTypeParameter(modelType)
-	engineParam := edgeimpulse.ModelEngineParameter(engine)
-	version, err := eiClient.GetDeployment(ctx, projectID, modelTypeParam, engineParam, deviceType)
+	reader, err := downloader.DownloadDeployment(ctx, impulseID, modelType)
 	if err != nil {
 		return nil, err
 	}
-	if version == nil {
-		jobId, err := eiClient.Build(ctx, projectID, modelTypeParam, engineParam, deviceType)
-		if err != nil {
-			return nil, err
-		}
-		err = eiClient.WaitForBuildCompletion(ctx, projectID, *jobId)
-		if err != nil {
-			return nil, err
-		}
-	}
+	defer reader.Close()
 
-	modelRC, err := eiClient.DownloadAndInstallModel(ctx, blobModelsDir, projectID, impulseID, modelTypeParam, engineParam, deviceType)
-	if err != nil {
-		return nil, err
-	}
-
-	aimodel, err := custommodel.Store(modelsDir, customModelDescriptor, modelRC, "adsads")
+	aimodel, err := custommodel.Store(modelsDir, customModelDescriptor, reader, fileName)
 	if err != nil {
 		return nil, err
 	}

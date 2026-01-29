@@ -281,7 +281,8 @@ tasks:
           "/api/{projectId}/deployment/download": .paths."/api/{projectId}/deployment/download",
           "/api/{projectId}/jobs/build-ondevice-model": .paths."/api/{projectId}/jobs/build-ondevice-model",
           "/api/{projectId}/jobs/{jobId}/status": .paths."/api/{projectId}/jobs/{jobId}/status",
+          "/api/{projectId}/deployment/targets": .paths."/api/{projectId}/deployment/targets",
           "/api/{projectId}": .paths."/api/{projectId}"}' > openapi-filtered.yml
-      - oapi-codegen --package=edgeimpulse --generate types,client --response-type-suffix=HTTPResponse openapi-filtered.yml > internal/edgeimpulse/client.gen.go
+      - oapi-codegen --package=edgeimpulse --generate types,client --response-type-suffix=HTTPResponse openapi-filtered.yml > internal/api/edgeimpulse/client.gen.go
       - rm openapi-filtered.yml
-  
+
