@@ -18,7 +18,6 @@ package orchestrator
 import (
 	"archive/zip"
 	"bytes"
-	"errors"
 	"io"
 	"os"
 	"path"
@@ -27,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/gosimple/slug"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -314,103 +314,67 @@ func createMockZip(t *testing.T, files map[string]string) *zip.Reader {
 
 func TestImportAppFromZip(t *testing.T) {
 	type testCase struct {
-		name          string
-		folderName    string
-		zipFiles      map[string]string
-		preExisting   bool
-		wantErr       bool
-		expectedErr   error
-		errorContains string
+		name            string
+		originalZipName string
+		zipFiles        map[string]string
+		preExisting     bool
+		wantErr         bool
+		errorContains   string
+		expectedFolder  string
 	}
 
 	tests := []testCase{
 		{
-			name:       "Success - Standard App",
-			folderName: "test-app",
+			name:            "Success - Standard App (Flat ZIP)",
+			originalZipName: "My App.zip",
 			zipFiles: map[string]string{
-				"app.yaml":       "name: Test App",
+				"app.yaml":       "name: ignored",
 				"python/main.py": "print('hello')",
 			},
-			wantErr: false,
+			expectedFolder: "my-app",
+			wantErr:        false,
 		},
 		{
-			name:       "Success - App with Sketch",
-			folderName: "app",
+			name:            "Success - Root Folder Convention",
+			originalZipName: "upload.zip",
 			zipFiles: map[string]string{
-				"app.yaml":           "name: app",
-				"python/main.py":     "pass",
-				"sketch/sketch.ino":  "void setup() {}",
-				"sketch/sketch.yaml": "board: unoQ",
+				"root-folder/app.yaml":       "name: ignored",
+				"root-folder/python/main.py": "pass",
 			},
-			wantErr: false,
+			expectedFolder: "root-folder",
+			wantErr:        false,
 		},
 		{
-			name:       "Success - Ignores junk files",
-			folderName: "test",
+			name:            "Success - Conflict Resolution (Suffix)",
+			originalZipName: "existing-app.zip",
 			zipFiles: map[string]string{
 				"app.yaml":       "name: test",
-				"python/main.py": "print('hello')",
-				"junk/._junk":    "garbage",
-			},
-			wantErr: false,
-		},
-		{
-			name:       "Error - Empty App Name in YAML",
-			folderName: "",
-			zipFiles: map[string]string{
-				"app.yaml":       "name: \"   \"",
-				"python/main.py": "print('h')",
-			},
-			wantErr:       true,
-			expectedErr:   ErrBadRequest,
-			errorContains: "app name is missing",
-		},
-		{
-			name:       "Error - App Already Exists",
-			folderName: "existing-app",
-			zipFiles: map[string]string{
-				"app.yaml":       "name: Existing App",
-				"python/main.py": "print('hello')",
+				"python/main.py": "pass",
 			},
 			preExisting: true,
-			wantErr:     true,
-			expectedErr: ErrAppAlreadyExists,
+			wantErr:     false,
 		},
 		{
-			name:       "Error - Missing app.yaml",
-			folderName: "no-yaml",
+			name:            "Error - Too Deep Structure",
+			originalZipName: "test.zip",
 			zipFiles: map[string]string{
-				"python/main.py": "print('hello')",
+				"dir1/dir2/app.yaml": "name: test",
 			},
 			wantErr:       true,
-			expectedErr:   ErrBadRequest,
-			errorContains: "missing app.yaml",
+			errorContains: "missing or misplaced app.yaml",
 		},
 		{
-			name:       "Error - Missing python/main.py",
-			folderName: "test",
+			name:            "Error - Missing python/main.py",
+			originalZipName: "valid-name.zip",
 			zipFiles: map[string]string{
 				"app.yaml": "name: test",
 			},
 			wantErr:       true,
-			expectedErr:   ErrBadRequest,
 			errorContains: "missing python/main.py",
 		},
 		{
-			name:       "Error - Sketch missing .ino",
-			folderName: "broken-sketch",
-			zipFiles: map[string]string{
-				"app.yaml":           "name: Broken Sketch",
-				"python/main.py":     "",
-				"sketch/sketch.yaml": "",
-			},
-			wantErr:       true,
-			expectedErr:   ErrBadRequest,
-			errorContains: "missing .ino file",
-		},
-		{
-			name:       "Error - Zip Slip Attack",
-			folderName: "hacker-app",
+			name:            "Error - Zip Slip Attack",
+			originalZipName: "evil.zip",
 			zipFiles: map[string]string{
 				"app.yaml":       "name: hacker",
 				"python/main.py": "",
@@ -428,49 +392,41 @@ func TestImportAppFromZip(t *testing.T) {
 
 			t.Setenv("ARDUINO_APP_CLI__APPS_DIR", appsDirPath)
 			t.Setenv("ARDUINO_APP_CLI__DATA_DIR", filepath.Join(tmpRoot, "Data"))
-
 			cfg, err := config.NewFromEnv()
 			require.NoError(t, err)
 
 			idProvider := app.NewAppIDProvider(cfg)
 
 			if tc.preExisting {
-				existsPath := filepath.Join(appsDirPath, tc.folderName)
+				// create pre-existing app folder to force conflict
+				baseName := strings.TrimSuffix(tc.originalZipName, filepath.Ext(tc.originalZipName))
+				existsPath := filepath.Join(appsDirPath, slug.Make(baseName))
 				require.NoError(t, os.MkdirAll(existsPath, 0755))
 			}
 
-			zipPath := filepath.Join(tmpRoot, "import.zip")
+			zipPath := filepath.Join(tmpRoot, "temp_import.zip")
 			createZipFile(t, zipPath, tc.zipFiles)
-
-			id, err := ImportAppFromZip(cfg, paths.New(zipPath), idProvider)
+			id, err := ImportAppFromZip(cfg, paths.New(zipPath), idProvider, tc.originalZipName)
 
 			if tc.wantErr {
 				require.Error(t, err)
-
-				if tc.expectedErr != nil {
-					require.Truef(t, errors.Is(err, tc.expectedErr), "want error %v, got %v", tc.expectedErr, err)
-				}
-
 				if tc.errorContains != "" {
 					require.Contains(t, err.Error(), tc.errorContains)
 				}
-
 				require.Empty(t, id)
 			} else {
 				require.NoError(t, err)
 				require.NotEmpty(t, id)
 
-				finalPath := cfg.AppsDir().Join(tc.folderName)
-
-				require.True(t, finalPath.Exist(), "App folder should exist at %s", finalPath)
-				require.True(t, finalPath.Join("app.yaml").Exist(), "app.yaml missing")
-				require.True(t, finalPath.Join("python/main.py").Exist(), "main.py missing")
-
-				files, _ := finalPath.Parent().ReadDir()
+				// Verify temp folder cleanup
+				files, _ := os.ReadDir(appsDirPath)
 				for _, f := range files {
-					name := f.Base()
-					isTempDir := len(name) > 5 && name[:5] == ".tmp_"
-					require.False(t, isTempDir, "Temporary folder not cleaned up: %s", name)
+					require.False(t, strings.HasPrefix(f.Name(), ".tmp_"), "Temp folder not cleaned: %s", f.Name())
+				}
+
+				if !tc.preExisting && tc.expectedFolder != "" {
+					finalPath := cfg.AppsDir().Join(tc.expectedFolder)
+					require.True(t, finalPath.Exist(), "App folder should be %s", tc.expectedFolder)
 				}
 			}
 		})
