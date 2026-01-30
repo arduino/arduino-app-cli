@@ -40,7 +40,7 @@ func HandleAppImport(
 	idProvider *app.IDProvider,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		file, _, err := r.FormFile("file")
+		file, header, err := r.FormFile("file")
 		if err != nil {
 			slog.Error("missing file parameter", "err", err)
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "missing required file parameter"})
@@ -66,7 +66,7 @@ func HandleAppImport(
 		}
 		tempFile.Close()
 
-		appID, err := orchestrator.ImportAppFromZip(cfg, tempFilePath, idProvider)
+		appID, err := orchestrator.ImportAppFromZip(cfg, tempFilePath, idProvider, header.Filename)
 		if err != nil {
 			slog.Error("import failed", "err", err)
 

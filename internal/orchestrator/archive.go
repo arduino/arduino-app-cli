@@ -28,6 +28,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
@@ -146,6 +147,7 @@ func ImportAppFromZip(
 	cfg config.Configuration,
 	zipPath *paths.Path,
 	idProvider *app.IDProvider,
+	originalZipName string,
 ) (app.ID, error) {
 	if zipPath == nil {
 		return app.ID{}, fmt.Errorf("internal error: zipPath cannot be nil")
@@ -161,6 +163,13 @@ func ImportAppFromZip(
 		return app.ID{}, fmt.Errorf("%w: %v", ErrBadRequest, err)
 	}
 
+	var rawAppName string
+	if rootPrefix != "" {
+		rawAppName = rootPrefix
+	} else {
+		rawAppName = strings.TrimSuffix(originalZipName, filepath.Ext(originalZipName))
+	}
+
 	if err := validateAppZipContent(&r.Reader, rootPrefix); err != nil {
 		return app.ID{}, fmt.Errorf("%w:%v", ErrBadRequest, err)
 	}
@@ -174,9 +183,11 @@ func ImportAppFromZip(
 		return app.ID{}, fmt.Errorf("%w: app name is missing", ErrBadRequest)
 	}
 
-	finalDestPath, appExists := findAppPathByName(appDescriptor.Name, cfg)
+	finalDestPath, appExists := findAppPathByName(rawAppName, cfg)
 	if appExists {
-		return app.ID{}, ErrAppAlreadyExists
+		suffix := time.Now().Format("-20060102-150405")
+		newName := rawAppName + suffix
+		finalDestPath, _ = findAppPathByName(newName, cfg)
 	}
 
 	tempDirName := fmt.Sprintf(tmpAppPrefix+"%s", rand.Text())
