@@ -1200,10 +1200,10 @@ func TestImportApp(t *testing.T) {
 	})
 
 	t.Run("Import_ValidApp_Success", func(t *testing.T) {
-		appFolderName := "my-imported-app"
+		appFolderName := "test-app"
 
 		zipData := createZipBytes(t, map[string]string{
-			"app.yaml":       fmt.Sprintf("name: %s\ndescription: my app", appFolderName),
+			"app.yaml":       "name: my app \ndescription: my app",
 			"python/main.py": "print('Hello imported world')",
 		})
 		bodyBuf, contentType := createMultipartBody(t, zipData)
@@ -1231,7 +1231,7 @@ func TestImportApp(t *testing.T) {
 		getResp, err := httpClient.GetAppDetailsWithResponse(t.Context(), importedAppId)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, getResp.StatusCode())
-		require.Equal(t, "my-imported-app", getResp.JSON200.Name)
+		require.Equal(t, "my app", getResp.JSON200.Name)
 		expectedID := base64.RawStdEncoding.EncodeToString([]byte("user:" + appFolderName))
 		require.Equal(t, expectedID, getResp.JSON200.Id)
 	})
