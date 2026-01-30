@@ -388,12 +388,21 @@ func redactSecrets(bricksindex *bricksindex.BricksIndex, desc *app.AppDescriptor
 func findZipRoot(r *zip.Reader) (string, error) {
 	for _, f := range r.File {
 		name := filepath.ToSlash(f.Name)
-		if name == "app.yaml" || name == "app.yml" {
+		if !strings.HasSuffix(name, "app.yaml") && !strings.HasSuffix(name, "app.yml") {
+			continue
+		}
+		slashCount := strings.Count(name, "/")
+
+		if slashCount == 0 {
 			return "", nil
 		}
-		if strings.HasSuffix(name, "/app.yaml") || strings.HasSuffix(name, "/app.yml") {
+
+		if slashCount == 1 {
 			return path.Dir(name), nil
 		}
+
+		// If slashCount > 1, file is too deeply nested
 	}
-	return "", fmt.Errorf("missing app.yaml")
+
+	return "", fmt.Errorf("invalid archive structure: missing or misplaced app.yaml. Supported paths: archive.zip/app.yaml or archive.zip/<root_dir>/app.yaml")
 }

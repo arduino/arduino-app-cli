@@ -1235,7 +1235,37 @@ func TestImportApp(t *testing.T) {
 		expectedID := base64.RawStdEncoding.EncodeToString([]byte("user:" + appFolderName))
 		require.Equal(t, expectedID, getResp.JSON200.Id)
 	})
+	t.Run("Import_DeeplyNestedApp_Fail", func(t *testing.T) {
+		appFolderName := "my-nested-app"
+		rootPrefix := "random-folder-root/nested-levels"
 
+		zipData := createZipBytes(t, map[string]string{
+			rootPrefix + "/app.yaml":       fmt.Sprintf("name: %s\ndescription: nested app", appFolderName),
+			rootPrefix + "/python/main.py": "print('Hello nested world')",
+		})
+		bodyBuf, contentType := createMultipartBody(t, zipData)
+
+		importResp, err := httpClient.ImportAppWithBody(
+			t.Context(),
+			&client.ImportAppParams{},
+			contentType,
+			bodyBuf,
+		)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusBadRequest, importResp.StatusCode)
+
+		require.NotNil(t, importResp.Body)
+		defer importResp.Body.Close()
+
+		bodyBytes, err := io.ReadAll(importResp.Body)
+		require.NoError(t, err)
+		var errorResponse models.ErrorResponse
+		err = json.Unmarshal(bodyBytes, &errorResponse)
+		require.NoError(t, err)
+		expectedMsg := "bad request: invalid archive structure: missing or misplaced app.yaml. Supported paths: archive.zip/app.yaml or archive.zip/<root_dir>/app.yaml"
+		require.Equal(t, expectedMsg, errorResponse.Details)
+
+	})
 	t.Run("Import_MissingAppYaml_Fail", func(t *testing.T) {
 		zipData := createZipBytes(t, map[string]string{
 			"python/main.py": "print('No app.yaml here')",
@@ -1260,7 +1290,7 @@ func TestImportApp(t *testing.T) {
 		var errorResponse models.ErrorResponse
 		err = json.Unmarshal(bodyBytes, &errorResponse)
 		require.NoError(t, err)
-		expectedMsg := "bad request: missing app.yaml"
+		expectedMsg := "bad request: invalid archive structure: missing or misplaced app.yaml. Supported paths: archive.zip/app.yaml or archive.zip/<root_dir>/app.yaml"
 		require.Equal(t, expectedMsg, errorResponse.Details)
 
 	})

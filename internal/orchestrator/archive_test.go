@@ -510,6 +510,7 @@ func writeFiles(t *testing.T, tmpPath string, files []string) {
 }
 
 func TestFindZipRoot(t *testing.T) {
+	WantErrMeessage := "invalid archive structure: missing or misplaced app.yaml. Supported paths: archive.zip/app.yaml or archive.zip/<root_dir>/app.yaml"
 	tests := []struct {
 		name     string
 		files    []string
@@ -538,7 +539,13 @@ func TestFindZipRoot(t *testing.T) {
 			name:     "Deep Nested folder",
 			files:    []string{"deep/nested/app.yml"},
 			wantRoot: "deep/nested",
-			wantErr:  false,
+			wantErr:  true,
+		},
+		{
+			name:     "Invalid: Very deep nested folder",
+			files:    []string{"deep/nested/folder/app.yml"},
+			wantRoot: "",
+			wantErr:  true,
 		},
 		{
 			name:     "Missing app.yaml",
@@ -566,6 +573,7 @@ func TestFindZipRoot(t *testing.T) {
 
 			if tc.wantErr {
 				require.Error(t, err)
+				require.Equal(t, WantErrMeessage, err.Error())
 			} else {
 				require.NoError(t, err)
 				assert.Equal(t, tc.wantRoot, gotRoot)
