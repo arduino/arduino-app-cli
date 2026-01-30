@@ -329,10 +329,6 @@ func validateAppZipContent(r *zip.Reader, rootPrefix string) error {
 	targetMainPy := path.Join(rootPrefix, "python/main.py")
 
 	targetSketchPrefix := path.Join(rootPrefix, "sketch") + "/"
-	if rootPrefix == "" {
-		targetSketchPrefix = "sketch/"
-	}
-
 	for _, f := range r.File {
 		name := filepath.ToSlash(f.Name)
 
@@ -399,7 +395,7 @@ func redactSecrets(bricksindex *bricksindex.BricksIndex, desc *app.AppDescriptor
 func findZipRoot(r *zip.Reader) (string, error) {
 	for _, f := range r.File {
 		name := filepath.ToSlash(f.Name)
-		if !strings.HasSuffix(name, "app.yaml") && !strings.HasSuffix(name, "app.yml") {
+		if filepath.Base(name) != "app.yaml" && filepath.Base(name) != "app.yml" {
 			continue
 		}
 		slashCount := strings.Count(name, "/")

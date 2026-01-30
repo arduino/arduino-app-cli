@@ -509,6 +509,12 @@ func TestFindZipRoot(t *testing.T) {
 			wantRoot: "",
 			wantErr:  true,
 		},
+		{
+			name:     "Invalid file name",
+			files:    []string{"somethingapp.yaml"},
+			wantRoot: "",
+			wantErr:  true,
+		},
 	}
 
 	for _, tc := range tests {
