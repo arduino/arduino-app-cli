@@ -2,9 +2,8 @@
 
 This is the specification for the Arduino App format to be used with `arduino-app-cli` and `Arduino App Lab`.
 
-Arduino Apps are self-contained logical units designed for the `Arduino Uno Q board ecosystem`, used by `arduino-app-cli` and `Arduino App Lab`. 
+Arduino Apps are self-contained logical units designed for the `Arduino Uno Q board ecosystem`, used by `arduino-app-cli` and `Arduino App Lab`.
 They leverage the board's operating system and the integrated microcontroller to perform a wide range of tasks, from high-level logic, data processing, executing AI models and more.
-
 
 An Arduino App is a combination of multiple pieces of software that interacts with each other as single application. In particular an Arduino App may be composed by:
 
@@ -21,6 +20,7 @@ The Arduino App CLI and the Arduino AppLab Desktop IDE offers a simplified and a
 An Arduino App is defined by a root folder containing its metadata, source code, and bundled resources.
 
 **Important on Folder Naming & Location**:
+
 - The name of the folder containing an Arduino App has no relation with the App name (defined in root-app-folder/app.yaml). It must not be assumed to be the same.
 - Arduino Apps can be stored in sub-folders of a main directory (e.g., for categorization). The parsing logic is designed to handle nested structures.
 
@@ -40,6 +40,7 @@ The following files and folders must be present for an App to be considered vali
 
 **Firmware (sketch/)**
 An App may include firmware to be flashed on the integrated microcontroller.
+
 - **Location**: `root-app-folder/sketch/` folder.
 - **Constraints**:
   - The folder content must comply with the official [Sketch specification](https://arduino.github.io/arduino-cli/1.3/sketch-specification/).
@@ -47,29 +48,30 @@ An App may include firmware to be flashed on the integrated microcontroller.
   - It should contain the source code `sketch.ino`.
   - If the sketch.ino file exists, the app must contain a `sketch.yaml`: the sketch project file (see [Sketch Project file specification](https://arduino.github.io/arduino-cli/1.3/sketch-project-file/)).
 
-
-
 #### Documentation (README.md)
+
 This is a readme file in markdown format. Resources in the app may be linked directly, in particular images or other documentation pages in the `docs` folder.
+
 - **Location**: root-app-folder/
 - **Constraints**:
   - This file is optional.
   - [Not implemented yet] If present, the first paragraph of this file will be automatically parsed and used as the App description in the UI, overriding the description field in app.yaml.
 
-
 #### Dependencies (root-app-folder/python/requirements.txt)
+
 An App may include a list of external Python libraries required for execution.
+
 - **Location**: root-app-folder/python/
 - **Constraints**:
   - It must be a standard requirements.txt file format.
   - The runtime environment will automatically process this file to ensure all listed dependencies are installed.
 
-
-
 #### Reserved Folders
+
 The following folders are reserved for specific uses:
 
 **Data Storage (data/)**
+
 - **Location**: `root-app-folder/data/`
 - **Usage**: Optional.
   - **Constraints**:
@@ -93,8 +95,8 @@ The following folders are reserved for specific uses:
   - The content is transient and might change in the future.
   - It can be safely deleted at any time when the App is not running.
 
-
 #### Extra Files
+
 Any other file or folder found in the main directory (or subfolders) is allowed and preserved, but otherwise ignored by the runtime system.
 
 ### A complete example
@@ -116,9 +118,8 @@ my-app/
 └── assets/ # Reserved
 ```
 
-
-
 ## App Metadata
+
 The core of the App definition is the metadata file called **app.yaml**.
 This file allows the host system to identify and manage the App and its dependencies. It **must** be located in the root of the App folder (e.g., `root-app-folder/app.yaml`).
 
@@ -128,21 +129,22 @@ The `app.yaml` file is a YAML document.
 
 The available fields are:
 
-- **name** - (Optional) The human-readable name of the App. It must contain only basic letters (a-z, A-Z), numbers (0-9), underscores (`_`), and dashes (`-`). It must not start with a dash.
-  - _TODO: DEFINE NAME VALIDATION RULES_
+- **name** - (Optional) The human-readable name of the App.
+  - Constraints: It must contain only basic letters (a-z, A-Z), numbers (0-9), underscores (`_`), and dashes (`-`). It must not start with a dash.
 - **icon** - (Optional) A single emoji character.
 - **description** - (Optional) A human-readable description of what the App does.
-  - _Note: This field will be deprecated and replaced by the first paragraph of the README.md file._
-- **ports** - (Optional) List of integers.
-  - _TODO: Describe usage._
+  - Note: This field will be deprecated and replaced by the first paragraph of the README.md file.
+- **ports** - (Optional) A list of integers representing the network ports that the App listens on.
+  - Usage: The host system uses this list to expose the App's internal services (e.g., a web interface on port 8080) to the network or localhost.
 - **required_devices** - (Optional) A list of strings representing the hardware devices used by the app.
 - **bricks** - (Optional) A list of "Bricks". Additional bricks needed by the app to perform specific tasks.
 
 ### Brick Object Definition
+
 Bricks are Python-first modular dependencies, distributed as PIP packages, that encapsulate both application logic and infrastructure configurations (such as Docker Compose files) to extend an App's capabilities.
 
-
 This section describes the structure of a single item within the bricks list in app.yaml.
+
 - **id** - (Mandatory) The unique identifier string of the Brick (e.g., web_ui, image_classification).
   - TODO: Update the spec after custom bricks validation rules are defined.
 - **model** - (Optional) A string specifying a specific model or configuration profile to load within the Brick (e.g., specific AI weights or logic flavor).
@@ -168,4 +170,3 @@ bricks:
   - arduino/objectdetection:
       model: yolo
 ```
-
