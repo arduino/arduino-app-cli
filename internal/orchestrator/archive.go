@@ -25,7 +25,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -289,8 +288,8 @@ func extractZip(r *zip.Reader, dest string, rootPrefix string) error {
 func readAppDescriptorFromZip(r *zip.Reader, rootPrefix string) (app.AppDescriptor, error) {
 	var descriptor app.AppDescriptor
 
-	targetAppYaml := path.Join(rootPrefix, "app.yaml")
-	targetAppYml := path.Join(rootPrefix, "app.yml")
+	targetAppYaml := filepath.Join(rootPrefix, "app.yaml")
+	targetAppYml := filepath.Join(rootPrefix, "app.yml")
 
 	for _, f := range r.File {
 		name := filepath.ToSlash(f.Name)
@@ -324,11 +323,11 @@ func validateAppZipContent(r *zip.Reader, rootPrefix string) error {
 	hasSketchIno := false
 	hasSketchYaml := false
 
-	targetAppYaml := path.Join(rootPrefix, "app.yaml")
-	targetAppYml := path.Join(rootPrefix, "app.yml")
-	targetMainPy := path.Join(rootPrefix, "python/main.py")
+	targetAppYaml := filepath.Join(rootPrefix, "app.yaml")
+	targetAppYml := filepath.Join(rootPrefix, "app.yml")
+	targetMainPy := filepath.Join(rootPrefix, "python/main.py")
 
-	targetSketchPrefix := path.Join(rootPrefix, "sketch") + "/"
+	targetSketchPrefix := filepath.Join(rootPrefix, "sketch") + string(os.PathSeparator)
 	for _, f := range r.File {
 		name := filepath.ToSlash(f.Name)
 
@@ -341,11 +340,11 @@ func validateAppZipContent(r *zip.Reader, rootPrefix string) error {
 
 		if strings.HasPrefix(name, targetSketchPrefix) {
 			hasSketchFolder = true
-			if name == path.Join(rootPrefix, "sketch/sketch.ino") {
+			if name == filepath.Join(rootPrefix, "sketch/sketch.ino") {
 				hasSketchIno = true
 			}
 
-			if name == path.Join(rootPrefix, "sketch/sketch.yaml") {
+			if name == filepath.Join(rootPrefix, "sketch/sketch.yaml") {
 				hasSketchYaml = true
 			}
 		}
@@ -405,7 +404,7 @@ func findZipRoot(r *zip.Reader) (string, error) {
 		}
 
 		if slashCount == 1 {
-			return path.Dir(name), nil
+			return filepath.Dir(name), nil
 		}
 
 		// If slashCount > 1, file is too deeply nested
