@@ -655,9 +655,6 @@ func ListApps(
 
 	result := ListAppResult{Apps: []AppInfo{}, BrokenApps: []BrokenAppInfo{}}
 	for _, file := range appPaths {
-		if app.IsTmpAppDir(file) {
-			continue
-		}
 		app, err := app.Load(file)
 		if err != nil {
 			result.BrokenApps = append(result.BrokenApps, BrokenAppInfo{
