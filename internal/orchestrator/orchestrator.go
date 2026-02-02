@@ -124,7 +124,7 @@ func StartApp(
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		err := app.ValidateBricks(appToStart.Descriptor, bricksIndex)
+		err := app.ValidateBricks(appToStart.Descriptor, bricksIndex, modelsIndex)
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return

@@ -11,6 +11,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
 func TestValidateAppDescriptorBricks(t *testing.T) {
@@ -32,6 +33,22 @@ func TestValidateAppDescriptorBricks(t *testing.T) {
 						DefaultValue: "", // Required (no default value)
 					},
 				},
+			},
+			{
+				ID:        "arduino:ai-brick",
+				Name:      "Arduino Ausing ai model",
+				ModelName: "i-am-model-1",
+			},
+		},
+	}
+
+	modelIndex := &modelsindex.ModelsIndex{
+		PreInstalledModels: []modelsindex.AIModel{
+			{
+				ID: "i-am-model-1",
+			},
+			{
+				ID: "i-am-model-2",
 			},
 		},
 	}
@@ -137,6 +154,26 @@ bricks:
 `,
 			expectedError: nil,
 		},
+		{
+			name: "invalid if the model id does not exist",
+			yamlContent: `
+name: App with using a not found model
+bricks:
+  - arduino:ai-brick:
+      model: a-not-existing-model
+`,
+			expectedError: errors.New("model \"a-not-existing-model\" for brick \"arduino:ai-brick\" not found"),
+		},
+		{
+			name: "valid if the model exist",
+			yamlContent: `
+name: App with a valid model
+bricks:
+  - arduino:ai-brick:
+      model: i-am-model-2
+`,
+			expectedError: nil,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -151,7 +188,7 @@ bricks:
 			appDescriptor, err := ParseDescriptorFile(appYaml)
 			require.NoError(t, err)
 
-			err = ValidateBricks(appDescriptor, bricksIndex)
+			err = ValidateBricks(appDescriptor, bricksIndex, modelIndex)
 			if tc.expectedError == nil {
 				assert.NoError(t, err, "Expected no validation errors")
 			} else {
