@@ -35,18 +35,16 @@ func TestValidateAppDescriptorBricks(t *testing.T) {
 				},
 			},
 			{
-				ID:        "arduino:ai-brick",
-				Name:      "Arduino Ausing ai model",
-				ModelName: "i-am-model-1",
+				ID:           "arduino:ai-brick",
+				Name:         "Arduino using an ai model",
+				RequireModel: true, // this is currenlty not used to validate or not the model.
+				ModelName:    "i-am-default-model",
 			},
 		},
 	}
 
 	modelIndex := &modelsindex.ModelsIndex{
 		PreInstalledModels: []modelsindex.AIModel{
-			{
-				ID: "i-am-model-1",
-			},
 			{
 				ID: "i-am-model-2",
 			},
