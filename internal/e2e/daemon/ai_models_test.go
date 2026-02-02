@@ -164,7 +164,7 @@ func TestAIModelDelete(t *testing.T) {
 	t.Run("conflict error on pre installed model deletion", func(t *testing.T) {
 		modelId := "face-detection"
 		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
-		expectedDetails := "model face-detection is a pre-installed model: can't delete the model"
+		expectedDetails := "model face-detection is an internal model: can't delete the model"
 		var actualBody models.ErrorResponse
 
 		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), modelId, &client.DeleteAIModelParams{Force: f.Ptr(false)}, requestEditor)

@@ -87,8 +87,9 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 }
 
 var (
-	ErrNotFound = errors.New("model not found")
-	ErrConflict = errors.New("can't delete the model")
+	ErrNotFound          = errors.New("model not found")
+	ErrConflict          = errors.New("can't delete the model")
+	ErrCannotRemoveModel = errors.New("cannot remove an internal model")
 )
 
 func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, id string, idProvider *app.IDProvider, force bool) (err error) {
@@ -98,7 +99,7 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 	}
 
 	if res.IsPreinstalled {
-		return fmt.Errorf("model %s is a pre-installed model: %w", id, ErrConflict)
+		return ErrCannotRemoveModel
 	}
 
 	running, _ := getRunningApp(ctx, dockerClient.Client())
@@ -112,7 +113,7 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 		sb.WriteString(fmt.Sprintf("The model %s is in use by the %s app. Stop the application before removing the model", id, running.Name))
 	}
 	if len(references) != 0 {
-		sb.WriteString(fmt.Sprintf("The model is referenced by the following bricks: %s. Remove the model references before removing the model", strings.Join(references, ", ")))
+		sb.WriteString(fmt.Sprintf("The model is referenced by bricks belonging to the following apps: %s. Remove the model references before removing the model", strings.Join(references, ", ")))
 	}
 	if !force {
 		return fmt.Errorf("%s: %w", sb.String(), ErrConflict)
@@ -121,7 +122,6 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 	if res.ModelFolderPath == nil {
 		details := fmt.Sprintf("unexpected null path for model %s", res.ModelFolderPath.String())
 		slog.Warn(details)
-		return fmt.Errorf("%s: %w", details, ErrNotFound)
 	}
 
 	if err := res.ModelFolderPath.RemoveAll(); err != nil {
@@ -144,7 +144,7 @@ func isModelReferencedInApp(ctx context.Context, dockerClient command.Cli, cfg c
 		idProvider, cfg)
 
 	if err != nil {
-		return nil, errors.New("error retrieving applications")
+		return nil, err
 	}
 
 	for _, a := range apps.Apps {
@@ -155,7 +155,7 @@ func isModelReferencedInApp(ctx context.Context, dockerClient command.Cli, cfg c
 		}
 		for _, b := range app.Descriptor.Bricks {
 			if b.Model == modelId {
-				references[b.ID] = struct{}{}
+				references[app.Name] = struct{}{}
 			}
 		}
 	}

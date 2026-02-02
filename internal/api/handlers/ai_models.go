@@ -84,6 +84,8 @@ func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, 
 				render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: err.Error()})
 			case errors.Is(err, orchestrator.ErrConflict):
 				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: err.Error()})
+			case errors.Is(err, orchestrator.ErrCannotRemoveModel):
+				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: err.Error()})
 			default:
 				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: err.Error()})
 			}
