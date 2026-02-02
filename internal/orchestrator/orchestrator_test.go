@@ -354,7 +354,7 @@ func TestListApp(t *testing.T) {
 	})
 
 	t.Run("ignore temporary apps starting with .tmp_", func(t *testing.T) {
-		tmpAppName := tmpAppPrefix + "should_be_ignored"
+		tmpAppName := ".tmp_should_be_ignored"
 
 		tmpAppPath := cfg.AppsDir().Join(tmpAppName)
 		err := os.MkdirAll(tmpAppPath.String(), 0755)

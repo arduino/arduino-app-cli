@@ -19,7 +19,6 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -36,10 +35,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-)
-
-var (
-	tmpAppPrefix = ".tmp_"
 )
 
 func ExportAppZip(
@@ -190,13 +185,11 @@ func ImportAppFromZip(
 		finalDestPath, _ = findAppPathByName(newName, cfg)
 	}
 
-	tempDirName := fmt.Sprintf(tmpAppPrefix+"%s", rand.Text())
-	tempDestDir := finalDestPath.Parent().Join(tempDirName)
-	defer func() { _ = tempDestDir.RemoveAll() }()
-
-	if err := tempDestDir.MkdirAll(); err != nil {
+	tempDestDir, err := app.MkTmpAppDir(finalDestPath.Parent())
+	if err != nil {
 		return app.ID{}, fmt.Errorf("unable to create temp app directory: %w", err)
 	}
+	defer func() { _ = tempDestDir.RemoveAll() }()
 
 	if err := extractZip(&r.Reader, tempDestDir.String(), rootPrefix); err != nil {
 		return app.ID{}, err

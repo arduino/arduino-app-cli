@@ -648,7 +648,7 @@ func ListApps(
 			if file.Base() == ".cache" {
 				return false
 			}
-			if IsTmpApp(file) {
+			if app.IsTmpAppDir(file) {
 				return false
 			}
 			if file.Join("app.yaml").NotExist() && file.Join("app.yml").NotExist() {
@@ -670,7 +670,7 @@ func ListApps(
 	}
 
 	for _, file := range appPaths {
-		if IsTmpApp(file) {
+		if app.IsTmpAppDir(file) {
 			continue
 		}
 		app, err := app.Load(file)
@@ -717,12 +717,6 @@ func ListApps(
 	}
 
 	return result, nil
-}
-
-// returns true if the app path is a temporary app
-// that should not be listed (neither in the brocken apps)
-func IsTmpApp(p *paths.Path) bool {
-	return strings.HasPrefix(p.Base(), tmpAppPrefix)
 }
 
 type AppDetailedInfo struct {
