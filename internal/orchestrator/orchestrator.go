@@ -619,16 +619,13 @@ func ListApps(
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
 ) (ListAppResult, error) {
-	var (
-		pathsToExplore paths.PathList
-		appPaths       paths.PathList
-	)
-
 	apps, err := getAppsStatus(ctx, docker.Client())
 	if err != nil {
 		slog.Error("unable to get running app", slog.String("error", err.Error()))
 	}
 
+	var pathsToExplore paths.PathList
+	var appPaths paths.PathList
 	if req.ShowExamples || req.ShowOnlyDefault {
 		pathsToExplore.Add(cfg.ExamplesDir())
 	}
@@ -642,24 +639,11 @@ func ListApps(
 		}
 	}
 
-	result := ListAppResult{Apps: []AppInfo{}, BrokenApps: []BrokenAppInfo{}}
 	for _, p := range pathsToExplore {
-		res, err := p.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
-			if file.Base() == ".cache" {
-				return false
-			}
-			if app.IsTmpAppDir(file) {
-				return false
-			}
-			if file.Join("app.yaml").NotExist() && file.Join("app.yml").NotExist() {
-				// Let's continue the scan, we might be in an parent folder
-				return true
-			}
-			return false
-		}, paths.FilterDirectories(), paths.FilterOutNames("python", "sketch", ".cache"))
+		res, err := app.FindAppsInFolder(p)
 		if err != nil {
 			slog.Error("unable to list apps", slog.String("error", err.Error()))
-			return result, err
+			return ListAppResult{}, err
 		}
 		appPaths.AddAllMissing(res)
 	}
@@ -669,6 +653,7 @@ func ListApps(
 		slog.Warn("unable to get default app", slog.String("error", err.Error()))
 	}
 
+	result := ListAppResult{Apps: []AppInfo{}, BrokenApps: []BrokenAppInfo{}}
 	for _, file := range appPaths {
 		if app.IsTmpAppDir(file) {
 			continue

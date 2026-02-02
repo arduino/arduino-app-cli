@@ -21,7 +21,29 @@ import (
 	"github.com/arduino/go-paths-helper"
 )
 
+// FindAppsInFolder scans the given paths recursively to find Arduino Apps and
+// returns the list of found app paths.
+func FindAppsInFolder(pathToExplore *paths.Path) (paths.PathList, error) {
+	return pathToExplore.ReadDirRecursiveFiltered(
+		paths.AndFilter( // Recursion filter
+			paths.FilterOutNames(".cache"),       // Do not recurse into .cache folders
+			paths.NotFilter(IsTmpAppDir),         // Do not recurse into temporary apps
+			paths.NotFilter(DirHasAppDescriptor), // Do not recurse into valid app dirs
+		),
+		paths.FilterDirectories(),
+		paths.FilterOutNames("python", "sketch", ".cache"),
+		paths.NotFilter(IsTmpAppDir),
+		// TODO: DirHasAppDescriptor ?
+	)
+}
+
 const tmpAppPrefix = ".tmp_"
+
+// DirHasAppDescriptor returns true if the given directory contains
+// an app descriptor file (app.yaml or app.yml).
+func DirHasAppDescriptor(p *paths.Path) bool {
+	return p.Join("app.yaml").Exist() || p.Join("app.yml").Exist()
+}
 
 // IsTmpAppDir returns true if the app path is a temporary app
 // that should not be listed (neither in the broken apps).
