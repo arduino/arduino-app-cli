@@ -25,6 +25,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+
 	"path/filepath"
 	"strings"
 	"time"
@@ -288,13 +289,13 @@ func extractZip(r *zip.Reader, dest string, rootPrefix string) error {
 func readAppDescriptorFromZip(r *zip.Reader, rootPrefix string) (app.AppDescriptor, error) {
 	var descriptor app.AppDescriptor
 
-	targetAppYaml := filepath.Join(rootPrefix, "app.yaml")
-	targetAppYml := filepath.Join(rootPrefix, "app.yml")
+	targetAppYaml := paths.New(rootPrefix, "app.yaml")
+	targetAppYml := paths.New(rootPrefix, "app.yml")
 
 	for _, f := range r.File {
 		name := filepath.ToSlash(f.Name)
 
-		if name == targetAppYaml || name == targetAppYml {
+		if name == targetAppYaml.String() || name == targetAppYml.String() {
 			rc, err := f.Open()
 			if err != nil {
 				return descriptor, err
@@ -323,28 +324,28 @@ func validateAppZipContent(r *zip.Reader, rootPrefix string) error {
 	hasSketchIno := false
 	hasSketchYaml := false
 
-	targetAppYaml := filepath.Join(rootPrefix, "app.yaml")
-	targetAppYml := filepath.Join(rootPrefix, "app.yml")
-	targetMainPy := filepath.Join(rootPrefix, "python/main.py")
+	targetAppYaml := paths.New(rootPrefix, "app.yaml")
+	targetAppYml := paths.New(rootPrefix, "app.yml")
+	targetMainPy := paths.New(rootPrefix, "python/main.py")
 
-	targetSketchPrefix := filepath.Join(rootPrefix, "sketch") + string(os.PathSeparator)
+	targetSketchPrefix := paths.New(rootPrefix, "sketch").String() + "/"
 	for _, f := range r.File {
 		name := filepath.ToSlash(f.Name)
 
-		if name == targetAppYaml || name == targetAppYml {
+		if name == targetAppYaml.String() || name == targetAppYml.String() {
 			hasAppYaml = true
 		}
-		if name == targetMainPy {
+		if name == targetMainPy.String() {
 			hasMainPy = true
 		}
 
 		if strings.HasPrefix(name, targetSketchPrefix) {
 			hasSketchFolder = true
-			if name == filepath.Join(rootPrefix, "sketch/sketch.ino") {
+			if name == paths.New(rootPrefix, "sketch/sketch.ino").String() {
 				hasSketchIno = true
 			}
 
-			if name == filepath.Join(rootPrefix, "sketch/sketch.yaml") {
+			if name == paths.New(rootPrefix, "sketch/sketch.yaml").String() {
 				hasSketchYaml = true
 			}
 		}
@@ -404,7 +405,7 @@ func findZipRoot(r *zip.Reader) (string, error) {
 		}
 
 		if slashCount == 1 {
-			return filepath.Dir(name), nil
+			return paths.New(name).Parent().String(), nil
 		}
 
 		// If slashCount > 1, file is too deeply nested
