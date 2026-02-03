@@ -24,12 +24,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-	"go.bug.st/f"
-
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
+	"github.com/stretchr/testify/require"
+	"go.bug.st/f"
 )
 
 func TestAIModelList(t *testing.T) {
