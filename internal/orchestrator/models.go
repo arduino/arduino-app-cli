@@ -139,9 +139,7 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 	}
 
 	if err := res.ModelFolderPath.RemoveAll(); err != nil {
-		details := fmt.Sprintf("error removing path %s", res.ModelFolderPath.String())
-		slog.Warn(details)
-		return fmt.Errorf(details)
+		return fmt.Errorf("error removing path %s", res.ModelFolderPath.String())
 	}
 
 	return nil
