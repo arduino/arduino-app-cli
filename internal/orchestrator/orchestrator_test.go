@@ -354,11 +354,12 @@ func TestListApp(t *testing.T) {
 	})
 
 	t.Run("ignore temporary apps starting with .tmp_", func(t *testing.T) {
-		tmpAppName := ".tmp_should_be_ignored"
-
-		tmpAppPath := cfg.AppsDir().Join(tmpAppName)
-		err := os.MkdirAll(tmpAppPath.String(), 0755)
+		tmpAppPath, err := app.MkTmpAppDir(cfg.AppsDir())
 		require.NoError(t, err)
+
+		tmpAppName := tmpAppPath.Base()
+		require.True(t, strings.HasPrefix(tmpAppName, ".tmp_"))
+
 		_, err = os.Create(tmpAppPath.Join("app.yaml").String())
 		require.NoError(t, err)
 
