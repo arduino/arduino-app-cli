@@ -149,8 +149,6 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 // This allows the user to see both issues before deciding to use the flag
 // preventing the second error from being masked.
 func checkForModelReferences(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, idProvider *app.IDProvider, modelId string) ([]string, *app.ArduinoApp, error) {
-	runningApp, err := getRunningApp(ctx, dockerClient.Client())
-
 	apps, err := ListApps(ctx, dockerClient, ListAppRequest{
 		ShowExamples:                   true,
 		ShowApps:                       true,
@@ -173,9 +171,8 @@ func checkForModelReferences(ctx context.Context, dockerClient command.Cli, cfg 
 		for _, b := range app.Descriptor.Bricks {
 			if b.Model == modelId {
 				references[app.Name] = struct{}{}
-				if runningApp != nil && runningApp.Name == app.Name {
+				if a.Status == StatusRunning || a.Status == StatusStarting {
 					runningAppReference = &app
-					runningApp = nil // no need to check anymore
 				}
 			}
 		}
