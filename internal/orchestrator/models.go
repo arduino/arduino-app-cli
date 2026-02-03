@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -46,7 +47,7 @@ type AIModelItem struct {
 	Bricks             []string          `json:"brick_ids"`
 	Metadata           map[string]string `json:"metadata,omitempty"`
 	ModelConfiguration map[string]string `json:"model_configuration,omitempty"`
-	Resources          Resources         `json:"resources,omitempty"`
+	Resources          *Resources        `json:"resources,omitempty"`
 }
 
 type Resources struct {
@@ -85,14 +86,22 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 		return AIModelItem{}, false
 	}
 
-	sizeMB, err := getModelSizeMB(model.ModelFolderPath)
-	if err != nil {
-		slog.Error("failed to calculate model size", "err", err)
-		return AIModelItem{}, false
-	}
-
-	modelResource := Resources{
-		DiskUsageMB: int(sizeMB),
+	var modelResource *Resources
+	if !model.IsInternal && model.ModelFolderPath != nil {
+		sizeMB, err := getModelSizeMB(model.ModelFolderPath)
+		if err != nil {
+			slog.Error(
+				"failed to calculate model size",
+				"model_id", model.ID,
+				"path", model.ModelFolderPath,
+				"err", err,
+			)
+		} else {
+			modelResource = &Resources{
+				// 0.5MB will be rounded to 1MB
+				DiskUsageMB: int(math.Round(sizeMB)),
+			}
+		}
 	}
 
 	return AIModelItem{
@@ -105,6 +114,30 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 		ModelConfiguration: model.ModelConfiguration,
 		Resources:          modelResource,
 	}, true
+}
+
+func getModelSizeMB(dirPath *paths.Path) (float64, error) {
+	var totalSize int64
+
+	err := filepath.WalkDir(dirPath.String(), func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+			totalSize += info.Size()
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	sizeMB := float64(totalSize) / (1024 * 1024)
+	return sizeMB, nil
 }
 
 var (
@@ -205,28 +238,4 @@ func checkForModelReferences(ctx context.Context, dockerClient command.Cli, cfg 
 	}
 
 	return slices.Collect(maps.Keys(references)), runningAppReference, nil
-}
-
-func getModelSizeMB(dirPath *paths.Path) (float64, error) {
-	var totalSize int64
-
-	err := filepath.WalkDir(dirPath.String(), func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if !d.IsDir() {
-			info, err := d.Info()
-			if err != nil {
-				return err
-			}
-			totalSize += info.Size()
-		}
-		return nil
-	})
-	if err != nil {
-		return 0, err
-	}
-
-	sizeMB := float64(totalSize) / (1024 * 1024)
-	return sizeMB, nil
 }
