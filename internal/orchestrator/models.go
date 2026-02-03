@@ -113,7 +113,7 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 
 	if hasReferences || isRunning {
 		if !force {
-			return fmt.Errorf("%s", buildModelInUseMessage(references, runningAppReference))
+			return fmt.Errorf("%s: %w", buildModelInUseMessage(references, runningAppReference), ErrConflict)
 		}
 	}
 
@@ -147,7 +147,6 @@ func buildModelInUseMessage(references []string, runningAppRef *app.ArduinoApp) 
 		sb.WriteString(runningAppRef.Name)
 	}
 
-	sb.WriteString(". Cannot remove the model.")
 	return sb.String()
 }
 

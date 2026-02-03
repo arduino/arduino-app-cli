@@ -17,7 +17,6 @@ package daemon
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -130,7 +129,6 @@ func TestAIModelDetails(t *testing.T) {
 }
 
 func TestAIModelDelete(t *testing.T) {
-
 	httpClient := GetHttpclient(t)
 
 	t.Run("error on empty model id", func(t *testing.T) {
@@ -164,7 +162,7 @@ func TestAIModelDelete(t *testing.T) {
 	t.Run("conflict error on internal model deletion", func(t *testing.T) {
 		modelId := "face-detection"
 		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
-		expectedDetails := "model face-detection is an internal model: can't delete the model"
+		expectedDetails := "cannot remove an internal model"
 		var actualBody models.ErrorResponse
 
 		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), modelId, &client.DeleteAIModelParams{Force: f.Ptr(false)}, requestEditor)
@@ -179,7 +177,7 @@ func TestAIModelDelete(t *testing.T) {
 		availableModels := 0
 		modelId := "custom-classification-model-eim"
 		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
-		expectedDetails := "The model is referenced by the following bricks: arduino:image_classification. Remove the model references before removing the model: can't delete the model"
+		expectedDetails := "The model is referenced by bricks belonging to the following apps: test-app-ai-model-deletion: can't delete the model"
 		var actualBody models.ErrorResponse
 		err := copyModel(t)
 		if err != nil {
@@ -200,8 +198,6 @@ func TestAIModelDelete(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, http.StatusCreated, createResp.StatusCode())
 		require.NotNil(t, createResp.JSON201)
-		fmt.Println(*createResp.JSON201.Id)
-		fmt.Println(string(f.Must(base64.StdEncoding.DecodeString(*createResp.JSON201.Id))))
 		appID := createResp.JSON201.Id
 
 		/* Check if the custom model is loaded */
@@ -233,7 +229,7 @@ func TestAIModelDelete(t *testing.T) {
 		/* Delete the model, forced */
 		response, err = httpClient.DeleteAIModelWithResponse(t.Context(), modelId, &client.DeleteAIModelParams{Force: f.Ptr(true)}, requestEditor)
 		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, response.StatusCode())
+		require.Equal(t, http.StatusNoContent, response.StatusCode())
 		require.NoError(t, err)
 
 		/* Check there is one less model available */
