@@ -133,8 +133,7 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 	}
 
 	if res.ModelFolderPath == nil {
-		details := fmt.Sprintf("unexpected null path for model %s", res.ModelFolderPath.String())
-		slog.Warn(details)
+		slog.Warn("Cannot remove the model with missing model folder", "id", id)
 		return nil
 	}
 
