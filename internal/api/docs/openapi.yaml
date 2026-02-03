@@ -1298,6 +1298,8 @@ components:
           type: object
         name:
           type: string
+        resources:
+          $ref: '#/components/schemas/Resources'
         runner:
           type: string
       type: object
@@ -1758,6 +1760,11 @@ components:
             type: string
           nullable: true
           type: array
+      type: object
+    Resources:
+      properties:
+        disk_usage_mb:
+          type: integer
       type: object
     SketchAddLibraryResponse:
       properties:

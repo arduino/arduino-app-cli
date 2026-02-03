@@ -107,6 +107,9 @@ func TestAIModelDetails(t *testing.T) {
 		require.NotNil(t, modelDetails.Runner, "Response model's Runner should not be nil")
 		require.Equal(t, *expectedModel.Runner, *modelDetails.Runner, "Runner should match")
 
+		require.NotNil(t, modelDetails.Resources.DiskUsageMb, "Response model's DiskUsageMb should not be nil")
+		require.Equal(t, *expectedModel.Resources.DiskUsageMb, *modelDetails.Resources.DiskUsageMb, "DiskUsageMb should match")
+
 	})
 
 	t.Run("should return 404 not found for an unknown model id", func(t *testing.T) {

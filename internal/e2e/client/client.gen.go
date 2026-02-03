@@ -342,6 +342,14 @@ type PropertyKeysResponse struct {
 	Keys *[]string `json:"keys"`
 }
 
+<<<<<<< HEAD
+=======
+// Resources defines model for Resources.
+type Resources struct {
+	DiskUsageMb *int `json:"disk_usage_mb,omitempty"`
+}
+
+>>>>>>> 6178f1b (add test e2e first part)
 // SketchAddLibraryResponse defines model for SketchAddLibraryResponse.
 type SketchAddLibraryResponse struct {
 	Libraries *[]string `json:"libraries"`
