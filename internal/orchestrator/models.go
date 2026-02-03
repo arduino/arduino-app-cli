@@ -24,7 +24,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
@@ -108,18 +107,16 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 		return err
 	}
 
-	// TODO @Davide I don't remember if we decide to stoipthe applicationon force
-	// TODO uso errors.join o sb?
-	if len(references) > 0 || runningAppReference != "" {
+	if len(references) > 0 || runningAppReference != nil {
 		var sb strings.Builder
 		sb.WriteString("The model is")
 		if len(references) > 0 {
 			sb.WriteString(" referenced by bricks belonging to the following apps: ")
 			sb.WriteString(strings.Join(references, ", "))
 		}
-		if runningAppReference != "" {
+		if runningAppReference != nil {
 			sb.WriteString(" in use by the app ")
-			sb.WriteString(runningAppReference)
+			sb.WriteString(runningAppReference.Name)
 		}
 		sb.WriteString(". Cannot remove the model.")
 
@@ -131,13 +128,17 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 		}
 	}
 
+	if runningAppReference != nil {
+		StopApp(ctx, dockerClient, *runningAppReference)
+	}
+
 	if res.ModelFolderPath == nil {
 		slog.Warn("Cannot remove the model with missing model folder", "id", id)
 		return nil
 	}
 
 	if err := res.ModelFolderPath.RemoveAll(); err != nil {
-		return fmt.Errorf("error removing path %s", res.ModelFolderPath.String())
+		return fmt.Errorf("error removing model folder %s", res.ModelFolderPath.String())
 	}
 
 	return nil
@@ -147,7 +148,7 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 // Both checks are performed simultaneously to support the "force" flag logic.
 // This allows the user to see both issues before deciding to use the flag
 // preventing the second error from being masked.
-func checkForModelReferences(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, idProvider *app.IDProvider, modelId string) ([]string, string, error) {
+func checkForModelReferences(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, idProvider *app.IDProvider, modelId string) ([]string, *app.ArduinoApp, error) {
 	runningApp, err := getRunningApp(ctx, dockerClient.Client())
 
 	apps, err := ListApps(ctx, dockerClient, ListAppRequest{
@@ -158,11 +159,11 @@ func checkForModelReferences(ctx context.Context, dockerClient command.Cli, cfg 
 		idProvider, cfg)
 
 	if err != nil {
-		return nil, "", err
+		return nil, nil, err
 	}
 
 	references := make(map[string]struct{})
-	runningAppReference := ""
+	var runningAppReference *app.ArduinoApp
 	for _, a := range apps.Apps {
 		app, err := app.Load(a.ID.ToPath())
 		if err != nil {
@@ -173,7 +174,7 @@ func checkForModelReferences(ctx context.Context, dockerClient command.Cli, cfg 
 			if b.Model == modelId {
 				references[app.Name] = struct{}{}
 				if runningApp != nil && runningApp.Name == app.Name {
-					runningAppReference = app.Name
+					runningAppReference = &app
 					runningApp = nil // no need to check anymore
 				}
 			}
@@ -181,5 +182,4 @@ func checkForModelReferences(ctx context.Context, dockerClient command.Cli, cfg 
 	}
 
 	return slices.Collect(maps.Keys(references)), runningAppReference, nil
-
 }

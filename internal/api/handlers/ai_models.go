@@ -18,7 +18,6 @@ package handlers
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
