@@ -258,17 +258,16 @@ func getUsedByApps(
 	)
 	pathsToExplore.Add(cfg.ExamplesDir())
 	pathsToExplore.Add(cfg.AppsDir())
-	usedByApps := []AppReference{}
-
 	for _, p := range pathsToExplore {
 		res, err := app.FindAppsInFolder(p)
 		if err != nil {
 			slog.Error("unable to list apps", slog.String("error", err.Error()))
-			return usedByApps, err
+			return []AppReference{}, err
 		}
 		appPaths.AddAllMissing(res)
 	}
 
+	usedByApps := []AppReference{}
 	for _, file := range appPaths {
 		app, err := app.Load(file)
 		if err != nil {
@@ -281,7 +280,7 @@ func getUsedByApps(
 			if b.ID == brickId {
 				id, err := idProvider.IDFromPath(app.FullPath)
 				if err != nil {
-					return usedByApps, fmt.Errorf("failed to get app ID for %s: %w", app.FullPath, err)
+					return []AppReference{}, fmt.Errorf("failed to get app ID for %s: %w", app.FullPath, err)
 				}
 				usedByApps = append(usedByApps, AppReference{
 					Name: app.Name,
