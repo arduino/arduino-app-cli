@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -29,6 +31,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/go-paths-helper"
 )
 
 type AIModelsListResult struct {
@@ -43,6 +46,11 @@ type AIModelItem struct {
 	Bricks             []string          `json:"brick_ids"`
 	Metadata           map[string]string `json:"metadata,omitempty"`
 	ModelConfiguration map[string]string `json:"model_configuration,omitempty"`
+	Resources          Resources         `json:"resources,omitempty"`
+}
+
+type Resources struct {
+	DiskUsageMB int `json:"disk_usage_mb"`
 }
 
 type AIModelsListRequest struct {
@@ -76,6 +84,17 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 	if !found {
 		return AIModelItem{}, false
 	}
+
+	sizeMB, err := getModelSizeMB(model.ModelFolderPath)
+	if err != nil {
+		slog.Error("failed to calculate model size", "err", err)
+		return AIModelItem{}, false
+	}
+
+	modelResource := Resources{
+		DiskUsageMB: int(sizeMB),
+	}
+
 	return AIModelItem{
 		ID:                 model.ID,
 		Name:               model.Name,
@@ -84,6 +103,7 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 		Bricks:             model.Bricks,
 		Metadata:           model.Metadata,
 		ModelConfiguration: model.ModelConfiguration,
+		Resources:          modelResource,
 	}, true
 }
 
@@ -185,4 +205,28 @@ func checkForModelReferences(ctx context.Context, dockerClient command.Cli, cfg 
 	}
 
 	return slices.Collect(maps.Keys(references)), runningAppReference, nil
+}
+
+func getModelSizeMB(dirPath *paths.Path) (float64, error) {
+	var totalSize int64
+
+	err := filepath.WalkDir(dirPath.String(), func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+			totalSize += info.Size()
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	sizeMB := float64(totalSize) / (1024 * 1024)
+	return sizeMB, nil
 }
