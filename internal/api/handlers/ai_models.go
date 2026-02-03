@@ -22,13 +22,14 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/docker/cli/cli/command"
+
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/render"
-	"github.com/docker/cli/cli/command"
 )
 
 func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {

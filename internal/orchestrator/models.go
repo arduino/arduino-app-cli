@@ -24,10 +24,11 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/docker/cli/cli/command"
+
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
-	"github.com/docker/cli/cli/command"
 )
 
 type AIModelsListResult struct {
