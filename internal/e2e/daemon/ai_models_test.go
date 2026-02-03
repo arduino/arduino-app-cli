@@ -187,7 +187,7 @@ func TestAIModelDelete(t *testing.T) {
 		}
 
 		/* Create an app */
-		appName := "test-app-details"
+		appName := "test-app-ai-model-deletion"
 		icon := "💻"
 		createResp, err := httpClient.CreateAppWithResponse(
 			t.Context(),
