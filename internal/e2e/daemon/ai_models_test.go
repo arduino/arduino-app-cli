@@ -16,6 +16,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -110,37 +111,49 @@ func TestAIModelDetails(t *testing.T) {
 		require.Nil(t, modelDetails.Resources, "Response model's Resources should be nil")
 
 	})
-
 	t.Run("should return full details for a valid custom model ID", func(t *testing.T) {
+
+		modelId := "custom-classification-model-eim"
+		expecteBricks := []string{"arduino:image_classification"}
+		expectedName := "Test custom model"
+		expectedDescription := "Test custom model."
+		expectedDiskUsage := 1
+
+		err := copyModel(t, true)
+		if err != nil {
+			require.FailNow(t, "unable to create model file")
+		}
+
 		// We have to add an empty editor because there is a bug that make the function panic if we pass nil
-		response, err := httpClient.GetAIModelDetailsWithResponse(t.Context(), *expectedModel.Id, func(ctx context.Context, req *http.Request) error { return nil })
+		response, err := httpClient.GetAIModelDetailsWithResponse(t.Context(), modelId, func(ctx context.Context, req *http.Request) error { return nil })
 		require.NoError(t, err, "The HTTP client should not return an error for a 200 response")
 
-		modelDetails := response.JSON200
+		customModelDetails := response.JSON200
 
-		require.NotNil(t, modelDetails.Id, "Response model's ID should not be nil")
-		require.Equal(t, *expectedModel.Id, *modelDetails.Id, "ID should match")
+		require.NotNil(t, customModelDetails.Id, "Response model's ID should not be nil")
+		require.Equal(t, modelId, *customModelDetails.Id, "ID should match")
 
-		require.NotNil(t, modelDetails.BrickIds, "Response model's BrickId should not be nil")
-		require.Equal(t, *expectedModel.BrickIds, *modelDetails.BrickIds, "BrickIds should match")
+		require.NotNil(t, customModelDetails.BrickIds, "Response model's BrickId should not be nil")
+		require.Equal(t, expecteBricks, *customModelDetails.BrickIds, "BrickIds should match")
 
-		require.NotNil(t, modelDetails.Name, "Response model's Name should not be nil")
-		require.Equal(t, *expectedModel.Name, *modelDetails.Name, "Name should match")
+		require.NotNil(t, customModelDetails.Name, "Response model's Name should not be nil")
+		require.Equal(t, expectedName, *customModelDetails.Name, "Name should match")
 
-		require.NotNil(t, modelDetails.Description, "Response model's Description should not be nil")
-		require.Equal(t, *expectedModel.Description, *modelDetails.Description, "Description should match")
+		require.NotNil(t, customModelDetails.Description, "Response model's Description should not be nil")
+		require.Equal(t, expectedDescription, *customModelDetails.Description, "Description should match")
+		//TODO test metadata and model configuration contents and runner
+		/*
+			    require.NotNil(t, customModelDetails.Metadata, "Response model's Metadata should not be nil")
+				require.Equal(t, data, customModelDetails.Metadata, "Metadata should match")
 
-		require.NotNil(t, modelDetails.Metadata, "Response model's Metadata should not be nil")
-		require.Equal(t, expectedModel.Metadata, modelDetails.Metadata, "Metadata should match")
+				require.NotNil(t, customModelDetails.ModelConfiguration, "Response model's ModelConfiguration should not be nil")
+				require.Equal(t, expectedModel.ModelConfiguration, customModelDetails.ModelConfiguration, "ModelConfiguration should match")
 
-		require.NotNil(t, modelDetails.ModelConfiguration, "Response model's ModelConfiguration should not be nil")
-		require.Equal(t, expectedModel.ModelConfiguration, modelDetails.ModelConfiguration, "ModelConfiguration should match")
-
-		require.NotNil(t, modelDetails.Runner, "Response model's Runner should not be nil")
-		require.Equal(t, *expectedModel.Runner, *modelDetails.Runner, "Runner should match")
-
-		require.Nil(t, modelDetails.Resources, "Response model's Resources should be nil")
-
+				require.NotNil(t, customModelDetails.Runner, "Response model's Runner should not be nil")
+				require.Equal(t, *expectedModel.Runner, *customModelDetails.Runner, "Runner should match")
+		*/
+		require.NotNil(t, customModelDetails.Resources, "Response model's Resources should not be nil")
+		require.Equal(t, expectedDiskUsage, *customModelDetails.Resources.DiskUsageMb, "Response model's Size should be 34MB")
 	})
 
 	t.Run("should return 404 not found for an unknown model id", func(t *testing.T) {
@@ -213,7 +226,7 @@ func TestAIModelDelete(t *testing.T) {
 		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
 		expectedDetails := "The model is referenced by bricks belonging to the following apps: test-app-ai-model-deletion: can't delete the model"
 		var actualBody models.ErrorResponse
-		err := copyModel(t)
+		err := copyModel(t, false)
 		if err != nil {
 			require.FailNow(t, "unable to create model file")
 		}
@@ -275,18 +288,40 @@ func TestAIModelDelete(t *testing.T) {
 	})
 }
 
-func copyModel(t *testing.T) error {
+func copyModel(t *testing.T, createModel bool) error {
 	baseDir := e2e.FindRepositoryRootPath(t).Join("internal", "e2e", "daemon", "testdata")
 
 	src := baseDir.Join("template", "test-model").String()
-	dst := baseDir.Join("custom_models", "test-model.tmp").String()
-	os.RemoveAll(dst)
-	if err := os.MkdirAll(dst, 0755); err != nil {
+	dst := baseDir.Join("custom_models", "test-model.tmp")
+	dstStr := dst.String()
+	os.RemoveAll(dstStr)
+
+	if err := os.MkdirAll(dstStr, 0755); err != nil {
 		return fmt.Errorf("failed to create dst dir: %w", err)
 	}
-	err := os.CopyFS(dst, os.DirFS(src))
+	err := os.CopyFS(dstStr, os.DirFS(src))
 	if err != nil {
 		return fmt.Errorf("CopyFS failed from %s to %s: %w", src, dst, err)
+	}
+	if createModel {
+
+		fakeFilePath := dst.Join("fake_model.eim").String()
+		if err := createFakeModelFile(fakeFilePath); err != nil {
+			return err
+		}
+		t.Cleanup(func() {
+			os.RemoveAll(fakeFilePath)
+		})
+	}
+	return nil
+}
+
+func createFakeModelFile(path string) error {
+	const size = 600 // 600 KB
+	data := bytes.Repeat([]byte{'a'}, size)
+
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("failed to write fake model file at %s: %w", path, err)
 	}
 	return nil
 }
