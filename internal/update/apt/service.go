@@ -111,6 +111,21 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 	}
 
+	// ====================
+
+	// Do a pullDockerImages()
+	// if OK -> return nil
+	// if error -> return error
+	// if "error no space" ->
+	// cleanupDockerContainers()
+	// pullDockerImages()
+	// if err -> return error
+	// return nil
+
+	return nil
+
+	// ====================
+
 	eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Stop and destroy docker containers and images ...."))
 	streamCleanup := cleanupDockerContainers(ctx)
 	for line, err := range streamCleanup {

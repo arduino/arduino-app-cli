@@ -41,7 +41,8 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
-// SystemInit pulls necessary Docker images.
+// Pulls all the docker images needed for the current version of the software to run.
+// Can be used to pre-install docker images on an empty system, or to update all the docker images that need it.
 func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *store.StaticStore, docker *command.DockerCli) error {
 	containersToPreinstall := []string{cfg.PythonImage}
 	additionalContainers, err := parseAllModelsRunnerImageTag(staticStore)
