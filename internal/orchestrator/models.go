@@ -124,7 +124,7 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 		// in dangling model pointers. An existing check at app startup ensures the user
 		// is notified of the missing model.
 		if !force {
-			return fmt.Errorf(sb.String())
+			return fmt.Errorf("%s", sb.String())
 		}
 	}
 
