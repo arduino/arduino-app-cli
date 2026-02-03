@@ -250,12 +250,10 @@ func getBrickConfigVariableDetails(
 	return variablesMap, variableDetails
 }
 
-func getUsedByApps(
-	cfg config.Configuration, brickId string, idProvider *app.IDProvider) ([]AppReference, error) {
-	var (
-		pathsToExplore paths.PathList
-		appPaths       paths.PathList
-	)
+func getUsedByApps(cfg config.Configuration, brickId string, idProvider *app.IDProvider) ([]AppReference, error) {
+	var appPaths paths.PathList
+
+	pathsToExplore := paths.NewPathList()
 	pathsToExplore.Add(cfg.ExamplesDir())
 	pathsToExplore.Add(cfg.AppsDir())
 	for _, p := range pathsToExplore {
@@ -268,11 +266,11 @@ func getUsedByApps(
 	}
 
 	usedByApps := []AppReference{}
-	for _, file := range appPaths {
-		app, err := app.Load(file)
+	for _, appPath := range appPaths {
+		app, err := app.Load(appPath)
 		if err != nil {
 			// we are not considering the broken apps
-			slog.Warn("unable to parse app.yaml, skipping", "path", file.String(), "error", err.Error())
+			slog.Warn("unable to parse app.yaml, skipping", "path", appPath.String(), "error", err.Error())
 			continue
 		}
 
