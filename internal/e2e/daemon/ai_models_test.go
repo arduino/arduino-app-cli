@@ -107,8 +107,39 @@ func TestAIModelDetails(t *testing.T) {
 		require.NotNil(t, modelDetails.Runner, "Response model's Runner should not be nil")
 		require.Equal(t, *expectedModel.Runner, *modelDetails.Runner, "Runner should match")
 
-		require.NotNil(t, modelDetails.Resources.DiskUsageMb, "Response model's DiskUsageMb should not be nil")
-		require.Equal(t, *expectedModel.Resources.DiskUsageMb, *modelDetails.Resources.DiskUsageMb, "DiskUsageMb should match")
+		require.Nil(t, modelDetails.Resources, "Response model's Resources should be nil")
+
+	})
+
+	t.Run("should return full details for a valid custom model ID", func(t *testing.T) {
+		// We have to add an empty editor because there is a bug that make the function panic if we pass nil
+		response, err := httpClient.GetAIModelDetailsWithResponse(t.Context(), *expectedModel.Id, func(ctx context.Context, req *http.Request) error { return nil })
+		require.NoError(t, err, "The HTTP client should not return an error for a 200 response")
+
+		modelDetails := response.JSON200
+
+		require.NotNil(t, modelDetails.Id, "Response model's ID should not be nil")
+		require.Equal(t, *expectedModel.Id, *modelDetails.Id, "ID should match")
+
+		require.NotNil(t, modelDetails.BrickIds, "Response model's BrickId should not be nil")
+		require.Equal(t, *expectedModel.BrickIds, *modelDetails.BrickIds, "BrickIds should match")
+
+		require.NotNil(t, modelDetails.Name, "Response model's Name should not be nil")
+		require.Equal(t, *expectedModel.Name, *modelDetails.Name, "Name should match")
+
+		require.NotNil(t, modelDetails.Description, "Response model's Description should not be nil")
+		require.Equal(t, *expectedModel.Description, *modelDetails.Description, "Description should match")
+
+		require.NotNil(t, modelDetails.Metadata, "Response model's Metadata should not be nil")
+		require.Equal(t, expectedModel.Metadata, modelDetails.Metadata, "Metadata should match")
+
+		require.NotNil(t, modelDetails.ModelConfiguration, "Response model's ModelConfiguration should not be nil")
+		require.Equal(t, expectedModel.ModelConfiguration, modelDetails.ModelConfiguration, "ModelConfiguration should match")
+
+		require.NotNil(t, modelDetails.Runner, "Response model's Runner should not be nil")
+		require.Equal(t, *expectedModel.Runner, *modelDetails.Runner, "Runner should match")
+
+		require.Nil(t, modelDetails.Resources, "Response model's Resources should be nil")
 
 	})
 
