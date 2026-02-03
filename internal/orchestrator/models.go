@@ -107,24 +107,12 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 		return err
 	}
 
-	if len(references) > 0 || runningAppReference != nil {
-		var sb strings.Builder
-		sb.WriteString("The model is")
-		if len(references) > 0 {
-			sb.WriteString(" referenced by bricks belonging to the following apps: ")
-			sb.WriteString(strings.Join(references, ", "))
-		}
-		if runningAppReference != nil {
-			sb.WriteString(" in use by the app ")
-			sb.WriteString(runningAppReference.Name)
-		}
-		sb.WriteString(". Cannot remove the model.")
+	hasReferences := len(references) > 0
+	isRunning := runningAppReference != nil
 
-		// Note: app.yaml files referencing the model will not be modified, resulting
-		// in dangling model pointers. An existing check at app startup ensures the user
-		// is notified of the missing model.
+	if hasReferences || isRunning {
 		if !force {
-			return fmt.Errorf("%s", sb.String())
+			return fmt.Errorf("%s", buildModelInUseMessage(references, runningAppReference))
 		}
 	}
 
@@ -142,6 +130,24 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 	}
 
 	return nil
+}
+
+func buildModelInUseMessage(references []string, runningAppRef *app.ArduinoApp) string {
+	var sb strings.Builder
+	sb.WriteString("The model is")
+
+	if len(references) > 0 {
+		sb.WriteString(" referenced by bricks belonging to the following apps: ")
+		sb.WriteString(strings.Join(references, ", "))
+	}
+
+	if runningAppRef != nil {
+		sb.WriteString(" in use by the app ")
+		sb.WriteString(runningAppRef.Name)
+	}
+
+	sb.WriteString(". Cannot remove the model.")
+	return sb.String()
 }
 
 // Validate if the model is currently in use or referenced.
