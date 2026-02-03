@@ -619,7 +619,7 @@ func ListApps(
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
 ) (ListAppResult, error) {
-	apps, err := getAppsStatus(ctx, docker.Client())
+	appsStatus, err := getAppsStatus(ctx, docker.Client())
 	if err != nil {
 		slog.Error("unable to get running app", slog.String("error", err.Error()))
 	}
@@ -633,8 +633,8 @@ func ListApps(
 		pathsToExplore.Add(cfg.AppsDir())
 		// adds app that are on different paths
 		if req.IncludeNonStandardLocationApps {
-			for _, app := range apps {
-				appPaths.AddIfMissing(app.AppPath)
+			for _, appStatus := range appsStatus {
+				appPaths.AddIfMissing(appStatus.AppPath)
 			}
 		}
 	}
@@ -670,10 +670,10 @@ func ListApps(
 		}
 
 		status := StatusUninitialized
-		if idx := slices.IndexFunc(apps, func(a AppStatusInfo) bool {
+		if idx := slices.IndexFunc(appsStatus, func(a AppStatusInfo) bool {
 			return a.AppPath.EqualsTo(app.FullPath)
 		}); idx != -1 {
-			status = apps[idx].Status
+			status = appsStatus[idx].Status
 		}
 
 		if req.StatusFilter != "" && req.StatusFilter != status {
