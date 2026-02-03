@@ -1,0 +1,17 @@
+models:
+ - ei-model-123-1:
+    runner: brick
+    name : "Lightweight-Face-Detection"
+    description: "Face bounding box detection. This model is trained on the WIDER FACE dataset and can detect faces in images."
+    model_configuration:
+      "EI_OBJ_DETECTION_MODEL": "/models/ootb/ei/lw-face-det.eim"
+    model_labels: 
+      - face
+    bricks:
+      - arduino:brick-with-custom-model
+      - arduino:video_object_detection
+    metadata:
+      source: "qualcomm-ai-hub"
+      ei-gpu-mode: false
+      source-model-id: "face-det-lite"
+      source-model-url: "https://aihub.qualcomm.com/models/face_det_lite"

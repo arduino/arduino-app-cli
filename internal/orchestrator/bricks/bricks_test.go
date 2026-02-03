@@ -248,13 +248,16 @@ func TestUpdateBrick(t *testing.T) {
 		require.Nil(t, paths.New("testdata/dummy-app-for-model").CopyDirTo(tempDummyApp))
 		bricksIndex, err := bricksindex.Load(paths.New("testdata"))
 		require.Nil(t, err)
-		brickService := NewService(nil, bricksIndex, nil)
+		modelsIndex, err := modelsindex.Load(paths.New("testdata"), paths.New("not_exixsting_path"))
+		require.Nil(t, err)
+		brickService := NewService(modelsIndex, bricksIndex, nil)
 
 		modelPath := "/home/arduino/.arduino-bricks/ei-model-123-1/model.eim"
 		modelId := "ei-model-123-1"
 		brickId := "arduino:brick-with-custom-model"
 		req := BrickCreateUpdateRequest{
-			ID: brickId,
+			ID:    brickId,
+			Model: f.Ptr(modelId),
 			Variables: map[string]string{
 				"EI_OBJ_DETECTION_MODEL": modelId,
 				"CUSTOM_MODEL_PATH":      modelPath,
@@ -268,6 +271,7 @@ func TestUpdateBrick(t *testing.T) {
 		require.Nil(t, err)
 		require.Len(t, after.Descriptor.Bricks, 1)
 		require.Equal(t, brickId, after.Descriptor.Bricks[0].ID)
+		require.Equal(t, modelId, after.Descriptor.Bricks[0].Model)
 		require.Equal(t, modelId, after.Descriptor.Bricks[0].Variables["EI_OBJ_DETECTION_MODEL"])
 		require.Equal(t, modelPath, after.Descriptor.Bricks[0].Variables["CUSTOM_MODEL_PATH"])
 	})
