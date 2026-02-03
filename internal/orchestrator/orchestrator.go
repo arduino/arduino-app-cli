@@ -619,11 +619,19 @@ func ListApps(
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
 ) (ListAppResult, error) {
+	// Get the default app to mark it in the list
+	defaultApp, err := GetDefaultApp(cfg)
+	if err != nil {
+		slog.Warn("unable to get default app", slog.String("error", err.Error()))
+	}
+
+	// Get the status of all apps (it will return only the apps that have been started at least once)
 	appsStatus, err := getAppsStatus(ctx, docker.Client())
 	if err != nil {
 		slog.Error("unable to get running app", slog.String("error", err.Error()))
 	}
 
+	// Retrieve all apps from the filesystem
 	var pathsToExplore paths.PathList
 	var appPaths paths.PathList
 	if req.ShowExamples || req.ShowOnlyDefault {
@@ -631,14 +639,13 @@ func ListApps(
 	}
 	if req.ShowApps || req.ShowOnlyDefault {
 		pathsToExplore.Add(cfg.AppsDir())
-		// adds app that are on different paths
+		// and optionally add apps that are on different paths
 		if req.IncludeNonStandardLocationApps {
 			for _, appStatus := range appsStatus {
 				appPaths.AddIfMissing(appStatus.AppPath)
 			}
 		}
 	}
-
 	for _, p := range pathsToExplore {
 		res, err := app.FindAppsInFolder(p)
 		if err != nil {
@@ -648,11 +655,7 @@ func ListApps(
 		appPaths.AddAllMissing(res)
 	}
 
-	defaultApp, err := GetDefaultApp(cfg)
-	if err != nil {
-		slog.Warn("unable to get default app", slog.String("error", err.Error()))
-	}
-
+	// Compose the result
 	result := ListAppResult{Apps: []AppInfo{}, BrokenApps: []BrokenAppInfo{}}
 	for _, file := range appPaths {
 		app, err := app.Load(file)
@@ -664,11 +667,13 @@ func ListApps(
 			continue
 		}
 
-		isDefault := defaultApp != nil && defaultApp.FullPath.String() == app.FullPath.String()
+		// Apply default-apps-only filter if requested
+		isDefault := defaultApp != nil && defaultApp.FullPath.EqualsTo(app.FullPath)
 		if req.ShowOnlyDefault && !isDefault {
 			continue
 		}
 
+		// Retrieve the app status if available
 		status := StatusUninitialized
 		if idx := slices.IndexFunc(appsStatus, func(a AppStatusInfo) bool {
 			return a.AppPath.EqualsTo(app.FullPath)
@@ -676,10 +681,12 @@ func ListApps(
 			status = appsStatus[idx].Status
 		}
 
+		// Apply status filter if requested
 		if req.StatusFilter != "" && req.StatusFilter != status {
 			continue
 		}
 
+		// Get the app ID
 		id, err := idProvider.IDFromPath(app.FullPath)
 		if err != nil {
 			return ListAppResult{}, fmt.Errorf("failed to get app ID from path %s: %w", file.String(), err)
