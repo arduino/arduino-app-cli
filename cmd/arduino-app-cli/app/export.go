@@ -26,9 +26,11 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
@@ -51,7 +53,7 @@ func newExportCmd(cfg config.Configuration) *cobra.Command {
 			if len(args) > 1 {
 				outputPath = args[1]
 			}
-			return exportHandler(cmd.Context(), app, outputPath, includeData, override)
+			return exportHandler(cmd.Context(), servicelocator.GetBricksIndex(), app, outputPath, includeData, override)
 		},
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 			if len(args) != 0 {
@@ -69,9 +71,9 @@ func newExportCmd(cfg config.Configuration) *cobra.Command {
 	return cmd
 }
 
-func exportHandler(ctx context.Context, appToExport app.ArduinoApp, outputDest string, includeData bool, override bool) error {
+func exportHandler(ctx context.Context, bricksIndex *bricksindex.BricksIndex, appToExport app.ArduinoApp, outputDest string, includeData bool, override bool) error {
 
-	zipBytes, originalName, err := orchestrator.ExportAppZip(ctx, appToExport, includeData)
+	zipBytes, originalName, err := orchestrator.ExportAppZip(ctx, bricksIndex, appToExport, includeData)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}

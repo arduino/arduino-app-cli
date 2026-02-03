@@ -54,7 +54,7 @@ func importHandler(cfg config.Configuration, filePathStr string) error {
 	}
 
 	idProvider := servicelocator.GetAppIDProvider()
-	appID, err := orchestrator.ImportAppFromZip(cfg, zipPath, idProvider)
+	appID, err := orchestrator.ImportAppFromZip(cfg, zipPath, idProvider, zipPath.Base())
 	if err != nil {
 		switch {
 		case errors.Is(err, orchestrator.ErrAppAlreadyExists):
