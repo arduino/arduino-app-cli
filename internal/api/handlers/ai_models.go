@@ -92,7 +92,6 @@ func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, 
 			return
 		}
 
-		slog.Warn("Deleted model", slog.Any("id", id))
 		render.EncodeResponse(w, http.StatusOK, nil)
 	}
 }

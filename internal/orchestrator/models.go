@@ -109,7 +109,7 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 	// preventing the second error from being masked.
 	running, err := isModelUsedInRunningApp(ctx, dockerClient, id)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not check if the model is currenlty in use by an app: %w", err)
 	}
 	references, err := isModelReferencedInApp(ctx, dockerClient, cfg, idProvider, id)
 	if err != nil {
@@ -135,12 +135,13 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 	if res.ModelFolderPath == nil {
 		details := fmt.Sprintf("unexpected null path for model %s", res.ModelFolderPath.String())
 		slog.Warn(details)
+		return nil
 	}
 
 	if err := res.ModelFolderPath.RemoveAll(); err != nil {
 		details := fmt.Sprintf("error removing path %s", res.ModelFolderPath.String())
 		slog.Warn(details)
-		return errors.New(details)
+		return fmt.Errorf(details)
 	}
 
 	return nil
@@ -149,7 +150,6 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 func isModelUsedInRunningApp(ctx context.Context, dockerClient command.Cli, modelId string) (string, error) {
 	runningApp, err := getRunningApp(ctx, dockerClient.Client())
 	if err != nil {
-		slog.Warn("Unable to load app", slog.Any("application name", runningApp.Name))
 		return "", err
 	}
 	for _, b := range runningApp.Descriptor.Bricks {
