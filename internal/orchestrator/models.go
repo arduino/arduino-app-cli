@@ -103,33 +103,32 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 		return ErrCannotRemoveModel
 	}
 
-	// Validate if the model is currently in use or referenced.
-	// Both checks are performed simultaneously to support the "force" flag logic.
-	// This allows the user to see both issues before deciding to use the flag
-	// preventing the second error from being masked.
-	running, err := isModelUsedInRunningApp(ctx, dockerClient, id)
-	if err != nil {
-		return fmt.Errorf("could not check if the model is currenlty in use by an app: %w", err)
-	}
-	references, err := isModelReferencedInApp(ctx, dockerClient, cfg, idProvider, id)
+	references, runningAppReference, err := checkForModelReferences(ctx, dockerClient, cfg, idProvider, id)
 	if err != nil {
 		return err
 	}
 
-	var errs []error
-	if running != "" {
-		errs = append(errs, fmt.Errorf("the model %s is in use by the %s app; stop the application before removing the model", id, running))
-	}
+	// TODO @Davide I don't remember if we decide to stoipthe applicationon force
+	// TODO uso errors.join o sb?
+	if len(references) > 0 || runningAppReference != "" {
+		var sb strings.Builder
+		sb.WriteString("The model is")
+		if len(references) > 0 {
+			sb.WriteString(" referenced by bricks belonging to the following apps: ")
+			sb.WriteString(strings.Join(references, ", "))
+		}
+		if runningAppReference != "" {
+			sb.WriteString(" in use by the app ")
+			sb.WriteString(runningAppReference)
+		}
+		sb.WriteString(". Cannot remove the model.")
 
-	// Note: app.yaml files referencing the model will not be modified, resulting
-	// in dangling model pointers. An existing check at app startup ensures the user
-	// is notified of the missing model.
-	if len(references) != 0 {
-		errs = append(errs, fmt.Errorf("the model is referenced by bricks belonging to the following apps: %s", strings.Join(references, ", ")))
-	}
-
-	if !force && len(errs) > 0 {
-		return fmt.Errorf("%w: %w", errors.Join(errs...), ErrConflict)
+		// Note: app.yaml files referencing the model will not be modified, resulting
+		// in dangling model pointers. An existing check at app startup ensures the user
+		// is notified of the missing model.
+		if !force {
+			return fmt.Errorf(sb.String())
+		}
 	}
 
 	if res.ModelFolderPath == nil {
@@ -144,20 +143,13 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 	return nil
 }
 
-func isModelUsedInRunningApp(ctx context.Context, dockerClient command.Cli, modelId string) (string, error) {
+// Validate if the model is currently in use or referenced.
+// Both checks are performed simultaneously to support the "force" flag logic.
+// This allows the user to see both issues before deciding to use the flag
+// preventing the second error from being masked.
+func checkForModelReferences(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, idProvider *app.IDProvider, modelId string) ([]string, string, error) {
 	runningApp, err := getRunningApp(ctx, dockerClient.Client())
-	if err != nil {
-		return "", err
-	}
-	for _, b := range runningApp.Descriptor.Bricks {
-		if b.Model == modelId {
-			return runningApp.Name, nil
-		}
-	}
-	return "", nil
-}
 
-func isModelReferencedInApp(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, idProvider *app.IDProvider, modelId string) ([]string, error) {
 	apps, err := ListApps(ctx, dockerClient, ListAppRequest{
 		ShowExamples:                   true,
 		ShowApps:                       true,
@@ -166,10 +158,11 @@ func isModelReferencedInApp(ctx context.Context, dockerClient command.Cli, cfg c
 		idProvider, cfg)
 
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	references := make(map[string]struct{})
+	runningAppReference := ""
 	for _, a := range apps.Apps {
 		app, err := app.Load(a.ID.ToPath())
 		if err != nil {
@@ -179,9 +172,14 @@ func isModelReferencedInApp(ctx context.Context, dockerClient command.Cli, cfg c
 		for _, b := range app.Descriptor.Bricks {
 			if b.Model == modelId {
 				references[app.Name] = struct{}{}
+				if runningApp != nil && runningApp.Name == app.Name {
+					runningAppReference = app.Name
+					runningApp = nil // no need to check anymore
+				}
 			}
 		}
 	}
 
-	return slices.Collect(maps.Keys(references)), nil
+	return slices.Collect(maps.Keys(references)), runningAppReference, nil
+
 }
