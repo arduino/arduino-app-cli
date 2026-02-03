@@ -261,15 +261,7 @@ func getUsedByApps(
 	usedByApps := []AppReference{}
 
 	for _, p := range pathsToExplore {
-		res, err := p.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
-			if file.Base() == ".cache" {
-				return false
-			}
-			if file.Join("app.yaml").NotExist() && file.Join("app.yml").NotExist() {
-				return true
-			}
-			return false
-		}, paths.FilterDirectories(), paths.FilterOutNames("python", "sketch", ".cache"))
+		res, err := app.FindAppsInFolder(p)
 		if err != nil {
 			slog.Error("unable to list apps", slog.String("error", err.Error()))
 			return usedByApps, err
