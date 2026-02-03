@@ -106,35 +106,17 @@ func getAppsStatus(
 	ctx context.Context,
 	docker dockerClient.APIClient,
 ) ([]AppStatusInfo, error) {
-	getPythonApp := func() ([]AppStatusInfo, error) {
-		containers, err := docker.ContainerList(ctx, container.ListOptions{
-			All:     true,
-			Filters: filters.NewArgs(filters.Arg("label", DockerAppLabel+"=true")),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to list containers: %w", err)
-		}
-		if len(containers) == 0 {
-			return nil, nil
-		}
-		return parseAppStatus(containers), nil
+	containers, err := docker.ContainerList(ctx, container.ListOptions{
+		All:     true,
+		Filters: filters.NewArgs(filters.Arg("label", DockerAppLabel+"=true")),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
-
-	getSketchApp := func() ([]AppStatusInfo, error) {
-		// TODO: implement this function
+	if len(containers) == 0 {
 		return nil, nil
 	}
-
-	for _, get := range [](func() ([]AppStatusInfo, error)){getPythonApp, getSketchApp} {
-		apps, err := get()
-		if err != nil {
-			return nil, err
-		}
-		if len(apps) != 0 {
-			return apps, nil
-		}
-	}
-	return nil, nil
+	return parseAppStatus(containers), nil
 }
 
 func getAppStatus(
