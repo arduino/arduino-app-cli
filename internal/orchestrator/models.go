@@ -262,6 +262,11 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 	edgeModelsDir := modelsDir.Join(id)
 	blobModelsDir := edgeModelsDir.Join("model.eim")
 
+	modelRC, err := eiClient.DownloadAndInstallModel(ctx, blobModelsDir, projectID, impulseID, mType, mEngine, deviceType)
+	if err != nil {
+		return nil, err
+	}
+
 	customModelDescriptor := custommodel.ModelDescriptor{
 		ID:          id,
 		Name:        project.Name,
@@ -274,11 +279,6 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 			"ei-engine":     string(mEngine),
 		},
 		Bricks: buildBrickConfigForEIModel(bricksIndex, project.Category, edgeModelsDir, blobModelsDir),
-	}
-
-	modelRC, err := eiClient.DownloadAndInstallModel(ctx, blobModelsDir, projectID, impulseID, mType, mEngine, deviceType)
-	if err != nil {
-		return nil, err
 	}
 
 	aimodel, err := custommodel.Store(edgeModelsDir, customModelDescriptor, modelRC, "model.eim")
