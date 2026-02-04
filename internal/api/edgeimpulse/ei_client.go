@@ -113,9 +113,9 @@ func (c *EIClient) GetDeployment(ctx context.Context, projectID int, impulseID i
 	return nil, fmt.Errorf("error fetching deployment info: %s", *resp.JSON200.Error)
 }
 
-func (c *EIClient) Build(ctx context.Context, projectID int, modelType ModelTypeParameter, engine ModelEngineParameter, deviceType DeploymentTypeParameter) (*int, error) {
+func (c *EIClient) Build(ctx context.Context, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter, deviceType DeploymentTypeParameter) (*int, error) {
 
-	params := &BuildOnDeviceModelJobParams{Type: deviceType}
+	params := &BuildOnDeviceModelJobParams{Type: deviceType, ImpulseId: &impulseID}
 
 	km_variant := KerasModelVariantEnum(string(modelType))
 
