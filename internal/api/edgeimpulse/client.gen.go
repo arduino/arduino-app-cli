@@ -24,6 +24,27 @@ const (
 	OAuth2Scopes                      = "OAuth2.Scopes"
 )
 
+// Defines values for DSPGroupItemSection.
+const (
+	Advanced       DSPGroupItemSection = "advanced"
+	Augmentation   DSPGroupItemSection = "augmentation"
+	ModelProfiling DSPGroupItemSection = "modelProfiling"
+)
+
+// Defines values for DSPGroupItemShowIfOperator.
+const (
+	Eq  DSPGroupItemShowIfOperator = "eq"
+	Neq DSPGroupItemShowIfOperator = "neq"
+)
+
+// Defines values for DeploymentTargetUiSection.
+const (
+	DeploymentTargetUiSectionFirmware DeploymentTargetUiSection = "firmware"
+	DeploymentTargetUiSectionHidden   DeploymentTargetUiSection = "hidden"
+	DeploymentTargetUiSectionLibrary  DeploymentTargetUiSection = "library"
+	DeploymentTargetUiSectionMobile   DeploymentTargetUiSection = "mobile"
+)
+
 // Defines values for DeploymentTargetEngine.
 const (
 	DeploymentTargetEngineAkida                 DeploymentTargetEngine = "akida"
@@ -41,6 +62,7 @@ const (
 	DeploymentTargetEngineTfliteEon             DeploymentTargetEngine = "tflite-eon"
 	DeploymentTargetEngineTfliteEonRamOptimized DeploymentTargetEngine = "tflite-eon-ram-optimized"
 	DeploymentTargetEngineTidl                  DeploymentTargetEngine = "tidl"
+	DeploymentTargetEngineVlmConnector          DeploymentTargetEngine = "vlm-connector"
 )
 
 // Defines values for DeviceInferenceInfoModelType.
@@ -140,6 +162,14 @@ const (
 	ProjectCategoryKeywordSpotting ProjectCategory = "Keyword spotting"
 	ProjectCategoryObjectDetection ProjectCategory = "Object detection"
 	ProjectCategoryOther           ProjectCategory = "Other"
+)
+
+// Defines values for ProjectDeploymentTargetUiSection.
+const (
+	ProjectDeploymentTargetUiSectionFirmware ProjectDeploymentTargetUiSection = "firmware"
+	ProjectDeploymentTargetUiSectionHidden   ProjectDeploymentTargetUiSection = "hidden"
+	ProjectDeploymentTargetUiSectionLibrary  ProjectDeploymentTargetUiSection = "library"
+	ProjectDeploymentTargetUiSectionMobile   ProjectDeploymentTargetUiSection = "mobile"
 )
 
 // Defines values for ProjectInfoResponseAcquisitionSettingsViewType.
@@ -256,10 +286,25 @@ type ApplicationBudget struct {
 // BuildOnDeviceModelRequest defines model for BuildOnDeviceModelRequest.
 type BuildOnDeviceModelRequest struct {
 	Engine    DeploymentTargetEngine `json:"engine"`
-	ModelType *KerasModelTypeEnum    `json:"modelType,omitempty"`
+	ModelType *KerasModelVariantEnum `json:"modelType,omitempty"`
 
 	// Parameters List of custom parameters for this deployment job (see the list of parameters that the block exposes in DeploymentTarget#parameters).
 	Parameters *map[string]string `json:"parameters,omitempty"`
+}
+
+// BuildOnDeviceModelResponse defines model for BuildOnDeviceModelResponse.
+type BuildOnDeviceModelResponse struct {
+	// DeploymentVersion Deployment version, use `downloadHistoricDeployment` to later download the deployment using this identifier.
+	DeploymentVersion int `json:"deploymentVersion"`
+
+	// Error Optional error description (set if 'success' was false)
+	Error *string `json:"error,omitempty"`
+
+	// Id Job identifier. Status updates will include this identifier.
+	Id int `json:"id"`
+
+	// Success Whether the operation succeeded
+	Success bool `json:"success"`
 }
 
 // CreatedUpdatedByUser defines model for CreatedUpdatedByUser.
@@ -270,8 +315,147 @@ type CreatedUpdatedByUser struct {
 	Username string  `json:"username"`
 }
 
+// DSPGroupItem defines model for DSPGroupItem.
+type DSPGroupItem struct {
+	DefaultValue string  `json:"defaultValue"`
+	Help         *string `json:"help,omitempty"`
+
+	// Hint If set, shows a hint below the input.
+	Hint        *string `json:"hint,omitempty"`
+	InvalidText *string `json:"invalidText,omitempty"`
+
+	// Items Recursive definition for items of a parameter with type 'array'.
+	Items *map[string]interface{} `json:"items,omitempty"`
+
+	// MaxVal Maximum value for parameters of type 'int' or 'float'.
+	MaxVal *float32 `json:"maxVal,omitempty"`
+
+	// MinVal Minimum value for parameters of type 'int' or 'float'.
+	MinVal *float32 `json:"minVal,omitempty"`
+
+	// Multiline Only valid for type "string". Will render a multiline text area.
+	Multiline *bool  `json:"multiline,omitempty"`
+	Name      string `json:"name"`
+	Param     string `json:"param"`
+
+	// Placeholder Sets the placeholder text on the input element (for types "string", "int", "float" and "secret")
+	Placeholder *string `json:"placeholder,omitempty"`
+
+	// Properties Recursive definition for a parameter with type 'object'.
+	Properties *map[string]interface{} `json:"properties,omitempty"`
+	Readonly   bool                    `json:"readonly"`
+	Required   bool                    `json:"required"`
+
+	// Section Interface section to render parameter in.
+	Section       *DSPGroupItemSection `json:"section,omitempty"`
+	SelectOptions *[]struct {
+		NeedsFeatures *[]string `json:"needsFeatures,omitempty"`
+		NeedsOps      *[]string `json:"needsOps,omitempty"`
+
+		// OptionLabel What is the label that will be shown to the user for this option?
+		OptionLabel *string `json:"optionLabel,omitempty"`
+
+		// Priority The following options are optional.  See Learn Block Auto Config in Notion. Higher priority will get chosen based on limits below.
+		Priority *float32 `json:"priority,omitempty"`
+
+		// RomEstimate Estimated ROM footprint for this choice.  Will be tested against ROM budget in Studio.
+		RomEstimate *float32 `json:"romEstimate,omitempty"`
+		Selected    *bool    `json:"selected,omitempty"`
+
+		// Value What is the string that will be set if this option is selected?
+		Value *string `json:"value,omitempty"`
+	} `json:"selectOptions,omitempty"`
+	ShouldShow bool `json:"shouldShow"`
+
+	// ShowClickToSet If enabled, render a disabled input element with 'Click to set'
+	ShowClickToSet bool `json:"showClickToSet"`
+	ShowIf         *struct {
+		Operator  DSPGroupItemShowIfOperator `json:"operator"`
+		Parameter string                     `json:"parameter"`
+		Value     string                     `json:"value"`
+	} `json:"showIf,omitempty"`
+	Type string `json:"type"`
+
+	// Valid Valid values for parameter.
+	Valid *[]map[string]interface{} `json:"valid,omitempty"`
+	Value *string                   `json:"value,omitempty"`
+}
+
+// DSPGroupItemSection Interface section to render parameter in.
+type DSPGroupItemSection string
+
+// DSPGroupItemShowIfOperator defines model for DSPGroupItem.ShowIf.Operator.
+type DSPGroupItemShowIfOperator string
+
+// DeploymentTarget defines model for DeploymentTarget.
+type DeploymentTarget struct {
+	Badge *struct {
+		Description string `json:"description"`
+		Name        string `json:"name"`
+	} `json:"badge,omitempty"`
+	CustomDeployId             *int    `json:"customDeployId,omitempty"`
+	CustomDeployOrganizationId *int    `json:"customDeployOrganizationId,omitempty"`
+	Description                string  `json:"description"`
+	DocsUrl                    string  `json:"docsUrl"`
+	FirmwareRepoUrl            *string `json:"firmwareRepoUrl,omitempty"`
+	Format                     string  `json:"format"`
+
+	// HasAkida Preferably use supportedEngines / preferredEngine
+	HasAkida bool `json:"hasAkida"`
+
+	// HasCevaNpn Preferably use supportedEngines / preferredEngine
+	HasCevaNpn bool `json:"hasCevaNpn"`
+
+	// HasDRPAI Preferably use supportedEngines / preferredEngine
+	HasDRPAI bool `json:"hasDRPAI"`
+
+	// HasEonCompiler Preferably use supportedEngines / preferredEngine
+	HasEonCompiler bool `json:"hasEonCompiler"`
+
+	// HasMemryx Preferably use supportedEngines / preferredEngine
+	HasMemryx bool `json:"hasMemryx"`
+
+	// HasNordicAxon Preferably use supportedEngines / preferredEngine
+	HasNordicAxon bool `json:"hasNordicAxon"`
+
+	// HasStAton Preferably use supportedEngines / preferredEngine
+	HasStAton bool `json:"hasStAton"`
+
+	// HasTIDL Preferably use supportedEngines / preferredEngine
+	HasTIDL bool `json:"hasTIDL"`
+
+	// HasTensaiFlow Preferably use supportedEngines / preferredEngine
+	HasTensaiFlow bool `json:"hasTensaiFlow"`
+
+	// HasTensorRT Preferably use supportedEngines / preferredEngine
+	HasTensorRT           bool                      `json:"hasTensorRT"`
+	HideOptimizations     bool                      `json:"hideOptimizations"`
+	Image                 string                    `json:"image"`
+	ImageClasses          string                    `json:"imageClasses"`
+	IntegrateUrl          *string                   `json:"integrateUrl,omitempty"`
+	LatencyDevice         *string                   `json:"latencyDevice,omitempty"`
+	ModelVariants         []DeploymentTargetVariant `json:"modelVariants"`
+	Name                  string                    `json:"name"`
+	OwnerOrganizationName *string                   `json:"ownerOrganizationName,omitempty"`
+	Parameters            []DSPGroupItem            `json:"parameters"`
+	PreferredEngine       DeploymentTargetEngine    `json:"preferredEngine"`
+	SupportedEngines      []DeploymentTargetEngine  `json:"supportedEngines"`
+	UiSection             DeploymentTargetUiSection `json:"uiSection"`
+	Url                   *string                   `json:"url,omitempty"`
+}
+
+// DeploymentTargetUiSection defines model for DeploymentTarget.UiSection.
+type DeploymentTargetUiSection string
+
 // DeploymentTargetEngine defines model for DeploymentTargetEngine.
 type DeploymentTargetEngine string
+
+// DeploymentTargetVariant defines model for DeploymentTargetVariant.
+type DeploymentTargetVariant struct {
+	Hint      *string               `json:"hint,omitempty"`
+	Supported bool                  `json:"supported"`
+	Variant   KerasModelVariantEnum `json:"variant"`
+}
 
 // DevelopmentKeys defines model for DevelopmentKeys.
 type DevelopmentKeys struct {
@@ -354,6 +538,31 @@ type GetJobResponse struct {
 	// Error Optional error description (set if 'success' was false)
 	Error *string `json:"error,omitempty"`
 	Job   Job     `json:"job"`
+
+	// Success Whether the operation succeeded
+	Success bool `json:"success"`
+}
+
+// GetLastDeploymentBuildResponse defines model for GetLastDeploymentBuildResponse.
+type GetLastDeploymentBuildResponse struct {
+	// Error Optional error description (set if 'success' was false)
+	Error *string `json:"error,omitempty"`
+
+	// HasBuild Does the deployment build still exist? (Builds are deleted if they are no longer valid for the project)
+	HasBuild  bool `json:"hasBuild"`
+	LastBuild *struct {
+		// Created The time this build was created
+		Created time.Time `json:"created"`
+
+		// DeploymentType Deployment type of the build
+		DeploymentType string                 `json:"deploymentType"`
+		Engine         DeploymentTargetEngine `json:"engine"`
+		ModelType      *KerasModelTypeEnum    `json:"modelType,omitempty"`
+
+		// Version The build version, incremented after each deployment build
+		Version int `json:"version"`
+	} `json:"lastBuild,omitempty"`
+	LastDeploymentTarget *ProjectDeploymentTarget `json:"lastDeploymentTarget,omitempty"`
 
 	// Success Whether the operation succeeded
 	Success bool `json:"success"`
@@ -573,6 +782,75 @@ type ProjectDataSummary struct {
 	TotalLengthMs float32 `json:"totalLengthMs"`
 }
 
+// ProjectDeploymentTarget defines model for ProjectDeploymentTarget.
+type ProjectDeploymentTarget struct {
+	Badge *struct {
+		Description string `json:"description"`
+		Name        string `json:"name"`
+	} `json:"badge,omitempty"`
+	CustomDeployId             *int   `json:"customDeployId,omitempty"`
+	CustomDeployOrganizationId *int   `json:"customDeployOrganizationId,omitempty"`
+	Description                string `json:"description"`
+
+	// DisabledForProject Whether this deployment target is disabled for the project based on various attributes of the project.
+	DisabledForProject bool    `json:"disabledForProject"`
+	DocsUrl            string  `json:"docsUrl"`
+	FirmwareRepoUrl    *string `json:"firmwareRepoUrl,omitempty"`
+	Format             string  `json:"format"`
+
+	// HasAkida Preferably use supportedEngines / preferredEngine
+	HasAkida bool `json:"hasAkida"`
+
+	// HasCevaNpn Preferably use supportedEngines / preferredEngine
+	HasCevaNpn bool `json:"hasCevaNpn"`
+
+	// HasDRPAI Preferably use supportedEngines / preferredEngine
+	HasDRPAI bool `json:"hasDRPAI"`
+
+	// HasEonCompiler Preferably use supportedEngines / preferredEngine
+	HasEonCompiler bool `json:"hasEonCompiler"`
+
+	// HasMemryx Preferably use supportedEngines / preferredEngine
+	HasMemryx bool `json:"hasMemryx"`
+
+	// HasNordicAxon Preferably use supportedEngines / preferredEngine
+	HasNordicAxon bool `json:"hasNordicAxon"`
+
+	// HasStAton Preferably use supportedEngines / preferredEngine
+	HasStAton bool `json:"hasStAton"`
+
+	// HasTIDL Preferably use supportedEngines / preferredEngine
+	HasTIDL bool `json:"hasTIDL"`
+
+	// HasTensaiFlow Preferably use supportedEngines / preferredEngine
+	HasTensaiFlow bool `json:"hasTensaiFlow"`
+
+	// HasTensorRT Preferably use supportedEngines / preferredEngine
+	HasTensorRT           bool                      `json:"hasTensorRT"`
+	HideOptimizations     bool                      `json:"hideOptimizations"`
+	Image                 string                    `json:"image"`
+	ImageClasses          string                    `json:"imageClasses"`
+	IntegrateUrl          *string                   `json:"integrateUrl,omitempty"`
+	LatencyDevice         *string                   `json:"latencyDevice,omitempty"`
+	ModelVariants         []DeploymentTargetVariant `json:"modelVariants"`
+	Name                  string                    `json:"name"`
+	OwnerOrganizationName *string                   `json:"ownerOrganizationName,omitempty"`
+	Parameters            []DSPGroupItem            `json:"parameters"`
+	PreferredEngine       DeploymentTargetEngine    `json:"preferredEngine"`
+
+	// ReasonTargetDisabled If the deployment target is disabled for the project, this gives the reason why.
+	ReasonTargetDisabled *string `json:"reasonTargetDisabled,omitempty"`
+
+	// RecommendedForProject Whether this deployment target is recommended for the project based on connected devices.
+	RecommendedForProject bool                             `json:"recommendedForProject"`
+	SupportedEngines      []DeploymentTargetEngine         `json:"supportedEngines"`
+	UiSection             ProjectDeploymentTargetUiSection `json:"uiSection"`
+	Url                   *string                          `json:"url,omitempty"`
+}
+
+// ProjectDeploymentTargetUiSection defines model for ProjectDeploymentTarget.UiSection.
+type ProjectDeploymentTargetUiSection string
+
 // ProjectInfoResponse defines model for ProjectInfoResponse.
 type ProjectInfoResponse struct {
 	AcquisitionSettings struct {
@@ -773,18 +1051,6 @@ type StaffInfo struct {
 	CompanyName   *string `json:"companyName,omitempty"`
 	HasSudoRights bool    `json:"hasSudoRights"`
 	IsStaff       bool    `json:"isStaff"`
-}
-
-// StartJobResponse defines model for StartJobResponse.
-type StartJobResponse struct {
-	// Error Optional error description (set if 'success' was false)
-	Error *string `json:"error,omitempty"`
-
-	// Id Job identifier. Status updates will include this identifier.
-	Id int `json:"id"`
-
-	// Success Whether the operation succeeded
-	Success bool `json:"success"`
 }
 
 // TargetConstraints defines model for TargetConstraints.
@@ -1086,6 +1352,12 @@ type DownloadBuildParams struct {
 	ImpulseId *OptionalImpulseIdParameter `form:"impulseId,omitempty" json:"impulseId,omitempty"`
 }
 
+// GetLastDeploymentBuildParams defines parameters for GetLastDeploymentBuild.
+type GetLastDeploymentBuildParams struct {
+	// ImpulseId Impulse ID. If this is unset then the default impulse is used.
+	ImpulseId *OptionalImpulseIdParameter `form:"impulseId,omitempty" json:"impulseId,omitempty"`
+}
+
 // BuildOnDeviceModelJobParams defines parameters for BuildOnDeviceModelJob.
 type BuildOnDeviceModelJobParams struct {
 	// Type The name of the built target. You can find this by listing all deployment targets through `listDeploymentTargetsForProject` (via `GET /v1/api/{projectId}/deployment/targets`) and see the `format` type.
@@ -1203,6 +1475,9 @@ type ClientInterface interface {
 	// DownloadBuild request
 	DownloadBuild(ctx context.Context, projectId ProjectIdParameter, params *DownloadBuildParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetLastDeploymentBuild request
+	GetLastDeploymentBuild(ctx context.Context, projectId ProjectIdParameter, params *GetLastDeploymentBuildParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// BuildOnDeviceModelJobWithBody request with any body
 	BuildOnDeviceModelJobWithBody(ctx context.Context, projectId ProjectIdParameter, params *BuildOnDeviceModelJobParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1277,6 +1552,18 @@ func (c *Client) GetDeployment(ctx context.Context, projectId ProjectIdParameter
 
 func (c *Client) DownloadBuild(ctx context.Context, projectId ProjectIdParameter, params *DownloadBuildParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDownloadBuildRequest(c.Server, projectId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetLastDeploymentBuild(ctx context.Context, projectId ProjectIdParameter, params *GetLastDeploymentBuildParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetLastDeploymentBuildRequest(c.Server, projectId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1672,6 +1959,62 @@ func NewDownloadBuildRequest(server string, projectId ProjectIdParameter, params
 	return req, nil
 }
 
+// NewGetLastDeploymentBuildRequest generates requests for GetLastDeploymentBuild
+func NewGetLastDeploymentBuildRequest(server string, projectId ProjectIdParameter, params *GetLastDeploymentBuildParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "projectId", runtime.ParamLocationPath, projectId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/%s/deployment/last", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.ImpulseId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "impulseId", runtime.ParamLocationQuery, *params.ImpulseId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewBuildOnDeviceModelJobRequest calls the generic BuildOnDeviceModelJob builder with application/json body
 func NewBuildOnDeviceModelJobRequest(server string, projectId ProjectIdParameter, params *BuildOnDeviceModelJobParams, body BuildOnDeviceModelJobJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -1933,6 +2276,9 @@ type ClientWithResponsesInterface interface {
 	// DownloadBuildWithResponse request
 	DownloadBuildWithResponse(ctx context.Context, projectId ProjectIdParameter, params *DownloadBuildParams, reqEditors ...RequestEditorFn) (*DownloadBuildHTTPResponse, error)
 
+	// GetLastDeploymentBuildWithResponse request
+	GetLastDeploymentBuildWithResponse(ctx context.Context, projectId ProjectIdParameter, params *GetLastDeploymentBuildParams, reqEditors ...RequestEditorFn) (*GetLastDeploymentBuildHTTPResponse, error)
+
 	// BuildOnDeviceModelJobWithBodyWithResponse request with any body
 	BuildOnDeviceModelJobWithBodyWithResponse(ctx context.Context, projectId ProjectIdParameter, params *BuildOnDeviceModelJobParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*BuildOnDeviceModelJobHTTPResponse, error)
 
@@ -2054,10 +2400,32 @@ func (r DownloadBuildHTTPResponse) StatusCode() int {
 	return 0
 }
 
+type GetLastDeploymentBuildHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GetLastDeploymentBuildResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetLastDeploymentBuildHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetLastDeploymentBuildHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type BuildOnDeviceModelJobHTTPResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *StartJobResponse
+	JSON200      *BuildOnDeviceModelResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2171,6 +2539,15 @@ func (c *ClientWithResponses) DownloadBuildWithResponse(ctx context.Context, pro
 		return nil, err
 	}
 	return ParseDownloadBuildHTTPResponse(rsp)
+}
+
+// GetLastDeploymentBuildWithResponse request returning *GetLastDeploymentBuildHTTPResponse
+func (c *ClientWithResponses) GetLastDeploymentBuildWithResponse(ctx context.Context, projectId ProjectIdParameter, params *GetLastDeploymentBuildParams, reqEditors ...RequestEditorFn) (*GetLastDeploymentBuildHTTPResponse, error) {
+	rsp, err := c.GetLastDeploymentBuild(ctx, projectId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetLastDeploymentBuildHTTPResponse(rsp)
 }
 
 // BuildOnDeviceModelJobWithBodyWithResponse request with arbitrary body returning *BuildOnDeviceModelJobHTTPResponse
@@ -2328,6 +2705,32 @@ func ParseDownloadBuildHTTPResponse(rsp *http.Response) (*DownloadBuildHTTPRespo
 	return response, nil
 }
 
+// ParseGetLastDeploymentBuildHTTPResponse parses an HTTP response from a GetLastDeploymentBuildWithResponse call
+func ParseGetLastDeploymentBuildHTTPResponse(rsp *http.Response) (*GetLastDeploymentBuildHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetLastDeploymentBuildHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GetLastDeploymentBuildResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseBuildOnDeviceModelJobHTTPResponse parses an HTTP response from a BuildOnDeviceModelJobWithResponse call
 func ParseBuildOnDeviceModelJobHTTPResponse(rsp *http.Response) (*BuildOnDeviceModelJobHTTPResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -2343,7 +2746,7 @@ func ParseBuildOnDeviceModelJobHTTPResponse(rsp *http.Response) (*BuildOnDeviceM
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest StartJobResponse
+		var dest BuildOnDeviceModelResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
