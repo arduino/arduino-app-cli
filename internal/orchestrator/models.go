@@ -240,7 +240,7 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 			"ei-impulse-id":    fmt.Sprintf("%d", impulseID),
 			"ei-model-type":    string(mType),
 			"ei-engine":        string(mEngine),
-			"ei-last-modified": project.LastModified.String(),
+			"ei-last-modified": project.LastModified.Local().Format("2006-01-02 15:04:05"),
 		},
 		Bricks: buildBrickConfigForEIModel(bricksIndex, project.Category, edgeModelsDir, blobModelsDir),
 	}
