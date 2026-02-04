@@ -115,6 +115,12 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 		}
 		defer r.Body.Close()
 
+		if err := req.Validate(); err != nil {
+			slog.Error("invalid install EI model request", slog.String("error", err.Error()))
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
+			return
+		}
+
 		if cfg.EdgeImpulseAPIURL == nil {
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "Edge Impulse API URL is not configured"})
 			return
@@ -143,4 +149,17 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 		// FIXME: read the installed model using the modelindex.getModelByID
 		render.EncodeResponse(w, http.StatusOK, eiModel)
 	}
+}
+
+func (r InstallEIModelRequest) Validate() error {
+	if r.ProjectID <= 0 {
+		return fmt.Errorf("project_id must be a positive integer")
+	}
+	if r.ImpulseID < 0 {
+		return fmt.Errorf("impulse_id must be a non-negative integer")
+	}
+	if strings.TrimSpace(r.PrjApiKey) == "" {
+		return fmt.Errorf("prj_api_key must be provided")
+	}
+	return nil
 }
