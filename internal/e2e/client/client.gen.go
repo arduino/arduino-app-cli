@@ -51,13 +51,12 @@ type AIModel struct {
 
 // AIModelItem defines model for AIModelItem.
 type AIModelItem struct {
-	BrickIds           *[]string          `json:"brick_ids"`
-	Description        *string            `json:"description,omitempty"`
-	Id                 *string            `json:"id,omitempty"`
-	Metadata           *map[string]string `json:"metadata,omitempty"`
-	ModelConfiguration *map[string]string `json:"model_configuration,omitempty"`
-	Name               *string            `json:"name,omitempty"`
-	Runner             *string            `json:"runner,omitempty"`
+	BrickIds    *[]string          `json:"brick_ids"`
+	Description *string            `json:"description,omitempty"`
+	Id          *string            `json:"id,omitempty"`
+	Metadata    *map[string]string `json:"metadata,omitempty"`
+	Name        *string            `json:"name,omitempty"`
+	Runner      *string            `json:"runner,omitempty"`
 }
 
 // AIModelsListResult defines model for AIModelsListResult.

@@ -8,8 +8,8 @@ models:
     model_labels: 
       - face
     bricks:
-      - arduino:brick-with-custom-model
-      - arduino:video_object_detection
+      - id: "arduino:brick-with-custom-model"
+      - id: "arduino:video_object_detection"
     metadata:
       source: "qualcomm-ai-hub"
       ei-gpu-mode: false

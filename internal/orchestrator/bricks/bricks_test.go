@@ -247,9 +247,9 @@ func TestUpdateBrick(t *testing.T) {
 		require.Nil(t, tempDummyApp.RemoveAll())
 		require.Nil(t, paths.New("testdata/dummy-app-for-model").CopyDirTo(tempDummyApp))
 		bricksIndex, err := bricksindex.Load(paths.New("testdata"))
-		require.Nil(t, err)
+		require.NoError(t, err)
 		modelsIndex, err := modelsindex.Load(paths.New("testdata"), paths.New("not_exixsting_path"))
-		require.Nil(t, err)
+		require.NoError(t, err)
 		brickService := NewService(modelsIndex, bricksIndex, nil)
 
 		modelPath := "/home/arduino/.arduino-bricks/ei-model-123-1/model.eim"
