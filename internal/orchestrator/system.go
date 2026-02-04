@@ -28,6 +28,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/arduino/arduino-cli/commands"
+	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
+	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
@@ -35,9 +38,11 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	dockerClient "github.com/docker/docker/client"
+	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
@@ -49,6 +54,18 @@ const ExitCodeDockerOutOfSpace = 80
 // Pulls all the docker images needed for the current version of the software to run.
 // Can be used to pre-install docker images on an empty system, or to update all the docker images that need it.
 func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *store.StaticStore, docker *command.DockerCli) error {
+	if err := downloadSketchLibsUsedInExamples(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to download sketch libs used in examples: %w", err)
+	}
+
+	if err := downloadContainersUsedInExamples(ctx, cfg, staticStore, docker); err != nil {
+		return fmt.Errorf("failed to download container images used in examples: %w", err)
+	}
+
+	return nil
+}
+
+func downloadContainersUsedInExamples(ctx context.Context, cfg config.Configuration, staticStore *store.StaticStore, docker *command.DockerCli) error {
 	imagesToPreinstall := []string{cfg.PythonImage}
 	additionalImages, err := parseAllModelsRunnerImageTag(staticStore)
 	if err != nil {
@@ -346,4 +363,81 @@ func removeDanglingContainers(ctx context.Context, docker dockerClient.APIClient
 		counter++
 	}
 	return counter, nil
+}
+
+func downloadSketchLibsUsedInExamples(ctx context.Context, cfg config.Configuration) error {
+	// Start an Arduino Core Server RPC server
+	logrus.SetOutput(io.Discard) // Suppress logs from Arduino CLI
+	var cliInstance *rpc.Instance
+	cli := commands.NewArduinoCoreServer()
+	if resp, err := cli.Create(ctx, &rpc.CreateRequest{}); err != nil {
+		return fmt.Errorf("could not create Arduino Core Server client: %w", err)
+	} else {
+		cliInstance = resp.GetInstance()
+	}
+	defer func() {
+		// Close the server instance
+		_, _ = cli.Destroy(ctx, &rpc.DestroyRequest{Instance: cliInstance})
+	}()
+
+	// Force-update of the Arduino Libraries index
+	{
+		progressCB := func(curr *rpc.DownloadProgress) {
+			// XXX: push some progress?
+		}
+		str, _ := commands.UpdateLibrariesIndexStreamResponseToCallbackFunction(ctx, progressCB)
+		if err := cli.UpdateLibrariesIndex(&rpc.UpdateLibrariesIndexRequest{Instance: cliInstance}, str); err != nil {
+			return fmt.Errorf("could not update libraries index: %w", err)
+		}
+	}
+
+	// Get a list of example apps
+	exampleAppsPath, err := app.FindAppsInFolder(cfg.ExamplesDir())
+	if err != nil {
+		return err
+	}
+
+	// After downloading the libs, clean up the download cache
+	defer func() {
+		_, _ = cli.CleanDownloadCacheDirectory(ctx, &rpc.CleanDownloadCacheDirectoryRequest{Instance: cliInstance})
+	}()
+
+	// Download libraries used in each example app
+	for _, appPath := range exampleAppsPath {
+		if err := downloadSketchLibsUsedInApp(ctx, appPath, cli, cliInstance); err != nil {
+			return fmt.Errorf("could not download libs in app %s: %w", appPath, err)
+		}
+	}
+
+	return nil
+}
+
+func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, cli rpc.ArduinoCoreServiceServer, cliInstance *rpc.Instance) error {
+	// Open the app to get the sketch path
+	app, err := app.Load(appPath)
+	if err != nil {
+		return err
+	}
+	sketchPath, ok := app.GetSketchPath()
+	if !ok {
+		return nil
+	}
+
+	// Initializing using the profile will force download and install of the missing libraries
+	progressCB := func(r *rpc.InitResponse) error {
+		// XXX: push some progress?
+		return nil
+	}
+	if err := cli.Init(
+		&rpc.InitRequest{
+			Instance:   cliInstance,
+			SketchPath: sketchPath.String(),
+			Profile:    "default",
+		},
+		commands.InitStreamResponseToCallbackFunction(ctx, progressCB),
+	); err != nil {
+		return fmt.Errorf("could not initialize sketch %s: %w", sketchPath.String(), err)
+	}
+
+	return nil
 }
