@@ -17,13 +17,6 @@ package orchestrator
 
 import (
 	"context"
-	"fmt"
-	"log/slog"
-	"strings"
-
-	"github.com/arduino/go-paths-helper"
-
-	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -31,15 +24,15 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-
+	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
 	"go.bug.st/f"
 
 	"github.com/arduino/go-paths-helper"
 
+	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
@@ -251,7 +244,29 @@ func checkForModelReferences(ctx context.Context, dockerClient command.Cli, cfg 
 	return slices.Collect(maps.Keys(references)), runningAppReference, nil
 }
 
-func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, projectID int, impulseID int, modelType string, engine string, deviceType string) (*custommodel.AiModel, error) {
+func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, projectID int, impulseID int) (*custommodel.AiModel, error) {
+
+	// TODO these parameters aim to build a model optimized for the Imola hardware, they should change based on the target device
+	mType := edgeimpulse.ModelTypeParameter("float32")
+	mEngine := edgeimpulse.ModelEngineParameter("tflite")
+	deviceType := "runner-linux-aarch64"
+
+	lastBuild, err := eiClient.GetInfoLastDeployment(ctx, projectID, impulseID, deviceType)
+	if err != nil {
+		return nil, err
+	}
+
+	if lastBuild == nil {
+		jobId, err := eiClient.Build(ctx, projectID, mType, mEngine, deviceType)
+		if err != nil {
+			return nil, err
+		}
+		err = eiClient.WaitForBuildCompletion(ctx, projectID, *jobId)
+		if err != nil {
+			return nil, err
+		}
+
+	}
 
 	project, err := eiClient.GetProjectInfo(ctx, projectID, impulseID)
 	if err != nil {
