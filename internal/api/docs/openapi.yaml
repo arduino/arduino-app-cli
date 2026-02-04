@@ -1288,6 +1288,8 @@ components:
           type: string
         id:
           type: string
+        is_builtin:
+          type: boolean
         metadata:
           additionalProperties:
             type: string

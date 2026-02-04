@@ -43,6 +43,7 @@ type AIModelItem struct {
 	Bricks             []string          `json:"brick_ids"`
 	Metadata           map[string]string `json:"metadata,omitempty"`
 	ModelConfiguration map[string]string `json:"model_configuration,omitempty"`
+	IsBuiltin          bool              `json:"is_builtin"`
 }
 
 type AIModelsListRequest struct {
@@ -66,6 +67,7 @@ func AIModelsList(req AIModelsListRequest, modelsIndex *modelsindex.ModelsIndex)
 			Bricks:             model.Bricks,
 			Metadata:           model.Metadata,
 			ModelConfiguration: model.ModelConfiguration,
+			IsBuiltin:          model.IsInternal,
 		}
 	}
 	return res
