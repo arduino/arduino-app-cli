@@ -423,3 +423,125 @@ services:
 		require.Equal(t, exp, content, "Main compose content should match the expected structure")
 	})
 }
+
+func TestProvisionAppComposeOverridesFile(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	staticStore := store.NewStaticStore(cfg.AssetsDir().String())
+	tempDirectory := t.TempDir()
+	var env = map[string]string{}
+	type services struct {
+		Services map[string]struct {
+			User      *string `yaml:"user"`
+			Image     string  `yaml:"image"`
+			DependsOn map[string]struct {
+				Condition string `yaml:"condition"`
+			} `yaml:"depends_on"`
+		} `yaml:"services"`
+	}
+
+	bricksIndexContent := []byte(`
+bricks:
+- id: arduino:dbstorage_tsstore
+  name: Database Storage - Time Series Store
+  description: Simplified time series database storage layer for Arduino sensor samples
+    built on top of InfluxDB.
+  require_container: true
+  require_model: false
+  ports: []
+  category: storage
+  variables:
+  - name: APP_HOME
+    default_value: .`)
+	err := cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
+	require.NoError(t, err)
+
+	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
+	require.Nil(t, err, "Failed to load bricks index with custom content")
+	br, ok := bricksIndex.FindBrickByID("arduino:dbstorage_tsstore")
+	require.True(t, ok, "Brick arduino:dbstorage_tsstore should exist in the index")
+	require.NotNil(t, br, "Brick arduino:dbstorage_tsstore should not be nil")
+	require.Equal(t, "Database Storage - Time Series Store", br.Name, "Brick name should match")
+
+	app := app.ArduinoApp{
+		Name: "TestApp",
+		Descriptor: app.AppDescriptor{
+			Bricks: []app.Brick{
+				{
+					ID: "arduino:dbstorage_tsstore",
+				},
+			},
+		},
+		FullPath: paths.New(tempDirectory),
+	}
+	require.NoError(t, app.ProvisioningStateDir().MkdirAll())
+
+	t.Run("services with user override", func(t *testing.T) {
+		fileComposePath := cfg.AssetsDir().Join("compose", "arduino", "dbstorage_tsstore")
+		require.NoError(t, fileComposePath.MkdirAll())
+		dependsOnFromStrings := `
+services:
+  dbstorage-influx:
+    image: influxdb:2.7
+    user: 0:0
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${BIND_PORT:-8086}:8086"
+    volumes:
+      - "${APP_HOME:-.}/data/influx-data:/var/lib/influxdb2"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/health"]
+  dbstorage-influx-2:
+    image: influxdb:2.7
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${BIND_PORT:-8086}:8086"
+    volumes:
+      - "${APP_HOME:-.}/data/influx-data:/var/lib/influxdb2"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/health"]`
+		serviceComposeFilePath := fileComposePath.Join("brick_compose.yaml")
+		err := serviceComposeFilePath.WriteFile([]byte(dependsOnFromStrings))
+		require.NoError(t, err)
+
+		// Run the provision function to generate the main compose file
+		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore)
+		require.NoError(t, err, "Failed to generate main compose file")
+		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
+		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
+
+		// Extract services from the compose file to prepare override generation
+		svcInfo, err := extractServicesFromComposeFile(serviceComposeFilePath)
+		require.NoError(t, err)
+		servicesThatRequireDevices := []string{}
+		devices := []string{}
+		devices = append(devices, "/dev/ttyUSB0:/dev/ttyUSB0")
+
+		user := "1000:1000"
+
+		groups := []string{}
+		groups = append(groups, "dialout")
+
+		// Generate overrides file
+		overrideComposeFile := paths.New(tempDirectory).Join(".cache").Join("app-compose-overrides.yaml")
+		err = generateServicesOverrideFile(&app, svcInfo, servicesThatRequireDevices, devices, user, groups, overrideComposeFile, env)
+		require.NoError(t, err)
+
+		// load and validate override file content
+		overrideComposeFileContent, err := overrideComposeFile.ReadFile()
+		require.NoError(t, err)
+		var content services
+		err = yaml.Unmarshal(overrideComposeFileContent, &content)
+		require.NoError(t, err)
+		for svcName, svc := range content.Services {
+			if svcName != "dbstorage-influx" {
+				require.NotNil(t, svc.User, "User override should be present for dbstorage-influx-2")
+				require.Equal(t, user, *svc.User, "User override should match the expected value for dbstorage-influx-2")
+			} else {
+				require.Nil(t, svc.User, "User override should not be present for dbstorage-influx")
+			}
+		}
+	})
+
+}
