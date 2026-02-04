@@ -57,6 +57,7 @@ type AIModelItem struct {
 	Metadata           *map[string]string `json:"metadata,omitempty"`
 	ModelConfiguration *map[string]string `json:"model_configuration,omitempty"`
 	Name               *string            `json:"name,omitempty"`
+	Resources          *Resources         `json:"resources,omitempty"`
 	Runner             *string            `json:"runner,omitempty"`
 }
 
@@ -342,14 +343,11 @@ type PropertyKeysResponse struct {
 	Keys *[]string `json:"keys"`
 }
 
-<<<<<<< HEAD
-=======
 // Resources defines model for Resources.
 type Resources struct {
 	DiskUsageMb *int `json:"disk_usage_mb,omitempty"`
 }
 
->>>>>>> 6178f1b (add test e2e first part)
 // SketchAddLibraryResponse defines model for SketchAddLibraryResponse.
 type SketchAddLibraryResponse struct {
 	Libraries *[]string `json:"libraries"`

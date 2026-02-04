@@ -141,7 +141,7 @@ func TestAIModelDetails(t *testing.T) {
 
 		require.NotNil(t, customModelDetails.Description, "Response model's Description should not be nil")
 		require.Equal(t, expectedDescription, *customModelDetails.Description, "Description should match")
-		//TODO test metadata and model configuration contents and runner
+		// TODO test metadata and model configuration contents and runner
 		/*
 			    require.NotNil(t, customModelDetails.Metadata, "Response model's Metadata should not be nil")
 				require.Equal(t, data, customModelDetails.Metadata, "Metadata should match")
@@ -153,7 +153,7 @@ func TestAIModelDetails(t *testing.T) {
 				require.Equal(t, *expectedModel.Runner, *customModelDetails.Runner, "Runner should match")
 		*/
 		require.NotNil(t, customModelDetails.Resources, "Response model's Resources should not be nil")
-		require.Equal(t, expectedDiskUsage, *customModelDetails.Resources.DiskUsageMb, "Response model's Size should be 34MB")
+		require.Equal(t, expectedDiskUsage, *customModelDetails.Resources.DiskUsageMb, "Response model's Size should be 1MB")
 	})
 
 	t.Run("should return 404 not found for an unknown model id", func(t *testing.T) {
