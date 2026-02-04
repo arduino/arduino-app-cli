@@ -221,7 +221,7 @@ func generateMainComposeFile(
 	}
 
 	var composeFiles paths.PathList
-	services := make([]serviceInfo, 0)
+	services := make([]serviceInfo, 0, len(app.Descriptor.Bricks))
 	requiredDeviceClasses := make(map[string]any)
 	for _, brick := range app.Descriptor.Bricks {
 		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
