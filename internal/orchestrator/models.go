@@ -257,7 +257,7 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 	}
 
 	if lastBuild == nil {
-		jobId, err := eiClient.Build(ctx, projectID, mType, mEngine, deviceType)
+		jobId, err := eiClient.Build(ctx, projectID, impulseID, mType, mEngine, deviceType)
 		if err != nil {
 			return nil, err
 		}
