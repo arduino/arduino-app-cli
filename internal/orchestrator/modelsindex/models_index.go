@@ -59,11 +59,12 @@ type AIModel struct {
 	ModelLabels        []string          `yaml:"model_labels,omitempty"`
 	Metadata           map[string]string `yaml:"metadata,omitempty"`
 	ModelConfiguration map[string]string `yaml:"model_configuration,omitempty"`
+	IsInternal         bool              `yaml:"-"`
 }
 
 type ModelsIndex struct {
-	PreInstalledModels []AIModel
-	modelsDir          *paths.Path
+	InternalModels []AIModel
+	modelsDir      *paths.Path
 }
 
 func (m *ModelsIndex) GetModels() []AIModel {
@@ -110,24 +111,24 @@ func (m *ModelsIndex) loadModels() []AIModel {
 	if err != nil {
 		slog.Error("cannot load edge impulse custom models", "err", err)
 	}
-	return append(m.PreInstalledModels, eimodels...)
+	return append(m.InternalModels, eimodels...)
 }
 
 func Load(dir *paths.Path, modelsDir *paths.Path) (*ModelsIndex, error) {
 	if dir == nil && modelsDir == nil {
 		return &ModelsIndex{}, errors.New("either dir or modelsDir must be provided")
 	}
-	models, err := loadPreInstalledModels(dir)
+	models, err := loadInternalModels(dir)
 	if err != nil {
 		return nil, err
 	}
 
-	return &ModelsIndex{PreInstalledModels: models, modelsDir: modelsDir}, nil
+	return &ModelsIndex{InternalModels: models, modelsDir: modelsDir}, nil
 }
 
-func loadPreInstalledModels(dir *paths.Path) ([]AIModel, error) {
+func loadInternalModels(dir *paths.Path) ([]AIModel, error) {
 	if dir == nil {
-		// skip loading pre-installed models
+		// skip loading internal models
 		return []AIModel{}, nil
 	}
 	content, err := dir.Join("models-list.yaml").ReadFile()
@@ -144,6 +145,7 @@ func loadPreInstalledModels(dir *paths.Path) ([]AIModel, error) {
 	for i, modelMap := range list.Models {
 		for id, model := range modelMap {
 			model.ID = id
+			model.IsInternal = true
 			models[i] = model
 		}
 	}
@@ -183,6 +185,7 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 			Metadata:           m.ModelDescriptor.Metadata,
 			ModelConfiguration: toLegacyModelConfiguration(m.ModelDescriptor.Bricks),
 			ModelFolderPath:    m.FullPath,
+			IsInternal:         false,
 		})
 	}
 

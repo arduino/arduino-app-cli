@@ -64,9 +64,10 @@ func NewArduinoAppCLI(t *testing.T) *ArduinoAppCLI {
 		appDir:     appDir,
 		configDir:  configDir,
 		envVars: map[string]string{
-			"ARDUINO_APP_CLI__APPS_DIR":   appDir.String(),
-			"ARDUINO_APP_CLI__CONFIG_DIR": configDir.String(),
-			"ARDUINO_APP_CLI__DATA_DIR":   dataDir.String(),
+			"ARDUINO_APP_CLI__APPS_DIR":            appDir.String(),
+			"ARDUINO_APP_CLI__CONFIG_DIR":          configDir.String(),
+			"ARDUINO_APP_CLI__DATA_DIR":            dataDir.String(),
+			"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": originalTestDataDir.Join("custom_models").String(),
 		},
 	}
 }

@@ -915,6 +915,38 @@ paths:
       tags:
       - AIModels
   /v1/models/{id}:
+    delete:
+      description: Deletes a specific AI model. By default, fails if referenced by
+        apps unless force=true is provided.
+      operationId: deleteAIModel
+      parameters:
+      - description: If true, deletes the model even if referenced by apps.
+        in: query
+        name: force
+        schema:
+          description: If true, deletes the model even if referenced by apps.
+          type: boolean
+      - description: AI model identifier
+        in: path
+        name: id
+        required: true
+        schema:
+          description: AI model identifier
+          type: string
+      responses:
+        "204":
+          description: AI model successfully deleted
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "412":
+          $ref: '#/components/responses/PreconditionFailed'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Delete an AI model
+      tags:
+      - AIModels
     get:
       description: Returns the details of a specific AI model.
       operationId: getAIModelDetails

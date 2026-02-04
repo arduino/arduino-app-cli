@@ -386,7 +386,7 @@ func TestBricksDetails(t *testing.T) {
 		},
 	}
 	mIndex := &modelsindex.ModelsIndex{
-		PreInstalledModels: []modelsindex.AIModel{
+		InternalModels: []modelsindex.AIModel{
 
 			{
 				ID:                "yolox-object-detection",
@@ -550,7 +550,7 @@ func TestAppBrickInstanceModelsDetails(t *testing.T) {
 	}
 
 	mIndex := &modelsindex.ModelsIndex{
-		PreInstalledModels: []modelsindex.AIModel{
+		InternalModels: []modelsindex.AIModel{
 
 			{
 				ID:                "yolox-object-detection",
@@ -734,7 +734,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 	svc := &Service{
 		bricksIndex: bIndex,
 		modelsIndex: &modelsindex.ModelsIndex{
-			PreInstalledModels: []modelsindex.AIModel{
+			InternalModels: []modelsindex.AIModel{
 				{
 					ID:                "yolox-object-detection",
 					Name:              "General purpose object detection - YoloX",

@@ -794,6 +794,28 @@ Contains a JSON object with the details of an error.
 			},
 		},
 		{
+			OperationId: "deleteAIModel",
+			Method:      http.MethodDelete,
+			Path:        "/v1/models/{id}",
+			Request: (*struct {
+				ID    string `path:"id" description:"AI model identifier"`
+				Force bool   `query:"force" description:"If true, deletes the model even if referenced by apps."`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				StatusCode:  http.StatusNoContent,
+				Description: "AI model successfully deleted",
+			},
+			Description: "Deletes a specific AI model. By default, fails if referenced by apps unless force=true is provided.",
+			Summary:     "Delete an AI model",
+			Tags:        []Tag{AIModelsTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
+				{StatusCode: http.StatusNotFound, Reference: "#/components/responses/NotFound"},
+				{StatusCode: http.StatusConflict, Reference: "#/components/responses/Conflict"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
 			OperationId: "getAIModelDetails",
 			Method:      http.MethodGet,
 			Path:        "/v1/models/{id}",

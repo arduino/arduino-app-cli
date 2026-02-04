@@ -16,12 +16,18 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
+
+	"github.com/docker/cli/cli/command"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
@@ -55,5 +61,37 @@ func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 			return
 		}
 		render.EncodeResponse(w, http.StatusOK, res)
+	}
+}
+
+func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, idProvider *app.IDProvider) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := strings.TrimSpace(r.PathValue("modelID"))
+		if id == "" {
+			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "id must be set"})
+			return
+		}
+		forceRaw := r.URL.Query().Get("force")
+		force, err := strconv.ParseBool(forceRaw)
+		if err != nil {
+			force = false
+		}
+
+		err = orchestrator.AIModelDelete(r.Context(), dockerClient, cfg, modelsIndex, id, idProvider, force)
+		if err != nil {
+			switch {
+			case errors.Is(err, orchestrator.ErrNotFound):
+				render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: err.Error()})
+			case errors.Is(err, orchestrator.ErrConflict):
+				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: err.Error()})
+			case errors.Is(err, orchestrator.ErrCannotRemoveModel):
+				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: err.Error()})
+			default:
+				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: err.Error()})
+			}
+			return
+		}
+
+		render.EncodeResponse(w, http.StatusNoContent, nil)
 	}
 }

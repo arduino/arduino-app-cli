@@ -70,6 +70,7 @@ func NewHTTPRouter(
 
 	mux.Handle("GET /v1/models", handlers.HandleModelsList(modelsIndex))
 	mux.Handle("GET /v1/models/{modelID}", handlers.HandlerModelByID(modelsIndex))
+	mux.Handle("DELETE /v1/models/{modelID}", handlers.HandlerDeleteModelByID(dockerClient, cfg, modelsIndex, idProvider))
 
 	mux.Handle("GET /v1/apps", handlers.HandleAppList(dockerClient, idProvider, cfg))
 	mux.Handle("POST /v1/apps", handlers.HandleAppCreate(idProvider, cfg))

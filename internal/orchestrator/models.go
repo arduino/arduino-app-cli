@@ -16,6 +16,18 @@
 package orchestrator
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"maps"
+	"slices"
+	"strings"
+
+	"github.com/docker/cli/cli/command"
+
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
@@ -73,4 +85,104 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 		Metadata:           model.Metadata,
 		ModelConfiguration: model.ModelConfiguration,
 	}, true
+}
+
+var (
+	ErrNotFound          = errors.New("model not found")
+	ErrConflict          = errors.New("can't delete the model")
+	ErrCannotRemoveModel = errors.New("cannot remove an internal model")
+)
+
+func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, id string, idProvider *app.IDProvider, force bool) (err error) {
+	res, found := modelsIndex.GetModelByID(id)
+	if !found {
+		return fmt.Errorf("%q: %w", id, ErrNotFound)
+	}
+
+	if res.IsInternal {
+		return ErrCannotRemoveModel
+	}
+
+	references, runningAppReference, err := checkForModelReferences(ctx, dockerClient, cfg, idProvider, id)
+	if err != nil {
+		return err
+	}
+
+	hasReferences := len(references) > 0
+	isRunning := runningAppReference != nil
+
+	if hasReferences || isRunning {
+		if !force {
+			return fmt.Errorf("%s: %w", buildModelInUseMessage(references, runningAppReference), ErrConflict)
+		}
+	}
+
+	if runningAppReference != nil {
+		StopApp(ctx, dockerClient, *runningAppReference)
+	}
+
+	if res.ModelFolderPath == nil {
+		slog.Warn("Cannot remove the model with missing model folder", "id", id)
+		return nil
+	}
+
+	if err := res.ModelFolderPath.RemoveAll(); err != nil {
+		return fmt.Errorf("error removing model folder %s", res.ModelFolderPath.String())
+	}
+
+	return nil
+}
+
+func buildModelInUseMessage(references []string, runningAppRef *app.ArduinoApp) string {
+	var sb strings.Builder
+	sb.WriteString("The model is")
+
+	if len(references) > 0 {
+		sb.WriteString(" referenced by bricks belonging to the following apps: ")
+		sb.WriteString(strings.Join(references, ", "))
+	}
+
+	if runningAppRef != nil {
+		sb.WriteString(" in use by the app ")
+		sb.WriteString(runningAppRef.Name)
+	}
+
+	return sb.String()
+}
+
+// Validate if the model is currently in use or referenced.
+// Both checks are performed simultaneously to support the "force" flag logic.
+// This allows the user to see both issues before deciding to use the flag
+// preventing the second error from being masked.
+func checkForModelReferences(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, idProvider *app.IDProvider, modelId string) ([]string, *app.ArduinoApp, error) {
+	apps, err := ListApps(ctx, dockerClient, ListAppRequest{
+		ShowExamples:                   true,
+		ShowApps:                       true,
+		IncludeNonStandardLocationApps: true,
+	},
+		idProvider, cfg)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	references := make(map[string]struct{})
+	var runningAppReference *app.ArduinoApp
+	for _, a := range apps.Apps {
+		app, err := app.Load(a.ID.ToPath())
+		if err != nil {
+			slog.Warn("Unable to load app", slog.Any("application name", a.Name))
+			continue
+		}
+		for _, b := range app.Descriptor.Bricks {
+			if b.Model == modelId {
+				references[app.Name] = struct{}{}
+				if a.Status == StatusRunning || a.Status == StatusStarting {
+					runningAppReference = &app
+				}
+			}
+		}
+	}
+
+	return slices.Collect(maps.Keys(references)), runningAppReference, nil
 }
