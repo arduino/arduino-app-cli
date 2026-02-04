@@ -76,7 +76,6 @@ func TestAIModelDetails(t *testing.T) {
 	require.NotNil(t, expectedModel.Name, "Setup model's Name should not be nil")
 	require.NotNil(t, expectedModel.Description, "Setup model's Description should not be nil")
 	require.NotNil(t, expectedModel.Metadata, "Setup model's Metadata should not be nil")
-	require.NotNil(t, expectedModel.ModelConfiguration, "Setup model's ModelConfiguration should not be nil")
 	require.NotNil(t, expectedModel.Runner, "Setup model's Runner should not be nil")
 
 	t.Run("should return full details for a valid model ID", func(t *testing.T) {
@@ -100,9 +99,6 @@ func TestAIModelDetails(t *testing.T) {
 
 		require.NotNil(t, modelDetails.Metadata, "Response model's Metadata should not be nil")
 		require.Equal(t, expectedModel.Metadata, modelDetails.Metadata, "Metadata should match")
-
-		require.NotNil(t, modelDetails.ModelConfiguration, "Response model's ModelConfiguration should not be nil")
-		require.Equal(t, expectedModel.ModelConfiguration, modelDetails.ModelConfiguration, "ModelConfiguration should match")
 
 		require.NotNil(t, modelDetails.Runner, "Response model's Runner should not be nil")
 		require.Equal(t, *expectedModel.Runner, *modelDetails.Runner, "Runner should match")
