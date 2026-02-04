@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/docker/cli/cli/command"
+	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -36,13 +37,14 @@ type AIModelsListResult struct {
 }
 
 type AIModelItem struct {
-	ID                 string            `json:"id"`
-	Name               string            `json:"name"`
-	ModuleDescription  string            `json:"description"`
-	Runner             string            `json:"runner"`
-	Bricks             []string          `json:"brick_ids"`
-	Metadata           map[string]string `json:"metadata,omitempty"`
-	ModelConfiguration map[string]string `json:"model_configuration,omitempty"`
+	ID                string            `json:"id"`
+	Name              string            `json:"name"`
+	ModuleDescription string            `json:"description"`
+	Runner            string            `json:"runner"`
+	Bricks            []string          `json:"brick_ids"`
+	Metadata          map[string]string `json:"metadata,omitempty"`
+	// TODO: deprecated, remove in future versions
+	LegacyModelConfiguration map[string]string `json:"model_configuration,omitempty"`
 }
 
 type AIModelsListRequest struct {
@@ -59,13 +61,13 @@ func AIModelsList(req AIModelsListRequest, modelsIndex *modelsindex.ModelsIndex)
 	res := AIModelsListResult{Models: make([]AIModelItem, len(collection))}
 	for i, model := range collection {
 		res.Models[i] = AIModelItem{
-			ID:                 model.ID,
-			Name:               model.Name,
-			ModuleDescription:  model.ModuleDescription,
-			Runner:             model.Runner,
-			Bricks:             model.Bricks,
-			Metadata:           model.Metadata,
-			ModelConfiguration: model.ModelConfiguration,
+			ID:                       model.ID,
+			Name:                     model.Name,
+			ModuleDescription:        model.ModuleDescription,
+			Runner:                   model.Runner,
+			Bricks:                   f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
+			Metadata:                 model.Metadata,
+			LegacyModelConfiguration: toLegacyModelConfiguration(model.Bricks),
 		}
 	}
 	return res
@@ -77,14 +79,24 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 		return AIModelItem{}, false
 	}
 	return AIModelItem{
-		ID:                 model.ID,
-		Name:               model.Name,
-		ModuleDescription:  model.ModuleDescription,
-		Runner:             model.Runner,
-		Bricks:             model.Bricks,
-		Metadata:           model.Metadata,
-		ModelConfiguration: model.ModelConfiguration,
+		ID:                       model.ID,
+		Name:                     model.Name,
+		ModuleDescription:        model.ModuleDescription,
+		Runner:                   model.Runner,
+		Bricks:                   f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
+		Metadata:                 model.Metadata,
+		LegacyModelConfiguration: toLegacyModelConfiguration(model.Bricks),
 	}, true
+}
+
+func toLegacyModelConfiguration(bricks []modelsindex.BrickConfig) map[string]string {
+	modelConfigs := make(map[string]string)
+	for _, b := range bricks {
+		for k, v := range b.ModelConfig {
+			modelConfigs[k] = v
+		}
+	}
+	return modelConfigs
 }
 
 var (

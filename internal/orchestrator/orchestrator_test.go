@@ -499,16 +499,14 @@ models:
     runner: brick
     name : "General purpose object detection - YoloX"
     description: "General purpose object detection model based on YoloX Nano. This model is trained on the COCO dataset and can detect 80 different object classes."
-    model_configuration:
-      "EI_OBJ_DETECTION_MODEL": "/models/ootb/ei/yolo-x-nano.eim"
     metadata:
-    source: "edgeimpulse"
-    ei-project-id: 717280
-    source-model-id: "YOLOX-Nano"
-    source-model-url: "https://github.com/Megvii-BaseDetection/YOLOX"
+      source: "edgeimpulse"
+      ei-project-id: 717280
+      source-model-id: "YOLOX-Nano"
+      source-model-url: "https://github.com/Megvii-BaseDetection/YOLOX"
     bricks:
-    - arduino:object_detection
-    - arduino:video_object_detection
+    - id: arduino:object_detection
+    - id: arduino:video_object_detection
 `)
 	err = cfg.AssetsDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
 	require.NoError(t, err)
@@ -583,16 +581,14 @@ models:
     runner: brick
     name : "General purpose object detection - YoloX"
     description: "General purpose object detection model based on YoloX Nano. This model is trained on the COCO dataset and can detect 80 different object classes."
-    model_configuration:
-      "EI_OBJ_DETECTION_MODEL": "/models/ootb/ei/yolo-x-nano.eim"
     metadata:
-    source: "edgeimpulse"
-    ei-project-id: 717280
-    source-model-id: "YOLOX-Nano"
-    source-model-url: "https://github.com/Megvii-BaseDetection/YOLOX"
+      source: "edgeimpulse"
+      ei-project-id: 717280
+      source-model-id: "YOLOX-Nano"
+      source-model-url: "https://github.com/Megvii-BaseDetection/YOLOX"
     bricks:
-    - arduino:object_detection
-    - arduino:video_object_detection
+    - id: arduino:object_detection
+    - id: arduino:video_object_detection
 `)
 	err = cfg.AssetsDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
 	require.NoError(t, err)
@@ -604,6 +600,90 @@ models:
 	require.Equal(t, "/home/arduino/.arduino-bricks/ei-models/face-det.eim", env["EI_OBJ_DETECTION_MODEL"])
 	require.Equal(t, "/home/arduino/.arduino-bricks/ei-models", env["CUSTOM_MODEL_PATH"])
 	// we ignore HOST_IP since it's dynamic
+}
+
+func TestGetAppEnvironmentVariablesUsingMultipleBricks(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	idProvider := app.NewAppIDProvider(cfg)
+
+	docker, err := dockerClient.NewClientWithOpts(
+		dockerClient.FromEnv,
+		dockerClient.WithAPIVersionNegotiation(),
+	)
+	require.NoError(t, err)
+	dockerCli, err := command.NewDockerCli(
+		command.WithAPIClient(docker),
+		command.WithBaseContext(t.Context()),
+	)
+	require.NoError(t, err)
+
+	err = dockerCli.Initialize(&flags.ClientOptions{})
+	require.NoError(t, err)
+
+	appId := createApp(t, "app1", false, idProvider, cfg)
+	appDesc, err := app.Load(appId.ToPath())
+	require.NoError(t, err)
+	appDesc.Descriptor.Bricks = []app.Brick{
+		{ID: "arduino:object_detection", Model: "a-model-compatible-with-multiple-bricks"},
+		{ID: "arduino:video_object_detection", Model: "a-model-compatible-with-multiple-bricks"},
+	}
+
+	bricksIndexContent := []byte(`
+bricks:
+  - id: arduino:object_detection
+    model_name: a-model-compatible-with-multiple-bricks
+    variables:
+      - name: EI_OBJ_DETECTION_MODEL
+        description: Path to the model file
+        hidden: true
+        default_value: /default/path/obj.eim
+      - name: COMMON_ENV
+        description: a common env variable between bricks
+        default_value: "default-common-video"
+
+  - id: arduino:video_object_detection
+    model_name: a-model-compatible-with-multiple-bricks
+    variables:
+      - name: EI_V_OBJ_DETECTION_MODEL
+        description: Path to the model file
+        hidden: true
+        default_value: /default/path/video.eim
+      - name: COMMON_ENV
+        description: a common env variable between bricks
+        default_value: "default-common-obj"
+      - name: MY_VIDEO_ENV
+        description: Video device path
+        hidden: true
+        default_value: /default/video/value
+
+  `)
+	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
+	require.NoError(t, err)
+	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
+	assert.NoError(t, err)
+
+	modelsIndexContent := []byte(`
+models:
+  - a-model-compatible-with-multiple-bricks:
+      bricks:
+        - id: arduino:object_detection
+          model_configuration:
+            EI_OBJ_DETECTION_MODEL: "/models/path/obj.eim"
+        - id: arduino:video_object_detection
+          model_configuration:
+            EI_V_OBJ_DETECTION_MODEL: "/models/path/video.eim"
+`)
+	err = cfg.AssetsDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
+	require.NoError(t, err)
+	modelIndex, err := modelsindex.Load(cfg.AssetsDir(), nil)
+	require.NoError(t, err)
+
+	env := getAppEnvironmentVariables(appDesc, bricksIndex, modelIndex)
+	require.Equal(t, "/models/path/obj.eim", env["EI_OBJ_DETECTION_MODEL"])
+	require.Equal(t, "/models/path/video.eim", env["EI_V_OBJ_DETECTION_MODEL"])
+	require.Equal(t, "/default/video/value", env["MY_VIDEO_ENV"])
+	// for common env variable, the last brick wins
+	require.Equal(t, "default-common-obj", env["COMMON_ENV"])
 }
 
 func TestValidateDevice(t *testing.T) {

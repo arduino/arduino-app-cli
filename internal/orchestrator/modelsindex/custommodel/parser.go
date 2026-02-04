@@ -17,8 +17,8 @@ type ModelDescriptor struct {
 }
 
 type BrickConfig struct {
-	ID                 string         `yaml:"id"`
-	ModelConfiguration map[string]any `yaml:"model_configuration,omitempty"`
+	ID                 string            `yaml:"id"`
+	ModelConfiguration map[string]string `yaml:"model_configuration,omitempty"`
 }
 
 // ParseModelDescriptorFile reads a model descriptor file

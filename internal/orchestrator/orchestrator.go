@@ -267,7 +267,9 @@ func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.Bric
 		}
 
 		if m, found := modelsIndex.GetModelByID(brick.Model); found {
-			maps.Insert(envs, maps.All(m.ModelConfiguration))
+			for _, b := range m.Bricks {
+				maps.Insert(envs, maps.All(b.ModelConfig))
+			}
 		}
 
 		slog.Debug("adding Brick", slog.String("brickID", brick.ID), slog.String("model", brick.Model), slog.Any("variables", brick.Variables))

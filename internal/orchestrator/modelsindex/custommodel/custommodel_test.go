@@ -55,9 +55,9 @@ func TestLoad(t *testing.T) {
 			Bricks: []BrickConfig{
 				{
 					ID: "arduino:a-brick-id",
-					ModelConfiguration: map[string]any{
+					ModelConfiguration: map[string]string{
 						"MY_ENV_1": "prod",
-						"MY_ENV_2": true,
+						"MY_ENV_2": "true",
 					},
 				},
 			},

@@ -4,6 +4,8 @@ description: "A small and accurate model for detecting bounding boxes for faces 
 category: "Images"
 bricks:
   - id: "object-detection"
+    model_configuration:
+      "AN_ENV_VARIABLE": "/my/env7variable"
 metadata:
   a-string-metadata: "a-string-value"
   a-int-metadata: 1

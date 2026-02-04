@@ -17,10 +17,8 @@ package modelsindex
 
 import (
 	"errors"
-	"fmt"
 	"log/slog"
 	"slices"
-	"strconv"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
 
@@ -50,16 +48,20 @@ func (b *assetsModelList) UnmarshalYAML(unmarshal func(any) error) error {
 }
 
 type AIModel struct {
-	ID                 string            `yaml:"-"`
-	ModelFolderPath    *paths.Path       `yaml:"-"`
-	Name               string            `yaml:"name"`
-	ModuleDescription  string            `yaml:"description"`
-	Runner             string            `yaml:"runner"`
-	Bricks             []string          `yaml:"bricks,omitempty"`
-	ModelLabels        []string          `yaml:"model_labels,omitempty"`
-	Metadata           map[string]string `yaml:"metadata,omitempty"`
-	ModelConfiguration map[string]string `yaml:"model_configuration,omitempty"`
-	IsInternal         bool              `yaml:"-"`
+	ID                string            `yaml:"-"`
+	ModelFolderPath   *paths.Path       `yaml:"-"`
+	Name              string            `yaml:"name"`
+	ModuleDescription string            `yaml:"description"`
+	Runner            string            `yaml:"runner"`
+	Bricks            []BrickConfig     `yaml:"bricks,omitempty"`
+	ModelLabels       []string          `yaml:"model_labels,omitempty"`
+	Metadata          map[string]string `yaml:"metadata,omitempty"`
+	IsInternal        bool              `yaml:"-"`
+}
+
+type BrickConfig struct {
+	ID          string            `yaml:"id"`
+	ModelConfig map[string]string `yaml:"model_configuration"`
 }
 
 type ModelsIndex struct {
@@ -84,7 +86,7 @@ func (m *ModelsIndex) GetModelsByBrick(brick string) []AIModel {
 	var matches []AIModel
 	models := m.loadModels()
 	for i := range models {
-		if len(models[i].Bricks) > 0 && slices.Contains(models[i].Bricks, brick) {
+		if len(models[i].Bricks) > 0 && slices.ContainsFunc(models[i].Bricks, func(b BrickConfig) bool { return b.ID == brick }) {
 			matches = append(matches, models[i])
 		}
 	}
@@ -98,7 +100,7 @@ func (m *ModelsIndex) GetModelsByBricks(bricks []string) []AIModel {
 	var matchingModels []AIModel
 	for _, model := range m.loadModels() {
 		for _, modelBrick := range model.Bricks {
-			if slices.Contains(bricks, modelBrick) {
+			if slices.ContainsFunc(bricks, func(b string) bool { return b == modelBrick.ID }) {
 				matchingModels = append(matchingModels, model)
 				break
 			}
@@ -179,49 +181,17 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 			ID:                m.ModelDescriptor.ID,
 			Name:              m.ModelDescriptor.Name,
 			ModuleDescription: m.ModelDescriptor.Description,
-			Bricks: f.Map(m.ModelDescriptor.Bricks, func(b custommodel.BrickConfig) string {
-				return b.ID
+			Bricks: f.Map(m.ModelDescriptor.Bricks, func(b custommodel.BrickConfig) BrickConfig {
+				return BrickConfig{
+					ID:          b.ID,
+					ModelConfig: b.ModelConfiguration,
+				}
 			}),
-			Metadata:           m.ModelDescriptor.Metadata,
-			ModelConfiguration: toLegacyModelConfiguration(m.ModelDescriptor.Bricks),
-			ModelFolderPath:    m.FullPath,
-			IsInternal:         false,
+			Metadata:        m.ModelDescriptor.Metadata,
+			ModelFolderPath: m.FullPath,
+			IsInternal:      false,
 		})
 	}
 
 	return models, nil
-}
-
-func toLegacyModelConfiguration(bricks []custommodel.BrickConfig) map[string]string {
-	toString := func(v any) string {
-		switch x := v.(type) {
-		case string:
-			return x
-		case []byte:
-			return string(x)
-		case bool:
-			return strconv.FormatBool(x)
-		case int:
-			return strconv.Itoa(x)
-		case int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
-			return fmt.Sprintf("%v", x)
-		default:
-			slog.Warn("unsupported type %T", v)
-			return ""
-		}
-	}
-
-	var modelConfigs map[string]string
-	for _, b := range bricks {
-		if len(b.ModelConfiguration) == 0 {
-			continue
-		}
-		if modelConfigs == nil {
-			modelConfigs = make(map[string]string, len(b.ModelConfiguration))
-		}
-		for k, v := range b.ModelConfiguration {
-			modelConfigs[k] = toString(v)
-		}
-	}
-	return modelConfigs
 }

@@ -60,18 +60,24 @@ func TestModelsIndex(t *testing.T) {
 
 		model, found = modelsIndex.GetModelByID("face-detection")
 		require.True(t, found)
-		assert.Equal(t, "brick", model.Runner)
-		require.True(t, found, "face-detection should be found")
-		assert.Equal(t, "face-detection", model.ID)
-		assert.Equal(t, "Lightweight-Face-Detection", model.Name)
-		assert.Equal(t, "Face bounding box detection. This model is trained on the WIDER FACE dataset and can detect faces in images.", model.ModuleDescription)
-		assert.Equal(t, []string{"face"}, model.ModelLabels)
-		assert.Equal(t, "/models/ootb/ei/lw-face-det.eim", model.ModelConfiguration["EI_OBJ_DETECTION_MODEL"])
-		assert.Equal(t, []string{"arduino:object_detection", "arduino:video_object_detection"}, model.Bricks)
-		assert.Equal(t, "qualcomm-ai-hub", model.Metadata["source"])
-		assert.Equal(t, "false", model.Metadata["ei-gpu-mode"])
-		assert.Equal(t, "face-det-lite", model.Metadata["source-model-id"])
-		assert.Equal(t, "https://aihub.qualcomm.com/models/face_det_lite", model.Metadata["source-model-url"])
+		assert.Equal(t, &AIModel{
+			ID:                "face-detection",
+			Name:              "Lightweight-Face-Detection",
+			ModuleDescription: "Face bounding box detection. This model is trained on the WIDER FACE dataset and can detect faces in images.",
+			Bricks: []BrickConfig{
+				{ID: "arduino:object_detection", ModelConfig: map[string]string{"EI_OBJ_DETECTION_MODEL": "/models/ootb/ei/lw-face-det.eim"}},
+				{ID: "arduino:video_object_detection", ModelConfig: map[string]string{"EI_V_OBJ_DETECTION_MODEL": "/models/ootb/ei/video-face-det.eim"}},
+			},
+			Metadata: map[string]string{
+				"source":           "qualcomm-ai-hub",
+				"ei-gpu-mode":      "false",
+				"source-model-id":  "face-det-lite",
+				"source-model-url": "https://aihub.qualcomm.com/models/face_det_lite",
+			},
+			ModelLabels: []string{"face"},
+			Runner:      "brick",
+			IsInternal:  true,
+		}, model)
 	})
 
 	t.Run("it get custom model by id", func(t *testing.T) {
@@ -86,16 +92,13 @@ func TestModelsIndex(t *testing.T) {
 			ID:                "my-model-id",
 			Name:              "my custom model from edge impulse",
 			ModuleDescription: "A small and accurate model for detecting bounding boxes for faces in images.",
-			Bricks: []string{
-				"object-detection",
-			},
+			Bricks:            []BrickConfig{{ID: "object-detection", ModelConfig: map[string]string{"AN_ENV_VARIABLE": "/my/env7variable"}}},
 			Metadata: map[string]string{
 				"a-bool-metadata":   "true",
 				"a-int-metadata":    "1",
 				"a-string-metadata": "a-string-value",
 			},
-			ModelConfiguration: nil,
-			ModelFolderPath:    paths.New(f.Must(filepath.Abs("testdata/models/my-custom-model"))),
+			ModelFolderPath: paths.New(f.Must(filepath.Abs("testdata/models/my-custom-model"))),
 		}, eimodel)
 	})
 

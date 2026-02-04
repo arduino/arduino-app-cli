@@ -42,16 +42,16 @@ metadata:
 		Bricks: []BrickConfig{
 			{
 				ID: "arduino:a-brick-id",
-				ModelConfiguration: map[string]any{
+				ModelConfiguration: map[string]string{
 					"A_STRING_VARIABLE": "i-am-a-string",
-					"A_BOOL_VARIABLE":   true,
+					"A_BOOL_VARIABLE":   "true",
 				},
 			},
 			{
 				ID: "arduino:another-brick-id",
-				ModelConfiguration: map[string]any{
+				ModelConfiguration: map[string]string{
 					"A_STRING_VARIABLE": "i-am-a-string",
-					"A_BOOL_VARIABLE":   false,
+					"A_BOOL_VARIABLE":   "false",
 				},
 			},
 		},

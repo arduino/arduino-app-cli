@@ -426,12 +426,12 @@ func TestBricksDetails(t *testing.T) {
 				ID:                "yolox-object-detection",
 				Name:              "General purpose object detection - YoloX",
 				ModuleDescription: "General purpose object detection...",
-				Bricks:            []string{"arduino:object_detection", "arduino:video_object_detection"},
+				Bricks:            []modelsindex.BrickConfig{{ID: "arduino:object_detection"}, {ID: "arduino:video_object_detection"}},
 			},
 			{
 				ID:     "face-detection",
 				Name:   "Lightweight-Face-Detection",
-				Bricks: []string{"arduino:object_detection", "arduino:video_object_detection", "arduino:one_model_brick"},
+				Bricks: []modelsindex.BrickConfig{{ID: "arduino:object_detection"}, {ID: "arduino:video_object_detection"}, {ID: "arduino:one_model_brick"}},
 			},
 		}}
 
@@ -590,12 +590,12 @@ func TestAppBrickInstanceModelsDetails(t *testing.T) {
 				ID:                "yolox-object-detection",
 				Name:              "General purpose object detection - YoloX",
 				ModuleDescription: "General purpose object detection...",
-				Bricks:            []string{"arduino:object_detection", "arduino:video_object_detection"},
+				Bricks:            []modelsindex.BrickConfig{{ID: "arduino:object_detection"}, {ID: "arduino:video_object_detection"}},
 			},
 			{
 				ID:     "face-detection",
 				Name:   "Lightweight-Face-Detection",
-				Bricks: []string{"arduino:object_detection", "arduino:video_object_detection"},
+				Bricks: []modelsindex.BrickConfig{{ID: "arduino:object_detection"}, {ID: "arduino:video_object_detection"}},
 			},
 		}}
 
@@ -773,12 +773,12 @@ func TestAppBrickInstancesList(t *testing.T) {
 					ID:                "yolox-object-detection",
 					Name:              "General purpose object detection - YoloX",
 					ModuleDescription: "a-model-description",
-					Bricks:            []string{"arduino:object_detection"},
+					Bricks:            []modelsindex.BrickConfig{{ID: "arduino:object_detection"}},
 				},
 				{
 					ID:     "face-detection",
 					Name:   "Lightweight-Face-Detection",
-					Bricks: []string{"arduino:object_detection"},
+					Bricks: []modelsindex.BrickConfig{{ID: "arduino:object_detection"}},
 				},
 			},
 		},
