@@ -270,30 +270,13 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 			"source":        "edgeimpulse",
 			"ei-project-id": fmt.Sprintf("%d", projectID),
 			"ei-impulse-id": fmt.Sprintf("%d", impulseID),
-			"ei-model-type": modelType,
-			"ei-engine":     engine,
+			"ei-model-type": string(mType),
+			"ei-engine":     string(mEngine),
 		},
 		Bricks: buildBrickConfigForEIModel(bricksIndex, project.Category, edgeModelsDir, blobModelsDir),
 	}
 
-	modelTypeParam := edgeimpulse.ModelTypeParameter(modelType)
-	engineParam := edgeimpulse.ModelEngineParameter(engine)
-	version, err := eiClient.GetDeployment(ctx, projectID, impulseID, modelTypeParam, engineParam, deviceType)
-	if err != nil {
-		return nil, err
-	}
-	if version == nil {
-		jobId, err := eiClient.Build(ctx, projectID, modelTypeParam, engineParam, deviceType)
-		if err != nil {
-			return nil, err
-		}
-		err = eiClient.WaitForBuildCompletion(ctx, projectID, *jobId)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	modelRC, err := eiClient.DownloadAndInstallModel(ctx, blobModelsDir, projectID, impulseID, modelTypeParam, engineParam, deviceType)
+	modelRC, err := eiClient.DownloadAndInstallModel(ctx, blobModelsDir, projectID, impulseID, mType, mEngine, deviceType)
 	if err != nil {
 		return nil, err
 	}

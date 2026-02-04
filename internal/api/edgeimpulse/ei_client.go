@@ -26,6 +26,19 @@ type JobLogEntry []struct {
 	LogLevel *LogStdoutResponseStdoutLogLevel `json:"logLevel,omitempty"`
 }
 
+type LastBuild *struct {
+	// Created The time this build was created
+	Created time.Time `json:"created"`
+
+	// DeploymentType Deployment type of the build
+	DeploymentType string                 `json:"deploymentType"`
+	Engine         DeploymentTargetEngine `json:"engine"`
+	ModelType      *KerasModelTypeEnum    `json:"modelType,omitempty"`
+
+	// Version The build version, incremented after each deployment build
+	Version int `json:"version"`
+}
+
 func NewEIClient(prjApiKey string, apiURL url.URL) (*EIClient, error) {
 
 	ClientOptions := []ClientOption{
@@ -60,9 +73,28 @@ func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath *paths
 	return resp.Body, nil
 }
 
-func (c *EIClient) GetDeployment(ctx context.Context, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter, deviceType DeploymentTypeParameter) (*int, error) {
+func (c *EIClient) GetInfoLastDeployment(ctx context.Context, projectID int, impulseID int, devicesTarget string) (LastBuild, error) {
 
-	params := &GetDeploymentParams{ModelType: &modelType, Engine: &engine, ImpulseId: &impulseID, Type: deviceType}
+	params := &GetLastDeploymentBuildParams{ImpulseId: &impulseID}
+	resp, err := c.HttpClient.GetLastDeploymentBuildWithResponse(ctx, projectID, params)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to perform download model request: %w", err)
+	}
+
+	if resp.StatusCode() != http.StatusOK {
+		return nil, errorMessage(resp.StatusCode())
+	}
+
+	if resp.JSON200.HasBuild && resp.JSON200.LastDeploymentTarget.Format == devicesTarget {
+		return resp.JSON200.LastBuild, nil
+	}
+	return nil, nil
+}
+
+func (c *EIClient) GetDeployment(ctx context.Context, projectID int, impulseID int, modelType *ModelTypeParameter, engine *ModelEngineParameter, deviceType DeploymentTypeParameter) (*int, error) {
+
+	params := &GetDeploymentParams{ModelType: modelType, Engine: engine, ImpulseId: &impulseID, Type: deviceType}
 	resp, err := c.HttpClient.GetDeploymentWithResponse(ctx, projectID, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform get deployment request: %w", err)
@@ -85,9 +117,11 @@ func (c *EIClient) Build(ctx context.Context, projectID int, modelType ModelType
 
 	params := &BuildOnDeviceModelJobParams{Type: deviceType}
 
+	km_variant := KerasModelVariantEnum(string(modelType))
+
 	body := BuildOnDeviceModelJobJSONRequestBody{
 		Engine:    engine,
-		ModelType: &modelType,
+		ModelType: &km_variant,
 	}
 
 	resp, err := c.HttpClient.BuildOnDeviceModelJobWithResponse(ctx, projectID, params, body)
