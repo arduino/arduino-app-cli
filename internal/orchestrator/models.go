@@ -272,11 +272,12 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 		Name:        project.Name,
 		Description: project.Description,
 		Metadata: map[string]string{
-			"source":        "edgeimpulse",
-			"ei-project-id": fmt.Sprintf("%d", projectID),
-			"ei-impulse-id": fmt.Sprintf("%d", impulseID),
-			"ei-model-type": string(mType),
-			"ei-engine":     string(mEngine),
+			"source":           "edgeimpulse",
+			"ei-project-id":    fmt.Sprintf("%d", projectID),
+			"ei-impulse-id":    fmt.Sprintf("%d", impulseID),
+			"ei-model-type":    string(mType),
+			"ei-engine":        string(mEngine),
+			"ei-last-modified": project.LastModified.String(),
 		},
 		Bricks: buildBrickConfigForEIModel(bricksIndex, project.Category, edgeModelsDir, blobModelsDir),
 	}
