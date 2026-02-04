@@ -266,7 +266,7 @@ func generateMainComposeFile(
 		slog.Debug("Brick config", slog.Bool("mount_devices_into_container", idxBrick.MountDevicesIntoContainer), slog.Any("ports", ports), slog.Any("required_devices", idxBrick.RequiredDevices))
 		if idxBrick.MountDevicesIntoContainer {
 			for i := range svcs {
-				svcs[i].requiredDevices = true
+				svcs[i].requireDevices = true
 			}
 		}
 
@@ -429,10 +429,10 @@ func generateMainComposeFile(
 }
 
 type serviceInfo struct {
-	name            string
-	hasHealthcheck  bool
-	user            *string
-	requiredDevices bool
+	name           string
+	hasHealthcheck bool
+	user           *string
+	requireDevices bool
 }
 
 func extractServicesFromComposeFile(composeFile *paths.Path) ([]serviceInfo, error) {
@@ -501,7 +501,7 @@ func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []service
 		if svc.user == nil {
 			override.User = &user
 		}
-		if svc.requiredDevices {
+		if svc.requireDevices {
 			override.Devices = &devices
 			override.GroupAdd = &groups
 		}
