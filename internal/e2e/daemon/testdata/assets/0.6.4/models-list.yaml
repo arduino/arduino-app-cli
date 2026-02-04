@@ -1102,7 +1102,7 @@ models:
       source-model-id: "person-classification-wakevision"
       source-model-url: "https://studio.edgeimpulse.com/public/755016/live"
     bricks:
-      - id: "arduino:video_image_classification"
+      - id: "arduino:image_classification"
         model_configuration:
           "EI_CLASSIFICATION_MODEL": "/models/ootb/ei/person-classification.eim"
       - id: "arduino:video_image_classification"
