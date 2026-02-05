@@ -100,13 +100,11 @@ my-app/
 ├── README.md # Documentation (Optional)
 ├── python/ # Mandatory source folder
 │ ├── main.py # Mandatory entry point
-│ ├── requirements.txt # Python dependencies(optional)
-│ └── logic/ # Additional user code (extra file)
+│ └── requirements.txt # Python dependencies(optional)
 ├── sketch/ # Optional firmware folder
-│ ├── sketch.yaml # Mandatory if sketch.ino exists
+│ ├── sketch/ # Arduino sketch folder (Optional)
 │ └── sketch.ino # Arduino sketch
-├── data/ # Reserved
-└── assets/ # Reserved
+└── data/ # Reserved
 ```
 
 ## App Metadata
@@ -124,9 +122,8 @@ The available fields are:
   - Constraints: It must contain only basic letters (a-z, A-Z), numbers (0-9), underscores (`_`), and dashes (`-`). It must not start with a dash.
 - **icon** - (Optional) A single emoji character.
 - **description** - (Optional) A human-readable description of what the App does.
-  - Note: This field will be deprecated and replaced by the first paragraph of the README.md file.
 - **ports** - (Optional) A list of integers representing the network ports that the App listens on.
-  - Usage: The host system uses this list to expose the App's internal services (e.g., a web interface on port 8080) to the network or localhost.
+  - Usage: The host system uses this list to expose the App's internal services (e.g., a web interface on port 8080) to the network or localhost. If the ports field is omitted or empty, The application will start without exposing any network interface to the host or the local network.
 - **required_devices** - (Optional) A list of strings representing the hardware devices used by the app.
 - **bricks** - (Optional) A list of "Brick Object". Additional bricks needed by the app to perform specific tasks.
 
@@ -140,7 +137,10 @@ This section describes the structure of a single item within the bricks list in 
   - TODO: Update the spec after custom bricks validation rules are defined.
 - **model** - (Optional) The model id to load within the Brick.
 - **variables** - (Optional) A map of key-value pairs (both must be strings) representing configuration parameters or environment variables passed to the Brick container.
-- **ports** - (Optional) A list of integers representing the network ports that the Brick must expose to interact with the App.
+- **ports** - (Optional) A list of integers representing the network ports that the Brick must expose to interact with the User(e.g., exposing web interfaces).
+  - Usage: These ports are used for user interaction (e.g., exposing web interfaces or APIs).
+  - Default Behavior: If ports are not explicitly defined in the app.yaml file, the system automatically uses the default ports specified in the Brick's metadata (if any).
+  - Collision: If two or more Bricks attempt to use the same port, a network collision occurs. This conflict will prevent one of the Bricks from starting, potentially causing the application to fail or remain in a partial state.
 
 Example:
 
