@@ -39,7 +39,7 @@ import (
 type InstallEIModelRequest struct {
 	ProjectID int    `json:"project_id" description:"Edge Impulse project ID" example:"123456" required:"true"`
 	ImpulseID int    `json:"impulse_id" description:"Edge Impulse impulse ID" example:"1" required:"true"`
-	PrjApiKey string `json:"prj_api_key" description:"Edge Impulse API token" example:"your_edge_impulse_api_token" required:"true"`
+	PrjApiKey string `json:"prj_api_key" description:"Edge Impulse API key" example:"your_edge_impulse_api" required:"true"`
 }
 
 func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
@@ -139,6 +139,10 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 			case errors.Is(err, edgeimpulse.ErrUnauthorized):
 				slog.Error("unauthorized access to Edge Impulse API", slog.String("error", err.Error()))
 				render.EncodeResponse(w, http.StatusUnauthorized, models.ErrorResponse{Details: "unauthorized access to Edge Impulse API"})
+				return
+			case errors.Is(err, orchestrator.ErrInsufficientStorage):
+				slog.Error("insufficient storage to install Edge Impulse model", slog.String("error", err.Error()))
+				render.EncodeResponse(w, http.StatusInsufficientStorage, models.ErrorResponse{Details: "insufficient storage to install Edge Impulse model"})
 				return
 			default:
 				slog.Error("unable to install Edge Impulse model", slog.String("error", err.Error()))

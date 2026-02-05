@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"syscall"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/goccy/go-yaml"
@@ -71,14 +70,12 @@ func Store(dir *paths.Path, descr ModelDescriptor, modelFileReader io.ReadCloser
 		return AiModel{}, fmt.Errorf("failed to create model file: %w", err)
 	}
 	defer f.Close()
+
 	if _, err := io.Copy(f, modelFileReader); err != nil {
+
 		returnErr := fmt.Errorf("failed to write model file: %w", err)
-		if errors.Is(err, syscall.ENOSPC) {
-			returnErr = fmt.Errorf("not enough space to store the model file: %w", err)
-		}
-		err := os.Remove(destBlobPath.String())
-		if err != nil {
-			returnErr = fmt.Errorf("%v failed to remove incomplete model file from %s: %v", returnErr, destBlobPath.String(), err)
+		if cleanupErr := os.Remove(destBlobPath.String()); cleanupErr != nil {
+			returnErr = fmt.Errorf("%w (cleanup failed: %v)", returnErr, cleanupErr)
 		}
 		return AiModel{}, returnErr
 	}
@@ -115,7 +112,10 @@ func (a *AiModel) writeDescriptorFile() error {
 	}
 
 	if err := fatomic.WriteFile(descriptorPath.String(), out, os.FileMode(0644)); err != nil {
-		return fmt.Errorf("cannot write model descriptor file: %w", err)
+		returnErr := fmt.Errorf("failed to write model descriptorfile: %w", err)
+		if cleanupErr := os.Remove(descriptorPath.String()); cleanupErr != nil {
+			returnErr = fmt.Errorf("%w (cleanup failed: %v)", returnErr, cleanupErr)
+		}
 	}
 	return nil
 }

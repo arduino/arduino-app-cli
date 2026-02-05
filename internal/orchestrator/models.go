@@ -23,6 +23,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"syscall"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
@@ -93,9 +94,10 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 }
 
 var (
-	ErrNotFound          = errors.New("model not found")
-	ErrConflict          = errors.New("can't delete the model")
-	ErrCannotRemoveModel = errors.New("cannot remove an internal model")
+	ErrNotFound            = errors.New("model not found")
+	ErrConflict            = errors.New("can't delete the model")
+	ErrCannotRemoveModel   = errors.New("cannot remove an internal model")
+	ErrInsufficientStorage = errors.New("insufficient storage to install the model")
 )
 
 func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, id string, idProvider *app.IDProvider, force bool) (err error) {
@@ -213,7 +215,6 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 		if err != nil {
 			return nil, err
 		}
-
 	}
 
 	project, err := eiClient.GetProjectInfo(ctx, projectID, impulseID)
@@ -247,6 +248,9 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 
 	aimodel, err := custommodel.Store(edgeModelsDir, customModelDescriptor, modelRC, "model.eim")
 	if err != nil {
+		if errors.Is(err, syscall.ENOSPC) {
+			return nil, ErrInsufficientStorage
+		}
 		return nil, err
 	}
 
