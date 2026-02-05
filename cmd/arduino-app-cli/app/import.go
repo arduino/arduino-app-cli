@@ -38,21 +38,19 @@ func newImportCmd(cfg config.Configuration) *cobra.Command {
 			if len(args) == 0 {
 				return cmd.Help()
 			}
-			filePath := args[0]
-			return importHandler(cfg, filePath)
+			zipPath := paths.New(args[0])
+			if !zipPath.Exist() {
+				feedback.Fatal(fmt.Sprintf("File not found: %s", zipPath), feedback.ErrBadArgument)
+				return nil
+			}
+			return importHandler(cfg, zipPath)
 		},
 	}
 
 	return cmd
 }
 
-func importHandler(cfg config.Configuration, filePathStr string) error {
-	zipPath := paths.New(filePathStr)
-	if !zipPath.Exist() {
-		feedback.Fatal(fmt.Sprintf("File not found: %s", filePathStr), feedback.ErrBadArgument)
-		return nil
-	}
-
+func importHandler(cfg config.Configuration, zipPath *paths.Path) error {
 	idProvider := servicelocator.GetAppIDProvider()
 	appID, err := orchestrator.ImportAppFromZip(cfg, zipPath, idProvider, zipPath.Base())
 	if err != nil {
