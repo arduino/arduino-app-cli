@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
@@ -242,7 +243,7 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 			"ei-impulse-id":    strconv.Itoa(impulseID),
 			"ei-model-type":    string(mType),
 			"ei-engine":        string(mEngine),
-			"ei-last-modified": project.LastModified.Local().Format("2006-01-02 15:04:05"),
+			"ei-last-modified": project.LastModified.Local().Format(time.RFC3339Nano),
 		},
 		Bricks: buildBrickConfigForEIModel(bricksIndex, project.Category, edgeModelsDir, blobModelsDir),
 	}
