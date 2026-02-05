@@ -43,6 +43,7 @@ type AIModelItem struct {
 	Runner            string            `json:"runner"`
 	Bricks            []string          `json:"brick_ids"`
 	Metadata          map[string]string `json:"metadata,omitempty"`
+	IsBuiltin         bool              `json:"is_builtin"`
 }
 
 type AIModelsListRequest struct {
@@ -65,6 +66,7 @@ func AIModelsList(req AIModelsListRequest, modelsIndex *modelsindex.ModelsIndex)
 			Runner:            model.Runner,
 			Bricks:            f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
 			Metadata:          model.Metadata,
+			IsBuiltin:         model.IsInternal,
 		}
 	}
 	return res
@@ -81,7 +83,7 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 		ModuleDescription: model.ModuleDescription,
 		Runner:            model.Runner,
 		Bricks:            f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
-		Metadata:          model.Metadata,
+		IsBuiltin:         model.IsInternal,
 	}, true
 }
 

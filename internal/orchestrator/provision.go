@@ -221,8 +221,7 @@ func generateMainComposeFile(
 	}
 
 	var composeFiles paths.PathList
-	services := make(map[string]serviceInfo)
-	var servicesThatRequireDevices []string
+	services := make([]serviceInfo, 0, len(app.Descriptor.Bricks))
 	requiredDeviceClasses := make(map[string]any)
 	for _, brick := range app.Descriptor.Bricks {
 		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
@@ -266,11 +265,13 @@ func generateMainComposeFile(
 		// 5. Retrieve the required devices that we have to mount
 		slog.Debug("Brick config", slog.Bool("mount_devices_into_container", idxBrick.MountDevicesIntoContainer), slog.Any("ports", ports), slog.Any("required_devices", idxBrick.RequiredDevices))
 		if idxBrick.MountDevicesIntoContainer {
-			servicesThatRequireDevices = slices.AppendSeq(servicesThatRequireDevices, maps.Keys(svcs))
+			for i := range svcs {
+				svcs[i].requireDevices = true
+			}
 		}
 
 		composeFiles.Add(composeFilePath)
-		maps.Insert(services, maps.All(svcs))
+		services = append(services, svcs...)
 	}
 
 	// 6. Collect all the required device classes from the app descriptor
@@ -354,13 +355,13 @@ func generateMainComposeFile(
 	// Services with healthcheck will be started only when healthy
 	// Services without healthcheck will be started as soon as the container is started
 	dependsOn := make(map[string]dependsOnCondition, len(services))
-	for name := range services {
-		if services[name].hasHealthcheck {
-			dependsOn[name] = dependsOnCondition{
+	for _, s := range services {
+		if s.hasHealthcheck {
+			dependsOn[s.name] = dependsOnCondition{
 				Condition: "service_healthy",
 			}
 		} else {
-			dependsOn[name] = dependsOnCondition{
+			dependsOn[s.name] = dependsOnCondition{
 				Condition: "service_started",
 			}
 		}
@@ -404,8 +405,8 @@ func generateMainComposeFile(
 
 	// If there are services that require devices, we need to generate an override compose file
 	// Write additional file to override devices section in included compose files
-	if e := generateServicesOverrideFile(app, services, servicesThatRequireDevices, devices.devicePaths, getCurrentUser(), groups, overrideComposeFile, envs); e != nil {
-		return e
+	if err := generateServicesOverrideFile(app, services, devices.devicePaths, getCurrentUser(), groups, overrideComposeFile, envs); err != nil {
+		return err
 	}
 
 	// Pre-provision containers required paths, if they do not exist.
@@ -428,11 +429,13 @@ func generateMainComposeFile(
 }
 
 type serviceInfo struct {
+	name           string
 	hasHealthcheck bool
 	user           *string
+	requireDevices bool
 }
 
-func extractServicesFromComposeFile(composeFile *paths.Path) (map[string]serviceInfo, error) {
+func extractServicesFromComposeFile(composeFile *paths.Path) ([]serviceInfo, error) {
 	content, err := os.ReadFile(composeFile.String())
 	if err != nil {
 		return nil, err
@@ -452,15 +455,19 @@ func extractServicesFromComposeFile(composeFile *paths.Path) (map[string]service
 	if err := yaml.Unmarshal(content, &index); err != nil {
 		return nil, err
 	}
-	services := make(map[string]serviceInfo, len(index.Services))
+	services := make([]serviceInfo, 0, len(index.Services))
 	for svc, svcDef := range index.Services {
 		hasHealthcheck := len(svcDef.Healthcheck.Test) > 0
-		services[svc] = serviceInfo{hasHealthcheck: hasHealthcheck, user: svcDef.User}
+		services = append(services, serviceInfo{
+			name:           svc,
+			hasHealthcheck: hasHealthcheck,
+			user:           svcDef.User,
+		})
 	}
 	return services, nil
 }
 
-func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services map[string]serviceInfo, servicesThatRequireDevices []string, devices []string, user string, groups []string, overrideComposeFile *paths.Path, envs helpers.EnvVars) error {
+func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []serviceInfo, devices []string, user string, groups []string, overrideComposeFile *paths.Path, envs helpers.EnvVars) error {
 	if overrideComposeFile.Exist() {
 		if err := overrideComposeFile.Remove(); err != nil {
 			return fmt.Errorf("failed to remove existing override compose file: %w", err)
@@ -483,7 +490,7 @@ func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services map[strin
 		Services map[string]serviceOverride `yaml:"services,omitempty"`
 	}
 	overrideCompose.Services = make(map[string]serviceOverride, len(services))
-	for svc, svcInfo := range services {
+	for _, svc := range services {
 		override := serviceOverride{
 			Labels: map[string]string{
 				DockerAppLabel:     "true",
@@ -491,15 +498,15 @@ func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services map[strin
 			},
 		}
 		// If service defines a user, do not override it
-		if svcInfo.user == nil {
+		if svc.user == nil {
 			override.User = &user
 		}
-		if slices.Contains(servicesThatRequireDevices, svc) {
+		if svc.requireDevices {
 			override.Devices = &devices
 			override.GroupAdd = &groups
 		}
 		override.Environment = envs
-		overrideCompose.Services[svc] = override
+		overrideCompose.Services[svc.name] = override
 	}
 	writeOverrideCompose := func() error {
 		data, err := yaml.Marshal(overrideCompose)

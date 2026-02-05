@@ -514,7 +514,6 @@ services:
 		// Extract services from the compose file to prepare override generation
 		svcInfo, err := extractServicesFromComposeFile(serviceComposeFilePath)
 		require.NoError(t, err)
-		servicesThatRequireDevices := []string{}
 		devices := []string{}
 		devices = append(devices, "/dev/ttyUSB0:/dev/ttyUSB0")
 
@@ -525,7 +524,7 @@ services:
 
 		// Generate overrides file
 		overrideComposeFile := paths.New(tempDirectory).Join(".cache").Join("app-compose-overrides.yaml")
-		err = generateServicesOverrideFile(&app, svcInfo, servicesThatRequireDevices, devices, user, groups, overrideComposeFile, env)
+		err = generateServicesOverrideFile(&app, svcInfo, devices, user, groups, overrideComposeFile, env)
 		require.NoError(t, err)
 
 		// load and validate override file content

@@ -84,8 +84,8 @@ func AppLogs(
 		if err != nil {
 			return helpers.EmptyIter[LogMessage](), err
 		}
-		for s := range services {
-			serviceToBrickMapping[s] = brick.ID
+		for _, s := range services {
+			serviceToBrickMapping[s.name] = brick.ID
 		}
 	}
 
