@@ -205,23 +205,23 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 
 	lastBuild, err := eiClient.GetInfoLastDeployment(ctx, projectID, impulseID, deviceType)
 	if err != nil {
-		return nil, err
+		return AIModelItem{}, err
 	}
 
 	if lastBuild == nil {
 		jobId, err := eiClient.Build(ctx, projectID, impulseID, mType, mEngine, deviceType)
 		if err != nil {
-			return nil, err
+			return AIModelItem{}, err
 		}
 		err = eiClient.WaitForBuildCompletion(ctx, projectID, *jobId)
 		if err != nil {
-			return nil, err
+			return AIModelItem{}, err
 		}
 	}
 
 	project, err := eiClient.GetProjectInfo(ctx, projectID, impulseID)
 	if err != nil {
-		return nil, err
+		return AIModelItem{}, err
 	}
 	id := fmt.Sprintf("ei-model-%d-%d", projectID, impulseID)
 
@@ -230,7 +230,7 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 
 	modelRC, err := eiClient.DownloadAndInstallModel(ctx, projectID, impulseID, mType, mEngine, deviceType)
 	if err != nil {
-		return nil, err
+		return AIModelItem{}, err
 	}
 
 	customModelDescriptor := custommodel.ModelDescriptor{
@@ -251,9 +251,9 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 	aimodel, err := custommodel.Store(edgeModelsDir, customModelDescriptor, modelRC, "model.eim")
 	if err != nil {
 		if errors.Is(err, syscall.ENOSPC) {
-			return nil, ErrInsufficientStorage
+			return AIModelItem{}, ErrInsufficientStorage
 		}
-		return nil, err
+		return AIModelItem{}, err
 	}
 
 	return AIModelItem{
