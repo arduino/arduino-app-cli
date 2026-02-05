@@ -980,24 +980,12 @@ paths:
           application/json:
             schema:
               properties:
-                device_type:
-                  description: Device type for deployment (e.g., 'arduino-uno-q')
-                  example: arduino-uno-q
-                  type: string
-                engine:
-                  description: Model engine (e.g., 'tensorflow-lite')
-                  example: tensorflow-lite
-                  type: string
                 impulse_id:
                   description: Edge Impulse impulse ID
                   example: 1
                   type: integer
-                model_type:
-                  description: Type of model to build (e.g., 'object-detection')
-                  example: object-detection
-                  type: string
                 prj_api_key:
-                  description: Edge Impulse API token
+                  description: Edge Impulse project API key
                   example: your_edge_impulse_api_token
                   type: string
                 project_id:
@@ -1008,9 +996,6 @@ paths:
               - project_id
               - impulse_id
               - prj_api_key
-              - model_type
-              - engine
-              - device_type
               type: object
       responses:
         "200":
