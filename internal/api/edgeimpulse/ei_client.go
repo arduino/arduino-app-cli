@@ -178,6 +178,9 @@ func (c *EIClient) GetJobStatus(ctx context.Context, projectID int, jobID int) (
 				if err != nil {
 					return nil, fmt.Errorf("failed to get job logs: %w", err)
 				}
+				if len(logs) == 0 {
+					return resp.JSON200.Job.FinishedSuccessful, fmt.Errorf("job %d failed with unknown error", jobID)
+				}
 				return resp.JSON200.Job.FinishedSuccessful, fmt.Errorf("job %d failed with error: %v", jobID, logs[0].Data)
 			}
 		}
