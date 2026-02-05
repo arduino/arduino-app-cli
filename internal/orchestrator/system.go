@@ -51,21 +51,46 @@ var ErrDockerOutOfSpace = errors.New("not enough disk space to pull the docker i
 
 const ExitCodeDockerOutOfSpace = 80
 
-// Pulls all the docker images needed for the current version of the software to run.
-// Can be used to pre-install docker images on an empty system, or to update all the docker images that need it.
+type initProgress struct {
+	label string
+	curr  int64
+	total int64
+}
+
+type initProgressCallback func(progress initProgress)
+
+// SystemInit pulls all the docker images needed for the current version of the software to run and the
+// sketch libraries used in the example apps. Can be used to pre-install docker images/libraries on an
+// empty system, or to update all the docker images/libraries that need it.
 func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *store.StaticStore, docker *command.DockerCli) error {
-	if err := downloadSketchLibsUsedInExamples(ctx, cfg); err != nil {
+	stdout, _, err := feedback.DirectStreams()
+	if err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+		return nil
+	}
+
+	// TODO: Move this callback up in the call chain, closer to Cobra command definition
+	progressCB := func(progress initProgress) {
+		percentage := float64(progress.curr) / float64(progress.total) * 100
+		fmt.Fprintf(stdout, "%s: %.2f%% (%d/%d)\r", progress.label, percentage, progress.curr, progress.total)
+		if progress.curr == progress.total {
+			fmt.Fprintln(stdout)
+		}
+	}
+
+	if err := downloadSketchLibsUsedInExamples(ctx, cfg, progressCB); err != nil {
 		return fmt.Errorf("failed to download sketch libs used in examples: %w", err)
 	}
 
-	if err := downloadContainersUsedInExamples(ctx, cfg, staticStore, docker); err != nil {
+	// TODO: use progressCB instead of stdout
+	if err := downloadContainersUsedInExamples(ctx, cfg, staticStore, docker, stdout); err != nil {
 		return fmt.Errorf("failed to download container images used in examples: %w", err)
 	}
 
 	return nil
 }
 
-func downloadContainersUsedInExamples(ctx context.Context, cfg config.Configuration, staticStore *store.StaticStore, docker *command.DockerCli) error {
+func downloadContainersUsedInExamples(ctx context.Context, cfg config.Configuration, staticStore *store.StaticStore, docker *command.DockerCli, stdout io.Writer) error {
 	imagesToPreinstall := []string{cfg.PythonImage}
 	additionalImages, err := parseAllModelsRunnerImageTag(staticStore)
 	if err != nil {
@@ -82,12 +107,6 @@ func downloadContainersUsedInExamples(ctx context.Context, cfg config.Configurat
 	imagesToPreinstall = slices.DeleteFunc(imagesToPreinstall, func(v string) bool {
 		return slices.Contains(pulledImages, v)
 	})
-
-	stdout, _, err := feedback.DirectStreams()
-	if err != nil {
-		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
-		return nil
-	}
 
 	for _, image := range imagesToPreinstall {
 		freeSpace, err := GetDockerFreeSpace()
@@ -365,7 +384,7 @@ func removeDanglingContainers(ctx context.Context, docker dockerClient.APIClient
 	return counter, nil
 }
 
-func downloadSketchLibsUsedInExamples(ctx context.Context, cfg config.Configuration) error {
+func downloadSketchLibsUsedInExamples(ctx context.Context, cfg config.Configuration, progressCB initProgressCallback) error {
 	// Start an Arduino Core Server RPC server
 	logrus.SetOutput(io.Discard) // Suppress logs from Arduino CLI
 	var cliInstance *rpc.Instance
@@ -380,12 +399,26 @@ func downloadSketchLibsUsedInExamples(ctx context.Context, cfg config.Configurat
 		_, _ = cli.Destroy(ctx, &rpc.DestroyRequest{Instance: cliInstance})
 	}()
 
+	// Download progress CB
+	currLabel := ""
+	totalSize := int64(0)
+	downloadProgressCB := func(curr *rpc.DownloadProgress) {
+		if start := curr.GetStart(); start != nil {
+			currLabel = start.GetLabel()
+		}
+		if update := curr.GetUpdate(); update != nil {
+			totalSize = update.GetTotalSize()
+			progressCB(initProgress{
+				label: currLabel,
+				curr:  update.GetDownloaded(),
+				total: totalSize,
+			})
+		}
+	}
+
 	// Force-update of the Arduino Libraries index
 	{
-		progressCB := func(curr *rpc.DownloadProgress) {
-			// XXX: push some progress?
-		}
-		str, _ := commands.UpdateLibrariesIndexStreamResponseToCallbackFunction(ctx, progressCB)
+		str, _ := commands.UpdateLibrariesIndexStreamResponseToCallbackFunction(ctx, downloadProgressCB)
 		if err := cli.UpdateLibrariesIndex(&rpc.UpdateLibrariesIndexRequest{Instance: cliInstance}, str); err != nil {
 			return fmt.Errorf("could not update libraries index: %w", err)
 		}
@@ -404,7 +437,7 @@ func downloadSketchLibsUsedInExamples(ctx context.Context, cfg config.Configurat
 
 	// Download libraries used in each example app
 	for _, appPath := range exampleAppsPath {
-		if err := downloadSketchLibsUsedInApp(ctx, appPath, cli, cliInstance); err != nil {
+		if err := downloadSketchLibsUsedInApp(ctx, appPath, cli, cliInstance, downloadProgressCB); err != nil {
 			return fmt.Errorf("could not download libs in app %s: %w", appPath, err)
 		}
 	}
@@ -412,7 +445,7 @@ func downloadSketchLibsUsedInExamples(ctx context.Context, cfg config.Configurat
 	return nil
 }
 
-func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, cli rpc.ArduinoCoreServiceServer, cliInstance *rpc.Instance) error {
+func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, cli rpc.ArduinoCoreServiceServer, cliInstance *rpc.Instance, downloadProgressCB func(*rpc.DownloadProgress)) error {
 	// Open the app to get the sketch path
 	app, err := app.Load(appPath)
 	if err != nil {
@@ -425,7 +458,9 @@ func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, cli r
 
 	// Initializing using the profile will force download and install of the missing libraries
 	progressCB := func(r *rpc.InitResponse) error {
-		// XXX: push some progress?
+		if p := r.GetInitProgress().GetDownloadProgress(); p != nil {
+			downloadProgressCB(p)
+		}
 		return nil
 	}
 	if err := cli.Init(
