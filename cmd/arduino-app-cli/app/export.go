@@ -66,7 +66,7 @@ func newExportCmd(cfg config.Configuration) *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&includeData, "include-data", false, "Include data directory in the archive")
-	cmd.Flags().BoolVar(&override, "override", false, "Overwrite output file if it exists")
+	cmd.Flags().BoolVar(&override, "overwrite", false, "Overwrite output file if it exists")
 
 	return cmd
 }
@@ -98,7 +98,7 @@ func exportHandler(ctx context.Context, bricksIndex *bricksindex.BricksIndex, ap
 
 	if fileExists(finalPath) {
 		if !override {
-			feedback.Fatal(fmt.Sprintf("File '%s' already exists. Use --override to overwrite.", finalPath), feedback.ErrGeneric)
+			feedback.Fatal(fmt.Sprintf("File '%s' already exists. Use --overwrite to overwrite.", finalPath), feedback.ErrGeneric)
 		}
 	}
 
