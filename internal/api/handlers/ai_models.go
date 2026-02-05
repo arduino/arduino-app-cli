@@ -37,8 +37,8 @@ import (
 )
 
 type InstallEIModelRequest struct {
-	ProjectID *int    `json:"project_id" description:"Edge Impulse project ID" example:"123456" required:"true"`
-	ImpulseID *int    `json:"impulse_id" description:"Edge Impulse impulse ID" example:"1" required:"true"`
+	ProjectID *int   `json:"project_id" description:"Edge Impulse project ID" example:"123456" required:"true"`
+	ImpulseID *int   `json:"impulse_id" description:"Edge Impulse impulse ID" example:"1" required:"true"`
 	PrjApiKey string `json:"prj_api_key" description:"Edge Impulse API key" example:"your_edge_impulse_api" required:"true"`
 }
 
@@ -129,7 +129,7 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 			return
 		}
 
-		eiModel, err := orchestrator.InstallEIModel(r.Context(), bricksIndex, eiClient, cfg.CustomModelsDir(), req.ProjectID, req.ImpulseID)
+		eiModel, err := orchestrator.InstallEIModel(r.Context(), bricksIndex, eiClient, cfg.CustomModelsDir(), *req.ProjectID, *req.ImpulseID)
 		if err != nil {
 			switch {
 			case errors.Is(err, edgeimpulse.ErrUnauthorized):
@@ -153,11 +153,11 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 }
 
 func (r InstallEIModelRequest) Validate() error {
-	if r.ProjectID > 0 {
+	if r.ProjectID == nil || *r.ProjectID <= 0 {
 		return fmt.Errorf("project_id must be a positive integer")
 	}
-	if r.ImpulseID > 0 {
-		return fmt.Errorf("impulse_id must be a non-negative integer")
+	if r.ImpulseID == nil || *r.ImpulseID <= 0 {
+		return fmt.Errorf("impulse_id must be a positive integer")
 	}
 	if r.PrjApiKey == "" {
 		return fmt.Errorf("prj_api_key must be provided")
