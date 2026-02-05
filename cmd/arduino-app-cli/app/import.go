@@ -87,5 +87,11 @@ func (r importAppResult) String() string {
 }
 
 func (r importAppResult) Data() interface{} {
-	return r
+	appIDBytes, err := base64.RawURLEncoding.DecodeString(r.AppID)
+	if err != nil {
+		return r
+	}
+	return importAppResult{
+		AppID: string(appIDBytes),
+	}
 }
