@@ -159,7 +159,7 @@ func (r InstallEIModelRequest) Validate() error {
 	if r.ImpulseID > 0 {
 		return fmt.Errorf("impulse_id must be a non-negative integer")
 	}
-	if strings.TrimSpace(r.PrjApiKey) == "" {
+	if r.PrjApiKey == "" {
 		return fmt.Errorf("prj_api_key must be provided")
 	}
 	return nil
