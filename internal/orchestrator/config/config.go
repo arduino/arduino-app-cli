@@ -81,7 +81,7 @@ func NewFromEnv() (Configuration, error) {
 		if err != nil {
 			return Configuration{}, err
 		}
-		customModelsDir = paths.New(homeDir, ".arduino-bricks/")
+		customModelsDir = paths.New(homeDir, ".arduino-bricks/models")
 	}
 	if customModelsDir.NotExist() {
 		if err := customModelsDir.MkdirAll(); err != nil {
