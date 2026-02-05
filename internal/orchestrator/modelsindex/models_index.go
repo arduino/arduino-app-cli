@@ -60,8 +60,8 @@ type AIModel struct {
 }
 
 type BrickConfig struct {
-	ID          string            `yaml:"id"`
-	ModelConfig map[string]string `yaml:"model_configuration"`
+	ID                 string            `yaml:"id"`
+	ModelConfiguration map[string]string `yaml:"model_configuration"`
 }
 
 type ModelsIndex struct {
@@ -182,10 +182,7 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 			Name:              m.ModelDescriptor.Name,
 			ModuleDescription: m.ModelDescriptor.Description,
 			Bricks: f.Map(m.ModelDescriptor.Bricks, func(b custommodel.BrickConfig) BrickConfig {
-				return BrickConfig{
-					ID:          b.ID,
-					ModelConfig: b.ModelConfiguration,
-				}
+				return BrickConfig(b)
 			}),
 			Metadata:        m.ModelDescriptor.Metadata,
 			ModelFolderPath: m.FullPath,
