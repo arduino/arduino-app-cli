@@ -123,9 +123,13 @@ func (c *EIClient) GetDeployment(ctx context.Context, projectID int, impulseID i
 			return resp.JSON200.Version, nil
 		}
 		return nil, nil
+	} else {
+		if resp.JSON200.Error != nil {
+			return nil, fmt.Errorf("error fetching project info: %s", *resp.JSON200.Error)
+		}
+		return nil, fmt.Errorf("error fetching project info: unknown error")
 	}
 
-	return nil, fmt.Errorf("error fetching deployment info: %s", *resp.JSON200.Error)
 }
 
 func (c *EIClient) Build(ctx context.Context, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter, deviceType DeploymentTypeParameter) (*int, error) {
@@ -146,9 +150,12 @@ func (c *EIClient) Build(ctx context.Context, projectID int, impulseID int, mode
 
 	if resp.JSON200.Success {
 		return &resp.JSON200.Id, nil
+	} else {
+		if resp.JSON200.Error != nil {
+			return nil, fmt.Errorf("error fetching project info: %s", *resp.JSON200.Error)
+		}
+		return nil, fmt.Errorf("error fetching project info: unknown error")
 	}
-
-	return nil, fmt.Errorf("error building model: %s", *resp.JSON200.Error)
 
 }
 
@@ -162,24 +169,24 @@ func (c *EIClient) GetJobStatus(ctx context.Context, projectID int, jobID int) (
 		return nil, errorMessage(resp.StatusCode())
 	}
 
-	if resp.JSON200.Success && resp.JSON200.Job.Finished != nil {
-		if *resp.JSON200.Job.FinishedSuccessful {
-			return resp.JSON200.Job.FinishedSuccessful, nil
-		} else {
-			logs, err := c.getJobLogs(ctx, projectID, jobID, 1, "error")
-			if err != nil {
-				return nil, fmt.Errorf("failed to get job logs: %w", err)
+	if resp.JSON200.Success {
+		if resp.JSON200.Job.Finished != nil && resp.JSON200.Job.FinishedSuccessful != nil {
+			if *resp.JSON200.Job.FinishedSuccessful {
+				return resp.JSON200.Job.FinishedSuccessful, nil
+			} else {
+				logs, err := c.getJobLogs(ctx, projectID, jobID, 1, "error")
+				if err != nil {
+					return nil, fmt.Errorf("failed to get job logs: %w", err)
+				}
+				return resp.JSON200.Job.FinishedSuccessful, fmt.Errorf("job %d failed with error: %v", jobID, logs[0].Data)
 			}
-			return resp.JSON200.Job.FinishedSuccessful, fmt.Errorf("job %d failed with error: %v", jobID, logs[0].Data)
+		}
+	} else {
+		if resp.JSON200.Error != nil {
+			return nil, fmt.Errorf("error fetching project info: %s", *resp.JSON200.Error)
 		}
 	}
-
-	if !resp.JSON200.Success {
-		return nil, fmt.Errorf("error fetching job status: %s", *resp.JSON200.Error)
-	}
-
 	return nil, nil
-
 }
 
 func (c *EIClient) getJobLogs(ctx context.Context, projectID, jobID int, limit int, logLevel string) (logs JobLogEntry, err error) {
@@ -205,12 +212,15 @@ func (c *EIClient) GetProjectInfo(ctx context.Context, projectID int, impulseID 
 	if resp.StatusCode() != http.StatusOK {
 		return nil, errorMessage(resp.StatusCode())
 	}
+
 	if resp.JSON200.Success {
 		return &resp.JSON200.Project, nil
+	} else {
+		if resp.JSON200.Error != nil {
+			return nil, fmt.Errorf("error fetching project info: %s", *resp.JSON200.Error)
+		}
+		return nil, fmt.Errorf("error fetching project info: unknown error")
 	}
-
-	return nil, fmt.Errorf("error fetching project info: %s", *resp.JSON200.Error)
-
 }
 
 func (c EIClient) WaitForBuildCompletion(ctx context.Context, projectID, jobID int) error {

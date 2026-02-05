@@ -116,6 +116,7 @@ func (a *AiModel) writeDescriptorFile() error {
 		if cleanupErr := os.Remove(descriptorPath.String()); cleanupErr != nil {
 			returnErr = fmt.Errorf("%w (cleanup failed: %v)", returnErr, cleanupErr)
 		}
+		return returnErr
 	}
 	return nil
 }
