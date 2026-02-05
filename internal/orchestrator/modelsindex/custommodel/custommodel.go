@@ -109,11 +109,8 @@ func (a *AiModel) writeDescriptorFile() error {
 	}
 
 	if err := fatomic.WriteFile(descriptorPath.String(), out, os.FileMode(0644)); err != nil {
-		returnErr := fmt.Errorf("failed to write model descriptorfile: %w", err)
-		if cleanupErr := os.Remove(descriptorPath.String()); cleanupErr != nil {
-			returnErr = fmt.Errorf("%w (cleanup failed: %v)", returnErr, cleanupErr)
-		}
-		return returnErr
+		_ = descriptorPath.Remove()
+		return fmt.Errorf("failed to write model descriptorfile: %w", err)
 	}
 	return nil
 }
