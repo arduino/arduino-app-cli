@@ -122,10 +122,6 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 			return
 		}
 
-		if cfg.EdgeImpulseAPIURL == nil {
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "Edge Impulse API URL is not configured"})
-			return
-		}
 		eiClient, err := edgeimpulse.NewEIClient(req.PrjApiKey, *cfg.EdgeImpulseAPIURL)
 		if err != nil {
 			slog.Error("unable to create Edge Impulse client", slog.String("error", err.Error()))
