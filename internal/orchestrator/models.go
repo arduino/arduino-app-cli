@@ -244,7 +244,7 @@ func checkForModelReferences(ctx context.Context, dockerClient command.Cli, cfg 
 	return slices.Collect(maps.Keys(references)), runningAppReference, nil
 }
 
-func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, projectID int, impulseID int) (*custommodel.AiModel, error) {
+func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, projectID int, impulseID int) (*AIModelItem, error) {
 
 	// TODO these parameters aim to build a model optimized for the Imola hardware, they should change based on the target device
 	mType := edgeimpulse.ModelTypeParameter("float32")
@@ -302,7 +302,16 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 		return nil, err
 	}
 
-	return &aimodel, nil
+	return &AIModelItem{
+		ID:                aimodel.ModelDescriptor.ID,
+		Name:              aimodel.ModelDescriptor.Name,
+		ModuleDescription: aimodel.ModelDescriptor.Description,
+		Runner:            aimodel.ModelDescriptor.Runner,
+		Bricks: f.Map(aimodel.ModelDescriptor.Bricks, func(b custommodel.BrickConfig) string {
+			return b.ID
+		}),
+		Metadata: aimodel.ModelDescriptor.Metadata,
+	}, nil
 }
 
 var mapCategoryToBricks = map[edgeimpulse.ProjectCategory][]string{
