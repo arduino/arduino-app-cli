@@ -37,8 +37,8 @@ import (
 )
 
 type InstallEIModelRequest struct {
-	ProjectID int    `json:"project_id" description:"Edge Impulse project ID" example:"123456" required:"true"`
-	ImpulseID int    `json:"impulse_id" description:"Edge Impulse impulse ID" example:"1" required:"true"`
+	ProjectID *int    `json:"project_id" description:"Edge Impulse project ID" example:"123456" required:"true"`
+	ImpulseID *int    `json:"impulse_id" description:"Edge Impulse impulse ID" example:"1" required:"true"`
 	PrjApiKey string `json:"prj_api_key" description:"Edge Impulse API key" example:"your_edge_impulse_api" required:"true"`
 }
 
