@@ -207,6 +207,39 @@ services:
 		require.True(t, app.FullPath.Join("customized").Join("data").Join("influx-data").Exist(), "Volume directory should exist")
 	})
 
+	t.Run("TestPreProvsionVolumesWithNestedEnv", func(t *testing.T) {
+		tempDirectory := t.TempDir()
+
+		volumesFromStrings := `
+services:
+  dbstorage-influx:
+    image: influxdb:2.7
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${BIND_PORT:-8086}:8086"
+    volumes:
+      - "${CUSTOM_PATH:-${DEFVALUE}/customized}/data/influx-data:/var/lib/influxdb2"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+`
+		volumesFromFile := paths.New(tempDirectory).Join("volumes-from.yaml")
+		if err := os.WriteFile(volumesFromFile.String(), []byte(volumesFromStrings), 0600); err != nil {
+			t.Fatalf("Failed to write volumes from file: %v", err)
+		}
+
+		app := &app.ArduinoApp{
+			Name:     "TestApp",
+			FullPath: paths.New(tempDirectory),
+		}
+		// Use env for nested default value
+		os.Setenv("DEFVALUE", tempDirectory)
+
+		env := map[string]string{}
+		volumes, err := extractVolumesFromComposeFile(volumesFromFile.String())
+		require.Nil(t, err, "Failed to extract volumes from compose file")
+		provisionComposeVolumes(volumesFromFile.String(), volumes, app, env)
+		require.True(t, app.FullPath.Join("customized").Join("data").Join("influx-data").Exist(), "Volume directory should exist")
+	})
+
 	t.Run("TestPreProvsionVolumesAsStructure", func(t *testing.T) {
 		tempDirectory := t.TempDir()
 
