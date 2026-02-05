@@ -73,11 +73,8 @@ func Store(dir *paths.Path, descr ModelDescriptor, modelFileReader io.ReadCloser
 
 	if _, err := io.Copy(f, modelFileReader); err != nil {
 
-		returnErr := fmt.Errorf("failed to write model file: %w", err)
-		if cleanupErr := os.Remove(destBlobPath.String()); cleanupErr != nil {
-			returnErr = fmt.Errorf("%w (cleanup failed: %v)", returnErr, cleanupErr)
-		}
-		return AiModel{}, returnErr
+        _ = destBlobPath.Remove())
+		return AiModel{}, fmt.Errorf("failed to write model file: %w", err)
 	}
 
 	m := AiModel{
