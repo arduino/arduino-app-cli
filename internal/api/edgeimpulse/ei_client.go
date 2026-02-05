@@ -22,8 +22,6 @@ import (
 	"net/http"
 	"net/url"
 	"time"
-
-	"github.com/arduino/go-paths-helper"
 )
 
 type EIClient struct {
@@ -72,7 +70,7 @@ func NewEIClient(prjApiKey string, apiURL url.URL) (*EIClient, error) {
 	return &EIClient{PrjApiKey: prjApiKey, ApiUrl: apiURL, HttpClient: httpClient}, nil
 }
 
-func (c *EIClient) DownloadAndInstallModel(ctx context.Context, modelPath *paths.Path, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter, deviceType DeploymentTypeParameter) (io.ReadCloser, error) {
+func (c *EIClient) DownloadAndInstallModel(ctx context.Context, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter, deviceType DeploymentTypeParameter) (io.ReadCloser, error) {
 
 	opt := &DownloadBuildParams{ImpulseId: &impulseID, ModelType: &modelType, Engine: &engine, Type: deviceType}
 

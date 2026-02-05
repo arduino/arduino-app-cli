@@ -224,9 +224,9 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 	id := fmt.Sprintf("ei-model-%d-%d", projectID, impulseID)
 
 	edgeModelsDir := modelsDir.Join("custom-ei").Join(id)
-	blobModelsDir := edgeModelsDir.Join("custom-ei").Join("model.eim")
+	blobModelsDir := edgeModelsDir.Join("model.eim")
 
-	modelRC, err := eiClient.DownloadAndInstallModel(ctx, blobModelsDir, projectID, impulseID, mType, mEngine, deviceType)
+	modelRC, err := eiClient.DownloadAndInstallModel(ctx, projectID, impulseID, mType, mEngine, deviceType)
 	if err != nil {
 		return nil, err
 	}

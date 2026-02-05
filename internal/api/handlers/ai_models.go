@@ -157,10 +157,10 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 }
 
 func (r InstallEIModelRequest) Validate() error {
-	if r.ProjectID <= 0 {
+	if r.ProjectID > 0 {
 		return fmt.Errorf("project_id must be a positive integer")
 	}
-	if r.ImpulseID < 0 {
+	if r.ImpulseID > 0 {
 		return fmt.Errorf("impulse_id must be a non-negative integer")
 	}
 	if strings.TrimSpace(r.PrjApiKey) == "" {
