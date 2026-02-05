@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/goccy/go-yaml"
@@ -71,7 +72,15 @@ func Store(dir *paths.Path, descr ModelDescriptor, modelFileReader io.ReadCloser
 	}
 	defer f.Close()
 	if _, err := io.Copy(f, modelFileReader); err != nil {
-		return AiModel{}, fmt.Errorf("failed to write model file : %w", err)
+		returnErr := fmt.Errorf("failed to write model file: %w", err)
+		if errors.Is(err, syscall.ENOSPC) {
+			returnErr = fmt.Errorf("not enough space to store the model file: %w", err)
+		}
+		err := os.Remove(destBlobPath.String())
+		if err != nil {
+			returnErr = fmt.Errorf("%v failed to remove incomplete model file from %s: %v", returnErr, destBlobPath.String(), err)
+		}
+		return AiModel{}, returnErr
 	}
 
 	m := AiModel{
