@@ -256,7 +256,7 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 		return nil, err
 	}
 
-	return &AIModelItem{
+	return AIModelItem{
 		ID:                aimodel.ModelDescriptor.ID,
 		Name:              aimodel.ModelDescriptor.Name,
 		ModuleDescription: aimodel.ModelDescriptor.Description,
