@@ -83,6 +83,7 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 		ModuleDescription: model.ModuleDescription,
 		Runner:            model.Runner,
 		Bricks:            f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
+		Metadata:          model.Metadata,
 		IsBuiltin:         model.IsInternal,
 	}, true
 }
