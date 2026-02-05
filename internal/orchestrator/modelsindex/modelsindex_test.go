@@ -65,8 +65,8 @@ func TestModelsIndex(t *testing.T) {
 			Name:              "Lightweight-Face-Detection",
 			ModuleDescription: "Face bounding box detection. This model is trained on the WIDER FACE dataset and can detect faces in images.",
 			Bricks: []BrickConfig{
-				{ID: "arduino:object_detection", ModelConfig: map[string]string{"EI_OBJ_DETECTION_MODEL": "/models/ootb/ei/lw-face-det.eim"}},
-				{ID: "arduino:video_object_detection", ModelConfig: map[string]string{"EI_V_OBJ_DETECTION_MODEL": "/models/ootb/ei/video-face-det.eim"}},
+				{ID: "arduino:object_detection", ModelConfiguration: map[string]string{"EI_OBJ_DETECTION_MODEL": "/models/ootb/ei/lw-face-det.eim"}},
+				{ID: "arduino:video_object_detection", ModelConfiguration: map[string]string{"EI_V_OBJ_DETECTION_MODEL": "/models/ootb/ei/video-face-det.eim"}},
 			},
 			Metadata: map[string]string{
 				"source":           "qualcomm-ai-hub",
@@ -92,7 +92,7 @@ func TestModelsIndex(t *testing.T) {
 			ID:                "my-model-id",
 			Name:              "my custom model from edge impulse",
 			ModuleDescription: "A small and accurate model for detecting bounding boxes for faces in images.",
-			Bricks:            []BrickConfig{{ID: "object-detection", ModelConfig: map[string]string{"AN_ENV_VARIABLE": "/my/env7variable"}}},
+			Bricks:            []BrickConfig{{ID: "object-detection", ModelConfiguration: map[string]string{"AN_ENV_VARIABLE": "/my/env7variable"}}},
 			Metadata: map[string]string{
 				"a-bool-metadata":   "true",
 				"a-int-metadata":    "1",

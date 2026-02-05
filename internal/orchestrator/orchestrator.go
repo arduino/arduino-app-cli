@@ -268,7 +268,7 @@ func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.Bric
 
 		if m, found := modelsIndex.GetModelByID(brick.Model); found {
 			for _, b := range m.Bricks {
-				maps.Insert(envs, maps.All(b.ModelConfig))
+				maps.Insert(envs, maps.All(b.ModelConfiguration))
 			}
 		}
 
