@@ -91,64 +91,58 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 			return
 		}
 	}()
-	names := f.Map(packages, func(pkg update.PackageInfo) string {
-		return pkg.Name
-	})
-	eventCB(update.NewDataEvent(update.StartEvent, "Upgrade is starting"))
-	stream := runUpgradeCommand(ctx, names)
-	for line, err := range stream {
+
+	// names := f.Map(packages, func(pkg update.PackageInfo) string {
+	// 	return pkg.Name
+	// })
+	// eventCB(update.NewDataEvent(update.StartEvent, "Upgrade is starting"))
+	// stream := runUpgradeCommand(ctx, names)
+	// for line, err := range stream {
+	// 	if err != nil {
+	// 		return fmt.Errorf("error running upgrade command: %w", err)
+	// 	}
+	// 	eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+	// }
+
+	// eventCB(update.NewDataEvent(update.StartEvent, "apt cleaning cache is starting"))
+	// for line, err := range runAptCleanCommand(ctx) {
+	// 	if err != nil {
+	// 		return fmt.Errorf("error running apt clean command: %w", err)
+	// 	}
+	// 	eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+	// }
+
+	eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Pulling the latest docker images ..."))
+	for line, err := range pullDockerImages(ctx) {
 		if err != nil {
-			return fmt.Errorf("error running upgrade command: %w", err)
-		}
-		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
-	}
+			if err.Error() == fmt.Sprintf("exit status %d", orchestrator.ExitCodeDockerOutOfSpace) {
+				// Detected an out of space error. Need to perform the cleanup.
+				eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Stop and destroy docker containers and images, to free up space ..."))
+				streamCleanup := cleanupDockerContainers(ctx)
+				for line, err := range streamCleanup {
+					if err != nil {
+						slog.Warn("Error during cleanup of container and images", "error", err)
+					} else {
+						eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+					}
+				}
 
-	eventCB(update.NewDataEvent(update.StartEvent, "apt cleaning cache is starting"))
-	for line, err := range runAptCleanCommand(ctx) {
-		if err != nil {
-			return fmt.Errorf("error running apt clean command: %w", err)
-		}
-		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
-	}
+				// Try again to pull the docker containers.
+				eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Pulling the latest docker images (again) ..."))
+				for line, err := range pullDockerImages(ctx) {
+					if err != nil {
+						return fmt.Errorf("error pulling docker images: %w", err)
+					}
+					eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+				}
 
-	// ====================
-
-	// Do a pullDockerImages()
-	// if OK -> return nil
-	// if error -> return error
-	// if "error no space" ->
-	// cleanupDockerContainers()
-	// pullDockerImages()
-	// if err -> return error
-	// return nil
-
-	return nil
-
-	// ====================
-
-	eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Stop and destroy docker containers and images ...."))
-	streamCleanup := cleanupDockerContainers(ctx)
-	for line, err := range streamCleanup {
-		if err != nil {
-			// TODO: maybe we should retun an error or a better feedback to the user?
-			// currently, we just log the error and continue considenring not blocking
-			slog.Warn("Error stopping and destroying docker containers", "error", err)
+			} else {
+				// For any other error while pulling the docker images, exit and stop the upgrade.
+				return fmt.Errorf("error pulling docker images: %w", err)
+			}
 		} else {
 			eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 		}
-	}
-
-	// TODO: Remove this workaround once docker image versions are no longer hardcoded in arduino-app-cli.
-	// Tracking issue: https://github.com/arduino/arduino-app-cli/issues/600
-	// Currently, we need to launch `arduino-app-cli system init` to pull the latest docker images because
-	// the version of the docker images are hardcoded in the (new downloaded) version of the arduino-app-cli.
-	eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Pulling the latest docker images ..."))
-	streamDocker := pullDockerImages(ctx)
-	for line, err := range streamDocker {
-		if err != nil {
-			return fmt.Errorf("error pulling docker images: %w", err)
-		}
-		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 	}
 
 	return nil

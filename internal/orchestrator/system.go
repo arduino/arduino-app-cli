@@ -41,6 +41,10 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
+var ErrDockerOutOfSpace = errors.New("Not enough disk space to pull the docker image")
+
+const ExitCodeDockerOutOfSpace = 80
+
 // Pulls all the docker images needed for the current version of the software to run.
 // Can be used to pre-install docker images on an empty system, or to update all the docker images that need it.
 func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *store.StaticStore, docker *command.DockerCli) error {
@@ -68,6 +72,23 @@ func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *stor
 	}
 
 	for _, container := range containersToPreinstall {
+		freeSpace, err := GetDockerFreeSpace()
+		if err != nil {
+			return err
+		}
+
+		// For each container to pull, compare the layers to any exisiting previous version, in order to get a good
+		// estimate of the dowloaded bytes and so the extracted used disk space.
+		// If the free disk space is not enough, return a specific error.
+		previousExistingImage := GetHighestVersion(container, pulledImages)
+		toDownload, err := GetBytesToDownload(previousExistingImage, container, stdout)
+		if err == nil {
+			if uint64(float64(toDownload)*2.5) > freeSpace {
+				return ErrDockerOutOfSpace
+			}
+		}
+		// If an error happended while trying to get the download size, proceed by pulling anyway.
+
 		feedback.Printf("Pulling container image %s ...", container)
 		if err := pullImage(ctx, stdout, docker.Client(), container); err != nil {
 			return fmt.Errorf("failed to pull image %s: %w", container, err)

@@ -30,9 +30,6 @@ func HandleCheckUpgradable(updater *update.Manager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		queryParams := r.URL.Query()
 
-		render.EncodeResponse(w, http.StatusNoContent, nil)
-		return
-
 		onlyArduinoPackages := false
 		if val := queryParams.Get("only-arduino"); val != "" {
 			onlyArduinoPackages = strings.ToLower(val) == "true"
