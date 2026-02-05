@@ -18,12 +18,13 @@ package app
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/arduino/go-paths-helper"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
@@ -49,7 +50,7 @@ func newExportCmd(cfg config.Configuration) *cobra.Command {
 			if err != nil {
 				feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 			}
-			outputPath := ""
+			var outputPath string
 			if len(args) > 1 {
 				outputPath = args[1]
 			}
@@ -60,7 +61,7 @@ func newExportCmd(cfg config.Configuration) *cobra.Command {
 				return nil, cobra.ShellCompDirectiveDefault
 			}
 			return completion.ApplicationNamesWithFilterFunc(cfg, func(apps orchestrator.AppInfo) bool {
-				return true
+				return !apps.Example
 			})(cmd, args, toComplete)
 		},
 	}
@@ -83,33 +84,31 @@ func exportHandler(ctx context.Context, bricksIndex *bricksindex.BricksIndex, ap
 	timestamp := time.Now().Format("2006-01-02_15-04-05")
 	defaultFileName := fmt.Sprintf("%s_%s%s", nameNoExt, timestamp, ext)
 
-	var finalPath string
-
-	if outputDest == "" {
-		finalPath = defaultFileName
-	} else {
-		info, err := os.Stat(outputDest)
-		if err == nil && info.IsDir() {
-			finalPath = filepath.Join(outputDest, defaultFileName)
+	var finalPath *paths.Path
+	if outputDest != "" {
+		p := paths.New(outputDest)
+		if p.IsDir() {
+			finalPath = paths.New(filepath.Join(outputDest, defaultFileName))
 		} else {
-			finalPath = outputDest
+			finalPath = p
 		}
+	} else {
+		finalPath = paths.New(defaultFileName)
 	}
-
-	if fileExists(finalPath) {
+	if finalPath.Exist() {
 		if !override {
 			feedback.Fatal(fmt.Sprintf("File '%s' already exists. Use --overwrite to overwrite.", finalPath), feedback.ErrGeneric)
 		}
 	}
 
-	if err := os.WriteFile(finalPath, zipBytes, 0600); err != nil {
+	if err := finalPath.WriteFile(zipBytes); err != nil {
 		feedback.Fatal(fmt.Sprintf("Failed to save zip file: %s", err), feedback.ErrGeneric)
 	}
 
 	feedback.PrintResult(exportAppResult{
 		Result:  "ok",
 		Message: "Export successful",
-		AppName: finalPath,
+		AppName: finalPath.String(),
 	})
 
 	return nil
@@ -127,9 +126,4 @@ func (r exportAppResult) String() string {
 
 func (r exportAppResult) Data() interface{} {
 	return r
-}
-
-func fileExists(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && !info.IsDir()
 }
