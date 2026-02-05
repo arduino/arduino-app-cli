@@ -82,16 +82,13 @@ func (m *ModelsIndex) GetModelByID(id string) (*AIModel, bool) {
 	return &models[idx], true
 }
 
-func (m *ModelsIndex) GetModelsByBrick(brick string) []AIModel {
+func (m *ModelsIndex) GetModelsByBrick(brickName string) []AIModel {
 	var matches []AIModel
 	models := m.loadModels()
-	for i := range models {
-		if len(models[i].Bricks) > 0 && slices.ContainsFunc(models[i].Bricks, func(b BrickConfig) bool { return b.ID == brick }) {
-			matches = append(matches, models[i])
+	for _, model := range models {
+		if slices.ContainsFunc(model.Bricks, func(b BrickConfig) bool { return b.ID == brickName }) {
+			matches = append(matches, model)
 		}
-	}
-	if len(matches) == 0 {
-		return nil
 	}
 	return matches
 }
@@ -99,15 +96,15 @@ func (m *ModelsIndex) GetModelsByBrick(brick string) []AIModel {
 func (m *ModelsIndex) GetModelsByBricks(bricks []string) []AIModel {
 	var matchingModels []AIModel
 	for _, model := range m.loadModels() {
-		for _, modelBrick := range model.Bricks {
-			if slices.ContainsFunc(bricks, func(b string) bool { return b == modelBrick.ID }) {
-				matchingModels = append(matchingModels, model)
-				break
-			}
+		if slices.ContainsFunc(model.Bricks, func(brick BrickConfig) bool {
+			return slices.Contains(bricks, brick.ID)
+		}) {
+			matchingModels = append(matchingModels, model)
 		}
 	}
 	return matchingModels
 }
+
 func (m *ModelsIndex) loadModels() []AIModel {
 	eimodels, err := loadCustomModels(m.modelsDir)
 	if err != nil {
