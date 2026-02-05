@@ -237,8 +237,8 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 		Description: project.Description,
 		Metadata: map[string]string{
 			"source":           "edgeimpulse",
-			"ei-project-id":    fmt.Sprintf("%d", projectID),
-			"ei-impulse-id":    fmt.Sprintf("%d", impulseID),
+			"ei-project-id":    strconv.Itoa(projectID),
+			"ei-impulse-id":    strconv.Itoa(impulseID),
 			"ei-model-type":    string(mType),
 			"ei-engine":        string(mEngine),
 			"ei-last-modified": project.LastModified.Local().Format("2006-01-02 15:04:05"),
