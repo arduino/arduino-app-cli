@@ -129,7 +129,7 @@ The available fields are:
 
 ### Brick Object Definition
 
-Bricks are Python-first modular dependencies, distributed as PIP packages, that encapsulate both application logic and infrastructure configurations (such as Docker Compose files) to extend an App's capabilities.
+Bricks are Python-first modular dependencies, that encapsulate both application logic and infrastructure configurations (such as Docker Compose files) to extend an App's capabilities.
 
 This section describes the structure of a single item within the bricks list in app.yaml.
 
