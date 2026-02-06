@@ -244,7 +244,7 @@ func (c EIClient) WaitForBuildCompletion(ctx context.Context, projectID, jobID i
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(5 * time.Second):
+		case <-time.After(1 * time.Second):
 		}
 	}
 
