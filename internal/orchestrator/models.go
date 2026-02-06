@@ -254,6 +254,7 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 	mType := edgeimpulse.ModelTypeParameter("float32")
 	mEngine := edgeimpulse.ModelEngineParameter("tflite")
 	deviceType := "runner-linux-aarch64"
+	var mversion string
 
 	lastBuild, err := eiClient.GetInfoLastDeployment(ctx, projectID, impulseID, deviceType)
 	if err != nil {
@@ -261,14 +262,20 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 	}
 
 	if lastBuild == nil {
-		jobId, err := eiClient.Build(ctx, projectID, impulseID, mType, mEngine, deviceType)
+		job, err := eiClient.Build(ctx, projectID, impulseID, mType, mEngine, deviceType)
 		if err != nil {
 			return AIModelItem{}, err
 		}
-		err = eiClient.WaitForBuildCompletion(ctx, projectID, *jobId)
+		err = eiClient.WaitForBuildCompletion(ctx, projectID, job.JobID)
 		if err != nil {
 			return AIModelItem{}, err
 		}
+		mversion = strconv.Itoa(job.DeploymentVersion)
+	} else {
+		mType = *lastBuild.ModelType
+		mEngine = lastBuild.Engine
+		deviceType = lastBuild.DeploymentType
+		mversion = strconv.Itoa(lastBuild.Version)
 	}
 
 	project, err := eiClient.GetProjectInfo(ctx, projectID, impulseID)
@@ -290,12 +297,13 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 		Name:        project.Name,
 		Description: project.Description,
 		Metadata: map[string]string{
-			"source":           "edgeimpulse",
-			"ei-project-id":    strconv.Itoa(projectID),
-			"ei-impulse-id":    strconv.Itoa(impulseID),
-			"ei-model-type":    string(mType),
-			"ei-engine":        string(mEngine),
-			"ei-last-modified": project.LastModified.Local().Format(time.RFC3339Nano),
+			"source":               "edgeimpulse",
+			"ei-project-id":        strconv.Itoa(projectID),
+			"ei-impulse-id":        strconv.Itoa(impulseID),
+			"ei-model-type":        string(mType),
+			"ei-engine":            string(mEngine),
+			"ei-last-modified":     project.LastModified.Local().Format(time.RFC3339Nano),
+			"ei-deplyment-version": mversion,
 		},
 		Bricks: buildBrickConfigForEIModel(bricksIndex, project.Category, edgeModelsDir, blobModelsDir),
 	}
@@ -342,7 +350,7 @@ func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *
 			slog.Warn("cannot load brick", "id", b, "category", category)
 			continue
 		}
-		modelConfigPerBrick := make(map[string]string)
+		modelConfigPerBrick := make(map[string]any)
 		for _, variable := range brick.Variables {
 			name := variable.Name
 			switch {
