@@ -389,6 +389,19 @@ func downloadSketchLibsUsedInExamples(ctx context.Context, cfg config.Configurat
 	logrus.SetOutput(io.Discard) // Suppress logs from Arduino CLI
 	var cliInstance *rpc.Instance
 	cli := commands.NewArduinoCoreServer()
+
+	// Set the data dir if specified via the ARDUINO_DIRECTORIES_DATA env var
+	if dataDir, ok := os.LookupEnv("ARDUINO_DIRECTORIES_DATA"); ok {
+		_, err := cli.SettingsSetValue(ctx, &rpc.SettingsSetValueRequest{
+			Key:          "directories.data",
+			EncodedValue: dataDir,
+			ValueFormat:  "cli",
+		})
+		if err != nil {
+			return fmt.Errorf("could not set data directory: %w", err)
+		}
+	}
+
 	if resp, err := cli.Create(ctx, &rpc.CreateRequest{}); err != nil {
 		return fmt.Errorf("could not create Arduino Core Server client: %w", err)
 	} else {
