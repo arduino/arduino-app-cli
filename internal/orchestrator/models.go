@@ -342,7 +342,7 @@ func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *
 			slog.Warn("cannot load brick", "id", b, "category", category)
 			continue
 		}
-		modelConfigPerBrick := map[string]any{}
+		modelConfigPerBrick := make(map[string]string)
 		for _, variable := range brick.Variables {
 			name := variable.Name
 			switch {
