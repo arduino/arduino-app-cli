@@ -63,7 +63,7 @@ func parseFilePath(arg string) (*paths.Path, func(), error) {
 		}
 		defer tmpFile.Close()
 
-		if _, err = io.Copy(tmpFile, os.Stdin); err != nil {
+		if _, err = io.Copy(tmpFile, os.Stdin); err != nil { // nolint:forbidigo
 			tmpFile.Close()
 			_ = os.Remove(tmpFile.Name())
 			return nil, nil, fmt.Errorf("failed to read from stdin: %w", err)
