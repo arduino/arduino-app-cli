@@ -180,3 +180,40 @@ bricks:
     ports:
       - 8001
 ```
+
+## 5. Broken App Definition
+
+A **Broken App** is a directory that the system has successfully identified as an Arduino App but which fails to meet the operational requirements. Unlike a generic folder, a Broken App is an entity recognized by the `arduino-app-cli` and `Arduino App Lab`, but it is flagged as non-functional.
+
+### 5.1 The Primary Identifier
+
+The presence of the `app.yaml` file is the **sole requirement** for a directory to be promoted from a "generic folder" to an "Arduino App" entity.
+
+* If `app.yaml` is present: The system must attempt to parse it and register the App.
+* If `app.yaml` is missing: The directory is ignored and must not be treated as an App.
+
+### 5.2 Broken State Criteria
+
+An Arduino App entity is classified as **Broken** if it falls into one of the following categories:
+
+* **Invalid Descriptor**: The `app.yaml` file exists but contains syntax errors (invalid YAML) or violates the schema constraints (e.g., invalid characters in the `name` field).
+* **Structural Incompleteness**: The App lacks the mandatory internal components defined in the Project Structure:
+* Missing `python/` directory.
+* Missing `python/main.py` file.
+
+
+* **Incomplete Embedded Layer**: The `sketch/` folder exists, but it is missing the mandatory `sketch.ino` or `sketch.yaml` files.
+
+### 5.3 System Behavior for Broken Apps
+
+The existence of a Broken App entity allows the system to provide feedback rather than silent failure:
+
+* **Discovery**: The `arduino-app-cli` must include Broken Apps in its list, clearly marking their status.
+
+### 5.4 Static Validation vs. Runtime Errors
+
+The classification of an App (as Valid or Broken) is determined solely through **Static Validation**. This process checks the presence and organization of files and the integrity of the `app.yaml` descriptor.
+
+* **Scope of Static Validation**: The system only verifies that the required folders and files exist and that the manifest is readable.
+* **Exclusion of Execution Errors**: Static validation **does not** include code analysis. For example, a `main.py` file that contains Python syntax errors, or a `sketch.ino` that fails to compile due to logic errors, will **not** cause the App to be flagged as "Broken" during the discovery phase.
+* **Failure Mode**: Such issues will only emerge during the **Orchestration & Deployment** phase (Runtime), at which point the system will report an execution or compilation failure.
