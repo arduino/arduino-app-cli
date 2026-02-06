@@ -109,35 +109,32 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 }
 
 func getModelSize(dirPath *paths.Path) (uint64, error) {
-	var totalSize uint64
-
 	if dirPath == nil {
 		return 0, fmt.Errorf("directory path is nil")
 	}
 
-	_, err := dirPath.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
+	files, err := dirPath.ReadDirRecursive()
+	if err != nil {
+		return 0, err
+	}
+
+	var totalSize uint64
+
+	for _, file := range files {
 		if file.IsDir() {
-			return true
+			continue
 		}
 
 		info, err := file.Stat()
 		if err != nil {
-			slog.Error("cannot stat file", "file", file.String(), "error", err)
-			return false
+			return 0, fmt.Errorf("cannot stat file %s: %w", file.String(), err)
 		}
 
-		size := info.Size()
-		if size < 0 {
-			slog.Error("file has negative size", "file", file.String())
-			return false
+		if info.Size() < 0 {
+			return 0, fmt.Errorf("file has negative size: %s", file.String())
 		}
 
-		totalSize += uint64(size)
-		return false
-	}, paths.FilterDirectories())
-
-	if err != nil {
-		return 0, err
+		totalSize += uint64(info.Size())
 	}
 
 	return totalSize, nil
