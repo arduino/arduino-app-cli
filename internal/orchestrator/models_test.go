@@ -36,15 +36,15 @@ func TestBuildBrickConfigForEIModel(t *testing.T) {
 	edgeModelsDir := paths.New("/models/custom-ei/ei-xxxx-yyyy")
 	blobModelsDir := paths.New("/models/custom-ei/ei-xxxx-yyyy")
 
-	result := buildBrickConfigForEIModel(
+	result, err := buildBrickConfigForEIModel(
 		brickIndex,
 		&category,
 		edgeModelsDir,
 		blobModelsDir,
 	)
 
+	require.NoError(t, err)
 	require.Len(t, result, 2)
-
 	require.Equal(t, "arduino:object_detection", result[0].ID)
 	require.Equal(t, "arduino:video_object_detection", result[1].ID)
 
