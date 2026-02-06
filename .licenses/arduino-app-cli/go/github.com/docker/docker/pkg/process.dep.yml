@@ -1,6 +1,6 @@
 ---
 name: github.com/docker/docker/pkg/process
-version: v28.3.2+incompatible
+version: v28.5.2+incompatible
 type: go
 summary: Package process provides a set of basic functions to manage individual processes.
 homepage: https://pkg.go.dev/github.com/docker/docker/pkg/process

@@ -1,6 +1,6 @@
 ---
 name: github.com/docker/cli/cli/context/store
-version: v28.3.2+incompatible
+version: v29.0.3+incompatible
 type: go
 summary: Package store provides a generic way to store credentials to connect to virtually
   any kind of remote system.
