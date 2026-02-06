@@ -292,6 +292,10 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 		return AIModelItem{}, err
 	}
 
+	bricks, err := buildBrickConfigForEIModel(bricksIndex, project.Category, edgeModelsDir, blobModelsDir)
+	if err != nil {
+		return AIModelItem{}, err
+	}
 	customModelDescriptor := custommodel.ModelDescriptor{
 		ID:          id,
 		Name:        project.Name,
@@ -305,7 +309,7 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 			"ei-last-modified":     project.LastModified.Local().Format(time.RFC3339Nano),
 			"ei-deplyment-version": mversion,
 		},
-		Bricks: buildBrickConfigForEIModel(bricksIndex, project.Category, edgeModelsDir, blobModelsDir),
+		Bricks: bricks,
 	}
 
 	aimodel, err := custommodel.Store(edgeModelsDir, customModelDescriptor, modelRC, "model.eim")
@@ -337,9 +341,9 @@ var mapCategoryToBricks = map[edgeimpulse.ProjectCategory][]string{
 	edgeimpulse.ProjectCategoryAccelerometer:   {"arduino:gesture_recognition", "arduino:anomaly_detection"},
 }
 
-func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *edgeimpulse.ProjectCategory, edgeModelsDir *paths.Path, blobModelsDir *paths.Path) []custommodel.BrickConfig {
+func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *edgeimpulse.ProjectCategory, edgeModelsDir *paths.Path, blobModelsDir *paths.Path) ([]custommodel.BrickConfig, error) {
 	if category == nil {
-		return []custommodel.BrickConfig{}
+		return []custommodel.BrickConfig{}, nil
 	}
 	bricksIds := mapCategoryToBricks[*category]
 
@@ -348,7 +352,7 @@ func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *
 		brick, ok := bricksIndex.FindBrickByID(b)
 		if !ok {
 			slog.Warn("cannot load brick", "id", b, "category", category)
-			continue
+			return nil, fmt.Errorf("brick with id %q not found for category %q", b, *category)
 		}
 		modelConfigPerBrick := make(map[string]string)
 		for _, variable := range brick.Variables {
@@ -370,5 +374,5 @@ func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *
 			ModelConfiguration: modelConfigPerBrick,
 		})
 	}
-	return bricksConfig
+	return bricksConfig, nil
 }

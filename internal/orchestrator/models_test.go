@@ -36,23 +36,23 @@ func TestBuildBrickConfigForEIModel(t *testing.T) {
 	edgeModelsDir := paths.New("/models/custom-ei/ei-xxxx-yyyy")
 	blobModelsDir := paths.New("/models/custom-ei/ei-xxxx-yyyy")
 
-	result := buildBrickConfigForEIModel(
+	result, err := buildBrickConfigForEIModel(
 		brickIndex,
 		&category,
 		edgeModelsDir,
 		blobModelsDir,
 	)
 
+	require.NoError(t, err)
 	require.Len(t, result, 2)
-
 	require.Equal(t, "arduino:object_detection", result[0].ID)
 	require.Equal(t, "arduino:video_object_detection", result[1].ID)
 
-	require.Equal(t, map[string]interface{}{
+	require.Equal(t, map[string]string{
 		"CUSTOM_MODEL_PATH":      "/models/custom-ei/ei-xxxx-yyyy",
 		"EI_OBJ_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
 	}, result[0].ModelConfiguration)
-	require.Equal(t, map[string]interface{}{
+	require.Equal(t, map[string]string{
 		"CUSTOM_MODEL_PATH":      "/models/custom-ei/ei-xxxx-yyyy",
 		"EI_OBJ_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
 	}, result[1].ModelConfiguration)
