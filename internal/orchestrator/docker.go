@@ -29,7 +29,7 @@ func GetHighestVersion(targetImage string, existingImages []string) string {
 	targetBase := stripVersion(targetImage)
 
 	var highestVer *semver.Version
-	var highestImg string = ""
+	var highestImg = ""
 
 	for _, img := range existingImages {
 		if stripVersion(img) != targetBase {
@@ -41,7 +41,7 @@ func GetHighestVersion(targetImage string, existingImages []string) string {
 			return ""
 		}
 
-		if highestVer == nil || v.LessThan(highestVer) == false {
+		if highestVer == nil || !v.LessThan(highestVer) {
 			highestVer = v
 			highestImg = img
 		}

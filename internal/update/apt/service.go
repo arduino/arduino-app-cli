@@ -92,26 +92,25 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 		}
 	}()
 
-	// TODO: Enable again these two sections when the review is complete.
-	/* 	names := f.Map(packages, func(pkg update.PackageInfo) string {
-	   		return pkg.Name
-	   	})
-	   	eventCB(update.NewDataEvent(update.StartEvent, "Upgrade is starting"))
-	   	stream := runUpgradeCommand(ctx, names)
-	   	for line, err := range stream {
-	   		if err != nil {
-	   			return fmt.Errorf("error running upgrade command: %w", err)
-	   		}
-	   		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
-	   	}
+	names := f.Map(packages, func(pkg update.PackageInfo) string {
+		return pkg.Name
+	})
+	eventCB(update.NewDataEvent(update.StartEvent, "Upgrade is starting"))
+	stream := runUpgradeCommand(ctx, names)
+	for line, err := range stream {
+		if err != nil {
+			return fmt.Errorf("error running upgrade command: %w", err)
+		}
+		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+	}
 
-	   	eventCB(update.NewDataEvent(update.StartEvent, "apt cleaning cache is starting"))
-	   	for line, err := range runAptCleanCommand(ctx) {
-	   		if err != nil {
-	   			return fmt.Errorf("error running apt clean command: %w", err)
-	   		}
-	   		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
-	   	} */
+	eventCB(update.NewDataEvent(update.StartEvent, "apt cleaning cache is starting"))
+	for line, err := range runAptCleanCommand(ctx) {
+		if err != nil {
+			return fmt.Errorf("error running apt clean command: %w", err)
+		}
+		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+	}
 
 	eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Pulling the latest docker images ..."))
 	for line, err := range pullDockerImages(ctx) {

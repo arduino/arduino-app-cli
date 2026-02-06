@@ -41,7 +41,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
-var ErrDockerOutOfSpace = errors.New("Not enough disk space to pull the docker image")
+var ErrDockerOutOfSpace = errors.New("not enough disk space to pull the docker image")
 
 const ExitCodeDockerOutOfSpace = 80
 
@@ -87,7 +87,7 @@ func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *stor
 				return ErrDockerOutOfSpace
 			}
 		}
-		// If an error happended while trying to get the download size, proceed by pulling anyway.
+		// If an error happened while trying to get the download size, proceed by pulling anyway.
 
 		feedback.Printf("Pulling container image %s ...", container)
 		if err := pullImage(ctx, stdout, docker.Client(), container); err != nil {
