@@ -157,37 +157,38 @@ func (c *EIClient) Build(ctx context.Context, projectID int, impulseID int, mode
 
 }
 
-func (c *EIClient) GetJobStatus(ctx context.Context, projectID int, jobID int) (*bool, error) {
+func (c *EIClient) GetJobStatus(ctx context.Context, projectID int, jobID int) (bool, error) {
 
 	resp, err := c.HttpClient.GetJobStatusWithResponse(ctx, projectID, jobID)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 	if resp.StatusCode() != http.StatusOK {
-		return nil, errorMessage(resp.StatusCode())
+		return false, errorMessage(resp.StatusCode())
 	}
 
 	if resp.JSON200.Success {
 		if resp.JSON200.Job.Finished != nil && resp.JSON200.Job.FinishedSuccessful != nil {
 			if *resp.JSON200.Job.FinishedSuccessful {
-				return resp.JSON200.Job.FinishedSuccessful, nil
+				return true, nil
 			} else {
 				logs, err := c.getJobLogs(ctx, projectID, jobID, 1, "error")
 				if err != nil {
-					return nil, fmt.Errorf("failed to get job logs: %w", err)
+					return false, fmt.Errorf("failed to get job logs: %w", err)
 				}
 				if len(logs) == 0 {
-					return resp.JSON200.Job.FinishedSuccessful, fmt.Errorf("job %d failed with unknown error", jobID)
+					return false, fmt.Errorf("job %d failed with unknown error", jobID)
 				}
-				return resp.JSON200.Job.FinishedSuccessful, fmt.Errorf("job %d failed with error: %v", jobID, logs[0].Data)
+				return false, fmt.Errorf("job %d failed with error: %v", jobID, logs[0].Data)
 			}
 		}
 	} else {
 		if resp.JSON200.Error != nil {
-			return nil, fmt.Errorf("error fetching project info: %s", *resp.JSON200.Error)
-		}
-	}
-	return nil, nil
+			return false, fmt.Errorf("error fetching project info: %s", *resp.JSON200.Error)
+		}else{
+			return false, fmt.Errorf("error fetching project info")
+	     }
+	  }
 }
 
 func (c *EIClient) getJobLogs(ctx context.Context, projectID, jobID int, limit int, logLevel string) (logs JobLogEntry, err error) {
