@@ -1,20 +1,40 @@
-# Arduino App specification
+# 1. Arduino App specification
 
 This is the specification for the Arduino App format to be used with `arduino-app-cli` and `Arduino App Lab`.
 
 Arduino Apps are self-contained logical units designed for the `Arduino Uno Q board ecosystem`, used by `arduino-app-cli` and `Arduino App Lab`.
 They leverage the board's operating system and the integrated microcontroller to perform a wide range of tasks, from high-level logic, data processing, executing AI models and more.
 
+### 1.1 Arduino App Architecture
+
 An Arduino App is a combination of multiple pieces of software that interacts with each other as single application. In particular an Arduino App may be composed by:
 
-- An Arduino Sketch that runs on a microcontroller (MCU) which performs real-time tasks interacting with sensors and actuators.
-- A Python program that runs on a Linux OS which performs CPU intensive tasks (like network API, database, GUI, etc.).
-- An Apps can be extended through `Bricks`. Bricks act as modular plugins providing standardized services (such as databases or AI models) exposed via their own interfaces.eir own interfaces. capabilities to the App.
+- **Real-Time Layer (Sketch)**: Runs on the integrated Microcontroller (MCU). It is responsible for low-level hardware interaction, sensors, and actuators.
+- **Logic Layer (Python)**: Runs on the board's Linux OS. It manages high-level logic, heavy data processing, network communication (APIs), and user interfaces.
+- **Service Layer (Bricks)**: An Apps can be extended through `Bricks`. Bricks act as modular plugins providing standardized services (such as databases or AI models) exposed via their own interfaces.eir own interfaces. capabilities to the App.
 
 The list above is not meant to be complete, and other type of components may be added in the future.
 The Arduino App CLI and the Arduino App Lab offers a simplified and automated way to deploy an Arduino App, taking care of all the steps needed to run the whole application (including building and uploading the firmware, or handling Docker containers).
 
-## Arduino App Folder structure
+### 1.2 Orchestration & Deployment
+
+The `arduino-app-cli` acts as the underlying engine that automates the lifecycle of an application:
+
+- **Firmware Deployment**: It compiles and flashes the Sketch onto the MCU.
+- **Environment Setup**: It creates the Python environment and installs all dependencies.
+- **Service Provisioning**: It pulls, configures, and starts the required Bricks.
+- **Update Management**: handles updates for all components. It ensures that the Python environment, the MCU firmware, and the Brick containers remain synchronized with the latest versions.
+
+### 1.3 Management via Arduino App Lab
+
+**Arduino App Lab** is the graphical control center for the Uno Q ecosystem. It provides a high-level interface to manage the application lifecycle:
+
+- **App Library & Launchpad**: A visual interface to browse, install, and launch Apps and examples available on the board.
+- **Runtime Monitoring**: A dashboard to monitor the status of the Python logic, MCU firmware, and active Bricks.
+- **Brick Configuration**: A dedicated interface to customize Brick settings. This allows users to easily swap AI models (e.g., selecting different AI models for a object detection brick) and manage environment variables without editing YAML files manually.
+- **Resource Management**: Provides integrated tools to manage application files.
+
+## 2. Arduino App Folder structure
 
 An Arduino App is defined by a root folder containing its metadata, source code, and bundled resources.
 
