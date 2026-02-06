@@ -83,13 +83,22 @@ func exportHandler(ctx context.Context, bricksIndex *bricksindex.BricksIndex, ap
 	timestamp := time.Now().Format("2006-01-02_15-04-05")
 	defaultFileName := fmt.Sprintf("%s_%s%s", nameNoExt, timestamp, ext)
 
+	if outputDest == "-" {
+		w, _, err := feedback.DirectStreams()
+		if err != nil {
+			feedback.Fatal(fmt.Sprintf("Failed to get output stream: %s", err), feedback.ErrGeneric)
+		}
+		if _, err := w.Write(zipBytes); err != nil {
+			feedback.Fatal(fmt.Sprintf("Failed to write zip to stdout: %s", err), feedback.ErrGeneric)
+		}
+		return nil
+	}
+
 	var finalPath *paths.Path
-	if outputDest != "" {
-		p := paths.New(outputDest)
-		if p.IsDir() {
+	if outputDest == "" {
+		finalPath = paths.New(outputDest)
+		if finalPath.IsDir() {
 			finalPath = paths.New(filepath.Join(outputDest, defaultFileName))
-		} else {
-			finalPath = p
 		}
 	} else {
 		finalPath = paths.New(defaultFileName)

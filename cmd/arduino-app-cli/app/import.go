@@ -19,6 +19,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -38,16 +40,46 @@ func newImportCmd(cfg config.Configuration) *cobra.Command {
 			if len(args) == 0 {
 				return cmd.Help()
 			}
-			zipPath := paths.New(args[0])
-			if !zipPath.Exist() {
-				feedback.Fatal(fmt.Sprintf("File not found: %s", zipPath), feedback.ErrBadArgument)
+
+			zipPath, cleanup, err := parseFilePath(args[0])
+			if err != nil {
+				feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 				return nil
 			}
+			defer cleanup()
+
 			return importHandler(cfg, zipPath)
 		},
 	}
 
 	return cmd
+}
+
+func parseFilePath(arg string) (*paths.Path, func(), error) {
+	if arg == "-" {
+		tmpFile, err := paths.MkTempFile(nil, "app_import_*.zip")
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create temporary file: %w", err)
+		}
+		defer tmpFile.Close()
+
+		if _, err = io.Copy(tmpFile, os.Stdin); err != nil {
+			tmpFile.Close()
+			_ = os.Remove(tmpFile.Name())
+			return nil, nil, fmt.Errorf("failed to read from stdin: %w", err)
+		}
+
+		return paths.New(tmpFile.Name()), func() {
+			tmpFile.Close()
+			_ = os.Remove(tmpFile.Name())
+		}, nil
+	}
+
+	path := paths.New(arg)
+	if !path.Exist() {
+		return nil, nil, fmt.Errorf("file not found: %s", arg)
+	}
+	return path, func() {}, nil
 }
 
 func importHandler(cfg config.Configuration, zipPath *paths.Path) error {
