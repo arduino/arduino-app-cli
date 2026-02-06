@@ -33,23 +33,23 @@ type EIClient struct {
 var ErrInternalServerErr = fmt.Errorf("service unavailable")
 var ErrUnauthorized = fmt.Errorf("unauthorized")
 
-type JobLogEntry []struct {
+type JobLogEntry struct {
 	Created  time.Time                        `json:"created"`
 	Data     string                           `json:"data"`
 	LogLevel *LogStdoutResponseStdoutLogLevel `json:"logLevel,omitempty"`
 }
 
-type LastBuild *struct {
-	// Created The time this build was created
-	Created time.Time `json:"created"`
-
-	// DeploymentType Deployment type of the build
+type LastBuild struct {
+	Created        time.Time              `json:"created"`
 	DeploymentType string                 `json:"deploymentType"`
 	Engine         DeploymentTargetEngine `json:"engine"`
 	ModelType      *KerasModelTypeEnum    `json:"modelType,omitempty"`
+	Version        int                    `json:"version"`
+}
 
-	// Version The build version, incremented after each deployment build
-	Version int `json:"version"`
+type JobBuildInfo struct {
+	JobID             int `json:"jobId"`
+	DeploymentVersion int `json:"deploymentVersion"`
 }
 
 func NewEIClient(prjApiKey string, apiURL url.URL) (*EIClient, error) {
@@ -80,129 +80,113 @@ func (c *EIClient) DownloadAndInstallModel(ctx context.Context, projectID int, i
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, errorMessage(resp.StatusCode)
+		b, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode), string(b))
 	}
 
 	return resp.Body, nil
 }
 
-func (c *EIClient) GetInfoLastDeployment(ctx context.Context, projectID int, impulseID int, devicesTarget string) (LastBuild, error) {
+func (c *EIClient) GetInfoLastDeployment(ctx context.Context, projectID int, impulseID int, devicesTarget string) (*LastBuild, error) {
 
 	params := &GetLastDeploymentBuildParams{ImpulseId: &impulseID}
 	resp, err := c.HttpClient.GetLastDeploymentBuildWithResponse(ctx, projectID, params)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform download model request: %w", err)
 	}
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errorMessage(resp.StatusCode())
+	if !resp.JSON200.Success {
+		if resp.JSON200.Error != nil {
+			return nil, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), *resp.JSON200.Error)
+		}
+		return nil, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), string(resp.Body))
 	}
 
 	if resp.JSON200.HasBuild && resp.JSON200.LastDeploymentTarget.Format == devicesTarget {
-		return resp.JSON200.LastBuild, nil
-	}
-	return nil, nil
-}
-
-func (c *EIClient) GetDeployment(ctx context.Context, projectID int, impulseID int, modelType *ModelTypeParameter, engine *ModelEngineParameter, deviceType DeploymentTypeParameter) (*int, error) {
-
-	params := &GetDeploymentParams{ModelType: modelType, Engine: engine, ImpulseId: &impulseID, Type: deviceType}
-	resp, err := c.HttpClient.GetDeploymentWithResponse(ctx, projectID, params)
-	if err != nil {
-		return nil, fmt.Errorf("failed to perform get deployment request: %w", err)
-	}
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errorMessage(resp.StatusCode())
-	}
-
-	if resp.JSON200.Success {
-		if resp.JSON200.HasDeployment {
-			return resp.JSON200.Version, nil
-		}
-		return nil, nil
+		return (*LastBuild)(resp.JSON200.LastBuild), nil
 	} else {
-		if resp.JSON200.Error != nil {
-			return nil, fmt.Errorf("error fetching project info: %s", *resp.JSON200.Error)
-		}
-		return nil, fmt.Errorf("error fetching project info: unknown error")
+		return nil, nil
 	}
-
 }
 
-func (c *EIClient) Build(ctx context.Context, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter, deviceType DeploymentTypeParameter) (*int, error) {
+func (c *EIClient) Build(ctx context.Context, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter, deviceType DeploymentTypeParameter) (JobBuildInfo, error) {
 
 	params := &BuildOnDeviceModelJobParams{Type: deviceType, ImpulseId: &impulseID}
-
 	km_variant := KerasModelVariantEnum(string(modelType))
-
 	body := BuildOnDeviceModelJobJSONRequestBody{
 		Engine:    engine,
 		ModelType: &km_variant,
 	}
-
 	resp, err := c.HttpClient.BuildOnDeviceModelJobWithResponse(ctx, projectID, params, body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to perform build model request: %w", err)
+		return JobBuildInfo{}, fmt.Errorf("failed to perform build model request: %w", err)
 	}
 
-	if resp.JSON200.Success {
-		return &resp.JSON200.Id, nil
-	} else {
+	if !resp.JSON200.Success {
 		if resp.JSON200.Error != nil {
-			return nil, fmt.Errorf("error fetching project info: %s", *resp.JSON200.Error)
+			return JobBuildInfo{}, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), *resp.JSON200.Error)
 		}
-		return nil, fmt.Errorf("error fetching project info: unknown error")
+		return JobBuildInfo{}, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), string(resp.Body))
 	}
 
+	return JobBuildInfo{JobID: resp.JSON200.Id, DeploymentVersion: resp.JSON200.DeploymentVersion}, nil
 }
 
-func (c *EIClient) GetJobStatus(ctx context.Context, projectID int, jobID int) (bool, error) {
+func (c *EIClient) isJobDone(ctx context.Context, projectID int, jobID int) (bool, error) {
 
 	resp, err := c.HttpClient.GetJobStatusWithResponse(ctx, projectID, jobID)
 	if err != nil {
 		return false, err
 	}
-	if resp.StatusCode() != http.StatusOK {
-		return false, errorMessage(resp.StatusCode())
+
+	if !resp.JSON200.Success {
+		if resp.JSON200.Error != nil {
+			return false, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), *resp.JSON200.Error)
+		}
+		return false, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), string(resp.Body))
 	}
 
-	if resp.JSON200.Success {
-		if resp.JSON200.Job.Finished != nil && resp.JSON200.Job.FinishedSuccessful != nil {
-			if *resp.JSON200.Job.FinishedSuccessful {
-				return true, nil
-			} else {
-				logs, err := c.getJobLogs(ctx, projectID, jobID, 1, "error")
-				if err != nil {
-					return false, fmt.Errorf("failed to get job logs: %w", err)
-				}
-				if len(logs) == 0 {
-					return false, fmt.Errorf("job %d failed with unknown error", jobID)
-				}
-				return false, fmt.Errorf("job %d failed with error: %v", jobID, logs[0].Data)
-			}
+	if resp.JSON200.Job.Finished == nil {
+		// Job not finished yet
+		return false, nil
+	}
+
+	if resp.JSON200.Job.FinishedSuccessful == nil || !*resp.JSON200.Job.FinishedSuccessful {
+		logs, err := c.getJobLogs(ctx, projectID, jobID, 1, "error")
+		if err != nil {
+			return false, fmt.Errorf("failed to get job logs: %w", err)
 		}
-	} else {
-		if resp.JSON200.Error != nil {
-			return false, fmt.Errorf("error fetching project info: %s", *resp.JSON200.Error)
-		}else{
-			return false, fmt.Errorf("error fetching project info")
-	     }
-	  }
+		if len(logs) == 0 {
+			return false, fmt.Errorf("job %d failed with unknown error", jobID)
+		}
+		return false, fmt.Errorf("job %d failed with error: %v", jobID, logs[0].Data)
+	}
+
+	return true, nil
+
 }
 
-func (c *EIClient) getJobLogs(ctx context.Context, projectID, jobID int, limit int, logLevel string) (logs JobLogEntry, err error) {
+func (c *EIClient) getJobLogs(ctx context.Context, projectID, jobID int, limit int, logLevel string) ([]JobLogEntry, error) {
 
 	logLevelParam := GetJobsLogsParamsLogLevel(logLevel)
 	resp, err := c.HttpClient.GetJobsLogsWithResponse(ctx, projectID, jobID, &GetJobsLogsParams{Limit: &limit, LogLevel: &logLevelParam})
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform get logs request: %w", err)
 	}
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errorMessage(resp.StatusCode())
+
+	if !resp.JSON200.Success {
+		if resp.JSON200.Error != nil {
+			return nil, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), *resp.JSON200.Error)
+		}
+		return nil, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), string(resp.Body))
 	}
 
-	return resp.JSON200.Stdout, nil
+	logs := make([]JobLogEntry, 0, len(resp.JSON200.Stdout))
+	for _, log := range resp.JSON200.Stdout {
+		logs = append(logs, JobLogEntry(log))
+	}
+
+	return logs, nil
 }
 
 func (c *EIClient) GetProjectInfo(ctx context.Context, projectID int, impulseID int) (*Project, error) {
@@ -211,34 +195,29 @@ func (c *EIClient) GetProjectInfo(ctx context.Context, projectID int, impulseID 
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform get project info request: %w", err)
 	}
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errorMessage(resp.StatusCode())
+
+	if !resp.JSON200.Success {
+		if resp.JSON200.Error != nil {
+			return nil, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), *resp.JSON200.Error)
+		}
+		return nil, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), string(resp.Body))
 	}
 
-	if resp.JSON200.Success {
-		return &resp.JSON200.Project, nil
-	} else {
-		if resp.JSON200.Error != nil {
-			return nil, fmt.Errorf("error fetching project info: %s", *resp.JSON200.Error)
-		}
-		return nil, fmt.Errorf("error fetching project info: unknown error")
-	}
+	return &resp.JSON200.Project, nil
 }
 
 func (c EIClient) WaitForBuildCompletion(ctx context.Context, projectID, jobID int) error {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Minute)
+	defer cancel()
 
 	for {
-		status, err := c.GetJobStatus(ctx, projectID, jobID)
+		status, err := c.isJobDone(ctx, projectID, jobID)
 		if err != nil {
 			return err
 		}
 
-		if status != nil {
-			if *status {
-				return nil
-			} else {
-				return fmt.Errorf("Build failed for job %d in project %d", jobID, projectID)
-			}
+		if status {
+			return nil
 		}
 
 		select {
