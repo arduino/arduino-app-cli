@@ -95,7 +95,7 @@ func exportHandler(ctx context.Context, bricksIndex *bricksindex.BricksIndex, ap
 	}
 
 	var finalPath *paths.Path
-	if outputDest == "" {
+	if outputDest != "" {
 		finalPath = paths.New(outputDest)
 		if finalPath.IsDir() {
 			finalPath = paths.New(filepath.Join(outputDest, defaultFileName))
