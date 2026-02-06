@@ -106,7 +106,7 @@ my-garden-project/
 ├── python/ # Mandatory source folder
 │ ├── main.py # Mandatory entry point
 │ └── requirements.txt # Python dependencies(optional)
-├── sketch/ # Optional firmware folder
+├── sketch/ # Arduino sketch folder (Optional)
 │ ├── sketch.yaml # Arduino sketch dependency
 │ └── sketch.ino # Arduino sketch
 └── data/ # Reserved
