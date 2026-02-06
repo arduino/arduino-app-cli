@@ -48,7 +48,9 @@ func newImportCmd(cfg config.Configuration) *cobra.Command {
 			}
 			defer cleanup()
 
-			return importHandler(cfg, zipPath)
+			importHandler(cfg, zipPath)
+
+			return nil
 		},
 	}
 
@@ -82,7 +84,7 @@ func parseFilePath(arg string) (*paths.Path, func(), error) {
 	return path, func() {}, nil
 }
 
-func importHandler(cfg config.Configuration, zipPath *paths.Path) error {
+func importHandler(cfg config.Configuration, zipPath *paths.Path) {
 	idProvider := servicelocator.GetAppIDProvider()
 	appID, err := orchestrator.ImportAppFromZip(cfg, zipPath, idProvider, zipPath.Base())
 	if err != nil {
@@ -94,14 +96,11 @@ func importHandler(cfg config.Configuration, zipPath *paths.Path) error {
 		default:
 			feedback.Fatal(fmt.Sprintf("Import failed: %s", err), feedback.ErrGeneric)
 		}
-		return nil
 	}
 
 	feedback.PrintResult(importAppResult{
 		AppID: appID.String(),
 	})
-
-	return nil
 }
 
 type importAppResult struct {
