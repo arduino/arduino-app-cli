@@ -27,6 +27,8 @@ import (
 	"github.com/docker/cli/cli/command"
 	"go.bug.st/f"
 
+	"github.com/arduino/go-paths-helper"
+
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
@@ -44,6 +46,7 @@ type AIModelItem struct {
 	Bricks            []string          `json:"brick_ids"`
 	Metadata          map[string]string `json:"metadata,omitempty"`
 	IsBuiltin         bool              `json:"is_builtin"`
+	DiskUsage         *uint64           `json:"disk_usage,omitempty"`
 }
 
 type AIModelsListRequest struct {
@@ -77,6 +80,22 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 	if !found {
 		return AIModelItem{}, false
 	}
+
+	var modelSize *uint64
+	if !model.IsInternal && model.ModelFolderPath != nil {
+		size, err := getModelSize(model.ModelFolderPath)
+		if err != nil {
+			slog.Warn(
+				"failed to calculate model size",
+				"model_id", model.ID,
+				"path", model.ModelFolderPath,
+				"err", err,
+			)
+		} else {
+			modelSize = &size
+		}
+	}
+
 	return AIModelItem{
 		ID:                model.ID,
 		Name:              model.Name,
@@ -85,7 +104,43 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 		Bricks:            f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
 		Metadata:          model.Metadata,
 		IsBuiltin:         model.IsInternal,
+		DiskUsage:         modelSize,
 	}, true
+}
+
+func getModelSize(dirPath *paths.Path) (uint64, error) {
+	var totalSize uint64
+
+	if dirPath == nil {
+		return 0, fmt.Errorf("directory path is nil")
+	}
+
+	_, err := dirPath.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
+		if file.IsDir() {
+			return true
+		}
+
+		info, err := file.Stat()
+		if err != nil {
+			slog.Error("cannot stat file", "file", file.String(), "error", err)
+			return false
+		}
+
+		size := info.Size()
+		if size < 0 {
+			slog.Error("file has negative size", "file", file.String())
+			return false
+		}
+
+		totalSize += uint64(size)
+		return false
+	}, paths.FilterDirectories())
+
+	if err != nil {
+		return 0, err
+	}
+
+	return totalSize, nil
 }
 
 var (

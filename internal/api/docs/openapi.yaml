@@ -1286,6 +1286,10 @@ components:
           type: array
         description:
           type: string
+        disk_usage:
+          minimum: 0
+          nullable: true
+          type: integer
         id:
           type: string
         is_builtin:

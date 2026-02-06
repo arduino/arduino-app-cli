@@ -53,6 +53,7 @@ type AIModel struct {
 type AIModelItem struct {
 	BrickIds    *[]string          `json:"brick_ids"`
 	Description *string            `json:"description,omitempty"`
+	DiskUsage   *int               `json:"disk_usage"`
 	Id          *string            `json:"id,omitempty"`
 	IsBuiltin   *bool              `json:"is_builtin,omitempty"`
 	Metadata    *map[string]string `json:"metadata,omitempty"`

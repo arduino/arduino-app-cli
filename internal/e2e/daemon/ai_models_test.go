@@ -17,8 +17,10 @@ package daemon
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"testing"
@@ -102,7 +104,52 @@ func TestAIModelDetails(t *testing.T) {
 
 		require.NotNil(t, modelDetails.Runner, "Response model's Runner should not be nil")
 		require.Equal(t, *expectedModel.Runner, *modelDetails.Runner, "Runner should match")
+		require.Nil(t, modelDetails.DiskUsage, "Response model's DiskUsage should be nil")
 
+	})
+	t.Run("should return full details for a valid custom model ID", func(t *testing.T) {
+
+		modelId := "custom-classification-model-eim"
+		expecteBricks := []string{"arduino:image_classification"}
+		expectedName := "Test custom model"
+		expectedDescription := "Test custom model."
+		expectedDiskUsage := 614577
+
+		err := copyModel(t, true)
+		if err != nil {
+			require.FailNow(t, "unable to create model file")
+		}
+
+		// We have to add an empty editor because there is a bug that make the function panic if we pass nil
+		response, err := httpClient.GetAIModelDetailsWithResponse(t.Context(), modelId, func(ctx context.Context, req *http.Request) error { return nil })
+		require.NoError(t, err, "The HTTP client should not return an error for a 200 response")
+
+		customModelDetails := response.JSON200
+
+		require.NotNil(t, customModelDetails.Id, "Response model's ID should not be nil")
+		require.Equal(t, modelId, *customModelDetails.Id, "ID should match")
+
+		require.NotNil(t, customModelDetails.BrickIds, "Response model's BrickId should not be nil")
+		require.Equal(t, expecteBricks, *customModelDetails.BrickIds, "BrickIds should match")
+
+		require.NotNil(t, customModelDetails.Name, "Response model's Name should not be nil")
+		require.Equal(t, expectedName, *customModelDetails.Name, "Name should match")
+
+		require.NotNil(t, customModelDetails.Description, "Response model's Description should not be nil")
+		require.Equal(t, expectedDescription, *customModelDetails.Description, "Description should match")
+		// TODO test metadata and model configuration contents and runner
+		/*
+			    require.NotNil(t, customModelDetails.Metadata, "Response model's Metadata should not be nil")
+				require.Equal(t, data, customModelDetails.Metadata, "Metadata should match")
+
+				require.NotNil(t, customModelDetails.ModelConfiguration, "Response model's ModelConfiguration should not be nil")
+				require.Equal(t, expectedModel.ModelConfiguration, customModelDetails.ModelConfiguration, "ModelConfiguration should match")
+
+				require.NotNil(t, customModelDetails.Runner, "Response model's Runner should not be nil")
+				require.Equal(t, *expectedModel.Runner, *customModelDetails.Runner, "Runner should match")
+		*/
+		require.NotNil(t, customModelDetails.DiskUsage, "Response model's DiskUsage should not be nil")
+		require.Equal(t, expectedDiskUsage, *customModelDetails.DiskUsage, "Response model's Size should be 614577 bytes")
 	})
 
 	t.Run("should return 404 not found for an unknown model id", func(t *testing.T) {
@@ -175,7 +222,7 @@ func TestAIModelDelete(t *testing.T) {
 		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
 		expectedDetails := "The model is referenced by bricks belonging to the following apps: test-app-ai-model-deletion: can't delete the model"
 		var actualBody models.ErrorResponse
-		err := copyModel(t)
+		err := copyModel(t, false)
 		if err != nil {
 			require.FailNow(t, "unable to create model file")
 		}
@@ -237,18 +284,39 @@ func TestAIModelDelete(t *testing.T) {
 	})
 }
 
-func copyModel(t *testing.T) error {
+func copyModel(t *testing.T, createModel bool) error {
+	t.Helper()
 	baseDir := e2e.FindRepositoryRootPath(t).Join("internal", "e2e", "daemon", "testdata")
 
 	src := baseDir.Join("template", "test-model").String()
-	dst := baseDir.Join("custom_models", "test-model.tmp").String()
-	os.RemoveAll(dst)
-	if err := os.MkdirAll(dst, 0755); err != nil {
+	dst := baseDir.Join("custom_models", "test-model.tmp")
+	dstStr := dst.String()
+	os.RemoveAll(dstStr)
+
+	if err := os.MkdirAll(dstStr, 0755); err != nil {
 		return fmt.Errorf("failed to create dst dir: %w", err)
 	}
-	err := os.CopyFS(dst, os.DirFS(src))
+	err := os.CopyFS(dstStr, os.DirFS(src))
 	if err != nil {
 		return fmt.Errorf("CopyFS failed from %s to %s: %w", src, dst, err)
 	}
+	if createModel {
+
+		fakeFilePath := dst.Join("fake_model.eim").String()
+		createFakeModelFile(t, fakeFilePath)
+		t.Cleanup(func() {
+			os.RemoveAll(fakeFilePath)
+		})
+	}
 	return nil
+}
+
+func createFakeModelFile(t *testing.T, path string) {
+	t.Helper()
+	const size = 600 * 1024 // 600 KB
+	f, err := os.Create(path)
+	require.NoError(t, err)
+	defer f.Close()
+	_, err = io.CopyN(f, rand.Reader, size)
+	require.NoError(t, err)
 }
