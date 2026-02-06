@@ -22,9 +22,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/arduino/go-paths-helper"
+	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
