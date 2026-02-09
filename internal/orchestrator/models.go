@@ -251,16 +251,16 @@ func isModelInUse(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, doc
 	if found {
 		runningApp, err := getRunningApp(ctx, dockerClient.Client())
 		if err != nil {
-			return fmt.Errorf("Error retrieving the current running app: %w", err)
+			return fmt.Errorf("error retrieving the current running app: %w", err)
 		}
 		if runningApp != nil {
 			app, err := app.Load(runningApp.FullPath)
 			if err != nil {
-				return fmt.Errorf("Error Loading app: %w", err)
+				return fmt.Errorf("error loading app: %w", err)
 			}
 			for _, b := range app.Descriptor.Bricks {
 				if b.Model == modelId {
-					return fmt.Errorf("The model is in use by the running app %s, can't be updated", app.Name)
+					return fmt.Errorf("the model is in use by the running app %s, can't be updated", app.Name)
 				}
 			}
 		}
