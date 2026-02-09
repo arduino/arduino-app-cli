@@ -196,13 +196,41 @@ func checkForModelReferences(ctx context.Context, dockerClient command.Cli, cfg 
 	return slices.Collect(maps.Keys(references)), runningAppReference, nil
 }
 
-func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, projectID int, impulseID int) (AIModelItem, error) {
+func isModelInUse(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, modelId string) error {
+	_, found := modelsIndex.GetModelByID(modelId)
+	if found {
+		runningApp, err := getRunningApp(ctx, dockerClient.Client())
+		if err != nil {
+			return fmt.Errorf("Error retrieving the current running app: %w", err)
+		}
+		if runningApp != nil {
+			app, err := app.Load(runningApp.FullPath)
+			if err != nil {
+				return fmt.Errorf("Error Loading app: %w", err)
+			}
+			for _, b := range app.Descriptor.Bricks {
+				if b.Model == modelId {
+					return fmt.Errorf("The model is in use by the running app %s, can't be updated", app.Name)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, projectID int, impulseID int) (AIModelItem, error) {
 
 	// TODO these parameters aim to build a model optimized for the Imola hardware, they should change based on the target device
 	mType := edgeimpulse.ModelTypeParameter("float32")
 	mEngine := edgeimpulse.ModelEngineParameter("tflite")
 	deviceType := "runner-linux-aarch64"
 	var mversion string
+
+	id := fmt.Sprintf("ei-model-%d-%d", projectID, impulseID)
+	err := isModelInUse(ctx, modelsIndex, dockerClient, id)
+	if err != nil {
+		return AIModelItem{}, fmt.Errorf("cannot install EI model: %w", err)
+	}
 
 	lastBuild, err := eiClient.GetInfoLastDeployment(ctx, projectID, impulseID, deviceType)
 	if err != nil {
@@ -230,7 +258,6 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, e
 	if err != nil {
 		return AIModelItem{}, err
 	}
-	id := fmt.Sprintf("ei-model-%d-%d", projectID, impulseID)
 
 	edgeModelsDir := modelsDir.Join("custom-ei").Join(id)
 	blobModelsDir := edgeModelsDir.Join("model.eim")
