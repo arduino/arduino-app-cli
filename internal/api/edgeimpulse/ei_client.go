@@ -51,6 +51,21 @@ type JobBuildInfo struct {
 	JobID             int `json:"jobId"`
 	DeploymentVersion int `json:"deploymentVersion"`
 }
+type Impulse struct {
+	// Complete Whether an impulse was fully trained and configured
+	Complete bool `json:"complete"`
+
+	// Configured Whether an impulse was configured
+	Configured bool `json:"configured"`
+
+	// Created Whether an impulse was created
+	Created bool `json:"created"`
+}
+
+type ProjectImpulse struct {
+	Details      Project
+	ImpulseState Impulse
+}
 
 func NewEIClient(prjApiKey string, apiURL url.URL) (*EIClient, error) {
 
@@ -70,11 +85,9 @@ func NewEIClient(prjApiKey string, apiURL url.URL) (*EIClient, error) {
 	return &EIClient{PrjApiKey: prjApiKey, ApiUrl: apiURL, HttpClient: httpClient}, nil
 }
 
-func (c *EIClient) DownloadAndInstallModel(ctx context.Context, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter, deviceType DeploymentTypeParameter) (io.ReadCloser, error) {
+func (c *EIClient) DownloadHistoricDeployment(ctx context.Context, projectID int, version int) (io.ReadCloser, error) {
 
-	opt := &DownloadBuildParams{ImpulseId: &impulseID, ModelType: &modelType, Engine: &engine, Type: deviceType}
-
-	resp, err := c.HttpClient.DownloadBuild(ctx, projectID, opt)
+	resp, err := c.HttpClient.DownloadHistoricDeployment(ctx, projectID, version)
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform download model request: %w", err)
 	}
@@ -109,12 +122,12 @@ func (c *EIClient) GetInfoLastDeployment(ctx context.Context, projectID int, imp
 	}
 }
 
-func (c *EIClient) Build(ctx context.Context, projectID int, impulseID int, modelType ModelTypeParameter, engine ModelEngineParameter, deviceType DeploymentTypeParameter) (JobBuildInfo, error) {
+func (c *EIClient) Build(ctx context.Context, projectID int, impulseID int, modelType string, engine string, deviceType DeploymentTypeParameter) (JobBuildInfo, error) {
 
 	params := &BuildOnDeviceModelJobParams{Type: deviceType, ImpulseId: &impulseID}
 	km_variant := KerasModelVariantEnum(string(modelType))
 	body := BuildOnDeviceModelJobJSONRequestBody{
-		Engine:    engine,
+		Engine:    DeploymentTargetEngine(engine),
 		ModelType: &km_variant,
 	}
 	resp, err := c.HttpClient.BuildOnDeviceModelJobWithResponse(ctx, projectID, params, body)
@@ -189,11 +202,32 @@ func (c *EIClient) getJobLogs(ctx context.Context, projectID, jobID int, limit i
 	return logs, nil
 }
 
-func (c *EIClient) GetProjectInfo(ctx context.Context, projectID int, impulseID int) (*Project, error) {
+func (c *EIClient) GetProjectInfo(ctx context.Context, projectID int, impulseID int) (ProjectImpulse, error) {
 
 	resp, err := c.HttpClient.GetProjectInfoWithResponse(ctx, projectID, &GetProjectInfoParams{ImpulseId: &impulseID})
 	if err != nil {
-		return nil, fmt.Errorf("failed to perform get project info request: %w", err)
+		return ProjectImpulse{}, fmt.Errorf("failed to perform get project info request: %w", err)
+	}
+
+	if !resp.JSON200.Success {
+		if resp.JSON200.Error != nil {
+			return ProjectImpulse{}, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), *resp.JSON200.Error)
+		}
+		return ProjectImpulse{}, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), string(resp.Body))
+	}
+
+	return ProjectImpulse{
+		Details:      resp.JSON200.Project,
+		ImpulseState: resp.JSON200.Impulse,
+	}, nil
+}
+
+func (c *EIClient) GetDeploymentHistory(ctx context.Context, projectID int, impulseID int, limit int) ([]DeploymentHistory, error) {
+
+	params := &ListDeploymentHistoryParams{ImpulseId: &impulseID, Limit: &limit}
+	resp, err := c.HttpClient.ListDeploymentHistoryWithResponse(ctx, projectID, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to perform get deployment history request: %w", err)
 	}
 
 	if !resp.JSON200.Success {
@@ -203,7 +237,7 @@ func (c *EIClient) GetProjectInfo(ctx context.Context, projectID int, impulseID 
 		return nil, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), string(resp.Body))
 	}
 
-	return &resp.JSON200.Project, nil
+	return resp.JSON200.Deployments, nil
 }
 
 func (c EIClient) WaitForBuildCompletion(ctx context.Context, projectID, jobID int) error {

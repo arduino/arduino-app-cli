@@ -273,10 +273,10 @@ func isModelInUse(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, doc
 func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, projectID int, impulseID int) (AIModelItem, error) {
 
 	// TODO these parameters aim to build a model optimized for the Imola hardware, they should change based on the target device
-	mType := edgeimpulse.ModelTypeParameter("float32")
-	mEngine := edgeimpulse.ModelEngineParameter("tflite")
+	mType := "float32"
+	mEngine := "tflite"
 	deviceType := "runner-linux-aarch64"
-	var mversion string
+	var mversion int
 
 	id := fmt.Sprintf("ei-model-%d-%d", projectID, impulseID)
 	err := isModelInUse(ctx, modelsIndex, dockerClient, id)
@@ -284,12 +284,23 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 		return AIModelItem{}, fmt.Errorf("cannot install EI model: %w", err)
 	}
 
-	lastBuild, err := eiClient.GetInfoLastDeployment(ctx, projectID, impulseID, deviceType)
+	project, err := eiClient.GetProjectInfo(ctx, projectID, impulseID)
 	if err != nil {
 		return AIModelItem{}, err
 	}
 
-	if lastBuild == nil {
+	if !project.ImpulseState.Complete {
+		return AIModelItem{}, fmt.Errorf("impulse state is not complete for project %d impulse %d", projectID, impulseID)
+	}
+
+	dpList, err := eiClient.GetDeploymentHistory(ctx, projectID, impulseID, 1)
+	if err != nil {
+		return AIModelItem{}, err
+	}
+	// check if there is a deployment and si valid for arduino uno Q.
+	if len(dpList) == 0 || dpList[0].ImpulseHasChangedSinceDeployment ||
+		dpList[0].DeploymentFormat != deviceType || string(dpList[0].Engine) != mEngine || string(*dpList[0].ModelType) != mType {
+
 		job, err := eiClient.Build(ctx, projectID, impulseID, mType, mEngine, deviceType)
 		if err != nil {
 			return AIModelItem{}, err
@@ -298,43 +309,37 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 		if err != nil {
 			return AIModelItem{}, err
 		}
-		mversion = strconv.Itoa(job.DeploymentVersion)
+		mversion = job.DeploymentVersion
 	} else {
-		mType = *lastBuild.ModelType
-		mEngine = lastBuild.Engine
-		deviceType = lastBuild.DeploymentType
-		mversion = strconv.Itoa(lastBuild.Version)
+		mType = string(*dpList[0].ModelType)
+		mEngine = string(dpList[0].Engine)
+		deviceType = dpList[0].DeploymentFormat
+		mversion = dpList[0].DeploymentVersion
 	}
-
-	project, err := eiClient.GetProjectInfo(ctx, projectID, impulseID)
-	if err != nil {
-		return AIModelItem{}, err
-	}
-
 	edgeModelsDir := modelsDir.Join("custom-ei").Join(id)
 	blobModelsDir := edgeModelsDir.Join("model.eim")
 
-	modelRC, err := eiClient.DownloadAndInstallModel(ctx, projectID, impulseID, mType, mEngine, deviceType)
+	modelRC, err := eiClient.DownloadHistoricDeployment(ctx, projectID, mversion)
 	if err != nil {
 		return AIModelItem{}, err
 	}
 
-	bricks, err := buildBrickConfigForEIModel(bricksIndex, project.Category, edgeModelsDir, blobModelsDir)
+	bricks, err := buildBrickConfigForEIModel(bricksIndex, project.Details.Category, edgeModelsDir, blobModelsDir)
 	if err != nil {
 		return AIModelItem{}, err
 	}
 	customModelDescriptor := custommodel.ModelDescriptor{
 		ID:          id,
-		Name:        project.Name,
-		Description: project.Description,
+		Name:        project.Details.Name,
+		Description: project.Details.Name,
 		Metadata: map[string]string{
 			"source":               "edgeimpulse",
 			"ei-project-id":        strconv.Itoa(projectID),
 			"ei-impulse-id":        strconv.Itoa(impulseID),
-			"ei-model-type":        string(mType),
-			"ei-engine":            string(mEngine),
-			"ei-last-modified":     project.LastModified.Local().Format(time.RFC3339Nano),
-			"ei-deplyment-version": mversion,
+			"ei-model-type":        mType,
+			"ei-engine":            mEngine,
+			"ei-last-modified":     project.Details.LastModified.Local().Format(time.RFC3339Nano),
+			"ei-deplyment-version": strconv.Itoa(mversion),
 		},
 		Bricks: bricks,
 	}

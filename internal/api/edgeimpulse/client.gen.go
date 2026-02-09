@@ -387,6 +387,25 @@ type DSPGroupItemSection string
 // DSPGroupItemShowIfOperator defines model for DSPGroupItem.ShowIf.Operator.
 type DSPGroupItemShowIfOperator string
 
+// DeploymentHistory defines model for DeploymentHistory.
+type DeploymentHistory struct {
+	// Created Date when the model was deployed
+	Created           time.Time                `json:"created"`
+	CreatedByUser     *CreatedUpdatedByUser    `json:"createdByUser,omitempty"`
+	DeploymentFormat  string                   `json:"deploymentFormat"`
+	DeploymentTarget  *ProjectDeploymentTarget `json:"deploymentTarget,omitempty"`
+	DeploymentVersion int                      `json:"deploymentVersion"`
+	DownloadUrl       string                   `json:"downloadUrl"`
+	Engine            DeploymentTargetEngine   `json:"engine"`
+
+	// ImpulseHasChangedSinceDeployment Set to true if the deployment no longer exactly matches the impulse it was created from (e.g. model was trained since the deployment was created, or some thresholds have changed)
+	ImpulseHasChangedSinceDeployment bool                `json:"impulseHasChangedSinceDeployment"`
+	ImpulseId                        int                 `json:"impulseId"`
+	ImpulseIsDeleted                 bool                `json:"impulseIsDeleted"`
+	ImpulseName                      string              `json:"impulseName"`
+	ModelType                        *KerasModelTypeEnum `json:"modelType,omitempty"`
+}
+
 // DeploymentTarget defines model for DeploymentTarget.
 type DeploymentTarget struct {
 	Badge *struct {
@@ -522,17 +541,6 @@ type GenericApiResponse struct {
 	Success bool `json:"success"`
 }
 
-// GetDeploymentResponse defines model for GetDeploymentResponse.
-type GetDeploymentResponse struct {
-	// Error Optional error description (set if 'success' was false)
-	Error         *string `json:"error,omitempty"`
-	HasDeployment bool    `json:"hasDeployment"`
-
-	// Success Whether the operation succeeded
-	Success bool `json:"success"`
-	Version *int `json:"version,omitempty"`
-}
-
 // GetJobResponse defines model for GetJobResponse.
 type GetJobResponse struct {
 	// Error Optional error description (set if 'success' was false)
@@ -627,6 +635,18 @@ type LatencyDevice struct {
 	Mcu                string  `json:"mcu"`
 	Name               string  `json:"name"`
 	Selected           bool    `json:"selected"`
+}
+
+// ListDeploymentHistoryResponse defines model for ListDeploymentHistoryResponse.
+type ListDeploymentHistoryResponse struct {
+	Deployments []DeploymentHistory `json:"deployments"`
+
+	// Error Optional error description (set if 'success' was false)
+	Error *string `json:"error,omitempty"`
+
+	// Success Whether the operation succeeded
+	Success              bool `json:"success"`
+	TotalDeploymentCount int  `json:"totalDeploymentCount"`
 }
 
 // LogStdoutResponse defines model for LogStdoutResponse.
@@ -1295,6 +1315,12 @@ type UserTierEnum string
 // DeploymentTypeParameter defines model for DeploymentTypeParameter.
 type DeploymentTypeParameter = string
 
+// DeploymentVersionParameter defines model for DeploymentVersionParameter.
+type DeploymentVersionParameter = int
+
+// FilterByImpulseIdParameter defines model for FilterByImpulseIdParameter.
+type FilterByImpulseIdParameter = int
+
 // JobIdParameter defines model for JobIdParameter.
 type JobIdParameter = int
 
@@ -1304,11 +1330,8 @@ type LimitResultsParameter = int
 // LogLevelParameter defines model for LogLevelParameter.
 type LogLevelParameter string
 
-// ModelEngineParameter defines model for ModelEngineParameter.
-type ModelEngineParameter = DeploymentTargetEngine
-
-// ModelTypeParameter defines model for ModelTypeParameter.
-type ModelTypeParameter = KerasModelTypeEnum
+// OffsetResultsParameter defines model for OffsetResultsParameter.
+type OffsetResultsParameter = int
 
 // OptionalImpulseIdParameter defines model for OptionalImpulseIdParameter.
 type OptionalImpulseIdParameter = int
@@ -1322,34 +1345,16 @@ type GetProjectInfoParams struct {
 	ImpulseId *OptionalImpulseIdParameter `form:"impulseId,omitempty" json:"impulseId,omitempty"`
 }
 
-// GetDeploymentParams defines parameters for GetDeployment.
-type GetDeploymentParams struct {
-	// Type The name of the built target. You can find this by listing all deployment targets through `listDeploymentTargetsForProject` (via `GET /v1/api/{projectId}/deployment/targets`) and see the `format` type.
-	Type DeploymentTypeParameter `form:"type" json:"type"`
+// ListDeploymentHistoryParams defines parameters for ListDeploymentHistory.
+type ListDeploymentHistoryParams struct {
+	// ImpulseId Impulse ID. If this is unset, data for all impulses is returned.
+	ImpulseId *FilterByImpulseIdParameter `form:"impulseId,omitempty" json:"impulseId,omitempty"`
 
-	// ModelType Optional model type of the build (if not, it uses the settings in the Keras block)
-	ModelType *ModelTypeParameter `form:"modelType,omitempty" json:"modelType,omitempty"`
+	// Limit Maximum number of results
+	Limit *LimitResultsParameter `form:"limit,omitempty" json:"limit,omitempty"`
 
-	// Engine Optional engine for the build (if not, it uses the default engine for the deployment target)
-	Engine *ModelEngineParameter `form:"engine,omitempty" json:"engine,omitempty"`
-
-	// ImpulseId Impulse ID. If this is unset then the default impulse is used.
-	ImpulseId *OptionalImpulseIdParameter `form:"impulseId,omitempty" json:"impulseId,omitempty"`
-}
-
-// DownloadBuildParams defines parameters for DownloadBuild.
-type DownloadBuildParams struct {
-	// Type The name of the built target. You can find this by listing all deployment targets through `listDeploymentTargetsForProject` (via `GET /v1/api/{projectId}/deployment/targets`) and see the `format` type.
-	Type DeploymentTypeParameter `form:"type" json:"type"`
-
-	// ModelType Optional model type of the build (if not, it uses the settings in the Keras block)
-	ModelType *ModelTypeParameter `form:"modelType,omitempty" json:"modelType,omitempty"`
-
-	// Engine Optional engine for the build (if not, it uses the default engine for the deployment target)
-	Engine *ModelEngineParameter `form:"engine,omitempty" json:"engine,omitempty"`
-
-	// ImpulseId Impulse ID. If this is unset then the default impulse is used.
-	ImpulseId *OptionalImpulseIdParameter `form:"impulseId,omitempty" json:"impulseId,omitempty"`
+	// Offset Offset in results, can be used in conjunction with LimitResultsParameter to implement paging.
+	Offset *OffsetResultsParameter `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
 // GetLastDeploymentBuildParams defines parameters for GetLastDeploymentBuild.
@@ -1469,11 +1474,11 @@ type ClientInterface interface {
 
 	UpdateProject(ctx context.Context, projectId ProjectIdParameter, body UpdateProjectJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetDeployment request
-	GetDeployment(ctx context.Context, projectId ProjectIdParameter, params *GetDeploymentParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// ListDeploymentHistory request
+	ListDeploymentHistory(ctx context.Context, projectId ProjectIdParameter, params *ListDeploymentHistoryParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// DownloadBuild request
-	DownloadBuild(ctx context.Context, projectId ProjectIdParameter, params *DownloadBuildParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// DownloadHistoricDeployment request
+	DownloadHistoricDeployment(ctx context.Context, projectId ProjectIdParameter, deploymentVersion DeploymentVersionParameter, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetLastDeploymentBuild request
 	GetLastDeploymentBuild(ctx context.Context, projectId ProjectIdParameter, params *GetLastDeploymentBuildParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1538,8 +1543,8 @@ func (c *Client) UpdateProject(ctx context.Context, projectId ProjectIdParameter
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetDeployment(ctx context.Context, projectId ProjectIdParameter, params *GetDeploymentParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetDeploymentRequest(c.Server, projectId, params)
+func (c *Client) ListDeploymentHistory(ctx context.Context, projectId ProjectIdParameter, params *ListDeploymentHistoryParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListDeploymentHistoryRequest(c.Server, projectId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1550,8 +1555,8 @@ func (c *Client) GetDeployment(ctx context.Context, projectId ProjectIdParameter
 	return c.Client.Do(req)
 }
 
-func (c *Client) DownloadBuild(ctx context.Context, projectId ProjectIdParameter, params *DownloadBuildParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDownloadBuildRequest(c.Server, projectId, params)
+func (c *Client) DownloadHistoricDeployment(ctx context.Context, projectId ProjectIdParameter, deploymentVersion DeploymentVersionParameter, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDownloadHistoricDeploymentRequest(c.Server, projectId, deploymentVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -1759,8 +1764,8 @@ func NewUpdateProjectRequestWithBody(server string, projectId ProjectIdParameter
 	return req, nil
 }
 
-// NewGetDeploymentRequest generates requests for GetDeployment
-func NewGetDeploymentRequest(server string, projectId ProjectIdParameter, params *GetDeploymentParams) (*http.Request, error) {
+// NewListDeploymentHistoryRequest generates requests for ListDeploymentHistory
+func NewListDeploymentHistoryRequest(server string, projectId ProjectIdParameter, params *ListDeploymentHistoryParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -1775,7 +1780,7 @@ func NewGetDeploymentRequest(server string, projectId ProjectIdParameter, params
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/%s/deployment", pathParam0)
+	operationPath := fmt.Sprintf("/api/%s/deployment/history", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1788,53 +1793,41 @@ func NewGetDeploymentRequest(server string, projectId ProjectIdParameter, params
 	if params != nil {
 		queryValues := queryURL.Query()
 
-		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "type", runtime.ParamLocationQuery, params.Type); err != nil {
-			return nil, err
-		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-			return nil, err
-		} else {
-			for k, v := range parsed {
-				for _, v2 := range v {
-					queryValues.Add(k, v2)
-				}
-			}
-		}
-
-		if params.ModelType != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "modelType", runtime.ParamLocationQuery, *params.ModelType); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Engine != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "engine", runtime.ParamLocationQuery, *params.Engine); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
 		if params.ImpulseId != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "impulseId", runtime.ParamLocationQuery, *params.ImpulseId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -1859,8 +1852,8 @@ func NewGetDeploymentRequest(server string, projectId ProjectIdParameter, params
 	return req, nil
 }
 
-// NewDownloadBuildRequest generates requests for DownloadBuild
-func NewDownloadBuildRequest(server string, projectId ProjectIdParameter, params *DownloadBuildParams) (*http.Request, error) {
+// NewDownloadHistoricDeploymentRequest generates requests for DownloadHistoricDeployment
+func NewDownloadHistoricDeploymentRequest(server string, projectId ProjectIdParameter, deploymentVersion DeploymentVersionParameter) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -1870,12 +1863,19 @@ func NewDownloadBuildRequest(server string, projectId ProjectIdParameter, params
 		return nil, err
 	}
 
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "deploymentVersion", runtime.ParamLocationPath, deploymentVersion)
+	if err != nil {
+		return nil, err
+	}
+
 	serverURL, err := url.Parse(server)
 	if err != nil {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/%s/deployment/download", pathParam0)
+	operationPath := fmt.Sprintf("/api/%s/deployment/history/%s/download", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1883,72 +1883,6 @@ func NewDownloadBuildRequest(server string, projectId ProjectIdParameter, params
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "type", runtime.ParamLocationQuery, params.Type); err != nil {
-			return nil, err
-		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-			return nil, err
-		} else {
-			for k, v := range parsed {
-				for _, v2 := range v {
-					queryValues.Add(k, v2)
-				}
-			}
-		}
-
-		if params.ModelType != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "modelType", runtime.ParamLocationQuery, *params.ModelType); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Engine != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "engine", runtime.ParamLocationQuery, *params.Engine); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.ImpulseId != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "impulseId", runtime.ParamLocationQuery, *params.ImpulseId); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -2270,11 +2204,11 @@ type ClientWithResponsesInterface interface {
 
 	UpdateProjectWithResponse(ctx context.Context, projectId ProjectIdParameter, body UpdateProjectJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateProjectHTTPResponse, error)
 
-	// GetDeploymentWithResponse request
-	GetDeploymentWithResponse(ctx context.Context, projectId ProjectIdParameter, params *GetDeploymentParams, reqEditors ...RequestEditorFn) (*GetDeploymentHTTPResponse, error)
+	// ListDeploymentHistoryWithResponse request
+	ListDeploymentHistoryWithResponse(ctx context.Context, projectId ProjectIdParameter, params *ListDeploymentHistoryParams, reqEditors ...RequestEditorFn) (*ListDeploymentHistoryHTTPResponse, error)
 
-	// DownloadBuildWithResponse request
-	DownloadBuildWithResponse(ctx context.Context, projectId ProjectIdParameter, params *DownloadBuildParams, reqEditors ...RequestEditorFn) (*DownloadBuildHTTPResponse, error)
+	// DownloadHistoricDeploymentWithResponse request
+	DownloadHistoricDeploymentWithResponse(ctx context.Context, projectId ProjectIdParameter, deploymentVersion DeploymentVersionParameter, reqEditors ...RequestEditorFn) (*DownloadHistoricDeploymentHTTPResponse, error)
 
 	// GetLastDeploymentBuildWithResponse request
 	GetLastDeploymentBuildWithResponse(ctx context.Context, projectId ProjectIdParameter, params *GetLastDeploymentBuildParams, reqEditors ...RequestEditorFn) (*GetLastDeploymentBuildHTTPResponse, error)
@@ -2357,14 +2291,14 @@ func (r UpdateProjectHTTPResponse) StatusCode() int {
 	return 0
 }
 
-type GetDeploymentHTTPResponse struct {
+type ListDeploymentHistoryHTTPResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *GetDeploymentResponse
+	JSON200      *ListDeploymentHistoryResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r GetDeploymentHTTPResponse) Status() string {
+func (r ListDeploymentHistoryHTTPResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2372,20 +2306,20 @@ func (r GetDeploymentHTTPResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetDeploymentHTTPResponse) StatusCode() int {
+func (r ListDeploymentHistoryHTTPResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type DownloadBuildHTTPResponse struct {
+type DownloadHistoricDeploymentHTTPResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 }
 
 // Status returns HTTPResponse.Status
-func (r DownloadBuildHTTPResponse) Status() string {
+func (r DownloadHistoricDeploymentHTTPResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2393,7 +2327,7 @@ func (r DownloadBuildHTTPResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r DownloadBuildHTTPResponse) StatusCode() int {
+func (r DownloadHistoricDeploymentHTTPResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -2523,22 +2457,22 @@ func (c *ClientWithResponses) UpdateProjectWithResponse(ctx context.Context, pro
 	return ParseUpdateProjectHTTPResponse(rsp)
 }
 
-// GetDeploymentWithResponse request returning *GetDeploymentHTTPResponse
-func (c *ClientWithResponses) GetDeploymentWithResponse(ctx context.Context, projectId ProjectIdParameter, params *GetDeploymentParams, reqEditors ...RequestEditorFn) (*GetDeploymentHTTPResponse, error) {
-	rsp, err := c.GetDeployment(ctx, projectId, params, reqEditors...)
+// ListDeploymentHistoryWithResponse request returning *ListDeploymentHistoryHTTPResponse
+func (c *ClientWithResponses) ListDeploymentHistoryWithResponse(ctx context.Context, projectId ProjectIdParameter, params *ListDeploymentHistoryParams, reqEditors ...RequestEditorFn) (*ListDeploymentHistoryHTTPResponse, error) {
+	rsp, err := c.ListDeploymentHistory(ctx, projectId, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetDeploymentHTTPResponse(rsp)
+	return ParseListDeploymentHistoryHTTPResponse(rsp)
 }
 
-// DownloadBuildWithResponse request returning *DownloadBuildHTTPResponse
-func (c *ClientWithResponses) DownloadBuildWithResponse(ctx context.Context, projectId ProjectIdParameter, params *DownloadBuildParams, reqEditors ...RequestEditorFn) (*DownloadBuildHTTPResponse, error) {
-	rsp, err := c.DownloadBuild(ctx, projectId, params, reqEditors...)
+// DownloadHistoricDeploymentWithResponse request returning *DownloadHistoricDeploymentHTTPResponse
+func (c *ClientWithResponses) DownloadHistoricDeploymentWithResponse(ctx context.Context, projectId ProjectIdParameter, deploymentVersion DeploymentVersionParameter, reqEditors ...RequestEditorFn) (*DownloadHistoricDeploymentHTTPResponse, error) {
+	rsp, err := c.DownloadHistoricDeployment(ctx, projectId, deploymentVersion, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseDownloadBuildHTTPResponse(rsp)
+	return ParseDownloadHistoricDeploymentHTTPResponse(rsp)
 }
 
 // GetLastDeploymentBuildWithResponse request returning *GetLastDeploymentBuildHTTPResponse
@@ -2663,22 +2597,22 @@ func ParseUpdateProjectHTTPResponse(rsp *http.Response) (*UpdateProjectHTTPRespo
 	return response, nil
 }
 
-// ParseGetDeploymentHTTPResponse parses an HTTP response from a GetDeploymentWithResponse call
-func ParseGetDeploymentHTTPResponse(rsp *http.Response) (*GetDeploymentHTTPResponse, error) {
+// ParseListDeploymentHistoryHTTPResponse parses an HTTP response from a ListDeploymentHistoryWithResponse call
+func ParseListDeploymentHistoryHTTPResponse(rsp *http.Response) (*ListDeploymentHistoryHTTPResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetDeploymentHTTPResponse{
+	response := &ListDeploymentHistoryHTTPResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest GetDeploymentResponse
+		var dest ListDeploymentHistoryResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2689,15 +2623,15 @@ func ParseGetDeploymentHTTPResponse(rsp *http.Response) (*GetDeploymentHTTPRespo
 	return response, nil
 }
 
-// ParseDownloadBuildHTTPResponse parses an HTTP response from a DownloadBuildWithResponse call
-func ParseDownloadBuildHTTPResponse(rsp *http.Response) (*DownloadBuildHTTPResponse, error) {
+// ParseDownloadHistoricDeploymentHTTPResponse parses an HTTP response from a DownloadHistoricDeploymentWithResponse call
+func ParseDownloadHistoricDeploymentHTTPResponse(rsp *http.Response) (*DownloadHistoricDeploymentHTTPResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &DownloadBuildHTTPResponse{
+	response := &DownloadHistoricDeploymentHTTPResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
