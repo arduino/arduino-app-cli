@@ -120,7 +120,7 @@ func (c *EIClient) GetInfoLastDeployment(ctx context.Context, projectID int, imp
 func (c *EIClient) Build(ctx context.Context, projectID int, impulseID int, modelType string, engine string, deviceType DeploymentTypeParameter) (JobBuildInfo, error) {
 
 	params := &BuildOnDeviceModelJobParams{Type: deviceType, ImpulseId: &impulseID}
-	km_variant := KerasModelVariantEnum(string(modelType))
+	km_variant := KerasModelVariantEnum(modelType)
 	body := BuildOnDeviceModelJobJSONRequestBody{
 		Engine:    DeploymentTargetEngine(engine),
 		ModelType: &km_variant,
