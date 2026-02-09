@@ -295,7 +295,7 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 	if err != nil {
 		return AIModelItem{}, err
 	}
-	// check if there is a deployment and si valid for arduino uno Q.
+	// check if there is a deployment and si valid for arduino uno Q, otherwise build it.
 	if len(dpList) == 0 || dpList[0].ImpulseHasChangedSinceDeployment ||
 		dpList[0].DeploymentFormat != deviceType || string(dpList[0].Engine) != mEngine || string(*dpList[0].ModelType) != mType {
 
@@ -309,9 +309,6 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 		}
 		mversion = job.DeploymentVersion
 	} else {
-		mType = string(*dpList[0].ModelType)
-		mEngine = string(dpList[0].Engine)
-		deviceType = dpList[0].DeploymentFormat
 		mversion = dpList[0].DeploymentVersion
 	}
 	edgeModelsDir := modelsDir.Join("custom-ei").Join(id)
