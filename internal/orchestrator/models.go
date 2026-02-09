@@ -324,6 +324,11 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 		return AIModelItem{}, err
 	}
 
+	impulse, err := eiClient.GetImpulseInfo(ctx, projectID, impulseID)
+	if err != nil {
+		return AIModelItem{}, err
+	}
+
 	bricks, err := buildBrickConfigForEIModel(bricksIndex, project.Details.Category, edgeModelsDir, blobModelsDir)
 	if err != nil {
 		return AIModelItem{}, err
@@ -336,6 +341,7 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 			"source":               "edgeimpulse",
 			"ei-project-id":        strconv.Itoa(projectID),
 			"ei-impulse-id":        strconv.Itoa(impulseID),
+			"ei-impulse-name":      impulse.Name,
 			"ei-model-type":        mType,
 			"ei-engine":            mEngine,
 			"ei-last-modified":     project.Details.LastModified.Local().Format(time.RFC3339Nano),

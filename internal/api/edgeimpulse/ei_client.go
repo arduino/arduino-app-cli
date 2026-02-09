@@ -51,20 +51,15 @@ type JobBuildInfo struct {
 	JobID             int `json:"jobId"`
 	DeploymentVersion int `json:"deploymentVersion"`
 }
-type Impulse struct {
-	// Complete Whether an impulse was fully trained and configured
-	Complete bool `json:"complete"`
-
-	// Configured Whether an impulse was configured
+type ImpulseState struct {
+	Complete   bool `json:"complete"`
 	Configured bool `json:"configured"`
-
-	// Created Whether an impulse was created
-	Created bool `json:"created"`
+	Created    bool `json:"created"`
 }
 
 type ProjectImpulse struct {
 	Details      Project
-	ImpulseState Impulse
+	ImpulseState ImpulseState
 }
 
 func NewEIClient(prjApiKey string, apiURL url.URL) (*EIClient, error) {
@@ -238,6 +233,22 @@ func (c *EIClient) GetDeploymentHistory(ctx context.Context, projectID int, impu
 	}
 
 	return resp.JSON200.Deployments, nil
+}
+func (c *EIClient) GetImpulseInfo(ctx context.Context, projectID int, impulseID int) (*Impulse, error) {
+	params := &GetImpulseParams{ImpulseId: &impulseID}
+	resp, err := c.HttpClient.GetImpulseWithResponse(ctx, projectID, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to perform get impulse request: %w", err)
+	}
+
+	if !resp.JSON200.Success {
+		if resp.JSON200.Error != nil {
+			return nil, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), *resp.JSON200.Error)
+		}
+		return nil, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), string(resp.Body))
+	}
+
+	return resp.JSON200.Impulse, nil
 }
 
 func (c EIClient) WaitForBuildCompletion(ctx context.Context, projectID, jobID int) error {

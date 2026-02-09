@@ -79,6 +79,53 @@ const (
 	Ingestion    DeviceRemoteMgmtMode = "ingestion"
 )
 
+// Defines values for ImageInputResizeMode.
+const (
+	Crop     ImageInputResizeMode = "crop"
+	FitLong  ImageInputResizeMode = "fit-long"
+	FitShort ImageInputResizeMode = "fit-short"
+	Squash   ImageInputResizeMode = "squash"
+)
+
+// Defines values for ImpulseInputBlockCropAnchor.
+const (
+	BottomCenter ImpulseInputBlockCropAnchor = "bottom-center"
+	BottomLeft   ImpulseInputBlockCropAnchor = "bottom-left"
+	BottomRight  ImpulseInputBlockCropAnchor = "bottom-right"
+	MiddleCenter ImpulseInputBlockCropAnchor = "middle-center"
+	MiddleLeft   ImpulseInputBlockCropAnchor = "middle-left"
+	MiddleRight  ImpulseInputBlockCropAnchor = "middle-right"
+	TopCenter    ImpulseInputBlockCropAnchor = "top-center"
+	TopLeft      ImpulseInputBlockCropAnchor = "top-left"
+	TopRight     ImpulseInputBlockCropAnchor = "top-right"
+)
+
+// Defines values for ImpulseInputBlockLabelingMethodMultiLabelType.
+const (
+	AnywhereInWindow ImpulseInputBlockLabelingMethodMultiLabelType = "anywhere-in-window"
+	EndOfWindow      ImpulseInputBlockLabelingMethodMultiLabelType = "end-of-window"
+)
+
+// Defines values for ImpulseInputBlockResizeMethod.
+const (
+	Lanczos3 ImpulseInputBlockResizeMethod = "lanczos3"
+	Nearest  ImpulseInputBlockResizeMethod = "nearest"
+)
+
+// Defines values for ImpulseInputBlockType.
+const (
+	Features   ImpulseInputBlockType = "features"
+	Image      ImpulseInputBlockType = "image"
+	TimeSeries ImpulseInputBlockType = "time-series"
+)
+
+// Defines values for ImpulseType.
+const (
+	ImpulseTypeBYOM    ImpulseType = "BYOM"
+	ImpulseTypeDefault ImpulseType = "default"
+	ImpulseTypeVLM     ImpulseType = "VLM"
+)
+
 // Defines values for KerasModelTypeEnum.
 const (
 	KerasModelTypeEnumAkida           KerasModelTypeEnum = "akida"
@@ -92,6 +139,24 @@ const (
 	Akida   KerasModelVariantEnum = "akida"
 	Float32 KerasModelVariantEnum = "float32"
 	Int8    KerasModelVariantEnum = "int8"
+)
+
+// Defines values for LearnBlockType.
+const (
+	Anomaly                   LearnBlockType = "anomaly"
+	AnomalyGmm                LearnBlockType = "anomaly-gmm"
+	Keras                     LearnBlockType = "keras"
+	KerasAkida                LearnBlockType = "keras-akida"
+	KerasAkidaObjectDetection LearnBlockType = "keras-akida-object-detection"
+	KerasAkidaTransferImage   LearnBlockType = "keras-akida-transfer-image"
+	KerasAnomaly              LearnBlockType = "keras-anomaly"
+	KerasFreeform             LearnBlockType = "keras-freeform"
+	KerasObjectDetection      LearnBlockType = "keras-object-detection"
+	KerasRegression           LearnBlockType = "keras-regression"
+	KerasTransferImage        LearnBlockType = "keras-transfer-image"
+	KerasTransferKws          LearnBlockType = "keras-transfer-kws"
+	KerasVisualAnomaly        LearnBlockType = "keras-visual-anomaly"
+	Vlm                       LearnBlockType = "vlm"
 )
 
 // Defines values for LogStdoutResponseStdoutLogLevel.
@@ -219,11 +284,11 @@ const (
 
 // Defines values for TargetConstraintsSelectedTargetBasedOn.
 const (
-	ConnectedDevice TargetConstraintsSelectedTargetBasedOn = "connected-device"
-	Default         TargetConstraintsSelectedTargetBasedOn = "default"
-	DefaultAccepted TargetConstraintsSelectedTargetBasedOn = "default-accepted"
-	RecentProject   TargetConstraintsSelectedTargetBasedOn = "recent-project"
-	UserConfigured  TargetConstraintsSelectedTargetBasedOn = "user-configured"
+	TargetConstraintsSelectedTargetBasedOnConnectedDevice TargetConstraintsSelectedTargetBasedOn = "connected-device"
+	TargetConstraintsSelectedTargetBasedOnDefault         TargetConstraintsSelectedTargetBasedOn = "default"
+	TargetConstraintsSelectedTargetBasedOnDefaultAccepted TargetConstraintsSelectedTargetBasedOn = "default-accepted"
+	TargetConstraintsSelectedTargetBasedOnRecentProject   TargetConstraintsSelectedTargetBasedOn = "recent-project"
+	TargetConstraintsSelectedTargetBasedOnUserConfigured  TargetConstraintsSelectedTargetBasedOn = "user-configured"
 )
 
 // Defines values for TutorialType.
@@ -301,6 +366,39 @@ type BuildOnDeviceModelResponse struct {
 	Error *string `json:"error,omitempty"`
 
 	// Id Job identifier. Status updates will include this identifier.
+	Id int `json:"id"`
+
+	// Success Whether the operation succeeded
+	Success bool `json:"success"`
+}
+
+// CreateImpulseRequest defines model for CreateImpulseRequest.
+type CreateImpulseRequest struct {
+	// DspBlocks DSP Blocks that are part of this impulse
+	DspBlocks []ImpulseDspBlock `json:"dspBlocks"`
+
+	// InputBlocks Input Blocks that are part of this impulse
+	InputBlocks []ImpulseInputBlock `json:"inputBlocks"`
+
+	// LearnBlocks Learning Blocks that are part of this impulse
+	LearnBlocks []ImpulseLearnBlock `json:"learnBlocks"`
+
+	// Name Name for this impulse (optional). If no name is provided one is created based on your blocks.
+	Name *string `json:"name,omitempty"`
+
+	// PostProcessingBlocks Post-processing blocks that are part of this impulse
+	PostProcessingBlocks *[]ImpulsePostProcessingBlock `json:"postProcessingBlocks,omitempty"`
+
+	// Type Specifies the type of impulse. Options include: - default: Standard Edge Impulse pipeline. - BYOM: Impulse that includes a pretrained model. - VLM: Impulse created as part of a Vision Learning Model (VLM) workflow.
+	Type *ImpulseType `json:"type,omitempty"`
+}
+
+// CreateImpulseResponse defines model for CreateImpulseResponse.
+type CreateImpulseResponse struct {
+	// Error Optional error description (set if 'success' was false)
+	Error *string `json:"error,omitempty"`
+
+	// Id ID of the new impulse
 	Id int `json:"id"`
 
 	// Success Whether the operation succeeded
@@ -541,6 +639,16 @@ type GenericApiResponse struct {
 	Success bool `json:"success"`
 }
 
+// GetImpulseResponse defines model for GetImpulseResponse.
+type GetImpulseResponse struct {
+	// Error Optional error description (set if 'success' was false)
+	Error   *string  `json:"error,omitempty"`
+	Impulse *Impulse `json:"impulse,omitempty"`
+
+	// Success Whether the operation succeeded
+	Success bool `json:"success"`
+}
+
 // GetJobResponse defines model for GetJobResponse.
 type GetJobResponse struct {
 	// Error Optional error description (set if 'success' was false)
@@ -575,6 +683,223 @@ type GetLastDeploymentBuildResponse struct {
 	// Success Whether the operation succeeded
 	Success bool `json:"success"`
 }
+
+// ImageInputResizeMode Input images are resized automatically before training and testing, to match the impulse input shape.
+// This determines the resize mode used when the aspect ratio of the input data is different to the aspect ratio of the impulse.
+type ImageInputResizeMode string
+
+// Impulse defines model for Impulse.
+type Impulse struct {
+	// DspBlocks DSP Blocks that are part of this impulse
+	DspBlocks []ImpulseDspBlock `json:"dspBlocks"`
+
+	// Id ID for this impulse.
+	Id int `json:"id"`
+
+	// InputBlocks Input Blocks that are part of this impulse
+	InputBlocks []ImpulseInputBlock `json:"inputBlocks"`
+
+	// LearnBlocks Learning Blocks that are part of this impulse
+	LearnBlocks []ImpulseLearnBlock `json:"learnBlocks"`
+
+	// Name Name for this impulse.
+	Name string `json:"name"`
+
+	// PostProcessingBlocks Post-processing blocks that are part of this impulse
+	PostProcessingBlocks []ImpulsePostProcessingBlock `json:"postProcessingBlocks"`
+
+	// Type Specifies the type of impulse. Options include: - default: Standard Edge Impulse pipeline. - BYOM: Impulse that includes a pretrained model. - VLM: Impulse created as part of a Vision Learning Model (VLM) workflow.
+	Type ImpulseType `json:"type"`
+}
+
+// ImpulseDspBlock defines model for ImpulseDspBlock.
+type ImpulseDspBlock struct {
+	// Axes Input axes, identified by the name in the name of the axis
+	Axes []string `json:"axes"`
+
+	// CreatedAt The datetime that the block version was created. Cannot be set via API.
+	CreatedAt *time.Time `json:"createdAt,omitempty"`
+
+	// CreatedBy The system component that created the block version (createImpulse | clone | tuner). Cannot be set via API.
+	CreatedBy *string `json:"createdBy,omitempty"`
+
+	// CustomUrl Required for type 'custom'
+	CustomUrl *string `json:"customUrl,omitempty"`
+
+	// Id Identifier for this block. Make sure to up this number when creating a new block via `getNewBlockId`, and don't re-use identifiers. If the block hasn't changed, keep the ID as-is. ID must be unique across the project and greather than zero (>0).
+	Id int `json:"id"`
+
+	// ImplementationVersion Implementation version of the block
+	ImplementationVersion int `json:"implementationVersion"`
+
+	// Input The ID of the Input block a DSP block is connected to
+	Input *int `json:"input,omitempty"`
+
+	// Name Block name, will be used in menus
+	Name string `json:"name"`
+
+	// NamedAxes Named axes for the block
+	NamedAxes *[]struct {
+		// Description Description of the axis
+		Description *string `json:"description,omitempty"`
+
+		// Name Name of the axis
+		Name string `json:"name"`
+
+		// Required Whether the axis is required
+		Required *bool `json:"required,omitempty"`
+
+		// SelectedAxis The selected axis for the block
+		SelectedAxis *string `json:"selectedAxis,omitempty"`
+	} `json:"namedAxes,omitempty"`
+	Organization *struct {
+		DspId int `json:"dspId"`
+		Id    int `json:"id"`
+	} `json:"organization,omitempty"`
+
+	// Title Block title, used in the impulse UI
+	Title string `json:"title"`
+
+	// Type Block type
+	Type string `json:"type"`
+
+	// ValuesPerAxis Number of features this DSP block outputs per axis. This is only set when the DSP block is configured.
+	ValuesPerAxis *int `json:"valuesPerAxis,omitempty"`
+}
+
+// ImpulseInputBlock defines model for ImpulseInputBlock.
+type ImpulseInputBlock struct {
+	// ClassificationWindowIncreaseMs We use a sliding window to go over the raw data. How many milliseconds to increase the sliding window with for each step in classification mode.
+	ClassificationWindowIncreaseMs *int `json:"classificationWindowIncreaseMs,omitempty"`
+
+	// CreatedAt The datetime that the block version was created. Cannot be set via API.
+	CreatedAt *time.Time `json:"createdAt,omitempty"`
+
+	// CreatedBy The system component that created the block version (createImpulse | clone | tuner). Cannot be set via API.
+	CreatedBy *string `json:"createdBy,omitempty"`
+
+	// CropAnchor If images are resized using a crop, choose where to anchor the crop
+	CropAnchor *ImpulseInputBlockCropAnchor `json:"cropAnchor,omitempty"`
+
+	// DatasetSubset Only generate features for samples where (sample_id + datasetSubsetSeed) % datasetSubset) == 0
+	DatasetSubset *ImpulseInputBlockDatasetSubset `json:"datasetSubset,omitempty"`
+
+	// FrequencyHz (Input only) Frequency of the input data in Hz
+	FrequencyHz *float32 `json:"frequencyHz,omitempty"`
+
+	// Id Identifier for this block. Make sure to up this number when creating a new block via `getNewBlockId`, and don't re-use identifiers. If the block hasn't changed, keep the ID as-is. ID must be unique across the project and greather than zero (>0).
+	Id int `json:"id"`
+
+	// ImageHeight Width all images are resized to before training
+	ImageHeight *int `json:"imageHeight,omitempty"`
+
+	// ImageWidth Width all images are resized to before training
+	ImageWidth *int `json:"imageWidth,omitempty"`
+
+	// LabelingMethodMultiLabel How to pick the label for multi-label samples
+	LabelingMethodMultiLabel *struct {
+		// Labels Required when choosing "anywhere-in-window". The list of classes that should trigger detection (e.g. "interference").
+		Labels *[]string                                     `json:"labels,omitempty"`
+		Type   ImpulseInputBlockLabelingMethodMultiLabelType `json:"type"`
+	} `json:"labelingMethodMultiLabel,omitempty"`
+
+	// Name Block name, will be used in menus
+	Name string `json:"name"`
+
+	// PadZeros Whether to zero pad data when a data item is too short
+	PadZeros *bool `json:"padZeros,omitempty"`
+
+	// ResizeMethod Resize method to use when resizing images
+	ResizeMethod *ImpulseInputBlockResizeMethod `json:"resizeMethod,omitempty"`
+
+	// ResizeMode Input images are resized automatically before training and testing, to match the impulse input shape.
+	// This determines the resize mode used when the aspect ratio of the input data is different to the aspect ratio of the impulse.
+	ResizeMode *ImageInputResizeMode `json:"resizeMode,omitempty"`
+
+	// Title Block title, used in the impulse UI
+	Title string `json:"title"`
+
+	// Type Block type (either time-series, image or features)
+	Type ImpulseInputBlockType `json:"type"`
+
+	// WindowIncreaseMs We use a sliding window to go over the raw data. How many milliseconds to increase the sliding window with for each step.
+	WindowIncreaseMs *int `json:"windowIncreaseMs,omitempty"`
+
+	// WindowSizeMs Size of the sliding window in milliseconds
+	WindowSizeMs *int `json:"windowSizeMs,omitempty"`
+}
+
+// ImpulseInputBlockCropAnchor If images are resized using a crop, choose where to anchor the crop
+type ImpulseInputBlockCropAnchor string
+
+// ImpulseInputBlockLabelingMethodMultiLabelType defines model for ImpulseInputBlock.LabelingMethodMultiLabel.Type.
+type ImpulseInputBlockLabelingMethodMultiLabelType string
+
+// ImpulseInputBlockResizeMethod Resize method to use when resizing images
+type ImpulseInputBlockResizeMethod string
+
+// ImpulseInputBlockType Block type (either time-series, image or features)
+type ImpulseInputBlockType string
+
+// ImpulseInputBlockDatasetSubset Only generate features for samples where (sample_id + datasetSubsetSeed) % datasetSubset) == 0
+type ImpulseInputBlockDatasetSubset struct {
+	// IncludePercentage Number between 0 and 100, with the % of data that should be _included_
+	IncludePercentage float32 `json:"includePercentage"`
+
+	// Seed Seed number (optional). If not specified, the seed is set to 0.
+	Seed *int `json:"seed,omitempty"`
+}
+
+// ImpulseLearnBlock defines model for ImpulseLearnBlock.
+type ImpulseLearnBlock struct {
+	// CreatedAt The datetime that the block version was created. Cannot be set via API.
+	CreatedAt *time.Time `json:"createdAt,omitempty"`
+
+	// CreatedBy The system component that created the block version (createImpulse | clone | tuner). Cannot be set via API.
+	CreatedBy *string `json:"createdBy,omitempty"`
+
+	// Dsp DSP dependencies, identified by DSP block ID
+	Dsp []int `json:"dsp"`
+
+	// Id Identifier for this block. Make sure to up this number when creating a new block via `getNewBlockId`, and don't re-use identifiers. If the block hasn't changed, keep the ID as-is. ID must be unique across the project and greather than zero (>0).
+	Id int `json:"id"`
+
+	// Name Block name, will be used in menus. If a block has a baseBlockId, this field is ignored and the base block's name is used instead.
+	Name string `json:"name"`
+
+	// Title Block title, used in the impulse UI
+	Title string `json:"title"`
+
+	// Type The type of learning block (anomaly, keras, keras-transfer-image, keras-transfer-kws, keras-object-detection, keras-regression, keras-freeform). Each behaves differently.
+	Type LearnBlockType `json:"type"`
+}
+
+// ImpulsePostProcessingBlock defines model for ImpulsePostProcessingBlock.
+type ImpulsePostProcessingBlock struct {
+	// CreatedAt The datetime that the block version was created. Cannot be set via API.
+	CreatedAt *time.Time `json:"createdAt,omitempty"`
+
+	// CreatedBy The system component that created the block version (createImpulse | clone | tuner). Cannot be set via API.
+	CreatedBy *string `json:"createdBy,omitempty"`
+
+	// Id Identifier for this block. Make sure to up this number when creating a new block via `getNewBlockId`, and don't re-use identifiers. If the block hasn't changed, keep the ID as-is. ID must be unique across the project and greather than zero (>0).
+	Id int `json:"id"`
+
+	// ImplementationVersion Implementation version of the block
+	ImplementationVersion int `json:"implementationVersion"`
+
+	// Name Block name, will be used in menus
+	Name string `json:"name"`
+
+	// Title Block title, used in the impulse UI
+	Title string `json:"title"`
+
+	// Type Block type
+	Type string `json:"type"`
+}
+
+// ImpulseType Specifies the type of impulse. Options include: - default: Standard Edge Impulse pipeline. - BYOM: Impulse that includes a pretrained model. - VLM: Impulse created as part of a Vision Learning Model (VLM) workflow.
+type ImpulseType string
 
 // Job defines model for Job.
 type Job struct {
@@ -636,6 +961,9 @@ type LatencyDevice struct {
 	Name               string  `json:"name"`
 	Selected           bool    `json:"selected"`
 }
+
+// LearnBlockType The type of learning block (anomaly, keras, keras-transfer-image, keras-transfer-kws, keras-object-detection, keras-regression, keras-freeform). Each behaves differently.
+type LearnBlockType string
 
 // ListDeploymentHistoryResponse defines model for ListDeploymentHistoryResponse.
 type ListDeploymentHistoryResponse struct {
@@ -1363,6 +1691,24 @@ type GetLastDeploymentBuildParams struct {
 	ImpulseId *OptionalImpulseIdParameter `form:"impulseId,omitempty" json:"impulseId,omitempty"`
 }
 
+// DeleteImpulseParams defines parameters for DeleteImpulse.
+type DeleteImpulseParams struct {
+	// ImpulseId Impulse ID. If this is unset then the default impulse is used.
+	ImpulseId *OptionalImpulseIdParameter `form:"impulseId,omitempty" json:"impulseId,omitempty"`
+}
+
+// GetImpulseParams defines parameters for GetImpulse.
+type GetImpulseParams struct {
+	// ImpulseId Impulse ID. If this is unset then the default impulse is used.
+	ImpulseId *OptionalImpulseIdParameter `form:"impulseId,omitempty" json:"impulseId,omitempty"`
+}
+
+// CreateImpulseParams defines parameters for CreateImpulse.
+type CreateImpulseParams struct {
+	// ImpulseId Impulse ID. If this is unset then the default impulse is used.
+	ImpulseId *OptionalImpulseIdParameter `form:"impulseId,omitempty" json:"impulseId,omitempty"`
+}
+
 // BuildOnDeviceModelJobParams defines parameters for BuildOnDeviceModelJob.
 type BuildOnDeviceModelJobParams struct {
 	// Type The name of the built target. You can find this by listing all deployment targets through `listDeploymentTargetsForProject` (via `GET /v1/api/{projectId}/deployment/targets`) and see the `format` type.
@@ -1386,6 +1732,9 @@ type GetJobsLogsParamsLogLevel string
 
 // UpdateProjectJSONRequestBody defines body for UpdateProject for application/json ContentType.
 type UpdateProjectJSONRequestBody = UpdateProjectRequest
+
+// CreateImpulseJSONRequestBody defines body for CreateImpulse for application/json ContentType.
+type CreateImpulseJSONRequestBody = CreateImpulseRequest
 
 // BuildOnDeviceModelJobJSONRequestBody defines body for BuildOnDeviceModelJob for application/json ContentType.
 type BuildOnDeviceModelJobJSONRequestBody = BuildOnDeviceModelRequest
@@ -1483,6 +1832,17 @@ type ClientInterface interface {
 	// GetLastDeploymentBuild request
 	GetLastDeploymentBuild(ctx context.Context, projectId ProjectIdParameter, params *GetLastDeploymentBuildParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DeleteImpulse request
+	DeleteImpulse(ctx context.Context, projectId ProjectIdParameter, params *DeleteImpulseParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetImpulse request
+	GetImpulse(ctx context.Context, projectId ProjectIdParameter, params *GetImpulseParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateImpulseWithBody request with any body
+	CreateImpulseWithBody(ctx context.Context, projectId ProjectIdParameter, params *CreateImpulseParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateImpulse(ctx context.Context, projectId ProjectIdParameter, params *CreateImpulseParams, body CreateImpulseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// BuildOnDeviceModelJobWithBody request with any body
 	BuildOnDeviceModelJobWithBody(ctx context.Context, projectId ProjectIdParameter, params *BuildOnDeviceModelJobParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1569,6 +1929,54 @@ func (c *Client) DownloadHistoricDeployment(ctx context.Context, projectId Proje
 
 func (c *Client) GetLastDeploymentBuild(ctx context.Context, projectId ProjectIdParameter, params *GetLastDeploymentBuildParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetLastDeploymentBuildRequest(c.Server, projectId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteImpulse(ctx context.Context, projectId ProjectIdParameter, params *DeleteImpulseParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteImpulseRequest(c.Server, projectId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetImpulse(ctx context.Context, projectId ProjectIdParameter, params *GetImpulseParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetImpulseRequest(c.Server, projectId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateImpulseWithBody(ctx context.Context, projectId ProjectIdParameter, params *CreateImpulseParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateImpulseRequestWithBody(c.Server, projectId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateImpulse(ctx context.Context, projectId ProjectIdParameter, params *CreateImpulseParams, body CreateImpulseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateImpulseRequest(c.Server, projectId, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1949,6 +2357,187 @@ func NewGetLastDeploymentBuildRequest(server string, projectId ProjectIdParamete
 	return req, nil
 }
 
+// NewDeleteImpulseRequest generates requests for DeleteImpulse
+func NewDeleteImpulseRequest(server string, projectId ProjectIdParameter, params *DeleteImpulseParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "projectId", runtime.ParamLocationPath, projectId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/%s/impulse", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.ImpulseId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "impulseId", runtime.ParamLocationQuery, *params.ImpulseId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetImpulseRequest generates requests for GetImpulse
+func NewGetImpulseRequest(server string, projectId ProjectIdParameter, params *GetImpulseParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "projectId", runtime.ParamLocationPath, projectId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/%s/impulse", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.ImpulseId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "impulseId", runtime.ParamLocationQuery, *params.ImpulseId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateImpulseRequest calls the generic CreateImpulse builder with application/json body
+func NewCreateImpulseRequest(server string, projectId ProjectIdParameter, params *CreateImpulseParams, body CreateImpulseJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateImpulseRequestWithBody(server, projectId, params, "application/json", bodyReader)
+}
+
+// NewCreateImpulseRequestWithBody generates requests for CreateImpulse with any type of body
+func NewCreateImpulseRequestWithBody(server string, projectId ProjectIdParameter, params *CreateImpulseParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "projectId", runtime.ParamLocationPath, projectId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/%s/impulse", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.ImpulseId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "impulseId", runtime.ParamLocationQuery, *params.ImpulseId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewBuildOnDeviceModelJobRequest calls the generic BuildOnDeviceModelJob builder with application/json body
 func NewBuildOnDeviceModelJobRequest(server string, projectId ProjectIdParameter, params *BuildOnDeviceModelJobParams, body BuildOnDeviceModelJobJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -2213,6 +2802,17 @@ type ClientWithResponsesInterface interface {
 	// GetLastDeploymentBuildWithResponse request
 	GetLastDeploymentBuildWithResponse(ctx context.Context, projectId ProjectIdParameter, params *GetLastDeploymentBuildParams, reqEditors ...RequestEditorFn) (*GetLastDeploymentBuildHTTPResponse, error)
 
+	// DeleteImpulseWithResponse request
+	DeleteImpulseWithResponse(ctx context.Context, projectId ProjectIdParameter, params *DeleteImpulseParams, reqEditors ...RequestEditorFn) (*DeleteImpulseHTTPResponse, error)
+
+	// GetImpulseWithResponse request
+	GetImpulseWithResponse(ctx context.Context, projectId ProjectIdParameter, params *GetImpulseParams, reqEditors ...RequestEditorFn) (*GetImpulseHTTPResponse, error)
+
+	// CreateImpulseWithBodyWithResponse request with any body
+	CreateImpulseWithBodyWithResponse(ctx context.Context, projectId ProjectIdParameter, params *CreateImpulseParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateImpulseHTTPResponse, error)
+
+	CreateImpulseWithResponse(ctx context.Context, projectId ProjectIdParameter, params *CreateImpulseParams, body CreateImpulseJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateImpulseHTTPResponse, error)
+
 	// BuildOnDeviceModelJobWithBodyWithResponse request with any body
 	BuildOnDeviceModelJobWithBodyWithResponse(ctx context.Context, projectId ProjectIdParameter, params *BuildOnDeviceModelJobParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*BuildOnDeviceModelJobHTTPResponse, error)
 
@@ -2356,6 +2956,72 @@ func (r GetLastDeploymentBuildHTTPResponse) StatusCode() int {
 	return 0
 }
 
+type DeleteImpulseHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GenericApiResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteImpulseHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteImpulseHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetImpulseHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GetImpulseResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetImpulseHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetImpulseHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateImpulseHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *CreateImpulseResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateImpulseHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateImpulseHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type BuildOnDeviceModelJobHTTPResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -2482,6 +3148,41 @@ func (c *ClientWithResponses) GetLastDeploymentBuildWithResponse(ctx context.Con
 		return nil, err
 	}
 	return ParseGetLastDeploymentBuildHTTPResponse(rsp)
+}
+
+// DeleteImpulseWithResponse request returning *DeleteImpulseHTTPResponse
+func (c *ClientWithResponses) DeleteImpulseWithResponse(ctx context.Context, projectId ProjectIdParameter, params *DeleteImpulseParams, reqEditors ...RequestEditorFn) (*DeleteImpulseHTTPResponse, error) {
+	rsp, err := c.DeleteImpulse(ctx, projectId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteImpulseHTTPResponse(rsp)
+}
+
+// GetImpulseWithResponse request returning *GetImpulseHTTPResponse
+func (c *ClientWithResponses) GetImpulseWithResponse(ctx context.Context, projectId ProjectIdParameter, params *GetImpulseParams, reqEditors ...RequestEditorFn) (*GetImpulseHTTPResponse, error) {
+	rsp, err := c.GetImpulse(ctx, projectId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetImpulseHTTPResponse(rsp)
+}
+
+// CreateImpulseWithBodyWithResponse request with arbitrary body returning *CreateImpulseHTTPResponse
+func (c *ClientWithResponses) CreateImpulseWithBodyWithResponse(ctx context.Context, projectId ProjectIdParameter, params *CreateImpulseParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateImpulseHTTPResponse, error) {
+	rsp, err := c.CreateImpulseWithBody(ctx, projectId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateImpulseHTTPResponse(rsp)
+}
+
+func (c *ClientWithResponses) CreateImpulseWithResponse(ctx context.Context, projectId ProjectIdParameter, params *CreateImpulseParams, body CreateImpulseJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateImpulseHTTPResponse, error) {
+	rsp, err := c.CreateImpulse(ctx, projectId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateImpulseHTTPResponse(rsp)
 }
 
 // BuildOnDeviceModelJobWithBodyWithResponse request with arbitrary body returning *BuildOnDeviceModelJobHTTPResponse
@@ -2655,6 +3356,84 @@ func ParseGetLastDeploymentBuildHTTPResponse(rsp *http.Response) (*GetLastDeploy
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest GetLastDeploymentBuildResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteImpulseHTTPResponse parses an HTTP response from a DeleteImpulseWithResponse call
+func ParseDeleteImpulseHTTPResponse(rsp *http.Response) (*DeleteImpulseHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteImpulseHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GenericApiResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetImpulseHTTPResponse parses an HTTP response from a GetImpulseWithResponse call
+func ParseGetImpulseHTTPResponse(rsp *http.Response) (*GetImpulseHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetImpulseHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GetImpulseResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateImpulseHTTPResponse parses an HTTP response from a CreateImpulseWithResponse call
+func ParseCreateImpulseHTTPResponse(rsp *http.Response) (*CreateImpulseHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateImpulseHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest CreateImpulseResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
