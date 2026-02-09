@@ -130,11 +130,11 @@ func getModelSize(dirPath *paths.Path) (uint64, error) {
 			return 0, fmt.Errorf("cannot stat file %s: %w", file.String(), err)
 		}
 
-		if info.Size() < 0 {
+		size := info.Size()
+		if size < 0 {
 			return 0, fmt.Errorf("file has negative size: %s", file.String())
 		}
-
-		totalSize += uint64(info.Size())
+		totalSize += uint64(size)
 	}
 
 	return totalSize, nil
