@@ -31,8 +31,6 @@ import (
 	"github.com/docker/cli/cli/command"
 	"go.bug.st/f"
 
-	"github.com/arduino/go-paths-helper"
-
 	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
