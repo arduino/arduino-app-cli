@@ -106,7 +106,7 @@ func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, 
 	}
 }
 
-func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.BricksIndex) http.HandlerFunc {
+func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req InstallEIModelRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -129,7 +129,7 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 			return
 		}
 
-		eiModel, err := orchestrator.InstallEIModel(r.Context(), bricksIndex, eiClient, cfg.CustomModelsDir(), *req.ProjectID, *req.ImpulseID)
+		eiModel, err := orchestrator.InstallEIModel(r.Context(), bricksIndex, modelsIndex, dockerClient, eiClient, cfg.CustomModelsDir(), *req.ProjectID, *req.ImpulseID)
 		if err != nil {
 			switch {
 			case errors.Is(err, edgeimpulse.ErrUnauthorized):
