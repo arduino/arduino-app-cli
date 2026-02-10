@@ -103,8 +103,8 @@ func (c *EIClient) GetInfoLastDeployment(ctx context.Context, projectID int, imp
 		return nil, fmt.Errorf("failed to perform download model request: %w", err)
 	}
 
-	if !resp.JSON200.Success {
-		if resp.JSON200.Error != nil {
+	if resp.StatusCode() != http.StatusOK || !resp.JSON200.Success {
+		if resp.JSON200 != nil && resp.JSON200.Error != nil {
 			return nil, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), *resp.JSON200.Error)
 		}
 		return nil, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), string(resp.Body))
@@ -130,8 +130,8 @@ func (c *EIClient) Build(ctx context.Context, projectID int, impulseID int, mode
 		return JobBuildInfo{}, fmt.Errorf("failed to perform build model request: %w", err)
 	}
 
-	if !resp.JSON200.Success {
-		if resp.JSON200.Error != nil {
+	if resp.StatusCode() != http.StatusOK || !resp.JSON200.Success {
+		if resp.JSON200 != nil && resp.JSON200.Error != nil {
 			return JobBuildInfo{}, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), *resp.JSON200.Error)
 		}
 		return JobBuildInfo{}, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), string(resp.Body))
@@ -147,8 +147,8 @@ func (c *EIClient) isJobDone(ctx context.Context, projectID int, jobID int) (boo
 		return false, err
 	}
 
-	if !resp.JSON200.Success {
-		if resp.JSON200.Error != nil {
+	if resp.StatusCode() != http.StatusOK || !resp.JSON200.Success {
+		if resp.JSON200 != nil && resp.JSON200.Error != nil {
 			return false, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), *resp.JSON200.Error)
 		}
 		return false, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), string(resp.Body))
@@ -182,8 +182,8 @@ func (c *EIClient) getJobLogs(ctx context.Context, projectID, jobID int, limit i
 		return nil, fmt.Errorf("failed to perform get logs request: %w", err)
 	}
 
-	if !resp.JSON200.Success {
-		if resp.JSON200.Error != nil {
+	if resp.StatusCode() != http.StatusOK || !resp.JSON200.Success {
+		if resp.JSON200 != nil && resp.JSON200.Error != nil {
 			return nil, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), *resp.JSON200.Error)
 		}
 		return nil, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), string(resp.Body))
@@ -204,8 +204,8 @@ func (c *EIClient) GetProjectInfo(ctx context.Context, projectID int, impulseID 
 		return ProjectImpulse{}, fmt.Errorf("failed to perform get project info request: %w", err)
 	}
 
-	if !resp.JSON200.Success {
-		if resp.JSON200.Error != nil {
+	if resp.StatusCode() != http.StatusOK || !resp.JSON200.Success {
+		if resp.JSON200 != nil && resp.JSON200.Error != nil {
 			return ProjectImpulse{}, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), *resp.JSON200.Error)
 		}
 		return ProjectImpulse{}, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), string(resp.Body))
@@ -225,8 +225,8 @@ func (c *EIClient) GetDeploymentHistory(ctx context.Context, projectID int, impu
 		return nil, fmt.Errorf("failed to perform get deployment history request: %w", err)
 	}
 
-	if !resp.JSON200.Success {
-		if resp.JSON200.Error != nil {
+	if resp.StatusCode() != http.StatusOK || !resp.JSON200.Success {
+		if resp.JSON200 != nil && resp.JSON200.Error != nil {
 			return nil, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), *resp.JSON200.Error)
 		}
 		return nil, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), string(resp.Body))
@@ -241,8 +241,8 @@ func (c *EIClient) GetImpulseInfo(ctx context.Context, projectID int, impulseID 
 		return nil, fmt.Errorf("failed to perform get impulse request: %w", err)
 	}
 
-	if !resp.JSON200.Success {
-		if resp.JSON200.Error != nil {
+	if resp.StatusCode() != http.StatusOK || !resp.JSON200.Success {
+		if resp.JSON200 != nil && resp.JSON200.Error != nil {
 			return nil, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), *resp.JSON200.Error)
 		}
 		return nil, fmt.Errorf("%w: %s", errorMessage(resp.StatusCode()), string(resp.Body))
