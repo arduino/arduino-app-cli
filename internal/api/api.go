@@ -70,7 +70,7 @@ func NewHTTPRouter(
 
 	mux.Handle("GET /v1/models", handlers.HandleModelsList(modelsIndex))
 	mux.Handle("GET /v1/models/{modelID}", handlers.HandlerModelByID(modelsIndex))
-	mux.Handle("POST /v1/models/edge-impulse", handlers.HandleInstallEIModel(cfg, bricksIndex, modelsIndex, dockerClient))
+	mux.Handle("PUT /v1/models/ei/projects/{projectID}", handlers.HandleInstallEIModel(cfg, bricksIndex, modelsIndex, dockerClient))
 	mux.Handle("DELETE /v1/models/{modelID}", handlers.HandlerDeleteModelByID(dockerClient, cfg, modelsIndex, idProvider))
 
 	mux.Handle("GET /v1/apps", handlers.HandleAppList(dockerClient, idProvider, cfg))

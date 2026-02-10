@@ -888,12 +888,12 @@ Contains a JSON object with the details of an error.
 		},
 		{
 			OperationId: "installEIModel",
-			Method:      http.MethodPost,
-			Path:        "/v1/models/edge-impulse",
+			Method:      http.MethodPut,
+			Path:        "/v1/models/ei/projects/{projectID}",
 			Request: (*struct {
-				ProjectID int    `json:"project_id" description:"Edge Impulse project ID" example:"123456" required:"true"`
+				ProjectID int    `path:"projectID" description:"Edge Impulse project ID" example:"123456" required:"true"`
 				ImpulseID int    `json:"impulse_id" description:"Edge Impulse impulse ID" example:"1" required:"true"`
-				PrjApiKey string `json:"prj_api_key" description:"Edge Impulse project API key" example:"your_edge_impulse_api_token" required:"true"`
+				PrjApiKey string `header:"x-api-key" description:"Edge Impulse project API key" example:"your_edge_impulse_api_token" required:"true"`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",

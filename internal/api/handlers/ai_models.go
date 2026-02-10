@@ -37,9 +37,7 @@ import (
 )
 
 type InstallEIModelRequest struct {
-	ProjectID *int   `json:"project_id" description:"Edge Impulse project ID" example:"123456" required:"true"`
-	ImpulseID *int   `json:"impulse_id" description:"Edge Impulse impulse ID" example:"1" required:"true"`
-	PrjApiKey string `json:"prj_api_key" description:"Edge Impulse API key" example:"your_edge_impulse_api" required:"true"`
+	ImpulseID *int `json:"impulse_id" description:"Edge Impulse impulse ID" example:"1" required:"true"`
 }
 
 func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
@@ -108,6 +106,17 @@ func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, 
 
 func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		projectID, err := strconv.Atoi(r.PathValue("projectID"))
+		if err != nil {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "invalid projectID"})
+			return
+		}
+		prjApiKey := r.Header.Get("x-api-key")
+		if prjApiKey == "" {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "x-api-key header must be set"})
+			return
+		}
+
 		var req InstallEIModelRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			slog.Error("unable to decode download EI model request", slog.String("error", err.Error()))
@@ -120,14 +129,14 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 			return
 		}
 
-		eiClient, err := edgeimpulse.NewEIClient(req.PrjApiKey, *cfg.EdgeImpulseAPIURL)
+		eiClient, err := edgeimpulse.NewEIClient(prjApiKey, *cfg.EdgeImpulseAPIURL)
 		if err != nil {
 			slog.Error("unable to create Edge Impulse client", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to create Edge Impulse client"})
 			return
 		}
 
-		eiModel, err := orchestrator.InstallEIModel(r.Context(), bricksIndex, modelsIndex, dockerClient, eiClient, cfg.CustomModelsDir(), *req.ProjectID, *req.ImpulseID)
+		eiModel, err := orchestrator.InstallEIModel(r.Context(), bricksIndex, modelsIndex, dockerClient, eiClient, cfg.CustomModelsDir(), projectID, *req.ImpulseID)
 		if err != nil {
 			switch {
 			case errors.Is(err, edgeimpulse.ErrUnauthorized):
@@ -159,14 +168,8 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 }
 
 func (r InstallEIModelRequest) Validate() error {
-	if r.ProjectID == nil || *r.ProjectID <= 0 {
-		return fmt.Errorf("project_id must be a positive integer")
-	}
 	if r.ImpulseID == nil || *r.ImpulseID <= 0 {
-		return fmt.Errorf("impulse_id must be a positive integer")
-	}
-	if r.PrjApiKey == "" {
-		return fmt.Errorf("prj_api_key must be provided")
+		return fmt.Errorf("impulse_id must be an integer greater than 0")
 	}
 	return nil
 }
