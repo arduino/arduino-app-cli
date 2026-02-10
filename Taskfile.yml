@@ -8,8 +8,8 @@ vars:
   GOLANGCI_LINT_VERSION: v2.4.0
   GOIMPORTS_VERSION: v0.29.0
   DPRINT_VERSION: 0.48.0
-  EXAMPLE_VERSION: "0.6.3"
-  RUNNER_VERSION: "0.7.0"
+  EXAMPLE_VERSION: "0.7.1"
+  RUNNER_VERSION: "0.7.1"
   VERSION: # if version is not passed we hack the semver by encoding the commit as pre-release
     sh: echo "${VERSION:-0.0.0-$(git rev-parse --short HEAD)}"
 
@@ -277,14 +277,13 @@ tasks:
     cmds:
       - |
           curl -fsSL https://studio.edgeimpulse.com/openapi.yml | yq '.paths = {
+          "/api/{projectId}/deployment": .paths."/api/{projectId}/deployment",
+          "/api/{projectId}/deployment/download": .paths."/api/{projectId}/deployment/download",
           "/api/{projectId}/jobs/build-ondevice-model": .paths."/api/{projectId}/jobs/build-ondevice-model",
           "/api/{projectId}/jobs/{jobId}/status": .paths."/api/{projectId}/jobs/{jobId}/status",
           "/api/{projectId}": .paths."/api/{projectId}",
           "/api/{projectId}/jobs/{jobId}/stdout": .paths."/api/{projectId}/jobs/{jobId}/stdout",
-          "/api/{projectId}/deployment/history": .paths."/api/{projectId}/deployment/history",
-          "/api/{projectId}/deployment/last": .paths."/api/{projectId}/deployment/last",
-          "/api/{projectId}/deployment/history/{deploymentVersion}/download": .paths."/api/{projectId}/deployment/history/{deploymentVersion}/download",
-          "/api/{projectId}/impulse": .paths."/api/{projectId}/impulse"
+          "/api/{projectId}/deployment/last": .paths."/api/{projectId}/deployment/last"
             }' > openapi-filtered.yml
       - oapi-codegen --package=edgeimpulse --generate types,client --response-type-suffix=HTTPResponse openapi-filtered.yml > internal/api/edgeimpulse/client.gen.go
       - rm openapi-filtered.yml
