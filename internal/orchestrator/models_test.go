@@ -183,12 +183,12 @@ func setupMockEIServer(t *testing.T, responses map[string]mockResponse, calls *[
 		if !ok {
 			t.Logf("DEBUG: Mock received unhandled path: >%s< >%s<\n", r.Method, r.URL.String())
 			w.WriteHeader(http.StatusServiceUnavailable)
-			w.Write([]byte(`{"error": "path not mocked"}`))
+			_, _ = w.Write([]byte(`{"error": "path not mocked"}`))
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(res.status)
-		w.Write([]byte(res.body))
+		_, _ = w.Write([]byte(res.body))
 	}))
 }
 
