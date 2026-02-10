@@ -340,7 +340,7 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 			"ei-model-type":        mType,
 			"ei-engine":            mEngine,
 			"ei-last-modified":     project.Details.LastModified.Local().Format(time.RFC3339Nano),
-			"ei-deplyment-version": strconv.Itoa(mversion),
+			"ei-deployment-version": strconv.Itoa(mversion),
 		},
 		Bricks: bricks,
 	}
