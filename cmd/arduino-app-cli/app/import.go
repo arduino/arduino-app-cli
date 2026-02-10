@@ -37,9 +37,7 @@ func newImportCmd(cfg config.Configuration) *cobra.Command {
 		Use:   "import zip_path",
 		Short: "Import an Arduino App from a zip file",
 		Long: `Import an Arduino App from a zip file.
-
-Arguments:
-  zip_path   Path to the input zip file. Use '-' to read from stdin.`,
+Use '-' as zip_path to read the zip from stdin.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()

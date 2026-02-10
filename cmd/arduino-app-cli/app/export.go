@@ -42,10 +42,7 @@ func newExportCmd(cfg config.Configuration) *cobra.Command {
 		Use:   "export app_path [output_path]",
 		Short: "Export an existing Arduino App to a zip file",
 		Long: `Export an existing Arduino App to a zip file.
-
-Arguments:
-  app_path      Path to the Arduino App.
-  output_path   Path to the output zip file or directory. Use '-' to write to stdout.`,
+Use '-' as output_path to write the zip to stdout.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()
