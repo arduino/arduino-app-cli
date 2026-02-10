@@ -196,6 +196,57 @@ func NewOpenApiGenerator(version string) *Generator {
 						},
 					},
 				},
+				"Unauthorized": {
+					Response: &openapi3.Response{
+						Description: "Unauthorized",
+						Content: map[string]openapi3.MediaType{
+							"application/json": {
+								Example: f.Ptr(interface{}(map[string]interface{}{
+									"details": "Unauthorized access to the resource.",
+								})),
+								Schema: &openapi3.SchemaOrRef{
+									SchemaReference: &openapi3.SchemaReference{
+										Ref: ErrorResponseSchema,
+									},
+								},
+							},
+						},
+					},
+				},
+				"InsufficientStorage": {
+					Response: &openapi3.Response{
+						Description: "Insufficient Storage",
+						Content: map[string]openapi3.MediaType{
+							"application/json": {
+								Example: f.Ptr(interface{}(map[string]interface{}{
+									"details": "Insufficient storage to complete the request.",
+								})),
+								Schema: &openapi3.SchemaOrRef{
+									SchemaReference: &openapi3.SchemaReference{
+										Ref: ErrorResponseSchema,
+									},
+								},
+							},
+						},
+					},
+				},
+				"Forbidden": {
+					Response: &openapi3.Response{
+						Description: "Forbidden",
+						Content: map[string]openapi3.MediaType{
+							"application/json": {
+								Example: f.Ptr(interface{}(map[string]interface{}{
+									"details": "You do not have permission to access this resource.",
+								})),
+								Schema: &openapi3.SchemaOrRef{
+									SchemaReference: &openapi3.SchemaReference{
+										Ref: ErrorResponseSchema,
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 	)
@@ -833,6 +884,32 @@ Contains a JSON object with the details of an error.
 			Tags:        []Tag{AIModelsTag},
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "installEIModel",
+			Method:      http.MethodPut,
+			Path:        "/v1/models/ei/projects/{projectID}",
+			Request: (*struct {
+				ProjectID int    `path:"projectID" description:"Edge Impulse project ID" example:"123456" required:"true"`
+				ImpulseID int    `json:"impulse_id" description:"Edge Impulse impulse ID" example:"1" required:"true"`
+				PrjApiKey string `header:"x-api-key" description:"Edge Impulse project API key" example:"your_edge_impulse_api_token" required:"true"`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: orchestrator.AIModelItem{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "Download and install a custom Edge Impulse AI model using the provided project API key.",
+			Summary:     "Download and install a custom Edge Impulse AI model",
+			Tags:        []Tag{AIModelsTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+				{StatusCode: http.StatusUnauthorized, Reference: "#/components/responses/Unauthorized"},
+				{StatusCode: http.StatusForbidden, Reference: "#/components/responses/Forbidden"},
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusInsufficientStorage, Reference: "#/components/responses/InsufficientStorage"},
 			},
 		},
 		{

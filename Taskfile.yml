@@ -271,3 +271,20 @@ tasks:
   general:prepare-deps:
     desc: Prepare project dependencies for license check
     # No preparation is needed for Go module-based projects.
+
+  general:generate-ei-client:
+    desc: "Generate Go client for Edge Impulse API using oapi-codegen and filtering by used paths"
+    cmds:
+      - |
+          curl -fsSL https://studio.edgeimpulse.com/openapi.yml | yq '.paths = {
+          "/api/{projectId}/jobs/build-ondevice-model": .paths."/api/{projectId}/jobs/build-ondevice-model",
+          "/api/{projectId}/jobs/{jobId}/status": .paths."/api/{projectId}/jobs/{jobId}/status",
+          "/api/{projectId}": .paths."/api/{projectId}",
+          "/api/{projectId}/jobs/{jobId}/stdout": .paths."/api/{projectId}/jobs/{jobId}/stdout",
+          "/api/{projectId}/deployment/history": .paths."/api/{projectId}/deployment/history",
+          "/api/{projectId}/deployment/last": .paths."/api/{projectId}/deployment/last",
+          "/api/{projectId}/deployment/history/{deploymentVersion}/download": .paths."/api/{projectId}/deployment/history/{deploymentVersion}/download",
+          "/api/{projectId}/impulse": .paths."/api/{projectId}/impulse"
+            }' > openapi-filtered.yml
+      - oapi-codegen --package=edgeimpulse --generate types,client --response-type-suffix=HTTPResponse openapi-filtered.yml > internal/api/edgeimpulse/client.gen.go
+      - rm openapi-filtered.yml

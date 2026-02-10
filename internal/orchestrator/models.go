@@ -22,14 +22,21 @@ import (
 	"log/slog"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
+	"syscall"
+	"time"
 
+	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
 	"go.bug.st/f"
 
+	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
 )
 
 type AIModelsListResult struct {
@@ -44,6 +51,7 @@ type AIModelItem struct {
 	Bricks            []string          `json:"brick_ids"`
 	Metadata          map[string]string `json:"metadata,omitempty"`
 	IsBuiltin         bool              `json:"is_builtin"`
+	DiskUsage         *uint64           `json:"disk_usage,omitempty"`
 }
 
 type AIModelsListRequest struct {
@@ -77,6 +85,22 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 	if !found {
 		return AIModelItem{}, false
 	}
+
+	var modelSize *uint64
+	if !model.IsInternal && model.ModelFolderPath != nil {
+		size, err := getModelSize(model.ModelFolderPath)
+		if err != nil {
+			slog.Warn(
+				"failed to calculate model size",
+				"model_id", model.ID,
+				"path", model.ModelFolderPath,
+				"err", err,
+			)
+		} else {
+			modelSize = &size
+		}
+	}
+
 	return AIModelItem{
 		ID:                model.ID,
 		Name:              model.Name,
@@ -85,13 +109,48 @@ func AIModelDetails(modelsIndex *modelsindex.ModelsIndex, id string) (AIModelIte
 		Bricks:            f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
 		Metadata:          model.Metadata,
 		IsBuiltin:         model.IsInternal,
+		DiskUsage:         modelSize,
 	}, true
 }
 
+func getModelSize(dirPath *paths.Path) (uint64, error) {
+	if dirPath == nil {
+		return 0, fmt.Errorf("directory path is nil")
+	}
+
+	files, err := dirPath.ReadDirRecursive()
+	if err != nil {
+		return 0, err
+	}
+
+	var totalSize uint64
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		info, err := file.Stat()
+		if err != nil {
+			return 0, fmt.Errorf("cannot stat file %s: %w", file.String(), err)
+		}
+
+		size := info.Size()
+		if size < 0 {
+			return 0, fmt.Errorf("file has negative size: %s", file.String())
+		}
+		totalSize += uint64(size)
+	}
+
+	return totalSize, nil
+}
+
 var (
-	ErrNotFound          = errors.New("model not found")
-	ErrConflict          = errors.New("can't delete the model")
-	ErrCannotRemoveModel = errors.New("cannot remove an internal model")
+	ErrNotFound            = errors.New("model not found")
+	ErrConflict            = errors.New("can't delete the model")
+	ErrCannotRemoveModel   = errors.New("cannot remove an internal model")
+	ErrInsufficientStorage = errors.New("insufficient storage to install the model")
+	ErrIncompleteImpulse   = errors.New("inpulse not ready for deployment")
 )
 
 func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, id string, idProvider *app.IDProvider, force bool) (err error) {
@@ -186,4 +245,169 @@ func checkForModelReferences(ctx context.Context, dockerClient command.Cli, cfg 
 	}
 
 	return slices.Collect(maps.Keys(references)), runningAppReference, nil
+}
+
+func isModelInUse(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, modelId string) error {
+	_, found := modelsIndex.GetModelByID(modelId)
+	if found {
+		runningApp, err := getRunningApp(ctx, dockerClient.Client())
+		if err != nil {
+			return fmt.Errorf("error retrieving the current running app: %w", err)
+		}
+		if runningApp != nil {
+			app, err := app.Load(runningApp.FullPath)
+			if err != nil {
+				return fmt.Errorf("error loading app: %w", err)
+			}
+			for _, b := range app.Descriptor.Bricks {
+				if b.Model == modelId {
+					return fmt.Errorf("the model is in use by the running app %s, can't be updated", app.Name)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, projectID int, impulseID int) (AIModelItem, error) {
+
+	// TODO these parameters aim to build a model optimized for the Imola hardware, they should change based on the target device
+	mType := "float32"
+	mEngine := "tflite"
+	deviceType := "runner-linux-aarch64"
+	var mversion int
+
+	id := fmt.Sprintf("ei-model-%d-%d", projectID, impulseID)
+	err := isModelInUse(ctx, modelsIndex, dockerClient, id)
+	if err != nil {
+		return AIModelItem{}, fmt.Errorf("cannot install EI model: %w", err)
+	}
+
+	project, err := eiClient.GetProjectInfo(ctx, projectID, impulseID)
+	if err != nil {
+		return AIModelItem{}, err
+	}
+
+	if !project.ImpulseState.Complete {
+		return AIModelItem{}, fmt.Errorf("%w for project %d impulse %d", ErrIncompleteImpulse, projectID, impulseID)
+	}
+
+	dpList, err := eiClient.GetDeploymentHistory(ctx, projectID, impulseID, 1)
+	if err != nil {
+		return AIModelItem{}, err
+	}
+	// check if there is a deployment and si valid for arduino uno Q, otherwise build it.
+	if len(dpList) == 0 || dpList[0].ImpulseHasChangedSinceDeployment ||
+		dpList[0].DeploymentFormat != deviceType || string(dpList[0].Engine) != mEngine || string(*dpList[0].ModelType) != mType {
+
+		job, err := eiClient.Build(ctx, projectID, impulseID, mType, mEngine, deviceType)
+		if err != nil {
+			return AIModelItem{}, err
+		}
+		err = eiClient.WaitForBuildCompletion(ctx, projectID, job.JobID)
+		if err != nil {
+			return AIModelItem{}, err
+		}
+		mversion = job.DeploymentVersion
+	} else {
+		mversion = dpList[0].DeploymentVersion
+	}
+	edgeModelsDir := modelsDir.Join("custom-ei").Join(id)
+	blobModelsDir := edgeModelsDir.Join("model.eim")
+
+	modelRC, err := eiClient.DownloadHistoricDeployment(ctx, projectID, mversion)
+	if err != nil {
+		return AIModelItem{}, err
+	}
+
+	impulse, err := eiClient.GetImpulseInfo(ctx, projectID, impulseID)
+	if err != nil {
+		return AIModelItem{}, err
+	}
+
+	bricks, err := buildBrickConfigForEIModel(bricksIndex, project.Details.Category, edgeModelsDir, blobModelsDir)
+	if err != nil {
+		return AIModelItem{}, err
+	}
+	customModelDescriptor := custommodel.ModelDescriptor{
+		ID:          id,
+		Runner:      "brick",
+		Name:        project.Details.Name,
+		Description: project.Details.Name,
+		Metadata: map[string]string{
+			"source":                "edgeimpulse",
+			"ei-project-id":         strconv.Itoa(projectID),
+			"ei-impulse-id":         strconv.Itoa(impulseID),
+			"ei-impulse-name":       impulse.Name,
+			"ei-model-type":         mType,
+			"ei-engine":             mEngine,
+			"ei-last-modified":      project.Details.LastModified.Local().Format(time.RFC3339Nano),
+			"ei-deployment-version": strconv.Itoa(mversion),
+		},
+		Bricks: bricks,
+	}
+
+	aimodel, err := custommodel.Store(edgeModelsDir, customModelDescriptor, modelRC, "model.eim")
+	if err != nil {
+		if errors.Is(err, syscall.ENOSPC) {
+			return AIModelItem{}, ErrInsufficientStorage
+		}
+		return AIModelItem{}, err
+	}
+
+	return AIModelItem{
+		ID:                aimodel.ModelDescriptor.ID,
+		Name:              aimodel.ModelDescriptor.Name,
+		ModuleDescription: aimodel.ModelDescriptor.Description,
+		Runner:            aimodel.ModelDescriptor.Runner,
+		Bricks: f.Map(aimodel.ModelDescriptor.Bricks, func(b custommodel.BrickConfig) string {
+			return b.ID
+		}),
+		Metadata: aimodel.ModelDescriptor.Metadata,
+	}, nil
+}
+
+var mapCategoryToBricks = map[edgeimpulse.ProjectCategory][]string{
+	edgeimpulse.ProjectCategoryOther:           {},
+	edgeimpulse.ProjectCategoryObjectDetection: {"arduino:object_detection", "arduino:video_object_detection"},
+	edgeimpulse.ProjectCategoryImages:          {"arduino:image_classification", "arduino:video_image_classification"},
+	edgeimpulse.ProjectCategoryAudio:           {"arduino:audio_classification"},
+	edgeimpulse.ProjectCategoryKeywordSpotting: {"arduino:audio_classification", "arduino:keyword_spotting"},
+	edgeimpulse.ProjectCategoryAccelerometer:   {"arduino:gesture_recognition", "arduino:anomaly_detection"},
+}
+
+func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *edgeimpulse.ProjectCategory, edgeModelsDir *paths.Path, blobModelsDir *paths.Path) ([]custommodel.BrickConfig, error) {
+	if category == nil {
+		return []custommodel.BrickConfig{}, nil
+	}
+	bricksIds := mapCategoryToBricks[*category]
+
+	bricksConfig := make([]custommodel.BrickConfig, 0)
+	for _, b := range bricksIds {
+		brick, ok := bricksIndex.FindBrickByID(b)
+		if !ok {
+			slog.Warn("cannot load brick", "id", b, "category", category)
+			return nil, fmt.Errorf("brick with id %q not found for category %q", b, *category)
+		}
+		modelConfigPerBrick := make(map[string]string)
+		for _, variable := range brick.Variables {
+			name := variable.Name
+			switch {
+			case name == "CUSTOM_MODEL_PATH":
+				modelConfigPerBrick[name] = edgeModelsDir.String()
+			case strings.HasPrefix(name, "EI_") && strings.HasSuffix(name, "_MODEL"):
+				// EI model variables (EI_*_MODEL) get the blob path
+				modelConfigPerBrick[name] = blobModelsDir.String()
+			default:
+				// Leave other variables unset here; they may be user-provided or have defaults
+				slog.Debug("skipping non-model variable for EI auto-config", "variable", name, "brick", brick.ID)
+			}
+		}
+
+		bricksConfig = append(bricksConfig, custommodel.BrickConfig{
+			ID:                 brick.ID,
+			ModelConfiguration: modelConfigPerBrick,
+		})
+	}
+	return bricksConfig, nil
 }
