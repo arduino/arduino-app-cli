@@ -1008,6 +1008,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "401":
           $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "500":
           $ref: '#/components/responses/InternalServerError'
         "507":
@@ -1280,6 +1282,14 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
       description: Conflict
+    Forbidden:
+      content:
+        application/json:
+          example:
+            details: You do not have permission to access this resource.
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      description: Forbidden
     InsufficientStorage:
       content:
         application/json:
@@ -1320,6 +1330,14 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
       description: Precondition Failed
+    Unauthorized:
+      content:
+        application/json:
+          example:
+            details: Unauthorized access to the resource.
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      description: Unauthorized
   schemas:
     AIModel:
       properties:

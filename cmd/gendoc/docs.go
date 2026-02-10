@@ -196,6 +196,23 @@ func NewOpenApiGenerator(version string) *Generator {
 						},
 					},
 				},
+				"Unauthorized": {
+					Response: &openapi3.Response{
+						Description: "Unauthorized",
+						Content: map[string]openapi3.MediaType{
+							"application/json": {
+								Example: f.Ptr(interface{}(map[string]interface{}{
+									"details": "Unauthorized access to the resource.",
+								})),
+								Schema: &openapi3.SchemaOrRef{
+									SchemaReference: &openapi3.SchemaReference{
+										Ref: ErrorResponseSchema,
+									},
+								},
+							},
+						},
+					},
+				},
 				"InsufficientStorage": {
 					Response: &openapi3.Response{
 						Description: "Insufficient Storage",
@@ -203,6 +220,23 @@ func NewOpenApiGenerator(version string) *Generator {
 							"application/json": {
 								Example: f.Ptr(interface{}(map[string]interface{}{
 									"details": "Insufficient storage to complete the request.",
+								})),
+								Schema: &openapi3.SchemaOrRef{
+									SchemaReference: &openapi3.SchemaReference{
+										Ref: ErrorResponseSchema,
+									},
+								},
+							},
+						},
+					},
+				},
+				"Forbidden": {
+					Response: &openapi3.Response{
+						Description: "Forbidden",
+						Content: map[string]openapi3.MediaType{
+							"application/json": {
+								Example: f.Ptr(interface{}(map[string]interface{}{
+									"details": "You do not have permission to access this resource.",
 								})),
 								Schema: &openapi3.SchemaOrRef{
 									SchemaReference: &openapi3.SchemaReference{
@@ -873,6 +907,7 @@ Contains a JSON object with the details of an error.
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
 				{StatusCode: http.StatusUnauthorized, Reference: "#/components/responses/Unauthorized"},
+				{StatusCode: http.StatusForbidden, Reference: "#/components/responses/Forbidden"},
 				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
 				{StatusCode: http.StatusInsufficientStorage, Reference: "#/components/responses/InsufficientStorage"},
 			},
