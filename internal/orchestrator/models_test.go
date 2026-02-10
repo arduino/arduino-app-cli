@@ -16,8 +16,13 @@
 package orchestrator
 
 import (
+	"bytes"
+	"context"
 	"crypto/rand"
 	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -28,6 +33,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
 func TestBuildBrickConfigForEIModel(t *testing.T) {
@@ -189,42 +195,97 @@ func setupMockEIServer(t *testing.T, responses map[string]mockResponse, calls *[
 func TestInstallEIModel_WhenModelIsNotBuilt_ThanTriggerTheBuild(t *testing.T) {
 	trackActualServercalls := []string{}
 
-	// GetInfoLastDeployment: deployment response: no deployment exists
-	buildInfoJSON := fmt.Sprintf(`{
+	// GetProjectInfo
+	projectInfoJSON := `{
 		"success": true,
-		"hasBuild": false,
-		"lastDeploymentTarget": {
-			"format": "%s"
+		"project": {
+			"id": 100,
+			"name": "Imola-Model",
+			"description": "Optimized model for aarch64",
+			"category": "missing-category",
+			"lastModified": "2026-02-05T12:00:00Z"
 		},
-		"lastBuild": {
-			"version": 12345,
-			"deploymentType": "linux",
-			"engine": "tflite",
-			"created": "2024-05-20T10:00:00Z"
+		"impulse": {
+			"created": true,
+			"configured": true,
+			"complete": true
 		}
-	}`, "runner-linux-aarch64")
+  	}`
 
-	// Build: response
+	// Build
 	buildOnDeviceJSON := `{
     "success": true,
     "id": 99988,
     "deploymentVersion": 1,
     "error": null
-	}`
+   }`
 
 	// WaitForBuildCompletion: job status response
-	jobFinishedJSON := `{
-    "success": true,
-    "job": {
-        "id": 99988,
-        "finished": "2026-02-05T18:00:00Z",
-        "finishedSuccessful": true,
-        "jobType": "build-on-device"
+	waitForbuildCompletionJSON := `{
+		"success": true,
+		"job": {
+			"id": 99988,
+			"finished": "2026-02-05T18:00:00Z",
+			"finishedSuccessful": true,
+			"jobType": "build-on-device"
 		}
 	}`
 
+	// GetImpulseInfo
+	impulseInfoJSON := `{
+		"success": true,
+		"impulse": {
+			"id": 1,
+			"name": "My Impulse",
+			"created": true,
+			"configured": true,
+			"complete": true
+		}
+	}`
+
+	responses := map[string]mockResponse{
+		"/api/100":                               {status: http.StatusOK, body: projectInfoJSON},
+		"/api/100/deployment/history":            {status: http.StatusOK, body: `{"success": true, "deployments": []}`},
+		"/api/100/jobs/build-ondevice-model":     {status: http.StatusOK, body: buildOnDeviceJSON},
+		"/api/100/jobs/99988/status":             {status: http.StatusOK, body: waitForbuildCompletionJSON},
+		"/api/100/deployment/history/1/download": {status: http.StatusOK, body: `fake-binary-data`},
+		"/api/100/impulse":                       {status: http.StatusOK, body: impulseInfoJSON},
+	}
+	server := setupMockEIServer(t, responses, &trackActualServercalls)
+	defer server.Close()
+
+	// arrange
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	client, _ := edgeimpulse.NewEIClient("fake-key", *serverURL)
+
+	// act
+	projectId := 100
+	impulseId := 1
+	tempDir := t.TempDir()
+	result, err := InstallEIModel(context.Background(), nil, &modelsindex.ModelsIndex{}, nil, client, paths.New(tempDir), projectId, impulseId)
+
+	// assert
+	require.NoError(t, err)
+	require.Equal(t, "Imola-Model", result.Name)
+	require.Equal(t, "edgeimpulse", result.Metadata["source"])
+
+	// assert mock calls
+	expectedCalls := []string{
+		"/api/100",
+		"/api/100/deployment/history",
+		"/api/100/jobs/build-ondevice-model",
+		"/api/100/jobs/99988/status",
+		"/api/100/deployment/history/1/download",
+		"/api/100/impulse",
+	}
+	assertServerCalls(trackActualServercalls, expectedCalls, t)
+}
+
+func TestInstallEIModel_WhenModelIsNotFullyTrained_ThanRaiseError(t *testing.T) {
+	trackActualServercalls := []string{}
+
 	// GetProjectInfo
-	// category is missing on purpose, this avoid to trigger brick related code
 	projectInfoJSON := `{
 		"success": true,
 		"project": {
@@ -237,11 +298,7 @@ func TestInstallEIModel_WhenModelIsNotBuilt_ThanTriggerTheBuild(t *testing.T) {
 	}`
 
 	responses := map[string]mockResponse{
-		"/api/100/deployment/last":           {status: http.StatusOK, body: buildInfoJSON},
-		"/api/100/jobs/build-ondevice-model": {status: http.StatusOK, body: buildOnDeviceJSON},
-		"/api/100/jobs/99988/status":         {status: http.StatusOK, body: jobFinishedJSON},
-		"/api/100":                           {status: http.StatusOK, body: projectInfoJSON},
-		"/api/100/deployment/download":       {status: http.StatusOK, body: `fake-binary-data`},
+		"/api/100": {status: http.StatusOK, body: projectInfoJSON},
 	}
 	server := setupMockEIServer(t, responses, &trackActualServercalls)
 	defer server.Close()
@@ -255,56 +312,75 @@ func TestInstallEIModel_WhenModelIsNotBuilt_ThanTriggerTheBuild(t *testing.T) {
 	projectId := 100
 	impulseId := 1
 	tempDir := t.TempDir()
-	result, err := InstallEIModel(context.Background(), nil, client, paths.New(tempDir), projectId, impulseId)
+	_, err = InstallEIModel(context.Background(), nil, &modelsindex.ModelsIndex{}, nil, client, paths.New(tempDir), projectId, impulseId)
 
 	// assert
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
-	if result.Name != "Imola-Model" {
-		t.Errorf("Expected name Imola-Model, got %s", result.Name)
-	}
+	require.Equal(t, "impulse state is not complete for project 100 impulse 1", err.Error())
 
+	// assert mock calls
 	expectedCalls := []string{
-		"/api/100/deployment/last",
-		"/api/100/jobs/build-ondevice-model",
-		"/api/100/jobs/99988/status",
 		"/api/100",
-		"/api/100/deployment/download",
 	}
-
 	assertServerCalls(trackActualServercalls, expectedCalls, t)
 }
 
-func TestInstallEIModel_WhenModelIsNotFullyTrained_ThanRaiseError(t *testing.T) {
-	t.Skip("Temporarily disabling this until the logic for handling not fully trained models is clear")
+func TestInstallEIModel_WhenModelIsBuilt_DoNotTriggerTheBuild_and_StoreSucceeded(t *testing.T) {
 	trackActualServercalls := []string{}
 
-	// GetInfoLastDeployment: deployment response: no deployment exists
-	buildInfoJSON := fmt.Sprintf(`{"success":true,"hasBuild":false,"lastDeploymentTarget":{"disabledForProject":false,"recommendedForProject":false,"name":"Linux (AARCH64 with Ethos-U65-256)","description":"An EIM binary for Linux (aarch64) CPU with Ethos-U65 NPU that implements the Edge Impulse Linux protocol. Model compiled for Ethos-U65-256, High End system with dedicated SRAM, for example: NXP i.MX 93 or Digi ConnectCore 93.","image":"https://studio.edgeimpulse.com/assets/41a7922e2ec3141c1b28ea833b00a12ae42512dd/deploy-h200/linux.webp","imageClasses":"px-4 py-4","format":"runner-linux-aarch64-nxp-imx93","hasEonCompiler":false,"hasTensorRT":false,"hasTensaiFlow":false,"hasDRPAI":false,"hasTIDL":false,"hasAkida":false,"hasMemryx":false,"hasStAton":false,"hasCevaNpn":false,"hasNordicAxon":false,"hideOptimizations":false,"uiSection":"firmware","supportedEngines":["ethos-linux"],"preferredEngine":"ethos-linux","url":"","docsUrl":"","firmwareRepoUrl":"https://github.com/edgeimpulse/example-standalone-inferencing-linux","modelVariants":[{"variant":"int8","supported":true},{"variant":"float32","supported":false,"hint":"The Ethos NPU only supports quantized models"}],"parameters":[]}}`)
-
-	// Build: response
-	buildOnDeviceJSON := `{
-    "success": true
-	}`
-
 	// GetProjectInfo
-	// category is missing on purpose, this avoid to trigger brick related code
 	projectInfoJSON := `{
-		"success": false,
+		"success": true,
 		"project": {
 			"id": 100,
 			"name": "Imola-Model",
 			"description": "Optimized model for aarch64",
 			"category": "missing-category",
 			"lastModified": "2026-02-05T12:00:00Z"
+		},
+		"impulse": {
+			"created": true,
+			"configured": true,
+			"complete": true
+		}
+  	}`
+
+	// GetDeploymentHistory
+	deploymentHistoryJson := `{
+    "success": true,
+    "totalDeploymentCount": 1,
+    "deployments": [
+        {
+            "created": "2026-02-10T10:00:00Z",
+            "deploymentFormat": "runner-linux-aarch64",
+            "deploymentVersion": 5,
+            "downloadUrl": "/api/v1/projects/100/deployment/download",
+            "engine": "tflite",
+            "modelType": "float32",
+            "impulseHasChangedSinceDeployment": false,
+            "impulseId": 1,
+            "impulseIsDeleted": false,
+            "impulseName": "Imola-Project"
+        }
+    ]
+	}`
+
+	// GetImpulseInfo
+	impulseInfoJSON := `{
+		"success": true,
+		"impulse": {
+			"id": 1,
+			"name": "My Impulse",
+			"created": true,
+			"configured": true,
+			"complete": true
 		}
 	}`
 
 	responses := map[string]mockResponse{
-		"/api/100/deployment/last":           {status: http.StatusOK, body: buildInfoJSON},
-		"/api/100/jobs/build-ondevice-model": {status: http.StatusOK, body: buildOnDeviceJSON},
-		"/api/100":                           {status: http.StatusOK, body: projectInfoJSON},
+		"/api/100":                               {status: http.StatusOK, body: projectInfoJSON},
+		"/api/100/deployment/history":            {status: http.StatusOK, body: deploymentHistoryJson},
+		"/api/100/deployment/history/5/download": {status: http.StatusOK, body: `fake-binary-data`},
+		"/api/100/impulse":                       {status: http.StatusOK, body: impulseInfoJSON},
 	}
 	server := setupMockEIServer(t, responses, &trackActualServercalls)
 	defer server.Close()
@@ -318,26 +394,29 @@ func TestInstallEIModel_WhenModelIsNotFullyTrained_ThanRaiseError(t *testing.T) 
 	projectId := 100
 	impulseId := 1
 	tempDir := t.TempDir()
-	result, err := InstallEIModel(context.Background(), nil, client, paths.New(tempDir), projectId, impulseId)
+	result, err := InstallEIModel(context.Background(), nil, &modelsindex.ModelsIndex{}, nil, client, paths.New(tempDir), projectId, impulseId)
 
 	// assert
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
-	if result.Name != "Imola-Model" {
-		t.Errorf("Expected name Imola-Model, got %s", result.Name)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "Imola-Model", result.Name)
+	require.Equal(t, "edgeimpulse", result.Metadata["source"])
 
+	// assert write on disk
+	basePath := paths.New(tempDir).Join("custom-ei").Join(result.ID)
+	assertModelFileContent(t, basePath.Join("model.eim").String())
+	assertAppYamlContent(t, basePath.Join("model.yaml").String())
+
+	// assert mock calls
 	expectedCalls := []string{
-		"/api/100/deployment/last",
-		"/api/100/jobs/build-ondevice-model",
-		"/api/100/jobs/99988/status",
 		"/api/100",
-		"/api/100/deployment/download",
+		"/api/100/deployment/history",
+		"/api/100/deployment/history/5/download",
+		"/api/100/impulse",
 	}
 	assertServerCalls(trackActualServercalls, expectedCalls, t)
 }
 
+/*
 func TestInstallEIModel_WhenModelIsBuilt_ThanTheStoreSucceeded(t *testing.T) {
 	trackActualServercalls := []string{}
 
@@ -386,18 +465,12 @@ func TestInstallEIModel_WhenModelIsBuilt_ThanTheStoreSucceeded(t *testing.T) {
 	projectId := 100
 	impulseId := 1
 	tempDir := t.TempDir()
-	result, err := InstallEIModel(context.Background(), nil, client, paths.New(tempDir), projectId, impulseId)
+	result, err := InstallEIModel(context.Background(), nil, &modelsindex.ModelsIndex{}, nil, client, paths.New(tempDir), projectId, impulseId)
 
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
 	// assert
-	if result.Name != "Imola-Model" {
-		t.Errorf("Expected name Imola-Model, got %s", result.Name)
-	}
-	if result.ID != "ei-model-100-1" {
-		t.Errorf("Expected ID ei-model-100-1, got %s", result.ID)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "Imola-Model", result.Name)
+	require.Equal(t, "ei-model-100-1", result.ID)
 
 	basePath := paths.New(tempDir).Join("custom-ei").Join(result.ID)
 	assertModelFileContent(t, basePath.Join("model.eim").String())
@@ -411,6 +484,7 @@ func TestInstallEIModel_WhenModelIsBuilt_ThanTheStoreSucceeded(t *testing.T) {
 
 	assertServerCalls(trackActualServercalls, expectedCalls, t)
 }
+*/
 
 func assertServerCalls(actualCalls, expectedCalls []string, t *testing.T) {
 	if len(actualCalls) != len(expectedCalls) {
