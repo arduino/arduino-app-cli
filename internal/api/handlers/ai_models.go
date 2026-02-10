@@ -134,6 +134,10 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 				slog.Error("unauthorized access to Edge Impulse API", slog.String("error", err.Error()))
 				render.EncodeResponse(w, http.StatusUnauthorized, models.ErrorResponse{Details: "unauthorized access to Edge Impulse API"})
 				return
+			case errors.Is(err, orchestrator.ErrIncompleteImpulse):
+				slog.Error("incomplete impulse for Edge Impulse model", slog.String("error", err.Error()))
+				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "incomplete impulse for Edge Impulse model"})
+				return
 			case errors.Is(err, orchestrator.ErrInsufficientStorage):
 				slog.Error("insufficient storage to install Edge Impulse model", slog.String("error", err.Error()))
 				render.EncodeResponse(w, http.StatusInsufficientStorage, models.ErrorResponse{Details: "insufficient storage to install Edge Impulse model"})

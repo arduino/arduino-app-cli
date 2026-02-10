@@ -150,6 +150,7 @@ var (
 	ErrConflict            = errors.New("can't delete the model")
 	ErrCannotRemoveModel   = errors.New("cannot remove an internal model")
 	ErrInsufficientStorage = errors.New("insufficient storage to install the model")
+	ErrIncompleteImpulse   = errors.New("inpulse not ready for deployment")
 )
 
 func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, id string, idProvider *app.IDProvider, force bool) (err error) {
@@ -288,7 +289,7 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 	}
 
 	if !project.ImpulseState.Complete {
-		return AIModelItem{}, fmt.Errorf("impulse state is not complete for project %d impulse %d", projectID, impulseID)
+		return AIModelItem{}, fmt.Errorf("%w for project %d impulse %d", ErrIncompleteImpulse, projectID, impulseID)
 	}
 
 	dpList, err := eiClient.GetDeploymentHistory(ctx, projectID, impulseID, 1)
