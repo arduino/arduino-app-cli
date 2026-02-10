@@ -117,7 +117,6 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 		defer r.Body.Close()
 
 		if err := req.Validate(); err != nil {
-			slog.Error("invalid install EI model request", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
 			return
 		}
