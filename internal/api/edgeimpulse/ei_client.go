@@ -32,6 +32,7 @@ type EIClient struct {
 
 var ErrInternalServerErr = fmt.Errorf("service unavailable")
 var ErrUnauthorized = fmt.Errorf("unauthorized")
+var ErrForbidden = fmt.Errorf("cannot access the resource with the provided credentials")
 
 type JobLogEntry struct {
 	Created  time.Time                        `json:"created"`
@@ -278,6 +279,8 @@ func errorMessage(statusCode int) error {
 	switch statusCode {
 	case http.StatusUnauthorized:
 		return ErrUnauthorized
+	case http.StatusForbidden:
+		return ErrForbidden
 	default:
 		return ErrInternalServerErr
 	}
