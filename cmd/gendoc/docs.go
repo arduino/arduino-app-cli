@@ -196,13 +196,13 @@ func NewOpenApiGenerator(version string) *Generator {
 						},
 					},
 				},
-				"Unauthorized": {
+				"InsufficientStorage": {
 					Response: &openapi3.Response{
-						Description: "Unauthorized",
+						Description: "Insufficient Storage",
 						Content: map[string]openapi3.MediaType{
 							"application/json": {
 								Example: f.Ptr(interface{}(map[string]interface{}{
-									"details": "Unauthorized access.",
+									"details": "Insufficient storage to complete the request.",
 								})),
 								Schema: &openapi3.SchemaOrRef{
 									SchemaReference: &openapi3.SchemaReference{
@@ -873,6 +873,8 @@ Contains a JSON object with the details of an error.
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
 				{StatusCode: http.StatusUnauthorized, Reference: "#/components/responses/Unauthorized"},
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusInsufficientStorage, Reference: "#/components/responses/InsufficientStorage"},
 			},
 		},
 		{

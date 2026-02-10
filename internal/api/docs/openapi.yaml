@@ -1004,10 +1004,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/AIModelItem'
           description: Successful response
+        "400":
+          $ref: '#/components/responses/BadRequest'
         "401":
           $ref: '#/components/responses/Unauthorized'
         "500":
           $ref: '#/components/responses/InternalServerError'
+        "507":
+          $ref: '#/components/responses/InsufficientStorage'
       summary: Download and install a custom Edge Impulse AI model
       tags:
       - AIModels
@@ -1276,6 +1280,14 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
       description: Conflict
+    InsufficientStorage:
+      content:
+        application/json:
+          example:
+            details: Insufficient storage to complete the request.
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      description: Insufficient Storage
     InternalServerError:
       content:
         application/json:
@@ -1308,14 +1320,6 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
       description: Precondition Failed
-    Unauthorized:
-      content:
-        application/json:
-          example:
-            details: Unauthorized access.
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-      description: Unauthorized
   schemas:
     AIModel:
       properties:
