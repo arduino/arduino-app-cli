@@ -238,6 +238,10 @@ func generateMainComposeFile(
 		// 2. Collect all the required device classes
 		if len(idxBrick.RequiredDevices) > 0 {
 			for _, deviceClass := range idxBrick.RequiredDevices {
+				// Do not reequire a "camera" class if the brick in the app requires a "remote camera" device
+				if deviceClass == CameraDevice && slices.Contains(brick.Devices, "remote_camera_0") {
+					continue
+				}
 				requiredDeviceClasses[deviceClass] = true
 			}
 		}

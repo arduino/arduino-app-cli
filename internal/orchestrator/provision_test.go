@@ -544,3 +544,45 @@ services:
 	})
 
 }
+
+func TestProvisionAppComposeWithDeviceCall(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+
+	bricksIndexContent := []byte(`
+bricks:
+- id: arduino:brick-with-camera-device
+  name: a brick that requires a camera
+  required_devices:
+  - camera
+- id: arduino:another-brick-with-camera-device
+  name: another brick that requires a camera
+  required_devices:
+  - camera`)
+	require.NoError(t, cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent))
+	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
+	require.Nil(t, err, "Failed to load bricks index with custom content")
+
+	appTmpPath := t.TempDir()
+	app := app.ArduinoApp{
+		Name: "AppWithTwoBrickWithCamera",
+		Descriptor: app.AppDescriptor{
+			Bricks: []app.Brick{
+				{
+					ID:      "arduino:brick-with-camera-device",
+					Devices: []string{"remote_camera_0"},
+				},
+				{
+					ID: "arduino:another-brick-with-camera-device",
+				},
+			},
+		},
+		FullPath: paths.New(appTmpPath),
+	}
+	require.NoError(t, app.ProvisioningStateDir().MkdirAll())
+
+	t.Run("services with user override", func(t *testing.T) {
+		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, map[string]string{}, store.NewStaticStore(cfg.AssetsDir().String()))
+		require.Error(t, err, "Failed to generate main compose file")
+	})
+
+}
