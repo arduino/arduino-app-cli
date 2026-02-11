@@ -128,17 +128,12 @@ func TestAppParser_Devices(t *testing.T) {
 	dir := t.TempDir()
 	appYaml := paths.New(dir, "app.yaml")
 	content := `
-name: Test Devices App
-description: Test devices parsing
-ports: [8080]
+name: Test App Iwth devices
 bricks:
   - arduino:video_object_detection:
       devices:
         - my-dev-1
         - my-dev-2
-      model: vision/yolo11
-      variables:
-        PORT: "8080"
 `
 	require.NoError(t, os.WriteFile(appYaml.String(), []byte(content), 0600))
 
