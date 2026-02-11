@@ -36,6 +36,7 @@ func TestProvisionAppWithOverrides(t *testing.T) {
 	tempDirectory := t.TempDir()
 
 	staticStore := store.NewStaticStore(cfg.AssetsDir().String())
+	idProvider := app.NewAppIDProvider(cfg)
 
 	// Define a mock app with bricks that require overrides
 	app := app.ArduinoApp{
@@ -116,7 +117,7 @@ bricks:
 	env := map[string]string{
 		"FOO": "bar",
 	}
-	err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore)
+	err = generateMainComposeFile(&app, idProvider, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore)
 
 	// Validate that the main compose file and overrides are created
 	require.NoError(t, err, "Failed to generate main compose file")
@@ -274,6 +275,7 @@ services:
 func TestProvisionAppWithDependsOn(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	staticStore := store.NewStaticStore(cfg.AssetsDir().String())
+	idProvider := app.NewAppIDProvider(cfg)
 	tempDirectory := t.TempDir()
 	var env = map[string]string{}
 	type services struct {
@@ -340,7 +342,7 @@ services:
 		require.NoError(t, err)
 
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore)
+		err = generateMainComposeFile(&app, idProvider, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -390,7 +392,7 @@ services:
 		require.NoError(t, err)
 
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore)
+		err = generateMainComposeFile(&app, idProvider, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")

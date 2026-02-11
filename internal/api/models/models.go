@@ -18,3 +18,7 @@ package models
 type PropertyKeysResponse struct {
 	Keys []string `json:"keys"`
 }
+
+type SecretListResponse struct {
+	Secrets []string `json:"secrets"`
+}

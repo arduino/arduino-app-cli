@@ -36,6 +36,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/secrets"
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
@@ -67,11 +68,13 @@ type service struct {
 	Labels      map[string]string             `yaml:"labels,omitempty"`
 	Environment map[string]string             `yaml:"environment,omitempty"`
 	Logging     *logging                      `yaml:"logging,omitempty"`
+	Secrets     []string                      `yaml:"secrets,omitempty"`
 }
 
 type Provision struct {
 	docker      command.Cli
 	pythonImage string
+	idProvider  *app.IDProvider
 }
 
 func isDevelopmentMode(cfg config.Configuration) bool {
@@ -81,10 +84,12 @@ func isDevelopmentMode(cfg config.Configuration) bool {
 func NewProvision(
 	docker command.Cli,
 	cfg config.Configuration,
+	idProvider *app.IDProvider,
 ) (*Provision, error) {
 	provision := &Provision{
 		docker:      docker,
 		pythonImage: cfg.PythonImage,
+		idProvider:  idProvider,
 	}
 
 	dynamicProvisionDir := cfg.AssetsDir().Join(cfg.UsedPythonImageTag)
@@ -119,6 +124,7 @@ func (p *Provision) App(
 	cfg config.Configuration,
 	mapped_env map[string]string,
 	staticStore *store.StaticStore,
+	idProvider *app.IDProvider,
 ) error {
 	if arduinoApp == nil {
 		return fmt.Errorf("provisioning failed: arduinoApp is nil")
@@ -130,7 +136,7 @@ func (p *Provision) App(
 		}
 	}
 
-	return generateMainComposeFile(arduinoApp, bricksIndex, p.pythonImage, cfg, mapped_env, staticStore)
+	return generateMainComposeFile(arduinoApp, idProvider, bricksIndex, p.pythonImage, cfg, mapped_env, staticStore)
 }
 
 func (p *Provision) init(
@@ -207,6 +213,7 @@ const (
 
 func generateMainComposeFile(
 	app *app.ArduinoApp,
+	idProvider *app.IDProvider,
 	bricksIndex *bricksindex.BricksIndex,
 	pythonImage string,
 	cfg config.Configuration,
@@ -289,10 +296,14 @@ func generateMainComposeFile(
 	type mainService struct {
 		Main service `yaml:"main"`
 	}
+	type secretObj struct {
+		File string `yaml:"file"`
+	}
 	var mainAppCompose struct {
-		Name     string       `yaml:"name"`
-		Include  []string     `yaml:"include,omitempty"`
-		Services *mainService `yaml:"services,omitempty"`
+		Name     string               `yaml:"name"`
+		Include  []string             `yaml:"include,omitempty"`
+		Services *mainService         `yaml:"services,omitempty"`
+		Secrets  map[string]secretObj `yaml:"secrets,omitempty"`
 	}
 	// Merge compose
 	composeProjectName, err := getAppComposeProjectNameFromApp(*app, cfg)
@@ -367,6 +378,22 @@ func generateMainComposeFile(
 		}
 	}
 
+	// Add secrets (if defined)
+	appID, err := idProvider.IDFromPath(app.FullPath)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve app id from path %s: %w", app.FullPath.String(), err)
+	}
+	secrets, err := secrets.GetSecrets(cfg, appID)
+	if err != nil {
+		slog.Error("Failed to retrieve secrets for app", slog.String("app_path", app.FullPath.String()), slog.String("app_id", appID.String()), slog.Any("error", err))
+	}
+	secretsList := make([]string, 0, len(secrets))
+	mainAppCompose.Secrets = make(map[string]secretObj, len(secrets))
+	for _, secret := range secrets {
+		secretsList = append(secretsList, secret.Name)
+		mainAppCompose.Secrets[secret.Name] = secretObj{File: secret.Path}
+	}
+
 	mainAppCompose.Services = &mainService{
 		Main: service{
 			Image:      pythonImage,
@@ -391,6 +418,7 @@ func generateMainComposeFile(
 					"max-file": "2",
 				},
 			},
+			Secrets: secretsList,
 		},
 	}
 

@@ -153,6 +153,9 @@ func (c *Configuration) init() error {
 	if err := c.AssetsDir().MkdirAll(); err != nil {
 		return err
 	}
+	if err := c.SecretsDir().MkdirAll(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -170,6 +173,10 @@ func (c *Configuration) ExamplesDir() *paths.Path {
 
 func (c *Configuration) RouterSocketPath() *paths.Path {
 	return c.routerSocketPath
+}
+
+func (c *Configuration) SecretsDir() *paths.Path {
+	return c.dataDir.Join("secrets")
 }
 
 func (c *Configuration) AssetsDir() *paths.Path {

@@ -53,6 +53,7 @@ var (
 		return f.Must(orchestrator.NewProvision(
 			GetDockerClient(),
 			globalConfig,
+			GetAppIDProvider(),
 		))
 	})
 

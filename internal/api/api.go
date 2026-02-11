@@ -96,6 +96,10 @@ func NewHTTPRouter(
 	mux.Handle("PATCH /v1/apps/{appID}/bricks/{brickID}", handlers.HandleBrickUpdates(brickService, idProvider))
 	mux.Handle("DELETE /v1/apps/{appID}/bricks/{brickID}", handlers.HandleBrickDelete(brickService, idProvider))
 
+	mux.Handle("GET /v1/apps/{appID}/secrets", handlers.HandleSecretsList(cfg, idProvider))
+	mux.Handle("PUT /v1/apps/{appID}/secrets/{secretName}", handlers.HandleSecretsUpdate(cfg, idProvider))
+	mux.Handle("DELETE /v1/apps/{appID}/secrets/{secretName}", handlers.HandleSecretsDelete(cfg, idProvider))
+
 	mux.Handle("GET /v1/docs/", http.StripPrefix("/v1/docs/", handlers.DocsServer(docsFS)))
 
 	mux.Handle("GET /v1/monitor/ws", handlers.HandleMonitorWS(allowedOrigins))
