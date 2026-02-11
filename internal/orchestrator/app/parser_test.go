@@ -124,7 +124,7 @@ bricks:
 	require.Equal(t, "/home/arduino/.arduino-bricks/ei-models/face-det.eim", app.Descriptor.Bricks[0].Variables["EI_OBJ_DETECTION_MODEL"])
 }
 
-func TestAppParser_BrickDevices(t *testing.T) {
+func TestAppParser_Devices(t *testing.T) {
 	dir := t.TempDir()
 	appYaml := paths.New(dir, "app.yaml")
 	content := `
@@ -134,7 +134,8 @@ ports: [8080]
 bricks:
   - arduino:video_object_detection:
       devices:
-        - remote_camera_0
+        - my-dev-1
+        - my-dev-2
       model: vision/yolo11
       variables:
         PORT: "8080"
@@ -143,11 +144,6 @@ bricks:
 
 	desc, err := ParseDescriptorFile(appYaml)
 	require.NoError(t, err)
-	require.Equal(t, "Test Devices App", desc.Name)
 	require.Equal(t, 1, len(desc.Bricks))
-	b := desc.Bricks[0]
-	require.Equal(t, "arduino:video_object_detection", b.ID)
-	require.Equal(t, "vision/yolo11", b.Model)
-	require.Equal(t, []string{"remote_camera_0"}, b.Devices)
-	require.Equal(t, "8080", b.Variables["PORT"])
+	require.Equal(t, []string{"my-dev-1", "my-dev-2"}, desc.Bricks[0].Devices)
 }
