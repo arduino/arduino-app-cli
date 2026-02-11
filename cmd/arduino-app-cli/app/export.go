@@ -41,6 +41,8 @@ func newExportCmd(cfg config.Configuration) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "export app_path [output_path]",
 		Short: "Export an existing Arduino App to a zip file",
+		Long: `Export an existing Arduino App to a zip file.
+Use '-' as output_path to write the zip to stdout.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()
@@ -83,13 +85,22 @@ func exportHandler(ctx context.Context, bricksIndex *bricksindex.BricksIndex, ap
 	timestamp := time.Now().Format("2006-01-02_15-04-05")
 	defaultFileName := fmt.Sprintf("%s_%s%s", nameNoExt, timestamp, ext)
 
+	if outputDest == "-" {
+		w, _, err := feedback.DirectStreams()
+		if err != nil {
+			feedback.Fatal(fmt.Sprintf("Failed to get output stream: %s", err), feedback.ErrGeneric)
+		}
+		if _, err := w.Write(zipBytes); err != nil {
+			feedback.Fatal(fmt.Sprintf("Failed to write zip to stdout: %s", err), feedback.ErrGeneric)
+		}
+		return nil
+	}
+
 	var finalPath *paths.Path
 	if outputDest != "" {
-		p := paths.New(outputDest)
-		if p.IsDir() {
+		finalPath = paths.New(outputDest)
+		if finalPath.IsDir() {
 			finalPath = paths.New(filepath.Join(outputDest, defaultFileName))
-		} else {
-			finalPath = p
 		}
 	} else {
 		finalPath = paths.New(defaultFileName)

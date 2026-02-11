@@ -19,6 +19,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -32,25 +34,59 @@ import (
 
 func newImportCmd(cfg config.Configuration) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "import FILE_PATH",
+		Use:   "import zip_path",
 		Short: "Import an Arduino App from a zip file",
+		Long: `Import an Arduino App from a zip file.
+Use '-' as zip_path to read the zip from stdin.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()
 			}
-			zipPath := paths.New(args[0])
-			if !zipPath.Exist() {
-				feedback.Fatal(fmt.Sprintf("File not found: %s", zipPath), feedback.ErrBadArgument)
+
+			zipPath, cleanup, err := parseFilePath(args[0])
+			if err != nil {
+				feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 				return nil
 			}
-			return importHandler(cfg, zipPath)
+			defer cleanup()
+
+			importHandler(cfg, zipPath)
+
+			return nil
 		},
 	}
 
 	return cmd
 }
 
-func importHandler(cfg config.Configuration, zipPath *paths.Path) error {
+func parseFilePath(arg string) (*paths.Path, func(), error) {
+	if arg == "-" {
+		tmpFile, err := paths.MkTempFile(nil, "app_import_*.zip")
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create temporary file: %w", err)
+		}
+		defer tmpFile.Close()
+
+		if _, err = io.Copy(tmpFile, os.Stdin); err != nil { // nolint:forbidigo
+			tmpFile.Close()
+			_ = os.Remove(tmpFile.Name())
+			return nil, nil, fmt.Errorf("failed to read from stdin: %w", err)
+		}
+
+		return paths.New(tmpFile.Name()), func() {
+			tmpFile.Close()
+			_ = os.Remove(tmpFile.Name())
+		}, nil
+	}
+
+	path := paths.New(arg)
+	if !path.Exist() {
+		return nil, nil, fmt.Errorf("file not found: %s", arg)
+	}
+	return path, func() {}, nil
+}
+
+func importHandler(cfg config.Configuration, zipPath *paths.Path) {
 	idProvider := servicelocator.GetAppIDProvider()
 	appID, err := orchestrator.ImportAppFromZip(cfg, zipPath, idProvider, zipPath.Base())
 	if err != nil {
@@ -62,14 +98,11 @@ func importHandler(cfg config.Configuration, zipPath *paths.Path) error {
 		default:
 			feedback.Fatal(fmt.Sprintf("Import failed: %s", err), feedback.ErrGeneric)
 		}
-		return nil
 	}
 
 	feedback.PrintResult(importAppResult{
 		AppID: appID.String(),
 	})
-
-	return nil
 }
 
 type importAppResult struct {

@@ -970,6 +970,60 @@ paths:
       summary: Get AI model details
       tags:
       - AIModels
+  /v1/models/ei/projects/{projectID}:
+    put:
+      description: Download and install a custom Edge Impulse AI model using the provided
+        project API key.
+      operationId: installEIModel
+      parameters:
+      - description: Edge Impulse project ID
+        in: path
+        name: projectID
+        required: true
+        schema:
+          description: Edge Impulse project ID
+          example: 123456
+          type: integer
+      - description: Edge Impulse project API key
+        in: header
+        name: x-api-key
+        required: true
+        schema:
+          description: Edge Impulse project API key
+          example: your_edge_impulse_api_token
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                impulse_id:
+                  description: Edge Impulse impulse ID
+                  example: 1
+                  type: integer
+              required:
+              - impulse_id
+              type: object
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIModelItem'
+          description: Successful response
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+        "507":
+          $ref: '#/components/responses/InsufficientStorage'
+      summary: Download and install a custom Edge Impulse AI model
+      tags:
+      - AIModels
   /v1/properties:
     get:
       description: Return the list of system properties.
@@ -1235,6 +1289,22 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
       description: Conflict
+    Forbidden:
+      content:
+        application/json:
+          example:
+            details: You do not have permission to access this resource.
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      description: Forbidden
+    InsufficientStorage:
+      content:
+        application/json:
+          example:
+            details: Insufficient storage to complete the request.
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      description: Insufficient Storage
     InternalServerError:
       content:
         application/json:
@@ -1267,6 +1337,14 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
       description: Precondition Failed
+    Unauthorized:
+      content:
+        application/json:
+          example:
+            details: Unauthorized access to the resource.
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      description: Unauthorized
   schemas:
     AIModel:
       properties:
