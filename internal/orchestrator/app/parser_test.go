@@ -128,7 +128,7 @@ func TestAppParser_Devices(t *testing.T) {
 	dir := t.TempDir()
 	appYaml := paths.New(dir, "app.yaml")
 	content := `
-name: Test App Iwth devices
+name: Test App With devices
 bricks:
   - arduino:video_object_detection:
       devices:
