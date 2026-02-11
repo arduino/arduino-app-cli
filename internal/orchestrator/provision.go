@@ -22,6 +22,7 @@ import (
 	"log/slog"
 	"maps"
 	"os"
+	"os/user"
 	"regexp"
 	"slices"
 	"strings"
@@ -349,7 +350,7 @@ func generateMainComposeFile(
 
 	volumes = addLedControl(volumes)
 
-	groups := []string{"dialout", "video", "audio", "render"}
+	groups := []string{"dialout", "video", "audio", "render", lookupGroupId("render")}
 
 	// Define depends_on conditions
 	// Services with healthcheck will be started only when healthy
@@ -376,7 +377,7 @@ func generateMainComposeFile(
 			Entrypoint: "/run.sh",
 			DependsOn:  dependsOn,
 			User:       getCurrentUser(),
-			GroupAdd:   append(groups, "gpiod"),
+			GroupAdd:   append(groups, lookupGroupId("gpiod")),
 			ExtraHosts: []string{"msgpack-rpc-router:host-gateway"},
 			Labels: map[string]string{
 				DockerAppLabel:     "true",
@@ -426,6 +427,16 @@ func generateMainComposeFile(
 
 	// Done!
 	return nil
+}
+
+// Resolve a group dynamically, as its GIDs may differ between
+// the host and container environments.
+func lookupGroupId(groupName string) string {
+	g, err := user.LookupGroup(groupName)
+	if err != nil {
+		panic(err)
+	}
+	return g.Gid
 }
 
 type serviceInfo struct {
