@@ -52,34 +52,36 @@ type Configuration struct {
 // rawConfig is used internally to parse values from Env, TOML or JSON.
 // Tags define the mapping and default values.
 type rawConfig struct {
-	AppsDir               string `env:"ARDUINO_APP_CLI__APPS_DIR"`
-	DataDir               string `env:"ARDUINO_APP_CLI__DATA_DIR"`
-	RouterSocketPath      string `env:"ARDUINO_ROUTER_SOCKET"`
-	CustomModelsDir       string `env:"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR"`
-	DockerRegistryBase    string `env:"DOCKER_REGISTRY_BASE"`
-	DockerPythonBaseImage string `env:"DOCKER_PYTHON_BASE_IMAGE"`
-	AllowRoot             bool   `env:"ARDUINO_APP_CLI__ALLOW_ROOT"`
-	LibrariesAPIURL       string `env:"LIBRARIES_API_URL"`
-	EdgeImpulseAPIURL     string `env:"EDGE_IMPULSE_API_URL"`
-	VersionConstraint     string `env:"ARDUINO_APP_CLI__PLATFORM_VERSION_CONSTRAINT"`
+	AppsDir               string `env:"ARDUINO_APP_CLI__APPS_DIR" toml:"apps_dir"`
+	DataDir               string `env:"ARDUINO_APP_CLI__DATA_DIR" toml:"data_dir"`
+	RouterSocketPath      string `env:"ARDUINO_ROUTER_SOCKET" toml:"router_socket_path"`
+	CustomModelsDir       string `env:"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR" toml:"custom_models_dir"`
+	DockerRegistryBase    string `env:"DOCKER_REGISTRY_BASE" toml:"docker_registry_base"`
+	DockerPythonBaseImage string `env:"DOCKER_PYTHON_BASE_IMAGE" toml:"docker_python_base_image"`
+	AllowRoot             bool   `env:"ARDUINO_APP_CLI__ALLOW_ROOT" toml:"allow_root"`
+	LibrariesAPIURL       string `env:"LIBRARIES_API_URL" toml:"libraries_api_url"`
+	EdgeImpulseAPIURL     string `env:"EDGE_IMPULSE_API_URL" toml:"edge_impulse_api_url"`
+	VersionConstraint     string `env:"ARDUINO_APP_CLI__PLATFORM_VERSION_CONSTRAINT" toml:"version_constraint"`
 
 	// New fields
 	// todo check how the works and be sure about behaviors, defaults, etc...
-	CompileSketchCores      int  `env:"ARDUINO_APP_CLI__COMPILE_SKETCH_CORES"`
-	AppStartParallelization int  `env:"ARDUINO_APP_CLI__APP_START_PARALLELIZATION"`
-	AllowMultiAppStart      bool `env:"ARDUINO_APP_CLI__ALLOW_MULTI_APP_START"`
+	CompileSketchCores      int  `env:"ARDUINO_APP_CLI__COMPILE_SKETCH_CORES" toml:"compile_sketch_cores"`
+	AppStartParallelization int  `env:"ARDUINO_APP_CLI__APP_START_PARALLELIZATION" toml:"app_start_parallelization"`
+	AllowMultiAppStart      bool `env:"ARDUINO_APP_CLI__ALLOW_MULTI_APP_START" toml:"allow_multi_app_start"`
 }
 
+const DefaultConfigPath = "/home/arduino/Desktop/config.toml"
+
 // Load initializes the configuration from environment variables and an optional config file.
-func Load(configFilePath string) (Configuration, error) {
+func Load() (Configuration, error) {
 	var raw rawConfig
 
 	parser := New().WithParser(EnvParser())
 
-	if configFilePath != "" {
+	if DefaultConfigPath != "" {
 		// Check if file exists before adding the parser to avoid panic/errors in the library
-		if _, err := os.Stat(configFilePath); err == nil {
-			parser.WithParser(TomlParser(configFilePath))
+		if _, err := os.Stat(DefaultConfigPath); err == nil {
+			parser.WithParser(TomlParser(DefaultConfigPath))
 		}
 	}
 

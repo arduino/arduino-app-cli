@@ -31,7 +31,7 @@ func TestNewIDFromPath(t *testing.T) {
 	t.Setenv("ARDUINO_APP_CLI__APPS_DIR", tmp.Join("apps").String())
 	t.Setenv("ARDUINO_APP_CLI__DATA_DIR", tmp.Join("data").String())
 
-	orchestratorConfig, err := config.Load("")
+	orchestratorConfig, err := config.Load()
 	require.NoError(t, err)
 	require.NoError(t, orchestratorConfig.AppsDir().Join("user-app").MkdirAll())
 	require.NoError(t, orchestratorConfig.ExamplesDir().Join("example-app").MkdirAll())
@@ -80,7 +80,7 @@ func TestParseID(t *testing.T) {
 	t.Setenv("ARDUINO_APP_CLI__APPS_DIR", tmp.Join("apps").String())
 	t.Setenv("ARDUINO_APP_CLI__DATA_DIR", tmp.Join("data").String())
 
-	orchestratorConfig, err := config.Load("")
+	orchestratorConfig, err := config.Load()
 	require.NoError(t, err)
 	require.NoError(t, tmp.Join("other-app").MkdirAll())
 

@@ -47,15 +47,19 @@ func decode(prefix []string, getValue Parser, config any) error {
 		}
 
 		field := s.Field(i)
-		prefix = append(prefix, name)
-		key := prefix
-		currentKey := append(append([]string{}, prefix...), name)
-		keyStr := strings.Join(currentKey, ".")
+		key := append(append([]string{}, prefix...), name)
+		keyStr := strings.Join(key, ".")
 
-		// qui prendiamo il valiri dei parsers!! Env, TOML, Tag Default
+		// Ora 'key' è ["AppsDir"], poi ["DataDir"], ecc.
 		v, err := getValue(key...)
+
 		if err != nil || v == nil {
-			// se non c'è il default saltiamo senza errore così possiamo calcolare il valore di default in maniera dinamica!! non vogliamo usare i default da nessuna parte se non gestirli manualmente
+			// Se è una struct (es: una sottostruttura di config), scendiamo
+			if field.Kind() == reflect.Struct {
+				if err := decode(key, getValue, field.Addr().Interface()); err != nil {
+					return err
+				}
+			}
 			continue
 		}
 

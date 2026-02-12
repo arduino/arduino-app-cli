@@ -384,7 +384,7 @@ func TestBricksDetails(t *testing.T) {
 	t.Setenv("ARDUINO_APP_CLI__APPS_DIR", appsDir)
 	t.Setenv("ARDUINO_APP_CLI__DATA_DIR", dataDir)
 
-	cfg, err := config.Load("")
+	cfg, err := config.Load()
 	require.NoError(t, err)
 
 	for _, brick := range []string{"object_detection", "weather_forecast", "one_model_brick"} {
