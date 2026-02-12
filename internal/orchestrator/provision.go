@@ -434,7 +434,7 @@ func generateMainComposeFile(
 // before assigning them to the container, as numeric GIDs
 // could differ between host and container environments.
 func lookupGroups(groupNames []string) []uint32 {
-	var resolvedGids []uint32
+	resolvedGids := make([]uint32, 0, len(groupNames))
 
 	for _, name := range groupNames {
 		g, err := user.LookupGroup(name)
