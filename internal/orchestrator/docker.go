@@ -1,3 +1,18 @@
+// This file is part of arduino-app-cli.
+//
+// Copyright 2025 ARDUINO SA (http://www.arduino.cc/)
+//
+// This software is released under the GNU General Public License version 3,
+// which covers the main part of arduino-app-cli.
+// The terms of this license can be found at:
+// https://www.gnu.org/licenses/gpl-3.0.en.html
+//
+// You can be released from the requirements of the above licenses by purchasing
+// a commercial license. Buying such a license is mandatory if you want to
+// modify or otherwise use the software for commercial activities involving the
+// Arduino software without disclosing the source code of your own applications.
+// To purchase a commercial license, send an email to license@arduino.cc.
+
 package orchestrator
 
 import (
@@ -26,17 +41,19 @@ func GetDockerFreeSpace() (uint64, error) {
 
 // Returns the highest version of a given docker image, from the input list, machiching the targetImage.
 func GetHighestVersion(targetImage string, existingImages []string) string {
-	targetBase := stripVersion(targetImage)
+	targetBase, _ := parseDockerImage(targetImage)
 
 	var highestVer *semver.Version
 	var highestImg = ""
 
 	for _, img := range existingImages {
-		if stripVersion(img) != targetBase {
+		name, version := parseDockerImage(img)
+
+		if name != targetBase {
 			continue
 		}
 
-		v, err := semver.Parse(getTag(img))
+		v, err := semver.Parse(version)
 		if err != nil {
 			return ""
 		}
@@ -51,23 +68,15 @@ func GetHighestVersion(targetImage string, existingImages []string) string {
 	return highestImg
 }
 
-// Returns a docker image name without the version.
-func stripVersion(name string) string {
-	if idx := strings.LastIndex(name, "@"); idx != -1 {
-		return name[:idx]
+// Splits a docker image in the name and tag/version parts.
+func parseDockerImage(image string) (name string, version string) {
+	if idx := strings.LastIndex(image, "@"); idx != -1 {
+		return image[:idx], image[idx+1:]
 	}
-	if idx := strings.LastIndex(name, ":"); idx != -1 {
-		return name[:idx]
+	if idx := strings.LastIndex(image, ":"); idx != -1 {
+		return image[:idx], image[idx+1:]
 	}
-	return name
-}
-
-// Returns the tag, or version, of a docker image.
-func getTag(name string) string {
-	if idx := strings.LastIndex(name, ":"); idx != -1 {
-		return name[idx+1:]
-	}
-	return ""
+	return image, ""
 }
 
 // Returns the number of bytes that would be downloaded when pulling the new docker image while the old one is
