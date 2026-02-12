@@ -39,7 +39,7 @@ func GetDockerFreeSpace() (uint64, error) {
 	return stat.Bavail * uint64(stat.Bsize), nil //nolint:gosec
 }
 
-// Returns the highest version of a given docker image, from the input list, machiching the targetImage.
+// Returns the highest version of a given docker image, from the input list, matching the targetImage.
 func GetHighestVersion(targetImage string, existingImages []string) string {
 	targetBase, _ := parseDockerImage(targetImage)
 
