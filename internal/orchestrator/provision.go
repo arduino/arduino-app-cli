@@ -350,8 +350,7 @@ func generateMainComposeFile(
 	}
 
 	volumes = addLedControl(volumes)
-
-	groups := lookupGroups([]string{"video", "audio", "render", "dialout"})
+	groups := lookupGroups("video", "audio", "render", "dialout")
 
 	// Define depends_on conditions
 	// Services with healthcheck will be started only when healthy
@@ -378,7 +377,7 @@ func generateMainComposeFile(
 			Entrypoint: "/run.sh",
 			DependsOn:  dependsOn,
 			User:       getCurrentUser(),
-			GroupAdd:   append(groups, lookupGroups([]string{"gpiod"})...),
+			GroupAdd:   append(groups, lookupGroups("gpiod")...),
 			ExtraHosts: []string{"msgpack-rpc-router:host-gateway"},
 			Labels: map[string]string{
 				DockerAppLabel:     "true",
@@ -433,7 +432,7 @@ func generateMainComposeFile(
 // Resolve supplementary group IDs on the host dynamically
 // before assigning them to the container, as numeric GIDs
 // could differ between host and container environments.
-func lookupGroups(groupNames []string) []uint32 {
+func lookupGroups(groupNames ...string) []uint32 {
 	resolvedGids := make([]uint32, 0, len(groupNames))
 
 	for _, name := range groupNames {
