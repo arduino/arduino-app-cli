@@ -70,3 +70,84 @@ func TestParseDockerImage(t *testing.T) {
 		})
 	}
 }
+
+func TestGetHighestVersion(t *testing.T) {
+	tests := []struct {
+		name           string
+		targetImage    string
+		existingImages []string
+		expected       string
+	}{
+		{
+			name:        "Selects highest semver",
+			targetImage: "my-app",
+			existingImages: []string{
+				"my-app:1.0.0",
+				"my-app:1.1.0",
+				"my-app:1.0.1",
+			},
+			expected: "my-app:1.1.0",
+		},
+		{
+			name:        "Skips invalid semver versions like latest",
+			targetImage: "my-app",
+			existingImages: []string{
+				"my-app:latest",
+				"my-app:1.2.0",
+				"my-app:1.0.0",
+			},
+			expected: "my-app:1.2.0",
+		},
+		{
+			name:        "Handles complex semver with prereleases",
+			targetImage: "app",
+			existingImages: []string{
+				"app:1.0.0-rc.1",
+				"app:1.0.0", // 1.0.0 > 1.0.0-rc.1
+				"app:1.0.0-beta",
+			},
+			expected: "app:1.0.0",
+		},
+		{
+			name:        "Returns empty if only 'latest' exists",
+			targetImage: "my-app",
+			existingImages: []string{
+				"my-app:latest",
+			},
+			expected: "",
+		},
+		{
+			name:        "Ignores images with different names",
+			targetImage: "target-app",
+			existingImages: []string{
+				"other-app:5.0.0",
+				"target-app:1.0.0",
+			},
+			expected: "target-app:1.0.0",
+		},
+		{
+			name:           "Returns empty if list is empty",
+			targetImage:    "my-app",
+			existingImages: []string{},
+			expected:       "",
+		},
+		{
+			name:        "Returns empty if no name matches",
+			targetImage: "my-app",
+			existingImages: []string{
+				"other:1.0.0",
+				"foo:2.0.0",
+			},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GetHighestVersion(tt.targetImage, tt.existingImages)
+			if got != tt.expected {
+				t.Errorf("GetHighestVersion() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}

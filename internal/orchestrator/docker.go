@@ -52,7 +52,8 @@ func GetHighestVersion(targetImage string, existingImages []string) string {
 
 		v, err := semver.Parse(version)
 		if err != nil {
-			return ""
+			// Skip any invalid semver tags like "latest".
+			continue
 		}
 
 		if highestVer == nil || !v.LessThan(highestVer) {
