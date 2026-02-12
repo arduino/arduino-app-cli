@@ -81,7 +81,7 @@ var (
 	}
 
 	GetStaticStore = sync.OnceValue(func() *store.StaticStore {
-		return store.NewStaticStore(globalConfig.AssetsDir().Join(globalConfig.UsedPythonImageTag).String())
+		return store.NewStaticStore(globalConfig.AssetsDir().Join(globalConfig.UsedPythonImageTag()).String())
 	})
 
 	GetBrickService = sync.OnceValue(func() *bricks.Service {

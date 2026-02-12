@@ -100,7 +100,7 @@ func NewHTTPRouter(
 
 	mux.Handle("GET /v1/monitor/ws", handlers.HandleMonitorWS(allowedOrigins))
 
-	mux.Handle("GET /v1/libraries", handlers.HandleLibraryList(cfg.LibrariesAPIURL, version))
+	mux.Handle("GET /v1/libraries", handlers.HandleLibraryList(cfg.LibrariesAPIURL(), version))
 
 	return mux
 }

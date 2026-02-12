@@ -75,7 +75,7 @@ func newUpdateCmd(cfg config.Configuration) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			filterFunc := getFilterFunc(onlyArduino)
 
-			updater := getUpdater(cfg.ArduinoPlatformVersionConstraint)
+			updater := getUpdater(cfg.ArduinoPlatformVersionConstraint())
 
 			pkgs, err := updater.ListUpgradablePackages(cmd.Context(), filterFunc)
 			if err != nil {

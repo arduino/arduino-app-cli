@@ -75,7 +75,7 @@ type Provision struct {
 }
 
 func isDevelopmentMode(cfg config.Configuration) bool {
-	return cfg.RunnerVersion != cfg.UsedPythonImageTag
+	return cfg.RunnerVersion() != cfg.UsedPythonImageTag()
 }
 
 func NewProvision(
@@ -84,10 +84,10 @@ func NewProvision(
 ) (*Provision, error) {
 	provision := &Provision{
 		docker:      docker,
-		pythonImage: cfg.PythonImage,
+		pythonImage: cfg.PythonImage(),
 	}
 
-	dynamicProvisionDir := cfg.AssetsDir().Join(cfg.UsedPythonImageTag)
+	dynamicProvisionDir := cfg.AssetsDir().Join(cfg.UsedPythonImageTag())
 
 	// In development mode we want to make sure everything is fresh.
 	if isDevelopmentMode(cfg) {

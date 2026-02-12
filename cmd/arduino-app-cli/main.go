@@ -94,12 +94,12 @@ func run(configuration cfg.Configuration) error {
 }
 
 func main() {
-	configuration, err := cfg.NewFromEnv()
+	configuration, err := cfg.Load("")
 	if err != nil {
 		feedback.Fatal(fmt.Sprintf("invalid config: %s", err), feedback.ErrGeneric)
 	}
 
-	if os.Geteuid() == 0 && !configuration.AllowRoot {
+	if os.Geteuid() == 0 && !configuration.AllowRoot() {
 		feedback.Fatal("arduino-app-cli must not be run as root. Try `su - arduino` before this command.", feedback.ErrGeneric)
 	}
 

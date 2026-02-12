@@ -49,7 +49,7 @@ const ExitCodeDockerOutOfSpace = 80
 // Pulls all the docker images needed for the current version of the software to run.
 // Can be used to pre-install docker images on an empty system, or to update all the docker images that need it.
 func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *store.StaticStore, docker *command.DockerCli) error {
-	imagesToPreinstall := []string{cfg.PythonImage}
+	imagesToPreinstall := []string{cfg.PythonImage()}
 	additionalImages, err := parseAllModelsRunnerImageTag(staticStore)
 	if err != nil {
 		return err
@@ -315,7 +315,7 @@ func removeImage(ctx context.Context, docker dockerClient.APIClient, imageName s
 
 // imgages required by the system
 func getRequiredImages(cfg config.Configuration, staticStore *store.StaticStore) ([]string, error) {
-	requiredImages := []string{cfg.PythonImage}
+	requiredImages := []string{cfg.PythonImage()}
 
 	modelsRunnersContainers, err := parseAllModelsRunnerImageTag(staticStore)
 	if err != nil {
