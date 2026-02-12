@@ -350,7 +350,7 @@ func generateMainComposeFile(
 
 	volumes = addLedControl(volumes)
 
-	groups := []string{"dialout", "video", "audio", "render", lookupGroupId("render")}
+	groups := []string{lookupGroupId("dialout"), lookupGroupId("video"), lookupGroupId("audio"), lookupGroupId("dialout"), lookupGroupId("render")}
 
 	// Define depends_on conditions
 	// Services with healthcheck will be started only when healthy
