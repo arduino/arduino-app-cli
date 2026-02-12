@@ -438,7 +438,7 @@ func lookupGroups(groupNames ...string) []uint32 {
 	for _, name := range groupNames {
 		g, err := user.LookupGroup(name)
 		if err != nil {
-			slog.Warn("Warning: group not found on host; skipping", "group", name)
+			slog.Warn("group not found on host; skipping", "group", name)
 			continue
 		}
 		gid, err := strconv.ParseUint(g.Gid, 10, 32)
