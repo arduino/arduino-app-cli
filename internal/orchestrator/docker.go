@@ -21,7 +21,6 @@ import (
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/shirou/gopsutil/v4/disk"
 	semver "go.bug.st/relaxed-semver"
@@ -92,40 +91,30 @@ func GetBytesToDownload(localRefStr string, remoteRefStr string, stdout io.Write
 
 	localDigests := map[string]struct{}{}
 	for _, l := range localLayers {
-		h, err := l.Digest()
-		if err != nil {
-			return 0, fmt.Errorf("error getting layer hash for %s: %w", localRefStr, err)
-		}
-		localDigests[h.String()] = struct{}{}
+		localDigests[l.Hash] = struct{}{}
 	}
 
 	var downloadBytes int64
 	for i, l := range remoteLayers {
-		h, err := l.Digest()
-		if err != nil {
-			return 0, fmt.Errorf("error getting layer hash for %s: %w", remoteRefStr, err)
-		}
-
-		size, err := l.Size()
-		if err != nil {
-			return 0, fmt.Errorf("error getting size of layer %s: %w", h.String(), err)
-		}
-
-		if _, ok := localDigests[h.String()]; ok {
-			fmt.Fprintf(stdout, "[%02d] PRESENT  %s (%d bytes)\n", i, h, size)
+		if _, ok := localDigests[l.Hash]; ok {
+			fmt.Fprintf(stdout, "[%02d] PRESENT  %s (%d bytes)\n", i, l.Hash, l.Size)
 			continue
 		}
 
-		fmt.Fprintf(stdout, "[%02d] MISSING  %s (%d bytes)\n", i, h, size)
-		downloadBytes += size
+		fmt.Fprintf(stdout, "[%02d] MISSING  %s (%d bytes)\n", i, l.Hash, l.Size)
+		downloadBytes += l.Size
 	}
 
-	// TODO: After review, remove the Fprintf logging code from this function.
 	fmt.Fprintf(stdout, "Total bytes %d to download for %s\n", downloadBytes, remoteRefStr)
 	return downloadBytes, nil
 }
 
-func getImageLayers(imageName string) ([]v1.Layer, error) {
+type dockerImageLayer struct {
+	Hash string
+	Size int64
+}
+
+func getImageLayers(imageName string) ([]dockerImageLayer, error) {
 	if len(imageName) == 0 {
 		// If the imageName is empty, return an empty list of layers.
 		return nil, nil
@@ -146,5 +135,20 @@ func getImageLayers(imageName string) ([]v1.Layer, error) {
 		return nil, fmt.Errorf("error getting layers for %s: %w", imageName, err)
 	}
 
-	return imageLayers, nil
+	res := make([]dockerImageLayer, 0, len(imageLayers))
+	for _, l := range imageLayers {
+		hash, err := l.Digest()
+		if err != nil {
+			return nil, fmt.Errorf("error getting layer hash for %s: %w", imageName, err)
+		}
+
+		size, err := l.Size()
+		if err != nil {
+			return nil, fmt.Errorf("error getting size of layer %s: %w", hash.String(), err)
+		}
+
+		res = append(res, dockerImageLayer{Hash: hash.String(), Size: size})
+	}
+
+	return res, nil
 }
