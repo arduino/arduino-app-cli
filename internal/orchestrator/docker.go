@@ -23,20 +23,18 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/shirou/gopsutil/v4/disk"
 	semver "go.bug.st/relaxed-semver"
-	"golang.org/x/sys/unix"
 )
 
 // Returns the total free disk space in bytes, in the partition where docker stores images.
 func GetDockerFreeSpace() (uint64, error) {
-	var stat unix.Statfs_t
-
-	err := unix.Statfs("/var/lib/docker", &stat)
+	usage, err := disk.Usage("/var/lib/docker")
 	if err != nil {
 		return 0, err
 	}
 
-	return stat.Bavail * uint64(stat.Bsize), nil //nolint:gosec
+	return usage.Free, nil
 }
 
 // Returns the highest version of a given docker image, from the input list, matching the targetImage.
@@ -122,7 +120,7 @@ func GetBytesToDownload(localRefStr string, remoteRefStr string, stdout io.Write
 		downloadBytes += size
 	}
 
-	// TODO: After review, remove the logging code from this function.
+	// TODO: After review, remove the Fprintf logging code from this function.
 	fmt.Fprintf(stdout, "Total bytes %d to download for %s\n", downloadBytes, remoteRefStr)
 	return downloadBytes, nil
 }
