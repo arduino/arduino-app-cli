@@ -350,7 +350,7 @@ func generateMainComposeFile(
 
 	volumes = addLedControl(volumes)
 
-	groups := []string{lookupGroupId("dialout"), lookupGroupId("video"), lookupGroupId("audio"), lookupGroupId("dialout"), lookupGroupId("render")}
+	groups := []string{lookupGroupId("dialout"), lookupGroupId("video"), lookupGroupId("audio"), lookupGroupId("render")}
 
 	// Define depends_on conditions
 	// Services with healthcheck will be started only when healthy
@@ -507,6 +507,7 @@ func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []service
 				DockerAppLabel:     "true",
 				DockerAppPathLabel: arduinoApp.FullPath.String(),
 			},
+			GroupAdd: &groups,
 		}
 		// If service defines a user, do not override it
 		if svc.user == nil {
@@ -514,7 +515,6 @@ func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []service
 		}
 		if svc.requireDevices {
 			override.Devices = &devices
-			override.GroupAdd = &groups
 		}
 		override.Environment = envs
 		overrideCompose.Services[svc.name] = override
