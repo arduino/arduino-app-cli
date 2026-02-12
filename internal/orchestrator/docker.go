@@ -96,17 +96,15 @@ func GetBytesToDownload(localRefStr string, remoteRefStr string, stdout io.Write
 	}
 
 	var downloadBytes int64
-	for i, l := range remoteLayers {
+	for _, l := range remoteLayers {
 		if _, ok := localDigests[l.Hash]; ok {
-			fmt.Fprintf(stdout, "[%02d] PRESENT  %s (%d bytes)\n", i, l.Hash, l.Size)
 			continue
 		}
 
-		fmt.Fprintf(stdout, "[%02d] MISSING  %s (%d bytes)\n", i, l.Hash, l.Size)
+		// The layer is missing, so sum its size to the total to download.
 		downloadBytes += l.Size
 	}
 
-	fmt.Fprintf(stdout, "Total bytes %d to download for %s\n", downloadBytes, remoteRefStr)
 	return downloadBytes, nil
 }
 
