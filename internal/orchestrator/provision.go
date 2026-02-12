@@ -25,6 +25,7 @@ import (
 	"os/user"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -62,7 +63,7 @@ type service struct {
 	Devices     []string                      `yaml:"devices"`
 	Ports       []string                      `yaml:"ports"`
 	User        string                        `yaml:"user"`
-	GroupAdd    []string                      `yaml:"group_add"`
+	GroupAdd    []uint32                      `yaml:"group_add"`
 	Entrypoint  string                        `yaml:"entrypoint"`
 	ExtraHosts  []string                      `yaml:"extra_hosts,omitempty"`
 	Labels      map[string]string             `yaml:"labels,omitempty"`
@@ -350,7 +351,7 @@ func generateMainComposeFile(
 
 	volumes = addLedControl(volumes)
 
-	groups := []string{lookupGroupId("dialout"), lookupGroupId("video"), lookupGroupId("audio"), lookupGroupId("render")}
+	groups := lookupGroups([]string{"video", "audio", "render", "dialout"})
 
 	// Define depends_on conditions
 	// Services with healthcheck will be started only when healthy
@@ -377,7 +378,7 @@ func generateMainComposeFile(
 			Entrypoint: "/run.sh",
 			DependsOn:  dependsOn,
 			User:       getCurrentUser(),
-			GroupAdd:   append(groups, lookupGroupId("gpiod")),
+			GroupAdd:   append(groups, lookupGroups([]string{"gpiod"})...),
 			ExtraHosts: []string{"msgpack-rpc-router:host-gateway"},
 			Labels: map[string]string{
 				DockerAppLabel:     "true",
@@ -429,14 +430,26 @@ func generateMainComposeFile(
 	return nil
 }
 
-// Resolve a group dynamically, as its GIDs may differ between
-// the host and container environments.
-func lookupGroupId(groupName string) string {
-	g, err := user.LookupGroup(groupName)
-	if err != nil {
-		panic(err)
+// Resolve supplementary group IDs on the host dynamically
+// before assigning them to the container, as numeric GIDs
+// could differ between host and container environments.
+func lookupGroups(groupNames []string) []uint32 {
+	var resolvedGids []uint32
+
+	for _, name := range groupNames {
+		g, err := user.LookupGroup(name)
+		if err != nil {
+			slog.Warn("Warning: group not found on host; skipping", "group", name)
+			continue
+		}
+		gid, err := strconv.ParseUint(g.Gid, 10, 32)
+		if err != nil {
+			slog.Warn("Warning: failed to parse GID; skipping", "group", name)
+			continue
+		}
+		resolvedGids = append(resolvedGids, uint32(gid))
 	}
-	return g.Gid
+	return resolvedGids
 }
 
 type serviceInfo struct {
@@ -478,7 +491,7 @@ func extractServicesFromComposeFile(composeFile *paths.Path) ([]serviceInfo, err
 	return services, nil
 }
 
-func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []serviceInfo, devices []string, user string, groups []string, overrideComposeFile *paths.Path, envs helpers.EnvVars) error {
+func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []serviceInfo, devices []string, user string, groups []uint32, overrideComposeFile *paths.Path, envs helpers.EnvVars) error {
 	if overrideComposeFile.Exist() {
 		if err := overrideComposeFile.Remove(); err != nil {
 			return fmt.Errorf("failed to remove existing override compose file: %w", err)
@@ -493,7 +506,7 @@ func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []service
 	type serviceOverride struct {
 		User        *string           `yaml:"user,omitempty"`
 		Devices     *[]string         `yaml:"devices,omitempty"`
-		GroupAdd    *[]string         `yaml:"group_add,omitempty"`
+		GroupAdd    *[]uint32         `yaml:"group_add,omitempty"`
 		Labels      map[string]string `yaml:"labels,omitempty"`
 		Environment map[string]string `yaml:"environment,omitempty"`
 	}
