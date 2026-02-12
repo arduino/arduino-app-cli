@@ -444,7 +444,7 @@ func lookupGroups(groupNames []string) []uint32 {
 		}
 		gid, err := strconv.ParseUint(g.Gid, 10, 32)
 		if err != nil {
-			slog.Warn("Warning: failed to parse GID; skipping", "group", name)
+			slog.Warn("failed to parse GID; skipping", "group", name)
 			continue
 		}
 		resolvedGids = append(resolvedGids, uint32(gid))
