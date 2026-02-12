@@ -140,6 +140,17 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 		}
 	}
 
+	// After pulling new images is completed, remove old images to free up space.
+	eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Cleanup docker containers and images, to remove old unused images"))
+	streamCleanup := cleanupDockerContainers(ctx)
+	for line, err := range streamCleanup {
+		if err != nil {
+			slog.Warn("Error during cleanup of container and images", "error", err)
+		} else {
+			eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+		}
+	}
+
 	return nil
 }
 

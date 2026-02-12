@@ -18,6 +18,7 @@ package orchestrator
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
@@ -105,6 +106,7 @@ func GetBytesToDownload(localRefStr string, remoteRefStr string, stdout io.Write
 		downloadBytes += l.Size
 	}
 
+	slog.Debug("docker image bytes to download", "image", remoteRefStr, "byte", downloadBytes)
 	return downloadBytes, nil
 }
 
