@@ -48,7 +48,6 @@ require (
 	go.bug.st/relaxed-semver v0.15.0
 	golang.org/x/crypto v0.45.0
 	golang.org/x/sync v0.19.0
-	golang.org/x/sys v0.39.0
 	golang.org/x/text v0.32.0
 )
 
@@ -291,6 +290,7 @@ require (
 	golang.org/x/mod v0.30.0 // indirect
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/oauth2 v0.33.0 // indirect
+	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/term v0.38.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 	golang.org/x/tools v0.39.0 // indirect
