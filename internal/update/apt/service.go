@@ -115,30 +115,25 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 	eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Pulling the latest docker images ..."))
 	for line, err := range pullDockerImages(ctx) {
 		if err != nil {
-			if err.Error() == fmt.Sprintf("exit status %d", orchestrator.ExitCodeDockerOutOfSpace) {
-				// Detected an out of space error. Need to perform the cleanup.
-				eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Stop and destroy docker containers and images, to free up space ..."))
-				streamCleanup := cleanupDockerContainers(ctx)
-				for line, err := range streamCleanup {
-					if err != nil {
-						slog.Warn("Error during cleanup of container and images", "error", err)
-					} else {
-						eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
-					}
-				}
+			// In case of errors, including "out of disk space" erros, do a cleanup and then retry once.
 
-				// Try again to pull the docker containers.
-				eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Pulling the latest docker images (again) ..."))
-				for line, err := range pullDockerImages(ctx) {
-					if err != nil {
-						return fmt.Errorf("error pulling docker images: %w", err)
-					}
+			eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Stop and destroy docker containers and images, to free up space ..."))
+			streamCleanup := cleanupDockerContainers(ctx)
+			for line, err := range streamCleanup {
+				if err != nil {
+					slog.Warn("Error during cleanup of container and images", "error", err)
+				} else {
 					eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 				}
+			}
 
-			} else {
-				// For any other error while pulling the docker images, exit and stop the upgrade.
-				return fmt.Errorf("error pulling docker images: %w", err)
+			// Try again to pull the docker containers.
+			eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Pulling the latest docker images (again) ..."))
+			for line, err := range pullDockerImages(ctx) {
+				if err != nil {
+					return fmt.Errorf("error pulling docker images: %w", err)
+				}
+				eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 			}
 		} else {
 			eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
