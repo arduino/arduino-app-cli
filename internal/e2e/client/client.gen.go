@@ -400,6 +400,9 @@ type NotFound = ErrorResponse
 // PreconditionFailed defines model for PreconditionFailed.
 type PreconditionFailed = ErrorResponse
 
+// Unauthorized defines model for Unauthorized.
+type Unauthorized = ErrorResponse
+
 // GetAppsParams defines parameters for GetApps.
 type GetAppsParams struct {
 	// Filter Filters apps by apps,examples,default
@@ -482,6 +485,18 @@ type GetAIModelsParams struct {
 	Bricks *string `form:"bricks,omitempty" json:"bricks,omitempty"`
 }
 
+// InstallEIModelJSONBody defines parameters for InstallEIModel.
+type InstallEIModelJSONBody struct {
+	// ImpulseId Edge Impulse impulse ID
+	ImpulseId int `json:"impulse_id"`
+
+	// PrjApiKey Edge Impulse project API key
+	PrjApiKey string `json:"prj_api_key"`
+
+	// ProjectId Edge Impulse project ID
+	ProjectId int `json:"project_id"`
+}
+
 // DeleteAIModelParams defines parameters for DeleteAIModel.
 type DeleteAIModelParams struct {
 	// Force If true, deletes the model even if referenced by apps.
@@ -520,6 +535,9 @@ type EditAppJSONRequestBody = EditRequest
 
 // CloneAppJSONRequestBody defines body for CloneApp for application/json ContentType.
 type CloneAppJSONRequestBody = CloneRequest
+
+// InstallEIModelJSONRequestBody defines body for InstallEIModel for application/json ContentType.
+type InstallEIModelJSONRequestBody InstallEIModelJSONBody
 
 // UpdatePropertyJSONRequestBody defines body for UpdateProperty for application/json ContentType.
 type UpdatePropertyJSONRequestBody = UpdatePropertyJSONBody
@@ -689,6 +707,11 @@ type ClientInterface interface {
 
 	// GetAIModels request
 	GetAIModels(ctx context.Context, params *GetAIModelsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// InstallEIModelWithBody request with any body
+	InstallEIModelWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	InstallEIModel(ctx context.Context, body InstallEIModelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteAIModel request
 	DeleteAIModel(ctx context.Context, id string, params *DeleteAIModelParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1112,6 +1135,30 @@ func (c *Client) ListLibraries(ctx context.Context, params *ListLibrariesParams,
 
 func (c *Client) GetAIModels(ctx context.Context, params *GetAIModelsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAIModelsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) InstallEIModelWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewInstallEIModelRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) InstallEIModel(ctx context.Context, body InstallEIModelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewInstallEIModelRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2574,6 +2621,46 @@ func NewGetAIModelsRequest(server string, params *GetAIModelsParams) (*http.Requ
 	return req, nil
 }
 
+// NewInstallEIModelRequest calls the generic InstallEIModel builder with application/json body
+func NewInstallEIModelRequest(server string, body InstallEIModelJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewInstallEIModelRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewInstallEIModelRequestWithBody generates requests for InstallEIModel with any type of body
+func NewInstallEIModelRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/models/edge-impulse")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewDeleteAIModelRequest generates requests for DeleteAIModel
 func NewDeleteAIModelRequest(server string, id string, params *DeleteAIModelParams) (*http.Request, error) {
 	var err error
@@ -3120,6 +3207,11 @@ type ClientWithResponsesInterface interface {
 
 	// GetAIModelsWithResponse request
 	GetAIModelsWithResponse(ctx context.Context, params *GetAIModelsParams, reqEditors ...RequestEditorFn) (*GetAIModelsResp, error)
+
+	// InstallEIModelWithBodyWithResponse request with any body
+	InstallEIModelWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InstallEIModelResp, error)
+
+	InstallEIModelWithResponse(ctx context.Context, body InstallEIModelJSONRequestBody, reqEditors ...RequestEditorFn) (*InstallEIModelResp, error)
 
 	// DeleteAIModelWithResponse request
 	DeleteAIModelWithResponse(ctx context.Context, id string, params *DeleteAIModelParams, reqEditors ...RequestEditorFn) (*DeleteAIModelResp, error)
@@ -3809,6 +3901,30 @@ func (r GetAIModelsResp) StatusCode() int {
 	return 0
 }
 
+type InstallEIModelResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AIModelItem
+	JSON401      *Unauthorized
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r InstallEIModelResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r InstallEIModelResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type DeleteAIModelResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4358,6 +4474,23 @@ func (c *ClientWithResponses) GetAIModelsWithResponse(ctx context.Context, param
 		return nil, err
 	}
 	return ParseGetAIModelsResp(rsp)
+}
+
+// InstallEIModelWithBodyWithResponse request with arbitrary body returning *InstallEIModelResp
+func (c *ClientWithResponses) InstallEIModelWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InstallEIModelResp, error) {
+	rsp, err := c.InstallEIModelWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseInstallEIModelResp(rsp)
+}
+
+func (c *ClientWithResponses) InstallEIModelWithResponse(ctx context.Context, body InstallEIModelJSONRequestBody, reqEditors ...RequestEditorFn) (*InstallEIModelResp, error) {
+	rsp, err := c.InstallEIModel(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseInstallEIModelResp(rsp)
 }
 
 // DeleteAIModelWithResponse request returning *DeleteAIModelResp
@@ -5544,6 +5677,46 @@ func ParseGetAIModelsResp(rsp *http.Response) (*GetAIModelsResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseInstallEIModelResp parses an HTTP response from a InstallEIModelWithResponse call
+func ParseInstallEIModelResp(rsp *http.Response) (*InstallEIModelResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &InstallEIModelResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AIModelItem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
