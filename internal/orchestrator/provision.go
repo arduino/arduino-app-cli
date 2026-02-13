@@ -409,7 +409,7 @@ func generateMainComposeFile(
 
 	// If there are services that require devices, we need to generate an override compose file
 	// Write additional file to override devices section in included compose files
-	if err = generateServicesOverrideFile(app, services, devices.devicePaths, getCurrentUser(), groups, overrideComposeFile, envs); err != nil {
+	if err := generateServicesOverrideFile(app, services, devices.devicePaths, getCurrentUser(), groups, overrideComposeFile, envs); err != nil {
 		return err
 	}
 
