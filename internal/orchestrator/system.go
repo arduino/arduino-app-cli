@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"slices"
 	"strings"
@@ -41,22 +42,27 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
-// SystemInit pulls necessary Docker images.
+var ErrDockerOutOfSpace = errors.New("not enough disk space to pull the docker image")
+
+const ExitCodeDockerOutOfSpace = 80
+
+// Pulls all the docker images needed for the current version of the software to run.
+// Can be used to pre-install docker images on an empty system, or to update all the docker images that need it.
 func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *store.StaticStore, docker *command.DockerCli) error {
-	containersToPreinstall := []string{cfg.PythonImage}
-	additionalContainers, err := parseAllModelsRunnerImageTag(staticStore)
+	imagesToPreinstall := []string{cfg.PythonImage}
+	additionalImages, err := parseAllModelsRunnerImageTag(staticStore)
 	if err != nil {
 		return err
 	}
-	containersToPreinstall = append(containersToPreinstall, additionalContainers...)
+	imagesToPreinstall = append(imagesToPreinstall, additionalImages...)
 
 	pulledImages, err := listImagesAlreadyPulled(ctx, docker.Client())
 	if err != nil {
 		return err
 	}
 
-	// Filter out containers alredy pulled
-	containersToPreinstall = slices.DeleteFunc(containersToPreinstall, func(v string) bool {
+	// Filter out container images that are alredy pulled
+	imagesToPreinstall = slices.DeleteFunc(imagesToPreinstall, func(v string) bool {
 		return slices.Contains(pulledImages, v)
 	})
 
@@ -66,10 +72,24 @@ func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *stor
 		return nil
 	}
 
-	for _, container := range containersToPreinstall {
-		feedback.Printf("Pulling container image %s ...", container)
-		if err := pullImage(ctx, stdout, docker.Client(), container); err != nil {
-			return fmt.Errorf("failed to pull image %s: %w", container, err)
+	for _, image := range imagesToPreinstall {
+		freeSpace, err := GetDockerFreeSpace()
+		if err != nil {
+			return err
+		}
+
+		// Check that there is enough disk space for the additional layers needed by the image.
+		previousExistingImage := GetHighestVersion(image, pulledImages)
+		if toDownload, err := GetBytesToDownload(previousExistingImage, image, stdout); err != nil {
+			// In case of errors getting the size to download, proceed anyway.
+			slog.Warn("Unable to get the new image layers size", "image", image, "error", err)
+		} else if uint64(float64(toDownload)*2.5) > freeSpace {
+			return ErrDockerOutOfSpace
+		}
+
+		feedback.Printf("Pulling container image %s ...", image)
+		if err := pullImage(ctx, stdout, docker.Client(), image); err != nil {
+			return fmt.Errorf("failed to pull image %s: %w", image, err)
 		}
 	}
 

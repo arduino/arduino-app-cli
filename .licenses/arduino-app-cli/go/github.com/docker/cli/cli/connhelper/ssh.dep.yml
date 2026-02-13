@@ -1,6 +1,6 @@
 ---
 name: github.com/docker/cli/cli/connhelper/ssh
-version: v28.3.2+incompatible
+version: v29.0.3+incompatible
 type: go
 summary: Package ssh provides the connection helper for ssh:// URL.
 homepage: https://pkg.go.dev/github.com/docker/cli/cli/connhelper/ssh

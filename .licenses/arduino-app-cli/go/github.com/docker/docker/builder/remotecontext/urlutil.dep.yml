@@ -1,6 +1,6 @@
 ---
 name: github.com/docker/docker/builder/remotecontext/urlutil
-version: v28.3.2+incompatible
+version: v28.5.2+incompatible
 type: go
 summary: Package urlutil provides helper function to check if a given build-context
   location should be considered a URL or a remote Git repository.

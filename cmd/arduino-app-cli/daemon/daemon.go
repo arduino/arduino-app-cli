@@ -92,6 +92,7 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 			"Accept",
 			"Authorization",
 			"Content-Type",
+			"X-API-Key",
 		},
 		MaxAgeInSeconds: 86400,
 		ResponseHeaders: []string{},

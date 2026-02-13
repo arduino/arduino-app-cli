@@ -1,12 +1,12 @@
 ---
 name: go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconvutil
-version: v0.60.0
+version: v0.61.0
 type: go
-summary:
+summary: Package semconvutil provides OpenTelemetry semantic convention utilities.
 homepage: https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconvutil
 license: apache-2.0
 licenses:
-- sources: otelhttp@v0.60.0/LICENSE
+- sources: otelhttp@v0.61.0/LICENSE
   text: |2
                                      Apache License
                                Version 2.0, January 2004

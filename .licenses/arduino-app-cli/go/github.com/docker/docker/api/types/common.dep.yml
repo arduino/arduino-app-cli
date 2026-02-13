@@ -1,6 +1,6 @@
 ---
 name: github.com/docker/docker/api/types/common
-version: v28.3.2+incompatible
+version: v28.5.2+incompatible
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/docker/docker/api/types/common
