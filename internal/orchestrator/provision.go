@@ -409,8 +409,8 @@ func generateMainComposeFile(
 
 	// If there are services that require devices, we need to generate an override compose file
 	// Write additional file to override devices section in included compose files
-	if e := generateServicesOverrideFile(app, services, devices.devicePaths, getCurrentUser(), groups, overrideComposeFile, envs); e != nil {
-		return e
+	if err = generateServicesOverrideFile(app, services, devices.devicePaths, getCurrentUser(), groups, overrideComposeFile, envs); err != nil {
+		return err
 	}
 
 	// Pre-provision containers required paths, if they do not exist.
