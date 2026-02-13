@@ -30,6 +30,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/arduino/arduino-cli/commands"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
@@ -1215,6 +1216,7 @@ func compileUploadSketch(
 		Profile:    profile,
 	}
 
+	initStart := time.Now()
 	if err := srv.Init(
 		initReq,
 		commands.InitStreamResponseToCallbackFunction(ctx, func(r *rpc.InitResponse) error {
@@ -1243,8 +1245,10 @@ func compileUploadSketch(
 			return nil
 		}),
 	); err != nil {
+		slog.Warn("arduino-cli init failed", slog.Duration("duration", time.Since(initStart)), slog.String("error", err.Error()))
 		return err
 	}
+	slog.Info("arduino-cli init completed", slog.Duration("duration", time.Since(initStart)))
 
 	// build the sketch
 	server, getCompileResult := commands.CompilerServerToStreams(ctx, w, w, nil)
@@ -1256,10 +1260,13 @@ func compileUploadSketch(
 		Jobs:       2,
 	}
 
+	compileStart := time.Now()
 	err = srv.Compile(&compileReq, server)
 	if err != nil {
+		slog.Warn("arduino-cli compile failed", slog.Duration("duration", time.Since(compileStart)), slog.String("error", err.Error()))
 		return err
 	}
+	slog.Info("arduino-cli compile completed", slog.Duration("duration", time.Since(compileStart)))
 
 	// Output compilations details
 	result := getCompileResult()
@@ -1294,6 +1301,7 @@ func uploadSketchInRam(ctx context.Context,
 	sketchPath string,
 	buildPath string,
 ) error {
+	uploadStart := time.Now()
 	stream, _ := commands.UploadToServerStreams(ctx, w, w)
 	if err := srv.Upload(&rpc.UploadRequest{
 		Instance:   inst,
@@ -1301,8 +1309,10 @@ func uploadSketchInRam(ctx context.Context,
 		SketchPath: sketchPath,
 		ImportDir:  buildPath,
 	}, stream); err != nil {
+		slog.Warn("arduino-cli upload (ram) failed", slog.Duration("duration", time.Since(uploadStart)), slog.String("error", err.Error()))
 		return err
 	}
+	slog.Info("arduino-cli upload (ram) completed", slog.Duration("duration", time.Since(uploadStart)))
 	return nil
 }
 
@@ -1314,6 +1324,7 @@ func configureMicroInRamMode(
 	srv rpc.ArduinoCoreServiceServer,
 	inst *rpc.Instance,
 ) error {
+	configureStart := time.Now()
 	emptyBinDir := paths.New("/tmp/empty")
 	_ = emptyBinDir.MkdirAll()
 	defer func() { _ = emptyBinDir.RemoveAll() }()
@@ -1334,11 +1345,16 @@ func configureMicroInRamMode(
 	}
 
 	stream, _ := commands.UploadToServerStreams(ctx, w, w)
-	return srv.Upload(&rpc.UploadRequest{
+	if err := srv.Upload(&rpc.UploadRequest{
 		Instance:  inst,
 		Fqbn:      "arduino:zephyr:unoq:flash_mode=flash",
 		ImportDir: emptyBinDir.String(),
-	}, stream)
+	}, stream); err != nil {
+		slog.Warn("arduino-cli configure (flash reset) failed", slog.Duration("duration", time.Since(configureStart)), slog.String("error", err.Error()))
+		return err
+	}
+	slog.Info("arduino-cli configure (flash reset) completed", slog.Duration("duration", time.Since(configureStart)))
+	return nil
 }
 
 type ConfigResponse struct {
