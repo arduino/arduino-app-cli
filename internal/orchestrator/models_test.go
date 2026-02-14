@@ -44,7 +44,41 @@ func TestBuildBrickConfigForEIModel(t *testing.T) {
 	}
 
 	category := edgeimpulse.ProjectCategoryObjectDetection
-	learnBlocks := []edgeimpulse.ImpulseLearnBlock{
+	edgeModelsDir := paths.New("/models/custom-ei/ei-xxxx-yyyy")
+	blobModelsDir := paths.New("/models/custom-ei/ei-xxxx-yyyy")
+
+	result, err := buildBrickConfigForEIModel(
+		brickIndex,
+		&category,
+		nil,
+		edgeModelsDir,
+		blobModelsDir,
+	)
+
+	require.NoError(t, err)
+	require.Len(t, result, 2)
+	require.Equal(t, "arduino:object_detection", result[0].ID)
+	require.Equal(t, "arduino:video_object_detection", result[1].ID)
+
+	require.Equal(t, map[string]string{
+		"CUSTOM_MODEL_PATH":      "/models/custom-ei/ei-xxxx-yyyy",
+		"EI_OBJ_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+	}, result[0].ModelConfiguration)
+	require.Equal(t, map[string]string{
+		"CUSTOM_MODEL_PATH":      "/models/custom-ei/ei-xxxx-yyyy",
+		"EI_OBJ_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+	}, result[1].ModelConfiguration)
+}
+
+func TestBuildBrickConfigForEIModel_wLearningBlock(t *testing.T) {
+
+	brickIndex, err := bricksindex.Load(paths.New("bricksindex/testdata"))
+	if err != nil {
+		t.Fatalf("failed to load bricks index: %v", err)
+	}
+
+	category := edgeimpulse.ProjectCategoryImages
+	lb := []edgeimpulse.ImpulseLearnBlock{
 		{
 			Type: edgeimpulse.KerasVisualAnomaly,
 		},
@@ -55,15 +89,14 @@ func TestBuildBrickConfigForEIModel(t *testing.T) {
 	result, err := buildBrickConfigForEIModel(
 		brickIndex,
 		&category,
-		&learnBlocks,
+		&lb,
 		edgeModelsDir,
 		blobModelsDir,
 	)
 
 	require.NoError(t, err)
 	require.Len(t, result, 2)
-	require.Equal(t, "arduino:object_detection", result[0].ID)
-	require.Equal(t, "arduino:video_object_detection", result[1].ID)
+	require.Equal(t, "arduino:visual_anomaly_detection", result[0].ID)
 
 	require.Equal(t, map[string]string{
 		"CUSTOM_MODEL_PATH":      "/models/custom-ei/ei-xxxx-yyyy",
