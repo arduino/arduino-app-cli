@@ -373,7 +373,7 @@ var mapCategoryToBricks = map[edgeimpulse.ProjectCategory][]string{
 	edgeimpulse.ProjectCategoryImages:          {"arduino:image_classification", "arduino:video_image_classification"},
 	edgeimpulse.ProjectCategoryAudio:           {"arduino:audio_classification"},
 	edgeimpulse.ProjectCategoryKeywordSpotting: {"arduino:audio_classification", "arduino:keyword_spotting"},
-	edgeimpulse.ProjectCategoryAccelerometer:   {"arduino:gesture_recognition", "arduino:anomaly_detection"},
+	edgeimpulse.ProjectCategoryAccelerometer:   {"arduino:motion_detection", "arduino:vibration_anomaly_detection"},
 }
 
 func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *edgeimpulse.ProjectCategory, edgeModelsDir *paths.Path, blobModelsDir *paths.Path) ([]custommodel.BrickConfig, error) {
