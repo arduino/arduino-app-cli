@@ -43,13 +43,19 @@ func TestBuildBrickConfigForEIModel(t *testing.T) {
 		t.Fatalf("failed to load bricks index: %v", err)
 	}
 
-	category := edgeimpulse.ProjectCategory("Object detection")
+	category := edgeimpulse.ProjectCategoryObjectDetection
+	learnBlocks := []edgeimpulse.ImpulseLearnBlock{
+		{
+			Type: edgeimpulse.KerasVisualAnomaly,
+		},
+	}
 	edgeModelsDir := paths.New("/models/custom-ei/ei-xxxx-yyyy")
 	blobModelsDir := paths.New("/models/custom-ei/ei-xxxx-yyyy")
 
 	result, err := buildBrickConfigForEIModel(
 		brickIndex,
 		&category,
+		&learnBlocks,
 		edgeModelsDir,
 		blobModelsDir,
 	)
