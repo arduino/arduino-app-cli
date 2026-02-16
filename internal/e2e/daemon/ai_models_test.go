@@ -110,7 +110,7 @@ func TestAIModelDetails(t *testing.T) {
 	t.Run("should return full details for a valid custom model ID", func(t *testing.T) {
 
 		modelId := "custom-classification-model-eim"
-		expecteBricks := []string{"arduino:image_classification"}
+		expecteBricks := []string{"arduino:audio_classification"}
 		expectedName := "Test custom model"
 		expectedDescription := "Test custom model."
 		expectedDiskUsage := 614577
