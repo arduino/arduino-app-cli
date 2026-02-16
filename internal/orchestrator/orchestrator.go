@@ -137,6 +137,17 @@ func StartApp(
 			return
 		}
 
+		devices, err := app.GetAvailableDevices()
+		if err != nil {
+			yield(StreamMessage{error: err})
+		}
+
+		err = app.ValidateRequiredDevices(appToStart.Descriptor, devices)
+		if err != nil {
+			yield(StreamMessage{error: err})
+			return
+		}
+
 		running, err := getRunningApp(ctx, docker.Client())
 		if err != nil {
 			yield(StreamMessage{error: err})
@@ -265,10 +276,10 @@ func StartApp(
 // - model configuration variables (variables defined in the model configuration)
 // - brick instance variables (variables defined in the app.yaml for the brick instance)
 // In addition, it adds some useful environment variables like APP_HOME and HOST_IP.
-func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex) helpers.EnvVars {
+func getAppEnvironmentVariables(a app.ArduinoApp, brickIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex) helpers.EnvVars {
 	envs := make(helpers.EnvVars)
 
-	for _, brick := range app.Descriptor.Bricks {
+	for _, brick := range a.Descriptor.Bricks {
 		if brickDef, found := brickIndex.FindBrickByID(brick.ID); found {
 			maps.Insert(envs, brickDef.GetDefaultVariables())
 		}
@@ -284,7 +295,7 @@ func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.Bric
 	}
 
 	// Add the APP_HOME directory to the environment variables
-	envs["APP_HOME"] = app.FullPath.String()
+	envs["APP_HOME"] = a.FullPath.String()
 
 	// Pre-select default camera device if available. This can be overridden by the app environment variables (or in future by applab)
 	// This is required because there are some video devices for HW acceleration that are auto registered in /dev but are not real cameras.
