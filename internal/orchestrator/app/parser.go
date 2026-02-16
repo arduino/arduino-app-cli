@@ -30,6 +30,7 @@ type Brick struct {
 	ID        string            `yaml:"-"` // Ignores this field, to be handled manually
 	Model     string            `yaml:"model,omitempty"`
 	Variables map[string]string `yaml:"variables,omitempty"`
+	Devices   []string          `yaml:"devices,omitempty"`
 }
 
 type AppDescriptor struct {

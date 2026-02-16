@@ -16,21 +16,29 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/docker/cli/cli/command"
 
+	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
+
+type InstallEIModelRequest struct {
+	ImpulseID *int `json:"impulse_id" description:"Edge Impulse impulse ID" example:"1" required:"true"`
+}
 
 func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -94,4 +102,74 @@ func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, 
 
 		render.EncodeResponse(w, http.StatusNoContent, nil)
 	}
+}
+
+func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		projectID, err := strconv.Atoi(r.PathValue("projectID"))
+		if err != nil {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "invalid projectID"})
+			return
+		}
+		prjApiKey := r.Header.Get("x-api-key")
+		if prjApiKey == "" {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "x-api-key header must be set"})
+			return
+		}
+
+		var req InstallEIModelRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			slog.Error("unable to decode download EI model request", slog.String("error", err.Error()))
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "unable to decode download EI model request"})
+			return
+		}
+
+		if err := req.Validate(); err != nil {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
+			return
+		}
+
+		eiClient, err := edgeimpulse.NewEIClient(prjApiKey, *cfg.EdgeImpulseAPIURL)
+		if err != nil {
+			slog.Error("unable to create Edge Impulse client", slog.String("error", err.Error()))
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to create Edge Impulse client"})
+			return
+		}
+
+		eiModel, err := orchestrator.InstallEIModel(r.Context(), bricksIndex, modelsIndex, dockerClient, eiClient, cfg.CustomModelsDir(), projectID, *req.ImpulseID)
+		if err != nil {
+			switch {
+			case errors.Is(err, edgeimpulse.ErrUnauthorized):
+				slog.Error("unauthorized access to Edge Impulse model", slog.String("error", err.Error()))
+				render.EncodeResponse(w, http.StatusUnauthorized, models.ErrorResponse{Details: "unauthorized access to Edge Impulse model"})
+				return
+			case errors.Is(err, orchestrator.ErrIncompleteImpulse):
+				slog.Error("incomplete impulse for Edge Impulse model", slog.String("error", err.Error()))
+				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "incomplete impulse for Edge Impulse model"})
+				return
+			case errors.Is(err, edgeimpulse.ErrForbidden):
+				slog.Error("forbidden access to Edge Impulse model", slog.String("error", err.Error()))
+				render.EncodeResponse(w, http.StatusForbidden, models.ErrorResponse{Details: "forbidden access to Edge Impulse model"})
+				return
+			case errors.Is(err, orchestrator.ErrInsufficientStorage):
+				slog.Error("insufficient storage to install Edge Impulse model", slog.String("error", err.Error()))
+				render.EncodeResponse(w, http.StatusInsufficientStorage, models.ErrorResponse{Details: "insufficient storage to install Edge Impulse model"})
+				return
+			default:
+				slog.Error("unable to install Edge Impulse model", slog.String("error", err.Error()))
+				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to install Edge Impulse model: " + err.Error()})
+				return
+			}
+		}
+
+		// FIXME: read the installed model using the modelindex.getModelByID
+		render.EncodeResponse(w, http.StatusOK, eiModel)
+	}
+}
+
+func (r InstallEIModelRequest) Validate() error {
+	if r.ImpulseID == nil || *r.ImpulseID <= 0 {
+		return fmt.Errorf("impulse_id must be an integer greater than 0")
+	}
+	return nil
 }

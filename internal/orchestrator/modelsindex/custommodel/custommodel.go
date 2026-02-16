@@ -70,8 +70,10 @@ func Store(dir *paths.Path, descr ModelDescriptor, modelFileReader io.ReadCloser
 		return AiModel{}, fmt.Errorf("failed to create model file: %w", err)
 	}
 	defer f.Close()
+
 	if _, err := io.Copy(f, modelFileReader); err != nil {
-		return AiModel{}, fmt.Errorf("failed to write model file : %w", err)
+		_ = destBlobPath.Remove()
+		return AiModel{}, fmt.Errorf("failed to write model file: %w", err)
 	}
 
 	m := AiModel{
@@ -106,7 +108,8 @@ func (a *AiModel) writeDescriptorFile() error {
 	}
 
 	if err := fatomic.WriteFile(descriptorPath.String(), out, os.FileMode(0644)); err != nil {
-		return fmt.Errorf("cannot write model descriptor file: %w", err)
+		_ = descriptorPath.Remove()
+		return fmt.Errorf("failed to write model descriptorfile: %w", err)
 	}
 	return nil
 }

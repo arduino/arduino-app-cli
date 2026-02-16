@@ -107,6 +107,46 @@ bricks:
   - name: EI_OBJ_DETECTION_MODEL
     default_value: /models/ootb/ei/yolo-x-nano.eim
     description: path to the model file
+- id: arduino:video_object_detection
+  name: Video Object Detection
+  description: 'This object detection brick utilizes a pre-trained model to analyze
+    video streams from a camera.
+
+    It identifies objects, returning their predicted class labels, bounding boxes,
+    and confidence scores.
+
+    The output is a video stream featuring bounding boxes around detected objects,
+    with the added capability to trigger actions based on these detections.
+
+    It supports pre-trained models provided by the framework and custom object detection
+    models trained on the Edge Impulse platform.
+
+    '
+  require_container: true
+  require_model: true
+  mount_devices_into_container: true
+  ports: []
+  category: null
+  model_name: yolox-object-detection
+  required_devices:
+  - camera
+  variables:
+  - name: EI_OBJ_DETECTION_MODEL
+    default_value: /models/ootb/ei/yolo-x-nano.eim
+    description: Path to the model file
+    hidden: true
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: Path to the custom model directory
+    hidden: true
+  - name: BIND_ADDRESS
+    default_value: 0.0.0.0
+    description: Bind address
+    hidden: true
+  - name: VIDEO_DEVICE
+    default_value: /dev/video1
+    description: Video device path
+    hidden: true
 - id: arduino:weather_forecast
   name: Weather Forecast
   description: Online weather forecast module for Arduino using open-meteo.com geolocation

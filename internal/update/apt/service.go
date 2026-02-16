@@ -91,6 +91,7 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 			return
 		}
 	}()
+
 	names := f.Map(packages, func(pkg update.PackageInfo) string {
 		return pkg.Name
 	})
@@ -111,29 +112,43 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 	}
 
-	eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Stop and destroy docker containers and images ...."))
-	streamCleanup := cleanupDockerContainers(ctx)
-	for line, err := range streamCleanup {
+	eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Pulling the latest docker images ..."))
+	for line, err := range pullDockerImages(ctx) {
 		if err != nil {
-			// TODO: maybe we should retun an error or a better feedback to the user?
-			// currently, we just log the error and continue considenring not blocking
-			slog.Warn("Error stopping and destroying docker containers", "error", err)
+			// In case of errors, including "out of disk space" erros, do a cleanup and then retry once.
+
+			eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Stop and destroy docker containers and images, to free up space ..."))
+			streamCleanup := cleanupDockerContainers(ctx)
+			for line, err := range streamCleanup {
+				if err != nil {
+					slog.Warn("Error during cleanup of container and images", "error", err)
+				} else {
+					eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+				}
+			}
+
+			// Try again to pull the docker containers.
+			eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Pulling the latest docker images (again) ..."))
+			for line, err := range pullDockerImages(ctx) {
+				if err != nil {
+					return fmt.Errorf("error pulling docker images: %w", err)
+				}
+				eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+			}
 		} else {
 			eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 		}
 	}
 
-	// TODO: Remove this workaround once docker image versions are no longer hardcoded in arduino-app-cli.
-	// Tracking issue: https://github.com/arduino/arduino-app-cli/issues/600
-	// Currently, we need to launch `arduino-app-cli system init` to pull the latest docker images because
-	// the version of the docker images are hardcoded in the (new downloaded) version of the arduino-app-cli.
-	eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Pulling the latest docker images ..."))
-	streamDocker := pullDockerImages(ctx)
-	for line, err := range streamDocker {
+	// After pulling new images is completed, remove old images to free up space.
+	eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Cleanup docker containers and images, to remove old unused images"))
+	streamCleanup := cleanupDockerContainers(ctx)
+	for line, err := range streamCleanup {
 		if err != nil {
-			return fmt.Errorf("error pulling docker images: %w", err)
+			slog.Warn("Error during cleanup of container and images", "error", err)
+		} else {
+			eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 		}
-		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 	}
 
 	return nil

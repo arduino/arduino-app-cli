@@ -1,6 +1,6 @@
 ---
 name: github.com/docker/cli/cli/connhelper/commandconn
-version: v28.3.2+incompatible
+version: v29.0.3+incompatible
 type: go
 summary: Package commandconn provides a net.Conn implementation that can be used for
   proxying (or emulating) stream via a custom command.

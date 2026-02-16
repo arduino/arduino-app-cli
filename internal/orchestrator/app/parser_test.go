@@ -123,3 +123,22 @@ bricks:
 	require.Equal(t, "yolox-object-detection", app.Descriptor.Bricks[0].Model)
 	require.Equal(t, "/home/arduino/.arduino-bricks/ei-models/face-det.eim", app.Descriptor.Bricks[0].Variables["EI_OBJ_DETECTION_MODEL"])
 }
+
+func TestAppParser_Devices(t *testing.T) {
+	dir := t.TempDir()
+	appYaml := paths.New(dir, "app.yaml")
+	content := `
+name: Test App With devices
+bricks:
+  - arduino:video_object_detection:
+      devices:
+        - my-dev-1
+        - my-dev-2
+`
+	require.NoError(t, os.WriteFile(appYaml.String(), []byte(content), 0600))
+
+	desc, err := ParseDescriptorFile(appYaml)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(desc.Bricks))
+	require.Equal(t, []string{"my-dev-1", "my-dev-2"}, desc.Bricks[0].Devices)
+}
