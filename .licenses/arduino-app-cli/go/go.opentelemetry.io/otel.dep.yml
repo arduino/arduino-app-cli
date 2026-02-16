@@ -1,6 +1,6 @@
 ---
 name: go.opentelemetry.io/otel
-version: v1.38.0
+version: v1.39.0
 type: go
 summary: Package otel provides global access to the OpenTelemetry API.
 homepage: https://pkg.go.dev/go.opentelemetry.io/otel
