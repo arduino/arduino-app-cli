@@ -1,16 +1,16 @@
 ---
-name: github.com/sourcegraph/conc/pool
-version: v0.3.1-0.20240121214520-5f936abd7ae8
+name: github.com/clipperhouse/uax29/v2/graphemes
+version: v2.6.0
 type: go
-summary: 
-homepage: https://pkg.go.dev/github.com/sourcegraph/conc/pool
+summary: 'Package graphemes implements Unicode grapheme cluster boundaries: https://unicode.org/reports/tr29/#Grapheme_Cluster_Boundaries'
+homepage: https://pkg.go.dev/github.com/clipperhouse/uax29/v2/graphemes
 license: mit
 licenses:
-- sources: conc@v0.3.1-0.20240121214520-5f936abd7ae8/LICENSE
+- sources: v2@v2.6.0/LICENSE
   text: |
     MIT License
 
-    Copyright (c) 2023 Sourcegraph
+    Copyright (c) 2020 Matt Sherman
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal

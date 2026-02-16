@@ -1,6 +1,6 @@
 ---
 name: go.opentelemetry.io/otel/metric
-version: v1.38.0
+version: v1.39.0
 type: go
 summary: Package metric provides the OpenTelemetry API used to measure metrics about
   source code operation.

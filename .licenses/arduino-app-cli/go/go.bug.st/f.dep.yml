@@ -1,6 +1,6 @@
 ---
 name: go.bug.st/f
-version: v0.4.0
+version: v0.5.0
 type: go
 summary: Package f is a golang library implementing some basic algorithms.
 homepage: https://pkg.go.dev/go.bug.st/f
@@ -9,7 +9,7 @@ licenses:
 - sources: LICENSE
   text: |2+
 
-    Copyright (c) 2024, Cristian Maglie.
+    Copyright (c) 2024, go-algorithms (go.bug.st/f) authors.
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without
@@ -41,5 +41,7 @@ licenses:
     ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
     POSSIBILITY OF SUCH DAMAGE.
 
+- sources: README.md
+  text: This package is released under the permissive BSD-3-CLAUSE.
 notices: []
 ...
