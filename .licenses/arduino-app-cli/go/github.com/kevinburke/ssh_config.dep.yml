@@ -1,6 +1,6 @@
 ---
 name: github.com/kevinburke/ssh_config
-version: v1.2.0
+version: v1.5.0
 type: go
 summary: Package ssh_config provides tools for manipulating SSH config files.
 homepage: https://pkg.go.dev/github.com/kevinburke/ssh_config
@@ -67,5 +67,7 @@ notices:
     Mark Nevill <nev@improbable.io>
     Scott Lessans <slessans@gmail.com>
     Sergey Lukjanov <me@slukjanov.name>
+    Simon Josefsson <simon@josefsson.org>
+    sio2boss <sio2boss@users.noreply.github.com>
     Wayne Ashley Berry <wayneashleyberry@gmail.com>
     santosh653 <70637961+santosh653@users.noreply.github.com>

@@ -1,6 +1,6 @@
 ---
 name: github.com/sagikazarmark/locafero
-version: v0.11.0
+version: v0.12.0
 type: go
 summary: Package locafero looks for files and directories in an {fs.Fs} filesystem.
 homepage: https://pkg.go.dev/github.com/sagikazarmark/locafero
