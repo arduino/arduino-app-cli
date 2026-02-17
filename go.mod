@@ -15,7 +15,7 @@ replace (
 
 require (
 	github.com/Andrew-M-C/go.emoji v1.1.4
-	github.com/arduino/arduino-cli v1.4.2-0.20260213103629-ea956a3992b4
+	github.com/arduino/arduino-cli v1.4.0
 	github.com/arduino/go-paths-helper v1.14.0
 	github.com/compose-spec/compose-go/v2 v2.8.1
 	github.com/containerd/errdefs v1.0.0
@@ -267,7 +267,7 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zclconf/go-cty v1.16.2 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
-	go.bug.st/downloader/v3 v3.0.0 // indirect
+	go.bug.st/downloader/v2 v2.2.0 // indirect
 	go.bug.st/serial v1.6.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0 // indirect
