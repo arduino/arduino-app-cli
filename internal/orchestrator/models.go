@@ -404,7 +404,7 @@ func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *
 	return bricksConfig, nil
 }
 
-func mapCategoryToBricks(eiCategory edgeimpulse.ProjectCategory, lb *[]edgeimpulse.ImpulseLearnBlock) []string {
+func mapCategoryToBricks(eiCategory edgeimpulse.ProjectCategory, lb []edgeimpulse.ImpulseLearnBlock) []string {
 	switch eiCategory {
 	case edgeimpulse.ProjectCategoryObjectDetection:
 		return []string{"arduino:object_detection", "arduino:video_object_detection"}
