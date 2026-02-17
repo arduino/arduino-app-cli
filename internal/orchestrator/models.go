@@ -325,7 +325,7 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 		return AIModelItem{}, err
 	}
 
-	bricks, err := buildBrickConfigForEIModel(bricksIndex, project.Details.Category, edgeModelsDir, blobModelsDir)
+	bricks, err := buildBrickConfigForEIModel(bricksIndex, project.Details.Category, impulse.LearnBlocks, edgeModelsDir, blobModelsDir)
 	if err != nil {
 		return AIModelItem{}, err
 	}
@@ -367,20 +367,12 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 	}, nil
 }
 
-var mapCategoryToBricks = map[edgeimpulse.ProjectCategory][]string{
-	edgeimpulse.ProjectCategoryOther:           {},
-	edgeimpulse.ProjectCategoryObjectDetection: {"arduino:object_detection", "arduino:video_object_detection"},
-	edgeimpulse.ProjectCategoryImages:          {"arduino:image_classification", "arduino:video_image_classification"},
-	edgeimpulse.ProjectCategoryAudio:           {"arduino:audio_classification"},
-	edgeimpulse.ProjectCategoryKeywordSpotting: {"arduino:audio_classification", "arduino:keyword_spotting"},
-	edgeimpulse.ProjectCategoryAccelerometer:   {"arduino:gesture_recognition", "arduino:anomaly_detection"},
-}
-
-func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *edgeimpulse.ProjectCategory, edgeModelsDir *paths.Path, blobModelsDir *paths.Path) ([]custommodel.BrickConfig, error) {
+func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *edgeimpulse.ProjectCategory, impulse []edgeimpulse.ImpulseLearnBlock, edgeModelsDir *paths.Path, blobModelsDir *paths.Path) ([]custommodel.BrickConfig, error) {
 	if category == nil {
 		return []custommodel.BrickConfig{}, nil
 	}
-	bricksIds := mapCategoryToBricks[*category]
+
+	bricksIds := mapCategoryToBricks(*category, impulse)
 
 	bricksConfig := make([]custommodel.BrickConfig, 0)
 	for _, b := range bricksIds {
@@ -410,4 +402,26 @@ func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *
 		})
 	}
 	return bricksConfig, nil
+}
+
+func mapCategoryToBricks(eiCategory edgeimpulse.ProjectCategory, lb []edgeimpulse.ImpulseLearnBlock) []string {
+	switch eiCategory {
+	case edgeimpulse.ProjectCategoryObjectDetection:
+		return []string{"arduino:object_detection", "arduino:video_object_detection"}
+	case edgeimpulse.ProjectCategoryImages:
+		if slices.ContainsFunc(lb, func(block edgeimpulse.ImpulseLearnBlock) bool {
+			return block.Type == edgeimpulse.KerasVisualAnomaly
+		}) {
+			return []string{"arduino:visual_anomaly_detection"}
+		}
+		return []string{"arduino:image_classification", "arduino:video_image_classification"}
+	case edgeimpulse.ProjectCategoryAudio:
+		return []string{"arduino:audio_classification"}
+	case edgeimpulse.ProjectCategoryKeywordSpotting:
+		return []string{"arduino:audio_classification", "arduino:keyword_spotting"}
+	case edgeimpulse.ProjectCategoryAccelerometer:
+		return []string{"arduino:motion_detection", "arduino:vibration_anomaly_detection"}
+	default:
+		return []string{}
+	}
 }

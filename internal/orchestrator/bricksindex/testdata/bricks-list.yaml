@@ -196,3 +196,161 @@ bricks:
       default_value: another_visible_value
       description: this variable is visiable because 'hidden' field is missing
       hidden: false
+- id: arduino:video_image_classification
+  name: Video Image Classification
+  description: 'This image classification brick utilizes a pre-trained model to analyze
+    video streams from a camera.
+
+    It identifies objects, returning their predicted class labels and confidence scores.
+
+    The output is a video stream featuring classification as overaly, with the added
+    capability to trigger actions based on these detections.
+
+    It supports pre-trained models provided by the framework and custom object detection
+    models trained on the Edge Impulse platform.
+
+    '
+  require_container: true
+  require_model: true
+  mount_devices_into_container: true
+  ports: []
+  category: video
+  model_name: mobilenet-image-classification
+  required_devices:
+  - camera
+  variables:
+  - name: EI_V_CLASSIFICATION_MODEL
+    default_value: /models/ootb/ei/mobilenet-v2-224px.eim
+    description: Path to the model file
+    hidden: true
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: Path to the custom model directory
+    hidden: true
+  - name: BIND_ADDRESS
+    default_value: 0.0.0.0
+    description: Bind address
+    hidden: true
+  - name: VIDEO_DEVICE
+    default_value: /dev/video1
+    description: Video device path
+    hidden: true
+- id: arduino:audio_classification
+  name: Audio Classification
+  description: 'Brick for audio classification using a pre-trained model. It processes
+    audio input to classify different sounds.
+
+    Brick is designed to work with pre-trained models provided by framework or with
+    custom audio classification models trained on Edge Impulse platform.
+
+    '
+  require_container: true
+  require_model: true
+  mount_devices_into_container: false
+  ports: []
+  category: audio
+  model_name: glass-breaking
+  variables:
+  - name: EI_AUDIO_CLASSIFICATION_MODEL
+    default_value: /models/ootb/ei/glass-breaking.eim
+    description: Path to the model file
+    hidden: true
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: Path to the custom model directory
+    hidden: true
+  - name: BIND_ADDRESS
+    default_value: 127.0.0.1
+    description: Bind address
+    hidden: true
+- id: arduino:keyword_spotting
+  name: Keyword Spotting
+  description: 'Brick for keyword spotting using a pre-trained model. It processes
+    audio input to detect specific keywords or phrases.
+
+    Brick is designed to work with pre-trained models provided by framework or with
+    custom audio classification models trained on Edge Impulse platform.
+
+    '
+  require_container: true
+  require_model: true
+  mount_devices_into_container: false
+  ports: []
+  category: audio
+  model_name: keyword-spotting-hey-arduino
+  required_devices:
+  - microphone
+  variables:
+  - name: EI_KEYWORD_SPOTTING_MODEL
+    default_value: /models/ootb/ei/keyword-spotting-hey-arduino.eim
+    description: Path to the model file
+    hidden: true
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: Path to the custom model directory
+    hidden: true
+  - name: BIND_ADDRESS
+    default_value: 127.0.0.1
+    description: Bind address
+    hidden: true
+- id: arduino:motion_detection
+  name: Motion detection
+  description: 'This Brick is designed for motion detection and recognition, leveraging
+    pre-trained models.
+
+    It takes input from accelerometer sensors to identify various motion patterns.
+
+    You can use it with pre-trained models provided by the framework or with your
+    custom motion classification models trained on the Edge Impulse platform.
+
+    '
+  require_container: true
+  require_model: true
+  mount_devices_into_container: false
+  ports: []
+  category: null
+  model_name: updown-wave-motion-detection
+  variables:
+  - name: EI_MOTION_DETECTION_MODEL
+    default_value: /models/ootb/ei/updown-wave-motion-detection.eim
+    description: Path to the model file
+    hidden: true
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: Path to the custom model directory
+    hidden: true
+  - name: BIND_ADDRESS
+    default_value: 127.0.0.1
+    description: Bind address
+    hidden: true
+- id: arduino:vibration_anomaly_detection
+  name: Vibration Anomaly detection
+  description: 'This Brick is designed for vibration anomaly detection and recognition,
+    leveraging pre-trained models.
+
+    It takes input from sensors (accelerometer) to identify possible anomalies based
+    on vibration patterns.
+
+    You can use it with pre-trained models provided by the framework or with your
+    own custom anomaly detections models trained on the Edge Impulse platform.
+
+    '
+  require_container: true
+  require_model: true
+  mount_devices_into_container: false
+  ports: []
+  category: null
+  model_name: fan-anomaly-detection
+  variables:
+  - name: EI_VIBRATION_ANOMALY_DETECTION_MODEL
+    default_value: /models/ootb/ei/fan-anomaly-detection.eim
+    description: Path to the model file
+    hidden: true
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: Path to the custom model directory
+    hidden: true
+  - name: BIND_ADDRESS
+    default_value: 127.0.0.1
+    description: Bind address
+    hidden: true
