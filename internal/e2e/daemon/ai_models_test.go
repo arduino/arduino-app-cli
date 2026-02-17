@@ -16,8 +16,8 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,9 +28,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.bug.st/f"
 
+	"github.com/arduino/go-paths-helper"
+
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
 )
 
 func TestAIModelList(t *testing.T) {
@@ -64,8 +67,11 @@ func TestAIModelList(t *testing.T) {
 }
 
 func TestAIModelDetails(t *testing.T) {
-	// setup
-	httpClient := GetHttpclient(t)
+	customModelDir := paths.TempDir()
+	require.NoError(t, customModelDir.MkdirAll())
+	defer os.RemoveAll(customModelDir.String())
+
+	httpClient := GetHttpclient(t, e2e.WithCustomModelDir(customModelDir))
 
 	aiModelsList, err := httpClient.GetAIModelsWithResponse(t.Context(), nil)
 	require.NoError(t, err, "The HTTP client should not return an error for a 200 response")
@@ -108,17 +114,20 @@ func TestAIModelDetails(t *testing.T) {
 
 	})
 	t.Run("should return full details for a valid custom model ID", func(t *testing.T) {
-
 		modelId := "custom-classification-model-eim"
 		expecteBricks := []string{"arduino:audio_classification"}
 		expectedName := "Test custom model"
 		expectedDescription := "Test custom model."
 		expectedDiskUsage := 614577
 
-		err := copyModel(t, true)
-		if err != nil {
-			require.FailNow(t, "unable to create model file")
-		}
+		_, err := custommodel.Store(customModelDir, custommodel.ModelDescriptor{
+			ID:     "custom-classification-model-eim",
+			Runner: "brick",
+			Bricks: []custommodel.BrickConfig{
+				{ID: "arduino:audio_classification"},
+			},
+		}, io.NopCloser(bytes.NewReader([]byte("some random data to create a non empty model file"))), "model.eim")
+		require.NoError(t, err, "failed to store the model in the custom model directory")
 
 		// We have to add an empty editor because there is a bug that make the function panic if we pass nil
 		response, err := httpClient.GetAIModelDetailsWithResponse(t.Context(), modelId, func(ctx context.Context, req *http.Request) error { return nil })
@@ -172,7 +181,11 @@ func TestAIModelDetails(t *testing.T) {
 }
 
 func TestAIModelDelete(t *testing.T) {
-	httpClient := GetHttpclient(t)
+	customModelDir := paths.TempDir()
+	require.NoError(t, customModelDir.MkdirAll(), "failed to create custom model directory")
+	defer os.RemoveAll(customModelDir.String())
+
+	httpClient := GetHttpclient(t, e2e.WithCustomModelDir(customModelDir))
 
 	t.Run("error on empty model id", func(t *testing.T) {
 		modelId := " "
@@ -222,10 +235,15 @@ func TestAIModelDelete(t *testing.T) {
 		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
 		expectedDetails := "Model cannot be deleted. The model is referenced by the following apps: \"test-app-ai-model-deletion\"."
 		var actualBody models.ErrorResponse
-		err := copyModel(t, false)
-		if err != nil {
-			require.FailNow(t, "unable to create model file")
-		}
+
+		_, err := custommodel.Store(customModelDir, custommodel.ModelDescriptor{
+			ID:     "custom-classification-model-eim",
+			Runner: "brick",
+			Bricks: []custommodel.BrickConfig{
+				{ID: "arduino:audio_classification"},
+			},
+		}, io.NopCloser(bytes.NewReader(nil)), "model.eim")
+		require.NoError(t, err, "failed to store the model in the custom model directory")
 
 		/* Create an app */
 		appName := "test-app-ai-model-deletion"
@@ -282,41 +300,4 @@ func TestAIModelDelete(t *testing.T) {
 		require.NotEmpty(t, aiModelsList.JSON200.Models)
 		require.Equal(t, availableModels-1, len(*aiModelsList.JSON200.Models))
 	})
-}
-
-func copyModel(t *testing.T, createModel bool) error {
-	t.Helper()
-	baseDir := e2e.FindRepositoryRootPath(t).Join("internal", "e2e", "daemon", "testdata")
-
-	src := baseDir.Join("template", "test-model").String()
-	dst := baseDir.Join("custom_models", "test-model.tmp")
-	dstStr := dst.String()
-	os.RemoveAll(dstStr)
-
-	if err := os.MkdirAll(dstStr, 0755); err != nil {
-		return fmt.Errorf("failed to create dst dir: %w", err)
-	}
-	err := os.CopyFS(dstStr, os.DirFS(src))
-	if err != nil {
-		return fmt.Errorf("CopyFS failed from %s to %s: %w", src, dst, err)
-	}
-	if createModel {
-
-		fakeFilePath := dst.Join("fake_model.eim").String()
-		createFakeModelFile(t, fakeFilePath)
-		t.Cleanup(func() {
-			os.RemoveAll(fakeFilePath)
-		})
-	}
-	return nil
-}
-
-func createFakeModelFile(t *testing.T, path string) {
-	t.Helper()
-	const size = 600 * 1024 // 600 KB
-	f, err := os.Create(path)
-	require.NoError(t, err)
-	defer f.Close()
-	_, err = io.CopyN(f, rand.Reader, size)
-	require.NoError(t, err)
 }

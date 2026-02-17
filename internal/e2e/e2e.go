@@ -45,7 +45,19 @@ type ArduinoAppCLI struct {
 	daemonClient *client.Client
 }
 
-func NewArduinoAppCLI(t *testing.T) *ArduinoAppCLI {
+// ArduinoAppCLIOption allows customizing ArduinoAppCLI construction
+type ArduinoAppCLIOption func(*ArduinoAppCLI)
+
+// WithCustomModelDir sets a custom model directory in envVars
+func WithCustomModelDir(dir *paths.Path) ArduinoAppCLIOption {
+	return func(cli *ArduinoAppCLI) {
+		if dir != nil {
+			cli.envVars["ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR"] = dir.String()
+		}
+	}
+}
+
+func NewArduinoAppCLI(t *testing.T, opts ...ArduinoAppCLIOption) *ArduinoAppCLI {
 	rootDir, err := paths.MkTempDir("", "app-cli")
 	require.NoError(t, err)
 	appDir := rootDir.Join("ArduinoApps")
@@ -57,19 +69,22 @@ func NewArduinoAppCLI(t *testing.T) *ArduinoAppCLI {
 		require.NoError(t, err, "failed to copy testdata to temp dir")
 	}
 
-	return &ArduinoAppCLI{
+	cli := &ArduinoAppCLI{
 		t:          require.New(t),
 		DaemonAddr: "",
 		path:       FindArduinoAppCLIPath(t),
 		appDir:     appDir,
 		configDir:  configDir,
 		envVars: map[string]string{
-			"ARDUINO_APP_CLI__APPS_DIR":            appDir.String(),
-			"ARDUINO_APP_CLI__CONFIG_DIR":          configDir.String(),
-			"ARDUINO_APP_CLI__DATA_DIR":            dataDir.String(),
-			"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": originalTestDataDir.Join("custom_models").String(),
+			"ARDUINO_APP_CLI__APPS_DIR":   appDir.String(),
+			"ARDUINO_APP_CLI__CONFIG_DIR": configDir.String(),
+			"ARDUINO_APP_CLI__DATA_DIR":   dataDir.String(),
 		},
 	}
+	for _, opt := range opts {
+		opt(cli)
+	}
+	return cli
 }
 
 // FindRepositoryRootPath returns the repository root path
@@ -92,8 +107,8 @@ func FindArduinoAppCLIPath(t *testing.T) *paths.Path {
 // CreateEnvForDaemon performs the minimum required operations to start the arduino-app-cli daemon.
 // It returns a testsuite.Environment and an ArduinoAppCLI client to perform the integration tests.
 // The Environment must be disposed by calling the CleanUp method via defer.
-func CreateEnvForDaemon(t *testing.T) *ArduinoAppCLI {
-	cli := NewArduinoAppCLI(t)
+func CreateEnvForDaemon(t *testing.T, opts ...ArduinoAppCLIOption) *ArduinoAppCLI {
+	cli := NewArduinoAppCLI(t, opts...)
 	_ = cli.StartDaemon(false)
 	return cli
 }

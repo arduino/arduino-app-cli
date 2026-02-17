@@ -24,9 +24,9 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
 )
 
-func GetHttpclient(t *testing.T) *client.ClientWithResponses {
+func GetHttpclient(t *testing.T, opts ...e2e.ArduinoAppCLIOption) *client.ClientWithResponses {
 	t.Helper()
-	cli := e2e.CreateEnvForDaemon(t)
+	cli := e2e.CreateEnvForDaemon(t, opts...)
 	t.Cleanup(cli.CleanUp)
 	httpClient, err := client.NewClientWithResponses(cli.DaemonAddr)
 	require.NoError(t, err)
