@@ -89,23 +89,19 @@ func TestBuildBrickConfigForEIModel_wLearningBlock(t *testing.T) {
 	result, err := buildBrickConfigForEIModel(
 		brickIndex,
 		&category,
-		&lb,
+		lb,
 		edgeModelsDir,
 		blobModelsDir,
 	)
 
 	require.NoError(t, err)
-	require.Len(t, result, 2)
+	require.Len(t, result, 1)
 	require.Equal(t, "arduino:visual_anomaly_detection", result[0].ID)
 
 	require.Equal(t, map[string]string{
-		"CUSTOM_MODEL_PATH":      "/models/custom-ei/ei-xxxx-yyyy",
-		"EI_OBJ_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+		"CUSTOM_MODEL_PATH":            "/models/custom-ei/ei-xxxx-yyyy",
+		"EI_V_ANOMALY_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
 	}, result[0].ModelConfiguration)
-	require.Equal(t, map[string]string{
-		"CUSTOM_MODEL_PATH":      "/models/custom-ei/ei-xxxx-yyyy",
-		"EI_OBJ_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
-	}, result[1].ModelConfiguration)
 }
 
 func createFileWithSize(t *testing.T, dir, name string, size int) {
