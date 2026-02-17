@@ -50,7 +50,7 @@ func TestBuildBrickConfigForEIModel(t *testing.T) {
 		category       edgeimpulse.ProjectCategory
 		learnBlocks    []edgeimpulse.ImpulseLearnBlock
 		expectedIDs    []string
-		expectedConfig map[string]string
+		expectedConfig []map[string]string
 	}{
 		{
 			name:        "object detection",
@@ -60,13 +60,19 @@ func TestBuildBrickConfigForEIModel(t *testing.T) {
 				"arduino:object_detection",
 				"arduino:video_object_detection",
 			},
-			expectedConfig: map[string]string{
-				"CUSTOM_MODEL_PATH":      "/models/custom-ei/ei-xxxx-yyyy",
-				"EI_OBJ_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+			expectedConfig: []map[string]string{
+				{
+					"CUSTOM_MODEL_PATH":      "/models/custom-ei/ei-xxxx-yyyy",
+					"EI_OBJ_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+				},
+				{
+					"CUSTOM_MODEL_PATH":      "/models/custom-ei/ei-xxxx-yyyy",
+					"EI_OBJ_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+				},
 			},
 		},
 		{
-			name:     "images with visual anomaly learning block",
+			name:     "Images with visual anomaly learning block",
 			category: edgeimpulse.ProjectCategoryImages,
 			learnBlocks: []edgeimpulse.ImpulseLearnBlock{
 				{
@@ -76,9 +82,74 @@ func TestBuildBrickConfigForEIModel(t *testing.T) {
 			expectedIDs: []string{
 				"arduino:visual_anomaly_detection",
 			},
-			expectedConfig: map[string]string{
-				"CUSTOM_MODEL_PATH":            "/models/custom-ei/ei-xxxx-yyyy",
-				"EI_V_ANOMALY_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+			expectedConfig: []map[string]string{
+				{
+					"CUSTOM_MODEL_PATH":            "/models/custom-ei/ei-xxxx-yyyy",
+					"EI_V_ANOMALY_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+				},
+			},
+		},
+		{
+			name:        "Images without visual anomaly learning block",
+			category:    edgeimpulse.ProjectCategoryImages,
+			learnBlocks: nil,
+			expectedIDs: []string{
+				"arduino:image_classification",
+				"arduino:video_image_classification"},
+
+			expectedConfig: []map[string]string{
+				{
+					"CUSTOM_MODEL_PATH":       "/models/custom-ei/ei-xxxx-yyyy",
+					"EI_CLASSIFICATION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+				},
+				{
+					"CUSTOM_MODEL_PATH":         "/models/custom-ei/ei-xxxx-yyyy",
+					"EI_V_CLASSIFICATION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+				},
+			},
+		},
+		{
+			name:        "Keyword spotting",
+			category:    edgeimpulse.ProjectCategoryKeywordSpotting,
+			learnBlocks: nil,
+			expectedIDs: []string{"arduino:audio_classification", "arduino:keyword_spotting"},
+			expectedConfig: []map[string]string{
+				{
+					"CUSTOM_MODEL_PATH":             "/models/custom-ei/ei-xxxx-yyyy",
+					"EI_AUDIO_CLASSIFICATION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+				},
+				{
+					"CUSTOM_MODEL_PATH":         "/models/custom-ei/ei-xxxx-yyyy",
+					"EI_KEYWORD_SPOTTING_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+				},
+			},
+		},
+		{
+			name:        "Audio classification",
+			category:    edgeimpulse.ProjectCategoryAudio,
+			learnBlocks: nil,
+			expectedIDs: []string{"arduino:audio_classification"},
+			expectedConfig: []map[string]string{
+				{
+					"CUSTOM_MODEL_PATH":             "/models/custom-ei/ei-xxxx-yyyy",
+					"EI_AUDIO_CLASSIFICATION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+				},
+			},
+		},
+		{
+			name:        "Accelerometer",
+			category:    edgeimpulse.ProjectCategoryAccelerometer,
+			learnBlocks: nil,
+			expectedIDs: []string{"arduino:motion_detection", "arduino:vibration_anomaly_detection"},
+			expectedConfig: []map[string]string{
+				{
+					"CUSTOM_MODEL_PATH":         "/models/custom-ei/ei-xxxx-yyyy",
+					"EI_MOTION_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+				},
+				{
+					"CUSTOM_MODEL_PATH":                    "/models/custom-ei/ei-xxxx-yyyy",
+					"EI_VIBRATION_ANOMALY_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+				},
 			},
 		},
 	}
@@ -98,7 +169,7 @@ func TestBuildBrickConfigForEIModel(t *testing.T) {
 
 			for i, expectedID := range tt.expectedIDs {
 				require.Equal(t, expectedID, result[i].ID)
-				require.Equal(t, tt.expectedConfig, result[i].ModelConfiguration)
+				require.Equal(t, tt.expectedConfig[i], result[i].ModelConfiguration)
 			}
 		})
 	}
