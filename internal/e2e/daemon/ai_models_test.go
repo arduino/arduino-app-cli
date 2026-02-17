@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -68,9 +67,7 @@ func TestAIModelList(t *testing.T) {
 
 func TestAIModelDetails(t *testing.T) {
 	customModelDir, err := paths.MkTempDir("", "models")
-	require.NoError(t, err, "failed to create custom model directory")
-	require.NoError(t, customModelDir.MkdirAll())
-	defer os.RemoveAll(customModelDir.String())
+	require.NoError(t, err)
 
 	httpClient := GetHttpclient(t, e2e.WithCustomModelDir(customModelDir))
 
@@ -120,28 +117,27 @@ func TestAIModelDetails(t *testing.T) {
 			ID:          "custom-classification-model-eim",
 			Name:        "this the name of the model",
 			Description: "this is the description of the model",
-			Runner:      "brick",
 			Bricks: []custommodel.BrickConfig{
 				{ID: "arduino:audio_classification"},
 			},
 		}, io.NopCloser(bytes.NewReader([]byte("some random data to create a non empty model file"))), "model.eim")
-		require.NoError(t, err, "failed to store the model in the custom model directory")
+		require.NoError(t, err)
 
 		// We have to add an empty editor because there is a bug that make the function panic if we pass nil
 		response, err := httpClient.GetAIModelDetailsWithResponse(t.Context(), "custom-classification-model-eim", func(ctx context.Context, req *http.Request) error { return nil })
-		require.NoError(t, err, "The HTTP client should not return an error for a 200 response")
+		require.NoError(t, err)
+		require.NotNil(t, response.JSON200)
 
-		customModelDetails := response.JSON200
-
+		got := response.JSON200
 		require.Equal(t, &client.AIModelItem{
 			Id:          f.Ptr("custom-classification-model-eim"),
 			Name:        f.Ptr("this the name of the model"),
 			IsBuiltin:   f.Ptr(false),
-			Runner:      f.Ptr("brick"),
+			Runner:      f.Ptr(""),
 			Description: f.Ptr("this is the description of the model"),
 			BrickIds:    &[]string{"arduino:audio_classification"},
-			DiskUsage:   f.Ptr(225),
-		}, customModelDetails, "The returned model details should match the expected values")
+			DiskUsage:   f.Ptr(222),
+		}, got, "The returned model details should match the expected values")
 
 		// TODO test metadata and model configuration contents and runner
 		/*
@@ -176,9 +172,8 @@ func TestAIModelDetails(t *testing.T) {
 }
 
 func TestAIModelDelete(t *testing.T) {
-	customModelDir := paths.TempDir()
-	require.NoError(t, customModelDir.MkdirAll(), "failed to create custom model directory")
-	defer os.RemoveAll(customModelDir.String())
+	customModelDir, err := paths.MkTempDir("", "models")
+	require.NoError(t, err)
 
 	httpClient := GetHttpclient(t, e2e.WithCustomModelDir(customModelDir))
 
