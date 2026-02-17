@@ -188,6 +188,21 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 		return update.ErrOperationAlreadyInProgress
 	}
 
+	if len(packages) == 0 {
+		return nil
+	}
+	if len(packages) > 1 {
+		return fmt.Errorf("expected exactly one package to upgrade, got %d", len(packages))
+	}
+	pkg := packages[0]
+	if pkg.Name != "arduino:zephyr" {
+		return fmt.Errorf("unexpected package name '%s': this updater only supports '%s'", pkg.Name, "arduino:zephyr")
+	}
+	targetVersion := pkg.ToVersion
+	if targetVersion == "" {
+		return fmt.Errorf("target version is empty for package '%s'", pkg.Name)
+	}
+
 	downloadProgressCB := func(curr *rpc.DownloadProgress) {
 		data := helpers.ArduinoCLIDownloadProgressToString(curr)
 		slog.Debug("Download progress", slog.String("download_progress", data))
@@ -239,19 +254,6 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 		downloadProgressCB,
 		taskProgressCB,
 	)
-
-	if len(packages) != 1 {
-		return fmt.Errorf("expected exactly one package to upgrade, got %d", len(packages))
-	}
-	pkg := packages[0]
-	if pkg.Name != "arduino:zephyr" {
-		return fmt.Errorf("unexpected package name '%s': this updater only supports '%s'", pkg.Name, "arduino:zephyr")
-	}
-
-	targetVersion := pkg.ToVersion
-	if targetVersion == "" {
-		return fmt.Errorf("target version is empty for package '%s'", pkg.Name)
-	}
 
 	if err := srv.PlatformInstall(
 		&rpc.PlatformInstallRequest{
