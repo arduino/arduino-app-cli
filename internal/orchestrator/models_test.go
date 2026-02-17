@@ -37,36 +37,142 @@ import (
 )
 
 func TestBuildBrickConfigForEIModel(t *testing.T) {
-
 	brickIndex, err := bricksindex.Load(paths.New("bricksindex/testdata"))
 	if err != nil {
 		t.Fatalf("failed to load bricks index: %v", err)
 	}
 
-	category := edgeimpulse.ProjectCategory("Object detection")
 	edgeModelsDir := paths.New("/models/custom-ei/ei-xxxx-yyyy")
 	blobModelsDir := paths.New("/models/custom-ei/ei-xxxx-yyyy")
 
-	result, err := buildBrickConfigForEIModel(
-		brickIndex,
-		&category,
-		edgeModelsDir,
-		blobModelsDir,
-	)
+	tests := []struct {
+		name           string
+		category       edgeimpulse.ProjectCategory
+		learnBlocks    []edgeimpulse.ImpulseLearnBlock
+		expectedIDs    []string
+		expectedConfig []map[string]string
+	}{
+		{
+			name:        "object detection",
+			category:    edgeimpulse.ProjectCategoryObjectDetection,
+			learnBlocks: nil,
+			expectedIDs: []string{
+				"arduino:object_detection",
+				"arduino:video_object_detection",
+			},
+			expectedConfig: []map[string]string{
+				{
+					"CUSTOM_MODEL_PATH":      "/models/custom-ei/ei-xxxx-yyyy",
+					"EI_OBJ_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+				},
+				{
+					"CUSTOM_MODEL_PATH":      "/models/custom-ei/ei-xxxx-yyyy",
+					"EI_OBJ_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+				},
+			},
+		},
+		{
+			name:     "Images with visual anomaly learning block",
+			category: edgeimpulse.ProjectCategoryImages,
+			learnBlocks: []edgeimpulse.ImpulseLearnBlock{
+				{
+					Type: edgeimpulse.KerasVisualAnomaly,
+				},
+			},
+			expectedIDs: []string{
+				"arduino:visual_anomaly_detection",
+			},
+			expectedConfig: []map[string]string{
+				{
+					"CUSTOM_MODEL_PATH":            "/models/custom-ei/ei-xxxx-yyyy",
+					"EI_V_ANOMALY_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+				},
+			},
+		},
+		{
+			name:        "Images without visual anomaly learning block",
+			category:    edgeimpulse.ProjectCategoryImages,
+			learnBlocks: nil,
+			expectedIDs: []string{
+				"arduino:image_classification",
+				"arduino:video_image_classification"},
 
-	require.NoError(t, err)
-	require.Len(t, result, 2)
-	require.Equal(t, "arduino:object_detection", result[0].ID)
-	require.Equal(t, "arduino:video_object_detection", result[1].ID)
+			expectedConfig: []map[string]string{
+				{
+					"CUSTOM_MODEL_PATH":       "/models/custom-ei/ei-xxxx-yyyy",
+					"EI_CLASSIFICATION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+				},
+				{
+					"CUSTOM_MODEL_PATH":         "/models/custom-ei/ei-xxxx-yyyy",
+					"EI_V_CLASSIFICATION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+				},
+			},
+		},
+		{
+			name:        "Keyword spotting",
+			category:    edgeimpulse.ProjectCategoryKeywordSpotting,
+			learnBlocks: nil,
+			expectedIDs: []string{"arduino:audio_classification", "arduino:keyword_spotting"},
+			expectedConfig: []map[string]string{
+				{
+					"CUSTOM_MODEL_PATH":             "/models/custom-ei/ei-xxxx-yyyy",
+					"EI_AUDIO_CLASSIFICATION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+				},
+				{
+					"CUSTOM_MODEL_PATH":         "/models/custom-ei/ei-xxxx-yyyy",
+					"EI_KEYWORD_SPOTTING_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+				},
+			},
+		},
+		{
+			name:        "Audio classification",
+			category:    edgeimpulse.ProjectCategoryAudio,
+			learnBlocks: nil,
+			expectedIDs: []string{"arduino:audio_classification"},
+			expectedConfig: []map[string]string{
+				{
+					"CUSTOM_MODEL_PATH":             "/models/custom-ei/ei-xxxx-yyyy",
+					"EI_AUDIO_CLASSIFICATION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+				},
+			},
+		},
+		{
+			name:        "Accelerometer",
+			category:    edgeimpulse.ProjectCategoryAccelerometer,
+			learnBlocks: nil,
+			expectedIDs: []string{"arduino:motion_detection", "arduino:vibration_anomaly_detection"},
+			expectedConfig: []map[string]string{
+				{
+					"CUSTOM_MODEL_PATH":         "/models/custom-ei/ei-xxxx-yyyy",
+					"EI_MOTION_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+				},
+				{
+					"CUSTOM_MODEL_PATH":                    "/models/custom-ei/ei-xxxx-yyyy",
+					"EI_VIBRATION_ANOMALY_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+				},
+			},
+		},
+	}
 
-	require.Equal(t, map[string]string{
-		"CUSTOM_MODEL_PATH":      "/models/custom-ei/ei-xxxx-yyyy",
-		"EI_OBJ_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
-	}, result[0].ModelConfiguration)
-	require.Equal(t, map[string]string{
-		"CUSTOM_MODEL_PATH":      "/models/custom-ei/ei-xxxx-yyyy",
-		"EI_OBJ_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
-	}, result[1].ModelConfiguration)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := buildBrickConfigForEIModel(
+				brickIndex,
+				&tt.category,
+				tt.learnBlocks,
+				edgeModelsDir,
+				blobModelsDir,
+			)
+
+			require.NoError(t, err)
+			require.Len(t, result, len(tt.expectedIDs))
+
+			for i, expectedID := range tt.expectedIDs {
+				require.Equal(t, expectedID, result[i].ID)
+				require.Equal(t, tt.expectedConfig[i], result[i].ModelConfiguration)
+			}
+		})
+	}
 }
 
 func createFileWithSize(t *testing.T, dir, name string, size int) {
