@@ -2,7 +2,7 @@
 name: github.com/arduino/arduino-cli/commands/cmderrors
 version: v1.4.0
 type: go
-summary:
+summary: 
 homepage: https://pkg.go.dev/github.com/arduino/arduino-cli/commands/cmderrors
 license: other
 licenses:

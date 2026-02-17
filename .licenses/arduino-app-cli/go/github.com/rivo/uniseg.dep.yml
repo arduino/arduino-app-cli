@@ -1,16 +1,17 @@
 ---
-name: github.com/klauspost/cpuid/v2
-version: v2.3.0
+name: github.com/rivo/uniseg
+version: v0.4.7
 type: go
-summary: Package cpuid provides information about the CPU running the current program.
-homepage: https://pkg.go.dev/github.com/klauspost/cpuid/v2
+summary: Package uniseg implements Unicode Text Segmentation, Unicode Line Breaking,
+  and string width calculation for monospace fonts.
+homepage: https://pkg.go.dev/github.com/rivo/uniseg
 license: mit
 licenses:
-- sources: LICENSE
-  text: |+
-    The MIT License (MIT)
+- sources: LICENSE.txt
+  text: |
+    MIT License
 
-    Copyright (c) 2015 Klaus Post
+    Copyright (c) 2019 Oliver Kuederle
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -29,8 +30,4 @@ licenses:
     LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
-
-- sources: README.md
-  text: This code is published under an MIT license. See LICENSE file for more information.
 notices: []
-...

@@ -2,7 +2,7 @@
 name: github.com/arduino/arduino-cli/commands
 version: v1.4.0
 type: go
-summary:
+summary: 
 homepage: https://pkg.go.dev/github.com/arduino/arduino-cli/commands
 license: other
 licenses:

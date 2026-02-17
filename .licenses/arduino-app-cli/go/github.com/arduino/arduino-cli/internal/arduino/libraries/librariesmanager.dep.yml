@@ -2,7 +2,7 @@
 name: github.com/arduino/arduino-cli/internal/arduino/libraries/librariesmanager
 version: v1.4.0
 type: go
-summary:
+summary: 
 homepage: https://pkg.go.dev/github.com/arduino/arduino-cli/internal/arduino/libraries/librariesmanager
 license: other
 licenses:
