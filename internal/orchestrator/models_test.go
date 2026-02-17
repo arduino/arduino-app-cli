@@ -37,71 +37,71 @@ import (
 )
 
 func TestBuildBrickConfigForEIModel(t *testing.T) {
-
 	brickIndex, err := bricksindex.Load(paths.New("bricksindex/testdata"))
 	if err != nil {
 		t.Fatalf("failed to load bricks index: %v", err)
 	}
 
-	category := edgeimpulse.ProjectCategoryObjectDetection
 	edgeModelsDir := paths.New("/models/custom-ei/ei-xxxx-yyyy")
 	blobModelsDir := paths.New("/models/custom-ei/ei-xxxx-yyyy")
 
-	result, err := buildBrickConfigForEIModel(
-		brickIndex,
-		&category,
-		nil,
-		edgeModelsDir,
-		blobModelsDir,
-	)
-
-	require.NoError(t, err)
-	require.Len(t, result, 2)
-	require.Equal(t, "arduino:object_detection", result[0].ID)
-	require.Equal(t, "arduino:video_object_detection", result[1].ID)
-
-	require.Equal(t, map[string]string{
-		"CUSTOM_MODEL_PATH":      "/models/custom-ei/ei-xxxx-yyyy",
-		"EI_OBJ_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
-	}, result[0].ModelConfiguration)
-	require.Equal(t, map[string]string{
-		"CUSTOM_MODEL_PATH":      "/models/custom-ei/ei-xxxx-yyyy",
-		"EI_OBJ_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
-	}, result[1].ModelConfiguration)
-}
-
-func TestBuildBrickConfigForEIModel_wLearningBlock(t *testing.T) {
-
-	brickIndex, err := bricksindex.Load(paths.New("bricksindex/testdata"))
-	if err != nil {
-		t.Fatalf("failed to load bricks index: %v", err)
-	}
-
-	category := edgeimpulse.ProjectCategoryImages
-	lb := []edgeimpulse.ImpulseLearnBlock{
+	tests := []struct {
+		name           string
+		category       edgeimpulse.ProjectCategory
+		learnBlocks    []edgeimpulse.ImpulseLearnBlock
+		expectedIDs    []string
+		expectedConfig map[string]string
+	}{
 		{
-			Type: edgeimpulse.KerasVisualAnomaly,
+			name:        "object detection",
+			category:    edgeimpulse.ProjectCategoryObjectDetection,
+			learnBlocks: nil,
+			expectedIDs: []string{
+				"arduino:object_detection",
+				"arduino:video_object_detection",
+			},
+			expectedConfig: map[string]string{
+				"CUSTOM_MODEL_PATH":      "/models/custom-ei/ei-xxxx-yyyy",
+				"EI_OBJ_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+			},
+		},
+		{
+			name:     "images with visual anomaly learning block",
+			category: edgeimpulse.ProjectCategoryImages,
+			learnBlocks: []edgeimpulse.ImpulseLearnBlock{
+				{
+					Type: edgeimpulse.KerasVisualAnomaly,
+				},
+			},
+			expectedIDs: []string{
+				"arduino:visual_anomaly_detection",
+			},
+			expectedConfig: map[string]string{
+				"CUSTOM_MODEL_PATH":            "/models/custom-ei/ei-xxxx-yyyy",
+				"EI_V_ANOMALY_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+			},
 		},
 	}
-	edgeModelsDir := paths.New("/models/custom-ei/ei-xxxx-yyyy")
-	blobModelsDir := paths.New("/models/custom-ei/ei-xxxx-yyyy")
 
-	result, err := buildBrickConfigForEIModel(
-		brickIndex,
-		&category,
-		lb,
-		edgeModelsDir,
-		blobModelsDir,
-	)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := buildBrickConfigForEIModel(
+				brickIndex,
+				&tt.category,
+				tt.learnBlocks,
+				edgeModelsDir,
+				blobModelsDir,
+			)
 
-	require.NoError(t, err)
-	require.Len(t, result, 1)
-	require.Equal(t, "arduino:visual_anomaly_detection", result[0].ID)
+			require.NoError(t, err)
+			require.Len(t, result, len(tt.expectedIDs))
 
-	require.Equal(t, map[string]string{
-		"CUSTOM_MODEL_PATH":            "/models/custom-ei/ei-xxxx-yyyy",
-		"EI_V_ANOMALY_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
-	}, result[0].ModelConfiguration)
+			for i, expectedID := range tt.expectedIDs {
+				require.Equal(t, expectedID, result[i].ID)
+				require.Equal(t, tt.expectedConfig, result[i].ModelConfiguration)
+			}
+		})
+	}
 }
 
 func createFileWithSize(t *testing.T, dir, name string, size int) {
