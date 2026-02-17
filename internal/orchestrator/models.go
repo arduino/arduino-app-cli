@@ -409,7 +409,7 @@ func mapCategoryToBricks(eiCategory edgeimpulse.ProjectCategory, lb []edgeimpuls
 	case edgeimpulse.ProjectCategoryObjectDetection:
 		return []string{"arduino:object_detection", "arduino:video_object_detection"}
 	case edgeimpulse.ProjectCategoryImages:
-		if lb != nil && slices.ContainsFunc(*lb, func(block edgeimpulse.ImpulseLearnBlock) bool {
+		if lb != nil && slices.ContainsFunc(lb, func(block edgeimpulse.ImpulseLearnBlock) bool {
 			return block.Type == edgeimpulse.KerasVisualAnomaly
 		}) {
 			return []string{"arduino:visual_anomaly_detection"}
