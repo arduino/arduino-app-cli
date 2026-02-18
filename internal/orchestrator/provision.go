@@ -278,13 +278,6 @@ func generateMainComposeFile(
 		services = append(services, svcs...)
 	}
 
-	// 6. Collect all the required device classes from the app descriptor
-	if len(app.Descriptor.RequiredDevices) > 0 {
-		for _, deviceClass := range app.Descriptor.RequiredDevices {
-			requiredDeviceClasses[deviceClass] = true
-		}
-	}
-
 	// Create a single docker-mainCompose that includes all the required services
 	mainComposeFile := app.AppComposeFilePath()
 	// If required, create an override compose file for devices
