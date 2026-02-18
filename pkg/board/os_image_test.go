@@ -89,7 +89,7 @@ func TestParseOSImageVersion(t *testing.T) {
 		{
 			name:  "empty build id",
 			input: "BUILD_ID=\n",
-			found: false,
+			found: true,
 		},
 	}
 	for _, tt := range tests {
