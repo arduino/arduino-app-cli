@@ -6,6 +6,7 @@ go 1.25.1
 // They changed the wait monitor ends. Because we're using the Logs() method, we are no longer able to make it
 // quit because the context is no longer propagated in the underlying monitor.
 replace (
+	github.com/arduino/arduino-cli => github.com/cmaglie/arduino-cli v0.0.0-20260217144331-277f14a842e9
 	github.com/compose-spec/compose-go/v2 => github.com/compose-spec/compose-go/v2 v2.7.1
 	github.com/docker/buildx => github.com/docker/buildx v0.25.0
 	github.com/docker/cli => github.com/docker/cli v28.3.2+incompatible
@@ -289,7 +290,7 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/mod v0.32.0 // indirect
 	golang.org/x/net v0.49.0 // indirect
-	golang.org/x/oauth2 v0.32.0 // indirect
+	golang.org/x/oauth2 v0.33.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/term v0.40.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
