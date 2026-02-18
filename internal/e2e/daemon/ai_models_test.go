@@ -66,7 +66,7 @@ func TestAIModelList(t *testing.T) {
 }
 
 func TestAIModelDetails(t *testing.T) {
-	customModelDir, err := paths.MkTempDir("", "models")
+	customModelDir, err := paths.MkTempDir("", "custom-models")
 	require.NoError(t, err)
 
 	httpClient := GetHttpclient(t, e2e.WithCustomModelDir(customModelDir))
@@ -113,7 +113,7 @@ func TestAIModelDetails(t *testing.T) {
 	})
 
 	t.Run("should return full details for a valid custom model ID", func(t *testing.T) {
-		_, err := custommodel.Store(customModelDir, custommodel.ModelDescriptor{
+		_, err := custommodel.Store(customModelDir.Join("my-model"), custommodel.ModelDescriptor{
 			ID:          "custom-classification-model-eim",
 			Name:        "this the name of the model",
 			Description: "this is the description of the model",
@@ -172,7 +172,7 @@ func TestAIModelDetails(t *testing.T) {
 }
 
 func TestAIModelDelete(t *testing.T) {
-	customModelDir, err := paths.MkTempDir("", "models")
+	customModelDir, err := paths.MkTempDir("", "custom-models")
 	require.NoError(t, err)
 
 	httpClient := GetHttpclient(t, e2e.WithCustomModelDir(customModelDir))
@@ -221,13 +221,13 @@ func TestAIModelDelete(t *testing.T) {
 
 	t.Run("delete a referenced model", func(t *testing.T) {
 		availableModels := 0
-		modelId := "custom-classification-model-eim"
+		modelId := "my-custom-classification-model-eim"
 		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
 		expectedDetails := "The model is referenced by bricks belonging to the following apps: test-app-ai-model-deletion: can't delete the model"
 		var actualBody models.ErrorResponse
 
-		_, err := custommodel.Store(customModelDir, custommodel.ModelDescriptor{
-			ID:     "custom-classification-model-eim",
+		_, err := custommodel.Store(customModelDir.Join("my-custom-model"), custommodel.ModelDescriptor{
+			ID:     modelId,
 			Runner: "brick",
 			Bricks: []custommodel.BrickConfig{
 				{ID: "arduino:audio_classification"},
@@ -262,7 +262,7 @@ func TestAIModelDelete(t *testing.T) {
 		appUpdate, err := httpClient.UpsertAppBrickInstanceWithResponse(
 			t.Context(),
 			*appID,
-			ImageClassifactionBrickID,
+			"arduino:audio_classification",
 			client.BrickCreateUpdateRequest{Model: &modelId},
 			func(ctx context.Context, req *http.Request) error { return nil },
 		)
