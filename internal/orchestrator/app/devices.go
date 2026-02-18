@@ -63,7 +63,7 @@ const (
 
 //  2. TODO marta: remove_camera_0 and other possible virtual devices should be moved in a dedicated list: excludeVirtualDeviceList []string
 //  3. TODO marta: there should be an additional check to handle brick variables configured with board devices
-//  4. TODO marta: After the code refactoring unit tests can be eaily implemented, cover this test:
+//  4. TODO marta: After the code refactoring unit tests can be eaily implemented, cover this test: provision_test.go:566
 //     t.Skip("in my pc the camera device is detected, so it is impossible to fail the test. To be fixed with a mock of the device detection logic")
 //  5. TODO marta: Create a PR for refactoring the code
 func ValidateRequiredDevices(a AppDescriptor, res *AvailableDevices) error {
