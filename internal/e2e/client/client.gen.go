@@ -388,6 +388,12 @@ type BadRequest = ErrorResponse
 // Conflict defines model for Conflict.
 type Conflict = ErrorResponse
 
+// Forbidden defines model for Forbidden.
+type Forbidden = ErrorResponse
+
+// InsufficientStorage defines model for InsufficientStorage.
+type InsufficientStorage = ErrorResponse
+
 // InternalServerError defines model for InternalServerError.
 type InternalServerError = ErrorResponse
 
@@ -489,12 +495,12 @@ type GetAIModelsParams struct {
 type InstallEIModelJSONBody struct {
 	// ImpulseId Edge Impulse impulse ID
 	ImpulseId int `json:"impulse_id"`
+}
 
-	// PrjApiKey Edge Impulse project API key
-	PrjApiKey string `json:"prj_api_key"`
-
-	// ProjectId Edge Impulse project ID
-	ProjectId int `json:"project_id"`
+// InstallEIModelParams defines parameters for InstallEIModel.
+type InstallEIModelParams struct {
+	// XApiKey Edge Impulse project API key
+	XApiKey string `json:"x-api-key"`
 }
 
 // DeleteAIModelParams defines parameters for DeleteAIModel.
@@ -709,9 +715,9 @@ type ClientInterface interface {
 	GetAIModels(ctx context.Context, params *GetAIModelsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// InstallEIModelWithBody request with any body
-	InstallEIModelWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	InstallEIModelWithBody(ctx context.Context, projectID int, params *InstallEIModelParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	InstallEIModel(ctx context.Context, body InstallEIModelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	InstallEIModel(ctx context.Context, projectID int, params *InstallEIModelParams, body InstallEIModelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteAIModel request
 	DeleteAIModel(ctx context.Context, id string, params *DeleteAIModelParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1145,8 +1151,8 @@ func (c *Client) GetAIModels(ctx context.Context, params *GetAIModelsParams, req
 	return c.Client.Do(req)
 }
 
-func (c *Client) InstallEIModelWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewInstallEIModelRequestWithBody(c.Server, contentType, body)
+func (c *Client) InstallEIModelWithBody(ctx context.Context, projectID int, params *InstallEIModelParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewInstallEIModelRequestWithBody(c.Server, projectID, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1157,8 +1163,8 @@ func (c *Client) InstallEIModelWithBody(ctx context.Context, contentType string,
 	return c.Client.Do(req)
 }
 
-func (c *Client) InstallEIModel(ctx context.Context, body InstallEIModelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewInstallEIModelRequest(c.Server, body)
+func (c *Client) InstallEIModel(ctx context.Context, projectID int, params *InstallEIModelParams, body InstallEIModelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewInstallEIModelRequest(c.Server, projectID, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2622,26 +2628,33 @@ func NewGetAIModelsRequest(server string, params *GetAIModelsParams) (*http.Requ
 }
 
 // NewInstallEIModelRequest calls the generic InstallEIModel builder with application/json body
-func NewInstallEIModelRequest(server string, body InstallEIModelJSONRequestBody) (*http.Request, error) {
+func NewInstallEIModelRequest(server string, projectID int, params *InstallEIModelParams, body InstallEIModelJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewInstallEIModelRequestWithBody(server, "application/json", bodyReader)
+	return NewInstallEIModelRequestWithBody(server, projectID, params, "application/json", bodyReader)
 }
 
 // NewInstallEIModelRequestWithBody generates requests for InstallEIModel with any type of body
-func NewInstallEIModelRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewInstallEIModelRequestWithBody(server string, projectID int, params *InstallEIModelParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "projectID", runtime.ParamLocationPath, projectID)
+	if err != nil {
+		return nil, err
+	}
 
 	serverURL, err := url.Parse(server)
 	if err != nil {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/v1/models/edge-impulse")
+	operationPath := fmt.Sprintf("/v1/models/ei/projects/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -2651,12 +2664,25 @@ func NewInstallEIModelRequestWithBody(server string, contentType string, body io
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", queryURL.String(), body)
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithLocation("simple", false, "x-api-key", runtime.ParamLocationHeader, params.XApiKey)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-api-key", headerParam0)
+
+	}
 
 	return req, nil
 }
@@ -3209,9 +3235,9 @@ type ClientWithResponsesInterface interface {
 	GetAIModelsWithResponse(ctx context.Context, params *GetAIModelsParams, reqEditors ...RequestEditorFn) (*GetAIModelsResp, error)
 
 	// InstallEIModelWithBodyWithResponse request with any body
-	InstallEIModelWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InstallEIModelResp, error)
+	InstallEIModelWithBodyWithResponse(ctx context.Context, projectID int, params *InstallEIModelParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InstallEIModelResp, error)
 
-	InstallEIModelWithResponse(ctx context.Context, body InstallEIModelJSONRequestBody, reqEditors ...RequestEditorFn) (*InstallEIModelResp, error)
+	InstallEIModelWithResponse(ctx context.Context, projectID int, params *InstallEIModelParams, body InstallEIModelJSONRequestBody, reqEditors ...RequestEditorFn) (*InstallEIModelResp, error)
 
 	// DeleteAIModelWithResponse request
 	DeleteAIModelWithResponse(ctx context.Context, id string, params *DeleteAIModelParams, reqEditors ...RequestEditorFn) (*DeleteAIModelResp, error)
@@ -3905,8 +3931,11 @@ type InstallEIModelResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *AIModelItem
+	JSON400      *BadRequest
 	JSON401      *Unauthorized
+	JSON403      *Forbidden
 	JSON500      *InternalServerError
+	JSON507      *InsufficientStorage
 }
 
 // Status returns HTTPResponse.Status
@@ -4477,16 +4506,16 @@ func (c *ClientWithResponses) GetAIModelsWithResponse(ctx context.Context, param
 }
 
 // InstallEIModelWithBodyWithResponse request with arbitrary body returning *InstallEIModelResp
-func (c *ClientWithResponses) InstallEIModelWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InstallEIModelResp, error) {
-	rsp, err := c.InstallEIModelWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) InstallEIModelWithBodyWithResponse(ctx context.Context, projectID int, params *InstallEIModelParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InstallEIModelResp, error) {
+	rsp, err := c.InstallEIModelWithBody(ctx, projectID, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseInstallEIModelResp(rsp)
 }
 
-func (c *ClientWithResponses) InstallEIModelWithResponse(ctx context.Context, body InstallEIModelJSONRequestBody, reqEditors ...RequestEditorFn) (*InstallEIModelResp, error) {
-	rsp, err := c.InstallEIModel(ctx, body, reqEditors...)
+func (c *ClientWithResponses) InstallEIModelWithResponse(ctx context.Context, projectID int, params *InstallEIModelParams, body InstallEIModelJSONRequestBody, reqEditors ...RequestEditorFn) (*InstallEIModelResp, error) {
+	rsp, err := c.InstallEIModel(ctx, projectID, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -5711,6 +5740,13 @@ func ParseInstallEIModelResp(rsp *http.Response) (*InstallEIModelResp, error) {
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -5718,12 +5754,26 @@ func ParseInstallEIModelResp(rsp *http.Response) (*InstallEIModelResp, error) {
 		}
 		response.JSON401 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 507:
+		var dest InsufficientStorage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON507 = &dest
 
 	}
 

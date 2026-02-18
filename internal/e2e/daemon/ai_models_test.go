@@ -16,21 +16,23 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.bug.st/f"
 
+	"github.com/arduino/go-paths-helper"
+
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
 )
 
 func TestAIModelList(t *testing.T) {
@@ -64,8 +66,10 @@ func TestAIModelList(t *testing.T) {
 }
 
 func TestAIModelDetails(t *testing.T) {
-	// setup
-	httpClient := GetHttpclient(t)
+	customModelDir, err := paths.MkTempDir("", "custom-models")
+	require.NoError(t, err)
+
+	httpClient := GetHttpclient(t, e2e.WithCustomModelDir(customModelDir))
 
 	aiModelsList, err := httpClient.GetAIModelsWithResponse(t.Context(), nil)
 	require.NoError(t, err, "The HTTP client should not return an error for a 200 response")
@@ -107,36 +111,34 @@ func TestAIModelDetails(t *testing.T) {
 		require.Nil(t, modelDetails.DiskUsage, "Response model's DiskUsage should be nil")
 
 	})
+
 	t.Run("should return full details for a valid custom model ID", func(t *testing.T) {
-
-		modelId := "custom-classification-model-eim"
-		expecteBricks := []string{"arduino:image_classification"}
-		expectedName := "Test custom model"
-		expectedDescription := "Test custom model."
-		expectedDiskUsage := 614577
-
-		err := copyModel(t, true)
-		if err != nil {
-			require.FailNow(t, "unable to create model file")
-		}
+		_, err := custommodel.Store(customModelDir.Join("my-model"), custommodel.ModelDescriptor{
+			ID:          "custom-classification-model-eim",
+			Name:        "this the name of the model",
+			Description: "this is the description of the model",
+			Bricks: []custommodel.BrickConfig{
+				{ID: "arduino:audio_classification"},
+			},
+		}, io.NopCloser(bytes.NewReader([]byte("some random data to create a non empty model file"))), "model.eim")
+		require.NoError(t, err)
 
 		// We have to add an empty editor because there is a bug that make the function panic if we pass nil
-		response, err := httpClient.GetAIModelDetailsWithResponse(t.Context(), modelId, func(ctx context.Context, req *http.Request) error { return nil })
-		require.NoError(t, err, "The HTTP client should not return an error for a 200 response")
+		response, err := httpClient.GetAIModelDetailsWithResponse(t.Context(), "custom-classification-model-eim", func(ctx context.Context, req *http.Request) error { return nil })
+		require.NoError(t, err)
+		require.NotNil(t, response.JSON200)
 
-		customModelDetails := response.JSON200
+		got := response.JSON200
+		require.Equal(t, &client.AIModelItem{
+			Id:          f.Ptr("custom-classification-model-eim"),
+			Name:        f.Ptr("this the name of the model"),
+			IsBuiltin:   f.Ptr(false),
+			Runner:      f.Ptr(""),
+			Description: f.Ptr("this is the description of the model"),
+			BrickIds:    &[]string{"arduino:audio_classification"},
+			DiskUsage:   f.Ptr(222),
+		}, got, "The returned model details should match the expected values")
 
-		require.NotNil(t, customModelDetails.Id, "Response model's ID should not be nil")
-		require.Equal(t, modelId, *customModelDetails.Id, "ID should match")
-
-		require.NotNil(t, customModelDetails.BrickIds, "Response model's BrickId should not be nil")
-		require.Equal(t, expecteBricks, *customModelDetails.BrickIds, "BrickIds should match")
-
-		require.NotNil(t, customModelDetails.Name, "Response model's Name should not be nil")
-		require.Equal(t, expectedName, *customModelDetails.Name, "Name should match")
-
-		require.NotNil(t, customModelDetails.Description, "Response model's Description should not be nil")
-		require.Equal(t, expectedDescription, *customModelDetails.Description, "Description should match")
 		// TODO test metadata and model configuration contents and runner
 		/*
 			    require.NotNil(t, customModelDetails.Metadata, "Response model's Metadata should not be nil")
@@ -148,8 +150,6 @@ func TestAIModelDetails(t *testing.T) {
 				require.NotNil(t, customModelDetails.Runner, "Response model's Runner should not be nil")
 				require.Equal(t, *expectedModel.Runner, *customModelDetails.Runner, "Runner should match")
 		*/
-		require.NotNil(t, customModelDetails.DiskUsage, "Response model's DiskUsage should not be nil")
-		require.Equal(t, expectedDiskUsage, *customModelDetails.DiskUsage, "Response model's Size should be 614577 bytes")
 	})
 
 	t.Run("should return 404 not found for an unknown model id", func(t *testing.T) {
@@ -172,7 +172,10 @@ func TestAIModelDetails(t *testing.T) {
 }
 
 func TestAIModelDelete(t *testing.T) {
-	httpClient := GetHttpclient(t)
+	customModelDir, err := paths.MkTempDir("", "custom-models")
+	require.NoError(t, err)
+
+	httpClient := GetHttpclient(t, e2e.WithCustomModelDir(customModelDir))
 
 	t.Run("error on empty model id", func(t *testing.T) {
 		modelId := " "
@@ -218,14 +221,19 @@ func TestAIModelDelete(t *testing.T) {
 
 	t.Run("delete a referenced model", func(t *testing.T) {
 		availableModels := 0
-		modelId := "custom-classification-model-eim"
+		modelId := "my-custom-classification-model-eim"
 		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
 		expectedDetails := "The model is referenced by bricks belonging to the following apps: test-app-ai-model-deletion: can't delete the model"
 		var actualBody models.ErrorResponse
-		err := copyModel(t, false)
-		if err != nil {
-			require.FailNow(t, "unable to create model file")
-		}
+
+		_, err := custommodel.Store(customModelDir.Join("my-custom-model"), custommodel.ModelDescriptor{
+			ID:     modelId,
+			Runner: "brick",
+			Bricks: []custommodel.BrickConfig{
+				{ID: "arduino:audio_classification"},
+			},
+		}, io.NopCloser(bytes.NewReader(nil)), "model.eim")
+		require.NoError(t, err, "failed to store the model in the custom model directory")
 
 		/* Create an app */
 		appName := "test-app-ai-model-deletion"
@@ -254,7 +262,7 @@ func TestAIModelDelete(t *testing.T) {
 		appUpdate, err := httpClient.UpsertAppBrickInstanceWithResponse(
 			t.Context(),
 			*appID,
-			ImageClassifactionBrickID,
+			"arduino:audio_classification",
 			client.BrickCreateUpdateRequest{Model: &modelId},
 			func(ctx context.Context, req *http.Request) error { return nil },
 		)
@@ -282,41 +290,4 @@ func TestAIModelDelete(t *testing.T) {
 		require.NotEmpty(t, aiModelsList.JSON200.Models)
 		require.Equal(t, availableModels-1, len(*aiModelsList.JSON200.Models))
 	})
-}
-
-func copyModel(t *testing.T, createModel bool) error {
-	t.Helper()
-	baseDir := e2e.FindRepositoryRootPath(t).Join("internal", "e2e", "daemon", "testdata")
-
-	src := baseDir.Join("template", "test-model").String()
-	dst := baseDir.Join("custom_models", "test-model.tmp")
-	dstStr := dst.String()
-	os.RemoveAll(dstStr)
-
-	if err := os.MkdirAll(dstStr, 0755); err != nil {
-		return fmt.Errorf("failed to create dst dir: %w", err)
-	}
-	err := os.CopyFS(dstStr, os.DirFS(src))
-	if err != nil {
-		return fmt.Errorf("CopyFS failed from %s to %s: %w", src, dst, err)
-	}
-	if createModel {
-
-		fakeFilePath := dst.Join("fake_model.eim").String()
-		createFakeModelFile(t, fakeFilePath)
-		t.Cleanup(func() {
-			os.RemoveAll(fakeFilePath)
-		})
-	}
-	return nil
-}
-
-func createFakeModelFile(t *testing.T, path string) {
-	t.Helper()
-	const size = 600 * 1024 // 600 KB
-	f, err := os.Create(path)
-	require.NoError(t, err)
-	defer f.Close()
-	_, err = io.CopyN(f, rand.Reader, size)
-	require.NoError(t, err)
 }
