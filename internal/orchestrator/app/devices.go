@@ -61,15 +61,14 @@ const (
 	SpeakerDevice    = "speaker"
 )
 
+//  2. TODO marta: remove_camera_0 and other possible virtual devices should be moved in a dedicated list: excludeVirtualDeviceList []string
+//  3. TODO marta: there should be an additional check to handle brick variables configured with board devices
+//  4. TODO marta: After the code refactoring unit tests can be eaily implemented, cover this test:
+//     t.Skip("in my pc the camera device is detected, so it is impossible to fail the test. To be fixed with a mock of the device detection logic")
+//  5. TODO marta: Create a PR for refactoring the code
 func ValidateRequiredDevices(a AppDescriptor, res *AvailableDevices) error {
 	// Required devices can be defined in both the bricks and the app descriptor
 	requiredDeviceClasses := make(map[string]bool)
-
-	if len(a.RequiredDevices) > 0 {
-		for _, deviceClass := range a.RequiredDevices {
-			requiredDeviceClasses[deviceClass] = true
-		}
-	}
 
 	for _, brick := range a.Bricks {
 		if len(brick.Devices) > 0 {
@@ -80,6 +79,13 @@ func ValidateRequiredDevices(a AppDescriptor, res *AvailableDevices) error {
 				}
 				requiredDeviceClasses[deviceClass] = true
 			}
+		}
+	}
+
+	// 1. TODO marta: Old code, should be removed by https://github.com/arduino/arduino-app-cli/pull/255
+	if len(a.RequiredDevices) > 0 {
+		for _, deviceClass := range a.RequiredDevices {
+			requiredDeviceClasses[deviceClass] = true
 		}
 	}
 
