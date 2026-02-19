@@ -159,7 +159,6 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
   require_model: true
   mount_devices_into_container: true
   model_name: a-complex-model
-  - camera
   ports:
   - 7000
   - 8080

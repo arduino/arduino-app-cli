@@ -59,11 +59,12 @@ func (d AppDescriptor) MarshalYAML() (any, error) {
 		bricks[i] = map[string]Brick{brick.ID: brick}
 	}
 	return &raw{
-		Name:        d.Name,
-		Description: d.Description,
-		Ports:       d.Ports,
-		Bricks:      bricks,
-		Icon:        d.Icon,
+		Name:            d.Name,
+		Description:     d.Description,
+		Ports:           d.Ports,
+		Bricks:          bricks,
+		Icon:            d.Icon,
+		RequiredDevices: d.RequiredDevices,
 	}, nil
 }
 
