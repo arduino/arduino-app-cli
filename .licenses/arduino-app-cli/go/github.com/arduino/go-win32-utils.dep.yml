@@ -5,7 +5,7 @@ type: go
 summary: win32 is a collection of useful bindings to Win32 API that are not available
   in the standard golang windows/syscall package.
 homepage: https://pkg.go.dev/github.com/arduino/go-win32-utils
-license: other
+license: gpl-2.0
 licenses:
 - sources: LICENSE.txt
   text: "                    GNU GENERAL PUBLIC LICENSE\n                       Version

@@ -4,7 +4,7 @@ version: v1.4.2-0.20260213103629-ea956a3992b4
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/arduino/arduino-cli/internal/arduino/resources
-license: other
+license: gpl-3.0
 licenses:
 - sources: arduino-cli@v1.4.2-0.20260213103629-ea956a3992b4/LICENSE.txt
   text: |2

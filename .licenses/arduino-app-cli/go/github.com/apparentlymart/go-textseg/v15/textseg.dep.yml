@@ -4,7 +4,7 @@ version: v15.0.0
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/apparentlymart/go-textseg/v15/textseg
-license: other
+license: mit
 licenses:
 - sources: v15@v15.0.0/LICENSE
   text: |
