@@ -139,8 +139,6 @@ The `app.yaml` file (also referred to as the **App Descriptor**) is the manifest
 
 - **bricks** - (Optional) A list of "Brick Object". Additional bricks needed by the app to perform specific tasks(see the next section for details).
 
-- **`required_devices`** (Optional): This is a list of "class" of devices, required by the app (e.g., `camera,remote_camera`, `microphone`, `remote_microphone`).
-
 ### 3.3 Brick Object Definition
 
 Bricks are Python-first modular dependencies that encapsulate both application logic and infrastructure configurations (such as Docker Compose files) to extend an App's capabilities.
@@ -155,6 +153,7 @@ This section describes the structure of a single item within the bricks list in 
   - Usage: These ports are used for user interaction (e.g., exposing web interfaces or APIs).
   - Default Behavior: If ports are not explicitly defined in the app.yaml file, the system automatically uses the default ports specified in the Brick's metadata (if any).
   - Collision: If two or more Bricks attempt to use the same port, a network collision occurs. This conflict will prevent one of the Bricks from starting, potentially causing the application to fail or remain in a partial state.
+- **required_devices** (Optional): This is a list of "class" of devices, required by the app (e.g., `camera`, `remote_camera`, `microphone`, `remote_microphone`).
 
   #### Handling Secrets in Variables
 The `app.yaml` supports the use of **Secrets** within the Brick `variables` map to handle sensitive information, such as database passwords.
