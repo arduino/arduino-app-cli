@@ -32,6 +32,7 @@ import (
 	"github.com/arduino/arduino-cli/commands"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
+	"github.com/compose-spec/compose-go/v2/validation"
 	"github.com/docker/cli/cli/command"
 	"github.com/goccy/go-yaml"
 	"github.com/gosimple/slug"
@@ -119,7 +120,7 @@ func StartApp(
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		err := peripherals.ValidateBricks(appToStart.Descriptor, bricksIndex, modelsIndex)
+		err := app.ValidateBricks(appToStart.Descriptor, bricksIndex, modelsIndex)
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return
