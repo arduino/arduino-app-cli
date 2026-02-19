@@ -278,7 +278,7 @@ func generateMainComposeFile(
 		services = append(services, svcs...)
 	}
 
-	if len(app.Descriptor.RequiredDevices) > 0 {
+	if len(app.Descriptor.RequiredDevices) > 0 { // nolint:staticcheck
 		slog.Warn("The 'required_devices' field is deprecated. Please move requirements to the specific 'bricks' section.")
 	}
 
