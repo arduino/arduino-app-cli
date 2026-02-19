@@ -173,7 +173,7 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 
 	if hasReferences || isRunning {
 		if !force {
-			return fmt.Errorf("%s: %w", buildModelInUseMessage(references, runningAppReference), ErrConflict)
+			return fmt.Errorf("%w. %s", ErrConflict, buildModelInUseMessage(references, runningAppReference))
 		}
 	}
 
@@ -195,16 +195,13 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 
 func buildModelInUseMessage(references []string, runningAppRef *app.ArduinoApp) string {
 	var sb strings.Builder
-	sb.WriteString("The model is")
 
 	if len(references) > 0 {
-		sb.WriteString(" referenced by bricks belonging to the following apps: ")
-		sb.WriteString(strings.Join(references, ", "))
+		sb.WriteString(fmt.Sprintf("The model is referenced by the following apps: %q.", strings.Join(references, ", ")))
 	}
 
 	if runningAppRef != nil {
-		sb.WriteString(" in use by the app ")
-		sb.WriteString(runningAppRef.Name)
+		sb.WriteString(fmt.Sprintf("The model is in use by the app: %q.", runningAppRef.Name))
 	}
 
 	return sb.String()

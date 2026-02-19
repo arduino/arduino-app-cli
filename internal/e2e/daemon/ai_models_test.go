@@ -223,7 +223,7 @@ func TestAIModelDelete(t *testing.T) {
 		availableModels := 0
 		modelId := "my-custom-classification-model-eim"
 		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
-		expectedDetails := "The model is referenced by bricks belonging to the following apps: test-app-ai-model-deletion: can't delete the model"
+		expectedDetails := "can't delete the model. The model is referenced by the following apps: \"test-app-ai-model-deletion\"."
 		var actualBody models.ErrorResponse
 
 		_, err := custommodel.Store(customModelDir.Join("my-custom-model"), custommodel.ModelDescriptor{
