@@ -39,7 +39,7 @@ func TestProvisionAppWithOverrides(t *testing.T) {
 	staticStore := store.NewStaticStore(cfg.AssetsDir().String())
 
 	// Define a mock app with bricks that require overrides
-	app := app.ArduinoApp{
+	a := app.ArduinoApp{
 		Name: "TestApp",
 		Descriptor: app.AppDescriptor{
 			Bricks: []app.Brick{
@@ -57,7 +57,7 @@ func TestProvisionAppWithOverrides(t *testing.T) {
 		},
 		FullPath: paths.New(tempDirectory),
 	}
-	require.NoError(t, app.ProvisioningStateDir().MkdirAll())
+	require.NoError(t, a.ProvisioningStateDir().MkdirAll())
 	// Add compose files for the bricks - video object detection
 	videoObjectDetectionComposePath := cfg.AssetsDir().Join("compose", "arduino", "video_object_detection")
 	require.NoError(t, videoObjectDetectionComposePath.MkdirAll())
@@ -349,7 +349,7 @@ bricks:
 	require.NotNil(t, br, "Brick arduino:dbstorage_tsstore should not be nil")
 	require.Equal(t, "Database Storage - Time Series Store", br.Name, "Brick name should match")
 
-	app := app.ArduinoApp{
+	a := app.ArduinoApp{
 		Name: "TestApp",
 		Descriptor: app.AppDescriptor{
 			Bricks: []app.Brick{
@@ -360,7 +360,7 @@ bricks:
 		},
 		FullPath: paths.New(tempDirectory),
 	}
-	require.NoError(t, app.ProvisioningStateDir().MkdirAll())
+	require.NoError(t, a.ProvisioningStateDir().MkdirAll())
 
 	t.Run("services with healthcheck", func(t *testing.T) {
 		fileComposePath := cfg.AssetsDir().Join("compose", "arduino", "dbstorage_tsstore")
@@ -516,7 +516,7 @@ bricks:
 	require.NotNil(t, br, "Brick arduino:dbstorage_tsstore should not be nil")
 	require.Equal(t, "Database Storage - Time Series Store", br.Name, "Brick name should match")
 
-	app := app.ArduinoApp{
+	a := app.ArduinoApp{
 		Name: "TestApp",
 		Descriptor: app.AppDescriptor{
 			Bricks: []app.Brick{
@@ -527,7 +527,7 @@ bricks:
 		},
 		FullPath: paths.New(tempDirectory),
 	}
-	require.NoError(t, app.ProvisioningStateDir().MkdirAll())
+	require.NoError(t, a.ProvisioningStateDir().MkdirAll())
 
 	t.Run("services with user override", func(t *testing.T) {
 		fileComposePath := cfg.AssetsDir().Join("compose", "arduino", "dbstorage_tsstore")
@@ -584,7 +584,7 @@ services:
 
 		// Generate overrides file
 		overrideComposeFile := paths.New(tempDirectory).Join(".cache").Join("app-compose-overrides.yaml")
-		err = generateServicesOverrideFile(&app, svcInfo, devices, user, groups, overrideComposeFile, env)
+		err = generateServicesOverrideFile(&a, svcInfo, devices, user, groups, overrideComposeFile, env)
 		require.NoError(t, err)
 
 		// load and validate override file content
@@ -602,5 +602,4 @@ services:
 			}
 		}
 	})
-
 }

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -17,7 +18,7 @@ type AvailableDevices struct {
 	DevicePaths    []string
 	HasVideoDevice bool
 	HasSoundDevice bool
-	hasGPUDevice   bool
+	HasGPUDevice   bool
 }
 
 func GetAvailableDevices() (*AvailableDevices, error) {
@@ -34,7 +35,7 @@ func GetAvailableDevices() (*AvailableDevices, error) {
 		case p.HasPrefix("video"):
 			res.DevicePaths = append(res.DevicePaths, p.String())
 		case p.HasPrefix("dri"):
-			res.hasGPUDevice = true
+			res.HasGPUDevice = true
 		}
 	}
 
@@ -48,7 +49,7 @@ func GetAvailableDevices() (*AvailableDevices, error) {
 		res.HasSoundDevice = true
 	}
 	// Verify if we need to add GPU devices
-	if res.hasGPUDevice {
+	if res.HasGPUDevice {
 		res.DevicePaths = append(res.DevicePaths, "/dev/dri")
 	}
 
@@ -61,11 +62,6 @@ const (
 	SpeakerDevice    = "speaker"
 )
 
-//  2. TODO marta: remove_camera_0 and other possible virtual devices should be moved in a dedicated list: excludeVirtualDeviceList []string
-//  3. TODO marta: there should be an additional check to handle brick variables configured with board devices
-//  4. TODO marta: After the code refactoring unit tests can be eaily implemented, cover this test: provision_test.go:566
-//     t.Skip("in my pc the camera device is detected, so it is impossible to fail the test. To be fixed with a mock of the device detection logic")
-//  5. TODO marta: Create a PR for refactoring the code
 func ValidateRequiredDevices(a AppDescriptor, res *AvailableDevices) error {
 	// Required devices can be defined in both the bricks and the app descriptor
 	requiredDeviceClasses := make(map[string]bool)
@@ -82,7 +78,6 @@ func ValidateRequiredDevices(a AppDescriptor, res *AvailableDevices) error {
 		}
 	}
 
-	// 1. TODO marta: Old code, should be removed by https://github.com/arduino/arduino-app-cli/pull/255
 	if len(a.RequiredDevices) > 0 {
 		for _, deviceClass := range a.RequiredDevices {
 			requiredDeviceClasses[deviceClass] = true
@@ -90,8 +85,9 @@ func ValidateRequiredDevices(a AppDescriptor, res *AvailableDevices) error {
 	}
 
 	var allErrors error
-	if len(requiredDeviceClasses) > 0 {
-		for class := range requiredDeviceClasses {
+	devices := slices.Sorted(maps.Keys(requiredDeviceClasses))
+	if len(devices) > 0 {
+		for _, class := range devices {
 			switch class {
 			case CameraDevice:
 				if !res.HasVideoDevice {
@@ -197,10 +193,14 @@ func sortV4lByIndexDevices(deviceList []string) {
 }
 
 func extractIndexFromVideoDeviceName(device string) (int, error) {
-	dev := device[strings.LastIndex(device, "index")+len("index"):]
-	if indexI, err := strconv.Atoi(dev); err != nil {
-		return -1, err
-	} else {
-		return indexI, nil
+	idx := strings.LastIndex(device, "index")
+
+	if idx == -1 {
+		return -1, fmt.Errorf("substring 'index' not found in %q", device)
 	}
+
+	start := idx + len("index")
+	dev := device[start:]
+
+	return strconv.Atoi(dev)
 }
