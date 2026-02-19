@@ -32,7 +32,6 @@ import (
 	"github.com/arduino/arduino-cli/commands"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
-	"github.com/compose-spec/compose-go/v2/validation"
 	"github.com/docker/cli/cli/command"
 	"github.com/goccy/go-yaml"
 	"github.com/gosimple/slug"
@@ -143,7 +142,7 @@ func StartApp(
 			yield(StreamMessage{error: err})
 		}
 
-		err = peripherals.ValidateRequiredDevices(appToStart.Descriptor, devices)
+		err = app.ValidateRequiredDevices(bricksIndex, appToStart.Descriptor.Bricks, devices)
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return
