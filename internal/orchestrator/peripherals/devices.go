@@ -1,17 +1,14 @@
 package peripherals
 
 import (
-	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
 	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/go-paths-helper"
 )
 
@@ -55,60 +52,6 @@ func GetAvailableDevices() (*AvailableDevices, error) {
 	}
 
 	return &res, nil
-}
-
-const (
-	CameraDevice     = "camera"
-	MicrophoneDevice = "microphone"
-	SpeakerDevice    = "speaker"
-)
-
-func ValidateRequiredDevices(a app.AppDescriptor, res *AvailableDevices) error {
-	// Required devices can be defined in both the bricks and the app descriptor
-	requiredDeviceClasses := make(map[string]bool)
-
-	for _, brick := range a.Bricks {
-		if len(brick.Devices) > 0 {
-			for _, deviceClass := range brick.Devices {
-				// Do not require a "camera" class if the brick in the app requires a "remote camera" device
-				if deviceClass == CameraDevice && slices.Contains(brick.Devices, "remote_camera_0") {
-					continue
-				}
-				requiredDeviceClasses[deviceClass] = true
-			}
-		}
-	}
-
-	if len(a.RequiredDevices) > 0 {
-		for _, deviceClass := range a.RequiredDevices {
-			requiredDeviceClasses[deviceClass] = true
-		}
-	}
-
-	var allErrors error
-	devices := slices.Sorted(maps.Keys(requiredDeviceClasses))
-	if len(devices) > 0 {
-		for _, class := range devices {
-			switch class {
-			case CameraDevice:
-				if !res.HasVideoDevice {
-					allErrors = errors.Join(allErrors, fmt.Errorf("no camera device found"))
-				}
-			case MicrophoneDevice:
-				if !res.HasSoundDevice {
-					allErrors = errors.Join(allErrors, fmt.Errorf("no microphone device found"))
-				}
-			case SpeakerDevice:
-				if !res.HasSoundDevice {
-					allErrors = errors.Join(allErrors, fmt.Errorf("no speaker device found"))
-				}
-			default:
-				slog.Debug("not handled device class - no action", slog.String("class", class))
-			}
-		}
-	}
-
-	return allErrors
 }
 
 func GetSoundDevices() []string {

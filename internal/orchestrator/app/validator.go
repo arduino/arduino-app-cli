@@ -4,9 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 )
 
 // ValidateBricks checks that all bricks referenced in the given AppDescriptor exist in the provided BricksIndex,
@@ -52,5 +55,57 @@ func ValidateBricks(a AppDescriptor, index *bricksindex.BricksIndex, modelIndex 
 			}
 		}
 	}
+	return allErrors
+}
+
+const (
+	CameraDevice     = "camera"
+	MicrophoneDevice = "microphone"
+	SpeakerDevice    = "speaker"
+)
+
+func ValidateRequiredDevices(bricksIndex *bricksindex.BricksIndex, appBricks []Brick, res *peripherals.AvailableDevices) error {
+	// A brick defines a list of required device classes
+	requiredDeviceClasses := make(map[string]bool)
+
+	for _, brick := range appBricks {
+		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
+		if !found {
+			slog.Warn("Brick not found", slog.String("brick_id", brick.ID))
+			continue
+		}
+
+		for _, deviceClass := range idxBrick.RequiredDevices {
+			// Do not require a "camera" class if the brick in the app requires a "remote camera" device
+			if deviceClass == CameraDevice && slices.Contains(brick.Devices, "remote_camera_0") {
+				continue
+			}
+			requiredDeviceClasses[deviceClass] = true
+		}
+	}
+
+	var allErrors error
+	devices := slices.Sorted(maps.Keys(requiredDeviceClasses))
+	if len(devices) > 0 {
+		for _, class := range devices {
+			switch class {
+			case CameraDevice:
+				if !res.HasVideoDevice {
+					allErrors = errors.Join(allErrors, fmt.Errorf("no camera device found"))
+				}
+			case MicrophoneDevice:
+				if !res.HasSoundDevice {
+					allErrors = errors.Join(allErrors, fmt.Errorf("no microphone device found"))
+				}
+			case SpeakerDevice:
+				if !res.HasSoundDevice {
+					allErrors = errors.Join(allErrors, fmt.Errorf("no speaker device found"))
+				}
+			default:
+				slog.Debug("not handled device class - no action", slog.String("class", class))
+			}
+		}
+	}
+
 	return allErrors
 }

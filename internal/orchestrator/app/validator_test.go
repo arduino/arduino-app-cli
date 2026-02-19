@@ -12,6 +12,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 )
 
 func TestValidateAppDescriptorBricks(t *testing.T) {
@@ -191,6 +192,171 @@ bricks:
 			} else {
 				require.Error(t, err, "Expected validation error")
 				assert.Equal(t, tc.expectedError.Error(), err.Error(), "Error message should match")
+			}
+		})
+	}
+}
+
+func TestValidateVirtualDevice(t *testing.T) {
+	// fail if a camera device is not detected and one of two brick require a physical camera
+
+	bIndex := &bricksindex.BricksIndex{
+		Bricks: []bricksindex.Brick{
+			{
+				ID:              "arduino:brick-with-camera-device",
+				Name:            "a brick that requires a camera",
+				RequiredDevices: []string{"camera"},
+			},
+			{
+				ID:              "arduino:another-brick-with-camera-device",
+				Name:            "another brick that requires a camera",
+				RequiredDevices: []string{"camera"},
+			},
+		},
+	}
+
+	appDescriptor := AppDescriptor{
+		Bricks: []Brick{
+			{
+				ID:      "arduino:brick-with-camera-device",
+				Devices: []string{"remote_camera_0"},
+			},
+			{
+				ID: "arduino:another-brick-with-camera-device",
+			},
+		},
+	}
+
+	availableDevices := peripherals.AvailableDevices{
+		HasVideoDevice: false,
+	}
+
+	err := ValidateRequiredDevices(bIndex, appDescriptor.Bricks, &availableDevices)
+	require.Equal(t, "no camera device found", err.Error())
+}
+
+func TestValidateVirtualDeviceNoError(t *testing.T) {
+	// do not fail if a brick requires a virtual camera device
+
+	bIndex := &bricksindex.BricksIndex{
+		Bricks: []bricksindex.Brick{
+			{
+				ID:   "arduino:brick-with-camera-device",
+				Name: "a brick that requires a camera",
+			},
+		},
+	}
+
+	appDescriptor := AppDescriptor{
+		Bricks: []Brick{
+			{
+				ID:      "arduino:brick-with-camera-device",
+				Devices: []string{"remote_camera_0"},
+			},
+			{
+				ID: "arduino:another-brick-with-camera-device",
+			},
+		},
+	}
+
+	availableDevices := peripherals.AvailableDevices{
+		HasVideoDevice: false,
+	}
+
+	err := ValidateRequiredDevices(bIndex, appDescriptor.Bricks, &availableDevices)
+	require.NoError(t, err)
+}
+
+func TestValidateRequiredDevice(t *testing.T) {
+	testCases := []struct {
+		name            string
+		requiredDevices []string
+		devicePaths     []string
+		hasVideoDevice  bool
+		hasSoundDevice  bool
+		hasGPUDevice    bool
+		errMessage      string
+	}{
+		{
+			name:            "All required devices are available",
+			requiredDevices: []string{"camera", "microphone", "speaker"},
+			devicePaths:     []string{"/dev/video0", "/dev/video1", "/dev/snd/pcmC0D0p"},
+			hasVideoDevice:  true,
+			hasSoundDevice:  true,
+			hasGPUDevice:    true,
+			errMessage:      "",
+		},
+		{
+			name:            "Required camera not available",
+			requiredDevices: []string{"camera"},
+			devicePaths:     []string{"/dev/snd/pcmC0D0p"},
+			hasVideoDevice:  false,
+			hasSoundDevice:  true,
+			hasGPUDevice:    true,
+			errMessage:      "no camera device found",
+		},
+		{
+			name:            "Required microphone not available",
+			requiredDevices: []string{"microphone"},
+			devicePaths:     []string{"/dev/snd/pcmC0D0p"},
+			hasVideoDevice:  true,
+			hasSoundDevice:  false,
+			hasGPUDevice:    true,
+			errMessage:      "no microphone device found",
+		},
+		{
+			name:            "Required speaker not available",
+			requiredDevices: []string{"speaker"},
+			devicePaths:     []string{"/dev/video0"},
+			hasVideoDevice:  true,
+			hasSoundDevice:  false,
+			hasGPUDevice:    true,
+			errMessage:      "no speaker device found",
+		},
+		{
+			name:            "No required devices",
+			requiredDevices: []string{},
+			devicePaths:     []string{},
+			hasVideoDevice:  false,
+			hasSoundDevice:  false,
+			hasGPUDevice:    false,
+			errMessage:      "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+
+			// build the index
+			bIndex := &bricksindex.BricksIndex{
+				Bricks: []bricksindex.Brick{
+					{
+						ID:              "arduino:a-simple-brick",
+						Name:            "a brick to test devices",
+						RequiredDevices: tc.requiredDevices,
+					},
+				},
+			}
+
+			appDescriptor := AppDescriptor{
+				Bricks: []Brick{
+					{
+						ID: "arduino:a-simple-brick"},
+				},
+			}
+			availableDevices := peripherals.AvailableDevices{
+				DevicePaths:    tc.devicePaths,
+				HasGPUDevice:   tc.hasGPUDevice,
+				HasSoundDevice: tc.hasSoundDevice,
+				HasVideoDevice: tc.hasVideoDevice,
+			}
+
+			err := ValidateRequiredDevices(bIndex, appDescriptor.Bricks, &availableDevices)
+			if err != nil {
+				require.Equal(t, tc.errMessage, err.Error())
+			}
+			if tc.name == "All required devices are available" || tc.name == "No required devices" {
+				require.NoError(t, err)
 			}
 		})
 	}
