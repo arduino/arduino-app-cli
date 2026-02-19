@@ -1,8 +1,8 @@
 ---
 name: github.com/goccy/go-yaml
-version: v1.18.0
+version: v1.19.2
 type: go
-summary:
+summary: 
 homepage: https://pkg.go.dev/github.com/goccy/go-yaml
 license: mit
 licenses:

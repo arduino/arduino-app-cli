@@ -1,6 +1,6 @@
 ---
 name: github.com/zclconf/go-cty/cty
-version: v1.16.2
+version: v1.17.0
 type: go
 summary: Package cty (pronounced see-tie) provides some infrastructure for a type
   system that might be useful for applications that need to represent configuration
@@ -9,7 +9,7 @@ summary: Package cty (pronounced see-tie) provides some infrastructure for a typ
 homepage: https://pkg.go.dev/github.com/zclconf/go-cty/cty
 license: mit
 licenses:
-- sources: go-cty@v1.16.2/LICENSE
+- sources: go-cty@v1.17.0/LICENSE
   text: |
     MIT License
 
@@ -32,7 +32,7 @@ licenses:
     LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
-- sources: go-cty@v1.16.2/README.md
+- sources: go-cty@v1.17.0/README.md
   text: |-
     Copyright 2017 Martin Atkins
 

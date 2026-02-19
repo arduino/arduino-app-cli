@@ -1,12 +1,10 @@
 ---
-name: github.com/zclconf/go-cty/cty/ctystrings
+name: github.com/zclconf/go-cty/cty/ctymarks
 version: v1.17.0
 type: go
-summary: Package ctystrings is a collection of string manipulation utilities which
-  intend to help application developers implement string-manipulation functionality
-  in a way that respects the cty model of strings, even when they are working in the
-  realm of Go strings.
-homepage: https://pkg.go.dev/github.com/zclconf/go-cty/cty/ctystrings
+summary: Package ctymarks contains some ancillary types, values, and constants for
+  use with mark-related parts of the main cty package.
+homepage: https://pkg.go.dev/github.com/zclconf/go-cty/cty/ctymarks
 license: mit
 licenses:
 - sources: go-cty@v1.17.0/LICENSE
