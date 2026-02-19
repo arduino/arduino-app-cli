@@ -6,7 +6,6 @@ dotenv: [".env.local", ".env"]
 
 vars:
   GOLANGCI_LINT_VERSION: v2.4.0
-  GOTESTSUM_VERSION: v1.13.0
   GOIMPORTS_VERSION: v0.29.0
   DPRINT_VERSION: 0.48.0
   EXAMPLE_VERSION: "0.7.2"
@@ -20,7 +19,6 @@ tasks:
     deps:
       - install:linter
       - install:goimports
-      - install:gotestsum
       - install:watcher
       - install:dprint
       - install:oapi-codegen
@@ -28,10 +26,6 @@ tasks:
   install:linter:
     cmds:
       - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b .bin/ {{ .GOLANGCI_LINT_VERSION }}
-
-  install:gotestsum:
-    cmds:
-      - go install gotest.tools/gotestsum@{{ .GOTESTSUM_VERSION }}
 
   install:goimports:
     cmds:
@@ -58,16 +52,16 @@ tasks:
     cmds:
       - go build ./cmd/arduino-app-cli
       - task: generate
-      - gotestsum $(go list ./internal/... ./cmd/... | grep -v internal/e2e/updatetest) -v -race {{ .CLI_ARGS }}
+      - go tool gotest.tools/gotestsum $(go list ./internal/... ./cmd/... | grep -v internal/e2e/updatetest) -v -race {{ .CLI_ARGS }}
 
   test:update:
     cmds:
-      - gotestsum --timeout 30m -v ./internal/e2e/updatetest
+      - go tool gotest.tools/gotestsum --timeout 30m -v ./internal/e2e/updatetest
 
   test:pkg:
     desc: Run only tests in the pkg directory
     cmds:
-      - gotestsum ./pkg/... -v -race {{ .CLI_ARGS }}
+      - go tool gotest.tools/gotestsum ./pkg/... -v -race {{ .CLI_ARGS }}
 
   test:cover:
     desc: Run all tests and open cover html report
