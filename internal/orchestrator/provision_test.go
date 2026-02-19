@@ -519,8 +519,8 @@ services:
 
 		user := "1000:1000"
 
-		groups := []string{}
-		groups = append(groups, "dialout")
+		groups := []uint32{}
+		groups = append(groups, 20) // dialout group ID
 
 		// Generate overrides file
 		overrideComposeFile := paths.New(tempDirectory).Join(".cache").Join("app-compose-overrides.yaml")
