@@ -1,4 +1,4 @@
-package app
+package peripherals
 
 import (
 	"errors"
@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/go-paths-helper"
 )
 
@@ -62,7 +63,7 @@ const (
 	SpeakerDevice    = "speaker"
 )
 
-func ValidateRequiredDevices(a AppDescriptor, res *AvailableDevices) error {
+func ValidateRequiredDevices(a app.AppDescriptor, res *AvailableDevices) error {
 	// Required devices can be defined in both the bricks and the app descriptor
 	requiredDeviceClasses := make(map[string]bool)
 

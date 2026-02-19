@@ -24,6 +24,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/store"
 
 	"github.com/goccy/go-yaml"
@@ -117,7 +118,7 @@ bricks:
 		"FOO": "bar",
 	}
 
-	devices := app.AvailableDevices{
+	devices := peripherals.AvailableDevices{
 		DevicePaths:    []string{},
 		HasGPUDevice:   true,
 		HasSoundDevice: false,
@@ -346,7 +347,7 @@ services:
 		err := fileComposePath.Join("brick_compose.yaml").WriteFile([]byte(dependsOnFromStrings))
 		require.NoError(t, err)
 
-		devices := app.AvailableDevices{
+		devices := peripherals.AvailableDevices{
 			DevicePaths:    []string{},
 			HasGPUDevice:   true,
 			HasSoundDevice: false,
@@ -403,7 +404,7 @@ services:
 		err = fileComposePath.Join("brick_compose.yaml").WriteFile([]byte(dependsOnFromStrings))
 		require.NoError(t, err)
 
-		devices := app.AvailableDevices{
+		devices := peripherals.AvailableDevices{
 			DevicePaths:    []string{},
 			HasGPUDevice:   true,
 			HasSoundDevice: false,
@@ -525,7 +526,7 @@ services:
 		err := serviceComposeFilePath.WriteFile([]byte(dependsOnFromStrings))
 		require.NoError(t, err)
 
-		availableDevices := app.AvailableDevices{
+		availableDevices := peripherals.AvailableDevices{
 			DevicePaths:    []string{},
 			HasGPUDevice:   true,
 			HasSoundDevice: false,
@@ -608,7 +609,7 @@ bricks:
 			FullPath: paths.New(appTmpPath),
 		}
 		require.NoError(t, a.ProvisioningStateDir().MkdirAll())
-		availableDevices := app.AvailableDevices{
+		availableDevices := peripherals.AvailableDevices{
 			DevicePaths:    []string{},
 			HasGPUDevice:   true,
 			HasSoundDevice: false,

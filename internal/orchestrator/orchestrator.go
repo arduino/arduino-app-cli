@@ -46,6 +46,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
@@ -118,18 +119,18 @@ func StartApp(
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		err := app.ValidateBricks(appToStart.Descriptor, bricksIndex, modelsIndex)
+		err := peripherals.ValidateBricks(appToStart.Descriptor, bricksIndex, modelsIndex)
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return
 		}
 
-		devices, err := app.GetAvailableDevices()
+		devices, err := peripherals.GetAvailableDevices()
 		if err != nil {
 			yield(StreamMessage{error: err})
 		}
 
-		err = app.ValidateRequiredDevices(appToStart.Descriptor, devices)
+		err = peripherals.ValidateRequiredDevices(appToStart.Descriptor, devices)
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return
@@ -263,10 +264,10 @@ func StartApp(
 // - model configuration variables (variables defined in the model configuration)
 // - brick instance variables (variables defined in the app.yaml for the brick instance)
 // In addition, it adds some useful environment variables like APP_HOME and HOST_IP.
-func getAppEnvironmentVariables(a app.ArduinoApp, brickIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex) helpers.EnvVars {
+func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex) helpers.EnvVars {
 	envs := make(helpers.EnvVars)
 
-	for _, brick := range a.Descriptor.Bricks {
+	for _, brick := range app.Descriptor.Bricks {
 		if brickDef, found := brickIndex.FindBrickByID(brick.ID); found {
 			maps.Insert(envs, brickDef.GetDefaultVariables())
 		}
@@ -282,11 +283,11 @@ func getAppEnvironmentVariables(a app.ArduinoApp, brickIndex *bricksindex.Bricks
 	}
 
 	// Add the APP_HOME directory to the environment variables
-	envs["APP_HOME"] = a.FullPath.String()
+	envs["APP_HOME"] = app.FullPath.String()
 
 	// Pre-select default camera device if available. This can be overridden by the app environment variables (or in future by applab)
 	// This is required because there are some video devices for HW acceleration that are auto registered in /dev but are not real cameras.
-	if videoDevices := app.GetVideoDevices(); len(videoDevices) > 0 {
+	if videoDevices := peripherals.GetVideoDevices(); len(videoDevices) > 0 {
 		// VIDEO_DEVICE will be the first device in /dev/v4l/by-id
 		envs["VIDEO_DEVICE"] = videoDevices[0]
 	}

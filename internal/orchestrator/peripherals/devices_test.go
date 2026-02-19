@@ -1,8 +1,9 @@
-package app
+package peripherals
 
 import (
 	"testing"
 
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -81,8 +82,8 @@ func TestValidateRequiredDevice(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 
-			appDescriptor := AppDescriptor{
-				Bricks: []Brick{
+			appDescriptor := app.AppDescriptor{
+				Bricks: []app.Brick{
 					{
 						Devices: []string{"camera", "microphone", "speaker"},
 					},

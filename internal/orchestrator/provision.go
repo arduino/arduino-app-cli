@@ -38,6 +38,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
@@ -121,7 +122,7 @@ func (p *Provision) App(
 	cfg config.Configuration,
 	mapped_env map[string]string,
 	staticStore *store.StaticStore,
-	devices *app.AvailableDevices,
+	devices *peripherals.AvailableDevices,
 ) error {
 	if arduinoApp == nil {
 		return fmt.Errorf("provisioning failed: arduinoApp is nil")
@@ -215,7 +216,7 @@ func generateMainComposeFile(
 	cfg config.Configuration,
 	envs helpers.EnvVars,
 	staticStore *store.StaticStore,
-	devices *app.AvailableDevices,
+	devices *peripherals.AvailableDevices,
 ) error {
 	slog.Debug("Generating main compose file for the App")
 
