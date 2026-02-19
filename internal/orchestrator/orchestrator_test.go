@@ -424,20 +424,6 @@ func createApp(
 	return res.ID
 }
 
-func TestSortV4LVideoDevices(t *testing.T) {
-
-	devices := []string{
-		"usb-Generic_GENERAL_-_UVC-video-index1",
-		"usb-Generic_GENERAL_-_UVC-video-index0",
-		"usb-046d_0825-video-index2",
-	}
-
-	sortV4lByIndexDevices(devices)
-	assert.Equal(t, "usb-Generic_GENERAL_-_UVC-video-index0", devices[0])
-	assert.Equal(t, "usb-Generic_GENERAL_-_UVC-video-index1", devices[1])
-	assert.Equal(t, "usb-046d_0825-video-index2", devices[2])
-}
-
 func TestGetAppEnvironmentVariablesWithDefaults(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := app.NewAppIDProvider(cfg)
@@ -684,57 +670,4 @@ models:
 	require.Equal(t, "/default/video/value", env["MY_VIDEO_ENV"])
 	// for common env variable, the last brick wins
 	require.Equal(t, "default-common-obj", env["COMMON_ENV"])
-}
-
-func TestValidateDevice(t *testing.T) {
-
-	t.Run("valid", func(t *testing.T) {
-		dev := deviceResult{
-			devicePaths:    []string{"/dev/video0", "/dev/video1", "/dev/snd/pcmC0D0p"},
-			hasGPUDevice:   true,
-			hasSoundDevice: true,
-			hasVideoDevice: true,
-		}
-		requiredDeviceClasses := make(map[string]any)
-		requiredDeviceClasses["camera"] = true
-		requiredDeviceClasses["microphone"] = true
-		err := validateDevices(&dev, requiredDeviceClasses)
-		assert.NoError(t, err)
-	})
-	t.Run("no camera", func(t *testing.T) {
-		dev := deviceResult{
-			devicePaths:    []string{},
-			hasGPUDevice:   true,
-			hasSoundDevice: false,
-			hasVideoDevice: false,
-		}
-		requiredDeviceClasses := make(map[string]any)
-		requiredDeviceClasses["camera"] = true
-		err := validateDevices(&dev, requiredDeviceClasses)
-		assert.Error(t, err)
-	})
-	t.Run("no mic", func(t *testing.T) {
-		dev := deviceResult{
-			devicePaths:    []string{},
-			hasGPUDevice:   true,
-			hasSoundDevice: false,
-			hasVideoDevice: true,
-		}
-		requiredDeviceClasses := make(map[string]any)
-		requiredDeviceClasses["microphone"] = true
-		err := validateDevices(&dev, requiredDeviceClasses)
-		assert.Error(t, err)
-	})
-	t.Run("no speaker", func(t *testing.T) {
-		dev := deviceResult{
-			devicePaths:    []string{},
-			hasGPUDevice:   true,
-			hasSoundDevice: false,
-			hasVideoDevice: true,
-		}
-		requiredDeviceClasses := make(map[string]any)
-		requiredDeviceClasses["speaker"] = true
-		err := validateDevices(&dev, requiredDeviceClasses)
-		assert.Error(t, err)
-	})
 }

@@ -38,7 +38,7 @@ func TestProvisionAppWithOverrides(t *testing.T) {
 	staticStore := store.NewStaticStore(cfg.AssetsDir().String())
 
 	// Define a mock app with bricks that require overrides
-	app := app.ArduinoApp{
+	a := app.ArduinoApp{
 		Name: "TestApp",
 		Descriptor: app.AppDescriptor{
 			Bricks: []app.Brick{
@@ -56,7 +56,7 @@ func TestProvisionAppWithOverrides(t *testing.T) {
 		},
 		FullPath: paths.New(tempDirectory),
 	}
-	require.NoError(t, app.ProvisioningStateDir().MkdirAll())
+	require.NoError(t, a.ProvisioningStateDir().MkdirAll())
 	// Add compose files for the bricks - video object detection
 	videoObjectDetectionComposePath := cfg.AssetsDir().Join("compose", "arduino", "video_object_detection")
 	require.NoError(t, videoObjectDetectionComposePath.MkdirAll())
@@ -116,7 +116,14 @@ bricks:
 	env := map[string]string{
 		"FOO": "bar",
 	}
-	err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore)
+
+	devices := app.AvailableDevices{
+		DevicePaths:    []string{},
+		HasGPUDevice:   true,
+		HasSoundDevice: false,
+		HasVideoDevice: true,
+	}
+	err = generateMainComposeFile(&a, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, &devices)
 
 	// Validate that the main compose file and overrides are created
 	require.NoError(t, err, "Failed to generate main compose file")
@@ -308,7 +315,7 @@ bricks:
 	require.NotNil(t, br, "Brick arduino:dbstorage_tsstore should not be nil")
 	require.Equal(t, "Database Storage - Time Series Store", br.Name, "Brick name should match")
 
-	app := app.ArduinoApp{
+	a := app.ArduinoApp{
 		Name: "TestApp",
 		Descriptor: app.AppDescriptor{
 			Bricks: []app.Brick{
@@ -319,7 +326,7 @@ bricks:
 		},
 		FullPath: paths.New(tempDirectory),
 	}
-	require.NoError(t, app.ProvisioningStateDir().MkdirAll())
+	require.NoError(t, a.ProvisioningStateDir().MkdirAll())
 
 	t.Run("services with healthcheck", func(t *testing.T) {
 		fileComposePath := cfg.AssetsDir().Join("compose", "arduino", "dbstorage_tsstore")
@@ -339,8 +346,15 @@ services:
 		err := fileComposePath.Join("brick_compose.yaml").WriteFile([]byte(dependsOnFromStrings))
 		require.NoError(t, err)
 
+		devices := app.AvailableDevices{
+			DevicePaths:    []string{},
+			HasGPUDevice:   true,
+			HasSoundDevice: false,
+			HasVideoDevice: true,
+		}
+
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore)
+		err = generateMainComposeFile(&a, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, &devices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -389,8 +403,14 @@ services:
 		err = fileComposePath.Join("brick_compose.yaml").WriteFile([]byte(dependsOnFromStrings))
 		require.NoError(t, err)
 
+		devices := app.AvailableDevices{
+			DevicePaths:    []string{},
+			HasGPUDevice:   true,
+			HasSoundDevice: false,
+			HasVideoDevice: true,
+		}
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore)
+		err = generateMainComposeFile(&a, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, &devices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -462,7 +482,7 @@ bricks:
 	require.NotNil(t, br, "Brick arduino:dbstorage_tsstore should not be nil")
 	require.Equal(t, "Database Storage - Time Series Store", br.Name, "Brick name should match")
 
-	app := app.ArduinoApp{
+	a := app.ArduinoApp{
 		Name: "TestApp",
 		Descriptor: app.AppDescriptor{
 			Bricks: []app.Brick{
@@ -473,7 +493,7 @@ bricks:
 		},
 		FullPath: paths.New(tempDirectory),
 	}
-	require.NoError(t, app.ProvisioningStateDir().MkdirAll())
+	require.NoError(t, a.ProvisioningStateDir().MkdirAll())
 
 	t.Run("services with user override", func(t *testing.T) {
 		fileComposePath := cfg.AssetsDir().Join("compose", "arduino", "dbstorage_tsstore")
@@ -505,8 +525,14 @@ services:
 		err := serviceComposeFilePath.WriteFile([]byte(dependsOnFromStrings))
 		require.NoError(t, err)
 
+		availableDevices := app.AvailableDevices{
+			DevicePaths:    []string{},
+			HasGPUDevice:   true,
+			HasSoundDevice: false,
+			HasVideoDevice: true,
+		}
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore)
+		err = generateMainComposeFile(&a, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, &availableDevices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -524,7 +550,7 @@ services:
 
 		// Generate overrides file
 		overrideComposeFile := paths.New(tempDirectory).Join(".cache").Join("app-compose-overrides.yaml")
-		err = generateServicesOverrideFile(&app, svcInfo, devices, user, groups, overrideComposeFile, env)
+		err = generateServicesOverrideFile(&a, svcInfo, devices, user, groups, overrideComposeFile, env)
 		require.NoError(t, err)
 
 		// load and validate override file content
@@ -566,7 +592,7 @@ bricks:
 		t.Skip("in my pc the camera device is detected, so it is impossible to fail the test. To be fixed with a mock of the device detection logic")
 
 		appTmpPath := t.TempDir()
-		app := app.ArduinoApp{
+		a := app.ArduinoApp{
 			Name: "AppWithTwoBrickWithCamera",
 			Descriptor: app.AppDescriptor{
 				Bricks: []app.Brick{
@@ -581,8 +607,14 @@ bricks:
 			},
 			FullPath: paths.New(appTmpPath),
 		}
-		require.NoError(t, app.ProvisioningStateDir().MkdirAll())
-		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, map[string]string{}, store.NewStaticStore(cfg.AssetsDir().String()))
+		require.NoError(t, a.ProvisioningStateDir().MkdirAll())
+		availableDevices := app.AvailableDevices{
+			DevicePaths:    []string{},
+			HasGPUDevice:   true,
+			HasSoundDevice: false,
+			HasVideoDevice: true,
+		}
+		err = generateMainComposeFile(&a, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, map[string]string{}, store.NewStaticStore(cfg.AssetsDir().String()), &availableDevices)
 		require.Error(t, err)
 	})
 
