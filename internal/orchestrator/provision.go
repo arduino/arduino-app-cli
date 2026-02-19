@@ -278,6 +278,10 @@ func generateMainComposeFile(
 		services = append(services, svcs...)
 	}
 
+	if len(app.Descriptor.RequiredDevices) > 0 {
+		slog.Warn("The 'required_devices' field is deprecated. Please move requirements to the specific 'bricks' section.")
+	}
+
 	// Create a single docker-mainCompose that includes all the required services
 	mainComposeFile := app.AppComposeFilePath()
 	// If required, create an override compose file for devices
