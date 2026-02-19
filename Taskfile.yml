@@ -52,16 +52,16 @@ tasks:
     cmds:
       - go build ./cmd/arduino-app-cli
       - task: generate
-      - go test $(go list ./internal/... ./cmd/... | grep -v internal/e2e/updatetest) -v -race {{ .CLI_ARGS }}
+      - go tool gotest.tools/gotestsum $(go list ./internal/... ./cmd/... | grep -v internal/e2e/updatetest) -v -race {{ .CLI_ARGS }}
 
   test:update:
     cmds:
-      - go test --timeout 30m -v ./internal/e2e/updatetest
+      - go tool gotest.tools/gotestsum --timeout 30m -v ./internal/e2e/updatetest
 
   test:pkg:
     desc: Run only tests in the pkg directory
     cmds:
-      - go test ./pkg/... -v -race {{ .CLI_ARGS }}
+      - go tool gotest.tools/gotestsum ./pkg/... -v -race {{ .CLI_ARGS }}
 
   test:cover:
     desc: Run all tests and open cover html report
