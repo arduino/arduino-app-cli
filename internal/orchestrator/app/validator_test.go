@@ -231,7 +231,7 @@ func TestValidateVirtualDevice(t *testing.T) {
 		HasVideoDevice: false,
 	}
 
-	err := ValidateRequiredDevices(bIndex, appDescriptor.Bricks, &availableDevices)
+	err := ValidateRequiredDevices(bIndex, appDescriptor.Bricks, availableDevices)
 	require.Equal(t, "no camera device found", err.Error())
 }
 
@@ -260,7 +260,7 @@ func TestValidateVirtualDeviceNoError(t *testing.T) {
 		HasVideoDevice: false,
 	}
 
-	err := ValidateRequiredDevices(bIndex, appDescriptor.Bricks, &availableDevices)
+	err := ValidateRequiredDevices(bIndex, appDescriptor.Bricks, availableDevices)
 	require.NoError(t, err)
 }
 
@@ -375,7 +375,7 @@ func TestValidateRequiredDevice(t *testing.T) {
 				},
 			}
 
-			err := ValidateRequiredDevices(bIndex, appDescriptor.Bricks, &tc.availableDevices)
+			err := ValidateRequiredDevices(bIndex, appDescriptor.Bricks, tc.availableDevices)
 			if tc.wantErr {
 				require.Error(t, err, "should have returned an error")
 				require.Equal(t, tc.errMessage, err.Error())

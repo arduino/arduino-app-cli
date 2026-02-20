@@ -64,7 +64,7 @@ const (
 	SpeakerDevice    = "speaker"
 )
 
-func ValidateRequiredDevices(bricksIndex *bricksindex.BricksIndex, appBricks []Brick, res *peripherals.AvailableDevices) error {
+func ValidateRequiredDevices(bricksIndex *bricksindex.BricksIndex, appBricks []Brick, availableDevices peripherals.AvailableDevices) error {
 	requiredDeviceClasses := make(map[string]bool)
 
 	for _, brick := range appBricks {
@@ -89,15 +89,15 @@ func ValidateRequiredDevices(bricksIndex *bricksindex.BricksIndex, appBricks []B
 		for _, class := range devices {
 			switch class {
 			case CameraDevice:
-				if !res.HasVideoDevice {
+				if !availableDevices.HasVideoDevice {
 					allErrors = errors.Join(allErrors, fmt.Errorf("no camera device found"))
 				}
 			case MicrophoneDevice:
-				if !res.HasSoundDevice {
+				if !availableDevices.HasSoundDevice {
 					allErrors = errors.Join(allErrors, fmt.Errorf("no microphone device found"))
 				}
 			case SpeakerDevice:
-				if !res.HasSoundDevice {
+				if !availableDevices.HasSoundDevice {
 					allErrors = errors.Join(allErrors, fmt.Errorf("no speaker device found"))
 				}
 			default:
