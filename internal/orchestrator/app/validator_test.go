@@ -253,9 +253,6 @@ func TestValidateVirtualDeviceNoError(t *testing.T) {
 				ID:      "arduino:brick-with-camera-device",
 				Devices: []string{"remote_camera_0"},
 			},
-			{
-				ID: "arduino:another-brick-with-camera-device",
-			},
 		},
 	}
 
@@ -331,7 +328,6 @@ func TestValidateRequiredDevice(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 
-			// build the index
 			bIndex := &bricksindex.BricksIndex{
 				Bricks: []bricksindex.Brick{
 					{
