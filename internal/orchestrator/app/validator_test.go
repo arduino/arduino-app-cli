@@ -313,6 +313,36 @@ func TestValidateRequiredDevice(t *testing.T) {
 			errMessage: "no speaker device found",
 		},
 		{
+			name:                      "Required speaker and camera not available",
+			brickRequiredDevicesClass: []string{"speaker", "camera"},
+			availableDevices: peripherals.AvailableDevices{
+				HasSoundDevice: false,
+				HasVideoDevice: false,
+			},
+			wantErr:    true,
+			errMessage: "no camera device found\nno speaker device found",
+		},
+		{
+			name:                      "Required speaker and microphone not available",
+			brickRequiredDevicesClass: []string{"speaker", "microphone"},
+			availableDevices: peripherals.AvailableDevices{
+				HasSoundDevice: false,
+				HasVideoDevice: false,
+			},
+			wantErr:    true,
+			errMessage: "no microphone device found\nno speaker device found",
+		},
+		{
+			name:                      "Required camera and microphone not available",
+			brickRequiredDevicesClass: []string{"camera", "microphone"},
+			availableDevices: peripherals.AvailableDevices{
+				HasSoundDevice: false,
+				HasVideoDevice: false,
+			},
+			wantErr:    true,
+			errMessage: "no camera device found\nno microphone device found",
+		},
+		{
 			name:                      "No required devices",
 			brickRequiredDevicesClass: []string{},
 			availableDevices: peripherals.AvailableDevices{
