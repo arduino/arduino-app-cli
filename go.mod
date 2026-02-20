@@ -17,7 +17,6 @@ replace (
 require (
 	github.com/Andrew-M-C/go.emoji v1.1.4
 	github.com/arduino/arduino-cli v1.4.2-0.20260213103629-ea956a3992b4
-	github.com/arduino/arduino-cli v1.4.2-0.20260213103629-ea956a3992b4
 	github.com/arduino/go-paths-helper v1.14.0
 	github.com/compose-spec/compose-go/v2 v2.8.1
 	github.com/containerd/errdefs v1.0.0
@@ -38,7 +37,6 @@ require (
 	github.com/oapi-codegen/runtime v1.1.1
 	github.com/shirou/gopsutil/v4 v4.25.6
 	github.com/sirupsen/logrus v1.9.4
-	github.com/sirupsen/logrus v1.9.4
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/swaggest/jsonschema-go v0.3.78
@@ -48,11 +46,9 @@ require (
 	github.com/warthog618/go-gpiocdev v0.9.1
 	go.bug.st/cleanup v1.0.0
 	go.bug.st/f v0.5.0
-	go.bug.st/f v0.5.0
 	go.bug.st/relaxed-semver v0.15.0
 	golang.org/x/crypto v0.48.0
 	golang.org/x/sync v0.19.0
-	golang.org/x/text v0.34.0
 	golang.org/x/text v0.34.0
 )
 
@@ -274,7 +270,6 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zclconf/go-cty v1.16.2 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
-	go.bug.st/downloader/v3 v3.0.0 // indirect
 	go.bug.st/downloader/v3 v3.0.0 // indirect
 	go.bug.st/serial v1.6.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
