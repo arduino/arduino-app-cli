@@ -39,7 +39,7 @@ func TestProvisionAppWithOverrides(t *testing.T) {
 	staticStore := store.NewStaticStore(cfg.AssetsDir().String())
 
 	// Define a mock app with bricks that require overrides
-	a := app.ArduinoApp{
+	app := app.ArduinoApp{
 		Name: "TestApp",
 		Descriptor: app.AppDescriptor{
 			Bricks: []app.Brick{
@@ -57,7 +57,7 @@ func TestProvisionAppWithOverrides(t *testing.T) {
 		},
 		FullPath: paths.New(tempDirectory),
 	}
-	require.NoError(t, a.ProvisioningStateDir().MkdirAll())
+	require.NoError(t, app.ProvisioningStateDir().MkdirAll())
 	// Add compose files for the bricks - video object detection
 	videoObjectDetectionComposePath := cfg.AssetsDir().Join("compose", "arduino", "video_object_detection")
 	require.NoError(t, videoObjectDetectionComposePath.MkdirAll())
@@ -124,7 +124,7 @@ bricks:
 		HasSoundDevice: false,
 		HasVideoDevice: true,
 	}
-	err = generateMainComposeFile(&a, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, &devices)
+	err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, &devices)
 
 	// Validate that the main compose file and overrides are created
 	require.NoError(t, err, "Failed to generate main compose file")
@@ -316,7 +316,7 @@ bricks:
 	require.NotNil(t, br, "Brick arduino:dbstorage_tsstore should not be nil")
 	require.Equal(t, "Database Storage - Time Series Store", br.Name, "Brick name should match")
 
-	a := app.ArduinoApp{
+	app := app.ArduinoApp{
 		Name: "TestApp",
 		Descriptor: app.AppDescriptor{
 			Bricks: []app.Brick{
@@ -327,7 +327,7 @@ bricks:
 		},
 		FullPath: paths.New(tempDirectory),
 	}
-	require.NoError(t, a.ProvisioningStateDir().MkdirAll())
+	require.NoError(t, app.ProvisioningStateDir().MkdirAll())
 
 	t.Run("services with healthcheck", func(t *testing.T) {
 		fileComposePath := cfg.AssetsDir().Join("compose", "arduino", "dbstorage_tsstore")
@@ -355,7 +355,7 @@ services:
 		}
 
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&a, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, &devices)
+		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, &devices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -411,7 +411,7 @@ services:
 			HasVideoDevice: true,
 		}
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&a, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, &devices)
+		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, &devices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -483,7 +483,7 @@ bricks:
 	require.NotNil(t, br, "Brick arduino:dbstorage_tsstore should not be nil")
 	require.Equal(t, "Database Storage - Time Series Store", br.Name, "Brick name should match")
 
-	a := app.ArduinoApp{
+	app := app.ArduinoApp{
 		Name: "TestApp",
 		Descriptor: app.AppDescriptor{
 			Bricks: []app.Brick{
@@ -494,7 +494,7 @@ bricks:
 		},
 		FullPath: paths.New(tempDirectory),
 	}
-	require.NoError(t, a.ProvisioningStateDir().MkdirAll())
+	require.NoError(t, app.ProvisioningStateDir().MkdirAll())
 
 	t.Run("services with user override", func(t *testing.T) {
 		fileComposePath := cfg.AssetsDir().Join("compose", "arduino", "dbstorage_tsstore")
@@ -533,7 +533,7 @@ services:
 			HasVideoDevice: true,
 		}
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&a, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, &availableDevices)
+		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, &availableDevices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -551,7 +551,7 @@ services:
 
 		// Generate overrides file
 		overrideComposeFile := paths.New(tempDirectory).Join(".cache").Join("app-compose-overrides.yaml")
-		err = generateServicesOverrideFile(&a, svcInfo, devices, user, groups, overrideComposeFile, env)
+		err = generateServicesOverrideFile(&app, svcInfo, devices, user, groups, overrideComposeFile, env)
 		require.NoError(t, err)
 
 		// load and validate override file content
