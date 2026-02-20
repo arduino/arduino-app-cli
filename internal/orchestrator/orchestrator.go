@@ -125,7 +125,7 @@ func StartApp(
 			return
 		}
 
-		devices, err := peripherals.GetAvailableDevices()
+		devices, err := peripherals.Detect()
 		if err != nil {
 			yield(StreamMessage{error: err})
 		}

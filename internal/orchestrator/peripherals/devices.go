@@ -19,7 +19,7 @@ type AvailableDevices struct {
 	HasGPUDevice   bool
 }
 
-func GetAvailableDevices() (*AvailableDevices, error) {
+func Detect() (*AvailableDevices, error) {
 	res := AvailableDevices{}
 
 	deviceList, err := paths.New("/dev").ReadDir()

@@ -269,58 +269,62 @@ func TestValidateVirtualDeviceNoError(t *testing.T) {
 
 func TestValidateRequiredDevice(t *testing.T) {
 	testCases := []struct {
-		name            string
-		requiredDevices []string
-		devicePaths     []string
-		hasVideoDevice  bool
-		hasSoundDevice  bool
-		hasGPUDevice    bool
-		errMessage      string
+		name                      string
+		brickRequiredDevicesClass []string
+		availableDevices          peripherals.AvailableDevices
+		wantErr                   bool
+		errMessage                string
 	}{
 		{
-			name:            "All required devices are available",
-			requiredDevices: []string{"camera", "microphone", "speaker"},
-			devicePaths:     []string{"/dev/video0", "/dev/video1", "/dev/snd/pcmC0D0p"},
-			hasVideoDevice:  true,
-			hasSoundDevice:  true,
-			hasGPUDevice:    true,
-			errMessage:      "",
+			name:                      "All required devices are available",
+			brickRequiredDevicesClass: []string{"camera", "microphone", "speaker"},
+			availableDevices: peripherals.AvailableDevices{
+				HasSoundDevice: true,
+				HasVideoDevice: true,
+			},
+			wantErr:    false,
+			errMessage: "",
 		},
 		{
-			name:            "Required camera not available",
-			requiredDevices: []string{"camera"},
-			devicePaths:     []string{"/dev/snd/pcmC0D0p"},
-			hasVideoDevice:  false,
-			hasSoundDevice:  true,
-			hasGPUDevice:    true,
-			errMessage:      "no camera device found",
+			name:                      "Required camera not available",
+			brickRequiredDevicesClass: []string{"camera"},
+			availableDevices: peripherals.AvailableDevices{
+				HasSoundDevice: true,
+				HasVideoDevice: false,
+			},
+			wantErr:    true,
+			errMessage: "no camera device found",
 		},
 		{
-			name:            "Required microphone not available",
-			requiredDevices: []string{"microphone"},
-			devicePaths:     []string{"/dev/snd/pcmC0D0p"},
-			hasVideoDevice:  true,
-			hasSoundDevice:  false,
-			hasGPUDevice:    true,
-			errMessage:      "no microphone device found",
+			name:                      "Required microphone not available",
+			brickRequiredDevicesClass: []string{"microphone"},
+			availableDevices: peripherals.AvailableDevices{
+				HasSoundDevice: false,
+				HasVideoDevice: true,
+			},
+			wantErr:    true,
+			errMessage: "no microphone device found",
 		},
 		{
-			name:            "Required speaker not available",
-			requiredDevices: []string{"speaker"},
-			devicePaths:     []string{"/dev/video0"},
-			hasVideoDevice:  true,
-			hasSoundDevice:  false,
-			hasGPUDevice:    true,
-			errMessage:      "no speaker device found",
+			name:                      "Required speaker not available",
+			brickRequiredDevicesClass: []string{"speaker"},
+			availableDevices: peripherals.AvailableDevices{
+				HasSoundDevice: false,
+				HasVideoDevice: true,
+			},
+			wantErr:    true,
+			errMessage: "no speaker device found",
 		},
 		{
-			name:            "No required devices",
-			requiredDevices: []string{},
-			devicePaths:     []string{},
-			hasVideoDevice:  false,
-			hasSoundDevice:  false,
-			hasGPUDevice:    false,
-			errMessage:      "",
+			name:                      "No required devices",
+			brickRequiredDevicesClass: []string{},
+			availableDevices: peripherals.AvailableDevices{
+				DevicePaths:    []string{},
+				HasSoundDevice: false,
+				HasVideoDevice: true,
+			},
+			wantErr:    false,
+			errMessage: "",
 		},
 	}
 
@@ -333,7 +337,7 @@ func TestValidateRequiredDevice(t *testing.T) {
 					{
 						ID:              "arduino:a-simple-brick",
 						Name:            "a brick to test devices",
-						RequiredDevices: tc.requiredDevices,
+						RequiredDevices: tc.brickRequiredDevicesClass,
 					},
 				},
 			}
@@ -344,19 +348,13 @@ func TestValidateRequiredDevice(t *testing.T) {
 						ID: "arduino:a-simple-brick"},
 				},
 			}
-			availableDevices := peripherals.AvailableDevices{
-				DevicePaths:    tc.devicePaths,
-				HasGPUDevice:   tc.hasGPUDevice,
-				HasSoundDevice: tc.hasSoundDevice,
-				HasVideoDevice: tc.hasVideoDevice,
-			}
 
-			err := ValidateRequiredDevices(bIndex, appDescriptor.Bricks, &availableDevices)
-			if err != nil {
+			err := ValidateRequiredDevices(bIndex, appDescriptor.Bricks, &tc.availableDevices)
+			if tc.wantErr {
+				require.Error(t, err, "should have returned an error")
 				require.Equal(t, tc.errMessage, err.Error())
-			}
-			if tc.name == "All required devices are available" || tc.name == "No required devices" {
-				require.NoError(t, err)
+			} else {
+				require.NoError(t, err, "should not have returned an error")
 			}
 		})
 	}

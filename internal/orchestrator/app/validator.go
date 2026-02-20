@@ -65,13 +65,12 @@ const (
 )
 
 func ValidateRequiredDevices(bricksIndex *bricksindex.BricksIndex, appBricks []Brick, res *peripherals.AvailableDevices) error {
-	// A brick defines a list of required device classes
 	requiredDeviceClasses := make(map[string]bool)
 
 	for _, brick := range appBricks {
 		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
 		if !found {
-			slog.Warn("Brick not found", slog.String("brick_id", brick.ID))
+			slog.Warn("Cannot validate required devices. Brick not found", slog.String("brick_id", brick.ID))
 			continue
 		}
 

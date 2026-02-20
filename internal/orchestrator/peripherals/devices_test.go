@@ -8,7 +8,6 @@ import (
 )
 
 func TestSortV4LVideoDevices(t *testing.T) {
-
 	devices := []string{
 		"usb-Generic_GENERAL_-_UVC-video-index1",
 		"usb-Generic_GENERAL_-_UVC-video-index0",
