@@ -19,13 +19,13 @@ type AvailableDevices struct {
 	HasGPUDevice   bool
 }
 
-func Detect() (*AvailableDevices, error) {
+func Detect() (AvailableDevices, error) {
 	res := AvailableDevices{}
 
 	deviceList, err := paths.New("/dev").ReadDir()
 	if err != nil {
 		slog.Error("unable to list /dev", slog.String("error", err.Error()))
-		return nil, fmt.Errorf("unable to list board devices")
+		return AvailableDevices{}, fmt.Errorf("unable to list board devices")
 	}
 
 	for _, p := range deviceList {
@@ -51,7 +51,7 @@ func Detect() (*AvailableDevices, error) {
 		res.DevicePaths = append(res.DevicePaths, "/dev/dri")
 	}
 
-	return &res, nil
+	return res, nil
 }
 
 func GetSoundDevices() []string {
