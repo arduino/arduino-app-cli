@@ -34,22 +34,24 @@ type Brick struct {
 }
 
 type AppDescriptor struct {
-	Name            string   `yaml:"name"`
-	Description     string   `yaml:"description"`
-	Ports           []int    `yaml:"ports"`
-	Bricks          []Brick  `yaml:"bricks"`
-	Icon            string   `yaml:"icon,omitempty"`
+	Name        string  `yaml:"name"`
+	Description string  `yaml:"description"`
+	Ports       []int   `yaml:"ports"`
+	Bricks      []Brick `yaml:"bricks"`
+	Icon        string  `yaml:"icon,omitempty"`
+	// Deprecated: Use the RequiredDevices section defined per Brick instead.
 	RequiredDevices []string `yaml:"required_devices,omitempty"`
 }
 
 func (d AppDescriptor) MarshalYAML() (any, error) {
 	type raw struct {
-		Name            string             `yaml:"name"`
-		Description     string             `yaml:"description"`
-		Ports           []int              `yaml:"ports"`
-		Bricks          []map[string]Brick `yaml:"bricks"`
-		Icon            string             `yaml:"icon,omitempty"`
-		RequiredDevices []string           `yaml:"required_devices,omitempty"`
+		Name        string             `yaml:"name"`
+		Description string             `yaml:"description"`
+		Ports       []int              `yaml:"ports"`
+		Bricks      []map[string]Brick `yaml:"bricks"`
+		Icon        string             `yaml:"icon,omitempty"`
+		// Deprecated: Use the RequiredDevices section defined per Brick instead.
+		RequiredDevices []string `yaml:"required_devices,omitempty"`
 	}
 
 	bricks := make([]map[string]Brick, len(d.Bricks))

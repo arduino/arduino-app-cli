@@ -280,11 +280,8 @@ func generateMainComposeFile(
 		services = append(services, svcs...)
 	}
 
-	// 6. Collect all the required device classes from the app descriptor
-	if len(app.Descriptor.RequiredDevices) > 0 {
-		for _, deviceClass := range app.Descriptor.RequiredDevices {
-			requiredDeviceClasses[deviceClass] = true
-		}
+	if len(app.Descriptor.RequiredDevices) > 0 { // nolint:staticcheck
+		slog.Warn("The 'required_devices' field is deprecated. Please move requirements to the specific 'bricks' section.")
 	}
 
 	// Create a single docker-mainCompose that includes all the required services
