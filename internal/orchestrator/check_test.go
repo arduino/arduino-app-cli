@@ -1,4 +1,4 @@
-package app
+package orchestrator
 
 import (
 	"errors"
@@ -10,6 +10,7 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
@@ -183,10 +184,10 @@ bricks:
 			err = os.WriteFile(appYaml.String(), []byte(tc.yamlContent), 0600)
 			require.NoError(t, err)
 
-			appDescriptor, err := ParseDescriptorFile(appYaml)
+			appDescriptor, err := app.ParseDescriptorFile(appYaml)
 			require.NoError(t, err)
 
-			err = ValidateBricks(appDescriptor, bricksIndex, modelIndex)
+			err = checkBricks(appDescriptor, bricksIndex, modelIndex)
 			if tc.expectedError == nil {
 				assert.NoError(t, err, "Expected no validation errors")
 			} else {
@@ -215,8 +216,8 @@ func TestValidateVirtualDevice(t *testing.T) {
 		},
 	}
 
-	appDescriptor := AppDescriptor{
-		Bricks: []Brick{
+	appDescriptor := app.AppDescriptor{
+		Bricks: []app.Brick{
 			{
 				ID:      "arduino:brick-with-camera-device",
 				Devices: []string{"remote_camera_0"},
@@ -231,11 +232,11 @@ func TestValidateVirtualDevice(t *testing.T) {
 		HasVideoDevice: false,
 	}
 
-	err := ValidateRequiredDevices(bIndex, appDescriptor.Bricks, availableDevices)
+	err := checkRequiredDevices(bIndex, appDescriptor.Bricks, availableDevices)
 	require.Equal(t, "no camera device found", err.Error())
 }
 
-func TestValidateVirtualDeviceNoError(t *testing.T) {
+func TestCheckRequiredDevicesNoError(t *testing.T) {
 	// do not fail if a brick requires a virtual camera device
 
 	bIndex := &bricksindex.BricksIndex{
@@ -247,8 +248,8 @@ func TestValidateVirtualDeviceNoError(t *testing.T) {
 		},
 	}
 
-	appDescriptor := AppDescriptor{
-		Bricks: []Brick{
+	appDescriptor := app.AppDescriptor{
+		Bricks: []app.Brick{
 			{
 				ID:      "arduino:brick-with-camera-device",
 				Devices: []string{"remote_camera_0"},
@@ -260,11 +261,11 @@ func TestValidateVirtualDeviceNoError(t *testing.T) {
 		HasVideoDevice: false,
 	}
 
-	err := ValidateRequiredDevices(bIndex, appDescriptor.Bricks, availableDevices)
+	err := checkRequiredDevices(bIndex, appDescriptor.Bricks, availableDevices)
 	require.NoError(t, err)
 }
 
-func TestValidateRequiredDevice(t *testing.T) {
+func TestCheckRequiredDevice(t *testing.T) {
 	testCases := []struct {
 		name                      string
 		brickRequiredDevicesClass []string
@@ -368,14 +369,14 @@ func TestValidateRequiredDevice(t *testing.T) {
 				},
 			}
 
-			appDescriptor := AppDescriptor{
-				Bricks: []Brick{
+			appDescriptor := app.AppDescriptor{
+				Bricks: []app.Brick{
 					{
 						ID: "arduino:a-simple-brick"},
 				},
 			}
 
-			err := ValidateRequiredDevices(bIndex, appDescriptor.Bricks, tc.availableDevices)
+			err := checkRequiredDevices(bIndex, appDescriptor.Bricks, tc.availableDevices)
 			if tc.wantErr {
 				require.Error(t, err, "should have returned an error")
 				require.Equal(t, tc.errMessage, err.Error())

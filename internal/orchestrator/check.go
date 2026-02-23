@@ -1,4 +1,4 @@
-package app
+package orchestrator
 
 import (
 	"errors"
@@ -7,14 +7,15 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 )
 
-// ValidateBricks checks that all bricks referenced in the given AppDescriptor exist in the provided BricksIndex,
+// CheckBricks checks that all bricks referenced in the given AppDescriptor exist in the provided BricksIndex,
 // It collects and returns all validation errors as a single joined error, allowing the caller to see all issues at once rather than stopping at the first error.
-func ValidateBricks(a AppDescriptor, index *bricksindex.BricksIndex, modelIndex *modelsindex.ModelsIndex) error {
+func checkBricks(a app.AppDescriptor, index *bricksindex.BricksIndex, modelIndex *modelsindex.ModelsIndex) error {
 	if index == nil {
 		return fmt.Errorf("bricks index cannot be nil")
 	}
@@ -64,7 +65,7 @@ const (
 	SpeakerDevice    = "speaker"
 )
 
-func ValidateRequiredDevices(bricksIndex *bricksindex.BricksIndex, appBricks []Brick, availableDevices peripherals.AvailableDevices) error {
+func checkRequiredDevices(bricksIndex *bricksindex.BricksIndex, appBricks []app.Brick, availableDevices peripherals.AvailableDevices) error {
 	requiredDeviceClasses := make(map[string]bool)
 
 	for _, brick := range appBricks {
