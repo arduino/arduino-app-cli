@@ -120,6 +120,7 @@ func StartApp(
 		defer cancel()
 
 		err := checkBricks(appToStart.Descriptor, bricksIndex, modelsIndex)
+
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return
@@ -142,7 +143,7 @@ func StartApp(
 			yield(StreamMessage{error: err})
 		}
 
-		err = app.ValidateRequiredDevices(bricksIndex, appToStart.Descriptor.Bricks, devices)
+		err = checkRequiredDevices(bricksIndex, appToStart.Descriptor.Bricks, devices)
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return
