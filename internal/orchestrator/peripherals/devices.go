@@ -19,6 +19,12 @@ type AvailableDevices struct {
 	HasGPUDevice   bool
 }
 
+const (
+	Camera     = "camera"
+	Microphone = "microphone"
+	Speaker    = "speaker"
+)
+
 func Detect() (AvailableDevices, error) {
 	res := AvailableDevices{}
 
@@ -147,4 +153,19 @@ func extractIndexFromVideoDeviceName(device string) (int, error) {
 	dev := device[start:]
 
 	return strconv.Atoi(dev)
+}
+
+func HasVirtualDevice(deviceClass string, devices []string) bool {
+	virtualDevicesMapping := map[string][]string{
+		Camera: {"remote_camera_0"},
+	}
+
+	for _, v := range virtualDevicesMapping[deviceClass] {
+		for _, d := range devices {
+			if v == d {
+				return true
+			}
+		}
+	}
+	return false
 }
