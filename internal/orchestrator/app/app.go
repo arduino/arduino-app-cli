@@ -18,6 +18,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
@@ -70,6 +71,17 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 		}
 		app.Descriptor = desc
 		app.Name = desc.Name
+
+		if app.Descriptor.Description == "" {
+			description, err := app.getAppDescriptionFromReadme()
+			if err != nil {
+				// Log the error but don't fail the loading process, as the description is optional
+				slog.Warn("cannot extract app description from README.md", "error", err)
+			} else {
+				app.Descriptor.Description = description
+			}
+		}
+
 	} else {
 		return ArduinoApp{}, errors.New("descriptor app.yaml file missing from app")
 	}
@@ -182,7 +194,7 @@ func extractFirstParagraph(source []byte) string {
 	for n := doc.FirstChild(); n != nil; n = n.NextSibling() {
 		if n.Kind() == ast.KindParagraph {
 			var buf strings.Builder
-			ast.Walk(n, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+			err := ast.Walk(n, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 				if node.Kind() == ast.KindImage {
 					return ast.WalkSkipChildren, nil
 				}
@@ -196,6 +208,12 @@ func extractFirstParagraph(source []byte) string {
 				}
 				return ast.WalkContinue, nil
 			})
+
+			if err != nil {
+				slog.Warn("failed to walk paragraph node", "error", err)
+				continue
+			}
+
 			result := strings.TrimSpace(buf.String())
 			// Return the first paragraph if it's not empty, otherwise continue to the next one
 			if result != "" {
