@@ -111,6 +111,19 @@ func (p *StreamMessage) GetType() MessageType {
 	return UnknownType
 }
 
+// Timing holds durations for key app orchestration steps
+type Timing struct {
+	GetRunningAppMS       int64
+	CompileUploadSketchMS int64
+	ProvisionAppMS        int64
+	StartAppMS            int64
+}
+
+// PrettyPrint returns a formatted string of the timings
+func (t Timing) PrettyPrint() string {
+	return fmt.Sprintf("Timing:\n  getRunningApp: %d ms\n  compileUploadSketch: %d ms\n  provisionApp: %d ms\n  startApp: %d ms", t.GetRunningAppMS, t.CompileUploadSketchMS, t.ProvisionAppMS, t.StartAppMS)
+}
+
 func StartApp(
 	ctx context.Context,
 	docker command.Cli,
@@ -122,16 +135,14 @@ func StartApp(
 	staticStore *store.StaticStore,
 ) iter.Seq[StreamMessage] {
 	return func(yield func(StreamMessage) bool) {
+		timing := &Timing{}
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
+		runningStart := time.Now()
 		err := app.ValidateBricks(appToStart.Descriptor, bricksIndex, modelsIndex)
-		if err != nil {
-			yield(StreamMessage{error: err})
-			return
-		}
-
 		running, err := getRunningApp(ctx, docker.Client())
+		timing.GetRunningAppMS = time.Since(runningStart).Milliseconds()
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return
@@ -159,6 +170,7 @@ func StartApp(
 		}
 
 		if _, ok := appToStart.GetSketchPath(); ok {
+			compileStart := time.Now()
 			if !yield(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}}) {
 				return
 			}
@@ -166,6 +178,7 @@ func StartApp(
 				yield(StreamMessage{error: err})
 				return
 			}
+			timing.CompileUploadSketchMS = time.Since(compileStart).Milliseconds()
 			if !yield(StreamMessage{progress: &Progress{Name: "sketch updated", Progress: 10.0}}) {
 				return
 			}
@@ -178,11 +191,13 @@ func StartApp(
 				cancel()
 				return
 			}
+
 			provisionStartProgress := float32(0.0)
 			if _, ok := appToStart.GetSketchPath(); ok {
 				provisionStartProgress = 10.0
 			}
 
+			provisionStart := time.Now()
 			if !yield(StreamMessage{progress: &Progress{Name: "python provisioning", Progress: provisionStartProgress}}) {
 				return
 			}
@@ -191,6 +206,7 @@ func StartApp(
 				yield(StreamMessage{error: err})
 				return
 			}
+			timing.ProvisionAppMS = time.Since(provisionStart).Milliseconds()
 
 			if !yield(StreamMessage{data: "python downloading"}) {
 				cancel()
@@ -233,6 +249,7 @@ func StartApp(
 			})
 
 			slog.Debug("starting app", slog.String("command", strings.Join(commands, " ")), slog.Any("envs", envs))
+			startAppStart := time.Now()
 			process, err := paths.NewProcess(envs.AsList(), commands...)
 			if err != nil {
 				yield(StreamMessage{error: err})
@@ -249,7 +266,11 @@ func StartApp(
 				yield(StreamMessage{error: err})
 				return
 			}
+			timing.StartAppMS = time.Since(startAppStart).Milliseconds()
 		}
+
+		slog.Info("app timing", "time", timing.PrettyPrint())
+
 		_ = yield(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
 	}
 }
