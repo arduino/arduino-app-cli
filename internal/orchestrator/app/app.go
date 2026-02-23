@@ -19,9 +19,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/text"
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 )
@@ -153,4 +157,51 @@ func (a *ArduinoApp) AppComposeFilePath() *paths.Path {
 
 func (a *ArduinoApp) AppComposeOverrideFilePath() *paths.Path {
 	return a.ProvisioningStateDir().Join("app-compose-overrides.yaml")
+}
+
+func (a *ArduinoApp) getAppDescriptionFromReadme() (string, error) {
+	readmePath := a.FullPath.Join("README.md")
+	if !readmePath.Exist() {
+		return "", fmt.Errorf("README.md not found in app directory")
+	}
+
+	content, err := readmePath.ReadFile()
+	if err != nil {
+		return "", fmt.Errorf("error reading README.md: %w", err)
+	}
+
+	description := extractFirstParagraph(content)
+	return description, nil
+}
+
+func extractFirstParagraph(source []byte) string {
+	reader := text.NewReader(source)
+	parser := goldmark.New().Parser()
+	doc := parser.Parse(reader)
+
+	for n := doc.FirstChild(); n != nil; n = n.NextSibling() {
+		if n.Kind() == ast.KindParagraph {
+			var buf strings.Builder
+			ast.Walk(n, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+				if node.Kind() == ast.KindImage {
+					return ast.WalkSkipChildren, nil
+				}
+				if entering {
+					if t, ok := node.(*ast.Text); ok {
+						buf.Write(t.Value(source))
+						if t.SoftLineBreak() || t.HardLineBreak() {
+							buf.WriteByte(' ')
+						}
+					}
+				}
+				return ast.WalkContinue, nil
+			})
+			result := strings.TrimSpace(buf.String())
+			// Return the first paragraph if it's not empty, otherwise continue to the next one
+			if result != "" {
+				return result
+			}
+		}
+	}
+	return ""
 }

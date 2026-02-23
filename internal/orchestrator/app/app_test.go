@@ -96,3 +96,89 @@ func TestMissingMains(t *testing.T) {
 	assert.ErrorContains(t, err, "main python file and sketch file missing from app")
 	assert.Empty(t, app)
 }
+
+func TestExtractFirstParagraph(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []byte
+		expected string
+	}{
+		{
+			name:     "it extracts the first paragraph from a markdown string",
+			input:    []byte("# Title\n\nThis is the first paragraph.\n\nThis is the second paragraph."),
+			expected: "This is the first paragraph.",
+		},
+		{
+			name:     "it extracts the first paragraph if there are no title",
+			input:    []byte("This is the first paragraph.\n\nThis is the second paragraph."),
+			expected: "This is the first paragraph.",
+		},
+		{
+			name:     "it returns empty string if there are no paragraphs",
+			input:    []byte("# Title"),
+			expected: "",
+		},
+		{
+			name:     "it returns the first valid paragraph even if there are multiple newlines",
+			input:    []byte("# Title\n\n\n\n the first valid paragraph."),
+			expected: "the first valid paragraph.",
+		},
+		{
+			name:     "it returns multiple lines of the first paragraph",
+			input:    []byte("# Title\n\nThis is the first line of the first paragraph.\nThis is the second line of the first paragraph.\n\nThis is the second paragraph."),
+			expected: "This is the first line of the first paragraph. This is the second line of the first paragraph.",
+		},
+		{
+			name:     "it returns the first paragraph cleared from bold or italic markdown syntax",
+			input:    []byte("# Title\n\n**This is the bold** paragraph.\n*This is italic* paragraph."),
+			expected: "This is the bold paragraph. This is italic paragraph.",
+		},
+		{
+			name:     "it returns the first paragraph cleared from link markdown syntax",
+			input:    []byte("# Title\n\nThis is a [link](https://example.com) paragraph."),
+			expected: "This is a link paragraph.",
+		},
+		{
+			name:     "it ignores images at the beginning of the paragraph",
+			input:    []byte("# Title\n\n![Banner](image.png)\nThis is the actual description."),
+			expected: "This is the actual description.",
+		},
+		{
+			name:     "it returns empty string if the paragraph contains only an image",
+			input:    []byte("# Title\n\n![Banner](image.png)"),
+			expected: "",
+		},
+		{
+			name:     "it should include inline code content",
+			input:    []byte("# Title\n\nThis is `code` example."),
+			expected: "This is code example.",
+		},
+		{
+			name:     "it should return inline code paragraph",
+			input:    []byte("# Title\n\n`hello world`"),
+			expected: "hello world",
+		},
+		{
+			name:     "it should handle hard line break",
+			input:    []byte("# Title\n\nFirst line.  \nSecond line."),
+			expected: "First line. Second line.",
+		},
+		{
+			name:     "it should skip paragraph containing only linked image",
+			input:    []byte("# Title\n\n[![Alt](img.png)](https://example.com)\n\nReal paragraph."),
+			expected: "Real paragraph.",
+		},
+		{
+			name:     "it should skip image-only paragraph and return next paragraph",
+			input:    []byte("# Title\n\n![Banner](image.png)\n\nThis is the real first paragraph."),
+			expected: "This is the real first paragraph.",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := extractFirstParagraph(test.input)
+			assert.Equal(t, test.expected, result)
+		})
+	}
+}
