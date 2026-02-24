@@ -203,6 +203,7 @@ const (
 
 func setStatusLeds(platform platform.Platform, trigger LedTrigger) error {
 	for _, ledPath := range platform.Linux.StatusLeds {
+		ledPath = ledPath.Join("trigger")
 		if !ledPath.Exist() {
 			return fmt.Errorf("LED path %s does not exist", ledPath)
 		}

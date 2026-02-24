@@ -37,9 +37,9 @@ func GetPlatform() Platform {
 			PlatformName: "arduino:zephyr",
 			Linux: struct{ UserLeds, StatusLeds paths.PathList }{
 				StatusLeds: paths.NewPathList(
-					"/sys/class/leds/blue:bt/trigger",
-					"/sys/class/leds/green:wlan/trigger",
-					"/sys/class/leds/red:panic/trigger",
+					"/sys/class/leds/blue:bt",
+					"/sys/class/leds/green:wlan",
+					"/sys/class/leds/red:panic",
 				),
 				UserLeds: paths.NewPathList(
 					"/sys/class/leds/blue:user",
@@ -48,7 +48,7 @@ func GetPlatform() Platform {
 				),
 			},
 			Micro: struct{ ResetPin GpioPin }{
-				ResetPin: GpioPin{Chip: "gpiochip0", Number: 6},
+				ResetPin: GpioPin{Chip: "gpiochip1", Number: 38},
 			},
 		}
 	default:
