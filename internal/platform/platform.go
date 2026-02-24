@@ -1,9 +1,9 @@
 package platform
 
 import (
+	"bytes"
 	"log/slog"
 	"os"
-	"strings"
 
 	"github.com/arduino/go-paths-helper"
 
@@ -65,16 +65,21 @@ func (p Platform) GetMicro() micro.Micro {
 }
 
 func getBoardName() string {
+	trimAll := func(s []byte) []byte {
+		return bytes.Trim(s, " \n\t\r\x00")
+	}
+
 	if buf, err := os.ReadFile("/sys/class/dmi/id/product_name"); err == nil {
-		return strings.TrimSpace(string(buf))
+		return string(trimAll(buf))
 	} else if buf, err := os.ReadFile("/sys/firmware/devicetree/base/model"); err == nil {
-		idx := strings.LastIndex(string(buf), ",")
+		idx := bytes.LastIndex(buf, []byte(","))
 		if idx != -1 {
-			return strings.TrimSpace(string(buf[:idx]))
+			return string(trimAll(buf[:idx]))
 		}
-		if idx := strings.LastIndex(string(buf), " "); idx != -1 {
-			return strings.TrimSpace(string(buf[:idx]))
+		if idx := bytes.LastIndex(buf, []byte(" ")); idx != -1 {
+			return string(trimAll(buf[idx+1:]))
 		}
 	}
+
 	return ""
 }
