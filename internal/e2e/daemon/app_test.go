@@ -1475,3 +1475,155 @@ func TestSketchAppLibrariesCommands(t *testing.T) {
 		}
 	}
 }
+
+func TestDescriptionApp(t *testing.T) {
+	httpClient := GetHttpclient(t)
+
+	createZipBytes := func(t *testing.T, files map[string]string) []byte {
+		t.Helper()
+		buf := new(bytes.Buffer)
+		zipWriter := zip.NewWriter(buf)
+
+		for name, content := range files {
+			f, err := zipWriter.Create(name)
+			require.NoError(t, err)
+			_, err = f.Write([]byte(content))
+			require.NoError(t, err)
+		}
+		require.NoError(t, zipWriter.Close())
+		return buf.Bytes()
+	}
+
+	createMultipartBody := func(t *testing.T, zipData []byte) (*bytes.Buffer, string) {
+		t.Helper()
+		body := new(bytes.Buffer)
+		writer := multipart.NewWriter(body)
+
+		part, err := writer.CreateFormFile("file", "test-app.zip")
+		require.NoError(t, err)
+		_, err = part.Write(zipData)
+		require.NoError(t, err)
+
+		err = writer.Close()
+		require.NoError(t, err)
+
+		return body, writer.FormDataContentType()
+	}
+	t.Run("Get_description_from_app_yaml", func(t *testing.T) {
+		zipData := createZipBytes(t, map[string]string{
+			"app.yaml":       "name: my app \ndescription: my app from app.yaml",
+			"python/main.py": "print('Hello imported world')",
+			"README.md":      "# This is a readme\nThis description should be ignored and not appear in the app description",
+		})
+		bodyBuf, contentType := createMultipartBody(t, zipData)
+
+		importResp, err := httpClient.ImportAppWithBody(
+			t.Context(),
+			&client.ImportAppParams{},
+			contentType,
+			bodyBuf,
+		)
+		require.NoError(t, err)
+
+		require.Equal(t, http.StatusCreated, importResp.StatusCode)
+		require.NotNil(t, importResp.Body)
+		defer importResp.Body.Close()
+
+		var importRespBody handlers.AppImportResponse
+		body, err := io.ReadAll(importResp.Body)
+		require.NoError(t, err)
+		err = json.Unmarshal(body, &importRespBody)
+		require.NoError(t, err)
+		require.NotNil(t, importRespBody.ID)
+
+		importedAppId := importRespBody.ID
+		getResp, err := httpClient.GetAppDetailsWithResponse(t.Context(), importedAppId)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, getResp.StatusCode())
+		require.Equal(t, "my app from app.yaml", *getResp.JSON200.Description, "The app description should be taken from app.yaml, not from README.md")
+	})
+	t.Run("Get_description_from_readme", func(t *testing.T) {
+		readmeContent := `# HelloWorld
+description from the readme **bold**
+*this is an italic line after an hard breack*
+` + "`this is a code line`" + `
+[link](https://example.com)`
+
+		zipData := createZipBytes(t, map[string]string{
+			"app.yaml":       "name: my app \ndescription:    ",
+			"python/main.py": "print('Hello imported world')",
+			"README.md":      readmeContent,
+		})
+		bodyBuf, contentType := createMultipartBody(t, zipData)
+
+		importResp, err := httpClient.ImportAppWithBody(
+			t.Context(),
+			&client.ImportAppParams{},
+			contentType,
+			bodyBuf,
+		)
+		require.NoError(t, err)
+
+		require.Equal(t, http.StatusCreated, importResp.StatusCode)
+		require.NotNil(t, importResp.Body)
+		defer importResp.Body.Close()
+
+		var importRespBody handlers.AppImportResponse
+		body, err := io.ReadAll(importResp.Body)
+		require.NoError(t, err)
+		err = json.Unmarshal(body, &importRespBody)
+		require.NoError(t, err)
+		require.NotNil(t, importRespBody.ID)
+
+		importedAppId := importRespBody.ID
+		getResp, err := httpClient.GetAppDetailsWithResponse(t.Context(), importedAppId)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, getResp.StatusCode())
+		require.Equal(t, "description from the readme bold this is an italic line after an hard breack this is a code line link", *getResp.JSON200.Description, "The app description should be taken from README.md")
+
+		// test description in the app details should match the description in the apps list
+		listResp, err := httpClient.GetAppsWithResponse(t.Context(), &client.GetAppsParams{})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, listResp.StatusCode())
+		apps := *listResp.JSON200.Apps
+		require.NotEmpty(t, apps)
+		app := apps[0]
+		if app.Id != nil && *app.Id == importedAppId {
+			require.NotNil(t, app.Description)
+			require.Equal(t, *getResp.JSON200.Description, *app.Description, "Description in list must match description in details")
+		}
+	})
+
+	t.Run("Description_must_be_empty_if_no_description", func(t *testing.T) {
+		zipData := createZipBytes(t, map[string]string{
+			"app.yaml":       "name: my app \ndescription:    ",
+			"python/main.py": "print('Hello imported world')",
+		})
+		bodyBuf, contentType := createMultipartBody(t, zipData)
+
+		importResp, err := httpClient.ImportAppWithBody(
+			t.Context(),
+			&client.ImportAppParams{},
+			contentType,
+			bodyBuf,
+		)
+		require.NoError(t, err)
+
+		require.Equal(t, http.StatusCreated, importResp.StatusCode)
+		require.NotNil(t, importResp.Body)
+		defer importResp.Body.Close()
+
+		var importRespBody handlers.AppImportResponse
+		body, err := io.ReadAll(importResp.Body)
+		require.NoError(t, err)
+		err = json.Unmarshal(body, &importRespBody)
+		require.NoError(t, err)
+		require.NotNil(t, importRespBody.ID)
+
+		importedAppId := importRespBody.ID
+		getResp, err := httpClient.GetAppDetailsWithResponse(t.Context(), importedAppId)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, getResp.StatusCode())
+		require.Equal(t, "", *getResp.JSON200.Description, "The app description should be empty if no description is provided in both app.yaml and README.md")
+	})
+}
