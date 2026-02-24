@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"log/slog"
 	"os"
 	"strings"
 
@@ -52,7 +53,10 @@ func GetPlatform() Platform {
 			},
 		}
 	default:
-		panic("unsupported board: " + boardName)
+		slog.Warn("not supported platform", "boardName", boardName)
+		return Platform{
+			BoardName: boardName,
+		}
 	}
 }
 
