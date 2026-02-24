@@ -1541,6 +1541,13 @@ func TestDescriptionApp(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, getResp.StatusCode())
 		require.Equal(t, "my app from app.yaml", *getResp.JSON200.Description, "The app description should be taken from app.yaml, not from README.md")
+
+		// cleaning environment
+		deleteResp, err := httpClient.DeleteApp(t.Context(), importedAppId)
+		require.NoError(t, err)
+		defer deleteResp.Body.Close()
+		require.Equal(t, http.StatusOK, deleteResp.StatusCode)
+
 	})
 	t.Run("Get_description_from_readme", func(t *testing.T) {
 		readmeContent := `# HelloWorld
@@ -1592,11 +1599,18 @@ description from the readme **bold**
 			require.NotNil(t, app.Description)
 			require.Equal(t, *getResp.JSON200.Description, *app.Description, "Description in list must match description in details")
 		}
+
+		// cleaning environment
+		deleteResp, err := httpClient.DeleteApp(t.Context(), importedAppId)
+		require.NoError(t, err)
+		defer deleteResp.Body.Close()
+		require.Equal(t, http.StatusOK, deleteResp.StatusCode)
+
 	})
 
 	t.Run("Description_must_be_empty_if_no_description", func(t *testing.T) {
 		zipData := createZipBytes(t, map[string]string{
-			"app.yaml":       "name: my app \ndescription:    ",
+			"app.yaml":       "name: my app with no description\ndescription:    ",
 			"python/main.py": "print('Hello imported world')",
 		})
 		bodyBuf, contentType := createMultipartBody(t, zipData)
@@ -1625,5 +1639,12 @@ description from the readme **bold**
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, getResp.StatusCode())
 		require.Equal(t, "", *getResp.JSON200.Description, "The app description should be empty if no description is provided in both app.yaml and README.md")
+
+		// cleaning environment
+		deleteResp, err := httpClient.DeleteApp(t.Context(), importedAppId)
+		require.NoError(t, err)
+		defer deleteResp.Body.Close()
+		require.Equal(t, http.StatusOK, deleteResp.StatusCode)
 	})
+
 }
