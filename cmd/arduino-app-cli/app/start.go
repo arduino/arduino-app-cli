@@ -65,6 +65,7 @@ func startHandler(ctx context.Context, cfg config.Configuration, app app.Arduino
 		app,
 		cfg,
 		servicelocator.GetStaticStore(),
+		servicelocator.GetPlatform(),
 	)
 	for message := range stream {
 		switch message.GetType() {

@@ -37,6 +37,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 type AIModelsListResult struct {
@@ -153,7 +154,7 @@ var (
 	ErrIncompleteImpulse   = errors.New("inpulse not ready for deployment")
 )
 
-func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, id string, idProvider *app.IDProvider, force bool) (err error) {
+func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, platform platform.Platform, id string, idProvider *app.IDProvider, force bool) (err error) {
 	res, found := modelsIndex.GetModelByID(id)
 	if !found {
 		return fmt.Errorf("%q: %w", id, ErrNotFound)
@@ -178,7 +179,7 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 	}
 
 	if runningAppReference != nil {
-		StopApp(ctx, dockerClient, *runningAppReference)
+		StopApp(ctx, dockerClient, platform, *runningAppReference)
 	}
 
 	if res.ModelFolderPath == nil {

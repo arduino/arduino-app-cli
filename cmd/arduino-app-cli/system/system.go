@@ -22,7 +22,6 @@ import (
 
 	"github.com/docker/cli/cli/command"
 	"github.com/spf13/cobra"
-	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
@@ -75,7 +74,10 @@ func newUpdateCmd(cfg config.Configuration) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			filterFunc := getFilterFunc(onlyArduino)
 
-			updater := getUpdater(cfg.ArduinoPlatformVersionConstraint)
+			updater := update.NewManager(
+				apt.New(),
+				arduino.NewArduinoPlatformUpdater(servicelocator.GetPlatform(), cfg.ArduinoPlatformVersionConstraint),
+			)
 
 			pkgs, err := updater.ListUpgradablePackages(cmd.Context(), filterFunc)
 			if err != nil {
@@ -136,13 +138,6 @@ func newUpdateCmd(cfg config.Configuration) *cobra.Command {
 	return cmd
 }
 
-func getUpdater(versionConstraint semver.Constraint) *update.Manager {
-	return update.NewManager(
-		apt.New(),
-		arduino.NewArduinoPlatformUpdater(versionConstraint),
-	)
-}
-
 func getFilterFunc(onlyArduino bool) func(p update.UpgradablePackage) bool {
 	if onlyArduino {
 		return update.MatchArduinoPackage
@@ -157,9 +152,10 @@ func newCleanUpCmd(cfg config.Configuration, docker command.Cli) *cobra.Command 
 		Args:  cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			staticStore := servicelocator.GetStaticStore()
+			platform := servicelocator.GetPlatform()
 
 			feedback.Printf("Running cleanup...")
-			result, err := orchestrator.SystemCleanup(cmd.Context(), cfg, staticStore, docker)
+			result, err := orchestrator.SystemCleanup(cmd.Context(), cfg, staticStore, docker, platform)
 			if err != nil {
 				return err
 			}

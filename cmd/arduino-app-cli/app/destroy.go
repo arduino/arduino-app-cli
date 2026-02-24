@@ -53,7 +53,7 @@ func newDestroyCmd(cfg config.Configuration) *cobra.Command {
 func destroyHandler(ctx context.Context, app app.ArduinoApp) error {
 	out, _, getResult := feedback.OutputStreams()
 
-	for message := range orchestrator.StopAndDestroyApp(ctx, servicelocator.GetDockerClient(), app) {
+	for message := range orchestrator.StopAndDestroyApp(ctx, servicelocator.GetDockerClient(), servicelocator.GetPlatform(), app) {
 		switch message.GetType() {
 		case orchestrator.ProgressType:
 			fmt.Fprintf(out, "Progress[%s]: %.0f%%\n", message.GetProgress().Name, message.GetProgress().Progress)
