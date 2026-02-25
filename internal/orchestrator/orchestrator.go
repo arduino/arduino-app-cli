@@ -137,18 +137,6 @@ func StartApp(
 			return
 		}
 
-		devices, err = peripherals.Detect()
-		if err != nil {
-			yield(StreamMessage{error: err})
-			return
-		}
-
-		err = checkRequiredDevices(bricksIndex, appToStart.Descriptor.Bricks, devices)
-		if err != nil {
-			yield(StreamMessage{error: err})
-			return
-		}
-
 		running, err := getRunningApp(ctx, docker.Client())
 		if err != nil {
 			yield(StreamMessage{error: err})
