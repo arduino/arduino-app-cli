@@ -120,7 +120,6 @@ func StartApp(
 		defer cancel()
 
 		err := checkBricks(appToStart.Descriptor, bricksIndex, modelsIndex)
-
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return

@@ -76,7 +76,6 @@ func checkRequiredDevices(bricksIndex *bricksindex.BricksIndex, appBricks []app.
 			}
 			requiredDeviceClasses[deviceClass] = true
 		}
-
 	}
 
 	var allErrors error
