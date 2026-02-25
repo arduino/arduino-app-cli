@@ -4,8 +4,7 @@ set -e
 
 APP_USER="arduino"
 APP_GROUP="arduino"
-
-GROUPS_TO_ADD="sysupgrade docker"
+SYSUPGRADE_GROUP="sysupgrade"
 
 if ! getent group "$APP_GROUP" >/dev/null 2>&1; then
     addgroup "$APP_GROUP"
@@ -20,12 +19,10 @@ if ! getent passwd "$APP_USER" >/dev/null 2>&1; then
         "$APP_USER" >/dev/null
 fi
 
-for GROUP in $GROUPS_TO_ADD; do
-    if ! getent group "$GROUP" >/dev/null 2>&1; then
-        groupadd --system "$GROUP"
-    fi
-    usermod -aG "$GROUP" "$APP_USER"
-done
+if ! getent group "$SYSUPGRADE_GROUP" >/dev/null 2>&1; then
+    groupadd --system "$SYSUPGRADE_GROUP"
+fi
+usermod -aG "$SYSUPGRADE_GROUP" "$APP_USER"
 
 # Starting with this version, the arduino-app-cli user directory is
 # no longer located at /home/arduino/.local/share/arduino-app-cli
