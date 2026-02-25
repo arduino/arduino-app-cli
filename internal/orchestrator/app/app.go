@@ -16,17 +16,17 @@
 package app
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"log/slog"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/text"
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 )
@@ -187,39 +187,70 @@ func (a *ArduinoApp) getAppDescriptionFromReadme() (string, error) {
 }
 
 func extractFirstParagraph(source []byte) string {
-	reader := text.NewReader(source)
-	parser := goldmark.New().Parser()
-	doc := parser.Parse(reader)
+	scanner := bufio.NewScanner(bytes.NewReader(source))
+	var lines []string
+	inFence := false
 
-	for n := doc.FirstChild(); n != nil; n = n.NextSibling() {
-		if n.Kind() == ast.KindParagraph {
-			var buf strings.Builder
-			err := ast.Walk(n, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
-				if node.Kind() == ast.KindImage {
-					return ast.WalkSkipChildren, nil
-				}
-				if entering {
-					if t, ok := node.(*ast.Text); ok {
-						buf.Write(t.Value(source))
-						if t.SoftLineBreak() || t.HardLineBreak() {
-							buf.WriteByte(' ')
-						}
-					}
-				}
-				return ast.WalkContinue, nil
-			})
-
-			if err != nil {
-				slog.Warn("failed to walk paragraph node", "error", err)
-				continue
-			}
-
-			result := strings.TrimSpace(buf.String())
-			// Return the first paragraph if it's not empty, otherwise continue to the next one
-			if result != "" {
-				return result
-			}
+	for scanner.Scan() {
+		line := scanner.Text()
+		trimmed := strings.TrimSpace(line)
+		if reFence.MatchString(line) {
+			inFence = !inFence
+			continue
 		}
+		if inFence {
+			continue
+		}
+
+		if trimmed == "" ||
+			reHeader.MatchString(line) ||
+			reSetext.MatchString(line) ||
+			reList.MatchString(line) ||
+			reQuote.MatchString(line) ||
+			reIndent.MatchString(line) {
+			if len(lines) > 0 {
+				break
+			}
+			continue
+		}
+
+		clean := cleanInlineMarkdown(trimmed)
+		if clean == "" {
+			continue
+		}
+
+		lines = append(lines, clean)
 	}
-	return ""
+
+	return strings.Join(lines, " ")
+}
+
+var (
+	// Block-level regex
+	reHeader = regexp.MustCompile(`^\s*#{1,6}\s+`)        // Matches ATX-style headings (#, ##, ###, etc.)
+	reSetext = regexp.MustCompile(`^\s*(=+|-+)\s*$`)      // Matches Setext-style headings (underlines with === or ---)
+	reList   = regexp.MustCompile(`^\s*([-*+]|\d+\.)\s+`) // Matches unordered (-, *, +) or ordered (1., 2., etc.) list items
+	reQuote  = regexp.MustCompile(`^\s*>\s+`)             // Matches blockquotes starting with >
+	reFence  = regexp.MustCompile("^\\s*```")             // Matches fenced code block start/end (```)
+	reIndent = regexp.MustCompile(`^\s{4,}`)              // Matches indented code blocks (4+ spaces)
+
+	// Inline-level regex
+	reBold        = regexp.MustCompile(`\*\*(.*?)\*\*`)               // Matches bold text (**text**)
+	reItalic      = regexp.MustCompile(`\*(.*?)\*`)                   // Matches italic text (*text*)
+	reCode        = regexp.MustCompile("`([^`]*)`")                   // Matches inline code (`code`)
+	reLink        = regexp.MustCompile(`\[(.*?)\]\(.*?\)`)            // Matches links [text](url), keeps only the text
+	reLinkedImage = regexp.MustCompile(`\[\!\[.*?\]\(.*?\)\]\(.*?\)`) // Matches linked images [![alt](img)](url)
+	reImage       = regexp.MustCompile(`!\[.*?\]\(.*?\)`)             // Matches images ![alt](img)
+	reMultiSpace  = regexp.MustCompile(`\s+`)                         // Matches multiple spaces/newlines to normalize
+)
+
+func cleanInlineMarkdown(s string) string {
+	s = reLinkedImage.ReplaceAllString(s, "")
+	s = reImage.ReplaceAllString(s, "")
+	s = reLink.ReplaceAllString(s, "$1")
+	s = reBold.ReplaceAllString(s, "$1")
+	s = reItalic.ReplaceAllString(s, "$1")
+	s = reCode.ReplaceAllString(s, "$1")
+	s = reMultiSpace.ReplaceAllString(s, " ")
+	return strings.TrimSpace(s)
 }
