@@ -79,6 +79,8 @@ func NewArduinoAppCLI(t *testing.T, opts ...ArduinoAppCLIOption) *ArduinoAppCLI 
 			"ARDUINO_APP_CLI__APPS_DIR":   appDir.String(),
 			"ARDUINO_APP_CLI__CONFIG_DIR": configDir.String(),
 			"ARDUINO_APP_CLI__DATA_DIR":   dataDir.String(),
+			// allow ci to run cli with whatever user it wants.
+			"ARDUINO_APP_CLI__ALLOW_ROOT": "true",
 		},
 	}
 	for _, opt := range opts {
