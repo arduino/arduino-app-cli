@@ -468,7 +468,7 @@ bricks:
   model_name: yolox-object-detection
   variables:
   - name: CUSTOM_MODEL_PATH
-    default_value: /home/arduino/.arduino-bricks/ei-models
+    default_value: /home/arduino/.arduino-bricks/models
     description: path to the custom model directory
   - name: EI_OBJ_DETECTION_MODEL
     default_value: /models/ootb/ei/yolo-x-nano.eim
@@ -502,7 +502,7 @@ models:
 	env := getAppEnvironmentVariables(appDesc, bricksIndex, modelIndex)
 	require.Equal(t, cfg.AppsDir().Join("app1").String(), env["APP_HOME"])
 	require.Equal(t, "/models/ootb/ei/yolo-x-nano.eim", env["EI_OBJ_DETECTION_MODEL"])
-	require.Equal(t, "/home/arduino/.arduino-bricks/ei-models", env["CUSTOM_MODEL_PATH"])
+	require.Equal(t, "/home/arduino/.arduino-bricks/models", env["CUSTOM_MODEL_PATH"])
 	// we ignore HOST_IP since it's dynamic
 }
 
@@ -531,7 +531,7 @@ func TestGetAppEnvironmentVariablesWithCustomModelOverrides(t *testing.T) {
 		{
 			ID: "arduino:object_detection",
 			Variables: map[string]string{
-				"EI_OBJ_DETECTION_MODEL": "/home/arduino/.arduino-bricks/ei-models/face-det.eim",
+				"EI_OBJ_DETECTION_MODEL": "/home/arduino/.arduino-bricks/models/face-det.eim",
 			}, // override the default model via ENV variable
 		},
 	}
@@ -550,7 +550,7 @@ bricks:
   model_name: yolox-object-detection
   variables:
   - name: CUSTOM_MODEL_PATH
-    default_value: /home/arduino/.arduino-bricks/ei-models
+    default_value: /home/arduino/.arduino-bricks/models
     description: path to the custom model directory
   - name: EI_OBJ_DETECTION_MODEL
     default_value: /models/ootb/ei/yolo-x-nano.eim
@@ -583,8 +583,8 @@ models:
 
 	env := getAppEnvironmentVariables(appDesc, bricksIndex, modelIndex)
 	require.Equal(t, cfg.AppsDir().Join("app1").String(), env["APP_HOME"])
-	require.Equal(t, "/home/arduino/.arduino-bricks/ei-models/face-det.eim", env["EI_OBJ_DETECTION_MODEL"])
-	require.Equal(t, "/home/arduino/.arduino-bricks/ei-models", env["CUSTOM_MODEL_PATH"])
+	require.Equal(t, "/home/arduino/.arduino-bricks/models/face-det.eim", env["EI_OBJ_DETECTION_MODEL"])
+	require.Equal(t, "/home/arduino/.arduino-bricks/models", env["CUSTOM_MODEL_PATH"])
 	// we ignore HOST_IP since it's dynamic
 }
 

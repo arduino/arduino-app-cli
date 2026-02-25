@@ -109,7 +109,7 @@ bricks:
   - arduino:object_detection:
       model: yolox-object-detection
       variables:
-        "EI_OBJ_DETECTION_MODEL": "/home/arduino/.arduino-bricks/ei-models/face-det.eim"
+        "EI_OBJ_DETECTION_MODEL": "/home/arduino/.arduino-bricks/models/face-det.eim"
 `
 
 	err = os.WriteFile(appYaml.String(), []byte(appDescriptor), 0600)
@@ -121,7 +121,7 @@ bricks:
 	require.Equal(t, 1, len(app.Descriptor.Bricks))
 	require.Equal(t, "arduino:object_detection", app.Descriptor.Bricks[0].ID)
 	require.Equal(t, "yolox-object-detection", app.Descriptor.Bricks[0].Model)
-	require.Equal(t, "/home/arduino/.arduino-bricks/ei-models/face-det.eim", app.Descriptor.Bricks[0].Variables["EI_OBJ_DETECTION_MODEL"])
+	require.Equal(t, "/home/arduino/.arduino-bricks/models/face-det.eim", app.Descriptor.Bricks[0].Variables["EI_OBJ_DETECTION_MODEL"])
 }
 
 func TestAppParser_Devices(t *testing.T) {

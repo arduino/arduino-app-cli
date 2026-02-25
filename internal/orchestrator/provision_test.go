@@ -93,7 +93,7 @@ bricks:
   model_name: yolox-object-detection
   variables:
   - name: CUSTOM_MODEL_PATH
-    default_value: /home/arduino/.arduino-bricks/ei-models
+    default_value: /home/arduino/.arduino-bricks/models
     description: path to the custom model directory
   - name: CUSTOM_MODEL_PATH
     default_value: /models/custom/ei/
