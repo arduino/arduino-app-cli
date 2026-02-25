@@ -41,6 +41,21 @@ func TestValidateAppDescriptorBricks(t *testing.T) {
 				Name:      "Arduino using an ai model",
 				ModelName: "i-am-default-model",
 			},
+			{
+				ID:   "arduino:brick-with-hidden-variable",
+				Name: "Hidden variable brick",
+				Variables: []bricksindex.BrickVariable{
+					{
+						Name:   "I_AM_HIDDEN_WITHOUT_DEFAULT",
+						Hidden: true,
+					},
+					{
+						Name:         "I_AM_HIDDEN_WITH_DEFAULT",
+						Hidden:       true,
+						DefaultValue: "i-am-the-default-value-of-a-hidden-variable",
+					},
+				},
+			},
 		},
 	}
 
@@ -172,6 +187,26 @@ bricks:
       model: i-am-model-2
 `,
 			expectedError: nil,
+		},
+		{
+			name: "an hiddden variable with a concrete value does not cause validation error",
+			yamlContent: `
+name: App with hidden variable with default value
+bricks:
+  - arduino:brick-with-hidden-variable:
+      variables:
+        I_AM_HIDDEN_WITHOUT_DEFAULT: "some-value"
+`,
+			expectedError: nil,
+		},
+		{
+			name: "is required works also for hidden variables",
+			yamlContent: `
+name: App with hidden variable
+bricks:
+  - arduino:brick-with-hidden-variable:
+`,
+			expectedError: errors.New("variable \"I_AM_HIDDEN_WITHOUT_DEFAULT\" is required by brick \"arduino:brick-with-hidden-variable\""),
 		},
 	}
 
