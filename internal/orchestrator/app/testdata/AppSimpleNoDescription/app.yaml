@@ -1,5 +1,4 @@
 
-name: Simple App
-#description: this is a simple app. Should be extracted from README.md
+name: Simple App Without Description
 ports: []
 bricks: []

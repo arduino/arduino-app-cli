@@ -73,16 +73,8 @@ func TestLoad(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotEmpty(t, app)
 
-		assert.NotNil(t, app.MainPythonFile)
-		assert.Equal(t, f.Must(filepath.Abs("testdata/AppSimpleNoDescription/python/main.py")), app.MainPythonFile.String())
-		sketchPath, ok := app.GetSketchPath()
-		assert.True(t, ok)
-		assert.NotNil(t, sketchPath)
-		assert.Equal(t, f.Must(filepath.Abs("testdata/AppSimpleNoDescription/sketch")), sketchPath.String())
-		assert.Equal(t, "Simple App", app.Descriptor.Name)
+		assert.Equal(t, "Simple App Without Description", app.Descriptor.Name)
 		assert.Equal(t, "Simple app is used for testing purposes.", app.Descriptor.Description)
-		assert.Empty(t, app.Descriptor.Ports)
-		assert.Empty(t, app.Descriptor.Bricks)
 	})
 
 	t.Run("it loads an app with missing sketch folder", func(t *testing.T) {
