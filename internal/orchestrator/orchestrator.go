@@ -1078,12 +1078,16 @@ func editAppDefaults(userApp *app.ArduinoApp, isDefault bool, cfg config.Configu
 }
 
 func getCurrentUser() string {
-	// Map user to avoid permission issues.
-	user, err := user.Current()
-	if err != nil {
-		panic(err)
+	userInfo := f.Must(user.Current())
+	uid := userInfo.Uid
+	gid := userInfo.Gid
+
+	// If exist use arduino group to avoid permission issue on files /var/lib/arduino-app-cli in.
+	if gInfo, err := user.LookupGroup("arduino"); err == nil {
+		gid = gInfo.Gid
 	}
-	return user.Uid + ":" + user.Gid
+
+	return uid + ":" + gid
 }
 
 type deviceResult struct {
