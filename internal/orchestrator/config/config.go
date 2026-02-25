@@ -31,6 +31,7 @@ import (
 
 // runnerVersion do not edit, this is generate with `task generate:assets`
 var RunnerVersion = "0.7.3"
+var PlatformVersionConstraint = "<=0.53.1"
 
 type Configuration struct {
 	appsDir                          *paths.Path
@@ -106,7 +107,10 @@ func NewFromEnv() (Configuration, error) {
 		return Configuration{}, fmt.Errorf("invalid LIBRARIES_API_URL: %w", err)
 	}
 
-	constraintStr := cmp.Or(os.Getenv("ARDUINO_APP_CLI__PLATFORM_VERSION_CONSTRAINT"), "<1.0.0")
+	constraintStr := cmp.Or(
+		os.Getenv("ARDUINO_APP_CLI__PLATFORM_VERSION_CONSTRAINT"),
+		PlatformVersionConstraint,
+	)
 
 	edgeImpulseAPIURL := os.Getenv("EDGE_IMPULSE_API_URL")
 	if edgeImpulseAPIURL == "" {
