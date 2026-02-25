@@ -19,11 +19,11 @@ An **AI Brick** is composed of two main elements:
 
 An AI Brick is designed to automatically determine and select the appropriate AI Runner required for a given model.
 
-### 1.2 Model-AI Brick Relationship (N:N)
+### 1.2 Model-AI Brick Relationship and compatibility
 
 The ecosystem implements a flexible N:N (Many-to-Many) relationship between Bricks and Models:
 
-- **Model Versatility**: A single AI Model can be compatible with multiple Bricks (e.g., a "Face Detection" model can be utilized by both an `ObjectDetection` brick and a `VideoAnalytics` brick).
+- **Model Versatility**: A single AI Model can be compatible with multiple Bricks of the same domain. For example, a model trained for "Face Detection" (Object Detection domain) can be utilized by both a basic `arduino:object_detection` brick and a more complex `arduino:video_analytics brick`, as they share the same input requirements and output structure.
 - **Brick Flexibility**: A Brick can support multiple Models of the same class, allowing users to swap models (e.g., switching from a lightweight model to a more accurate one) while the Python API remains identical.
 - **Concurrency**: A single AI model can be shared and utilized concurrently by multiple Bricks. In this scenario, the model assets are shared, but a separate AI Runner instance is created for each Brick. The number of active Runners will equal the number of Bricks currently accessing that model.
 
@@ -45,7 +45,7 @@ The system tracks the status of a model to manage its availability and synchroni
 
 # 2. Project Structure
 
-An Arduino Model is defined by a directory containing its metadata and the actual model assets (e.g., weights, blobs, or configuration files). To ensure portability and allow the `arduino-app-cli` to manage models effectively, the internal structure must follow specific naming conventions and location.
+An Arduino Model is defined by a directory(root folder) containing its descriptor and the actual model assets (e.g., weights, blobs, or configuration files). To ensure portability and allow the `arduino-app-cli` to manage models effectively, the internal structure must follow specific naming conventions and location.
 
 While models are typically stored in a shared system directory to be used by multiple Apps, they can also be bundled within an App's folder for export to ensure the application remains self-contained when moved to a different board.(TODO NOT IMPLEMENT YET: NEED A DISCUSSION)
 
@@ -55,6 +55,54 @@ The manifest file describing the Model. It is the single source of truth for the
 
 - **Status**: Mandatory.
 - **Constraint**: Must be located in the root of the model folder. Only `.yaml` extension is supported.
+
+### 2.1.1 Model Descriptor Fields
+
+The `model.yaml` file uses a structured format to define the model's identity, its execution environment, and its compatibility with various Bricks.
+
+TODO : SHOULD WE ADD A "VERSION" FIELD?
+
+| Field         | Type        | Status        | Description                                                                                                                                            |
+| ------------- | ----------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `id`          | String      | **Mandatory** | A unique identifier for the model (e.g., a UUID or a slug).                                                                                            |
+| `name`        | String      | **Mandatory** | A human-readable name displayed in Arduino App Lab.                                                                                                    |
+| `runner`      | String      | **Mandatory** | Specifies the **Runner** (always `brick`)                                                                                                              |
+| `description` | String      | Optional      | A brief summary of the model's purpose and capabilities.                                                                                               |
+| `category`    | String      | Optional      | The functional domain of the model (e.g., `Images`, `Audio`, `Text`).                                                                                  |
+| `bricks`      | List of obj | **Mandatory** | A list of **AI Bricks** compatible with this model.                                                                                                    |
+| `metadata`    | Map         | Optional      | A flexible dictionary of key-value pairs for additional provider-specific information. Supports several types such as strings, integers, and booleans. |
+
+#### **Brick Configuration Fields**
+
+Each entry in the `bricks` list defines how the model integrates with a specific AI Brick:
+
+- **`id`**: The unique identifier of the target AI Brick (e.g., `object-detection`).
+- **`model_configuration`**: A map of configuration parameters passed directly to the **AI Brick**. This allows the Brick to know which specific asset file to load within the related AI Runner.
+
+**Example `model.yaml`:**
+
+```yaml
+id: face-detection
+name: Lightweight-Face-Detection
+runner: brick
+description: >-
+  Face bounding box detection. This model is trained on the WIDER FACE dataset
+  and can detect faces in images.
+category: Images
+bricks:
+  - id: arduino:object_detection
+    model_configuration:
+      EI_OBJ_DETECTION_MODEL: /models/ootb/ei/lw-face-det.eim
+  - id: arduino:video_object_detection
+    model_configuration:
+      EI_V_OBJ_DETECTION_MODEL: /models/ootb/ei/video-face-det.eim
+metadata:
+  source: qualcomm-ai-hub
+  ei-gpu-mode: false
+  source-model-id: face-det-lite
+  source-model-url: https://aihub.qualcomm.com/models/face_det_lite
+  model_labels: face
+```
 
 ### 2.2 Model Assets
 
@@ -69,7 +117,7 @@ Models are organized on the board's storage based on their **Source** to prevent
 
 #### **Standard Shared Path**
 
-The default location for downloadable/custom models is typically `/home/arduino/.arduino-models/` (or a similar reserved system path).
+The default location for downloadable/custom models is typically `/home/.arduino-bricks/models/`, but it can be overridden via environment variable `ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR`.
 
 ```text
 /models/
