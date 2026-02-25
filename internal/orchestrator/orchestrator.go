@@ -128,6 +128,7 @@ func StartApp(
 		devices, err := peripherals.Detect()
 		if err != nil {
 			yield(StreamMessage{error: err})
+			return
 		}
 
 		err = checkRequiredDevices(bricksIndex, appToStart.Descriptor.Bricks, devices)
