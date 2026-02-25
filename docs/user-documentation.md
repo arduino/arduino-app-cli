@@ -8,7 +8,7 @@ The following environment variables are used to configure Arduino App CLI:
 | -------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------- |
 | `ARDUINO_APP_CLI__APPS_DIR`            | `/home/arduino/ArduinoApps`                      | Path to the directory where Arduino Apps created by the user are stored            |
 | `ARDUINO_APP_CLI__DATA_DIR`            | `/var/lib/arduino-app-cli`                       | Path to the directory where internal data is stored (examples, assets, properties) |
-| `ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR` | `$HOME/.arduino-bricks/ei-models`                | Path to the directory where custom AI models are stored                            |
+| `ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR` | `$HOME/.arduino-bricks/models`                   | Path to the directory where custom AI models are stored                            |
 | `ARDUINO_APP_CLI__ALLOW_ROOT`          | `false`                                          | Allow running `arduino-app-cli` as root (**Not recommended to set to true**)       |
 | `LIBRARIES_API_URL`                    | `https://api2.arduino.cc/libraries/v1/libraries` | URL of the external service used to search Arduino libraries                       |
 | `DOCKER_REGISTRY_BASE`                 | `ghcr.io/arduino/`                               | Docker registry used to pull docker images                                         |

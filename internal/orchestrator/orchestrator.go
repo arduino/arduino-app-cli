@@ -25,9 +25,7 @@ import (
 	"maps"
 	"os"
 	"os/user"
-	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -47,6 +45,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
@@ -60,10 +59,6 @@ var (
 
 const (
 	DefaultDockerStopTimeoutSeconds = 5
-
-	CameraDevice     = "camera"
-	MicrophoneDevice = "microphone"
-	SpeakerDevice    = "speaker"
 )
 
 type AppStreamMessage struct {
@@ -125,7 +120,19 @@ func StartApp(
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		err := app.ValidateBricks(appToStart.Descriptor, bricksIndex, modelsIndex)
+		err := checkBricks(appToStart.Descriptor, bricksIndex, modelsIndex)
+		if err != nil {
+			yield(StreamMessage{error: err})
+			return
+		}
+
+		devices, err := peripherals.Detect()
+		if err != nil {
+			yield(StreamMessage{error: err})
+			return
+		}
+
+		err = checkRequiredDevices(bricksIndex, appToStart.Descriptor.Bricks, devices)
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return
@@ -187,7 +194,7 @@ func StartApp(
 				return
 			}
 
-			if err := provisioner.App(ctx, bricksIndex, &appToStart, cfg, envs, staticStore, platform); err != nil {
+			if err := provisioner.App(ctx, bricksIndex, &appToStart, cfg, envs, staticStore, platform, devices); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
@@ -282,7 +289,7 @@ func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.Bric
 
 	// Pre-select default camera device if available. This can be overridden by the app environment variables (or in future by applab)
 	// This is required because there are some video devices for HW acceleration that are auto registered in /dev but are not real cameras.
-	if videoDevices := getVideoDevices(); len(videoDevices) > 0 {
+	if videoDevices := peripherals.GetVideoDevices(); len(videoDevices) > 0 {
 		// VIDEO_DEVICE will be the first device in /dev/v4l/by-id
 		envs["VIDEO_DEVICE"] = videoDevices[0]
 	}
@@ -296,97 +303,6 @@ func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.Bric
 	slog.Debug("Current environment variables", slog.Any("envs", envs))
 
 	return envs
-}
-
-func extractIndexFromVideoDeviceName(device string) (int, error) {
-	dev := device[strings.LastIndex(device, "index")+len("index"):]
-	if indexI, err := strconv.Atoi(dev); err != nil {
-		return -1, err
-	} else {
-		return indexI, nil
-	}
-}
-
-func sortV4lByIndexDevices(deviceList []string) {
-	slices.SortFunc(deviceList, func(a, b string) int {
-		// Extract the index from the first string
-		indexI, err := extractIndexFromVideoDeviceName(a)
-		if err != nil {
-			return 0
-		}
-
-		// Extract the index from the second string
-		indexJ, err := extractIndexFromVideoDeviceName(b)
-		if err != nil {
-			return 0
-		}
-
-		// Compare the numeric indices
-		switch {
-		case indexI < indexJ:
-			return -1
-		case indexI > indexJ:
-			return 1
-		default:
-			return 0
-		}
-	})
-}
-
-func getSoundDevices() []string {
-	// Check and read /dev/snd. This fs contains only real sound devices
-	soundDevicePath := paths.New("/dev/snd/by-id")
-	if _, err := soundDevicePath.Stat(); err != nil {
-		return nil // no sound device found
-	}
-	sndDeviceList, err := soundDevicePath.ReadDir()
-	if err != nil {
-		slog.Warn("unable to list /dev/snd/by-id", slog.String("error", err.Error()))
-		return nil
-	}
-	detectedDevices := []string{}
-	for _, sndD := range sndDeviceList {
-		detectedDevices = append(detectedDevices, sndD.String())
-	}
-	return detectedDevices
-}
-
-func getVideoDevices() map[int]string {
-	// Check and read /dev/v4l/by-id. This fs contains only real video devices (cameras), filtering out devices for HW acceleration (like Qualcomm Venus)
-	videoDevicePath := paths.New("/dev/v4l/by-id")
-	if _, err := videoDevicePath.Stat(); err != nil {
-		return nil // no video device found
-	}
-	v4DeviceList, err := videoDevicePath.ReadDir()
-	if err != nil {
-		slog.Warn("unable to list /dev/v4l/by-id", slog.String("error", err.Error()))
-		return nil
-	}
-	sortedDevices := []string{}
-	for _, v4d := range v4DeviceList {
-		sortedDevices = append(sortedDevices, v4d.String())
-	}
-	sortV4lByIndexDevices(sortedDevices)
-
-	camDevices := []string{}
-	for _, v4d := range sortedDevices {
-		if linked, err := os.Readlink(v4d); err == nil {
-			split := strings.Split(linked, "/")
-			realVideoDev := filepath.Join("/dev", split[len(split)-1])
-			slog.Debug("found v4l device", slog.String("device", v4d), slog.String("linked", linked), slog.String("realDevice", realVideoDev))
-			camDevices = append(camDevices, realVideoDev)
-		} else {
-			slog.Warn("unable to readlink v4l device", slog.String("device", v4d), slog.String("error", err.Error()))
-		}
-	}
-	// VIDEO_DEVICE will be the first device in /dev/v4l/by-id
-	slog.Debug("sorted camera devices", slog.Any("devices", camDevices))
-	deviceMap := map[int]string{}
-	for i, cam := range camDevices {
-		slog.Debug("found camera device", slog.Int("index", i), slog.String("device", cam))
-		deviceMap[i] = cam
-	}
-	return deviceMap
 }
 
 func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.Platform, app app.ArduinoApp, cmd string) iter.Seq[StreamMessage] {
@@ -1087,75 +1003,6 @@ func getCurrentUser() string {
 		panic(err)
 	}
 	return user.Uid + ":" + user.Gid
-}
-
-type deviceResult struct {
-	devicePaths    []string
-	hasVideoDevice bool
-	hasSoundDevice bool
-	hasGPUDevice   bool
-}
-
-func getDevices() (*deviceResult, error) {
-	res := deviceResult{}
-
-	deviceList, err := paths.New("/dev").ReadDir()
-	if err != nil {
-		slog.Error("unable to list /dev", slog.String("error", err.Error()))
-		return nil, fmt.Errorf("unable to list board devices")
-	}
-
-	for _, p := range deviceList {
-		switch {
-		case p.HasPrefix("video"):
-			res.devicePaths = append(res.devicePaths, p.String())
-		case p.HasPrefix("dri"):
-			res.hasGPUDevice = true
-		}
-	}
-	// Verify if there are real video devices (cameras) in /dev/v4l/by-id
-	if camDevices := getVideoDevices(); len(camDevices) > 0 {
-		res.hasVideoDevice = true
-	}
-	// Verify if there are real sound devices in /dev/snd/by-id
-	if sndDev := getSoundDevices(); len(sndDev) > 0 {
-		res.devicePaths = append(res.devicePaths, "/dev/snd")
-		res.hasSoundDevice = true
-	}
-	// Verify if we need to add GPU devices
-	if res.hasGPUDevice {
-		res.devicePaths = append(res.devicePaths, "/dev/dri")
-	}
-
-	return &res, nil
-}
-
-// Validate that the required devices are available. Blocks the app start if a required device is missing.
-func validateDevices(res *deviceResult, requiredDeviceClasses map[string]any) error {
-
-	// Check if all required device classes are available
-	if len(requiredDeviceClasses) > 0 {
-		for class := range requiredDeviceClasses {
-			switch class {
-			case CameraDevice:
-				if !res.hasVideoDevice {
-					return fmt.Errorf("no camera found")
-				}
-			case MicrophoneDevice:
-				if !res.hasSoundDevice {
-					return fmt.Errorf("no microphone device found")
-				}
-			case SpeakerDevice:
-				if !res.hasSoundDevice {
-					return fmt.Errorf("no speaker device found")
-				}
-			default:
-				slog.Debug("not handled device class - no action", slog.String("class", class))
-			}
-		}
-	}
-
-	return nil
 }
 
 // addLedControl adds bindings for led control if the paths exist.
