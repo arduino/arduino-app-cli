@@ -101,7 +101,7 @@ tasks:
     cmds:
       - python3 -m http.server 8000 -d internal/api/docs/
 
-  update:license:
+  license:update:
     desc: Update license headers in Go files
     cmds:
       - addlicense -c "(C) Arduino s.r.l. and/or its affiliated companies" -f ./license_header.tpl $(find . -name "*.go" -type f -print0 | xargs -0)
