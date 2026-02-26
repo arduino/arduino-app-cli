@@ -111,7 +111,6 @@ tasks:
     cmds:
       - python3 -m http.server 8000 -d internal/api/docs/
 
-
   license:update:
     desc: Update license headers in Go files
     cmds:
