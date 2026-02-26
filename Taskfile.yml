@@ -104,7 +104,7 @@ tasks:
   update:license:
     desc: Update license headers in Go files
     cmds:
-      - addlicense -c "Copyright (C) Arduino s.r.l. and/or its affiliated companies" -f ./license_header.tpl $(find . -name "*.go" -type f -print0 | xargs -0)
+      - addlicense -c "(C) Arduino s.r.l. and/or its affiliated companies" -f ./license_header.tpl $(find . -name "*.go" -type f -print0 | xargs -0)
 
   build-deb:
     desc: Build debian package

@@ -1,6 +1,6 @@
 // This file is part of arduino-app-cli.
 //
-// Copyright Copyright (C) Arduino s.r.l. and/or its affiliated companies
+// Copyright (C) Arduino s.r.l. and/or its affiliated companies
 //
 // This software is released under the GNU General Public License version 3,
 // which covers the main part of arduino-app-cli.
