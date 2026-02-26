@@ -60,7 +60,7 @@ func checkBricks(a app.AppDescriptor, index *bricksindex.BricksIndex, modelIndex
 }
 
 func checkRequiredDevices(bricksIndex *bricksindex.BricksIndex, appBricks []app.Brick, availableDevices peripherals.AvailableDevices) error {
-	requiredDeviceClasses := make(map[string]bool)
+	requiredDeviceClasses := make(map[peripherals.DeviceClass]bool)
 
 	for _, brick := range appBricks {
 		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
@@ -83,20 +83,20 @@ func checkRequiredDevices(bricksIndex *bricksindex.BricksIndex, appBricks []app.
 	if len(devices) > 0 {
 		for _, class := range devices {
 			switch class {
-			case peripherals.Camera:
+			case peripherals.CameraClass:
 				if !availableDevices.HasVideoDevice {
 					allErrors = errors.Join(allErrors, fmt.Errorf("no camera device found"))
 				}
-			case peripherals.Microphone:
+			case peripherals.MicrophoneClass:
 				if !availableDevices.HasSoundDevice {
 					allErrors = errors.Join(allErrors, fmt.Errorf("no microphone device found"))
 				}
-			case peripherals.Speaker:
+			case peripherals.SpeakerClass:
 				if !availableDevices.HasSoundDevice {
 					allErrors = errors.Join(allErrors, fmt.Errorf("no speaker device found"))
 				}
 			default:
-				slog.Debug("not handled device class - no action", slog.String("class", class))
+				slog.Debug("not handled device class - no action", slog.String("class", string(class)))
 			}
 		}
 	}

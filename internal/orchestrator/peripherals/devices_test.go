@@ -63,7 +63,7 @@ func TestExtractIndexFromVideoDeviceName(t *testing.T) {
 func TestContainsVirtualDevice(t *testing.T) {
 	tests := []struct {
 		name        string
-		deviceClass string
+		deviceClass DeviceClass
 		devices     []string
 		want        bool
 	}{
