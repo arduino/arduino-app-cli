@@ -1,6 +1,6 @@
 This file is part of arduino-app-cli.
 
-Copyright{{ if .Year }} {{.Year}}{{ end }} {{.Holder}}
+Copyright {{.Holder}}
 
 This software is released under the GNU General Public License version 3,
 which covers the main part of arduino-app-cli.
