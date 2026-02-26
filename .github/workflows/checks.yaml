@@ -33,7 +33,7 @@ jobs:
           args: --timeout 300s
 
       - name: Check license headers
-        run:  |
+        run: |
           go tool task install:addlicense
           go tool task license:check
 
