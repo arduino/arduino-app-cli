@@ -22,6 +22,7 @@ tasks:
       - install:watcher
       - install:dprint
       - install:oapi-codegen
+      - install:addlicense
 
   install:linter:
     cmds:
@@ -40,6 +41,10 @@ tasks:
       - curl -fsSL https://dprint.dev/install.sh | sh -s {{ .DPRINT_VERSION }}
       - mkdir -p .bin && cp $HOME/.dprint/bin/dprint .bin/dprint # workaround for local install
 
+  install:addlicense:
+    cmds:
+      - go install github.com/google/addlicense@v1.2.0
+
   install:oapi-codegen:
     cmds:
       - go get -tool github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
@@ -53,6 +58,11 @@ tasks:
       - go build ./cmd/arduino-app-cli
       - task: generate
       - go tool gotest.tools/gotestsum $(go list ./internal/... ./cmd/... | grep -v internal/e2e/updatetest) -v -race {{ .CLI_ARGS }}
+
+  license:check:
+    desc: Check license headers in Go files
+    cmds:
+      - addlicense -check $(find . -name "*.go" -type f -print0 | xargs -0)
 
   test:update:
     cmds:
@@ -100,6 +110,7 @@ tasks:
     desc: Open api docs
     cmds:
       - python3 -m http.server 8000 -d internal/api/docs/
+
 
   license:update:
     desc: Update license headers in Go files

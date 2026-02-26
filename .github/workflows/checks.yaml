@@ -32,6 +32,9 @@ jobs:
           version: v2.11.4
           args: --timeout 300s
 
+      - name: Check license headers
+        run: go tool task license:check
+
       - name: Check go mod
         run: |
           go mod tidy
