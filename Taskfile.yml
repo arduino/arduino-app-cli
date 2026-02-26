@@ -58,12 +58,6 @@ tasks:
       - go build ./cmd/arduino-app-cli
       - task: generate
       - go tool gotest.tools/gotestsum $(go list ./internal/... ./cmd/... | grep -v internal/e2e/updatetest) -v -race {{ .CLI_ARGS }}
-
-  license:check:
-    desc: Check license headers in Go files
-    cmds:
-      - addlicense -check $(find . -name "*.go" -type f -print0 | xargs -0)
-
   test:update:
     cmds:
       - go tool gotest.tools/gotestsum -- -v -timeout=30m ./internal/e2e/updatetest
@@ -111,10 +105,15 @@ tasks:
     cmds:
       - python3 -m http.server 8000 -d internal/api/docs/
 
+  license:check:
+    desc: Check license headers in Go files
+    cmds:
+      - addlicense -check $(find . -name "*.go" -type f -print0 | xargs -0)
+
   license:update:
     desc: Update license headers in Go files
     cmds:
-      - addlicense -c "(C) Arduino s.r.l. and/or its affiliated companies" -f ./license_header.tpl $(find . -name "*.go" -type f -print0 | xargs -0)
+      - addlicense -c "Arduino s.r.l. and/or its affiliated companies" -f ./license_header.tpl $(find . -name "*.go" -type f -print0 | xargs -0)
 
   build-deb:
     desc: Build debian package
