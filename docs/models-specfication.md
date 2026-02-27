@@ -2,7 +2,7 @@
 
 This is the specification for the Arduino Model format to be used with `arduino-app-cli` and `Arduino App Lab`.
 
-Arduino Models are self-contained units that may include AI weights, configuration assets, and metadata. Within the `Arduino Uno Q board ecosystem`, models are treated as shared resources that provide the "intelligence" used by **AI Bricks**.
+Arduino Models are self-contained folders that may include AI weights, configuration assets, and metadata. Within the `Arduino Uno Q board ecosystem`, models are treated as shared resources that provide the "intelligence" used by **AI Bricks**.
 
 Unlike the application logic, models are designed to be decoupled from specific Apps, allowing multiple applications to leverage the same model concurrently while optimizing storage and memory.
 
@@ -17,7 +17,7 @@ An **AI Brick** is composed of two main elements:
 - **Python Module Interface**: A library that exposes unified Python methods to the App's Logic Layer. This is imported and used directly by the developer in `main.py`.
 - **AI Runner**: A specialized Docker container managed by the host system. It provides the execution environment (libraries, drivers, and hardware acceleration support) where the AI model actually runs.
 
-An AI Brick is designed to automatically determine and select the appropriate AI Runner required for a given model.
+An AI Brick is designed to automatically determine and select the appropriate AI Runner required for a given AI model.
 
 ### 1.2 Model-AI Brick Relationship and compatibility
 
@@ -25,7 +25,7 @@ The ecosystem implements a flexible N:N (Many-to-Many) relationship between Bric
 
 - **Model Versatility**: A single AI Model can be compatible with multiple Bricks of the same domain. For example, a model trained for "Face Detection" (Object Detection domain) can be utilized by both a basic `arduino:object_detection` brick and a more complex `arduino:video_analytics brick`, as they share the same input requirements and output structure.
 - **Brick Flexibility**: A Brick can support multiple Models of the same class, allowing users to swap models (e.g., switching from a lightweight model to a more accurate one) while the Python API remains identical.
-- **Concurrency**: A single AI model can be shared and utilized concurrently by multiple Bricks. In this scenario, the model assets are shared, but a separate AI Runner instance is created for each Brick. The number of active Runners will equal the number of Bricks currently accessing that model.
+- **Multi-tenancy**: A single AI model can be shared and utilized simultaneously by multiple Bricks. In this scenario, the model assets are shared, but a separate AI Runner instance is created for each Brick. The number of active Runners will equal the number of Bricks currently accessing that model.
 
 ### 1.3 Model Types
 
@@ -76,7 +76,7 @@ TODO : SHOULD WE ADD A "VERSION" FIELD?
 
 Each entry in the `bricks` list defines how the model integrates with a specific AI Brick:
 
-- **`id`**: The unique identifier of the target AI Brick (e.g., `object-detection`).
+- **`id`**: The unique identifier of the target AI Brick (e.g., `arduino:object-detection`).
 - **`model_configuration`**: A map of configuration parameters passed directly to the **AI Brick**. This allows the Brick to know which specific asset file to load within the related AI Runner.
 
 **Example `model.yaml`:**
@@ -119,20 +119,22 @@ Models are organized on the board's storage based on their **Source** to prevent
 
 The default location for downloadable/custom models is typically `/home/.arduino-bricks/models/`, but it can be overridden via environment variable `ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR`.
 
+**Note** on Directory Structure: The following tree is an example of valid configurations. The system recursively scans the root directory; the specific folder names or nesting levels do not matter, provided that each model is contained within its own folder along with its model.yaml and required assets (which vary by provider).
+
 ```text
 /models/
-├── ei/                     # Edge Impulse models
-│   └── <project-id>/
-│       └── <impulse-id>/
+├── provider-a/                 # Example: Grouped by provider
+│   └── impulse-123/            # A valid model folder
+│       ├── model.yaml          # Mandatory metadata
+│       └── model.eim           # Provider-specific asset
+├── custom-projects/            # Example: Deeply nested structure
+│   └── quality-control/
+│       └── v1-beta/            # Also a valid model folder
 │           ├── model.yaml
-│           └── model.eim
-├── ai-hub/                 # Qualcomm AI Hub models
-│   └── <model-uuid>/
-│       ├── model.yaml
-│       └── weights/
-└── llamacpp/               # Llama.cpp GGUF files
-    ├── model-1.yaml
-    └── model-1.gguf
+│           └── weights.bin
+└── direct-model-folder/        # Example: Flat structure
+    ├── model.yaml
+    └── model.gguf
 ```
 
 ### 2.4 Resource Mapping
