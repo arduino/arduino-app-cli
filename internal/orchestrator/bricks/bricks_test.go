@@ -401,7 +401,7 @@ func TestBricksDetails(t *testing.T) {
 				ModelName: "yolox-object-detection", // Default model
 				Variables: []bricksindex.BrickVariable{
 					{Name: "EI_OBJ_DETECTION_MODEL", DefaultValue: "default_path", Description: "path to the model file"},
-					{Name: "CUSTOM_MODEL_PATH", DefaultValue: "/home/arduino/.arduino-bricks/ei-models", Description: "path to the custom model directory"},
+					{Name: "CUSTOM_MODEL_PATH", DefaultValue: "/home/arduino/.arduino-bricks/models", Description: "path to the custom model directory"},
 				},
 			},
 			{
@@ -459,7 +459,7 @@ func TestBricksDetails(t *testing.T) {
 			},
 			{
 				Name:        "CUSTOM_MODEL_PATH",
-				Value:       "/home/arduino/.arduino-bricks/ei-models",
+				Value:       "/home/arduino/.arduino-bricks/models",
 				Description: "path to the custom model directory",
 				Required:    false,
 			},
@@ -569,7 +569,7 @@ func TestAppBrickInstanceModelsDetails(t *testing.T) {
 				ModelName: "yolox-object-detection", // Default model
 				Variables: []bricksindex.BrickVariable{
 					{Name: "EI_OBJ_DETECTION_MODEL", DefaultValue: "default_path", Description: "path to the model file"},
-					{Name: "CUSTOM_MODEL_PATH", DefaultValue: "/home/arduino/.arduino-bricks/ei-models", Description: "path to the custom model directory"},
+					{Name: "CUSTOM_MODEL_PATH", DefaultValue: "/home/arduino/.arduino-bricks/models", Description: "path to the custom model directory"},
 				},
 				RequireModel: true,
 			},
@@ -731,7 +731,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 				ModelName:    "yolox-object-detection",
 				RequireModel: true,
 				Variables: []bricksindex.BrickVariable{
-					{Name: "CUSTOM_MODEL_PATH", DefaultValue: "/home/arduino/.arduino-bricks/ei-models", Description: "path to the custom model directory"},
+					{Name: "CUSTOM_MODEL_PATH", DefaultValue: "/home/arduino/.arduino-bricks/models", Description: "path to the custom model directory"},
 					{Name: "EI_OBJ_DETECTION_MODEL", DefaultValue: "/models/ootb/ei/yolo-x-nano.eim", Description: "path to the model file"},
 				},
 			},
@@ -742,7 +742,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 				ModelName:    "glass-breaking",
 				RequireModel: true,
 				Variables: []bricksindex.BrickVariable{
-					{Name: "CUSTOM_MODEL_PATH", DefaultValue: "/home/arduino/.arduino-bricks/ei-models"},
+					{Name: "CUSTOM_MODEL_PATH", DefaultValue: "/home/arduino/.arduino-bricks/models"},
 					{Name: "EI_AUDIO_CLASSIFICATION_MODEL", DefaultValue: "/models/ootb/ei/glass-breaking.eim"},
 				},
 			},
@@ -928,7 +928,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 				require.True(t, b2.RequireModel)
 				require.Equal(t, "glass-breaking", b2.ModelID)
 				require.Equal(t, 2, len(b2.ConfigVariables))
-				require.Equal(t, "/home/arduino/.arduino-bricks/ei-models", b2.ConfigVariables[0].Value)
+				require.Equal(t, "/home/arduino/.arduino-bricks/models", b2.ConfigVariables[0].Value)
 				require.Equal(t, "/models/ootb/ei/glass-breaking.eim", b2.ConfigVariables[1].Value)
 			},
 		},

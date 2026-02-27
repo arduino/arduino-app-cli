@@ -38,6 +38,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
@@ -121,6 +122,7 @@ func (p *Provision) App(
 	cfg config.Configuration,
 	mapped_env map[string]string,
 	staticStore *store.StaticStore,
+	devices peripherals.AvailableDevices,
 ) error {
 	if arduinoApp == nil {
 		return fmt.Errorf("provisioning failed: arduinoApp is nil")
@@ -132,7 +134,7 @@ func (p *Provision) App(
 		}
 	}
 
-	return generateMainComposeFile(arduinoApp, bricksIndex, p.pythonImage, cfg, mapped_env, staticStore)
+	return generateMainComposeFile(arduinoApp, bricksIndex, p.pythonImage, cfg, mapped_env, staticStore, devices)
 }
 
 func (p *Provision) init(
@@ -214,6 +216,7 @@ func generateMainComposeFile(
 	cfg config.Configuration,
 	envs helpers.EnvVars,
 	staticStore *store.StaticStore,
+	devices peripherals.AvailableDevices,
 ) error {
 	slog.Debug("Generating main compose file for the App")
 
@@ -224,7 +227,6 @@ func generateMainComposeFile(
 
 	var composeFiles paths.PathList
 	services := make([]serviceInfo, 0, len(app.Descriptor.Bricks))
-	requiredDeviceClasses := make(map[string]any)
 	for _, brick := range app.Descriptor.Bricks {
 		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
 		slog.Debug("Processing brick", slog.String("brick_id", brick.ID), slog.Bool("found", found))
@@ -235,17 +237,6 @@ func generateMainComposeFile(
 		// 1. Retrieve ports that we have to expose defined in the brick
 		for _, p := range idxBrick.Ports {
 			ports[fmt.Sprintf("%s:%s", p, p)] = struct{}{}
-		}
-
-		// 2. Collect all the required device classes
-		if len(idxBrick.RequiredDevices) > 0 {
-			for _, deviceClass := range idxBrick.RequiredDevices {
-				// Do not reequire a "camera" class if the brick in the app requires a "remote camera" device
-				if deviceClass == CameraDevice && slices.Contains(brick.Devices, "remote_camera_0") {
-					continue
-				}
-				requiredDeviceClasses[deviceClass] = true
-			}
 		}
 
 		// The following code is needed only if the brick requires a container.
@@ -321,15 +312,8 @@ func generateMainComposeFile(
 		})
 	}
 
-	// Check board devices and mount them if needed
-	devices, err := getDevices()
-	if err != nil {
-		return err
-	}
-	if err = validateDevices(devices, requiredDeviceClasses); err != nil {
-		return fmt.Errorf("missing required device: %w", err)
-	}
-	if devices.hasVideoDevice {
+	// provide additional devices to the container
+	if devices.HasVideoDevice {
 		// If we are adding video devices, mount also /dev/v4l if it exists to allow access to by-id/path links
 		if paths.New("/dev/v4l").Exist() {
 			volumes = append(volumes, volume{
@@ -339,7 +323,7 @@ func generateMainComposeFile(
 			})
 		}
 	}
-	if devices.hasSoundDevice {
+	if devices.HasSoundDevice {
 		// If we are adding sound devices, mount also /dev/snd/by-id if it exists to allow access to by-id links
 		if paths.New("/dev/snd/by-id").Exist() {
 			volumes = append(volumes, volume{
@@ -374,7 +358,7 @@ func generateMainComposeFile(
 			Image:      pythonImage,
 			Volumes:    volumes,
 			Ports:      slices.Collect(maps.Keys(ports)),
-			Devices:    devices.devicePaths,
+			Devices:    devices.DevicePaths,
 			Entrypoint: "/run.sh",
 			DependsOn:  dependsOn,
 			User:       getCurrentUser(),
@@ -407,7 +391,7 @@ func generateMainComposeFile(
 
 	// If there are services that require devices, we need to generate an override compose file
 	// Write additional file to override devices section in included compose files
-	if err := generateServicesOverrideFile(app, services, devices.devicePaths, getCurrentUser(), groups, overrideComposeFile, envs); err != nil {
+	if err := generateServicesOverrideFile(app, services, devices.DevicePaths, getCurrentUser(), groups, overrideComposeFile, envs); err != nil {
 		return err
 	}
 

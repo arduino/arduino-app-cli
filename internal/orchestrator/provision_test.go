@@ -24,6 +24,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/store"
 
 	"github.com/goccy/go-yaml"
@@ -92,7 +93,7 @@ bricks:
   model_name: yolox-object-detection
   variables:
   - name: CUSTOM_MODEL_PATH
-    default_value: /home/arduino/.arduino-bricks/ei-models
+    default_value: /home/arduino/.arduino-bricks/models
     description: path to the custom model directory
   - name: CUSTOM_MODEL_PATH
     default_value: /models/custom/ei/
@@ -116,7 +117,14 @@ bricks:
 	env := map[string]string{
 		"FOO": "bar",
 	}
-	err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore)
+
+	devices := peripherals.AvailableDevices{
+		DevicePaths:    []string{},
+		HasGPUDevice:   true,
+		HasSoundDevice: false,
+		HasVideoDevice: true,
+	}
+	err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, devices)
 
 	// Validate that the main compose file and overrides are created
 	require.NoError(t, err, "Failed to generate main compose file")
@@ -372,8 +380,15 @@ services:
 		err := fileComposePath.Join("brick_compose.yaml").WriteFile([]byte(dependsOnFromStrings))
 		require.NoError(t, err)
 
+		devices := peripherals.AvailableDevices{
+			DevicePaths:    []string{},
+			HasGPUDevice:   true,
+			HasSoundDevice: false,
+			HasVideoDevice: true,
+		}
+
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore)
+		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, devices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -422,8 +437,14 @@ services:
 		err = fileComposePath.Join("brick_compose.yaml").WriteFile([]byte(dependsOnFromStrings))
 		require.NoError(t, err)
 
+		devices := peripherals.AvailableDevices{
+			DevicePaths:    []string{},
+			HasGPUDevice:   true,
+			HasSoundDevice: false,
+			HasVideoDevice: true,
+		}
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore)
+		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, devices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -538,8 +559,14 @@ services:
 		err := serviceComposeFilePath.WriteFile([]byte(dependsOnFromStrings))
 		require.NoError(t, err)
 
+		availableDevices := peripherals.AvailableDevices{
+			DevicePaths:    []string{},
+			HasGPUDevice:   true,
+			HasSoundDevice: false,
+			HasVideoDevice: true,
+		}
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore)
+		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, availableDevices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -574,49 +601,6 @@ services:
 				require.Nil(t, svc.User, "User override should not be present for dbstorage-influx")
 			}
 		}
-	})
-
-}
-
-func TestProvisionAppComposeWithDeviceCall(t *testing.T) {
-	cfg := setTestOrchestratorConfig(t)
-
-	bricksIndexContent := []byte(`
-bricks:
-- id: arduino:brick-with-camera-device
-  name: a brick that requires a camera
-  required_devices:
-  - camera
-- id: arduino:another-brick-with-camera-device
-  name: another brick that requires a camera
-  required_devices:
-  - camera`)
-	require.NoError(t, cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent))
-	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
-	require.Nil(t, err, "Failed to load bricks index with custom content")
-
-	t.Run("fail if a camera device is not detected and one of two brick require a physical camera", func(t *testing.T) {
-		t.Skip("in my pc the camera device is detected, so it is impossible to fail the test. To be fixed with a mock of the device detection logic")
-
-		appTmpPath := t.TempDir()
-		app := app.ArduinoApp{
-			Name: "AppWithTwoBrickWithCamera",
-			Descriptor: app.AppDescriptor{
-				Bricks: []app.Brick{
-					{
-						ID:      "arduino:brick-with-camera-device",
-						Devices: []string{"remote_camera_0"},
-					},
-					{
-						ID: "arduino:another-brick-with-camera-device",
-					},
-				},
-			},
-			FullPath: paths.New(appTmpPath),
-		}
-		require.NoError(t, app.ProvisioningStateDir().MkdirAll())
-		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, map[string]string{}, store.NewStaticStore(cfg.AssetsDir().String()))
-		require.Error(t, err)
 	})
 
 }
