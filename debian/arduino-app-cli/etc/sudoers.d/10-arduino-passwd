@@ -1,1 +1,1 @@
-%sysupgrade ALL=(ALL) NOPASSWD: /usr/local/bin/arduino-passwd
+#1000 ALL=(ALL) NOPASSWD: /usr/local/bin/arduino-passwd
