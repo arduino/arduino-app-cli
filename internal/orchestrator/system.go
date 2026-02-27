@@ -469,6 +469,16 @@ func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, cli r
 		return nil
 	}
 
+	// Detect the sketch default defaultProfile
+	defaultProfile := "default"
+	sk, err := cli.LoadSketch(ctx, &rpc.LoadSketchRequest{SketchPath: sketchPath.String()})
+	if err != nil {
+		return fmt.Errorf("could not load sketch: %w", err)
+	}
+	if name := sk.GetSketch().GetDefaultProfile().GetName(); name != "" {
+		defaultProfile = name
+	}
+
 	// Initializing using the profile will force download and install of the missing libraries
 	progressCB := func(r *rpc.InitResponse) error {
 		if p := r.GetInitProgress().GetDownloadProgress(); p != nil {
@@ -480,7 +490,7 @@ func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, cli r
 		&rpc.InitRequest{
 			Instance:   cliInstance,
 			SketchPath: sketchPath.String(),
-			Profile:    "default",
+			Profile:    defaultProfile,
 		},
 		commands.InitStreamResponseToCallbackFunction(ctx, progressCB),
 	); err != nil {
