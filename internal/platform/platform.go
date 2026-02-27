@@ -16,7 +16,7 @@ type GpioPin struct {
 }
 
 type Platform struct {
-	Name       string
+	codeName   string
 	FQBN       string
 	PlatformID string
 	Linux      struct {
@@ -29,11 +29,11 @@ type Platform struct {
 }
 
 func GetPlatform() Platform {
-	boardName := getBoardName()
-	switch boardName {
+	codeName := getCodeName()
+	switch codeName {
 	case "Imola":
 		return Platform{
-			Name:       "Imola",
+			codeName:   codeName,
 			FQBN:       "arduino:zephyr:unoq",
 			PlatformID: "arduino:zephyr",
 			Linux: struct{ UserLeds, StatusLeds paths.PathList }{
@@ -53,9 +53,9 @@ func GetPlatform() Platform {
 			},
 		}
 	default:
-		slog.Warn("not supported platform", "boardName", boardName)
+		slog.Warn("not supported platform", "codeName", codeName)
 		return Platform{
-			Name: boardName,
+			codeName: codeName,
 		}
 	}
 }
@@ -64,7 +64,7 @@ func (p Platform) GetMicro() micro.Micro {
 	return micro.New(micro.GpioPin(p.Micro.ResetPin))
 }
 
-func getBoardName() string {
+func getCodeName() string {
 	trimAll := func(s []byte) []byte {
 		return bytes.Trim(s, " \n\t\r\x00")
 	}
