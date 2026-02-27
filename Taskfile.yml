@@ -105,12 +105,13 @@ tasks:
     cmds:
       - python3 -m http.server 8000 -d internal/api/docs/
 
-  license:check:
-    desc: Check license headers in Go files
+  check-license-headers:
+    desc: verify presence of license headers and exit with non-zero code if missing
     cmds:
+      - go install github.com/google/addlicense@v1.2.0
       - addlicense -check $(find . -name "*.go" -type f -print0 | xargs -0)
 
-  license:update:
+  update-license-headers:
     desc: Update license headers in Go files
     cmds:
       - addlicense -c "Arduino s.r.l. and/or its affiliated companies" -f ./license_header.tpl $(find . -name "*.go" -type f -print0 | xargs -0)
