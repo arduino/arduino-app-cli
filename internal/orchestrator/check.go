@@ -59,14 +59,8 @@ func checkBricks(a app.AppDescriptor, index *bricksindex.BricksIndex, modelIndex
 	return allErrors
 }
 
-const (
-	CameraDevice     = "camera"
-	MicrophoneDevice = "microphone"
-	SpeakerDevice    = "speaker"
-)
-
 func checkRequiredDevices(bricksIndex *bricksindex.BricksIndex, appBricks []app.Brick, availableDevices peripherals.AvailableDevices) error {
-	requiredDeviceClasses := make(map[string]bool)
+	requiredDeviceClasses := make(map[peripherals.DeviceClass]bool)
 
 	for _, brick := range appBricks {
 		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
@@ -75,9 +69,9 @@ func checkRequiredDevices(bricksIndex *bricksindex.BricksIndex, appBricks []app.
 			continue
 		}
 
+		// skip checks for virtual devices
 		for _, deviceClass := range idxBrick.RequiredDevices {
-			// Do not require a "camera" class if the brick in the app requires a "remote camera" device
-			if deviceClass == CameraDevice && slices.Contains(brick.Devices, "remote_camera_0") {
+			if peripherals.HasVirtualDevice(deviceClass, brick.Devices) {
 				continue
 			}
 			requiredDeviceClasses[deviceClass] = true
@@ -89,20 +83,20 @@ func checkRequiredDevices(bricksIndex *bricksindex.BricksIndex, appBricks []app.
 	if len(devices) > 0 {
 		for _, class := range devices {
 			switch class {
-			case CameraDevice:
+			case peripherals.CameraClass:
 				if !availableDevices.HasVideoDevice {
 					allErrors = errors.Join(allErrors, fmt.Errorf("no camera device found"))
 				}
-			case MicrophoneDevice:
+			case peripherals.MicrophoneClass:
 				if !availableDevices.HasSoundDevice {
 					allErrors = errors.Join(allErrors, fmt.Errorf("no microphone device found"))
 				}
-			case SpeakerDevice:
+			case peripherals.SpeakerClass:
 				if !availableDevices.HasSoundDevice {
 					allErrors = errors.Join(allErrors, fmt.Errorf("no speaker device found"))
 				}
 			default:
-				slog.Debug("not handled device class - no action", slog.String("class", class))
+				slog.Debug("not handled device class - no action", slog.String("class", string(class)))
 			}
 		}
 	}

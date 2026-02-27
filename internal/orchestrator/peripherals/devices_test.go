@@ -59,3 +59,46 @@ func TestExtractIndexFromVideoDeviceName(t *testing.T) {
 		})
 	}
 }
+
+func TestContainsVirtualDevice(t *testing.T) {
+	tests := []struct {
+		name        string
+		deviceClass DeviceClass
+		devices     []string
+		want        bool
+	}{
+		{
+			name:        "Match found in camera class",
+			deviceClass: "camera",
+			devices:     []string{"video0", "remote_camera_0", "video1"},
+			want:        true,
+		},
+		{
+			name:        "No match in camera class",
+			deviceClass: "camera",
+			devices:     []string{"video0", "video1"},
+			want:        false,
+		},
+		{
+			name:        "Unknown device class",
+			deviceClass: "microphone",
+			devices:     []string{"remote_mic_0"},
+			want:        false,
+		},
+		{
+			name:        "Empty devices list",
+			deviceClass: "camera",
+			devices:     []string{},
+			want:        false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := HasVirtualDevice(tt.deviceClass, tt.devices)
+			if got != tt.want {
+				t.Errorf("HasVirtualDevice() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

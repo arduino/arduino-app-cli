@@ -41,6 +41,21 @@ func TestValidateAppDescriptorBricks(t *testing.T) {
 				Name:      "Arduino using an ai model",
 				ModelName: "i-am-default-model",
 			},
+			{
+				ID:   "arduino:brick-with-hidden-variable",
+				Name: "Hidden variable brick",
+				Variables: []bricksindex.BrickVariable{
+					{
+						Name:   "I_AM_HIDDEN_WITHOUT_DEFAULT",
+						Hidden: true,
+					},
+					{
+						Name:         "I_AM_HIDDEN_WITH_DEFAULT",
+						Hidden:       true,
+						DefaultValue: "i-am-the-default-value-of-a-hidden-variable",
+					},
+				},
+			},
 		},
 	}
 
@@ -173,6 +188,26 @@ bricks:
 `,
 			expectedError: nil,
 		},
+		{
+			name: "an hiddden variable with a concrete value does not cause validation error",
+			yamlContent: `
+name: App with hidden variable with default value
+bricks:
+  - arduino:brick-with-hidden-variable:
+      variables:
+        I_AM_HIDDEN_WITHOUT_DEFAULT: "some-value"
+`,
+			expectedError: nil,
+		},
+		{
+			name: "is required works also for hidden variables",
+			yamlContent: `
+name: App with hidden variable
+bricks:
+  - arduino:brick-with-hidden-variable:
+`,
+			expectedError: errors.New("variable \"I_AM_HIDDEN_WITHOUT_DEFAULT\" is required by brick \"arduino:brick-with-hidden-variable\""),
+		},
 	}
 
 	for _, tc := range testCases {
@@ -206,12 +241,12 @@ func TestValidateVirtualDevice(t *testing.T) {
 			{
 				ID:              "arduino:brick-with-camera-device",
 				Name:            "a brick that requires a camera",
-				RequiredDevices: []string{"camera"},
+				RequiredDevices: []peripherals.DeviceClass{peripherals.CameraClass},
 			},
 			{
 				ID:              "arduino:another-brick-with-camera-device",
 				Name:            "another brick that requires a camera",
-				RequiredDevices: []string{"camera"},
+				RequiredDevices: []peripherals.DeviceClass{peripherals.CameraClass},
 			},
 		},
 	}
@@ -268,14 +303,14 @@ func TestCheckRequiredDevicesNoError(t *testing.T) {
 func TestCheckRequiredDevice(t *testing.T) {
 	testCases := []struct {
 		name                      string
-		brickRequiredDevicesClass []string
+		brickRequiredDevicesClass []peripherals.DeviceClass
 		availableDevices          peripherals.AvailableDevices
 		wantErr                   bool
 		errMessage                string
 	}{
 		{
 			name:                      "All required devices are available",
-			brickRequiredDevicesClass: []string{"camera", "microphone", "speaker"},
+			brickRequiredDevicesClass: []peripherals.DeviceClass{peripherals.CameraClass, peripherals.MicrophoneClass, peripherals.SpeakerClass},
 			availableDevices: peripherals.AvailableDevices{
 				HasSoundDevice: true,
 				HasVideoDevice: true,
@@ -285,7 +320,7 @@ func TestCheckRequiredDevice(t *testing.T) {
 		},
 		{
 			name:                      "Required camera not available",
-			brickRequiredDevicesClass: []string{"camera"},
+			brickRequiredDevicesClass: []peripherals.DeviceClass{peripherals.CameraClass},
 			availableDevices: peripherals.AvailableDevices{
 				HasSoundDevice: true,
 				HasVideoDevice: false,
@@ -295,7 +330,7 @@ func TestCheckRequiredDevice(t *testing.T) {
 		},
 		{
 			name:                      "Required microphone not available",
-			brickRequiredDevicesClass: []string{"microphone"},
+			brickRequiredDevicesClass: []peripherals.DeviceClass{peripherals.MicrophoneClass},
 			availableDevices: peripherals.AvailableDevices{
 				HasSoundDevice: false,
 				HasVideoDevice: true,
@@ -305,7 +340,7 @@ func TestCheckRequiredDevice(t *testing.T) {
 		},
 		{
 			name:                      "Required speaker not available",
-			brickRequiredDevicesClass: []string{"speaker"},
+			brickRequiredDevicesClass: []peripherals.DeviceClass{peripherals.SpeakerClass},
 			availableDevices: peripherals.AvailableDevices{
 				HasSoundDevice: false,
 				HasVideoDevice: true,
@@ -315,7 +350,7 @@ func TestCheckRequiredDevice(t *testing.T) {
 		},
 		{
 			name:                      "Required speaker and camera not available",
-			brickRequiredDevicesClass: []string{"speaker", "camera"},
+			brickRequiredDevicesClass: []peripherals.DeviceClass{peripherals.SpeakerClass, peripherals.CameraClass},
 			availableDevices: peripherals.AvailableDevices{
 				HasSoundDevice: false,
 				HasVideoDevice: false,
@@ -325,7 +360,7 @@ func TestCheckRequiredDevice(t *testing.T) {
 		},
 		{
 			name:                      "Required speaker and microphone not available",
-			brickRequiredDevicesClass: []string{"speaker", "microphone"},
+			brickRequiredDevicesClass: []peripherals.DeviceClass{peripherals.SpeakerClass, peripherals.MicrophoneClass},
 			availableDevices: peripherals.AvailableDevices{
 				HasSoundDevice: false,
 				HasVideoDevice: false,
@@ -335,7 +370,7 @@ func TestCheckRequiredDevice(t *testing.T) {
 		},
 		{
 			name:                      "Required camera and microphone not available",
-			brickRequiredDevicesClass: []string{"camera", "microphone"},
+			brickRequiredDevicesClass: []peripherals.DeviceClass{peripherals.CameraClass, peripherals.MicrophoneClass},
 			availableDevices: peripherals.AvailableDevices{
 				HasSoundDevice: false,
 				HasVideoDevice: false,
@@ -345,7 +380,7 @@ func TestCheckRequiredDevice(t *testing.T) {
 		},
 		{
 			name:                      "No required devices",
-			brickRequiredDevicesClass: []string{},
+			brickRequiredDevicesClass: []peripherals.DeviceClass{},
 			availableDevices: peripherals.AvailableDevices{
 				DevicePaths:    []string{},
 				HasSoundDevice: false,

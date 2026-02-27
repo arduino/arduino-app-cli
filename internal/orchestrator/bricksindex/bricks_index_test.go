@@ -21,6 +21,8 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
+
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 )
 
 func TestGenerateBricksIndexFromFile(t *testing.T) {
@@ -180,7 +182,7 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 					RequiresDisplay:           "",
 					RequireContainer:          true,
 					RequireModel:              true,
-					RequiredDevices:           []string{"camera"},
+					RequiredDevices:           []peripherals.DeviceClass{peripherals.CameraClass},
 					MountDevicesIntoContainer: true,
 					Variables: []BrickVariable{
 						{
