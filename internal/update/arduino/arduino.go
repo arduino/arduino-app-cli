@@ -117,7 +117,7 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ f
 
 	var platformSummary *rpc.PlatformSummary
 	for _, v := range platforms.GetSearchOutput() {
-		if v.GetMetadata().GetId() == a.platform.PlatformName {
+		if v.GetMetadata().GetId() == a.platform.PlatformID {
 			platformSummary = v
 			break
 		}
@@ -149,7 +149,7 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ f
 
 	return []update.UpgradablePackage{{
 		Type:        update.Arduino,
-		Name:        a.platform.PlatformName,
+		Name:        a.platform.PlatformID,
 		FromVersion: platformSummary.GetInstalledVersion(),
 		ToVersion:   bestVersion.String(),
 	}}, nil
@@ -198,8 +198,8 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 		return fmt.Errorf("expected exactly one package to upgrade, got %d", len(packages))
 	}
 	pkg := packages[0]
-	if pkg.Name != a.platform.PlatformName {
-		return fmt.Errorf("unexpected package name '%s': this updater only supports '%s'", pkg.Name, a.platform.PlatformName)
+	if pkg.Name != a.platform.PlatformID {
+		return fmt.Errorf("unexpected package name '%s': this updater only supports '%s'", pkg.Name, a.platform.PlatformID)
 	}
 	targetVersion := pkg.ToVersion
 	if targetVersion == "" {

@@ -16,10 +16,10 @@ type GpioPin struct {
 }
 
 type Platform struct {
-	BoardName    string
-	FQBN         string
-	PlatformName string
-	Linux        struct {
+	Name       string
+	FQBN       string
+	PlatformID string
+	Linux      struct {
 		UserLeds   paths.PathList
 		StatusLeds paths.PathList
 	}
@@ -33,9 +33,9 @@ func GetPlatform() Platform {
 	switch boardName {
 	case "Imola":
 		return Platform{
-			BoardName:    "Imola",
-			FQBN:         "arduino:zephyr:unoq",
-			PlatformName: "arduino:zephyr",
+			Name:       "Imola",
+			FQBN:       "arduino:zephyr:unoq",
+			PlatformID: "arduino:zephyr",
 			Linux: struct{ UserLeds, StatusLeds paths.PathList }{
 				StatusLeds: paths.NewPathList(
 					"/sys/class/leds/blue:bt",
@@ -55,7 +55,7 @@ func GetPlatform() Platform {
 	default:
 		slog.Warn("not supported platform", "boardName", boardName)
 		return Platform{
-			BoardName: boardName,
+			Name: boardName,
 		}
 	}
 }

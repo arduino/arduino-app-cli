@@ -33,7 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var unkownPlatform = platform.Platform{BoardName: "unknown"}
+var unkownPlatform = platform.Platform{Name: "unknown"}
 
 func TestProvisionAppWithOverrides(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
