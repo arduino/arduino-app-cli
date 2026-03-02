@@ -2,6 +2,8 @@ package platform
 
 import (
 	"bytes"
+	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 
@@ -65,16 +67,33 @@ func (p Platform) GetMicro() micro.Micro {
 }
 
 func getCodeName() string {
+	return getCodeNameInternal(os.DirFS("/"))
+}
+
+func getCodeNameInternal(fs fs.FS) string {
 	trimAll := func(s []byte) []byte {
 		return bytes.Trim(s, " \n\t\r\x00")
 	}
 
-	if buf, err := os.ReadFile("/sys/class/dmi/id/product_name"); err == nil {
+	readFile := func(path string) ([]byte, error) {
+		f, err := fs.Open(path)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+
+		if buf, err := io.ReadAll(f); err != nil {
+			return nil, err
+		} else {
+			return buf, nil
+		}
+	}
+
+	if buf, err := readFile("sys/class/dmi/id/product_name"); err == nil {
 		return string(trimAll(buf))
-	} else if buf, err := os.ReadFile("/sys/firmware/devicetree/base/model"); err == nil {
-		idx := bytes.LastIndex(buf, []byte(","))
-		if idx != -1 {
-			return string(trimAll(buf[:idx]))
+	} else if buf, err := readFile("sys/firmware/devicetree/base/model"); err == nil {
+		if idx := bytes.LastIndex(buf, []byte(",")); idx != -1 {
+			return string(trimAll(buf[idx+1:]))
 		}
 		if idx := bytes.LastIndex(buf, []byte(" ")); idx != -1 {
 			return string(trimAll(buf[idx+1:]))
