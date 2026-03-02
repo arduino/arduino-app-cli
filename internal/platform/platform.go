@@ -34,6 +34,7 @@ func GetPlatform() Platform {
 	codeName := getCodeName()
 	switch codeName {
 	case "Imola":
+		slog.Debug("detected platform", "codeName", codeName)
 		return Platform{
 			codeName:   codeName,
 			FQBN:       "arduino:zephyr:unoq",
