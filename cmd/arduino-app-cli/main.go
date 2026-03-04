@@ -83,7 +83,7 @@ func run(configuration cfg.Configuration) error {
 		system.NewSystemCmd(configuration),
 		version.NewVersionCmd(Version),
 		monitor.NewMonitorCmd(),
-		model.NewModelCmd(),
+		model.NewModelCmd(configuration),
 	)
 
 	ctx := context.Background()
