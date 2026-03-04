@@ -1,20 +1,21 @@
-package detector
+package brickslocalindex
 
 import (
 	"testing"
 
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
 
-func TestDetectLocalAppBricks(t *testing.T) {
+func TestLoadLocalAppBricks(t *testing.T) {
 
 	t.Run("it detects local bricks in an app", func(t *testing.T) {
-		bricks, err := DetectLocalAppBricks(paths.New("testdata/AppWithLocalBricks/bricks"))
+		index, err := Load(paths.New("testdata/AppWithLocalBricks"))
 		require.NoError(t, err)
-		assert.Len(t, bricks, 2)
+		assert.Len(t, index.LocalBricks, 2)
 
 		want := []AppLocalBrick{
 			{
@@ -38,6 +39,12 @@ func TestDetectLocalAppBricks(t *testing.T) {
 				},
 			},
 		}
-		assert.Equal(t, want, bricks)
+		assert.Equal(t, want, index.LocalBricks)
+	})
+
+	t.Run("it loads an app without local bricks", func(t *testing.T) {
+		index, err := Load(paths.New("testdata/AppMissingLocalBricks"))
+		require.NoError(t, err)
+		assert.Len(t, index.LocalBricks, 0)
 	})
 }

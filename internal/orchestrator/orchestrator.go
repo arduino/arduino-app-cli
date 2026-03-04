@@ -43,6 +43,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	appgenerator "github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickslocalindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
@@ -120,7 +121,12 @@ func StartApp(
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		err := checkBricks(appToStart.Descriptor, bricksIndex, modelsIndex)
+		// localBrickIndex, err := brickslocalindex.Load(appToStart.FullPath)
+		// if err != nil {
+		// 	slog.Warn("Cannot load local bricks", "path", appToStart.FullPath)
+		// }
+
+		err = checkBricks(appToStart.Descriptor, bricksIndex, modelsIndex)
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return
