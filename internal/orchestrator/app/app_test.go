@@ -137,8 +137,13 @@ func TestExtractFirstParagraph(t *testing.T) {
 			expected: "the first valid paragraph.",
 		},
 		{
-			name:     "it returns multiple lines of the first paragraph",
-			input:    []byte("# Title\n\nThis is the first line of the first paragraph.\nThis is the second line of the first paragraph.\n\nThis is the second paragraph."),
+			name: "it returns multiple lines of the first paragraph",
+			input: []byte(`# Title
+
+This is the first line of the first paragraph.
+This is the second line of the first paragraph.
+
+This is the second paragraph.`),
 			expected: "This is the first line of the first paragraph. This is the second line of the first paragraph.",
 		},
 		{
@@ -177,8 +182,12 @@ func TestExtractFirstParagraph(t *testing.T) {
 			expected: "First line. Second line.",
 		},
 		{
-			name:     "it should skip paragraph containing only linked image",
-			input:    []byte("# Title\n\n[![Alt](img.png)](https://example.com)\n\nReal paragraph."),
+			name: "it should skip paragraph containing only linked image",
+			input: []byte(`# Title
+
+[![Alt](img.png)](https://example.com)
+
+Real paragraph.`),
 			expected: "Real paragraph.",
 		},
 		{

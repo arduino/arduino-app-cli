@@ -193,7 +193,6 @@ func extractFirstParagraph(source []byte) string {
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		trimmed := strings.TrimSpace(line)
 		if reFence.MatchString(line) {
 			inFence = !inFence
 			continue
@@ -202,7 +201,7 @@ func extractFirstParagraph(source []byte) string {
 			continue
 		}
 
-		if trimmed == "" ||
+		if reSpaces.MatchString(line) ||
 			reHeader.MatchString(line) ||
 			reSetext.MatchString(line) ||
 			reList.MatchString(line) ||
@@ -214,7 +213,7 @@ func extractFirstParagraph(source []byte) string {
 			continue
 		}
 
-		clean := cleanInlineMarkdown(trimmed)
+		clean := cleanInlineMarkdown(line)
 		if clean == "" {
 			continue
 		}
@@ -227,11 +226,11 @@ func extractFirstParagraph(source []byte) string {
 
 var (
 	// Block-level regex
-	reHeader = regexp.MustCompile(`^\s*#{1,6}\s+`)        // Matches ATX-style headings (#, ##, ###, etc.)
+	reHeader = regexp.MustCompile(`^#{1,6}\s+`)           // Matches ATX-style headings (lines starting with 1-6 # characters)
 	reSetext = regexp.MustCompile(`^\s*(=+|-+)\s*$`)      // Matches Setext-style headings (underlines with === or ---)
 	reList   = regexp.MustCompile(`^\s*([-*+]|\d+\.)\s+`) // Matches unordered (-, *, +) or ordered (1., 2., etc.) list items
-	reQuote  = regexp.MustCompile(`^\s*>\s+`)             // Matches blockquotes starting with >
-	reFence  = regexp.MustCompile("^\\s*```")             // Matches fenced code block start/end (```)
+	reQuote  = regexp.MustCompile(`^>\s+`)                // Matches blockquotes starting with >
+	reFence  = regexp.MustCompile("^```")                 // Matches fenced code block start/end (```)
 	reIndent = regexp.MustCompile(`^\s{4,}`)              // Matches indented code blocks (4+ spaces)
 
 	// Inline-level regex
@@ -242,6 +241,7 @@ var (
 	reLinkedImage = regexp.MustCompile(`\[\!\[.*?\]\(.*?\)\]\(.*?\)`) // Matches linked images [![alt](img)](url)
 	reImage       = regexp.MustCompile(`!\[.*?\]\(.*?\)`)             // Matches images ![alt](img)
 	reMultiSpace  = regexp.MustCompile(`\s+`)                         // Matches multiple spaces/newlines to normalize
+	reSpaces      = regexp.MustCompile(`^\s*$`)
 )
 
 func cleanInlineMarkdown(s string) string {
