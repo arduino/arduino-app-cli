@@ -40,6 +40,7 @@ func cacheCleanHandler(ctx context.Context, app app.ArduinoApp, forceClean bool)
 		servicelocator.GetDockerClient(),
 		app,
 		orchestrator.CleanAppCacheRequest{ForceClean: forceClean},
+		servicelocator.GetPlatform(),
 	)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)

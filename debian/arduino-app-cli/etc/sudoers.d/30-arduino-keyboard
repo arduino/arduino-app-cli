@@ -1,1 +1,1 @@
-arduino ALL=(ALL) NOPASSWD: /usr/local/bin/arduino-set-keyboard-layout
+#1000 ALL=(ALL) NOPASSWD: /usr/local/bin/arduino-set-keyboard-layout

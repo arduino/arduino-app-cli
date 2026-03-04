@@ -21,10 +21,11 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
-func HandleSystemResources() http.HandlerFunc {
+func HandleSystemResources(cfg config.Configuration) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		sseStream, err := render.NewSSEStream(ctx, w)
@@ -35,7 +36,7 @@ func HandleSystemResources() http.HandlerFunc {
 		}
 		defer sseStream.Close()
 
-		resources, err := orchestrator.SystemResources(ctx, nil)
+		resources, err := orchestrator.SystemResources(ctx, cfg, nil)
 		if err != nil {
 			sseStream.SendError(render.SSEErrorData{
 				Code:    render.InternalServiceErr,

@@ -7,6 +7,7 @@ import (
 	"github.com/docker/cli/cli/command"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 type CleanAppCacheRequest struct {
@@ -22,6 +23,7 @@ func CleanAppCache(
 	docker command.Cli,
 	app app.ArduinoApp,
 	req CleanAppCacheRequest,
+	platform platform.Platform,
 ) error {
 	runningApp, err := getRunningApp(ctx, docker.Client())
 	if err != nil {
@@ -32,7 +34,7 @@ func CleanAppCache(
 			return ErrCleanCacheRunningApp
 		}
 		// We try to remove docker related resources at best effort
-		for range StopAndDestroyApp(ctx, docker, app) {
+		for range StopAndDestroyApp(ctx, docker, platform, app) {
 			// just consume the iterator
 		}
 	}

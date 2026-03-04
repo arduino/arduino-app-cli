@@ -1,5 +1,11 @@
 # Arduino App CLI
 
+## Installation requiremets
+
+`arduino-app-cli` experience is strictly tied to Arduino hardware and software, so some limitation prevent a more general installation. In particulat the cli should only be run from an user with id `1000` that is part of `arduino`, `sysupgrade`, and `docker` group.
+
+During the .deb installation, the package will check if an user with uid `1000` exist, if exist the required groups are set otherwise a new `arduino` user with id 1000 is created and added to the `docker`, `sysupgrade` and `arduino` group.
+
 ## Environment Variables
 
 The following environment variables are used to configure Arduino App CLI:

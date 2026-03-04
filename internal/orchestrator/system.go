@@ -44,6 +44,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
@@ -282,7 +283,7 @@ func (s SystemCleanupResult) IsEmpty() bool {
 
 // SystemCleanup removes dangling containers and unused images.
 // Also running apps are stopped and removed.
-func SystemCleanup(ctx context.Context, cfg config.Configuration, staticStore *store.StaticStore, docker command.Cli) (SystemCleanupResult, error) {
+func SystemCleanup(ctx context.Context, cfg config.Configuration, staticStore *store.StaticStore, docker command.Cli, platform platform.Platform) (SystemCleanupResult, error) {
 	var result SystemCleanupResult
 
 	// Remove running app and dangling containers
@@ -291,7 +292,7 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, staticStore *s
 		feedback.Warnf("failed to get running app - %v", err)
 	}
 	if runningApp != nil {
-		for item := range StopAndDestroyApp(ctx, docker, *runningApp) {
+		for item := range StopAndDestroyApp(ctx, docker, platform, *runningApp) {
 			if item.GetType() == ErrorType {
 				feedback.Warnf("failed to stop and destroy running app - %v", item.GetError())
 				break

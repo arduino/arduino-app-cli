@@ -31,6 +31,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
@@ -95,4 +96,6 @@ var (
 	GetAppIDProvider = sync.OnceValue(func() *app.IDProvider {
 		return app.NewAppIDProvider(globalConfig)
 	})
+
+	GetPlatform = sync.OnceValue(platform.GetPlatform)
 )

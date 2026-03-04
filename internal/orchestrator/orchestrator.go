@@ -40,13 +40,13 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/helpers"
-	"github.com/arduino/arduino-app-cli/internal/micro"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	appgenerator "github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
@@ -114,6 +114,7 @@ func StartApp(
 	appToStart app.ArduinoApp,
 	cfg config.Configuration,
 	staticStore *store.StaticStore,
+	platform platform.Platform,
 ) iter.Seq[StreamMessage] {
 	return func(yield func(StreamMessage) bool) {
 		ctx, cancel := context.WithCancel(ctx)
@@ -150,7 +151,7 @@ func StartApp(
 			return
 		}
 
-		if err := setStatusLeds(LedTriggerNone); err != nil {
+		if err := setStatusLeds(platform, LedTriggerNone); err != nil {
 			slog.Debug("unable to set status leds", slog.String("error", err.Error()))
 		}
 
@@ -168,7 +169,7 @@ func StartApp(
 			if !yield(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}}) {
 				return
 			}
-			if err := compileUploadSketch(ctx, &appToStart, sketchCallbackWriter); err != nil {
+			if err := compileUploadSketch(ctx, platform, &appToStart, sketchCallbackWriter); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
@@ -193,7 +194,7 @@ func StartApp(
 				return
 			}
 
-			if err := provisioner.App(ctx, bricksIndex, &appToStart, cfg, envs, staticStore, devices); err != nil {
+			if err := provisioner.App(ctx, bricksIndex, &appToStart, cfg, envs, staticStore, platform, devices); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
@@ -304,7 +305,7 @@ func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.Bric
 	return envs
 }
 
-func stopAppWithCmd(ctx context.Context, docker command.Cli, app app.ArduinoApp, cmd string) iter.Seq[StreamMessage] {
+func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.Platform, app app.ArduinoApp, cmd string) iter.Seq[StreamMessage] {
 	return func(yield func(StreamMessage) bool) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -320,7 +321,7 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, app app.ArduinoApp,
 		if !yield(StreamMessage{data: message}) {
 			return
 		}
-		if err := setStatusLeds(LedTriggerDefault); err != nil {
+		if err := setStatusLeds(platform, LedTriggerDefault); err != nil {
 			slog.Debug("unable to set status leds", slog.String("error", err.Error()))
 		}
 
@@ -342,7 +343,7 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, app app.ArduinoApp,
 				if !yield(StreamMessage{data: "Stopping microcontroller..."}) {
 					return
 				}
-				if err := micro.Disable(); err != nil {
+				if err := platform.GetMicro().Disable(); err != nil {
 					_ = yield(StreamMessage{error: err})
 				}
 			}
@@ -381,13 +382,13 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, app app.ArduinoApp,
 	}
 }
 
-func StopApp(ctx context.Context, dockerClient command.Cli, app app.ArduinoApp) iter.Seq[StreamMessage] {
-	return stopAppWithCmd(ctx, dockerClient, app, "stop")
+func StopApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp) iter.Seq[StreamMessage] {
+	return stopAppWithCmd(ctx, dockerClient, platform, app, "stop")
 }
 
-func StopAndDestroyApp(ctx context.Context, dockerClient command.Cli, app app.ArduinoApp) iter.Seq[StreamMessage] {
+func StopAndDestroyApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp) iter.Seq[StreamMessage] {
 	return func(yield func(StreamMessage) bool) {
-		for msg := range stopAppWithCmd(ctx, dockerClient, app, "down") {
+		for msg := range stopAppWithCmd(ctx, dockerClient, platform, app, "down") {
 			if !yield(msg) {
 				return
 			}
@@ -430,6 +431,7 @@ func RestartApp(
 	appToStart app.ArduinoApp,
 	cfg config.Configuration,
 	staticStore *store.StaticStore,
+	platform platform.Platform,
 ) iter.Seq[StreamMessage] {
 	return func(yield func(StreamMessage) bool) {
 		ctx, cancel := context.WithCancel(ctx)
@@ -446,7 +448,7 @@ func RestartApp(
 				return
 			}
 
-			stopStream := StopApp(ctx, docker, *runningApp)
+			stopStream := StopApp(ctx, docker, platform, *runningApp)
 			for msg := range stopStream {
 				if !yield(msg) {
 					return
@@ -456,7 +458,7 @@ func RestartApp(
 				}
 			}
 		}
-		startStream := StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, appToStart, cfg, staticStore)
+		startStream := StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, appToStart, cfg, staticStore, platform)
 		startStream(yield)
 	}
 }
@@ -470,6 +472,7 @@ func StartDefaultApp(
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
 	staticStore *store.StaticStore,
+	platform platform.Platform,
 ) error {
 	app, err := GetDefaultApp(cfg)
 	if err != nil {
@@ -489,7 +492,7 @@ func StartDefaultApp(
 	}
 
 	// TODO: we need to stop all other running app before starting the default app.
-	for msg := range StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, *app, cfg, staticStore) {
+	for msg := range StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, *app, cfg, staticStore, platform) {
 		if msg.IsError() {
 			return fmt.Errorf("failed to start app: %w", msg.GetError())
 		}
@@ -861,10 +864,10 @@ func CloneApp(
 	return CloneAppResponse{ID: id}, nil
 }
 
-func DeleteApp(ctx context.Context, dockerClient command.Cli, app app.ArduinoApp) error {
+func DeleteApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp) error {
 
 	// We try to remove docker related resources at best effort
-	for range StopAndDestroyApp(ctx, dockerClient, app) {
+	for range StopAndDestroyApp(ctx, dockerClient, platform, app) {
 		// just consume the iterator
 	}
 
@@ -994,25 +997,21 @@ func editAppDefaults(userApp *app.ArduinoApp, isDefault bool, cfg config.Configu
 }
 
 func getCurrentUser() string {
-	// Map user to avoid permission issues.
-	user, err := user.Current()
-	if err != nil {
-		panic(err)
+	userInfo := f.Must(user.Current())
+	uid := userInfo.Uid
+	gid := userInfo.Gid
+
+	// If exist use arduino group to avoid permission issue on files /var/lib/arduino-app-cli in.
+	if gInfo, err := user.LookupGroup("arduino"); err == nil {
+		gid = gInfo.Gid
 	}
-	return user.Uid + ":" + user.Gid
+
+	return uid + ":" + gid
 }
 
 // addLedControl adds bindings for led control if the paths exist.
-func addLedControl(volumes []volume) []volume {
-	ledsPath := paths.NewPathList(
-		"/sys/class/leds/blue:user",
-		"/sys/class/leds/green:user",
-		"/sys/class/leds/red:user",
-		"/sys/class/leds/blue:bt",
-		"/sys/class/leds/green:wlan",
-		"/sys/class/leds/red:panic",
-	)
-	for _, path := range ledsPath {
+func addLedControl(platform platform.Platform, volumes []volume) []volume {
+	for _, path := range platform.Linux.UserLeds {
 		if path.Exist() {
 			volumes = append(volumes, volume{
 				Type:   "bind",
@@ -1021,11 +1020,22 @@ func addLedControl(volumes []volume) []volume {
 			})
 		}
 	}
+	for _, path := range platform.Linux.StatusLeds {
+		if path.Exist() {
+			volumes = append(volumes, volume{
+				Type:   "bind",
+				Source: path.String(),
+				Target: path.String(),
+			})
+		}
+	}
+
 	return volumes
 }
 
 func compileUploadSketch(
 	ctx context.Context,
+	platform platform.Platform,
 	arduinoApp *app.ArduinoApp,
 	w io.Writer,
 ) error {
@@ -1097,7 +1107,7 @@ func compileUploadSketch(
 	server, getCompileResult := commands.CompilerServerToStreams(ctx, w, w, nil)
 	compileReq := rpc.CompileRequest{
 		Instance:   inst,
-		Fqbn:       "arduino:zephyr:unoq",
+		Fqbn:       platform.FQBN,
 		SketchPath: sketchPath.String(),
 		BuildPath:  buildPath,
 		Jobs:       2,
@@ -1124,12 +1134,12 @@ func compileUploadSketch(
 		slog.Info("Used library " + lib.GetName() + " (" + lib.GetVersion() + ") in " + lib.GetInstallDir())
 	}
 
-	if err := uploadSketchInRam(ctx, w, srv, inst, sketchPath.String(), buildPath); err != nil {
+	if err := uploadSketchInRam(ctx, w, srv, inst, platform, sketchPath.String(), buildPath); err != nil {
 		slog.Warn("failed to upload in ram mode, trying to configure the board in ram mode, and retry", slog.String("error", err.Error()))
-		if err := configureMicroInRamMode(ctx, w, srv, inst); err != nil {
+		if err := configureMicroInRamMode(ctx, w, srv, inst, platform); err != nil {
 			return err
 		}
-		return uploadSketchInRam(ctx, w, srv, inst, sketchPath.String(), buildPath)
+		return uploadSketchInRam(ctx, w, srv, inst, platform, sketchPath.String(), buildPath)
 	}
 	return nil
 }
@@ -1138,13 +1148,14 @@ func uploadSketchInRam(ctx context.Context,
 	w io.Writer,
 	srv rpc.ArduinoCoreServiceServer,
 	inst *rpc.Instance,
+	platform platform.Platform,
 	sketchPath string,
 	buildPath string,
 ) error {
 	stream, _ := commands.UploadToServerStreams(ctx, w, w)
 	if err := srv.Upload(&rpc.UploadRequest{
 		Instance:   inst,
-		Fqbn:       "arduino:zephyr:unoq:flash_mode=ram",
+		Fqbn:       platform.FQBN + ":flash_mode=ram",
 		SketchPath: sketchPath,
 		ImportDir:  buildPath,
 	}, stream); err != nil {
@@ -1160,6 +1171,7 @@ func configureMicroInRamMode(
 	w io.Writer,
 	srv rpc.ArduinoCoreServiceServer,
 	inst *rpc.Instance,
+	platform platform.Platform,
 ) error {
 	emptyBinDir := paths.New("/tmp/empty")
 	_ = emptyBinDir.MkdirAll()
@@ -1183,7 +1195,7 @@ func configureMicroInRamMode(
 	stream, _ := commands.UploadToServerStreams(ctx, w, w)
 	return srv.Upload(&rpc.UploadRequest{
 		Instance:  inst,
-		Fqbn:      "arduino:zephyr:unoq:flash_mode=flash",
+		Fqbn:      platform.FQBN + ":flash_mode=flash",
 		ImportDir: emptyBinDir.String(),
 	}, stream)
 }

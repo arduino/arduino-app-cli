@@ -63,6 +63,7 @@ func restartHandler(ctx context.Context, cfg config.Configuration, app app.Ardui
 		app,
 		cfg,
 		servicelocator.GetStaticStore(),
+		servicelocator.GetPlatform(),
 	)
 	for message := range stream {
 		switch message.GetType() {

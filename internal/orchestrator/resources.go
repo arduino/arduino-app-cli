@@ -28,6 +28,7 @@ import (
 	"github.com/shirou/gopsutil/v4/mem"
 
 	"github.com/arduino/arduino-app-cli/internal/helpers"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
 type SystemResource interface {
@@ -61,9 +62,9 @@ type SystemResourceConfig struct {
 	DiskScrapeInterval   time.Duration
 }
 
-func SystemResources(ctx context.Context, cfg *SystemResourceConfig) (iter.Seq[SystemResource], error) {
-	if cfg == nil {
-		cfg = &SystemResourceConfig{
+func SystemResources(ctx context.Context, cfg config.Configuration, resourceCfg *SystemResourceConfig) (iter.Seq[SystemResource], error) {
+	if resourceCfg == nil {
+		resourceCfg = &SystemResourceConfig{
 			CPUScrapeInterval:    time.Second * 5,
 			MemoryScrapeInterval: time.Second * 5,
 			DiskScrapeInterval:   time.Second * 30,
@@ -83,7 +84,7 @@ func SystemResources(ctx context.Context, cfg *SystemResourceConfig) (iter.Seq[S
 	}
 	firstMessagesToSend = append(firstMessagesToSend, &SystemCPUResource{UsedPercent: cpuStats[0]})
 
-	diskPaths := []string{"/", "/tmp", "/home/arduino"}
+	diskPaths := []string{"/", "/tmp", cfg.AppsDir().Parent().String()}
 	for _, path := range diskPaths {
 		diskStats, err := disk.Usage(path)
 		if err != nil && !errors.Is(err, syscall.ENOENT) {
@@ -101,13 +102,13 @@ func SystemResources(ctx context.Context, cfg *SystemResourceConfig) (iter.Seq[S
 			}
 		}
 
-		cpuTicker := time.NewTicker(cfg.CPUScrapeInterval)
+		cpuTicker := time.NewTicker(resourceCfg.CPUScrapeInterval)
 		defer cpuTicker.Stop()
 
-		memoryTicker := time.NewTicker(cfg.MemoryScrapeInterval)
+		memoryTicker := time.NewTicker(resourceCfg.MemoryScrapeInterval)
 		defer memoryTicker.Stop()
 
-		diskTicker := time.NewTicker(cfg.DiskScrapeInterval)
+		diskTicker := time.NewTicker(resourceCfg.DiskScrapeInterval)
 		defer diskTicker.Stop()
 
 		for {

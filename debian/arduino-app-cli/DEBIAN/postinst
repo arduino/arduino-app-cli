@@ -1,6 +1,7 @@
 #!/bin/sh
 
 chown -R arduino:arduino /var/lib/arduino-app-cli
+chmod -R 775 /var/lib/arduino-app-cli
 
 systemctl enable arduino-app-cli
 systemctl enable arduino-burn-bootloader

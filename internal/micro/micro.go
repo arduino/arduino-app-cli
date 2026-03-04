@@ -19,26 +19,36 @@ import (
 	"time"
 )
 
-const (
-	ResetPin = 38
-	ChipName = "gpiochip1"
-)
+type GpioPin struct {
+	Chip   string
+	Number int
+}
 
-func Reset() error {
-	if err := Disable(); err != nil {
+type Micro struct {
+	resetPin GpioPin
+}
+
+func New(resetPin GpioPin) Micro {
+	return Micro{
+		resetPin: resetPin,
+	}
+}
+
+func (m Micro) Reset() error {
+	if err := m.Disable(); err != nil {
 		return err
 	}
 
 	// Simulate a reset by toggling the reset pin
 	time.Sleep(10 * time.Millisecond)
 
-	return Enable()
+	return m.Enable()
 }
 
-func Enable() error {
-	return enableOnBoard()
+func (m Micro) Enable() error {
+	return enableOnBoard(m.resetPin.Chip, m.resetPin.Number)
 }
 
-func Disable() error {
-	return disableOnBoard()
+func (m Micro) Disable() error {
+	return disableOnBoard(m.resetPin.Chip, m.resetPin.Number)
 }

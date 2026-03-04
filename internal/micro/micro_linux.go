@@ -22,14 +22,14 @@ import (
 	"github.com/warthog618/go-gpiocdev"
 )
 
-func enableOnBoard() error {
-	chip, err := gpiocdev.NewChip(ChipName)
+func enableOnBoard(chipName string, resetPin int) error {
+	chip, err := gpiocdev.NewChip(chipName)
 	if err != nil {
 		return err
 	}
 	defer chip.Close()
 
-	line, err := chip.RequestLine(ResetPin, gpiocdev.AsOutput(0))
+	line, err := chip.RequestLine(resetPin, gpiocdev.AsOutput(0))
 	if err != nil {
 		return err
 	}
@@ -38,14 +38,14 @@ func enableOnBoard() error {
 	return line.SetValue(1)
 }
 
-func disableOnBoard() error {
-	chip, err := gpiocdev.NewChip(ChipName)
+func disableOnBoard(chipName string, resetPin int) error {
+	chip, err := gpiocdev.NewChip(chipName)
 	if err != nil {
 		return err
 	}
 	defer chip.Close()
 
-	line, err := chip.RequestLine(ResetPin, gpiocdev.AsOutput(0))
+	line, err := chip.RequestLine(resetPin, gpiocdev.AsOutput(0))
 	if err != nil {
 		return err
 	}

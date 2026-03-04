@@ -6,7 +6,7 @@ ConditionPathExists=!/var/lib/arduino-app-cli/bootloader_burned.flag
 [Service]
 Type=oneshot
 RemainAfterExit=true
-User=arduino
+User=1000
 Group=arduino
 ExecStart=/usr/bin/arduino-cli burn-bootloader -b arduino:zephyr:unoq -P jlink
 ExecStartPost=/bin/mkdir -p /var/lib/arduino-app-cli

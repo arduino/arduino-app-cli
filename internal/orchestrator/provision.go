@@ -39,6 +39,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
@@ -122,6 +123,7 @@ func (p *Provision) App(
 	cfg config.Configuration,
 	mapped_env map[string]string,
 	staticStore *store.StaticStore,
+	platform platform.Platform,
 	devices peripherals.AvailableDevices,
 ) error {
 	if arduinoApp == nil {
@@ -134,7 +136,7 @@ func (p *Provision) App(
 		}
 	}
 
-	return generateMainComposeFile(arduinoApp, bricksIndex, p.pythonImage, cfg, mapped_env, staticStore, devices)
+	return generateMainComposeFile(arduinoApp, bricksIndex, p.pythonImage, cfg, mapped_env, staticStore, platform, devices)
 }
 
 func (p *Provision) init(
@@ -216,6 +218,7 @@ func generateMainComposeFile(
 	cfg config.Configuration,
 	envs helpers.EnvVars,
 	staticStore *store.StaticStore,
+	platform platform.Platform,
 	devices peripherals.AvailableDevices,
 ) error {
 	slog.Debug("Generating main compose file for the App")
@@ -267,7 +270,7 @@ func generateMainComposeFile(
 			}
 		}
 
-		composeFiles.Add(composeFilePath)
+		composeFiles.AddIfMissing(composeFilePath)
 		services = append(services, svcs...)
 	}
 
@@ -334,7 +337,7 @@ func generateMainComposeFile(
 		}
 	}
 
-	volumes = addLedControl(volumes)
+	volumes = addLedControl(platform, volumes)
 	groups := lookupGroups("video", "audio", "render", "dialout")
 
 	// Define depends_on conditions

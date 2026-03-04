@@ -31,6 +31,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 type AppStatusInfo struct {
@@ -200,14 +201,9 @@ const (
 	LedTriggerDefault LedTrigger = "default"
 )
 
-var statusLeds = paths.NewPathList(
-	"/sys/class/leds/blue:bt/trigger",
-	"/sys/class/leds/green:wlan/trigger",
-	"/sys/class/leds/red:panic/trigger",
-)
-
-func setStatusLeds(trigger LedTrigger) error {
-	for _, ledPath := range statusLeds {
+func setStatusLeds(platform platform.Platform, trigger LedTrigger) error {
+	for _, ledPath := range platform.Linux.StatusLeds {
+		ledPath = ledPath.Join("trigger")
 		if !ledPath.Exist() {
 			return fmt.Errorf("LED path %s does not exist", ledPath)
 		}

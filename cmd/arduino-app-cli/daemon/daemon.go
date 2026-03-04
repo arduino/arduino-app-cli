@@ -54,6 +54,7 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 					servicelocator.GetAppIDProvider(),
 					cfg,
 					servicelocator.GetStaticStore(),
+					servicelocator.GetPlatform(),
 				)
 				if err != nil {
 					slog.Error("Failed to start default app", slog.String("error", err.Error()))
@@ -103,7 +104,7 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 		version,
 		update.NewManager(
 			apt.New(),
-			arduino.NewArduinoPlatformUpdater(cfg.ArduinoPlatformVersionConstraint),
+			arduino.NewArduinoPlatformUpdater(servicelocator.GetPlatform(), cfg.ArduinoPlatformVersionConstraint),
 		),
 		servicelocator.GetProvisioner(),
 		servicelocator.GetStaticStore(),
@@ -111,6 +112,7 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 		servicelocator.GetBricksIndex(),
 		servicelocator.GetBrickService(),
 		servicelocator.GetAppIDProvider(),
+		servicelocator.GetPlatform(),
 		cfg,
 		corsConfig.Origins,
 	)
