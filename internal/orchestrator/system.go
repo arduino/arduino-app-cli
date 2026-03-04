@@ -79,8 +79,8 @@ func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *stor
 		}
 	}
 
-	if err := downloadSketchLibsUsedInExamples(ctx, cfg, progressCB); err != nil {
-		return fmt.Errorf("failed to download sketch libs used in examples: %w", err)
+	if err := downloadLibsAndPlatformsUsedInExamples(ctx, cfg, progressCB); err != nil {
+		return fmt.Errorf("failed to download libs and platforms used in examples: %w", err)
 	}
 
 	// TODO: use progressCB instead of stdout
@@ -385,7 +385,7 @@ func removeDanglingContainers(ctx context.Context, docker dockerClient.APIClient
 	return counter, nil
 }
 
-func downloadSketchLibsUsedInExamples(ctx context.Context, cfg config.Configuration, progressCB initProgressCallback) error {
+func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Configuration, progressCB initProgressCallback) error {
 	// Start an Arduino Core Server RPC server
 	logrus.SetOutput(io.Discard) // Suppress logs from Arduino CLI
 	var cliInstance *rpc.Instance
@@ -435,6 +435,35 @@ func downloadSketchLibsUsedInExamples(ctx context.Context, cfg config.Configurat
 		str, _ := commands.UpdateLibrariesIndexStreamResponseToCallbackFunction(ctx, downloadProgressCB)
 		if err := cli.UpdateLibrariesIndex(&rpc.UpdateLibrariesIndexRequest{Instance: cliInstance}, str); err != nil {
 			return fmt.Errorf("could not update libraries index: %w", err)
+		}
+	}
+
+	// Force-update of the Arduino Platforms index
+	{
+		str, _ := commands.UpdateIndexStreamResponseToCallbackFunction(ctx, downloadProgressCB)
+		if err := cli.UpdateIndex(&rpc.UpdateIndexRequest{Instance: cliInstance}, str); err != nil {
+			return fmt.Errorf("could not update platforms index: %w", err)
+		}
+	}
+
+	// Install zephyr platform
+	{
+		if err := cli.Init(&rpc.InitRequest{Instance: cliInstance}, commands.InitStreamResponseToCallbackFunction(ctx, func(r *rpc.InitResponse) error {
+			if p := r.GetInitProgress().GetDownloadProgress(); p != nil {
+				downloadProgressCB(p)
+			}
+			return nil
+		})); err != nil {
+			return fmt.Errorf("could not initialize Arduino Core Server: %w", err)
+		}
+
+		str := commands.PlatformInstallStreamResponseToCallbackFunction(ctx, downloadProgressCB, func(msg *rpc.TaskProgress) {})
+		if err := cli.PlatformInstall(&rpc.PlatformInstallRequest{
+			Instance:        cliInstance,
+			PlatformPackage: "arduino",
+			Architecture:    "zephyr",
+		}, str); err != nil {
+			return fmt.Errorf("could not install zephyr platform: %w", err)
 		}
 	}
 
