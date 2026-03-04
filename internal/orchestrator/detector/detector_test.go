@@ -12,14 +12,14 @@ import (
 func TestDetectLocalAppBricks(t *testing.T) {
 
 	t.Run("it detects local bricks in an app", func(t *testing.T) {
-		bricks, err := detectLocalAppBricks(paths.New("testdata/AppWithLocalBricks"))
+		bricks, err := DetectLocalAppBricks(paths.New("testdata/AppWithLocalBricks/bricks"))
 		require.NoError(t, err)
 		assert.Len(t, bricks, 2)
 
 		want := []AppLocalBrick{
 			{
-				FullPath:    paths.New("testdata/AppWithLocalBricks/my_first_brick"),
-				ConfigFile:  paths.New("testdata/AppWithLocalBricks/my_first_brick/brick_config.yaml"),
+				FullPath:    paths.New("testdata/AppWithLocalBricks/bricks/my_first_brick"),
+				ConfigFile:  paths.New("testdata/AppWithLocalBricks/bricks/my_first_brick/brick_config.yaml"),
 				ComposeFile: nil,
 				Brick: bricksindex.Brick{
 					ID:          "dneri:my_first_brick",
@@ -28,9 +28,9 @@ func TestDetectLocalAppBricks(t *testing.T) {
 				},
 			},
 			{
-				FullPath:    paths.New("testdata/AppWithLocalBricks/my_second_brick"),
-				ConfigFile:  paths.New("testdata/AppWithLocalBricks/my_second_brick/brick_config.yaml"),
-				ComposeFile: paths.New("testdata/AppWithLocalBricks/my_second_brick/brick_compose.yaml"),
+				FullPath:    paths.New("testdata/AppWithLocalBricks/bricks/my_second_brick"),
+				ConfigFile:  paths.New("testdata/AppWithLocalBricks/bricks/my_second_brick/brick_config.yaml"),
+				ComposeFile: paths.New("testdata/AppWithLocalBricks/bricks/my_second_brick/brick_compose.yaml"),
 				Brick: bricksindex.Brick{
 					ID:          "dneri:my_second_brick",
 					Name:        "My Second Brick",

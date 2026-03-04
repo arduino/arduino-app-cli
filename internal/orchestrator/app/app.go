@@ -40,6 +40,8 @@ type ArduinoApp struct {
 	mainSketchPath *paths.Path
 	FullPath       *paths.Path // FullPath is the path to the App folder
 	Descriptor     AppDescriptor
+
+	localBricksPath *paths.Path // localBricksPath is the path to the folder containing the app local bricks, if it exists
 }
 
 // Load creates an App instance by reading all the files composing an app and grouping them
@@ -92,6 +94,11 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 		app.MainPythonFile = appPath.Join("python", "main.py")
 	}
 
+	// TODO: bricks folder name may change
+	if appPath.Join("bricks").Exist() {
+		app.localBricksPath = appPath.Join("bricks")
+	}
+
 	if appPath.Join("sketch", "sketch.ino").Exist() {
 		// TODO: check sketch casing?
 		app.mainSketchPath = appPath.Join("sketch")
@@ -109,6 +116,13 @@ func (a *ArduinoApp) GetSketchPath() (*paths.Path, bool) {
 		return nil, false
 	}
 	return a.mainSketchPath, true
+}
+
+func (a *ArduinoApp) GetLocalBricksPath() (*paths.Path, bool) {
+	if a == nil || a.localBricksPath == nil {
+		return nil, false
+	}
+	return a.localBricksPath, true
 }
 
 // GetDescriptorPath returns the path to the app descriptor file (app.yaml or app.yml)

@@ -90,6 +90,16 @@ func TestLoad(t *testing.T) {
 		assert.False(t, ok)
 		assert.Nil(t, sketchPath)
 	})
+
+	t.Run("it loads an app with local bricks folder", func(t *testing.T) {
+		app, err := Load(paths.New("testdata/AppWithLocalBricks"))
+		assert.NoError(t, err)
+		assert.NotEmpty(t, app)
+
+		localBricksPath, ok := app.GetLocalBricksPath()
+		assert.True(t, ok)
+		assert.NotNil(t, localBricksPath)
+	})
 }
 
 func TestMissingDescriptor(t *testing.T) {

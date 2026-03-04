@@ -11,13 +11,13 @@ import (
 
 type AppLocalBrick struct {
 	FullPath    *paths.Path
-	ConfigFile  *paths.Path
-	ComposeFile *paths.Path
+	ConfigFile  *paths.Path // brick_config.yaml file path
+	ComposeFile *paths.Path // brick_compose.yaml file path, optional
 
-	Brick bricksindex.Brick
+	Brick bricksindex.Brick // the brick as defined in the brick_config.yaml file
 }
 
-func detectLocalAppBricks(appPath *paths.Path) (appBricks []AppLocalBrick, err error) {
+func DetectLocalAppBricks(appPath *paths.Path) (appBricks []AppLocalBrick, err error) {
 	pathsList, err := appPath.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
 		if file.Join("brick_config.yaml").NotExist() {
 			// let's continue scanning, the model can be in a subfolder
