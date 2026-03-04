@@ -31,6 +31,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/config"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/daemon"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/model"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/monitor"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/properties"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/system"
@@ -82,6 +83,7 @@ func run(configuration cfg.Configuration) error {
 		system.NewSystemCmd(configuration),
 		version.NewVersionCmd(Version),
 		monitor.NewMonitorCmd(),
+		model.NewModelCmd(),
 	)
 
 	ctx := context.Background()
