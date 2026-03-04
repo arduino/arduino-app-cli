@@ -8,15 +8,15 @@ import (
 	"slices"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickfinder"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 )
 
 // CheckBricks checks that all bricks referenced in the given AppDescriptor exist in the provided BricksIndex,
 // It collects and returns all validation errors as a single joined error, allowing the caller to see all issues at once rather than stopping at the first error.
-func checkBricks(a app.AppDescriptor, index *bricksindex.BricksIndex, modelIndex *modelsindex.ModelsIndex) error {
-	if index == nil {
+func checkBricks(a app.AppDescriptor, brickResolver brickfinder.Resolver, modelIndex *modelsindex.ModelsIndex) error {
+	if brickResolver == nil {
 		return fmt.Errorf("bricks index cannot be nil")
 	}
 	if modelIndex == nil {
@@ -26,10 +26,10 @@ func checkBricks(a app.AppDescriptor, index *bricksindex.BricksIndex, modelIndex
 	var allErrors error
 
 	for _, appBrick := range a.Bricks {
-		indexBrick, found := index.FindBrickByID(appBrick.ID)
+		indexBrick, found := brickResolver.FindBrickByID(appBrick.ID)
 		if !found {
 			allErrors = errors.Join(allErrors, fmt.Errorf("brick %q not found", appBrick.ID))
-			continue // Skip further validation for this brick since it doesn't exist
+			continue
 		}
 
 		if len(appBrick.Model) != 0 {
@@ -59,7 +59,7 @@ func checkBricks(a app.AppDescriptor, index *bricksindex.BricksIndex, modelIndex
 	return allErrors
 }
 
-func checkRequiredDevices(bricksIndex *bricksindex.BricksIndex, appBricks []app.Brick, availableDevices peripherals.AvailableDevices) error {
+func checkRequiredDevices(bricksIndex brickfinder.Resolver, appBricks []app.Brick, availableDevices peripherals.AvailableDevices) error {
 	requiredDeviceClasses := make(map[peripherals.DeviceClass]bool)
 
 	for _, brick := range appBricks {

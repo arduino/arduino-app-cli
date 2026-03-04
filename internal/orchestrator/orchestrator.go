@@ -42,8 +42,8 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	appgenerator "github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickfinder"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickslocalindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
@@ -111,7 +111,7 @@ func StartApp(
 	docker command.Cli,
 	provisioner *Provision,
 	modelsIndex *modelsindex.ModelsIndex,
-	bricksIndex *bricksindex.BricksIndex,
+	brickResolver brickfinder.Resolver,
 	appToStart app.ArduinoApp,
 	cfg config.Configuration,
 	staticStore *store.StaticStore,
@@ -121,12 +121,8 @@ func StartApp(
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		// localBrickIndex, err := brickslocalindex.Load(appToStart.FullPath)
-		// if err != nil {
-		// 	slog.Warn("Cannot load local bricks", "path", appToStart.FullPath)
-		// }
-
-		err = checkBricks(appToStart.Descriptor, bricksIndex, modelsIndex)
+		// TODO: add unit test with local brick index
+		err := checkBricks(appToStart.Descriptor, brickResolver, modelsIndex)
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return
@@ -138,7 +134,7 @@ func StartApp(
 			return
 		}
 
-		err = checkRequiredDevices(bricksIndex, appToStart.Descriptor.Bricks, devices)
+		err = checkRequiredDevices(brickResolver, appToStart.Descriptor.Bricks, devices)
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return
@@ -185,7 +181,7 @@ func StartApp(
 		}
 
 		if appToStart.MainPythonFile != nil {
-			envs := getAppEnvironmentVariables(appToStart, bricksIndex, modelsIndex)
+			envs := getAppEnvironmentVariables(appToStart, brickResolver, modelsIndex)
 
 			if !yield(StreamMessage{data: "python provisioning"}) {
 				cancel()
@@ -200,7 +196,7 @@ func StartApp(
 				return
 			}
 
-			if err := provisioner.App(ctx, bricksIndex, &appToStart, cfg, envs, staticStore, platform, devices); err != nil {
+			if err := provisioner.App(ctx, brickResolver, &appToStart, cfg, envs, staticStore, platform, devices); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
@@ -272,11 +268,11 @@ func StartApp(
 // - model configuration variables (variables defined in the model configuration)
 // - brick instance variables (variables defined in the app.yaml for the brick instance)
 // In addition, it adds some useful environment variables like APP_HOME and HOST_IP.
-func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex) helpers.EnvVars {
+func getAppEnvironmentVariables(app app.ArduinoApp, brickResolver brickfinder.Resolver, modelsIndex *modelsindex.ModelsIndex) helpers.EnvVars {
 	envs := make(helpers.EnvVars)
 
 	for _, brick := range app.Descriptor.Bricks {
-		if brickDef, found := brickIndex.FindBrickByID(brick.ID); found {
+		if brickDef, found := brickResolver.FindBrickByID(brick.ID); found {
 			maps.Insert(envs, brickDef.GetDefaultVariables())
 		}
 

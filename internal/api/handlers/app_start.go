@@ -24,7 +24,9 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickfinder"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickslocalindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -71,7 +73,12 @@ func HandleAppStart(
 		type log struct {
 			Message string `json:"message"`
 		}
-		for item := range orchestrator.StartApp(r.Context(), dockerCli, provisioner, modelsIndex, bricksIndex, app, cfg, staticStore, platform) {
+		localIndex, err := brickslocalindex.Load(app.FullPath)
+		if err != nil {
+			slog.Warn("Cannot load local bricks", "path", app.FullPath)
+		}
+		brickResolver := brickfinder.New(bricksIndex, localIndex)
+		for item := range orchestrator.StartApp(r.Context(), dockerCli, provisioner, modelsIndex, brickResolver, app, cfg, staticStore, platform) {
 			switch item.GetType() {
 			case orchestrator.ProgressType:
 				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress(*item.GetProgress())})

@@ -36,7 +36,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickfinder"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -118,7 +118,7 @@ func NewProvision(
 
 func (p *Provision) App(
 	ctx context.Context,
-	bricksIndex *bricksindex.BricksIndex,
+	brickResolver brickfinder.Resolver,
 	arduinoApp *app.ArduinoApp,
 	cfg config.Configuration,
 	mapped_env map[string]string,
@@ -136,7 +136,7 @@ func (p *Provision) App(
 		}
 	}
 
-	return generateMainComposeFile(arduinoApp, bricksIndex, p.pythonImage, cfg, mapped_env, staticStore, platform, devices)
+	return generateMainComposeFile(arduinoApp, brickResolver, p.pythonImage, cfg, mapped_env, staticStore, platform, devices)
 }
 
 func (p *Provision) init(
@@ -213,7 +213,7 @@ const (
 
 func generateMainComposeFile(
 	app *app.ArduinoApp,
-	bricksIndex *bricksindex.BricksIndex,
+	brickResolver brickfinder.Resolver,
 	pythonImage string,
 	cfg config.Configuration,
 	envs helpers.EnvVars,
@@ -231,7 +231,7 @@ func generateMainComposeFile(
 	var composeFiles paths.PathList
 	services := make([]serviceInfo, 0, len(app.Descriptor.Bricks))
 	for _, brick := range app.Descriptor.Bricks {
-		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
+		idxBrick, found := brickResolver.FindBrickByID(brick.ID)
 		slog.Debug("Processing brick", slog.String("brick_id", brick.ID), slog.Bool("found", found))
 		if !found {
 			continue

@@ -3,6 +3,7 @@ package brickslocalindex
 import (
 	"log/slog"
 	"os"
+	"slices"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/goccy/go-yaml"
@@ -10,7 +11,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
 
-type LocalAppBricksIndex struct {
+type BricksIndex struct {
 	LocalBricks []AppLocalBrick
 }
 
@@ -22,7 +23,7 @@ type AppLocalBrick struct {
 	Brick bricksindex.Brick // the brick as defined in the brick_config.yaml file
 }
 
-func Load(appPath *paths.Path) (localBrickIndex LocalAppBricksIndex, err error) {
+func Load(appPath *paths.Path) (localBrickIndex *BricksIndex, err error) {
 	pathsList, err := appPath.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
 		if file.Join("brick_config.yaml").NotExist() {
 			// let's continue scanning, the model can be in a subfolder
@@ -31,7 +32,7 @@ func Load(appPath *paths.Path) (localBrickIndex LocalAppBricksIndex, err error) 
 		return false
 	}, paths.FilterDirectories())
 	if err != nil {
-		return LocalAppBricksIndex{}, err
+		return nil, err
 	}
 	bricks := []AppLocalBrick{}
 	for _, path := range pathsList {
@@ -42,7 +43,7 @@ func Load(appPath *paths.Path) (localBrickIndex LocalAppBricksIndex, err error) 
 		}
 		bricks = append(bricks, brick)
 	}
-	return LocalAppBricksIndex{LocalBricks: bricks}, nil
+	return &BricksIndex{LocalBricks: bricks}, nil
 }
 
 func loadLocalAppBrick(brickPath *paths.Path) (a AppLocalBrick, err error) {
@@ -71,4 +72,14 @@ func loadLocalAppBrick(brickPath *paths.Path) (a AppLocalBrick, err error) {
 		ComposeFile: composeFile,
 		Brick:       customBrick,
 	}, nil
+}
+
+func (b *BricksIndex) FindBrickByID(id string) (*bricksindex.Brick, bool) {
+	idx := slices.IndexFunc(b.LocalBricks, func(brick AppLocalBrick) bool {
+		return brick.Brick.ID == id
+	})
+	if idx == -1 {
+		return nil, false
+	}
+	return &b.LocalBricks[idx].Brick, true
 }
