@@ -510,19 +510,18 @@ func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, cli r
 	}
 
 	// Initializing using the profile will force download and install of the missing libraries
-	progressCB := func(r *rpc.InitResponse) error {
-		if p := r.GetInitProgress().GetDownloadProgress(); p != nil {
-			downloadProgressCB(p)
-		}
-		return nil
-	}
 	if err := cli.Init(
 		&rpc.InitRequest{
 			Instance:   cliInstance,
 			SketchPath: sketchPath.String(),
 			Profile:    defaultProfile,
 		},
-		commands.InitStreamResponseToCallbackFunction(ctx, progressCB),
+		commands.InitStreamResponseToCallbackFunction(ctx, func(r *rpc.InitResponse) error {
+			if p := r.GetInitProgress().GetDownloadProgress(); p != nil {
+				downloadProgressCB(p)
+			}
+			return nil
+		}),
 	); err != nil {
 		return fmt.Errorf("could not initialize sketch %s: %w", sketchPath.String(), err)
 	}
