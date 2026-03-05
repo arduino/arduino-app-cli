@@ -104,7 +104,8 @@ func TestAIModelDetails(t *testing.T) {
 	t.Run("should return full details for a valid custom model ID", func(t *testing.T) {
 		_, err := custommodel.Store(customModelDir.Join("my-model"), custommodel.ModelDescriptor{
 			ID:          "custom-classification-model-eim",
-			Name:        "this the name of the model",
+			Name:        "this is the name of the model",
+			Runner:      "brick",
 			Description: "this is the description of the model",
 			Bricks: []custommodel.BrickConfig{
 				{ID: "arduino:audio_classification"},
@@ -120,7 +121,7 @@ func TestAIModelDetails(t *testing.T) {
 		got := response.JSON200
 		require.Equal(t, &client.AIModelItem{
 			Id:          new("custom-classification-model-eim"),
-			Name:        new("this the name of the model"),
+			Name:        new("this is the name of the model"),
 			IsBuiltin:   new(false),
 			Runner:      new(""),
 			Description: new("this is the description of the model"),
@@ -218,6 +219,7 @@ func TestAIModelDelete(t *testing.T) {
 
 		_, err := custommodel.Store(customModelDir.Join("my-custom-model"), custommodel.ModelDescriptor{
 			ID:     modelId,
+			Name:   "this the name of the model",
 			Runner: "brick",
 			Bricks: []custommodel.BrickConfig{
 				{ID: "arduino:audio_classification"},
