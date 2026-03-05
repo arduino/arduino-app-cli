@@ -16,6 +16,8 @@
 package app
 
 import (
+	"bytes"
+	"io"
 	"path/filepath"
 	"testing"
 
@@ -113,86 +115,86 @@ func TestMissingMains(t *testing.T) {
 func TestExtractFirstParagraph(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    []byte
+		input    io.Reader
 		expected string
 	}{
 		{
 			name:     "it extracts the first paragraph from a markdown string",
-			input:    []byte("# Title\n\nThis is the first paragraph.\n\nThis is the second paragraph."),
+			input:    bytes.NewReader([]byte("# Title\n\nThis is the first paragraph.\n\nThis is the second paragraph.")),
 			expected: "This is the first paragraph.",
 		},
 		{
 			name:     "it extracts the first paragraph if there are no title",
-			input:    []byte("This is the first paragraph.\n\nThis is the second paragraph."),
+			input:    bytes.NewReader([]byte("This is the first paragraph.\n\nThis is the second paragraph.")),
 			expected: "This is the first paragraph.",
 		},
 		{
 			name:     "it returns empty string if there are no paragraphs",
-			input:    []byte("# Title"),
+			input:    bytes.NewReader([]byte("# Title")),
 			expected: "",
 		},
 		{
 			name:     "it returns the first valid paragraph even if there are multiple newlines",
-			input:    []byte("# Title\n\n\n\n the first valid paragraph."),
+			input:    bytes.NewReader([]byte("# Title\n\n\n\n the first valid paragraph.")),
 			expected: "the first valid paragraph.",
 		},
 		{
 			name: "it returns multiple lines of the first paragraph",
-			input: []byte(`# Title
+			input: bytes.NewReader([]byte(`# Title
 
 This is the first line of the first paragraph.
 This is the second line of the first paragraph.
 
-This is the second paragraph.`),
+This is the second paragraph.`)),
 			expected: "This is the first line of the first paragraph. This is the second line of the first paragraph.",
 		},
 		{
 			name:     "it returns the first paragraph cleared from bold or italic markdown syntax",
-			input:    []byte("# Title\n\n**This is the bold** paragraph.\n*This is italic* paragraph."),
+			input:    bytes.NewReader([]byte("# Title\n\n**This is the bold** paragraph.\n*This is italic* paragraph.")),
 			expected: "This is the bold paragraph. This is italic paragraph.",
 		},
 		{
 			name:     "it returns the first paragraph cleared from link markdown syntax",
-			input:    []byte("# Title\n\nThis is a [link](https://example.com) paragraph."),
+			input:    bytes.NewReader([]byte("# Title\n\nThis is a [link](https://example.com) paragraph.")),
 			expected: "This is a link paragraph.",
 		},
 		{
 			name:     "it ignores images at the beginning of the paragraph",
-			input:    []byte("# Title\n\n![Banner](image.png)\nThis is the actual description."),
+			input:    bytes.NewReader([]byte("# Title\n\n![Banner](image.png)\nThis is the actual description.")),
 			expected: "This is the actual description.",
 		},
 		{
 			name:     "it returns empty string if the paragraph contains only an image",
-			input:    []byte("# Title\n\n![Banner](image.png)"),
+			input:    bytes.NewReader([]byte("# Title\n\n![Banner](image.png)")),
 			expected: "",
 		},
 		{
 			name:     "it should include inline code content",
-			input:    []byte("# Title\n\nThis is `code` example."),
+			input:    bytes.NewReader([]byte("# Title\n\nThis is `code` example.")),
 			expected: "This is code example.",
 		},
 		{
 			name:     "it should return inline code paragraph",
-			input:    []byte("# Title\n\n`hello world`"),
+			input:    bytes.NewReader([]byte("# Title\n\n`hello world`")),
 			expected: "hello world",
 		},
 		{
 			name:     "it should handle hard line break",
-			input:    []byte("# Title\n\nFirst line.  \nSecond line."),
+			input:    bytes.NewReader([]byte("# Title\n\nFirst line.  \nSecond line.")),
 			expected: "First line. Second line.",
 		},
 		{
 			name: "it should skip paragraph containing only linked image",
-			input: []byte(`# Title
+			input: bytes.NewReader([]byte(`# Title
 
 [![Alt](img.png)](https://example.com)
 
-Real paragraph.`),
+Real paragraph.`)),
 			expected: "Real paragraph.",
 		},
 		{
 			name:     "it should skip image-only paragraph and return next paragraph",
-			input:    []byte("# Title\n\n![Banner](image.png)\n\nThis is the real first paragraph."),
+			input:    bytes.NewReader([]byte("# Title\n\n![Banner](image.png)\n\nThis is the real first paragraph.")),
 			expected: "This is the real first paragraph.",
 		},
 	}
@@ -200,6 +202,59 @@ Real paragraph.`),
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			result := extractFirstParagraph(test.input)
+			assert.Equal(t, test.expected, result)
+		})
+	}
+}
+
+func TestTruncateDescription(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		max      int
+		expected string
+	}{
+		{
+			name:     "it returns the string unchanged if shorter than max",
+			input:    "Short description.",
+			max:      50,
+			expected: "Short description.",
+		},
+		{
+			name:     "it returns the string unchanged if equal to max",
+			input:    "Exactly fifty chars long description right here!!",
+			max:      50,
+			expected: "Exactly fifty chars long description right here!!",
+		},
+		{
+			name:     "it truncates at word boundary",
+			input:    "This is a very long description that exceeds the maximum allowed length",
+			max:      50,
+			expected: "This is a very long description that exceeds the",
+		},
+		{
+			name:     "it truncates at char boundary if no space found",
+			input:    "Abcdefghijklmnopqrstuvwxyz",
+			max:      10,
+			expected: "Abcdefghij",
+		},
+		{
+			name:     "it returns empty string if input is empty",
+			input:    "",
+			max:      50,
+			expected: "",
+		},
+		{
+			name:     "it returns empty string if max is zero",
+			input:    "Some text",
+			max:      0,
+			expected: "",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := truncateDescription(test.input, test.max)
 			assert.Equal(t, test.expected, result)
 		})
 	}

@@ -17,9 +17,9 @@ package app
 
 import (
 	"bufio"
-	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"regexp"
@@ -30,6 +30,8 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 )
+
+const maxDescriptionLength = 150
 
 // ArduinoApp holds all the files composing an app
 type ArduinoApp struct {
@@ -177,17 +179,17 @@ func (a *ArduinoApp) getAppDescriptionFromReadme() (string, error) {
 		return "", fmt.Errorf("README.md not found in app directory")
 	}
 
-	content, err := readmePath.ReadFile()
+	f, err := readmePath.Open()
 	if err != nil {
 		return "", fmt.Errorf("error reading README.md: %w", err)
 	}
-
-	description := extractFirstParagraph(content)
-	return description, nil
+	defer f.Close()
+	description := extractFirstParagraph(f)
+	return truncateDescription(description, maxDescriptionLength), nil
 }
 
-func extractFirstParagraph(source []byte) string {
-	scanner := bufio.NewScanner(bytes.NewReader(source))
+func extractFirstParagraph(source io.Reader) string {
+	scanner := bufio.NewScanner(source)
 	var lines []string
 	inFence := false
 
@@ -253,4 +255,15 @@ func cleanInlineMarkdown(s string) string {
 	s = reCode.ReplaceAllString(s, "$1")
 	s = reMultiSpace.ReplaceAllString(s, " ")
 	return strings.TrimSpace(s)
+}
+
+func truncateDescription(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	s = s[:max]
+	if i := strings.LastIndex(s, " "); i > 0 {
+		return s[:i]
+	}
+	return s
 }
