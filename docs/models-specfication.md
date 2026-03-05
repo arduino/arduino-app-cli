@@ -1,31 +1,14 @@
-# 1. Arduino Model Specification
-
-This is the specification for the Arduino Model format to be used with `arduino-app-cli` and `Arduino App Lab`.
-
-Arduino Models are self-contained folders that may include AI weights, configuration assets, and metadata. Within the `Arduino Uno Q board ecosystem`, models are treated as shared resources that provide the "intelligence" used by **AI Bricks**.
-
-Unlike the application logic, models are designed to be decoupled from specific Apps, allowing multiple applications to leverage the same model concurrently while optimizing storage and memory.
-
 ### 1.1 Understanding Bricks and AI Bricks
 
-Within the Arduino App ecosystem, a **Brick** is a modular service that acts as a standardized interface for specific functionalities.
-An **AI Brick** is a specialized Brick that manages a specific AI domain or use case (e.g., _Object Detection_, _Speech-to-Text_, or _Face Detection_).
-The primary goal of an AI Brick is to allow the swapping of underlying AI models without requiring changes to the application code (`main.py`), effectively hiding the technical complexities of the model's execution.
+A **Brick** is a modular service that acts as a standardized interface for specific functionalities. An **AI Brick** is a specialized Brick that manages a specific AI domain or use case (e.g., _Object Detection_, _Speech-to-Text_, or _Face Detection_). For a general introduction to Bricks and how they work, see [Understanding Bricks](https://docs.arduino.cc/software/app-lab/tutorials/bricks/).
 
-An **AI Brick** is composed of two main elements:
-
-- **Python Module Interface**: A library that exposes unified Python methods to the App's Logic Layer. This is imported and used directly by the developer in `main.py`.
-- **AI Runner**: A specialized Docker container managed by the host system. It provides the execution environment (libraries, drivers, and hardware acceleration support) where the AI model actually runs.
-
-An AI Brick is designed to automatically determine and select the appropriate AI Runner required for a given AI model.
-
-### 1.2 Model-AI Brick Relationship and compatibility
+### 1.2 Model-AI Brick Relationship and Compatibility
 
 The ecosystem implements a flexible N:N (Many-to-Many) relationship between Bricks and Models:
 
-- **Model Versatility**: A single AI Model can be compatible with multiple Bricks of the same domain. For example, a model trained for "Face Detection" (Object Detection domain) can be utilized by both a basic `arduino:object_detection` brick and a more complex `arduino:video_analytics brick`, as they share the same input requirements and output structure.
+- **Model Versatility**: A single AI Model can be compatible with multiple Bricks of the same domain. For example, a model trained for "Face Detection" can be utilized by both a basic `arduino:object_detection` brick and a more complex `arduino:video_analytics` brick, as they share the same input requirements and output structure.
 - **Brick Flexibility**: A Brick can support multiple Models of the same class, allowing users to swap models (e.g., switching from a lightweight model to a more accurate one) while the Python API remains identical.
-- **Multi-tenancy**: A single AI model can be shared and utilized simultaneously by multiple Bricks. In this scenario, the model assets are shared, but a separate AI Runner instance is created for each Brick. The number of active Runners will equal the number of Bricks currently accessing that model.
+- **Model Resource Sharing**: A single AI model can be shared and utilized simultaneously by multiple Bricks. In this scenario, the model assets are shared, but a separate AI Runner instance is created for each Brick.
 
 ### 1.3 Model Types
 
@@ -41,7 +24,9 @@ The system tracks the status of a model to manage its availability and synchroni
 - **Available**: The model exists on a remote provider (cloud) but has not been downloaded to the board yet.
 - **Installed**: The model assets and the `model.yaml` descriptor are present on the board and ready for execution.
 - **Detached**: An "Installed" model whose link to the original remote provider has been severed (e.g., the user logged out, or the project was deleted from the cloud). The model remains functional locally but cannot receive updates.
-- **Broken(OR INVALID??)**: An installed model that fails static validation (e.g., missing weights, corrupted manifest).(TODO NOT IMPLEMENT YET: NEED A DISCUSSION)
+- **Broken**: An installed model that fails static validation (e.g., missing weights, corrupted manifest).
+
+> **Note**: The `Available` and `Detached` states are managed by Arduino App Lab. Within `arduino-app-cli`, a model can only be `Installed` or `Broken`.
 
 # 2. Project Structure
 
@@ -141,7 +126,7 @@ The default location for downloadable/custom models is typically `/home/.arduino
 
 Unlike Apps, where the logic is always in `python/main.py`, a Model's assets can be located anywhere within its root folder. The `model.yaml` file acts as the map, explicitly pointing the **Runner** to the correct files.
 
-- **Local Paths**: All paths defined in the descriptor must be relative to the model's root folder.
+- **Local Paths**: All paths defined in the descriptor must be absolute to the model's root folder.
 - **Reserved Filenames**: While asset names are flexible, `model.yaml` is reserved and cannot be used for weight files.
 
 ### 2.5 A complete example
@@ -153,4 +138,135 @@ A hypothetical model named "Lighthouse-Face-Det" downloaded from Edge Impulse:
 ├── model.yaml              # Mandatory metadata
 ├── lighthouse-face.eim     # Model binary (referenced in yaml)
 └── README.md               # Optional documentation for App Lab
+```
+
+# 3. Edge Impulse Model Integration
+
+This section describes how to manually integrate a model exported from [Edge Impulse](https://edgeimpulse.com) into the Arduino Model ecosystem. This process is normally handled automatically by `Arduino App Lab`, but advanced users may need to perform it manually — for example, when importing a model built outside the standard workflow.
+
+### 3.1 Overview
+
+Edge Impulse models are distributed as `.eim` binaries. Each `.eim` file is a self-contained, platform-specific binary that bundles the model weights and the inference runtime(check [Edge Impulse](https://edgeimpulse.com) for more information).
+
+### 3.2 Project Structure
+
+A manually integrated Edge Impulse model must follow this structure:
+
+```text
+/home/.arduino-bricks/models/<my-model>/
+├── model.yaml       # Mandatory descriptor
+└── model.eim        # Edge Impulse binary
+```
+
+### 3.3 The `model.yaml` Descriptor for Edge Impulse Models
+
+The `model.yaml` for an Edge Impulse model follows the standard descriptor format (see Section 2.1) with specific `metadata` fields and `bricks` configuration.
+
+#### 3.3.1 Metadata Fields
+
+The following metadata fields are required for Edge Impulse models:
+
+| Field                   | Type    | Status        | Description                                                       |
+| ----------------------- | ------- | ------------- | ----------------------------------------------------------------- |
+| `source`                | String  | **Mandatory** | Must be set to `"edgeimpulse"`.                                   |
+| `ei-project-id`         | Integer | **Mandatory** | The numeric ID of the Edge Impulse project.                       |
+| `ei-impulse-id`         | Integer | **Mandatory** | The numeric ID of the impulse within the project.                 |
+| `ei-impulse-name`       | String  | **Mandatory** | The human-readable name of the impulse.                           |
+| `ei-model-type`         | String  | **Mandatory** | The model type. Must be `float32`.                                |
+| `ei-engine`             | String  | **Mandatory** | The inference engine. Must be `tflite`.                           |
+| `ei-deployment-version` | Integer | **Mandatory** | The deployment version number from Edge Impulse.                  |
+| `ei-last-modified`      | String  | Optional      | Timestamp of the last project modification in RFC3339Nano format. |
+| `ei-model-url`          | String  | Optional      | URL to the model page on Edge Impulse Studio.                     |
+| `ei-gpu-mode`           | Boolean | Optional      | Whether the model runs in GPU mode. Defaults to `false`.          |
+
+#### 3.3.2 Brick Configuration
+
+The `bricks` list defines which AI Bricks are compatible with the model and how they are configured. The `model_configuration` for each brick must include two variables:
+
+- **`EI_*_MODEL`**: The absolute path to the `.eim` binary. The exact variable name depends on the target brick (see Section 3.4). All Edge Impulse model variables follow the naming pattern `EI_<anything>_MODEL`, where `EI_` and `_MODEL` are fixed prefix and suffix, and the middle part identifies the specific brick type (e.g., `EI_OBJ_DETECTION_MODEL`, `EI_CLASSIFICATION_MODEL`).
+- **`CUSTOM_MODEL_PATH`**: The absolute path to the model's root folder (i.e., the directory containing `model.yaml`).
+
+### 3.4 Edge Impulse Category to AI Brick Mapping
+
+The compatible bricks are determined by the **project category** set in Edge Impulse Studio. The table below lists the mapping between Edge Impulse project categories and the corresponding AI Brick IDs, along with the required `model_configuration` variable name for each brick.
+
+| EI Project Category     | AI Brick ID                           | `model_configuration` variable         |
+| ----------------------- | ------------------------------------- | -------------------------------------- |
+| Object Detection        | `arduino:object_detection`            | `EI_OBJ_DETECTION_MODEL`               |
+| Object Detection        | `arduino:video_object_detection`      | `EI_V_OBJ_DETECTION_MODEL`             |
+| Images (Classification) | `arduino:image_classification`        | `EI_CLASSIFICATION_MODEL`              |
+| Images (Classification) | `arduino:video_image_classification`  | `EI_V_CLASSIFICATION_MODEL`            |
+| Images (Visual Anomaly) | `arduino:visual_anomaly_detection`    | `EI_V_ANOMALY_DETECTION_MODEL`         |
+| Audio                   | `arduino:audio_classification`        | `EI_AUDIO_CLASSIFICATION_MODEL`        |
+| Keyword Spotting        | `arduino:audio_classification`        | `EI_AUDIO_CLASSIFICATION_MODEL`        |
+| Keyword Spotting        | `arduino:keyword_spotting`            | `EI_KEYWORD_SPOTTING_MODEL`            |
+| Accelerometer           | `arduino:motion_detection`            | `EI_MOTION_DETECTION_MODEL`            |
+| Accelerometer           | `arduino:vibration_anomaly_detection` | `EI_VIBRATION_ANOMALY_DETECTION_MODEL` |
+
+> **Note on Visual Anomaly Detection**: The `arduino:visual_anomaly_detection` brick is only compatible with impulses that include a `KerasVisualAnomaly` learn block. Generic image classification impulses from the `Images` category are not compatible with this brick.
+
+### 3.5 Complete Examples
+
+#### Object Detection Model
+
+```yaml
+id: ei-model-842271-1
+name: Hand gestures
+runner: brick
+description: >-
+  A lightweight vision model that detects four hand gestures: neutral fist,
+  open hand (five), V-sign (peace), and thumbs-up (good).
+category: Images
+bricks:
+  - id: arduino:object_detection
+    model_configuration:
+      EI_OBJ_DETECTION_MODEL: /home/.arduino-bricks/models/custom-ei/ei-model-842271-1/model.eim
+      CUSTOM_MODEL_PATH: /home/.arduino-bricks/models/custom-ei/ei-model-842271-1
+  - id: arduino:video_object_detection
+    model_configuration:
+      EI_V_OBJ_DETECTION_MODEL: /home/.arduino-bricks/models/custom-ei/ei-model-842271-1/model.eim
+      CUSTOM_MODEL_PATH: /home/.arduino-bricks/models/custom-ei/ei-model-842271-1
+metadata:
+  source: edgeimpulse
+  ei-project-id: 842271
+  ei-impulse-id: 1
+  ei-impulse-name: Hand gestures impulse
+  ei-model-type: float32
+  ei-engine: tflite
+  ei-deployment-version: 3
+  ei-model-url: https://studio.edgeimpulse.com/public/842271/live
+  ei-gpu-mode: false
+```
+
+#### Keyword Spotting Model
+
+```yaml
+id: ei-model-757509-30
+name: Keyword spotting - Hey Arduino!
+runner: brick
+description: >-
+  A keyword-spotting model to detect the 'Hey Arduino!' keyword in audio streams.
+category: Audio
+bricks:
+  - id: arduino:audio_classification
+    model_configuration:
+      EI_AUDIO_CLASSIFICATION_MODEL: /home/.arduino-bricks/models/custom-ei/ei-model-757509-30/model.eim
+      CUSTOM_MODEL_PATH: /home/.arduino-bricks/models/custom-ei/ei-model-757509-30
+  - id: arduino:keyword_spotting
+    model_configuration:
+      EI_KEYWORD_SPOTTING_MODEL: /home/.arduino-bricks/models/custom-ei/ei-model-757509-30/model.eim
+      CUSTOM_MODEL_PATH: /home/.arduino-bricks/models/custom-ei/ei-model-757509-30
+metadata:
+  source: edgeimpulse
+  ei-project-id: 757509
+  ei-impulse-id: 30
+  ei-impulse-name: Hey Arduino!
+  ei-model-type: float32
+  ei-engine: tflite
+  ei-deployment-version: 1
+  ei-last-modified: 2025-01-15T10:30:00.000000000+01:00
+  ei-model-url: https://studio.edgeimpulse.com/studio/757509/live
+```
+
+```
 ```
