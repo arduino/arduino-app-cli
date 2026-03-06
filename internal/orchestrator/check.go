@@ -15,7 +15,7 @@ import (
 
 // CheckBricks checks that all bricks referenced in the given AppDescriptor exist in the provided BricksIndex,
 // It collects and returns all validation errors as a single joined error, allowing the caller to see all issues at once rather than stopping at the first error.
-func checkBricks(a app.AppDescriptor, brickResolver brickfinder.Resolver, modelIndex *modelsindex.ModelsIndex) error {
+func checkBricks(a app.AppDescriptor, brickResolver *brickfinder.BrickResolver, modelIndex *modelsindex.ModelsIndex) error {
 	if brickResolver == nil {
 		return fmt.Errorf("bricks index cannot be nil")
 	}
@@ -59,11 +59,11 @@ func checkBricks(a app.AppDescriptor, brickResolver brickfinder.Resolver, modelI
 	return allErrors
 }
 
-func checkRequiredDevices(bricksIndex brickfinder.Resolver, appBricks []app.Brick, availableDevices peripherals.AvailableDevices) error {
+func checkRequiredDevices(brickResolver *brickfinder.BrickResolver, appBricks []app.Brick, availableDevices peripherals.AvailableDevices) error {
 	requiredDeviceClasses := make(map[peripherals.DeviceClass]bool)
 
 	for _, brick := range appBricks {
-		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
+		idxBrick, found := brickResolver.FindBrickByID(brick.ID)
 		if !found {
 			slog.Warn("Cannot validate required devices. Brick not found", slog.String("brick_id", brick.ID))
 			continue

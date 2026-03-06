@@ -18,6 +18,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/text/cases"
@@ -28,6 +29,8 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickfinder"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickslocalindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
@@ -56,15 +59,20 @@ func newStartCmd(cfg config.Configuration) *cobra.Command {
 func startHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp) error {
 	out, _, getResult := feedback.OutputStreams()
 
+	localIndex, err := brickslocalindex.Load(app.FullPath)
+	if err != nil {
+		slog.Warn("Cannot load local bricks", "path", app.FullPath)
+	}
+	brickResolver := brickfinder.New(servicelocator.GetBricksIndex(), localIndex, servicelocator.GetStaticStore())
+
 	stream := orchestrator.StartApp(
 		ctx,
 		servicelocator.GetDockerClient(),
 		servicelocator.GetProvisioner(),
 		servicelocator.GetModelsIndex(),
-		servicelocator.GetBricksIndex(),
+		brickResolver,
 		app,
 		cfg,
-		servicelocator.GetStaticStore(),
 		servicelocator.GetPlatform(),
 	)
 	for message := range stream {

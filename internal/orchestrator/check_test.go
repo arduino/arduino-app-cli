@@ -11,6 +11,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickfinder"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
@@ -222,7 +223,8 @@ bricks:
 			appDescriptor, err := app.ParseDescriptorFile(appYaml)
 			require.NoError(t, err)
 
-			err = checkBricks(appDescriptor, bricksIndex, modelIndex)
+			brickResolver := brickfinder.New(bricksIndex, nil, nil)
+			err = checkBricks(appDescriptor, brickResolver, modelIndex)
 			if tc.expectedError == nil {
 				assert.NoError(t, err, "Expected no validation errors")
 			} else {
@@ -266,8 +268,8 @@ func TestValidateVirtualDevice(t *testing.T) {
 	availableDevices := peripherals.AvailableDevices{
 		HasVideoDevice: false,
 	}
-
-	err := checkRequiredDevices(bIndex, appDescriptor.Bricks, availableDevices)
+	brickResolver := brickfinder.New(bIndex, nil, nil)
+	err := checkRequiredDevices(brickResolver, appDescriptor.Bricks, availableDevices)
 	require.Equal(t, "no camera device found", err.Error())
 }
 
@@ -296,7 +298,8 @@ func TestCheckRequiredDevicesNoError(t *testing.T) {
 		HasVideoDevice: false,
 	}
 
-	err := checkRequiredDevices(bIndex, appDescriptor.Bricks, availableDevices)
+	brickResolver := brickfinder.New(bIndex, nil, nil)
+	err := checkRequiredDevices(brickResolver, appDescriptor.Bricks, availableDevices)
 	require.NoError(t, err)
 }
 
@@ -411,7 +414,8 @@ func TestCheckRequiredDevice(t *testing.T) {
 				},
 			}
 
-			err := checkRequiredDevices(bIndex, appDescriptor.Bricks, tc.availableDevices)
+			brickResolver := brickfinder.New(bIndex, nil, nil)
+			err := checkRequiredDevices(brickResolver, appDescriptor.Bricks, tc.availableDevices)
 			if tc.wantErr {
 				require.Error(t, err, "should have returned an error")
 				require.Equal(t, tc.errMessage, err.Error())

@@ -24,7 +24,12 @@ type AppLocalBrick struct {
 }
 
 func Load(appPath *paths.Path) (localBrickIndex *BricksIndex, err error) {
-	pathsList, err := appPath.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
+	bricksFolder := appPath.Join("bricks")
+	if !bricksFolder.Exist() {
+		slog.Warn("bricks filder not founs in the app", "app_path", appPath)
+		return &BricksIndex{LocalBricks: []AppLocalBrick{}}, nil
+	}
+	pathsList, err := bricksFolder.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
 		if file.Join("brick_config.yaml").NotExist() {
 			// let's continue scanning, the model can be in a subfolder
 			return true
@@ -74,12 +79,12 @@ func loadLocalAppBrick(brickPath *paths.Path) (a AppLocalBrick, err error) {
 	}, nil
 }
 
-func (b *BricksIndex) FindBrickByID(id string) (*bricksindex.Brick, bool) {
-	idx := slices.IndexFunc(b.LocalBricks, func(brick AppLocalBrick) bool {
-		return brick.Brick.ID == id
+func (b *BricksIndex) FindBrickByID(id string) (*AppLocalBrick, bool) {
+	idx := slices.IndexFunc(b.LocalBricks, func(local AppLocalBrick) bool {
+		return local.Brick.ID == id
 	})
 	if idx == -1 {
 		return nil, false
 	}
-	return &b.LocalBricks[idx].Brick, true
+	return &b.LocalBricks[idx], true
 }

@@ -25,7 +25,9 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickfinder"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickslocalindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/render"
 
@@ -51,8 +53,13 @@ func HandleAppDetails(
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
 			return
 		}
-
-		res, err := orchestrator.AppDetails(r.Context(), dockerClient, app, bricksIndex, idProvider, cfg)
+		localIndex, err := brickslocalindex.Load(app.FullPath)
+		if err != nil {
+			slog.Warn("Cannot load local bricks", "path", app.FullPath)
+		}
+		// TODO: the static store is NOT needed here. define a better API to avoid passing nil
+		brickResolver := brickfinder.New(bricksIndex, localIndex, nil)
+		res, err := orchestrator.AppDetails(r.Context(), dockerClient, app, brickResolver, idProvider, cfg)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
@@ -129,8 +136,12 @@ func HandleAppDetailsEdits(
 			}
 			return
 		}
-
-		res, err := orchestrator.AppDetails(r.Context(), dockerClient, appToEdit, bricksIndex, idProvider, cfg)
+		localIndex, err := brickslocalindex.Load(appToEdit.FullPath)
+		if err != nil {
+			slog.Warn("Cannot load local bricks", "path", appToEdit.FullPath)
+		}
+		brickResolver := brickfinder.New(bricksIndex, localIndex, nil)
+		res, err := orchestrator.AppDetails(r.Context(), dockerClient, appToEdit, brickResolver, idProvider, cfg)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})

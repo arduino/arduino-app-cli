@@ -54,6 +54,7 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 			// start the default app in the background
 			go func() {
 				slog.Info("Starting default app")
+
 				err := orchestrator.StartDefaultApp(
 					cmd.Context(),
 					servicelocator.GetDockerClient(),
@@ -62,7 +63,6 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 					servicelocator.GetBricksIndex(),
 					servicelocator.GetAppIDProvider(),
 					cfg,
-					servicelocator.GetStaticStore(),
 					servicelocator.GetPlatform(),
 				)
 				if err != nil {

@@ -40,7 +40,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/platform"
-	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
 type volume struct {
@@ -118,11 +117,10 @@ func NewProvision(
 
 func (p *Provision) App(
 	ctx context.Context,
-	brickResolver brickfinder.Resolver,
+	brickResolver *brickfinder.BrickResolver,
 	arduinoApp *app.ArduinoApp,
 	cfg config.Configuration,
 	mapped_env map[string]string,
-	staticStore *store.StaticStore,
 	platform platform.Platform,
 	devices peripherals.AvailableDevices,
 ) error {
@@ -136,7 +134,7 @@ func (p *Provision) App(
 		}
 	}
 
-	return generateMainComposeFile(arduinoApp, brickResolver, p.pythonImage, cfg, mapped_env, staticStore, platform, devices)
+	return generateMainComposeFile(arduinoApp, brickResolver, p.pythonImage, cfg, mapped_env, platform, devices)
 }
 
 func (p *Provision) init(
@@ -213,11 +211,10 @@ const (
 
 func generateMainComposeFile(
 	app *app.ArduinoApp,
-	brickResolver brickfinder.Resolver,
+	brickResolver *brickfinder.BrickResolver,
 	pythonImage string,
 	cfg config.Configuration,
 	envs helpers.EnvVars,
-	staticStore *store.StaticStore,
 	platform platform.Platform,
 	devices peripherals.AvailableDevices,
 ) error {
@@ -249,9 +246,9 @@ func generateMainComposeFile(
 		}
 
 		// 3. Retrieve the brick_compose.yaml file.
-		composeFilePath, err := staticStore.GetBrickComposeFilePathFromID(brick.ID)
+		composeFilePath, err := brickResolver.GetBrickComposeFilePathFromID(brick.ID)
 		if err != nil {
-			slog.Error("brick compose id not valid", slog.String("error", err.Error()), slog.String("brick_id", brick.ID))
+			slog.Error("brick compose file not found for brick that requires container", slog.String("brick_id", brick.ID), slog.String("error", err.Error()))
 			continue
 		}
 

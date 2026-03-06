@@ -16,6 +16,7 @@
 package handlers
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -77,8 +78,10 @@ func HandleAppStart(
 		if err != nil {
 			slog.Warn("Cannot load local bricks", "path", app.FullPath)
 		}
-		brickResolver := brickfinder.New(bricksIndex, localIndex)
-		for item := range orchestrator.StartApp(r.Context(), dockerCli, provisioner, modelsIndex, brickResolver, app, cfg, staticStore, platform) {
+		slog.Info("###### local", "bricks", fmt.Sprintf("%+v", localIndex.LocalBricks))
+		brickResolver := brickfinder.New(bricksIndex, localIndex, staticStore)
+
+		for item := range orchestrator.StartApp(r.Context(), dockerCli, provisioner, modelsIndex, brickResolver, app, cfg, platform) {
 			switch item.GetType() {
 			case orchestrator.ProgressType:
 				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress(*item.GetProgress())})

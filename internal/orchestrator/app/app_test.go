@@ -99,6 +99,7 @@ func TestLoad(t *testing.T) {
 		localBricksPath, ok := app.GetLocalBricksPath()
 		assert.True(t, ok)
 		assert.NotNil(t, localBricksPath)
+		assert.Equal(t, f.Must(filepath.Abs("testdata/AppWithLocalBricks/bricks")), localBricksPath.String())
 	})
 }
 
