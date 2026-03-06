@@ -23,9 +23,10 @@ func TestLoadLocalAppBricks(t *testing.T) {
 				ConfigFile:  paths.New("testdata/AppWithLocalBricks/bricks/my_first_brick/brick_config.yaml"),
 				ComposeFile: nil,
 				Brick: bricksindex.Brick{
-					ID:          "dneri:my_first_brick",
-					Name:        "My First Brick",
-					Description: "This is my first brick",
+					ID:               "dneri:my_first_brick",
+					Name:             "My First Brick",
+					Description:      "This is my first brick",
+					RequireContainer: true,
 				},
 			},
 			{
