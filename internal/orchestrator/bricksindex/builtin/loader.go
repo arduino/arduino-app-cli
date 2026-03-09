@@ -48,7 +48,7 @@ func (l *BricksIndex) ListBricks() ([]bricksindex.Brick, bool) {
 	return l.Bricks, true
 }
 
-func (l *BricksIndex) ComposePath(id string) (*paths.Path, bool) {
+func (l *BricksIndex) GetComposePath(id string) (*paths.Path, bool) {
 	namespace, brickName, err := parseBrickID(id)
 	if err != nil {
 		return nil, false

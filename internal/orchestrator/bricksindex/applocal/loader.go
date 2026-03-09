@@ -35,7 +35,7 @@ func (b *AppBricksIndex) GetByID(id string) (*bricksindex.Brick, bool) {
 	return &b.LocalBricks[idx].Brick, true
 }
 
-func (b *AppBricksIndex) ComposePath(id string) (*paths.Path, bool) {
+func (b *AppBricksIndex) GetComposePath(id string) (*paths.Path, bool) {
 	idx := slices.IndexFunc(b.LocalBricks, func(local AppBrick) bool {
 		return local.Brick.ID == id
 	})

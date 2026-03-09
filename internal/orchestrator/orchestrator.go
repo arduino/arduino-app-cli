@@ -124,7 +124,7 @@ func StartApp(
 		if err != nil {
 			slog.Warn("Cannot load local bricks", "path", appToStart.FullPath)
 		}
-		brickResolver := bricksindex.WithAppLocalSource(localIndex)
+		brickResolver := bricksindex.WithBrickSource(localIndex)
 
 		// TODO: add unit test with local brick index
 		err = checkBricks(appToStart.Descriptor, brickResolver, modelsIndex)
@@ -701,7 +701,7 @@ func AppDetails(
 	if err != nil {
 		slog.Warn("Cannot load local bricks", "path", userApp.FullPath)
 	}
-	bricksindex = bricksindex.WithAppLocalSource(localIndex)
+	bricksindex = bricksindex.WithBrickSource(localIndex)
 
 	return AppDetailedInfo{
 		ID:          id,

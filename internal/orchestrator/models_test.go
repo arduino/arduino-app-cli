@@ -39,7 +39,7 @@ import (
 )
 
 func TestBuildBrickConfigForEIModel(t *testing.T) {
-	bricksindex := f.Must(bricksindex.New(f.Must(builtin.Load(paths.New("bricksindex/testdata")))))
+	bricksindex := f.Must(bricksindex.New(f.Must(builtin.Load(paths.New("testdata")))))
 
 	edgeModelsDir := paths.New("/models/custom-ei/ei-xxxx-yyyy")
 	blobModelsDir := paths.New("/models/custom-ei/ei-xxxx-yyyy")

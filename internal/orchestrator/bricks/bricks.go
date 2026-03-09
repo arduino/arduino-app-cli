@@ -75,7 +75,7 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 	brickResolver := s.bricksManager
 	localIndex, err := applocal.Load(a.GetLocalBricksPath())
 	if err == nil {
-		brickResolver = brickResolver.WithAppLocalSource(localIndex)
+		brickResolver = brickResolver.WithBrickSource(localIndex)
 	}
 
 	for i, brickInstance := range a.Descriptor.Bricks {
