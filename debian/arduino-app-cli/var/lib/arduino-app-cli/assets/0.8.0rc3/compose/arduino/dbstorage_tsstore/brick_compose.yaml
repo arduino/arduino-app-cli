@@ -1,6 +1,6 @@
 services:
   dbstorage-influx:
-    image: influxdb:2.7
+    image: influxdb:2.7-alpine
     logging:
       driver: "json-file"
       options:
