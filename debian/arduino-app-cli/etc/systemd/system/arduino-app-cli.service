@@ -8,6 +8,8 @@ ExecStart=/usr/bin/arduino-app-cli daemon --port 8800 --log-level error
 User=1000
 Group=arduino
 Environment="ARDUINO_ROUTER_SOCKET=/var/run/arduino-router.sock"
+Environment="DOCKER_REGISTRY_BASE=ghcr.io/rjtokenring/"
+Environment="DOCKER_PYTHON_BASE_IMAGE=app-bricks/python-apps-base:dev-latest"
 StandardOutput=journal
 StandardError=journal
 Restart=always
