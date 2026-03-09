@@ -232,7 +232,7 @@ tasks:
       - cmd: rm -rf {{.TMPDIR}}
       - cmd: echo "Updating the runnerVersion in config.go to '{{.RUNNER_VERSION}}'"
       - cmd: sed -i "{{.sed_replacement}}" internal/orchestrator/config/config.go
-        platforms: [linux]
+        platforms: [linux, windows]
       - cmd: sed -i '' "{{.sed_replacement}}" internal/orchestrator/config/config.go
         platforms: [darwin]
 
