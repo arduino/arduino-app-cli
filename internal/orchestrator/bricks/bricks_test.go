@@ -425,8 +425,8 @@ func TestBricksDetails(t *testing.T) {
 		}}
 
 	svc := &Service{
-		bricksManager: f.Must(bricksindex.New(bIndex)),
-		modelsIndex:   mIndex,
+		bricksIndex: f.Must(bricksindex.New(bIndex)),
+		modelsIndex: mIndex,
 	}
 	idProvider := app.NewAppIDProvider(cfg)
 
@@ -588,8 +588,8 @@ func TestAppBrickInstanceModelsDetails(t *testing.T) {
 		}}
 
 	svc := &Service{
-		bricksManager: f.Must(bricksindex.New(bIndex)),
-		modelsIndex:   mIndex,
+		bricksIndex: f.Must(bricksindex.New(bIndex)),
+		modelsIndex: mIndex,
 	}
 
 	tests := []struct {
@@ -754,7 +754,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 	}
 
 	svc := &Service{
-		bricksManager: f.Must(bricksindex.New(bIndex)),
+		bricksIndex: f.Must(bricksindex.New(bIndex)),
 		modelsIndex: &modelsindex.ModelsIndex{
 			InternalModels: []modelsindex.AIModel{
 				{
