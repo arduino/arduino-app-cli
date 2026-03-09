@@ -70,7 +70,12 @@ func (s *BricksIndex) GetBrickReadmeFromID(brickID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return s.AssetPath.Join("docs", namespace, brickName, "README.md").String(), nil
+	readmePath := s.AssetPath.Join("docs", namespace, brickName, "README.md")
+	content, err := os.ReadFile(readmePath.String())
+	if err != nil {
+		return "", err
+	}
+	return string(content), nil
 }
 
 func (s *BricksIndex) GetBrickCodeExamplesPathFromID(brickID string) (paths.PathList, error) {
@@ -78,13 +83,13 @@ func (s *BricksIndex) GetBrickCodeExamplesPathFromID(brickID string) (paths.Path
 	if err != nil {
 		return nil, err
 	}
-	targetDir := s.AssetPath.Join("code-examples", namespace, brickName)
-	dirEntries, err := targetDir.ReadDir()
+	codeExamplesPath := s.AssetPath.Join("examples", namespace, brickName)
+	dirEntries, err := codeExamplesPath.ReadDir()
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("cannot read examples directory %q: %w", targetDir, err)
+		return nil, fmt.Errorf("cannot read examples directory %q: %w", codeExamplesPath, err)
 	}
 	return dirEntries, nil
 }

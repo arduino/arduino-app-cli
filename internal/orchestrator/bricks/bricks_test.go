@@ -32,9 +32,9 @@ import (
 )
 
 func TestBrickCreate(t *testing.T) {
-	bricksIndex, err := bricksindex.Load(paths.New("testdata"))
+	bricksManager, err := bricksmanager.New(f.Must(bricksindex.Load(paths.New("testdata"))))
 	require.Nil(t, err)
-	brickService := NewService(nil, f.Must(bricksmanager.New(bricksIndex)))
+	brickService := NewService(nil, bricksManager)
 
 	t.Run("fails if brick id does not exist", func(t *testing.T) {
 		err = brickService.BrickCreate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
@@ -129,9 +129,9 @@ func TestBrickCreate(t *testing.T) {
 }
 
 func TestUpdateBrick(t *testing.T) {
-	bricksIndex, err := bricksindex.Load(paths.New("testdata"))
+	bricksManager, err := bricksmanager.New(f.Must(bricksindex.Load(paths.New("testdata"))))
 	require.Nil(t, err)
-	brickService := NewService(nil, f.Must(bricksmanager.New(bricksIndex)))
+	brickService := NewService(nil, bricksManager)
 
 	t.Run("fails if brick id does not exist into brick index", func(t *testing.T) {
 		err = brickService.BrickUpdate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
@@ -189,9 +189,9 @@ func TestUpdateBrick(t *testing.T) {
 		tempDummyApp := paths.New("testdata/dummy-app.temp")
 		require.Nil(t, tempDummyApp.RemoveAll())
 		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
-		bricksIndex, err := bricksindex.Load(paths.New("testdata"))
+		bricksManager, err := bricksmanager.New(f.Must(bricksindex.Load(paths.New("testdata"))))
 		require.Nil(t, err)
-		brickService := NewService(nil, f.Must(bricksmanager.New(bricksIndex)))
+		brickService := NewService(nil, bricksManager)
 
 		deviceID := "updated-device-id"
 		secret := "updated-secret"
@@ -218,9 +218,9 @@ func TestUpdateBrick(t *testing.T) {
 		tempDummyApp := paths.New("testdata/dummy-app-for-update.temp")
 		require.Nil(t, tempDummyApp.RemoveAll())
 		require.Nil(t, paths.New("testdata/dummy-app-for-update").CopyDirTo(tempDummyApp))
-		bricksIndex, err := bricksindex.Load(paths.New("testdata"))
+		bricksManager, err := bricksmanager.New(f.Must(bricksindex.Load(paths.New("testdata"))))
 		require.Nil(t, err)
-		brickService := NewService(nil, f.Must(bricksmanager.New(bricksIndex)))
+		brickService := NewService(nil, bricksManager)
 
 		secret := "updated-the-secret"
 		req := BrickCreateUpdateRequest{
@@ -246,11 +246,11 @@ func TestUpdateBrick(t *testing.T) {
 		tempDummyApp := paths.New("testdata/dummy-app-for-model.temp")
 		require.Nil(t, tempDummyApp.RemoveAll())
 		require.Nil(t, paths.New("testdata/dummy-app-for-model").CopyDirTo(tempDummyApp))
-		bricksIndex, err := bricksindex.Load(paths.New("testdata"))
+		bricksManager, err := bricksmanager.New(f.Must(bricksindex.Load(paths.New("testdata"))))
 		require.NoError(t, err)
 		modelsIndex, err := modelsindex.Load(paths.New("testdata"), paths.New("not_exixsting_path"))
 		require.NoError(t, err)
-		brickService := NewService(modelsIndex, f.Must(bricksmanager.New(bricksIndex)))
+		brickService := NewService(modelsIndex, bricksManager)
 
 		modelPath := "/home/arduino/.arduino-bricks/ei-model-123-1/model.eim"
 		modelId := "ei-model-123-1"
@@ -393,6 +393,7 @@ func TestBricksDetails(t *testing.T) {
 	createFakeApp(t, appsDir)
 
 	bIndex := &bricksindex.BricksIndex{
+		AssetPath: paths.New(assetsDir),
 		Bricks: []bricksindex.Brick{
 			{
 				ID:        "arduino:object_detection",
