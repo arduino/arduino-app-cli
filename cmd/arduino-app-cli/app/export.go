@@ -55,7 +55,7 @@ Use '-' as output_path to write the zip to stdout.`,
 			if len(args) > 1 {
 				outputPath = args[1]
 			}
-			return exportHandler(cmd.Context(), servicelocator.Getbricksindex(), app, outputPath, includeData, override)
+			return exportHandler(cmd.Context(), servicelocator.GetBricksManager(), app, outputPath, includeData, override)
 		},
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 			if len(args) != 0 {

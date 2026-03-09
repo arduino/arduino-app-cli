@@ -43,7 +43,7 @@ func Init(cfg config.Configuration) {
 }
 
 var (
-	Getbricksindex = sync.OnceValue(func() *bricksindex.Manager {
+	GetBricksManager = sync.OnceValue(func() *bricksindex.Manager {
 		return f.Must(bricksindex.New(f.Must(builtin.Load(GetStaticStore().GetAssetsFolder()))))
 	})
 
@@ -89,7 +89,7 @@ var (
 	GetBrickService = sync.OnceValue(func() *bricks.Service {
 		return bricks.NewService(
 			GetModelsIndex(),
-			Getbricksindex(),
+			GetBricksManager(),
 		)
 	})
 

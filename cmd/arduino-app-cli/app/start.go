@@ -45,7 +45,7 @@ func newStartCmd(cfg config.Configuration) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return startHandler(cmd.Context(), cfg, app, servicelocator.Getbricksindex())
+			return startHandler(cmd.Context(), cfg, app, servicelocator.GetBricksManager())
 		},
 		ValidArgsFunction: completion.ApplicationNamesWithFilterFunc(cfg, func(apps orchestrator.AppInfo) bool {
 			return apps.Status != orchestrator.StatusStarting &&

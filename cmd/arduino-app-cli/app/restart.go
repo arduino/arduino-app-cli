@@ -45,7 +45,7 @@ func newRestartCmd(cfg config.Configuration) *cobra.Command {
 			if err != nil {
 				feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 			}
-			return restartHandler(cmd.Context(), cfg, appToStart, servicelocator.Getbricksindex())
+			return restartHandler(cmd.Context(), cfg, appToStart, servicelocator.GetBricksManager())
 		},
 		ValidArgsFunction: completion.ApplicationNames(cfg),
 	}
