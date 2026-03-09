@@ -7,8 +7,8 @@ package bricksindex
 // 	idx, err := Load(paths.New("testdata/assets/0.4.8"))
 // 	require.NoError(t, err, "failed to load bricks index")
 
-// 	index := f.Must(bricksmanager.New(idx))
-// 	// index := f.Must(bricksmanager.New(f.Must(Load(paths.New("testdata", "assets", "0.4.8")))))
+// 	index := f.Must(bricksindex.New(idx))
+// 	// index := f.Must(bricksindex.New(f.Must(Load(paths.New("testdata", "assets", "0.4.8")))))
 
 // 	testCases := []struct {
 // 		name        string
@@ -60,7 +60,7 @@ package bricksindex
 // // 	index := bricksindex.BuiltinBricksSource{
 // // 		Store: NewStaticStore(paths.New("testdata", "assets", "0.4.8").String()),
 // // 	}
-// // 	store := bricksmanager.New(&index)
+// // 	store := bricksindex.New(&index)
 
 // // 	testCases := []struct {
 // // 		name       string
@@ -102,7 +102,7 @@ package bricksindex
 
 // func TestGetBrickCodeExamplesPathFromID(t *testing.T) {
 // 	store := NewStaticStore(paths.New("testdata", "assets", "0.4.8").String())
-// 	bricksmanager.New(bricksmanager.NewBuiltinSource(nil, store))
+// 	bricksindex.New(bricksindex.NewBuiltinSource(nil, store))
 // 	testCases := []struct {
 // 		name           string
 // 		brickID        string

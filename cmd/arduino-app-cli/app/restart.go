@@ -28,7 +28,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
@@ -45,14 +45,14 @@ func newRestartCmd(cfg config.Configuration) *cobra.Command {
 			if err != nil {
 				feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 			}
-			return restartHandler(cmd.Context(), cfg, appToStart, servicelocator.GetBricksManager())
+			return restartHandler(cmd.Context(), cfg, appToStart, servicelocator.Getbricksindex())
 		},
 		ValidArgsFunction: completion.ApplicationNames(cfg),
 	}
 	return cmd
 }
 
-func restartHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp, brickResolver *bricksmanager.Manager) error {
+func restartHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp, brickResolver *bricksindex.Manager) error {
 	out, _, getResult := feedback.OutputStreams()
 
 	stream := orchestrator.RestartApp(

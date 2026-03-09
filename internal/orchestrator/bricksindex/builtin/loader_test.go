@@ -13,7 +13,7 @@
 // Arduino software without disclosing the source code of your own applications.
 // To purchase a commercial license, send an email to license@arduino.cc.
 
-package bricksindex
+package builtin
 
 import (
 	"os"
@@ -22,6 +22,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
 
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 )
 
@@ -76,7 +77,7 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 		name           string
 		yamlContent    string
 		expectedError  string
-		expectedBricks []Brick
+		expectedBricks []bricksindex.Brick
 	}{
 		{
 			// TODO: add a validator fo the bricks-list to validate the field
@@ -95,7 +96,7 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 		{
 			name:           "empty bricks",
 			yamlContent:    `bricks: []`,
-			expectedBricks: []Brick{},
+			expectedBricks: []bricksindex.Brick{},
 		},
 		{
 			name: "bad YAML format unclosed quotes",
@@ -133,7 +134,7 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
   name: Test Brick
   description: A test brick
 `,
-			expectedBricks: []Brick{
+			expectedBricks: []bricksindex.Brick{
 				{
 					ID:                        "arduino:simple_brick",
 					Name:                      "Test Brick",
@@ -173,7 +174,7 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
   - name: OPTIONAL_VAR
     default_value: "default_value"
     description: An optional variable`,
-			expectedBricks: []Brick{
+			expectedBricks: []bricksindex.Brick{
 				{
 					ID:                        "arduino:complex_brick",
 					Name:                      "Complex Brick",
@@ -184,7 +185,7 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 					RequireModel:              true,
 					RequiredDevices:           []peripherals.DeviceClass{peripherals.CameraClass},
 					MountDevicesIntoContainer: true,
-					Variables: []BrickVariable{
+					Variables: []bricksindex.BrickVariable{
 						{
 							Name:         "REQUIRED_VAR",
 							DefaultValue: "",

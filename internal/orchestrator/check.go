@@ -8,14 +8,14 @@ import (
 	"slices"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 )
 
 // CheckBricks checks that all bricks referenced in the given AppDescriptor exist in the provided BricksIndex,
 // It collects and returns all validation errors as a single joined error, allowing the caller to see all issues at once rather than stopping at the first error.
-func checkBricks(a app.AppDescriptor, brickResolver *bricksmanager.Manager, modelIndex *modelsindex.ModelsIndex) error {
+func checkBricks(a app.AppDescriptor, brickResolver *bricksindex.Manager, modelIndex *modelsindex.ModelsIndex) error {
 	if brickResolver == nil {
 		return fmt.Errorf("bricks index cannot be nil")
 	}
@@ -59,7 +59,7 @@ func checkBricks(a app.AppDescriptor, brickResolver *bricksmanager.Manager, mode
 	return allErrors
 }
 
-func checkRequiredDevices(brickResolver *bricksmanager.Manager, appBricks []app.Brick, availableDevices peripherals.AvailableDevices) error {
+func checkRequiredDevices(brickResolver *bricksindex.Manager, appBricks []app.Brick, availableDevices peripherals.AvailableDevices) error {
 	requiredDeviceClasses := make(map[peripherals.DeviceClass]bool)
 
 	for _, brick := range appBricks {

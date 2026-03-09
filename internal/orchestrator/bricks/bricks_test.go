@@ -26,18 +26,16 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex/builtin"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
 func TestBrickCreate(t *testing.T) {
-	bricksManager, err := bricksmanager.New(f.Must(bricksindex.Load(paths.New("testdata"))))
-	require.Nil(t, err)
-	brickService := NewService(nil, bricksManager)
+	brickService := NewService(nil, f.Must(bricksindex.New(f.Must(builtin.Load(paths.New("testdata"))))))
 
 	t.Run("fails if brick id does not exist", func(t *testing.T) {
-		err = brickService.BrickCreate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err := brickService.BrickCreate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "brick \"not-existing-id\" not found", err.Error())
 	})
@@ -46,7 +44,7 @@ func TestBrickCreate(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"NON_EXISTING_VARIABLE": "some-value",
 		}}
-		err = brickService.BrickCreate(req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err := brickService.BrickCreate(req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "variable \"NON_EXISTING_VARIABLE\" does not exist on brick \"arduino:arduino_cloud\"", err.Error())
 	})
@@ -56,7 +54,7 @@ func TestBrickCreate(t *testing.T) {
 			"ARDUINO_DEVICE_ID": "",
 			"ARDUINO_SECRET":    "a-secret-a",
 		}}
-		err = brickService.BrickCreate(req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err := brickService.BrickCreate(req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "required variable \"ARDUINO_DEVICE_ID\" cannot be empty", err.Error())
 	})
@@ -102,9 +100,7 @@ func TestBrickCreate(t *testing.T) {
 		require.Nil(t, err)
 		err = paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp)
 		require.Nil(t, err)
-		bricksIndex, err := bricksindex.Load(paths.New("testdata"))
-		require.Nil(t, err)
-		brickService := NewService(nil, f.Must(bricksmanager.New(bricksIndex)))
+		brickService := NewService(nil, f.Must(bricksindex.New(f.Must(builtin.Load(paths.New("testdata"))))))
 
 		deviceID := "this-is-a-device-id"
 		secret := "this-is-a-secret"
@@ -129,18 +125,16 @@ func TestBrickCreate(t *testing.T) {
 }
 
 func TestUpdateBrick(t *testing.T) {
-	bricksManager, err := bricksmanager.New(f.Must(bricksindex.Load(paths.New("testdata"))))
-	require.Nil(t, err)
-	brickService := NewService(nil, bricksManager)
+	brickService := NewService(nil, f.Must(bricksindex.New(f.Must(builtin.Load(paths.New("testdata"))))))
 
 	t.Run("fails if brick id does not exist into brick index", func(t *testing.T) {
-		err = brickService.BrickUpdate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err := brickService.BrickUpdate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "brick \"not-existing-id\" not found into the brick index", err.Error())
 	})
 
 	t.Run("fails if brick is present into the index but not in the app ", func(t *testing.T) {
-		err = brickService.BrickUpdate(BrickCreateUpdateRequest{ID: "arduino:dbstorage_sqlstore"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err := brickService.BrickUpdate(BrickCreateUpdateRequest{ID: "arduino:dbstorage_sqlstore"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "brick \"arduino:dbstorage_sqlstore\" not found into the bricks of the app", err.Error())
 	})
@@ -149,7 +143,7 @@ func TestUpdateBrick(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"NON_EXISTING_VARIABLE": "some-value",
 		}}
-		err = brickService.BrickUpdate(req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err := brickService.BrickUpdate(req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "variable \"NON_EXISTING_VARIABLE\" does not exist on brick \"arduino:arduino_cloud\"", err.Error())
 	})
@@ -160,7 +154,7 @@ func TestUpdateBrick(t *testing.T) {
 			"ARDUINO_DEVICE_ID": "",
 			"ARDUINO_SECRET":    "a-secret-a",
 		}}
-		err = brickService.BrickUpdate(req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err := brickService.BrickUpdate(req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "required variable \"ARDUINO_DEVICE_ID\" cannot be empty", err.Error())
 	})
@@ -189,9 +183,7 @@ func TestUpdateBrick(t *testing.T) {
 		tempDummyApp := paths.New("testdata/dummy-app.temp")
 		require.Nil(t, tempDummyApp.RemoveAll())
 		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
-		bricksManager, err := bricksmanager.New(f.Must(bricksindex.Load(paths.New("testdata"))))
-		require.Nil(t, err)
-		brickService := NewService(nil, bricksManager)
+		brickService := NewService(nil, f.Must(bricksindex.New(f.Must(builtin.Load(paths.New("testdata"))))))
 
 		deviceID := "updated-device-id"
 		secret := "updated-secret"
@@ -203,7 +195,7 @@ func TestUpdateBrick(t *testing.T) {
 			},
 		}
 
-		err = brickService.BrickUpdate(req, f.Must(app.Load(tempDummyApp)))
+		err := brickService.BrickUpdate(req, f.Must(app.Load(tempDummyApp)))
 		require.Nil(t, err)
 
 		after, err := app.Load(tempDummyApp)
@@ -218,9 +210,7 @@ func TestUpdateBrick(t *testing.T) {
 		tempDummyApp := paths.New("testdata/dummy-app-for-update.temp")
 		require.Nil(t, tempDummyApp.RemoveAll())
 		require.Nil(t, paths.New("testdata/dummy-app-for-update").CopyDirTo(tempDummyApp))
-		bricksManager, err := bricksmanager.New(f.Must(bricksindex.Load(paths.New("testdata"))))
-		require.Nil(t, err)
-		brickService := NewService(nil, bricksManager)
+		brickService := NewService(nil, f.Must(bricksindex.New(f.Must(builtin.Load(paths.New("testdata"))))))
 
 		secret := "updated-the-secret"
 		req := BrickCreateUpdateRequest{
@@ -231,7 +221,7 @@ func TestUpdateBrick(t *testing.T) {
 			},
 		}
 
-		err = brickService.BrickUpdate(req, f.Must(app.Load(tempDummyApp)))
+		err := brickService.BrickUpdate(req, f.Must(app.Load(tempDummyApp)))
 		require.Nil(t, err)
 
 		after, err := app.Load(tempDummyApp)
@@ -246,11 +236,9 @@ func TestUpdateBrick(t *testing.T) {
 		tempDummyApp := paths.New("testdata/dummy-app-for-model.temp")
 		require.Nil(t, tempDummyApp.RemoveAll())
 		require.Nil(t, paths.New("testdata/dummy-app-for-model").CopyDirTo(tempDummyApp))
-		bricksManager, err := bricksmanager.New(f.Must(bricksindex.Load(paths.New("testdata"))))
-		require.NoError(t, err)
 		modelsIndex, err := modelsindex.Load(paths.New("testdata"), paths.New("not_exixsting_path"))
 		require.NoError(t, err)
-		brickService := NewService(modelsIndex, bricksManager)
+		brickService := NewService(modelsIndex, f.Must(bricksindex.New(f.Must(builtin.Load(paths.New("testdata"))))))
 
 		modelPath := "/home/arduino/.arduino-bricks/ei-model-123-1/model.eim"
 		modelId := "ei-model-123-1"
@@ -392,7 +380,7 @@ func TestBricksDetails(t *testing.T) {
 	}
 	createFakeApp(t, appsDir)
 
-	bIndex := &bricksindex.BricksIndex{
+	bIndex := &builtin.BricksIndex{
 		AssetPath: paths.New(assetsDir),
 		Bricks: []bricksindex.Brick{
 			{
@@ -437,7 +425,7 @@ func TestBricksDetails(t *testing.T) {
 		}}
 
 	svc := &Service{
-		bricksManager: f.Must(bricksmanager.New(bIndex)),
+		bricksManager: f.Must(bricksindex.New(bIndex)),
 		modelsIndex:   mIndex,
 	}
 	idProvider := app.NewAppIDProvider(cfg)
@@ -560,7 +548,7 @@ bricks:
 
 func TestAppBrickInstanceModelsDetails(t *testing.T) {
 
-	bIndex := &bricksindex.BricksIndex{
+	bIndex := &builtin.BricksIndex{
 		Bricks: []bricksindex.Brick{
 			{
 				ID:        "arduino:object_detection",
@@ -600,7 +588,7 @@ func TestAppBrickInstanceModelsDetails(t *testing.T) {
 		}}
 
 	svc := &Service{
-		bricksManager: f.Must(bricksmanager.New(bIndex)),
+		bricksManager: f.Must(bricksindex.New(bIndex)),
 		modelsIndex:   mIndex,
 	}
 
@@ -715,7 +703,7 @@ func TestAppBrickInstanceModelsDetails(t *testing.T) {
 
 func TestAppBrickInstancesList(t *testing.T) {
 
-	bIndex := &bricksindex.BricksIndex{
+	bIndex := &builtin.BricksIndex{
 		Bricks: []bricksindex.Brick{
 			{
 				ID:           "arduino:weather_forecast",
@@ -766,7 +754,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 	}
 
 	svc := &Service{
-		bricksManager: f.Must(bricksmanager.New(bIndex)),
+		bricksManager: f.Must(bricksindex.New(bIndex)),
 		modelsIndex: &modelsindex.ModelsIndex{
 			InternalModels: []modelsindex.AIModel{
 				{

@@ -42,8 +42,8 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	appgenerator "github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickslocalindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex/applocal"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
@@ -111,7 +111,7 @@ func StartApp(
 	docker command.Cli,
 	provisioner *Provision,
 	modelsIndex *modelsindex.ModelsIndex,
-	bricksManager *bricksmanager.Manager,
+	bricksindex *bricksindex.Manager,
 	appToStart app.ArduinoApp,
 	cfg config.Configuration,
 	platform platform.Platform,
@@ -120,11 +120,11 @@ func StartApp(
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		localIndex, err := brickslocalindex.Load(appToStart.FullPath)
+		localIndex, err := applocal.Load(appToStart.FullPath)
 		if err != nil {
 			slog.Warn("Cannot load local bricks", "path", appToStart.FullPath)
 		}
-		brickResolver := bricksManager.WithAppLocalSource(localIndex)
+		brickResolver := bricksindex.WithAppLocalSource(localIndex)
 
 		// TODO: add unit test with local brick index
 		err = checkBricks(appToStart.Descriptor, brickResolver, modelsIndex)
@@ -273,7 +273,7 @@ func StartApp(
 // - model configuration variables (variables defined in the model configuration)
 // - brick instance variables (variables defined in the app.yaml for the brick instance)
 // In addition, it adds some useful environment variables like APP_HOME and HOST_IP.
-func getAppEnvironmentVariables(app app.ArduinoApp, brickResolver *bricksmanager.Manager, modelsIndex *modelsindex.ModelsIndex) helpers.EnvVars {
+func getAppEnvironmentVariables(app app.ArduinoApp, brickResolver *bricksindex.Manager, modelsIndex *modelsindex.ModelsIndex) helpers.EnvVars {
 	envs := make(helpers.EnvVars)
 
 	for _, brick := range app.Descriptor.Bricks {
@@ -434,7 +434,7 @@ func RestartApp(
 	docker command.Cli,
 	provisioner *Provision,
 	modelsIndex *modelsindex.ModelsIndex,
-	bricksManager *bricksmanager.Manager,
+	bricksindex *bricksindex.Manager,
 	appToStart app.ArduinoApp,
 	cfg config.Configuration,
 	staticStore *store.StaticStore,
@@ -465,7 +465,7 @@ func RestartApp(
 				}
 			}
 		}
-		startStream := StartApp(ctx, docker, provisioner, modelsIndex, bricksManager, appToStart, cfg, platform)
+		startStream := StartApp(ctx, docker, provisioner, modelsIndex, bricksindex, appToStart, cfg, platform)
 		startStream(yield)
 	}
 }
@@ -475,7 +475,7 @@ func StartDefaultApp(
 	docker command.Cli,
 	provisioner *Provision,
 	modelsIndex *modelsindex.ModelsIndex,
-	bricksManager *bricksmanager.Manager,
+	bricksindex *bricksindex.Manager,
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
 	platform platform.Platform,
@@ -489,7 +489,7 @@ func StartDefaultApp(
 		return nil
 	}
 
-	status, err := AppDetails(ctx, docker, *app, bricksManager, idProvider, cfg)
+	status, err := AppDetails(ctx, docker, *app, bricksindex, idProvider, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to get app details: %w", err)
 	}
@@ -498,7 +498,7 @@ func StartDefaultApp(
 	}
 
 	// TODO: we need to stop all other running app before starting the default app.
-	for msg := range StartApp(ctx, docker, provisioner, modelsIndex, bricksManager, *app, cfg, platform) {
+	for msg := range StartApp(ctx, docker, provisioner, modelsIndex, bricksindex, *app, cfg, platform) {
 		if msg.IsError() {
 			return fmt.Errorf("failed to start app: %w", msg.GetError())
 		}
@@ -658,7 +658,7 @@ func AppDetails(
 	ctx context.Context,
 	docker command.Cli,
 	userApp app.ArduinoApp,
-	bricksManager *bricksmanager.Manager,
+	bricksindex *bricksindex.Manager,
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
 ) (AppDetailedInfo, error) {
@@ -697,11 +697,11 @@ func AppDetails(
 		return AppDetailedInfo{}, err
 	}
 
-	localIndex, err := brickslocalindex.Load(userApp.FullPath)
+	localIndex, err := applocal.Load(userApp.FullPath)
 	if err != nil {
 		slog.Warn("Cannot load local bricks", "path", userApp.FullPath)
 	}
-	bricksManager = bricksManager.WithAppLocalSource(localIndex)
+	bricksindex = bricksindex.WithAppLocalSource(localIndex)
 
 	return AppDetailedInfo{
 		ID:          id,
@@ -714,7 +714,7 @@ func AppDetails(
 		Default:     defaultAppPath == userApp.FullPath.String(),
 		Bricks: f.Map(userApp.Descriptor.Bricks, func(b app.Brick) AppDetailedBrick {
 			res := AppDetailedBrick{ID: b.ID}
-			bi, found := bricksManager.FindBrickByID(b.ID)
+			bi, found := bricksindex.FindBrickByID(b.ID)
 			if !found {
 				slog.Warn("brick not found in bricks index", slog.String("id", b.ID), slog.String("app", userApp.FullPath.String()))
 				return res

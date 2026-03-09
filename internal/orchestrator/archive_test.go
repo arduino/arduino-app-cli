@@ -33,14 +33,12 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex/builtin"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
 func TestExportAppZip(t *testing.T) {
-	bricksIndex, err := bricksindex.Load(paths.New("testdata", "archive"))
-	require.NoError(t, err)
-	bricksManager := f.Must(bricksmanager.New(bricksIndex))
+	bricksindex := f.Must(bricksindex.New(f.Must(builtin.Load(paths.New("testdata", "archive")))))
 
 	type testCase struct {
 		name             string
@@ -107,7 +105,7 @@ func TestExportAppZip(t *testing.T) {
 				Name:     tc.appName,
 				FullPath: paths.New(appPath),
 			}
-			zipData, filename, err := ExportAppZip(t.Context(), bricksManager, app, tc.includeData)
+			zipData, filename, err := ExportAppZip(t.Context(), bricksindex, app, tc.includeData)
 
 			if tc.wantErr {
 				require.Error(t, err)

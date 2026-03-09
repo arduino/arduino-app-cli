@@ -1,12 +1,9 @@
-package bricksmanager
+package bricksindex
 
 import (
 	"fmt"
 
 	"github.com/arduino/go-paths-helper"
-
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickslocalindex"
 )
 
 type Manager struct {
@@ -15,8 +12,8 @@ type Manager struct {
 
 type BrickSource interface {
 	// TODO: create a struct for a brick ID not a string
-	GetByID(id string) (*bricksindex.Brick, bool)
-	ListBricks() ([]bricksindex.Brick, bool)
+	GetByID(id string) (*Brick, bool)
+	ListBricks() ([]Brick, bool)
 
 	// GetBrickComposeFilePathFromID
 	ComposePath(id string) (*paths.Path, bool)
@@ -31,18 +28,12 @@ func New(builtin BrickSource) (*Manager, error) {
 	}, nil
 }
 
-func (r *Manager) WithAppLocalSource(local *brickslocalindex.LocalBricksIndex) *Manager {
-	for _, s := range r.sources {
-		if _, ok := s.(*brickslocalindex.LocalBricksIndex); ok {
-			return r // already present
-		}
-	}
-
-	return &Manager{sources: append([]BrickSource{local}, r.sources...)}
+func (r *Manager) WithAppLocalSource(source BrickSource) *Manager {
+	return &Manager{sources: append([]BrickSource{source}, r.sources...)}
 }
 
-func (r *Manager) ListBricks() []bricksindex.Brick {
-	var bricks []bricksindex.Brick
+func (r *Manager) ListBricks() []Brick {
+	var bricks []Brick
 	for _, src := range r.sources {
 		if b, ok := src.ListBricks(); ok {
 			bricks = append(bricks, b...)
@@ -51,7 +42,7 @@ func (r *Manager) ListBricks() []bricksindex.Brick {
 	return bricks
 }
 
-func (r *Manager) FindBrickByID(id string) (*bricksindex.Brick, bool) {
+func (r *Manager) FindBrickByID(id string) (*Brick, bool) {
 	for _, src := range r.sources {
 		if b, ok := src.GetByID(id); ok {
 			return b, true

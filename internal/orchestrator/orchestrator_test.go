@@ -31,7 +31,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex/builtin"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
@@ -477,7 +477,7 @@ bricks:
 `)
 	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
-	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
+	bricksIndex, err := builtin.Load(cfg.AssetsDir())
 	assert.NoError(t, err)
 
 	modelsIndexContent := []byte(`
@@ -500,8 +500,8 @@ models:
 	modelIndex, err := modelsindex.Load(cfg.AssetsDir(), nil)
 	require.NoError(t, err)
 
-	bricksManager := f.Must(bricksmanager.New(bricksIndex))
-	env := getAppEnvironmentVariables(appDesc, bricksManager, modelIndex)
+	bricksindex := f.Must(bricksindex.New(bricksIndex))
+	env := getAppEnvironmentVariables(appDesc, bricksindex, modelIndex)
 	require.Equal(t, cfg.AppsDir().Join("app1").String(), env["APP_HOME"])
 	require.Equal(t, "/models/ootb/ei/yolo-x-nano.eim", env["EI_OBJ_DETECTION_MODEL"])
 	require.Equal(t, "/home/arduino/.arduino-bricks/models", env["CUSTOM_MODEL_PATH"])
@@ -560,7 +560,7 @@ bricks:
 `)
 	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
-	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
+	bricksIndex, err := builtin.Load(cfg.AssetsDir())
 	assert.NoError(t, err)
 
 	modelsIndexContent := []byte(`
@@ -583,7 +583,7 @@ models:
 	modelIndex, err := modelsindex.Load(cfg.AssetsDir(), nil)
 	require.NoError(t, err)
 
-	env := getAppEnvironmentVariables(appDesc, f.Must(bricksmanager.New(bricksIndex)), modelIndex)
+	env := getAppEnvironmentVariables(appDesc, f.Must(bricksindex.New(bricksIndex)), modelIndex)
 	require.Equal(t, cfg.AppsDir().Join("app1").String(), env["APP_HOME"])
 	require.Equal(t, "/home/arduino/.arduino-bricks/models/face-det.eim", env["EI_OBJ_DETECTION_MODEL"])
 	require.Equal(t, "/home/arduino/.arduino-bricks/models", env["CUSTOM_MODEL_PATH"])
@@ -647,7 +647,7 @@ bricks:
   `)
 	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
-	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
+	bricksIndex, err := builtin.Load(cfg.AssetsDir())
 	assert.NoError(t, err)
 
 	modelsIndexContent := []byte(`
@@ -666,7 +666,7 @@ models:
 	modelIndex, err := modelsindex.Load(cfg.AssetsDir(), nil)
 	require.NoError(t, err)
 
-	env := getAppEnvironmentVariables(appDesc, f.Must(bricksmanager.New(bricksIndex)), modelIndex)
+	env := getAppEnvironmentVariables(appDesc, f.Must(bricksindex.New(bricksIndex)), modelIndex)
 	require.Equal(t, "/models/path/obj.eim", env["EI_OBJ_DETECTION_MODEL"])
 	require.Equal(t, "/models/path/video.eim", env["EI_V_OBJ_DETECTION_MODEL"])
 	require.Equal(t, "/default/video/value", env["MY_VIDEO_ENV"])

@@ -35,7 +35,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
 
 type AppLogsRequest struct {
@@ -56,7 +56,7 @@ func AppLogs(
 	app app.ArduinoApp,
 	req AppLogsRequest,
 	dockerCli command.Cli,
-	brickResolver *bricksmanager.Manager,
+	brickResolver *bricksindex.Manager,
 ) (iter.Seq[LogMessage], error) {
 	if app.MainPythonFile == nil {
 		return helpers.EmptyIter[LogMessage](), nil

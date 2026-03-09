@@ -13,13 +13,13 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex/builtin"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 )
 
 func TestValidateAppDescriptorBricks(t *testing.T) {
-	bricksIndex := &bricksindex.BricksIndex{
+	bricksIndex := &builtin.BricksIndex{
 		Bricks: []bricksindex.Brick{
 			{
 				ID:          "arduino:arduino_cloud",
@@ -224,8 +224,8 @@ bricks:
 			appDescriptor, err := app.ParseDescriptorFile(appYaml)
 			require.NoError(t, err)
 
-			bricksManager := f.Must(bricksmanager.New(bricksIndex))
-			err = checkBricks(appDescriptor, bricksManager, modelIndex)
+			bricksindex := f.Must(bricksindex.New(bricksIndex))
+			err = checkBricks(appDescriptor, bricksindex, modelIndex)
 			if tc.expectedError == nil {
 				assert.NoError(t, err, "Expected no validation errors")
 			} else {
@@ -239,7 +239,7 @@ bricks:
 func TestValidateVirtualDevice(t *testing.T) {
 	// fail if a camera device is not detected and one of two brick require a physical camera
 
-	bIndex := &bricksindex.BricksIndex{
+	bIndex := &builtin.BricksIndex{
 		Bricks: []bricksindex.Brick{
 			{
 				ID:              "arduino:brick-with-camera-device",
@@ -269,15 +269,15 @@ func TestValidateVirtualDevice(t *testing.T) {
 	availableDevices := peripherals.AvailableDevices{
 		HasVideoDevice: false,
 	}
-	bricksManager := f.Must(bricksmanager.New(bIndex))
-	err := checkRequiredDevices(bricksManager, appDescriptor.Bricks, availableDevices)
+	bricksindex := f.Must(bricksindex.New(bIndex))
+	err := checkRequiredDevices(bricksindex, appDescriptor.Bricks, availableDevices)
 	require.Equal(t, "no camera device found", err.Error())
 }
 
 func TestCheckRequiredDevicesNoError(t *testing.T) {
 	// do not fail if a brick requires a virtual camera device
 
-	bIndex := &bricksindex.BricksIndex{
+	bIndex := &builtin.BricksIndex{
 		Bricks: []bricksindex.Brick{
 			{
 				ID:   "arduino:brick-with-camera-device",
@@ -299,8 +299,8 @@ func TestCheckRequiredDevicesNoError(t *testing.T) {
 		HasVideoDevice: false,
 	}
 
-	bricksManager := f.Must(bricksmanager.New(bIndex))
-	err := checkRequiredDevices(bricksManager, appDescriptor.Bricks, availableDevices)
+	bricksindex := f.Must(bricksindex.New(bIndex))
+	err := checkRequiredDevices(bricksindex, appDescriptor.Bricks, availableDevices)
 	require.NoError(t, err)
 }
 
@@ -398,7 +398,7 @@ func TestCheckRequiredDevice(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 
-			bIndex := &bricksindex.BricksIndex{
+			bIndex := &builtin.BricksIndex{
 				Bricks: []bricksindex.Brick{
 					{
 						ID:              "arduino:a-simple-brick",
@@ -415,8 +415,8 @@ func TestCheckRequiredDevice(t *testing.T) {
 				},
 			}
 
-			bricksManager := f.Must(bricksmanager.New(bIndex))
-			err := checkRequiredDevices(bricksManager, appDescriptor.Bricks, tc.availableDevices)
+			bricksindex := f.Must(bricksindex.New(bIndex))
+			err := checkRequiredDevices(bricksindex, appDescriptor.Bricks, tc.availableDevices)
 			if tc.wantErr {
 				require.Error(t, err, "should have returned an error")
 				require.Equal(t, tc.errMessage, err.Error())

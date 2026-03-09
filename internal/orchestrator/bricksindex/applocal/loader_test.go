@@ -1,4 +1,4 @@
-package brickslocalindex
+package applocal
 
 import (
 	"testing"
@@ -17,7 +17,7 @@ func TestLoadLocalAppBricks(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, index.LocalBricks, 2)
 
-		want := []AppLocalBrick{
+		want := []AppBrick{
 			{
 				FullPath:    paths.New("testdata/AppWithLocalBricks/bricks/my_first_brick"),
 				ConfigFile:  paths.New("testdata/AppWithLocalBricks/bricks/my_first_brick/brick_config.yaml"),

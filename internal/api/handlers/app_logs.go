@@ -27,14 +27,14 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
 func HandleAppLogs(
 	dockerClient command.Cli,
 	idProvider *app.IDProvider,
-	bricksManager *bricksmanager.Manager,
+	bricksindex *bricksindex.Manager,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := idProvider.IDFromBase64(r.PathValue("appID"))
@@ -94,7 +94,7 @@ func HandleAppLogs(
 			Message string `json:"message"`
 		}
 
-		messagesIter, err := orchestrator.AppLogs(r.Context(), app, appLogsRequest, dockerClient, bricksManager)
+		messagesIter, err := orchestrator.AppLogs(r.Context(), app, appLogsRequest, dockerClient, bricksindex)
 		if err != nil {
 			sseStream.SendError(render.SSEErrorData{
 				Code:    render.InternalServiceErr,

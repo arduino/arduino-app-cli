@@ -30,7 +30,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -105,7 +105,7 @@ func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, 
 	}
 }
 
-func HandleInstallEIModel(cfg config.Configuration, bricksManager *bricksmanager.Manager, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli) http.HandlerFunc {
+func HandleInstallEIModel(cfg config.Configuration, bricksindex *bricksindex.Manager, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		projectID, err := strconv.Atoi(r.PathValue("projectID"))
 		if err != nil {
@@ -137,7 +137,7 @@ func HandleInstallEIModel(cfg config.Configuration, bricksManager *bricksmanager
 			return
 		}
 
-		eiModel, err := orchestrator.InstallEIModel(r.Context(), bricksManager, modelsIndex, dockerClient, eiClient, cfg.CustomModelsDir(), projectID, *req.ImpulseID)
+		eiModel, err := orchestrator.InstallEIModel(r.Context(), bricksindex, modelsIndex, dockerClient, eiClient, cfg.CustomModelsDir(), projectID, *req.ImpulseID)
 		if err != nil {
 			switch {
 			case errors.Is(err, edgeimpulse.ErrUnauthorized):

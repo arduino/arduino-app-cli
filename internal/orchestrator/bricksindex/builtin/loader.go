@@ -13,12 +13,11 @@
 // Arduino software without disclosing the source code of your own applications.
 // To purchase a commercial license, send an email to license@arduino.cc.
 
-package bricksindex
+package builtin
 
 import (
 	"errors"
 	"fmt"
-	"iter"
 	"os"
 	"slices"
 	"strings"
@@ -26,17 +25,17 @@ import (
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
 
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
 
 type BricksIndex struct {
-	Bricks []Brick `yaml:"bricks"`
+	Bricks []bricksindex.Brick `yaml:"bricks"`
 
 	AssetPath *paths.Path `yaml:"-"`
 }
 
-func (b *BricksIndex) GetByID(id string) (*Brick, bool) {
-	idx := slices.IndexFunc(b.Bricks, func(brick Brick) bool {
+func (b *BricksIndex) GetByID(id string) (*bricksindex.Brick, bool) {
+	idx := slices.IndexFunc(b.Bricks, func(brick bricksindex.Brick) bool {
 		return brick.ID == id
 	})
 	if idx == -1 {
@@ -45,7 +44,7 @@ func (b *BricksIndex) GetByID(id string) (*Brick, bool) {
 	return &b.Bricks[idx], true
 }
 
-func (l *BricksIndex) ListBricks() ([]Brick, bool) {
+func (l *BricksIndex) ListBricks() ([]bricksindex.Brick, bool) {
 	return l.Bricks, true
 }
 
@@ -100,53 +99,6 @@ func parseBrickID(brickID string) (namespace, name string, err error) {
 		return "", "", errors.New("invalid ID")
 	}
 	return namespace, brickName, nil
-}
-
-type BrickVariable struct {
-	Name         string `yaml:"name"`
-	DefaultValue string `yaml:"default_value"`
-	Description  string `yaml:"description,omitempty"`
-	Hidden       bool   `yaml:"hidden"`
-	Secret       bool   `yaml:"secret"`
-}
-
-func (v BrickVariable) IsRequired() bool {
-	return v.DefaultValue == ""
-}
-
-type Brick struct {
-	ID                        string                    `yaml:"id"`
-	Name                      string                    `yaml:"name"`
-	Description               string                    `yaml:"description"`
-	Category                  string                    `yaml:"category,omitempty"`
-	RequiresDisplay           string                    `yaml:"requires_display,omitempty"`
-	RequireContainer          bool                      `yaml:"require_container"`
-	RequireModel              bool                      `yaml:"require_model"`
-	Variables                 []BrickVariable           `yaml:"variables,omitempty"`
-	Ports                     []string                  `yaml:"ports,omitempty"`
-	ModelName                 string                    `yaml:"model_name,omitempty"`
-	MountDevicesIntoContainer bool                      `yaml:"mount_devices_into_container,omitempty"`
-	RequiredDevices           []peripherals.DeviceClass `yaml:"required_devices,omitempty"`
-}
-
-func (b Brick) GetVariable(name string) (BrickVariable, bool) {
-	idx := slices.IndexFunc(b.Variables, func(variable BrickVariable) bool {
-		return variable.Name == name
-	})
-	if idx == -1 {
-		return BrickVariable{}, false
-	}
-	return b.Variables[idx], true
-}
-
-func (b Brick) GetDefaultVariables() iter.Seq2[string, string] {
-	return func(yield func(string, string) bool) {
-		for _, v := range b.Variables {
-			if !yield(v.Name, v.DefaultValue) {
-				return
-			}
-		}
-	}
 }
 
 func Load(dir *paths.Path) (*BricksIndex, error) {

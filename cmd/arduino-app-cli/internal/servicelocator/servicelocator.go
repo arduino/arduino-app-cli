@@ -29,7 +29,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex/builtin"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -43,8 +43,8 @@ func Init(cfg config.Configuration) {
 }
 
 var (
-	GetBricksManager = sync.OnceValue(func() *bricksmanager.Manager {
-		return f.Must(bricksmanager.New(f.Must(bricksindex.Load(GetStaticStore().GetAssetsFolder()))))
+	Getbricksindex = sync.OnceValue(func() *bricksindex.Manager {
+		return f.Must(bricksindex.New(f.Must(builtin.Load(GetStaticStore().GetAssetsFolder()))))
 	})
 
 	GetModelsIndex = sync.OnceValue(func() *modelsindex.ModelsIndex {
@@ -89,7 +89,7 @@ var (
 	GetBrickService = sync.OnceValue(func() *bricks.Service {
 		return bricks.NewService(
 			GetModelsIndex(),
-			GetBricksManager(),
+			Getbricksindex(),
 		)
 	})
 

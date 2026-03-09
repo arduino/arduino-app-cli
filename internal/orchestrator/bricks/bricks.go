@@ -27,8 +27,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickslocalindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex/applocal"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
@@ -40,12 +39,12 @@ var (
 
 type Service struct {
 	modelsIndex   *modelsindex.ModelsIndex
-	bricksManager *bricksmanager.Manager
+	bricksManager *bricksindex.Manager
 }
 
 func NewService(
 	modelsIndex *modelsindex.ModelsIndex,
-	bricksManager *bricksmanager.Manager,
+	bricksManager *bricksindex.Manager,
 ) *Service {
 	return &Service{
 		modelsIndex:   modelsIndex,
@@ -74,10 +73,8 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 	res := AppBrickInstancesResult{BrickInstances: make([]BrickInstance, len(a.Descriptor.Bricks))}
 
 	brickResolver := s.bricksManager
-	localIndex, err := brickslocalindex.Load(a.GetLocalBricksPath())
-	if err != nil {
-		slog.Warn("Cannot load local bricks", "path", a.FullPath)
-	} else {
+	localIndex, err := applocal.Load(a.GetLocalBricksPath())
+	if err == nil {
 		brickResolver = brickResolver.WithAppLocalSource(localIndex)
 	}
 

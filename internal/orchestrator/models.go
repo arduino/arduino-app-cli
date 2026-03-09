@@ -33,7 +33,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
@@ -267,7 +267,7 @@ func isModelInUse(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, doc
 	return nil
 }
 
-func InstallEIModel(ctx context.Context, bricksManager *bricksmanager.Manager, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, projectID int, impulseID int) (AIModelItem, error) {
+func InstallEIModel(ctx context.Context, bricksindex *bricksindex.Manager, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, projectID int, impulseID int) (AIModelItem, error) {
 
 	// TODO these parameters aim to build a model optimized for the Imola hardware, they should change based on the target device
 	mType := "float32"
@@ -323,7 +323,7 @@ func InstallEIModel(ctx context.Context, bricksManager *bricksmanager.Manager, m
 		return AIModelItem{}, err
 	}
 
-	bricks, err := buildBrickConfigForEIModel(bricksManager, project.Details.Category, impulse.LearnBlocks, edgeModelsDir, blobModelsDir)
+	bricks, err := buildBrickConfigForEIModel(bricksindex, project.Details.Category, impulse.LearnBlocks, edgeModelsDir, blobModelsDir)
 	if err != nil {
 		return AIModelItem{}, err
 	}
@@ -365,7 +365,7 @@ func InstallEIModel(ctx context.Context, bricksManager *bricksmanager.Manager, m
 	}, nil
 }
 
-func buildBrickConfigForEIModel(bricksManager *bricksmanager.Manager, category *edgeimpulse.ProjectCategory, impulse []edgeimpulse.ImpulseLearnBlock, edgeModelsDir *paths.Path, blobModelsDir *paths.Path) ([]custommodel.BrickConfig, error) {
+func buildBrickConfigForEIModel(bricksindex *bricksindex.Manager, category *edgeimpulse.ProjectCategory, impulse []edgeimpulse.ImpulseLearnBlock, edgeModelsDir *paths.Path, blobModelsDir *paths.Path) ([]custommodel.BrickConfig, error) {
 	if category == nil {
 		return []custommodel.BrickConfig{}, nil
 	}
@@ -374,7 +374,7 @@ func buildBrickConfigForEIModel(bricksManager *bricksmanager.Manager, category *
 
 	bricksConfig := make([]custommodel.BrickConfig, 0)
 	for _, b := range bricksIds {
-		brick, ok := bricksManager.FindBrickByID(b)
+		brick, ok := bricksindex.FindBrickByID(b)
 		if !ok {
 			slog.Warn("cannot load brick", "id", b, "category", category)
 			return nil, fmt.Errorf("brick with id %q not found for category %q", b, *category)

@@ -36,7 +36,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -117,7 +117,7 @@ func NewProvision(
 
 func (p *Provision) App(
 	ctx context.Context,
-	brickResolver *bricksmanager.Manager,
+	brickResolver *bricksindex.Manager,
 	arduinoApp *app.ArduinoApp,
 	cfg config.Configuration,
 	mapped_env map[string]string,
@@ -211,7 +211,7 @@ const (
 
 func generateMainComposeFile(
 	app *app.ArduinoApp,
-	brickResolver *bricksmanager.Manager,
+	brickResolver *bricksindex.Manager,
 	pythonImage string,
 	cfg config.Configuration,
 	envs helpers.EnvVars,

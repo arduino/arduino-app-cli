@@ -28,7 +28,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
@@ -45,7 +45,7 @@ func newStartCmd(cfg config.Configuration) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return startHandler(cmd.Context(), cfg, app, servicelocator.GetBricksManager())
+			return startHandler(cmd.Context(), cfg, app, servicelocator.Getbricksindex())
 		},
 		ValidArgsFunction: completion.ApplicationNamesWithFilterFunc(cfg, func(apps orchestrator.AppInfo) bool {
 			return apps.Status != orchestrator.StatusStarting &&
@@ -54,7 +54,7 @@ func newStartCmd(cfg config.Configuration) *cobra.Command {
 	}
 }
 
-func startHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp, bricksManager *bricksmanager.Manager) error {
+func startHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp, bricksindex *bricksindex.Manager) error {
 	out, _, getResult := feedback.OutputStreams()
 
 	stream := orchestrator.StartApp(
@@ -62,7 +62,7 @@ func startHandler(ctx context.Context, cfg config.Configuration, app app.Arduino
 		servicelocator.GetDockerClient(),
 		servicelocator.GetProvisioner(),
 		servicelocator.GetModelsIndex(),
-		bricksManager,
+		bricksindex,
 		app,
 		cfg,
 		servicelocator.GetPlatform(),

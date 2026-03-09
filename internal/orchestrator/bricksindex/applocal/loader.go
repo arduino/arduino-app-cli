@@ -1,4 +1,4 @@
-package brickslocalindex
+package applocal
 
 import (
 	"errors"
@@ -13,11 +13,11 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
 
-type LocalBricksIndex struct {
-	LocalBricks []AppLocalBrick
+type AppBricksIndex struct {
+	LocalBricks []AppBrick
 }
 
-type AppLocalBrick struct {
+type AppBrick struct {
 	FullPath    *paths.Path
 	ConfigFile  *paths.Path // brick_config.yaml file path
 	ComposeFile *paths.Path // brick_compose.yaml file path, optional
@@ -25,8 +25,8 @@ type AppLocalBrick struct {
 	Brick bricksindex.Brick // the brick as defined in the brick_config.yaml file
 }
 
-func (b *LocalBricksIndex) GetByID(id string) (*bricksindex.Brick, bool) {
-	idx := slices.IndexFunc(b.LocalBricks, func(local AppLocalBrick) bool {
+func (b *AppBricksIndex) GetByID(id string) (*bricksindex.Brick, bool) {
+	idx := slices.IndexFunc(b.LocalBricks, func(local AppBrick) bool {
 		return local.Brick.ID == id
 	})
 	if idx == -1 {
@@ -35,8 +35,8 @@ func (b *LocalBricksIndex) GetByID(id string) (*bricksindex.Brick, bool) {
 	return &b.LocalBricks[idx].Brick, true
 }
 
-func (b *LocalBricksIndex) ComposePath(id string) (*paths.Path, bool) {
-	idx := slices.IndexFunc(b.LocalBricks, func(local AppLocalBrick) bool {
+func (b *AppBricksIndex) ComposePath(id string) (*paths.Path, bool) {
+	idx := slices.IndexFunc(b.LocalBricks, func(local AppBrick) bool {
 		return local.Brick.ID == id
 	})
 	if idx == -1 {
@@ -45,7 +45,7 @@ func (b *LocalBricksIndex) ComposePath(id string) (*paths.Path, bool) {
 	return b.LocalBricks[idx].ComposeFile, b.LocalBricks[idx].ComposeFile != nil
 }
 
-func Load(dir *paths.Path) (localBrickIndex *LocalBricksIndex, err error) {
+func Load(dir *paths.Path) (localBrickIndex *AppBricksIndex, err error) {
 	if dir == nil {
 		return nil, errors.New("empty path provided for local bricks")
 	}
@@ -62,7 +62,7 @@ func Load(dir *paths.Path) (localBrickIndex *LocalBricksIndex, err error) {
 	if err != nil {
 		return nil, err
 	}
-	bricks := []AppLocalBrick{}
+	bricks := []AppBrick{}
 	for _, path := range pathsList {
 		brick, err := loadLocalAppBrick(path)
 		if err != nil {
@@ -71,21 +71,21 @@ func Load(dir *paths.Path) (localBrickIndex *LocalBricksIndex, err error) {
 		}
 		bricks = append(bricks, brick)
 	}
-	return &LocalBricksIndex{LocalBricks: bricks}, nil
+	return &AppBricksIndex{LocalBricks: bricks}, nil
 }
 
-func loadLocalAppBrick(brickPath *paths.Path) (a AppLocalBrick, err error) {
+func loadLocalAppBrick(brickPath *paths.Path) (a AppBrick, err error) {
 	brickConfigPath := brickPath.Join("brick_config.yaml")
 	if brickConfigPath.NotExist() {
-		return AppLocalBrick{}, os.ErrNotExist
+		return AppBrick{}, os.ErrNotExist
 	}
 	brickConfigContent, err := os.ReadFile(brickConfigPath.String())
 	if err != nil {
-		return AppLocalBrick{}, err
+		return AppBrick{}, err
 	}
 	customBrick := bricksindex.Brick{}
 	if err := yaml.Unmarshal(brickConfigContent, &customBrick); err != nil {
-		return AppLocalBrick{}, err
+		return AppBrick{}, err
 	}
 
 	var composeFile *paths.Path = nil
@@ -94,7 +94,7 @@ func loadLocalAppBrick(brickPath *paths.Path) (a AppLocalBrick, err error) {
 		composeFile = brickComposeFile
 	}
 
-	return AppLocalBrick{
+	return AppBrick{
 		FullPath:    brickPath,
 		ConfigFile:  brickConfigPath,
 		ComposeFile: composeFile,
@@ -103,7 +103,7 @@ func loadLocalAppBrick(brickPath *paths.Path) (a AppLocalBrick, err error) {
 }
 
 // ListBricks returns all local bricks as []bricksindex.Brick.
-func (b *LocalBricksIndex) ListBricks() ([]bricksindex.Brick, bool) {
+func (b *AppBricksIndex) ListBricks() ([]bricksindex.Brick, bool) {
 	if b == nil || len(b.LocalBricks) == 0 {
 		return nil, false
 	}
@@ -115,8 +115,8 @@ func (b *LocalBricksIndex) ListBricks() ([]bricksindex.Brick, bool) {
 }
 
 // GetBrickReadmeFromID returns the contents of README.md for the brick, if present.
-func (b *LocalBricksIndex) GetBrickReadmeFromID(id string) (string, error) {
-	idx := slices.IndexFunc(b.LocalBricks, func(local AppLocalBrick) bool {
+func (b *AppBricksIndex) GetBrickReadmeFromID(id string) (string, error) {
+	idx := slices.IndexFunc(b.LocalBricks, func(local AppBrick) bool {
 		return local.Brick.ID == id
 	})
 	if idx == -1 {
@@ -133,10 +133,10 @@ func (b *LocalBricksIndex) GetBrickReadmeFromID(id string) (string, error) {
 	return string(content), nil
 }
 
-func (b *LocalBricksIndex) GetBrickApiDocPathFromID(id string) (string, error) {
+func (b *AppBricksIndex) GetBrickApiDocPathFromID(id string) (string, error) {
 	panic("API doc for local bricks is not supported yet")
 }
 
-func (b *LocalBricksIndex) GetBrickCodeExamplesPathFromID(id string) (paths.PathList, error) {
+func (b *AppBricksIndex) GetBrickCodeExamplesPathFromID(id string) (paths.PathList, error) {
 	panic("Examples  for local bricks is not supported yet")
 }

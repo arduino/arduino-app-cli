@@ -25,7 +25,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex/builtin"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 
@@ -107,9 +107,9 @@ bricks:
 	require.NoError(t, err)
 
 	// Override brick index with custom test content
-	bricksManager := f.Must(bricksmanager.New(f.Must(bricksindex.Load(cfg.AssetsDir()))))
+	bricksindex := f.Must(bricksindex.New(f.Must(builtin.Load(cfg.AssetsDir()))))
 
-	br, ok := bricksManager.FindBrickByID("arduino:video_object_detection")
+	br, ok := bricksindex.FindBrickByID("arduino:video_object_detection")
 	require.True(t, ok, "Brick arduino:video_object_detection should exist in the index")
 	require.NotNil(t, br, "Brick arduino:video_object_detection should not be nil")
 	require.Equal(t, "Object Detection", br.Name, "Brick name should match")
@@ -125,7 +125,7 @@ bricks:
 		HasSoundDevice: false,
 		HasVideoDevice: true,
 	}
-	err = generateMainComposeFile(&app, bricksManager, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
+	err = generateMainComposeFile(&app, bricksindex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
 
 	// Validate that the main compose file and overrides are created
 	require.NoError(t, err, "Failed to generate main compose file")
@@ -343,9 +343,9 @@ bricks:
 	err := cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
 
-	bricksManager := f.Must(bricksmanager.New(f.Must(bricksindex.Load(cfg.AssetsDir()))))
+	bricksindex := f.Must(bricksindex.New(f.Must(builtin.Load(cfg.AssetsDir()))))
 
-	br, ok := bricksManager.FindBrickByID("arduino:dbstorage_tsstore")
+	br, ok := bricksindex.FindBrickByID("arduino:dbstorage_tsstore")
 	require.True(t, ok, "Brick arduino:dbstorage_tsstore should exist in the index")
 	require.NotNil(t, br, "Brick arduino:dbstorage_tsstore should not be nil")
 	require.Equal(t, "Database Storage - Time Series Store", br.Name, "Brick name should match")
@@ -389,7 +389,7 @@ services:
 		}
 
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksManager, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
+		err = generateMainComposeFile(&app, bricksindex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -445,7 +445,7 @@ services:
 			HasVideoDevice: true,
 		}
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksManager, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
+		err = generateMainComposeFile(&app, bricksindex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -482,8 +482,6 @@ services:
 func TestProvisionAppComposeOverridesFile(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 
-	bricksManager := f.Must(bricksmanager.New(&bricksindex.BricksIndex{AssetPath: cfg.AssetsDir()}))
-
 	tempDirectory := t.TempDir()
 	var env = map[string]string{}
 	type services struct {
@@ -512,7 +510,7 @@ bricks:
 	err := cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
 
-	bricksManager = f.Must(bricksmanager.New(f.Must(bricksindex.Load(cfg.AssetsDir()))))
+	bricksManager := f.Must(bricksindex.New(f.Must(builtin.Load(cfg.AssetsDir()))))
 
 	br, ok := bricksManager.FindBrickByID("arduino:dbstorage_tsstore")
 	require.True(t, ok, "Brick arduino:dbstorage_tsstore should exist in the index")

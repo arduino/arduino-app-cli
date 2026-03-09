@@ -34,12 +34,12 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex/builtin"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
 func TestBuildBrickConfigForEIModel(t *testing.T) {
-	bricksManager := f.Must(bricksmanager.New(f.Must(bricksindex.Load(paths.New("bricksindex/testdata")))))
+	bricksindex := f.Must(bricksindex.New(f.Must(builtin.Load(paths.New("bricksindex/testdata")))))
 
 	edgeModelsDir := paths.New("/models/custom-ei/ei-xxxx-yyyy")
 	blobModelsDir := paths.New("/models/custom-ei/ei-xxxx-yyyy")
@@ -156,7 +156,7 @@ func TestBuildBrickConfigForEIModel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := buildBrickConfigForEIModel(
-				bricksManager,
+				bricksindex,
 				&tt.category,
 				tt.learnBlocks,
 				edgeModelsDir,
