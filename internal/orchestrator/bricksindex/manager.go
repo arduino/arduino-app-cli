@@ -15,10 +15,10 @@ type BrickSource interface {
 	GetByID(id string) (*Brick, bool)
 	ListBricks() ([]Brick, bool)
 
+	GetReadme(id string) (string, error)
 	GetComposePath(id string) (*paths.Path, bool)
-	GetBrickReadmeFromID(id string) (string, error)
-	GetBrickApiDocPathFromID(id string) (string, error)
-	GetBrickCodeExamplesPathFromID(id string) (paths.PathList, error)
+	GetApiDocPath(id string) (*paths.Path, error)
+	GetCodeExamplesPath(id string) (paths.PathList, error)
 }
 
 func New(builtin BrickSource) (*Manager, error) {
@@ -64,7 +64,7 @@ func (m *Manager) ComposePath(id string) (*paths.Path, error) {
 
 func (m *Manager) GetBrickReadmeFromID(id string) (string, error) {
 	for _, src := range m.sources {
-		if b, err := src.GetBrickReadmeFromID(id); err == nil {
+		if b, err := src.GetReadme(id); err == nil {
 			return b, nil
 		}
 	}
@@ -73,8 +73,8 @@ func (m *Manager) GetBrickReadmeFromID(id string) (string, error) {
 
 func (m *Manager) GetBrickApiDocPathFromID(id string) (string, error) {
 	for _, src := range m.sources {
-		if b, err := src.GetBrickApiDocPathFromID(id); err == nil {
-			return b, nil
+		if b, err := src.GetApiDocPath(id); err == nil {
+			return b.String(), nil
 		}
 	}
 	return "", fmt.Errorf("cannot get api-docs for brick %s", id)
@@ -82,7 +82,7 @@ func (m *Manager) GetBrickApiDocPathFromID(id string) (string, error) {
 
 func (m *Manager) GetBrickCodeExamplesPathFromID(id string) (paths.PathList, error) {
 	for _, src := range m.sources {
-		if b, err := src.GetBrickCodeExamplesPathFromID(id); err == nil {
+		if b, err := src.GetCodeExamplesPath(id); err == nil {
 			return b, nil
 		}
 	}

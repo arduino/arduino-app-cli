@@ -15,13 +15,13 @@ func TestLoadLocalAppBricks(t *testing.T) {
 	t.Run("it detects local bricks in an app", func(t *testing.T) {
 		index, err := Load(paths.New("testdata/AppWithLocalBricks"))
 		require.NoError(t, err)
-		assert.Len(t, index.LocalBricks, 2)
+		assert.Len(t, index.Bricks, 2)
 
 		want := []AppBrick{
 			{
 				FullPath:    paths.New("testdata/AppWithLocalBricks/bricks/my_first_brick"),
-				ConfigFile:  paths.New("testdata/AppWithLocalBricks/bricks/my_first_brick/brick_config.yaml"),
-				ComposeFile: nil,
+				ComposeFile: paths.New("testdata/AppWithLocalBricks/bricks/my_first_brick/brick_compose.yaml"),
+				ReadmeFile:  paths.New("testdata/AppWithLocalBricks/bricks/my_first_brick/README.md"),
 				Brick: bricksindex.Brick{
 					ID:               "dneri:my_first_brick",
 					Name:             "My First Brick",
@@ -31,8 +31,8 @@ func TestLoadLocalAppBricks(t *testing.T) {
 			},
 			{
 				FullPath:    paths.New("testdata/AppWithLocalBricks/bricks/my_second_brick"),
-				ConfigFile:  paths.New("testdata/AppWithLocalBricks/bricks/my_second_brick/brick_config.yaml"),
 				ComposeFile: paths.New("testdata/AppWithLocalBricks/bricks/my_second_brick/brick_compose.yaml"),
+				ReadmeFile:  paths.New("testdata/AppWithLocalBricks/bricks/my_second_brick/README.md"),
 				Brick: bricksindex.Brick{
 					ID:          "dneri:my_second_brick",
 					Name:        "My Second Brick",
@@ -40,7 +40,7 @@ func TestLoadLocalAppBricks(t *testing.T) {
 				},
 			},
 		}
-		assert.Equal(t, want, index.LocalBricks)
+		assert.Equal(t, want, index.Bricks)
 	})
 
 	t.Run("it returns an error if local bricks are missing", func(t *testing.T) {

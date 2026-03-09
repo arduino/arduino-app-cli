@@ -14,38 +14,19 @@ import (
 )
 
 type AppBricksIndex struct {
-	LocalBricks []AppBrick
+	Bricks []AppBrick
 }
 
 type AppBrick struct {
-	FullPath    *paths.Path
-	ConfigFile  *paths.Path // brick_config.yaml file path
+	FullPath *paths.Path
+
 	ComposeFile *paths.Path // brick_compose.yaml file path, optional
+	ReadmeFile  *paths.Path // README.md file path, optional
 
 	Brick bricksindex.Brick // the brick as defined in the brick_config.yaml file
 }
 
-func (b *AppBricksIndex) GetByID(id string) (*bricksindex.Brick, bool) {
-	idx := slices.IndexFunc(b.LocalBricks, func(local AppBrick) bool {
-		return local.Brick.ID == id
-	})
-	if idx == -1 {
-		return nil, false
-	}
-	return &b.LocalBricks[idx].Brick, true
-}
-
-func (b *AppBricksIndex) GetComposePath(id string) (*paths.Path, bool) {
-	idx := slices.IndexFunc(b.LocalBricks, func(local AppBrick) bool {
-		return local.Brick.ID == id
-	})
-	if idx == -1 {
-		return nil, false
-	}
-	return b.LocalBricks[idx].ComposeFile, b.LocalBricks[idx].ComposeFile != nil
-}
-
-func Load(dir *paths.Path) (localBrickIndex *AppBricksIndex, err error) {
+func Load(dir *paths.Path) (index *AppBricksIndex, err error) {
 	if dir == nil {
 		return nil, errors.New("empty path provided for local bricks")
 	}
@@ -71,7 +52,64 @@ func Load(dir *paths.Path) (localBrickIndex *AppBricksIndex, err error) {
 		}
 		bricks = append(bricks, brick)
 	}
-	return &AppBricksIndex{LocalBricks: bricks}, nil
+	return &AppBricksIndex{Bricks: bricks}, nil
+}
+
+func (b *AppBricksIndex) GetByID(id string) (*bricksindex.Brick, bool) {
+	idx := slices.IndexFunc(b.Bricks, func(local AppBrick) bool {
+		return local.Brick.ID == id
+	})
+	if idx == -1 {
+		return nil, false
+	}
+	return &b.Bricks[idx].Brick, true
+}
+
+func (b *AppBricksIndex) ListBricks() ([]bricksindex.Brick, bool) {
+	if b == nil || len(b.Bricks) == 0 {
+		return nil, false
+	}
+	bricks := make([]bricksindex.Brick, len(b.Bricks))
+	for i, local := range b.Bricks {
+		bricks[i] = local.Brick
+	}
+	return bricks, true
+}
+
+func (b *AppBricksIndex) GetComposePath(id string) (*paths.Path, bool) {
+	idx := slices.IndexFunc(b.Bricks, func(local AppBrick) bool {
+		return local.Brick.ID == id
+	})
+	if idx == -1 {
+		return nil, false
+	}
+	return b.Bricks[idx].ComposeFile, b.Bricks[idx].ComposeFile != nil
+}
+
+func (b *AppBricksIndex) GetApiDocPath(id string) (*paths.Path, error) {
+	panic("API doc for local bricks is not supported yet")
+}
+
+func (b *AppBricksIndex) GetReadme(id string) (string, error) {
+	idx := slices.IndexFunc(b.Bricks, func(local AppBrick) bool {
+		return local.Brick.ID == id
+	})
+	if idx == -1 {
+		return "", fmt.Errorf("brick %s not found", id)
+	}
+	readmePath := b.Bricks[idx].ReadmeFile
+	if readmePath == nil || readmePath.NotExist() {
+		return "", fmt.Errorf("README.md not found for brick %s", id)
+	}
+	content, err := os.ReadFile(readmePath.String())
+	if err != nil {
+		return "", fmt.Errorf("cannot read README.md for brick %s: %w", id, err)
+	}
+	return string(content), nil
+}
+
+func (b *AppBricksIndex) GetCodeExamplesPath(id string) (paths.PathList, error) {
+	panic("Examples for local bricks is not supported yet")
 }
 
 func loadLocalAppBrick(brickPath *paths.Path) (a AppBrick, err error) {
@@ -96,47 +134,8 @@ func loadLocalAppBrick(brickPath *paths.Path) (a AppBrick, err error) {
 
 	return AppBrick{
 		FullPath:    brickPath,
-		ConfigFile:  brickConfigPath,
 		ComposeFile: composeFile,
+		ReadmeFile:  brickPath.Join("README.md"),
 		Brick:       customBrick,
 	}, nil
-}
-
-// ListBricks returns all local bricks as []bricksindex.Brick.
-func (b *AppBricksIndex) ListBricks() ([]bricksindex.Brick, bool) {
-	if b == nil || len(b.LocalBricks) == 0 {
-		return nil, false
-	}
-	bricks := make([]bricksindex.Brick, len(b.LocalBricks))
-	for i, local := range b.LocalBricks {
-		bricks[i] = local.Brick
-	}
-	return bricks, true
-}
-
-// GetBrickReadmeFromID returns the contents of README.md for the brick, if present.
-func (b *AppBricksIndex) GetBrickReadmeFromID(id string) (string, error) {
-	idx := slices.IndexFunc(b.LocalBricks, func(local AppBrick) bool {
-		return local.Brick.ID == id
-	})
-	if idx == -1 {
-		return "", fmt.Errorf("brick %s not found", id)
-	}
-	readmePath := b.LocalBricks[idx].FullPath.Join("README.md")
-	if readmePath.NotExist() {
-		return "", fmt.Errorf("README.md not found for brick %s", id)
-	}
-	content, err := os.ReadFile(readmePath.String())
-	if err != nil {
-		return "", fmt.Errorf("cannot read README.md for brick %s: %w", id, err)
-	}
-	return string(content), nil
-}
-
-func (b *AppBricksIndex) GetBrickApiDocPathFromID(id string) (string, error) {
-	panic("API doc for local bricks is not supported yet")
-}
-
-func (b *AppBricksIndex) GetBrickCodeExamplesPathFromID(id string) (paths.PathList, error) {
-	panic("Examples  for local bricks is not supported yet")
 }
