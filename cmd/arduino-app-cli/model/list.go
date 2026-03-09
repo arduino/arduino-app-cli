@@ -59,6 +59,6 @@ func (r modelListResult) String() string {
 	return t.Render()
 }
 
-func (r modelListResult) Data() interface{} {
+func (r modelListResult) Data() any {
 	return r
 }
