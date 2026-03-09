@@ -16,9 +16,12 @@
 package bricksindex
 
 import (
-	"io"
+	"errors"
+	"fmt"
 	"iter"
+	"os"
 	"slices"
+	"strings"
 
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
@@ -28,6 +31,8 @@ import (
 
 type BricksIndex struct {
 	Bricks []Brick `yaml:"bricks"`
+
+	AssetPath *paths.Path `yaml:"-"`
 }
 
 func (b *BricksIndex) FindBrickByID(id string) (*Brick, bool) {
@@ -38,6 +43,58 @@ func (b *BricksIndex) FindBrickByID(id string) (*Brick, bool) {
 		return nil, false
 	}
 	return &b.Bricks[idx], true
+}
+
+func (l *BricksIndex) ListBricks() ([]Brick, bool) {
+	return l.Bricks, true
+}
+
+func (l *BricksIndex) ComposePath(id string) (*paths.Path, bool) {
+	namespace, brickName, err := parseBrickID(id)
+	if err != nil {
+		return nil, false
+	}
+	return l.AssetPath.Join("compose", namespace, brickName, "brick_compose.yaml"), true
+}
+
+func (s *BricksIndex) GetBrickApiDocPathFromID(brickID string) (string, error) {
+	namespace, brickName, err := parseBrickID(brickID)
+	if err != nil {
+		return "", err
+	}
+	return s.AssetPath.Join("api-docs", namespace, "app_bricks", brickName, "API.md").String(), nil
+}
+
+func (s *BricksIndex) GetBrickReadmeFromID(brickID string) (string, error) {
+	namespace, brickName, err := parseBrickID(brickID)
+	if err != nil {
+		return "", err
+	}
+	return s.AssetPath.Join("docs", namespace, brickName, "README.md").String(), nil
+}
+
+func (s *BricksIndex) GetBrickCodeExamplesPathFromID(brickID string) (paths.PathList, error) {
+	namespace, brickName, err := parseBrickID(brickID)
+	if err != nil {
+		return nil, err
+	}
+	targetDir := s.AssetPath.Join("code-examples", namespace, brickName)
+	dirEntries, err := targetDir.ReadDir()
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("cannot read examples directory %q: %w", targetDir, err)
+	}
+	return dirEntries, nil
+}
+
+func parseBrickID(brickID string) (namespace, name string, err error) {
+	namespace, brickName, ok := strings.Cut(brickID, ":")
+	if !ok {
+		return "", "", errors.New("invalid ID")
+	}
+	return namespace, brickName, nil
 }
 
 type BrickVariable struct {
@@ -87,19 +144,16 @@ func (b Brick) GetDefaultVariables() iter.Seq2[string, string] {
 	}
 }
 
-func unmarshalBricksIndex(content io.Reader) (*BricksIndex, error) {
-	var index BricksIndex
-	if err := yaml.NewDecoder(content).Decode(&index); err != nil {
-		return nil, err
-	}
-	return &index, nil
-}
-
 func Load(dir *paths.Path) (*BricksIndex, error) {
 	content, err := dir.Join("bricks-list.yaml").Open()
 	if err != nil {
 		return nil, err
 	}
 	defer content.Close()
-	return unmarshalBricksIndex(content)
+	var index BricksIndex
+	if err := yaml.NewDecoder(content).Decode(&index); err != nil {
+		return nil, err
+	}
+	index.AssetPath = dir
+	return &index, nil
 }

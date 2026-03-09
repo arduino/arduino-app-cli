@@ -33,13 +33,13 @@ import (
 	yaml "github.com/goccy/go-yaml"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
 func ExportAppZip(
 	ctx context.Context,
-	bricksIndex *bricksindex.BricksIndex,
+	bricksManager *bricksmanager.Manager,
 	appTarget app.ArduinoApp,
 	includeData bool,
 ) ([]byte, string, error) {
@@ -49,14 +49,14 @@ func ExportAppZip(
 		appName = "app-export"
 	}
 	filename := fmt.Sprintf("%s.zip", appName)
-	zipBytes, err := zipAppToBuffer(bricksIndex, appTarget.FullPath.String(), appName, includeData)
+	zipBytes, err := zipAppToBuffer(bricksManager, appTarget.FullPath.String(), appName, includeData)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create zip archive: %w", err)
 	}
 	return zipBytes, filename, nil
 }
 
-func zipAppToBuffer(bricksIndex *bricksindex.BricksIndex, sourcePath string, rootFolderName string, includeData bool) ([]byte, error) {
+func zipAppToBuffer(bricksManager *bricksmanager.Manager, sourcePath string, rootFolderName string, includeData bool) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	zipWriter := zip.NewWriter(buf)
 
@@ -113,7 +113,7 @@ func zipAppToBuffer(bricksIndex *bricksindex.BricksIndex, sourcePath string, roo
 			if err != nil {
 				return err
 			}
-			redactSecrets(bricksIndex, &desc)
+			redactSecrets(bricksManager, &desc)
 			err = yaml.NewEncoder(writer).Encode(desc)
 			return err
 		} else {
@@ -363,11 +363,11 @@ func validateAppZipContent(r *zip.Reader, rootPrefix string) error {
 	return nil
 }
 
-func redactSecrets(bricksindex *bricksindex.BricksIndex, desc *app.AppDescriptor) {
+func redactSecrets(bricksManager *bricksmanager.Manager, desc *app.AppDescriptor) {
 	for i := range desc.Bricks {
 		brick := &desc.Bricks[i]
 
-		brickDef, found := bricksindex.FindBrickByID(brick.ID)
+		brickDef, found := bricksManager.FindBrickByID(brick.ID)
 		if !found {
 			// Brick definition not found; skip secret redaction
 			continue

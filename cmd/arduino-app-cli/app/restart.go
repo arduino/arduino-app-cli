@@ -18,7 +18,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/text/cases"
@@ -29,8 +28,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickfinder"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickslocalindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
@@ -47,21 +45,15 @@ func newRestartCmd(cfg config.Configuration) *cobra.Command {
 			if err != nil {
 				feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 			}
-			return restartHandler(cmd.Context(), cfg, appToStart)
+			return restartHandler(cmd.Context(), cfg, appToStart, servicelocator.GetBricksManager())
 		},
 		ValidArgsFunction: completion.ApplicationNames(cfg),
 	}
 	return cmd
 }
 
-func restartHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp) error {
+func restartHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp, brickResolver *bricksmanager.Manager) error {
 	out, _, getResult := feedback.OutputStreams()
-
-	localIndex, err := brickslocalindex.Load(app.FullPath)
-	if err != nil {
-		slog.Warn("Cannot load local bricks", "path", app.FullPath)
-	}
-	brickResolver := brickfinder.New(servicelocator.GetBricksIndex(), localIndex, servicelocator.GetStaticStore())
 
 	stream := orchestrator.RestartApp(
 		ctx,

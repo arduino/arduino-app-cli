@@ -16,7 +16,6 @@
 package handlers
 
 import (
-	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -25,9 +24,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickfinder"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickslocalindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -39,7 +36,7 @@ func HandleAppStart(
 	dockerCli command.Cli,
 	provisioner *orchestrator.Provision,
 	modelsIndex *modelsindex.ModelsIndex,
-	bricksIndex *bricksindex.BricksIndex,
+	bricksManager *bricksmanager.Manager,
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
 	staticStore *store.StaticStore,
@@ -74,14 +71,8 @@ func HandleAppStart(
 		type log struct {
 			Message string `json:"message"`
 		}
-		localIndex, err := brickslocalindex.Load(app.FullPath)
-		if err != nil {
-			slog.Warn("Cannot load local bricks", "path", app.FullPath)
-		}
-		slog.Info("###### local", "bricks", fmt.Sprintf("%+v", localIndex.LocalBricks))
-		brickResolver := brickfinder.New(bricksIndex, localIndex, staticStore)
 
-		for item := range orchestrator.StartApp(r.Context(), dockerCli, provisioner, modelsIndex, brickResolver, app, cfg, platform) {
+		for item := range orchestrator.StartApp(r.Context(), dockerCli, provisioner, modelsIndex, bricksManager, app, cfg, platform) {
 			switch item.GetType() {
 			case orchestrator.ProgressType:
 				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress(*item.GetProgress())})

@@ -23,7 +23,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
@@ -37,7 +37,7 @@ type port struct {
 }
 
 func HandleAppPorts(
-	bricksIndex *bricksindex.BricksIndex,
+	bricksManager *bricksmanager.Manager,
 	idProvider *app.IDProvider,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -53,7 +53,7 @@ func HandleAppPorts(
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
 			return
 		}
-		brickInfoMap, err := GetBrickPortInfoByID(app.Descriptor.Bricks, bricksIndex)
+		brickInfoMap, err := GetBrickPortInfoByID(app.Descriptor.Bricks, bricksManager)
 		if err != nil {
 			slog.Error("Unable to find bricks ports", slog.String("error", err.Error()), slog.String("path", id.String()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "Unable to find bricks ports"})
@@ -96,12 +96,12 @@ type BrickPortInfo struct {
 	RequiresDisplay string
 }
 
-func GetBrickPortInfoByID(bricks []app.Brick, bricksIndex *bricksindex.BricksIndex) (map[string]BrickPortInfo, error) {
+func GetBrickPortInfoByID(bricks []app.Brick, bricksManager *bricksmanager.Manager) (map[string]BrickPortInfo, error) {
 
 	brickInfoByID := make(map[string]BrickPortInfo)
 
 	for _, brick := range bricks {
-		brickData, found := bricksIndex.FindBrickByID(brick.ID)
+		brickData, found := bricksManager.FindBrickByID(brick.ID)
 		if !found {
 			return nil, fmt.Errorf("brick %q not found in the index", brick.ID)
 		}

@@ -27,15 +27,14 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickfinder"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
 	"github.com/arduino/arduino-app-cli/internal/render"
-	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
 func HandleAppLogs(
 	dockerClient command.Cli,
 	idProvider *app.IDProvider,
-	staticStore *store.StaticStore,
+	bricksManager *bricksmanager.Manager,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := idProvider.IDFromBase64(r.PathValue("appID"))
@@ -95,9 +94,7 @@ func HandleAppLogs(
 			Message string `json:"message"`
 		}
 
-		// FIXME: the apploags need only the docker compose file. Nil is very dangeroues |||
-		brickResolver := brickfinder.New(nil, nil, staticStore)
-		messagesIter, err := orchestrator.AppLogs(r.Context(), app, appLogsRequest, dockerClient, brickResolver)
+		messagesIter, err := orchestrator.AppLogs(r.Context(), app, appLogsRequest, dockerClient, bricksManager)
 		if err != nil {
 			sseStream.SendError(render.SSEErrorData{
 				Code:    render.InternalServiceErr,

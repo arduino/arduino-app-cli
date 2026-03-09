@@ -26,7 +26,6 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickfinder"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
@@ -78,7 +77,7 @@ func logsHandler(ctx context.Context, app app.ArduinoApp, tail *uint64, follow, 
 		app,
 		cfg,
 		servicelocator.GetDockerClient(),
-		brickfinder.New(nil, nil, servicelocator.GetStaticStore()), // FIXME: nil, nil since the applogs get only the composefile
+		servicelocator.GetBricksManager(),
 	)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)

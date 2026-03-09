@@ -25,9 +25,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickfinder"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickslocalindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/render"
 
@@ -36,7 +34,7 @@ import (
 
 func HandleAppDetails(
 	dockerClient command.Cli,
-	bricksIndex *bricksindex.BricksIndex,
+	bricksManager *bricksmanager.Manager,
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
 ) http.HandlerFunc {
@@ -53,13 +51,8 @@ func HandleAppDetails(
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
 			return
 		}
-		localIndex, err := brickslocalindex.Load(app.FullPath)
-		if err != nil {
-			slog.Warn("Cannot load local bricks", "path", app.FullPath)
-		}
-		// TODO: the static store is NOT needed here. define a better API to avoid passing nil
-		brickResolver := brickfinder.New(bricksIndex, localIndex, nil)
-		res, err := orchestrator.AppDetails(r.Context(), dockerClient, app, brickResolver, idProvider, cfg)
+
+		res, err := orchestrator.AppDetails(r.Context(), dockerClient, app, bricksManager, idProvider, cfg)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
@@ -78,7 +71,7 @@ type EditRequest struct {
 
 func HandleAppDetailsEdits(
 	dockerClient command.Cli,
-	bricksIndex *bricksindex.BricksIndex,
+	bricksManager *bricksmanager.Manager,
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
 ) http.HandlerFunc {
@@ -136,12 +129,7 @@ func HandleAppDetailsEdits(
 			}
 			return
 		}
-		localIndex, err := brickslocalindex.Load(appToEdit.FullPath)
-		if err != nil {
-			slog.Warn("Cannot load local bricks", "path", appToEdit.FullPath)
-		}
-		brickResolver := brickfinder.New(bricksIndex, localIndex, nil)
-		res, err := orchestrator.AppDetails(r.Context(), dockerClient, appToEdit, brickResolver, idProvider, cfg)
+		res, err := orchestrator.AppDetails(r.Context(), dockerClient, appToEdit, bricksManager, idProvider, cfg)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})

@@ -29,15 +29,18 @@ import (
 	"github.com/gosimple/slug"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
 func TestExportAppZip(t *testing.T) {
 	bricksIndex, err := bricksindex.Load(paths.New("testdata", "archive"))
 	require.NoError(t, err)
+	bricksManager := f.Must(bricksmanager.New(bricksIndex))
 
 	type testCase struct {
 		name             string
@@ -104,7 +107,7 @@ func TestExportAppZip(t *testing.T) {
 				Name:     tc.appName,
 				FullPath: paths.New(appPath),
 			}
-			zipData, filename, err := ExportAppZip(t.Context(), bricksIndex, app, tc.includeData)
+			zipData, filename, err := ExportAppZip(t.Context(), bricksManager, app, tc.includeData)
 
 			if tc.wantErr {
 				require.Error(t, err)

@@ -30,17 +30,16 @@ import (
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
 	"github.com/stretchr/testify/require"
+	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
 func TestBuildBrickConfigForEIModel(t *testing.T) {
-	brickIndex, err := bricksindex.Load(paths.New("bricksindex/testdata"))
-	if err != nil {
-		t.Fatalf("failed to load bricks index: %v", err)
-	}
+	bricksManager := f.Must(bricksmanager.New(f.Must(bricksindex.Load(paths.New("bricksindex/testdata")))))
 
 	edgeModelsDir := paths.New("/models/custom-ei/ei-xxxx-yyyy")
 	blobModelsDir := paths.New("/models/custom-ei/ei-xxxx-yyyy")
@@ -157,7 +156,7 @@ func TestBuildBrickConfigForEIModel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := buildBrickConfigForEIModel(
-				brickIndex,
+				bricksManager,
 				&tt.category,
 				tt.learnBlocks,
 				edgeModelsDir,

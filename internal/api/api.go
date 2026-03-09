@@ -23,7 +23,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -45,7 +45,7 @@ func NewHTTPRouter(
 	provisioner *orchestrator.Provision,
 	staticStore *store.StaticStore,
 	modelsIndex *modelsindex.ModelsIndex,
-	bricksIndex *bricksindex.BricksIndex,
+	bricksManager *bricksmanager.Manager,
 	brickService *bricks.Service,
 	idProvider *app.IDProvider,
 	platform platform.Platform,
@@ -72,22 +72,22 @@ func NewHTTPRouter(
 
 	mux.Handle("GET /v1/models", handlers.HandleModelsList(modelsIndex))
 	mux.Handle("GET /v1/models/{modelID}", handlers.HandlerModelByID(modelsIndex))
-	mux.Handle("PUT /v1/models/ei/projects/{projectID}", handlers.HandleInstallEIModel(cfg, bricksIndex, modelsIndex, dockerClient))
+	mux.Handle("PUT /v1/models/ei/projects/{projectID}", handlers.HandleInstallEIModel(cfg, bricksManager, modelsIndex, dockerClient))
 	mux.Handle("DELETE /v1/models/{modelID}", handlers.HandlerDeleteModelByID(dockerClient, cfg, modelsIndex, idProvider, platform))
 
 	mux.Handle("GET /v1/apps", handlers.HandleAppList(dockerClient, idProvider, cfg))
 	mux.Handle("POST /v1/apps", handlers.HandleAppCreate(idProvider, cfg))
 	mux.Handle("GET /v1/apps/events", handlers.HandlerAppStatus(dockerClient, idProvider, cfg))
-	mux.Handle("GET /v1/apps/{appID}", handlers.HandleAppDetails(dockerClient, bricksIndex, idProvider, cfg))
-	mux.Handle("PATCH /v1/apps/{appID}", handlers.HandleAppDetailsEdits(dockerClient, bricksIndex, idProvider, cfg))
-	mux.Handle("GET /v1/apps/{appID}/logs", handlers.HandleAppLogs(dockerClient, idProvider, staticStore))
-	mux.Handle("POST /v1/apps/{appID}/start", handlers.HandleAppStart(dockerClient, provisioner, modelsIndex, bricksIndex, idProvider, cfg, staticStore, platform))
+	mux.Handle("GET /v1/apps/{appID}", handlers.HandleAppDetails(dockerClient, bricksManager, idProvider, cfg))
+	mux.Handle("PATCH /v1/apps/{appID}", handlers.HandleAppDetailsEdits(dockerClient, bricksManager, idProvider, cfg))
+	mux.Handle("GET /v1/apps/{appID}/logs", handlers.HandleAppLogs(dockerClient, idProvider, bricksManager))
+	mux.Handle("POST /v1/apps/{appID}/start", handlers.HandleAppStart(dockerClient, provisioner, modelsIndex, bricksManager, idProvider, cfg, staticStore, platform))
 	mux.Handle("POST /v1/apps/{appID}/stop", handlers.HandleAppStop(dockerClient, idProvider, platform))
 	mux.Handle("POST /v1/apps/{appID}/clone", handlers.HandleAppClone(dockerClient, idProvider, cfg))
 	mux.Handle("DELETE /v1/apps/{appID}", handlers.HandleAppDelete(dockerClient, idProvider, platform))
-	mux.Handle("GET /v1/apps/{appID}/export", handlers.HandleAppExport(cfg, idProvider, bricksIndex))
+	mux.Handle("GET /v1/apps/{appID}/export", handlers.HandleAppExport(cfg, idProvider, bricksManager))
 	mux.Handle("POST /v1/apps/import", handlers.HandleAppImport(cfg, idProvider))
-	mux.Handle("GET /v1/apps/{appID}/exposed-ports", handlers.HandleAppPorts(bricksIndex, idProvider))
+	mux.Handle("GET /v1/apps/{appID}/exposed-ports", handlers.HandleAppPorts(bricksManager, idProvider))
 	mux.Handle("PUT /v1/apps/{appID}/sketch/libraries/{libRef}", handlers.HandleSketchAddLibrary(idProvider))
 	mux.Handle("DELETE /v1/apps/{appID}/sketch/libraries/{libRef}", handlers.HandleSketchRemoveLibrary(idProvider))
 	mux.Handle("GET /v1/apps/{appID}/sketch/libraries", handlers.HandleSketchListLibraries(idProvider))

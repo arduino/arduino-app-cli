@@ -36,7 +36,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/brickfinder"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksmanager"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -117,7 +117,7 @@ func NewProvision(
 
 func (p *Provision) App(
 	ctx context.Context,
-	brickResolver *brickfinder.BrickResolver,
+	brickResolver *bricksmanager.Manager,
 	arduinoApp *app.ArduinoApp,
 	cfg config.Configuration,
 	mapped_env map[string]string,
@@ -211,7 +211,7 @@ const (
 
 func generateMainComposeFile(
 	app *app.ArduinoApp,
-	brickResolver *brickfinder.BrickResolver,
+	brickResolver *bricksmanager.Manager,
 	pythonImage string,
 	cfg config.Configuration,
 	envs helpers.EnvVars,
@@ -246,7 +246,7 @@ func generateMainComposeFile(
 		}
 
 		// 3. Retrieve the brick_compose.yaml file.
-		composeFilePath, err := brickResolver.GetBrickComposeFilePathFromID(brick.ID)
+		composeFilePath, err := brickResolver.ComposePath(brick.ID)
 		if err != nil {
 			slog.Error("brick compose file not found for brick that requires container", slog.String("brick_id", brick.ID), slog.String("error", err.Error()))
 			continue
