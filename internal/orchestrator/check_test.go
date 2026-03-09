@@ -19,7 +19,7 @@ import (
 )
 
 func TestValidateAppDescriptorBricks(t *testing.T) {
-	bricksIndex := &builtin.BuiltinBricksIndex{
+	bricksIndex := &builtin.BricksIndex{
 		Bricks: []bricksindex.Brick{
 			{
 				ID:          "arduino:arduino_cloud",
@@ -239,7 +239,7 @@ bricks:
 func TestValidateVirtualDevice(t *testing.T) {
 	// fail if a camera device is not detected and one of two brick require a physical camera
 
-	bIndex := &builtin.BuiltinBricksIndex{
+	bIndex := &builtin.BricksIndex{
 		Bricks: []bricksindex.Brick{
 			{
 				ID:              "arduino:brick-with-camera-device",
@@ -277,7 +277,7 @@ func TestValidateVirtualDevice(t *testing.T) {
 func TestCheckRequiredDevicesNoError(t *testing.T) {
 	// do not fail if a brick requires a virtual camera device
 
-	bIndex := &builtin.BuiltinBricksIndex{
+	bIndex := &builtin.BricksIndex{
 		Bricks: []bricksindex.Brick{
 			{
 				ID:   "arduino:brick-with-camera-device",
@@ -398,7 +398,7 @@ func TestCheckRequiredDevice(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 
-			bIndex := &builtin.BuiltinBricksIndex{
+			bIndex := &builtin.BricksIndex{
 				Bricks: []bricksindex.Brick{
 					{
 						ID:              "arduino:a-simple-brick",

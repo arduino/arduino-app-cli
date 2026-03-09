@@ -28,19 +28,19 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
 
-type BuiltinBricksIndex struct {
+type BricksIndex struct {
 	Bricks []bricksindex.Brick `yaml:"bricks"`
 
 	AssetPath *paths.Path `yaml:"-"`
 }
 
-func Load(dir *paths.Path) (*BuiltinBricksIndex, error) {
+func Load(dir *paths.Path) (*BricksIndex, error) {
 	content, err := dir.Join("bricks-list.yaml").Open()
 	if err != nil {
 		return nil, err
 	}
 	defer content.Close()
-	var index BuiltinBricksIndex
+	var index BricksIndex
 	if err := yaml.NewDecoder(content).Decode(&index); err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func Load(dir *paths.Path) (*BuiltinBricksIndex, error) {
 	return &index, nil
 }
 
-func (b *BuiltinBricksIndex) GetByID(id string) (*bricksindex.Brick, bool) {
+func (b *BricksIndex) GetByID(id string) (*bricksindex.Brick, bool) {
 	idx := slices.IndexFunc(b.Bricks, func(brick bricksindex.Brick) bool {
 		return brick.ID == id
 	})
@@ -58,11 +58,11 @@ func (b *BuiltinBricksIndex) GetByID(id string) (*bricksindex.Brick, bool) {
 	return &b.Bricks[idx], true
 }
 
-func (l *BuiltinBricksIndex) ListBricks() ([]bricksindex.Brick, bool) {
+func (l *BricksIndex) ListBricks() ([]bricksindex.Brick, bool) {
 	return l.Bricks, true
 }
 
-func (l *BuiltinBricksIndex) GetComposePath(id string) (*paths.Path, bool) {
+func (l *BricksIndex) GetComposePath(id string) (*paths.Path, bool) {
 	namespace, brickName, err := parseBrickID(id)
 	if err != nil {
 		return nil, false
@@ -70,7 +70,7 @@ func (l *BuiltinBricksIndex) GetComposePath(id string) (*paths.Path, bool) {
 	return l.AssetPath.Join("compose", namespace, brickName, "brick_compose.yaml"), true
 }
 
-func (s *BuiltinBricksIndex) GetApiDocPath(brickID string) (*paths.Path, error) {
+func (s *BricksIndex) GetApiDocPath(brickID string) (*paths.Path, error) {
 	namespace, brickName, err := parseBrickID(brickID)
 	if err != nil {
 		return nil, err
@@ -78,7 +78,7 @@ func (s *BuiltinBricksIndex) GetApiDocPath(brickID string) (*paths.Path, error) 
 	return s.AssetPath.Join("api-docs", namespace, "app_bricks", brickName, "API.md"), nil
 }
 
-func (s *BuiltinBricksIndex) GetReadme(brickID string) (string, error) {
+func (s *BricksIndex) GetReadme(brickID string) (string, error) {
 	namespace, brickName, err := parseBrickID(brickID)
 	if err != nil {
 		return "", err
@@ -91,7 +91,7 @@ func (s *BuiltinBricksIndex) GetReadme(brickID string) (string, error) {
 	return string(content), nil
 }
 
-func (s *BuiltinBricksIndex) GetCodeExamplesPath(brickID string) (paths.PathList, error) {
+func (s *BricksIndex) GetCodeExamplesPath(brickID string) (paths.PathList, error) {
 	namespace, brickName, err := parseBrickID(brickID)
 	if err != nil {
 		return nil, err

@@ -380,7 +380,7 @@ func TestBricksDetails(t *testing.T) {
 	}
 	createFakeApp(t, appsDir)
 
-	bIndex := &builtin.BuiltinBricksIndex{
+	bIndex := &builtin.BricksIndex{
 		AssetPath: paths.New(assetsDir),
 		Bricks: []bricksindex.Brick{
 			{
@@ -548,7 +548,7 @@ bricks:
 
 func TestAppBrickInstanceModelsDetails(t *testing.T) {
 
-	bIndex := &builtin.BuiltinBricksIndex{
+	bIndex := &builtin.BricksIndex{
 		Bricks: []bricksindex.Brick{
 			{
 				ID:        "arduino:object_detection",
@@ -703,7 +703,7 @@ func TestAppBrickInstanceModelsDetails(t *testing.T) {
 
 func TestAppBrickInstancesList(t *testing.T) {
 
-	bIndex := &builtin.BuiltinBricksIndex{
+	bIndex := &builtin.BricksIndex{
 		Bricks: []bricksindex.Brick{
 			{
 				ID:           "arduino:weather_forecast",
