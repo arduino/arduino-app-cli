@@ -1,6 +1,7 @@
 package brickslocalindex
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -44,13 +45,14 @@ func (b *LocalBricksIndex) ComposePath(id string) (*paths.Path, bool) {
 	return b.LocalBricks[idx].ComposeFile, b.LocalBricks[idx].ComposeFile != nil
 }
 
-func Load(appPath *paths.Path) (localBrickIndex *LocalBricksIndex, err error) {
-	bricksFolder := appPath.Join("bricks")
-	if !bricksFolder.Exist() {
-		slog.Warn("bricks filder not founs in the app", "app_path", appPath)
-		return &LocalBricksIndex{LocalBricks: []AppLocalBrick{}}, nil
+func Load(dir *paths.Path) (localBrickIndex *LocalBricksIndex, err error) {
+	if dir == nil {
+		return nil, errors.New("empty path provided for local bricks")
 	}
-	pathsList, err := bricksFolder.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
+	if !dir.Exist() {
+		return nil, fmt.Errorf("local bricks folder not found %v", dir)
+	}
+	pathsList, err := dir.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
 		if file.Join("brick_config.yaml").NotExist() {
 			// let's continue scanning, the model can be in a subfolder
 			return true

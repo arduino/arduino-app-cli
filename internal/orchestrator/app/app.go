@@ -118,11 +118,8 @@ func (a *ArduinoApp) GetSketchPath() (*paths.Path, bool) {
 	return a.mainSketchPath, true
 }
 
-func (a *ArduinoApp) GetLocalBricksPath() (*paths.Path, bool) {
-	if a == nil || a.localBricksPath == nil {
-		return nil, false
-	}
-	return a.localBricksPath, true
+func (a *ArduinoApp) GetLocalBricksPath() *paths.Path {
+	return a.localBricksPath
 }
 
 // GetDescriptorPath returns the path to the app descriptor file (app.yaml or app.yml)

@@ -43,9 +43,9 @@ func TestLoadLocalAppBricks(t *testing.T) {
 		assert.Equal(t, want, index.LocalBricks)
 	})
 
-	t.Run("it loads an app without local bricks", func(t *testing.T) {
+	t.Run("it returns an error if local bricks are missing", func(t *testing.T) {
 		index, err := Load(paths.New("testdata/AppMissingLocalBricks"))
-		require.NoError(t, err)
-		assert.Len(t, index.LocalBricks, 0)
+		require.Error(t, err)
+		assert.Nil(t, index)
 	})
 }

@@ -72,11 +72,14 @@ func (s *Service) List() (BrickListResult, error) {
 
 func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesResult, error) {
 	res := AppBrickInstancesResult{BrickInstances: make([]BrickInstance, len(a.Descriptor.Bricks))}
-	localIndex, err := brickslocalindex.Load(a.FullPath)
+
+	brickResolver := s.bricksManager
+	localIndex, err := brickslocalindex.Load(a.GetLocalBricksPath())
 	if err != nil {
 		slog.Warn("Cannot load local bricks", "path", a.FullPath)
+	} else {
+		brickResolver = brickResolver.WithAppLocalSource(localIndex)
 	}
-	brickResolver := s.bricksManager.WithAppLocalSource(localIndex)
 
 	for i, brickInstance := range a.Descriptor.Bricks {
 		brick, found := brickResolver.FindBrickByID(brickInstance.ID)
