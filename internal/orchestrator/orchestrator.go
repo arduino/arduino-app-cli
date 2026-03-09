@@ -124,7 +124,7 @@ func StartApp(
 		if err != nil {
 			slog.Warn("Cannot load local bricks", "path", appToStart.FullPath)
 		}
-		brickResolver := bricksindex.WithBrickSource(localIndex)
+		brickResolver := bricksIndex.WithBrickSource(localIndex)
 
 		// TODO: add unit test with local brick index
 		err = checkBricks(appToStart.Descriptor, brickResolver, modelsIndex)
@@ -465,7 +465,7 @@ func RestartApp(
 				}
 			}
 		}
-		startStream := StartApp(ctx, docker, provisioner, modelsIndex, bricksindex, appToStart, cfg, platform)
+		startStream := StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, appToStart, cfg, platform)
 		startStream(yield)
 	}
 }
@@ -489,7 +489,7 @@ func StartDefaultApp(
 		return nil
 	}
 
-	status, err := AppDetails(ctx, docker, *app, bricksindex, idProvider, cfg)
+	status, err := AppDetails(ctx, docker, *app, bricksIndex, idProvider, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to get app details: %w", err)
 	}
@@ -498,7 +498,7 @@ func StartDefaultApp(
 	}
 
 	// TODO: we need to stop all other running app before starting the default app.
-	for msg := range StartApp(ctx, docker, provisioner, modelsIndex, bricksindex, *app, cfg, platform) {
+	for msg := range StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, *app, cfg, platform) {
 		if msg.IsError() {
 			return fmt.Errorf("failed to start app: %w", msg.GetError())
 		}
@@ -701,7 +701,7 @@ func AppDetails(
 	if err != nil {
 		slog.Warn("Cannot load local bricks", "path", userApp.FullPath)
 	}
-	bricksindex = bricksindex.WithBrickSource(localIndex)
+	bricksIndex = bricksIndex.WithBrickSource(localIndex)
 
 	return AppDetailedInfo{
 		ID:          id,
@@ -714,7 +714,7 @@ func AppDetails(
 		Default:     defaultAppPath == userApp.FullPath.String(),
 		Bricks: f.Map(userApp.Descriptor.Bricks, func(b app.Brick) AppDetailedBrick {
 			res := AppDetailedBrick{ID: b.ID}
-			bi, found := bricksindex.FindBrickByID(b.ID)
+			bi, found := bricksIndex.FindBrickByID(b.ID)
 			if !found {
 				slog.Warn("brick not found in bricks index", slog.String("id", b.ID), slog.String("app", userApp.FullPath.String()))
 				return res

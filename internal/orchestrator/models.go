@@ -323,7 +323,7 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.Manager, model
 		return AIModelItem{}, err
 	}
 
-	bricks, err := buildBrickConfigForEIModel(bricksindex, project.Details.Category, impulse.LearnBlocks, edgeModelsDir, blobModelsDir)
+	bricks, err := buildBrickConfigForEIModel(bricksIndex, project.Details.Category, impulse.LearnBlocks, edgeModelsDir, blobModelsDir)
 	if err != nil {
 		return AIModelItem{}, err
 	}
@@ -374,7 +374,7 @@ func buildBrickConfigForEIModel(bricksIndex *bricksindex.Manager, category *edge
 
 	bricksConfig := make([]custommodel.BrickConfig, 0)
 	for _, b := range bricksIds {
-		brick, ok := bricksindex.FindBrickByID(b)
+		brick, ok := bricksIndex.FindBrickByID(b)
 		if !ok {
 			slog.Warn("cannot load brick", "id", b, "category", category)
 			return nil, fmt.Errorf("brick with id %q not found for category %q", b, *category)

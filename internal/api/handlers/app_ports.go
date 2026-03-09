@@ -53,7 +53,7 @@ func HandleAppPorts(
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
 			return
 		}
-		brickInfoMap, err := GetBrickPortInfoByID(app.Descriptor.Bricks, bricksindex)
+		brickInfoMap, err := GetBrickPortInfoByID(app.Descriptor.Bricks, bricksIndex)
 		if err != nil {
 			slog.Error("Unable to find bricks ports", slog.String("error", err.Error()), slog.String("path", id.String()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "Unable to find bricks ports"})
@@ -101,7 +101,7 @@ func GetBrickPortInfoByID(bricks []app.Brick, bricksIndex *bricksindex.Manager) 
 	brickInfoByID := make(map[string]BrickPortInfo)
 
 	for _, brick := range bricks {
-		brickData, found := bricksindex.FindBrickByID(brick.ID)
+		brickData, found := bricksIndex.FindBrickByID(brick.ID)
 		if !found {
 			return nil, fmt.Errorf("brick %q not found in the index", brick.ID)
 		}

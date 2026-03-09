@@ -49,7 +49,7 @@ func ExportAppZip(
 		appName = "app-export"
 	}
 	filename := fmt.Sprintf("%s.zip", appName)
-	zipBytes, err := zipAppToBuffer(bricksindex, appTarget.FullPath.String(), appName, includeData)
+	zipBytes, err := zipAppToBuffer(bricksIndex, appTarget.FullPath.String(), appName, includeData)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create zip archive: %w", err)
 	}
@@ -113,7 +113,7 @@ func zipAppToBuffer(bricksIndex *bricksindex.Manager, sourcePath string, rootFol
 			if err != nil {
 				return err
 			}
-			redactSecrets(bricksindex, &desc)
+			redactSecrets(bricksIndex, &desc)
 			err = yaml.NewEncoder(writer).Encode(desc)
 			return err
 		} else {
@@ -367,7 +367,7 @@ func redactSecrets(bricksIndex *bricksindex.Manager, desc *app.AppDescriptor) {
 	for i := range desc.Bricks {
 		brick := &desc.Bricks[i]
 
-		brickDef, found := bricksindex.FindBrickByID(brick.ID)
+		brickDef, found := bricksIndex.FindBrickByID(brick.ID)
 		if !found {
 			// Brick definition not found; skip secret redaction
 			continue

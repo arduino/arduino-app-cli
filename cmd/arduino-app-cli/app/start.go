@@ -62,7 +62,7 @@ func startHandler(ctx context.Context, cfg config.Configuration, app app.Arduino
 		servicelocator.GetDockerClient(),
 		servicelocator.GetProvisioner(),
 		servicelocator.GetModelsIndex(),
-		bricksindex,
+		bricksIndex,
 		app,
 		cfg,
 		servicelocator.GetPlatform(),
