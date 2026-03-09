@@ -117,7 +117,7 @@ func NewProvision(
 
 func (p *Provision) App(
 	ctx context.Context,
-	brickResolver *bricksindex.Manager,
+	bricksIndex *bricksindex.Manager,
 	arduinoApp *app.ArduinoApp,
 	cfg config.Configuration,
 	mapped_env map[string]string,
@@ -134,7 +134,7 @@ func (p *Provision) App(
 		}
 	}
 
-	return generateMainComposeFile(arduinoApp, brickResolver, p.pythonImage, cfg, mapped_env, platform, devices)
+	return generateMainComposeFile(arduinoApp, bricksIndex, p.pythonImage, cfg, mapped_env, platform, devices)
 }
 
 func (p *Provision) init(
@@ -211,7 +211,7 @@ const (
 
 func generateMainComposeFile(
 	app *app.ArduinoApp,
-	brickResolver *bricksindex.Manager,
+	bricksIndex *bricksindex.Manager,
 	pythonImage string,
 	cfg config.Configuration,
 	envs helpers.EnvVars,
@@ -228,7 +228,7 @@ func generateMainComposeFile(
 	var composeFiles paths.PathList
 	services := make([]serviceInfo, 0, len(app.Descriptor.Bricks))
 	for _, brick := range app.Descriptor.Bricks {
-		idxBrick, found := brickResolver.FindBrickByID(brick.ID)
+		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
 		slog.Debug("Processing brick", slog.String("brick_id", brick.ID), slog.Bool("found", found))
 		if !found {
 			continue
@@ -246,7 +246,7 @@ func generateMainComposeFile(
 		}
 
 		// 3. Retrieve the brick_compose.yaml file.
-		composeFilePath, err := brickResolver.ComposePath(brick.ID)
+		composeFilePath, err := bricksIndex.ComposePath(brick.ID)
 		if err != nil {
 			slog.Error("brick compose file not found for brick that requires container", slog.String("brick_id", brick.ID), slog.String("error", err.Error()))
 			continue

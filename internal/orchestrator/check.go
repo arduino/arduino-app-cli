@@ -15,8 +15,8 @@ import (
 
 // CheckBricks checks that all bricks referenced in the given AppDescriptor exist in the provided BricksIndex,
 // It collects and returns all validation errors as a single joined error, allowing the caller to see all issues at once rather than stopping at the first error.
-func checkBricks(a app.AppDescriptor, brickResolver *bricksindex.Manager, modelIndex *modelsindex.ModelsIndex) error {
-	if brickResolver == nil {
+func checkBricks(a app.AppDescriptor, bricksIndex *bricksindex.Manager, modelIndex *modelsindex.ModelsIndex) error {
+	if bricksIndex == nil {
 		return fmt.Errorf("bricks index cannot be nil")
 	}
 	if modelIndex == nil {
@@ -26,7 +26,7 @@ func checkBricks(a app.AppDescriptor, brickResolver *bricksindex.Manager, modelI
 	var allErrors error
 
 	for _, appBrick := range a.Bricks {
-		indexBrick, found := brickResolver.FindBrickByID(appBrick.ID)
+		indexBrick, found := bricksIndex.FindBrickByID(appBrick.ID)
 		if !found {
 			allErrors = errors.Join(allErrors, fmt.Errorf("brick %q not found", appBrick.ID))
 			continue
@@ -59,11 +59,11 @@ func checkBricks(a app.AppDescriptor, brickResolver *bricksindex.Manager, modelI
 	return allErrors
 }
 
-func checkRequiredDevices(brickResolver *bricksindex.Manager, appBricks []app.Brick, availableDevices peripherals.AvailableDevices) error {
+func checkRequiredDevices(bricksIndex *bricksindex.Manager, appBricks []app.Brick, availableDevices peripherals.AvailableDevices) error {
 	requiredDeviceClasses := make(map[peripherals.DeviceClass]bool)
 
 	for _, brick := range appBricks {
-		idxBrick, found := brickResolver.FindBrickByID(brick.ID)
+		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
 		if !found {
 			slog.Warn("Cannot validate required devices. Brick not found", slog.String("brick_id", brick.ID))
 			continue

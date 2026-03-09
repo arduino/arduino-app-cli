@@ -52,7 +52,7 @@ func newRestartCmd(cfg config.Configuration) *cobra.Command {
 	return cmd
 }
 
-func restartHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp, brickResolver *bricksindex.Manager) error {
+func restartHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp, bricksIndex *bricksindex.Manager) error {
 	out, _, getResult := feedback.OutputStreams()
 
 	stream := orchestrator.RestartApp(
@@ -60,7 +60,7 @@ func restartHandler(ctx context.Context, cfg config.Configuration, app app.Ardui
 		servicelocator.GetDockerClient(),
 		servicelocator.GetProvisioner(),
 		servicelocator.GetModelsIndex(),
-		brickResolver,
+		bricksIndex,
 		app,
 		cfg,
 		servicelocator.GetStaticStore(),

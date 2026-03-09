@@ -124,10 +124,10 @@ func StartApp(
 		if err != nil {
 			slog.Warn("Cannot load local bricks", "path", appToStart.FullPath)
 		}
-		brickResolver := bricksIndex.WithBrickSource(localIndex)
+		bricksIndex := bricksIndex.WithBrickSource(localIndex)
 
 		// TODO: add unit test with local brick index
-		err = checkBricks(appToStart.Descriptor, brickResolver, modelsIndex)
+		err = checkBricks(appToStart.Descriptor, bricksIndex, modelsIndex)
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return
@@ -139,7 +139,7 @@ func StartApp(
 			return
 		}
 
-		err = checkRequiredDevices(brickResolver, appToStart.Descriptor.Bricks, devices)
+		err = checkRequiredDevices(bricksIndex, appToStart.Descriptor.Bricks, devices)
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return
@@ -186,7 +186,7 @@ func StartApp(
 		}
 
 		if appToStart.MainPythonFile != nil {
-			envs := getAppEnvironmentVariables(appToStart, brickResolver, modelsIndex)
+			envs := getAppEnvironmentVariables(appToStart, bricksIndex, modelsIndex)
 
 			if !yield(StreamMessage{data: "python provisioning"}) {
 				cancel()
@@ -201,7 +201,7 @@ func StartApp(
 				return
 			}
 
-			if err := provisioner.App(ctx, brickResolver, &appToStart, cfg, envs, platform, devices); err != nil {
+			if err := provisioner.App(ctx, bricksIndex, &appToStart, cfg, envs, platform, devices); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
@@ -273,11 +273,11 @@ func StartApp(
 // - model configuration variables (variables defined in the model configuration)
 // - brick instance variables (variables defined in the app.yaml for the brick instance)
 // In addition, it adds some useful environment variables like APP_HOME and HOST_IP.
-func getAppEnvironmentVariables(app app.ArduinoApp, brickResolver *bricksindex.Manager, modelsIndex *modelsindex.ModelsIndex) helpers.EnvVars {
+func getAppEnvironmentVariables(app app.ArduinoApp, bricksIndex *bricksindex.Manager, modelsIndex *modelsindex.ModelsIndex) helpers.EnvVars {
 	envs := make(helpers.EnvVars)
 
 	for _, brick := range app.Descriptor.Bricks {
-		if brickDef, found := brickResolver.FindBrickByID(brick.ID); found {
+		if brickDef, found := bricksIndex.FindBrickByID(brick.ID); found {
 			maps.Insert(envs, brickDef.GetDefaultVariables())
 		}
 

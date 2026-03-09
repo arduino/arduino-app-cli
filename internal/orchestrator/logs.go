@@ -56,7 +56,7 @@ func AppLogs(
 	app app.ArduinoApp,
 	req AppLogsRequest,
 	dockerCli command.Cli,
-	brickResolver *bricksindex.Manager,
+	bricksIndex *bricksindex.Manager,
 ) (iter.Seq[LogMessage], error) {
 	if app.MainPythonFile == nil {
 		return helpers.EmptyIter[LogMessage](), nil
@@ -70,7 +70,7 @@ func AppLogs(
 	// Obtain mapping compose service name <-> brick name
 	serviceToBrickMapping := make(map[string]string, len(app.Descriptor.Bricks))
 	for _, brick := range app.Descriptor.Bricks {
-		composeFilePath, err := brickResolver.ComposePath(brick.ID)
+		composeFilePath, err := bricksIndex.ComposePath(brick.ID)
 		if err != nil {
 			slog.Warn("brick not valid", slog.String("brick_id", brick.ID), slog.Any("error", err))
 			continue
