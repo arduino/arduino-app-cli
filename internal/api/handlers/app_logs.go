@@ -34,7 +34,7 @@ import (
 func HandleAppLogs(
 	dockerClient command.Cli,
 	idProvider *app.IDProvider,
-	bricksindex *bricksindex.Manager,
+	bricksIndex *bricksindex.Manager,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := idProvider.IDFromBase64(r.PathValue("appID"))

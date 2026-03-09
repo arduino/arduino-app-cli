@@ -34,7 +34,7 @@ import (
 func HandleAppExport(
 	cfg config.Configuration,
 	idProvider *app.IDProvider,
-	bricksindex *bricksindex.Manager,
+	bricksIndex *bricksindex.Manager,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := idProvider.IDFromBase64(r.PathValue("appID"))

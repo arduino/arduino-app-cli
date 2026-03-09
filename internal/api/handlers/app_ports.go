@@ -37,7 +37,7 @@ type port struct {
 }
 
 func HandleAppPorts(
-	bricksindex *bricksindex.Manager,
+	bricksIndex *bricksindex.Manager,
 	idProvider *app.IDProvider,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -96,7 +96,7 @@ type BrickPortInfo struct {
 	RequiresDisplay string
 }
 
-func GetBrickPortInfoByID(bricks []app.Brick, bricksindex *bricksindex.Manager) (map[string]BrickPortInfo, error) {
+func GetBrickPortInfoByID(bricks []app.Brick, bricksIndex *bricksindex.Manager) (map[string]BrickPortInfo, error) {
 
 	brickInfoByID := make(map[string]BrickPortInfo)
 

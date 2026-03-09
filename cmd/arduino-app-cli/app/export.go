@@ -73,7 +73,7 @@ Use '-' as output_path to write the zip to stdout.`,
 	return cmd
 }
 
-func exportHandler(ctx context.Context, bricksindex *bricksindex.Manager, appToExport app.ArduinoApp, outputDest string, includeData bool, override bool) error {
+func exportHandler(ctx context.Context, bricksIndex *bricksindex.Manager, appToExport app.ArduinoApp, outputDest string, includeData bool, override bool) error {
 
 	zipBytes, originalName, err := orchestrator.ExportAppZip(ctx, bricksindex, appToExport, includeData)
 	if err != nil {

@@ -45,7 +45,7 @@ func NewHTTPRouter(
 	provisioner *orchestrator.Provision,
 	staticStore *store.StaticStore,
 	modelsIndex *modelsindex.ModelsIndex,
-	bricksindex *bricksindex.Manager,
+	bricksIndex *bricksindex.Manager,
 	brickService *bricks.Service,
 	idProvider *app.IDProvider,
 	platform platform.Platform,

@@ -54,7 +54,7 @@ func newStartCmd(cfg config.Configuration) *cobra.Command {
 	}
 }
 
-func startHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp, bricksindex *bricksindex.Manager) error {
+func startHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp, bricksIndex *bricksindex.Manager) error {
 	out, _, getResult := feedback.OutputStreams()
 
 	stream := orchestrator.StartApp(

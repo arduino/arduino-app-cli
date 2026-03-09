@@ -34,7 +34,7 @@ import (
 
 func HandleAppDetails(
 	dockerClient command.Cli,
-	bricksindex *bricksindex.Manager,
+	bricksIndex *bricksindex.Manager,
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
 ) http.HandlerFunc {
@@ -71,7 +71,7 @@ type EditRequest struct {
 
 func HandleAppDetailsEdits(
 	dockerClient command.Cli,
-	bricksindex *bricksindex.Manager,
+	bricksIndex *bricksindex.Manager,
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
 ) http.HandlerFunc {

@@ -36,7 +36,7 @@ func HandleAppStart(
 	dockerCli command.Cli,
 	provisioner *orchestrator.Provision,
 	modelsIndex *modelsindex.ModelsIndex,
-	bricksindex *bricksindex.Manager,
+	bricksIndex *bricksindex.Manager,
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
 	staticStore *store.StaticStore,

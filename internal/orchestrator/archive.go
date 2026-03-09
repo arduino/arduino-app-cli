@@ -39,7 +39,7 @@ import (
 
 func ExportAppZip(
 	ctx context.Context,
-	bricksindex *bricksindex.Manager,
+	bricksIndex *bricksindex.Manager,
 	appTarget app.ArduinoApp,
 	includeData bool,
 ) ([]byte, string, error) {
@@ -56,7 +56,7 @@ func ExportAppZip(
 	return zipBytes, filename, nil
 }
 
-func zipAppToBuffer(bricksindex *bricksindex.Manager, sourcePath string, rootFolderName string, includeData bool) ([]byte, error) {
+func zipAppToBuffer(bricksIndex *bricksindex.Manager, sourcePath string, rootFolderName string, includeData bool) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	zipWriter := zip.NewWriter(buf)
 
@@ -363,7 +363,7 @@ func validateAppZipContent(r *zip.Reader, rootPrefix string) error {
 	return nil
 }
 
-func redactSecrets(bricksindex *bricksindex.Manager, desc *app.AppDescriptor) {
+func redactSecrets(bricksIndex *bricksindex.Manager, desc *app.AppDescriptor) {
 	for i := range desc.Bricks {
 		brick := &desc.Bricks[i]
 

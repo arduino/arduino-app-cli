@@ -105,7 +105,7 @@ func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, 
 	}
 }
 
-func HandleInstallEIModel(cfg config.Configuration, bricksindex *bricksindex.Manager, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli) http.HandlerFunc {
+func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Manager, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		projectID, err := strconv.Atoi(r.PathValue("projectID"))
 		if err != nil {
