@@ -35,7 +35,7 @@ type BricksIndex struct {
 	AssetPath *paths.Path `yaml:"-"`
 }
 
-func (b *BricksIndex) FindBrickByID(id string) (*Brick, bool) {
+func (b *BricksIndex) GetByID(id string) (*Brick, bool) {
 	idx := slices.IndexFunc(b.Bricks, func(brick Brick) bool {
 		return brick.ID == id
 	})

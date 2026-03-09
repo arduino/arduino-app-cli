@@ -75,7 +75,7 @@ func TestBricksList(t *testing.T) {
 
 	// Compare the response with the bricks index
 	for _, brick := range *response.JSON200.Bricks {
-		bIdx, found := brickIndex.FindBrickByID(*brick.Id)
+		bIdx, found := brickIndex.GetByID(*brick.Id)
 		require.True(t, found)
 		require.Equal(t, bIdx.Name, *brick.Name)
 		require.Equal(t, bIdx.Description, *brick.Description)

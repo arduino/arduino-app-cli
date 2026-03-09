@@ -30,12 +30,12 @@ func TestGenerateBricksIndexFromFile(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check if ports are correctly set
-	bWebUI, found := index.FindBrickByID("arduino:web_ui")
+	bWebUI, found := index.GetByID("arduino:web_ui")
 	require.True(t, found)
 	require.Equal(t, []string{"7000"}, bWebUI.Ports)
 
 	// Check if variables are correctly set
-	bIC, found := index.FindBrickByID("arduino:image_classification")
+	bIC, found := index.GetByID("arduino:image_classification")
 	require.True(t, found)
 	require.Equal(t, "Image Classification", bIC.Name)
 	require.Equal(t, "mobilenet-image-classification", bIC.ModelName)
@@ -49,19 +49,19 @@ func TestGenerateBricksIndexFromFile(t *testing.T) {
 	require.False(t, bIC.Variables[0].IsRequired())
 	require.False(t, bIC.Variables[1].IsRequired())
 
-	bRequireModel, found := index.FindBrickByID("arduino:model_required")
+	bRequireModel, found := index.GetByID("arduino:model_required")
 	require.True(t, found)
 	require.True(t, bRequireModel.RequireModel)
 
-	bDb, found := index.FindBrickByID("arduino:dbstorage_tsstore")
+	bDb, found := index.GetByID("arduino:dbstorage_tsstore")
 	require.True(t, found)
 	require.False(t, bDb.RequireModel)
 
-	bNoRequireModel, found := index.FindBrickByID("arduino:missing-model-require")
+	bNoRequireModel, found := index.GetByID("arduino:missing-model-require")
 	require.True(t, found)
 	require.False(t, bNoRequireModel.RequireModel)
 
-	withHidden, found := index.FindBrickByID("arduino:with-hidden-variables")
+	withHidden, found := index.GetByID("arduino:with-hidden-variables")
 	require.True(t, found)
 	require.Equal(t, "HIDDEN_VARIABLE", withHidden.Variables[0].Name)
 	require.True(t, withHidden.Variables[0].Hidden)

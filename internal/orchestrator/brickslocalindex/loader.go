@@ -24,7 +24,7 @@ type AppLocalBrick struct {
 	Brick bricksindex.Brick // the brick as defined in the brick_config.yaml file
 }
 
-func (b *LocalBricksIndex) FindBrickByID(id string) (*bricksindex.Brick, bool) {
+func (b *LocalBricksIndex) GetByID(id string) (*bricksindex.Brick, bool) {
 	idx := slices.IndexFunc(b.LocalBricks, func(local AppLocalBrick) bool {
 		return local.Brick.ID == id
 	})

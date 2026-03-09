@@ -40,8 +40,6 @@ func TestProvisionAppWithOverrides(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	tempDirectory := t.TempDir()
 
-	bricksManager := f.Must(bricksmanager.New(&bricksindex.BricksIndex{AssetPath: cfg.AssetsDir()}))
-
 	// Define a mock app with bricks that require overrides
 	app := app.ArduinoApp{
 		Name: "TestApp",
@@ -109,10 +107,9 @@ bricks:
 	require.NoError(t, err)
 
 	// Override brick index with custom test content
-	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
-	require.Nil(t, err, "Failed to load bricks index with custom content")
+	bricksManager := f.Must(bricksmanager.New(f.Must(bricksindex.Load(cfg.AssetsDir()))))
 
-	br, ok := bricksIndex.FindBrickByID("arduino:video_object_detection")
+	br, ok := bricksManager.FindBrickByID("arduino:video_object_detection")
 	require.True(t, ok, "Brick arduino:video_object_detection should exist in the index")
 	require.NotNil(t, br, "Brick arduino:video_object_detection should not be nil")
 	require.Equal(t, "Object Detection", br.Name, "Brick name should match")
@@ -318,7 +315,6 @@ services:
 
 func TestProvisionAppWithDependsOn(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	bricksManager := f.Must(bricksmanager.New(&bricksindex.BricksIndex{AssetPath: cfg.AssetsDir()}))
 
 	tempDirectory := t.TempDir()
 	var env = map[string]string{}
@@ -347,9 +343,9 @@ bricks:
 	err := cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
 
-	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
-	require.Nil(t, err, "Failed to load bricks index with custom content")
-	br, ok := bricksIndex.FindBrickByID("arduino:dbstorage_tsstore")
+	bricksManager := f.Must(bricksmanager.New(f.Must(bricksindex.Load(cfg.AssetsDir()))))
+
+	br, ok := bricksManager.FindBrickByID("arduino:dbstorage_tsstore")
 	require.True(t, ok, "Brick arduino:dbstorage_tsstore should exist in the index")
 	require.NotNil(t, br, "Brick arduino:dbstorage_tsstore should not be nil")
 	require.Equal(t, "Database Storage - Time Series Store", br.Name, "Brick name should match")
@@ -516,9 +512,9 @@ bricks:
 	err := cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
 
-	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
-	require.Nil(t, err, "Failed to load bricks index with custom content")
-	br, ok := bricksIndex.FindBrickByID("arduino:dbstorage_tsstore")
+	bricksManager = f.Must(bricksmanager.New(f.Must(bricksindex.Load(cfg.AssetsDir()))))
+
+	br, ok := bricksManager.FindBrickByID("arduino:dbstorage_tsstore")
 	require.True(t, ok, "Brick arduino:dbstorage_tsstore should exist in the index")
 	require.NotNil(t, br, "Brick arduino:dbstorage_tsstore should not be nil")
 	require.Equal(t, "Database Storage - Time Series Store", br.Name, "Brick name should match")

@@ -15,7 +15,7 @@ type Manager struct {
 
 type BrickSource interface {
 	// TODO: create a struct for a brick ID not a string
-	FindBrickByID(id string) (*bricksindex.Brick, bool)
+	GetByID(id string) (*bricksindex.Brick, bool)
 	ListBricks() ([]bricksindex.Brick, bool)
 
 	// GetBrickComposeFilePathFromID
@@ -53,7 +53,7 @@ func (r *Manager) ListBricks() []bricksindex.Brick {
 
 func (r *Manager) FindBrickByID(id string) (*bricksindex.Brick, bool) {
 	for _, src := range r.sources {
-		if b, ok := src.FindBrickByID(id); ok {
+		if b, ok := src.GetByID(id); ok {
 			return b, true
 		}
 	}
@@ -61,50 +61,37 @@ func (r *Manager) FindBrickByID(id string) (*bricksindex.Brick, bool) {
 }
 
 func (r *Manager) ComposePath(id string) (*paths.Path, error) {
-	_, found := r.FindBrickByID(id)
-	if !found {
-		return nil, fmt.Errorf("brick %s not found", id)
+	for _, src := range r.sources {
+		if b, ok := src.ComposePath(id); ok {
+			return b, nil
+		}
 	}
-
-	if p, err := r.ComposePath(id); err == nil {
-		return p, nil
-	}
-
 	return nil, fmt.Errorf("compose path for brick %s not found", id)
 }
 
 func (r *Manager) GetBrickReadmeFromID(id string) (string, error) {
-	_, found := r.FindBrickByID(id)
-	if !found {
-		return "", fmt.Errorf("brick %s not found", id)
-	}
-
-	if content, err := r.GetBrickReadmeFromID(id); err == nil {
-		return content, nil
+	for _, src := range r.sources {
+		if b, err := src.GetBrickReadmeFromID(id); err == nil {
+			return b, nil
+		}
 	}
 	return "", fmt.Errorf("cannot get readme for brick %s", id)
 }
 
 func (r *Manager) GetBrickApiDocPathFromID(id string) (string, error) {
-	_, found := r.FindBrickByID(id)
-	if !found {
-		return "", fmt.Errorf("brick %s not found", id)
-	}
-
-	if path, err := r.GetBrickApiDocPathFromID(id); err == nil {
-		return path, nil
+	for _, src := range r.sources {
+		if b, err := src.GetBrickApiDocPathFromID(id); err == nil {
+			return b, nil
+		}
 	}
 	return "", fmt.Errorf("cannot get api-docs for brick %s", id)
 }
 
 func (r *Manager) GetBrickCodeExamplesPathFromID(id string) (paths.PathList, error) {
-	_, found := r.FindBrickByID(id)
-	if !found {
-		return nil, fmt.Errorf("brick %s not found", id)
-	}
-
-	if paths, err := r.GetBrickCodeExamplesPathFromID(id); err == nil {
-		return paths, nil
+	for _, src := range r.sources {
+		if b, err := src.GetBrickCodeExamplesPathFromID(id); err == nil {
+			return b, nil
+		}
 	}
 	return nil, fmt.Errorf("cannot get code examples for brick %s", id)
 }
