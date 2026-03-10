@@ -18,7 +18,7 @@ type BrickSource interface {
 	GetReadme(id string) (string, error)
 	GetComposePath(id string) (*paths.Path, bool)
 	GetApiDocPath(id string) (*paths.Path, error)
-	GetCodeExamplesPath(id string) (paths.PathList, error)
+	GetExamplesPath(id string) (paths.PathList, error)
 }
 
 func New(builtin BrickSource) (*Manager, error) {
@@ -82,7 +82,7 @@ func (m *Manager) GetBrickApiDocPathFromID(id string) (string, error) {
 
 func (m *Manager) GetBrickCodeExamplesPathFromID(id string) (paths.PathList, error) {
 	for _, src := range m.sources {
-		if b, err := src.GetCodeExamplesPath(id); err == nil {
+		if b, err := src.GetExamplesPath(id); err == nil {
 			return b, nil
 		}
 	}

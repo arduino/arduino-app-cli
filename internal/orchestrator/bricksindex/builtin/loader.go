@@ -32,6 +32,7 @@ type BricksIndex struct {
 	Bricks []bricksindex.Brick `yaml:"bricks"`
 
 	AssetPath *paths.Path `yaml:"-"`
+	// TODO: register the compose path and remove from store.
 }
 
 func Load(dir *paths.Path) (*BricksIndex, error) {
@@ -91,7 +92,7 @@ func (s *BricksIndex) GetReadme(brickID string) (string, error) {
 	return string(content), nil
 }
 
-func (s *BricksIndex) GetCodeExamplesPath(brickID string) (paths.PathList, error) {
+func (s *BricksIndex) GetExamplesPath(brickID string) (paths.PathList, error) {
 	namespace, brickName, err := parseBrickID(brickID)
 	if err != nil {
 		return nil, err

@@ -79,7 +79,7 @@ func TestGetBrickCodeExamplesPathFromID(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			pathList, err := index.GetCodeExamplesPath(tc.brickID)
+			pathList, err := index.GetExamplesPath(tc.brickID)
 			if tc.wantErr != "" {
 				require.Error(t, err, "should have returned an error")
 				require.EqualError(t, err, tc.wantErr, "error message mismatch")
