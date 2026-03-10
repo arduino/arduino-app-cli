@@ -100,7 +100,7 @@ func HandleAppBrickInstanceDetails(
 
 		res, err := brickService.AppBrickInstanceDetails(&app, brickID)
 		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
+			slog.Error("Cannot get the bricks instance details", slog.String("error", err.Error()), "appID", appId, "brickID", brickID)
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to obtain brick details"})
 			return
 		}

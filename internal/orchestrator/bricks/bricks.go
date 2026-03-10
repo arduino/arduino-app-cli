@@ -110,7 +110,13 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 }
 
 func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (BrickInstance, error) {
-	brick, found := s.bricksIndex.FindBrickByID(brickID)
+	bricksIndex := s.bricksIndex
+	localIndex, err := applocal.Load(a.GetLocalBricksPath())
+	if err == nil {
+		bricksIndex = bricksIndex.WithBrickSource(localIndex)
+	}
+
+	brick, found := bricksIndex.FindBrickByID(brickID)
 	if !found {
 		return BrickInstance{}, ErrBrickNotFound
 	}

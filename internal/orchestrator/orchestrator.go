@@ -120,9 +120,9 @@ func StartApp(
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		localIndex, err := applocal.Load(appToStart.FullPath)
+		localIndex, err := applocal.Load(appToStart.GetLocalBricksPath())
 		if err != nil {
-			slog.Warn("Cannot load local bricks", "path", appToStart.FullPath)
+			slog.Warn("Cannot load local bricks", "path", appToStart.GetLocalBricksPath())
 		}
 		bricksIndex := bricksIndex.WithBrickSource(localIndex)
 
@@ -697,7 +697,7 @@ func AppDetails(
 		return AppDetailedInfo{}, err
 	}
 
-	localIndex, err := applocal.Load(userApp.FullPath)
+	localIndex, err := applocal.Load(userApp.GetLocalBricksPath())
 	if err != nil {
 		slog.Warn("Cannot load local bricks", "path", userApp.FullPath)
 	}
