@@ -1,13 +1,13 @@
 ---
 name: go.opentelemetry.io/otel/trace/internal/telemetry
-version: v1.39.0
+version: v1.40.0
 type: go
 summary: Package telemetry provides a lightweight representations of OpenTelemetry
   telemetry that is compatible with the OTLP JSON protobuf encoding.
 homepage: https://pkg.go.dev/go.opentelemetry.io/otel/trace/internal/telemetry
 license: apache-2.0
 licenses:
-- sources: trace@v1.39.0/LICENSE
+- sources: trace@v1.40.0/LICENSE
   text: |2-
                                      Apache License
                                Version 2.0, January 2004

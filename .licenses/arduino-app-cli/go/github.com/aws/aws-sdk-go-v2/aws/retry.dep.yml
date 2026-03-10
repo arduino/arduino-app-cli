@@ -1,13 +1,13 @@
 ---
 name: github.com/aws/aws-sdk-go-v2/aws/retry
-version: v1.30.3
+version: v1.41.0
 type: go
 summary: Package retry provides interfaces and implementations for SDK request retry
   behavior.
 homepage: https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/aws/retry
 license: apache-2.0
 licenses:
-- sources: aws-sdk-go-v2@v1.30.3/LICENSE.txt
+- sources: aws-sdk-go-v2@v1.41.0/LICENSE.txt
   text: |2
 
                                      Apache License

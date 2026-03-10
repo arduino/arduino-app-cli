@@ -1,12 +1,12 @@
 ---
 name: go.opentelemetry.io/proto/otlp/trace/v1
-version: v1.5.0
+version: v1.7.1
 type: go
 summary:
 homepage: https://pkg.go.dev/go.opentelemetry.io/proto/otlp/trace/v1
 license: apache-2.0
 licenses:
-- sources: otlp@v1.5.0/LICENSE
+- sources: otlp@v1.7.1/LICENSE
   text: |2
                                      Apache License
                                Version 2.0, January 2004

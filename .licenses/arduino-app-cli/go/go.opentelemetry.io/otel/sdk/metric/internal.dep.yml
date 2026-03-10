@@ -1,12 +1,12 @@
 ---
 name: go.opentelemetry.io/otel/sdk/metric/internal
-version: v1.39.0
+version: v1.40.0
 type: go
 summary: Package internal provides internal functionality for the metric package.
 homepage: https://pkg.go.dev/go.opentelemetry.io/otel/sdk/metric/internal
 license: apache-2.0
 licenses:
-- sources: metric@v1.39.0/LICENSE
+- sources: metric@v1.40.0/LICENSE
   text: |2-
                                      Apache License
                                Version 2.0, January 2004

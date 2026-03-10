@@ -1,6 +1,6 @@
 ---
 name: go.opentelemetry.io/otel/trace
-version: v1.39.0
+version: v1.40.0
 type: go
 summary: Package trace provides an implementation of the tracing part of the OpenTelemetry
   API.

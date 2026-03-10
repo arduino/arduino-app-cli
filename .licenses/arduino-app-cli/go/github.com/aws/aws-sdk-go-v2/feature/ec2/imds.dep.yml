@@ -1,6 +1,6 @@
 ---
 name: github.com/aws/aws-sdk-go-v2/feature/ec2/imds
-version: v1.16.11
+version: v1.18.16
 type: go
 summary: Package imds provides the API client for interacting with the Amazon EC2
   Instance Metadata Service.

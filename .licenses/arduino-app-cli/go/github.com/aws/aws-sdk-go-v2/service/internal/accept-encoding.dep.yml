@@ -1,6 +1,6 @@
 ---
 name: github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding
-version: v1.11.3
+version: v1.13.4
 type: go
 summary: Package acceptencoding provides customizations associated with Accept Encoding
   Header.

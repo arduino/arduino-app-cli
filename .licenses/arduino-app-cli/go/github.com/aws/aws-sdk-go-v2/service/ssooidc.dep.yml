@@ -1,6 +1,6 @@
 ---
 name: github.com/aws/aws-sdk-go-v2/service/ssooidc
-version: v1.26.4
+version: v1.35.12
 type: go
 summary: Package ssooidc provides the API client, operations, and parameter types
   for AWS SSO OIDC.

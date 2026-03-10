@@ -1,12 +1,12 @@
 ---
 name: github.com/aws/aws-sdk-go-v2/service/ssooidc/internal/endpoints
-version: v1.26.4
+version: v1.35.12
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ssooidc/internal/endpoints
 license: apache-2.0
 licenses:
-- sources: ssooidc@v1.26.4/LICENSE.txt
+- sources: ssooidc@v1.35.12/LICENSE.txt
   text: |2
 
                                      Apache License

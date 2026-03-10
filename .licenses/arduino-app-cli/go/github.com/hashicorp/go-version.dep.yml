@@ -1,6 +1,6 @@
 ---
 name: github.com/hashicorp/go-version
-version: v1.7.0
+version: v1.8.0
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/hashicorp/go-version
@@ -8,7 +8,7 @@ license: mpl-2.0
 licenses:
 - sources: LICENSE
   text: |+
-    Copyright (c) 2014 HashiCorp, Inc.
+    Copyright IBM Corp. 2014, 2025
 
     Mozilla Public License, version 2.0
 

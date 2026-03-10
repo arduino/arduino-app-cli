@@ -1,12 +1,12 @@
 ---
 name: github.com/aws/aws-sdk-go-v2/feature/ec2/imds/internal/config
-version: v1.16.11
+version: v1.18.16
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/feature/ec2/imds/internal/config
 license: apache-2.0
 licenses:
-- sources: imds@v1.16.11/LICENSE.txt
+- sources: imds@v1.18.16/LICENSE.txt
   text: |2
 
                                      Apache License

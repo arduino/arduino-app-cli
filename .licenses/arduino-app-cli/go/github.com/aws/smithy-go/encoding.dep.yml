@@ -1,12 +1,12 @@
 ---
 name: github.com/aws/smithy-go/encoding
-version: v1.20.3
+version: v1.24.0
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/aws/smithy-go/encoding
 license: apache-2.0
 licenses:
-- sources: smithy-go@v1.20.3/LICENSE
+- sources: smithy-go@v1.24.0/LICENSE
   text: |2
 
                                      Apache License
@@ -183,6 +183,6 @@ licenses:
           defend, and hold each Contributor harmless for any liability
           incurred by, or claims asserted against, such Contributor by reason
           of your accepting any such warranty or additional liability.
-- sources: smithy-go@v1.20.3/README.md
+- sources: smithy-go@v1.24.0/README.md
   text: This project is licensed under the Apache-2.0 License.
 notices: []
