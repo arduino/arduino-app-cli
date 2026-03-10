@@ -313,7 +313,12 @@ func (s *Service) BrickCreate(
 	req BrickCreateUpdateRequest,
 	appCurrent app.ArduinoApp,
 ) error {
-	brick, present := s.bricksIndex.FindBrickByID(req.ID)
+	bricksIndex := s.bricksIndex
+	localIndex, err := applocal.Load(appCurrent.GetLocalBricksPath())
+	if err == nil {
+		bricksIndex = bricksIndex.WithBrickSource(localIndex)
+	}
+	brick, present := bricksIndex.FindBrickByID(req.ID)
 	if !present {
 		return fmt.Errorf("brick %q not found", req.ID)
 	}
@@ -365,7 +370,7 @@ func (s *Service) BrickCreate(
 		appCurrent.Descriptor.Bricks[brickIndex] = brickInstance
 	}
 
-	err := appCurrent.Save()
+	err = appCurrent.Save()
 	if err != nil {
 		return fmt.Errorf("cannot save brick instance with id %s", req.ID)
 	}
@@ -376,7 +381,12 @@ func (s *Service) BrickUpdate(
 	req BrickCreateUpdateRequest,
 	appCurrent app.ArduinoApp,
 ) error {
-	brickFromIndex, present := s.bricksIndex.FindBrickByID(req.ID)
+	bricksIndex := s.bricksIndex
+	localIndex, err := applocal.Load(appCurrent.GetLocalBricksPath())
+	if err == nil {
+		bricksIndex = bricksIndex.WithBrickSource(localIndex)
+	}
+	brickFromIndex, present := bricksIndex.FindBrickByID(req.ID)
 	if !present {
 		return fmt.Errorf("brick %q not found into the brick index", req.ID)
 	}
@@ -425,7 +435,7 @@ func (s *Service) BrickUpdate(
 	appCurrent.Descriptor.Bricks[brickPosition].Model = brickModel
 	appCurrent.Descriptor.Bricks[brickPosition].Variables = brickVariables
 
-	err := appCurrent.Save()
+	err = appCurrent.Save()
 	if err != nil {
 		return fmt.Errorf("cannot save brick instance with id %s", req.ID)
 	}
@@ -437,7 +447,13 @@ func (s *Service) BrickDelete(
 	appCurrent *app.ArduinoApp,
 	id string,
 ) error {
-	if _, present := s.bricksIndex.FindBrickByID(id); !present {
+	bricksIndex := s.bricksIndex
+	localIndex, err := applocal.Load(appCurrent.GetLocalBricksPath())
+	if err == nil {
+		bricksIndex = bricksIndex.WithBrickSource(localIndex)
+	}
+
+	if _, present := bricksIndex.FindBrickByID(id); !present {
 		return ErrBrickNotFound
 	}
 
