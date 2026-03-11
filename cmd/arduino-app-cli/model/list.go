@@ -43,14 +43,11 @@ func newModelListCmd() *cobra.Command {
 func modelListHandler(excludeBuiltin bool) {
 	models := servicelocator.GetModelsIndex().GetModels()
 	var result []modelsindex.AIModel
-	if !excludeBuiltin {
-		result = models
-	} else {
-		for _, model := range models {
-			if !model.IsInternal {
-				result = append(result, model)
-			}
+	for _, m := range models {
+		if excludeBuiltin && m.IsInternal {
+			continue
 		}
+		result = append(result, m)
 	}
 	feedback.PrintResult(modelListResult{Models: result})
 }
