@@ -26,18 +26,33 @@ import (
 )
 
 func newModelListCmd() *cobra.Command {
-	return &cobra.Command{
+	var excludeBuiltin bool
+	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all models",
 		Run: func(cmd *cobra.Command, args []string) {
-			modelListHandler()
+			modelListHandler(excludeBuiltin)
 		},
 	}
+
+	cmd.Flags().BoolVar(&excludeBuiltin, "exclude-builtin", false, "Do not show Arduino builtin models.")
+
+	return cmd
 }
 
-func modelListHandler() {
+func modelListHandler(excludeBuiltin bool) {
 	models := servicelocator.GetModelsIndex().GetModels()
-	feedback.PrintResult(modelListResult{Models: models})
+	var result []modelsindex.AIModel
+	if !excludeBuiltin {
+		result = models
+	} else {
+		for _, model := range models {
+			if !model.IsInternal {
+				result = append(result, model)
+			}
+		}
+	}
+	feedback.PrintResult(modelListResult{Models: result})
 }
 
 type modelListResult struct {
@@ -47,13 +62,18 @@ type modelListResult struct {
 func (r modelListResult) String() string {
 	t := table.NewWriter()
 	t.SetStyle(tablestyle.CustomCleanStyle)
-	t.AppendHeader(table.Row{"ID", "NAME", "RUNNER"})
+	t.AppendHeader(table.Row{"ID", "NAME", "RUNNER", "BUILTIN"})
 
 	for _, model := range r.Models {
+		checkmark := ""
+		if model.IsInternal {
+			checkmark = "✓"
+		}
 		t.AppendRow(table.Row{
 			model.ID,
 			model.Name,
 			model.Runner,
+			checkmark,
 		})
 	}
 	return t.Render()
