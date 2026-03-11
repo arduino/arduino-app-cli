@@ -11,7 +11,6 @@ type Manager struct {
 }
 
 type BrickSource interface {
-	// TODO: create a struct for a brick ID not a string
 	GetByID(id string) (*Brick, bool)
 	ListBricks() ([]Brick, bool)
 
@@ -27,10 +26,7 @@ func New(builtin BrickSource) (*Manager, error) {
 	}, nil
 }
 
-// WithBrickSource adds a new BrickSource to the manager, it will be prioritized over the existing ones
-// this is useful to add a local brick source that can override the builtin one
-// it returns a new Manager instance with the new source added, it does not modify the existing one
-func (m Manager) WithBrickSource(source BrickSource) *Manager {
+func (m *Manager) WithBrickSource(source BrickSource) *Manager {
 	return &Manager{sources: append([]BrickSource{source}, m.sources...)}
 }
 

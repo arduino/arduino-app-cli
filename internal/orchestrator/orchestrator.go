@@ -43,7 +43,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	appgenerator "github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex/applocal"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
@@ -120,10 +119,12 @@ func StartApp(
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		localIndex, err := applocal.Load(appToStart.GetLocalBricksPath())
+		localIndex, err := appToStart.LoadAppBricksIndex()
 		if err != nil {
-			slog.Warn("Cannot load local bricks", "path", appToStart.GetLocalBricksPath())
+			yield(StreamMessage{error: fmt.Errorf("cannot load app bricks index: %w", err)})
+			return
 		}
+
 		bricksIndex := bricksIndex.WithBrickSource(localIndex)
 
 		// TODO: add unit test with local brick index
@@ -697,9 +698,9 @@ func AppDetails(
 		return AppDetailedInfo{}, err
 	}
 
-	localIndex, err := applocal.Load(userApp.GetLocalBricksPath())
+	localIndex, err := userApp.LoadAppBricksIndex()
 	if err != nil {
-		slog.Warn("Cannot load local bricks", "path", userApp.FullPath)
+		return AppDetailedInfo{}, err
 	}
 	bricksIndex = bricksIndex.WithBrickSource(localIndex)
 

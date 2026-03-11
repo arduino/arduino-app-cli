@@ -28,12 +28,12 @@ type AppBrick struct {
 	Brick bricksindex.Brick // the brick as defined in the brick_config.yaml file
 }
 
-func Load(dir *paths.Path) (index *BricksIndex, err error) {
+func Load(dir *paths.Path) (index BricksIndex, err error) {
 	if dir == nil {
-		return nil, errors.New("empty path provided for local bricks")
+		return BricksIndex{}, errors.New("empty path provided for local bricks")
 	}
 	if !dir.Exist() {
-		return nil, fmt.Errorf("local bricks folder not found %v", dir)
+		return BricksIndex{}, fmt.Errorf("local bricks folder not found %v", dir)
 	}
 	pathsList, err := dir.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
 		if file.Join("brick_config.yaml").NotExist() {
@@ -41,23 +41,23 @@ func Load(dir *paths.Path) (index *BricksIndex, err error) {
 			return true
 		}
 		return false
-	}, paths.FilterDirectories())
+	}, paths.FilterDirectories(), paths.FilterOutNames(".cache"))
 	if err != nil {
-		return nil, err
+		return BricksIndex{}, err
 	}
 	bricks := []AppBrick{}
 	for _, path := range pathsList {
 		brick, err := loadLocalAppBrick(path)
 		if err != nil {
-			slog.Warn("Cannot load local brick", "err", err, "path", path)
+			slog.Warn("Cannot load local app brick", "err", err, "path", path)
 			continue
 		}
 		bricks = append(bricks, brick)
 	}
-	return &BricksIndex{Bricks: bricks}, nil
+	return BricksIndex{Bricks: bricks}, nil
 }
 
-func (b *BricksIndex) GetByID(id string) (*bricksindex.Brick, bool) {
+func (b BricksIndex) GetByID(id string) (*bricksindex.Brick, bool) {
 	brick, ok := b.getBrick(id)
 	if !ok {
 		return nil, false
@@ -65,7 +65,7 @@ func (b *BricksIndex) GetByID(id string) (*bricksindex.Brick, bool) {
 	return &brick.Brick, true
 }
 
-func (b *BricksIndex) getBrick(id string) (*AppBrick, bool) {
+func (b BricksIndex) getBrick(id string) (*AppBrick, bool) {
 	idx := slices.IndexFunc(b.Bricks, func(local AppBrick) bool {
 		return local.Brick.ID == id
 	})
@@ -75,8 +75,8 @@ func (b *BricksIndex) getBrick(id string) (*AppBrick, bool) {
 	return &b.Bricks[idx], true
 }
 
-func (b *BricksIndex) ListBricks() ([]bricksindex.Brick, bool) {
-	if b == nil || len(b.Bricks) == 0 {
+func (b BricksIndex) ListBricks() ([]bricksindex.Brick, bool) {
+	if len(b.Bricks) == 0 {
 		return nil, false
 	}
 	bricks := make([]bricksindex.Brick, len(b.Bricks))
@@ -86,7 +86,7 @@ func (b *BricksIndex) ListBricks() ([]bricksindex.Brick, bool) {
 	return bricks, true
 }
 
-func (b *BricksIndex) GetComposePath(id string) (*paths.Path, bool) {
+func (b BricksIndex) GetComposePath(id string) (*paths.Path, bool) {
 	local, ok := b.getBrick(id)
 	if !ok {
 		return nil, false
@@ -95,7 +95,7 @@ func (b *BricksIndex) GetComposePath(id string) (*paths.Path, bool) {
 	return local.composeFile, local.composeFile != nil
 }
 
-func (b *BricksIndex) GetApiDocPath(id string) (*paths.Path, error) {
+func (b BricksIndex) GetApiDocPath(id string) (*paths.Path, error) {
 	local, ok := b.getBrick(id)
 	if !ok {
 		return nil, fmt.Errorf("brick %s not found", id)
@@ -106,7 +106,7 @@ func (b *BricksIndex) GetApiDocPath(id string) (*paths.Path, error) {
 	return local.docsAPIPath, nil
 }
 
-func (b *BricksIndex) GetReadme(id string) (string, error) {
+func (b BricksIndex) GetReadme(id string) (string, error) {
 	local, ok := b.getBrick(id)
 	if !ok {
 		return "", fmt.Errorf("brick %s not found", id)
@@ -121,7 +121,7 @@ func (b *BricksIndex) GetReadme(id string) (string, error) {
 	return string(content), nil
 }
 
-func (b *BricksIndex) GetExamplesPath(id string) (paths.PathList, error) {
+func (b BricksIndex) GetExamplesPath(id string) (paths.PathList, error) {
 	brick, ok := b.getBrick(id)
 	if !ok {
 		return nil, fmt.Errorf("brick %s not found", id)
@@ -143,15 +143,15 @@ func (b *BricksIndex) GetExamplesPath(id string) (paths.PathList, error) {
 func loadLocalAppBrick(brickPath *paths.Path) (a AppBrick, err error) {
 	brickConfigPath := brickPath.Join("brick_config.yaml")
 	if brickConfigPath.NotExist() {
-		return AppBrick{}, os.ErrNotExist
+		return AppBrick{}, fmt.Errorf("brick_config.yaml does not exist: %v", brickConfigPath)
 	}
 	brickConfigContent, err := os.ReadFile(brickConfigPath.String())
 	if err != nil {
-		return AppBrick{}, err
+		return AppBrick{}, fmt.Errorf("cannot read brick_config.yaml: %w", err)
 	}
 	customBrick := bricksindex.Brick{}
 	if err := yaml.Unmarshal(brickConfigContent, &customBrick); err != nil {
-		return AppBrick{}, err
+		return AppBrick{}, fmt.Errorf("cannot unmarshal brick_config.yaml: %w", err)
 	}
 
 	var composeFile *paths.Path = nil

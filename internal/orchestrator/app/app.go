@@ -29,6 +29,7 @@ import (
 	yaml "github.com/goccy/go-yaml"
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex/applocal"
 )
 
 const maxDescriptionLength = 150
@@ -41,7 +42,7 @@ type ArduinoApp struct {
 	FullPath       *paths.Path // FullPath is the path to the App folder
 	Descriptor     AppDescriptor
 
-	localBricksPath *paths.Path // localBricksPath is the path to the folder containing the app local bricks, if it exists
+	localBricksPath *paths.Path
 }
 
 // Load creates an App instance by reading all the files composing an app and grouping them
@@ -94,11 +95,6 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 		app.MainPythonFile = appPath.Join("python", "main.py")
 	}
 
-	// TODO: bricks folder name may change
-	if appPath.Join("bricks").Exist() {
-		app.localBricksPath = appPath.Join("bricks")
-	}
-
 	if appPath.Join("sketch", "sketch.ino").Exist() {
 		// TODO: check sketch casing?
 		app.mainSketchPath = appPath.Join("sketch")
@@ -107,6 +103,8 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 	if app.MainPythonFile == nil && app.mainSketchPath == nil {
 		return ArduinoApp{}, errors.New("main python file and sketch file missing from app")
 	}
+
+	app.localBricksPath = appPath.Join("bricks")
 
 	return app, nil
 }
@@ -118,8 +116,15 @@ func (a *ArduinoApp) GetSketchPath() (*paths.Path, bool) {
 	return a.mainSketchPath, true
 }
 
-func (a *ArduinoApp) GetLocalBricksPath() *paths.Path {
-	return a.localBricksPath
+func (m *ArduinoApp) LoadAppBricksIndex() (applocal.BricksIndex, error) {
+	if !m.localBricksPath.Exist() {
+		return applocal.BricksIndex{}, nil
+	}
+	localIndex, err := applocal.Load(m.localBricksPath)
+	if err != nil {
+		return applocal.BricksIndex{}, err
+	}
+	return localIndex, nil
 }
 
 // GetDescriptorPath returns the path to the app descriptor file (app.yaml or app.yml)

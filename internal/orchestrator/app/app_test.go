@@ -96,9 +96,23 @@ func TestLoad(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotEmpty(t, app)
 
-		localBricksPath := app.GetLocalBricksPath()
-		assert.NotNil(t, localBricksPath)
-		assert.Equal(t, f.Must(filepath.Abs("testdata/AppWithLocalBricks/bricks")), localBricksPath.String())
+		appBricksIndex, err := app.LoadAppBricksIndex()
+		assert.NoError(t, err)
+		assert.NotEmpty(t, appBricksIndex)
+		got, found := appBricksIndex.ListBricks()
+		assert.True(t, found)
+		assert.Len(t, got, 1)
+		assert.Equal(t, "my_brick", got[0].ID)
+	})
+
+	t.Run("it loads an app with missing bricks folder", func(t *testing.T) {
+		app, err := Load(paths.New("testdata/AppSimple"))
+		assert.NoError(t, err)
+		assert.NotEmpty(t, app)
+
+		appBricksIndex, err := app.LoadAppBricksIndex()
+		assert.NoError(t, err)
+		assert.Empty(t, appBricksIndex)
 	})
 }
 

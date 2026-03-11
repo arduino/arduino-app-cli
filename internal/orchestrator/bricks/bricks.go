@@ -27,7 +27,6 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex/applocal"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
@@ -70,13 +69,13 @@ func (s *Service) List() (BrickListResult, error) {
 }
 
 func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesResult, error) {
-	res := AppBrickInstancesResult{BrickInstances: make([]BrickInstance, len(a.Descriptor.Bricks))}
-
-	bricksIndex := s.bricksIndex
-	localIndex, err := applocal.Load(a.GetLocalBricksPath())
-	if err == nil {
-		bricksIndex = bricksIndex.WithBrickSource(localIndex)
+	localIndex, err := a.LoadAppBricksIndex()
+	if err != nil {
+		return AppBrickInstancesResult{}, fmt.Errorf("cannot load app bricks index: %w", err)
 	}
+	bricksIndex := s.bricksIndex.WithBrickSource(localIndex)
+
+	res := AppBrickInstancesResult{BrickInstances: make([]BrickInstance, len(a.Descriptor.Bricks))}
 
 	for i, brickInstance := range a.Descriptor.Bricks {
 		brick, found := bricksIndex.FindBrickByID(brickInstance.ID)
@@ -110,11 +109,11 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 }
 
 func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (BrickInstance, error) {
-	bricksIndex := s.bricksIndex
-	localIndex, err := applocal.Load(a.GetLocalBricksPath())
-	if err == nil {
-		bricksIndex = bricksIndex.WithBrickSource(localIndex)
+	localIndex, err := a.LoadAppBricksIndex()
+	if err != nil {
+		return BrickInstance{}, fmt.Errorf("cannot load app bricks index: %w", err)
 	}
+	bricksIndex := s.bricksIndex.WithBrickSource(localIndex)
 
 	brick, found := bricksIndex.FindBrickByID(brickID)
 	if !found {
@@ -313,11 +312,12 @@ func (s *Service) BrickCreate(
 	req BrickCreateUpdateRequest,
 	appCurrent app.ArduinoApp,
 ) error {
-	bricksIndex := s.bricksIndex
-	localIndex, err := applocal.Load(appCurrent.GetLocalBricksPath())
-	if err == nil {
-		bricksIndex = bricksIndex.WithBrickSource(localIndex)
+	localIndex, err := appCurrent.LoadAppBricksIndex()
+	if err != nil {
+		return fmt.Errorf("cannot load app bricks index: %w", err)
 	}
+	bricksIndex := s.bricksIndex.WithBrickSource(localIndex)
+
 	brick, present := bricksIndex.FindBrickByID(req.ID)
 	if !present {
 		return fmt.Errorf("brick %q not found", req.ID)
@@ -381,11 +381,12 @@ func (s *Service) BrickUpdate(
 	req BrickCreateUpdateRequest,
 	appCurrent app.ArduinoApp,
 ) error {
-	bricksIndex := s.bricksIndex
-	localIndex, err := applocal.Load(appCurrent.GetLocalBricksPath())
-	if err == nil {
-		bricksIndex = bricksIndex.WithBrickSource(localIndex)
+	localIndex, err := appCurrent.LoadAppBricksIndex()
+	if err != nil {
+		return fmt.Errorf("cannot load app bricks index: %w", err)
 	}
+	bricksIndex := s.bricksIndex.WithBrickSource(localIndex)
+
 	brickFromIndex, present := bricksIndex.FindBrickByID(req.ID)
 	if !present {
 		return fmt.Errorf("brick %q not found into the brick index", req.ID)
@@ -447,11 +448,11 @@ func (s *Service) BrickDelete(
 	appCurrent *app.ArduinoApp,
 	id string,
 ) error {
-	bricksIndex := s.bricksIndex
-	localIndex, err := applocal.Load(appCurrent.GetLocalBricksPath())
-	if err == nil {
-		bricksIndex = bricksIndex.WithBrickSource(localIndex)
+	localIndex, err := appCurrent.LoadAppBricksIndex()
+	if err != nil {
+		return fmt.Errorf("cannot load app bricks index: %w", err)
 	}
+	bricksIndex := s.bricksIndex.WithBrickSource(localIndex)
 
 	if _, present := bricksIndex.FindBrickByID(id); !present {
 		return ErrBrickNotFound

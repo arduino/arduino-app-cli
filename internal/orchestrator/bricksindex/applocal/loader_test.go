@@ -61,6 +61,9 @@ func TestLoadLocalAppBricks(t *testing.T) {
 	t.Run("it returns an error if local bricks are missing", func(t *testing.T) {
 		index, err := Load(paths.New("testdata/AppMissingLocalBricks"))
 		require.Error(t, err)
-		assert.Nil(t, index)
+		assert.Empty(t, index)
+		b, found := index.GetByID("not-existing")
+		assert.False(t, found)
+		assert.Nil(t, b)
 	})
 }
