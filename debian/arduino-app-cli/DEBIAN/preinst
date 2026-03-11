@@ -10,26 +10,16 @@ if ! getent group "$GROUP_NAME" >/dev/null 2>&1; then
     addgroup "$GROUP_NAME"
 fi
 
-if ! getent passwd "$USER_ID" >/dev/null 2>&1; then
-    adduser \
-        --uid "$USER_ID" \
-        --ingroup "$GROUP_NAME" \
-        --home "/home/arduino" \
-        --shell /bin/false \
-        --disabled-password \
-        "arduino" >/dev/null
+if getent passwd "$USER_ID" >/dev/null 2>&1; then
+    username="$(getent passwd $USER_ID | cut -d: -f1)"
+    usermod -aG "$GROUP_NAME" "$username"
+    for GROUP in $OTHER_GROUPS; do
+        if ! getent group "$GROUP" >/dev/null 2>&1; then
+            groupadd --system "$GROUP"
+        fi
+        usermod -aG "$GROUP" "$username"
+    done
 fi
-
-username="$(getent passwd $USER_ID | cut -d: -f1)"
-
-usermod -aG "$GROUP_NAME" "$username"
-
-for GROUP in $OTHER_GROUPS; do
-    if ! getent group "$GROUP" >/dev/null 2>&1; then
-        groupadd --system "$GROUP"
-    fi
-    usermod -aG "$GROUP" "$username"
-done
 
 # Starting with this version, the arduino-app-cli user directory is
 # no longer located at /home/arduino/.local/share/arduino-app-cli
