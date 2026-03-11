@@ -32,7 +32,7 @@ func newModelDeleteCmd(cfg config.Configuration) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "delete",
-		Short: "Delete the provided model",
+		Short: "Delete the provided custom model",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			modelDeleteHandler(cmd.Context(), cfg, args[0], force)
