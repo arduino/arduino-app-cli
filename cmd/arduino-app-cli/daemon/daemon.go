@@ -48,7 +48,7 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 
 			err := stopArduinoContainers(cmd.Context(), servicelocator.GetDockerClient())
 			if err != nil {
-				slog.Error("Failed to stop containers", slog.String("error", err.Error()))
+				slog.Warn("Failed to stop containers", slog.String("error", err.Error()))
 			}
 
 			// start the default app in the background
