@@ -59,7 +59,7 @@ type modelListResult struct {
 func (r modelListResult) String() string {
 	t := table.NewWriter()
 	t.SetStyle(tablestyle.CustomCleanStyle)
-	t.AppendHeader(table.Row{"ID", "NAME", "RUNNER", "BUILTIN"})
+	t.AppendHeader(table.Row{"ID", "NAME", "BUILTIN"})
 
 	for _, model := range r.Models {
 		checkmark := ""
@@ -69,7 +69,6 @@ func (r modelListResult) String() string {
 		t.AppendRow(table.Row{
 			model.ID,
 			model.Name,
-			model.Runner,
 			checkmark,
 		})
 	}
