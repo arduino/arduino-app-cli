@@ -48,6 +48,12 @@ func TestParseAppStatus(t *testing.T) {
 			want:           StatusFailed,
 		},
 		{
+			name:           "dangling container is failed",
+			containerState: []container.ContainerState{container.StateRunning, container.StateExited},
+			statusMessage:  []string{"Up 10 minutes", "Exited (137)"},
+			want:           StatusFailed,
+		},
+		{
 			name:           "failed container takes precedence over stopping and starting",
 			containerState: []container.ContainerState{container.StateRunning, container.StateDead, container.StateRemoving, container.StateRestarting},
 			statusMessage:  []string{"Up 5 minutes", "Dead", "Removing", "Restarting"},
