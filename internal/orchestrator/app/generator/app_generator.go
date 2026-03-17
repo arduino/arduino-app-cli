@@ -56,6 +56,37 @@ func GenerateApp(basePath *paths.Path, app app.AppDescriptor, skipSketch bool) e
 	return nil
 }
 
+// TODO: use the template
+func GenerateAppLocalBrick(appPath *paths.Path, id string, name, description string) error {
+	brickDir := appPath.Join("bricks", id)
+	err := brickDir.MkdirAll()
+	if err != nil {
+		return fmt.Errorf("failed to create brick directory: %w", err)
+	}
+
+	// Write __init__.py
+	if err := os.WriteFile(brickDir.Join("__init__.py").String(), []byte("# Public API exports\n"), 0600); err != nil {
+		return fmt.Errorf("failed to write __init__.py: %w", err)
+	}
+	// Write brick_config.yaml
+	brickConfig := fmt.Sprintf("id: %s\nname: %q\ndescription: %q\n", id, name, description)
+	if err := os.WriteFile(brickDir.Join("brick_config.yaml").String(), []byte(brickConfig), 0600); err != nil {
+		return fmt.Errorf("failed to write brick_config.yaml: %w", err)
+	}
+	// Write README.md
+	readme := fmt.Sprintf("# %s\n\n%s\n", name, description)
+	if err := os.WriteFile(brickDir.Join("README.md").String(), []byte(readme), 0600); err != nil {
+		return fmt.Errorf("failed to write README.md: %w", err)
+	}
+	// Write brick_compose.yaml (optional, empty)
+	_ = os.WriteFile(brickDir.Join("brick_compose.yaml").String(), []byte("# Optional: Docker services\n"), 0600)
+
+	if err := brickDir.Join("examples").MkdirAll(); err != nil {
+		return fmt.Errorf("failed to create examples directory: %w", err)
+	}
+	return nil
+}
+
 func generateApp(basePath *paths.Path, appDesc app.AppDescriptor) error {
 	generateAppYaml := func(basePath *paths.Path, app app.AppDescriptor) error {
 		appYamlTmpl := template.Must(
