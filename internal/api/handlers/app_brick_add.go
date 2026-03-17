@@ -49,9 +49,9 @@ func HandleAppLocalBrickAdd(idProvider *app.IDProvider) http.HandlerFunc {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "name is required"})
 			return
 		}
-		// Generate brick ID: lowercase, underscores, no spaces
 		id := generateBrickID(req.Name)
 
+		// FIXME: check if the generated ID already exists in the app, and if so, return an error
 		err = generator.GenerateAppLocalBrick(appPath, id, req.Name, req.Description)
 		if err != nil {
 			slog.Error("Failed to generate local brick", slog.String("error", err.Error()))

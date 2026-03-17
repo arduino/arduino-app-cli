@@ -2,6 +2,7 @@ package bricksindex
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/arduino/go-paths-helper"
 )
@@ -62,25 +63,31 @@ func (m *Manager) GetBrickReadmeFromID(id string) (string, error) {
 	for _, src := range m.sources {
 		if b, err := src.GetReadme(id); err == nil {
 			return b, nil
+		} else {
+			slog.Warn("cannot open readme for brick", "brickID", id, "error", err.Error())
 		}
 	}
-	return "", fmt.Errorf("cannot get readme for brick %s", id)
+	return "", fmt.Errorf("readme for brick %s not found", id)
 }
 
 func (m *Manager) GetBrickApiDocPathFromID(id string) (string, error) {
 	for _, src := range m.sources {
 		if b, err := src.GetApiDocPath(id); err == nil {
 			return b.String(), nil
+		} else {
+			slog.Warn("cannot open api-docs for brick", "brickID", id, "error", err.Error())
 		}
 	}
-	return "", fmt.Errorf("cannot get api-docs for brick %s", id)
+	return "", fmt.Errorf("api-docs for brick %s not found", id)
 }
 
 func (m *Manager) GetBrickCodeExamplesPathFromID(id string) (paths.PathList, error) {
 	for _, src := range m.sources {
 		if b, err := src.GetExamplesPath(id); err == nil {
 			return b, nil
+		} else {
+			slog.Warn("cannot open code examples for brick", "brickID", id, "error", err.Error())
 		}
 	}
-	return nil, fmt.Errorf("cannot get code examples for brick %s", id)
+	return nil, fmt.Errorf("code examples for brick %s not found", id)
 }

@@ -113,9 +113,9 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 	if err != nil {
 		return BrickInstance{}, fmt.Errorf("cannot load app bricks index: %w", err)
 	}
-	bricksIndex := s.bricksIndex.WithBrickSource(localIndex)
+	bricksWithLocalIndex := s.bricksIndex.WithBrickSource(localIndex)
 
-	brick, found := bricksIndex.FindBrickByID(brickID)
+	brick, found := bricksWithLocalIndex.FindBrickByID(brickID)
 	if !found {
 		return BrickInstance{}, ErrBrickNotFound
 	}
@@ -127,6 +127,28 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 
 	variables, configVariables := getInstanceBrickConfigVariableDetails(brick, a.Descriptor.Bricks[brickIndex].Variables)
 
+	var readme string
+	if r, err := bricksWithLocalIndex.GetBrickReadmeFromID(brick.ID); err == nil {
+		readme = r
+	} else {
+		slog.Warn("cannot open readme for brick", "brickID", brick.ID, "error", err.Error())
+	}
+
+	apiDocsPath, err := bricksWithLocalIndex.GetBrickApiDocPathFromID(brick.ID)
+	if err != nil {
+		slog.Warn("cannot open api-docs for brick", "brickID", brick.ID, "error", err.Error())
+	}
+
+	var codeExamples []CodeExample
+	examplePaths, err := bricksWithLocalIndex.GetBrickCodeExamplesPathFromID(brick.ID)
+	if err != nil {
+		slog.Warn("cannot open code examples for brick", "brickID", brick.ID, "error", err.Error())
+	} else {
+		codeExamples = f.Map(examplePaths, func(p *paths.Path) CodeExample {
+			return CodeExample{Path: p.String()}
+		})
+	}
+
 	return BrickInstance{
 		ID:              brickID,
 		Name:            brick.Name,
@@ -134,6 +156,9 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 		Category:        brick.Category,
 		Status:          "installed", // For now every Arduino brick are installed
 		RequireModel:    brick.RequireModel,
+		Readme:          readme,
+		ApiDocsPath:     apiDocsPath,
+		CodeExamples:    codeExamples,
 		Variables:       variables,
 		ConfigVariables: configVariables,
 		ModelID:         cmp.Or(a.Descriptor.Bricks[brickIndex].Model, brick.ModelName),

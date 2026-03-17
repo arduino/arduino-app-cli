@@ -44,6 +44,9 @@ type BrickInstance struct {
 	RequireModel     bool                  `json:"require_model"`
 	ModelID          string                `json:"model,omitempty"`
 	CompatibleModels []AIModel             `json:"compatible_models"`
+	Readme           string                `json:"readme"`
+	ApiDocsPath      string                `json:"api_docs_path"`
+	CodeExamples     []CodeExample         `json:"code_examples"`
 }
 
 type AIModel struct {

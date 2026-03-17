@@ -56,16 +56,15 @@ func GenerateApp(basePath *paths.Path, app app.AppDescriptor, skipSketch bool) e
 	return nil
 }
 
-// TODO: use the template
+// TODO: use a template to create the brick files, instead of hardcoding them here
 func GenerateAppLocalBrick(appPath *paths.Path, id string, name, description string) error {
 	brickDir := appPath.Join("bricks", id)
 	err := brickDir.MkdirAll()
 	if err != nil {
 		return fmt.Errorf("failed to create brick directory: %w", err)
 	}
-
 	// Write __init__.py
-	if err := os.WriteFile(brickDir.Join("__init__.py").String(), []byte("# Public API exports\n"), 0600); err != nil {
+	if err := os.WriteFile(brickDir.Join("__init__.py").String(), []byte("# Public python API\n"), 0600); err != nil {
 		return fmt.Errorf("failed to write __init__.py: %w", err)
 	}
 	// Write brick_config.yaml
@@ -79,11 +78,7 @@ func GenerateAppLocalBrick(appPath *paths.Path, id string, name, description str
 		return fmt.Errorf("failed to write README.md: %w", err)
 	}
 	// Write brick_compose.yaml (optional, empty)
-	_ = os.WriteFile(brickDir.Join("brick_compose.yaml").String(), []byte("# Optional: Docker services\n"), 0600)
-
-	if err := brickDir.Join("examples").MkdirAll(); err != nil {
-		return fmt.Errorf("failed to create examples directory: %w", err)
-	}
+	_ = os.WriteFile(brickDir.Join("brick_compose.yaml").String(), []byte("services: \n# Optional: containers services"), 0600)
 	return nil
 }
 
