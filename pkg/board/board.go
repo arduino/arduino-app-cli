@@ -25,6 +25,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/user"
 	"regexp"
 	"slices"
 	"strings"
@@ -34,20 +35,21 @@ import (
 	"github.com/arduino/arduino-cli/pkg/fqbn"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/sirupsen/logrus"
-	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/pkg/board/remote"
 	"github.com/arduino/arduino-app-cli/pkg/board/remote/adb"
 	"github.com/arduino/arduino-app-cli/pkg/board/remote/local"
 	"github.com/arduino/arduino-app-cli/pkg/board/remote/ssh"
+	"github.com/arduino/arduino-app-cli/pkg/x/devicetree"
 )
 
 type Board struct {
+	FQBN       string
+	BoardName  string
 	Protocol   string
 	Serial     string
 	Address    string
 	CustomName string
-	BoardName  string
 }
 
 const (
@@ -56,39 +58,48 @@ const (
 	LocalProtocol   = "local"
 )
 
-const (
-	ArduinoUnoQ = "arduino:zephyr:unoq"
-	SerialPath  = "/sys/devices/soc0/serial_number"
-)
+var supportedBoard = map[string]struct {
+	Name       string
+	VID        string
+	PID        string
+	BoardID    string
+	Compatible string
+	SerialPath string
+}{
+	"arduino:zephyr:unoq": {
+		Name:       "Arduino UNO Q",
+		VID:        "0x2341",
+		PID:        "0x0078",
+		BoardID:    "unoq",
+		SerialPath: "/sys/devices/soc0/serial_number",
+		Compatible: "arduino,imola",
+	},
+	"arduino:zephyr:ventunoq": {
+		Name:       "Arduino VENTUNO Q",
+		VID:        "0x2341",
+		PID:        "0x007A",
+		BoardID:    "ventunoq",
+		SerialPath: "/sys/devices/soc0/serial_number",
+		Compatible: "arduino,monza",
+	},
+}
 
-func identifyUnoQ(p *rpc.DetectedPort) {
-	const UnoQVID = "0x2341"
-	const UnoQPID = "0x0078"
-	const UnoQBoardID = "unoq"
-
-	// If the board has been already identified as Uno Q, just return true
+func identifySupportedBoard(p *rpc.DetectedPort) {
+	// If the board has been already identified as Uno Q, just return
 	for _, b := range p.GetMatchingBoards() {
-		if b.GetFqbn() == ArduinoUnoQ {
+		if _, ok := supportedBoard[b.GetFqbn()]; ok {
 			return
 		}
 	}
 
 	// Otherwise check the VID/PID or board ID
 	props := p.GetPort().GetProperties()
-	isUnoQ := props["board"] == UnoQBoardID || (props["vid"] == UnoQVID && props["pid"] == UnoQPID)
-	if isUnoQ {
-		p.MatchingBoards = append(p.MatchingBoards, &rpc.BoardListItem{Name: "Arduino UNO Q", Fqbn: ArduinoUnoQ})
+	for fqbn, info := range supportedBoard {
+		if props["board"] == info.BoardID || (props["vid"] == info.VID && props["pid"] == info.PID) {
+			p.MatchingBoards = append(p.MatchingBoards, &rpc.BoardListItem{Name: info.Name, Fqbn: fqbn})
+		}
 	}
 }
-
-var onBoard = sync.OnceValue(func() bool {
-	var boardNames = []string{"UNO Q\n", "Imola\n", "Inc. Robotics RB1\n"}
-	buf, err := os.ReadFile("/sys/class/dmi/id/product_name")
-	if err == nil && slices.Contains(boardNames, string(buf)) {
-		return true
-	}
-	return false
-})()
 
 // Cache the initialized Arduino CLI service, so it don't need to be re-initialized
 // TODO: provide a way to get the board information by event instead of polling.
@@ -96,26 +107,32 @@ var arduinoCLIServer rpc.ArduinoCoreServiceServer
 var arduinoCLIInstance *rpc.Instance
 var arduinoCLILock sync.Mutex
 
-func FromFQBN(ctx context.Context, fqbn string) ([]Board, error) {
+func FromFQBN(ctx context.Context, fqbns []string) ([]Board, error) {
 	arduinoCLILock.Lock()
 	defer arduinoCLILock.Unlock()
 
-	if onBoard {
-		var customName string
-		if name, err := GetCustomName(ctx, &local.LocalConnection{}); err == nil {
-			customName = name
+	if compatibles := devicetree.LoadCompatible(); len(compatibles) > 0 {
+		for fqbn, info := range supportedBoard {
+			if compatibles.IsCompatibleWith(info.Compatible) {
+				var customName string
+				if name, err := GetCustomName(ctx, &local.LocalConnection{}); err == nil {
+					customName = name
+				}
+				var serial string
+				if sn, err := getSerial(info.SerialPath); err == nil {
+					serial = sn
+				}
+
+				return []Board{{
+					Protocol:   LocalProtocol,
+					Serial:     serial,
+					Address:    "",
+					CustomName: customName,
+					BoardName:  info.Name,
+					FQBN:       fqbn,
+				}}, nil
+			}
 		}
-		var serial string
-		if sn, err := getSerial(&local.LocalConnection{}); err == nil {
-			serial = sn
-		}
-		return []Board{{
-			Protocol:   LocalProtocol,
-			Serial:     serial,
-			Address:    "",
-			CustomName: customName,
-			BoardName:  "Uno Q",
-		}}, nil
 	}
 
 	if arduinoCLIServer == nil {
@@ -150,38 +167,36 @@ func FromFQBN(ctx context.Context, fqbn string) ([]Board, error) {
 	}
 	list, err := arduinoCLIServer.BoardList(ctx, listReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get info for FQBN %s: %w", fqbn, err)
+		return nil, fmt.Errorf("failed to get info for FQBNs %s: %w", strings.Join(fqbns, ","), err)
 	}
 
 	ports := list.GetPorts()
 	for _, p := range ports {
-		identifyUnoQ(p)
+		identifySupportedBoard(p)
 	}
-
-	portMatchFqbn := func(p *rpc.DetectedPort) bool {
-		return slices.ContainsFunc(
-			p.GetMatchingBoards(),
-			func(b *rpc.BoardListItem) bool {
-				return b.GetFqbn() == fqbn
-			},
-		)
-	}
-	ports = f.Filter(ports, portMatchFqbn)
 
 	if len(ports) == 0 {
-		return nil, fmt.Errorf("no hardware ID found for FQBN %s", fqbn)
+		return nil, fmt.Errorf("no hardware ID found for FQBNs %s", strings.Join(fqbns, ","))
 	}
 
 	var boards []Board
 	for _, port := range ports {
+		if len(port.GetMatchingBoards()) == 0 {
+			continue
+		}
+
+		if !slices.ContainsFunc(port.GetMatchingBoards(), func(b *rpc.BoardListItem) bool {
+			_, ok := supportedBoard[b.GetFqbn()]
+			return ok
+		}) {
+			continue
+		}
+
 		if port.GetPort() == nil {
 			continue
 		}
 
-		var boardName string
-		if len(port.GetMatchingBoards()) > 0 {
-			boardName = port.GetMatchingBoards()[0].GetName()
-		}
+		matchingBoard := port.GetMatchingBoards()[0]
 
 		switch port.GetPort().GetProtocol() {
 		case SerialProtocol:
@@ -199,8 +214,9 @@ func FromFQBN(ctx context.Context, fqbn string) ([]Board, error) {
 			boards = append(boards, Board{
 				Protocol:   SerialProtocol,
 				Serial:     serial,
-				BoardName:  boardName,
+				BoardName:  matchingBoard.GetName(),
 				CustomName: customName,
+				FQBN:       matchingBoard.GetFqbn(),
 			})
 		case NetworkProtocol:
 			var customName string
@@ -221,8 +237,9 @@ func FromFQBN(ctx context.Context, fqbn string) ([]Board, error) {
 				Protocol:   NetworkProtocol,
 				Address:    port.GetPort().GetAddress(),
 				Serial:     serial,
-				BoardName:  boardName,
+				BoardName:  matchingBoard.GetName(),
 				CustomName: customName,
+				FQBN:       matchingBoard.GetFqbn(),
 			})
 		default:
 			slog.Warn("unknown protocol", "protocol", port.GetPort().GetProtocol())
@@ -270,25 +287,19 @@ func SetCustomName(ctx context.Context, conn remote.RemoteConn, name string) err
 		return fmt.Errorf("invalid custom name: %s, must match regex %s", name, customNameRegex.String())
 	}
 
-	err := conn.GetCmd("sudo", "hostnamectl", "set-hostname", name).
-		Run(ctx)
-	if err != nil {
+	if err := conn.GetCmd("sudo", "hostnamectl", "set-hostname", name).Run(ctx); err != nil {
 		return fmt.Errorf("failed to set board name: %w", err)
 
 	}
 
-	isEnable, err := NetworkModeStatus(ctx, conn)
-	if err != nil {
-		return fmt.Errorf("failed get board status: %w", err)
-	}
-	if isEnable {
+	if isEnable, err := NetworkModeStatus(ctx, conn); err == nil && isEnable {
 		cmds := [][]string{
 			{"sudo", "systemctl", "stop", "avahi-daemon"},
 			{"sudo", "systemctl", "start", "avahi-daemon"},
 		}
 		for _, cmd := range cmds {
 			if out, err := conn.GetCmd(cmd[0], cmd[1:]...).Output(ctx); err != nil {
-				return fmt.Errorf("failed to run cmd %q: %w: %s", strings.Join(cmd, " "), err, string(out))
+				slog.Warn("failed to restart avahi-daemon, network discovery might not work until next reboot", "error", err, "output", string(out))
 			}
 		}
 	}
@@ -310,8 +321,12 @@ func GetCustomName(ctx context.Context, conn remote.RemoteConn) (string, error) 
 }
 
 func IsUserPasswordSet(conn remote.RemoteShell) (bool, error) {
-	cmd := conn.GetCmd("chage", "-l", "arduino")
+	u, err := user.Current()
+	if err != nil {
+		return false, fmt.Errorf("failed to get current user: %w", err)
+	}
 
+	cmd := conn.GetCmd("chage", "-l", u.Username)
 	w, out, _, closer, err := cmd.Interactive()
 	if err != nil {
 		return false, fmt.Errorf("failed to check password: %w", err)
@@ -407,18 +422,12 @@ func DisableNetworkMode(ctx context.Context, conn remote.RemoteConn) error {
 	return nil
 }
 
-func getSerial(conn remote.RemoteConn) (string, error) {
-	f, err := conn.ReadFile(SerialPath)
+func getSerial(serialPath string) (string, error) {
+	serial, err := os.ReadFile(serialPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to get serial number: %w", err)
 	}
-
-	serial, err := io.ReadAll(f)
-	if err != nil {
-		return "", fmt.Errorf("failed to read serial number: %w", err)
-	}
-
-	return strings.TrimSpace(string(serial)), nil
+	return string(bytes.TrimSpace(serial)), nil
 }
 
 func EnsurePlatformInstalled(ctx context.Context, rawFQBN string) error {
