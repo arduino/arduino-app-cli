@@ -4,19 +4,35 @@ The Cloud ASR Brick provides a unified interface to cloud-based Automatic Speech
 
 ## Overview
 
-This Brick streams audio from a `Microphone` to a selected provider and yields transcription events.
+The Cloud ASR Brick allows you to:
 
-## Features
+- Stream audio from a microphone
+- Use either OpenAI or Google to convert the audio into text
+- Detect keywords to stop audio capture
+- Handle the microphone stream with commands in the code
+- Use multiple languages
 
-- **Multi-provider**: `CloudProvider.OPENAI_TRANSCRIBE` or `CloudProvider.GOOGLE_SPEECH`.
-- **Streaming events**: `speech_start`, `partial_text`, `speech_stop`, `text`.
-- **Configurable**: language,silence timeout and overall timeout.
+This Brick streams audio from a `Microphone` to a selected provider and gives you the transcribed text.
 
 ## Prerequisites
 
-- Microphone + internet connection.
+Before using the Cloud ASR brick, ensure you have the following components:
+
+- USB microphone
+- Internet connection.
 - Provider API key (set via App Lab Brick Configuration as `API_KEY`).
 - Optional deps: `arduino_app_bricks[cloud_asr]`.
+
+Tips:
+- Use a USB-C® Hub with USB-A connectors to support commercial USB cameras with microphone. Note that the USB-C® Hub must have Power Delivery Support (PD).
+- Microphones included in USB cameras/webcams are generally supported
+
+## Features
+
+- Pick between two different transcription services, either `CloudProvider.OPENAI_TRANSCRIBE` or `CloudProvider.GOOGLE_SPEECH`.
+- Control the microphone stream with different events such as `speech_start`, `partial_text`, `speech_stop`, `text`.
+- Set the language of the transcription with the use of language codes (e.g., `en`, `it`)
+- Configure silence timeout or overall timeout of the audio capture and transcription
 
 ## Code Example and Usage
 

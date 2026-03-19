@@ -128,7 +128,7 @@ bricks:
   require_model: false
   mount_devices_into_container: false
   ports: []
-  category: null
+  category: text
   variables:
   - name: API_KEY
     description: API Key for the cloud-based LLM service
@@ -176,7 +176,7 @@ bricks:
   require_model: true
   mount_devices_into_container: true
   ports: []
-  category: null
+  category: video
   model_name: yolox-object-detection
   required_devices:
   - camera

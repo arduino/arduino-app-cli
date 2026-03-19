@@ -25,7 +25,7 @@ Once started, your application will be accessible via a web browser at `http://<
 ## Code example and usage
 
 ```python
-from app_bricks.web_ui import WebUI
+from arduino.app_bricks.web_ui import WebUI
 
 # Initialize the Web UI server
 web_ui = WebUI()
