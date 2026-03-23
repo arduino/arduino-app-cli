@@ -5,5 +5,5 @@ read -s "pass"
 
 user=$(getent passwd 1000 | cut -d: -f1)
 
-echo "$use:$pass" | chpasswd
+echo "$user:$pass" | chpasswd
 
