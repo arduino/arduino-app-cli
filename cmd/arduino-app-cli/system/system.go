@@ -23,6 +23,7 @@ import (
 	"github.com/docker/cli/cli/command"
 	"github.com/spf13/cobra"
 
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/cmdutil"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/helpers"
@@ -193,15 +194,19 @@ func newNetworkModeCmd() *cobra.Command {
 		Short: "Manage the network mode of the system",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			pass, err := cmdutil.AskForPassword()
+			if err != nil {
+				return fmt.Errorf("failed to read password: %w", err)
+			}
 			switch args[0] {
 			case "enable":
-				if err := board.EnableNetworkMode(cmd.Context(), &local.LocalConnection{}); err != nil {
+				if err := board.EnableNetworkMode(cmd.Context(), &local.LocalConnection{}, pass); err != nil {
 					return fmt.Errorf("failed to enable network mode: %w", err)
 				}
 
 				feedback.Printf("network mode enabled and started")
 			case "disable":
-				if err := board.DisableNetworkMode(cmd.Context(), &local.LocalConnection{}); err != nil {
+				if err := board.DisableNetworkMode(cmd.Context(), &local.LocalConnection{}, pass); err != nil {
 					return fmt.Errorf("failed to disable network mode: %w", err)
 				}
 				feedback.Printf("network mode disabled and stopped")

@@ -25,7 +25,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"os/user"
 	"regexp"
 	"slices"
 	"strings"
@@ -287,12 +286,18 @@ func SetCustomName(ctx context.Context, conn remote.RemoteConn, name string) err
 		return fmt.Errorf("invalid custom name: %s, must match regex %s", name, customNameRegex.String())
 	}
 
-	if err := conn.GetCmd("sudo", "hostnamectl", "set-hostname", name).Run(ctx); err != nil {
+	err := conn.GetCmd("sudo", "hostnamectl", "set-hostname", name).
+		Run(ctx)
+	if err != nil {
 		return fmt.Errorf("failed to set board name: %w", err)
 
 	}
 
-	if isEnable, err := NetworkModeStatus(ctx, conn); err == nil && isEnable {
+	isEnable, err := NetworkModeStatus(ctx, conn)
+	if err != nil {
+		return fmt.Errorf("failed get board status: %w", err)
+	}
+	if isEnable {
 		cmds := [][]string{
 			{"sudo", "systemctl", "stop", "avahi-daemon"},
 			{"sudo", "systemctl", "start", "avahi-daemon"},
@@ -321,12 +326,8 @@ func GetCustomName(ctx context.Context, conn remote.RemoteConn) (string, error) 
 }
 
 func IsUserPasswordSet(conn remote.RemoteShell) (bool, error) {
-	u, err := user.Current()
-	if err != nil {
-		return false, fmt.Errorf("failed to get current user: %w", err)
-	}
-
-	cmd := conn.GetCmd("chage", "-l", u.Username)
+	// TODO: remove hardcoded arduino username
+	cmd := conn.GetCmd("chage", "-l", "arduino")
 	w, out, _, closer, err := cmd.Interactive()
 	if err != nil {
 		return false, fmt.Errorf("failed to check password: %w", err)
@@ -366,7 +367,8 @@ func SetUserPassword(ctx context.Context, conn remote.RemoteConn, newPass string
 	return nil
 }
 
-func EnableNetworkMode(ctx context.Context, conn remote.RemoteConn) error {
+// LegacyEnableNetworkMode is used to enable network mode by using sudoers file, this should deprecated.
+func LegacyEnableNetworkMode(ctx context.Context, conn remote.RemoteConn) error {
 	cmds := [][]string{
 		{"sudo", "dpkg-reconfigure", "openssh-server"},
 		{"sudo", "systemctl", "enable", "ssh"},
@@ -377,6 +379,24 @@ func EnableNetworkMode(ctx context.Context, conn remote.RemoteConn) error {
 
 	for _, cmd := range cmds {
 		if out, err := conn.GetCmd(cmd[0], cmd[1:]...).Output(ctx); err != nil {
+			return fmt.Errorf("failed to run cmd %q: %w: %s", strings.Join(cmd, " "), err, string(out))
+		}
+	}
+
+	return nil
+}
+
+func EnableNetworkMode(ctx context.Context, conn remote.RemoteConn, password string) error {
+	cmds := [][]string{
+		{"dpkg-reconfigure", "openssh-server"},
+		{"systemctl", "unmask", "ssh.service"},
+		{"systemctl", "unmask", "avahi-daemon.service"},
+		{"systemctl", "start", "avahi-daemon.service"},
+		{"systemctl", "start", "ssh.service"},
+	}
+
+	for _, cmd := range cmds {
+		if out, err := ExecAsRoot(conn, password, cmd...); err != nil {
 			return fmt.Errorf("failed to run cmd %q: %w: %s", strings.Join(cmd, " "), err, string(out))
 		}
 	}
@@ -405,16 +425,16 @@ func NetworkModeStatus(ctx context.Context, conn remote.RemoteConn) (bool, error
 	return true, nil
 }
 
-func DisableNetworkMode(ctx context.Context, conn remote.RemoteConn) error {
+func DisableNetworkMode(ctx context.Context, conn remote.RemoteConn, password string) error {
 	cmds := [][]string{
-		{"sudo", "systemctl", "disable", "ssh"},
-		{"sudo", "systemctl", "stop", "ssh"},
-		{"sudo", "systemctl", "disable", "avahi-daemon"},
-		{"sudo", "systemctl", "stop", "avahi-daemon"},
+		{"systemctl", "mask", "ssh.service"},
+		{"systemctl", "mask", "avahi-daemon.service"},
+		{"systemctl", "stop", "avahi-daemon.service"},
+		{"systemctl", "stop", "ssh.service"},
 	}
 
 	for _, cmd := range cmds {
-		if out, err := conn.GetCmd(cmd[0], cmd[1:]...).Output(ctx); err != nil {
+		if out, err := ExecAsRoot(conn, password, cmd...); err != nil {
 			return fmt.Errorf("failed to run cmd %q: %w: %s", strings.Join(cmd, " "), err, string(out))
 		}
 	}
