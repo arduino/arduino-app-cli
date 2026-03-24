@@ -573,7 +573,6 @@ func TestAppBrickInstanceModelsDetails(t *testing.T) {
 
 	mIndex := &modelsindex.ModelsIndex{
 		InternalModels: []modelsindex.AIModel{
-
 			{
 				ID:                "yolox-object-detection",
 				Name:              "General purpose object detection - YoloX",

@@ -117,6 +117,9 @@ func (a *ArduinoApp) GetSketchPath() (*paths.Path, bool) {
 }
 
 func (m *ArduinoApp) LoadAppBricksIndex() (applocal.BricksIndex, error) {
+	if m.localBricksPath == nil {
+		return applocal.BricksIndex{}, nil
+	}
 	if !m.localBricksPath.Exist() {
 		return applocal.BricksIndex{}, nil
 	}
