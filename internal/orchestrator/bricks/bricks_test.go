@@ -547,8 +547,18 @@ bricks:
 }
 
 func TestAppBrickInstanceModelsDetails(t *testing.T) {
+	tmpDir := t.TempDir()
+	dataDir := filepath.Join(tmpDir, "Data")
+	assetsDir := filepath.Join(dataDir, "assets")
+	require.NoError(t, os.MkdirAll(assetsDir, 0755))
 
+	t.Setenv("ARDUINO_APP_CLI__DATA_DIR", dataDir)
+
+	for _, brick := range []string{"arduino:object_detection", "arduino:weather_forecast"} {
+		createFakeBrickAssets(t, assetsDir, brick)
+	}
 	bIndex := &builtin.BricksIndex{
+		AssetPath: paths.New(assetsDir),
 		Bricks: []bricksindex.Brick{
 			{
 				ID:        "arduino:object_detection",
