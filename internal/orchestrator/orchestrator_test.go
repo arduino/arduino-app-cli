@@ -501,7 +501,7 @@ models:
 	require.NoError(t, err)
 
 	bricksindex := f.Must(bricksindex.New(bricksIndex))
-	env := getAppEnvironmentVariables(appDesc, bricksindex, modelIndex)
+	env := getAppEnvironmentVariables(appDesc, bricksIndex, modelIndex)
 	require.Equal(t, cfg.AppsDir().Join("app1").String(), env["APP_HOME"])
 	require.Equal(t, "/models/ootb/ei/yolo-x-nano.eim", env["EI_OBJ_DETECTION_MODEL"])
 	require.Equal(t, "/home/arduino/.arduino-bricks/models", env["CUSTOM_MODEL_PATH"])

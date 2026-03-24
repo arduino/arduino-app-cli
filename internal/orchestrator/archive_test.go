@@ -105,7 +105,7 @@ func TestExportAppZip(t *testing.T) {
 				Name:     tc.appName,
 				FullPath: paths.New(appPath),
 			}
-			zipData, filename, err := ExportAppZip(t.Context(), bricksindex, app, tc.includeData)
+			zipData, filename, err := ExportAppZip(t.Context(), bricksIndex, app, tc.includeData)
 
 			if tc.wantErr {
 				require.Error(t, err)

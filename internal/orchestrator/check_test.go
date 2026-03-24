@@ -225,7 +225,7 @@ bricks:
 			require.NoError(t, err)
 
 			bricksindex := f.Must(bricksindex.New(bricksIndex))
-			err = checkBricks(appDescriptor, bricksindex, modelIndex)
+			err = checkBricks(appDescriptor, bricksIndex, modelIndex)
 			if tc.expectedError == nil {
 				assert.NoError(t, err, "Expected no validation errors")
 			} else {

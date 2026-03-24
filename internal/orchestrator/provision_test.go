@@ -125,7 +125,7 @@ bricks:
 		HasSoundDevice: false,
 		HasVideoDevice: true,
 	}
-	err = generateMainComposeFile(&app, bricksindex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
+	err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
 
 	// Validate that the main compose file and overrides are created
 	require.NoError(t, err, "Failed to generate main compose file")
@@ -389,7 +389,7 @@ services:
 		}
 
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksindex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
+		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -445,7 +445,7 @@ services:
 			HasVideoDevice: true,
 		}
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksindex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
+		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
