@@ -224,7 +224,7 @@ bricks:
 			appDescriptor, err := app.ParseDescriptorFile(appYaml)
 			require.NoError(t, err)
 
-			bricksindex := f.Must(bricksindex.New(bricksIndex))
+			bricksIndex := f.Must(bricksindex.New(bricksIndex))
 			err = checkBricks(appDescriptor, bricksIndex, modelIndex)
 			if tc.expectedError == nil {
 				assert.NoError(t, err, "Expected no validation errors")

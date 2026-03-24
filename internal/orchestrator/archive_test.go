@@ -38,7 +38,7 @@ import (
 )
 
 func TestExportAppZip(t *testing.T) {
-	bricksindex := f.Must(bricksindex.New(f.Must(builtin.Load(paths.New("testdata", "archive")))))
+	bricksIndex := f.Must(bricksindex.New(f.Must(builtin.Load(paths.New("testdata", "archive")))))
 
 	type testCase struct {
 		name             string

@@ -107,9 +107,9 @@ bricks:
 	require.NoError(t, err)
 
 	// Override brick index with custom test content
-	bricksindex := f.Must(bricksindex.New(f.Must(builtin.Load(cfg.AssetsDir()))))
+	bricksIndex := f.Must(bricksindex.New(f.Must(builtin.Load(cfg.AssetsDir()))))
 
-	br, ok := bricksindex.FindBrickByID("arduino:video_object_detection")
+	br, ok := bricksIndex.FindBrickByID("arduino:video_object_detection")
 	require.True(t, ok, "Brick arduino:video_object_detection should exist in the index")
 	require.NotNil(t, br, "Brick arduino:video_object_detection should not be nil")
 	require.Equal(t, "Object Detection", br.Name, "Brick name should match")
@@ -343,9 +343,9 @@ bricks:
 	err := cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
 
-	bricksindex := f.Must(bricksindex.New(f.Must(builtin.Load(cfg.AssetsDir()))))
+	bricksIndex := f.Must(bricksindex.New(f.Must(builtin.Load(cfg.AssetsDir()))))
 
-	br, ok := bricksindex.FindBrickByID("arduino:dbstorage_tsstore")
+	br, ok := bricksIndex.FindBrickByID("arduino:dbstorage_tsstore")
 	require.True(t, ok, "Brick arduino:dbstorage_tsstore should exist in the index")
 	require.NotNil(t, br, "Brick arduino:dbstorage_tsstore should not be nil")
 	require.Equal(t, "Database Storage - Time Series Store", br.Name, "Brick name should match")
