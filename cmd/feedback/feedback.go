@@ -138,6 +138,10 @@ func SetFormat(f OutputFormat) {
 	}
 }
 
+func GetStdin() *os.File {
+	return os.Stdin
+}
+
 // GetFormat returns the output format currently set
 func GetFormat() OutputFormat {
 	return format

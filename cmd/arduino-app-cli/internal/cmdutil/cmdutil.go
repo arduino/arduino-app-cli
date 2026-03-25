@@ -20,7 +20,9 @@ import (
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
+	"golang.org/x/term"
 
+	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 )
 
@@ -50,4 +52,13 @@ func IDToAlias(id app.ID) string {
 		return "./" + rel.String()
 	}
 	return rel.String()
+}
+
+func AskForPassword() (string, error) {
+	feedback.Printf("Password: ")
+	bytePassword, err := term.ReadPassword(int(feedback.GetStdin().Fd()))
+	if err != nil {
+		return "", err
+	}
+	return string(bytePassword), nil
 }

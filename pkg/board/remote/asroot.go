@@ -12,7 +12,7 @@ func ExecAsRoot(conn RemoteConn, password string, args ...string) ([]byte, error
 	if err != nil {
 		return nil, fmt.Errorf("failed to start: %w", err)
 	}
-	defer closer()
+	defer func() { _ = closer() }()
 
 	payload := []byte(password + "\n")
 	n, err := stdin.Write(payload)
