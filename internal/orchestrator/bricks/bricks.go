@@ -54,8 +54,8 @@ func NewService(
 }
 
 func (s *Service) List() (BrickListResult, error) {
-	res := BrickListResult{Bricks: make([]BrickListItem, len(s.bricksIndex.Bricks))}
-	for i, brick := range s.bricksIndex.Bricks {
+	res := BrickListResult{Bricks: make([]BrickListItem, len(s.bricksIndex.ListBricks()))}
+	for i, brick := range s.bricksIndex.ListBricks() {
 		res.Bricks[i] = BrickListItem{
 			ID:           brick.ID,
 			Name:         brick.Name,

@@ -37,7 +37,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/store"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
 
 type AppLogsRequest struct {
@@ -58,7 +58,7 @@ func AppLogs(
 	app app.ArduinoApp,
 	req AppLogsRequest,
 	dockerCli command.Cli,
-	staticStore *store.StaticStore,
+	bricksIndex *bricksindex.BricksIndex,
 ) (iter.Seq[LogMessage], error) {
 	if app.MainPythonFile == nil {
 		return helpers.EmptyIter[LogMessage](), nil
@@ -72,9 +72,14 @@ func AppLogs(
 	// Obtain mapping compose service name <-> brick name
 	serviceToBrickMapping := make(map[string]string, len(app.Descriptor.Bricks))
 	for _, brick := range app.Descriptor.Bricks {
-		composeFilePath, err := staticStore.GetBrickComposeFilePathFromID(brick.ID)
-		if err != nil {
-			slog.Warn("brick not valid", slog.String("brick_id", brick.ID), slog.Any("error", err))
+		brick, ok := bricksIndex.WithAppBricks(&app).FindBrickByID(brick.ID)
+		if !ok {
+			slog.Warn("brick not valid", slog.String("brick_id", brick.ID))
+			continue
+		}
+		composeFilePath, found := brick.GetComposeFile()
+		if !found {
+			slog.Warn("brick compose id not valid", slog.String("brick_id", brick.ID))
 			continue
 		}
 		if !composeFilePath.Exist() {

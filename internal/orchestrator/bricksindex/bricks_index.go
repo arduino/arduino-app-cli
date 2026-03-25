@@ -35,7 +35,7 @@ import (
 )
 
 type BricksIndex struct {
-	Bricks []Brick `yaml:"-"`
+	Bricks []Brick
 
 	path paths.PathList
 }
@@ -147,6 +147,13 @@ type Brick struct {
 	readmeFile   *paths.Path `yaml:"-"` // README.md file path, optional
 	examplesPath *paths.Path `yaml:"-"` // code examples folder path, optional
 	docsAPIPath  *paths.Path `yaml:"-"` // API docs file path, optional
+}
+
+func (b Brick) GetComposeFile() (*paths.Path, bool) {
+	if b.composeFile == nil || b.composeFile.NotExist() {
+		return nil, false
+	}
+	return b.composeFile, true
 }
 
 func (b Brick) GetVariable(name string) (BrickVariable, bool) {

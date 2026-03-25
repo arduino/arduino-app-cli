@@ -42,7 +42,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/platform"
-	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
 type volume struct {
@@ -124,7 +123,6 @@ func (p *Provision) App(
 	arduinoApp *app.ArduinoApp,
 	cfg config.Configuration,
 	mapped_env map[string]string,
-	staticStore *store.StaticStore,
 	platform platform.Platform,
 	devices peripherals.AvailableDevices,
 ) error {
@@ -138,7 +136,7 @@ func (p *Provision) App(
 		}
 	}
 
-	return generateMainComposeFile(arduinoApp, bricksIndex, p.pythonImage, cfg, mapped_env, staticStore, platform, devices)
+	return generateMainComposeFile(arduinoApp, bricksIndex, p.pythonImage, cfg, mapped_env, platform, devices)
 }
 
 func (p *Provision) init(
@@ -219,7 +217,6 @@ func generateMainComposeFile(
 	pythonImage string,
 	cfg config.Configuration,
 	envs helpers.EnvVars,
-	staticStore *store.StaticStore,
 	platform platform.Platform,
 	devices peripherals.AvailableDevices,
 ) error {
@@ -233,7 +230,7 @@ func generateMainComposeFile(
 	var composeFiles paths.PathList
 	services := make([]serviceInfo, 0, len(app.Descriptor.Bricks))
 	for _, brick := range app.Descriptor.Bricks {
-		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
+		idxBrick, found := bricksIndex.WithAppBricks(app).FindBrickByID(brick.ID)
 		slog.Debug("Processing brick", slog.String("brick_id", brick.ID), slog.Bool("found", found))
 		if !found {
 			continue
@@ -251,9 +248,9 @@ func generateMainComposeFile(
 		}
 
 		// 3. Retrieve the brick_compose.yaml file.
-		composeFilePath, err := staticStore.GetBrickComposeFilePathFromID(brick.ID)
-		if err != nil {
-			slog.Error("brick compose id not valid", slog.String("error", err.Error()), slog.String("brick_id", brick.ID))
+		composeFilePath, ok := idxBrick.GetComposeFile()
+		if !ok {
+			slog.Error("brick compose not found", slog.String("brick_id", brick.ID))
 			continue
 		}
 

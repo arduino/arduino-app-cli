@@ -28,7 +28,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/platform"
-	"github.com/arduino/arduino-app-cli/internal/store"
 
 	"github.com/goccy/go-yaml"
 
@@ -40,8 +39,6 @@ var unkownPlatform = platform.Platform{}
 func TestProvisionAppWithOverrides(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	tempDirectory := t.TempDir()
-
-	staticStore := store.NewStaticStore(cfg.AssetsDir().String())
 
 	// Define a mock app with bricks that require overrides
 	app := app.ArduinoApp{
@@ -129,7 +126,7 @@ bricks:
 		HasSoundDevice: false,
 		HasVideoDevice: true,
 	}
-	err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, unkownPlatform, devices)
+	err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
 
 	// Validate that the main compose file and overrides are created
 	require.NoError(t, err, "Failed to generate main compose file")
@@ -319,7 +316,6 @@ services:
 
 func TestProvisionAppWithDependsOn(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	staticStore := store.NewStaticStore(cfg.AssetsDir().String())
 	tempDirectory := t.TempDir()
 	var env = map[string]string{}
 	type services struct {
@@ -393,7 +389,7 @@ services:
 		}
 
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, unkownPlatform, devices)
+		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -449,7 +445,7 @@ services:
 			HasVideoDevice: true,
 		}
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, unkownPlatform, devices)
+		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -485,7 +481,7 @@ services:
 
 func TestProvisionAppComposeOverridesFile(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	staticStore := store.NewStaticStore(cfg.AssetsDir().String())
+	// staticStore := store.NewStaticStore(cfg.AssetsDir().String())
 	tempDirectory := t.TempDir()
 	var env = map[string]string{}
 	type services struct {
@@ -571,7 +567,7 @@ services:
 			HasVideoDevice: true,
 		}
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, unkownPlatform, availableDevices)
+		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, availableDevices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")

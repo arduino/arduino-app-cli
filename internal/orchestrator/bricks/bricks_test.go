@@ -383,7 +383,7 @@ func TestBricksDetails(t *testing.T) {
 	require.NoError(t, os.MkdirAll(assetsDir, 0755))
 
 	brickYaml := filepath.Join(assetsDir, "bricks-list.yaml")
-	os.WriteFile(brickYaml, []byte(`
+	require.NoError(t, os.WriteFile(brickYaml, []byte(`
 bricks:
 - id: arduino:object_detection
   name: Object Detection
@@ -408,7 +408,7 @@ bricks:
   name: one model brick
   category:  "miscellaneous"
   model_name: ""
-  `), 0600)
+  `), 0600))
 
 	t.Setenv("ARDUINO_APP_CLI__APPS_DIR", appsDir)
 	t.Setenv("ARDUINO_APP_CLI__DATA_DIR", dataDir)
@@ -568,28 +568,32 @@ bricks:
 
 func TestAppBrickInstanceModelsDetails(t *testing.T) {
 
-	bIndex := &bricksindex.BricksIndex{
-		Bricks: []bricksindex.Brick{
-			{
-				ID:        "arduino:object_detection",
-				Name:      "Object Detection",
-				Category:  "video",
-				ModelName: "yolox-object-detection", // Default model
-				Variables: []bricksindex.BrickVariable{
-					{Name: "EI_OBJ_DETECTION_MODEL", DefaultValue: "default_path", Description: "path to the model file"},
-					{Name: "CUSTOM_MODEL_PATH", DefaultValue: "/home/arduino/.arduino-bricks/models", Description: "path to the custom model directory"},
-				},
-				RequireModel: true,
-			},
-			{
-				ID:           "arduino:weather_forecast",
-				Name:         "Weather Forecast",
-				Category:     "miscellaneous",
-				ModelName:    "",
-				RequireModel: false,
-			},
-		},
-	}
+	brickYamlContent := `
+bricks:
+- id: arduino:object_detection
+  name: Object Detection
+  require_model: true
+  model_name: yolox-object-detection
+  category: video
+  variables:
+  - name: EI_OBJ_DETECTION_MODEL
+    description: path to the model file
+    default_value: default_path
+  - name: CUSTOM_MODEL_PATH
+    description: path to the custom model directory
+    default_value: /home/arduino/.arduino-bricks/models
+- id: arduino:weather_forecast
+  name: Weather Forecast
+  category:  "miscellaneous"
+  model_name: ""
+  require_model: false
+`
+	tmpDir := t.TempDir()
+	brickYamlPath := filepath.Join(tmpDir, "bricks-list.yaml")
+	require.NoError(t, os.WriteFile(brickYamlPath, []byte(brickYamlContent), 0600))
+
+	bIndex, err := bricksindex.Load(paths.New(tmpDir))
+	require.NoError(t, err)
 
 	mIndex := &modelsindex.ModelsIndex{
 		InternalModels: []modelsindex.AIModel{
@@ -772,7 +776,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	brickYamlPath := filepath.Join(tmpDir, "bricks-list.yaml")
-	os.WriteFile(brickYamlPath, []byte(bricksYaml), 0600)
+	require.NoError(t, os.WriteFile(brickYamlPath, []byte(bricksYaml), 0600))
 
 	bIndex, err := bricksindex.Load(paths.New(tmpDir))
 	require.NoError(t, err)
