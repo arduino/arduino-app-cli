@@ -722,56 +722,60 @@ func TestAppBrickInstanceModelsDetails(t *testing.T) {
 }
 
 func TestAppBrickInstancesList(t *testing.T) {
+	bricksYaml := `bricks:
+- id: arduino:weather_forecast
+  name: Weather Forecast
+  category: miscellaneous
+  require_model: false
+  variables: []
+- id: arduino:object_detection
+  name: Object Detection
+  category: video
+  model_name: yolox-object-detection
+  require_model: true
+  variables:
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/models
+    description: path to the custom model directory
+  - name: EI_OBJ_DETECTION_MODEL
+    default_value: /models/ootb/ei/yolo-x-nano.eim
+    description: path to the model file
+- id: arduino:audio_classification
+  name: Audio Classification
+  category: audio
+  model_name: glass-breaking
+  require_model: true
+  variables:
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/models
+  - name: EI_AUDIO_CLASSIFICATION_MODEL
+    default_value: /models/ootb/ei/glass-breaking.eim
+- id: arduino:streamlit_ui
+  name: WebUI - Streamlit
+  category: ui
+  require_model: false
+  ports:
+  - "7000"
+  - "8000"
+- id: arduino:with-hidden-vars
+  name: I have some hidden variables
+  variables:
+  - name: HIDDEN_VAR
+    default_value: /i/am/hidden
+    hidden: true
+  - name: VISIBLE_VAR
+    default_value: /i/am/visible
+  - name: VISIBLE_VAR_IF_MISSING
+    default_value: /i/am/visible
+    hidden: false
+`
 
-	bIndex := &bricksindex.BricksIndex{
-		Bricks: []bricksindex.Brick{
-			{
-				ID:           "arduino:weather_forecast",
-				Name:         "Weather Forecast",
-				Category:     "miscellaneous",
-				RequireModel: false,
-				Variables:    []bricksindex.BrickVariable{},
-			},
-			{
-				ID:           "arduino:object_detection",
-				Name:         "Object Detection",
-				Category:     "video",
-				ModelName:    "yolox-object-detection",
-				RequireModel: true,
-				Variables: []bricksindex.BrickVariable{
-					{Name: "CUSTOM_MODEL_PATH", DefaultValue: "/home/arduino/.arduino-bricks/models", Description: "path to the custom model directory"},
-					{Name: "EI_OBJ_DETECTION_MODEL", DefaultValue: "/models/ootb/ei/yolo-x-nano.eim", Description: "path to the model file"},
-				},
-			},
-			{
-				ID:           "arduino:audio_classification",
-				Name:         "Audio Classification",
-				Category:     "audio",
-				ModelName:    "glass-breaking",
-				RequireModel: true,
-				Variables: []bricksindex.BrickVariable{
-					{Name: "CUSTOM_MODEL_PATH", DefaultValue: "/home/arduino/.arduino-bricks/models"},
-					{Name: "EI_AUDIO_CLASSIFICATION_MODEL", DefaultValue: "/models/ootb/ei/glass-breaking.eim"},
-				},
-			},
-			{
-				ID:           "arduino:streamlit_ui",
-				Name:         "WebUI - Streamlit",
-				Category:     "ui",
-				RequireModel: false,
-				Ports:        []string{"7000", "8000"},
-			},
-			{
-				ID:   "arduino:with-hidden-vars",
-				Name: "I have some hidden variables",
-				Variables: []bricksindex.BrickVariable{
-					{Name: "HIDDEN_VAR", DefaultValue: "/i/am/hidden", Hidden: true},
-					{Name: "VISIBLE_VAR", DefaultValue: "/i/am/visible"},
-					{Name: "VISIBLE_VAR_IF_MISSING", DefaultValue: "/i/am/visible", Hidden: false},
-				},
-			},
-		},
-	}
+	tmpDir := t.TempDir()
+	brickYamlPath := filepath.Join(tmpDir, "bricks-list.yaml")
+	os.WriteFile(brickYamlPath, []byte(bricksYaml), 0600)
+
+	bIndex, err := bricksindex.Load(paths.New(tmpDir))
+	require.NoError(t, err)
 
 	svc := &Service{
 		bricksIndex: bIndex,
