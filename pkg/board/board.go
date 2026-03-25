@@ -351,7 +351,8 @@ func SetUserPassword(ctx context.Context, conn remote.RemoteConn, newPass string
 	return nil
 }
 
-func EnableNetworkMode(ctx context.Context, conn remote.RemoteConn) error {
+// LegacyEnableNetworkMode is used to enable network mode by using sudoers file, this should deprecated.
+func LegacyEnableNetworkMode(ctx context.Context, conn remote.RemoteConn) error {
 	cmds := [][]string{
 		{"sudo", "dpkg-reconfigure", "openssh-server"},
 		{"sudo", "systemctl", "enable", "ssh"},
@@ -362,6 +363,24 @@ func EnableNetworkMode(ctx context.Context, conn remote.RemoteConn) error {
 
 	for _, cmd := range cmds {
 		if out, err := conn.GetCmd(cmd[0], cmd[1:]...).Output(ctx); err != nil {
+			return fmt.Errorf("failed to run cmd %q: %w: %s", strings.Join(cmd, " "), err, string(out))
+		}
+	}
+
+	return nil
+}
+
+func EnableNetworkMode(ctx context.Context, conn remote.RemoteConn, password string) error {
+	cmds := [][]string{
+		{"dpkg-reconfigure", "openssh-server"},
+		{"systemctl", "unmask", "ssh.service"},
+		{"systemctl", "unmask", "avahi-daemon.service"},
+		{"systemctl", "start", "avahi-daemon.service"},
+		{"systemctl", "start", "ssh.service"},
+	}
+
+	for _, cmd := range cmds {
+		if out, err := remote.ExecAsRoot(conn, password, cmd...); err != nil {
 			return fmt.Errorf("failed to run cmd %q: %w: %s", strings.Join(cmd, " "), err, string(out))
 		}
 	}
@@ -390,16 +409,16 @@ func NetworkModeStatus(ctx context.Context, conn remote.RemoteConn) (bool, error
 	return true, nil
 }
 
-func DisableNetworkMode(ctx context.Context, conn remote.RemoteConn) error {
+func DisableNetworkMode(ctx context.Context, conn remote.RemoteConn, password string) error {
 	cmds := [][]string{
-		{"sudo", "systemctl", "disable", "ssh"},
-		{"sudo", "systemctl", "stop", "ssh"},
-		{"sudo", "systemctl", "disable", "avahi-daemon"},
-		{"sudo", "systemctl", "stop", "avahi-daemon"},
+		{"systemctl", "mask", "ssh.service"},
+		{"systemctl", "mask", "avahi-daemon.service"},
+		{"systemctl", "stop", "avahi-daemon.service"},
+		{"systemctl", "stop", "ssh.service"},
 	}
 
 	for _, cmd := range cmds {
-		if out, err := conn.GetCmd(cmd[0], cmd[1:]...).Output(ctx); err != nil {
+		if out, err := remote.ExecAsRoot(conn, password, cmd...); err != nil {
 			return fmt.Errorf("failed to run cmd %q: %w: %s", strings.Join(cmd, " "), err, string(out))
 		}
 	}
