@@ -228,7 +228,7 @@ func Load(path *paths.Path) (*BricksIndex, error) {
 		if err != nil {
 			return nil, err
 		}
-		bricks.Bricks[i].Source = namespace
+		bricks.Bricks[i].Source = "Arduino"
 		bricks.Bricks[i].composeFile = path.Join("compose", namespace, brickName, "brick_compose.yaml")
 		bricks.Bricks[i].readmeFile = path.Join("docs", namespace, brickName, "README.md")
 		bricks.Bricks[i].examplesPath = path.Join("examples", namespace, brickName)
