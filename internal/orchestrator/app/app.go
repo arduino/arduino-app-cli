@@ -37,11 +37,12 @@ const maxDescriptionLength = 150
 
 // ArduinoApp holds all the files composing an app
 type ArduinoApp struct {
-	Name           string
-	MainPythonFile *paths.Path
-	mainSketchPath *paths.Path
-	FullPath       *paths.Path // FullPath is the path to the App folder
-	Descriptor     AppDescriptor
+	Name            string
+	MainPythonFile  *paths.Path
+	mainSketchPath  *paths.Path
+	FullPath        *paths.Path // FullPath is the path to the App folder
+	localBricksPath *paths.Path
+	Descriptor      AppDescriptor
 }
 
 // Load creates an App instance by reading all the files composing an app and grouping them
@@ -103,7 +104,18 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 		return ArduinoApp{}, errors.New("main python file and sketch file missing from app")
 	}
 
+	if appPath.Join("bricks").Exist() {
+		app.localBricksPath = appPath.Join("bricks")
+	}
+
 	return app, nil
+}
+
+func (a *ArduinoApp) GetBricksPath() (*paths.Path, bool) {
+	if a == nil || a.localBricksPath == nil {
+		return nil, false
+	}
+	return a.localBricksPath, true
 }
 
 func (a *ArduinoApp) GetSketchPath() (*paths.Path, bool) {

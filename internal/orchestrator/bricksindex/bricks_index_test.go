@@ -22,6 +22,9 @@ import (
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
@@ -218,7 +221,7 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 				require.Contains(t, err.Error(), tc.expectedError)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, index.Bricks, tc.expectedBricks, "bricsk mistmatch")
+				assert.True(t, cmp.Equal(index.Bricks, tc.expectedBricks, cmpopts.IgnoreFields(Brick{}, "Source", "composeFile", "readmeFile", "examplesPath", "docsAPIPath")))
 			}
 		})
 	}
