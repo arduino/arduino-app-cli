@@ -30,13 +30,12 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
-	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
 func TestBrickCreate(t *testing.T) {
 	bricksIndex, err := bricksindex.Load(paths.New("testdata"))
 	require.Nil(t, err)
-	brickService := NewService(nil, bricksIndex, nil)
+	brickService := NewService(nil, bricksIndex)
 
 	t.Run("fails if brick id does not exist", func(t *testing.T) {
 		err = brickService.BrickCreate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
@@ -106,7 +105,7 @@ func TestBrickCreate(t *testing.T) {
 		require.Nil(t, err)
 		bricksIndex, err := bricksindex.Load(paths.New("testdata"))
 		require.Nil(t, err)
-		brickService := NewService(nil, bricksIndex, nil)
+		brickService := NewService(nil, bricksIndex)
 
 		deviceID := "this-is-a-device-id"
 		secret := "this-is-a-secret"
@@ -133,7 +132,7 @@ func TestBrickCreate(t *testing.T) {
 func TestUpdateBrick(t *testing.T) {
 	bricksIndex, err := bricksindex.Load(paths.New("testdata"))
 	require.Nil(t, err)
-	brickService := NewService(nil, bricksIndex, nil)
+	brickService := NewService(nil, bricksIndex)
 
 	t.Run("fails if brick id does not exist into brick index", func(t *testing.T) {
 		err = brickService.BrickUpdate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
@@ -193,7 +192,7 @@ func TestUpdateBrick(t *testing.T) {
 		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
 		bricksIndex, err := bricksindex.Load(paths.New("testdata"))
 		require.Nil(t, err)
-		brickService := NewService(nil, bricksIndex, nil)
+		brickService := NewService(nil, bricksIndex)
 
 		deviceID := "updated-device-id"
 		secret := "updated-secret"
@@ -222,7 +221,7 @@ func TestUpdateBrick(t *testing.T) {
 		require.Nil(t, paths.New("testdata/dummy-app-for-update").CopyDirTo(tempDummyApp))
 		bricksIndex, err := bricksindex.Load(paths.New("testdata"))
 		require.Nil(t, err)
-		brickService := NewService(nil, bricksIndex, nil)
+		brickService := NewService(nil, bricksIndex)
 
 		secret := "updated-the-secret"
 		req := BrickCreateUpdateRequest{
@@ -252,7 +251,7 @@ func TestUpdateBrick(t *testing.T) {
 		require.NoError(t, err)
 		modelsIndex, err := modelsindex.Load(paths.New("testdata"), paths.New("not_exixsting_path"))
 		require.NoError(t, err)
-		brickService := NewService(modelsIndex, bricksIndex, nil)
+		brickService := NewService(modelsIndex, bricksIndex)
 
 		modelPath := "/home/arduino/.arduino-bricks/ei-model-123-1/model.eim"
 		modelId := "ei-model-123-1"
@@ -383,6 +382,34 @@ func TestBricksDetails(t *testing.T) {
 	require.NoError(t, os.MkdirAll(appsDir, 0755))
 	require.NoError(t, os.MkdirAll(assetsDir, 0755))
 
+	brickYaml := filepath.Join(assetsDir, "bricks-list.yaml")
+	os.WriteFile(brickYaml, []byte(`
+bricks:
+- id: arduino:object_detection
+  name: Object Detection
+  description: Detect objects in images using a pre-trained model
+  require_container: true
+  require_model: true
+  mount_devices_into_container: true
+  ports: ["8000"]
+  category: video
+  variables:
+  - name: EI_OBJ_DETECTION_MODEL
+    description: path to the model file
+    default_value: default_path
+  - name: CUSTOM_MODEL_PATH
+    description: path to the custom model directory
+    default_value: /home/arduino/.arduino-bricks/models
+- id: arduino:weather_forecast
+  name: Weather Forecast
+  category:  "miscellaneous"
+  model_name: ""
+- id: arduino:one_model_brick
+  name: one model brick
+  category:  "miscellaneous"
+  model_name: ""
+  `), 0600)
+
 	t.Setenv("ARDUINO_APP_CLI__APPS_DIR", appsDir)
 	t.Setenv("ARDUINO_APP_CLI__DATA_DIR", dataDir)
 
@@ -394,33 +421,9 @@ func TestBricksDetails(t *testing.T) {
 	}
 	createFakeApp(t, appsDir)
 
-	bIndex := &bricksindex.BricksIndex{
-		Bricks: []bricksindex.Brick{
-			{
-				ID:        "arduino:object_detection",
-				Name:      "Object Detection",
-				Category:  "video",
-				ModelName: "yolox-object-detection", // Default model
-				Variables: []bricksindex.BrickVariable{
-					{Name: "EI_OBJ_DETECTION_MODEL", DefaultValue: "default_path", Description: "path to the model file"},
-					{Name: "CUSTOM_MODEL_PATH", DefaultValue: "/home/arduino/.arduino-bricks/models", Description: "path to the custom model directory"},
-				},
-			},
-			{
-				ID:        "arduino:weather_forecast",
-				Name:      "Weather Forecast",
-				Category:  "miscellaneous",
-				ModelName: "",
-			},
-			{
-				ID:        "arduino:one_model_brick",
-				Name:      "one model brick",
-				Category:  "video",
-				ModelName: "face-detection", // Default model
-				Variables: []bricksindex.BrickVariable{},
-			},
-		},
-	}
+	bIndex, err := bricksindex.Load(paths.New(assetsDir))
+	require.NoError(t, err)
+
 	mIndex := &modelsindex.ModelsIndex{
 		InternalModels: []modelsindex.AIModel{
 
@@ -440,7 +443,6 @@ func TestBricksDetails(t *testing.T) {
 	svc := &Service{
 		bricksIndex: bIndex,
 		modelsIndex: mIndex,
-		staticStore: store.NewStaticStore(assetsDir),
 	}
 	idProvider := app.NewAppIDProvider(cfg)
 
@@ -532,15 +534,19 @@ func TestBricksDetails(t *testing.T) {
 func createFakeBrickAssets(t *testing.T, assetsDir, brick string) {
 	t.Helper()
 
-	brickDocDir := filepath.Join(assetsDir, "docs", "arduino", brick)
-	require.NoError(t, os.MkdirAll(brickDocDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(brickDocDir, "README.md"),
+	readmeDir := filepath.Join(assetsDir, "docs", "arduino", brick)
+	require.NoError(t, os.MkdirAll(readmeDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(readmeDir, "README.md"),
 		[]byte("# Documentation"), 0600))
 
 	brickExDir := filepath.Join(assetsDir, "examples", "arduino", brick)
 	require.NoError(t, os.MkdirAll(brickExDir, 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(brickExDir, "blink.ino"),
 		[]byte("void setup() {}"), 0600))
+
+	apiDocsDir := filepath.Join(assetsDir, "api-docs", "arduino", "app_bricks", brick)
+	require.NoError(t, os.MkdirAll(apiDocsDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(apiDocsDir, "API.md"), []byte("# API"), 0600))
 }
 
 func createFakeApp(t *testing.T, appsDir string) {

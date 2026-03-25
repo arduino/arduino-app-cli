@@ -91,7 +91,6 @@ var (
 		return bricks.NewService(
 			GetModelsIndex(),
 			GetBricksIndex(),
-			GetStaticStore(),
 		)
 	})
 
