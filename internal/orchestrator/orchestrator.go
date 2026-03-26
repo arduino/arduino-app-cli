@@ -1139,12 +1139,39 @@ func compileUploadSketch(
 		slog.Info("Used library " + lib.GetName() + " (" + lib.GetVersion() + ") in " + lib.GetInstallDir())
 	}
 
-	if err := uploadSketchInRam(ctx, w, srv, inst, platform, sketchPath.String(), buildPath.String()); err != nil {
-		slog.Warn("failed to upload in ram mode, trying to configure the board in ram mode, and retry", slog.String("error", err.Error()))
-		if err := configureMicroInRamMode(ctx, w, srv, inst, platform); err != nil {
+	if platform.SupportFlashToRam() {
+		if err := uploadSketchInRam(ctx, w, srv, inst, platform, sketchPath.String(), buildPath.String()); err != nil {
+			slog.Warn("failed to upload in ram mode, trying to configure the board in ram mode, and retry", slog.String("error", err.Error()))
+			if err := configureMicroInRamMode(ctx, w, srv, inst, platform); err != nil {
+				return err
+			}
+			return uploadSketchInRam(ctx, w, srv, inst, platform, sketchPath.String(), buildPath.String())
+		}
+	} else {
+		if err := uploadSketch(ctx, w, srv, inst, platform, sketchPath.String(), buildPath.String()); err != nil {
 			return err
 		}
-		return uploadSketchInRam(ctx, w, srv, inst, platform, sketchPath.String(), buildPath.String())
+	}
+
+	return nil
+}
+
+func uploadSketch(ctx context.Context,
+	w io.Writer,
+	srv rpc.ArduinoCoreServiceServer,
+	inst *rpc.Instance,
+	platform platform.Platform,
+	sketchPath string,
+	buildPath string,
+) error {
+	stream, _ := commands.UploadToServerStreams(ctx, w, w)
+	if err := srv.Upload(&rpc.UploadRequest{
+		Instance:   inst,
+		Fqbn:       platform.FQBN,
+		SketchPath: sketchPath,
+		ImportDir:  buildPath,
+	}, stream); err != nil {
+		return err
 	}
 	return nil
 }
