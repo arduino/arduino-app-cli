@@ -15,9 +15,10 @@ type GpioPin struct {
 }
 
 type Platform struct {
-	FQBN       string
-	PlatformID string
-	Linux      struct {
+	FQBN        string
+	PlatformID  string
+	CompileJobs int32
+	Linux       struct {
 		UserLeds   paths.PathList
 		StatusLeds paths.PathList
 	}
@@ -46,6 +47,7 @@ func GetPlatform() Platform {
 					"/sys/class/leds/red:user",
 				),
 			},
+			CompileJobs: 2,
 			Micro: struct{ ResetPin GpioPin }{
 				ResetPin: GpioPin{Chip: "gpiochip1", Number: 38},
 			},
@@ -59,6 +61,7 @@ func GetPlatform() Platform {
 				StatusLeds: paths.NewPathList(),
 				UserLeds:   paths.NewPathList(),
 			},
+			CompileJobs: 0, // unlimited
 			Micro: struct{ ResetPin GpioPin }{
 				ResetPin: GpioPin{Chip: "gpiochip2", Number: 78},
 			},

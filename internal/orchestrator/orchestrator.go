@@ -1115,7 +1115,7 @@ func compileUploadSketch(
 		Fqbn:       platform.FQBN,
 		SketchPath: sketchPath.String(),
 		BuildPath:  buildPath.String(),
-		Jobs:       2,
+		Jobs:       platform.CompileJobs,
 	}
 
 	err = srv.Compile(&compileReq, server)
