@@ -71,9 +71,12 @@ func adbWriteFile(a *ADBConnection, r io.Reader, pathStr string) error {
 		return fmt.Errorf("failed to get stdin pipe for command to write file %q: %w", pathStr, err)
 	}
 	defer stdin.Close()
+
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start command for write file %q: %w", pathStr, err)
 	}
+	// Close cmd regardless of errors happening downstream
+	defer func() { _ = cmd.Wait() }()
 
 	if _, err := io.Copy(stdin, r); err != nil {
 		return fmt.Errorf("failed to write content to file %q: %w", pathStr, err)

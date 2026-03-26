@@ -83,14 +83,17 @@ func adbWriteFile(a *ADBConnection, r io.Reader, pathStr string) error {
 	if err != nil {
 		return fmt.Errorf("failed to start write process %q: %w", pathStr, err)
 	}
+	// Close cmd regardless of errors happening downstream
+	defer func() { _ = cmd.Wait() }()
 
 	if _, err := io.Copy(encoder, r); err != nil {
 		return fmt.Errorf("failed to write file %q: %w", pathStr, err)
 	}
-	encoder.Close()
-	stdin.Close()
+	_ = encoder.Close()
+	_ = stdin.Close() // Close the stdin pipe to signal that we're done writing.
 
-	_ = cmd.Wait()
-
+	if err := cmd.Wait(); err != nil {
+		return fmt.Errorf("failed to close command for writing file %q: %w", pathStr, err)
+	}
 	return nil
 }

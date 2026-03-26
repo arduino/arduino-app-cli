@@ -18,10 +18,14 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
 
+	"github.com/docker/cli/cli/command"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/jub0bs/cors"
 	"github.com/spf13/cobra"
 
@@ -41,6 +45,11 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 		Short: "Run the Arduino App CLI as an HTTP daemon",
 		Run: func(cmd *cobra.Command, args []string) {
 			daemonPort, _ := cmd.Flags().GetString("port")
+
+			err := stopArduinoContainers(cmd.Context(), servicelocator.GetDockerClient())
+			if err != nil {
+				slog.Warn("Failed to stop containers", slog.String("error", err.Error()))
+			}
 
 			// start the default app in the background
 			go func() {
@@ -144,4 +153,22 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 	_ = httpSrv.Shutdown(ctx)
 	cancel()
 	slog.Info("HTTP server shut down", slog.String("address", address))
+}
+
+// stopArduinoContainers stops the Arduino containers that start running automatically when the board boots
+func stopArduinoContainers(ctx context.Context, docker command.Cli) error {
+	containers, err := docker.Client().ContainerList(ctx, container.ListOptions{
+		All:     false,
+		Filters: filters.NewArgs(filters.Arg("label", orchestrator.DockerAppLabel+"=true")),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list containers: %w", err)
+	}
+	for _, c := range containers {
+		slog.Debug("Stopping container", slog.String("ID", c.ID))
+		if err := docker.Client().ContainerStop(ctx, c.ID, container.StopOptions{}); err != nil {
+			slog.Warn("Failed to stop container", "ID", c.ID, "error", err.Error())
+		}
+	}
+	return nil
 }

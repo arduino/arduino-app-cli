@@ -33,7 +33,7 @@ type Platform struct {
 func GetPlatform() Platform {
 	codeName := getCodeName()
 	switch codeName {
-	case "Imola":
+	case "imola":
 		slog.Debug("detected platform", "codeName", codeName)
 		return Platform{
 			codeName:   codeName,
@@ -72,8 +72,8 @@ func getCodeName() string {
 }
 
 func getCodeNameInternal(fs fs.FS) string {
-	trimAll := func(s []byte) []byte {
-		return bytes.Trim(s, " \n\t\r\x00")
+	trimAndLower := func(s []byte) []byte {
+		return bytes.ToLower(bytes.Trim(s, " \n\t\r\x00"))
 	}
 
 	readFile := func(path string) ([]byte, error) {
@@ -82,22 +82,20 @@ func getCodeNameInternal(fs fs.FS) string {
 			return nil, err
 		}
 		defer f.Close()
-
-		if buf, err := io.ReadAll(f); err != nil {
-			return nil, err
-		} else {
-			return buf, nil
-		}
+		return io.ReadAll(f)
 	}
 
 	if buf, err := readFile("sys/class/dmi/id/product_name"); err == nil {
-		return string(trimAll(buf))
-	} else if buf, err := readFile("sys/firmware/devicetree/base/model"); err == nil {
-		if idx := bytes.LastIndex(buf, []byte(",")); idx != -1 {
-			return string(trimAll(buf[idx+1:]))
-		}
-		if idx := bytes.LastIndex(buf, []byte(" ")); idx != -1 {
-			return string(trimAll(buf[idx+1:]))
+		return string(trimAndLower(buf))
+	} else if buf, err := readFile("sys/firmware/devicetree/base/compatible"); err == nil {
+		compatibles := bytes.Split(buf, []byte{'\x00'})
+		if len(compatibles) > 0 {
+			compatible := compatibles[0]
+			if idx := bytes.Index(compatibles[0], []byte{','}); idx != -1 {
+				return string(trimAndLower(compatible[idx+1:]))
+			} else {
+				return string(trimAndLower(compatible))
+			}
 		}
 	}
 

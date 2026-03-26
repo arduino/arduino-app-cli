@@ -18,29 +18,29 @@ func TestGetCodeName(t *testing.T) {
 			files: fstest.MapFS{
 				"sys/class/dmi/id/product_name": {Data: []byte("  Foo \n")},
 			},
-			want: "Foo",
+			want: "foo",
 		},
 		{
 			name: "product_name exists and model exists",
 			files: fstest.MapFS{
-				"sys/class/dmi/id/product_name":      {Data: []byte("  Foo \n")},
-				"sys/firmware/devicetree/base/model": {Data: []byte("Arduino SA,Bar")},
+				"sys/class/dmi/id/product_name":           {Data: []byte("foo \n")},
+				"sys/firmware/devicetree/base/compatible": {Data: []byte("arduino,foo")},
 			},
-			want: "Foo",
+			want: "foo",
 		},
 		{
-			name: "model with comma",
+			name: "single compatible",
 			files: fstest.MapFS{
-				"sys/firmware/devicetree/base/model": {Data: []byte("Arduino SA,Bar")},
+				"sys/firmware/devicetree/base/compatible": {Data: []byte("arduino,bar")},
 			},
-			want: "Bar",
+			want: "bar",
 		},
 		{
-			name: "model with space",
+			name: "multiple compatibles",
 			files: fstest.MapFS{
-				"sys/firmware/devicetree/base/model": {Data: []byte("Arduino Foo")},
+				"sys/firmware/devicetree/base/compatible": {Data: []byte("arduino,bar\x00some,other")},
 			},
-			want: "Foo",
+			want: "bar",
 		},
 		{
 			name:  "no files",
