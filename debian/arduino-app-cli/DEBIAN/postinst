@@ -9,6 +9,8 @@ systemctl enable arduino-app-cli
 systemctl enable arduino-burn-bootloader
 systemctl enable arduino-avahi-serial.service
 
+export ARDUINO_APP_CLI__ALLOW_ROOT=true && arduino-app-cli completion bash > /etc/bash_completion.d/arduino-app-cli.bash
+
 if [ "$1" = "configure" ]; then
     rm -rf /home/arduino/.local/share/arduino-app-cli
 fi
