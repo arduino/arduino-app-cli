@@ -4,7 +4,7 @@ After=network-online.target docker.service arduino-router.service
 Wants=network-online.target docker.service arduino-router.service
 
 [Service]
-ExecStart=/usr/bin/arduino-app-cli daemon --port 8800 --log-level error
+ExecStart=/usr/bin/arduino-app-cli daemon --port 8800 --log-level debug
 User=1000
 Group=arduino
 Environment="DOCKER_REGISTRY_BASE=ghcr.io/rjtokenring/"

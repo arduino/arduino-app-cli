@@ -223,3 +223,44 @@ func formatPorts(ports []int) string {
 	}
 	return strings.Join(s, ", ")
 }
+
+var ErrBrickAlreadyExists = fmt.Errorf("brick already exists")
+
+// TODO: use a template to create the brick files, instead of hardcoding them here
+func GenerateLocalBrick(app app.ArduinoApp, id string, name, description string) error {
+	bricksFolder, found := app.GetBricksPath()
+	if !found {
+		err := bricksFolder.MkdirAll()
+		if err != nil {
+			return fmt.Errorf("failed to create bricks directory: %w", err)
+		}
+	}
+
+	brickDir := bricksFolder.Join(id)
+
+	if brickDir.Exist() {
+		return fmt.Errorf("%w: %q", ErrBrickAlreadyExists, id)
+	}
+
+	if err := brickDir.MkdirAll(); err != nil {
+		return fmt.Errorf("failed to create brick directory: %w", err)
+	}
+
+	if err := os.WriteFile(brickDir.Join("__init__.py").String(), []byte("# Public python API\n"), 0600); err != nil {
+		return fmt.Errorf("failed to write __init__.py: %w", err)
+	}
+
+	brickConfig := fmt.Sprintf("id: %s\nname: %q\ndescription: %q\n", id, name, description)
+	if err := os.WriteFile(brickDir.Join("brick_config.yaml").String(), []byte(brickConfig), 0600); err != nil {
+		return fmt.Errorf("failed to write brick_config.yaml: %w", err)
+	}
+
+	readme := fmt.Sprintf("# %s\n\n%s\n", name, description)
+	if err := os.WriteFile(brickDir.Join("README.md").String(), []byte(readme), 0600); err != nil {
+		return fmt.Errorf("failed to write README.md: %w", err)
+	}
+
+	_ = os.WriteFile(brickDir.Join("brick_compose.yaml").String(), []byte("services: \n# Optional: containers services"), 0600)
+
+	return nil
+}
