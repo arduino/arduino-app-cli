@@ -35,8 +35,7 @@ import (
 )
 
 type BricksIndex struct {
-	Bricks []Brick
-
+	BuiltInBricks []Brick
 	bricksFolders paths.PathList
 }
 
@@ -56,7 +55,7 @@ func (m *BricksIndex) WithAppBricks(app *app.ArduinoApp) *BricksIndex {
 		slog.Warn("error reading app bricks folder, skipping loading bricks from app", "path", path, "err", err)
 		return m
 	}
-	return &BricksIndex{Bricks: m.Bricks, bricksFolders: pathsList}
+	return &BricksIndex{BuiltInBricks: m.BuiltInBricks, bricksFolders: pathsList}
 }
 
 func (b *BricksIndex) FindBrickByID(id string) (*Brick, bool) {
@@ -71,7 +70,7 @@ func (b *BricksIndex) FindBrickByID(id string) (*Brick, bool) {
 }
 
 func (b *BricksIndex) ListBricks() []Brick {
-	return append(b.Bricks, b.loadBricksFromFolders()...)
+	return append(b.BuiltInBricks, b.loadBricksFromFolders()...)
 }
 
 func (f *BricksIndex) loadBricksFromFolders() []Brick {
@@ -242,7 +241,7 @@ func Load(path *paths.Path) (*BricksIndex, error) {
 		bricks.Bricks[i].docsAPIPath = path.Join("api-docs", namespace, "app_bricks", brickName, "API.md")
 	}
 	return &BricksIndex{
-		Bricks: bricks.Bricks,
+		BuiltInBricks: bricks.Bricks,
 	}, nil
 }
 
