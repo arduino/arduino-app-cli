@@ -104,18 +104,23 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 		return ArduinoApp{}, errors.New("main python file and sketch file missing from app")
 	}
 
-	if appPath.Join("bricks").Exist() {
-		app.localBricksPath = appPath.Join("bricks")
-	}
+	app.localBricksPath = appPath.Join("bricks")
 
 	return app, nil
 }
 
-func (a *ArduinoApp) GetBricksPath() (*paths.Path, bool) {
-	if a == nil || a.localBricksPath == nil {
-		return nil, false
+func (a *ArduinoApp) HasBricksFolder() bool {
+	if a.localBricksPath == nil {
+		return false
 	}
-	return a.localBricksPath, true
+	if a.localBricksPath.Exist() {
+		return true
+	}
+	return false
+}
+
+func (a *ArduinoApp) GetBricksPath() *paths.Path {
+	return a.localBricksPath
 }
 
 func (a *ArduinoApp) GetSketchPath() (*paths.Path, bool) {

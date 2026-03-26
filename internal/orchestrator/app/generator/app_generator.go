@@ -228,22 +228,21 @@ var ErrBrickAlreadyExists = fmt.Errorf("brick already exists")
 
 // TODO: use a template to create the brick files, instead of hardcoding them here
 func GenerateLocalBrick(app app.ArduinoApp, id string, name, description string) error {
-	bricksFolder, found := app.GetBricksPath()
+	bricksDir, found := app.HasBricksFolder()
 	if !found {
-		err := bricksFolder.MkdirAll()
+		err := bricksDir.MkdirAll()
 		if err != nil {
 			return fmt.Errorf("failed to create bricks directory: %w", err)
 		}
 	}
-
-	brickDir := bricksFolder.Join(id)
-
+	brickDir := bricksDir.Join(id)
 	if brickDir.Exist() {
 		return fmt.Errorf("%w: %q", ErrBrickAlreadyExists, id)
 	}
 
-	if err := brickDir.MkdirAll(); err != nil {
-		return fmt.Errorf("failed to create brick directory: %w", err)
+	err := brickDir.MkdirAll()
+	if err != nil {
+		return fmt.Errorf("failed to create bricks directory: %w", err)
 	}
 
 	if err := os.WriteFile(brickDir.Join("__init__.py").String(), []byte("# Public python API\n"), 0600); err != nil {

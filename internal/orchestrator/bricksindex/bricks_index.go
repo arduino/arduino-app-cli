@@ -40,11 +40,14 @@ type BricksIndex struct {
 }
 
 func (m *BricksIndex) WithAppBricks(app *app.ArduinoApp) *BricksIndex {
-	path, ok := app.GetBricksPath()
-	if !ok {
+	if app == nil {
 		return m
 	}
-	pathsList, err := path.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
+	found := app.HasBricksFolder()
+	if !found {
+		return m
+	}
+	pathsList, err := app.GetBricksPath().ReadDirRecursiveFiltered(func(file *paths.Path) bool {
 		if file.Join("brick_config.yaml").NotExist() {
 			// let's continue scanning, the model can be in a subfolder
 			return true
@@ -52,7 +55,7 @@ func (m *BricksIndex) WithAppBricks(app *app.ArduinoApp) *BricksIndex {
 		return false
 	}, paths.FilterDirectories(), paths.FilterOutNames(".cache"))
 	if err != nil {
-		slog.Warn("error reading app bricks folder, skipping loading bricks from app", "path", path, "err", err)
+		slog.Warn("error reading app bricks folder, skipping loading bricks from app", "app", app.Name, "err", err)
 		return m
 	}
 	return &BricksIndex{BuiltInBricks: m.BuiltInBricks, bricksFolders: pathsList}

@@ -28,6 +28,7 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
+	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 )
@@ -117,5 +118,23 @@ func compareFolders(t *testing.T, actualPath, goldenPath *paths.Path) {
 		require.NoError(t, err, "failed reading actual file: %s", relPath)
 		require.True(t, bytes.Equal(goldenContent, actualContent), "content should be the same: %q", relPath)
 
+	}
+}
+
+func TestGenerateAppBrick(t *testing.T) {
+	appDir := paths.New(t.TempDir())
+
+	err := GenerateApp(appDir, app.AppDescriptor{Name: "an-app-with-brick"}, true)
+	require.NoError(t, err)
+
+	err = GenerateLocalBrick(f.Must(app.Load(appDir)), "my-brick", "a-brick-name", "a-brick-description")
+	require.NoError(t, err)
+
+	if os.Getenv("UPDATE_GOLDEN") == "true" {
+		t.Logf("UPDATE_GOLDEN=true: updating  golden files in %s", "testdata/app-with-brick.golden")
+		require.NoError(t, os.RemoveAll("testdata/app-with-brick.golden"))
+		require.NoError(t, os.CopyFS("testdata/app-with-brick.golden", os.DirFS(appDir.String())))
+	} else {
+		compareFolders(t, appDir, paths.New("testdata/app-with-brick.golden"))
 	}
 }
