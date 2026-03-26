@@ -25,22 +25,16 @@ import (
 )
 
 type StaticStore struct {
-	baseDir          string
-	composePath      string
-	docsPath         string
-	assetsPath       *paths.Path
-	apiDocsPath      string
-	codeExamplesPath string
+	baseDir     string
+	composePath string
+	assetsPath  *paths.Path
 }
 
 func NewStaticStore(baseDir string) *StaticStore {
 	return &StaticStore{
-		baseDir:          baseDir,
-		composePath:      filepath.Join(baseDir, "compose"),
-		docsPath:         filepath.Join(baseDir, "docs"),
-		apiDocsPath:      filepath.Join(baseDir, "api-docs"),
-		codeExamplesPath: filepath.Join(baseDir, "examples"),
-		assetsPath:       paths.New(baseDir),
+		baseDir:     baseDir,
+		composePath: filepath.Join(baseDir, "compose"),
+		assetsPath:  paths.New(baseDir),
 	}
 }
 

@@ -31,34 +31,83 @@ import (
 )
 
 func TestGenerateBricksIndexFromFile(t *testing.T) {
-	index, err := Load(paths.New("testdata"))
+	yamlContent := `
+bricks:
+- id: arduino:basic
+  name: i-am-a-basic-brick
+  description: i am a basic brick with only id, name and description
+  category: "Image"
+- id: arduino:with-ports
+  ports:
+  - 7000
+  - 8000
+- id: arduino:with-model-variables
+  model_name: mobilenet-image-classification
+  variables:
+  - name: FIRST_VARIABLE
+    default_value: default-value-for-first-variable
+    description: description for the first variable
+  - name: SECOND_VARIABLE
+    description: description for the second variable
+- id: arduino:model_required
+  require_model: true
+- id: arduino:model_required_false
+  require_model: false
+- id: arduino:missing-model-require
+- id: arduino:with-hidden-variables
+  variables:
+    - name: HIDDEN_VARIABLE
+      default_value: a_hidden_value
+      description: this variable is hidden
+      hidden: true
+    - name: VISIBLE_VARIABLE
+      default_value: a_visible_value
+      description: this variable is visible because 'hidden' is set to false
+      hidden: false
+    - name: VISIBLE_VARIABLE_IF_MISSING_HIDDEN
+      default_value: another_visible_value
+      description: this variable is visiable because 'hidden' field is missing
+      hidden: false
+
+`
+	assetDir := paths.TempDir()
+	err := assetDir.Join("bricks-list.yaml").WriteFile([]byte(yamlContent))
 	require.NoError(t, err)
 
-	// Check if ports are correctly set
-	bWebUI, found := index.FindBrickByID("arduino:web_ui")
+	index, err := Load(assetDir)
+	require.NoError(t, err)
+
+	brickBasi, found := index.FindBrickByID("arduino:basic")
 	require.True(t, found)
-	require.Equal(t, []string{"7000"}, bWebUI.Ports)
+	require.Equal(t, "arduino:basic", brickBasi.ID)
+	require.Equal(t, "i-am-a-basic-brick", brickBasi.Name)
+	require.Equal(t, "i am a basic brick with only id, name and description", brickBasi.Description)
+	require.Equal(t, "Image", brickBasi.Category)
+
+	// Check if ports are correctly set
+	bWithPorts, found := index.FindBrickByID("arduino:with-ports")
+	require.True(t, found)
+	require.Equal(t, []string{"7000", "8000"}, bWithPorts.Ports)
 
 	// Check if variables are correctly set
-	bIC, found := index.FindBrickByID("arduino:image_classification")
+	bWithVariables, found := index.FindBrickByID("arduino:with-model-variables")
 	require.True(t, found)
-	require.Equal(t, "Image Classification", bIC.Name)
-	require.Equal(t, "mobilenet-image-classification", bIC.ModelName)
-	require.Len(t, bIC.Variables, 2)
-	require.Equal(t, "CUSTOM_MODEL_PATH", bIC.Variables[0].Name)
-	require.Equal(t, "/opt/models/ei/", bIC.Variables[0].DefaultValue)
-	require.Equal(t, "path to the custom model directory", bIC.Variables[0].Description)
-	require.Equal(t, "EI_CLASSIFICATION_MODEL", bIC.Variables[1].Name)
-	require.Equal(t, "/models/ootb/ei/mobilenet-v2-224px.eim", bIC.Variables[1].DefaultValue)
-	require.Equal(t, "path to the model file", bIC.Variables[1].Description)
-	require.False(t, bIC.Variables[0].IsRequired())
-	require.False(t, bIC.Variables[1].IsRequired())
+	require.Equal(t, "mobilenet-image-classification", bWithVariables.ModelName)
+	require.Len(t, bWithVariables.Variables, 2)
+	require.Equal(t, "FIRST_VARIABLE", bWithVariables.Variables[0].Name)
+	require.Equal(t, "default-value-for-first-variable", bWithVariables.Variables[0].DefaultValue)
+	require.Equal(t, "description for the first variable", bWithVariables.Variables[0].Description)
+	require.False(t, bWithVariables.Variables[0].IsRequired())
+	require.Equal(t, "SECOND_VARIABLE", bWithVariables.Variables[1].Name)
+	require.Equal(t, "", bWithVariables.Variables[1].DefaultValue)
+	require.Equal(t, "description for the second variable", bWithVariables.Variables[1].Description)
+	require.True(t, bWithVariables.Variables[1].IsRequired())
 
 	bRequireModel, found := index.FindBrickByID("arduino:model_required")
 	require.True(t, found)
 	require.True(t, bRequireModel.RequireModel)
 
-	bDb, found := index.FindBrickByID("arduino:dbstorage_tsstore")
+	bDb, found := index.FindBrickByID("arduino:model_required_false")
 	require.True(t, found)
 	require.False(t, bDb.RequireModel)
 
@@ -225,4 +274,31 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLoadBrickYamlBrickIndex(t *testing.T) {
+
+	t.Run("get files of a brick in the yaml index", func(t *testing.T) {
+		bricksIndex, err := Load(paths.New("testdata/0.4.8"))
+		require.NoError(t, err)
+
+		brick, found := bricksIndex.FindBrickByID("arduino:a-good-brick")
+		require.True(t, found)
+		content, err := brick.GetReadmeFile()
+		require.NoError(t, err)
+		require.Equal(t, "# i-am-a-readme-file", content)
+
+		compose, found := brick.GetComposeFile()
+		require.True(t, found)
+		require.Equal(t, paths.New("testdata/0.4.8/compose/arduino/a-good-brick/brick_compose.yaml"), compose)
+
+		examples, err := brick.GetExamplesPath()
+		require.NoError(t, err)
+		require.Equal(t, paths.NewPathList("testdata/0.4.8/examples/arduino/a-good-brick/example_1.py", "testdata/0.4.8/examples/arduino/a-good-brick/example_2.py"), examples)
+
+		api, found := brick.GetApiDocPath()
+		require.True(t, found)
+		require.Equal(t, paths.New("testdata/0.4.8/api-docs/arduino/app_bricks/a-good-brick/API.md"), api)
+	})
+
 }

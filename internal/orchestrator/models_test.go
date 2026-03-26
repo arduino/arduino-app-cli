@@ -39,7 +39,98 @@ import (
 )
 
 func TestBuildBrickConfigForEIModel(t *testing.T) {
-	brickIndex, err := bricksindex.Load(paths.New("bricksindex/testdata"))
+	var yamlContent = `
+bricks:
+- id: arduino:image_classification
+  variables:
+  - name: CUSTOM_MODEL_PATH
+    default_value: /opt/models/ei/
+    description: path to the custom model directory
+  - name: EI_CLASSIFICATION_MODEL
+    default_value: /models/ootb/ei/mobilenet-v2-224px.eim
+    description: path to the model file
+- id: arduino:object_detection
+  variables:
+  - name: CUSTOM_MODEL_PATH
+    default_value: /opt/models/ei/
+    description: path to the custom model directory
+  - name: EI_OBJ_DETECTION_MODEL
+    default_value: /models/ootb/ei/yolo-x-nano.eim
+    description: path to the model file
+- id: arduino:video_object_detection
+  variables:
+  - name: EI_OBJ_DETECTION_MODEL
+    default_value: /models/ootb/ei/yolo-x-nano.eim
+    description: Path to the model file
+    hidden: true
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: Path to the custom model directory
+    hidden: true
+- id: arduino:visual_anomaly_detection
+  variables:
+  - name: CUSTOM_MODEL_PATH
+    default_value: /opt/models/ei/
+    description: path to the custom model directory
+  - name: EI_V_ANOMALY_DETECTION_MODEL
+    default_value: /models/ootb/ei/concrete-crack-anomaly-detection.eim
+    description: path to the model file
+- id: arduino:keyword_spotting
+  variables:
+  - name: EI_KEYWORD_SPOTTING_MODEL
+    default_value: /models/ootb/ei/keyword-spotting-hey-arduino.eim
+    description: Path to the model file
+    hidden: true
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: Path to the custom model directory
+    hidden: true
+- id: arduino:audio_classification
+  variables:
+  - name: EI_AUDIO_CLASSIFICATION_MODEL
+    default_value: /models/ootb/ei/glass-breaking.eim
+    description: Path to the model file
+    hidden: true
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: Path to the custom model directory
+    hidden: true
+- id: arduino:motion_detection
+  variables:
+  - name: EI_MOTION_DETECTION_MODEL
+    default_value: /models/ootb/ei/updown-wave-motion-detection.eim
+    description: Path to the model file
+    hidden: true
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: Path to the custom model directory
+    hidden: true
+- id: arduino:vibration_anomaly_detection
+  variables:
+  - name: EI_VIBRATION_ANOMALY_DETECTION_MODEL
+    default_value: /models/ootb/ei/fan-anomaly-detection.eim
+    description: Path to the model file
+    hidden: true
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: Path to the custom model directory
+    hidden: true
+- id: arduino:video_image_classification
+  variables:
+  - name: EI_V_CLASSIFICATION_MODEL
+    default_value: /models/ootb/ei/mobilenet-v2-224px.eim
+    description: Path to the model file
+    hidden: true
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: Path to the custom model directory
+    hidden: true
+`
+	assetDir := paths.TempDir()
+	err := assetDir.Join("bricks-list.yaml").WriteFile([]byte(yamlContent))
+	require.NoError(t, err)
+
+	brickIndex, err := bricksindex.Load(assetDir)
 	if err != nil {
 		t.Fatalf("failed to load bricks index: %v", err)
 	}
