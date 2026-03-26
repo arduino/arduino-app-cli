@@ -43,11 +43,11 @@ func (m *BricksIndex) WithAppBricks(app *app.ArduinoApp) *BricksIndex {
 	if app == nil {
 		return m
 	}
-	found := app.HasBricksFolder()
-	if !found {
+	bricksDir := app.GetBricksPath()
+	if !bricksDir.Exist() {
 		return m
 	}
-	pathsList, err := app.GetBricksPath().ReadDirRecursiveFiltered(func(file *paths.Path) bool {
+	pathsList, err := bricksDir.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
 		if file.Join("brick_config.yaml").NotExist() {
 			// let's continue scanning, the model can be in a subfolder
 			return true

@@ -109,18 +109,11 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 	return app, nil
 }
 
-func (a *ArduinoApp) HasBricksFolder() bool {
-	if a.localBricksPath == nil {
-		return false
-	}
-	if a.localBricksPath.Exist() {
-		return true
-	}
-	return false
-}
-
 func (a *ArduinoApp) GetBricksPath() *paths.Path {
-	return a.localBricksPath
+	if a.localBricksPath != nil {
+		return a.localBricksPath
+	}
+	return a.FullPath.Join("bricks")
 }
 
 func (a *ArduinoApp) GetSketchPath() (*paths.Path, bool) {
