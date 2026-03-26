@@ -36,7 +36,7 @@ import (
 
 type BricksIndex struct {
 	BuiltInBricks []Brick
-	bricksFolders paths.PathList
+	bricksFolder  *paths.Path
 }
 
 func (m *BricksIndex) WithAppBricks(app *app.ArduinoApp) *BricksIndex {
@@ -45,20 +45,10 @@ func (m *BricksIndex) WithAppBricks(app *app.ArduinoApp) *BricksIndex {
 	}
 	bricksDir := app.GetBricksPath()
 	if bricksDir == nil || !bricksDir.Exist() {
+		slog.Debug("App does not contain a bricks folder, skipping loading app bricks", "app", app.Name)
 		return m
 	}
-	pathsList, err := bricksDir.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
-		if file.Join("brick_config.yaml").NotExist() {
-			// let's continue scanning, the model can be in a subfolder
-			return true
-		}
-		return false
-	}, paths.FilterDirectories(), paths.FilterOutNames(".cache"))
-	if err != nil {
-		slog.Warn("error reading app bricks folder, skipping loading bricks from app", "app", app.Name, "err", err)
-		return m
-	}
-	return &BricksIndex{BuiltInBricks: m.BuiltInBricks, bricksFolders: pathsList}
+	return &BricksIndex{BuiltInBricks: m.BuiltInBricks, bricksFolder: bricksDir}
 }
 
 func (b *BricksIndex) FindBrickByID(id string) (*Brick, bool) {
@@ -73,12 +63,27 @@ func (b *BricksIndex) FindBrickByID(id string) (*Brick, bool) {
 }
 
 func (b *BricksIndex) ListBricks() []Brick {
-	return append(b.BuiltInBricks, b.loadBricksFromFolders()...)
+	return append(b.BuiltInBricks, b.loadBricksFromFolder()...)
 }
 
-func (f *BricksIndex) loadBricksFromFolders() []Brick {
+func (f *BricksIndex) loadBricksFromFolder() []Brick {
+	if f.bricksFolder == nil {
+		return nil
+	}
 	bricks := []Brick{}
-	for _, path := range f.bricksFolders {
+	pathsList, err := f.bricksFolder.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
+		if file.Join("brick_config.yaml").NotExist() {
+			// let's continue scanning, the model can be in a subfolder
+			return true
+		}
+		return false
+	}, paths.FilterDirectories())
+	if err != nil {
+		slog.Warn("error reading app bricks folder, skipping loading bricks", "err", err, "path", f.bricksFolder)
+		return bricks
+	}
+
+	for _, path := range pathsList {
 		brick, err := load(path)
 		if err != nil {
 			slog.Warn("Cannot load local app brick", "err", err, "path", path)
