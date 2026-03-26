@@ -44,7 +44,7 @@ func (m *BricksIndex) WithAppBricks(app *app.ArduinoApp) *BricksIndex {
 		return m
 	}
 	bricksDir := app.GetBricksPath()
-	if !bricksDir.Exist() {
+	if bricksDir == nil || !bricksDir.Exist() {
 		return m
 	}
 	pathsList, err := bricksDir.ReadDirRecursiveFiltered(func(file *paths.Path) bool {

@@ -229,6 +229,9 @@ var ErrBrickAlreadyExists = fmt.Errorf("brick already exists")
 // TODO: use a template to create the brick files, instead of hardcoding them here
 func GenerateLocalBrick(app app.ArduinoApp, id string, name, description string) error {
 	bricksDir := app.GetBricksPath()
+	if bricksDir == nil {
+		return fmt.Errorf("app does not support local bricks")
+	}
 	err := bricksDir.MkdirAll()
 	if err != nil {
 		return fmt.Errorf("failed to create bricks directory: %w", err)

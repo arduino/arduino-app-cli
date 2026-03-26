@@ -110,10 +110,7 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 }
 
 func (a *ArduinoApp) GetBricksPath() *paths.Path {
-	if a.localBricksPath != nil {
-		return a.localBricksPath
-	}
-	return a.FullPath.Join("bricks")
+	return a.localBricksPath
 }
 
 func (a *ArduinoApp) GetSketchPath() (*paths.Path, bool) {
