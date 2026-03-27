@@ -16,8 +16,7 @@ func loadFromFolder(dir *paths.Path) []Brick {
 	}
 	pathsList, err := dir.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
 		if file.Join("brick_config.yaml").NotExist() {
-			// let's continue scanning, the model can be in a subfolder
-			return true
+			return false
 		}
 		return false
 	}, paths.FilterDirectories())
