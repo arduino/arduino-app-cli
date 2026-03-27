@@ -72,7 +72,7 @@ func AppLogs(
 	// Obtain mapping compose service name <-> brick name
 	serviceToBrickMapping := make(map[string]string, len(app.Descriptor.Bricks))
 	for _, brick := range app.Descriptor.Bricks {
-		brick, ok := bricksIndex.WithAppBricks(&app).FindBrickByID(brick.ID)
+		brick, ok := bricksIndex.WithBricksFolder(app.GetBricksPath()).FindBrickByID(brick.ID)
 		if !ok {
 			slog.Warn("brick not valid", slog.String("brick_id", brick.ID))
 			continue

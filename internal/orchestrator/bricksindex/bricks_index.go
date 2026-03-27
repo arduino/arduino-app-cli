@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"iter"
-	"log/slog"
 	"os"
 	"slices"
 	"strings"
@@ -30,7 +29,6 @@ import (
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
 
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 )
 
@@ -39,16 +37,8 @@ type BricksIndex struct {
 	bricksFolder  *paths.Path
 }
 
-func (m *BricksIndex) WithAppBricks(app *app.ArduinoApp) *BricksIndex {
-	if app == nil {
-		return m
-	}
-	bricksDir := app.GetBricksPath()
-	if bricksDir == nil || !bricksDir.Exist() {
-		slog.Debug("App does not contain a bricks folder, skipping loading app bricks", "app", app.Name)
-		return m
-	}
-	return &BricksIndex{BuiltInBricks: m.BuiltInBricks, bricksFolder: bricksDir}
+func (m *BricksIndex) WithBricksFolder(dir *paths.Path) *BricksIndex {
+	return &BricksIndex{BuiltInBricks: m.BuiltInBricks, bricksFolder: dir}
 }
 
 func (b *BricksIndex) FindBrickByID(id string) (*Brick, bool) {
@@ -180,23 +170,23 @@ func Load(path *paths.Path) (*BricksIndex, error) {
 		return nil, err
 	}
 	defer content.Close()
-	bricks, err := unmarshalBricksIndex(content)
+	yamlIndex, err := unmarshalBricksIndex(content)
 	if err != nil {
 		return nil, err
 	}
-	for i := range bricks.Bricks {
-		namespace, brickName, err := parseBrickID(bricks.Bricks[i].ID)
+	for i := range yamlIndex.Bricks {
+		namespace, brickName, err := parseBrickID(yamlIndex.Bricks[i].ID)
 		if err != nil {
 			return nil, err
 		}
-		bricks.Bricks[i].Source = "Arduino"
-		bricks.Bricks[i].composeFile = path.Join("compose", namespace, brickName, "brick_compose.yaml")
-		bricks.Bricks[i].readmeFile = path.Join("docs", namespace, brickName, "README.md")
-		bricks.Bricks[i].examplesPath = path.Join("examples", namespace, brickName)
-		bricks.Bricks[i].docsAPIPath = path.Join("api-docs", namespace, "app_bricks", brickName, "API.md")
+		yamlIndex.Bricks[i].Source = "Arduino"
+		yamlIndex.Bricks[i].composeFile = path.Join("compose", namespace, brickName, "brick_compose.yaml")
+		yamlIndex.Bricks[i].readmeFile = path.Join("docs", namespace, brickName, "README.md")
+		yamlIndex.Bricks[i].examplesPath = path.Join("examples", namespace, brickName)
+		yamlIndex.Bricks[i].docsAPIPath = path.Join("api-docs", namespace, "app_bricks", brickName, "API.md")
 	}
 	return &BricksIndex{
-		BuiltInBricks: bricks.Bricks,
+		BuiltInBricks: yamlIndex.Bricks,
 	}, nil
 }
 

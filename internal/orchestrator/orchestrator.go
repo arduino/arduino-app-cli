@@ -122,7 +122,7 @@ func StartApp(
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		err := checkBricks(appToStart.Descriptor, bricksIndex.WithAppBricks(&appToStart), modelsIndex)
+		err := checkBricks(appToStart.Descriptor, bricksIndex.WithBricksFolder(appToStart.GetBricksPath()), modelsIndex)
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return
@@ -134,7 +134,7 @@ func StartApp(
 			return
 		}
 
-		err = checkRequiredDevices(bricksIndex.WithAppBricks(&appToStart), appToStart.Descriptor.Bricks, devices)
+		err = checkRequiredDevices(bricksIndex.WithBricksFolder(appToStart.GetBricksPath()), appToStart.Descriptor.Bricks, devices)
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return
@@ -272,7 +272,7 @@ func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.Bric
 	envs := make(helpers.EnvVars)
 
 	for _, brick := range app.Descriptor.Bricks {
-		if brickDef, found := brickIndex.WithAppBricks(&app).FindBrickByID(brick.ID); found {
+		if brickDef, found := brickIndex.WithBricksFolder(app.GetBricksPath()).FindBrickByID(brick.ID); found {
 			maps.Insert(envs, brickDef.GetDefaultVariables())
 		}
 

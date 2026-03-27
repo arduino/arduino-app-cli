@@ -10,7 +10,10 @@ import (
 )
 
 func loadFromFolder(dir *paths.Path) []Brick {
-	bricks := []Brick{}
+	if dir == nil || !dir.Exist() {
+		slog.Debug("App does not contain a bricks folder, skipping loading app bricks", "path", dir)
+		return nil
+	}
 	pathsList, err := dir.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
 		if file.Join("brick_config.yaml").NotExist() {
 			// let's continue scanning, the model can be in a subfolder
@@ -20,9 +23,9 @@ func loadFromFolder(dir *paths.Path) []Brick {
 	}, paths.FilterDirectories())
 	if err != nil {
 		slog.Warn("error reading app bricks folder, skipping loading bricks", "err", err, "path", dir)
-		return bricks
+		return nil
 	}
-
+	bricks := []Brick{}
 	for _, path := range pathsList {
 		brick, err := load(path)
 		if err != nil {
@@ -47,14 +50,13 @@ func load(brickPath *paths.Path) (a Brick, err error) {
 	if err := yaml.Unmarshal(brickConfigContent, &brick); err != nil {
 		return Brick{}, fmt.Errorf("cannot unmarshal brick_config.yaml: %w", err)
 	}
-	brick.Source = "custom" // TODO: find a better name
 
 	var composeFile *paths.Path = nil
 	brickComposeFile := brickPath.Join("brick_compose.yaml")
 	if brickComposeFile.Exist() {
 		composeFile = brickComposeFile
 	}
-	brick.Source = "custom" // TODO: find a better name ?
+	brick.Source = "Local" // TODO: find a better name ?
 	brick.composeFile = composeFile
 	brick.readmeFile = brickPath.Join("README.md")
 	brick.examplesPath = brickPath.Join("examples")
