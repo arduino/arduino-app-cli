@@ -29,6 +29,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
@@ -38,20 +39,23 @@ var (
 )
 
 type Service struct {
-	modelsIndex *modelsindex.ModelsIndex
-	bricksIndex *bricksindex.BricksIndex
-	staticStore *store.StaticStore
+	modelsIndex   *modelsindex.ModelsIndex
+	bricksIndex   *bricksindex.BricksIndex
+	servicesIndex *servicesindex.ServicesIndex
+	staticStore   *store.StaticStore
 }
 
 func NewService(
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
+	servicesIndex *servicesindex.ServicesIndex,
 	staticStore *store.StaticStore,
 ) *Service {
 	return &Service{
-		modelsIndex: modelsIndex,
-		bricksIndex: bricksIndex,
-		staticStore: staticStore,
+		modelsIndex:   modelsIndex,
+		bricksIndex:   bricksIndex,
+		servicesIndex: servicesIndex,
+		staticStore:   staticStore,
 	}
 }
 

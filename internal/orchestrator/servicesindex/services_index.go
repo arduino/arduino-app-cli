@@ -1,0 +1,87 @@
+package servicesindex
+
+import (
+	"fmt"
+	"os"
+	"slices"
+
+	"github.com/arduino/go-paths-helper"
+	"github.com/goccy/go-yaml"
+)
+
+type ServicesIndex struct {
+	Services []Service `yaml:"services"`
+}
+
+type Service struct {
+	ServiceID       string   `yaml:"service_id"`
+	Name            string   `yaml:"name"`
+	Description     string   `yaml:"description,omitempty"`
+	Category        string   `yaml:"category"`
+	SupportedBoards []string `yaml:"supported_boards"`
+	composeFile     *paths.Path
+}
+
+func Load(dir *paths.Path) (*ServicesIndex, error) {
+	services, err := loadFromFolder(dir)
+	if err != nil {
+		return nil, err
+	}
+	return &ServicesIndex{Services: services}, nil
+}
+
+func (s *ServicesIndex) FindserviceByID(id string) (*Service, bool) {
+	idx := slices.IndexFunc(s.Services, func(service Service) bool {
+		return service.ServiceID == id
+	})
+	if idx == -1 {
+		return nil, false
+	}
+	return &s.Services[idx], true
+}
+
+func loadFromFolder(dir *paths.Path) ([]Service, error) {
+	services := []Service{}
+	pathsList, err := dir.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
+		if file.Join("service_config.yaml").NotExist() {
+			// let's continue scanning, the service can be in a subfolder
+			return true
+		}
+		return false
+	}, paths.FilterDirectories())
+	if err != nil {
+		return nil, err
+	}
+
+	for _, path := range pathsList {
+		service, err := load(path)
+		if err != nil {
+			return nil, err
+		}
+		services = append(services, service)
+	}
+	return services, nil
+}
+
+func load(servicePath *paths.Path) (a Service, err error) {
+	serviceConfigPath := servicePath.Join("service_config.yaml")
+	if serviceConfigPath.NotExist() {
+		return Service{}, fmt.Errorf("service_config.yaml does not exist: %v", serviceConfigPath)
+	}
+	serviceConfigContent, err := os.ReadFile(serviceConfigPath.String())
+	if err != nil {
+		return Service{}, fmt.Errorf("cannot read service_config.yaml: %w", err)
+	}
+	service := Service{}
+	if err := yaml.Unmarshal(serviceConfigContent, &service); err != nil {
+		return Service{}, fmt.Errorf("cannot unmarshal service_config.yaml: %w", err)
+	}
+
+	var composeFile *paths.Path = nil
+	serviceComposeFile := servicePath.Join("service_compose.yaml")
+	if serviceComposeFile.Exist() {
+		composeFile = serviceComposeFile
+	}
+	service.composeFile = composeFile
+	return service, nil
+}

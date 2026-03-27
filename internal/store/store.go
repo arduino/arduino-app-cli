@@ -32,6 +32,7 @@ type StaticStore struct {
 	assetsPath       *paths.Path
 	apiDocsPath      string
 	codeExamplesPath string
+	servicesPath     string
 }
 
 func NewStaticStore(baseDir string) *StaticStore {
@@ -41,6 +42,7 @@ func NewStaticStore(baseDir string) *StaticStore {
 		docsPath:         filepath.Join(baseDir, "docs"),
 		apiDocsPath:      filepath.Join(baseDir, "api-docs"),
 		codeExamplesPath: filepath.Join(baseDir, "examples"),
+		servicesPath:     filepath.Join(baseDir, "services"),
 		assetsPath:       paths.New(baseDir),
 	}
 }
@@ -63,8 +65,12 @@ func (s *StaticStore) GetComposeFolder() *paths.Path {
 	return paths.New(s.composePath)
 }
 
+func (s *StaticStore) GetServicesFolder() *paths.Path {
+	return paths.New(s.servicesPath)
+}
+
 func (s *StaticStore) GetBrickReadmeFromID(brickID string) (string, error) {
-	namespace, brickName, err := parseBrickID(brickID)
+	namespace, brickName, err := parseBrickOrServiceID(brickID)
 	if err != nil {
 		return "", err
 	}
@@ -76,15 +82,23 @@ func (s *StaticStore) GetBrickReadmeFromID(brickID string) (string, error) {
 }
 
 func (s *StaticStore) GetBrickComposeFilePathFromID(brickID string) (*paths.Path, error) {
-	namespace, brickName, err := parseBrickID(brickID)
+	namespace, brickName, err := parseBrickOrServiceID(brickID)
 	if err != nil {
 		return nil, err
 	}
 	return paths.New(s.composePath, namespace, brickName, "brick_compose.yaml"), nil
 }
 
+func (s *StaticStore) GetServiceComposeFilePathFromID(serviceID string) (*paths.Path, error) {
+	namespace, serviceName, err := parseBrickOrServiceID(serviceID)
+	if err != nil {
+		return nil, err
+	}
+	return paths.New(s.servicesPath, namespace, serviceName, "service_compose.yaml"), nil
+}
+
 func (s *StaticStore) GetBrickApiDocPathFromID(brickID string) (string, error) {
-	namespace, brickName, err := parseBrickID(brickID)
+	namespace, brickName, err := parseBrickOrServiceID(brickID)
 	if err != nil {
 		return "", err
 	}
@@ -92,7 +106,7 @@ func (s *StaticStore) GetBrickApiDocPathFromID(brickID string) (string, error) {
 }
 
 func (s *StaticStore) GetBrickCodeExamplesPathFromID(brickID string) (paths.PathList, error) {
-	namespace, brickName, err := parseBrickID(brickID)
+	namespace, brickName, err := parseBrickOrServiceID(brickID)
 	if err != nil {
 		return nil, err
 	}
@@ -107,10 +121,10 @@ func (s *StaticStore) GetBrickCodeExamplesPathFromID(brickID string) (paths.Path
 	return dirEntries, nil
 }
 
-func parseBrickID(brickID string) (namespace, name string, err error) {
-	namespace, brickName, ok := strings.Cut(brickID, ":")
+func parseBrickOrServiceID(ID string) (namespace, name string, err error) {
+	namespace, name, ok := strings.Cut(ID, ":")
 	if !ok {
 		return "", "", errors.New("invalid ID")
 	}
-	return namespace, brickName, nil
+	return namespace, name, nil
 }
