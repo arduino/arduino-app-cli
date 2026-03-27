@@ -2,8 +2,8 @@
 
 This is the specification for the Arduino App format to be used with `arduino-app-cli` and `Arduino App Lab`.
 
-Arduino Apps are self-contained logical units designed for the `Arduino Uno Q board ecosystem`, used by `arduino-app-cli` and `Arduino App Lab`.
-They leverage the board's operating system and the integrated microcontroller to perform a wide range of tasks, from high-level logic, data processing, executing AI models and more.
+Arduino Apps are self-contained logical units designed for the `Arduino dual-brain board`.
+An Arduino app leverages the board's operating system (Linux OS) and the integrated microcontroller to perform a wide range of tasks, from high-level logic, data processing, executing AI models and more.
 
 ## Arduino App Architecture
 
