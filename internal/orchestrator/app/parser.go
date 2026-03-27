@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 
 	emoji "github.com/Andrew-M-C/go.emoji"
 	"github.com/arduino/go-paths-helper"
@@ -126,10 +127,6 @@ func ParseDescriptorFile(file *paths.Path) (AppDescriptor, error) {
 		return AppDescriptor{}, fmt.Errorf("cannot decode descriptor: %w", err)
 	}
 
-	if descriptor.Name == "" {
-		return AppDescriptor{}, fmt.Errorf("application name is empty")
-	}
-
 	return descriptor, descriptor.IsValid()
 }
 
@@ -140,6 +137,12 @@ func (a *AppDescriptor) IsValid() error {
 			allErrors = errors.Join(allErrors, fmt.Errorf("icon %q is not a valid single emoji", a.Icon))
 		}
 	}
+	if a.Name != "" {
+		if !isValidName(a.Name) {
+			allErrors = errors.Join(allErrors, fmt.Errorf("name %q is not valid", a.Name))
+		}
+	}
+
 	return allErrors
 }
 
@@ -156,4 +159,9 @@ func isSingleEmoji(s string) bool {
 		emojis++
 	}
 	return emojis == 1
+}
+
+func isValidName(s string) bool {
+	matched, _ := regexp.MatchString(`^[a-zA-Z0-9][a-zA-Z0-9_ -]*$`, s)
+	return matched
 }

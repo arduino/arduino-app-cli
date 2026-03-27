@@ -123,7 +123,7 @@ func TestMissingDescriptor(t *testing.T) {
 }
 
 func TestMissingMains(t *testing.T) {
-	appFolderPath := paths.New("testdata", "MissingMains")
+	appFolderPath := paths.New("testdata", "MissingMain")
 
 	// Load app
 	app, err := Load(appFolderPath)

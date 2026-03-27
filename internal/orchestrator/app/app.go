@@ -96,10 +96,11 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 		app.MainPythonFile = appPath.Join("python", "main.py")
 	}
 
-	if appPath.Join("sketch", "sketch.ino").Exist() {
-		// TODO: check sketch casing?
-		app.mainSketchPath = appPath.Join("sketch")
+	sketchPath, err := loadSketchPath(appPath)
+	if err != nil {
+		return ArduinoApp{}, err
 	}
+	app.mainSketchPath = sketchPath
 
 	if app.MainPythonFile == nil && app.mainSketchPath == nil {
 		return ArduinoApp{}, errors.New("main python file and sketch file missing from app")
@@ -110,6 +111,25 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 	}
 
 	return app, nil
+}
+
+func loadSketchPath(appPath *paths.Path) (*paths.Path, error) {
+	sketchDir := appPath.Join("sketch")
+	if !sketchDir.IsDir() {
+		return nil, nil
+	}
+
+	sketchIno := sketchDir.Join("sketch.ino")
+	sketchYaml := sketchDir.Join("sketch.yaml")
+
+	if sketchIno.Exist() || sketchYaml.Exist() {
+		if !sketchIno.Exist() || !sketchYaml.Exist() {
+			return nil, errors.New("sketch folder is incomplete: both sketch.ino and sketch.yaml are required")
+		}
+		return sketchDir, nil
+	}
+
+	return nil, nil
 }
 
 func (a *ArduinoApp) GetSketchPath() (*paths.Path, bool) {
