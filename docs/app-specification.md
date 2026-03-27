@@ -1,55 +1,38 @@
-# 1. Arduino App specification
+# Arduino App specification
 
 This is the specification for the Arduino App format to be used with `arduino-app-cli` and `Arduino App Lab`.
 
 Arduino Apps are self-contained logical units designed for the `Arduino Uno Q board ecosystem`, used by `arduino-app-cli` and `Arduino App Lab`.
 They leverage the board's operating system and the integrated microcontroller to perform a wide range of tasks, from high-level logic, data processing, executing AI models and more.
 
-### 1.1 Arduino App Architecture
+## Arduino App Architecture
 
 An Arduino App is a combination of multiple pieces of software that interacts with each other as single application. In particular an Arduino App may be composed by:
 
-- **Real-Time Layer (Sketch)**: Runs on the integrated Microcontroller (MCU). It is responsible for low-level hardware interaction, sensors, and actuators.
-- **Logic Layer (Python)**: Runs on the board's Linux OS. It manages high-level logic, heavy data processing, network communication (APIs), and user interfaces.
+- [**Arduino Sketch**](https://docs.arduino.cc/arduino-cli/sketch-specification/). It runs on the integrated Microcontroller (MCU). It is responsible for low-level hardware interaction, sensors, and actuators.
+- **Python and containers**. They run on the board's Linux OS.
+  The Sketch and the Python communicate using an RPC-based messaging (see [arduino-router](https://github.com/arduino/arduino-router)).
 - **Service Layer (Bricks)**: An App can be extended through `Bricks`. Bricks act as modular plugins providing standardized services (such as databases or AI models) exposed via their own interfaces.
 
-The list above is not meant to be complete, and other type of components may be added in the future.
 The Arduino App CLI and the Arduino App Lab offer a simplified and automated way to deploy an Arduino App, taking care of all the steps needed to run the whole application (including building and uploading the firmware, or handling Docker containers).
 
-### 1.2 Orchestration & Deployment
-
-The `arduino-app-cli` acts as the underlying engine that automates the lifecycle of an application:
-
-- **Firmware Deployment**: It compiles and flashes the Sketch onto the MCU.
-- **Environment Setup**: It creates the Python environment and installs all dependencies.
-- **Service Provisioning**: It pulls, configures, and starts the required Bricks.
-- **Update Management**: Handles updates for all components. It ensures that the Python environment, the MCU firmware, and the Brick containers remain synchronized with the latest versions.
-
-### 1.3 Management via Arduino App Lab
-
-**Arduino App Lab** is the graphical control center for the Uno Q ecosystem. It provides a high-level interface to manage the application lifecycle:
-
-- **App Library & Launchpad**: A visual interface to browse, install, and launch Apps and examples available on the board.
-- **Runtime Monitoring**: A dashboard to monitor the status of the Python logic, MCU firmware, and active Bricks.
-- **Brick Configuration**: A dedicated interface to customize Brick settings. This allows users to easily swap AI models (e.g., selecting different AI models for a object detection brick) and manage environment variables without editing YAML files manually.
-- **Resource Management**: Provides integrated tools to manage application files.
-
-## 2. Project Structure
+## Arduino App folder and files
 
 An Arduino App is defined by a root folder containing its metadata, source code, and bundled resources. The system is designed to be flexible: while the folder name itself is arbitrary(has no relation with the App name defined in root-app-folder/app.yaml), **the internal structure must follow specific naming conventions** to be recognized by the `arduino-app-cli`.
 
 While the App folder holds the application logic and local resources, the App may depend on Bricks. These dependencies are declared in the App's configuration, but the Bricks themselves are not stored inside the App folder. They are downloaded and managed externally by the host system.
 
-### 2.1 **Core Components (Source)**
+### Arduino App root folder
 
-#### **The App Descriptor (`app.yaml`)**
+The root folder containing the Arduino App files and subfolders.
 
-The manifest file describing the App.
+#### `app.yaml` file
 
-- **Status**: Mandatory.
-- **Constraint**: must be located in the root folder. Only `.yaml` extension is supported (not `.yml`).
+The `app.yaml` file contains the metadata of the App.
 
-#### 2.2 **The Logic Layer (`python/`)**
+The file is mandatory. It must be located in the root folder of the app. Only `.yaml` extension is supported (not `.yml`).
+
+#### `python` subfolder
 
 Contains the high-level application logic and its environment.
 
@@ -58,19 +41,19 @@ Contains the high-level application logic and its environment.
 - **Optional File**: `requirements.txt` (Standard Python dependency list).
 - **Constraint**: must be located specifically in the `root-app-folder/python` path.
 
-#### 2.3 **The Embedded Layer (`sketch/`)**
+#### `sketch` subfolder
 
-Contains the firmware to be flashed on the integrated microcontroller.
+Contains the Arduino sketch to be flashed on the integrated microcontroller.
 
 - **Status**: Optional.
 - **Required Files**: If present, must include both `sketch.ino` and `sketch.yaml`.
 - **Constraint**: The folder content must comply with the official [Sketch specification](https://arduino.github.io/arduino-cli/1.3/sketch-specification/). Only files named sketch.ino and sketch.yaml located specifically in the `root-app-folder/sketch` path will be processed. Firmware files located elsewhere will be ignored by the host system.
 
-#### 2.4 **Reserved Folders**
+#### Reserved Folders
 
 The following folders are reserved for specific uses:
 
-**Data Storage (data/)**
+- `data` subfolder
 
 - **Usage**: Optional.
   - **Constraints**:
@@ -79,7 +62,7 @@ The following folders are reserved for specific uses:
   - This folder should be emptied before sharing the App to avoid leaking personal data.
   - located in `root-app-folder/`.
 
-**Cache (.cache/)**
+- `.cache` subfolder
 
 - **Usage**: Optional.
 - **Constraints**:
@@ -88,14 +71,15 @@ The following folders are reserved for specific uses:
   - It can be safely deleted at any time when the App is not running.
   - Located in `root-app-folder/`.
 
-### 2.5 Documentation & Extras
-
-Any other file or folder found in the main directory (or subfolders) is allowed and preserved, but otherwise ignored by the runtime system.
+#### `README.md` file
 
 - **`README.md`**: (Optional) A markdown file located in the root. The **Arduino App Lab** renders this file to provide documentation to the user.
+
+#### Extra files/folders
+
 - **Extra Files**: Any other file or folder is allowed. The runtime will preserve these files, making them accessible to your Python logic, but will not perform any automated action. These resources are strictly bundled with the App during Import and Export operations, ensuring that the application remains self-contained and portable across different boards.
 
-### 2.6 A complete example
+### A complete example
 
 A hypothetical App named "SmartGarden" that adheres to the specification follows. Note that the root folder name (my-garden-project) differs from the App name defined in YAML.
 
@@ -112,34 +96,34 @@ my-garden-project/
 └── data/ # Reserved
 ```
 
-## 3. App Descriptor (`app.yaml`)
+## App Descriptor (`app.yaml`)
 
 The `app.yaml` file (also referred to as the **App Descriptor**) is the manifest of the Arduino App. It allows the host system to identify, configure, and orchestrate the App and its dependencies.
 
-### 3.1 File Format
+### File Format
 
 - **Filename**: must be exactly `app.yaml`.
 - **Location**: Root of the App folder.
 - **Syntax**: Standard YAML.
 
-### 3.2 Configuration Fields
+### Configuration Fields
 
-#### **Identity & UI**
+#### Identity & UI
 
 - **`name`** (Optional): Human-readable name.
 - _Constraints_: alphanumeric, underscores, and dashes. Cannot start with a dash.
 
 - **`icon`** (Optional): A single emoji character used in the App Lab UI.
-- **`description`** (Optional): A short summary of the app's purpose.
+- **`description`** (Optional): A short summary of the app's purpose. If omitted, it is retrieved from the first paragraph of README.md.
 
-#### **Connectivity & Hardware**
+#### Connectivity & Hardware
 
 - **`ports`** (Optional): A list of integers representing the network ports that the **Python Logic Layer** listens on.
 - _Usage_: Used to expose internal services (e.g., a web dashboard) to the host or local network.
 
 - **bricks** - (Optional) A list of "Brick Object". Additional bricks needed by the app to perform specific tasks(see the next section for details).
 
-### 3.3 Brick Object Definition
+### Brick Object Definition
 
 Bricks are Python-first modular dependencies that encapsulate both application logic and infrastructure configurations (such as Docker Compose files) to extend an App's capabilities.
 
@@ -161,7 +145,7 @@ The `app.yaml` supports the use of **Secrets** within the Brick `variables` map 
 
 - **Automatic Redaction**: When an App is **exported**, the values of these secrets are automatically **redacted**. This ensures that the App bundle can be safely shared without leaking personal credentials or private keys.
 
-### 3.4 Example `app.yaml`
+### Example `app.yaml`
 
 ```yaml
 name: Smart-Garden-Pro
@@ -181,18 +165,18 @@ bricks:
       - 8001
 ```
 
-## 5. Broken App Definition
+## Broken App Definition
 
 A **Broken App** is a directory that the system has successfully identified as an Arduino App but which fails to meet the operational requirements. Unlike a generic folder, a Broken App is an entity recognized by the `arduino-app-cli` and `Arduino App Lab`, but it is flagged as non-functional.
 
-### 5.1 The Primary Identifier
+### The Primary Identifier
 
 The presence of the `app.yaml` file is the **sole requirement** for a directory to be promoted from a "generic folder" to an "Arduino App" entity.
 
 - If `app.yaml` is present: The system must attempt to parse it and register the App.
 - If `app.yaml` is missing: The directory is ignored and must not be treated as an App.
 
-### 5.2 Broken State Criteria
+### Broken State Criteria
 
 An Arduino App entity is classified as **Broken** if it falls into one of the following categories:
 
@@ -203,13 +187,13 @@ An Arduino App entity is classified as **Broken** if it falls into one of the fo
 
 - **Incomplete Embedded Layer**: The `sketch/` folder exists, but it is missing the mandatory `sketch.ino` or `sketch.yaml` files.
 
-### 5.3 System Behavior for Broken Apps
+### System Behavior for Broken Apps
 
 The existence of a Broken App entity allows the system to provide feedback rather than silent failure:
 
 - **Discovery**: The `arduino-app-cli` must include Broken Apps in its list, clearly marking their status.
 
-### 5.4 Static Validation vs. Runtime Errors
+### Static Validation vs. Runtime Errors
 
 The classification of an App (as Valid or Broken) is determined solely through **Static Validation**. This process checks the presence and organization of files and the integrity of the `app.yaml` descriptor.
 
