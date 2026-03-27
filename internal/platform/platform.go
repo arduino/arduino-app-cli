@@ -1,15 +1,12 @@
 package platform
 
 import (
-	"bytes"
-	"io"
-	"io/fs"
 	"log/slog"
-	"os"
 
 	"github.com/arduino/go-paths-helper"
 
 	"github.com/arduino/arduino-app-cli/internal/micro"
+	"github.com/arduino/arduino-app-cli/pkg/x/devicetree"
 )
 
 type GpioPin struct {
@@ -18,7 +15,6 @@ type GpioPin struct {
 }
 
 type Platform struct {
-	codeName   string
 	FQBN       string
 	PlatformID string
 	Linux      struct {
@@ -31,12 +27,11 @@ type Platform struct {
 }
 
 func GetPlatform() Platform {
-	codeName := getCodeName()
-	switch codeName {
-	case "imola":
-		slog.Debug("detected platform", "codeName", codeName)
+	compatible := devicetree.LoadCompatible()
+	slog.Debug("detected platform", "compatible", compatible)
+	switch {
+	case compatible.IsCompatibleWith("arduino,imola"):
 		return Platform{
-			codeName:   codeName,
 			FQBN:       "arduino:zephyr:unoq",
 			PlatformID: "arduino:zephyr",
 			Linux: struct{ UserLeds, StatusLeds paths.PathList }{
@@ -56,48 +51,11 @@ func GetPlatform() Platform {
 			},
 		}
 	default:
-		slog.Warn("not supported platform", "codeName", codeName)
-		return Platform{
-			codeName: codeName,
-		}
+		slog.Warn("not supported platform", "compatible", compatible)
+		return Platform{}
 	}
 }
 
 func (p Platform) GetMicro() micro.Micro {
 	return micro.New(micro.GpioPin(p.Micro.ResetPin))
-}
-
-func getCodeName() string {
-	return getCodeNameInternal(os.DirFS("/"))
-}
-
-func getCodeNameInternal(fs fs.FS) string {
-	trimAndLower := func(s []byte) []byte {
-		return bytes.ToLower(bytes.Trim(s, " \n\t\r\x00"))
-	}
-
-	readFile := func(path string) ([]byte, error) {
-		f, err := fs.Open(path)
-		if err != nil {
-			return nil, err
-		}
-		defer f.Close()
-		return io.ReadAll(f)
-	}
-
-	if buf, err := readFile("sys/class/dmi/id/product_name"); err == nil {
-		return string(trimAndLower(buf))
-	} else if buf, err := readFile("sys/firmware/devicetree/base/compatible"); err == nil {
-		compatibles := bytes.Split(buf, []byte{'\x00'})
-		if len(compatibles) > 0 {
-			compatible := compatibles[0]
-			if idx := bytes.Index(compatibles[0], []byte{','}); idx != -1 {
-				return string(trimAndLower(compatible[idx+1:]))
-			} else {
-				return string(trimAndLower(compatible))
-			}
-		}
-	}
-
-	return ""
 }
