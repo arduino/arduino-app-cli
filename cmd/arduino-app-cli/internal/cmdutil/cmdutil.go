@@ -56,7 +56,7 @@ func IDToAlias(id app.ID) string {
 
 func AskForPassword() (string, error) {
 	feedback.Printf("Password: ")
-	bytePassword, err := term.ReadPassword(int(feedback.GetStdin().Fd()))
+	bytePassword, err := term.ReadPassword(int(feedback.GetStdin().Fd())) // nolint:gosec
 	if err != nil {
 		return "", err
 	}
