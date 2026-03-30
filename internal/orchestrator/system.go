@@ -61,10 +61,15 @@ type initProgress struct {
 
 type initProgressCallback func(progress initProgress)
 
+type SystemInitOptions struct {
+	OnlyDockerImages    bool
+	OnlyPlatformAndLibs bool
+}
+
 // SystemInit pulls all the docker images needed for the current version of the software to run and the
 // sketch libraries used in the example apps. Can be used to pre-install docker images/libraries on an
 // empty system, or to update all the docker images/libraries that need it.
-func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *store.StaticStore, docker *command.DockerCli) error {
+func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *store.StaticStore, docker *command.DockerCli, options SystemInitOptions) error {
 	stdout, _, err := feedback.DirectStreams()
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
@@ -80,13 +85,28 @@ func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *stor
 		}
 	}
 
-	if err := downloadLibsAndPlatformsUsedInExamples(ctx, cfg, progressCB); err != nil {
-		return fmt.Errorf("failed to download libs and platforms used in examples: %w", err)
+	var downloadPlatformAndLibs, downloadDockerImages bool
+	switch {
+	case options.OnlyPlatformAndLibs:
+		downloadPlatformAndLibs = true
+	case options.OnlyDockerImages:
+		downloadDockerImages = true
+	default:
+		downloadPlatformAndLibs = true
+		downloadDockerImages = true
 	}
 
-	// TODO: use progressCB instead of stdout
-	if err := downloadContainersUsedInExamples(ctx, cfg, staticStore, docker, stdout); err != nil {
-		return fmt.Errorf("failed to download container images used in examples: %w", err)
+	if downloadPlatformAndLibs {
+		if err := downloadLibsAndPlatformsUsedInExamples(ctx, cfg, progressCB); err != nil {
+			return fmt.Errorf("failed to download libs and platforms used in examples: %w", err)
+		}
+	}
+
+	if downloadDockerImages {
+		// TODO: use progressCB instead of stdout
+		if err := downloadContainersUsedInExamples(ctx, cfg, staticStore, docker, stdout); err != nil {
+			return fmt.Errorf("failed to download container images used in examples: %w", err)
+		}
 	}
 
 	return nil

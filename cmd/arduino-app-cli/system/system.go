@@ -52,14 +52,22 @@ func NewSystemCmd(cfg config.Configuration) *cobra.Command {
 }
 
 func newDownloadImageCmd(cfg config.Configuration) *cobra.Command {
+	var onlyImages bool
+	var onlyPlatformAndLibraries bool
 	cmd := &cobra.Command{
 		Use:    "init",
 		Args:   cobra.ExactArgs(0),
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return orchestrator.SystemInit(cmd.Context(), cfg, servicelocator.GetStaticStore(), servicelocator.GetDockerClient())
+			return orchestrator.SystemInit(cmd.Context(), cfg, servicelocator.GetStaticStore(), servicelocator.GetDockerClient(), orchestrator.SystemInitOptions{
+				OnlyDockerImages:    onlyImages,
+				OnlyPlatformAndLibs: onlyPlatformAndLibraries,
+			})
 		},
 	}
+
+	cmd.PersistentFlags().BoolVar(&onlyImages, "only-docker-images", false, "Only download the application docker images")
+	cmd.PersistentFlags().BoolVar(&onlyPlatformAndLibraries, "only-arduino-platform", false, "Only download the Arduino platform and libraries")
 
 	return cmd
 }
