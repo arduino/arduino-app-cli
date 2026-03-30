@@ -66,10 +66,21 @@ type SystemInitOptions struct {
 	OnlyPlatformAndLibs bool
 }
 
+func (o SystemInitOptions) Validate() error {
+	if o.OnlyDockerImages && o.OnlyPlatformAndLibs {
+		return errors.New("only one of OnlyDockerImages and OnlyPlatformAndLibs can be true")
+	}
+	return nil
+}
+
 // SystemInit pulls all the docker images needed for the current version of the software to run and the
 // sketch libraries used in the example apps. Can be used to pre-install docker images/libraries on an
 // empty system, or to update all the docker images/libraries that need it.
 func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *store.StaticStore, docker *command.DockerCli, options SystemInitOptions) error {
+	if err := options.Validate(); err != nil {
+		return err
+	}
+
 	stdout, _, err := feedback.DirectStreams()
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
