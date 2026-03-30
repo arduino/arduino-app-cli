@@ -29,11 +29,7 @@ jobs:
 
       - uses: golangci/golangci-lint-action@v8
         with:
-<<<<<<< HEAD
           version: v2.11.4
-=======
-          version: v2.4.0
->>>>>>> 589600d (chore: fix formatting of golangci-lint version in checks.yaml)
           args: --timeout 300s
 
       - name: Set up Go
