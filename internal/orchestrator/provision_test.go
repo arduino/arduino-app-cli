@@ -25,6 +25,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/store"
 
@@ -107,6 +108,10 @@ bricks:
 	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
 
+	require.NoError(t, cfg.AssetsDir().Join("services").MkdirAll())
+	servicesIndex, err := servicesindex.Load(staticStore.GetServicesFolder())
+	require.NoError(t, err, "Failed to load services index")
+
 	// Override brick index with custom test content
 	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
 	require.Nil(t, err, "Failed to load bricks index with custom content")
@@ -127,7 +132,7 @@ bricks:
 		HasSoundDevice: false,
 		HasVideoDevice: true,
 	}
-	err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, unkownPlatform, devices)
+	err = generateMainComposeFile(&app, bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, unkownPlatform, devices)
 
 	// Validate that the main compose file and overrides are created
 	require.NoError(t, err, "Failed to generate main compose file")
@@ -345,6 +350,10 @@ bricks:
 	err := cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
 
+	require.NoError(t, cfg.AssetsDir().Join("services").MkdirAll())
+	servicesIndex, err := servicesindex.Load(staticStore.GetServicesFolder())
+	require.NoError(t, err, "Failed to load services index")
+
 	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
 	require.Nil(t, err, "Failed to load bricks index with custom content")
 	br, ok := bricksIndex.FindBrickByID("arduino:dbstorage_tsstore")
@@ -391,7 +400,7 @@ services:
 		}
 
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, unkownPlatform, devices)
+		err = generateMainComposeFile(&app, bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, unkownPlatform, devices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -447,7 +456,7 @@ services:
 			HasVideoDevice: true,
 		}
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, unkownPlatform, devices)
+		err = generateMainComposeFile(&app, bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, unkownPlatform, devices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -512,6 +521,10 @@ bricks:
 	err := cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
 
+	require.NoError(t, cfg.AssetsDir().Join("services").MkdirAll())
+	servicesIndex, err := servicesindex.Load(staticStore.GetServicesFolder())
+	require.NoError(t, err, "Failed to load services index")
+
 	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
 	require.Nil(t, err, "Failed to load bricks index with custom content")
 	br, ok := bricksIndex.FindBrickByID("arduino:dbstorage_tsstore")
@@ -569,7 +582,7 @@ services:
 			HasVideoDevice: true,
 		}
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, unkownPlatform, availableDevices)
+		err = generateMainComposeFile(&app, bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, unkownPlatform, availableDevices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")

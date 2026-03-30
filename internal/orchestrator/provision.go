@@ -39,6 +39,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
@@ -119,6 +120,7 @@ func NewProvision(
 func (p *Provision) App(
 	ctx context.Context,
 	bricksIndex *bricksindex.BricksIndex,
+	servicesIndex *servicesindex.ServicesIndex,
 	arduinoApp *app.ArduinoApp,
 	cfg config.Configuration,
 	mapped_env map[string]string,
@@ -136,7 +138,7 @@ func (p *Provision) App(
 		}
 	}
 
-	return generateMainComposeFile(arduinoApp, bricksIndex, p.pythonImage, cfg, mapped_env, staticStore, platform, devices)
+	return generateMainComposeFile(arduinoApp, bricksIndex, servicesIndex, p.pythonImage, cfg, mapped_env, staticStore, platform, devices)
 }
 
 func (p *Provision) init(
@@ -214,6 +216,7 @@ const (
 func generateMainComposeFile(
 	app *app.ArduinoApp,
 	bricksIndex *bricksindex.BricksIndex,
+	servicesIndex *servicesindex.ServicesIndex,
 	pythonImage string,
 	cfg config.Configuration,
 	envs helpers.EnvVars,
@@ -227,6 +230,8 @@ func generateMainComposeFile(
 	for _, p := range app.Descriptor.Ports {
 		ports[fmt.Sprintf("%d:%d", p, p)] = struct{}{}
 	}
+
+	requiredServices := make(map[string]servicesindex.Service)
 
 	var composeFiles paths.PathList
 	services := make([]serviceInfo, 0, len(app.Descriptor.Bricks))
@@ -270,12 +275,36 @@ func generateMainComposeFile(
 			}
 		}
 
+		// 6. Retrieve the required singleton services
+		for _, id := range idxBrick.RequiresServices {
+			idxService, found := servicesIndex.FindserviceByID(id)
+			if found {
+				requiredServices[id] = *idxService
+			}
+		}
+
 		composeFiles.AddIfMissing(composeFilePath)
 		services = append(services, svcs...)
 	}
 
 	if len(app.Descriptor.RequiredDevices) > 0 { // nolint:staticcheck
 		slog.Warn("The 'required_devices' field is deprecated. Please move requirements to the specific 'bricks' section.")
+	}
+
+	// Add the singleton services compose files to the list of the brick compose files
+	for _, s := range requiredServices {
+		serviceCompose, err := staticStore.GetServiceComposeFilePathFromID(s.ServiceID)
+		if err != nil {
+			slog.Error("service compose id not valid", slog.String("error", err.Error()), slog.String("service_id", s.ServiceID))
+			continue
+		}
+		svcs, err := extractServicesFromComposeFile(serviceCompose)
+		if err != nil {
+			slog.Error("loading service_compose", slog.String("service_id", s.ServiceID), slog.String("path", serviceCompose.String()), slog.Any("error", err))
+			continue
+		}
+		composeFiles.AddIfMissing(serviceCompose)
+		services = append(services, svcs...)
 	}
 
 	// Create a single docker-mainCompose that includes all the required services

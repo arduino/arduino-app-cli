@@ -65,6 +65,7 @@ type Brick struct {
 	ModelName                 string                    `yaml:"model_name,omitempty"`
 	MountDevicesIntoContainer bool                      `yaml:"mount_devices_into_container,omitempty"`
 	RequiredDevices           []peripherals.DeviceClass `yaml:"required_devices,omitempty"`
+	RequiresServices          []string                  `yaml:"requires_services,omitempty"`
 }
 
 func (b Brick) GetVariable(name string) (BrickVariable, bool) {
