@@ -388,11 +388,11 @@ func LegacyEnableNetworkMode(ctx context.Context, conn remote.RemoteConn) error 
 
 func EnableNetworkMode(ctx context.Context, conn remote.RemoteConn, password string) error {
 	cmds := [][]string{
-		{"dpkg-reconfigure", "openssh-server"},
 		{"systemctl", "unmask", "ssh.service"},
 		{"systemctl", "unmask", "avahi-daemon.service"},
-		{"systemctl", "start", "avahi-daemon.service"},
-		{"systemctl", "start", "ssh.service"},
+		{"dpkg-reconfigure", "openssh-server"},
+		{"systemctl", "enable", "--now", "avahi-daemon.service"},
+		{"systemctl", "enable", "--now", "ssh.service"},
 	}
 
 	for _, cmd := range cmds {
@@ -429,8 +429,8 @@ func DisableNetworkMode(ctx context.Context, conn remote.RemoteConn, password st
 	cmds := [][]string{
 		{"systemctl", "mask", "ssh.service"},
 		{"systemctl", "mask", "avahi-daemon.service"},
-		{"systemctl", "stop", "avahi-daemon.service"},
-		{"systemctl", "stop", "ssh.service"},
+		{"systemctl", "disable", "--now", "avahi-daemon.service"},
+		{"systemctl", "disable", "--now", "ssh.service"},
 	}
 
 	for _, cmd := range cmds {
