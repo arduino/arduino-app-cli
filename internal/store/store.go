@@ -121,8 +121,8 @@ func (s *StaticStore) GetBrickCodeExamplesPathFromID(brickID string) (paths.Path
 	return dirEntries, nil
 }
 
-func parseBrickOrServiceID(ID string) (namespace, name string, err error) {
-	namespace, name, ok := strings.Cut(ID, ":")
+func parseBrickOrServiceID(id string) (namespace, name string, err error) {
+	namespace, name, ok := strings.Cut(id, ":")
 	if !ok {
 		return "", "", errors.New("invalid ID")
 	}
