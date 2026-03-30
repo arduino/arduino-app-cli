@@ -169,6 +169,15 @@ func StartApp(
 			if !yield(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}}) {
 				return
 			}
+
+			if libs, err := RemoveSketchLibrary(ctx, appToStart, LibraryReleaseID{
+				Name: "Arduino_RouterBridge",
+			}, true); err != nil {
+				slog.Warn("Failed to remove Arduino_RouterBridge library, it might not be present in the sketch, skipping", slog.Any("error", err))
+			} else {
+				slog.Info("Removing unwanted libraries from the sketch", slog.Any("libraries", libs))
+			}
+
 			if err := compileUploadSketch(ctx, platform, &appToStart, sketchCallbackWriter); err != nil {
 				yield(StreamMessage{error: err})
 				return
