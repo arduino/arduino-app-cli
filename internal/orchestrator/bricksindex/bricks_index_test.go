@@ -304,7 +304,7 @@ func TestLoadBrickYamlBrickIndex(t *testing.T) {
 	t.Run("load yaml index and local folders", func(t *testing.T) {
 		bricksIndex, err := Load(paths.New("testdata/0.4.8"))
 		require.NoError(t, err)
-		brickWithLoca := bricksIndex.WithBricksFolder(paths.New("testdata"))
+		brickWithLoca := bricksIndex.WithBricksFolder(paths.New("testdata/bricks"))
 		brick, found := brickWithLoca.FindBrickByID("my-first-brick")
 		require.True(t, found)
 		require.Equal(t, "my-first-brick", brick.ID)
