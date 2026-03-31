@@ -919,10 +919,6 @@ func EditApp(
 	if req.Description != nil {
 		editApp.Descriptor.Description = *req.Description
 	}
-
-	if err := editApp.Descriptor.IsValid(); err != nil {
-		return fmt.Errorf("%w: %w", app.ErrInvalidApp, err)
-	}
 	err := editApp.Save()
 	if err != nil {
 		return fmt.Errorf("failed to save app: %w", err)
