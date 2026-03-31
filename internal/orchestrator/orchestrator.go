@@ -798,6 +798,9 @@ func CloneApp(
 		} else {
 			appYamlPath = dstPath.Join("app.yml")
 		}
+		if !appYamlPath.Exist() {
+			return CloneAppResponse{}, fmt.Errorf("app.yaml not found in cloned app")
+		}
 		descriptor, err := app.ParseDescriptorFile(appYamlPath)
 		if err != nil {
 			return CloneAppResponse{}, fmt.Errorf("failed to parse app.yaml file: %w", err)
