@@ -72,7 +72,7 @@ func (s *Service) List() (BrickListResult, error) {
 func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesResult, error) {
 	res := AppBrickInstancesResult{BrickInstances: make([]BrickInstance, len(a.Descriptor.Bricks))}
 	for i, brickInstance := range a.Descriptor.Bricks {
-		brick, found := s.bricksIndex.WithBricksFolder(a.GetBricksPath()).FindBrickByID(brickInstance.ID)
+		brick, found := s.bricksIndex.WithBricksFolder(a.LocalBricks).FindBrickByID(brickInstance.ID)
 		if !found {
 			return AppBrickInstancesResult{}, fmt.Errorf("brick not found with id %s", brickInstance.ID)
 		}
@@ -103,7 +103,7 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 }
 
 func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (BrickInstance, error) {
-	brick, found := s.bricksIndex.WithBricksFolder(a.GetBricksPath()).FindBrickByID(brickID)
+	brick, found := s.bricksIndex.WithBricksFolder(a.LocalBricks).FindBrickByID(brickID)
 	if !found {
 		return BrickInstance{}, ErrBrickNotFound
 	}
@@ -300,7 +300,7 @@ func (s *Service) BrickCreate(
 	req BrickCreateUpdateRequest,
 	appCurrent app.ArduinoApp,
 ) error {
-	brick, present := s.bricksIndex.WithBricksFolder(appCurrent.GetBricksPath()).FindBrickByID(req.ID)
+	brick, present := s.bricksIndex.WithBricksFolder(appCurrent.LocalBricks).FindBrickByID(req.ID)
 	if !present {
 		return fmt.Errorf("brick %q not found", req.ID)
 	}
@@ -363,7 +363,7 @@ func (s *Service) BrickUpdate(
 	req BrickCreateUpdateRequest,
 	appCurrent app.ArduinoApp,
 ) error {
-	brickFromIndex, present := s.bricksIndex.WithBricksFolder(appCurrent.GetBricksPath()).FindBrickByID(req.ID)
+	brickFromIndex, present := s.bricksIndex.WithBricksFolder(appCurrent.LocalBricks).FindBrickByID(req.ID)
 	if !present {
 		return fmt.Errorf("brick %q not found into the brick index", req.ID)
 	}
@@ -424,7 +424,7 @@ func (s *Service) BrickDelete(
 	appCurrent *app.ArduinoApp,
 	id string,
 ) error {
-	if _, present := s.bricksIndex.WithBricksFolder(appCurrent.GetBricksPath()).FindBrickByID(id); !present {
+	if _, present := s.bricksIndex.WithBricksFolder(appCurrent.LocalBricks).FindBrickByID(id); !present {
 		return ErrBrickNotFound
 	}
 

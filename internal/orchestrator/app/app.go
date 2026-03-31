@@ -31,18 +31,19 @@ import (
 	yaml "github.com/goccy/go-yaml"
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
 
 const maxDescriptionLength = 150
 
 // ArduinoApp holds all the files composing an app
 type ArduinoApp struct {
-	Name            string
-	MainPythonFile  *paths.Path
-	mainSketchPath  *paths.Path
-	FullPath        *paths.Path // FullPath is the path to the App folder
-	localBricksPath *paths.Path
-	Descriptor      AppDescriptor
+	Name           string
+	MainPythonFile *paths.Path
+	mainSketchPath *paths.Path
+	FullPath       *paths.Path // FullPath is the path to the App folder
+	LocalBricks    []bricksindex.Brick
+	Descriptor     AppDescriptor
 }
 
 // Load creates an App instance by reading all the files composing an app and grouping them
@@ -104,13 +105,11 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 		return ArduinoApp{}, errors.New("main python file and sketch file missing from app")
 	}
 
-	app.localBricksPath = appPath.Join("bricks")
+	if appPath.Join("bricks").Exist() {
+		app.LocalBricks = loadBricksFromFolder(appPath.Join("bricks"))
+	}
 
 	return app, nil
-}
-
-func (a *ArduinoApp) GetBricksPath() *paths.Path {
-	return a.localBricksPath
 }
 
 func (a *ArduinoApp) GetSketchPath() (*paths.Path, bool) {
@@ -270,4 +269,58 @@ func truncateDescription(s string, max int) string {
 		return s[:i]
 	}
 	return s
+}
+
+func loadBricksFromFolder(dir *paths.Path) []bricksindex.Brick {
+	if dir == nil || !dir.Exist() {
+		slog.Debug("App does not contain a bricks folder, skipping loading app bricks", "path", dir)
+		return nil
+	}
+	pathsList, err := dir.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
+		if file.Join("brick_config.yaml").NotExist() {
+			return false
+		}
+		return false
+	}, paths.FilterDirectories())
+	if err != nil {
+		slog.Warn("error reading app bricks folder, skipping loading bricks", "err", err, "path", dir)
+		return nil
+	}
+	bricks := []bricksindex.Brick{}
+	for _, path := range pathsList {
+		brick, err := load(path)
+		if err != nil {
+			slog.Warn("Cannot load local app brick", "err", err, "path", path)
+			continue
+		}
+		bricks = append(bricks, brick)
+	}
+	return bricks
+}
+
+func load(brickPath *paths.Path) (b bricksindex.Brick, err error) {
+	brickConfigPath := brickPath.Join("brick_config.yaml")
+	if brickConfigPath.NotExist() {
+		return bricksindex.Brick{}, fmt.Errorf("brick_config.yaml does not exist: %v", brickConfigPath)
+	}
+	brickConfigContent, err := os.ReadFile(brickConfigPath.String())
+	if err != nil {
+		return bricksindex.Brick{}, fmt.Errorf("cannot read brick_config.yaml: %w", err)
+	}
+	brick := bricksindex.Brick{}
+	if err := yaml.Unmarshal(brickConfigContent, &brick); err != nil {
+		return bricksindex.Brick{}, fmt.Errorf("cannot unmarshal brick_config.yaml: %w", err)
+	}
+
+	var composeFile *paths.Path = nil
+	brickComposeFile := brickPath.Join("brick_compose.yaml")
+	if brickComposeFile.Exist() {
+		composeFile = brickComposeFile
+	}
+	brick.Source = "Local"
+	brick.ComposeFile = composeFile
+	brick.ReadmeFile = brickPath.Join("README.md")
+	brick.ExamplesPath = brickPath.Join("examples")
+	brick.DocsAPIPath = brickPath.Join("docs/API.md")
+	return brick, nil
 }

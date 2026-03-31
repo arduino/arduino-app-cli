@@ -92,6 +92,22 @@ func TestLoad(t *testing.T) {
 		assert.False(t, ok)
 		assert.Nil(t, sketchPath)
 	})
+
+	t.Run("it loads an app with missing main python file", func(t *testing.T) {
+		app, err := Load(paths.New("testdata/AppWithLocalBricks"))
+		assert.NoError(t, err)
+		assert.NotEmpty(t, app)
+		assert.Len(t, app.LocalBricks, 1)
+		assert.Equal(t, "my-first-brick", app.LocalBricks[0].ID)
+		assert.Equal(t, "My First Brick", app.LocalBricks[0].Name)
+		assert.Equal(t, "Local", app.LocalBricks[0].Source)
+		assert.NotNil(t, app.LocalBricks[0].ComposeFile)
+		assert.Equal(t, "testdata/bricks/my-first-brick/brick_compose.yaml", app.LocalBricks[0].ComposeFile.String())
+		assert.NotNil(t, app.LocalBricks[0].ReadmeFile)
+		assert.Equal(t, "testdata/bricks/my-first-brick/README.md", app.LocalBricks[0].ReadmeFile.String())
+		assert.NotNil(t, app.LocalBricks[0].ExamplesPath)
+		assert.Equal(t, "testdata/bricks/my-first-brick/examples", app.LocalBricks[0].ExamplesPath.String())
+	})
 }
 
 func TestMissingDescriptor(t *testing.T) {
