@@ -339,6 +339,10 @@ func generateMainComposeFile(
 
 	volumes = addLedControl(platform, volumes)
 	groups := lookupGroups("video", "audio", "render", "dialout")
+	// Support for NPU
+	groups = append(groups, lookupGroups("fastrpc", "dmaheap")...)
+	// Support GPIO access
+	groups = append(groups, lookupGroups("gpiod")...)
 
 	// Define depends_on conditions
 	// Services with healthcheck will be started only when healthy
@@ -365,7 +369,7 @@ func generateMainComposeFile(
 			Entrypoint: "/run.sh",
 			DependsOn:  dependsOn,
 			User:       getCurrentUser(),
-			GroupAdd:   append(groups, lookupGroups("gpiod")...),
+			GroupAdd:   groups,
 			ExtraHosts: []string{"msgpack-rpc-router:host-gateway"},
 			Labels: map[string]string{
 				DockerAppLabel:     "true",
