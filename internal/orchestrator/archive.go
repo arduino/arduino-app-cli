@@ -304,6 +304,9 @@ func readAppDescriptorFromZip(r *zip.Reader, rootPrefix string) (app.AppDescript
 				}
 				return descriptor, err
 			}
+			if err := descriptor.IsValid(); err != nil {
+				return app.AppDescriptor{}, err
+			}
 			return descriptor, nil
 		}
 	}
@@ -354,11 +357,8 @@ func validateAppZipContent(r *zip.Reader, rootPrefix string) error {
 	}
 
 	if hasSketchFolder {
-		if !hasSketchIno {
-			return errors.New("sketch folder present but missing .ino file")
-		}
-		if !hasSketchYaml {
-			return errors.New("sketch folder present but missing .yaml file")
+		if err := app.IsValidSketchFolder(hasSketchIno, hasSketchYaml); err != nil {
+			return err
 		}
 	}
 

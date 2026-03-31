@@ -377,6 +377,16 @@ func TestImportAppFromZip(t *testing.T) {
 			wantErr:       true,
 			errorContains: "illegal file path",
 		},
+		{
+			name:            "Error - Invalid app name",
+			originalZipName: "test.zip",
+			zipFiles: map[string]string{
+				"app.yaml":       "name: -invalid-name",
+				"python/main.py": "pass",
+			},
+			wantErr:       true,
+			errorContains: "is not valid",
+		},
 	}
 
 	for _, tc := range tests {

@@ -122,14 +122,23 @@ func loadSketchPath(appPath *paths.Path) (*paths.Path, error) {
 	sketchIno := sketchDir.Join("sketch.ino")
 	sketchYaml := sketchDir.Join("sketch.yaml")
 
-	if sketchIno.Exist() || sketchYaml.Exist() {
-		if !sketchIno.Exist() || !sketchYaml.Exist() {
-			return nil, errors.New("sketch folder is incomplete: both sketch.ino and sketch.yaml are required")
-		}
-		return sketchDir, nil
+	if err := IsValidSketchFolder(sketchIno.Exist(), sketchYaml.Exist()); err != nil {
+		return nil, err
 	}
 
+	if sketchIno.Exist() {
+		return sketchDir, nil
+	}
 	return nil, nil
+}
+
+func IsValidSketchFolder(hasIno, hasYaml bool) error {
+	if hasIno || hasYaml {
+		if !hasIno || !hasYaml {
+			return errors.New("sketch folder is incomplete: both sketch.ino and sketch.yaml are required")
+		}
+	}
+	return nil
 }
 
 func (a *ArduinoApp) GetSketchPath() (*paths.Path, bool) {
