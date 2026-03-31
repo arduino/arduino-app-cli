@@ -901,29 +901,31 @@ func EditApp(
 
 	if req.Name != nil {
 		editApp.Descriptor.Name = *req.Name
-		newPath := editApp.FullPath.Parent().Join(slug.Make(*req.Name))
-		if newPath.Exist() {
-			return ErrAppAlreadyExists
-		}
-		if err := editApp.FullPath.Rename(newPath); err != nil {
-			editErr = fmt.Errorf("failed to rename app path: %w", err)
-			return editErr
-		}
-		editApp.FullPath = newPath
-		editApp.Name = editApp.Descriptor.Name
 	}
-
 	if req.Icon != nil {
 		editApp.Descriptor.Icon = *req.Icon
 	}
 	if req.Description != nil {
 		editApp.Descriptor.Description = *req.Description
 	}
-	err := editApp.Save()
-	if err != nil {
-		return fmt.Errorf("failed to save app: %w", err)
+
+	if err := editApp.Descriptor.IsValid(); err != nil {
+		return fmt.Errorf("%w: %w", app.ErrInvalidApp, err)
 	}
-	return nil
+
+	if req.Name != nil {
+		newPath := editApp.FullPath.Parent().Join(slug.Make(*req.Name))
+		if newPath.Exist() {
+			return ErrAppAlreadyExists
+		}
+		if err := editApp.FullPath.Rename(newPath); err != nil {
+			return fmt.Errorf("failed to rename app path: %w", err)
+		}
+		editApp.FullPath = newPath
+		editApp.Name = editApp.Descriptor.Name
+	}
+
+	return editApp.Save()
 }
 
 func editAppDefaults(userApp *app.ArduinoApp, isDefault bool, cfg config.Configuration) error {
