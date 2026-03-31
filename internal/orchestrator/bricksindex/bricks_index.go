@@ -39,7 +39,7 @@ type BricksIndex struct {
 
 func (m *BricksIndex) WithBricksFolder(bricks []Brick) *BricksIndex {
 	if len(m.AppBricks) > 0 {
-		panic("bricks index has already the app local bricks")
+		panic("only one call to WithBricksFolder is allowed")
 	}
 	return &BricksIndex{BuiltInBricks: m.BuiltInBricks, AppBricks: bricks}
 }
