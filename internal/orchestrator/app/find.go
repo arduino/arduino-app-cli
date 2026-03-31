@@ -42,9 +42,9 @@ func FindAppsInFolder(pathToExplore *paths.Path) (paths.PathList, error) {
 const tmpAppPrefix = ".tmp_"
 
 // DirHasAppDescriptor returns true if the given directory contains
-// an app descriptor file (app.yaml or app.yml).
+// an app descriptor file (app.yaml).
 func DirHasAppDescriptor(p *paths.Path) bool {
-	return p.Join("app.yaml").Exist() || p.Join("app.yml").Exist()
+	return p.Join("app.yaml").Exist()
 }
 
 // IsTmpAppDir returns true if the app path is a temporary app

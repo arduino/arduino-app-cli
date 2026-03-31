@@ -182,15 +182,6 @@ func TestValidateAppZipContent(t *testing.T) {
 			wantErr:    false,
 		},
 		{
-			name: "Valid app with yaml variant (.yml)",
-			files: map[string]string{
-				"app.yml":        "",
-				"python/main.py": "",
-			},
-			rootPrefix: "",
-			wantErr:    false,
-		},
-		{
 			name: "Valid app with full sketch folder",
 			files: map[string]string{
 				"app.yaml":           "",
@@ -483,12 +474,6 @@ func TestFindZipRoot(t *testing.T) {
 			wantErr:  false,
 		},
 		{
-			name:     "No root folder (with .yml)",
-			files:    []string{"app.yml", "python/main.py"},
-			wantRoot: "",
-			wantErr:  false,
-		},
-		{
 			name:     "Nested root folder",
 			files:    []string{"my-app/app.yaml", "my-app/python/main.py"},
 			wantRoot: "my-app",
@@ -496,13 +481,13 @@ func TestFindZipRoot(t *testing.T) {
 		},
 		{
 			name:     "Deep Nested folder",
-			files:    []string{"deep/nested/app.yml"},
+			files:    []string{"deep/nested/app.yaml"},
 			wantRoot: "deep/nested",
 			wantErr:  true,
 		},
 		{
 			name:     "Invalid: Very deep nested folder",
-			files:    []string{"deep/nested/folder/app.yml"},
+			files:    []string{"deep/nested/folder/app.yaml"},
 			wantRoot: "",
 			wantErr:  true,
 		},

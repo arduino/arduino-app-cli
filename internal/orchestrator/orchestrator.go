@@ -745,7 +745,7 @@ func CloneApp(
 	if !originPath.Exist() {
 		return CloneAppResponse{}, ErrAppDoesntExists
 	}
-	if !originPath.Join("app.yaml").Exist() && !originPath.Join("app.yml").Exist() {
+	if !originPath.Join("app.yaml").Exist() {
 		return CloneAppResponse{}, app.ErrInvalidApp
 	}
 
@@ -792,12 +792,8 @@ func CloneApp(
 	}
 
 	if (req.Name != nil && *req.Name != "") || (req.Icon != nil && *req.Icon != "") {
-		var appYamlPath *paths.Path
-		if dstPath.Join("app.yaml").Exist() {
-			appYamlPath = dstPath.Join("app.yaml")
-		} else {
-			appYamlPath = dstPath.Join("app.yml")
-		}
+
+		appYamlPath := dstPath.Join("app.yaml")
 		if !appYamlPath.Exist() {
 			return CloneAppResponse{}, fmt.Errorf("app.yaml not found in cloned app")
 		}

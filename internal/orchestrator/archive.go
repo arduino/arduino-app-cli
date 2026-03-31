@@ -112,7 +112,7 @@ func zipAppToBuffer(bricksIndex *bricksindex.BricksIndex, sourcePath string, roo
 			return nil
 		}
 
-		if d.Name() == "app.yaml" || d.Name() == "app.yml" { // nolint:goconst
+		if d.Name() == "app.yaml" { // nolint:goconst
 			desc, err := app.ParseDescriptorFile(paths.New(path))
 			if err != nil {
 				return err
@@ -287,12 +287,11 @@ func readAppDescriptorFromZip(r *zip.Reader, rootPrefix string) (app.AppDescript
 	var descriptor app.AppDescriptor
 
 	targetAppYaml := paths.New(rootPrefix, "app.yaml")
-	targetAppYml := paths.New(rootPrefix, "app.yml")
 
 	for _, f := range r.File {
 		name := filepath.ToSlash(f.Name)
 
-		if name == targetAppYaml.String() || name == targetAppYml.String() {
+		if name == targetAppYaml.String() {
 			rc, err := f.Open()
 			if err != nil {
 				return descriptor, err
@@ -322,14 +321,13 @@ func validateAppZipContent(r *zip.Reader, rootPrefix string) error {
 	hasSketchYaml := false
 
 	targetAppYaml := paths.New(rootPrefix, "app.yaml")
-	targetAppYml := paths.New(rootPrefix, "app.yml")
 	targetMainPy := paths.New(rootPrefix, "python/main.py")
 
 	targetSketchPrefix := paths.New(rootPrefix, "sketch").String() + "/"
 	for _, f := range r.File {
 		name := filepath.ToSlash(f.Name)
 
-		if name == targetAppYaml.String() || name == targetAppYml.String() {
+		if name == targetAppYaml.String() {
 			hasAppYaml = true
 		}
 		if name == targetMainPy.String() {
@@ -392,7 +390,7 @@ func redactSecrets(bricksindex *bricksindex.BricksIndex, desc *app.AppDescriptor
 func findZipRoot(r *zip.Reader) (string, error) {
 	for _, f := range r.File {
 		name := filepath.ToSlash(f.Name)
-		if filepath.Base(name) != "app.yaml" && filepath.Base(name) != "app.yml" {
+		if filepath.Base(name) != "app.yaml" {
 			continue
 		}
 		slashCount := strings.Count(name, "/")

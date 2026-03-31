@@ -139,15 +139,9 @@ func (a *ArduinoApp) GetSketchPath() (*paths.Path, bool) {
 	return a.mainSketchPath, true
 }
 
-// GetDescriptorPath returns the path to the app descriptor file (app.yaml or app.yml)
+// GetDescriptorPath returns the path to the app descriptor file (app.yaml)
 func (a *ArduinoApp) GetDescriptorPath() *paths.Path {
 	descriptorFile := a.FullPath.Join("app.yaml")
-	if !descriptorFile.Exist() {
-		alternateDescriptorFile := a.FullPath.Join("app.yml")
-		if alternateDescriptorFile.Exist() {
-			return alternateDescriptorFile
-		}
-	}
 	return descriptorFile
 }
 
