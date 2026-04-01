@@ -98,6 +98,40 @@ paths:
       summary: Get brick instances for an app
       tags:
       - Application
+    post:
+      description: Create a new local brick for an app.
+      operationId: createAppLocalBrick
+      parameters:
+      - description: application identifier.
+        in: path
+        name: appID
+        required: true
+        schema:
+          description: application identifier.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppLocalBrickCreateRequest'
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppLocalBrickCreateResponse'
+          description: Successful response
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "412":
+          $ref: '#/components/responses/PreconditionFailed'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Create a new local brick for an app
+      tags:
+      - Application
   /v1/apps/{appID}/bricks/{brickID}:
     delete:
       description: Delete a brick instance for an app. It will remove the brick instance
@@ -1468,6 +1502,18 @@ components:
           items:
             $ref: '#/components/schemas/BrokenAppInfo'
           type: array
+      type: object
+    AppLocalBrickCreateRequest:
+      properties:
+        description:
+          type: string
+        name:
+          type: string
+      type: object
+    AppLocalBrickCreateResponse:
+      properties:
+        id:
+          type: string
       type: object
     AppPortResponse:
       properties:

@@ -74,7 +74,7 @@ func HandleAppLocalBrickCreate(idProvider *app.IDProvider) http.HandlerFunc {
 			}
 		}
 
-		render.EncodeResponse(w, http.StatusOK, AppLocalBrickCreateResponse{ID: id})
+		render.EncodeResponse(w, http.StatusCreated, AppLocalBrickCreateResponse{ID: id})
 	}
 }
 

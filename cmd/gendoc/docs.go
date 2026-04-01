@@ -1050,6 +1050,30 @@ Contains a JSON object with the details of an error.
 			},
 		},
 		{
+			OperationId: "createAppLocalBrick",
+			Method:      http.MethodPost,
+			Path:        "/v1/apps/{appID}/bricks",
+			Parameters: (*struct {
+				ID string `path:"appID" description:"application identifier."`
+			})(nil),
+			Request: handlers.AppLocalBrickCreateRequest{},
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: handlers.AppLocalBrickCreateResponse{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusCreated,
+			},
+			Description: "Create a new local brick for an app.",
+			Summary:     "Create a new local brick for an app",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusConflict, Reference: "#/components/responses/Conflict"},
+				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
 			OperationId: "getAppBrickInstanceByBrickID",
 			Method:      http.MethodGet,
 			Path:        "/v1/apps/{appID}/bricks/{brickID}",
