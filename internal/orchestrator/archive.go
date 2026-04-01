@@ -182,6 +182,10 @@ func ImportAppFromZip(
 		return app.ID{}, fmt.Errorf("%w: app name is missing", ErrBadRequest)
 	}
 
+	if err := appDescriptor.IsValid(); err != nil {
+		return app.ID{}, fmt.Errorf("%w: %v", ErrBadRequest, err)
+	}
+
 	finalDestPath, appExists := findAppPathByName(rawAppName, cfg)
 	if appExists {
 		suffix := time.Now().Format("-20060102-150405")
@@ -303,9 +307,6 @@ func readAppDescriptorFromZip(r *zip.Reader, rootPrefix string) (app.AppDescript
 					return descriptor, fmt.Errorf("app.yaml is empty")
 				}
 				return descriptor, err
-			}
-			if err := descriptor.IsValid(); err != nil {
-				return app.AppDescriptor{}, err
 			}
 			return descriptor, nil
 		}

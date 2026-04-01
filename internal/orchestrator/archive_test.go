@@ -241,7 +241,7 @@ func TestValidateAppZipContent(t *testing.T) {
 			},
 			rootPrefix:  "",
 			wantErr:     true,
-			errContains: "missing .ino file",
+			errContains: "both sketch.ino and sketch.yaml are required",
 		},
 		{
 			name: "Sketch folder present but missing .yaml",
@@ -252,7 +252,7 @@ func TestValidateAppZipContent(t *testing.T) {
 			},
 			rootPrefix:  "",
 			wantErr:     true,
-			errContains: "missing .yaml file",
+			errContains: "both sketch.ino and sketch.yaml are required",
 		},
 		{
 			name: "Nested App missing main.py (Check relative path logic)",
