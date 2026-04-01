@@ -100,7 +100,7 @@ func TestLoad(t *testing.T) {
 		assert.Len(t, app.LocalBricks, 1)
 		assert.Equal(t, "my-first-brick", app.LocalBricks[0].ID)
 		assert.Equal(t, "My First Brick", app.LocalBricks[0].Name)
-		assert.Equal(t, "Local", app.LocalBricks[0].Source)
+		assert.Equal(t, "App", app.LocalBricks[0].Source)
 		assert.NotNil(t, app.LocalBricks[0].ComposeFile)
 		assert.Equal(t, f.Must(filepath.Abs("testdata/AppWithLocalBricks/bricks/my-first-brick/brick_compose.yaml")), app.LocalBricks[0].ComposeFile.String())
 		assert.NotNil(t, app.LocalBricks[0].ReadmeFile)
