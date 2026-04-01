@@ -103,7 +103,8 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 }
 
 func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (BrickInstance, error) {
-	brick, found := s.bricksIndex.WithAppBricks(a.LocalBricks).FindBrickByID(brickID)
+	bricksindex := s.bricksIndex.WithAppBricks(a.LocalBricks)
+	brick, found := bricksindex.FindBrickByID(brickID)
 	if !found {
 		return BrickInstance{}, ErrBrickNotFound
 	}
@@ -114,6 +115,13 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 	}
 
 	variables, configVariables := getInstanceBrickConfigVariableDetails(brick, a.Descriptor.Bricks[brickIndex].Variables)
+
+	var readme string
+	if r, err := brick.GetReadmeFile(); err == nil {
+		readme = r
+	} else {
+		slog.Warn("cannot open readme for brick", "brickID", brick.ID, "error", err.Error())
+	}
 
 	return BrickInstance{
 		ID:              brickID,
@@ -132,6 +140,7 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 				Description: m.ModuleDescription,
 			}
 		}),
+		Readme: readme,
 	}, nil
 }
 
