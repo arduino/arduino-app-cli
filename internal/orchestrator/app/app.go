@@ -277,10 +277,7 @@ func loadBricksFromFolder(dir *paths.Path) []bricksindex.Brick {
 		return nil
 	}
 	pathsList, err := dir.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
-		if file.Join("brick_config.yaml").NotExist() {
-			return true
-		}
-		return false
+		return file.Join("brick_config.yaml").NotExist()
 	}, paths.FilterDirectories())
 	if err != nil {
 		slog.Warn("error reading app bricks folder, skipping loading bricks", "err", err, "path", dir)
