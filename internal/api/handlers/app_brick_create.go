@@ -51,7 +51,11 @@ func HandleAppLocalBrickCreate(idProvider *app.IDProvider) http.HandlerFunc {
 			return
 		}
 
-		id := generateBrickID(req.Name)
+		id, err := generateBrickID(req.Name)
+		if err != nil {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
+			return
+		}
 
 		err = generator.GenerateLocalBrick(a, id, req.Name, req.Description)
 		if err != nil {
@@ -79,9 +83,18 @@ func HandleAppLocalBrickCreate(idProvider *app.IDProvider) http.HandlerFunc {
 	}
 }
 
-func generateBrickID(name string) string {
+var brickIDRegexp = regexp.MustCompile(`[^a-z0-9]+`)
+
+func generateBrickID(name string) (string, error) {
+	if strings.Contains(name, ".") {
+		return "", errors.New("brick name cannot contain '.' character")
+	}
+	if strings.Contains(name, ":") {
+		return "", errors.New("brick name cannot contain ':' character")
+	}
+
 	id := strings.ToLower(name)
-	id = regexp.MustCompile(`[^a-z0-9]+`).ReplaceAllString(id, "_")
+	id = brickIDRegexp.ReplaceAllString(id, "_")
 	id = strings.Trim(id, "_")
-	return id
+	return id, nil
 }
