@@ -20,6 +20,7 @@ package app
 import (
 	"bytes"
 	"io"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -276,4 +277,149 @@ func TestTruncateDescription(t *testing.T) {
 			assert.Equal(t, test.expected, result)
 		})
 	}
+}
+
+func TestLoadBricksFromFolder(t *testing.T) {
+	tests := []struct {
+		name               string
+		setup              func(t *testing.T, bricksDir *paths.Path)
+		expectedBrickCount int
+		expectedBrickIDs   []string
+	}{
+		{
+			name: "loads multiple valid bricks",
+			setup: func(t *testing.T, bricksDir *paths.Path) {
+				// Create brick1
+				brick1Dir := bricksDir.Join("brick1")
+				assert.NoError(t, brick1Dir.MkdirAll())
+				brick1Config := `id: brick1`
+				assert.NoError(t, os.WriteFile(brick1Dir.Join("brick_config.yaml").String(), []byte(brick1Config), 0600))
+
+				// Create brick2
+				brick2Dir := bricksDir.Join("brick2")
+				assert.NoError(t, brick2Dir.MkdirAll())
+				brick2Config := `id: brick2`
+				assert.NoError(t, os.WriteFile(brick2Dir.Join("brick_config.yaml").String(), []byte(brick2Config), 0600))
+
+				// Create brick3
+				brick3Dir := bricksDir.Join("brick3")
+				assert.NoError(t, brick3Dir.MkdirAll())
+				brick3Config := `id: brick3`
+				assert.NoError(t, os.WriteFile(brick3Dir.Join("brick_config.yaml").String(), []byte(brick3Config), 0600))
+			},
+			expectedBrickCount: 3,
+			expectedBrickIDs:   []string{"brick1", "brick2", "brick3"},
+		},
+		{
+			name: "skips directories without brick_config.yaml",
+			setup: func(t *testing.T, bricksDir *paths.Path) {
+				// Create valid brick
+				validBrickDir := bricksDir.Join("valid_brick")
+				assert.NoError(t, validBrickDir.MkdirAll())
+				validBrickConfig := `id: valid_brick`
+				assert.NoError(t, os.WriteFile(validBrickDir.Join("brick_config.yaml").String(), []byte(validBrickConfig), 0600))
+
+				// Create directory without brick_config.yaml
+				invalidDir := bricksDir.Join("no_config")
+				assert.NoError(t, invalidDir.MkdirAll())
+				assert.NoError(t, os.WriteFile(invalidDir.Join("some_file.txt").String(), []byte("test"), 0600))
+			},
+			expectedBrickCount: 1,
+			expectedBrickIDs:   []string{"valid_brick"},
+		},
+		{
+			name: "skips bricks with missing ID field",
+			setup: func(t *testing.T, bricksDir *paths.Path) {
+				// Create valid brick
+				validBrickDir := bricksDir.Join("valid_brick")
+				assert.NoError(t, validBrickDir.MkdirAll())
+				validBrickConfig := `id: valid_brick`
+				assert.NoError(t, os.WriteFile(validBrickDir.Join("brick_config.yaml").String(), []byte(validBrickConfig), 0600))
+
+				// Create brick without ID (invalid)
+				noIDDir := bricksDir.Join("no_id_brick")
+				assert.NoError(t, noIDDir.MkdirAll())
+				noIDConfig := `name: No ID Brick`
+				assert.NoError(t, os.WriteFile(noIDDir.Join("brick_config.yaml").String(), []byte(noIDConfig), 0600))
+			},
+			expectedBrickCount: 1,
+			expectedBrickIDs:   []string{"valid_brick"},
+		},
+		{
+			name: "loads bricks with additional optional files",
+			setup: func(t *testing.T, bricksDir *paths.Path) {
+				brickDir := bricksDir.Join("full_brick")
+				assert.NoError(t, brickDir.MkdirAll())
+
+				brickConfig := `id: full_brick`
+				assert.NoError(t, os.WriteFile(brickDir.Join("brick_config.yaml").String(), []byte(brickConfig), 0600))
+
+				// Create optional files
+				assert.NoError(t, os.WriteFile(brickDir.Join("brick_compose.yaml").String(), []byte("services: {}"), 0600))
+				assert.NoError(t, os.WriteFile(brickDir.Join("README.md").String(), []byte("# Full Brick"), 0600))
+			},
+			expectedBrickCount: 1,
+			expectedBrickIDs:   []string{"full_brick"},
+		},
+		{
+			name: "loads bricks from nested subfolder structure",
+			setup: func(t *testing.T, bricksDir *paths.Path) {
+				// Create brick in root level
+				brick1Dir := bricksDir.Join("brick1")
+				assert.NoError(t, brick1Dir.MkdirAll())
+				brick1Config := `id: brick1`
+				assert.NoError(t, os.WriteFile(brick1Dir.Join("brick_config.yaml").String(), []byte(brick1Config), 0600))
+
+				nestedDir := bricksDir.Join("nested/brick1")
+				assert.NoError(t, nestedDir.MkdirAll())
+				brick2Config := `id: brick2`
+				assert.NoError(t, os.WriteFile(nestedDir.Join("brick_config.yaml").String(), []byte(brick2Config), 0600))
+
+				deepDir := bricksDir.Join("nested/subnested/brick2")
+				assert.NoError(t, deepDir.MkdirAll())
+				brick3Config := `id: brick3`
+				assert.NoError(t, os.WriteFile(deepDir.Join("brick_config.yaml").String(), []byte(brick3Config), 0600))
+			},
+			expectedBrickCount: 3,
+			expectedBrickIDs:   []string{"brick1", "brick2", "brick3"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			bricksDir := paths.New(tmpDir)
+
+			tt.setup(t, bricksDir)
+
+			bricks := loadBricksFromFolder(bricksDir)
+
+			assert.Equal(t, tt.expectedBrickCount, len(bricks), "expected %d bricks but got %d", tt.expectedBrickCount, len(bricks))
+
+			for i, expectedID := range tt.expectedBrickIDs {
+				assert.Equal(t, expectedID, bricks[i].ID, "brick %d has incorrect ID", i)
+			}
+		})
+	}
+}
+
+func TestLoadBricksFromFolderWithNoBricks(t *testing.T) {
+	t.Run("returns nil for nonexistent directory", func(t *testing.T) {
+		bricksDir := paths.New("/nonexistent/path")
+		bricks := loadBricksFromFolder(bricksDir)
+		assert.Nil(t, bricks)
+		assert.Len(t, bricks, 0)
+	})
+
+	t.Run("returns empty slice for directory with no bricks", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		bricksDir := paths.New(tmpDir)
+
+		// Create directory without any brick_config.yaml files
+		otherDir := bricksDir.Join("other")
+		assert.NoError(t, otherDir.MkdirAll())
+
+		bricks := loadBricksFromFolder(bricksDir)
+		assert.Empty(t, bricks)
+	})
 }

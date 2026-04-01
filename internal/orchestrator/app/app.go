@@ -278,7 +278,7 @@ func loadBricksFromFolder(dir *paths.Path) []bricksindex.Brick {
 	}
 	pathsList, err := dir.ReadDirRecursiveFiltered(func(file *paths.Path) bool {
 		if file.Join("brick_config.yaml").NotExist() {
-			return false
+			return true
 		}
 		return false
 	}, paths.FilterDirectories())
