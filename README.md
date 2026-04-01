@@ -30,7 +30,7 @@ e-mail contact: security@arduino.cc
 
 ## License
 
-Arduino App CLI is licensed under the GPL-3.0 license.
+GPL-3.0-or-later
 
 [user documentation]: docs/user-documentation.md
 [contributor guide]: docs/CONTRIBUTING.md
