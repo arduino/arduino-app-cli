@@ -84,5 +84,8 @@ func generateBrickID(name string) (string, error) {
 	id := strings.ToLower(name)
 	id = brickIDRegexp.ReplaceAllString(id, "_")
 	id = strings.Trim(id, "_")
+	if id == "" {
+		return "", errors.New("brick name must contain at least one alphanumeric character")
+	}
 	return id, nil
 }

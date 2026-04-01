@@ -49,9 +49,10 @@ func TestGenerateBrickID(t *testing.T) {
 			expectedID: "a",
 		},
 		{
-			name:       "only special characters",
-			input:      "---___",
-			expectedID: "",
+			name:         "only special characters",
+			input:        "---___",
+			expectedID:   "",
+			errorMessage: "brick name must contain at least one alphanumeric character",
 		},
 		{
 			name:       "mixed valid and underscore",
