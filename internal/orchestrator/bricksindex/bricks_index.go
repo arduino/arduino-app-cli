@@ -37,10 +37,7 @@ type BricksIndex struct {
 	AppBricks     []Brick
 }
 
-func (m *BricksIndex) WithBricksFolder(bricks []Brick) *BricksIndex {
-	if len(m.AppBricks) > 0 {
-		panic("only one call to WithBricksFolder is allowed")
-	}
+func (m *BricksIndex) WithAppBricks(bricks []Brick) *BricksIndex {
 	return &BricksIndex{BuiltInBricks: m.BuiltInBricks, AppBricks: bricks}
 }
 

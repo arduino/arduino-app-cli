@@ -304,7 +304,7 @@ func TestLoadBrickYamlBrickIndex(t *testing.T) {
 	t.Run("load yaml index but give priority to bricks", func(t *testing.T) {
 		bricksIndex, err := Load(paths.New("testdata/0.4.8"))
 		require.NoError(t, err)
-		brickWithLoca := bricksIndex.WithBricksFolder([]Brick{{ID: "my-first-brick", Source: "another-source"}})
+		brickWithLoca := bricksIndex.WithAppBricks([]Brick{{ID: "my-first-brick", Source: "another-source"}})
 		brick, found := brickWithLoca.FindBrickByID("my-first-brick")
 		require.True(t, found)
 		require.Equal(t, "my-first-brick", brick.ID)
