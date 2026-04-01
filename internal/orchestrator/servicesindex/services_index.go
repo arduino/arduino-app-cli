@@ -58,10 +58,7 @@ func (s *ServicesIndex) FindserviceByID(id string) (*Service, bool) {
 func loadFromFolder(dir *paths.Path) ([]Service, error) {
 	services := []Service{}
 	pathsList, err := dir.ReadDirRecursiveFiltered(nil, paths.AndFilter(paths.FilterDirectories(), func(file *paths.Path) bool {
-		if file.Join("service_config.yaml").Exist() {
-			return true
-		}
-		return false
+		return file.Join("service_config.yaml").Exist()
 	}))
 	if err != nil {
 		return nil, err
