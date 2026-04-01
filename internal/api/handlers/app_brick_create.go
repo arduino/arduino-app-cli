@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"regexp"
@@ -55,7 +56,7 @@ func HandleAppLocalBrickCreate(idProvider *app.IDProvider) http.HandlerFunc {
 		err = generator.GenerateLocalBrick(a, id, req.Name, req.Description)
 		if err != nil {
 			if errors.Is(err, generator.ErrBrickAlreadyExists) {
-				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: "a brick with the same name already exists"})
+				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: fmt.Sprintf("a brick with the same id '%s' already exists", id)})
 				return
 			}
 			slog.Error("Failed to generate local brick", slog.String("error", err.Error()))
