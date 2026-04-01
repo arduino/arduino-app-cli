@@ -34,13 +34,9 @@ import (
 )
 
 const templateRoot = "app_template"
-const brickTemplateRoot = "brick_template"
 
 //go:embed all:app_template
 var fsApp embed.FS
-
-//go:embed all:brick_template
-var fsBrick embed.FS
 
 func GenerateApp(basePath *paths.Path, app app.AppDescriptor, skipSketch bool) error {
 	if err := basePath.MkdirAll(); err != nil {
@@ -227,6 +223,11 @@ func formatPorts(ports []int) string {
 	}
 	return strings.Join(s, ", ")
 }
+
+const brickTemplateRoot = "brick_template"
+
+//go:embed all:brick_template
+var fsBrick embed.FS
 
 var ErrBrickAlreadyExists = fmt.Errorf("brick already exists")
 

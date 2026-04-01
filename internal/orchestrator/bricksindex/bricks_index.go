@@ -53,8 +53,13 @@ func (b *BricksIndex) FindBrickByID(id string) (*Brick, bool) {
 	return &bricks[idx], true
 }
 
+// TODO: use iterator instead of returning a slice
 func (b *BricksIndex) ListBricks() []Brick {
-	return slices.Concat(b.AppBricks, b.BuiltInBricks)
+	bricks := slices.Concat(b.AppBricks, b.BuiltInBricks)
+	slices.SortFunc(bricks, func(a, b Brick) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+	return bricks
 }
 
 type BrickVariable struct {
