@@ -34,9 +34,13 @@ import (
 )
 
 const templateRoot = "app_template"
+const brickTemplateRoot = "brick_template"
 
 //go:embed all:app_template
 var fsApp embed.FS
+
+//go:embed all:brick_template
+var fsBrick embed.FS
 
 func GenerateApp(basePath *paths.Path, app app.AppDescriptor, skipSketch bool) error {
 	if err := basePath.MkdirAll(); err != nil {
@@ -226,7 +230,6 @@ func formatPorts(ports []int) string {
 
 var ErrBrickAlreadyExists = fmt.Errorf("brick already exists")
 
-// TODO: use a template to create the brick files, instead of hardcoding them here
 func GenerateLocalBrick(app app.ArduinoApp, id string, name, description string) error {
 	bricksDir := app.FullPath.Join("bricks")
 	err := bricksDir.MkdirAll()
@@ -243,21 +246,94 @@ func GenerateLocalBrick(app app.ArduinoApp, id string, name, description string)
 		return fmt.Errorf("failed to create bricks directory: %w", err)
 	}
 
-	if err := os.WriteFile(brickDir.Join("__init__.py").String(), []byte("# Public python API\n"), 0600); err != nil {
-		return fmt.Errorf("failed to write __init__.py: %w", err)
+	type brickData struct {
+		ID          string
+		Name        string
+		Description string
 	}
 
-	brickConfig := fmt.Sprintf("id: %s\nname: %q\ndescription: %q\n", id, name, description)
-	if err := os.WriteFile(brickDir.Join("brick_config.yaml").String(), []byte(brickConfig), 0600); err != nil {
-		return fmt.Errorf("failed to write brick_config.yaml: %w", err)
+	data := brickData{
+		ID:          id,
+		Name:        name,
+		Description: description,
 	}
 
-	readme := fmt.Sprintf("# %s\n\n%s\n", name, description)
-	if err := os.WriteFile(brickDir.Join("README.md").String(), []byte(readme), 0600); err != nil {
-		return fmt.Errorf("failed to write README.md: %w", err)
+	generateBrickConfig := func(brickDir *paths.Path, data brickData) error {
+		configTmpl := template.Must(template.ParseFS(fsBrick, path.Join(brickTemplateRoot, "brick_config.yaml.template")))
+		outputPath := brickDir.Join("brick_config.yaml")
+		file, err := os.Create(outputPath.String())
+		if err != nil {
+			return fmt.Errorf("failed to create file %s: %w", outputPath.String(), err)
+		}
+		defer file.Close()
+
+		return configTmpl.Execute(file, data)
 	}
 
-	_ = os.WriteFile(brickDir.Join("brick_compose.yaml").String(), []byte("services: \n# Optional: containers services"), 0600)
+	generateBrickReadme := func(brickDir *paths.Path, data brickData) error {
+		readmeTmpl := template.Must(template.ParseFS(fsBrick, path.Join(brickTemplateRoot, "README.md.template")))
+
+		outputPath := brickDir.Join("README.md")
+		file, err := os.Create(outputPath.String())
+		if err != nil {
+			return fmt.Errorf("failed to create file %s: %w", outputPath.String(), err)
+		}
+		defer file.Close()
+
+		return readmeTmpl.Execute(file, data)
+	}
+
+	copyBrickStaticFiles := func(brickDir *paths.Path) error {
+		fileList, err := fsBrick.ReadDir(brickTemplateRoot)
+		if err != nil {
+			return fmt.Errorf("read brick template directory: %w", err)
+		}
+
+		for _, filePath := range fileList {
+			if filePath.IsDir() {
+				continue
+			}
+			// Skip template files
+			if strings.HasSuffix(filePath.Name(), ".template") {
+				continue
+			}
+
+			srcPath := path.Join(brickTemplateRoot, filePath.Name())
+			destPath := brickDir.Join(filePath.Name())
+
+			if err := func() error {
+				srcFile, err := fsBrick.Open(srcPath)
+				if err != nil {
+					return err
+				}
+				defer srcFile.Close()
+
+				destFile, err := destPath.Create()
+				if err != nil {
+					return fmt.Errorf("create %q file: %w", destPath, err)
+				}
+				defer destFile.Close()
+
+				_, err = io.Copy(destFile, srcFile)
+				return err
+			}(); err != nil {
+				return fmt.Errorf("copy file %s: %w", filePath.Name(), err)
+			}
+		}
+		return nil
+	}
+
+	if err := generateBrickConfig(brickDir, data); err != nil {
+		return fmt.Errorf("failed to generate brick_config.yaml: %w", err)
+	}
+
+	if err := generateBrickReadme(brickDir, data); err != nil {
+		return fmt.Errorf("failed to generate README.md: %w", err)
+	}
+
+	if err := copyBrickStaticFiles(brickDir); err != nil {
+		slog.Warn("error copying static brick files", slog.String("brick", id), slog.Any("error", err))
+	}
 
 	return nil
 }
