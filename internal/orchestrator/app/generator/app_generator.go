@@ -241,8 +241,7 @@ func GenerateLocalBrick(app app.ArduinoApp, id string, name, description string)
 		return fmt.Errorf("%w: %q", ErrBrickAlreadyExists, id)
 	}
 
-	err = brickDir.MkdirAll()
-	if err != nil {
+	if err = brickDir.MkdirAll(); err != nil {
 		return fmt.Errorf("failed to create bricks directory: %w", err)
 	}
 
