@@ -233,16 +233,16 @@ var ErrBrickAlreadyExists = fmt.Errorf("brick already exists")
 
 func GenerateLocalBrick(app app.ArduinoApp, id string, name, description string) error {
 	bricksDir := app.FullPath.Join("bricks")
-	err := bricksDir.MkdirAll()
-	if err != nil {
+	if err := bricksDir.MkdirAll(); err != nil {
 		return fmt.Errorf("failed to create bricks directory: %w", err)
 	}
+
 	brickDir := bricksDir.Join(id)
 	if brickDir.Exist() {
 		return fmt.Errorf("%w: %q", ErrBrickAlreadyExists, id)
 	}
 
-	if err = brickDir.MkdirAll(); err != nil {
+	if err := brickDir.MkdirAll(); err != nil {
 		return fmt.Errorf("failed to create bricks directory: %w", err)
 	}
 
