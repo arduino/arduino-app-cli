@@ -301,13 +301,23 @@ func TestLoadBrickYamlBrickIndex(t *testing.T) {
 		require.Equal(t, paths.New("testdata/0.4.8/api-docs/arduino/app_bricks/a-good-brick/API.md"), api)
 	})
 
-	t.Run("load yaml index but give priority to bricks", func(t *testing.T) {
+	t.Run("find a brick in local bricks", func(t *testing.T) {
 		bricksIndex, err := Load(paths.New("testdata/0.4.8"))
 		require.NoError(t, err)
 		brickWithLoca := bricksIndex.WithAppBricks([]Brick{{ID: "my-first-brick", Source: "another-source"}})
 		brick, found := brickWithLoca.FindBrickByID("my-first-brick")
 		require.True(t, found)
 		require.Equal(t, "my-first-brick", brick.ID)
+		require.Equal(t, "another-source", brick.Source)
+	})
+
+	t.Run("local brick has priority to yaml index", func(t *testing.T) {
+		bricksIndex, err := Load(paths.New("testdata/0.4.8"))
+		require.NoError(t, err)
+		brickWithLoca := bricksIndex.WithAppBricks([]Brick{{ID: "arduino:a-good-brick", Source: "another-source"}})
+		brick, found := brickWithLoca.FindBrickByID("arduino:a-good-brick")
+		require.True(t, found)
+		require.Equal(t, "arduino:a-good-brick", brick.ID)
 		require.Equal(t, "another-source", brick.Source)
 	})
 

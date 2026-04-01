@@ -38,19 +38,21 @@ type BricksIndex struct {
 }
 
 func (m *BricksIndex) WithAppBricks(bricks []Brick) *BricksIndex {
-   m.AppBricks = bricks
-   return m
+	m.AppBricks = bricks
+	return m
 }
 
 func (b *BricksIndex) FindBrickByID(id string) (*Brick, bool) {
-	bricks := slices.Concat(b.AppBricks, b.BuiltInBricks)
-	idx := slices.IndexFunc(bricks, func(brick Brick) bool {
+	searchFunc := func(brick Brick) bool {
 		return brick.ID == id
-	})
-	if idx == -1 {
-		return nil, false
 	}
-	return &bricks[idx], true
+	if idx := slices.IndexFunc(b.AppBricks, searchFunc); idx != -1 {
+		return &b.AppBricks[idx], true
+	}
+	if idx := slices.IndexFunc(b.BuiltInBricks, searchFunc); idx != -1 {
+		return &b.BuiltInBricks[idx], true
+	}
+	return nil, false
 }
 
 // TODO: use iterator instead of returning a slice
