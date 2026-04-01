@@ -293,6 +293,10 @@ func loadBricksFromFolder(dir *paths.Path) []bricksindex.Brick {
 			slog.Warn("Cannot load local app brick", "err", err, "path", path)
 			continue
 		}
+		if err := isValid(brick); err != nil {
+			slog.Warn("Invalid local app brick", "err", err, "path", path)
+			continue
+		}
 		bricks = append(bricks, brick)
 	}
 	return bricks
@@ -311,16 +315,23 @@ func load(brickPath *paths.Path) (b bricksindex.Brick, err error) {
 	if err := yaml.Unmarshal(brickConfigContent, &brick); err != nil {
 		return bricksindex.Brick{}, fmt.Errorf("cannot unmarshal brick_config.yaml: %w", err)
 	}
-
 	var composeFile *paths.Path = nil
 	brickComposeFile := brickPath.Join("brick_compose.yaml")
 	if brickComposeFile.Exist() {
 		composeFile = brickComposeFile
 	}
-	brick.Source = "Local"
+	brick.Source = "App"
 	brick.ComposeFile = composeFile
 	brick.ReadmeFile = brickPath.Join("README.md")
 	brick.ExamplesPath = brickPath.Join("examples")
 	brick.DocsAPIPath = brickPath.Join("docs/API.md")
 	return brick, nil
+}
+
+func isValid(brick bricksindex.Brick) error {
+	if brick.ID == "" {
+		return errors.New("brick ID is required")
+	}
+	// TODO: add other validation
+	return nil
 }

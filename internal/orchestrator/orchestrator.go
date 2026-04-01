@@ -658,6 +658,7 @@ func AppDetails(
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
 ) (AppDetailedInfo, error) {
+	bricksIndex = bricksIndex.WithAppBricks(userApp.LocalBricks)
 	var wg sync.WaitGroup
 	wg.Add(2)
 	var defaultAppPath string
