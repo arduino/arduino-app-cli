@@ -46,6 +46,8 @@ func ExportAppZip(
 	includeData bool,
 ) ([]byte, string, error) {
 
+	bricksIndex = bricksIndex.WithAppBricks(appTarget.LocalBricks)
+
 	appName := strings.ToLower(strings.ReplaceAll(appTarget.Name, " ", "-"))
 	if appName == "" {
 		appName = "app-export"

@@ -122,7 +122,9 @@ func StartApp(
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		err := checkBricks(appToStart.Descriptor, bricksIndex.WithAppBricks(appToStart.LocalBricks), modelsIndex)
+		bricksIndex = bricksIndex.WithAppBricks(appToStart.LocalBricks)
+
+		err := checkBricks(appToStart.Descriptor, bricksIndex, modelsIndex)
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return
@@ -134,7 +136,7 @@ func StartApp(
 			return
 		}
 
-		err = checkRequiredDevices(bricksIndex.WithAppBricks(appToStart.LocalBricks), appToStart.Descriptor.Bricks, devices)
+		err = checkRequiredDevices(bricksIndex, appToStart.Descriptor.Bricks, devices)
 		if err != nil {
 			yield(StreamMessage{error: err})
 			return

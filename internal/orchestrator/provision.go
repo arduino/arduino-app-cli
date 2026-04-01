@@ -136,6 +136,8 @@ func (p *Provision) App(
 		}
 	}
 
+	bricksIndex = bricksIndex.WithAppBricks(arduinoApp.LocalBricks)
+
 	return generateMainComposeFile(arduinoApp, bricksIndex, p.pythonImage, cfg, mapped_env, platform, devices)
 }
 
@@ -230,7 +232,7 @@ func generateMainComposeFile(
 	var composeFiles paths.PathList
 	services := make([]serviceInfo, 0, len(app.Descriptor.Bricks))
 	for _, brick := range app.Descriptor.Bricks {
-		idxBrick, found := bricksIndex.WithAppBricks(app.LocalBricks).FindBrickByID(brick.ID)
+		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
 		slog.Debug("Processing brick", slog.String("brick_id", brick.ID), slog.Bool("found", found))
 		if !found {
 			continue
