@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
-	"slices"
 	"strings"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
@@ -66,17 +65,6 @@ func HandleAppLocalBrickCreate(idProvider *app.IDProvider) http.HandlerFunc {
 			slog.Error("Failed to generate local brick", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "failed to generate local brick"})
 			return
-		}
-
-		idx := slices.IndexFunc(a.Descriptor.Bricks, func(b app.Brick) bool { return b.ID == id })
-		if idx == -1 {
-			a.Descriptor.Bricks = append(a.Descriptor.Bricks, app.Brick{ID: id})
-			err = a.Save()
-			if err != nil {
-				slog.Error("Failed to save app descriptor with new brick", slog.String("error", err.Error()))
-				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "failed to update app descriptor"})
-				return
-			}
 		}
 
 		render.EncodeResponse(w, http.StatusCreated, AppLocalBrickCreateResponse{ID: id})
