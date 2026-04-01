@@ -6,7 +6,7 @@ A **Brick** is a modular service that acts as a standardized interface for speci
 
 The ecosystem implements a flexible N:N (Many-to-Many) relationship between Bricks and Models:
 
-- **Model Versatility**: A single AI Model can be compatible with multiple Bricks of the same domain. For example, a model trained for "Face Detection" can be utilized by both a basic `arduino:object_detection` brick and a more complex `arduino:video_analytics` brick, as they share the same input requirements and output structure.
+- **Model Versatility**: A single AI Model can be compatible with multiple Bricks. Compatibility is determined by the model's category as defined by the provider. For example, a model belonging to the "Object Detection" category is automatically compatible with both arduino:object_detection and arduino:video_object_detection bricks.
 - **Brick Flexibility**: A Brick can support multiple Models of the same class, allowing users to swap models (e.g., switching from a lightweight model to a more accurate one) while the Python API remains identical.
 - **Model Resource Sharing**: A single AI model can be shared and utilized simultaneously by multiple Bricks. In this scenario, the model assets are shared, but a separate AI Runner instance is created for each Brick.
 
@@ -28,11 +28,11 @@ The system tracks the status of a model to manage its availability and synchroni
 
 > **Note**: The `Available` and `Detached` states are managed by Arduino App Lab. Within `arduino-app-cli`, a model can only be `Installed` or `Broken`.
 
-# 2. Project Structure
+# AI Model Specification
 
-An Arduino Model is defined by a directory(root folder) containing its descriptor and the actual model assets (e.g., weights, blobs, or configuration files). To ensure portability and allow the `arduino-app-cli` to manage models effectively, the internal structure must follow specific naming conventions and location.
+This is the specification for the Arduino AI model format, to be used with Arduino Apps via AI Brick.
 
-While models are typically stored in a shared system directory to be used by multiple Apps, they can also be bundled within an App's folder for export to ensure the application remains self-contained when moved to a different board.(TODO NOT IMPLEMENT YET: NEED A DISCUSSION)
+An Arduino Model is defined by a directory (root folder) containing its descriptor and the actual model assets (e.g., weights, blobs, or configuration files). To ensure portability and allow the `arduino-app-cli` to manage models effectively, the internal structure must follow specific conventions: the model descriptor must be named `model.yaml` and placed in the root of the model folder (see Section 2.1), and the model must be stored in the designated directory (see Section 2.3).
 
 ### 2.1 The Model Descriptor (`model.yaml`)
 
@@ -41,21 +41,17 @@ The manifest file describing the Model. It is the single source of truth for the
 - **Status**: Mandatory.
 - **Constraint**: Must be located in the root of the model folder. Only `.yaml` extension is supported.
 
-### 2.1.1 Model Descriptor Fields
+### model.yaml file format
 
 The `model.yaml` file uses a structured format to define the model's identity, its execution environment, and its compatibility with various Bricks.
 
-TODO : SHOULD WE ADD A "VERSION" FIELD?
-
-| Field         | Type        | Status        | Description                                                                                                                                            |
-| ------------- | ----------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `id`          | String      | **Mandatory** | A unique identifier for the model (e.g., a UUID or a slug).                                                                                            |
-| `name`        | String      | **Mandatory** | A human-readable name displayed in Arduino App Lab.                                                                                                    |
-| `runner`      | String      | **Mandatory** | Specifies the **Runner** (always `brick`)                                                                                                              |
-| `description` | String      | Optional      | A brief summary of the model's purpose and capabilities.                                                                                               |
-| `category`    | String      | Optional      | The functional domain of the model (e.g., `Images`, `Audio`, `Text`).                                                                                  |
-| `bricks`      | List of obj | **Mandatory** | A list of **AI Bricks** compatible with this model.                                                                                                    |
-| `metadata`    | Map         | Optional      | A flexible dictionary of key-value pairs for additional provider-specific information. Supports several types such as strings, integers, and booleans. |
+- **`id`** (String, Mandatory): A unique identifier for the model (e.g., a UUID or a slug).
+- **`name`** (String, Mandatory): A human-readable name displayed in Arduino App Lab.
+- **`runner`** (String, Mandatory): Specifies the **Runner** (always `brick`).
+- **`description`** (String, Optional): A brief summary of the model's purpose and capabilities.
+- **`category`** (String, Optional): The functional domain of the model (e.g., `Images`, `Audio`, `Text`).
+- **`bricks`** (List of obj, Mandatory): A list of **AI Bricks** compatible with this model.
+- **`metadata`** (Map, Optional): A flexible dictionary of key-value pairs for additional provider-specific information. Supports several types such as strings, integers, and booleans.
 
 #### **Brick Configuration Fields**
 
@@ -166,18 +162,16 @@ The `model.yaml` for an Edge Impulse model follows the standard descriptor forma
 
 The following metadata fields are required for Edge Impulse models:
 
-| Field                   | Type    | Status        | Description                                                       |
-| ----------------------- | ------- | ------------- | ----------------------------------------------------------------- |
-| `source`                | String  | **Mandatory** | Must be set to `"edgeimpulse"`.                                   |
-| `ei-project-id`         | Integer | **Mandatory** | The numeric ID of the Edge Impulse project.                       |
-| `ei-impulse-id`         | Integer | **Mandatory** | The numeric ID of the impulse within the project.                 |
-| `ei-impulse-name`       | String  | **Mandatory** | The human-readable name of the impulse.                           |
-| `ei-model-type`         | String  | **Mandatory** | The model type. Must be `float32`.                                |
-| `ei-engine`             | String  | **Mandatory** | The inference engine. Must be `tflite`.                           |
-| `ei-deployment-version` | Integer | **Mandatory** | The deployment version number from Edge Impulse.                  |
-| `ei-last-modified`      | String  | Optional      | Timestamp of the last project modification in RFC3339Nano format. |
-| `ei-model-url`          | String  | Optional      | URL to the model page on Edge Impulse Studio.                     |
-| `ei-gpu-mode`           | Boolean | Optional      | Whether the model runs in GPU mode. Defaults to `false`.          |
+- **`source`** (String, Mandatory): Must be set to `"edgeimpulse"`.
+- **`ei-project-id`** (Integer, Mandatory): The numeric ID of the Edge Impulse project.
+- **`ei-impulse-id`** (Integer, Mandatory): The numeric ID of the impulse within the project.
+- **`ei-impulse-name`** (String, Mandatory): The human-readable name of the impulse.
+- **`ei-model-type`** (String, Mandatory): The model type. Must be `float32`.
+- **`ei-engine`** (String, Mandatory): The inference engine. Must be `tflite`.
+- **`ei-deployment-version`** (Integer, Mandatory): The deployment version number from Edge Impulse.
+- **`ei-last-modified`** (String, Optional): Timestamp of the last project modification in RFC3339Nano format.
+- **`ei-model-url`** (String, Optional): URL to the model page on Edge Impulse Studio.
+- **`ei-gpu-mode`** (Boolean, Optional): Whether the model runs in GPU mode. Defaults to `false`.
 
 #### 3.3.2 Brick Configuration
 
