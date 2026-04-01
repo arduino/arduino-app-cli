@@ -247,6 +247,14 @@ func generateMainComposeFile(
 			ports[fmt.Sprintf("%s:%s", p, p)] = struct{}{}
 		}
 
+		// 2. Retrieve the required singleton services
+		for _, id := range idxBrick.RequiresServices {
+			idxService, found := servicesIndex.FindserviceByID(id)
+			if found {
+				requiredServices[id] = *idxService
+			}
+		}
+
 		// The following code is needed only if the brick requires a container.
 		// In case it doesn't we just skip to the next one.
 		if !idxBrick.RequireContainer {
@@ -272,14 +280,6 @@ func generateMainComposeFile(
 		if idxBrick.MountDevicesIntoContainer {
 			for i := range svcs {
 				svcs[i].requireDevices = true
-			}
-		}
-
-		// 6. Retrieve the required singleton services
-		for _, id := range idxBrick.RequiresServices {
-			idxService, found := servicesIndex.FindserviceByID(id)
-			if found {
-				requiredServices[id] = *idxService
 			}
 		}
 

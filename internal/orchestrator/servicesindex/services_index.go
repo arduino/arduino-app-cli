@@ -34,7 +34,6 @@ type Service struct {
 	Description     string   `yaml:"description,omitempty"`
 	Category        string   `yaml:"category"`
 	SupportedBoards []string `yaml:"supported_boards"`
-	composeFile     *paths.Path
 }
 
 func Load(dir *paths.Path) (*ServicesIndex, error) {
@@ -87,12 +86,5 @@ func load(servicePath *paths.Path) (a Service, err error) {
 	if err := yaml.Unmarshal(serviceConfigContent, &service); err != nil {
 		return Service{}, fmt.Errorf("cannot unmarshal service_config.yaml: %w", err)
 	}
-
-	var composeFile *paths.Path = nil
-	serviceComposeFile := servicePath.Join("service_compose.yaml")
-	if serviceComposeFile.Exist() {
-		composeFile = serviceComposeFile
-	}
-	service.composeFile = composeFile
 	return service, nil
 }
