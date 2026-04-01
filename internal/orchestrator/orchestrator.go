@@ -1147,33 +1147,16 @@ func compileUploadSketch(
 			}
 			return uploadSketchInRam(ctx, w, srv, inst, platform, sketchPath.String(), buildPath.String())
 		}
-	} else {
-		if err := uploadSketch(ctx, w, srv, inst, platform, sketchPath.String(), buildPath.String()); err != nil {
-			return err
-		}
+		return nil
 	}
 
-	return nil
-}
-
-func uploadSketch(ctx context.Context,
-	w io.Writer,
-	srv rpc.ArduinoCoreServiceServer,
-	inst *rpc.Instance,
-	platform platform.Platform,
-	sketchPath string,
-	buildPath string,
-) error {
 	stream, _ := commands.UploadToServerStreams(ctx, w, w)
-	if err := srv.Upload(&rpc.UploadRequest{
+	return srv.Upload(&rpc.UploadRequest{
 		Instance:   inst,
 		Fqbn:       platform.FQBN,
-		SketchPath: sketchPath,
-		ImportDir:  buildPath,
-	}, stream); err != nil {
-		return err
-	}
-	return nil
+		SketchPath: sketchPath.String(),
+		ImportDir:  buildPath.String(),
+	}, stream)
 }
 
 func uploadSketchInRam(ctx context.Context,
