@@ -37,9 +37,9 @@ type BricksIndex struct {
 	AppBricks     []Brick
 }
 
-func (m *BricksIndex) WithAppBricks(bricks []Brick) *BricksIndex {
-	m.AppBricks = bricks
-	return m
+func (b *BricksIndex) WithAppBricks(bricks []Brick) *BricksIndex {
+	b.AppBricks = bricks
+	return b
 }
 
 func (b *BricksIndex) FindBrickByID(id string) (*Brick, bool) {
