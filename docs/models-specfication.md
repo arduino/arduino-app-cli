@@ -75,16 +75,15 @@ category: Images
 bricks:
   - id: arduino:object_detection
     model_configuration:
-      EI_OBJ_DETECTION_MODEL: /models/ootb/ei/lw-face-det.eim
+      MODEL_PATH: /models/my-provider/my-model.bin
   - id: arduino:video_object_detection
     model_configuration:
-      EI_V_OBJ_DETECTION_MODEL: /models/ootb/ei/video-face-det.eim
+      MODEL_PATH: /models/my-provider/my-model.bin
 metadata:
-  source: qualcomm-ai-hub
-  ei-gpu-mode: false
+  source: my-provider
+  model_labels: my-label
   source-model-id: face-det-lite
-  source-model-url: https://aihub.qualcomm.com/models/face_det_lite
-  model_labels: face
+  source-model-url: https://my-url
 ```
 
 ### Model Assets
@@ -129,16 +128,18 @@ Unlike Apps, where the logic is always in `python/main.py`, a Model's assets can
 
 ### A complete example
 
-A hypothetical model named "Lighthouse-Face-Det" downloaded from Edge Impulse:
+A hypothetical model named "My-Face-Det":
 
 ```text
-/models/ei/830703/4/
+/models/my-model/
 ├── model.yaml              # Mandatory metadata
-├── lighthouse-face.eim     # Model binary (referenced in yaml)
+├── lighthouse-face.bin     # Model binary (referenced in yaml)
 └── README.md               # Optional documentation for App Lab
 ```
 
-# Edge Impulse Model Integration
+# Provider Integration Guides
+
+## Edge Impulse Model Integration
 
 This section describes how to manually integrate a model exported from [Edge Impulse](https://edgeimpulse.com) into the Arduino Model ecosystem. This process is normally handled automatically by `Arduino App Lab`, but advanced users may need to perform it manually — for example, when importing a model built outside the standard workflow.
 
