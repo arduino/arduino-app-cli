@@ -37,6 +37,10 @@ type Service struct {
 }
 
 func Load(dir *paths.Path) (*ServicesIndex, error) {
+	// If assets/<version>/services does not exist, we return an empty index without error, to allow the CLI to work without services
+	if !dir.IsDir() {
+		return &ServicesIndex{}, nil
+	}
 	services, err := loadFromFolder(dir)
 	if err != nil {
 		return nil, err

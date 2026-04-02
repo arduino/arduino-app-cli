@@ -51,7 +51,7 @@ var (
 		return f.Must(modelsindex.Load(GetStaticStore().GetAssetsFolder(), globalConfig.CustomModelsDir()))
 	})
 
-	GetServicessIndex = sync.OnceValue(func() *servicesindex.ServicesIndex {
+	GetServicesIndex = sync.OnceValue(func() *servicesindex.ServicesIndex {
 		return f.Must(servicesindex.Load(GetStaticStore().GetServicesFolder()))
 	})
 
@@ -94,7 +94,7 @@ var (
 		return bricks.NewService(
 			GetModelsIndex(),
 			GetBricksIndex(),
-			GetServicessIndex(),
+			GetServicesIndex(),
 			GetStaticStore(),
 		)
 	})
