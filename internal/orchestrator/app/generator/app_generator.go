@@ -231,13 +231,8 @@ var fsBrick embed.FS
 
 var ErrBrickAlreadyExists = fmt.Errorf("brick already exists")
 
-func GenerateLocalBrick(app app.ArduinoApp, id string, name, description string) error {
-	bricksDir := app.FullPath.Join("bricks")
-	if err := bricksDir.MkdirAll(); err != nil {
-		return fmt.Errorf("failed to create bricks directory: %w", err)
-	}
-
-	brickDir := bricksDir.Join(id)
+func GenerateLocalBrick(basePath *paths.Path, id string, name, description string) error {
+	brickDir := basePath.Join(id)
 	if brickDir.Exist() {
 		return fmt.Errorf("%w: %q", ErrBrickAlreadyExists, id)
 	}

@@ -73,7 +73,7 @@ func HandleAppLocalBrickCreate(idProvider *app.IDProvider) http.HandlerFunc {
 			return
 		}
 
-		err = generator.GenerateLocalBrick(a, id, req.Name, req.Description)
+		err = generator.GenerateLocalBrick(a.GetBricksPath(), id, req.Name, req.Description)
 		if err != nil {
 			if errors.Is(err, generator.ErrBrickAlreadyExists) {
 				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: fmt.Sprintf("a brick with the same id '%s' already exists", id)})
