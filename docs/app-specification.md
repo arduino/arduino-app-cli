@@ -12,9 +12,8 @@ An Arduino App is a combination of multiple pieces of software that interacts wi
 - [**Arduino Sketch**](https://docs.arduino.cc/arduino-cli/sketch-specification/). It runs on the integrated Microcontroller (MCU). It is responsible for low-level hardware interaction, sensors, and actuators.
 - **Python and containers**. They run on the board's Linux OS.
   The Sketch and the Python communicate using an RPC-based messaging (see [arduino-router](https://github.com/arduino/arduino-router)).
-- **Service Layer (Bricks)**: An App can be extended through `Bricks`. Bricks act as modular plugins providing standardized services (such as databases or AI models) exposed via their own interfaces.
-
-The Arduino App CLI and the Arduino App Lab offer a simplified and automated way to deploy an Arduino App, taking care of all the steps needed to run the whole application (including building and uploading the firmware, or handling Docker containers).
+- An App can be extended through `Bricks`. Bricks is a modular software component that adds ready-to-use functionality to your project (such as databases or computer vision service).
+- An App may have multiple Bricks.
 
 ## Arduino App folder and files
 
@@ -47,7 +46,11 @@ Contains the Arduino sketch to be flashed on the integrated microcontroller.
 
 - **Status**: Optional.
 - **Required Files**: If present, must include both `sketch.ino` and `sketch.yaml`.
-- **Constraint**: The folder content must comply with the official [Sketch specification](https://arduino.github.io/arduino-cli/1.3/sketch-specification/). Only files named sketch.ino and sketch.yaml located specifically in the `root-app-folder/sketch` path will be processed. Firmware files located elsewhere will be ignored by the host system.
+- **Constraint**: The folder content must comply with the official [Sketch specification](https://arduino.github.io/arduino-cli/1.3/sketch-specification/).
+
+#### `README.md` file
+
+- **`README.md`**: (Optional) A markdown file located in the root. The **Arduino App Lab** renders this file to provide documentation to the user. Additionally, if the `description` field in `app.yaml` is absent or empty, the system automatically derives the app description from the `README.md` by parsing the first non-title paragraph and stripping all markdown syntax.
 
 #### Reserved Folders
 
@@ -70,10 +73,6 @@ The following folders are reserved for specific uses:
   - The content is transient and might change in the future.
   - It can be safely deleted at any time when the App is not running.
   - Located in `root-app-folder/`.
-
-#### `README.md` file
-
-- **`README.md`**: (Optional) A markdown file located in the root. The **Arduino App Lab** renders this file to provide documentation to the user.
 
 #### Extra files/folders
 
@@ -108,16 +107,11 @@ The `app.yaml` file (also referred to as the **App Descriptor**) is the manifest
 
 ### Configuration Fields
 
-#### Identity & UI
-
 - **`name`** (Optional): Human-readable name.
-- _Constraints_: alphanumeric, underscores, and dashes. Cannot start with a dash.
+- _Constraints_: alphanumeric, underscores, dashes, and spaces. Cannot start with a dash.
 
 - **`icon`** (Optional): A single emoji character used in the App Lab UI.
-- **`description`** (Optional): A short summary of the app's purpose. If omitted, it is retrieved from the first paragraph of README.md.
-
-#### Connectivity & Hardware
-
+- **`description`** (Optional): A short summary of the app's purpose. If omitted, it is retrieved from the first paragraph of README.md (see the README.md file paragraph for details).
 - **`ports`** (Optional): A list of integers representing the network ports that the **Python Logic Layer** listens on.
 - _Usage_: Used to expose internal services (e.g., a web dashboard) to the host or local network.
 
@@ -152,7 +146,7 @@ name: Smart-Garden-Pro
 description: AI-powered irrigation and monitoring system
 icon: 🌿
 ports:
-  - 5000 # Main Python Web Dashboard
+  - 5000
 
 bricks:
   - id: arduino/dbstorage
@@ -185,7 +179,7 @@ An Arduino App entity is classified as **Broken** if it falls into one of the fo
 - Missing `python/` directory.
 - Missing `python/main.py` file.
 
-- **Incomplete Embedded Layer**: The `sketch/` folder exists, but it is missing the mandatory `sketch.ino` or `sketch.yaml` files.
+- **Incomplete Sketch folder**: The `sketch/` folder exists, but it is missing the mandatory `sketch.ino` or `sketch.yaml` files.
 
 ### System Behavior for Broken Apps
 
