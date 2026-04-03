@@ -1,10 +1,14 @@
-# AI Arduino specification
+# AI Model Specification
 
-### Understanding Bricks and AI Bricks
+This is the specification for the Arduino AI model format, to be used with Arduino Apps via AI Bricks.
+
+An Arduino Model is defined by a directory (root folder) containing its descriptor and the actual model assets (e.g., weights, blobs, or configuration files). To ensure portability and allow the `arduino-app-cli` to manage models effectively, the internal structure must follow specific conventions: the model descriptor must be named `model.yaml` and placed in the root of the model folder (see "The Model Descriptor" section), and the model must be stored in the designated directory (see "Storage Hierarchy" section).
+
+## Understanding Bricks and AI Bricks
 
 A **Brick** is a modular service that acts as a standardized interface for specific functionalities. An **AI Brick** is a specialized Brick that manages a specific AI domain or use case (e.g., _Object Detection_, _Speech-to-Text_, or _Face Detection_). For a general introduction to Bricks and how they work, see [Understanding Bricks](https://docs.arduino.cc/software/app-lab/tutorials/bricks/).
 
-### Model-AI Brick Relationship and Compatibility
+## Model-AI Brick Relationship and Compatibility
 
 The ecosystem implements a flexible N:N (Many-to-Many) relationship between Bricks and Models:
 
@@ -12,14 +16,14 @@ The ecosystem implements a flexible N:N (Many-to-Many) relationship between Bric
 - **Brick Flexibility**: A Brick can support multiple Models of the same class, allowing users to swap models (e.g., switching from a lightweight model to a more accurate one) while the Python API remains identical.
 - **Model Resource Sharing**: A single AI model can be shared and utilized simultaneously by multiple Bricks. In this scenario, the model assets are shared, but a separate AI Runner instance is created for each Brick.
 
-### Model Types
+## Model Types
 
 Models within the ecosystem are categorized based on their origin and distribution method:
 
 - **System Models**: Pre-installed models provided by Arduino. These are part of the core OS image, are read-only, and are globally available to all Apps.
 - **Custom Models**: Models added to the board by the user. These can be downloaded from external providers (e.g., Edge Impulse, AI Hub) or manually imported. They are stored in a dedicated user-writable partition.
 
-### Custom Model Lifecycle and States
+## Custom Model Lifecycle and States
 
 The system tracks the status of a model to manage its availability and synchronization:
 
@@ -30,20 +34,14 @@ The system tracks the status of a model to manage its availability and synchroni
 
 > **Note**: The `Available` and `Detached` states are managed by Arduino App Lab. Within `arduino-app-cli`, a model can only be `Installed` or `Broken`.
 
-# AI Model Specification
-
-This is the specification for the Arduino AI model format, to be used with Arduino Apps via AI Brick.
-
-An Arduino Model is defined by a directory (root folder) containing its descriptor and the actual model assets (e.g., weights, blobs, or configuration files). To ensure portability and allow the `arduino-app-cli` to manage models effectively, the internal structure must follow specific conventions: the model descriptor must be named `model.yaml` and placed in the root of the model folder (see Section The Model Descriptor), and the model must be stored in the designated directory (see Section Storage Hierarchy).
-
-### The Model Descriptor (`model.yaml`)
+## The Model Descriptor (`model.yaml`)
 
 The manifest file describing the Model. It is the single source of truth for the system to identify the model's capabilities and requirements.
 
 - **Status**: Mandatory.
 - **Constraint**: Must be located in the root of the model folder. Only `.yaml` extension is supported.
 
-### model.yaml file format
+## model.yaml file format
 
 The `model.yaml` file uses a structured format to define the model's identity, its execution environment, and its compatibility with various Bricks.
 
@@ -55,7 +53,7 @@ The `model.yaml` file uses a structured format to define the model's identity, i
 - **`bricks`** (List of obj, Mandatory): A list of **AI Bricks** compatible with this model.
 - **`metadata`** (Map, Optional): A flexible dictionary of key-value pairs for additional provider-specific information. Supports several types such as strings, integers, and booleans.
 
-#### **Brick Configuration Fields**
+### **Brick Configuration Fields**
 
 Each entry in the `bricks` list defines how the model integrates with a specific AI Brick:
 
@@ -86,22 +84,22 @@ metadata:
   source-model-url: https://my-url
 ```
 
-### Model Assets
+## Model Assets
 
 The actual intelligence data of the model. The format and organization of these files depend on the specific **AI Runner** they are intended for.
 
 - **Single-File Models**: Common for formats like `.eim` (Edge Impulse) or `.gguf` (Llama.cpp).
 - **Directory-Based Models**: Common for complex LLMs or NPU-accelerated models (e.g., AI Hub/Genie) which require a folder containing multiple weight files and JSON configurations.
 
-### Storage Hierarchy
+## Storage Hierarchy
 
 Models are organized on the board's storage based on their **Source** to prevent naming collisions and facilitate updates.
 
-#### **Standard Shared Path**
+### **Standard Shared Path**
 
 The default location for downloadable/custom models is typically `/home/.arduino-bricks/models/`, but it can be overridden via environment variable `ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR`.
 
-**Note** on Directory Structure: The following tree is an example of valid configurations. The system recursively scans the root directory; the specific folder names or nesting levels do not matter, provided that each model is contained within its own folder along with its model.yaml and required assets (which vary by provider).
+**Note** on Directory Structure: The following tree is an example of valid configurations. The system recursively scans the root directory; the specific folder names or nesting levels do not matter, provided that each model is contained within its own folder along with its `model.yaml` and required assets (which vary by provider).
 
 ```text
 /models/
@@ -119,14 +117,14 @@ The default location for downloadable/custom models is typically `/home/.arduino
     └── model.gguf
 ```
 
-### Resource Mapping
+## Resource Mapping
 
 Unlike Apps, where the logic is always in `python/main.py`, a Model's assets can be located anywhere within its root folder. The `model.yaml` file acts as the map, explicitly pointing the **Runner** to the correct files.
 
 - **Local Paths**: All paths defined in the descriptor must be absolute to the model's root folder.
 - **Reserved Filenames**: While asset names are flexible, `model.yaml` is reserved and cannot be used for weight files.
 
-### A complete example
+## A complete example
 
 A hypothetical model named "My-Face-Det":
 
@@ -159,7 +157,7 @@ A manually integrated Edge Impulse model must follow this structure:
 
 ### The `model.yaml` Descriptor for Edge Impulse Models
 
-The `model.yaml` for an Edge Impulse model follows the standard descriptor format (see Section The Model Descriptor) with specific `metadata` fields and `bricks` configuration.
+The `model.yaml` for an Edge Impulse model follows the standard descriptor format (see "The Model Descriptor" section) with specific `metadata` fields and `bricks` configuration.
 
 #### Metadata Fields
 
@@ -180,7 +178,7 @@ The following metadata fields are required for Edge Impulse models:
 
 The `bricks` list defines which AI Bricks are compatible with the model and how they are configured. The `model_configuration` for each brick must include two variables:
 
-- **`EI_*_MODEL`**: The absolute path to the `.eim` binary. The exact variable name depends on the target brick (see Section Edge Impulse Category to AI Brick Mapping). All Edge Impulse model variables follow the naming pattern `EI_<anything>_MODEL`, where `EI_` and `_MODEL` are fixed prefix and suffix, and the middle part identifies the specific brick type (e.g., `EI_OBJ_DETECTION_MODEL`, `EI_CLASSIFICATION_MODEL`).
+- **`EI_*_MODEL`**: The absolute path to the `.eim` binary. The exact variable name depends on the target brick (see the Edge Impulse Category to AI Brick Mapping section). All Edge Impulse model variables follow the naming pattern `EI_<anything>_MODEL`, where `EI_` and `_MODEL` are fixed prefix and suffix, and the middle part identifies the specific brick type (e.g., `EI_OBJ_DETECTION_MODEL`, `EI_CLASSIFICATION_MODEL`).
 - **`CUSTOM_MODEL_PATH`**: The absolute path to the model's root folder (i.e., the directory containing `model.yaml`).
 
 ### Edge Impulse Category to AI Brick Mapping
@@ -263,7 +261,4 @@ metadata:
   ei-deployment-version: 1
   ei-last-modified: 2025-01-15T10:30:00.000000000+01:00
   ei-model-url: https://studio.edgeimpulse.com/studio/757509/live
-```
-
-```
 ```
