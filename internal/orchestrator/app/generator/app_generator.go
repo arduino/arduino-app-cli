@@ -231,7 +231,7 @@ var fsBrick embed.FS
 
 var ErrBrickAlreadyExists = fmt.Errorf("brick already exists")
 
-func GenerateLocalBrick(basePath *paths.Path, id string, name, description string) error {
+func GenerateLocalBrick(basePath *paths.Path, id string, name string) error {
 	brickDir := basePath.Join(id)
 	if brickDir.Exist() {
 		return fmt.Errorf("%w: %q", ErrBrickAlreadyExists, id)
@@ -248,9 +248,8 @@ func GenerateLocalBrick(basePath *paths.Path, id string, name, description strin
 	}
 
 	data := brickData{
-		ID:          id,
-		Name:        name,
-		Description: description,
+		ID:   id,
+		Name: name,
 	}
 
 	generateBrickConfig := func(brickDir *paths.Path, data brickData) error {

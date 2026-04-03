@@ -129,7 +129,7 @@ func TestGenerateAppBrick(t *testing.T) {
 
 	a := f.Must(app.Load(appDir))
 
-	err = GenerateLocalBrick(a.GetBricksPath(), "my-brick", "a-brick-name", "a-brick-description")
+	err = GenerateLocalBrick(a.GetBricksPath(), "my-brick", "a-brick-name")
 	require.NoError(t, err)
 
 	if os.Getenv("UPDATE_GOLDEN") == "true" {

@@ -33,8 +33,7 @@ import (
 )
 
 type AppLocalBrickCreateRequest struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	Name string `json:"name"`
 }
 
 type AppLocalBrickCreateResponse struct {
