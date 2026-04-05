@@ -54,12 +54,10 @@ func HandlerAppStatus(
 			}
 		}
 
-		for appStatus, err := range orchestrator.AppStatusEvents(r.Context(), cfg, dockerCli, idProvider) {
-			if err != nil {
-				sseStream.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: err.Error()})
-				continue
-			}
+		if err := orchestrator.AppStatusEvents(r.Context(), cfg, dockerCli, idProvider, func(appStatus orchestrator.AppInfo) {
 			sseStream.Send(render.SSEEvent{Type: "app", Data: appStatus})
+		}); err != nil {
+			sseStream.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: err.Error()})
 		}
 	}
 }

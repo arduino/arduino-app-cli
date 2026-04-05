@@ -20,7 +20,6 @@ package orchestrator
 import (
 	"context"
 	"fmt"
-	"iter"
 	"log/slog"
 
 	"github.com/arduino/go-paths-helper"
@@ -32,7 +31,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
-func AppStatusEvents(ctx context.Context, cfg config.Configuration, docker command.Cli, idProvider *app.IDProvider) iter.Seq2[AppInfo, error] {
+func AppStatusEvents(ctx context.Context, cfg config.Configuration, docker command.Cli, idProvider *app.IDProvider, cb func(AppInfo)) error {
 	chanMsg, chanError := docker.Client().Events(ctx, events.ListOptions{
 		Filters: filters.NewArgs(
 			filters.Arg("label", DockerAppLabel+"=true"),
@@ -47,37 +46,30 @@ func AppStatusEvents(ctx context.Context, cfg config.Configuration, docker comma
 		),
 	})
 
-	return func(yield func(AppInfo, error) bool) {
-		for {
-			select {
-			case <-ctx.Done():
-				slog.Debug("Stopping to listen to docker events")
-				return
-			default:
-			}
-
-			select {
-
-			case err := <-chanError:
-				if err != nil {
-					slog.Error("Error listening to docker events", slog.String("error", err.Error()))
-					_ = yield(AppInfo{}, fmt.Errorf("error listening to docker events: %w", err))
-					return
-				}
-			case event := <-chanMsg:
-				appStatus, err := parseDockerStatusEvent(ctx, cfg, docker, idProvider, event)
-				if err != nil {
-					slog.Error("Unable to get apps status", slog.String("error", err.Error()))
-					if !yield(AppInfo{}, err) {
-						return
-					}
-				}
-				if !yield(appStatus, nil) {
-					return
-				}
-			}
-
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Debug("Stopping to listen to docker events")
+			return nil
+		default:
 		}
+
+		select {
+
+		case err := <-chanError:
+			if err != nil {
+				slog.Error("Error listening to docker events", slog.String("error", err.Error()))
+				return fmt.Errorf("error listening to docker events: %w", err)
+			}
+		case event := <-chanMsg:
+			appStatus, err := parseDockerStatusEvent(ctx, cfg, docker, idProvider, event)
+			if err != nil {
+				slog.Error("Unable to get apps status", slog.String("error", err.Error()))
+				return err
+			}
+			cb(appStatus)
+		}
+
 	}
 }
 
