@@ -181,7 +181,8 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 	}
 
 	if runningAppReference != nil {
-		StopApp(ctx, dockerClient, platform, *runningAppReference)
+		// TODO: Should we report error in some way?
+		_ = StopApp(ctx, dockerClient, platform, *runningAppReference, func(StreamMessage) {})
 	}
 
 	if res.ModelFolderPath == nil {

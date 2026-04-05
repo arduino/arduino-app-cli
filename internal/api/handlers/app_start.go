@@ -73,18 +73,19 @@ func HandleAppStart(
 		type log struct {
 			Message string `json:"message"`
 		}
-		for item := range orchestrator.StartApp(r.Context(), dockerCli, provisioner, modelsIndex, bricksIndex, app, cfg, staticStore, platform) {
+		err = orchestrator.StartApp(r.Context(), dockerCli, provisioner, modelsIndex, bricksIndex, app, cfg, staticStore, platform, func(item orchestrator.StreamMessage) {
 			switch item.GetType() {
 			case orchestrator.ProgressType:
 				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress(*item.GetProgress())})
 			case orchestrator.InfoType:
 				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: item.GetData()}})
-			case orchestrator.ErrorType:
-				sseStream.SendError(render.SSEErrorData{
-					Code:    render.InternalServiceErr,
-					Message: item.GetError().Error(),
-				})
 			}
+		})
+		if err != nil {
+			sseStream.SendError(render.SSEErrorData{
+				Code:    render.InternalServiceErr,
+				Message: err.Error(),
+			})
 		}
 	}
 }

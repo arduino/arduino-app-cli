@@ -64,18 +64,19 @@ func HandleAppStop(
 		type log struct {
 			Message string `json:"message"`
 		}
-		for item := range orchestrator.StopApp(r.Context(), dockerClient, platform, app) {
+		err = orchestrator.StopApp(r.Context(), dockerClient, platform, app, func(item orchestrator.StreamMessage) {
 			switch item.GetType() {
 			case orchestrator.ProgressType:
 				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress(*item.GetProgress())})
 			case orchestrator.InfoType:
 				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: item.GetData()}})
-			case orchestrator.ErrorType:
-				sseStream.SendError(render.SSEErrorData{
-					Code:    render.InternalServiceErr,
-					Message: item.GetError().Error(),
-				})
 			}
+		})
+		if err != nil {
+			sseStream.SendError(render.SSEErrorData{
+				Code:    render.InternalServiceErr,
+				Message: err.Error(),
+			})
 		}
 	}
 }
