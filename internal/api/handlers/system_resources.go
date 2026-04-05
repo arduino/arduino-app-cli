@@ -38,15 +38,7 @@ func HandleSystemResources(cfg config.Configuration) http.HandlerFunc {
 		}
 		defer sseStream.Close()
 
-		resources, err := orchestrator.SystemResources(ctx, cfg, nil)
-		if err != nil {
-			sseStream.SendError(render.SSEErrorData{
-				Code:    render.InternalServiceErr,
-				Message: "failed to obtain the resources",
-			})
-			return
-		}
-		for resource := range resources {
+		if err := orchestrator.SystemResources(ctx, cfg, nil, func(resource orchestrator.SystemResource) {
 			switch res := resource.(type) {
 			case *orchestrator.SystemDiskResource:
 				sseStream.Send(render.SSEEvent{Type: "disk", Data: res})
@@ -55,6 +47,11 @@ func HandleSystemResources(cfg config.Configuration) http.HandlerFunc {
 			case *orchestrator.SystemMemoryResource:
 				sseStream.Send(render.SSEEvent{Type: "mem", Data: res})
 			}
+		}); err != nil {
+			sseStream.SendError(render.SSEErrorData{
+				Code:    render.InternalServiceErr,
+				Message: "failed to obtain the resources",
+			})
 		}
 	}
 }

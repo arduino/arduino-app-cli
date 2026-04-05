@@ -20,7 +20,6 @@ package orchestrator
 import (
 	"context"
 	"errors"
-	"iter"
 	"log/slog"
 	"syscall"
 	"time"
@@ -29,7 +28,6 @@ import (
 	"github.com/shirou/gopsutil/v4/disk"
 	"github.com/shirou/gopsutil/v4/mem"
 
-	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
@@ -64,7 +62,7 @@ type SystemResourceConfig struct {
 	DiskScrapeInterval   time.Duration
 }
 
-func SystemResources(ctx context.Context, cfg config.Configuration, resourceCfg *SystemResourceConfig) (iter.Seq[SystemResource], error) {
+func SystemResources(ctx context.Context, cfg config.Configuration, resourceCfg *SystemResourceConfig, cb func(SystemResource)) error {
 	if resourceCfg == nil {
 		resourceCfg = &SystemResourceConfig{
 			CPUScrapeInterval:    time.Second * 5,
@@ -76,13 +74,13 @@ func SystemResources(ctx context.Context, cfg config.Configuration, resourceCfg 
 	firstMessagesToSend := []SystemResource{}
 	memory, err := mem.VirtualMemory()
 	if err != nil {
-		return helpers.EmptyIter[SystemResource](), err
+		return err
 	}
 	firstMessagesToSend = append(firstMessagesToSend, &SystemMemoryResource{Used: memory.Used, Total: memory.Total})
 
 	cpuStats, err := cpu.Percent(0, false)
 	if err != nil {
-		return helpers.EmptyIter[SystemResource](), err
+		return err
 	}
 	firstMessagesToSend = append(firstMessagesToSend, &SystemCPUResource{UsedPercent: cpuStats[0]})
 
@@ -90,63 +88,53 @@ func SystemResources(ctx context.Context, cfg config.Configuration, resourceCfg 
 	for _, path := range diskPaths {
 		diskStats, err := disk.Usage(path)
 		if err != nil && !errors.Is(err, syscall.ENOENT) {
-			return helpers.EmptyIter[SystemResource](), err
+			return err
 		}
 		if diskStats != nil {
 			firstMessagesToSend = append(firstMessagesToSend, &SystemDiskResource{Path: path, Used: diskStats.Used, Total: diskStats.Total})
 		}
 	}
 
-	return func(yield func(SystemResource) bool) {
-		for _, msg := range firstMessagesToSend {
-			if !yield(msg) {
-				return
+	for _, msg := range firstMessagesToSend {
+		cb(msg)
+	}
+
+	cpuTicker := time.NewTicker(resourceCfg.CPUScrapeInterval)
+	defer cpuTicker.Stop()
+
+	memoryTicker := time.NewTicker(resourceCfg.MemoryScrapeInterval)
+	defer memoryTicker.Stop()
+
+	diskTicker := time.NewTicker(resourceCfg.DiskScrapeInterval)
+	defer diskTicker.Stop()
+
+	for {
+		select {
+		case <-cpuTicker.C:
+			cpuStats, err := cpu.Percent(0, false)
+			if err != nil {
+				slog.Warn("Failed to get CPU usage", "error", err)
+				continue
 			}
-		}
-
-		cpuTicker := time.NewTicker(resourceCfg.CPUScrapeInterval)
-		defer cpuTicker.Stop()
-
-		memoryTicker := time.NewTicker(resourceCfg.MemoryScrapeInterval)
-		defer memoryTicker.Stop()
-
-		diskTicker := time.NewTicker(resourceCfg.DiskScrapeInterval)
-		defer diskTicker.Stop()
-
-		for {
-			select {
-			case <-cpuTicker.C:
-				cpuStats, err := cpu.Percent(0, false)
+			cb(&SystemCPUResource{UsedPercent: cpuStats[0]})
+		case <-memoryTicker.C:
+			memory, err := mem.VirtualMemory()
+			if err != nil {
+				slog.Warn("Failed to get memory usage", "error", err)
+				continue
+			}
+			cb(&SystemMemoryResource{Used: memory.Used, Total: memory.Total})
+		case <-diskTicker.C:
+			for _, path := range diskPaths {
+				diskStats, err := disk.Usage(path)
 				if err != nil {
-					slog.Warn("Failed to get CPU usage", "error", err)
+					slog.Warn("Failed to get disk usage", "path", path, "error", err)
 					continue
 				}
-				if !yield(&SystemCPUResource{UsedPercent: cpuStats[0]}) {
-					return
-				}
-			case <-memoryTicker.C:
-				memory, err := mem.VirtualMemory()
-				if err != nil {
-					slog.Warn("Failed to get memory usage", "error", err)
-					continue
-				}
-				if !yield(&SystemMemoryResource{Used: memory.Used, Total: memory.Total}) {
-					return
-				}
-			case <-diskTicker.C:
-				for _, path := range diskPaths {
-					diskStats, err := disk.Usage(path)
-					if err != nil {
-						slog.Warn("Failed to get disk usage", "path", path, "error", err)
-						continue
-					}
-					if !yield(&SystemDiskResource{Path: path, Used: diskStats.Used, Total: diskStats.Total}) {
-						return
-					}
-				}
-			case <-ctx.Done():
-				return
+				cb(&SystemDiskResource{Path: path, Used: diskStats.Used, Total: diskStats.Total})
 			}
+		case <-ctx.Done():
+			return nil
 		}
-	}, nil
+	}
 }
