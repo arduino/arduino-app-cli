@@ -23,7 +23,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"iter"
 	"log"
 	"net"
 	"net/http"
@@ -263,51 +262,51 @@ func putUpdateRequest(t *testing.T, host string) {
 
 }
 
-func NewSSEClient(ctx context.Context, method, url string) iter.Seq2[Event, error] {
-	return func(yield func(Event, error) bool) {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+func newSSEClient(ctx context.Context, method, url string, cb func(Event)) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil
+		}
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("got response status code %d", resp.StatusCode)
+	}
+
+	reader := bufio.NewReader(resp.Body)
+
+	evt := Event{}
+	for {
+		line, err := reader.ReadString('\n')
 		if err != nil {
-			_ = yield(Event{}, err)
-			return
-		}
-
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			_ = yield(Event{}, err)
-			return
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != 200 {
-			_ = yield(Event{}, fmt.Errorf("got response status code %d", resp.StatusCode))
-			return
-		}
-
-		reader := bufio.NewReader(resp.Body)
-
-		evt := Event{}
-		for {
-			line, err := reader.ReadString('\n')
-			if err != nil {
-				_ = yield(Event{}, err)
-				return
+			if ctx.Err() != nil {
+				return nil
 			}
-			switch {
-			case strings.HasPrefix(line, "data:"):
-				evt.Data = []byte(strings.TrimSpace(strings.TrimPrefix(line, "data:")))
-			case strings.HasPrefix(line, "event:"):
-				evt.Event = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
-			case strings.HasPrefix(line, "id:"):
-				evt.ID = strings.TrimSpace(strings.TrimPrefix(line, "id:"))
-			case strings.HasPrefix(line, "\n"):
-				if !yield(evt, nil) {
-					return
-				}
-				evt = Event{}
-			default:
-				_ = yield(Event{}, fmt.Errorf("unknown line: '%s'", line))
-				return
+			return err
+		}
+		switch {
+		case strings.HasPrefix(line, "data:"):
+			evt.Data = []byte(strings.TrimSpace(strings.TrimPrefix(line, "data:")))
+		case strings.HasPrefix(line, "event:"):
+			evt.Event = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
+		case strings.HasPrefix(line, "id:"):
+			evt.ID = strings.TrimSpace(strings.TrimPrefix(line, "id:"))
+		case strings.HasPrefix(line, "\n"):
+			cb(evt)
+			if ctx.Err() != nil {
+				return nil
 			}
+			evt = Event{}
+		default:
+			return fmt.Errorf("unknown line: '%s'", line)
 		}
 	}
 }
@@ -338,13 +337,15 @@ func waitForUpgrade(t *testing.T, host string) {
 
 	url := fmt.Sprintf("http://%s/v1/system/update/events", host)
 
-	itr := NewSSEClient(t.Context(), "GET", url)
-	for event, err := range itr {
-		require.NoError(t, err)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	if err := newSSEClient(ctx, "GET", url, func(event Event) {
 		t.Logf("Received event: ID=%s, Event=%s, Data=%s\n", event.ID, event.Event, string(event.Data))
 		if event.Event == "restarting" {
-			break
+			cancel()
 		}
+	}); err != nil {
+		require.NoError(t, err)
 	}
-
 }
