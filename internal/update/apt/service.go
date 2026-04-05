@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"iter"
 	"log/slog"
 	"regexp"
 	"strings"
@@ -98,59 +97,46 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 		return pkg.Name
 	})
 	eventCB(update.NewDataEvent(update.StartEvent, "Upgrade is starting"))
-	stream := runUpgradeCommand(ctx, names)
-	for line, err := range stream {
-		if err != nil {
-			return fmt.Errorf("error running upgrade command: %w", err)
-		}
+	if err := runUpgradeCommand(ctx, names, func(line string) {
 		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+	}); err != nil {
+		return fmt.Errorf("error running upgrade command: %w", err)
 	}
 
 	eventCB(update.NewDataEvent(update.StartEvent, "apt cleaning cache is starting"))
-	for line, err := range runAptCleanCommand(ctx) {
-		if err != nil {
-			return fmt.Errorf("error running apt clean command: %w", err)
-		}
+	if err := runAptCleanCommand(ctx, func(line string) {
 		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+	}); err != nil {
+		return fmt.Errorf("error running apt clean command: %w", err)
 	}
 
 	eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Pulling the latest docker images ..."))
-	for line, err := range pullDockerImages(ctx) {
-		if err != nil {
-			// In case of errors, including "out of disk space" erros, do a cleanup and then retry once.
-
-			eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Stop and destroy docker containers and images, to free up space ..."))
-			streamCleanup := cleanupDockerContainers(ctx)
-			for line, err := range streamCleanup {
-				if err != nil {
-					slog.Warn("Error during cleanup of container and images", "error", err)
-				} else {
-					eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
-				}
-			}
-
-			// Try again to pull the docker containers.
-			eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Pulling the latest docker images (again) ..."))
-			for line, err := range pullDockerImages(ctx) {
-				if err != nil {
-					return fmt.Errorf("error pulling docker images: %w", err)
-				}
-				eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
-			}
-		} else {
+	if err := pullDockerImages(ctx, func(line string) {
+		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+	}); err != nil {
+		// In case of errors, including "out of disk space" errors, do a cleanup and then retry once.
+		eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Stop and destroy docker containers and images, to free up space ..."))
+		if err := cleanupDockerContainers(ctx, func(line string) {
 			eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+		}); err != nil {
+			slog.Warn("Error during cleanup of container and images", "error", err)
+		}
+
+		// Try again to pull the docker containers.
+		eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Pulling the latest docker images (again) ..."))
+		if err := pullDockerImages(ctx, func(line string) {
+			eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+		}); err != nil {
+			return fmt.Errorf("error pulling docker images: %w", err)
 		}
 	}
 
 	// After pulling new images is completed, remove old images to free up space.
 	eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Cleanup docker containers and images, to remove old unused images"))
-	streamCleanup := cleanupDockerContainers(ctx)
-	for line, err := range streamCleanup {
-		if err != nil {
-			slog.Warn("Error during cleanup of container and images", "error", err)
-		} else {
-			eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
-		}
+	if err := cleanupDockerContainers(ctx, func(line string) {
+		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+	}); err != nil {
+		slog.Warn("Error during cleanup of container and images", "error", err)
 	}
 
 	return nil
@@ -180,7 +166,7 @@ func runUpdateCommand(ctx context.Context) error {
 	return nil
 }
 
-func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, error] {
+func runUpgradeCommand(ctx context.Context, names []string, cb func(string)) error {
 	env := []string{"NEEDRESTART_MODE=l"}
 
 	aptOptions := []string{
@@ -193,105 +179,76 @@ func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, er
 	args = append(args, aptOptions...)
 	args = append(args, names...)
 
-	return func(yield func(string, error) bool) {
-		cmd, err := paths.NewProcess(env, args...)
-		if err != nil {
-			_ = yield("", err)
-			return
-		}
-
-		stdout := orchestrator.NewCallbackWriter(func(line string) {
-			if !yield(line, nil) {
-				if err := cmd.Kill(); err != nil {
-					slog.Error("Failed to kill upgrade command", slog.String("error", err.Error()))
-				}
-			}
-		})
-		cmd.RedirectStderrTo(stdout)
-		cmd.RedirectStdoutTo(stdout)
-
-		if err := cmd.RunWithinContext(ctx); err != nil {
-			_ = yield("", err)
-			return
-		}
+	cmd, err := paths.NewProcess(env, args...)
+	if err != nil {
+		return err
 	}
 
+	stdout := orchestrator.NewCallbackWriter(func(line string) {
+		cb(line)
+	})
+	cmd.RedirectStderrTo(stdout)
+	cmd.RedirectStdoutTo(stdout)
+
+	if err := cmd.RunWithinContext(ctx); err != nil {
+		return err
+	}
+	return nil
 }
 
-func runAptCleanCommand(ctx context.Context) iter.Seq2[string, error] {
-	return func(yield func(string, error) bool) {
-		cmd, err := paths.NewProcess(nil, "sudo", "apt-get", "clean", "-y")
-		if err != nil {
-			_ = yield("", err)
-			return
-		}
-
-		stdout := orchestrator.NewCallbackWriter(func(line string) {
-			if !yield(line, nil) {
-				if err := cmd.Kill(); err != nil {
-					slog.Error("Failed to kill apt clean command", slog.String("error", err.Error()))
-				}
-			}
-		})
-		cmd.RedirectStderrTo(stdout)
-		cmd.RedirectStdoutTo(stdout)
-
-		if err := cmd.RunWithinContext(ctx); err != nil {
-			_ = yield("", err)
-			return
-		}
+func runAptCleanCommand(ctx context.Context, cb func(string)) error {
+	cmd, err := paths.NewProcess(nil, "sudo", "apt-get", "clean", "-y")
+	if err != nil {
+		return err
 	}
+
+	stdout := orchestrator.NewCallbackWriter(func(line string) {
+		cb(line)
+	})
+	cmd.RedirectStderrTo(stdout)
+	cmd.RedirectStdoutTo(stdout)
+
+	if err := cmd.RunWithinContext(ctx); err != nil {
+		return err
+	}
+	return nil
 }
 
-func pullDockerImages(ctx context.Context) iter.Seq2[string, error] {
-	return func(yield func(string, error) bool) {
-		cmd, err := paths.NewProcess(nil, "arduino-app-cli", "system", "init")
-		if err != nil {
-			_ = yield("", err)
-			return
-		}
-
-		stdout := orchestrator.NewCallbackWriter(func(line string) {
-			if !yield(line, nil) {
-				if err := cmd.Kill(); err != nil {
-					slog.Error("Failed to kill 'arduino-app-cli system init' command", slog.String("error", err.Error()))
-				}
-			}
-		})
-		cmd.RedirectStderrTo(stdout)
-		cmd.RedirectStdoutTo(stdout)
-
-		if err = cmd.RunWithinContext(ctx); err != nil {
-			_ = yield("", err)
-			return
-		}
+func pullDockerImages(ctx context.Context, cb func(string)) error {
+	cmd, err := paths.NewProcess(nil, "arduino-app-cli", "system", "init")
+	if err != nil {
+		return err
 	}
+
+	stdout := orchestrator.NewCallbackWriter(func(line string) {
+		cb(line)
+	})
+	cmd.RedirectStderrTo(stdout)
+	cmd.RedirectStdoutTo(stdout)
+
+	if err = cmd.RunWithinContext(ctx); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Remove all stopped containers
-func cleanupDockerContainers(ctx context.Context) iter.Seq2[string, error] {
-	return func(yield func(string, error) bool) {
-		cmd, err := paths.NewProcess(nil, "arduino-app-cli", "system", "cleanup")
-		if err != nil {
-			_ = yield("", err)
-			return
-		}
-
-		stdout := orchestrator.NewCallbackWriter(func(line string) {
-			if !yield(line, nil) {
-				if err := cmd.Kill(); err != nil {
-					slog.Error("Failed to kill 'arduino-app-cli system cleanup' command", slog.String("error", err.Error()))
-				}
-			}
-		})
-		cmd.RedirectStderrTo(stdout)
-		cmd.RedirectStdoutTo(stdout)
-
-		if err = cmd.RunWithinContext(ctx); err != nil {
-			_ = yield("", err)
-			return
-		}
+func cleanupDockerContainers(ctx context.Context, cb func(string)) error {
+	cmd, err := paths.NewProcess(nil, "arduino-app-cli", "system", "cleanup")
+	if err != nil {
+		return err
 	}
+
+	stdout := orchestrator.NewCallbackWriter(func(line string) {
+		cb(line)
+	})
+	cmd.RedirectStderrTo(stdout)
+	cmd.RedirectStdoutTo(stdout)
+
+	if err = cmd.RunWithinContext(ctx); err != nil {
+		return err
+	}
+	return nil
 }
 
 // RestartServices restarts services that need to be restarted after an upgrade.
