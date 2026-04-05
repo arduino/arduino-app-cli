@@ -20,12 +20,10 @@ package orchestrator
 import (
 	"context"
 	"fmt"
-	"iter"
 	"log/slog"
 	"os"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
@@ -35,7 +33,6 @@ import (
 	"github.com/docker/compose/v2/pkg/compose"
 	"go.bug.st/f"
 
-	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
@@ -59,14 +56,15 @@ func AppLogs(
 	req AppLogsRequest,
 	dockerCli command.Cli,
 	bricksIndex *bricksindex.BricksIndex,
-) (iter.Seq[LogMessage], error) {
+	cb func(LogMessage),
+) error {
 	if app.MainPythonFile == nil {
-		return helpers.EmptyIter[LogMessage](), nil
+		return nil
 	}
 
 	mainCompose := app.AppComposeFilePath()
 	if mainCompose.NotExist() {
-		return helpers.EmptyIter[LogMessage](), nil
+		return nil
 	}
 
 	bricksIndex = bricksIndex.WithAppBricks(app.LocalBricks)
@@ -91,7 +89,7 @@ func AppLogs(
 
 		services, err := extractServicesFromComposeFile(composeFilePath)
 		if err != nil {
-			return helpers.EmptyIter[LogMessage](), err
+			return err
 		}
 		for _, s := range services {
 			serviceToBrickMapping[s.name] = brick.ID
@@ -108,7 +106,7 @@ func AppLogs(
 		loader.WithSkipValidation, //TODO: check if there is a bug on docker compose upstream
 	)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	filteredServices := prj.ServiceNames()
@@ -119,42 +117,40 @@ func AppLogs(
 	}
 
 	backend := compose.NewComposeService(dockerCli).(commands.Backend)
-	return func(yield func(LogMessage) bool) {
-		opts := api.LogOptions{
-			Project:    prj,
-			Follow:     req.Follow,
-			Services:   filteredServices,
-			Timestamps: false,
-		}
-		if req.Tail != nil {
-			opts.Tail = fmt.Sprintf("%d", *req.Tail)
-		}
-		err = backend.Logs(
-			ctx,
-			prj.Name,
-			NewDockerLogConsumer(ctx, yield, serviceToBrickMapping),
-			opts,
-		)
-		if err != nil {
-			slog.Error("docker logs error", slog.String("error", err.Error()))
-			return
-		}
-	}, nil
+	opts := api.LogOptions{
+		Project:    prj,
+		Follow:     req.Follow,
+		Services:   filteredServices,
+		Timestamps: false,
+	}
+	if req.Tail != nil {
+		opts.Tail = fmt.Sprintf("%d", *req.Tail)
+	}
+	err = backend.Logs(
+		ctx,
+		prj.Name,
+		NewDockerLogConsumer(ctx, cb, serviceToBrickMapping),
+		opts,
+	)
+	if err != nil {
+		slog.Error("docker logs error", slog.String("error", err.Error()))
+		return err
+	}
+	return nil
 }
 
 var _ api.LogConsumer = (*DockerLogConsumer)(nil)
 
 type DockerLogConsumer struct {
-	ctx          context.Context
-	cb           func(LogMessage) bool
-	mapping      map[string]string
-	shuttingDown atomic.Bool
-	mu           sync.Mutex
+	ctx     context.Context
+	cb      func(LogMessage)
+	mapping map[string]string
+	mu      sync.Mutex
 }
 
 func NewDockerLogConsumer(
 	ctx context.Context,
-	cb func(LogMessage) bool,
+	cb func(LogMessage),
 	mapping map[string]string,
 ) *DockerLogConsumer {
 	return &DockerLogConsumer{
@@ -180,14 +176,11 @@ func (d *DockerLogConsumer) Status(container string, msg string) {
 }
 
 func (d *DockerLogConsumer) write(container, message string) {
-	if d.ctx.Err() != nil || d.shuttingDown.Load() {
+	if d.ctx.Err() != nil {
 		return
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if d.shuttingDown.Load() {
-		return
-	}
 
 	serviceName := strings.TrimSpace(container)
 	idx := strings.LastIndex(serviceName, "-")
@@ -196,13 +189,10 @@ func (d *DockerLogConsumer) write(container, message string) {
 		serviceName = serviceName[:idx]
 	}
 	for line := range strings.SplitSeq(message, "\n") {
-		if !d.cb(LogMessage{
+		d.cb(LogMessage{
 			Name:      serviceName,
 			BrickName: d.mapping[serviceName],
 			Content:   line,
-		}) {
-			d.shuttingDown.CompareAndSwap(false, true)
-			return
-		}
+		})
 	}
 }

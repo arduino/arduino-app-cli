@@ -74,19 +74,17 @@ func logsHandler(ctx context.Context, app app.ArduinoApp, tail *uint64, follow, 
 	if all {
 		cfg.ShowServicesLogs = true
 	}
-	logsIter, err := orchestrator.AppLogs(
+	if err := orchestrator.AppLogs(
 		ctx,
 		app,
 		cfg,
 		servicelocator.GetDockerClient(),
 		servicelocator.GetBricksIndex(),
-	)
-	if err != nil {
+		func(msg orchestrator.LogMessage) {
+			fmt.Fprintf(stdout, "[%s] %s\n", msg.Name, msg.Content)
+		},
+	); err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
-		return nil
-	}
-	for msg := range logsIter {
-		fmt.Fprintf(stdout, "[%s] %s\n", msg.Name, msg.Content)
 	}
 	return nil
 }

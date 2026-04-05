@@ -95,20 +95,17 @@ func HandleAppLogs(
 			BrickID string `json:"brick_id,omitempty"`
 			Message string `json:"message"`
 		}
-		messagesIter, err := orchestrator.AppLogs(r.Context(), app, appLogsRequest, dockerClient, bricksIndex)
-		if err != nil {
-			sseStream.SendError(render.SSEErrorData{
-				Code:    render.InternalServiceErr,
-				Message: "failed to start the app",
-			})
-			return
-		}
-		for item := range messagesIter {
+		if err := orchestrator.AppLogs(r.Context(), app, appLogsRequest, dockerClient, bricksIndex, func(item orchestrator.LogMessage) {
 			sseStream.Send(render.SSEEvent{Type: "message", Data: log{
 				ID:      item.Name,
 				Message: item.Content,
 				BrickID: item.BrickName,
 			}})
+		}); err != nil {
+			sseStream.SendError(render.SSEErrorData{
+				Code:    render.InternalServiceErr,
+				Message: "failed to start the app",
+			})
 		}
 	}
 }
