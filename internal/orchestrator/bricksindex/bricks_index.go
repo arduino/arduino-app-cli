@@ -55,12 +55,18 @@ func (b *BricksIndex) FindBrickByID(id string) (*Brick, bool) {
 	return nil, false
 }
 
+type BrickFilter func(brick Brick) bool
+
 // TODO: use iterator instead of returning a slice
-func (b *BricksIndex) ListBricks() []Brick {
+// Filter Keep-if-True logic
+func (b *BricksIndex) ListBricks(filter BrickFilter) []Brick {
 	bricks := slices.Concat(b.AppBricks, b.BuiltInBricks)
 	slices.SortFunc(bricks, func(a, b Brick) int {
 		return strings.Compare(a.Name, b.Name)
 	})
+	if filter != nil {
+		bricks = slices.DeleteFunc(bricks, filter)
+	}
 	return bricks
 }
 

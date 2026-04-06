@@ -322,3 +322,40 @@ func TestLoadBrickYamlBrickIndex(t *testing.T) {
 	})
 
 }
+
+func TestListBricksWithFilter(t *testing.T) {
+	brick1 := Brick{ID: "1", Name: "brick1", Category: "catA"}
+	brick2 := Brick{ID: "2", Name: "brick2", Category: "catB"}
+	brick3 := Brick{ID: "3", Name: "brick3", Category: "catB"}
+	appBricks := []Brick{brick1, brick2, brick3}
+
+	tests := []struct {
+		name       string
+		filter     BrickFilter
+		wantBricks []Brick
+	}{
+		{
+			name:       "Nil filter does not apply any filter",
+			filter:     nil,
+			wantBricks: appBricks,
+		},
+		{
+			name:       "Filters catB bricks",
+			filter:     func(b Brick) bool { return b.Category == "catB" },
+			wantBricks: []Brick{brick1},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := &BricksIndex{
+				AppBricks: appBricks,
+			}
+
+			// act
+			got := b.ListBricks(tt.filter)
+			require.Equal(t, len(got), len(tt.wantBricks))
+			require.Equal(t, got[0].ID, tt.wantBricks[0].ID)
+		})
+	}
+}
