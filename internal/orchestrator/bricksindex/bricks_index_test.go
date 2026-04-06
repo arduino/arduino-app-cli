@@ -340,9 +340,14 @@ func TestListBricksWithFilter(t *testing.T) {
 			wantBricks: appBricks,
 		},
 		{
-			name:       "Filters catB bricks",
+			name:       "Filters out catB bricks",
 			filter:     func(b Brick) bool { return b.Category == "catB" },
 			wantBricks: []Brick{brick1},
+		},
+		{
+			name:       "Filters out catA bricks",
+			filter:     func(b Brick) bool { return b.Category == "catA" },
+			wantBricks: []Brick{brick2, brick3},
 		},
 	}
 
@@ -354,8 +359,53 @@ func TestListBricksWithFilter(t *testing.T) {
 
 			// act
 			got := b.ListBricks(tt.filter)
-			require.Equal(t, len(got), len(tt.wantBricks))
-			require.Equal(t, got[0].ID, tt.wantBricks[0].ID)
+			require.Equal(t, len(tt.wantBricks), len(got))
+			require.Equal(t, tt.wantBricks[0].ID, got[0].ID)
+		})
+	}
+}
+
+func TestUnsupportedBoardFilter(t *testing.T) {
+	brickEmptySupportedList := Brick{ID: "1", Name: "brick1", SupportedBoards: []string{}}
+	brickMyBoard := Brick{ID: "2", Name: "brick2", SupportedBoards: []string{"MyBoard"}}
+	brickOneQ := Brick{ID: "3", Name: "brickOneQ", SupportedBoards: []string{"UnoQ"}}
+	brickOneQVentunoQ := Brick{ID: "4", Name: "brickOneQVentunoQ", SupportedBoards: []string{"UnoQ", "VentunoQ"}}
+	brickVentunoQ := Brick{ID: "5", Name: "brickVentunoQ", SupportedBoards: []string{"VentunoQ"}}
+
+	boardProvider = "UnoQ"
+
+	tests := []struct {
+		name          string
+		initialBricks []Brick
+		wantBricks    []Brick
+	}{
+		{
+			name:          "Empty board list means all supported",
+			initialBricks: []Brick{brickEmptySupportedList},
+			wantBricks:    []Brick{brickEmptySupportedList},
+		},
+		{
+			name:          "Only OneQ board supported bricks with two candidate bricks",
+			initialBricks: []Brick{brickOneQ, brickOneQVentunoQ, brickVentunoQ},
+			wantBricks:    []Brick{brickOneQ, brickOneQVentunoQ},
+		},
+		{
+			name:          "Only OneQ board supported bricks with no candidate bricks",
+			initialBricks: []Brick{brickMyBoard, brickVentunoQ},
+			wantBricks:    []Brick{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := &BricksIndex{
+				AppBricks: tt.initialBricks,
+			}
+
+			// act
+			got := b.ListBricks(UnsupportedBrickFilter)
+			require.Equal(t, len(tt.wantBricks), len(got))
+			require.Equal(t, tt.wantBricks, got)
 		})
 	}
 }

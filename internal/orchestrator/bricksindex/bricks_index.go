@@ -30,6 +30,7 @@ import (
 	yaml "github.com/goccy/go-yaml"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 type BricksIndex struct {
@@ -58,12 +59,13 @@ func (b *BricksIndex) FindBrickByID(id string) (*Brick, bool) {
 type BrickFilter func(brick Brick) bool
 
 // TODO: use iterator instead of returning a slice
-// Filter Keep-if-True logic
 func (b *BricksIndex) ListBricks(filter BrickFilter) []Brick {
 	bricks := slices.Concat(b.AppBricks, b.BuiltInBricks)
 	slices.SortFunc(bricks, func(a, b Brick) int {
 		return strings.Compare(a.Name, b.Name)
 	})
+
+	// Filters out bricks where the provided function evaluates to true.
 	if filter != nil {
 		bricks = slices.DeleteFunc(bricks, filter)
 	}
@@ -86,6 +88,7 @@ type Brick struct {
 	ID                        string                    `yaml:"id"`
 	Name                      string                    `yaml:"name"`
 	Description               string                    `yaml:"description"`
+	SupportedBoards           []string                  `yaml:"supported_boards,omitempty"`
 	Category                  string                    `yaml:"category,omitempty"`
 	RequiresDisplay           string                    `yaml:"requires_display,omitempty"`
 	RequireContainer          bool                      `yaml:"require_container"`
@@ -207,4 +210,25 @@ func parseBrickID(brickID string) (namespace, name string, err error) {
 		return "", "", errors.New("invalid ID")
 	}
 	return namespace, brickName, nil
+}
+
+func GetBoard() string {
+	fqbn := platform.GetPlatform().FQBN
+	i := strings.LastIndex(fqbn, ":")
+	if i != -1 {
+		return fqbn[i+1:]
+	}
+	return ""
+}
+
+var boardProvider = GetBoard()
+
+func UnsupportedBrickFilter(b Brick) bool {
+	if len(b.SupportedBoards) <= 0 {
+		fmt.Println("MARTAMARTA nil supported bricklist")
+		return false
+	}
+	fmt.Printf("MARTAMARTA supported bricklist %v\n", b.SupportedBoards)
+
+	return !slices.Contains(b.SupportedBoards, boardProvider)
 }
