@@ -170,8 +170,7 @@ type AppListResponse struct {
 
 // AppLocalBrickCreateRequest defines model for AppLocalBrickCreateRequest.
 type AppLocalBrickCreateRequest struct {
-	Description *string `json:"description,omitempty"`
-	Name        *string `json:"name,omitempty"`
+	Name *string `json:"name,omitempty"`
 }
 
 // AppLocalBrickCreateResponse defines model for AppLocalBrickCreateResponse.
@@ -235,6 +234,7 @@ type BrickInstance struct {
 	Id               *string                `json:"id,omitempty"`
 	Model            *string                `json:"model,omitempty"`
 	Name             *string                `json:"name,omitempty"`
+	Readme           *string                `json:"readme,omitempty"`
 	RequireModel     *bool                  `json:"require_model,omitempty"`
 	Status           *string                `json:"status,omitempty"`
 
@@ -524,6 +524,12 @@ type GetAppLogsParams struct {
 	Nofollow *bool   `form:"nofollow,omitempty" json:"nofollow,omitempty"`
 }
 
+// GetBricksParams defines parameters for GetBricks.
+type GetBricksParams struct {
+	// SupportedOnly If true, only returns bricks supported by the current board.
+	SupportedOnly *bool `form:"supported_only,omitempty" json:"supported_only,omitempty"`
+}
+
 // ListLibrariesParams defines parameters for ListLibraries.
 type ListLibrariesParams struct {
 	// Search Search term to filter libraries by name, sentence, paragraph.
@@ -771,7 +777,7 @@ type ClientInterface interface {
 	StopApp(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetBricks request
-	GetBricks(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetBricks(ctx context.Context, params *GetBricksParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetBrickDetails request
 	GetBrickDetails(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1186,8 +1192,8 @@ func (c *Client) StopApp(ctx context.Context, id string, reqEditors ...RequestEd
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetBricks(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetBricksRequest(c.Server)
+func (c *Client) GetBricks(ctx context.Context, params *GetBricksParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetBricksRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1681,7 +1687,7 @@ func NewCreateAppLocalBrickRequestWithBody(server string, appID string, contentT
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "appID", runtime.ParamLocationPath, appID)
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "appID", appID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
 	if err != nil {
 		return nil, err
 	}
@@ -2504,7 +2510,7 @@ func NewStopAppRequest(server string, id string) (*http.Request, error) {
 }
 
 // NewGetBricksRequest generates requests for GetBricks
-func NewGetBricksRequest(server string) (*http.Request, error) {
+func NewGetBricksRequest(server string, params *GetBricksParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -2520,6 +2526,28 @@ func NewGetBricksRequest(server string) (*http.Request, error) {
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.SupportedOnly != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "supported_only", *params.SupportedOnly, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -3367,7 +3395,7 @@ type ClientWithResponsesInterface interface {
 	StopAppWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*StopAppResp, error)
 
 	// GetBricksWithResponse request
-	GetBricksWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetBricksResp, error)
+	GetBricksWithResponse(ctx context.Context, params *GetBricksParams, reqEditors ...RequestEditorFn) (*GetBricksResp, error)
 
 	// GetBrickDetailsWithResponse request
 	GetBrickDetailsWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetBrickDetailsResp, error)
@@ -4651,8 +4679,8 @@ func (c *ClientWithResponses) StopAppWithResponse(ctx context.Context, id string
 }
 
 // GetBricksWithResponse request returning *GetBricksResp
-func (c *ClientWithResponses) GetBricksWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetBricksResp, error) {
-	rsp, err := c.GetBricks(ctx, reqEditors...)
+func (c *ClientWithResponses) GetBricksWithResponse(ctx context.Context, params *GetBricksParams, reqEditors ...RequestEditorFn) (*GetBricksResp, error) {
+	rsp, err := c.GetBricks(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

@@ -24,17 +24,29 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
 func HandleBrickList(brickService *bricks.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		res, err := brickService.List()
+		var brickFilter bricksindex.BrickFilter = nil
+
+		params := r.URL.Query()
+		filterSupported := params.Get("supported_only")
+		if filterSupported != "" {
+			if supported, err := strconv.ParseBool(filterSupported); err == nil && supported {
+				brickFilter = bricksindex.UnsupportedBrickFilter
+			}
+		}
+
+		res, err := brickService.List(brickFilter)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to retrieve brick list"})

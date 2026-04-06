@@ -799,6 +799,13 @@ paths:
       description: Returns all the existing bricks. Bricks that are ready to use are
         marked as installed.
       operationId: getBricks
+      parameters:
+      - description: If true, only returns bricks supported by the current board.
+        in: query
+        name: supported_only
+        schema:
+          description: If true, only returns bricks supported by the current board.
+          type: boolean
       responses:
         "200":
           content:
@@ -1505,8 +1512,6 @@ components:
       type: object
     AppLocalBrickCreateRequest:
       properties:
-        description:
-          type: string
         name:
           type: string
       type: object
@@ -1622,6 +1627,8 @@ components:
         model:
           type: string
         name:
+          type: string
+        readme:
           type: string
         require_model:
           type: boolean

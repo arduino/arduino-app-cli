@@ -776,7 +776,9 @@ Contains a JSON object with the details of an error.
 			OperationId: "getBricks",
 			Method:      http.MethodGet,
 			Path:        "/v1/bricks",
-			Request:     nil,
+			Request: (*struct {
+				SupportedOnly bool `query:"supported_only" json:"supported_only" description:"If true, only returns bricks supported by the current board."`
+			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
 				DataStructure: bricks.BrickListResult{},

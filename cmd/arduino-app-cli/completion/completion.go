@@ -107,7 +107,7 @@ func BrickIDs() cobra.CompletionFunc {
 
 func BrickIDsWithFilterFunc(filter func(apps bricks.BrickListItem) bool) cobra.CompletionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		brickList, err := servicelocator.GetBrickService().List()
+		brickList, err := servicelocator.GetBrickService().List(nil)
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveError
 		}

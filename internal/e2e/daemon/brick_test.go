@@ -67,7 +67,7 @@ func setupTestBrick(t *testing.T) (*client.CreateAppResp, *client.ClientWithResp
 func TestBricksList(t *testing.T) {
 	httpClient := GetHttpclient(t)
 
-	response, err := httpClient.GetBricksWithResponse(t.Context(), func(ctx context.Context, req *http.Request) error { return nil })
+	response, err := httpClient.GetBricksWithResponse(t.Context(), &client.GetBricksParams{})
 	require.NoError(t, err)
 	require.NotEmpty(t, response.JSON200.Bricks)
 

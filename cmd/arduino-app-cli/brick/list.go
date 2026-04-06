@@ -36,8 +36,9 @@ func newBricksListCmd() *cobra.Command {
 		},
 	}
 }
+
 func bricksListHandler() {
-	res, err := servicelocator.GetBrickService().List()
+	res, err := servicelocator.GetBrickService().List(nil)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}

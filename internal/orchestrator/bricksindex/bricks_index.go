@@ -224,11 +224,8 @@ func GetBoard() string {
 var boardProvider = GetBoard()
 
 func UnsupportedBrickFilter(b Brick) bool {
-	if len(b.SupportedBoards) <= 0 {
-		fmt.Println("MARTAMARTA nil supported bricklist")
+	if len(b.SupportedBoards) == 0 {
 		return false
 	}
-	fmt.Printf("MARTAMARTA supported bricklist %v\n", b.SupportedBoards)
-
 	return !slices.Contains(b.SupportedBoards, boardProvider)
 }
