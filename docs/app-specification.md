@@ -2,24 +2,21 @@
 
 This is the specification for the Arduino App format to be used with `arduino-app-cli` and `Arduino App Lab`.
 
-Arduino Apps are self-contained logical units designed for the `Arduino dual-brain board`.
-An Arduino app leverages the board's operating system (Linux OS) and the integrated microcontroller to perform a wide range of tasks, from high-level logic, data processing, executing AI models and more.
+Arduino Apps are self-contained logical units designed for the [Arduino Uno Q](https://store.arduino.cc/pages/uno-q?utm_source=google&utm_medium=cpc&utm_campaign=EU-UnoQ-Pmax&gad_source=1&gad_campaignid=23530508092&gbraid=0AAAAACbEa86bj8HT84HYBe_GN9vNaKz-s&gclid=CjwKCAjw1tLOBhAMEiwAiPkRHg-EH3lTYSalnjyTujl9UyNebAue9fAfcaAhfjRODpSQNNycZ6lnfBoCm0IQAvD_BwE) board.
+An Arduino app leverages the board's operating system and the integrated microcontroller to perform a wide range of tasks, from high-level logic, data processing, executing AI models and more.
 
-## Arduino App Architecture
-
-An Arduino App is a combination of multiple pieces of software that interacts with each other as single application. In particular an Arduino App may be composed by:
+An Arduino App is composed of multiple software components that work together as a single application. These may include:
 
 - [**Arduino Sketch**](https://docs.arduino.cc/arduino-cli/sketch-specification/). It runs on the integrated Microcontroller (MCU). It is responsible for low-level hardware interaction, sensors, and actuators.
 - **Python and containers**. They run on the board's Linux OS.
-  The Sketch and the Python communicate using an RPC-based messaging (see [arduino-router](https://github.com/arduino/arduino-router)).
-- An App can be extended through `Bricks`. Bricks is a modular software component that adds ready-to-use functionality to your project (such as databases or computer vision service).
-- An App may have multiple Bricks.
 
-## Arduino App folder and files
+The Sketch and the Python communicate using an RPC-based messaging (see [arduino-router](https://github.com/arduino/arduino-router)).
 
-An Arduino App is defined by a root folder containing its metadata, source code, and bundled resources. The system is designed to be flexible: while the folder name itself is arbitrary(has no relation with the App name defined in root-app-folder/app.yaml), **the internal structure must follow specific naming conventions** to be recognized by the `arduino-app-cli`.
+An App can be extended through **Bricks**: modular software components that add ready-to-use functionality (e.g. databases, computer vision services). An App may include multiple Bricks.
 
-While the App folder holds the application logic and local resources, the App may depend on Bricks. These dependencies are declared in the App's configuration, but the Bricks themselves are not stored inside the App folder. They are downloaded and managed externally by the host system.
+## Arduino App folders and files
+
+An Arduino App is a self-contained folder that includes a descriptor file (app.yaml), other sub-folders and files.
 
 ### Arduino App root folder
 
@@ -27,9 +24,8 @@ The root folder containing the Arduino App files and subfolders.
 
 #### `app.yaml` file
 
-The `app.yaml` file contains the metadata of the App.
-
-The file is mandatory. It must be located in the root folder of the app. Only `.yaml` extension is supported (not `.yml`).
+The `app.yaml` file contains the metadata of the App. It is mandatory and must be located in the root folder.
+See the [App Descriptor (`app.yaml`)](#app-descriptor-appyaml) section for details.
 
 #### `python` subfolder
 
@@ -38,7 +34,7 @@ Contains the high-level application logic and its environment.
 - **Status**: Mandatory.
 - **Required File**: `main.py` (The entry point of the application).
 - **Optional File**: `requirements.txt` (Standard Python dependency list).
-- **Constraint**: must be located specifically in the `root-app-folder/python` path.
+- **Constraint**: must be located specifically in the `root-app-folder/python/` path.
 
 #### `sketch` subfolder
 
@@ -50,24 +46,28 @@ Contains the Arduino sketch to be flashed on the integrated microcontroller.
 
 #### `README.md` file
 
-- **`README.md`**: (Optional) A markdown file located in the root. The **Arduino App Lab** renders this file to provide documentation to the user. Additionally, if the `description` field in `app.yaml` is absent or empty, the system automatically derives the app description from the `README.md` by parsing the first non-title paragraph and stripping all markdown syntax.
+A markdown file located in the root folder.
+
+- **Status**: Optional.
+- **Arduino App Lab** renders this file to provide documentation to the user.
+- **Constraint**: If the `description` field in `app.yaml` is absent or empty, the system derives the app description from `README.md` by parsing the first non-title paragraph and stripping all markdown syntax.
 
 #### Reserved Folders
 
 The following folders are reserved for specific uses:
 
-- `data` subfolder
+##### `data` subfolder
 
-- **Usage**: Optional.
-  - **Constraints**:
+- **Status**: Optional.
+- **Constraints**:
   - It contains volumes and other data generated by the App and its dependencies (e.g., database storage).
   - The content is accessible to the user to allow backups or deletion to reset the App state.
   - This folder should be emptied before sharing the App to avoid leaking personal data.
-  - located in `root-app-folder/`.
+  - Located in `root-app-folder/`.
 
-- `.cache` subfolder
+##### `.cache` subfolder
 
-- **Usage**: Optional.
+- **Status**: Optional.
 - **Constraints**:
   - It contains volatile data needed to run the App (e.g., the Python `venv` folder or Docker Compose support files).
   - The content is transient and might change in the future.
@@ -76,7 +76,7 @@ The following folders are reserved for specific uses:
 
 #### Extra files/folders
 
-- **Extra Files**: Any other file or folder is allowed. The runtime will preserve these files, making them accessible to your Python logic, but will not perform any automated action. These resources are strictly bundled with the App during Import and Export operations, ensuring that the application remains self-contained and portable across different boards.
+**Extra Files**: Any other file or folder is allowed. The runtime preserves these files and makes them accessible to your Python logic, but performs no automated action on them. They are bundled with the App during Import and Export operations.
 
 ### A complete example
 
@@ -92,6 +92,7 @@ my-garden-project/
 ├── sketch/ # Arduino sketch folder (Optional)
 │ ├── sketch.yaml # Arduino sketch dependency
 │ └── sketch.ino # Arduino sketch
+├── .cache/ # Reserved
 └── data/ # Reserved
 ```
 
@@ -101,37 +102,35 @@ The `app.yaml` file (also referred to as the **App Descriptor**) is the manifest
 
 ### File Format
 
-- **Filename**: must be exactly `app.yaml`.
+- **Filename**: must be exactly `app.yaml`(not `.yml`).
 - **Location**: Root of the App folder.
 - **Syntax**: Standard YAML.
 
 ### Configuration Fields
 
 - **`name`** (Optional): Human-readable name.
-- _Constraints_: alphanumeric, underscores, dashes, and spaces. Cannot start with a dash.
+  - Constraints: alphanumeric, underscores, dashes, and spaces. Cannot start with a dash.
 
 - **`icon`** (Optional): A single emoji character used in the App Lab UI.
 - **`description`** (Optional): A short summary of the app's purpose. If omitted, it is retrieved from the first paragraph of README.md (see the README.md file paragraph for details).
-- **`ports`** (Optional): A list of integers representing the network ports that the **Python Logic Layer** listens on.
-- _Usage_: Used to expose internal services (e.g., a web dashboard) to the host or local network.
-
-- **bricks** - (Optional) A list of "Brick Object". Additional bricks needed by the app to perform specific tasks(see the next section for details).
+- **`ports`** (Optional): A list of integers representing the network ports exposed by the Python logic (e.g., for a web dashboard).
+- **`bricks`** (Optional): A list of Brick Object. Additional bricks needed by the app to perform specific tasks(see the next section for details).
 
 ### Brick Object Definition
 
 Bricks are Python-first modular dependencies that encapsulate both application logic and infrastructure configurations (such as Docker Compose files) to extend an App's capabilities.
+While the App folder holds the application logic and local resources, the App may depend on Bricks. These dependencies are declared in the App's description, but the Bricks themselves are not stored inside the App folder. They are downloaded and managed externally by the host system.
 
 This section describes the structure of a single item within the bricks list in `app.yaml`.
 
-- **id** - (Mandatory) The unique identifier string of the Brick (e.g., web_ui, image_classification).
+- **`id`** (Mandatory): The unique identifier string of the Brick (e.g., web_ui, image_classification).
   - TODO: Update the spec after custom bricks validation rules are defined.
-- **model** - (Optional) The model id to load within the Brick.
-- **variables** - (Optional) A map of key-value pairs (both must be strings) representing configuration parameters or environment variables passed to the Brick container.
-- **ports** - (Optional) A list of integers representing the network ports that the Brick must expose to interact with the User(e.g., exposing web interfaces).
-  - Usage: These ports are used for user interaction (e.g., exposing web interfaces or APIs).
+- **`model`** (Optional): The model id to load within the Brick.
+- **`variables`** (Optional): A map of key-value pairs (both must be strings) representing configuration parameters or environment variables passed to the Brick container.
+- **`ports`** (Optional): A list of integers representing the network ports that the Brick must expose to interact with the User(e.g., exposing web interfaces).
   - Default Behavior: If ports are not explicitly defined in the app.yaml file, the system automatically uses the default ports specified in the Brick's metadata (if any).
   - Collision: If two or more Bricks attempt to use the same port, a network collision occurs. This conflict will prevent one of the Bricks from starting, potentially causing the application to fail or remain in a partial state.
-- **required_devices** (Optional): This is a list of "class" of devices, required by the app (e.g., `camera`, `remote_camera`, `microphone`, `remote_microphone`).
+- **`required_devices`** (Optional): A list of "class" of devices, required by the app (e.g., `camera`, `remote_camera`, `microphone`, `remote_microphone`).
 
 #### Handling Secrets in Variables
 
@@ -176,8 +175,8 @@ An Arduino App entity is classified as **Broken** if it falls into one of the fo
 
 - **Invalid Descriptor**: The `app.yaml` file exists but contains syntax errors (invalid YAML) or violates the schema constraints (e.g., invalid characters in the `name` field).
 - **Structural Incompleteness**: The App lacks the mandatory internal components defined in the Project Structure:
-- Missing `python/` directory.
-- Missing `python/main.py` file.
+  - Missing `python/` directory.
+  - Missing `python/main.py` file.
 
 - **Incomplete Sketch folder**: The `sketch/` folder exists, but it is missing the mandatory `sketch.ino` or `sketch.yaml` files.
 
