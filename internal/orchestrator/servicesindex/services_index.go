@@ -34,6 +34,8 @@ type Service struct {
 	Description     string   `yaml:"description,omitempty"`
 	Category        string   `yaml:"category"`
 	SupportedBoards []string `yaml:"supported_boards"`
+
+	ComposeFile *paths.Path `yaml:"-"` // brick_compose.yaml file path, optional
 }
 
 func Load(dir *paths.Path) (*ServicesIndex, error) {
@@ -46,6 +48,13 @@ func Load(dir *paths.Path) (*ServicesIndex, error) {
 		return nil, err
 	}
 	return &ServicesIndex{Services: services}, nil
+}
+
+func (s Service) GetComposeFile() (*paths.Path, bool) {
+	if s.ComposeFile == nil || s.ComposeFile.NotExist() {
+		return nil, false
+	}
+	return s.ComposeFile, true
 }
 
 func (s *ServicesIndex) FindserviceByID(id string) (*Service, bool) {
@@ -90,5 +99,6 @@ func load(servicePath *paths.Path) (a Service, err error) {
 	if err := yaml.Unmarshal(serviceConfigContent, &service); err != nil {
 		return Service{}, fmt.Errorf("cannot unmarshal service_config.yaml: %w", err)
 	}
+	service.ComposeFile = servicePath.Join("service_compose.yaml")
 	return service, nil
 }

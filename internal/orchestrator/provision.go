@@ -296,9 +296,9 @@ func generateMainComposeFile(
 
 	// Add the singleton services compose files to the list of the brick compose files
 	for _, s := range requiredServices {
-		serviceCompose, err := staticStore.GetServiceComposeFilePathFromID(s.ServiceID)
-		if err != nil {
-			slog.Error("service compose id not valid", slog.String("error", err.Error()), slog.String("service_id", s.ServiceID))
+		serviceCompose, ok := s.GetComposeFile()
+		if !ok {
+			slog.Error("service compose not found", slog.String("service_id", s.ServiceID))
 			continue
 		}
 		svcs, err := extractServicesFromComposeFile(serviceCompose)

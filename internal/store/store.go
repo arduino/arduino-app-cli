@@ -18,10 +18,8 @@
 package store
 
 import (
-	"errors"
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	"github.com/arduino/go-paths-helper"
 )
@@ -61,20 +59,4 @@ func (s *StaticStore) GetComposeFolder() *paths.Path {
 
 func (s *StaticStore) GetServicesFolder() *paths.Path {
 	return paths.New(s.servicesPath)
-}
-
-func (s *StaticStore) GetServiceComposeFilePathFromID(serviceID string) (*paths.Path, error) {
-	namespace, serviceName, err := parseServiceID(serviceID)
-	if err != nil {
-		return nil, err
-	}
-	return paths.New(s.servicesPath, namespace, serviceName, "service_compose.yaml"), nil
-}
-
-func parseServiceID(id string) (namespace, name string, err error) {
-	namespace, name, ok := strings.Cut(id, ":")
-	if !ok {
-		return "", "", errors.New("invalid ID")
-	}
-	return namespace, name, nil
 }
