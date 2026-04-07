@@ -169,10 +169,6 @@ func ImportAppFromZip(
 		rawAppName = strings.TrimSuffix(originalZipName, filepath.Ext(originalZipName))
 	}
 
-	if err := validateAppZipContent(&r.Reader, rootPrefix); err != nil {
-		return app.ID{}, fmt.Errorf("%w:%v", ErrBadRequest, err)
-	}
-
 	appDescriptor, err := readAppDescriptorFromZip(&r.Reader, rootPrefix)
 	if err != nil {
 		return app.ID{}, fmt.Errorf("failed to read app.yaml: %w", err)
@@ -180,10 +176,6 @@ func ImportAppFromZip(
 
 	if strings.TrimSpace(appDescriptor.Name) == "" {
 		return app.ID{}, fmt.Errorf("%w: app name is missing", ErrBadRequest)
-	}
-
-	if err := appDescriptor.IsValid(); err != nil {
-		return app.ID{}, fmt.Errorf("%w: %v", ErrBadRequest, err)
 	}
 
 	finalDestPath, appExists := findAppPathByName(rawAppName, cfg)
@@ -205,6 +197,9 @@ func ImportAppFromZip(
 
 	if finalDestPath.Exist() {
 		return app.ID{}, ErrAppAlreadyExists
+	}
+	if err := app.ValidateApp(tempDestDir); err != nil {
+		return app.ID{}, fmt.Errorf("%w: %v", ErrBadRequest, err)
 	}
 
 	if err := tempDestDir.Rename(finalDestPath); err != nil {
@@ -312,58 +307,6 @@ func readAppDescriptorFromZip(r *zip.Reader, rootPrefix string) (app.AppDescript
 		}
 	}
 	return descriptor, fmt.Errorf("app.yaml not found in archive")
-}
-
-// TODO implement centralized app validator to use everywhere is needed
-// validateAppZipContent checks for mandatory files respecting the rootPrefix
-func validateAppZipContent(r *zip.Reader, rootPrefix string) error {
-	hasAppYaml := false
-	hasMainPy := false
-
-	hasSketchFolder := false
-	hasSketchIno := false
-	hasSketchYaml := false
-
-	targetAppYaml := paths.New(rootPrefix, "app.yaml")
-	targetMainPy := paths.New(rootPrefix, "python/main.py")
-
-	targetSketchPrefix := paths.New(rootPrefix, "sketch").String() + "/"
-	for _, f := range r.File {
-		name := filepath.ToSlash(f.Name)
-
-		if name == targetAppYaml.String() {
-			hasAppYaml = true
-		}
-		if name == targetMainPy.String() {
-			hasMainPy = true
-		}
-
-		if strings.HasPrefix(name, targetSketchPrefix) {
-			hasSketchFolder = true
-			if name == paths.New(rootPrefix, "sketch/sketch.ino").String() {
-				hasSketchIno = true
-			}
-
-			if name == paths.New(rootPrefix, "sketch/sketch.yaml").String() {
-				hasSketchYaml = true
-			}
-		}
-	}
-
-	if !hasAppYaml {
-		return errors.New("missing app.yaml")
-	}
-	if !hasMainPy {
-		return errors.New("missing python/main.py")
-	}
-
-	if hasSketchFolder {
-		if err := app.IsValidSketchFolder(hasSketchIno, hasSketchYaml); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func redactSecrets(bricksindex *bricksindex.BricksIndex, desc *app.AppDescriptor) {

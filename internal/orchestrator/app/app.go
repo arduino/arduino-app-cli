@@ -65,45 +65,36 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 		return ArduinoApp{}, fmt.Errorf("cannot get absolute path for app: %w", err)
 	}
 
+	if err := ValidateApp(appPath); err != nil {
+		return ArduinoApp{}, err
+	}
+
 	app := ArduinoApp{
 		FullPath:   appPath,
 		Descriptor: AppDescriptor{},
 	}
 
-	if descriptorFile := app.GetDescriptorPath(); descriptorFile.Exist() {
-		desc, err := ParseDescriptorFile(descriptorFile)
-		if err != nil {
-			return ArduinoApp{}, fmt.Errorf("error loading app descriptor file: %w", err)
-		}
-		app.Descriptor = desc
-		app.Name = desc.Name
-
-		if app.Descriptor.Description == "" {
-			description, err := app.getAppDescriptionFromReadme()
-			if err != nil {
-				// Log the error but don't fail the loading process, as the description is optional
-				slog.Warn("cannot extract app description from README.md", "error", err)
-			} else {
-				app.Descriptor.Description = description
-			}
-		}
-
-	} else {
-		return ArduinoApp{}, errors.New("descriptor app.yaml file missing from app")
-	}
-
-	if appPath.Join("python", "main.py").Exist() {
-		app.MainPythonFile = appPath.Join("python", "main.py")
-	}
-
-	sketchPath, err := loadSketchPath(appPath)
+	desc, err := ParseDescriptorFile(app.GetDescriptorPath())
 	if err != nil {
 		return ArduinoApp{}, err
 	}
-	app.mainSketchPath = sketchPath
+	app.Descriptor = desc
+	app.Name = desc.Name
 
-	if app.MainPythonFile == nil && app.mainSketchPath == nil {
-		return ArduinoApp{}, errors.New("main python file and sketch file missing from app")
+	if app.Descriptor.Description == "" {
+		description, err := app.getAppDescriptionFromReadme()
+		if err != nil {
+			slog.Warn("cannot extract app description from README.md", "error", err)
+		} else {
+			app.Descriptor.Description = description
+		}
+	}
+
+	app.MainPythonFile = appPath.Join("python", "main.py")
+
+	sketchPath := appPath.Join("sketch")
+	if sketchPath.IsDir() {
+		app.mainSketchPath = sketchPath
 	}
 
 	if appPath.Join("bricks").Exist() {
@@ -113,28 +104,45 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 	return app, nil
 }
 
-func loadSketchPath(appPath *paths.Path) (*paths.Path, error) {
-	sketchDir := appPath.Join("sketch")
-	if !sketchDir.IsDir() {
-		return nil, nil
+func ValidateApp(appPath *paths.Path) error {
+	descriptorFile := appPath.Join("app.yaml")
+	if _, err := validateAndParseDescriptor(descriptorFile); err != nil {
+		return err
+	}
+
+	sketchPath := appPath.Join("sketch")
+	if err := isValidSketchFolder(sketchPath); err != nil {
+		return err
+	}
+
+	if !appPath.Join("python", "main.py").Exist() {
+		return errors.New("main python file missing from app")
+	}
+
+	return nil
+}
+
+func validateAndParseDescriptor(descriptorFile *paths.Path) (AppDescriptor, error) {
+	if !descriptorFile.Exist() {
+		return AppDescriptor{}, errors.New("descriptor app.yaml file missing from app")
+	}
+	appDescriptor, err := ParseDescriptorFile(descriptorFile)
+	if err != nil {
+		return AppDescriptor{}, fmt.Errorf("error loading app descriptor file: %w", err)
+	}
+	return appDescriptor, nil
+}
+
+func isValidSketchFolder(sketchDir *paths.Path) error {
+	if sketchDir == nil {
+		return nil
 	}
 
 	sketchIno := sketchDir.Join("sketch.ino")
 	sketchYaml := sketchDir.Join("sketch.yaml")
 
-	if err := IsValidSketchFolder(sketchIno.Exist(), sketchYaml.Exist()); err != nil {
-		return nil, err
-	}
-
-	if sketchIno.Exist() {
-		return sketchDir, nil
-	}
-	return nil, nil
-}
-
-func IsValidSketchFolder(hasIno, hasYaml bool) error {
-	if hasIno || hasYaml {
-		if !hasIno || !hasYaml {
+	if sketchIno.Exist() || sketchYaml.Exist() {
+		if !sketchIno.Exist() || !sketchYaml.Exist() {
 			return errors.New("sketch folder is incomplete: both sketch.ino and sketch.yaml are required")
 		}
 	}

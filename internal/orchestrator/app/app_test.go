@@ -128,7 +128,7 @@ func TestMissingMains(t *testing.T) {
 	// Load app
 	app, err := Load(appFolderPath)
 	assert.Error(t, err)
-	assert.ErrorContains(t, err, "main python file and sketch file missing from app")
+	assert.ErrorContains(t, err, "main python file missing from app")
 	assert.Empty(t, app)
 }
 

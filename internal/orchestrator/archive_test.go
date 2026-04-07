@@ -154,157 +154,6 @@ func TestExportAppZip(t *testing.T) {
 		})
 	}
 }
-func TestValidateAppZipContent(t *testing.T) {
-	tests := []struct {
-		name        string
-		files       map[string]string
-		rootPrefix  string
-		wantErr     bool
-		errContains string
-	}{
-		{
-			name: "Valid standard app (Flat Root)",
-			files: map[string]string{
-				"app.yaml":       "",
-				"python/main.py": "",
-			},
-			rootPrefix: "",
-			wantErr:    false,
-		},
-		{
-
-			name: "Valid nested app (With Root Folder)",
-			files: map[string]string{
-				"my-app/app.yaml":       "",
-				"my-app/python/main.py": "",
-			},
-			rootPrefix: "my-app",
-			wantErr:    false,
-		},
-		{
-			name: "Valid app with full sketch folder",
-			files: map[string]string{
-				"app.yaml":           "",
-				"python/main.py":     "",
-				"sketch/sketch.ino":  "",
-				"sketch/sketch.yaml": "",
-			},
-			rootPrefix: "",
-			wantErr:    false,
-		},
-		{
-			name: "Valid Windows paths (Backslash handling)",
-			files: map[string]string{
-				"app.yaml":            "",
-				"python/main.py":      "",
-				"sketch\\sketch.ino":  "",
-				"sketch\\sketch.yaml": "",
-			},
-			rootPrefix: "",
-			wantErr:    false,
-		},
-		{
-			name: "Ignore unrelated folders with similar prefix",
-			files: map[string]string{
-				"app.yaml":               "",
-				"python/main.py":         "",
-				"sketch_backup/main.cpp": "",
-			},
-			rootPrefix: "",
-			wantErr:    false,
-		},
-		{
-			name: "Missing app.yaml",
-			files: map[string]string{
-				"python/main.py": "",
-			},
-			rootPrefix:  "",
-			wantErr:     true,
-			errContains: "missing app.yaml",
-		},
-		{
-			name: "Missing python/main.py",
-			files: map[string]string{
-				"app.yaml": "",
-			},
-			rootPrefix:  "",
-			wantErr:     true,
-			errContains: "missing python/main.py",
-		},
-		{
-			name: "Sketch folder present but missing .ino",
-			files: map[string]string{
-				"app.yaml":           "",
-				"python/main.py":     "",
-				"sketch/readme.txt":  "",
-				"sketch/sketch.yaml": "",
-			},
-			rootPrefix:  "",
-			wantErr:     true,
-			errContains: "both sketch.ino and sketch.yaml are required",
-		},
-		{
-			name: "Sketch folder present but missing .yaml",
-			files: map[string]string{
-				"app.yaml":          "",
-				"python/main.py":    "",
-				"sketch/sketch.ino": "",
-			},
-			rootPrefix:  "",
-			wantErr:     true,
-			errContains: "both sketch.ino and sketch.yaml are required",
-		},
-		{
-			name: "Nested App missing main.py (Check relative path logic)",
-			files: map[string]string{
-				"cool-app/app.yaml": "",
-			},
-			rootPrefix:  "cool-app",
-			wantErr:     true,
-			errContains: "missing python/main.py",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := createMockZip(t, tt.files)
-
-			gotErr := validateAppZipContent(r, tt.rootPrefix)
-
-			if tt.wantErr {
-				require.Error(t, gotErr)
-				require.Contains(t, gotErr.Error(), tt.errContains, "Error message mismatch")
-			} else {
-				require.NoError(t, gotErr, "Expected success but got an error")
-			}
-		})
-	}
-}
-
-func createMockZip(t *testing.T, files map[string]string) *zip.Reader {
-	buf := new(bytes.Buffer)
-	w := zip.NewWriter(buf)
-
-	for name, content := range files {
-		f, err := w.Create(name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, err = f.Write([]byte(content))
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := w.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	r, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return r
-}
 
 func TestImportAppFromZip(t *testing.T) {
 	type testCase struct {
@@ -364,7 +213,7 @@ func TestImportAppFromZip(t *testing.T) {
 				"app.yaml": "name: test",
 			},
 			wantErr:       true,
-			errorContains: "missing python/main.py",
+			errorContains: "main python file missing from app",
 		},
 		{
 			name:            "Error - Zip Slip Attack",
@@ -386,6 +235,37 @@ func TestImportAppFromZip(t *testing.T) {
 			},
 			wantErr:       true,
 			errorContains: "is not valid",
+		},
+		{
+			name:            "Error - Sketch folder missing .ino",
+			originalZipName: "test.zip",
+			zipFiles: map[string]string{
+				"app.yaml":           "name: test",
+				"python/main.py":     "pass",
+				"sketch/sketch.yaml": "",
+			},
+			wantErr:       true,
+			errorContains: "both sketch.ino and sketch.yaml are required",
+		},
+		{
+			name:            "Error - Sketch folder missing .yaml",
+			originalZipName: "test.zip",
+			zipFiles: map[string]string{
+				"app.yaml":          "name: test",
+				"python/main.py":    "pass",
+				"sketch/sketch.ino": "",
+			},
+			wantErr:       true,
+			errorContains: "both sketch.ino and sketch.yaml are required",
+		},
+		{
+			name:            "Error - Nested app missing main.py",
+			originalZipName: "test.zip",
+			zipFiles: map[string]string{
+				"cool-app/app.yaml": "name: test",
+			},
+			wantErr:       true,
+			errorContains: "main python file missing from app",
 		},
 	}
 
