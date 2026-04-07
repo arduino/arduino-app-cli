@@ -98,7 +98,7 @@ func run(configuration cfg.Configuration) error {
 }
 
 func main() {
-	configuration, err := cfg.NewFromEnv()
+	configuration, err := cfg.New()
 	if err != nil {
 		feedback.Fatal(fmt.Sprintf("invalid config: %s", err), feedback.ErrGeneric)
 	}

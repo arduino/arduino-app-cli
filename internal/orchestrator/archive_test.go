@@ -394,7 +394,7 @@ func TestImportAppFromZip(t *testing.T) {
 
 			t.Setenv("ARDUINO_APP_CLI__APPS_DIR", appsDirPath)
 			t.Setenv("ARDUINO_APP_CLI__DATA_DIR", filepath.Join(tmpRoot, "Data"))
-			cfg, err := config.NewFromEnv()
+			cfg, err := config.New()
 			require.NoError(t, err)
 
 			idProvider := app.NewAppIDProvider(cfg)
