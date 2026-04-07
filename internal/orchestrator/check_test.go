@@ -1,3 +1,20 @@
+// This file is part of arduino-app-cli.
+//
+// Copyright (C) Arduino s.r.l. and/or its affiliated companies
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 package orchestrator
 
 import (
@@ -18,7 +35,7 @@ import (
 
 func TestValidateAppDescriptorBricks(t *testing.T) {
 	bricksIndex := &bricksindex.BricksIndex{
-		Bricks: []bricksindex.Brick{
+		BuiltInBricks: []bricksindex.Brick{
 			{
 				ID:          "arduino:arduino_cloud",
 				Name:        "Arduino Cloud",
@@ -237,7 +254,7 @@ func TestValidateVirtualDevice(t *testing.T) {
 	// fail if a camera device is not detected and one of two brick require a physical camera
 
 	bIndex := &bricksindex.BricksIndex{
-		Bricks: []bricksindex.Brick{
+		BuiltInBricks: []bricksindex.Brick{
 			{
 				ID:              "arduino:brick-with-camera-device",
 				Name:            "a brick that requires a camera",
@@ -275,7 +292,7 @@ func TestCheckRequiredDevicesNoError(t *testing.T) {
 	// do not fail if a brick requires a virtual camera device
 
 	bIndex := &bricksindex.BricksIndex{
-		Bricks: []bricksindex.Brick{
+		BuiltInBricks: []bricksindex.Brick{
 			{
 				ID:   "arduino:brick-with-camera-device",
 				Name: "a brick that requires a camera",
@@ -395,7 +412,7 @@ func TestCheckRequiredDevice(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 
 			bIndex := &bricksindex.BricksIndex{
-				Bricks: []bricksindex.Brick{
+				BuiltInBricks: []bricksindex.Brick{
 					{
 						ID:              "arduino:a-simple-brick",
 						Name:            "a brick to test devices",

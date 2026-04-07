@@ -1,17 +1,19 @@
 // This file is part of arduino-app-cli.
 //
-// Copyright 2025 ARDUINO SA (http://www.arduino.cc/)
+// Copyright (C) Arduino s.r.l. and/or its affiliated companies
 //
-// This software is released under the GNU General Public License version 3,
-// which covers the main part of arduino-app-cli.
-// The terms of this license can be found at:
-// https://www.gnu.org/licenses/gpl-3.0.en.html
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
-// You can be released from the requirements of the above licenses by purchasing
-// a commercial license. Buying such a license is mandatory if you want to
-// modify or otherwise use the software for commercial activities involving the
-// Arduino software without disclosing the source code of your own applications.
-// To purchase a commercial license, send an email to license@arduino.cc.
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 package orchestrator
 
@@ -41,7 +43,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
-	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
 type volume struct {
@@ -124,7 +125,6 @@ func (p *Provision) App(
 	arduinoApp *app.ArduinoApp,
 	cfg config.Configuration,
 	mapped_env map[string]string,
-	staticStore *store.StaticStore,
 	platform platform.Platform,
 	devices peripherals.AvailableDevices,
 ) error {
@@ -138,7 +138,9 @@ func (p *Provision) App(
 		}
 	}
 
-	return generateMainComposeFile(arduinoApp, bricksIndex, servicesIndex, p.pythonImage, cfg, mapped_env, staticStore, platform, devices)
+	bricksIndex = bricksIndex.WithAppBricks(arduinoApp.LocalBricks)
+
+	return generateMainComposeFile(arduinoApp, bricksIndex, servicesIndex, p.pythonImage, cfg, mapped_env, platform, devices)
 }
 
 func (p *Provision) init(
@@ -220,7 +222,6 @@ func generateMainComposeFile(
 	pythonImage string,
 	cfg config.Configuration,
 	envs helpers.EnvVars,
-	staticStore *store.StaticStore,
 	platform platform.Platform,
 	devices peripherals.AvailableDevices,
 ) error {
@@ -264,9 +265,9 @@ func generateMainComposeFile(
 		}
 
 		// 3. Retrieve the brick_compose.yaml file.
-		composeFilePath, err := staticStore.GetBrickComposeFilePathFromID(brick.ID)
-		if err != nil {
-			slog.Error("brick compose id not valid", slog.String("error", err.Error()), slog.String("brick_id", brick.ID))
+		composeFilePath, ok := idxBrick.GetComposeFile()
+		if !ok {
+			slog.Error("brick compose not found", slog.String("brick_id", brick.ID))
 			continue
 		}
 

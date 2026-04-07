@@ -168,6 +168,17 @@ type AppListResponse struct {
 	BrokenApps *[]BrokenAppInfo `json:"broken_apps,omitempty"`
 }
 
+// AppLocalBrickCreateRequest defines model for AppLocalBrickCreateRequest.
+type AppLocalBrickCreateRequest struct {
+	Description *string `json:"description,omitempty"`
+	Name        *string `json:"name,omitempty"`
+}
+
+// AppLocalBrickCreateResponse defines model for AppLocalBrickCreateResponse.
+type AppLocalBrickCreateResponse struct {
+	Id *string `json:"id,omitempty"`
+}
+
 // AppPortResponse defines model for AppPortResponse.
 type AppPortResponse struct {
 	// Ports exposed port of the app
@@ -582,6 +593,9 @@ type CreateAppJSONRequestBody = CreateAppRequest
 // ImportAppFormdataRequestBody defines body for ImportApp for application/x-www-form-urlencoded ContentType.
 type ImportAppFormdataRequestBody ImportAppFormdataBody
 
+// CreateAppLocalBrickJSONRequestBody defines body for CreateAppLocalBrick for application/json ContentType.
+type CreateAppLocalBrickJSONRequestBody = AppLocalBrickCreateRequest
+
 // UpdateAppBrickInstanceJSONRequestBody defines body for UpdateAppBrickInstance for application/json ContentType.
 type UpdateAppBrickInstanceJSONRequestBody = BrickCreateUpdateRequest
 
@@ -691,6 +705,11 @@ type ClientInterface interface {
 
 	// GetAppBrickInstances request
 	GetAppBrickInstances(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateAppLocalBrickWithBody request with any body
+	CreateAppLocalBrickWithBody(ctx context.Context, appID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateAppLocalBrick(ctx context.Context, appID string, body CreateAppLocalBrickJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteAppBrickInstance request
 	DeleteAppBrickInstance(ctx context.Context, appID string, brickID string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -881,6 +900,30 @@ func (c *Client) ImportAppWithFormdataBody(ctx context.Context, params *ImportAp
 
 func (c *Client) GetAppBrickInstances(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAppBrickInstancesRequest(c.Server, appID)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAppLocalBrickWithBody(ctx context.Context, appID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAppLocalBrickRequestWithBody(c.Server, appID, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAppLocalBrick(ctx context.Context, appID string, body CreateAppLocalBrickJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAppLocalBrickRequest(c.Server, appID, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1617,6 +1660,53 @@ func NewGetAppBrickInstancesRequest(server string, appID string) (*http.Request,
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewCreateAppLocalBrickRequest calls the generic CreateAppLocalBrick builder with application/json body
+func NewCreateAppLocalBrickRequest(server string, appID string, body CreateAppLocalBrickJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateAppLocalBrickRequestWithBody(server, appID, "application/json", bodyReader)
+}
+
+// NewCreateAppLocalBrickRequestWithBody generates requests for CreateAppLocalBrick with any type of body
+func NewCreateAppLocalBrickRequestWithBody(server string, appID string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "appID", runtime.ParamLocationPath, appID)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/apps/%s/bricks", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -3212,6 +3302,11 @@ type ClientWithResponsesInterface interface {
 	// GetAppBrickInstancesWithResponse request
 	GetAppBrickInstancesWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*GetAppBrickInstancesResp, error)
 
+	// CreateAppLocalBrickWithBodyWithResponse request with any body
+	CreateAppLocalBrickWithBodyWithResponse(ctx context.Context, appID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAppLocalBrickResp, error)
+
+	CreateAppLocalBrickWithResponse(ctx context.Context, appID string, body CreateAppLocalBrickJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAppLocalBrickResp, error)
+
 	// DeleteAppBrickInstanceWithResponse request
 	DeleteAppBrickInstanceWithResponse(ctx context.Context, appID string, brickID string, reqEditors ...RequestEditorFn) (*DeleteAppBrickInstanceResp, error)
 
@@ -3443,6 +3538,32 @@ func (r GetAppBrickInstancesResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetAppBrickInstancesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateAppLocalBrickResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *AppLocalBrickCreateResponse
+	JSON400      *BadRequest
+	JSON409      *Conflict
+	JSON412      *PreconditionFailed
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateAppLocalBrickResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateAppLocalBrickResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -4327,6 +4448,23 @@ func (c *ClientWithResponses) GetAppBrickInstancesWithResponse(ctx context.Conte
 	return ParseGetAppBrickInstancesResp(rsp)
 }
 
+// CreateAppLocalBrickWithBodyWithResponse request with arbitrary body returning *CreateAppLocalBrickResp
+func (c *ClientWithResponses) CreateAppLocalBrickWithBodyWithResponse(ctx context.Context, appID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAppLocalBrickResp, error) {
+	rsp, err := c.CreateAppLocalBrickWithBody(ctx, appID, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAppLocalBrickResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateAppLocalBrickWithResponse(ctx context.Context, appID string, body CreateAppLocalBrickJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAppLocalBrickResp, error) {
+	rsp, err := c.CreateAppLocalBrick(ctx, appID, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAppLocalBrickResp(rsp)
+}
+
 // DeleteAppBrickInstanceWithResponse request returning *DeleteAppBrickInstanceResp
 func (c *ClientWithResponses) DeleteAppBrickInstanceWithResponse(ctx context.Context, appID string, brickID string, reqEditors ...RequestEditorFn) (*DeleteAppBrickInstanceResp, error) {
 	rsp, err := c.DeleteAppBrickInstance(ctx, appID, brickID, reqEditors...)
@@ -4857,6 +4995,60 @@ func ParseGetAppBrickInstancesResp(rsp *http.Response) (*GetAppBrickInstancesRes
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateAppLocalBrickResp parses an HTTP response from a CreateAppLocalBrickWithResponse call
+func ParseCreateAppLocalBrickResp(rsp *http.Response) (*CreateAppLocalBrickResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateAppLocalBrickResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest AppLocalBrickCreateResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
 		var dest PreconditionFailed

@@ -1,17 +1,19 @@
 // This file is part of arduino-app-cli.
 //
-// Copyright 2025 ARDUINO SA (http://www.arduino.cc/)
+// Copyright (C) Arduino s.r.l. and/or its affiliated companies
 //
-// This software is released under the GNU General Public License version 3,
-// which covers the main part of arduino-app-cli.
-// The terms of this license can be found at:
-// https://www.gnu.org/licenses/gpl-3.0.en.html
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
-// You can be released from the requirements of the above licenses by purchasing
-// a commercial license. Buying such a license is mandatory if you want to
-// modify or otherwise use the software for commercial activities involving the
-// Arduino software without disclosing the source code of your own applications.
-// To purchase a commercial license, send an email to license@arduino.cc.
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 package generator
 
@@ -220,4 +222,112 @@ func formatPorts(ports []int) string {
 		s[i] = strconv.Itoa(v)
 	}
 	return strings.Join(s, ", ")
+}
+
+const brickTemplateRoot = "brick_template"
+
+//go:embed all:brick_template
+var fsBrick embed.FS
+
+var ErrBrickAlreadyExists = fmt.Errorf("brick already exists")
+
+func GenerateLocalBrick(basePath *paths.Path, id string, name string) error {
+	brickDir := basePath.Join(id)
+	if brickDir.Exist() {
+		return fmt.Errorf("%w: %q", ErrBrickAlreadyExists, id)
+	}
+
+	if err := brickDir.MkdirAll(); err != nil {
+		return fmt.Errorf("failed to create bricks directory: %w", err)
+	}
+
+	type brickData struct {
+		ID          string
+		Name        string
+		Description string
+	}
+
+	data := brickData{
+		ID:   id,
+		Name: name,
+	}
+
+	generateBrickConfig := func(brickDir *paths.Path, data brickData) error {
+		configTmpl := template.Must(template.ParseFS(fsBrick, path.Join(brickTemplateRoot, "brick_config.yaml.template")))
+		outputPath := brickDir.Join("brick_config.yaml")
+		file, err := os.Create(outputPath.String())
+		if err != nil {
+			return fmt.Errorf("failed to create file %s: %w", outputPath.String(), err)
+		}
+		defer file.Close()
+
+		return configTmpl.Execute(file, data)
+	}
+
+	generateBrickReadme := func(brickDir *paths.Path, data brickData) error {
+		readmeTmpl := template.Must(template.ParseFS(fsBrick, path.Join(brickTemplateRoot, "README.md.template")))
+
+		outputPath := brickDir.Join("README.md")
+		file, err := os.Create(outputPath.String())
+		if err != nil {
+			return fmt.Errorf("failed to create file %s: %w", outputPath.String(), err)
+		}
+		defer file.Close()
+
+		return readmeTmpl.Execute(file, data)
+	}
+
+	copyBrickStaticFiles := func(brickDir *paths.Path) error {
+		fileList, err := fsBrick.ReadDir(brickTemplateRoot)
+		if err != nil {
+			return fmt.Errorf("read brick template directory: %w", err)
+		}
+
+		for _, filePath := range fileList {
+			if filePath.IsDir() {
+				continue
+			}
+			// Skip template files
+			if strings.HasSuffix(filePath.Name(), ".template") {
+				continue
+			}
+
+			srcPath := path.Join(brickTemplateRoot, filePath.Name())
+			destPath := brickDir.Join(filePath.Name())
+
+			if err := func() error {
+				srcFile, err := fsBrick.Open(srcPath)
+				if err != nil {
+					return err
+				}
+				defer srcFile.Close()
+
+				destFile, err := destPath.Create()
+				if err != nil {
+					return fmt.Errorf("create %q file: %w", destPath, err)
+				}
+				defer destFile.Close()
+
+				_, err = io.Copy(destFile, srcFile)
+				return err
+			}(); err != nil {
+				return fmt.Errorf("copy file %s: %w", filePath.Name(), err)
+			}
+		}
+		return nil
+	}
+
+	if err := generateBrickConfig(brickDir, data); err != nil {
+		return fmt.Errorf("failed to generate brick_config.yaml: %w", err)
+	}
+
+	if err := generateBrickReadme(brickDir, data); err != nil {
+		return fmt.Errorf("failed to generate README.md: %w", err)
+	}
+
+	if err := copyBrickStaticFiles(brickDir); err != nil {
+		slog.Warn("error copying static brick files", slog.String("brick", id), slog.Any("error", err))
+	}
+
+	return nil
 }

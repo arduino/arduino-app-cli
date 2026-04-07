@@ -1,17 +1,19 @@
 // This file is part of arduino-app-cli.
 //
-// Copyright 2025 ARDUINO SA (http://www.arduino.cc/)
+// Copyright (C) Arduino s.r.l. and/or its affiliated companies
 //
-// This software is released under the GNU General Public License version 3,
-// which covers the main part of arduino-app-cli.
-// The terms of this license can be found at:
-// https://www.gnu.org/licenses/gpl-3.0.en.html
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
-// You can be released from the requirements of the above licenses by purchasing
-// a commercial license. Buying such a license is mandatory if you want to
-// modify or otherwise use the software for commercial activities involving the
-// Arduino software without disclosing the source code of your own applications.
-// To purchase a commercial license, send an email to license@arduino.cc.
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 package bricksindex
 
@@ -20,40 +22,92 @@ import (
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 )
 
 func TestGenerateBricksIndexFromFile(t *testing.T) {
-	index, err := Load(paths.New("testdata"))
+	yamlContent := `
+bricks:
+- id: arduino:basic
+  name: i-am-a-basic-brick
+  description: i am a basic brick with only id, name and description
+  category: "Image"
+- id: arduino:with-ports
+  ports:
+  - 7000
+  - 8000
+- id: arduino:with-model-variables
+  model_name: mobilenet-image-classification
+  variables:
+  - name: FIRST_VARIABLE
+    default_value: default-value-for-first-variable
+    description: description for the first variable
+  - name: SECOND_VARIABLE
+    description: description for the second variable
+- id: arduino:model_required
+  require_model: true
+- id: arduino:model_required_false
+  require_model: false
+- id: arduino:missing-model-require
+- id: arduino:with-hidden-variables
+  variables:
+    - name: HIDDEN_VARIABLE
+      default_value: a_hidden_value
+      description: this variable is hidden
+      hidden: true
+    - name: VISIBLE_VARIABLE
+      default_value: a_visible_value
+      description: this variable is visible because 'hidden' is set to false
+      hidden: false
+    - name: VISIBLE_VARIABLE_IF_MISSING_HIDDEN
+      default_value: another_visible_value
+      description: this variable is visiable because 'hidden' field is missing
+      hidden: false
+
+`
+	assetDir := paths.TempDir()
+	err := assetDir.Join("bricks-list.yaml").WriteFile([]byte(yamlContent))
 	require.NoError(t, err)
 
-	// Check if ports are correctly set
-	bWebUI, found := index.FindBrickByID("arduino:web_ui")
+	index, err := Load(assetDir)
+	require.NoError(t, err)
+
+	brickBasi, found := index.FindBrickByID("arduino:basic")
 	require.True(t, found)
-	require.Equal(t, []string{"7000"}, bWebUI.Ports)
+	require.Equal(t, "arduino:basic", brickBasi.ID)
+	require.Equal(t, "i-am-a-basic-brick", brickBasi.Name)
+	require.Equal(t, "i am a basic brick with only id, name and description", brickBasi.Description)
+	require.Equal(t, "Image", brickBasi.Category)
+
+	// Check if ports are correctly set
+	bWithPorts, found := index.FindBrickByID("arduino:with-ports")
+	require.True(t, found)
+	require.Equal(t, []string{"7000", "8000"}, bWithPorts.Ports)
 
 	// Check if variables are correctly set
-	bIC, found := index.FindBrickByID("arduino:image_classification")
+	bWithVariables, found := index.FindBrickByID("arduino:with-model-variables")
 	require.True(t, found)
-	require.Equal(t, "Image Classification", bIC.Name)
-	require.Equal(t, "mobilenet-image-classification", bIC.ModelName)
-	require.Len(t, bIC.Variables, 2)
-	require.Equal(t, "CUSTOM_MODEL_PATH", bIC.Variables[0].Name)
-	require.Equal(t, "/opt/models/ei/", bIC.Variables[0].DefaultValue)
-	require.Equal(t, "path to the custom model directory", bIC.Variables[0].Description)
-	require.Equal(t, "EI_CLASSIFICATION_MODEL", bIC.Variables[1].Name)
-	require.Equal(t, "/models/ootb/ei/mobilenet-v2-224px.eim", bIC.Variables[1].DefaultValue)
-	require.Equal(t, "path to the model file", bIC.Variables[1].Description)
-	require.False(t, bIC.Variables[0].IsRequired())
-	require.False(t, bIC.Variables[1].IsRequired())
+	require.Equal(t, "mobilenet-image-classification", bWithVariables.ModelName)
+	require.Len(t, bWithVariables.Variables, 2)
+	require.Equal(t, "FIRST_VARIABLE", bWithVariables.Variables[0].Name)
+	require.Equal(t, "default-value-for-first-variable", bWithVariables.Variables[0].DefaultValue)
+	require.Equal(t, "description for the first variable", bWithVariables.Variables[0].Description)
+	require.False(t, bWithVariables.Variables[0].IsRequired())
+	require.Equal(t, "SECOND_VARIABLE", bWithVariables.Variables[1].Name)
+	require.Equal(t, "", bWithVariables.Variables[1].DefaultValue)
+	require.Equal(t, "description for the second variable", bWithVariables.Variables[1].Description)
+	require.True(t, bWithVariables.Variables[1].IsRequired())
 
 	bRequireModel, found := index.FindBrickByID("arduino:model_required")
 	require.True(t, found)
 	require.True(t, bRequireModel.RequireModel)
 
-	bDb, found := index.FindBrickByID("arduino:dbstorage_tsstore")
+	bDb, found := index.FindBrickByID("arduino:model_required_false")
 	require.True(t, found)
 	require.False(t, bDb.RequireModel)
 
@@ -216,8 +270,55 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 				require.Contains(t, err.Error(), tc.expectedError)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, index.Bricks, tc.expectedBricks, "bricsk mistmatch")
+				assert.True(t, cmp.Equal(index.BuiltInBricks, tc.expectedBricks, cmpopts.IgnoreFields(Brick{}, "Source", "ComposeFile", "ReadmeFile", "ExamplesPath", "DocsAPIPath")), cmp.Diff(index.BuiltInBricks, tc.expectedBricks, cmpopts.IgnoreFields(Brick{}, "Source", "ComposeFile", "ReadmeFile", "ExamplesPath", "DocsAPIPath")))
 			}
 		})
 	}
+}
+
+func TestLoadBrickYamlBrickIndex(t *testing.T) {
+
+	t.Run("get files of a brick in the yaml index", func(t *testing.T) {
+		bricksIndex, err := Load(paths.New("testdata/0.4.8"))
+		require.NoError(t, err)
+
+		brick, found := bricksIndex.FindBrickByID("arduino:a-good-brick")
+		require.True(t, found)
+		content, err := brick.GetReadmeFile()
+		require.NoError(t, err)
+		require.Equal(t, "# i-am-a-readme-file", content)
+
+		compose, found := brick.GetComposeFile()
+		require.True(t, found)
+		require.Equal(t, paths.New("testdata/0.4.8/compose/arduino/a-good-brick/brick_compose.yaml"), compose)
+
+		examples, err := brick.GetExamplesPath()
+		require.NoError(t, err)
+		require.Equal(t, paths.NewPathList("testdata/0.4.8/examples/arduino/a-good-brick/example_1.py", "testdata/0.4.8/examples/arduino/a-good-brick/example_2.py"), examples)
+
+		api, found := brick.GetApiDocPath()
+		require.True(t, found)
+		require.Equal(t, paths.New("testdata/0.4.8/api-docs/arduino/app_bricks/a-good-brick/API.md"), api)
+	})
+
+	t.Run("find a brick in local bricks", func(t *testing.T) {
+		bricksIndex, err := Load(paths.New("testdata/0.4.8"))
+		require.NoError(t, err)
+		brickWithLoca := bricksIndex.WithAppBricks([]Brick{{ID: "my-first-brick", Source: "another-source"}})
+		brick, found := brickWithLoca.FindBrickByID("my-first-brick")
+		require.True(t, found)
+		require.Equal(t, "my-first-brick", brick.ID)
+		require.Equal(t, "another-source", brick.Source)
+	})
+
+	t.Run("local brick has priority to yaml index", func(t *testing.T) {
+		bricksIndex, err := Load(paths.New("testdata/0.4.8"))
+		require.NoError(t, err)
+		brickWithLoca := bricksIndex.WithAppBricks([]Brick{{ID: "arduino:a-good-brick", Source: "another-source"}})
+		brick, found := brickWithLoca.FindBrickByID("arduino:a-good-brick")
+		require.True(t, found)
+		require.Equal(t, "arduino:a-good-brick", brick.ID)
+		require.Equal(t, "another-source", brick.Source)
+	})
+
 }

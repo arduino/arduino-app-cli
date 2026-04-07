@@ -1,17 +1,19 @@
 // This file is part of arduino-app-cli.
 //
-// Copyright 2025 ARDUINO SA (http://www.arduino.cc/)
+// Copyright (C) Arduino s.r.l. and/or its affiliated companies
 //
-// This software is released under the GNU General Public License version 3,
-// which covers the main part of arduino-app-cli.
-// The terms of this license can be found at:
-// https://www.gnu.org/licenses/gpl-3.0.en.html
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
-// You can be released from the requirements of the above licenses by purchasing
-// a commercial license. Buying such a license is mandatory if you want to
-// modify or otherwise use the software for commercial activities involving the
-// Arduino software without disclosing the source code of your own applications.
-// To purchase a commercial license, send an email to license@arduino.cc.
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 package orchestrator
 
@@ -37,7 +39,98 @@ import (
 )
 
 func TestBuildBrickConfigForEIModel(t *testing.T) {
-	brickIndex, err := bricksindex.Load(paths.New("bricksindex/testdata"))
+	var yamlContent = `
+bricks:
+- id: arduino:image_classification
+  variables:
+  - name: CUSTOM_MODEL_PATH
+    default_value: /opt/models/ei/
+    description: path to the custom model directory
+  - name: EI_CLASSIFICATION_MODEL
+    default_value: /models/ootb/ei/mobilenet-v2-224px.eim
+    description: path to the model file
+- id: arduino:object_detection
+  variables:
+  - name: CUSTOM_MODEL_PATH
+    default_value: /opt/models/ei/
+    description: path to the custom model directory
+  - name: EI_OBJ_DETECTION_MODEL
+    default_value: /models/ootb/ei/yolo-x-nano.eim
+    description: path to the model file
+- id: arduino:video_object_detection
+  variables:
+  - name: EI_OBJ_DETECTION_MODEL
+    default_value: /models/ootb/ei/yolo-x-nano.eim
+    description: Path to the model file
+    hidden: true
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: Path to the custom model directory
+    hidden: true
+- id: arduino:visual_anomaly_detection
+  variables:
+  - name: CUSTOM_MODEL_PATH
+    default_value: /opt/models/ei/
+    description: path to the custom model directory
+  - name: EI_V_ANOMALY_DETECTION_MODEL
+    default_value: /models/ootb/ei/concrete-crack-anomaly-detection.eim
+    description: path to the model file
+- id: arduino:keyword_spotting
+  variables:
+  - name: EI_KEYWORD_SPOTTING_MODEL
+    default_value: /models/ootb/ei/keyword-spotting-hey-arduino.eim
+    description: Path to the model file
+    hidden: true
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: Path to the custom model directory
+    hidden: true
+- id: arduino:audio_classification
+  variables:
+  - name: EI_AUDIO_CLASSIFICATION_MODEL
+    default_value: /models/ootb/ei/glass-breaking.eim
+    description: Path to the model file
+    hidden: true
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: Path to the custom model directory
+    hidden: true
+- id: arduino:motion_detection
+  variables:
+  - name: EI_MOTION_DETECTION_MODEL
+    default_value: /models/ootb/ei/updown-wave-motion-detection.eim
+    description: Path to the model file
+    hidden: true
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: Path to the custom model directory
+    hidden: true
+- id: arduino:vibration_anomaly_detection
+  variables:
+  - name: EI_VIBRATION_ANOMALY_DETECTION_MODEL
+    default_value: /models/ootb/ei/fan-anomaly-detection.eim
+    description: Path to the model file
+    hidden: true
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: Path to the custom model directory
+    hidden: true
+- id: arduino:video_image_classification
+  variables:
+  - name: EI_V_CLASSIFICATION_MODEL
+    default_value: /models/ootb/ei/mobilenet-v2-224px.eim
+    description: Path to the model file
+    hidden: true
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/ei-models
+    description: Path to the custom model directory
+    hidden: true
+`
+	assetDir := paths.TempDir()
+	err := assetDir.Join("bricks-list.yaml").WriteFile([]byte(yamlContent))
+	require.NoError(t, err)
+
+	brickIndex, err := bricksindex.Load(assetDir)
 	if err != nil {
 		t.Fatalf("failed to load bricks index: %v", err)
 	}

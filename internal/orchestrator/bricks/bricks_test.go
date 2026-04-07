@@ -1,17 +1,19 @@
 // This file is part of arduino-app-cli.
 //
-// Copyright 2025 ARDUINO SA (http://www.arduino.cc/)
+// Copyright (C) Arduino s.r.l. and/or its affiliated companies
 //
-// This software is released under the GNU General Public License version 3,
-// which covers the main part of arduino-app-cli.
-// The terms of this license can be found at:
-// https://www.gnu.org/licenses/gpl-3.0.en.html
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
-// You can be released from the requirements of the above licenses by purchasing
-// a commercial license. Buying such a license is mandatory if you want to
-// modify or otherwise use the software for commercial activities involving the
-// Arduino software without disclosing the source code of your own applications.
-// To purchase a commercial license, send an email to license@arduino.cc.
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 package bricks
 
@@ -28,13 +30,12 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
-	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
 func TestBrickCreate(t *testing.T) {
 	bricksIndex, err := bricksindex.Load(paths.New("testdata"))
 	require.Nil(t, err)
-	brickService := NewService(nil, bricksIndex, nil, nil)
+	brickService := NewService(nil, bricksIndex, nil)
 
 	t.Run("fails if brick id does not exist", func(t *testing.T) {
 		err = brickService.BrickCreate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
@@ -104,7 +105,7 @@ func TestBrickCreate(t *testing.T) {
 		require.Nil(t, err)
 		bricksIndex, err := bricksindex.Load(paths.New("testdata"))
 		require.Nil(t, err)
-		brickService := NewService(nil, bricksIndex, nil, nil)
+		brickService := NewService(nil, bricksIndex, nil)
 
 		deviceID := "this-is-a-device-id"
 		secret := "this-is-a-secret"
@@ -131,7 +132,7 @@ func TestBrickCreate(t *testing.T) {
 func TestUpdateBrick(t *testing.T) {
 	bricksIndex, err := bricksindex.Load(paths.New("testdata"))
 	require.Nil(t, err)
-	brickService := NewService(nil, bricksIndex, nil, nil)
+	brickService := NewService(nil, bricksIndex, nil)
 
 	t.Run("fails if brick id does not exist into brick index", func(t *testing.T) {
 		err = brickService.BrickUpdate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
@@ -191,7 +192,7 @@ func TestUpdateBrick(t *testing.T) {
 		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
 		bricksIndex, err := bricksindex.Load(paths.New("testdata"))
 		require.Nil(t, err)
-		brickService := NewService(nil, bricksIndex, nil, nil)
+		brickService := NewService(nil, bricksIndex, nil)
 
 		deviceID := "updated-device-id"
 		secret := "updated-secret"
@@ -220,7 +221,7 @@ func TestUpdateBrick(t *testing.T) {
 		require.Nil(t, paths.New("testdata/dummy-app-for-update").CopyDirTo(tempDummyApp))
 		bricksIndex, err := bricksindex.Load(paths.New("testdata"))
 		require.Nil(t, err)
-		brickService := NewService(nil, bricksIndex, nil, nil)
+		brickService := NewService(nil, bricksIndex, nil)
 
 		secret := "updated-the-secret"
 		req := BrickCreateUpdateRequest{
@@ -250,7 +251,7 @@ func TestUpdateBrick(t *testing.T) {
 		require.NoError(t, err)
 		modelsIndex, err := modelsindex.Load(paths.New("testdata"), paths.New("not_exixsting_path"))
 		require.NoError(t, err)
-		brickService := NewService(modelsIndex, bricksIndex, nil, nil)
+		brickService := NewService(modelsIndex, bricksIndex, nil)
 
 		modelPath := "/home/arduino/.arduino-bricks/ei-model-123-1/model.eim"
 		modelId := "ei-model-123-1"
@@ -381,6 +382,34 @@ func TestBricksDetails(t *testing.T) {
 	require.NoError(t, os.MkdirAll(appsDir, 0755))
 	require.NoError(t, os.MkdirAll(assetsDir, 0755))
 
+	brickYaml := filepath.Join(assetsDir, "bricks-list.yaml")
+	require.NoError(t, os.WriteFile(brickYaml, []byte(`
+bricks:
+- id: arduino:object_detection
+  name: Object Detection
+  description: Detect objects in images using a pre-trained model
+  require_container: true
+  require_model: true
+  mount_devices_into_container: true
+  ports: ["8000"]
+  category: video
+  variables:
+  - name: EI_OBJ_DETECTION_MODEL
+    description: path to the model file
+    default_value: default_path
+  - name: CUSTOM_MODEL_PATH
+    description: path to the custom model directory
+    default_value: /home/arduino/.arduino-bricks/models
+- id: arduino:weather_forecast
+  name: Weather Forecast
+  category:  "miscellaneous"
+  model_name: ""
+- id: arduino:one_model_brick
+  name: one model brick
+  category:  "miscellaneous"
+  model_name: ""
+  `), 0600))
+
 	t.Setenv("ARDUINO_APP_CLI__APPS_DIR", appsDir)
 	t.Setenv("ARDUINO_APP_CLI__DATA_DIR", dataDir)
 
@@ -392,33 +421,9 @@ func TestBricksDetails(t *testing.T) {
 	}
 	createFakeApp(t, appsDir)
 
-	bIndex := &bricksindex.BricksIndex{
-		Bricks: []bricksindex.Brick{
-			{
-				ID:        "arduino:object_detection",
-				Name:      "Object Detection",
-				Category:  "video",
-				ModelName: "yolox-object-detection", // Default model
-				Variables: []bricksindex.BrickVariable{
-					{Name: "EI_OBJ_DETECTION_MODEL", DefaultValue: "default_path", Description: "path to the model file"},
-					{Name: "CUSTOM_MODEL_PATH", DefaultValue: "/home/arduino/.arduino-bricks/models", Description: "path to the custom model directory"},
-				},
-			},
-			{
-				ID:        "arduino:weather_forecast",
-				Name:      "Weather Forecast",
-				Category:  "miscellaneous",
-				ModelName: "",
-			},
-			{
-				ID:        "arduino:one_model_brick",
-				Name:      "one model brick",
-				Category:  "video",
-				ModelName: "face-detection", // Default model
-				Variables: []bricksindex.BrickVariable{},
-			},
-		},
-	}
+	bIndex, err := bricksindex.Load(paths.New(assetsDir))
+	require.NoError(t, err)
+
 	mIndex := &modelsindex.ModelsIndex{
 		InternalModels: []modelsindex.AIModel{
 
@@ -438,7 +443,6 @@ func TestBricksDetails(t *testing.T) {
 	svc := &Service{
 		bricksIndex: bIndex,
 		modelsIndex: mIndex,
-		staticStore: store.NewStaticStore(assetsDir),
 	}
 	idProvider := app.NewAppIDProvider(cfg)
 
@@ -530,15 +534,19 @@ func TestBricksDetails(t *testing.T) {
 func createFakeBrickAssets(t *testing.T, assetsDir, brick string) {
 	t.Helper()
 
-	brickDocDir := filepath.Join(assetsDir, "docs", "arduino", brick)
-	require.NoError(t, os.MkdirAll(brickDocDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(brickDocDir, "README.md"),
+	readmeDir := filepath.Join(assetsDir, "docs", "arduino", brick)
+	require.NoError(t, os.MkdirAll(readmeDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(readmeDir, "README.md"),
 		[]byte("# Documentation"), 0600))
 
 	brickExDir := filepath.Join(assetsDir, "examples", "arduino", brick)
 	require.NoError(t, os.MkdirAll(brickExDir, 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(brickExDir, "blink.ino"),
 		[]byte("void setup() {}"), 0600))
+
+	apiDocsDir := filepath.Join(assetsDir, "api-docs", "arduino", "app_bricks", brick)
+	require.NoError(t, os.MkdirAll(apiDocsDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(apiDocsDir, "API.md"), []byte("# API"), 0600))
 }
 
 func createFakeApp(t *testing.T, appsDir string) {
@@ -560,28 +568,32 @@ bricks:
 
 func TestAppBrickInstanceModelsDetails(t *testing.T) {
 
-	bIndex := &bricksindex.BricksIndex{
-		Bricks: []bricksindex.Brick{
-			{
-				ID:        "arduino:object_detection",
-				Name:      "Object Detection",
-				Category:  "video",
-				ModelName: "yolox-object-detection", // Default model
-				Variables: []bricksindex.BrickVariable{
-					{Name: "EI_OBJ_DETECTION_MODEL", DefaultValue: "default_path", Description: "path to the model file"},
-					{Name: "CUSTOM_MODEL_PATH", DefaultValue: "/home/arduino/.arduino-bricks/models", Description: "path to the custom model directory"},
-				},
-				RequireModel: true,
-			},
-			{
-				ID:           "arduino:weather_forecast",
-				Name:         "Weather Forecast",
-				Category:     "miscellaneous",
-				ModelName:    "",
-				RequireModel: false,
-			},
-		},
-	}
+	brickYamlContent := `
+bricks:
+- id: arduino:object_detection
+  name: Object Detection
+  require_model: true
+  model_name: yolox-object-detection
+  category: video
+  variables:
+  - name: EI_OBJ_DETECTION_MODEL
+    description: path to the model file
+    default_value: default_path
+  - name: CUSTOM_MODEL_PATH
+    description: path to the custom model directory
+    default_value: /home/arduino/.arduino-bricks/models
+- id: arduino:weather_forecast
+  name: Weather Forecast
+  category:  "miscellaneous"
+  model_name: ""
+  require_model: false
+`
+	tmpDir := t.TempDir()
+	brickYamlPath := filepath.Join(tmpDir, "bricks-list.yaml")
+	require.NoError(t, os.WriteFile(brickYamlPath, []byte(brickYamlContent), 0600))
+
+	bIndex, err := bricksindex.Load(paths.New(tmpDir))
+	require.NoError(t, err)
 
 	mIndex := &modelsindex.ModelsIndex{
 		InternalModels: []modelsindex.AIModel{
@@ -714,56 +726,60 @@ func TestAppBrickInstanceModelsDetails(t *testing.T) {
 }
 
 func TestAppBrickInstancesList(t *testing.T) {
+	bricksYaml := `bricks:
+- id: arduino:weather_forecast
+  name: Weather Forecast
+  category: miscellaneous
+  require_model: false
+  variables: []
+- id: arduino:object_detection
+  name: Object Detection
+  category: video
+  model_name: yolox-object-detection
+  require_model: true
+  variables:
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/models
+    description: path to the custom model directory
+  - name: EI_OBJ_DETECTION_MODEL
+    default_value: /models/ootb/ei/yolo-x-nano.eim
+    description: path to the model file
+- id: arduino:audio_classification
+  name: Audio Classification
+  category: audio
+  model_name: glass-breaking
+  require_model: true
+  variables:
+  - name: CUSTOM_MODEL_PATH
+    default_value: /home/arduino/.arduino-bricks/models
+  - name: EI_AUDIO_CLASSIFICATION_MODEL
+    default_value: /models/ootb/ei/glass-breaking.eim
+- id: arduino:streamlit_ui
+  name: WebUI - Streamlit
+  category: ui
+  require_model: false
+  ports:
+  - "7000"
+  - "8000"
+- id: arduino:with-hidden-vars
+  name: I have some hidden variables
+  variables:
+  - name: HIDDEN_VAR
+    default_value: /i/am/hidden
+    hidden: true
+  - name: VISIBLE_VAR
+    default_value: /i/am/visible
+  - name: VISIBLE_VAR_IF_MISSING
+    default_value: /i/am/visible
+    hidden: false
+`
 
-	bIndex := &bricksindex.BricksIndex{
-		Bricks: []bricksindex.Brick{
-			{
-				ID:           "arduino:weather_forecast",
-				Name:         "Weather Forecast",
-				Category:     "miscellaneous",
-				RequireModel: false,
-				Variables:    []bricksindex.BrickVariable{},
-			},
-			{
-				ID:           "arduino:object_detection",
-				Name:         "Object Detection",
-				Category:     "video",
-				ModelName:    "yolox-object-detection",
-				RequireModel: true,
-				Variables: []bricksindex.BrickVariable{
-					{Name: "CUSTOM_MODEL_PATH", DefaultValue: "/home/arduino/.arduino-bricks/models", Description: "path to the custom model directory"},
-					{Name: "EI_OBJ_DETECTION_MODEL", DefaultValue: "/models/ootb/ei/yolo-x-nano.eim", Description: "path to the model file"},
-				},
-			},
-			{
-				ID:           "arduino:audio_classification",
-				Name:         "Audio Classification",
-				Category:     "audio",
-				ModelName:    "glass-breaking",
-				RequireModel: true,
-				Variables: []bricksindex.BrickVariable{
-					{Name: "CUSTOM_MODEL_PATH", DefaultValue: "/home/arduino/.arduino-bricks/models"},
-					{Name: "EI_AUDIO_CLASSIFICATION_MODEL", DefaultValue: "/models/ootb/ei/glass-breaking.eim"},
-				},
-			},
-			{
-				ID:           "arduino:streamlit_ui",
-				Name:         "WebUI - Streamlit",
-				Category:     "ui",
-				RequireModel: false,
-				Ports:        []string{"7000", "8000"},
-			},
-			{
-				ID:   "arduino:with-hidden-vars",
-				Name: "I have some hidden variables",
-				Variables: []bricksindex.BrickVariable{
-					{Name: "HIDDEN_VAR", DefaultValue: "/i/am/hidden", Hidden: true},
-					{Name: "VISIBLE_VAR", DefaultValue: "/i/am/visible"},
-					{Name: "VISIBLE_VAR_IF_MISSING", DefaultValue: "/i/am/visible", Hidden: false},
-				},
-			},
-		},
-	}
+	tmpDir := t.TempDir()
+	brickYamlPath := filepath.Join(tmpDir, "bricks-list.yaml")
+	require.NoError(t, os.WriteFile(brickYamlPath, []byte(bricksYaml), 0600))
+
+	bIndex, err := bricksindex.Load(paths.New(tmpDir))
+	require.NoError(t, err)
 
 	svc := &Service{
 		bricksIndex: bIndex,

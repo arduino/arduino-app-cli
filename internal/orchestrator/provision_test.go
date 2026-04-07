@@ -1,17 +1,19 @@
 // This file is part of arduino-app-cli.
 //
-// Copyright 2025 ARDUINO SA (http://www.arduino.cc/)
+// Copyright (C) Arduino s.r.l. and/or its affiliated companies
 //
-// This software is released under the GNU General Public License version 3,
-// which covers the main part of arduino-app-cli.
-// The terms of this license can be found at:
-// https://www.gnu.org/licenses/gpl-3.0.en.html
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
-// You can be released from the requirements of the above licenses by purchasing
-// a commercial license. Buying such a license is mandatory if you want to
-// modify or otherwise use the software for commercial activities involving the
-// Arduino software without disclosing the source code of your own applications.
-// To purchase a commercial license, send an email to license@arduino.cc.
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 package orchestrator
 
@@ -27,7 +29,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
-	"github.com/arduino/arduino-app-cli/internal/store"
 
 	"github.com/goccy/go-yaml"
 
@@ -39,8 +40,6 @@ var unkownPlatform = platform.Platform{}
 func TestProvisionAppWithOverrides(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	tempDirectory := t.TempDir()
-
-	staticStore := store.NewStaticStore(cfg.AssetsDir().String())
 
 	// Define a mock app with bricks that require overrides
 	app := app.ArduinoApp{
@@ -109,7 +108,7 @@ bricks:
 	require.NoError(t, err)
 
 	require.NoError(t, cfg.AssetsDir().Join("services").MkdirAll())
-	servicesIndex, err := servicesindex.Load(staticStore.GetServicesFolder())
+	servicesIndex, err := servicesindex.Load(cfg.AssetsDir().Join("services"))
 	require.NoError(t, err, "Failed to load services index")
 
 	// Override brick index with custom test content
@@ -132,7 +131,7 @@ bricks:
 		HasSoundDevice: false,
 		HasVideoDevice: true,
 	}
-	err = generateMainComposeFile(&app, bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, unkownPlatform, devices)
+	err = generateMainComposeFile(&app, bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
 
 	// Validate that the main compose file and overrides are created
 	require.NoError(t, err, "Failed to generate main compose file")
@@ -322,7 +321,6 @@ services:
 
 func TestProvisionAppWithDependsOn(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	staticStore := store.NewStaticStore(cfg.AssetsDir().String())
 	tempDirectory := t.TempDir()
 	var env = map[string]string{}
 	type services struct {
@@ -351,7 +349,7 @@ bricks:
 	require.NoError(t, err)
 
 	require.NoError(t, cfg.AssetsDir().Join("services").MkdirAll())
-	servicesIndex, err := servicesindex.Load(staticStore.GetServicesFolder())
+	servicesIndex, err := servicesindex.Load(cfg.AssetsDir().Join("services"))
 	require.NoError(t, err, "Failed to load services index")
 
 	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
@@ -400,7 +398,7 @@ services:
 		}
 
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, unkownPlatform, devices)
+		err = generateMainComposeFile(&app, bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -456,7 +454,7 @@ services:
 			HasVideoDevice: true,
 		}
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, unkownPlatform, devices)
+		err = generateMainComposeFile(&app, bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -492,7 +490,7 @@ services:
 
 func TestProvisionAppComposeOverridesFile(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	staticStore := store.NewStaticStore(cfg.AssetsDir().String())
+	// staticStore := store.NewStaticStore(cfg.AssetsDir().String())
 	tempDirectory := t.TempDir()
 	var env = map[string]string{}
 	type services struct {
@@ -522,7 +520,7 @@ bricks:
 	require.NoError(t, err)
 
 	require.NoError(t, cfg.AssetsDir().Join("services").MkdirAll())
-	servicesIndex, err := servicesindex.Load(staticStore.GetServicesFolder())
+	servicesIndex, err := servicesindex.Load(cfg.AssetsDir().Join("services"))
 	require.NoError(t, err, "Failed to load services index")
 
 	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
@@ -582,7 +580,7 @@ services:
 			HasVideoDevice: true,
 		}
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, staticStore, unkownPlatform, availableDevices)
+		err = generateMainComposeFile(&app, bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, availableDevices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")

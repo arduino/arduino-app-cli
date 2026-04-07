@@ -1,17 +1,19 @@
 // This file is part of arduino-app-cli.
 //
-// Copyright 2025 ARDUINO SA (http://www.arduino.cc/)
+// Copyright (C) Arduino s.r.l. and/or its affiliated companies
 //
-// This software is released under the GNU General Public License version 3,
-// which covers the main part of arduino-app-cli.
-// The terms of this license can be found at:
-// https://www.gnu.org/licenses/gpl-3.0.en.html
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
-// You can be released from the requirements of the above licenses by purchasing
-// a commercial license. Buying such a license is mandatory if you want to
-// modify or otherwise use the software for commercial activities involving the
-// Arduino software without disclosing the source code of your own applications.
-// To purchase a commercial license, send an email to license@arduino.cc.
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 package orchestrator
 
@@ -122,6 +124,8 @@ func StartApp(
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
+		bricksIndex = bricksIndex.WithAppBricks(appToStart.LocalBricks)
+
 		err := checkBricks(appToStart.Descriptor, bricksIndex, modelsIndex)
 		if err != nil {
 			yield(StreamMessage{error: err})
@@ -196,7 +200,7 @@ func StartApp(
 				return
 			}
 
-			if err := provisioner.App(ctx, bricksIndex, servicesIndex, &appToStart, cfg, envs, staticStore, platform, devices); err != nil {
+			if err := provisioner.App(ctx, bricksIndex, servicesIndex, &appToStart, cfg, envs, platform, devices); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
@@ -272,7 +276,7 @@ func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.Bric
 	envs := make(helpers.EnvVars)
 
 	for _, brick := range app.Descriptor.Bricks {
-		if brickDef, found := brickIndex.FindBrickByID(brick.ID); found {
+		if brickDef, found := brickIndex.WithAppBricks(app.LocalBricks).FindBrickByID(brick.ID); found {
 			maps.Insert(envs, brickDef.GetDefaultVariables())
 		}
 
@@ -660,6 +664,7 @@ func AppDetails(
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
 ) (AppDetailedInfo, error) {
+	bricksIndex = bricksIndex.WithAppBricks(userApp.LocalBricks)
 	var wg sync.WaitGroup
 	wg.Add(2)
 	var defaultAppPath string
@@ -1106,6 +1111,18 @@ func compileUploadSketch(
 		return err
 	}
 
+	menuOptions, err := GetPlatformMenuOptions(ctx, platform)
+	if err != nil {
+		slog.Warn("failed to get platform menu options", slog.String("error", err.Error()))
+	}
+
+	fqbn := platform.FQBN
+	if menuOptions.Has(WaitForApp) {
+		fqbn += ":" + WaitForApp.String()
+	}
+
+	slog.Debug("compile and upload sketch", slog.String("fqbn", fqbn), slog.Any("menuOptions", menuOptions))
+
 	// build the sketch
 	buildPath := arduinoApp.SketchBuildPath()
 	if buildPath.NotExist() {
@@ -1116,10 +1133,10 @@ func compileUploadSketch(
 	server, getCompileResult := commands.CompilerServerToStreams(ctx, w, w, nil)
 	compileReq := rpc.CompileRequest{
 		Instance:   inst,
-		Fqbn:       platform.FQBN,
+		Fqbn:       fqbn,
 		SketchPath: sketchPath.String(),
 		BuildPath:  buildPath.String(),
-		Jobs:       2,
+		Jobs:       platform.CompileJobs,
 	}
 
 	err = srv.Compile(&compileReq, server)
@@ -1143,69 +1160,24 @@ func compileUploadSketch(
 		slog.Info("Used library " + lib.GetName() + " (" + lib.GetVersion() + ") in " + lib.GetInstallDir())
 	}
 
-	if err := uploadSketchInRam(ctx, w, srv, inst, platform, sketchPath.String(), buildPath.String()); err != nil {
-		slog.Warn("failed to upload in ram mode, trying to configure the board in ram mode, and retry", slog.String("error", err.Error()))
-		if err := configureMicroInRamMode(ctx, w, srv, inst, platform); err != nil {
-			return err
+	// Support the legacy ram upload option if there isn't the new wait_linux_boot option.
+	if !menuOptions.Has(WaitForApp) && platform.SupportFlashToRam() {
+		if err := legacyUploadSketchInRam(ctx, w, srv, inst, platform, sketchPath.String(), buildPath.String()); err != nil {
+			slog.Warn("failed to upload in ram mode, trying to configure the board in ram mode, and retry", slog.String("error", err.Error()))
+			if err := configureMicroInRamMode(ctx, w, srv, inst, platform); err != nil {
+				return err
+			}
+			return legacyUploadSketchInRam(ctx, w, srv, inst, platform, sketchPath.String(), buildPath.String())
 		}
-		return uploadSketchInRam(ctx, w, srv, inst, platform, sketchPath.String(), buildPath.String())
-	}
-	return nil
-}
-
-func uploadSketchInRam(ctx context.Context,
-	w io.Writer,
-	srv rpc.ArduinoCoreServiceServer,
-	inst *rpc.Instance,
-	platform platform.Platform,
-	sketchPath string,
-	buildPath string,
-) error {
-	stream, _ := commands.UploadToServerStreams(ctx, w, w)
-	if err := srv.Upload(&rpc.UploadRequest{
-		Instance:   inst,
-		Fqbn:       platform.FQBN + ":flash_mode=ram",
-		SketchPath: sketchPath,
-		ImportDir:  buildPath,
-	}, stream); err != nil {
-		return err
-	}
-	return nil
-}
-
-// configureMicroInRamMode uploads an empty binary overing any sketch previously uploaded in flash.
-// This is required to be able to upload sketches in ram mode after if there is already a sketch in flash.
-func configureMicroInRamMode(
-	ctx context.Context,
-	w io.Writer,
-	srv rpc.ArduinoCoreServiceServer,
-	inst *rpc.Instance,
-	platform platform.Platform,
-) error {
-	emptyBinDir := paths.New("/tmp/empty")
-	_ = emptyBinDir.MkdirAll()
-	defer func() { _ = emptyBinDir.RemoveAll() }()
-
-	zeros, err := os.Open("/dev/zero")
-	if err != nil {
-		return err
-	}
-	defer zeros.Close()
-
-	empty, err := emptyBinDir.Join("empty.ino.elf-zsk.bin").Create()
-	if err != nil {
-		return err
-	}
-	defer empty.Close()
-	if _, err := io.CopyN(empty, zeros, 50); err != nil {
-		return err
+		return nil
 	}
 
 	stream, _ := commands.UploadToServerStreams(ctx, w, w)
 	return srv.Upload(&rpc.UploadRequest{
-		Instance:  inst,
-		Fqbn:      platform.FQBN + ":flash_mode=flash",
-		ImportDir: emptyBinDir.String(),
+		Instance:   inst,
+		Fqbn:       platform.FQBN,
+		SketchPath: sketchPath.String(),
+		ImportDir:  buildPath.String(),
 	}, stream)
 }
 
