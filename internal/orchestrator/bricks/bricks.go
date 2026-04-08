@@ -487,24 +487,19 @@ func (s *Service) LocalBrickRename(appCurrent *app.ArduinoApp, oldID, newID, new
 		return LocalBrickRenameResult{}, fmt.Errorf("cannot update brick_config.yaml: %w", err)
 	}
 
-	for i, b := range appCurrent.Descriptor.Bricks {
-		if b.ID == oldID {
-			appCurrent.Descriptor.Bricks[i].ID = newID
-		}
-	}
-	// Rollback to old ID in case of any error in the following steps.
-	defer func() {
-		if _err != nil {
-			for i, b := range appCurrent.Descriptor.Bricks {
-				if b.ID == newID {
-					appCurrent.Descriptor.Bricks[i].ID = oldID
-				}
-			}
-		}
-	}()
+	if i := slices.IndexFunc(appCurrent.Descriptor.Bricks, func(b app.Brick) bool { return b.ID == oldID }); i != -1 {
+		appCurrent.Descriptor.Bricks[i].ID = newID
 
-	if err := appCurrent.Save(); err != nil {
-		return LocalBrickRenameResult{}, fmt.Errorf("cannot save app: %w", err)
+		// Rollback to old ID in case of any error in the following steps.
+		defer func() {
+			if _err != nil && i != -1 {
+				appCurrent.Descriptor.Bricks[i].ID = oldID
+			}
+		}()
+
+		if err := appCurrent.Save(); err != nil {
+			return LocalBrickRenameResult{}, fmt.Errorf("cannot save app: %w", err)
+		}
 	}
 
 	return LocalBrickRenameResult{ID: newID}, nil
