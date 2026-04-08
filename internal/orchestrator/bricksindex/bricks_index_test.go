@@ -323,6 +323,29 @@ func TestLoadBrickYamlBrickIndex(t *testing.T) {
 		require.Equal(t, "another-source", brick.Source)
 	})
 
+	t.Run("get a brick for supported board", func(t *testing.T) {
+		t.Run("no-board", func(t *testing.T) {
+			bricksIndex, err := Load(platform.Platform{BoardName: ""}, paths.New("testdata/0.4.8"))
+			require.NoError(t, err)
+			bricks := bricksIndex.ListBricks()
+			require.Len(t, bricks, 2)
+		})
+
+		t.Run("foo-board", func(t *testing.T) {
+			platform := platform.Platform{BoardName: "foo-board"}
+			bricksIndex, err := Load(platform, paths.New("testdata/0.4.8"))
+			require.NoError(t, err)
+			bricks := bricksIndex.ListBricks()
+			require.Len(t, bricks, 2)
+		})
+		t.Run("another-board", func(t *testing.T) {
+			platform := platform.Platform{BoardName: "another-board"}
+			bricksIndex, err := Load(platform, paths.New("testdata/0.4.8"))
+			require.NoError(t, err)
+			bricks := bricksIndex.ListBricks()
+			require.Len(t, bricks, 1)
+		})
+	})
 }
 
 func TestListBricksSupportedBoard(t *testing.T) {

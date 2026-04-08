@@ -79,6 +79,15 @@ func TestModelsIndex(t *testing.T) {
 			assert.Len(t, models, 3, "all models")
 		})
 
+		t.Run("foo-board", func(t *testing.T) {
+			platform := platform.Platform{BoardName: "foo-board"}
+			modelsIndex, err := Load(platform, paths.New("testdata"), nil)
+			require.NoError(t, err)
+
+			models := modelsIndex.GetModels()
+			assert.Len(t, models, 3, "all models")
+		})
+
 		t.Run("other board", func(t *testing.T) {
 			platform := platform.Platform{BoardName: "some-other-board"}
 			modelsIndex, err := Load(platform, paths.New("testdata"), nil)
