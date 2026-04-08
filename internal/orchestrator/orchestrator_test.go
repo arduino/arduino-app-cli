@@ -392,7 +392,7 @@ func setTestOrchestratorConfig(t *testing.T) config.Configuration {
 	t.Setenv("ARDUINO_APP_CLI__APPS_DIR", tmpDir.Join("apps").String())
 	t.Setenv("ARDUINO_APP_CLI__CONFIG_DIR", tmpDir.Join("config").String())
 	t.Setenv("ARDUINO_APP_CLI__DATA_DIR", tmpDir.Join("data").String())
-	cfg, err := config.NewFromEnv()
+	cfg, err := config.New()
 	require.NoError(t, err)
 
 	return cfg

@@ -80,7 +80,7 @@ type Provision struct {
 }
 
 func isDevelopmentMode(cfg config.Configuration) bool {
-	return cfg.RunnerVersion != cfg.UsedPythonImageTag
+	return config.RunnerVersion != cfg.GetUsedPythonImageTag()
 }
 
 func NewProvision(
@@ -92,7 +92,7 @@ func NewProvision(
 		pythonImage: cfg.PythonImage,
 	}
 
-	dynamicProvisionDir := cfg.AssetsDir().Join(cfg.UsedPythonImageTag)
+	dynamicProvisionDir := cfg.AssetsDir().Join(cfg.GetUsedPythonImageTag())
 
 	// In development mode we want to make sure everything is fresh.
 	if isDevelopmentMode(cfg) {

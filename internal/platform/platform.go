@@ -23,6 +23,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 
 	"github.com/arduino/arduino-app-cli/internal/micro"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/pkg/x/devicetree"
 )
 
@@ -44,12 +45,13 @@ type Platform struct {
 	}
 }
 
-func GetPlatform() Platform {
+func GetPlatform(cfg config.Configuration) Platform {
 	compatible := devicetree.LoadCompatible()
 	slog.Debug("detected platform", "compatible", compatible)
+	var platform Platform
 	switch {
 	case compatible.IsCompatibleWith("arduino,imola"):
-		return Platform{
+		platform = Platform{
 			FQBN:       "arduino:zephyr:unoq",
 			PlatformID: "arduino:zephyr",
 			Linux: struct{ UserLeds, StatusLeds paths.PathList }{
@@ -70,7 +72,7 @@ func GetPlatform() Platform {
 			},
 		}
 	case compatible.IsCompatibleWith("arduino,monza"):
-		return Platform{
+		platform = Platform{
 			FQBN:       "arduino:zephyr:ventunoq",
 			PlatformID: "arduino:zephyr",
 			Linux: struct{ UserLeds, StatusLeds paths.PathList }{
@@ -85,8 +87,15 @@ func GetPlatform() Platform {
 		}
 	default:
 		slog.Warn("not supported platform", "compatible", compatible)
-		return Platform{}
 	}
+
+	if cfg.PlatformOverride.FQBN != "" {
+		slog.Info("overriding platform config with config override", "fqbn", cfg.PlatformOverride.FQBN)
+		platform.FQBN = cfg.PlatformOverride.FQBN
+	}
+
+	slog.Info("using platform config", "platform", platform)
+	return platform
 }
 
 func (p Platform) GetMicro() micro.Micro {

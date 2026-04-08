@@ -19,6 +19,7 @@ package config
 
 import (
 	"cmp"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -28,6 +29,7 @@ import (
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
+	"go.bug.st/f"
 	semver "go.bug.st/relaxed-semver"
 )
 
@@ -40,105 +42,31 @@ type Configuration struct {
 	routerSocketPath                 *paths.Path
 	customModelsDir                  *paths.Path
 	PythonImage                      string
-	UsedPythonImageTag               string
-	RunnerVersion                    string
 	AllowRoot                        bool
 	LibrariesAPIURL                  *url.URL
 	EdgeImpulseAPIURL                *url.URL
 	ArduinoPlatformVersionConstraint semver.Constraint
+	PlatformOverride                 PlatformOverride
 }
 
-func NewFromEnv() (Configuration, error) {
-	appsDir := paths.New(os.Getenv("ARDUINO_APP_CLI__APPS_DIR"))
-	if appsDir == nil {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return Configuration{}, err
-		}
-		appsDir = paths.New(home).Join("ArduinoApps")
+type PlatformOverride struct {
+	FQBN string
+}
+
+func New() (Configuration, error) {
+	conf := getDefaultConfig()
+	if err := conf.fromFile(); err != nil {
+		return Configuration{}, fmt.Errorf("failed to load configuration from file: %w", err)
+	}
+	if err := conf.fromEnv(); err != nil {
+		return Configuration{}, fmt.Errorf("failed to load configuration from environment: %w", err)
 	}
 
-	if !appsDir.IsAbs() {
-		wd, err := paths.Getwd()
-		if err != nil {
-			return Configuration{}, err
-		}
-		appsDir = wd.JoinPath(appsDir)
-	}
-
-	dataDir := paths.New(os.Getenv("ARDUINO_APP_CLI__DATA_DIR"))
-	if dataDir == nil {
-		dataDir = paths.New("/var/lib/arduino-app-cli")
-	}
-
-	routerSocket := paths.New(os.Getenv("ARDUINO_ROUTER_SOCKET"))
-	if routerSocket == nil || routerSocket.NotExist() {
-		routerSocket = paths.New("/var/run/arduino-router.sock")
-	}
-
-	// Ensure the custom modules directory exists
-	customModelsDir := paths.New(os.Getenv("ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR"))
-	if customModelsDir == nil {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return Configuration{}, err
-		}
-		customModelsDir = paths.New(homeDir, ".arduino-bricks/models")
-	}
-	if customModelsDir.NotExist() {
-		if err := customModelsDir.MkdirAll(); err != nil {
-			slog.Warn("failed create custom model directory", "error", err)
-		}
-	}
-
-	pythonImage, usedPythonImageTag := getPythonImageAndTag()
-	slog.Debug("Using pythonImage", slog.String("image", pythonImage))
-
-	allowRoot, err := strconv.ParseBool(os.Getenv("ARDUINO_APP_CLI__ALLOW_ROOT"))
+	c, err := conf.Parse()
 	if err != nil {
-		allowRoot = false
+		return Configuration{}, fmt.Errorf("failed to parse configuration: %w", err)
 	}
 
-	librariesAPIURL := os.Getenv("LIBRARIES_API_URL")
-	if librariesAPIURL == "" {
-		librariesAPIURL = "https://api2.arduino.cc/libraries/v1/libraries"
-	}
-	parsedLibrariesURL, err := url.Parse(librariesAPIURL)
-	if err != nil {
-		return Configuration{}, fmt.Errorf("invalid LIBRARIES_API_URL: %w", err)
-	}
-
-	constraintStr := cmp.Or(os.Getenv("ARDUINO_APP_CLI__PLATFORM_VERSION_CONSTRAINT"), "<1.0.0")
-
-	edgeImpulseAPIURL := os.Getenv("EDGE_IMPULSE_API_URL")
-	if edgeImpulseAPIURL == "" {
-		edgeImpulseAPIURL = "https://studio.edgeimpulse.com/v1"
-	}
-
-	parsedEdgeImpulseURL, err := url.Parse(edgeImpulseAPIURL)
-	if err != nil {
-		return Configuration{}, fmt.Errorf("invalid EDGE_IMPULSE_API_URL: %w", err)
-	}
-
-	constraint, err := semver.ParseConstraint(constraintStr)
-	if err != nil {
-		return Configuration{}, fmt.Errorf("invalid version constraint: %w", err)
-	}
-	slog.Debug("Using update version constraint", slog.String("constraint", constraintStr))
-
-	c := Configuration{
-		appsDir:                          appsDir,
-		dataDir:                          dataDir,
-		routerSocketPath:                 routerSocket,
-		customModelsDir:                  customModelsDir,
-		PythonImage:                      pythonImage,
-		UsedPythonImageTag:               usedPythonImageTag,
-		RunnerVersion:                    RunnerVersion,
-		AllowRoot:                        allowRoot,
-		LibrariesAPIURL:                  parsedLibrariesURL,
-		EdgeImpulseAPIURL:                parsedEdgeImpulseURL,
-		ArduinoPlatformVersionConstraint: constraint,
-	}
 	if err := c.init(); err != nil {
 		return Configuration{}, err
 	}
@@ -153,6 +81,9 @@ func (c *Configuration) init() error {
 		return err
 	}
 	if err := c.AssetsDir().MkdirAll(); err != nil {
+		return err
+	}
+	if err := c.CustomModelsDir().MkdirAll(); err != nil {
 		return err
 	}
 	return nil
@@ -182,21 +113,142 @@ func (c *Configuration) CustomModelsDir() *paths.Path {
 	return c.customModelsDir
 }
 
-func getPythonImageAndTag() (string, string) {
-	registryBase := os.Getenv("DOCKER_REGISTRY_BASE")
-	if registryBase == "" {
-		registryBase = "ghcr.io/arduino/"
+func (c *Configuration) GetUsedPythonImageTag() string {
+	var usedPythonImageTag string
+	if idx := strings.LastIndex(c.PythonImage, ":"); idx != -1 {
+		usedPythonImageTag = c.PythonImage[idx+1:]
+	}
+	return usedPythonImageTag
+
+}
+
+type ConfigurationParser struct {
+	AppsDir                          string `json:"apps_dir"`
+	DataDir                          string `json:"data_dir"`
+	RouterSocketPath                 string `json:"-"`
+	CustomModelsDir                  string `json:"custom_models_dir"`
+	PythonImage                      string `json:"python_image"`
+	AllowRoot                        bool   `json:"-"`
+	LibrariesAPIURL                  string `json:"libraries_api_url"`
+	EdgeImpulseAPIURL                string `json:"edge_impulse_api_url"`
+	ArduinoPlatformVersionConstraint string `json:"arduino_platform_version_constraint"`
+	PlatformOverride                 struct {
+		FQBN string `json:"fqbn"`
+	} `json:"platform_override"`
+}
+
+func getDefaultConfig() ConfigurationParser {
+	return ConfigurationParser{
+		AppsDir: func() string {
+			return paths.New(f.Must(os.UserHomeDir())).Join("ArduinoApps").String()
+		}(),
+		DataDir:          "/var/lib/arduino-app-cli",
+		RouterSocketPath: "/var/run/arduino-router.sock",
+		CustomModelsDir: func() string {
+			return paths.New(f.Must(os.UserHomeDir()), ".arduino-bricks/models").String()
+		}(),
+		PythonImage:                      fmt.Sprintf("ghcr.io/arduino/app-bricks/python-apps-base:%s", RunnerVersion),
+		AllowRoot:                        false,
+		LibrariesAPIURL:                  "https://api2.arduino.cc/libraries/v1/libraries",
+		EdgeImpulseAPIURL:                "https://studio.edgeimpulse.com/v1",
+		ArduinoPlatformVersionConstraint: "<1.0.0",
+		PlatformOverride: struct {
+			FQBN string `json:"fqbn"`
+		}{},
+	}
+}
+
+func (c ConfigurationParser) Parse() (Configuration, error) {
+	librariesAPIURL, err := url.Parse(c.LibrariesAPIURL)
+	if err != nil {
+		return Configuration{}, fmt.Errorf("invalid LIBRARIES_API_URL: %w", err)
 	}
 
-	// Python image: image name (repository) and optionally a tag.
-	pythonImageAndTag := os.Getenv("DOCKER_PYTHON_BASE_IMAGE")
-	if pythonImageAndTag == "" {
-		pythonImageAndTag = fmt.Sprintf("app-bricks/python-apps-base:%s", RunnerVersion)
+	edgeImpulseAPIURL, err := url.Parse(c.EdgeImpulseAPIURL)
+	if err != nil {
+		return Configuration{}, fmt.Errorf("invalid EDGE_IMPULSE_API_URL: %w", err)
 	}
+
+	arduinoPlatformVersionConstraint, err := semver.ParseConstraint(c.ArduinoPlatformVersionConstraint)
+	if err != nil {
+		return Configuration{}, fmt.Errorf("invalid version constraint: %w", err)
+	}
+
+	return Configuration{
+		appsDir:                          paths.New(c.AppsDir),
+		dataDir:                          paths.New(c.DataDir),
+		routerSocketPath:                 paths.New(c.RouterSocketPath),
+		customModelsDir:                  paths.New(c.CustomModelsDir),
+		PythonImage:                      c.PythonImage,
+		AllowRoot:                        c.AllowRoot,
+		LibrariesAPIURL:                  librariesAPIURL,
+		EdgeImpulseAPIURL:                edgeImpulseAPIURL,
+		ArduinoPlatformVersionConstraint: arduinoPlatformVersionConstraint,
+		PlatformOverride:                 PlatformOverride(c.PlatformOverride),
+	}, nil
+}
+
+func (c *ConfigurationParser) fromFile() error {
+	configPath := paths.New(c.DataDir).Join("config.json")
+	if configPath.NotExist() {
+		return nil
+	}
+	f, err := configPath.Open()
+	if err != nil {
+		slog.Debug("failed to open data directory, will attempt to create it", "path", c.DataDir, "error", err)
+		return nil
+	}
+	defer f.Close()
+
+	if err := json.NewEncoder(f).Encode(c); err != nil {
+		return fmt.Errorf("failed to decode configuration file: %w", err)
+	}
+
+	return nil
+}
+
+func (c *ConfigurationParser) fromEnv() error {
+	if dataDir := os.Getenv("ARDUINO_APP_CLI__DATA_DIR"); dataDir != "" {
+		c.DataDir = dataDir
+	}
+
+	if appsDir := os.Getenv("ARDUINO_APP_CLI__APPS_DIR"); appsDir != "" {
+		c.AppsDir = appsDir
+	}
+
+	if routerSocketPath := os.Getenv("ARDUINO_ROUTER_SOCKET"); routerSocketPath != "" {
+		c.RouterSocketPath = routerSocketPath
+	}
+
+	if customModelsDir := os.Getenv("ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR"); customModelsDir != "" {
+		c.CustomModelsDir = customModelsDir
+	}
+
+	registryBase := cmp.Or(os.Getenv("DOCKER_REGISTRY_BASE"), "ghcr.io/arduino/")
+	pythonImageAndTag := cmp.Or(os.Getenv("DOCKER_PYTHON_BASE_IMAGE"), fmt.Sprintf("app-bricks/python-apps-base:%s", RunnerVersion))
 	pythonImage := path.Join(registryBase, pythonImageAndTag)
-	var usedPythonImageTag string
-	if idx := strings.LastIndex(pythonImage, ":"); idx != -1 {
-		usedPythonImageTag = pythonImage[idx+1:]
+	c.PythonImage = pythonImage
+	slog.Debug("Using pythonImage", slog.String("image", c.PythonImage))
+
+	if allowRoot := os.Getenv("ARDUINO_APP_CLI__ALLOW_ROOT"); allowRoot != "" {
+		var err error
+		c.AllowRoot, err = strconv.ParseBool(allowRoot)
+		if err != nil {
+			return fmt.Errorf("invalid value for ARDUINO_APP_CLI__ALLOW_ROOT: %w", err)
+		}
 	}
-	return pythonImage, usedPythonImageTag
+
+	if librariesAPIURL := os.Getenv("LIBRARIES_API_URL"); librariesAPIURL != "" {
+		c.LibrariesAPIURL = librariesAPIURL
+	}
+
+	if edgeImpulseAPIURL := os.Getenv("EDGE_IMPULSE_API_URL"); edgeImpulseAPIURL != "" {
+		c.EdgeImpulseAPIURL = edgeImpulseAPIURL
+	}
+
+	if constraintStr := os.Getenv("ARDUINO_APP_CLI__PLATFORM_VERSION_CONSTRAINT"); constraintStr != "" {
+		c.ArduinoPlatformVersionConstraint = constraintStr
+	}
+
+	return nil
 }
