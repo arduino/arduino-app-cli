@@ -194,7 +194,8 @@ func Load(platform platform.Platform, path *paths.Path) (*BricksIndex, error) {
 	}
 
 	yamlIndex.Bricks = slices.DeleteFunc(yamlIndex.Bricks, func(brick Brick) bool {
-		return len(brick.SupportedBoards) != 0 &&
+		return platform.BoardName != "" &&
+			len(brick.SupportedBoards) != 0 &&
 			!slices.Contains(brick.SupportedBoards, platform.BoardName)
 	})
 

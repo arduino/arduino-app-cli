@@ -2,3 +2,8 @@ bricks:
 - id: arduino:a-good-brick
   name: A Good Brick
   description: "This is a good brick that does good things."
+- id: arduino:another-good-brick
+  name: Another Good Brick
+  description: "This is another good brick that does even better things."
+  supported_boards:
+     - foo-board

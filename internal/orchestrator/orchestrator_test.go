@@ -499,7 +499,7 @@ models:
 `)
 	err = cfg.AssetsDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
 	require.NoError(t, err)
-	modelIndex, err := modelsindex.Load(cfg.AssetsDir(), nil)
+	modelIndex, err := modelsindex.Load(platform.GetPlatform(), cfg.AssetsDir(), nil)
 	require.NoError(t, err)
 
 	env := getAppEnvironmentVariables(appDesc, bricksIndex, modelIndex)
@@ -581,7 +581,7 @@ models:
 `)
 	err = cfg.AssetsDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
 	require.NoError(t, err)
-	modelIndex, err := modelsindex.Load(cfg.AssetsDir(), nil)
+	modelIndex, err := modelsindex.Load(platform.GetPlatform(), cfg.AssetsDir(), nil)
 	require.NoError(t, err)
 
 	env := getAppEnvironmentVariables(appDesc, bricksIndex, modelIndex)
@@ -664,7 +664,7 @@ models:
 `)
 	err = cfg.AssetsDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
 	require.NoError(t, err)
-	modelIndex, err := modelsindex.Load(cfg.AssetsDir(), nil)
+	modelIndex, err := modelsindex.Load(platform.GetPlatform(), cfg.AssetsDir(), nil)
 	require.NoError(t, err)
 
 	env := getAppEnvironmentVariables(appDesc, bricksIndex, modelIndex)

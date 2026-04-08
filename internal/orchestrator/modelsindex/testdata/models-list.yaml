@@ -33,3 +33,10 @@ models:
       - id: arduino:video_object_detection
         model_configuration:
           "EI_V_OBJ_DETECTION_MODEL": "/models/ootb/ei/video.eim"
+ - another-model-id:
+    runner: brick
+    name: "my custom model"
+    description: "A small and accurate model"
+    supported_boards:
+      - foo-board
+
