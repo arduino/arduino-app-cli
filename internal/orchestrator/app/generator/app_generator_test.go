@@ -144,9 +144,10 @@ func TestGenerateAppBrick(t *testing.T) {
 
 	t.Run("conflict if the folder already exist", func(t *testing.T) {
 		tmpDir := paths.New(t.TempDir())
-		tmpDir.Join("my-brick").MkdirAll()
+		err := tmpDir.Join("my-brick").MkdirAll()
+		require.NoError(t, err)
 
-		err := GenerateLocalBrick(tmpDir, "my-brick", "a-brick-name")
+		err = GenerateLocalBrick(tmpDir, "my-brick", "a-brick-name")
 		require.ErrorIs(t, err, ErrBrickAlreadyExists)
 	})
 }
