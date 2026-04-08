@@ -19,7 +19,6 @@ package modelsindex
 
 import (
 	"errors"
-	"fmt"
 	"log/slog"
 	"slices"
 
@@ -132,7 +131,6 @@ func Load(platform platform.Platform, dir *paths.Path, modelsDir *paths.Path) (*
 			len(model.SupportedBoards) != 0 &&
 			!slices.Contains(model.SupportedBoards, platform.BoardName)
 	})
-	fmt.Printf("%d models are compatible with the current platform\n", len(models))
 
 	return &ModelsIndex{InternalModels: models, modelsDir: modelsDir}, nil
 }
@@ -152,7 +150,6 @@ func loadInternalModels(dir *paths.Path) ([]AIModel, error) {
 		return nil, err
 	}
 
-	fmt.Printf("Loaded %d internal models\n", len(list.Models))
 	models := make([]AIModel, len(list.Models))
 	for i, modelMap := range list.Models {
 		for id, model := range modelMap {
