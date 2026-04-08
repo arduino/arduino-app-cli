@@ -250,7 +250,7 @@ func generateMainComposeFile(
 
 		// 2. Retrieve the required singleton services
 		for _, id := range idxBrick.RequiresServices {
-			idxService, found := servicesIndex.FindserviceByID(id)
+			idxService, found := servicesIndex.FindServiceByID(id)
 			if !found {
 				slog.Error("service required by brick not found in services index", slog.String("service_id", id), slog.String("brick_id", brick.ID))
 				continue

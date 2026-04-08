@@ -57,7 +57,7 @@ func (s Service) GetComposeFile() (*paths.Path, bool) {
 	return s.ComposeFile, true
 }
 
-func (s *ServicesIndex) FindserviceByID(id string) (*Service, bool) {
+func (s *ServicesIndex) FindServiceByID(id string) (*Service, bool) {
 	idx := slices.IndexFunc(s.Services, func(service Service) bool {
 		return service.ServiceID == id
 	})
