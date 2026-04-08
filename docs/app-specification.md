@@ -150,7 +150,7 @@ ports:
 bricks:
   - id: arduino/dbstorage
     variables:
-      secret: "secret.db_password"
+      PASSWORD: password
       ports: "8080"
   - id: arduino/objectdetection
     model: yolo-v8
