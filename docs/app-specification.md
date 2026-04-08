@@ -2,10 +2,10 @@
 
 This is the specification for the Arduino App format to be used with `arduino-app-cli` and `Arduino App Lab`.
 
-Arduino Apps are self-contained logical units designed for the [Arduino Uno Q](https://store.arduino.cc/pages/uno-q?utm_source=google&utm_medium=cpc&utm_campaign=EU-UnoQ-Pmax&gad_source=1&gad_campaignid=23530508092&gbraid=0AAAAACbEa86bj8HT84HYBe_GN9vNaKz-s&gclid=CjwKCAjw1tLOBhAMEiwAiPkRHg-EH3lTYSalnjyTujl9UyNebAue9fAfcaAhfjRODpSQNNycZ6lnfBoCm0IQAvD_BwE) board.
-An Arduino app leverages the board's operating system and the integrated microcontroller to perform a wide range of tasks, from high-level logic, data processing, executing AI models and more.
+Arduino Apps are designed to run on `dual-brain` Arduino Boards (e.g., [Arduino Uno Q](https://store.arduino.cc/pages/uno-q)).
+An Arduino App leverages the board's operating system and the integrated microcontroller to perform a wide range of tasks, from high-level logic, data processing, executing AI models and more.
 
-An Arduino App is composed of multiple software components that work together as a single application. These may include:
+An Arduino App is composed of two main software components that work together as a single application:
 
 - [**Arduino Sketch**](https://docs.arduino.cc/arduino-cli/sketch-specification/). It runs on the integrated Microcontroller (MCU). It is responsible for low-level hardware interaction, sensors, and actuators.
 - **Python and containers**. They run on the board's Linux OS.
@@ -29,18 +29,18 @@ See the [App Descriptor (`app.yaml`)](#app-descriptor-appyaml) section for detai
 
 #### `python` subfolder
 
-Contains the high-level application logic and its environment.
+Contains the python code of the App.
 
 - **Status**: Mandatory.
 - **Required File**: `main.py` (The entry point of the application).
 - **Optional File**: `requirements.txt` (Standard Python dependency list).
-- **Constraint**: must be located specifically in the `root-app-folder/python/` path.
+- **Constraint**: must be located specifically in the `root-app-folder/` path.
 
 #### `sketch` subfolder
 
 Contains the Arduino sketch to be flashed on the integrated microcontroller.
 
-- **Status**: Optional.
+- **Status**: Optional, Reserved.
 - **Required Files**: If present, must include both `sketch.ino` and `sketch.yaml`.
 - **Constraint**: The folder content must comply with the official [Sketch specification](https://arduino.github.io/arduino-cli/1.3/sketch-specification/).
 
@@ -88,7 +88,7 @@ my-garden-project/
 ├── README.md # Documentation (Optional)
 ├── python/ # Mandatory source folder
 │ ├── main.py # Mandatory entry point
-│ └── requirements.txt # Python dependencies(optional)
+│ └── requirements.txt # Python dependencies (Optional)
 ├── sketch/ # Arduino sketch folder (Optional)
 │ ├── sketch.yaml # Arduino sketch dependency
 │ └── sketch.ino # Arduino sketch
@@ -114,7 +114,7 @@ The `app.yaml` file (also referred to as the **App Descriptor**) is the manifest
 - **`icon`** (Optional): A single emoji character used in the App Lab UI.
 - **`description`** (Optional): A short summary of the app's purpose. If omitted, it is retrieved from the first paragraph of README.md (see the README.md file paragraph for details).
 - **`ports`** (Optional): A list of integers representing the network ports exposed by the Python logic (e.g., for a web dashboard).
-- **`bricks`** (Optional): A list of Brick Object. Additional bricks needed by the app to perform specific tasks(see the next section for details).
+- **`bricks`** (Optional): A list of Brick Object. Additional bricks needed by the app to perform specific tasks (see the next section for details).
 
 ### Brick Object Definition
 
