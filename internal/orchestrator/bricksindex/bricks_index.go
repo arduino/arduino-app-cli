@@ -30,6 +30,7 @@ import (
 	yaml "github.com/goccy/go-yaml"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 type BricksIndex struct {
@@ -80,6 +81,7 @@ type Brick struct {
 	ID                        string                    `yaml:"id"`
 	Name                      string                    `yaml:"name"`
 	Description               string                    `yaml:"description"`
+	SupportedBoards           []string                  `yaml:"supported_boards,omitempty"`
 	Category                  string                    `yaml:"category,omitempty"`
 	RequiresDisplay           string                    `yaml:"requires_display,omitempty"`
 	RequireContainer          bool                      `yaml:"require_container"`
@@ -169,7 +171,7 @@ func unmarshalBricksIndex(content io.Reader) (*YamlBricksIndex, error) {
 	return &index, nil
 }
 
-func Load(path *paths.Path) (*BricksIndex, error) {
+func Load(platform platform.Platform, path *paths.Path) (*BricksIndex, error) {
 	content, err := path.Join("bricks-list.yaml").Open()
 	if err != nil {
 		return nil, err
@@ -190,6 +192,12 @@ func Load(path *paths.Path) (*BricksIndex, error) {
 		yamlIndex.Bricks[i].ExamplesPath = path.Join("examples", namespace, brickName)
 		yamlIndex.Bricks[i].DocsAPIPath = path.Join("api-docs", namespace, "app_bricks", brickName, "API.md")
 	}
+
+	yamlIndex.Bricks = slices.DeleteFunc(yamlIndex.Bricks, func(brick Brick) bool {
+		return len(brick.SupportedBoards) != 0 &&
+			!slices.Contains(brick.SupportedBoards, platform.BoardName)
+	})
+
 	return &BricksIndex{
 		BuiltInBricks: yamlIndex.Bricks,
 	}, nil

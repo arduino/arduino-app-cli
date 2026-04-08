@@ -45,7 +45,7 @@ func Init(cfg config.Configuration) {
 
 var (
 	GetBricksIndex = sync.OnceValue(func() *bricksindex.BricksIndex {
-		return f.Must(bricksindex.Load(GetStaticStore().GetAssetsFolder()))
+		return f.Must(bricksindex.Load(platform.GetPlatform(), GetStaticStore().GetAssetsFolder()))
 	})
 
 	GetModelsIndex = sync.OnceValue(func() *modelsindex.ModelsIndex {

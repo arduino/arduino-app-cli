@@ -22,12 +22,14 @@ import (
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
+	yaml "github.com/goccy/go-yaml"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 func TestGenerateBricksIndexFromFile(t *testing.T) {
@@ -74,7 +76,7 @@ bricks:
 	err := assetDir.Join("bricks-list.yaml").WriteFile([]byte(yamlContent))
 	require.NoError(t, err)
 
-	index, err := Load(assetDir)
+	index, err := Load(platform.GetPlatform(), assetDir)
 	require.NoError(t, err)
 
 	brickBasi, found := index.FindBrickByID("arduino:basic")
@@ -264,7 +266,7 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 			err := os.WriteFile(brickIndex.String(), []byte(tc.yamlContent), 0600)
 			require.NoError(t, err)
 
-			index, err := Load(paths.New(tempDir))
+			index, err := Load(platform.GetPlatform(), paths.New(tempDir))
 			if tc.expectedError != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.expectedError)
@@ -279,7 +281,7 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 func TestLoadBrickYamlBrickIndex(t *testing.T) {
 
 	t.Run("get files of a brick in the yaml index", func(t *testing.T) {
-		bricksIndex, err := Load(paths.New("testdata/0.4.8"))
+		bricksIndex, err := Load(platform.GetPlatform(), paths.New("testdata/0.4.8"))
 		require.NoError(t, err)
 
 		brick, found := bricksIndex.FindBrickByID("arduino:a-good-brick")
@@ -302,7 +304,7 @@ func TestLoadBrickYamlBrickIndex(t *testing.T) {
 	})
 
 	t.Run("find a brick in local bricks", func(t *testing.T) {
-		bricksIndex, err := Load(paths.New("testdata/0.4.8"))
+		bricksIndex, err := Load(platform.GetPlatform(), paths.New("testdata/0.4.8"))
 		require.NoError(t, err)
 		brickWithLoca := bricksIndex.WithAppBricks([]Brick{{ID: "my-first-brick", Source: "another-source"}})
 		brick, found := brickWithLoca.FindBrickByID("my-first-brick")
@@ -312,7 +314,7 @@ func TestLoadBrickYamlBrickIndex(t *testing.T) {
 	})
 
 	t.Run("local brick has priority to yaml index", func(t *testing.T) {
-		bricksIndex, err := Load(paths.New("testdata/0.4.8"))
+		bricksIndex, err := Load(platform.GetPlatform(), paths.New("testdata/0.4.8"))
 		require.NoError(t, err)
 		brickWithLoca := bricksIndex.WithAppBricks([]Brick{{ID: "arduino:a-good-brick", Source: "another-source"}})
 		brick, found := brickWithLoca.FindBrickByID("arduino:a-good-brick")
@@ -321,4 +323,55 @@ func TestLoadBrickYamlBrickIndex(t *testing.T) {
 		require.Equal(t, "another-source", brick.Source)
 	})
 
+}
+
+func TestListBricksSupportedBoard(t *testing.T) {
+	brick1 := Brick{ID: "foo:1", Name: "brick1", SupportedBoards: nil}
+	brick2 := Brick{ID: "foo:2", Name: "brick2", SupportedBoards: []string{"foo"}}
+	brick3 := Brick{ID: "foo:3", Name: "brick3", SupportedBoards: []string{"foo", "bar"}}
+
+	tests := []struct {
+		name       string
+		platform   platform.Platform
+		wantBricks []Brick
+	}{
+		{
+			name:       "all bricks supported when no board specified",
+			platform:   platform.Platform{BoardName: ""},
+			wantBricks: []Brick{brick1, brick2, brick3},
+		},
+		{
+			name:       "all foo bricks and bricks without supported board specified",
+			platform:   platform.Platform{BoardName: "foo"},
+			wantBricks: []Brick{brick1, brick2, brick3},
+		},
+		{
+			name:       "only bar bricks and bricks without supported board specified",
+			platform:   platform.Platform{BoardName: "bar"},
+			wantBricks: []Brick{brick1, brick3},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			brickYaml := YamlBricksIndex{
+				Bricks: []Brick{brick1, brick2, brick3},
+			}
+			tmpDir := paths.New(t.TempDir())
+			f, err := tmpDir.Join("bricks-list.yaml").Create()
+			require.NoError(t, err)
+			err = yaml.NewEncoder(f).Encode(brickYaml)
+			require.NoError(t, err)
+			err = f.Close()
+			require.NoError(t, err)
+
+			b, err := Load(tt.platform, tmpDir)
+			require.NoError(t, err)
+
+			got := b.ListBricks()
+			for i := range got {
+				require.Equal(t, tt.wantBricks[i].ID, got[i].ID)
+			}
+		})
+	}
 }

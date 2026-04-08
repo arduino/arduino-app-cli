@@ -35,6 +35,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 func TestCloneApp(t *testing.T) {
@@ -478,7 +479,7 @@ bricks:
 `)
 	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
-	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(), cfg.AssetsDir())
 	assert.NoError(t, err)
 
 	modelsIndexContent := []byte(`
@@ -560,7 +561,7 @@ bricks:
 `)
 	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
-	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(), cfg.AssetsDir())
 	assert.NoError(t, err)
 
 	modelsIndexContent := []byte(`
@@ -647,7 +648,7 @@ bricks:
   `)
 	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
-	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(), cfg.AssetsDir())
 	assert.NoError(t, err)
 
 	modelsIndexContent := []byte(`
