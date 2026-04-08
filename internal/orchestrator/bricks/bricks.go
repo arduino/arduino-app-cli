@@ -22,11 +22,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"slices"
 
 	"github.com/arduino/go-paths-helper"
+	yaml "github.com/goccy/go-yaml"
 	"go.bug.st/f"
 
+	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -36,6 +39,8 @@ import (
 var (
 	ErrBrickNotFound   = errors.New("brick not found")
 	ErrCannotSaveBrick = errors.New("cannot save brick instance")
+	ErrBrickNotLocal   = errors.New("brick is not a local brick")
+	ErrBrickIDConflict = errors.New("a brick with the new id already exists")
 )
 
 type Service struct {
@@ -443,6 +448,90 @@ func (s *Service) BrickDelete(
 
 	if err := appCurrent.Save(); err != nil {
 		return ErrCannotSaveBrick
+	}
+	return nil
+}
+
+// LocalBrickRename renames a local brick by changing its ID, folder name, and display name.
+// The newID is derived from the newName by the caller (handler layer).
+func (s *Service) LocalBrickRename(appCurrent *app.ArduinoApp, oldID, newID, newName string) (_ LocalBrickRenameResult, _err error) {
+	if oldID == newID {
+		return LocalBrickRenameResult{}, fmt.Errorf("new brick id %q is the same as the current one", newID)
+	}
+
+	if !slices.ContainsFunc(appCurrent.LocalBricks, func(b bricksindex.Brick) bool { return b.ID == oldID }) {
+		if _, found := s.bricksIndex.FindBrickByID(oldID); found {
+			return LocalBrickRenameResult{}, ErrBrickNotLocal
+		}
+		return LocalBrickRenameResult{}, ErrBrickNotFound
+	}
+
+	if _, exists := s.bricksIndex.WithAppBricks(appCurrent.LocalBricks).FindBrickByID(newID); exists {
+		return LocalBrickRenameResult{}, ErrBrickIDConflict
+	}
+
+	oldBrickPath := appCurrent.GetBricksPath().Join(oldID)
+	newBrickPath := appCurrent.GetBricksPath().Join(newID)
+
+	if err := oldBrickPath.Rename(newBrickPath); err != nil {
+		return LocalBrickRenameResult{}, fmt.Errorf("cannot rename brick folder: %w", err)
+	}
+	// Rollback to old name in case of any error in the following steps.
+	defer func() {
+		if _err != nil {
+			_ = newBrickPath.Rename(oldBrickPath)
+		}
+	}()
+
+	if err := updateBrickConfig(newBrickPath, newID, newName); err != nil {
+		return LocalBrickRenameResult{}, fmt.Errorf("cannot update brick_config.yaml: %w", err)
+	}
+
+	for i, b := range appCurrent.Descriptor.Bricks {
+		if b.ID == oldID {
+			appCurrent.Descriptor.Bricks[i].ID = newID
+		}
+	}
+	// Rollback to old ID in case of any error in the following steps.
+	defer func() {
+		if _err != nil {
+			for i, b := range appCurrent.Descriptor.Bricks {
+				if b.ID == newID {
+					appCurrent.Descriptor.Bricks[i].ID = oldID
+				}
+			}
+		}
+	}()
+
+	if err := appCurrent.Save(); err != nil {
+		return LocalBrickRenameResult{}, fmt.Errorf("cannot save app: %w", err)
+	}
+
+	return LocalBrickRenameResult{ID: newID}, nil
+}
+
+func updateBrickConfig(brickPath *paths.Path, newID, newName string) error {
+	configPath := brickPath.Join("brick_config.yaml")
+	content, err := os.ReadFile(configPath.String())
+	if err != nil {
+		return fmt.Errorf("cannot read brick_config.yaml: %w", err)
+	}
+
+	var brick bricksindex.Brick
+	if err := yaml.Unmarshal(content, &brick); err != nil {
+		return fmt.Errorf("cannot unmarshal brick_config.yaml: %w", err)
+	}
+
+	brick.ID = newID
+	brick.Name = newName
+
+	updated, err := yaml.Marshal(brick)
+	if err != nil {
+		return fmt.Errorf("cannot marshal brick_config.yaml: %w", err)
+	}
+
+	if err := fatomic.WriteFile(configPath.String(), updated, os.FileMode(0644)); err != nil {
+		return fmt.Errorf("cannot write brick_config.yaml: %w", err)
 	}
 	return nil
 }
