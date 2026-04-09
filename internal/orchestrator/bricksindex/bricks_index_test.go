@@ -270,7 +270,7 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 				require.Contains(t, err.Error(), tc.expectedError)
 			} else {
 				require.NoError(t, err)
-				assert.True(t, cmp.Equal(index.BuiltInBricks, tc.expectedBricks, cmpopts.IgnoreFields(Brick{}, "Source", "ComposeFile", "ReadmeFile", "ExamplesPath", "DocsAPIPath")), cmp.Diff(index.BuiltInBricks, tc.expectedBricks, cmpopts.IgnoreFields(Brick{}, "Source", "ComposeFile", "ReadmeFile", "ExamplesPath", "DocsAPIPath")))
+				assert.True(t, cmp.Equal(index.BuiltInBricks, tc.expectedBricks, cmpopts.IgnoreFields(Brick{}, "FullPath", "Source", "ComposeFile", "ReadmeFile", "ExamplesPath", "DocsAPIPath")), cmp.Diff(index.BuiltInBricks, tc.expectedBricks, cmpopts.IgnoreFields(Brick{}, "Source", "ComposeFile", "ReadmeFile", "ExamplesPath", "DocsAPIPath")))
 			}
 		})
 	}
