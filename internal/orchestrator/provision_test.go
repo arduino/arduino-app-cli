@@ -112,7 +112,7 @@ bricks:
 	require.NoError(t, err, "Failed to load services index")
 
 	// Override brick index with custom test content
-	bricksIndex, err := bricksindex.Load(platform.GetPlatform(cfg.AssetsDir()), cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
 	require.Nil(t, err, "Failed to load bricks index with custom content")
 
 	br, ok := bricksIndex.FindBrickByID("arduino:video_object_detection")
@@ -352,7 +352,7 @@ bricks:
 	servicesIndex, err := servicesindex.Load(cfg.AssetsDir().Join("services"))
 	require.NoError(t, err, "Failed to load services index")
 
-	bricksIndex, err := bricksindex.Load(platform.GetPlatform(cfg.AssetsDir()), cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
 	require.Nil(t, err, "Failed to load bricks index with custom content")
 	br, ok := bricksIndex.FindBrickByID("arduino:dbstorage_tsstore")
 	require.True(t, ok, "Brick arduino:dbstorage_tsstore should exist in the index")
@@ -523,7 +523,7 @@ bricks:
 	servicesIndex, err := servicesindex.Load(cfg.AssetsDir().Join("services"))
 	require.NoError(t, err, "Failed to load services index")
 
-	bricksIndex, err := bricksindex.Load(platform.GetPlatform(cfg.AssetsDir()), cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
 	require.Nil(t, err, "Failed to load bricks index with custom content")
 	br, ok := bricksIndex.FindBrickByID("arduino:dbstorage_tsstore")
 	require.True(t, ok, "Brick arduino:dbstorage_tsstore should exist in the index")
@@ -675,7 +675,7 @@ bricks:
 	require.NoError(t, err, "Failed to load services index")
 
 	// Override brick index with custom test content
-	bricksIndex, err := bricksindex.Load(platform.GetPlatform(cfg.AssetsDir()), cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
 	require.Nil(t, err, "Failed to load bricks index with custom content")
 
 	br, ok := bricksIndex.FindBrickByID("arduino:video_object_detection")
