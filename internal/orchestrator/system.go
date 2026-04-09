@@ -46,6 +46,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/store"
@@ -266,14 +267,8 @@ func listImagesAlreadyPulled(ctx context.Context, docker dockerClient.APIClient)
 	return result, nil
 }
 
-func parseAllModelsRunnerImageTag(staticStore *store.StaticStore) ([]string, error) {
-	composePath := staticStore.GetComposeFolder()
-	brickNamespace := "arduino"
-	bricks, err := composePath.Join(brickNamespace).ReadDir()
-	if err != nil {
-		return nil, err
-	}
-
+func parseAllModelsRunnerImageTag(bricksIndex *bricksindex.BricksIndex) ([]string, error) {
+	bricks := bricksIndex.ListBricks()
 	result := make([]string, 0, len(bricks))
 	for _, brick := range bricks {
 		composeFile := composePath.Join(brickNamespace, brick.Base(), "brick_compose.yaml")
