@@ -484,9 +484,20 @@ func (s *Service) LocalBrickRename(appCurrent *app.ArduinoApp, oldID, newID, new
 		}
 	}()
 
+	oldBrickConfigContent, err := os.ReadFile(newBrickPath.Join("brick_config.yaml").String())
+	if err != nil {
+		return LocalBrickRenameResult{}, fmt.Errorf("cannot read brick_config.yaml: %w", err)
+	}
+
 	if err := updateBrickConfig(newBrickPath, newID, newName); err != nil {
 		return LocalBrickRenameResult{}, fmt.Errorf("cannot update brick_config.yaml: %w", err)
 	}
+	// Rollback brick_config.yaml in case of any error in the following steps.
+	defer func() {
+		if _err != nil {
+			_ = fatomic.WriteFile(newBrickPath.Join("brick_config.yaml").String(), oldBrickConfigContent, os.FileMode(0644))
+		}
+	}()
 
 	if i := slices.IndexFunc(appCurrent.Descriptor.Bricks, func(b app.Brick) bool { return b.ID == oldID }); i != -1 {
 		appCurrent.Descriptor.Bricks[i].ID = newID
@@ -495,6 +506,7 @@ func (s *Service) LocalBrickRename(appCurrent *app.ArduinoApp, oldID, newID, new
 		defer func() {
 			if _err != nil && i != -1 {
 				appCurrent.Descriptor.Bricks[i].ID = oldID
+				_ = appCurrent.Save()
 			}
 		}()
 
