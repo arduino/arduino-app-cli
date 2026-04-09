@@ -294,7 +294,7 @@ func generateMainComposeFile(
 	}
 
 	// Add the singleton services compose files to the list of the brick compose files
-	for _, s := range requiredServices {
+	for _, s := range brickServices {
 		serviceCompose, ok := s.GetComposeFile()
 		if !ok {
 			slog.Error("service compose not found", slog.String("service_id", s.ServiceID))
