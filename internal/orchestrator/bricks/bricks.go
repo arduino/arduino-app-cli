@@ -459,21 +459,20 @@ func (s *Service) LocalBrickRename(appCurrent *app.ArduinoApp, oldID, newID, new
 		return LocalBrickRenameResult{}, fmt.Errorf("new brick id %q is the same as the current one", newID)
 	}
 
-	oldBrick, exist := s.bricksIndex.WithAppBricks(appCurrent.LocalBricks).FindBrickByID(oldID)
-	if !exist {
+	localBrickIdx := slices.IndexFunc(appCurrent.LocalBricks, func(b bricksindex.Brick) bool { return b.ID == oldID })
+	if localBrickIdx == -1 {
+		if _, found := s.bricksIndex.FindBrickByID(oldID); found {
+			return LocalBrickRenameResult{}, ErrBrickNotLocal
+		}
 		return LocalBrickRenameResult{}, ErrBrickNotFound
-	}
-
-	if oldBrick.Source != "App" {
-		return LocalBrickRenameResult{}, ErrBrickNotLocal
 	}
 
 	if _, exist := s.bricksIndex.WithAppBricks(appCurrent.LocalBricks).FindBrickByID(newID); exist {
 		return LocalBrickRenameResult{}, ErrBrickIDConflict
 	}
 
-	oldBrickPath := oldBrick.FullPath
-	newBrickPath := oldBrick.FullPath.Parent().Join(newID)
+	oldBrickPath := appCurrent.LocalBricks[localBrickIdx].FullPath
+	newBrickPath := appCurrent.LocalBricks[localBrickIdx].FullPath.Parent().Join(newID)
 
 	if err := oldBrickPath.Rename(newBrickPath); err != nil {
 		return LocalBrickRenameResult{}, fmt.Errorf("cannot rename brick folder: %w", err)
