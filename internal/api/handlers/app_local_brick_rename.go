@@ -76,7 +76,7 @@ func HandleAppLocalBrickRename(brickService *bricks.Service, idProvider *app.IDP
 		if err != nil {
 			switch {
 			case errors.Is(err, bricks.ErrBrickNotFound):
-				render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: fmt.Sprintf("local brick %q not found", oldID)})
+				render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: fmt.Sprintf("brick %q not found", oldID)})
 			case errors.Is(err, bricks.ErrBrickNotLocal):
 				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "only local bricks can be renamed"})
 			case errors.Is(err, bricks.ErrBrickIDConflict):

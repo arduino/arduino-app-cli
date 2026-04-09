@@ -465,11 +465,11 @@ func (s *Service) LocalBrickRename(appCurrent *app.ArduinoApp, oldID, newID, new
 	}
 
 	if oldBrick.Source != "App" {
-		return LocalBrickRenameResult{}, fmt.Errorf("only local bricks can be renamed: %w", ErrBrickNotLocal)
+		return LocalBrickRenameResult{}, ErrBrickNotLocal
 	}
 
 	if _, exist := s.bricksIndex.WithAppBricks(appCurrent.LocalBricks).FindBrickByID(newID); exist {
-		return LocalBrickRenameResult{}, fmt.Errorf("a brick with id %q already exists: %w", newID, ErrBrickIDConflict)
+		return LocalBrickRenameResult{}, ErrBrickIDConflict
 	}
 
 	oldBrickPath := oldBrick.FullPath
