@@ -131,7 +131,7 @@ bricks:
 	err := assetDir.Join("bricks-list.yaml").WriteFile([]byte(yamlContent))
 	require.NoError(t, err)
 
-	brickIndex, err := bricksindex.Load(platform.GetPlatform(), assetDir)
+	brickIndex, err := bricksindex.Load(platform.GetPlatform(nil), assetDir)
 	if err != nil {
 		t.Fatalf("failed to load bricks index: %v", err)
 	}

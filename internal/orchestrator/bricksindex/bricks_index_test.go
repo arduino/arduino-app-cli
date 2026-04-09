@@ -76,7 +76,7 @@ bricks:
 	err := assetDir.Join("bricks-list.yaml").WriteFile([]byte(yamlContent))
 	require.NoError(t, err)
 
-	index, err := Load(platform.GetPlatform(), assetDir)
+	index, err := Load(platform.GetPlatform(nil), assetDir)
 	require.NoError(t, err)
 
 	brickBasi, found := index.FindBrickByID("arduino:basic")
@@ -266,7 +266,7 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 			err := os.WriteFile(brickIndex.String(), []byte(tc.yamlContent), 0600)
 			require.NoError(t, err)
 
-			index, err := Load(platform.GetPlatform(), paths.New(tempDir))
+			index, err := Load(platform.GetPlatform(nil), paths.New(tempDir))
 			if tc.expectedError != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.expectedError)
@@ -281,7 +281,7 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 func TestLoadBrickYamlBrickIndex(t *testing.T) {
 
 	t.Run("get files of a brick in the yaml index", func(t *testing.T) {
-		bricksIndex, err := Load(platform.GetPlatform(), paths.New("testdata/0.4.8"))
+		bricksIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata/0.4.8"))
 		require.NoError(t, err)
 
 		brick, found := bricksIndex.FindBrickByID("arduino:a-good-brick")
@@ -306,7 +306,7 @@ func TestLoadBrickYamlBrickIndex(t *testing.T) {
 	})
 
 	t.Run("find a brick in local bricks", func(t *testing.T) {
-		bricksIndex, err := Load(platform.GetPlatform(), paths.New("testdata/0.4.8"))
+		bricksIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata/0.4.8"))
 		require.NoError(t, err)
 		brickWithLoca := bricksIndex.WithAppBricks([]Brick{{ID: "my-first-brick", Source: "another-source"}})
 		brick, found := brickWithLoca.FindBrickByID("my-first-brick")
@@ -316,7 +316,7 @@ func TestLoadBrickYamlBrickIndex(t *testing.T) {
 	})
 
 	t.Run("local brick has priority to yaml index", func(t *testing.T) {
-		bricksIndex, err := Load(platform.GetPlatform(), paths.New("testdata/0.4.8"))
+		bricksIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata/0.4.8"))
 		require.NoError(t, err)
 		brickWithLoca := bricksIndex.WithAppBricks([]Brick{{ID: "arduino:a-good-brick", Source: "another-source"}})
 		brick, found := brickWithLoca.FindBrickByID("arduino:a-good-brick")

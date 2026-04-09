@@ -39,7 +39,7 @@ import (
 )
 
 func TestExportAppZip(t *testing.T) {
-	bricksIndex, err := bricksindex.Load(platform.GetPlatform(), paths.New("testdata", "archive"))
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata", "archive"))
 	require.NoError(t, err)
 
 	type testCase struct {

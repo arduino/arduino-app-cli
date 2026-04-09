@@ -73,7 +73,7 @@ func TestBricksList(t *testing.T) {
 	require.NotEmpty(t, response.JSON200.Bricks)
 
 	staticStore := store.NewStaticStore(paths.New("testdata", "assets", config.RunnerVersion).String())
-	brickIndex, err := bricksindex.Load(platform.GetPlatform(), staticStore.GetAssetsFolder())
+	brickIndex, err := bricksindex.Load(platform.GetPlatform(nil), staticStore.GetAssetsFolder())
 	require.NoError(t, err)
 
 	// Compare the response with the bricks index

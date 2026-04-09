@@ -62,6 +62,7 @@ func restartHandler(ctx context.Context, cfg config.Configuration, app app.Ardui
 		servicelocator.GetProvisioner(),
 		servicelocator.GetModelsIndex(),
 		servicelocator.GetBricksIndex(),
+		servicelocator.GetServicesIndex(),
 		app,
 		cfg,
 		servicelocator.GetStaticStore(),

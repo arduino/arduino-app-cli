@@ -33,6 +33,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
@@ -50,6 +51,10 @@ var (
 
 	GetModelsIndex = sync.OnceValue(func() *modelsindex.ModelsIndex {
 		return f.Must(modelsindex.Load(GetPlatform(), GetStaticStore().GetAssetsFolder(), globalConfig.CustomModelsDir()))
+	})
+
+	GetServicesIndex = sync.OnceValue(func() *servicesindex.ServicesIndex {
+		return f.Must(servicesindex.Load(GetStaticStore().GetServicesFolder()))
 	})
 
 	GetProvisioner = sync.OnceValue(func() *orchestrator.Provision {

@@ -34,7 +34,7 @@ import (
 )
 
 func TestBrickCreate(t *testing.T) {
-	bricksIndex, err := bricksindex.Load(platform.GetPlatform(), paths.New("testdata"))
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 	require.Nil(t, err)
 	brickService := NewService(nil, bricksIndex)
 
@@ -104,7 +104,7 @@ func TestBrickCreate(t *testing.T) {
 		require.Nil(t, err)
 		err = paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp)
 		require.Nil(t, err)
-		bricksIndex, err := bricksindex.Load(platform.GetPlatform(), paths.New("testdata"))
+		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 		require.Nil(t, err)
 		brickService := NewService(nil, bricksIndex)
 
@@ -131,7 +131,7 @@ func TestBrickCreate(t *testing.T) {
 }
 
 func TestUpdateBrick(t *testing.T) {
-	bricksIndex, err := bricksindex.Load(platform.GetPlatform(), paths.New("testdata"))
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 	require.Nil(t, err)
 	brickService := NewService(nil, bricksIndex)
 
@@ -191,7 +191,7 @@ func TestUpdateBrick(t *testing.T) {
 		tempDummyApp := paths.New("testdata/dummy-app.temp")
 		require.Nil(t, tempDummyApp.RemoveAll())
 		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
-		bricksIndex, err := bricksindex.Load(platform.GetPlatform(), paths.New("testdata"))
+		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 		require.Nil(t, err)
 		brickService := NewService(nil, bricksIndex)
 
@@ -220,7 +220,7 @@ func TestUpdateBrick(t *testing.T) {
 		tempDummyApp := paths.New("testdata/dummy-app-for-update.temp")
 		require.Nil(t, tempDummyApp.RemoveAll())
 		require.Nil(t, paths.New("testdata/dummy-app-for-update").CopyDirTo(tempDummyApp))
-		bricksIndex, err := bricksindex.Load(platform.GetPlatform(), paths.New("testdata"))
+		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 		require.Nil(t, err)
 		brickService := NewService(nil, bricksIndex)
 
@@ -248,9 +248,9 @@ func TestUpdateBrick(t *testing.T) {
 		tempDummyApp := paths.New("testdata/dummy-app-for-model.temp")
 		require.Nil(t, tempDummyApp.RemoveAll())
 		require.Nil(t, paths.New("testdata/dummy-app-for-model").CopyDirTo(tempDummyApp))
-		bricksIndex, err := bricksindex.Load(platform.GetPlatform(), paths.New("testdata"))
+		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 		require.NoError(t, err)
-		modelsIndex, err := modelsindex.Load(platform.GetPlatform(), paths.New("testdata"), paths.New("not_exixsting_path"))
+		modelsIndex, err := modelsindex.Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("not_exixsting_path"))
 		require.NoError(t, err)
 		brickService := NewService(modelsIndex, bricksIndex)
 
@@ -422,7 +422,7 @@ bricks:
 	}
 	createFakeApp(t, appsDir)
 
-	bIndex, err := bricksindex.Load(platform.GetPlatform(), paths.New(assetsDir))
+	bIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New(assetsDir))
 	require.NoError(t, err)
 
 	mIndex := &modelsindex.ModelsIndex{
@@ -593,7 +593,7 @@ bricks:
 	brickYamlPath := filepath.Join(tmpDir, "bricks-list.yaml")
 	require.NoError(t, os.WriteFile(brickYamlPath, []byte(brickYamlContent), 0600))
 
-	bIndex, err := bricksindex.Load(platform.GetPlatform(), paths.New(tmpDir))
+	bIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New(tmpDir))
 	require.NoError(t, err)
 
 	mIndex := &modelsindex.ModelsIndex{
@@ -779,7 +779,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 	brickYamlPath := filepath.Join(tmpDir, "bricks-list.yaml")
 	require.NoError(t, os.WriteFile(brickYamlPath, []byte(bricksYaml), 0600))
 
-	bIndex, err := bricksindex.Load(platform.GetPlatform(), paths.New(tmpDir))
+	bIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New(tmpDir))
 	require.NoError(t, err)
 
 	svc := &Service{
