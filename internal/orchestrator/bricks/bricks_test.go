@@ -1031,9 +1031,15 @@ func TestLocalBrickRename(t *testing.T) {
 		require.ErrorIs(t, err, ErrBrickNotFound)
 	})
 
-	t.Run("fails when new id conflicts with an existing brick", func(t *testing.T) {
+	t.Run("fails when new id conflicts with an existing builtin brick", func(t *testing.T) {
 		a := setup(t)
 		_, err := svc.LocalBrickRename(a, "my-local-brick", "arduino:arduino_cloud", "Arduino Cloud")
+		require.ErrorIs(t, err, ErrBrickIDConflict)
+	})
+
+	t.Run("fails when new id conflicts with an existing local brick", func(t *testing.T) {
+		a := setup(t)
+		_, err := svc.LocalBrickRename(a, "my-local-brick", "another-local-brick", "I want to change the name to another local brick")
 		require.ErrorIs(t, err, ErrBrickIDConflict)
 	})
 
@@ -1054,5 +1060,24 @@ func TestLocalBrickRename(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, string(raw), "my-renamed-brick")
 		require.Contains(t, string(raw), "My Renamed Brick")
+	})
+
+	t.Run("successfully renames a nested local brick", func(t *testing.T) {
+		a := setup(t)
+
+		result, err := svc.LocalBrickRename(a, "nested-local-brick", "nested-renamed-brick", "Nested Renamed Brick")
+		require.NoError(t, err)
+		require.Equal(t, "nested-renamed-brick", result.ID)
+
+		// Old folder must not exist; new folder must exist.
+		require.False(t, paths.New(tempApp, "bricks", "nested", "nested-local-brick").Exist())
+		require.True(t, paths.New(tempApp, "bricks", "nested", "nested-renamed-brick").Exist())
+
+		// brick_config.yaml must contain the new id and name.
+		configPath := filepath.Join(tempApp, "bricks", "nested", "nested-renamed-brick", "brick_config.yaml")
+		raw, err := os.ReadFile(configPath)
+		require.NoError(t, err)
+		require.Contains(t, string(raw), "nested-renamed-brick")
+		require.Contains(t, string(raw), "Nested Renamed Brick")
 	})
 }
