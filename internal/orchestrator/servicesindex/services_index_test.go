@@ -34,5 +34,5 @@ func TestLoadServicesIndex(t *testing.T) {
 
 	compose, ok := service.GetComposeFile()
 	require.True(t, ok)
-	require.Equal(t, paths.New("testdata", "services", "arduino", "foo", "service_compose.yaml"), compose)
+	require.Equal(t, paths.New("testdata", "services", "arduino", "foo", "service_compose.yaml").String(), compose.String())
 }

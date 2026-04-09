@@ -254,7 +254,7 @@ func generateMainComposeFile(
 				slog.Error("service required by brick not found in services index", slog.String("service_id", id), slog.String("brick_id", brick.ID))
 				continue
 			}
-			requiredServices[id] = *idxService
+			brickServices[id] = *idxService
 		}
 
 		// The following code is needed only if the brick requires a container.
