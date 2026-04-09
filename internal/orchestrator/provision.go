@@ -232,8 +232,7 @@ func generateMainComposeFile(
 		ports[fmt.Sprintf("%d:%d", p, p)] = struct{}{}
 	}
 
-	requiredServices := make(map[string]servicesindex.Service)
-
+	brickServices := make(map[string]servicesindex.Service)
 	var composeFiles paths.PathList
 	services := make([]serviceInfo, 0, len(app.Descriptor.Bricks))
 	for _, brick := range app.Descriptor.Bricks {
