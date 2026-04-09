@@ -27,6 +27,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 
 	"github.com/goccy/go-yaml"
@@ -106,6 +107,10 @@ bricks:
 	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
 
+	require.NoError(t, cfg.AssetsDir().Join("services").MkdirAll())
+	servicesIndex, err := servicesindex.Load(cfg.AssetsDir().Join("services"))
+	require.NoError(t, err, "Failed to load services index")
+
 	// Override brick index with custom test content
 	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
 	require.Nil(t, err, "Failed to load bricks index with custom content")
@@ -126,7 +131,7 @@ bricks:
 		HasSoundDevice: false,
 		HasVideoDevice: true,
 	}
-	err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
+	err = generateMainComposeFile(&app, bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
 
 	// Validate that the main compose file and overrides are created
 	require.NoError(t, err, "Failed to generate main compose file")
@@ -343,6 +348,10 @@ bricks:
 	err := cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
 
+	require.NoError(t, cfg.AssetsDir().Join("services").MkdirAll())
+	servicesIndex, err := servicesindex.Load(cfg.AssetsDir().Join("services"))
+	require.NoError(t, err, "Failed to load services index")
+
 	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
 	require.Nil(t, err, "Failed to load bricks index with custom content")
 	br, ok := bricksIndex.FindBrickByID("arduino:dbstorage_tsstore")
@@ -389,7 +398,7 @@ services:
 		}
 
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
+		err = generateMainComposeFile(&app, bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -445,7 +454,7 @@ services:
 			HasVideoDevice: true,
 		}
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
+		err = generateMainComposeFile(&app, bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, devices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -510,6 +519,10 @@ bricks:
 	err := cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
 
+	require.NoError(t, cfg.AssetsDir().Join("services").MkdirAll())
+	servicesIndex, err := servicesindex.Load(cfg.AssetsDir().Join("services"))
+	require.NoError(t, err, "Failed to load services index")
+
 	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
 	require.Nil(t, err, "Failed to load bricks index with custom content")
 	br, ok := bricksIndex.FindBrickByID("arduino:dbstorage_tsstore")
@@ -567,7 +580,7 @@ services:
 			HasVideoDevice: true,
 		}
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, availableDevices)
+		err = generateMainComposeFile(&app, bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, availableDevices)
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -602,4 +615,105 @@ services:
 		}
 	})
 
+}
+
+func TestProvisionAppWithServices(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	tempDirectory := t.TempDir()
+
+	// Define a mock app with bricks that require overrides
+	app := app.ArduinoApp{
+		Name: "TestApp",
+		Descriptor: app.AppDescriptor{
+			Bricks: []app.Brick{
+				{
+					ID: "arduino:video_object_detection",
+				},
+			},
+		},
+		FullPath: paths.New(tempDirectory),
+	}
+	require.NoError(t, app.ProvisioningStateDir().MkdirAll())
+	// Add compose files for the bricks - video object detection
+	videoObjectDetectionPath := cfg.AssetsDir().Join("services", "arduino", "video_object_detection")
+	require.NoError(t, videoObjectDetectionPath.MkdirAll())
+	composeForVideoObjectDetection := `
+version: '3.8'
+services:
+  ei-video-obj-detection-runner:
+    image: arduino/video-object-detection:latest
+    ports:
+    - "8080:8080"
+`
+	err := videoObjectDetectionPath.Join("service_compose.yaml").WriteFile([]byte(composeForVideoObjectDetection))
+	require.NoError(t, err)
+
+	configForVideoObjectDetection := `
+service_id: arduino:foo
+name: Foo Service
+description: |
+  This is a sample Foo service used for testing purposes.
+category: test
+supported_boards: ["foobar"]
+`
+	err = videoObjectDetectionPath.Join("service_config.yaml").WriteFile([]byte(configForVideoObjectDetection))
+	require.NoError(t, err)
+
+	bricksIndexContent := []byte(`
+bricks:
+- id: arduino:video_object_detection
+  name: Object Detection
+  description: "Brick for object detection using a pre-trained model."
+  require_container: false
+  require_model: false
+  ports: []
+  category: video
+  requires_services: ["arduino:foo"]`)
+	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
+	require.NoError(t, err)
+	servicesIndex, err := servicesindex.Load(cfg.AssetsDir().Join("services"))
+	require.NoError(t, err, "Failed to load services index")
+
+	// Override brick index with custom test content
+	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
+	require.Nil(t, err, "Failed to load bricks index with custom content")
+
+	br, ok := bricksIndex.FindBrickByID("arduino:video_object_detection")
+	require.True(t, ok, "Brick arduino:video_object_detection should exist in the index")
+	require.NotNil(t, br, "Brick arduino:video_object_detection should not be nil")
+	require.Equal(t, "Object Detection", br.Name, "Brick name should match")
+
+	service, ok := servicesIndex.FindServiceByID("arduino:foo")
+	require.True(t, ok, "Service arduino:foo should exist in the index")
+	require.NotNil(t, service, "Service arduino:foo should not be nil")
+	compose, ok := service.GetComposeFile()
+	require.True(t, ok, "Service arduino:foo should have a compose file")
+	require.Equal(t, videoObjectDetectionPath.Join("service_compose.yaml").String(), compose.String())
+
+	// Run the provision function to generate the main compose file
+	env := map[string]string{
+		"FOO": "bar",
+	}
+
+	err = generateMainComposeFile(&app, bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, peripherals.AvailableDevices{})
+
+	// Validate that the main compose file and overrides are created
+	require.NoError(t, err, "Failed to generate main compose file")
+	composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
+	require.True(t, composeFilePath.Exist(), "Main compose file should exist")
+	overridesFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose-overrides.yaml")
+	require.True(t, overridesFilePath.Exist(), "Override compose file should exist")
+
+	// Open override file and check for the expected override
+	overridesContent, err := overridesFilePath.ReadFile()
+	require.NoError(t, err)
+
+	type services struct {
+		Services map[string]map[string]interface{} `yaml:"services"`
+	}
+	content := services{}
+	err = yaml.Unmarshal(overridesContent, &content)
+	require.Nil(t, err, "Failed to unmarshal overrides content")
+	require.NotNil(t, content.Services["ei-video-obj-detection-runner"], "Override for ei-video-obj-detection-runner should exist")
+	require.Equal(t, "bar", content.Services["ei-video-obj-detection-runner"]["environment"].(map[string]interface{})["FOO"])
 }

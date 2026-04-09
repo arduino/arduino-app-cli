@@ -64,6 +64,7 @@ func startHandler(ctx context.Context, cfg config.Configuration, app app.Arduino
 		servicelocator.GetProvisioner(),
 		servicelocator.GetModelsIndex(),
 		servicelocator.GetBricksIndex(),
+		servicelocator.GetServicesIndex(),
 		app,
 		cfg,
 		servicelocator.GetStaticStore(),

@@ -179,6 +179,11 @@ type AppLocalBrickCreateResponse struct {
 	Id *string `json:"id,omitempty"`
 }
 
+// AppLocalBrickRenameRequest defines model for AppLocalBrickRenameRequest.
+type AppLocalBrickRenameRequest struct {
+	Name *string `json:"name,omitempty"`
+}
+
 // AppPortResponse defines model for AppPortResponse.
 type AppPortResponse struct {
 	// Ports exposed port of the app
@@ -374,6 +379,11 @@ type Library struct {
 type LibraryListResponse struct {
 	Libraries  *[]Library  `json:"libraries,omitempty"`
 	Pagination *Pagination `json:"pagination,omitempty"`
+}
+
+// LocalBrickRenameResult defines model for LocalBrickRenameResult.
+type LocalBrickRenameResult struct {
+	Id *string `json:"id,omitempty"`
 }
 
 // PackageType Package type
@@ -602,6 +612,9 @@ type UpdateAppBrickInstanceJSONRequestBody = BrickCreateUpdateRequest
 // UpsertAppBrickInstanceJSONRequestBody defines body for UpsertAppBrickInstance for application/json ContentType.
 type UpsertAppBrickInstanceJSONRequestBody = BrickCreateUpdateRequest
 
+// RenameAppLocalBrickJSONRequestBody defines body for RenameAppLocalBrick for application/json ContentType.
+type RenameAppLocalBrickJSONRequestBody = AppLocalBrickRenameRequest
+
 // EditAppJSONRequestBody defines body for EditApp for application/json ContentType.
 type EditAppJSONRequestBody = EditRequest
 
@@ -726,6 +739,11 @@ type ClientInterface interface {
 	UpsertAppBrickInstanceWithBody(ctx context.Context, appID string, brickID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpsertAppBrickInstance(ctx context.Context, appID string, brickID string, body UpsertAppBrickInstanceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RenameAppLocalBrickWithBody request with any body
+	RenameAppLocalBrickWithBody(ctx context.Context, appID string, brickID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	RenameAppLocalBrick(ctx context.Context, appID string, brickID string, body RenameAppLocalBrickJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAppPorts request
 	GetAppPorts(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -996,6 +1014,30 @@ func (c *Client) UpsertAppBrickInstanceWithBody(ctx context.Context, appID strin
 
 func (c *Client) UpsertAppBrickInstance(ctx context.Context, appID string, brickID string, body UpsertAppBrickInstanceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpsertAppBrickInstanceRequest(c.Server, appID, brickID, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RenameAppLocalBrickWithBody(ctx context.Context, appID string, brickID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRenameAppLocalBrickRequestWithBody(c.Server, appID, brickID, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RenameAppLocalBrick(ctx context.Context, appID string, brickID string, body RenameAppLocalBrickJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRenameAppLocalBrickRequest(c.Server, appID, brickID, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1681,7 +1723,7 @@ func NewCreateAppLocalBrickRequestWithBody(server string, appID string, contentT
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "appID", runtime.ParamLocationPath, appID)
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "appID", appID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
 	if err != nil {
 		return nil, err
 	}
@@ -1892,6 +1934,60 @@ func NewUpsertAppBrickInstanceRequestWithBody(server string, appID string, brick
 	}
 
 	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewRenameAppLocalBrickRequest calls the generic RenameAppLocalBrick builder with application/json body
+func NewRenameAppLocalBrickRequest(server string, appID string, brickID string, body RenameAppLocalBrickJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRenameAppLocalBrickRequestWithBody(server, appID, brickID, "application/json", bodyReader)
+}
+
+// NewRenameAppLocalBrickRequestWithBody generates requests for RenameAppLocalBrick with any type of body
+func NewRenameAppLocalBrickRequestWithBody(server string, appID string, brickID string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "appID", appID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "brickID", brickID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/apps/%s/bricks/%s/rename", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -3323,6 +3419,11 @@ type ClientWithResponsesInterface interface {
 
 	UpsertAppBrickInstanceWithResponse(ctx context.Context, appID string, brickID string, body UpsertAppBrickInstanceJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertAppBrickInstanceResp, error)
 
+	// RenameAppLocalBrickWithBodyWithResponse request with any body
+	RenameAppLocalBrickWithBodyWithResponse(ctx context.Context, appID string, brickID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RenameAppLocalBrickResp, error)
+
+	RenameAppLocalBrickWithResponse(ctx context.Context, appID string, brickID string, body RenameAppLocalBrickJSONRequestBody, reqEditors ...RequestEditorFn) (*RenameAppLocalBrickResp, error)
+
 	// GetAppPortsWithResponse request
 	GetAppPortsWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*GetAppPortsResp, error)
 
@@ -3661,6 +3762,33 @@ func (r UpsertAppBrickInstanceResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpsertAppBrickInstanceResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RenameAppLocalBrickResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *LocalBrickRenameResult
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON409      *Conflict
+	JSON412      *PreconditionFailed
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r RenameAppLocalBrickResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RenameAppLocalBrickResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -4517,6 +4645,23 @@ func (c *ClientWithResponses) UpsertAppBrickInstanceWithResponse(ctx context.Con
 	return ParseUpsertAppBrickInstanceResp(rsp)
 }
 
+// RenameAppLocalBrickWithBodyWithResponse request with arbitrary body returning *RenameAppLocalBrickResp
+func (c *ClientWithResponses) RenameAppLocalBrickWithBodyWithResponse(ctx context.Context, appID string, brickID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RenameAppLocalBrickResp, error) {
+	rsp, err := c.RenameAppLocalBrickWithBody(ctx, appID, brickID, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRenameAppLocalBrickResp(rsp)
+}
+
+func (c *ClientWithResponses) RenameAppLocalBrickWithResponse(ctx context.Context, appID string, brickID string, body RenameAppLocalBrickJSONRequestBody, reqEditors ...RequestEditorFn) (*RenameAppLocalBrickResp, error) {
+	rsp, err := c.RenameAppLocalBrick(ctx, appID, brickID, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRenameAppLocalBrickResp(rsp)
+}
+
 // GetAppPortsWithResponse request returning *GetAppPortsResp
 func (c *ClientWithResponses) GetAppPortsWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*GetAppPortsResp, error) {
 	rsp, err := c.GetAppPorts(ctx, appID, reqEditors...)
@@ -5216,6 +5361,67 @@ func ParseUpsertAppBrickInstanceResp(rsp *http.Response) (*UpsertAppBrickInstanc
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRenameAppLocalBrickResp parses an HTTP response from a RenameAppLocalBrickWithResponse call
+func ParseRenameAppLocalBrickResp(rsp *http.Response) (*RenameAppLocalBrickResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RenameAppLocalBrickResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LocalBrickRenameResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
 		var dest PreconditionFailed

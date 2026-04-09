@@ -1162,6 +1162,32 @@ Contains a JSON object with the details of an error.
 			},
 		},
 		{
+			OperationId: "renameAppLocalBrick",
+			Method:      http.MethodPost,
+			Path:        "/v1/apps/{appID}/bricks/{brickID}/rename",
+			Parameters: (*struct {
+				ID      string `path:"appID" description:"application identifier."`
+				BrickID string `path:"brickID" description:"brick identifier."`
+			})(nil),
+			Request: handlers.AppLocalBrickRenameRequest{},
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: bricks.LocalBrickRenameResult{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "Rename a local brick. Changes the brick's ID and folder name derived from the new name. Only local bricks can be renamed.",
+			Summary:     "Rename a local brick",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusNotFound, Reference: "#/components/responses/NotFound"},
+				{StatusCode: http.StatusConflict, Reference: "#/components/responses/Conflict"},
+				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
 			OperationId: "listLibraries",
 			Method:      http.MethodGet,
 			Path:        "/v1/libraries",

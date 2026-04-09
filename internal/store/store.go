@@ -25,17 +25,18 @@ import (
 )
 
 type StaticStore struct {
-	baseDir     string
-	composePath string
-	assetsPath  *paths.Path
+	baseDir      string
+	composePath  string
+	assetsPath   *paths.Path
+	servicesPath string
 }
 
 func NewStaticStore(baseDir string) *StaticStore {
 	return &StaticStore{
-		baseDir:     baseDir,
-		composePath: filepath.Join(baseDir, "compose"),
-		assetsPath:  paths.New(baseDir),
-	}
+		baseDir:      baseDir,
+		composePath:  filepath.Join(baseDir, "compose"),
+		assetsPath:   paths.New(baseDir),
+		servicesPath: filepath.Join(baseDir, "services")}
 }
 
 func (s *StaticStore) SaveComposeFolderTo(dst string) error {
@@ -54,4 +55,8 @@ func (s *StaticStore) GetAssetsFolder() *paths.Path {
 
 func (s *StaticStore) GetComposeFolder() *paths.Path {
 	return paths.New(s.composePath)
+}
+
+func (s *StaticStore) GetServicesFolder() *paths.Path {
+	return paths.New(s.servicesPath)
 }
