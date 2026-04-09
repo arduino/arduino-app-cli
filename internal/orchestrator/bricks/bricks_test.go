@@ -993,3 +993,66 @@ func TestAppBrickInstancesList(t *testing.T) {
 		})
 	}
 }
+
+func TestLocalBrickRename(t *testing.T) {
+	const sourceApp = "testdata/dummy-app-with-local-brick"
+	const tempApp = "testdata/dummy-app-with-local-brick.temp"
+
+	setup := func(t *testing.T) *app.ArduinoApp {
+		t.Helper()
+		require.NoError(t, paths.New(tempApp).RemoveAll())
+		require.NoError(t, paths.New(sourceApp).CopyDirTo(paths.New(tempApp)))
+		t.Cleanup(func() { _ = paths.New(tempApp).RemoveAll() })
+		a, err := app.Load(paths.New(tempApp))
+		require.NoError(t, err)
+		return &a
+	}
+
+	bricksIndex, err := bricksindex.Load(paths.New("testdata"))
+	require.NoError(t, err)
+	svc := NewService(nil, bricksIndex)
+
+	t.Run("fails when old and new id are the same", func(t *testing.T) {
+		a := setup(t)
+		_, err := svc.LocalBrickRename(a, "my-local-brick", "my-local-brick", "My Local Brick")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "same as the current one")
+	})
+
+	t.Run("fails when brick is in global index (not local)", func(t *testing.T) {
+		a := setup(t)
+		_, err := svc.LocalBrickRename(a, "arduino:arduino_cloud", "arduino:arduino_cloud_v2", "Arduino Cloud V2")
+		require.ErrorIs(t, err, ErrBrickNotLocal)
+	})
+
+	t.Run("fails when brick is not found", func(t *testing.T) {
+		a := setup(t)
+		_, err := svc.LocalBrickRename(a, "non-existing-brick", "new-id", "New Name")
+		require.ErrorIs(t, err, ErrBrickNotFound)
+	})
+
+	t.Run("fails when new id conflicts with an existing brick", func(t *testing.T) {
+		a := setup(t)
+		_, err := svc.LocalBrickRename(a, "my-local-brick", "arduino:arduino_cloud", "Arduino Cloud")
+		require.ErrorIs(t, err, ErrBrickIDConflict)
+	})
+
+	t.Run("successfully renames the local brick", func(t *testing.T) {
+		a := setup(t)
+
+		result, err := svc.LocalBrickRename(a, "my-local-brick", "my-renamed-brick", "My Renamed Brick")
+		require.NoError(t, err)
+		require.Equal(t, "my-renamed-brick", result.ID)
+
+		// Old folder must not exist; new folder must exist.
+		require.False(t, paths.New(tempApp, "bricks", "my-local-brick").Exist())
+		require.True(t, paths.New(tempApp, "bricks", "my-renamed-brick").Exist())
+
+		// brick_config.yaml must contain the new id and name.
+		configPath := filepath.Join(tempApp, "bricks", "my-renamed-brick", "brick_config.yaml")
+		raw, err := os.ReadFile(configPath)
+		require.NoError(t, err)
+		require.Contains(t, string(raw), "my-renamed-brick")
+		require.Contains(t, string(raw), "My Renamed Brick")
+	})
+}

@@ -1,0 +1,4 @@
+name: App with local brick
+description: An app with a local brick for testing
+bricks:
+- my-local-brick:
