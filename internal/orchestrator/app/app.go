@@ -322,6 +322,7 @@ func load(brickPath *paths.Path) (b bricksindex.Brick, err error) {
 		composeFile = brickComposeFile
 	}
 	brick.Source = "App"
+	brick.FullPath = brickPath
 	brick.ComposeFile = composeFile
 	brick.ReadmeFile = brickPath.Join("README.md")
 	brick.ExamplesPath = brickPath.Join("examples")
