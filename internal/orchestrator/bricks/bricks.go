@@ -484,18 +484,18 @@ func (s *Service) LocalBrickRename(appCurrent *app.ArduinoApp, oldID, newID, new
 		}
 	}()
 
-	oldBrickConfigContent, err := os.ReadFile(newBrickPath.Join("brick_config.yaml").String())
+	configPath := newBrickPath.Join("brick_config.yaml")
+	oldBrickConfigContent, err := os.ReadFile(configPath.String())
 	if err != nil {
 		return LocalBrickRenameResult{}, fmt.Errorf("cannot read brick_config.yaml: %w", err)
 	}
-
-	if err := updateBrickConfig(newBrickPath, newID, newName); err != nil {
+	if err := updateBrickConfig(configPath, newID, newName); err != nil {
 		return LocalBrickRenameResult{}, fmt.Errorf("cannot update brick_config.yaml: %w", err)
 	}
 	// Rollback brick_config.yaml in case of any error in the following steps.
 	defer func() {
 		if _err != nil {
-			_ = fatomic.WriteFile(newBrickPath.Join("brick_config.yaml").String(), oldBrickConfigContent, os.FileMode(0644))
+			_ = fatomic.WriteFile(configPath.String(), oldBrickConfigContent, os.FileMode(0644))
 		}
 	}()
 
@@ -518,9 +518,8 @@ func (s *Service) LocalBrickRename(appCurrent *app.ArduinoApp, oldID, newID, new
 	return LocalBrickRenameResult{ID: newID}, nil
 }
 
-func updateBrickConfig(brickPath *paths.Path, newID, newName string) error {
-	configPath := brickPath.Join("brick_config.yaml")
-	content, err := os.ReadFile(configPath.String())
+func updateBrickConfig(brickConfigPath *paths.Path, newID, newName string) error {
+	content, err := os.ReadFile(brickConfigPath.String())
 	if err != nil {
 		return fmt.Errorf("cannot read brick_config.yaml: %w", err)
 	}
@@ -538,7 +537,7 @@ func updateBrickConfig(brickPath *paths.Path, newID, newName string) error {
 		return fmt.Errorf("cannot marshal brick_config.yaml: %w", err)
 	}
 
-	if err := fatomic.WriteFile(configPath.String(), updated, os.FileMode(0644)); err != nil {
+	if err := fatomic.WriteFile(brickConfigPath.String(), updated, os.FileMode(0644)); err != nil {
 		return fmt.Errorf("cannot write brick_config.yaml: %w", err)
 	}
 	return nil
