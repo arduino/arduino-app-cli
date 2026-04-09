@@ -35,7 +35,7 @@ func TestModelsIndex(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, modelsIndex)
 		models := modelsIndex.GetModels()
-		assert.Len(t, models, 4, "Expected 3 models to be parsed")
+		assert.Len(t, models, 4, "Expected 4 models to be parsed")
 	})
 
 	t.Run("at least one model folders must be provided", func(t *testing.T) {
