@@ -75,7 +75,7 @@ func loadFromFolder(dir *paths.Path) ([]Service, error) {
 		return nil, err
 	}
 
-    services := make([]Service, 0, len(pathsList))
+	services := make([]Service, 0, len(pathsList))
 	for _, path := range pathsList {
 		service, err := load(path)
 		if err != nil {
