@@ -96,7 +96,6 @@ var (
 		return bricks.NewService(
 			GetModelsIndex(),
 			GetBricksIndex(),
-			GetServicesIndex(),
 		)
 	})
 
