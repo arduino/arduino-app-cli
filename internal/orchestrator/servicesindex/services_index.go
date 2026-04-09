@@ -95,7 +95,7 @@ func load(servicePath *paths.Path) (a Service, err error) {
 	if err != nil {
 		return Service{}, fmt.Errorf("cannot read service_config.yaml: %w", err)
 	}
-	service := Service{}
+	var service Service
 	if err := yaml.Unmarshal(serviceConfigContent, &service); err != nil {
 		return Service{}, fmt.Errorf("cannot unmarshal service_config.yaml: %w", err)
 	}
