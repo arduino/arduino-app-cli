@@ -94,11 +94,12 @@ func TestLoad(t *testing.T) {
 		assert.Nil(t, sketchPath)
 	})
 
-	t.Run("it loads an app with missing main python file", func(t *testing.T) {
+	t.Run("it loads an app with local bricks", func(t *testing.T) {
 		app, err := Load(paths.New("testdata/AppWithLocalBricks"))
 		assert.NoError(t, err)
 		assert.NotEmpty(t, app)
 		assert.Len(t, app.LocalBricks, 1)
+		assert.Equal(t, f.Must(filepath.Abs("testdata/AppWithLocalBricks/bricks/my-first-brick")), app.LocalBricks[0].FullPath.String())
 		assert.Equal(t, "my-first-brick", app.LocalBricks[0].ID)
 		assert.Equal(t, "My First Brick", app.LocalBricks[0].Name)
 		assert.Equal(t, "App", app.LocalBricks[0].Source)

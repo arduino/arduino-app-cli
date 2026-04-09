@@ -18,6 +18,7 @@
 package platform
 
 import (
+	"encoding/json"
 	"log/slog"
 
 	"github.com/arduino/go-paths-helper"
@@ -32,25 +33,26 @@ type GpioPin struct {
 }
 
 type Platform struct {
-	BoardName   string
-	FQBN        string
-	PlatformID  string
-	CompileJobs int32
+	BoardName   string `json:"board_name"`
+	FQBN        string `json:"fqbn"`
+	PlatformID  string `json:"-"`
+	CompileJobs int32  `json:"-"`
 	Linux       struct {
 		UserLeds   paths.PathList
 		StatusLeds paths.PathList
-	}
+	} `json:"-"`
 	Micro struct {
 		ResetPin GpioPin
-	}
+	} `json:"-"`
 }
 
-func GetPlatform() Platform {
+func GetPlatform(dir *paths.Path) Platform {
 	compatible := devicetree.LoadCompatible()
 	slog.Debug("detected platform", "compatible", compatible)
+	var platform Platform
 	switch {
 	case compatible.IsCompatibleWith("arduino,imola"):
-		return Platform{
+		platform = Platform{
 			FQBN:       "arduino:zephyr:unoq",
 			PlatformID: "arduino:zephyr",
 			BoardName:  "unoq",
@@ -72,7 +74,7 @@ func GetPlatform() Platform {
 			},
 		}
 	case compatible.IsCompatibleWith("arduino,monza"):
-		return Platform{
+		platform = Platform{
 			FQBN:       "arduino:zephyr:ventunoq",
 			PlatformID: "arduino:zephyr",
 			BoardName:  "ventunoq",
@@ -88,8 +90,25 @@ func GetPlatform() Platform {
 		}
 	default:
 		slog.Warn("not supported platform", "compatible", compatible)
-		return Platform{}
 	}
+
+	if dir != nil {
+		if filePath := dir.Join("platform.json"); filePath.Exist() {
+			if f, err := filePath.Open(); err == nil {
+				defer f.Close()
+				if err = json.NewDecoder(f).Decode(&platform); err == nil {
+					slog.Debug("loaded override from platform.json file", "file", filePath.String(), "platform", platform)
+				} else {
+					slog.Warn("failed to decode override platform.json file", "file", filePath.String(), "error", err)
+				}
+			} else {
+				slog.Warn("failed to open override platform.json file", "file", filePath.String(), "error", err)
+			}
+		}
+	}
+
+	slog.Info("using platform config", "platform", platform)
+	return platform
 }
 
 func (p Platform) GetMicro() micro.Micro {

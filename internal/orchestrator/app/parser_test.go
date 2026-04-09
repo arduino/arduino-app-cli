@@ -38,8 +38,8 @@ func TestAppParser(t *testing.T) {
 		ID:    "arduino:object_detection",
 		Model: "vision/yolo11",
 		Variables: map[string]string{
-			"PORT":          "8080",
-			"ROOT_PASSWORD": "secret",
+			"MY_NUMBER_VARIABLE": "8080",
+			"MY_STRING_VARIABLE": "a-string-value",
 		},
 	}
 	require.Contains(t, app.Bricks, brick1)
@@ -52,13 +52,24 @@ func TestAppParser(t *testing.T) {
 	require.Equal(t, app.Name, "Complex app")
 	require.Contains(t, app.Ports, 7860, 8080)
 
-	brick2 := Brick{
-		ID: "arduino:not_found",
+	wantBricks := []Brick{
+		{
+			ID:    "arduino:object_detection",
+			Model: "an-ai-model/yolosuper",
+			Variables: map[string]string{
+				"MY_FIRST_VARIABLE":  "a-first-value",
+				"MY_SECOND_VARIABLE": "8080",
+			},
+		},
+		{
+			ID: "arduino:not_found",
+		},
+		{
+			ID: "arduino:simple_string",
+		},
 	}
-	brick3 := Brick{
-		ID: "arduino:simple_string",
-	}
-	require.Contains(t, app.Bricks, brick1, brick2, brick3)
+
+	require.Equal(t, wantBricks, app.Bricks)
 
 	// Test a case that should fail.
 	appPath = paths.New("testdata", "wrong-app.yaml")

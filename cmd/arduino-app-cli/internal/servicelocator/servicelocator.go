@@ -98,5 +98,7 @@ var (
 		return app.NewAppIDProvider(globalConfig)
 	})
 
-	GetPlatform = sync.OnceValue(platform.GetPlatform)
+	GetPlatform = sync.OnceValue(func() platform.Platform {
+		return platform.GetPlatform(globalConfig.DataDir())
+	})
 )

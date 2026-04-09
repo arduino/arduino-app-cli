@@ -7,11 +7,11 @@ ports:
 
 bricks:
   - arduino:object_detection: # dep as a map, with additional properties
-      model: vision/yolo11
-      other-prop: 42
+      model: an-ai-model/yolosuper
+      discared-other-prop: 42
       variables:
-        ROOT_PASSWORD: secret
-        PORT: 8080
+        MY_FIRST_VARIABLE: a-first-value
+        MY_SECOND_VARIABLE: 8080
 
   - arduino:not_found: # dep as a map, but without additional properties
 

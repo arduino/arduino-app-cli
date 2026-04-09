@@ -6,5 +6,5 @@ bricks:
     - arduino:object_detection:
         model: vision/yolo11
         variables:
-          ROOT_PASSWORD: secret
-          PORT: 8080
+          MY_STRING_VARIABLE: a-string-value
+          MY_NUMBER_VARIABLE: 8080
