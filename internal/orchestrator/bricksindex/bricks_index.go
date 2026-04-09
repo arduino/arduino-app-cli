@@ -92,6 +92,7 @@ type Brick struct {
 
 	Source string `yaml:"-"`
 
+	FullPath     *paths.Path `yaml:"-"`
 	ComposeFile  *paths.Path `yaml:"-"` // brick_compose.yaml file path, optional
 	ReadmeFile   *paths.Path `yaml:"-"` // README.md file path, optional
 	ExamplesPath *paths.Path `yaml:"-"` // code examples folder path, optional
@@ -185,6 +186,7 @@ func Load(path *paths.Path) (*BricksIndex, error) {
 			return nil, err
 		}
 		yamlIndex.Bricks[i].Source = "Arduino"
+		yamlIndex.Bricks[i].FullPath = path
 		yamlIndex.Bricks[i].ComposeFile = path.Join("compose", namespace, brickName, "brick_compose.yaml")
 		yamlIndex.Bricks[i].ReadmeFile = path.Join("docs", namespace, brickName, "README.md")
 		yamlIndex.Bricks[i].ExamplesPath = path.Join("examples", namespace, brickName)

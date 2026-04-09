@@ -270,7 +270,7 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 				require.Contains(t, err.Error(), tc.expectedError)
 			} else {
 				require.NoError(t, err)
-				assert.True(t, cmp.Equal(index.BuiltInBricks, tc.expectedBricks, cmpopts.IgnoreFields(Brick{}, "Source", "ComposeFile", "ReadmeFile", "ExamplesPath", "DocsAPIPath")), cmp.Diff(index.BuiltInBricks, tc.expectedBricks, cmpopts.IgnoreFields(Brick{}, "Source", "ComposeFile", "ReadmeFile", "ExamplesPath", "DocsAPIPath")))
+				assert.True(t, cmp.Equal(index.BuiltInBricks, tc.expectedBricks, cmpopts.IgnoreFields(Brick{}, "FullPath", "Source", "ComposeFile", "ReadmeFile", "ExamplesPath", "DocsAPIPath")), cmp.Diff(index.BuiltInBricks, tc.expectedBricks, cmpopts.IgnoreFields(Brick{}, "Source", "ComposeFile", "ReadmeFile", "ExamplesPath", "DocsAPIPath")))
 			}
 		})
 	}
@@ -284,6 +284,8 @@ func TestLoadBrickYamlBrickIndex(t *testing.T) {
 
 		brick, found := bricksIndex.FindBrickByID("arduino:a-good-brick")
 		require.True(t, found)
+		assert.Equal(t, paths.New("testdata/0.4.8"), brick.FullPath)
+
 		content, err := brick.GetReadmeFile()
 		require.NoError(t, err)
 		require.Equal(t, "# i-am-a-readme-file", content)
