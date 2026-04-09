@@ -76,6 +76,10 @@ type AppReference struct {
 	Icon string `json:"icon"`
 }
 
+type LocalBrickRenameResult struct {
+	ID string `json:"id"`
+}
+
 type BrickDetailsResult struct {
 	ID               string                   `json:"id"`
 	Name             string                   `json:"name"`
