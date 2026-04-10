@@ -20,6 +20,7 @@ import (
 	"os"
 	"slices"
 
+	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/go-paths-helper"
 	"github.com/goccy/go-yaml"
 )
@@ -38,7 +39,7 @@ type Service struct {
 	ComposeFile *paths.Path `yaml:"-"` // brick_compose.yaml file path, optional
 }
 
-func Load(dir *paths.Path) (*ServicesIndex, error) {
+func Load(platform platform.Platform, dir *paths.Path) (*ServicesIndex, error) {
 	// If assets/<version>/services does not exist, we return an empty index without error, to allow the CLI to work without services
 	if !dir.IsDir() {
 		return &ServicesIndex{}, nil
@@ -47,6 +48,11 @@ func Load(dir *paths.Path) (*ServicesIndex, error) {
 	if err != nil {
 		return nil, err
 	}
+	services = slices.DeleteFunc(services, func(service Service) bool {
+		return platform.BoardName != "" &&
+			len(service.SupportedBoards) != 0 &&
+			!slices.Contains(service.SupportedBoards, platform.BoardName)
+	})
 	return &ServicesIndex{Services: services}, nil
 }
 

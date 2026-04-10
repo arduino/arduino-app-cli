@@ -54,7 +54,7 @@ var (
 	})
 
 	GetServicesIndex = sync.OnceValue(func() *servicesindex.ServicesIndex {
-		return f.Must(servicesindex.Load(GetStaticStore().GetServicesFolder()))
+		return f.Must(servicesindex.Load(GetPlatform(), GetStaticStore().GetServicesFolder()))
 	})
 
 	GetProvisioner = sync.OnceValue(func() *orchestrator.Provision {

@@ -108,7 +108,7 @@ bricks:
 	require.NoError(t, err)
 
 	require.NoError(t, cfg.AssetsDir().Join("services").MkdirAll())
-	servicesIndex, err := servicesindex.Load(cfg.AssetsDir().Join("services"))
+	servicesIndex, err := servicesindex.Load(platform.GetPlatform(nil), cfg.AssetsDir().Join("services"))
 	require.NoError(t, err, "Failed to load services index")
 
 	// Override brick index with custom test content
@@ -349,7 +349,7 @@ bricks:
 	require.NoError(t, err)
 
 	require.NoError(t, cfg.AssetsDir().Join("services").MkdirAll())
-	servicesIndex, err := servicesindex.Load(cfg.AssetsDir().Join("services"))
+	servicesIndex, err := servicesindex.Load(platform.GetPlatform(nil), cfg.AssetsDir().Join("services"))
 	require.NoError(t, err, "Failed to load services index")
 
 	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
@@ -520,7 +520,7 @@ bricks:
 	require.NoError(t, err)
 
 	require.NoError(t, cfg.AssetsDir().Join("services").MkdirAll())
-	servicesIndex, err := servicesindex.Load(cfg.AssetsDir().Join("services"))
+	servicesIndex, err := servicesindex.Load(platform.GetPlatform(nil), cfg.AssetsDir().Join("services"))
 	require.NoError(t, err, "Failed to load services index")
 
 	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
@@ -671,7 +671,7 @@ bricks:
   requires_services: ["arduino:foo"]`)
 	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
-	servicesIndex, err := servicesindex.Load(cfg.AssetsDir().Join("services"))
+	servicesIndex, err := servicesindex.Load(platform.GetPlatform(nil), cfg.AssetsDir().Join("services"))
 	require.NoError(t, err, "Failed to load services index")
 
 	// Override brick index with custom test content

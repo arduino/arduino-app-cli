@@ -1,0 +1,6 @@
+service_id: arduino:bar
+name: Bar Service
+description: |
+  This is a sample Bar service used for testing purposes.
+category: test
+supported_boards: ["bar"]
