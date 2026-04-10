@@ -455,16 +455,8 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 	var cliInstance *rpc.Instance
 	cli := commands.NewArduinoCoreServer()
 
-	// Set the data dir if specified via the ARDUINO_DIRECTORIES_DATA env var
-	if dataDir, ok := os.LookupEnv("ARDUINO_DIRECTORIES_DATA"); ok {
-		_, err := cli.SettingsSetValue(ctx, &rpc.SettingsSetValueRequest{
-			Key:          "directories.data",
-			EncodedValue: dataDir,
-			ValueFormat:  "cli",
-		})
-		if err != nil {
-			return fmt.Errorf("could not set data directory: %w", err)
-		}
+	if err := SetArduinoCliConfig(ctx, cli); err != nil {
+		return fmt.Errorf("could not set Arduino CLI config: %w", err)
 	}
 
 	if resp, err := cli.Create(ctx, &rpc.CreateRequest{}); err != nil {

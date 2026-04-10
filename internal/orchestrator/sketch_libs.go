@@ -39,6 +39,10 @@ func AddSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef LibraryRel
 	}
 
 	srv := commands.NewArduinoCoreServer()
+	if err := SetArduinoCliConfig(ctx, srv); err != nil {
+		return nil, err
+	}
+
 	var inst *rpc.Instance
 	if res, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
 		return nil, err
@@ -90,6 +94,10 @@ func RemoveSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef Library
 		return nil, errors.New("cannot remove a library. Missing sketch folder")
 	}
 	srv := commands.NewArduinoCoreServer()
+	if err := SetArduinoCliConfig(ctx, srv); err != nil {
+		return nil, err
+	}
+
 	var inst *rpc.Instance
 	if res, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
 		return nil, err

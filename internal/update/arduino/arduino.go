@@ -48,18 +48,6 @@ func NewArduinoPlatformUpdater(platform platform.Platform, versionConstraint sem
 	}
 }
 
-func setConfig(ctx context.Context, srv rpc.ArduinoCoreServiceServer) error {
-	if _, err := srv.SettingsSetValue(ctx, &rpc.SettingsSetValueRequest{
-		Key:          "network.connection_timeout",
-		EncodedValue: "600s",
-		ValueFormat:  "cli",
-	}); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // ListUpgradablePackages implements ServiceUpdater.
 func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
 	if !a.lock.TryLock() {
@@ -69,7 +57,7 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ f
 
 	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 	srv := commands.NewArduinoCoreServer()
-	if err := setConfig(ctx, srv); err != nil {
+	if err := orchestrator.SetArduinoCliConfig(ctx, srv); err != nil {
 		return nil, err
 	}
 
@@ -225,8 +213,7 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 
 	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 	srv := commands.NewArduinoCoreServer()
-
-	if err := setConfig(ctx, srv); err != nil {
+	if err := orchestrator.SetArduinoCliConfig(ctx, srv); err != nil {
 		return fmt.Errorf("error setting config: %w", err)
 	}
 

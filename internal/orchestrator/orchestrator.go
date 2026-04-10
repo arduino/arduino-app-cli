@@ -1050,6 +1050,9 @@ func compileUploadSketch(
 ) error {
 	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 	srv := commands.NewArduinoCoreServer()
+	if err := SetArduinoCliConfig(ctx, srv); err != nil {
+		return err
+	}
 
 	var inst *rpc.Instance
 	if resp, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
