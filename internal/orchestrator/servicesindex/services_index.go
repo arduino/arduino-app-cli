@@ -20,9 +20,10 @@ import (
 	"os"
 	"slices"
 
-	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/go-paths-helper"
 	"github.com/goccy/go-yaml"
+
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 type ServicesIndex struct {
