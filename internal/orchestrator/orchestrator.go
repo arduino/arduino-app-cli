@@ -39,6 +39,7 @@ import (
 	"github.com/gosimple/slug"
 	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
+	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/helpers"
@@ -175,7 +176,12 @@ func StartApp(
 			if !yield(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}}) {
 				return
 			}
-			if err := compileUploadSketch(ctx, platform, &appToStart, sketchCallbackWriter); err != nil {
+
+			if err := apply_migration_to_platform_0_55(ctx, platform, appToStart); err != nil {
+				slog.Warn("failed to apply migration for platform 0.55, continuing anyway", slog.String("error", err.Error()))
+			}
+
+			if err := compileUploadSketch(ctx, platform, appToStart, sketchCallbackWriter); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
@@ -1045,7 +1051,7 @@ func addLedControl(platform platform.Platform, volumes []volume) []volume {
 func compileUploadSketch(
 	ctx context.Context,
 	platform platform.Platform,
-	arduinoApp *app.ArduinoApp,
+	arduinoApp app.ArduinoApp,
 	w io.Writer,
 ) error {
 	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
@@ -1182,6 +1188,63 @@ func compileUploadSketch(
 		SketchPath: sketchPath.String(),
 		ImportDir:  buildPath.String(),
 	}, stream)
+}
+
+// apply_migration_to_platform_0_55 removes the Arduino_RouterBridge library from the sketch profile to allow automatic update of the library.
+// This is needed by the platform 0.55 will need a new Arduino_RouterBridge library to allow Serial output redirection to Monitor.
+func apply_migration_to_platform_0_55(ctx context.Context, platform platform.Platform, app app.ArduinoApp) error {
+	getInstalledPlatformVersion := func() (*semver.Version, error) {
+		logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
+		srv := commands.NewArduinoCoreServer()
+		if err := SetArduinoCliConfig(ctx, srv); err != nil {
+			return nil, err
+		}
+		var inst *rpc.Instance
+		if resp, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
+			return nil, err
+		} else {
+			inst = resp.GetInstance()
+		}
+		defer func() {
+			_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
+		}()
+
+		if err := srv.Init(
+			&rpc.InitRequest{Instance: inst},
+			commands.InitStreamResponseToCallbackFunction(ctx, func(r *rpc.InitResponse) error {
+				slog.Debug("Arduino init instance", slog.String("instance", r.String()))
+				return nil
+			}),
+		); err != nil {
+			return nil, err
+		}
+
+		info, err := srv.BoardDetails(ctx, &rpc.BoardDetailsRequest{
+			Instance: inst,
+			Fqbn:     platform.FQBN,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return semver.Parse(info.GetVersion())
+	}
+
+	v, err := getInstalledPlatformVersion()
+	if err != nil {
+		slog.Warn("unable to get installed platform version, skipping migration", slog.String("error", err.Error()))
+		return nil
+	}
+	slog.Debug("Installed platform version", slog.Any("version", v.String()))
+
+	if v.GreaterThan(semver.MustParse("0.54.1")) {
+		if _, err := RemoveSketchLibrary(ctx, app, LibraryReleaseID{
+			Name: "Arduino_RouterBridge",
+		}, true); err != nil {
+			return err
+		}
+		slog.Info("Applied migration for platform 0.55 by removing Arduino_RouterBridge library from the sketch profile")
+	}
+	return nil
 }
 
 type ConfigResponse struct {
