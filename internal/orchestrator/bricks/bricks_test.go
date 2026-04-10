@@ -1009,7 +1009,7 @@ func TestLocalBrickRename(t *testing.T) {
 		return &a
 	}
 
-	bricksIndex, err := bricksindex.Load(paths.New("testdata"))
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 	require.NoError(t, err)
 	svc := NewService(nil, bricksIndex)
 
