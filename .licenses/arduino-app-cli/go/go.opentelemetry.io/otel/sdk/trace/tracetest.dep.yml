@@ -1,12 +1,12 @@
 ---
 name: go.opentelemetry.io/otel/sdk/trace/tracetest
-version: v1.40.0
+version: v1.43.0
 type: go
 summary: Package tracetest is a testing helper package for the SDK.
 homepage: https://pkg.go.dev/go.opentelemetry.io/otel/sdk/trace/tracetest
 license: apache-2.0
 licenses:
-- sources: sdk@v1.40.0/LICENSE
+- sources: sdk@v1.43.0/LICENSE
   text: |2-
                                      Apache License
                                Version 2.0, January 2004

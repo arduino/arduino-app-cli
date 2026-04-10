@@ -1,6 +1,6 @@
 ---
 name: go.opentelemetry.io/otel/sdk
-version: v1.40.0
+version: v1.43.0
 type: go
 summary: Package sdk provides the OpenTelemetry default SDK for Go.
 homepage: https://pkg.go.dev/go.opentelemetry.io/otel/sdk

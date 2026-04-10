@@ -1,6 +1,6 @@
 ---
 name: github.com/aws/aws-sdk-go-v2/internal/configsources
-version: v1.4.16
+version: v1.4.21
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/internal/configsources

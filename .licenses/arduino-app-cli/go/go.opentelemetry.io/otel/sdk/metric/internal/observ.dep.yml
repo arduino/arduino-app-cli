@@ -1,13 +1,13 @@
 ---
 name: go.opentelemetry.io/otel/sdk/metric/internal/observ
-version: v1.40.0
+version: v1.43.0
 type: go
 summary: Package observ provides experimental observability instrumentation for the
   metric reader.
 homepage: https://pkg.go.dev/go.opentelemetry.io/otel/sdk/metric/internal/observ
 license: apache-2.0
 licenses:
-- sources: metric@v1.40.0/LICENSE
+- sources: metric@v1.43.0/LICENSE
   text: |2-
                                      Apache License
                                Version 2.0, January 2004

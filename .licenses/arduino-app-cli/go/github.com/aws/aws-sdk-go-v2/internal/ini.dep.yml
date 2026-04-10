@@ -1,6 +1,6 @@
 ---
 name: github.com/aws/aws-sdk-go-v2/internal/ini
-version: v1.8.4
+version: v1.8.6
 type: go
 summary: Package ini implements parsing of the AWS shared config file.
 homepage: https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/internal/ini

@@ -1,12 +1,12 @@
 ---
 name: github.com/aws/aws-sdk-go-v2/service/ssooidc/types
-version: v1.35.12
+version: v1.35.17
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ssooidc/types
 license: apache-2.0
 licenses:
-- sources: ssooidc@v1.35.12/LICENSE.txt
+- sources: ssooidc@v1.35.17/LICENSE.txt
   text: |2
 
                                      Apache License

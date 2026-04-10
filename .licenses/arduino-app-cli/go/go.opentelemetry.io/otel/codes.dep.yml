@@ -1,12 +1,12 @@
 ---
 name: go.opentelemetry.io/otel/codes
-version: v1.40.0
+version: v1.43.0
 type: go
 summary: Package codes defines the canonical error codes used by OpenTelemetry.
 homepage: https://pkg.go.dev/go.opentelemetry.io/otel/codes
 license: apache-2.0
 licenses:
-- sources: otel@v1.40.0/LICENSE
+- sources: otel@v1.43.0/LICENSE
   text: |2-
                                      Apache License
                                Version 2.0, January 2004

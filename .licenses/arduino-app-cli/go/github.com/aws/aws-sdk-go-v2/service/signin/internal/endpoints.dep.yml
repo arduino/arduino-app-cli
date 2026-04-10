@@ -1,12 +1,12 @@
 ---
 name: github.com/aws/aws-sdk-go-v2/service/signin/internal/endpoints
-version: v1.0.4
+version: v1.0.8
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/signin/internal/endpoints
 license: apache-2.0
 licenses:
-- sources: signin@v1.0.4/LICENSE.txt
+- sources: signin@v1.0.8/LICENSE.txt
   text: |2
 
                                      Apache License
