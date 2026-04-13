@@ -157,7 +157,7 @@ func StartApp(
 			return
 		}
 
-		if err := setStatusLeds(platform, LedTriggerNone); err != nil {
+		if err := setLedsToUserControlledMode(platform); err != nil {
 			slog.Debug("unable to set status leds", slog.String("error", err.Error()))
 		}
 
@@ -327,7 +327,7 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 		if !yield(StreamMessage{data: message}) {
 			return
 		}
-		if err := setStatusLeds(platform, LedTriggerDefault); err != nil {
+		if err := restoreLedsState(platform); err != nil {
 			slog.Debug("unable to set status leds", slog.String("error", err.Error()))
 		}
 
