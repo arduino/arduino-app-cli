@@ -79,6 +79,10 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 	for i, brickInstance := range a.Descriptor.Bricks {
 		brick, found := s.bricksIndex.WithAppBricks(a.LocalBricks).FindBrickByID(brickInstance.ID)
 		if !found {
+			if brick.Source == app.LocalBrickSource {
+				slog.Warn("Skipping local brick.", "brickID", brickInstance.ID)
+				continue
+			}
 			return AppBrickInstancesResult{}, fmt.Errorf("brick not found with id %s", brickInstance.ID)
 		}
 

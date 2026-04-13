@@ -275,6 +275,8 @@ func truncateDescription(s string, max int) string {
 	return s
 }
 
+var LocalBrickSource = "App"
+
 func loadBricksFromFolder(dir *paths.Path) []bricksindex.Brick {
 	if dir == nil || !dir.Exist() {
 		slog.Debug("App does not contain a bricks folder, skipping loading app bricks", "path", dir)
@@ -321,7 +323,7 @@ func load(brickPath *paths.Path) (b bricksindex.Brick, err error) {
 	if brickComposeFile.Exist() {
 		composeFile = brickComposeFile
 	}
-	brick.Source = "App"
+	brick.Source = LocalBrickSource
 	brick.FullPath = brickPath
 	brick.ComposeFile = composeFile
 	brick.ReadmeFile = brickPath.Join("README.md")
