@@ -79,7 +79,12 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 	for i, brickInstance := range a.Descriptor.Bricks {
 		brick, found := s.bricksIndex.WithAppBricks(a.LocalBricks).FindBrickByID(brickInstance.ID)
 		if !found {
-			return AppBrickInstancesResult{}, fmt.Errorf("brick not found with id %s", brickInstance.ID)
+			res.BrickInstances[i] = BrickInstance{
+				ID:     brickInstance.ID,
+				Name:   brickInstance.ID, // using the ID as name to avoid empty UI element
+				Status: "not_found",
+			}
+			continue
 		}
 
 		variablesMap, configVariables := getInstanceBrickConfigVariableDetails(brick, brickInstance.Variables)
@@ -439,7 +444,7 @@ func (s *Service) BrickDelete(
 	appCurrent *app.ArduinoApp,
 	id string,
 ) error {
-	if _, present := s.bricksIndex.WithAppBricks(appCurrent.LocalBricks).FindBrickByID(id); !present {
+	if slices.IndexFunc(appCurrent.Descriptor.Bricks, func(b app.Brick) bool { return b.ID == id }) == -1 {
 		return ErrBrickNotFound
 	}
 
