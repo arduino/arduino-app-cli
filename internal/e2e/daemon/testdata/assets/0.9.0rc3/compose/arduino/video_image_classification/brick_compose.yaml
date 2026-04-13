@@ -1,0 +1,19 @@
+services:
+  ei-video-classification-runner:
+    image: ${DOCKER_REGISTRY_BASE:-ghcr.io/arduino/}app-bricks/ei-models-runner:0.9.0
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"      
+    ports:
+      - ${BIND_ADDRESS:-0.0.0.0}:4912:4912  # Embedded UI port
+    volumes:
+      - "${CUSTOM_MODEL_PATH:-/home/arduino/.arduino-bricks}:${CUSTOM_MODEL_PATH:-/home/arduino/.arduino-bricks}"
+      - "/run/udev:/run/udev"
+    command: ["--model-file", "${EI_V_CLASSIFICATION_MODEL:-/models/ootb/ei/mobilenet-v2-224px.eim}", "--gst-source", "tcpserversrc host=0.0.0.0 port=5050 ! jpegdec", "--dont-print-predictions", "--preview-original-resolution"]
+    healthcheck:
+      test: [ "CMD-SHELL", "grep -i ':13BA' /proc/net/tcp | grep ' 0A ' || exit 1" ] # Hex encoding of port 5050
+      interval: 2s
+      timeout: 2s
+      retries: 25
