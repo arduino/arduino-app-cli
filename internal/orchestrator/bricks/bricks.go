@@ -77,19 +77,15 @@ func (s *Service) List() (BrickListResult, error) {
 func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesResult, error) {
 	res := AppBrickInstancesResult{BrickInstances: make([]BrickInstance, len(a.Descriptor.Bricks))}
 	for i, brickInstance := range a.Descriptor.Bricks {
-		slog.Info("searching brick", "brickID", brickInstance.ID, "appID", a.FullPath)
 		brick, found := s.bricksIndex.WithAppBricks(a.LocalBricks).FindBrickByID(brickInstance.ID)
 		if !found {
-			slog.Warn("brick not found. Skip", "brickID", brickInstance.ID, "appID", a.FullPath)
 			res.BrickInstances[i] = BrickInstance{
 				ID:     brickInstance.ID,
-				Name:   brickInstance.ID, // the name is not present because the brick is not found, but we want to return the ID to allow the user to understand which brick is missing and fix it
-				Status: "not found",
+				Name:   brickInstance.ID, // using the ID as name to avoid empty UI element
+				Status: "not_found",
 			}
 			continue
 		}
-
-		slog.Info("brick found", "brickID", brickInstance.ID, "appID", a.FullPath, "brickName", brick.Name)
 
 		variablesMap, configVariables := getInstanceBrickConfigVariableDetails(brick, brickInstance.Variables)
 
