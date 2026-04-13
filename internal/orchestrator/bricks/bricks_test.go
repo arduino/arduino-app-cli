@@ -808,7 +808,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 		validate      func(*testing.T, AppBrickInstancesResult)
 	}{
 		{
-			name: "Error - Brick not found in Index",
+			name: "Brick not found in Index",
 			app: &app.ArduinoApp{
 				Descriptor: app.AppDescriptor{
 					Bricks: []app.Brick{
@@ -816,7 +816,14 @@ func TestAppBrickInstancesList(t *testing.T) {
 					},
 				},
 			},
-			expectedError: "brick not found with id arduino:non_existent_brick",
+			validate: func(t *testing.T, res AppBrickInstancesResult) {
+				require.Len(t, res.BrickInstances, 1)
+				brick := res.BrickInstances[0]
+
+				require.Equal(t, "arduino:non_existent_brick", brick.ID)
+				require.Equal(t, "arduino:non_existent_brick", brick.Name)
+				require.Equal(t, "not_found", brick.Status)
+			},
 		},
 		{
 			name: "Success - Empty App",
