@@ -177,8 +177,14 @@ func StartApp(
 				return
 			}
 
-			if err := migration_to_platform_gt_0_54_1(ctx, platform, appToStart); err != nil {
-				slog.Warn("failed to apply migration for platform 0.55, continuing anyway", slog.String("error", err.Error()))
+			if ok, err := migration_to_platform_gt_0_54_1(ctx, platform, appToStart); err != nil {
+				if !yield(StreamMessage{data: "Failed to apply app migration for platform arduino:zephyr >0.54.1. Error: " + err.Error()}) {
+					return
+				}
+			} else if ok {
+				if !yield(StreamMessage{data: "Applied app migration for platform arduino:zephyr >0.54.1. Arduino_RouterBridge is now part of the platform and shouldn't explicit specify"}) {
+					return
+				}
 			}
 
 			if err := compileUploadSketch(ctx, platform, appToStart, sketchCallbackWriter); err != nil {
@@ -1192,7 +1198,7 @@ func compileUploadSketch(
 
 // migration_to_platform_gt_0_54_1 removes the Arduino_RouterBridge library from the sketch profile to allow automatic update of the library.
 // This is needed by the platform 0.55 will need a new Arduino_RouterBridge library to allow Serial output redirection to Monitor.
-func migration_to_platform_gt_0_54_1(ctx context.Context, platform platform.Platform, app app.ArduinoApp) error {
+func migration_to_platform_gt_0_54_1(ctx context.Context, platform platform.Platform, app app.ArduinoApp) (bool, error) {
 	getInstalledPlatformVersion := func() (*semver.Version, error) {
 		logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 		srv := commands.NewArduinoCoreServer()
@@ -1231,14 +1237,14 @@ func migration_to_platform_gt_0_54_1(ctx context.Context, platform platform.Plat
 
 	v, err := getInstalledPlatformVersion()
 	if err != nil {
-		return err
+		return false, fmt.Errorf("unable to get installed platform version: %w", err)
 	}
 	slog.Debug("Installed platform version", slog.Any("version", v.String()))
 
 	if v.GreaterThan(semver.MustParse("0.54.1")) {
 		libs, err := ListSketchLibraries(ctx, app)
 		if err != nil {
-			return fmt.Errorf("unable to list sketch libraries: %w", err)
+			return false, fmt.Errorf("unable to list sketch libraries: %w", err)
 		}
 		if slices.ContainsFunc(libs, func(lib LibraryReleaseID) bool {
 			return lib.Name == "Arduino_RouterBridge"
@@ -1246,15 +1252,15 @@ func migration_to_platform_gt_0_54_1(ctx context.Context, platform platform.Plat
 			if _, err := RemoveSketchLibrary(ctx, app, LibraryReleaseID{
 				Name: "Arduino_RouterBridge",
 			}, true); err != nil {
-				return err
+				return false, err
 			}
-			slog.Info("Applied migration for platform >0.54.1 by removing Arduino_RouterBridge library from the sketch profile")
+			return true, nil
 		} else {
-			slog.Debug("Migration for platform >0.54.1 not required, Arduino_RouterBridge library not found in the sketch profile")
+			return false, nil
 		}
 	}
 
-	return nil
+	return false, nil
 }
 
 type ConfigResponse struct {
