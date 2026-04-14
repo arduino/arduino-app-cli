@@ -203,48 +203,39 @@ const (
 	ledBrightnessTarget ledTarget = "brightness"
 )
 
-type ledTrigger string
-
 const (
-	ledTriggerNone    ledTrigger = "none"
-	ledTriggerDefault ledTrigger = "default"
+	noneTrigger    string = "none"
+	defaultTrigger string = "default"
 )
 
-func setLeds(leds paths.PathList, target ledTarget, value string) error {
-	for _, ledPath := range leds {
-		ledPath = ledPath.Join(string(target))
-		if !ledPath.Exist() {
-			return fmt.Errorf("LED path %s does not exist", ledPath)
-		}
-		if err := ledPath.WriteFile([]byte(value)); err != nil {
-			return fmt.Errorf("failed to set LED %s to %s: %w", ledPath, target, err)
-		}
+func setLeds(ledPath *paths.Path, target ledTarget, value string) error {
+	ledPath = ledPath.Join(string(target))
+	if !ledPath.Exist() {
+		return fmt.Errorf("LED path %s does not exist", ledPath)
+	}
+	if err := ledPath.WriteFile([]byte(value)); err != nil {
+		return fmt.Errorf("failed to set LED %s to %s: %w", ledPath, target, err)
 	}
 	return nil
 }
 
 func setLedsToUserControlledMode(platform platform.Platform) error {
-	if err := setLeds(platform.Linux.StatusLeds, ledTriggerTarget, string(ledTriggerNone)); err != nil {
-		return err
-	}
-	if err := setLeds(platform.Linux.UserLeds, ledTriggerTarget, string(ledTriggerNone)); err != nil {
-		return err
+	for _, led := range slices.Concat(platform.Linux.StatusLeds, platform.Linux.UserLeds) {
+		if err := setLeds(led, ledTriggerTarget, noneTrigger); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func restoreLedsState(platform platform.Platform) error {
-	if err := setLeds(platform.Linux.StatusLeds, ledBrightnessTarget, string("0")); err != nil {
-		return err
-	}
-	if err := setLeds(platform.Linux.UserLeds, ledBrightnessTarget, string("0")); err != nil {
-		return err
-	}
-	if err := setLeds(platform.Linux.StatusLeds, ledTriggerTarget, string(ledTriggerDefault)); err != nil {
-		return err
-	}
-	if err := setLeds(platform.Linux.UserLeds, ledTriggerTarget, string(ledTriggerDefault)); err != nil {
-		return err
+	for _, led := range slices.Concat(platform.Linux.StatusLeds, platform.Linux.UserLeds) {
+		if err := setLeds(led, ledBrightnessTarget, string("0")); err != nil {
+			return err
+		}
+		if err := setLeds(led, ledTriggerTarget, defaultTrigger); err != nil {
+			return err
+		}
 	}
 	return nil
 }
