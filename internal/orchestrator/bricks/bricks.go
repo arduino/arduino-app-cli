@@ -444,7 +444,7 @@ func (s *Service) BrickDelete(
 	appCurrent *app.ArduinoApp,
 	id string,
 ) error {
-	if !slices.ContainFunc(appCurrent.Descriptor.Bricks, func(b app.Brick) bool { return b.ID == id }) {
+	if !slices.ContainsFunc(appCurrent.Descriptor.Bricks, func(b app.Brick) bool { return b.ID == id }) {
 		return ErrBrickNotFound
 	}
 
