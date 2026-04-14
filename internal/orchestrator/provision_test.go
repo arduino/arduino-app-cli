@@ -81,14 +81,12 @@ bricks:
   name: Database Storage - SQLStore
   description: Simplified database storage layer for Arduino sensor data using SQLite
     local database.
-  require_container: false
   require_model: false
   ports: []
   category: storage
 - id: arduino:video_object_detection
   name: Object Detection
   description: "Brick for object detection using a pre-trained model."
-  require_container: true
   require_model: true
   mount_devices_into_container: true
   ports: []
@@ -338,7 +336,6 @@ bricks:
   name: Database Storage - Time Series Store
   description: Simplified time series database storage layer for Arduino sensor samples
     built on top of InfluxDB.
-  require_container: true
   require_model: false
   ports: []
   category: storage
@@ -509,7 +506,6 @@ bricks:
   name: Database Storage - Time Series Store
   description: Simplified time series database storage layer for Arduino sensor samples
     built on top of InfluxDB.
-  require_container: true
   require_model: false
   ports: []
   category: storage
@@ -664,7 +660,6 @@ bricks:
 - id: arduino:video_object_detection
   name: Object Detection
   description: "Brick for object detection using a pre-trained model."
-  require_container: false
   require_model: false
   ports: []
   category: video

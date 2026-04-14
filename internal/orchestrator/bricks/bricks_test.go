@@ -389,7 +389,6 @@ bricks:
 - id: arduino:object_detection
   name: Object Detection
   description: Detect objects in images using a pre-trained model
-  require_container: true
   require_model: true
   mount_devices_into_container: true
   ports: ["8000"]

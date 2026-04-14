@@ -213,7 +213,6 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
   name: Complex Brick
   description: A complex test brick
   category: storage
-  require_container: true
   require_model: true
   mount_devices_into_container: true
   model_name: a-complex-model
@@ -236,7 +235,6 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 					Description:               "A complex test brick",
 					Category:                  "storage",
 					RequiresDisplay:           "",
-					RequireContainer:          true,
 					RequireModel:              true,
 					RequiredDevices:           []peripherals.DeviceClass{peripherals.CameraClass},
 					MountDevicesIntoContainer: true,
