@@ -257,12 +257,6 @@ func generateMainComposeFile(
 			brickServices[id] = *idxService
 		}
 
-		// The following code is needed only if the brick requires a container.
-		// In case it doesn't we just skip to the next one.
-		if !idxBrick.RequireContainer {
-			continue
-		}
-
 		// 3. Retrieve the brick_compose.yaml file.
 		composeFilePath, ok := idxBrick.GetComposeFile()
 		if !ok {
@@ -274,6 +268,10 @@ func generateMainComposeFile(
 		svcs, err := extractServicesFromComposeFile(composeFilePath)
 		if err != nil {
 			slog.Error("loading brick_compose", slog.String("brick_id", brick.ID), slog.String("path", composeFilePath.String()), slog.Any("error", err))
+			continue
+		}
+
+		if len(svcs) == 0 {
 			continue
 		}
 
