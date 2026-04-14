@@ -209,8 +209,8 @@ tasks:
           esac)
           TMP_PATH="$(mktemp -d)"
 
-          echo "Cloning examples into temporary directory ${TMP_PATH}..."
-          git clone --depth 1 https://github.com/arduino/app-bricks-examples.git "${TMP_PATH}"
+            echo "Cloning examples into temporary directory ${TMP_PATH}..."
+            git clone --depth 1 https://github.com/arduino/app-bricks-examples.git "${TMP_PATH}"
 
           echo "Installing examples to ${DEST_PATH}examples"
           rm -rf "${DEST_PATH}examples"

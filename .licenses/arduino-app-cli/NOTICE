@@ -5807,7 +5807,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 *****
-github.com/ProtonMail/go-crypto/bitcurves@v1.3.0
+github.com/ProtonMail/go-crypto/bitcurves@v1.4.1
 
 Copyright (c) 2009 The Go Authors. All rights reserved.
 
@@ -5863,7 +5863,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-github.com/ProtonMail/go-crypto/brainpool@v1.3.0
+github.com/ProtonMail/go-crypto/brainpool@v1.4.1
 
 Copyright (c) 2009 The Go Authors. All rights reserved.
 
@@ -5919,7 +5919,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-github.com/ProtonMail/go-crypto/eax@v1.3.0
+github.com/ProtonMail/go-crypto/eax@v1.4.1
 
 Copyright (c) 2009 The Go Authors. All rights reserved.
 
@@ -5975,7 +5975,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-github.com/ProtonMail/go-crypto/internal/byteutil@v1.3.0
+github.com/ProtonMail/go-crypto/internal/byteutil@v1.4.1
 
 Copyright (c) 2009 The Go Authors. All rights reserved.
 
@@ -6031,7 +6031,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-github.com/ProtonMail/go-crypto/ocb@v1.3.0
+github.com/ProtonMail/go-crypto/ocb@v1.4.1
 
 Copyright (c) 2009 The Go Authors. All rights reserved.
 
@@ -6087,7 +6087,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-github.com/ProtonMail/go-crypto/openpgp@v1.3.0
+github.com/ProtonMail/go-crypto/openpgp@v1.4.1
 
 Copyright (c) 2009 The Go Authors. All rights reserved.
 
@@ -6143,7 +6143,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-github.com/ProtonMail/go-crypto/openpgp/aes/keywrap@v1.3.0
+github.com/ProtonMail/go-crypto/openpgp/aes/keywrap@v1.4.1
 
 Copyright (c) 2009 The Go Authors. All rights reserved.
 
@@ -6199,7 +6199,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-github.com/ProtonMail/go-crypto/openpgp/armor@v1.3.0
+github.com/ProtonMail/go-crypto/openpgp/armor@v1.4.1
 
 Copyright (c) 2009 The Go Authors. All rights reserved.
 
@@ -6255,7 +6255,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-github.com/ProtonMail/go-crypto/openpgp/ecdh@v1.3.0
+github.com/ProtonMail/go-crypto/openpgp/ecdh@v1.4.1
 
 Copyright (c) 2009 The Go Authors. All rights reserved.
 
@@ -6311,7 +6311,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-github.com/ProtonMail/go-crypto/openpgp/ecdsa@v1.3.0
+github.com/ProtonMail/go-crypto/openpgp/ecdsa@v1.4.1
 
 Copyright (c) 2009 The Go Authors. All rights reserved.
 
@@ -6367,7 +6367,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-github.com/ProtonMail/go-crypto/openpgp/ed25519@v1.3.0
+github.com/ProtonMail/go-crypto/openpgp/ed25519@v1.4.1
 
 Copyright (c) 2009 The Go Authors. All rights reserved.
 
@@ -6423,7 +6423,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-github.com/ProtonMail/go-crypto/openpgp/ed448@v1.3.0
+github.com/ProtonMail/go-crypto/openpgp/ed448@v1.4.1
 
 Copyright (c) 2009 The Go Authors. All rights reserved.
 
@@ -6479,7 +6479,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-github.com/ProtonMail/go-crypto/openpgp/eddsa@v1.3.0
+github.com/ProtonMail/go-crypto/openpgp/eddsa@v1.4.1
 
 Copyright (c) 2009 The Go Authors. All rights reserved.
 
@@ -6535,7 +6535,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-github.com/ProtonMail/go-crypto/openpgp/elgamal@v1.3.0
+github.com/ProtonMail/go-crypto/openpgp/elgamal@v1.4.1
 
 Copyright (c) 2009 The Go Authors. All rights reserved.
 
@@ -6591,7 +6591,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-github.com/ProtonMail/go-crypto/openpgp/errors@v1.3.0
+github.com/ProtonMail/go-crypto/openpgp/errors@v1.4.1
 
 Copyright (c) 2009 The Go Authors. All rights reserved.
 
@@ -6647,7 +6647,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-github.com/ProtonMail/go-crypto/openpgp/internal/algorithm@v1.3.0
+github.com/ProtonMail/go-crypto/openpgp/internal/algorithm@v1.4.1
 
 Copyright (c) 2009 The Go Authors. All rights reserved.
 
@@ -6703,7 +6703,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-github.com/ProtonMail/go-crypto/openpgp/internal/ecc@v1.3.0
+github.com/ProtonMail/go-crypto/openpgp/internal/ecc@v1.4.1
 
 Copyright (c) 2009 The Go Authors. All rights reserved.
 
@@ -6759,7 +6759,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-github.com/ProtonMail/go-crypto/openpgp/internal/encoding@v1.3.0
+github.com/ProtonMail/go-crypto/openpgp/internal/encoding@v1.4.1
 
 Copyright (c) 2009 The Go Authors. All rights reserved.
 
@@ -6815,7 +6815,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-github.com/ProtonMail/go-crypto/openpgp/packet@v1.3.0
+github.com/ProtonMail/go-crypto/openpgp/packet@v1.4.1
 
 Copyright (c) 2009 The Go Authors. All rights reserved.
 
@@ -6871,7 +6871,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-github.com/ProtonMail/go-crypto/openpgp/s2k@v1.3.0
+github.com/ProtonMail/go-crypto/openpgp/s2k@v1.4.1
 
 Copyright (c) 2009 The Go Authors. All rights reserved.
 
@@ -6927,7 +6927,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-github.com/ProtonMail/go-crypto/openpgp/x25519@v1.3.0
+github.com/ProtonMail/go-crypto/openpgp/x25519@v1.4.1
 
 Copyright (c) 2009 The Go Authors. All rights reserved.
 
@@ -6983,7 +6983,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-github.com/ProtonMail/go-crypto/openpgp/x448@v1.3.0
+github.com/ProtonMail/go-crypto/openpgp/x448@v1.4.1
 
 Copyright (c) 2009 The Go Authors. All rights reserved.
 
@@ -100150,7 +100150,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 *****
-github.com/go-git/go-billy/v5@v5.7.0
+github.com/go-git/go-billy/v5@v5.8.0
 
 Apache License
                            Version 2.0, January 2004
@@ -100359,7 +100359,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-billy/v5/helper/chroot@v5.7.0
+github.com/go-git/go-billy/v5/helper/chroot@v5.8.0
 
 Apache License
                            Version 2.0, January 2004
@@ -100568,7 +100568,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-billy/v5/helper/polyfill@v5.7.0
+github.com/go-git/go-billy/v5/helper/polyfill@v5.8.0
 
 Apache License
                            Version 2.0, January 2004
@@ -100777,7 +100777,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-billy/v5/osfs@v5.7.0
+github.com/go-git/go-billy/v5/osfs@v5.8.0
 
 Apache License
                            Version 2.0, January 2004
@@ -100986,7 +100986,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-billy/v5/util@v5.7.0
+github.com/go-git/go-billy/v5/util@v5.8.0
 
 Apache License
                            Version 2.0, January 2004
@@ -101195,7 +101195,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5@v5.16.5
+github.com/go-git/go-git/v5@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -101404,7 +101404,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/config@v5.16.5
+github.com/go-git/go-git/v5/config@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -101613,7 +101613,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/internal/path_util@v5.16.5
+github.com/go-git/go-git/v5/internal/path_util@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -101822,7 +101822,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/internal/revision@v5.16.5
+github.com/go-git/go-git/v5/internal/revision@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -102031,7 +102031,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/internal/url@v5.16.5
+github.com/go-git/go-git/v5/internal/url@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -102240,7 +102240,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing@v5.16.5
+github.com/go-git/go-git/v5/plumbing@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -102449,7 +102449,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/cache@v5.16.5
+github.com/go-git/go-git/v5/plumbing/cache@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -102658,7 +102658,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/color@v5.16.5
+github.com/go-git/go-git/v5/plumbing/color@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -102867,7 +102867,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/filemode@v5.16.5
+github.com/go-git/go-git/v5/plumbing/filemode@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -103076,7 +103076,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/format/config@v5.16.5
+github.com/go-git/go-git/v5/plumbing/format/config@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -103285,7 +103285,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/format/diff@v5.16.5
+github.com/go-git/go-git/v5/plumbing/format/diff@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -103494,7 +103494,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/format/gitignore@v5.16.5
+github.com/go-git/go-git/v5/plumbing/format/gitignore@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -103703,7 +103703,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/format/idxfile@v5.16.5
+github.com/go-git/go-git/v5/plumbing/format/idxfile@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -103912,7 +103912,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/format/index@v5.16.5
+github.com/go-git/go-git/v5/plumbing/format/index@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -104121,7 +104121,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/format/objfile@v5.16.5
+github.com/go-git/go-git/v5/plumbing/format/objfile@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -104330,7 +104330,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/format/packfile@v5.16.5
+github.com/go-git/go-git/v5/plumbing/format/packfile@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -104539,7 +104539,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/format/pktline@v5.16.5
+github.com/go-git/go-git/v5/plumbing/format/pktline@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -104748,7 +104748,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/hash@v5.16.5
+github.com/go-git/go-git/v5/plumbing/hash@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -104957,7 +104957,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/object@v5.16.5
+github.com/go-git/go-git/v5/plumbing/object@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -105166,7 +105166,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/protocol/packp@v5.16.5
+github.com/go-git/go-git/v5/plumbing/protocol/packp@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -105375,7 +105375,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/protocol/packp/capability@v5.16.5
+github.com/go-git/go-git/v5/plumbing/protocol/packp/capability@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -105584,7 +105584,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/protocol/packp/sideband@v5.16.5
+github.com/go-git/go-git/v5/plumbing/protocol/packp/sideband@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -105793,7 +105793,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/revlist@v5.16.5
+github.com/go-git/go-git/v5/plumbing/revlist@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -106002,7 +106002,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/storer@v5.16.5
+github.com/go-git/go-git/v5/plumbing/storer@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -106211,7 +106211,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/transport@v5.16.5
+github.com/go-git/go-git/v5/plumbing/transport@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -106420,7 +106420,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/transport/client@v5.16.5
+github.com/go-git/go-git/v5/plumbing/transport/client@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -106629,7 +106629,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/transport/file@v5.16.5
+github.com/go-git/go-git/v5/plumbing/transport/file@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -106838,7 +106838,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/transport/git@v5.16.5
+github.com/go-git/go-git/v5/plumbing/transport/git@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -107047,7 +107047,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/transport/http@v5.16.5
+github.com/go-git/go-git/v5/plumbing/transport/http@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -107256,7 +107256,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/transport/internal/common@v5.16.5
+github.com/go-git/go-git/v5/plumbing/transport/internal/common@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -107465,7 +107465,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/transport/server@v5.16.5
+github.com/go-git/go-git/v5/plumbing/transport/server@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -107674,7 +107674,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/plumbing/transport/ssh@v5.16.5
+github.com/go-git/go-git/v5/plumbing/transport/ssh@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -107883,7 +107883,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/storage@v5.16.5
+github.com/go-git/go-git/v5/storage@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -108092,7 +108092,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/storage/filesystem@v5.16.5
+github.com/go-git/go-git/v5/storage/filesystem@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -108301,7 +108301,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/storage/filesystem/dotgit@v5.16.5
+github.com/go-git/go-git/v5/storage/filesystem/dotgit@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -108510,7 +108510,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/storage/memory@v5.16.5
+github.com/go-git/go-git/v5/storage/memory@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -108719,7 +108719,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/utils/binary@v5.16.5
+github.com/go-git/go-git/v5/utils/binary@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -108928,7 +108928,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/utils/diff@v5.16.5
+github.com/go-git/go-git/v5/utils/diff@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -109137,7 +109137,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/utils/ioutil@v5.16.5
+github.com/go-git/go-git/v5/utils/ioutil@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -109346,7 +109346,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/utils/merkletrie@v5.16.5
+github.com/go-git/go-git/v5/utils/merkletrie@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -109555,7 +109555,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/utils/merkletrie/filesystem@v5.16.5
+github.com/go-git/go-git/v5/utils/merkletrie/filesystem@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -109764,7 +109764,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/utils/merkletrie/index@v5.16.5
+github.com/go-git/go-git/v5/utils/merkletrie/index@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -109973,7 +109973,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/utils/merkletrie/internal/frame@v5.16.5
+github.com/go-git/go-git/v5/utils/merkletrie/internal/frame@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -110182,7 +110182,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/utils/merkletrie/noder@v5.16.5
+github.com/go-git/go-git/v5/utils/merkletrie/noder@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -110391,7 +110391,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/utils/sync@v5.16.5
+github.com/go-git/go-git/v5/utils/sync@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -110600,7 +110600,7 @@ Apache License
 Apache License Version 2.0, see [LICENSE](LICENSE)
 
 *****
-github.com/go-git/go-git/v5/utils/trace@v5.16.5
+github.com/go-git/go-git/v5/utils/trace@v5.17.0
 
 Apache License
                            Version 2.0, January 2004
@@ -125856,7 +125856,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 *****
-github.com/marcinbor85/gohex@v0.0.0-20210308104911-55fb1c624d84
+github.com/marcinbor85/gohex@v0.1.0
 
 MIT License
 
@@ -176476,7 +176476,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 *****
-golang.org/x/sync/errgroup@v0.19.0
+golang.org/x/sync/errgroup@v0.20.0
 
 Copyright 2009 The Go Authors.
 
@@ -176532,7 +176532,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/sync/semaphore@v0.19.0
+golang.org/x/sync/semaphore@v0.20.0
 
 Copyright 2009 The Go Authors.
 
@@ -176588,7 +176588,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/sys/execabs@v0.41.0
+golang.org/x/sys/execabs@v0.42.0
 
 Copyright 2009 The Go Authors.
 
@@ -176644,7 +176644,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/sys/unix@v0.41.0
+golang.org/x/sys/unix@v0.42.0
 
 Copyright 2009 The Go Authors.
 
@@ -176700,7 +176700,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/term@v0.40.0
+golang.org/x/term@v0.41.0
 
 Copyright 2009 The Go Authors.
 
@@ -176756,7 +176756,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/text/cases@v0.34.0
+golang.org/x/text/cases@v0.35.0
 
 Copyright 2009 The Go Authors.
 
@@ -176812,7 +176812,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/text/encoding@v0.34.0
+golang.org/x/text/encoding@v0.35.0
 
 Copyright 2009 The Go Authors.
 
@@ -176868,7 +176868,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/text/encoding/internal@v0.34.0
+golang.org/x/text/encoding/internal@v0.35.0
 
 Copyright 2009 The Go Authors.
 
@@ -176924,7 +176924,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/text/encoding/internal/identifier@v0.34.0
+golang.org/x/text/encoding/internal/identifier@v0.35.0
 
 Copyright 2009 The Go Authors.
 
@@ -176980,7 +176980,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/text/encoding/unicode@v0.34.0
+golang.org/x/text/encoding/unicode@v0.35.0
 
 Copyright 2009 The Go Authors.
 
@@ -177036,7 +177036,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/text/feature/plural@v0.34.0
+golang.org/x/text/feature/plural@v0.35.0
 
 Copyright 2009 The Go Authors.
 
@@ -177092,7 +177092,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/text/internal@v0.34.0
+golang.org/x/text/internal@v0.35.0
 
 Copyright 2009 The Go Authors.
 
@@ -177148,7 +177148,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/text/internal/catmsg@v0.34.0
+golang.org/x/text/internal/catmsg@v0.35.0
 
 Copyright 2009 The Go Authors.
 
@@ -177204,7 +177204,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/text/internal/format@v0.34.0
+golang.org/x/text/internal/format@v0.35.0
 
 Copyright 2009 The Go Authors.
 
@@ -177260,7 +177260,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/text/internal/language@v0.34.0
+golang.org/x/text/internal/language@v0.35.0
 
 Copyright 2009 The Go Authors.
 
@@ -177316,7 +177316,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/text/internal/language/compact@v0.34.0
+golang.org/x/text/internal/language/compact@v0.35.0
 
 Copyright 2009 The Go Authors.
 
@@ -177372,7 +177372,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/text/internal/number@v0.34.0
+golang.org/x/text/internal/number@v0.35.0
 
 Copyright 2009 The Go Authors.
 
@@ -177428,7 +177428,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/text/internal/stringset@v0.34.0
+golang.org/x/text/internal/stringset@v0.35.0
 
 Copyright 2009 The Go Authors.
 
@@ -177484,7 +177484,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/text/internal/tag@v0.34.0
+golang.org/x/text/internal/tag@v0.35.0
 
 Copyright 2009 The Go Authors.
 
@@ -177540,7 +177540,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/text/internal/utf8internal@v0.34.0
+golang.org/x/text/internal/utf8internal@v0.35.0
 
 Copyright 2009 The Go Authors.
 
@@ -177596,7 +177596,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/text/language@v0.34.0
+golang.org/x/text/language@v0.35.0
 
 Copyright 2009 The Go Authors.
 
@@ -177652,7 +177652,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/text/message@v0.34.0
+golang.org/x/text/message@v0.35.0
 
 Copyright 2009 The Go Authors.
 
@@ -177708,7 +177708,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/text/message/catalog@v0.34.0
+golang.org/x/text/message/catalog@v0.35.0
 
 Copyright 2009 The Go Authors.
 
@@ -177764,7 +177764,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/text/runes@v0.34.0
+golang.org/x/text/runes@v0.35.0
 
 Copyright 2009 The Go Authors.
 
@@ -177820,7 +177820,7 @@ rights granted to you under this License for this implementation of Go
 shall terminate as of the date such litigation is filed.
 
 *****
-golang.org/x/text/width@v0.34.0
+golang.org/x/text/width@v0.35.0
 
 Copyright 2009 The Go Authors.
 
