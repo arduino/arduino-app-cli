@@ -85,6 +85,7 @@ type Brick struct {
 	SupportedBoards           []string                  `yaml:"supported_boards,omitempty"`
 	Category                  string                    `yaml:"category,omitempty"`
 	RequiresDisplay           string                    `yaml:"requires_display,omitempty"`
+    // Deprecated
 	RequireContainer          bool                      `yaml:"require_container"` // Deprecated
 	RequireModel              bool                      `yaml:"require_model"`
 	Variables                 []BrickVariable           `yaml:"variables,omitempty"`
