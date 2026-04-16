@@ -46,15 +46,15 @@ func Init(cfg config.Configuration) {
 
 var (
 	GetBricksIndex = sync.OnceValue(func() *bricksindex.BricksIndex {
-		return f.Must(bricksindex.Load(GetStaticStore().GetAssetsFolder()))
+		return f.Must(bricksindex.Load(GetPlatform(), GetStaticStore().GetAssetsFolder()))
 	})
 
 	GetModelsIndex = sync.OnceValue(func() *modelsindex.ModelsIndex {
-		return f.Must(modelsindex.Load(GetStaticStore().GetAssetsFolder(), globalConfig.CustomModelsDir()))
+		return f.Must(modelsindex.Load(GetPlatform(), GetStaticStore().GetAssetsFolder(), globalConfig.CustomModelsDir()))
 	})
 
 	GetServicesIndex = sync.OnceValue(func() *servicesindex.ServicesIndex {
-		return f.Must(servicesindex.Load(GetStaticStore().GetServicesFolder()))
+		return f.Must(servicesindex.Load(GetPlatform(), GetStaticStore().GetServicesFolder()))
 	})
 
 	GetProvisioner = sync.OnceValue(func() *orchestrator.Provision {

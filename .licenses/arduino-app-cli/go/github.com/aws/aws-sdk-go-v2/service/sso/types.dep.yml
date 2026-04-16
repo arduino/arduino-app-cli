@@ -1,12 +1,12 @@
 ---
 name: github.com/aws/aws-sdk-go-v2/service/sso/types
-version: v1.30.8
+version: v1.30.13
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/sso/types
 license: apache-2.0
 licenses:
-- sources: sso@v1.30.8/LICENSE.txt
+- sources: sso@v1.30.13/LICENSE.txt
   text: |2
 
                                      Apache License

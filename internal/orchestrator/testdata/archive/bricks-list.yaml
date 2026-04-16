@@ -3,7 +3,6 @@ bricks:
   name: Database - SQL
   description: Simplified database storage layer for Arduino sensor data using SQLite
     local database.
-  require_container: false
   require_model: false
   mount_devices_into_container: false
   ports: []
@@ -22,7 +21,6 @@ bricks:
     models trained on the Edge Impulse platform.
 
     '
-  require_container: true
   require_model: true
   mount_devices_into_container: true
   ports: []
@@ -50,7 +48,6 @@ bricks:
 - id: arduino:arduino_cloud
   name: Arduino Cloud
   description: Connects to Arduino Cloud
-  require_container: false
   require_model: false
   mount_devices_into_container: false
   ports: []
@@ -66,7 +63,6 @@ bricks:
   name: WebUI - HTML
   description: A user interface based on HTML and JavaScript that can rely on additional
     APIs and a WebSocket exposed by a web server.
-  require_container: false
   require_model: false
   mount_devices_into_container: false
   ports:
@@ -77,7 +73,6 @@ bricks:
   name: Cloud LLM
   description: Cloud LLM Brick enables seamless integration with cloud-based Large
     Language Models (LLMs) for advanced AI capabilities in your Arduino projects.
-  require_container: false
   require_model: false
   mount_devices_into_container: false
   ports: []
@@ -98,7 +93,6 @@ bricks:
     own custom anomaly detections models trained on the Edge Impulse platform.
 
     '
-  require_container: true
   require_model: true
   mount_devices_into_container: false
   ports: []
@@ -132,7 +126,6 @@ bricks:
     models trained on the Edge Impulse platform.
 
     '
-  require_container: true
   require_model: true
   mount_devices_into_container: true
   ports: []
@@ -160,7 +153,6 @@ bricks:
 - id: arduino:streamlit_ui
   name: WebUI - Streamlit
   description: A simplified user interface based on Streamlit and Python.
-  require_container: false
   require_model: false
   mount_devices_into_container: false
   ports:
@@ -176,7 +168,6 @@ bricks:
     custom audio classification models trained on Edge Impulse platform.
 
     '
-  require_container: true
   require_model: true
   mount_devices_into_container: false
   ports: []
@@ -208,7 +199,6 @@ bricks:
     custom motion classification models trained on the Edge Impulse platform.
 
     '
-  require_container: true
   require_model: true
   mount_devices_into_container: false
   ports: []
@@ -231,7 +221,6 @@ bricks:
   name: Database - Time Series
   description: Simplified time series database storage layer for Arduino sensor samples
     built on top of InfluxDB.
-  require_container: true
   require_model: false
   mount_devices_into_container: false
   ports: []
@@ -257,7 +246,6 @@ bricks:
   name: Weather Forecast
   description: Online weather forecast module for Arduino using open-meteo.com geolocation
     and weather APIs. Requires an internet connection.
-  require_container: false
   require_model: false
   mount_devices_into_container: false
   ports: []
@@ -268,7 +256,6 @@ bricks:
     \ images to identify unusual patterns and returns detected anomalies with bounding\
     \ boxes. \nSupports pre-trained models provided by the framework or custom anomaly\
     \ detection models trained on the Edge Impulse platform. \n"
-  require_container: true
   require_model: true
   mount_devices_into_container: false
   ports: []
@@ -293,7 +280,6 @@ bricks:
     \ images and returns the predicted class label, bounding-boxes and confidence\
     \ score.\nBrick is designed to work with pre-trained models provided by framework\
     \ or with custom object detection models trained on Edge Impulse platform. \n"
-  require_container: true
   require_model: true
   mount_devices_into_container: false
   ports: []
@@ -316,7 +302,6 @@ bricks:
   name: Wave Generator
   description: Continuous wave generator for audio synthesis. Generates sine, square,
     sawtooth, and triangle waveforms with smooth frequency and amplitude transitions.
-  require_container: false
   require_model: false
   mount_devices_into_container: false
   ports: []
@@ -330,7 +315,6 @@ bricks:
     It classifies text as positive, negative, or neutral.
 
     '
-  require_container: false
   require_model: false
   mount_devices_into_container: false
   ports: []
@@ -341,7 +325,6 @@ bricks:
     \ images and returns the predicted class label and confidence score.\nBrick is\
     \ designed to work with pre-trained models provided by framework or with custom\
     \ image classification models trained on Edge Impulse platform. \n"
-  require_container: true
   require_model: true
   mount_devices_into_container: false
   ports: []
@@ -363,7 +346,6 @@ bricks:
 - id: arduino:camera_code_detection
   name: Camera Code Detection
   description: Scans a camera for barcodes and QR codes
-  require_container: false
   require_model: false
   mount_devices_into_container: false
   ports: []
@@ -379,7 +361,6 @@ bricks:
     custom audio classification models trained on Edge Impulse platform.
 
     '
-  require_container: true
   require_model: true
   mount_devices_into_container: false
   ports: []

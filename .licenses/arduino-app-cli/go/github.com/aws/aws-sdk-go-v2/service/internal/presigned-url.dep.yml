@@ -1,6 +1,6 @@
 ---
 name: github.com/aws/aws-sdk-go-v2/service/internal/presigned-url
-version: v1.13.16
+version: v1.13.21
 type: go
 summary: Package presignedurl provides the customizations for API clients to fill
   in presigned URLs into input parameters.

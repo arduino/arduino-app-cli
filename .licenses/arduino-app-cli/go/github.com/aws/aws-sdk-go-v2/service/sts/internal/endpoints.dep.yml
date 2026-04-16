@@ -1,12 +1,12 @@
 ---
 name: github.com/aws/aws-sdk-go-v2/service/sts/internal/endpoints
-version: v1.41.5
+version: v1.41.9
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/sts/internal/endpoints
 license: apache-2.0
 licenses:
-- sources: sts@v1.41.5/LICENSE.txt
+- sources: sts@v1.41.9/LICENSE.txt
   text: |2
 
                                      Apache License

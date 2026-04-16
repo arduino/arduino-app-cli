@@ -181,7 +181,11 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 	}
 
 	if runningAppReference != nil {
-		StopApp(ctx, dockerClient, platform, *runningAppReference)
+		for message := range StopApp(ctx, dockerClient, platform, *runningAppReference) {
+			if message.GetType() == ErrorType {
+				slog.Warn("Error while stopping the app using the model", "app", runningAppReference.Name, "error", message.GetError())
+			}
+		}
 	}
 
 	if res.ModelFolderPath == nil {

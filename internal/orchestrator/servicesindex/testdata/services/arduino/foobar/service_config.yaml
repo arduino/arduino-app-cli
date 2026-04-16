@@ -1,0 +1,6 @@
+service_id: arduino:foobar
+name: Foobar Service
+description: |
+  This is a sample Foobar service used for testing purposes.
+category: test
+supported_boards: ["foo","bar"]

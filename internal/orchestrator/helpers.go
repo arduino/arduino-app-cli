@@ -21,9 +21,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 
+	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
@@ -213,5 +215,41 @@ func setStatusLeds(platform platform.Platform, trigger LedTrigger) error {
 			return fmt.Errorf("failed to set LED %s to %s: %w", ledPath, trigger, err)
 		}
 	}
+	return nil
+}
+
+func SetArduinoCliConfig(ctx context.Context, cli rpc.ArduinoCoreServiceServer) error {
+	if _, err := cli.SettingsSetValue(ctx, &rpc.SettingsSetValueRequest{
+		Key:          "network.connection_timeout",
+		EncodedValue: "600s",
+		ValueFormat:  "cli",
+	}); err != nil {
+		return err
+	}
+
+	// Set the data dir if specified via the ARDUINO_DIRECTORIES_DATA env var
+	if dataDir, ok := os.LookupEnv("ARDUINO_DIRECTORIES_DATA"); ok {
+		_, err := cli.SettingsSetValue(ctx, &rpc.SettingsSetValueRequest{
+			Key:          "directories.data",
+			EncodedValue: dataDir,
+			ValueFormat:  "cli",
+		})
+		if err != nil {
+			return fmt.Errorf("could not set data directory: %w", err)
+		}
+	}
+
+	// Set the additional urls via ARDUINO_BOARD_MANAGER_ADDITIONAL_URLS env var
+	if urls, ok := os.LookupEnv("ARDUINO_BOARD_MANAGER_ADDITIONAL_URLS"); ok {
+		_, err := cli.SettingsSetValue(ctx, &rpc.SettingsSetValueRequest{
+			Key:          "board_manager.additional_urls",
+			EncodedValue: urls,
+			ValueFormat:  "cli",
+		})
+		if err != nil {
+			return fmt.Errorf("could not set additional urls: %w", err)
+		}
+	}
+
 	return nil
 }

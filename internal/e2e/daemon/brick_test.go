@@ -32,6 +32,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
@@ -72,7 +73,7 @@ func TestBricksList(t *testing.T) {
 	require.NotEmpty(t, response.JSON200.Bricks)
 
 	staticStore := store.NewStaticStore(paths.New("testdata", "assets", config.RunnerVersion).String())
-	brickIndex, err := bricksindex.Load(staticStore.GetAssetsFolder())
+	brickIndex, err := bricksindex.Load(platform.GetPlatform(nil), staticStore.GetAssetsFolder())
 	require.NoError(t, err)
 
 	// Compare the response with the bricks index

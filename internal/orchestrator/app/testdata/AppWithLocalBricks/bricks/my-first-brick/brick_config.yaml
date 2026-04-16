@@ -1,4 +1,3 @@
 id: my-first-brick
 name: My First Brick
 description: "This is my first brick"
-require_container: true

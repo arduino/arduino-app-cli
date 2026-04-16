@@ -127,11 +127,7 @@ func (o MenuOptions) Has(optionValue MenuOptionValue) bool {
 func GetPlatformMenuOptions(ctx context.Context, platform platform.Platform) (MenuOptions, error) {
 	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 	srv := commands.NewArduinoCoreServer()
-	if _, err := srv.SettingsSetValue(ctx, &rpc.SettingsSetValueRequest{
-		Key:          "network.connection_timeout",
-		EncodedValue: "600s",
-		ValueFormat:  "cli",
-	}); err != nil {
+	if err := SetArduinoCliConfig(ctx, srv); err != nil {
 		return MenuOptions{}, err
 	}
 

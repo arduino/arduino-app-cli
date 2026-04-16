@@ -1,6 +1,6 @@
 ---
 name: github.com/aws/aws-sdk-go-v2/service/signin
-version: v1.0.4
+version: v1.0.8
 type: go
 summary: Package signin provides the API client, operations, and parameter types for
   AWS Sign-In Service.

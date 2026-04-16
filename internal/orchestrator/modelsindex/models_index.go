@@ -23,6 +23,7 @@ import (
 	"slices"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/goccy/go-yaml"
@@ -59,6 +60,7 @@ type AIModel struct {
 	ModelLabels       []string          `yaml:"model_labels,omitempty"`
 	Metadata          map[string]string `yaml:"metadata,omitempty"`
 	IsInternal        bool              `yaml:"-"`
+	SupportedBoards   []string          `yaml:"supported_boards,omitempty"`
 }
 
 type BrickConfig struct {
@@ -115,7 +117,7 @@ func (m *ModelsIndex) loadModels() []AIModel {
 	return append(m.InternalModels, eimodels...)
 }
 
-func Load(dir *paths.Path, modelsDir *paths.Path) (*ModelsIndex, error) {
+func Load(platform platform.Platform, dir *paths.Path, modelsDir *paths.Path) (*ModelsIndex, error) {
 	if dir == nil && modelsDir == nil {
 		return &ModelsIndex{}, errors.New("either dir or modelsDir must be provided")
 	}
@@ -123,6 +125,12 @@ func Load(dir *paths.Path, modelsDir *paths.Path) (*ModelsIndex, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	models = slices.DeleteFunc(models, func(model AIModel) bool {
+		return platform.BoardName != "" &&
+			len(model.SupportedBoards) != 0 &&
+			!slices.Contains(model.SupportedBoards, platform.BoardName)
+	})
 
 	return &ModelsIndex{InternalModels: models, modelsDir: modelsDir}, nil
 }

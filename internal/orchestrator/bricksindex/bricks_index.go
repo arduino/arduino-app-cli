@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"log/slog"
 	"os"
 	"slices"
 	"strings"
@@ -30,6 +31,7 @@ import (
 	yaml "github.com/goccy/go-yaml"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 type BricksIndex struct {
@@ -77,12 +79,14 @@ func (v BrickVariable) IsRequired() bool {
 }
 
 type Brick struct {
-	ID                        string                    `yaml:"id"`
-	Name                      string                    `yaml:"name"`
-	Description               string                    `yaml:"description"`
-	Category                  string                    `yaml:"category,omitempty"`
-	RequiresDisplay           string                    `yaml:"requires_display,omitempty"`
-	RequireContainer          bool                      `yaml:"require_container"`
+	ID              string   `yaml:"id"`
+	Name            string   `yaml:"name"`
+	Description     string   `yaml:"description"`
+	SupportedBoards []string `yaml:"supported_boards,omitempty"`
+	Category        string   `yaml:"category,omitempty"`
+	RequiresDisplay string   `yaml:"requires_display,omitempty"`
+	// Deprecated : the field `require_container` is deprecated, you can remove it from the brick config. It will be ignored if present.
+	RequireContainer          bool                      `yaml:"require_container"` // Deprecated
 	RequireModel              bool                      `yaml:"require_model"`
 	Variables                 []BrickVariable           `yaml:"variables,omitempty"`
 	Ports                     []string                  `yaml:"ports,omitempty"`
@@ -171,7 +175,7 @@ func unmarshalBricksIndex(content io.Reader) (*YamlBricksIndex, error) {
 	return &index, nil
 }
 
-func Load(path *paths.Path) (*BricksIndex, error) {
+func Load(platform platform.Platform, path *paths.Path) (*BricksIndex, error) {
 	content, err := path.Join("bricks-list.yaml").Open()
 	if err != nil {
 		return nil, err
@@ -186,6 +190,9 @@ func Load(path *paths.Path) (*BricksIndex, error) {
 		if err != nil {
 			return nil, err
 		}
+		if yamlIndex.Bricks[i].RequireContainer {
+			slog.Warn("the field `require_container` is deprecated. You can remove it from the brick config", "brick_id", yamlIndex.Bricks[i].ID)
+		}
 		yamlIndex.Bricks[i].Source = "Arduino"
 		yamlIndex.Bricks[i].FullPath = path
 		yamlIndex.Bricks[i].ComposeFile = path.Join("compose", namespace, brickName, "brick_compose.yaml")
@@ -193,6 +200,13 @@ func Load(path *paths.Path) (*BricksIndex, error) {
 		yamlIndex.Bricks[i].ExamplesPath = path.Join("examples", namespace, brickName)
 		yamlIndex.Bricks[i].DocsAPIPath = path.Join("api-docs", namespace, "app_bricks", brickName, "API.md")
 	}
+
+	yamlIndex.Bricks = slices.DeleteFunc(yamlIndex.Bricks, func(brick Brick) bool {
+		return platform.BoardName != "" &&
+			len(brick.SupportedBoards) != 0 &&
+			!slices.Contains(brick.SupportedBoards, platform.BoardName)
+	})
+
 	return &BricksIndex{
 		BuiltInBricks: yamlIndex.Bricks,
 	}, nil

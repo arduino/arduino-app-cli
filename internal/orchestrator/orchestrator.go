@@ -39,6 +39,7 @@ import (
 	"github.com/gosimple/slug"
 	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
+	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/helpers"
@@ -175,7 +176,18 @@ func StartApp(
 			if !yield(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}}) {
 				return
 			}
-			if err := compileUploadSketch(ctx, platform, &appToStart, sketchCallbackWriter); err != nil {
+
+			if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, appToStart); err != nil {
+				if !yield(StreamMessage{data: "Failed to apply app migration for platform arduino:zephyr >0.54.1. Error: " + err.Error()}) {
+					return
+				}
+			} else if ok {
+				if !yield(StreamMessage{data: "Applied app migration for platform arduino:zephyr >0.54.1. Arduino_RouterBridge is now part of the platform and shouldn't be explicitly specified"}) {
+					return
+				}
+			}
+
+			if err := compileUploadSketch(ctx, platform, appToStart, sketchCallbackWriter); err != nil {
 				yield(StreamMessage{error: err})
 				return
 			}
@@ -1045,11 +1057,14 @@ func addLedControl(platform platform.Platform, volumes []volume) []volume {
 func compileUploadSketch(
 	ctx context.Context,
 	platform platform.Platform,
-	arduinoApp *app.ArduinoApp,
+	arduinoApp app.ArduinoApp,
 	w io.Writer,
 ) error {
 	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 	srv := commands.NewArduinoCoreServer()
+	if err := SetArduinoCliConfig(ctx, srv); err != nil {
+		return err
+	}
 
 	var inst *rpc.Instance
 	if resp, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
@@ -1179,6 +1194,89 @@ func compileUploadSketch(
 		SketchPath: sketchPath.String(),
 		ImportDir:  buildPath.String(),
 	}, stream)
+}
+
+// migrateRemoveRouterBridgeIfNeeded removes the Arduino_RouterBridge library from the sketch profile to allow automatic update of the library.
+// This is needed by the platform 0.55 will need a new Arduino_RouterBridge library to allow Serial output redirection to Monitor.
+// The migration is applied only if the platform in the profile doesn't specify a version.
+func migrateRemoveRouterBridgeIfNeeded(ctx context.Context, platform platform.Platform, app app.ArduinoApp) (bool, error) {
+	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
+	srv := commands.NewArduinoCoreServer()
+	if err := SetArduinoCliConfig(ctx, srv); err != nil {
+		return false, err
+	}
+
+	var inst *rpc.Instance
+	if resp, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
+		return false, err
+	} else {
+		inst = resp.GetInstance()
+	}
+	defer func() {
+		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
+	}()
+
+	sketchPath, ok := app.GetSketchPath()
+	if !ok {
+		return false, fmt.Errorf("no sketch path found in the Arduino app")
+	}
+	sketchResp, err := srv.LoadSketch(ctx, &rpc.LoadSketchRequest{SketchPath: sketchPath.String()})
+	if err != nil {
+		return false, err
+	}
+
+	sketch := sketchResp.GetSketch()
+	platforms := sketch.GetDefaultProfile().GetPlatforms()
+	if slices.ContainsFunc(platforms, func(p *rpc.ProfilePlatformReference) bool {
+		return p.GetId() == platform.PlatformID && p.GetVersion() != ""
+	}) {
+		slog.Debug("skip migration if the platform in the profiles specifies a version")
+		return false, nil
+	}
+
+	if err := srv.Init(
+		&rpc.InitRequest{Instance: inst},
+		commands.InitStreamResponseToCallbackFunction(ctx, func(r *rpc.InitResponse) error {
+			return nil
+		}),
+	); err != nil {
+		return false, err
+	}
+
+	boardInfo, err := srv.BoardDetails(ctx, &rpc.BoardDetailsRequest{
+		Instance: inst,
+		Fqbn:     platform.FQBN,
+	})
+	if err != nil {
+		return false, err
+	}
+
+	platformVersion, err := semver.Parse(boardInfo.GetVersion())
+	if err != nil {
+		return false, fmt.Errorf("unable to get installed platform version: %w", err)
+	}
+	slog.Debug("Installed platform version", "version", platformVersion.String())
+
+	if platformVersion.GreaterThan(semver.MustParse("0.54.1")) {
+		libs, err := ListSketchLibraries(ctx, app)
+		if err != nil {
+			return false, fmt.Errorf("unable to list sketch libraries: %w", err)
+		}
+		if slices.ContainsFunc(libs, func(lib LibraryReleaseID) bool {
+			return lib.Name == "Arduino_RouterBridge"
+		}) {
+			if _, err := RemoveSketchLibrary(ctx, app, LibraryReleaseID{
+				Name: "Arduino_RouterBridge",
+			}, true); err != nil {
+				return false, err
+			}
+			return true, nil
+		} else {
+			return false, nil
+		}
+	}
+
+	return false, nil
 }
 
 type ConfigResponse struct {

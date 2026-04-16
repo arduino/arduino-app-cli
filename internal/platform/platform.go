@@ -33,6 +33,7 @@ type GpioPin struct {
 }
 
 type Platform struct {
+	BoardName   string `json:"board_name"`
 	FQBN        string `json:"fqbn"`
 	PlatformID  string `json:"-"`
 	CompileJobs int32  `json:"-"`
@@ -54,6 +55,7 @@ func GetPlatform(dir *paths.Path) Platform {
 		platform = Platform{
 			FQBN:       "arduino:zephyr:unoq",
 			PlatformID: "arduino:zephyr",
+			BoardName:  "unoq",
 			Linux: struct{ UserLeds, StatusLeds paths.PathList }{
 				StatusLeds: paths.NewPathList(
 					"/sys/class/leds/blue:bt",
@@ -75,6 +77,7 @@ func GetPlatform(dir *paths.Path) Platform {
 		platform = Platform{
 			FQBN:       "arduino:zephyr:ventunoq",
 			PlatformID: "arduino:zephyr",
+			BoardName:  "ventunoq",
 			Linux: struct{ UserLeds, StatusLeds paths.PathList }{
 				// TODO: add leds paths
 				StatusLeds: paths.NewPathList(),

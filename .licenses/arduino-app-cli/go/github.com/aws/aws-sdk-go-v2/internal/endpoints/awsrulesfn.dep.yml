@@ -1,13 +1,13 @@
 ---
 name: github.com/aws/aws-sdk-go-v2/internal/endpoints/awsrulesfn
-version: v1.41.0
+version: v1.41.5
 type: go
 summary: Package awsrulesfn provides AWS focused endpoint rule functions for evaluating
   endpoint resolution rules.
 homepage: https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/internal/endpoints/awsrulesfn
 license: apache-2.0
 licenses:
-- sources: aws-sdk-go-v2@v1.41.0/LICENSE.txt
+- sources: aws-sdk-go-v2@v1.41.5/LICENSE.txt
   text: |2
 
                                      Apache License

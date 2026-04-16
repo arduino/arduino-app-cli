@@ -1,6 +1,6 @@
 ---
 name: github.com/aws/aws-sdk-go-v2/config
-version: v1.32.6
+version: v1.32.12
 type: go
 summary: Package config provides utilities for loading configuration from multiple
   sources that can be used to configure the SDK's API clients, and utilities.

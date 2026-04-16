@@ -62,7 +62,7 @@ func newDownloadImageCmd(cfg config.Configuration) *cobra.Command {
 		Args:   cobra.ExactArgs(0),
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return orchestrator.SystemInit(cmd.Context(), cfg, servicelocator.GetStaticStore(), servicelocator.GetDockerClient(), orchestrator.SystemInitOptions{
+			return orchestrator.SystemInit(cmd.Context(), cfg, servicelocator.GetBricksIndex(), servicelocator.GetDockerClient(), orchestrator.SystemInitOptions{
 				OnlyDockerImages:    onlyImages,
 				OnlyPlatformAndLibs: onlyPlatformAndLibraries,
 			})
@@ -162,11 +162,11 @@ func newCleanUpCmd(cfg config.Configuration, docker command.Cli) *cobra.Command 
 		Short: "Removes unused and obsolete application images to free up disk space.",
 		Args:  cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			staticStore := servicelocator.GetStaticStore()
+			bricksindex := servicelocator.GetBricksIndex()
 			platform := servicelocator.GetPlatform()
 
 			feedback.Printf("Running cleanup...")
-			result, err := orchestrator.SystemCleanup(cmd.Context(), cfg, staticStore, docker, platform)
+			result, err := orchestrator.SystemCleanup(cmd.Context(), cfg, bricksindex, docker, platform)
 			if err != nil {
 				return err
 			}

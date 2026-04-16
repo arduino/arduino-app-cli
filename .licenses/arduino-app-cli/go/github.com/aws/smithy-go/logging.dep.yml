@@ -1,12 +1,12 @@
 ---
 name: github.com/aws/smithy-go/logging
-version: v1.24.0
+version: v1.24.2
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/aws/smithy-go/logging
 license: apache-2.0
 licenses:
-- sources: smithy-go@v1.24.0/LICENSE
+- sources: smithy-go@v1.24.2/LICENSE
   text: |2
 
                                      Apache License
@@ -183,6 +183,6 @@ licenses:
           defend, and hold each Contributor harmless for any liability
           incurred by, or claims asserted against, such Contributor by reason
           of your accepting any such warranty or additional liability.
-- sources: smithy-go@v1.24.0/README.md
+- sources: smithy-go@v1.24.2/README.md
   text: This project is licensed under the Apache-2.0 License.
 notices: []
