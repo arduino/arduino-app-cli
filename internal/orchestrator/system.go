@@ -46,9 +46,9 @@ import (
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
-	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
 var ErrDockerOutOfSpace = errors.New("not enough disk space to pull the docker image")
@@ -78,7 +78,7 @@ func (o SystemInitOptions) Validate() error {
 // SystemInit pulls all the docker images needed for the current version of the software to run and the
 // sketch libraries used in the example apps. Can be used to pre-install docker images/libraries on an
 // empty system, or to update all the docker images/libraries that need it.
-func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *store.StaticStore, docker *command.DockerCli, options SystemInitOptions) error {
+func SystemInit(ctx context.Context, cfg config.Configuration, bricksindex *bricksindex.BricksIndex, docker *command.DockerCli, options SystemInitOptions) error {
 	if err := options.Validate(); err != nil {
 		return err
 	}
@@ -117,7 +117,7 @@ func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *stor
 
 	if downloadDockerImages {
 		// TODO: use progressCB instead of stdout
-		if err := downloadContainersUsedInExamples(ctx, cfg, staticStore, docker, stdout); err != nil {
+		if err := downloadSupportedBricksImages(ctx, cfg, bricksindex, docker, stdout); err != nil {
 			return fmt.Errorf("failed to download container images used in examples: %w", err)
 		}
 	}
@@ -125,9 +125,9 @@ func SystemInit(ctx context.Context, cfg config.Configuration, staticStore *stor
 	return nil
 }
 
-func downloadContainersUsedInExamples(ctx context.Context, cfg config.Configuration, staticStore *store.StaticStore, docker *command.DockerCli, stdout io.Writer) error {
+func downloadSupportedBricksImages(ctx context.Context, cfg config.Configuration, brickindex *bricksindex.BricksIndex, docker *command.DockerCli, stdout io.Writer) error {
 	imagesToPreinstall := []string{cfg.PythonImage}
-	additionalImages, err := parseAllModelsRunnerImageTag(staticStore)
+	additionalImages, err := getAllSupportedBrickImage(brickindex)
 	if err != nil {
 		return err
 	}
@@ -266,17 +266,13 @@ func listImagesAlreadyPulled(ctx context.Context, docker dockerClient.APIClient)
 	return result, nil
 }
 
-func parseAllModelsRunnerImageTag(staticStore *store.StaticStore) ([]string, error) {
-	composePath := staticStore.GetComposeFolder()
-	brickNamespace := "arduino"
-	bricks, err := composePath.Join(brickNamespace).ReadDir()
-	if err != nil {
-		return nil, err
-	}
-
-	result := make([]string, 0, len(bricks))
-	for _, brick := range bricks {
-		composeFile := composePath.Join(brickNamespace, brick.Base(), "brick_compose.yaml")
+func getAllSupportedBrickImage(bricksindex *bricksindex.BricksIndex) ([]string, error) {
+	var result []string
+	for _, brick := range bricksindex.ListBricks() {
+		composeFile, ok := brick.GetComposeFile()
+		if !ok {
+			continue
+		}
 		content, err := composeFile.ReadFile()
 		if err != nil {
 			return nil, err
@@ -318,7 +314,7 @@ func (s SystemCleanupResult) IsEmpty() bool {
 
 // SystemCleanup removes dangling containers and unused images.
 // Also running apps are stopped and removed.
-func SystemCleanup(ctx context.Context, cfg config.Configuration, staticStore *store.StaticStore, docker command.Cli, platform platform.Platform) (SystemCleanupResult, error) {
+func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *bricksindex.BricksIndex, docker command.Cli, platform platform.Platform) (SystemCleanupResult, error) {
 	var result SystemCleanupResult
 
 	// Remove running app
@@ -349,7 +345,7 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, staticStore *s
 	}
 
 	// Remove unused images
-	containersMustStay, err := getRequiredImages(cfg, staticStore)
+	containersMustStay, err := getRequiredImages(cfg, bricksindex)
 	if err != nil {
 		return result, err
 	}
@@ -393,8 +389,8 @@ func removeImage(ctx context.Context, docker dockerClient.APIClient, imageName s
 }
 
 // imgages required by the system
-func getRequiredImages(cfg config.Configuration, staticStore *store.StaticStore) ([]string, error) {
-	modelsRunnersContainers, err := parseAllModelsRunnerImageTag(staticStore)
+func getRequiredImages(cfg config.Configuration, bricksindex *bricksindex.BricksIndex) ([]string, error) {
+	modelsRunnersContainers, err := getAllSupportedBrickImage(bricksindex)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse models runner images: %w", err)
 	}

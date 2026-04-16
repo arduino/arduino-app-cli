@@ -25,36 +25,38 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.bug.st/f"
+
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 func TestModelsIndex(t *testing.T) {
 	t.Run("it parses a valid model-list.yaml and custom models", func(t *testing.T) {
-		modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata/models"))
+		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"))
 		require.NoError(t, err)
 		require.NotNil(t, modelsIndex)
 		models := modelsIndex.GetModels()
-		assert.Len(t, models, 3, "Expected 3 models to be parsed")
+		assert.Len(t, models, 4, "Expected 4 models to be parsed")
 	})
 
 	t.Run("at least one model folders must be provided", func(t *testing.T) {
-		_, err := Load(nil, nil)
+		_, err := Load(platform.GetPlatform(nil), nil, nil)
 		require.Error(t, err)
 	})
 
 	t.Run("custom models folder is optional", func(t *testing.T) {
-		modelsIndex, err := Load(paths.New("testdata"), nil)
+		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), nil)
 		require.NoError(t, err)
-		require.Len(t, modelsIndex.GetModels(), 2)
+		require.Len(t, modelsIndex.GetModels(), 3)
 	})
 
 	t.Run("custom models folder can be empty", func(t *testing.T) {
-		modelsIndex, err := Load(nil, paths.New(t.TempDir()))
+		modelsIndex, err := Load(platform.GetPlatform(nil), nil, paths.New(t.TempDir()))
 		require.NoError(t, err)
 		require.Len(t, modelsIndex.GetModels(), 0)
 	})
 
 	t.Run("it loads nested custom models correctly", func(t *testing.T) {
-		modelsIndex, err := Load(nil, paths.New("testdata/with-nested-models"))
+		modelsIndex, err := Load(platform.GetPlatform(nil), nil, paths.New("testdata/with-nested-models"))
 		assert.NoError(t, err)
 		assert.NotEmpty(t, modelsIndex)
 		assert.Len(t, modelsIndex.GetModels(), 2)
@@ -68,8 +70,37 @@ func TestModelsIndex(t *testing.T) {
 		assert.Equal(t, "another-model-id", got[0].ID)
 	})
 
+	t.Run("it filter model for supported boards", func(t *testing.T) {
+		t.Run("app", func(t *testing.T) {
+			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), nil)
+			require.NoError(t, err)
+
+			models := modelsIndex.GetModels()
+			assert.Len(t, models, 3, "all models")
+		})
+
+		t.Run("foo-board", func(t *testing.T) {
+			platform := platform.Platform{BoardName: "foo-board"}
+			modelsIndex, err := Load(platform, paths.New("testdata"), nil)
+			require.NoError(t, err)
+
+			models := modelsIndex.GetModels()
+			assert.Len(t, models, 3, "all models")
+		})
+
+		t.Run("other board", func(t *testing.T) {
+			platform := platform.Platform{BoardName: "some-other-board"}
+			modelsIndex, err := Load(platform, paths.New("testdata"), nil)
+			require.NoError(t, err)
+
+			models := modelsIndex.GetModels()
+			assert.Len(t, models, 2, "no model another-model-id")
+
+		})
+	})
+
 	t.Run("it gets a preloaded model by ID", func(t *testing.T) {
-		modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata/models"))
+		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"))
 		require.NoError(t, err)
 		model, found := modelsIndex.GetModelByID("not-existing-model")
 		assert.False(t, found)
@@ -98,7 +129,7 @@ func TestModelsIndex(t *testing.T) {
 	})
 
 	t.Run("it get custom model by id", func(t *testing.T) {
-		modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata/models"))
+		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"))
 		require.NoError(t, err)
 
 		eimodel, found := modelsIndex.GetModelByID("my-model-id")
@@ -121,13 +152,13 @@ func TestModelsIndex(t *testing.T) {
 
 	t.Run("it fails if model-list.yaml does not exist", func(t *testing.T) {
 		nonExistentPath := paths.New("nonexistentdir")
-		modelsIndex, err := Load(nonExistentPath, nil)
+		modelsIndex, err := Load(platform.GetPlatform(nil), nonExistentPath, nil)
 		assert.Error(t, err)
 		assert.Nil(t, modelsIndex)
 	})
 
 	t.Run("it gets models by a brick", func(t *testing.T) {
-		modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata/models"))
+		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"))
 		require.NoError(t, err)
 
 		model := modelsIndex.GetModelsByBrick("not-existing-brick")
@@ -139,7 +170,7 @@ func TestModelsIndex(t *testing.T) {
 	})
 
 	t.Run("it gets models by bricks", func(t *testing.T) {
-		modelsIndex, err := Load(paths.New("testdata"), paths.New("testdata/models"))
+		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"))
 		require.NoError(t, err)
 
 		models := modelsIndex.GetModelsByBricks([]string{"arduino:non_existing"})

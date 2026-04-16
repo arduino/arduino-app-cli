@@ -35,10 +35,11 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 func TestExportAppZip(t *testing.T) {
-	bricksIndex, err := bricksindex.Load(paths.New("testdata", "archive"))
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata", "archive"))
 	require.NoError(t, err)
 
 	type testCase struct {

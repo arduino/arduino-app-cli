@@ -36,6 +36,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 func TestBuildBrickConfigForEIModel(t *testing.T) {
@@ -130,7 +131,7 @@ bricks:
 	err := assetDir.Join("bricks-list.yaml").WriteFile([]byte(yamlContent))
 	require.NoError(t, err)
 
-	brickIndex, err := bricksindex.Load(assetDir)
+	brickIndex, err := bricksindex.Load(platform.GetPlatform(nil), assetDir)
 	if err != nil {
 		t.Fatalf("failed to load bricks index: %v", err)
 	}

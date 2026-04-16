@@ -30,10 +30,11 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 func TestBrickCreate(t *testing.T) {
-	bricksIndex, err := bricksindex.Load(paths.New("testdata"))
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 	require.Nil(t, err)
 	brickService := NewService(nil, bricksIndex)
 
@@ -103,7 +104,7 @@ func TestBrickCreate(t *testing.T) {
 		require.Nil(t, err)
 		err = paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp)
 		require.Nil(t, err)
-		bricksIndex, err := bricksindex.Load(paths.New("testdata"))
+		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 		require.Nil(t, err)
 		brickService := NewService(nil, bricksIndex)
 
@@ -130,7 +131,7 @@ func TestBrickCreate(t *testing.T) {
 }
 
 func TestUpdateBrick(t *testing.T) {
-	bricksIndex, err := bricksindex.Load(paths.New("testdata"))
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 	require.Nil(t, err)
 	brickService := NewService(nil, bricksIndex)
 
@@ -190,7 +191,7 @@ func TestUpdateBrick(t *testing.T) {
 		tempDummyApp := paths.New("testdata/dummy-app.temp")
 		require.Nil(t, tempDummyApp.RemoveAll())
 		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
-		bricksIndex, err := bricksindex.Load(paths.New("testdata"))
+		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 		require.Nil(t, err)
 		brickService := NewService(nil, bricksIndex)
 
@@ -219,7 +220,7 @@ func TestUpdateBrick(t *testing.T) {
 		tempDummyApp := paths.New("testdata/dummy-app-for-update.temp")
 		require.Nil(t, tempDummyApp.RemoveAll())
 		require.Nil(t, paths.New("testdata/dummy-app-for-update").CopyDirTo(tempDummyApp))
-		bricksIndex, err := bricksindex.Load(paths.New("testdata"))
+		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 		require.Nil(t, err)
 		brickService := NewService(nil, bricksIndex)
 
@@ -247,9 +248,9 @@ func TestUpdateBrick(t *testing.T) {
 		tempDummyApp := paths.New("testdata/dummy-app-for-model.temp")
 		require.Nil(t, tempDummyApp.RemoveAll())
 		require.Nil(t, paths.New("testdata/dummy-app-for-model").CopyDirTo(tempDummyApp))
-		bricksIndex, err := bricksindex.Load(paths.New("testdata"))
+		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 		require.NoError(t, err)
-		modelsIndex, err := modelsindex.Load(paths.New("testdata"), paths.New("not_exixsting_path"))
+		modelsIndex, err := modelsindex.Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("not_exixsting_path"))
 		require.NoError(t, err)
 		brickService := NewService(modelsIndex, bricksIndex)
 
@@ -388,7 +389,6 @@ bricks:
 - id: arduino:object_detection
   name: Object Detection
   description: Detect objects in images using a pre-trained model
-  require_container: true
   require_model: true
   mount_devices_into_container: true
   ports: ["8000"]
@@ -421,7 +421,7 @@ bricks:
 	}
 	createFakeApp(t, appsDir)
 
-	bIndex, err := bricksindex.Load(paths.New(assetsDir))
+	bIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New(assetsDir))
 	require.NoError(t, err)
 
 	mIndex := &modelsindex.ModelsIndex{
@@ -592,7 +592,7 @@ bricks:
 	brickYamlPath := filepath.Join(tmpDir, "bricks-list.yaml")
 	require.NoError(t, os.WriteFile(brickYamlPath, []byte(brickYamlContent), 0600))
 
-	bIndex, err := bricksindex.Load(paths.New(tmpDir))
+	bIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New(tmpDir))
 	require.NoError(t, err)
 
 	mIndex := &modelsindex.ModelsIndex{
@@ -778,7 +778,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 	brickYamlPath := filepath.Join(tmpDir, "bricks-list.yaml")
 	require.NoError(t, os.WriteFile(brickYamlPath, []byte(bricksYaml), 0600))
 
-	bIndex, err := bricksindex.Load(paths.New(tmpDir))
+	bIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New(tmpDir))
 	require.NoError(t, err)
 
 	svc := &Service{
@@ -807,7 +807,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 		validate      func(*testing.T, AppBrickInstancesResult)
 	}{
 		{
-			name: "Error - Brick not found in Index",
+			name: "Brick not found in Index",
 			app: &app.ArduinoApp{
 				Descriptor: app.AppDescriptor{
 					Bricks: []app.Brick{
@@ -815,7 +815,14 @@ func TestAppBrickInstancesList(t *testing.T) {
 					},
 				},
 			},
-			expectedError: "brick not found with id arduino:non_existent_brick",
+			validate: func(t *testing.T, res AppBrickInstancesResult) {
+				require.Len(t, res.BrickInstances, 1)
+				brick := res.BrickInstances[0]
+
+				require.Equal(t, "arduino:non_existent_brick", brick.ID)
+				require.Equal(t, "arduino:non_existent_brick", brick.Name)
+				require.Equal(t, "not_found", brick.Status)
+			},
 		},
 		{
 			name: "Success - Empty App",
@@ -992,4 +999,100 @@ func TestAppBrickInstancesList(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLocalBrickRename(t *testing.T) {
+	const sourceApp = "testdata/dummy-app-with-local-brick"
+	const tempApp = "testdata/dummy-app-with-local-brick.temp"
+
+	setup := func(t *testing.T) *app.ArduinoApp {
+		t.Helper()
+		require.NoError(t, paths.New(tempApp).RemoveAll())
+		require.NoError(t, paths.New(sourceApp).CopyDirTo(paths.New(tempApp)))
+		t.Cleanup(func() { _ = paths.New(tempApp).RemoveAll() })
+		a, err := app.Load(paths.New(tempApp))
+		require.NoError(t, err)
+		return &a
+	}
+
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
+	require.NoError(t, err)
+	svc := NewService(nil, bricksIndex)
+
+	t.Run("fails when old and new id are the same", func(t *testing.T) {
+		a := setup(t)
+		_, err := svc.LocalBrickRename(a, "my-local-brick", "my-local-brick", "My Local Brick")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "same as the current one")
+	})
+
+	t.Run("fails when brick is in global index (not local)", func(t *testing.T) {
+		a := setup(t)
+		_, err := svc.LocalBrickRename(a, "arduino:arduino_cloud", "arduino:arduino_cloud_v2", "Arduino Cloud V2")
+		require.ErrorIs(t, err, ErrBrickNotLocal)
+	})
+
+	t.Run("fails when brick is not found", func(t *testing.T) {
+		a := setup(t)
+		_, err := svc.LocalBrickRename(a, "non-existing-brick", "new-id", "New Name")
+		require.ErrorIs(t, err, ErrBrickNotFound)
+	})
+
+	t.Run("fails when new id conflicts with an existing builtin brick", func(t *testing.T) {
+		a := setup(t)
+		_, err := svc.LocalBrickRename(a, "my-local-brick", "arduino:arduino_cloud", "Arduino Cloud")
+		require.ErrorIs(t, err, ErrBrickIDConflict)
+	})
+
+	t.Run("fails when new id conflicts with an existing local brick", func(t *testing.T) {
+		a := setup(t)
+		_, err := svc.LocalBrickRename(a, "my-local-brick", "another-local-brick", "I want to change the name to another local brick")
+		require.ErrorIs(t, err, ErrBrickIDConflict)
+	})
+
+	t.Run("successfully renames the local brick", func(t *testing.T) {
+		a := setup(t)
+
+		result, err := svc.LocalBrickRename(a, "my-local-brick", "my-renamed-brick", "My Renamed Brick")
+		require.NoError(t, err)
+		require.Equal(t, "my-renamed-brick", result.ID)
+
+		require.False(t, a.FullPath.Join("bricks", "my-local-brick").Exist())
+		require.True(t, a.FullPath.Join("bricks", "my-renamed-brick").Exist())
+
+		configPath := a.FullPath.Join("bricks", "my-renamed-brick", "brick_config.yaml").String()
+		raw, err := os.ReadFile(configPath)
+		require.NoError(t, err)
+		require.Contains(t, string(raw), "my-renamed-brick")
+		require.Contains(t, string(raw), "My Renamed Brick")
+
+		appYamlPath := a.FullPath.Join("app.yaml").String()
+		appYamlRaw, err := os.ReadFile(appYamlPath)
+		require.NoError(t, err)
+		require.Contains(t, string(appYamlRaw), "my-renamed-brick")
+		require.NotContains(t, string(appYamlRaw), "my-local-brick")
+	})
+
+	t.Run("successfully renames a nested local brick", func(t *testing.T) {
+		a := setup(t)
+
+		result, err := svc.LocalBrickRename(a, "nested-local-brick", "nested-renamed-brick", "Nested Renamed Brick")
+		require.NoError(t, err)
+		require.Equal(t, "nested-renamed-brick", result.ID)
+
+		require.False(t, a.FullPath.Join("bricks", "nested", "nested-local-brick").Exist())
+		require.True(t, a.FullPath.Join("bricks", "nested", "nested-renamed-brick").Exist())
+
+		configPath := a.FullPath.Join("bricks", "nested", "nested-renamed-brick", "brick_config.yaml").String()
+		raw, err := os.ReadFile(configPath)
+		require.NoError(t, err)
+		require.Contains(t, string(raw), "nested-renamed-brick")
+		require.Contains(t, string(raw), "Nested Renamed Brick")
+
+		appYamlPath := a.FullPath.Join("app.yaml").String()
+		appYamlRaw, err := os.ReadFile(appYamlPath)
+		require.NoError(t, err)
+		require.Contains(t, string(appYamlRaw), "nested-renamed-brick")
+		require.NotContains(t, string(appYamlRaw), "nested-local-brick")
+	})
 }

@@ -35,6 +35,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 func TestCloneApp(t *testing.T) {
@@ -463,7 +464,6 @@ bricks:
     \ images and returns the predicted class label, bounding-boxes and confidence\
     \ score.\nBrick is designed to work with pre-trained models provided by framework\
     \ or with custom object detection models trained on Edge Impulse platform. \n"
-  require_container: true
   require_model: true
   ports: []
   category: video
@@ -478,7 +478,7 @@ bricks:
 `)
 	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
-	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
 	assert.NoError(t, err)
 
 	modelsIndexContent := []byte(`
@@ -498,7 +498,7 @@ models:
 `)
 	err = cfg.AssetsDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
 	require.NoError(t, err)
-	modelIndex, err := modelsindex.Load(cfg.AssetsDir(), nil)
+	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetsDir(), nil)
 	require.NoError(t, err)
 
 	env := getAppEnvironmentVariables(appDesc, bricksIndex, modelIndex)
@@ -546,7 +546,6 @@ bricks:
     \ images and returns the predicted class label, bounding-boxes and confidence\
     \ score.\nBrick is designed to work with pre-trained models provided by framework\
     \ or with custom object detection models trained on Edge Impulse platform. \n"
-  require_container: true
   require_model: true
   category: video
   model_name: yolox-object-detection
@@ -560,7 +559,7 @@ bricks:
 `)
 	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
-	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
 	assert.NoError(t, err)
 
 	modelsIndexContent := []byte(`
@@ -580,7 +579,7 @@ models:
 `)
 	err = cfg.AssetsDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
 	require.NoError(t, err)
-	modelIndex, err := modelsindex.Load(cfg.AssetsDir(), nil)
+	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetsDir(), nil)
 	require.NoError(t, err)
 
 	env := getAppEnvironmentVariables(appDesc, bricksIndex, modelIndex)
@@ -647,7 +646,7 @@ bricks:
   `)
 	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
-	bricksIndex, err := bricksindex.Load(cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
 	assert.NoError(t, err)
 
 	modelsIndexContent := []byte(`
@@ -663,7 +662,7 @@ models:
 `)
 	err = cfg.AssetsDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
 	require.NoError(t, err)
-	modelIndex, err := modelsindex.Load(cfg.AssetsDir(), nil)
+	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetsDir(), nil)
 	require.NoError(t, err)
 
 	env := getAppEnvironmentVariables(appDesc, bricksIndex, modelIndex)

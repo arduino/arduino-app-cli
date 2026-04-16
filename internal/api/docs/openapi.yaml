@@ -270,6 +270,51 @@ paths:
       summary: Upsert a brick instance for an app
       tags:
       - Application
+  /v1/apps/{appID}/bricks/{brickID}/rename:
+    post:
+      description: Rename a local brick. Changes the brick's ID and folder name derived
+        from the new name. Only local bricks can be renamed.
+      operationId: renameAppLocalBrick
+      parameters:
+      - description: application identifier.
+        in: path
+        name: appID
+        required: true
+        schema:
+          description: application identifier.
+          type: string
+      - description: brick identifier.
+        in: path
+        name: brickID
+        required: true
+        schema:
+          description: brick identifier.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppLocalBrickRenameRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LocalBrickRenameResult'
+          description: Successful response
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "412":
+          $ref: '#/components/responses/PreconditionFailed'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Rename a local brick
+      tags:
+      - Application
   /v1/apps/{appID}/exposed-ports:
     get:
       description: Return all ports exposed by the given app.
@@ -1515,6 +1560,11 @@ components:
         id:
           type: string
       type: object
+    AppLocalBrickRenameRequest:
+      properties:
+        name:
+          type: string
+      type: object
     AppPortResponse:
       properties:
         ports:
@@ -1839,6 +1889,11 @@ components:
           type: array
         pagination:
           $ref: '#/components/schemas/Pagination'
+      type: object
+    LocalBrickRenameResult:
+      properties:
+        id:
+          type: string
       type: object
     PackageType:
       description: Package type

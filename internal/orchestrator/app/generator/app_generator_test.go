@@ -122,21 +122,32 @@ func compareFolders(t *testing.T, actualPath, goldenPath *paths.Path) {
 }
 
 func TestGenerateAppBrick(t *testing.T) {
-	appDir := paths.New(t.TempDir())
+	t.Run("generate local brick for an app", func(t *testing.T) {
+		appDir := paths.New(t.TempDir())
 
-	err := GenerateApp(appDir, app.AppDescriptor{Name: "an-app-with-brick"}, true)
-	require.NoError(t, err)
+		err := GenerateApp(appDir, app.AppDescriptor{Name: "an-app-with-brick"}, true)
+		require.NoError(t, err)
 
-	a := f.Must(app.Load(appDir))
+		a := f.Must(app.Load(appDir))
 
-	err = GenerateLocalBrick(a.GetBricksPath(), "my-brick", "a-brick-name")
-	require.NoError(t, err)
+		err = GenerateLocalBrick(a.GetBricksPath(), "my-brick", "a-brick-name")
+		require.NoError(t, err)
 
-	if os.Getenv("UPDATE_GOLDEN") == "true" {
-		t.Logf("UPDATE_GOLDEN=true: updating  golden files in %s", "testdata/app-with-brick.golden")
-		require.NoError(t, os.RemoveAll("testdata/app-with-brick.golden"))
-		require.NoError(t, os.CopyFS("testdata/app-with-brick.golden", os.DirFS(appDir.String())))
-	} else {
-		compareFolders(t, appDir, paths.New("testdata/app-with-brick.golden"))
-	}
+		if os.Getenv("UPDATE_GOLDEN") == "true" {
+			t.Logf("UPDATE_GOLDEN=true: updating  golden files in %s", "testdata/app-with-brick.golden")
+			require.NoError(t, os.RemoveAll("testdata/app-with-brick.golden"))
+			require.NoError(t, os.CopyFS("testdata/app-with-brick.golden", os.DirFS(appDir.String())))
+		} else {
+			compareFolders(t, appDir, paths.New("testdata/app-with-brick.golden"))
+		}
+	})
+
+	t.Run("conflict if the folder already exist", func(t *testing.T) {
+		tmpDir := paths.New(t.TempDir())
+		err := tmpDir.Join("my-brick").MkdirAll()
+		require.NoError(t, err)
+
+		err = GenerateLocalBrick(tmpDir, "my-brick", "a-brick-name")
+		require.ErrorIs(t, err, ErrBrickAlreadyExists)
+	})
 }
