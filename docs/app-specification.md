@@ -76,7 +76,7 @@ The following folders are reserved for specific uses:
 
 #### Extra files/folders
 
-**Extra Files**: Any other file or folder is allowed. The runtime preserves these files and makes them accessible to your Python logic, but performs no automated action on them. They are bundled with the App during Import and Export operations.
+Any other file or folder is allowed. The runtime preserves these files and makes them accessible to your Python logic, but performs no automated action on them. They are bundled with the App during Import and Export operations.
 
 ### A complete example
 
@@ -134,9 +134,21 @@ This section describes the structure of a single item within the bricks list in 
 
 #### Handling Secrets in Variables
 
-The `app.yaml` supports the use of **Secrets** within the Brick `variables` map to handle sensitive information, such as database passwords.
+Some Bricks declare certain variables as Secrets within their own Brick definition (not in app.yaml). This is used to flag sensitive information, such as API keys or database passwords.
+In app.yaml, the user sets the value of a secret variable exactly like any other variable, using the standard variables map — no special syntax is required.
 
-- **Automatic Redaction**: When an App is **exported**, the values of these secrets are automatically **redacted**. This ensures that the App bundle can be safely shared without leaking personal credentials or private keys.
+Automatic Redaction: When an App is exported, the values of variables flagged as secret in the Brick's definition are automatically redacted (set to empty). This ensures that the App bundle can be safely shared without leaking personal credentials or private keys.
+
+Note: In the Brick's own definition, a secret variable is declared as:
+
+```yaml
+variables:
+  - name: DB_PASSWORD
+    description: DB password
+    secret: true
+```
+
+The app.yaml only sets its value, using the standard variables map.
 
 ### Example `app.yaml`
 
@@ -150,8 +162,8 @@ ports:
 bricks:
   - id: arduino/dbstorage
     variables:
-      PASSWORD: password
-      ports: "8080"
+      DB_PASSWORD: "password"
+      ports: 8080
   - id: arduino/objectdetection
     model: yolo-v8
     ports:
