@@ -27,11 +27,11 @@ See the [App Descriptor (`app.yaml`)](#app-descriptor-appyaml) section for detai
 #### python subfolder
 
 Contains the python code of the App. This folder is mandatory and must be located inside the root folder of the Arduino App.
-It must contain a `main.py` file (the entry point of the application) and could contain an optional `requirements.txt` file (the standard Python list of dependencies). 
+It must contain a `main.py` file (the entry point of the application) and could contain an optional `requirements.txt` file (the standard Python list of dependencies).
 
 #### sketch subfolder
 
-Contains the Arduino sketch to be flashed on the integrated microcontroller. This folder is optional and, if present, must include both the `sketch.ino` file (containing the main Arduino microcontroller code) and the `sketch.yaml` file (the sketch project file containing the list of Arduino libraries dependencies).  
+Contains the Arduino sketch to be flashed on the integrated microcontroller. This folder is optional and, if present, must include both the `sketch.ino` file (containing the main Arduino microcontroller code) and the `sketch.yaml` file (the sketch project file containing the list of Arduino libraries dependencies).\
 The folder content must comply with the official [Sketch specification](https://arduino.github.io/arduino-cli/1.3/sketch-specification/).
 
 #### README.md file
