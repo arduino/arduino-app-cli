@@ -1,0 +1,19 @@
+services:
+  gesture_recognition:
+    image: ${DOCKER_REGISTRY_BASE:-ghcr.io/arduino/}app-bricks/gesture-recognition:dev-next
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+    ports:
+      - ${BIND_ADDRESS:-0.0.0.0}:5002:5002
+    devices:
+      - /dev/dma_heap/system
+      - /dev/dma_heap/qcom,system
+      - /dev/fastrpc-cdsp    
+    healthcheck:
+      test: [ "CMD-SHELL", "nc -zv gesture_recognition 5002 || exit 1" ]
+      interval: 1s
+      timeout: 2s
+      retries: 30
