@@ -50,7 +50,51 @@ func ArduinoCLITaskProgressToString(progress *rpc.TaskProgress) string {
 	return data
 }
 
+// getDefaultNetworkInterfaceAndIP attempts to determine the default network interface and its associated IPv4 address
+func getDefaultNetworkInterfaceAndIP() (string, string, error) {
+	conn, err := net.Dial("udp4", "8.8.8.8:80")
+	if err != nil {
+		return "", "", err
+	}
+	defer conn.Close()
+
+	localAddr, ok := conn.LocalAddr().(*net.UDPAddr)
+	if !ok || localAddr.IP == nil {
+		return "", "", fmt.Errorf("unable to determine local address")
+	}
+
+	localIP := localAddr.IP.To4()
+	if localIP == nil {
+		return "", "", fmt.Errorf("default route does not use an IPv4 address")
+	}
+
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return "", "", err
+	}
+
+	for _, iface := range ifaces {
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+
+		for _, addr := range addrs {
+			ip := ipv4FromAddr(addr)
+			if ip != nil && ip.Equal(localIP) {
+				return iface.Name, ip.String(), nil
+			}
+		}
+	}
+
+	return "", "", fmt.Errorf("default network interface not found for IP %s", localIP.String())
+}
+
 func GetHostIP() (string, error) {
+	if _, ip, err := getDefaultNetworkInterfaceAndIP(); err == nil {
+		return ip, nil
+	}
+
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		return "", err
@@ -68,8 +112,9 @@ func GetHostIP() (string, error) {
 			continue
 		}
 		for _, addr := range addrs {
-			if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-				found[iface.Name] = ipnet.IP.String()
+			// Filter all non-loopback IPv4 addresses
+			if ip := ipv4FromAddr(addr); ip != nil {
+				found[iface.Name] = ip.String()
 				break
 			}
 		}
@@ -90,6 +135,23 @@ func GetHostIP() (string, error) {
 
 	// If no IP address found, return an error
 	return "", fmt.Errorf("no IP address found")
+}
+
+func ipv4FromAddr(addr net.Addr) net.IP {
+	switch value := addr.(type) {
+	case *net.IPNet:
+		if value.IP.IsLoopback() {
+			return nil
+		}
+		return value.IP.To4()
+	case *net.IPAddr:
+		if value.IP.IsLoopback() {
+			return nil
+		}
+		return value.IP.To4()
+	default:
+		return nil
+	}
 }
 
 func ToHumanMiB(bytes int64) string {
