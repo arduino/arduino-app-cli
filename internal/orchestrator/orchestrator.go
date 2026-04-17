@@ -1020,21 +1020,13 @@ func getCurrentUser() string {
 
 // addLedControl adds bindings for led control if the paths exist.
 func addLedControl(platform platform.Platform, volumes []volume) []volume {
-	for _, path := range platform.Linux.UserLeds {
-		if path.Exist() {
+	for _, led := range platform.Linux.BoardLeds {
+
+		if led.Exist() {
 			volumes = append(volumes, volume{
 				Type:   "bind",
-				Source: path.String(),
-				Target: path.String(),
-			})
-		}
-	}
-	for _, path := range platform.Linux.StatusLeds {
-		if path.Exist() {
-			volumes = append(volumes, volume{
-				Type:   "bind",
-				Source: path.String(),
-				Target: path.String(),
+				Source: led.String(),
+				Target: led.String(),
 			})
 		}
 	}

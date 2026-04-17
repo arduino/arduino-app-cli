@@ -220,7 +220,7 @@ func setLeds(ledPath *paths.Path, target ledTarget, value string) error {
 }
 
 func setLedsToUserControlledMode(platform platform.Platform) error {
-	for _, led := range slices.Concat(platform.Linux.StatusLeds, platform.Linux.UserLeds) {
+	for _, led := range platform.Linux.BoardLeds {
 		if err := setLeds(led, ledTriggerTarget, noneTrigger); err != nil {
 			return err
 		}
@@ -229,7 +229,7 @@ func setLedsToUserControlledMode(platform platform.Platform) error {
 }
 
 func restoreLedsState(platform platform.Platform) error {
-	for _, led := range slices.Concat(platform.Linux.StatusLeds, platform.Linux.UserLeds) {
+	for _, led := range platform.Linux.BoardLeds {
 		if err := setLeds(led, ledBrightnessTarget, string("0")); err != nil {
 			return err
 		}

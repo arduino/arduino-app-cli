@@ -38,8 +38,7 @@ type Platform struct {
 	PlatformID  string `json:"-"`
 	CompileJobs int32  `json:"-"`
 	Linux       struct {
-		UserLeds   paths.PathList
-		StatusLeds paths.PathList
+		BoardLeds paths.PathList
 	} `json:"-"`
 	Micro struct {
 		ResetPin GpioPin
@@ -56,16 +55,16 @@ func GetPlatform(dir *paths.Path) Platform {
 			FQBN:       "arduino:zephyr:unoq",
 			PlatformID: "arduino:zephyr",
 			BoardName:  "unoq",
-			Linux: struct{ UserLeds, StatusLeds paths.PathList }{
-				StatusLeds: paths.NewPathList(
-					"/sys/class/leds/blue:bt",
-					"/sys/class/leds/green:wlan",
-					"/sys/class/leds/red:panic",
-				),
-				UserLeds: paths.NewPathList(
+			Linux: struct{ BoardLeds paths.PathList }{
+				BoardLeds: paths.NewPathList(
+					// LED 1
 					"/sys/class/leds/blue:user",
 					"/sys/class/leds/green:user",
 					"/sys/class/leds/red:user",
+					// LED 2
+					"/sys/class/leds/blue:bt",
+					"/sys/class/leds/green:wlan",
+					"/sys/class/leds/red:panic",
 				),
 			},
 			CompileJobs: 2,
@@ -78,10 +77,9 @@ func GetPlatform(dir *paths.Path) Platform {
 			FQBN:       "arduino:zephyr:ventunoq",
 			PlatformID: "arduino:zephyr",
 			BoardName:  "ventunoq",
-			Linux: struct{ UserLeds, StatusLeds paths.PathList }{
+			Linux: struct{ BoardLeds paths.PathList }{
 				// TODO: add leds paths
-				StatusLeds: paths.NewPathList(),
-				UserLeds:   paths.NewPathList(),
+				BoardLeds: paths.NewPathList(),
 			},
 			CompileJobs: 0, // unlimited
 			Micro: struct{ ResetPin GpioPin }{
