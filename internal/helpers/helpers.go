@@ -50,48 +50,29 @@ func ArduinoCLITaskProgressToString(progress *rpc.TaskProgress) string {
 	return data
 }
 
-// getDefaultNetworkInterfaceAndIP attempts to determine the default network interface and its associated IPv4 address
-func getDefaultNetworkInterfaceAndIP() (string, string, error) {
+// getDefaultNetworkInterfaceAndIP attempts to determine the IPv4 address of the default network interface
+func getDefaultNetworkInterfaceAndIP() (string, error) {
 	conn, err := net.Dial("udp4", "8.8.8.8:80")
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	defer conn.Close()
 
 	localAddr, ok := conn.LocalAddr().(*net.UDPAddr)
 	if !ok || localAddr.IP == nil {
-		return "", "", fmt.Errorf("unable to determine local address")
+		return "", fmt.Errorf("unable to determine local address")
 	}
 
 	localIP := localAddr.IP.To4()
 	if localIP == nil {
-		return "", "", fmt.Errorf("default route does not use an IPv4 address")
+		return "", fmt.Errorf("default route does not use an IPv4 address")
 	}
 
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return "", "", err
-	}
-
-	for _, iface := range ifaces {
-		addrs, err := iface.Addrs()
-		if err != nil {
-			continue
-		}
-
-		for _, addr := range addrs {
-			ip := ipv4FromAddr(addr)
-			if ip != nil && ip.Equal(localIP) {
-				return iface.Name, ip.String(), nil
-			}
-		}
-	}
-
-	return "", "", fmt.Errorf("default network interface not found for IP %s", localIP.String())
+	return localIP.String(), nil
 }
 
 func GetHostIP() (string, error) {
-	if _, ip, err := getDefaultNetworkInterfaceAndIP(); err == nil {
+	if ip, err := getDefaultNetworkInterfaceAndIP(); err == nil {
 		return ip, nil
 	}
 
