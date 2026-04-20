@@ -290,7 +290,7 @@ func TestLoadBrickYamlBrickIndex(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "# i-am-a-readme-file", content)
 
-		compose, found := brick.GetComposeFile()
+		compose, found := brick.GetComposeFile(platform.GetPlatform(nil))
 		require.True(t, found)
 		require.Equal(t, paths.New("testdata/0.4.8/compose/arduino/a-good-brick/brick_compose.yaml"), compose)
 

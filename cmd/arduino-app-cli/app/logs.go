@@ -80,6 +80,7 @@ func logsHandler(ctx context.Context, app app.ArduinoApp, tail *uint64, follow, 
 		cfg,
 		servicelocator.GetDockerClient(),
 		servicelocator.GetBricksIndex(),
+		servicelocator.GetPlatform(),
 	)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)

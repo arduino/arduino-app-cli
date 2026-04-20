@@ -78,7 +78,7 @@ func (o SystemInitOptions) Validate() error {
 // SystemInit pulls all the docker images needed for the current version of the software to run and the
 // sketch libraries used in the example apps. Can be used to pre-install docker images/libraries on an
 // empty system, or to update all the docker images/libraries that need it.
-func SystemInit(ctx context.Context, cfg config.Configuration, bricksindex *bricksindex.BricksIndex, docker *command.DockerCli, options SystemInitOptions) error {
+func SystemInit(ctx context.Context, cfg config.Configuration, bricksindex *bricksindex.BricksIndex, docker *command.DockerCli, options SystemInitOptions, platform platform.Platform) error {
 	if err := options.Validate(); err != nil {
 		return err
 	}
@@ -117,7 +117,7 @@ func SystemInit(ctx context.Context, cfg config.Configuration, bricksindex *bric
 
 	if downloadDockerImages {
 		// TODO: use progressCB instead of stdout
-		if err := downloadSupportedBricksImages(ctx, cfg, bricksindex, docker, stdout); err != nil {
+		if err := downloadSupportedBricksImages(ctx, cfg, bricksindex, docker, stdout, platform); err != nil {
 			return fmt.Errorf("failed to download container images used in examples: %w", err)
 		}
 	}
@@ -125,9 +125,9 @@ func SystemInit(ctx context.Context, cfg config.Configuration, bricksindex *bric
 	return nil
 }
 
-func downloadSupportedBricksImages(ctx context.Context, cfg config.Configuration, brickindex *bricksindex.BricksIndex, docker *command.DockerCli, stdout io.Writer) error {
+func downloadSupportedBricksImages(ctx context.Context, cfg config.Configuration, brickindex *bricksindex.BricksIndex, docker *command.DockerCli, stdout io.Writer, platform platform.Platform) error {
 	imagesToPreinstall := []string{cfg.PythonImage}
-	additionalImages, err := getAllSupportedBrickImage(brickindex)
+	additionalImages, err := getAllSupportedBrickImage(brickindex, platform)
 	if err != nil {
 		return err
 	}
@@ -266,10 +266,10 @@ func listImagesAlreadyPulled(ctx context.Context, docker dockerClient.APIClient)
 	return result, nil
 }
 
-func getAllSupportedBrickImage(bricksindex *bricksindex.BricksIndex) ([]string, error) {
+func getAllSupportedBrickImage(bricksindex *bricksindex.BricksIndex, platform platform.Platform) ([]string, error) {
 	var result []string
 	for _, brick := range bricksindex.ListBricks() {
-		composeFile, ok := brick.GetComposeFile()
+		composeFile, ok := brick.GetComposeFile(platform)
 		if !ok {
 			continue
 		}
@@ -345,7 +345,7 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 	}
 
 	// Remove unused images
-	containersMustStay, err := getRequiredImages(cfg, bricksindex)
+	containersMustStay, err := getRequiredImages(cfg, bricksindex, platform)
 	if err != nil {
 		return result, err
 	}
@@ -389,8 +389,8 @@ func removeImage(ctx context.Context, docker dockerClient.APIClient, imageName s
 }
 
 // imgages required by the system
-func getRequiredImages(cfg config.Configuration, bricksindex *bricksindex.BricksIndex) ([]string, error) {
-	modelsRunnersContainers, err := getAllSupportedBrickImage(bricksindex)
+func getRequiredImages(cfg config.Configuration, bricksindex *bricksindex.BricksIndex, platform platform.Platform) ([]string, error) {
+	modelsRunnersContainers, err := getAllSupportedBrickImage(bricksindex, platform)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse models runner images: %w", err)
 	}

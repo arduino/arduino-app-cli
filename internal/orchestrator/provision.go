@@ -258,7 +258,7 @@ func generateMainComposeFile(
 		}
 
 		// 3. Retrieve the brick_compose.yaml file.
-		composeFilePath, ok := idxBrick.GetComposeFile()
+		composeFilePath, ok := idxBrick.GetComposeFile(platform)
 		if !ok {
 			continue
 		}

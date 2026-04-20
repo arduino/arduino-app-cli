@@ -65,7 +65,7 @@ func newDownloadImageCmd(cfg config.Configuration) *cobra.Command {
 			return orchestrator.SystemInit(cmd.Context(), cfg, servicelocator.GetBricksIndex(), servicelocator.GetDockerClient(), orchestrator.SystemInitOptions{
 				OnlyDockerImages:    onlyImages,
 				OnlyPlatformAndLibs: onlyPlatformAndLibraries,
-			})
+			}, servicelocator.GetPlatform())
 		},
 	}
 

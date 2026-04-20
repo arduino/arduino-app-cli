@@ -38,6 +38,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 type AppLogsRequest struct {
@@ -59,6 +60,7 @@ func AppLogs(
 	req AppLogsRequest,
 	dockerCli command.Cli,
 	bricksIndex *bricksindex.BricksIndex,
+	platform platform.Platform,
 ) (iter.Seq[LogMessage], error) {
 	if app.MainPythonFile == nil {
 		return helpers.EmptyIter[LogMessage](), nil
@@ -79,7 +81,7 @@ func AppLogs(
 			slog.Warn("brick not valid", slog.String("brick_id", brick.ID))
 			continue
 		}
-		composeFilePath, found := brick.GetComposeFile()
+		composeFilePath, found := brick.GetComposeFile(platform)
 		if !found {
 			slog.Warn("brick compose id not valid", slog.String("brick_id", brick.ID))
 			continue

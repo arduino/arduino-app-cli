@@ -97,14 +97,21 @@ type Brick struct {
 
 	Source string `yaml:"-"`
 
-	FullPath     *paths.Path `yaml:"-"`
-	ComposeFile  *paths.Path `yaml:"-"` // brick_compose.yaml file path, optional
-	ReadmeFile   *paths.Path `yaml:"-"` // README.md file path, optional
-	ExamplesPath *paths.Path `yaml:"-"` // code examples folder path, optional
-	DocsAPIPath  *paths.Path `yaml:"-"` // API docs file path, optional
+	FullPath               *paths.Path             `yaml:"-"`
+	ComposeFile            *paths.Path             `yaml:"-"` // brick_compose.yaml file path, optional
+	ByPlatformComposeFiles *map[string]*paths.Path `yaml:"-"` // platform-specific compose files, optional
+	ReadmeFile             *paths.Path             `yaml:"-"` // README.md file path, optional
+	ExamplesPath           *paths.Path             `yaml:"-"` // code examples folder path, optional
+	DocsAPIPath            *paths.Path             `yaml:"-"` // API docs file path, optional
 }
 
-func (b Brick) GetComposeFile() (*paths.Path, bool) {
+func (b Brick) GetComposeFile(platform platform.Platform) (*paths.Path, bool) {
+	if b.ByPlatformComposeFiles != nil {
+		if path, ok := (*b.ByPlatformComposeFiles)[platform.BoardName]; ok && path != nil && !path.NotExist() {
+			return path, true
+		}
+	}
+	// Fallback to the default compose file if platform-specific one is not found
 	if b.ComposeFile == nil || b.ComposeFile.NotExist() {
 		return nil, false
 	}
