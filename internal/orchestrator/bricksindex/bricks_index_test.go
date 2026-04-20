@@ -328,7 +328,7 @@ func TestLoadBrickYamlBrickIndex(t *testing.T) {
 			bricksIndex, err := Load(platform.Platform{BoardName: ""}, paths.New("testdata/0.4.8"))
 			require.NoError(t, err)
 			bricks := bricksIndex.ListBricks()
-			require.Len(t, bricks, 2)
+			require.Len(t, bricks, 3)
 		})
 
 		t.Run("foo-board", func(t *testing.T) {
@@ -336,15 +336,36 @@ func TestLoadBrickYamlBrickIndex(t *testing.T) {
 			bricksIndex, err := Load(platform, paths.New("testdata/0.4.8"))
 			require.NoError(t, err)
 			bricks := bricksIndex.ListBricks()
-			require.Len(t, bricks, 2)
+			require.Len(t, bricks, 3)
 		})
 		t.Run("another-board", func(t *testing.T) {
 			platform := platform.Platform{BoardName: "another-board"}
 			bricksIndex, err := Load(platform, paths.New("testdata/0.4.8"))
 			require.NoError(t, err)
 			bricks := bricksIndex.ListBricks()
-			require.Len(t, bricks, 1)
+			require.Len(t, bricks, 2)
 		})
+	})
+
+	t.Run("get by platform compose files", func(t *testing.T) {
+		// Force a Ventunoq platform to test the retrieval of platform-specific compose file
+		ventunoq := platform.Platform{
+			FQBN:        "arduino:zephyr:ventunoq",
+			PlatformID:  "arduino:zephyr",
+			BoardName:   "ventunoq",
+			CompileJobs: 0, // unlimited
+		}
+		bricksIndex, err := Load(ventunoq, paths.New("testdata/0.4.8"))
+		require.NoError(t, err)
+
+		brick, found := bricksIndex.FindBrickByID("arduino:a-good-brick-by-platform")
+		require.True(t, found)
+		assert.Equal(t, paths.New("testdata/0.4.8"), brick.FullPath)
+
+		compose, found := brick.GetComposeFile(ventunoq)
+		require.True(t, found)
+		require.Equal(t, paths.New("testdata/0.4.8/compose/arduino/a-good-brick-by-platform/brick_compose.ventunoq.yaml"), compose)
+
 	})
 }
 

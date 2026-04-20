@@ -202,10 +202,32 @@ func Load(platform platform.Platform, path *paths.Path) (*BricksIndex, error) {
 		}
 		yamlIndex.Bricks[i].Source = "Arduino"
 		yamlIndex.Bricks[i].FullPath = path
-		yamlIndex.Bricks[i].ComposeFile = path.Join("compose", namespace, brickName, "brick_compose.yaml")
 		yamlIndex.Bricks[i].ReadmeFile = path.Join("docs", namespace, brickName, "README.md")
 		yamlIndex.Bricks[i].ExamplesPath = path.Join("examples", namespace, brickName)
 		yamlIndex.Bricks[i].DocsAPIPath = path.Join("api-docs", namespace, "app_bricks", brickName, "API.md")
+		// Load main compose file and, if present, platform-specific compose files
+		yamlIndex.Bricks[i].ComposeFile = path.Join("compose", namespace, brickName, "brick_compose.yaml")
+		// Search from platform specific files. Name syntax: brick_compose.<platform>.yaml, e.g. brick_compose.ventunoq.yaml
+		if dirEntries, err := yamlIndex.Bricks[i].ComposeFile.Parent().ReadDir(); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return nil, fmt.Errorf("cannot read compose directory for brick %s: %w", yamlIndex.Bricks[i].ID, err)
+		} else {
+			byPlatformComposeFiles := make(map[string]*paths.Path)
+			for _, entry := range dirEntries {
+				if entry.IsDir() {
+					continue
+				}
+				if entry.HasPrefix("brick_compose.") && entry.HasSuffix(".yaml") {
+					platformName := strings.TrimSuffix(strings.TrimPrefix(entry.Base(), "brick_compose."), ".yaml")
+					byPlatformComposeFiles[platformName] = yamlIndex.Bricks[i].ComposeFile.Parent().Join(entry.Base())
+				}
+			}
+			if len(byPlatformComposeFiles) > 0 {
+				yamlIndex.Bricks[i].ByPlatformComposeFiles = &byPlatformComposeFiles
+			}
+		}
 	}
 
 	yamlIndex.Bricks = slices.DeleteFunc(yamlIndex.Bricks, func(brick Brick) bool {

@@ -7,3 +7,6 @@ bricks:
   description: "This is another good brick that does even better things."
   supported_boards:
      - foo-board
+- id: arduino:a-good-brick-by-platform
+  name: A Good Brick that is only good for some platforms
+  description: "This is a good brick that does good things but for a specific platform."
