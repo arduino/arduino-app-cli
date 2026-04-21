@@ -137,12 +137,6 @@ func (a *AppDescriptor) IsValid() error {
 			allErrors = errors.Join(allErrors, fmt.Errorf("icon %q is not a valid single emoji", a.Icon))
 		}
 	}
-	if a.Name != "" {
-		if !isValidName(a.Name) {
-			allErrors = errors.Join(allErrors, fmt.Errorf("name %q is not valid", a.Name))
-		}
-	}
-
 	return allErrors
 }
 
