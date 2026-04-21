@@ -155,32 +155,3 @@ bricks:
 	require.Equal(t, 1, len(desc.Bricks))
 	require.Equal(t, []string{"my-dev-1", "my-dev-2"}, desc.Bricks[0].Devices)
 }
-
-func TestIsValidName(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected bool
-	}{
-		{"ValidName", true},
-		{"valid_name", true},
-		{"valid-name", true},
-		{"valid name", true},
-		{"Valid Name With Spaces", true},
-		{"a", true},
-		{"A1", true},
-		{"Test App", true},
-		{"Image detection with UI", true},
-		{"-invalid", false},
-		{"", false},
-		{"_invalid", false},
-		{"name!", false},
-		{"name@invalid", false},
-	}
-
-	for _, test := range tests {
-		t.Run(test.input, func(t *testing.T) {
-			result := isValidName(test.input)
-			require.Equal(t, test.expected, result, "Input: %s", test.input)
-		})
-	}
-}

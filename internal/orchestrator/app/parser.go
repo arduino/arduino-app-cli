@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"regexp"
 
 	emoji "github.com/Andrew-M-C/go.emoji"
 	"github.com/arduino/go-paths-helper"
@@ -153,9 +152,4 @@ func isSingleEmoji(s string) bool {
 		emojis++
 	}
 	return emojis == 1
-}
-
-func isValidName(s string) bool {
-	matched, _ := regexp.MatchString(`^[a-zA-Z0-9][a-zA-Z0-9_ -]*$`, s)
-	return matched
 }

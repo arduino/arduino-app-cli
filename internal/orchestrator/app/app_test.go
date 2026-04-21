@@ -26,6 +26,7 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.bug.st/f"
 )
 
@@ -423,4 +424,33 @@ func TestLoadBricksFromFolderWithNoBricks(t *testing.T) {
 		bricks := loadBricksFromFolder(bricksDir)
 		assert.Empty(t, bricks)
 	})
+}
+
+func TestIsValidFolderName(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected bool
+	}{
+		{"ValidName", true},
+		{"valid_name", true},
+		{"valid-name", true},
+		{"valid name", true},
+		{"Valid Name With Spaces", true},
+		{"a", true},
+		{"A1", true},
+		{"Test App", true},
+		{"Image detection with UI", true},
+		{"-invalid", false},
+		{"", false},
+		{"_invalid", false},
+		{"name!", false},
+		{"name@invalid", false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.input, func(t *testing.T) {
+			result := isValidFolderName(test.input)
+			require.Equal(t, test.expected, result, "Input: %s", test.input)
+		})
+	}
 }
