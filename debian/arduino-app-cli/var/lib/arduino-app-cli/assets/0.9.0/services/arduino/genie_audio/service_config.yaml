@@ -1,0 +1,7 @@
+service_id: arduino:genie_audio
+name: Gen AI Inference Extensions (Genie) Audio model service
+description: |
+  Gen AI Inference Extensions (Genie) Audio model service provides an interface to run and manage audio models for Arduino applications.
+  It's designed to leverage hardware acceleration features of supported platforms, ensuring efficient performance for AI workloads.
+category: ai
+supported_boards: ["ventunoq"]

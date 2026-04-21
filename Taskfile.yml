@@ -239,9 +239,13 @@ tasks:
           gh release download -R arduino/app-bricks-py "release/{{.SEMVER_TAG}}" -p '*.whl' -D "{{.TMPDIR}}" --clobber
           unzip -o "{{.TMPDIR}}/arduino_app_bricks-{{.SEMVER_TAG}}-py3-none-any.whl" -d "{{.OUTPUT_DIR}}"
       - |
-          # Copy the assets to the assets dir and testdata dir, replacing the previous version.
+          # Copy the assets and services replacing the previous version.
           rm -rf "{{.ASSETS_DIR}}" && mkdir -p "{{.ASSETS_DIR}}"
           cp -r "{{.OUTPUT_DIR}}/arduino/app_bricks/static" "{{.ASSETS_DIR}}/{{.SEMVER_TAG}}"
+          cp -r "{{.OUTPUT_DIR}}/arduino/app_services" "{{.ASSETS_DIR}}/{{.SEMVER_TAG}}/"
+          mkdir -p "{{.ASSETS_DIR}}/{{.SEMVER_TAG}}/services"
+          mv "{{.ASSETS_DIR}}/{{.SEMVER_TAG}}/app_services" "{{.ASSETS_DIR}}/{{.SEMVER_TAG}}/services/arduino"
+          # fix e2e testdata, which only contains the static folder
           rm -rf "{{.TESTDATA_DIR}}" && mkdir -p "{{.TESTDATA_DIR}}"
           cp -r "{{.OUTPUT_DIR}}/arduino/app_bricks/static" "{{.TESTDATA_DIR}}/{{.SEMVER_TAG}}"
       - cmd: rm -rf {{.TMPDIR}}
