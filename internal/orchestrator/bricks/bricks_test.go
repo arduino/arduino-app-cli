@@ -64,7 +64,7 @@ func TestBrickCreate(t *testing.T) {
 	})
 
 	t.Run("do not fail if a mandatory variable is not present", func(t *testing.T) {
-		tempDummyApp := paths.New("testdata/dummy-app.temp")
+		tempDummyApp := paths.New("testdata/dummy-app-temp")
 		err := tempDummyApp.RemoveAll()
 		require.Nil(t, err)
 		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
@@ -84,7 +84,7 @@ func TestBrickCreate(t *testing.T) {
 	})
 
 	t.Run("the brick is added if it does not exist in the app", func(t *testing.T) {
-		tempDummyApp := paths.New("testdata/dummy-app.temp")
+		tempDummyApp := paths.New("testdata/dummy-app-temp")
 		err := tempDummyApp.RemoveAll()
 		require.Nil(t, err)
 		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
@@ -99,7 +99,7 @@ func TestBrickCreate(t *testing.T) {
 	})
 
 	t.Run("the variables of a brick are updated", func(t *testing.T) {
-		tempDummyApp := paths.New("testdata/dummy-app.brick-override.temp")
+		tempDummyApp := paths.New("testdata/dummy-app-brick-override-temp")
 		err := tempDummyApp.RemoveAll()
 		require.Nil(t, err)
 		err = paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp)
@@ -168,7 +168,7 @@ func TestUpdateBrick(t *testing.T) {
 	})
 
 	t.Run("allow updating only one mandatory variable among two", func(t *testing.T) {
-		tempDummyApp := paths.New("testdata/dummy-app.temp")
+		tempDummyApp := paths.New("testdata/dummy-app-temp")
 		err := tempDummyApp.RemoveAll()
 		require.Nil(t, err)
 		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
@@ -188,7 +188,7 @@ func TestUpdateBrick(t *testing.T) {
 	})
 
 	t.Run("update a single variables of a brick correctly", func(t *testing.T) {
-		tempDummyApp := paths.New("testdata/dummy-app.temp")
+		tempDummyApp := paths.New("testdata/dummy-app-temp")
 		require.Nil(t, tempDummyApp.RemoveAll())
 		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
 		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
@@ -217,7 +217,7 @@ func TestUpdateBrick(t *testing.T) {
 	})
 
 	t.Run("update a single variable correctly", func(t *testing.T) {
-		tempDummyApp := paths.New("testdata/dummy-app-for-update.temp")
+		tempDummyApp := paths.New("testdata/dummy-app-for-update-temp")
 		require.Nil(t, tempDummyApp.RemoveAll())
 		require.Nil(t, paths.New("testdata/dummy-app-for-update").CopyDirTo(tempDummyApp))
 		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
@@ -245,7 +245,7 @@ func TestUpdateBrick(t *testing.T) {
 	})
 
 	t.Run("update a custom model definition in a brick", func(t *testing.T) {
-		tempDummyApp := paths.New("testdata/dummy-app-for-model.temp")
+		tempDummyApp := paths.New("testdata/dummy-app-for-model-temp")
 		require.Nil(t, tempDummyApp.RemoveAll())
 		require.Nil(t, paths.New("testdata/dummy-app-for-model").CopyDirTo(tempDummyApp))
 		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
@@ -1003,7 +1003,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 
 func TestLocalBrickRename(t *testing.T) {
 	const sourceApp = "testdata/dummy-app-with-local-brick"
-	const tempApp = "testdata/dummy-app-with-local-brick.temp"
+	const tempApp = "testdata/dummy-app-with-local-brick-temp"
 
 	setup := func(t *testing.T) *app.ArduinoApp {
 		t.Helper()

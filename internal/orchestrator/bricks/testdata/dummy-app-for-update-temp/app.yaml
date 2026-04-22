@@ -1,0 +1,8 @@
+name: An app with only a required variable filled
+description: An app with only a required variable filled
+ports: []
+bricks:
+- arduino:arduino_cloud:
+    variables:
+      ARDUINO_DEVICE_ID: i-am-a-device-id
+      ARDUINO_SECRET: updated-the-secret
