@@ -103,12 +103,13 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 
 	return app, nil
 }
-
 func ValidateApp(appPath *paths.Path) error {
-	if !isValidFolderName(appPath.Base()) {
+	if !IsValidFolderName(appPath.Base()) {
 		return fmt.Errorf("root folder name %q is not valid: use only alphanumeric, underscores, dashes and spaces", appPath.Base())
 	}
-
+	return ValidateAppContent(appPath)
+}
+func ValidateAppContent(appPath *paths.Path) error {
 	descriptorFile := appPath.Join("app.yaml")
 	if _, err := validateAndParseDescriptor(descriptorFile); err != nil {
 		return err
@@ -126,7 +127,7 @@ func ValidateApp(appPath *paths.Path) error {
 	return nil
 }
 
-func isValidFolderName(s string) bool {
+func IsValidFolderName(s string) bool {
 	matched, _ := regexp.MatchString(`^[a-zA-Z0-9][a-zA-Z0-9_ -]*$`, s)
 	return matched
 }

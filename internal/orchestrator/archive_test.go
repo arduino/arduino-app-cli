@@ -198,6 +198,16 @@ func TestImportAppFromZip(t *testing.T) {
 			wantErr:     false,
 		},
 		{
+			name:            "Success - valid app name starting with dash",
+			originalZipName: "test.zip",
+			zipFiles: map[string]string{
+				"app.yaml":       "name: -invalid-name",
+				"python/main.py": "pass",
+			},
+			wantErr:       false,
+			errorContains: "is not valid",
+		},
+		{
 			name:            "Error - Too Deep Structure",
 			originalZipName: "test.zip",
 			zipFiles: map[string]string{
@@ -225,16 +235,6 @@ func TestImportAppFromZip(t *testing.T) {
 			},
 			wantErr:       true,
 			errorContains: "illegal file path",
-		},
-		{
-			name:            "Error - Invalid app name",
-			originalZipName: "test.zip",
-			zipFiles: map[string]string{
-				"app.yaml":       "name: -invalid-name",
-				"python/main.py": "pass",
-			},
-			wantErr:       true,
-			errorContains: "is not valid",
 		},
 		{
 			name:            "Error - Sketch folder missing .ino",

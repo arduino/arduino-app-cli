@@ -449,7 +449,7 @@ func TestIsValidFolderName(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.input, func(t *testing.T) {
-			result := isValidFolderName(test.input)
+			result := IsValidFolderName(test.input)
 			require.Equal(t, test.expected, result, "Input: %s", test.input)
 		})
 	}
