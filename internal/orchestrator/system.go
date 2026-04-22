@@ -48,6 +48,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -78,7 +79,7 @@ func (o SystemInitOptions) Validate() error {
 // SystemInit pulls all the docker images needed for the current version of the software to run and the
 // sketch libraries used in the example apps. Can be used to pre-install docker images/libraries on an
 // empty system, or to update all the docker images/libraries that need it.
-func SystemInit(ctx context.Context, cfg config.Configuration, bricksindex *bricksindex.BricksIndex, docker *command.DockerCli, options SystemInitOptions) error {
+func SystemInit(ctx context.Context, cfg config.Configuration, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, docker *command.DockerCli, options SystemInitOptions) error {
 	if err := options.Validate(); err != nil {
 		return err
 	}
@@ -117,7 +118,7 @@ func SystemInit(ctx context.Context, cfg config.Configuration, bricksindex *bric
 
 	if downloadDockerImages {
 		// TODO: use progressCB instead of stdout
-		if err := downloadSupportedBricksImages(ctx, cfg, bricksindex, docker, stdout); err != nil {
+		if err := downloadSupportedImages(ctx, cfg, bricksindex, servicesindex, docker, stdout); err != nil {
 			return fmt.Errorf("failed to download container images used in examples: %w", err)
 		}
 	}
@@ -125,13 +126,19 @@ func SystemInit(ctx context.Context, cfg config.Configuration, bricksindex *bric
 	return nil
 }
 
-func downloadSupportedBricksImages(ctx context.Context, cfg config.Configuration, brickindex *bricksindex.BricksIndex, docker *command.DockerCli, stdout io.Writer) error {
+func downloadSupportedImages(ctx context.Context, cfg config.Configuration, brickindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, docker *command.DockerCli, stdout io.Writer) error {
 	imagesToPreinstall := []string{cfg.PythonImage}
-	additionalImages, err := getAllSupportedBrickImage(brickindex)
+	brickImages, err := getAllSupportedBrickImages(brickindex)
 	if err != nil {
 		return err
 	}
-	imagesToPreinstall = append(imagesToPreinstall, additionalImages...)
+	imagesToPreinstall = append(imagesToPreinstall, brickImages...)
+
+	brickServiceImages, err := getAllSupportedBrickServiceImages(servicesindex)
+	if err != nil {
+		return err
+	}
+	imagesToPreinstall = append(imagesToPreinstall, brickServiceImages...)
 
 	pulledImages, err := listImagesAlreadyPulled(ctx, docker.Client())
 	if err != nil {
@@ -266,10 +273,44 @@ func listImagesAlreadyPulled(ctx context.Context, docker dockerClient.APIClient)
 	return result, nil
 }
 
-func getAllSupportedBrickImage(bricksindex *bricksindex.BricksIndex) ([]string, error) {
+func getAllSupportedBrickImages(bricksIndex *bricksindex.BricksIndex) ([]string, error) {
 	var result []string
-	for _, brick := range bricksindex.ListBricks() {
+	for _, brick := range bricksIndex.ListBricks() {
 		composeFile, ok := brick.GetComposeFile()
+		if !ok {
+			continue
+		}
+		content, err := composeFile.ReadFile()
+		if err != nil {
+			return nil, err
+		}
+		prj, err := loader.LoadWithContext(
+			context.Background(),
+			types.ConfigDetails{
+				ConfigFiles: []types.ConfigFile{{Content: content}},
+				Environment: types.NewMapping(os.Environ()),
+			},
+			func(o *loader.Options) { o.SetProjectName("test", false) },
+		)
+		if err != nil {
+			return nil, err
+		}
+		for _, v := range prj.Services {
+			for _, prefix := range imagePrefixes {
+				if strings.HasPrefix(v.Image, prefix) {
+					result = append(result, v.Image)
+				}
+			}
+		}
+	}
+
+	return f.Uniq(result), nil
+}
+
+func getAllSupportedBrickServiceImages(serviceIndex *servicesindex.ServicesIndex) ([]string, error) {
+	var result []string
+	for _, service := range serviceIndex.Services {
+		composeFile, ok := service.GetComposeFile()
 		if !ok {
 			continue
 		}
@@ -314,7 +355,7 @@ func (s SystemCleanupResult) IsEmpty() bool {
 
 // SystemCleanup removes dangling containers and unused images.
 // Also running apps are stopped and removed.
-func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *bricksindex.BricksIndex, docker command.Cli, platform platform.Platform) (SystemCleanupResult, error) {
+func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, docker command.Cli, platform platform.Platform) (SystemCleanupResult, error) {
 	var result SystemCleanupResult
 
 	// Remove running app
@@ -345,7 +386,7 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 	}
 
 	// Remove unused images
-	containersMustStay, err := getRequiredImages(cfg, bricksindex)
+	containersMustStay, err := getRequiredImages(cfg, bricksindex, servicesindex)
 	if err != nil {
 		return result, err
 	}
@@ -389,15 +430,21 @@ func removeImage(ctx context.Context, docker dockerClient.APIClient, imageName s
 }
 
 // imgages required by the system
-func getRequiredImages(cfg config.Configuration, bricksindex *bricksindex.BricksIndex) ([]string, error) {
-	modelsRunnersContainers, err := getAllSupportedBrickImage(bricksindex)
+func getRequiredImages(cfg config.Configuration, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex) ([]string, error) {
+	bricksContainers, err := getAllSupportedBrickImages(bricksindex)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse models runner images: %w", err)
+		return nil, fmt.Errorf("failed to parse bricks runner images: %w", err)
 	}
 
-	requiredImages := make([]string, 0, 1+len(modelsRunnersContainers))
+	bricksServiceContainers, err := getAllSupportedBrickServiceImages(servicesindex)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse brick services images: %w", err)
+	}
+
+	requiredImages := make([]string, 0, 1+len(bricksContainers)+len(bricksServiceContainers))
 	requiredImages = append(requiredImages, cfg.PythonImage)
-	requiredImages = append(requiredImages, modelsRunnersContainers...)
+	requiredImages = append(requiredImages, bricksContainers...)
+	requiredImages = append(requiredImages, bricksServiceContainers...)
 
 	return requiredImages, nil
 }
