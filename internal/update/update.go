@@ -119,9 +119,6 @@ func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(Upgra
 }
 
 func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage) error {
-	if !m.lock.TryLock() {
-		return ErrOperationAlreadyInProgress
-	}
 	ctx = context.WithoutCancel(ctx)
 	var debPkgs []PackageInfo
 	var arduinoPlatform []PackageInfo
@@ -134,6 +131,10 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 		default:
 			return fmt.Errorf("unknown package type %s", v.Type)
 		}
+	}
+
+	if !m.lock.TryLock() {
+		return ErrOperationAlreadyInProgress
 	}
 
 	go func() {
