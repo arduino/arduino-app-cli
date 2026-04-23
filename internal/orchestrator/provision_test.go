@@ -496,7 +496,6 @@ services:
 
 func TestProvisionAppComposeOverridesFile(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	// staticStore := store.NewStaticStore(cfg.AssetsDir().String())
 	tempDirectory := t.TempDir()
 	var env = map[string]string{}
 	type services struct {

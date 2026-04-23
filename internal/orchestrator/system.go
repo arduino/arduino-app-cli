@@ -280,28 +280,11 @@ func getAllSupportedBrickImages(bricksIndex *bricksindex.BricksIndex) ([]string,
 		if !ok {
 			continue
 		}
-		content, err := composeFile.ReadFile()
+		images, err := extractImagesFromCompose(composeFile)
 		if err != nil {
 			return nil, err
 		}
-		prj, err := loader.LoadWithContext(
-			context.Background(),
-			types.ConfigDetails{
-				ConfigFiles: []types.ConfigFile{{Content: content}},
-				Environment: types.NewMapping(os.Environ()),
-			},
-			func(o *loader.Options) { o.SetProjectName("test", false) },
-		)
-		if err != nil {
-			return nil, err
-		}
-		for _, v := range prj.Services {
-			for _, prefix := range imagePrefixes {
-				if strings.HasPrefix(v.Image, prefix) {
-					result = append(result, v.Image)
-				}
-			}
-		}
+		result = append(result, images...)
 	}
 
 	return f.Uniq(result), nil
@@ -314,31 +297,42 @@ func getAllSupportedBrickServiceImages(serviceIndex *servicesindex.ServicesIndex
 		if !ok {
 			continue
 		}
-		content, err := composeFile.ReadFile()
+		images, err := extractImagesFromCompose(composeFile)
 		if err != nil {
 			return nil, err
 		}
-		prj, err := loader.LoadWithContext(
-			context.Background(),
-			types.ConfigDetails{
-				ConfigFiles: []types.ConfigFile{{Content: content}},
-				Environment: types.NewMapping(os.Environ()),
-			},
-			func(o *loader.Options) { o.SetProjectName("test", false) },
-		)
-		if err != nil {
-			return nil, err
-		}
-		for _, v := range prj.Services {
-			for _, prefix := range imagePrefixes {
-				if strings.HasPrefix(v.Image, prefix) {
-					result = append(result, v.Image)
-				}
-			}
-		}
+		result = append(result, images...)
 	}
 
 	return f.Uniq(result), nil
+}
+
+func extractImagesFromCompose(composeFile *paths.Path) ([]string, error) {
+	var result []string
+
+	content, err := composeFile.ReadFile()
+	if err != nil {
+		return nil, err
+	}
+	prj, err := loader.LoadWithContext(
+		context.Background(),
+		types.ConfigDetails{
+			ConfigFiles: []types.ConfigFile{{Content: content}},
+			Environment: types.NewMapping(os.Environ()),
+		},
+		func(o *loader.Options) { o.SetProjectName("default", false) },
+	)
+	if err != nil {
+		return nil, err
+	}
+	for _, v := range prj.Services {
+		for _, prefix := range imagePrefixes {
+			if strings.HasPrefix(v.Image, prefix) {
+				result = append(result, v.Image)
+			}
+		}
+	}
+	return result, nil
 }
 
 type SystemCleanupResult struct {

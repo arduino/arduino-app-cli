@@ -1,0 +1,3 @@
+services:
+  ollama-models-runner:
+    image: ghcr.io/arduino/app-bricks/ollama-models-runner:dev-next

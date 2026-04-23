@@ -1,0 +1,7 @@
+services:
+  genie-models-runner:
+    image: ghcr.io/arduino/app-bricks/genie-models-runner:dev-next
+  audio-analytics-runner:
+    image: ghcr.io/arduino/app-bricks/audio-analytics-models-runner:dev-next
+  some-other-service:
+    image: alpine:latest
