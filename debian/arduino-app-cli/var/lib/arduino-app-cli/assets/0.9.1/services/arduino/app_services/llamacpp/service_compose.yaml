@@ -1,0 +1,32 @@
+services:
+  llamacpp-models-runner:
+    image: ${DOCKER_REGISTRY_BASE:-ghcr.io/arduino/}app-bricks/llamacpp-models-runner:dev-next
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+    environment:
+      - LLAMA_LOG_LEVEL=error
+      - LLAMA_ARG_CTX_SIZE=${LLAMA_ARG_CTX_SIZE:-2048}
+      - LLAMA_ARG_CACHE_TYPE_K=${LLAMA_ARG_CACHE_TYPE_K:-q4_0}
+      - LLAMA_ARG_CACHE_TYPE_V=${LLAMA_ARG_CACHE_TYPE_V:-q4_0}
+      - LLAMA_ARG_HOST=${LLAMA_ARG_HOST:-0.0.0.0}
+      - LLAMA_ARG_PORT=${LLAMA_ARG_PORT:-9999}
+      - LLAMA_ARG_MODELS_DIR=${LLAMA_ARG_MODELS_DIR:-/models}
+      - LLAMA_ARG_MODELS_MAX=${LLAMA_ARG_MODELS_MAX:-4}
+      - LLAMA_ARG_BATCH=${LLAMA_ARG_BATCH:-256}
+      - LLAMA_ARG_UBATCH=${LLAMA_ARG_UBATCH:-128}
+      - LLAMA_ARG_MLOCK=${LLAMA_ARG_MLOCK:-1}
+      - LLAMA_ARG_N_PREDICT=${LLAMA_ARG_N_PREDICT:-256}
+      - XDG_CACHE_HOME=/models
+      #- LLAMA_ARG_THREADS=${LLAMA_ARG_THREADS:-4}
+      #- LLAMA_API_KEY=${LLAMA_API_KEY:-key}
+    working_dir: /models
+    ports:
+      - ${BIND_ADDRESS:-127.0.0.1}:9999:9999
+    mem_limit: 10g
+    oom_kill_disable: false
+    shm_size: 2g
+    volumes:
+      - ${APPLAB_DOWNLOADED_LLAMA_CPP_MODELS:-${HOME}/ArduinoAppsSharedData/llamacpp/}:/models/

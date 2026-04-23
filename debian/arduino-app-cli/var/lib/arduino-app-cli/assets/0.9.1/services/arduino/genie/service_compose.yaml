@@ -1,0 +1,49 @@
+services:
+  genie-models-runner:
+    image: ${DOCKER_REGISTRY_BASE:-ghcr.io/arduino/}app-bricks/genie-models-runner:dev-next
+    # Currently, genie-models-runner requires to run as root
+    user: 0:0
+    restart: on-failure
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+    working_dir: /mnt/work/models
+    ports:
+      - ${BIND_ADDRESS:-127.0.0.1}:9001:9001
+    # Add capability to allow process to modify resource limits
+    cap_add:
+      - SYS_RESOURCE
+    environment:
+      - ADHOC_MODE=${ADHOC_MODE:-true}
+      - LOG_LEVEL=${LOG_LEVEL:-ERROR}
+      - GENAI_PORT=${GENAI_PORT:-9001}
+      - TOOL_RESPONSE_TIMEOUT_SECONDS=${TOOL_RESPONSE_TIMEOUT_SECONDS:-30}
+      - VLM_LIBRARY_PATH=${VLM_LIBRARY_PATH:-/iot-user/app/site-packages/libvlmservice.so}
+      - LLM_LIBRARY_PATH=${LLM_LIBRARY_PATH:-/iot-user/app/site-packages/libllmservice.so}
+      - GENAI_INTERFACE_FILE=${GENAI_INTERFACE_FILE:-/usr/include/genai_interface.h}
+      - GENAI_CONTEXT_CAPPING=${GENAI_CONTEXT_CAPPING:-1024}
+      - MAX_ACTIVE_MODELS=${MAX_ACTIVE_MODELS:-3}
+    # Memory and resource limits for VLM model loading
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    oom_score_adj: -500
+    mem_limit: 10g
+    shm_size: 2g
+    devices:
+      - /dev/dma_heap/system
+      - /dev/dma_heap/qcom,system
+      - /dev/fastrpc-cdsp
+    volumes:
+      - /usr/lib/aarch64-linux-gnu/libdmabufheap.so.0:/usr/lib/libdmabufheap.so.0
+      - /usr/lib/aarch64-linux-gnu/libcdsprpc.so:/usr/lib/libcdsprpc.so
+      - /var/lib/arduino-app-cli/models/genai:/mnt/work/models/
+    stop_signal: SIGTERM
+    stop_grace_period: 10s
+    command: ["hypercorn", "openapi_server.main:app", "--bind", "0.0.0.0:${GENAI_PORT:-9001}", "--log-level", "info"]
