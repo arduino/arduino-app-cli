@@ -9,7 +9,7 @@
 ## `GestureRecognition` class
 
 ```python
-class GestureRecognition(camera: BaseCamera | None)
+class GestureRecognition(camera: BaseCamera | None, confidence: float)
 ```
 
 ### Methods
