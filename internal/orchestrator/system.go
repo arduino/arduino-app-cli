@@ -350,13 +350,12 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 		feedback.Warnf("failed to get running app - %v", err)
 	}
 	if runningApp != nil {
-		for item := range StopAndDestroyApp(ctx, docker, platform, *runningApp) {
-			if item.GetType() == ErrorType {
-				feedback.Warnf("failed to stop and destroy running app - %v", item.GetError())
-				break
-			}
+		err := StopAndDestroyApp(ctx, docker, platform, *runningApp, func(item StreamMessage) {})
+		if err != nil {
+			feedback.Warnf("failed to stop and destroy running app - %v", err)
+		} else {
+			result.RunningAppRemoved = true
 		}
-		result.RunningAppRemoved = true
 	}
 
 	// Remove dangling stuff

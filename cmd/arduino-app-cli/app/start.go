@@ -63,7 +63,7 @@ func newStartCmd(cfg config.Configuration) *cobra.Command {
 func startHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp, verbose bool) error {
 	out, _, getResult := feedback.OutputStreams()
 
-	stream := orchestrator.StartApp(
+	err := orchestrator.StartApp(
 		ctx,
 		servicelocator.GetDockerClient(),
 		servicelocator.GetProvisioner(),
@@ -75,19 +75,20 @@ func startHandler(ctx context.Context, cfg config.Configuration, app app.Arduino
 		servicelocator.GetStaticStore(),
 		servicelocator.GetPlatform(),
 		verbose,
+		func(message orchestrator.StreamMessage) {
+			switch message.GetType() {
+			case orchestrator.ProgressType:
+				fmt.Fprintf(out, "Progress[%s]: %.0f%%\n", message.GetProgress().Name, message.GetProgress().Progress)
+			case orchestrator.InfoType:
+				fmt.Fprintln(out, "[INFO]", message.GetData())
+			}
+		},
 	)
-	for message := range stream {
-		switch message.GetType() {
-		case orchestrator.ProgressType:
-			fmt.Fprintf(out, "Progress[%s]: %.0f%%\n", message.GetProgress().Name, message.GetProgress().Progress)
-		case orchestrator.InfoType:
-			fmt.Fprintln(out, "[INFO]", message.GetData())
-		case orchestrator.ErrorType:
-			errMesg := cases.Title(language.AmericanEnglish).String(message.GetError().Error())
-			feedback.Fatal(fmt.Sprintf("[ERROR] %s", errMesg), feedback.ErrGeneric)
-			return nil
-		}
+	if err != nil {
+		errMesg := cases.Title(language.AmericanEnglish).String(err.Error())
+		feedback.Fatal(fmt.Sprintf("[ERROR] %s", errMesg), feedback.ErrGeneric)
 	}
+
 	outputResult := getResult()
 	feedback.PrintResult(startAppResult{
 		AppName: app.Name,

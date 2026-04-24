@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"iter"
 	"log/slog"
 	"maps"
 	"os"
@@ -76,12 +75,10 @@ const (
 	UnknownType  MessageType = ""
 	ProgressType MessageType = "progress"
 	InfoType     MessageType = "info"
-	ErrorType    MessageType = "error"
 )
 
 type StreamMessage struct {
 	data     string
-	error    error
 	progress *Progress
 }
 
@@ -91,17 +88,12 @@ type Progress struct {
 }
 
 func (p *StreamMessage) IsData() bool           { return p.data != "" }
-func (p *StreamMessage) IsError() bool          { return p.error != nil }
 func (p *StreamMessage) IsProgress() bool       { return p.progress != nil }
 func (p *StreamMessage) GetData() string        { return p.data }
-func (p *StreamMessage) GetError() error        { return p.error }
 func (p *StreamMessage) GetProgress() *Progress { return p.progress }
 func (p *StreamMessage) GetType() MessageType {
 	if p.IsData() {
 		return InfoType
-	}
-	if p.IsError() {
-		return ErrorType
 	}
 	if p.IsProgress() {
 		return ProgressType
@@ -121,163 +113,116 @@ func StartApp(
 	staticStore *store.StaticStore,
 	platform platform.Platform,
 	verbose bool,
-) iter.Seq[StreamMessage] {
-	return func(yield func(StreamMessage) bool) {
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
+	cb func(StreamMessage),
+) error {
+	bricksIndex = bricksIndex.WithAppBricks(appToStart.LocalBricks)
 
-		bricksIndex = bricksIndex.WithAppBricks(appToStart.LocalBricks)
-
-		err := checkBricks(appToStart.Descriptor, bricksIndex, modelsIndex)
-		if err != nil {
-			yield(StreamMessage{error: err})
-			return
-		}
-
-		devices, err := peripherals.Detect()
-		if err != nil {
-			yield(StreamMessage{error: err})
-			return
-		}
-
-		err = checkRequiredDevices(bricksIndex, appToStart.Descriptor.Bricks, devices)
-		if err != nil {
-			yield(StreamMessage{error: err})
-			return
-		}
-
-		running, err := getRunningApp(ctx, docker.Client())
-		if err != nil {
-			yield(StreamMessage{error: err})
-			return
-		}
-		if running != nil {
-			yield(StreamMessage{error: fmt.Errorf("app %q is running", running.Name)})
-			return
-		}
-		if !yield(StreamMessage{data: fmt.Sprintf("Starting app %q", appToStart.Name)}) {
-			return
-		}
-
-		if err := setLedsToUserControlledMode(platform); err != nil {
-			slog.Debug("unable to set status leds", slog.String("error", err.Error()))
-		}
-
-		sketchCallbackWriter := NewCallbackWriter(func(line string) {
-			if !yield(StreamMessage{data: line}) {
-				cancel()
-				return
-			}
-		})
-		if !yield(StreamMessage{progress: &Progress{Name: "preparing", Progress: 0.0}}) {
-			return
-		}
-
-		if _, ok := appToStart.GetSketchPath(); ok {
-			if !yield(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}}) {
-				return
-			}
-
-			if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, appToStart); err != nil {
-				if !yield(StreamMessage{data: "Failed to apply app migration for platform arduino:zephyr >0.54.1. Error: " + err.Error()}) {
-					return
-				}
-			} else if ok {
-				if !yield(StreamMessage{data: "Applied app migration for platform arduino:zephyr >0.54.1. Arduino_RouterBridge is now part of the platform and shouldn't be explicitly specified"}) {
-					return
-				}
-			}
-
-			if err := compileUploadSketch(ctx, verbose, platform, appToStart, sketchCallbackWriter); err != nil {
-				yield(StreamMessage{error: err})
-				return
-			}
-			if !yield(StreamMessage{progress: &Progress{Name: "sketch updated", Progress: 10.0}}) {
-				return
-			}
-		}
-
-		if appToStart.MainPythonFile != nil {
-			envs := getAppEnvironmentVariables(appToStart, bricksIndex, modelsIndex)
-
-			if !yield(StreamMessage{data: "python provisioning"}) {
-				cancel()
-				return
-			}
-			provisionStartProgress := float32(0.0)
-			if _, ok := appToStart.GetSketchPath(); ok {
-				provisionStartProgress = 10.0
-			}
-
-			if !yield(StreamMessage{progress: &Progress{Name: "python provisioning", Progress: provisionStartProgress}}) {
-				return
-			}
-
-			if err := provisioner.App(ctx, bricksIndex, servicesIndex, &appToStart, cfg, envs, platform, devices); err != nil {
-				yield(StreamMessage{error: err})
-				return
-			}
-
-			if !yield(StreamMessage{data: "python downloading"}) {
-				cancel()
-				return
-			}
-
-			// Launch the docker compose command to start the app
-			overrideComposeFile := appToStart.AppComposeOverrideFilePath()
-
-			commands := []string{}
-			commands = append(commands, "docker", "compose", "-f", appToStart.AppComposeFilePath().String())
-			if ok, _ := overrideComposeFile.ExistCheck(); ok {
-				commands = append(commands, "-f", overrideComposeFile.String())
-			}
-			commands = append(commands, "up", "-d", "--remove-orphans", "--pull", "missing")
-
-			dockerParser := NewDockerProgressParser(200)
-
-			var customError error
-			callbackDockerWriter := NewCallbackWriter(func(line string) {
-				// docker compose sometimes returns errors as info lines, we try to parse them here and return a proper error
-
-				if e := GetCustomErrorFomDockerEvent(line); e != nil {
-					customError = e
-				}
-				if percentage, ok := dockerParser.Parse(line); ok {
-
-					// assumption: docker pull progress goes from 0 to 80% of the total app start progress
-					totalProgress := 20.0 + (percentage/100.0)*80.0
-
-					if !yield(StreamMessage{progress: &Progress{Name: "python starting", Progress: float32(totalProgress)}}) {
-						cancel()
-						return
-					}
-					return
-				} else if !yield(StreamMessage{data: line}) {
-					cancel()
-					return
-				}
-			})
-
-			slog.Debug("starting app", slog.String("command", strings.Join(commands, " ")), slog.Any("envs", envs))
-			process, err := paths.NewProcess(envs.AsList(), commands...)
-			if err != nil {
-				yield(StreamMessage{error: err})
-				return
-			}
-			process.RedirectStderrTo(callbackDockerWriter)
-			process.RedirectStdoutTo(callbackDockerWriter)
-			if err := process.RunWithinContext(ctx); err != nil {
-				// custom error could have been set while reading the output. Not detected by the process exit code
-				if customError != nil {
-					err = customError
-				}
-
-				yield(StreamMessage{error: err})
-				return
-			}
-		}
-		_ = yield(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
+	if err := checkBricks(appToStart.Descriptor, bricksIndex, modelsIndex); err != nil {
+		return err
 	}
+
+	devices, err := peripherals.Detect()
+	if err != nil {
+		return err
+	}
+
+	if err := checkRequiredDevices(bricksIndex, appToStart.Descriptor.Bricks, devices); err != nil {
+		return err
+	}
+
+	if running, err := getRunningApp(ctx, docker.Client()); err != nil {
+		return err
+	} else if running != nil {
+		return fmt.Errorf("app %q is running", running.Name)
+	} else {
+		cb(StreamMessage{data: fmt.Sprintf("Starting app %q", appToStart.Name)})
+	}
+
+	if err := setLedsToUserControlledMode(platform); err != nil {
+		slog.Debug("unable to set status leds", slog.String("error", err.Error()))
+	}
+
+	sketchCallbackWriter := NewCallbackWriter(func(line string) {
+		cb(StreamMessage{data: line})
+	})
+
+	cb(StreamMessage{progress: &Progress{Name: "preparing", Progress: 0.0}})
+
+	if _, ok := appToStart.GetSketchPath(); ok {
+		cb(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}})
+
+		if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, appToStart); err != nil {
+			cb(StreamMessage{data: "Failed to apply app migration for platform arduino:zephyr >0.54.1. Error: " + err.Error()})
+		} else if ok {
+			cb(StreamMessage{data: "Applied app migration for platform arduino:zephyr >0.54.1. Arduino_RouterBridge is now part of the platform and shouldn't be explicitly specified"})
+		}
+
+		if err := compileUploadSketch(ctx, verbose, platform, appToStart, sketchCallbackWriter); err != nil {
+			return err
+		}
+
+		cb(StreamMessage{progress: &Progress{Name: "sketch updated", Progress: 10.0}})
+	}
+
+	if appToStart.MainPythonFile != nil {
+		envs := getAppEnvironmentVariables(appToStart, bricksIndex, modelsIndex)
+
+		cb(StreamMessage{data: "python provisioning"})
+		provisionStartProgress := float32(0.0)
+		if _, ok := appToStart.GetSketchPath(); ok {
+			provisionStartProgress = 10.0
+		}
+
+		cb(StreamMessage{progress: &Progress{Name: "python provisioning", Progress: provisionStartProgress}})
+
+		if err := provisioner.App(ctx, bricksIndex, servicesIndex, &appToStart, cfg, envs, platform, devices); err != nil {
+			return err
+		}
+
+		cb(StreamMessage{data: "python downloading"})
+
+		// Launch the docker compose command to start the app
+		commands := []string{}
+		commands = append(commands, "docker", "compose", "-f", appToStart.AppComposeFilePath().String())
+		if overrideComposeFile := appToStart.AppComposeOverrideFilePath(); overrideComposeFile.Exist() {
+			commands = append(commands, "-f", overrideComposeFile.String())
+		}
+		commands = append(commands, "up", "-d", "--remove-orphans", "--pull", "missing")
+
+		dockerParser := NewDockerProgressParser(200)
+
+		var customError error
+		callbackDockerWriter := NewCallbackWriter(func(line string) {
+			// docker compose sometimes returns errors as info lines, we try to parse them here and return a proper error
+			if e := GetCustomErrorFomDockerEvent(line); e != nil {
+				customError = e
+			}
+			if percentage, ok := dockerParser.Parse(line); ok {
+				// assumption: docker pull progress goes from 0 to 80% of the total app start progress
+				totalProgress := 20.0 + (percentage/100.0)*80.0
+				cb(StreamMessage{progress: &Progress{Name: "python starting", Progress: float32(totalProgress)}})
+				return
+			}
+			cb(StreamMessage{data: line})
+		})
+
+		slog.Debug("starting app", slog.String("command", strings.Join(commands, " ")), slog.Any("envs", envs))
+		process, err := paths.NewProcess(envs.AsList(), commands...)
+		if err != nil {
+			return err
+		}
+		process.RedirectStderrTo(callbackDockerWriter)
+		process.RedirectStdoutTo(callbackDockerWriter)
+		if err := process.RunWithinContext(ctx); err != nil {
+			// custom error could have been set while reading the output. Not detected by the process exit code
+			if customError != nil {
+				return customError
+			}
+			return err
+		}
+	}
+	cb(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
+	return nil
 }
 
 // getAppEnvironmentVariables returns the environment variables for the app by merging variables and config in the following order:
@@ -327,121 +272,97 @@ func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.Bric
 	return envs
 }
 
-func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.Platform, app app.ArduinoApp, cmd string) iter.Seq[StreamMessage] {
-	return func(yield func(StreamMessage) bool) {
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
+func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.Platform, app app.ArduinoApp, cmd string, cb func(StreamMessage)) error {
+	switch cmd {
+	case "stop":
+		cb(StreamMessage{data: fmt.Sprintf("Stopping app %q", app.Name)})
+	case "down":
+		cb(StreamMessage{data: fmt.Sprintf("Destroying  app %q", app.Name)})
+	}
 
-		var message string
-		switch cmd {
-		case "stop":
-			message = fmt.Sprintf("Stopping app %q", app.Name)
-		case "down":
-			message = fmt.Sprintf("Destroying  app %q", app.Name)
-		}
+	if err := restoreLedsState(platform); err != nil {
+		slog.Debug("unable to set status leds", slog.String("error", err.Error()))
+	}
 
-		if !yield(StreamMessage{data: message}) {
-			return
-		}
-		if err := restoreLedsState(platform); err != nil {
-			slog.Debug("unable to set status leds", slog.String("error", err.Error()))
-		}
+	callbackWriter := NewCallbackWriter(func(line string) {
+		cb(StreamMessage{data: line})
+	})
 
-		callbackWriter := NewCallbackWriter(func(line string) {
-			if !yield(StreamMessage{data: line}) {
-				cancel()
-				return
+	if _, ok := app.GetSketchPath(); ok {
+		// Before stopping the microcontroller we want to make sure that the app was running.
+		running, err := getRunningApp(ctx, docker.Client())
+		if err != nil {
+			return err
+		}
+		if running != nil && running.FullPath.String() == app.FullPath.String() {
+			cb(StreamMessage{data: "Stopping microcontroller..."})
+			if err := platform.GetMicro().Disable(); err != nil {
+				return err
+				// XXX: if we fail to stop the sketch, do we want to continue to stop the app anyway?
+				//      maybe we can just log the error and continue
 			}
-		})
+		}
+	}
 
-		if _, ok := app.GetSketchPath(); ok {
-			// Before stopping the microcontroller we want to make sure that the app was running.
-			running, err := getRunningApp(ctx, docker.Client())
+	if app.MainPythonFile != nil {
+		mainCompose := app.AppComposeFilePath()
+		// In case the app was never started
+		if mainCompose.Exist() {
+			args := []string{
+				"docker",
+				"compose",
+				"-f", mainCompose.String(),
+				cmd,
+				fmt.Sprintf("--timeout=%d", DefaultDockerStopTimeoutSeconds),
+			}
+			if cmd == "down" {
+				args = append(args, "--volumes", "--remove-orphans")
+			}
+
+			process, err := paths.NewProcess(nil, args...)
 			if err != nil {
-				yield(StreamMessage{error: err})
-				return
+				return err
 			}
-			if running != nil && running.FullPath.String() == app.FullPath.String() {
-				if !yield(StreamMessage{data: "Stopping microcontroller..."}) {
-					return
-				}
-				if err := platform.GetMicro().Disable(); err != nil {
-					_ = yield(StreamMessage{error: err})
-				}
-			}
-		}
 
-		if app.MainPythonFile != nil {
-			mainCompose := app.AppComposeFilePath()
-			// In case the app was never started
-			if mainCompose.Exist() {
-				args := []string{
-					"docker",
-					"compose",
-					"-f", mainCompose.String(),
-					cmd,
-					fmt.Sprintf("--timeout=%d", DefaultDockerStopTimeoutSeconds),
-				}
-				if cmd == "down" {
-					args = append(args, "--volumes", "--remove-orphans")
-				}
-
-				process, err := paths.NewProcess(nil, args...)
-				if err != nil {
-					yield(StreamMessage{error: err})
-					return
-				}
-
-				process.RedirectStderrTo(callbackWriter)
-				process.RedirectStdoutTo(callbackWriter)
-				if err := process.RunWithinContext(ctx); err != nil {
-					yield(StreamMessage{error: err})
-					return
-				}
-			}
-		}
-		_ = yield(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
-	}
-}
-
-func StopApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp) iter.Seq[StreamMessage] {
-	return stopAppWithCmd(ctx, dockerClient, platform, app, "stop")
-}
-
-func StopAndDestroyApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp) iter.Seq[StreamMessage] {
-	return func(yield func(StreamMessage) bool) {
-		for msg := range stopAppWithCmd(ctx, dockerClient, platform, app, "down") {
-			if !yield(msg) {
-				return
-			}
-		}
-
-		for msg := range cleanAppCacheFiles(app) {
-			if !yield(msg) {
-				return
+			process.RedirectStderrTo(callbackWriter)
+			process.RedirectStdoutTo(callbackWriter)
+			if err := process.RunWithinContext(ctx); err != nil {
+				return err
 			}
 		}
 	}
+	cb(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
+	return nil
 }
 
-func cleanAppCacheFiles(app app.ArduinoApp) iter.Seq[StreamMessage] {
-	return func(yield func(StreamMessage) bool) {
-		cachePath := app.FullPath.Join(".cache")
+func StopApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp, cb func(StreamMessage)) error {
+	return stopAppWithCmd(ctx, dockerClient, platform, app, "stop", cb)
+}
 
-		if exists, _ := cachePath.ExistCheck(); !exists {
-			yield(StreamMessage{data: "No cache to clean."})
-			return
-		}
-		if !yield(StreamMessage{data: "Removing app cache files..."}) {
-			return
-		}
-		slog.Debug("removing app cache", slog.String("path", cachePath.String()))
-		if err := cachePath.RemoveAll(); err != nil {
-			yield(StreamMessage{error: fmt.Errorf("unable to remove app cache: %w", err)})
-			return
-		}
-		yield(StreamMessage{data: "Cache removed successfully."})
+func StopAndDestroyApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp, cb func(StreamMessage)) error {
+	if err := stopAppWithCmd(ctx, dockerClient, platform, app, "down", cb); err != nil {
+		return err
 	}
+	if err := cleanAppCacheFiles(app, cb); err != nil {
+		return err
+	}
+	return nil
+}
+
+func cleanAppCacheFiles(app app.ArduinoApp, cb func(StreamMessage)) error {
+	cachePath := app.FullPath.Join(".cache")
+
+	if exists, _ := cachePath.ExistCheck(); !exists {
+		cb(StreamMessage{data: "No cache to clean."})
+		return nil
+	}
+	cb(StreamMessage{data: "Removing app cache files..."})
+	slog.Debug("removing app cache", slog.String("path", cachePath.String()))
+	if err := cachePath.RemoveAll(); err != nil {
+		return fmt.Errorf("unable to remove app cache: %w", err)
+	}
+	cb(StreamMessage{data: "Cache removed successfully."})
+	return nil
 }
 
 func RestartApp(
@@ -456,35 +377,24 @@ func RestartApp(
 	staticStore *store.StaticStore,
 	platform platform.Platform,
 	verbose bool,
-) iter.Seq[StreamMessage] {
-	return func(yield func(StreamMessage) bool) {
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-		runningApp, err := getRunningApp(ctx, docker.Client())
-		if err != nil {
-			yield(StreamMessage{error: err})
-			return
-		}
-
-		if runningApp != nil {
-			if runningApp.FullPath.String() != appToStart.FullPath.String() {
-				yield(StreamMessage{error: fmt.Errorf("another app %q is running", runningApp.Name)})
-				return
-			}
-
-			stopStream := StopApp(ctx, docker, platform, *runningApp)
-			for msg := range stopStream {
-				if !yield(msg) {
-					return
-				}
-				if msg.error != nil {
-					return
-				}
-			}
-		}
-		startStream := StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, staticStore, platform, verbose)
-		startStream(yield)
+	cb func(StreamMessage),
+) error {
+	runningApp, err := getRunningApp(ctx, docker.Client())
+	if err != nil {
+		return err
 	}
+
+	if runningApp != nil {
+		if runningApp.FullPath.String() != appToStart.FullPath.String() {
+			return fmt.Errorf("another app %q is running", runningApp.Name)
+		}
+
+		if err := StopApp(ctx, docker, platform, *runningApp, cb); err != nil {
+			return err
+		}
+	}
+
+	return StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, staticStore, platform, verbose, cb)
 }
 
 func StartDefaultApp(
@@ -517,10 +427,8 @@ func StartDefaultApp(
 	}
 
 	// TODO: we need to stop all other running app before starting the default app.
-	for msg := range StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, *app, cfg, staticStore, platform, false) {
-		if msg.IsError() {
-			return fmt.Errorf("failed to start app: %w", msg.GetError())
-		}
+	if err := StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, *app, cfg, staticStore, platform, false, func(sm StreamMessage) {}); err != nil {
+		return fmt.Errorf("failed to start app: %w", err)
 	}
 
 	return nil
@@ -891,11 +799,9 @@ func CloneApp(
 }
 
 func DeleteApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp) error {
-
 	// We try to remove docker related resources at best effort
-	for range StopAndDestroyApp(ctx, dockerClient, platform, app) {
-		// just consume the iterator
-	}
+	_ = StopAndDestroyApp(ctx, dockerClient, platform, app, func(StreamMessage) {})
+	// TODO: Shall we report stop error?
 
 	return app.FullPath.RemoveAll()
 }

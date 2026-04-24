@@ -56,16 +56,15 @@ func newStopCmd(cfg config.Configuration) *cobra.Command {
 func stopHandler(ctx context.Context, app app.ArduinoApp) error {
 	out, _, getResult := feedback.OutputStreams()
 
-	for message := range orchestrator.StopApp(ctx, servicelocator.GetDockerClient(), servicelocator.GetPlatform(), app) {
+	if err := orchestrator.StopApp(ctx, servicelocator.GetDockerClient(), servicelocator.GetPlatform(), app, func(message orchestrator.StreamMessage) {
 		switch message.GetType() {
 		case orchestrator.ProgressType:
 			fmt.Fprintf(out, "Progress[%s]: %.0f%%\n", message.GetProgress().Name, message.GetProgress().Progress)
 		case orchestrator.InfoType:
 			fmt.Fprintln(out, "[INFO]", message.GetData())
-		case orchestrator.ErrorType:
-			feedback.Fatal(message.GetError().Error(), feedback.ErrGeneric)
-			return nil
 		}
+	}); err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}
 	outputResult := getResult()
 

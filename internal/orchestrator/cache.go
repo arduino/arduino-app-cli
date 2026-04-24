@@ -51,9 +51,7 @@ func CleanAppCache(
 			return ErrCleanCacheRunningApp
 		}
 		// We try to remove docker related resources at best effort
-		for range StopAndDestroyApp(ctx, docker, platform, app) {
-			// just consume the iterator
-		}
+		_ = StopAndDestroyApp(ctx, docker, platform, app, func(StreamMessage) {})
 	}
 
 	return app.ProvisioningStateDir().RemoveAll()
