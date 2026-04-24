@@ -177,6 +177,11 @@ func selectBestVersion(available []string, installed *semver.Version, constraint
 
 // UpgradePackages implements ServiceUpdater.
 func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages []update.PackageInfo, eventCB update.EventCallback) error {
+	if !a.lock.TryLock() {
+		return update.ErrOperationAlreadyInProgress
+	}
+	defer a.lock.Unlock()
+
 	if len(packages) == 0 {
 		return nil
 	}
@@ -191,11 +196,6 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 	if targetVersion == "" {
 		return fmt.Errorf("target version is empty for package '%s'", pkg.Name)
 	}
-
-	if !a.lock.TryLock() {
-		return update.ErrOperationAlreadyInProgress
-	}
-	defer a.lock.Unlock()
 
 	downloadProgressCB := func(curr *rpc.DownloadProgress) {
 		data := helpers.ArduinoCLIDownloadProgressToString(curr)
