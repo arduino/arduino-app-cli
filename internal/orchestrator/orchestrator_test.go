@@ -271,7 +271,7 @@ func TestListApp(t *testing.T) {
 			ShowApps:     true,
 			ShowExamples: true,
 			StatusFilter: "",
-		}, idProvider, cfg)
+		}, idProvider, nil, cfg)
 		require.NoError(t, err)
 		assert.Empty(t, res.BrokenApps)
 		assert.Empty(t, gCmp.Diff([]AppInfo{
@@ -310,7 +310,7 @@ func TestListApp(t *testing.T) {
 			ShowApps:     true,
 			ShowExamples: false,
 			StatusFilter: "",
-		}, idProvider, cfg)
+		}, idProvider, nil, cfg)
 		require.NoError(t, err)
 		assert.Empty(t, res.BrokenApps)
 		assert.Empty(t, gCmp.Diff([]AppInfo{
@@ -340,7 +340,7 @@ func TestListApp(t *testing.T) {
 			ShowApps:     false,
 			ShowExamples: true,
 			StatusFilter: "",
-		}, idProvider, cfg)
+		}, idProvider, nil, cfg)
 		require.NoError(t, err)
 		assert.Empty(t, res.BrokenApps)
 		assert.Empty(t, gCmp.Diff([]AppInfo{
@@ -368,7 +368,7 @@ func TestListApp(t *testing.T) {
 
 		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
 			ShowApps: true,
-		}, idProvider, cfg)
+		}, idProvider, nil, cfg)
 		require.NoError(t, err)
 
 		for _, a := range res.Apps {
@@ -399,9 +399,133 @@ func TestListApp(t *testing.T) {
 
 		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
 			ShowApps: true,
-		}, idProvider, cfg)
+		}, idProvider, nil, cfg)
 		require.NoError(t, err)
 		require.Empty(t, res.BrokenApps)
+	})
+}
+
+func TestListAppsFiltersByBricksIndex(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	idProvider := app.NewAppIDProvider(cfg)
+
+	docker, err := dockerClient.NewClientWithOpts(
+		dockerClient.FromEnv,
+		dockerClient.WithAPIVersionNegotiation(),
+	)
+	require.NoError(t, err)
+	dockerCli, err := command.NewDockerCli(
+		command.WithAPIClient(docker),
+		command.WithBaseContext(t.Context()),
+	)
+	require.NoError(t, err)
+	err = dockerCli.Initialize(&flags.ClientOptions{})
+	require.NoError(t, err)
+
+	// Create a compatible example (uses arduino:compatible_brick)
+	compatibleExID := createApp(t, "compatible-example", true, idProvider, cfg)
+	compatibleEx, err := app.Load(compatibleExID.ToPath())
+	require.NoError(t, err)
+	compatibleEx.Descriptor.Bricks = []app.Brick{{ID: "arduino:compatible_brick"}}
+	require.NoError(t, compatibleEx.Save())
+
+	// Create an incompatible example (uses arduino:incompatible_brick, absent from the index)
+	incompatibleExID := createApp(t, "incompatible-example", true, idProvider, cfg)
+	incompatibleEx, err := app.Load(incompatibleExID.ToPath())
+	require.NoError(t, err)
+	incompatibleEx.Descriptor.Bricks = []app.Brick{{ID: "arduino:incompatible_brick"}}
+	require.NoError(t, incompatibleEx.Save())
+
+	// Create a user app with the incompatible brick — should never be filtered
+	userAppID := createApp(t, "user-app", false, idProvider, cfg)
+	userApp, err := app.Load(userAppID.ToPath())
+	require.NoError(t, err)
+	userApp.Descriptor.Bricks = []app.Brick{{ID: "arduino:incompatible_brick"}}
+	require.NoError(t, userApp.Save())
+
+	// Build a bricks index that only contains arduino:compatible_brick
+	bricksIndexContent := []byte(`
+bricks:
+- id: arduino:compatible_brick
+  name: Compatible Brick
+  description: A brick compatible with the selected board
+`)
+	require.NoError(t, cfg.AssetsDir().MkdirAll())
+	require.NoError(t, cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent))
+	idx, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
+	require.NoError(t, err)
+
+	t.Run("compatible example is listed", func(t *testing.T) {
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowExamples: true}, idProvider, idx, cfg)
+		require.NoError(t, err)
+		require.Len(t, res.Apps, 1)
+		assert.Equal(t, compatibleExID, res.Apps[0].ID)
+	})
+
+	t.Run("incompatible example is excluded", func(t *testing.T) {
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowExamples: true}, idProvider, idx, cfg)
+		require.NoError(t, err)
+		for _, a := range res.Apps {
+			assert.NotEqual(t, incompatibleExID, a.ID, "incompatible example should be filtered out")
+		}
+	})
+
+	t.Run("user app with incompatible brick is still listed", func(t *testing.T) {
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowApps: true}, idProvider, idx, cfg)
+		require.NoError(t, err)
+		require.Len(t, res.Apps, 1)
+		assert.Equal(t, userAppID, res.Apps[0].ID)
+	})
+
+	t.Run("nil bricks index disables filtering", func(t *testing.T) {
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowExamples: true}, idProvider, nil, cfg)
+		require.NoError(t, err)
+		assert.Len(t, res.Apps, 2)
+	})
+}
+
+func TestListAppsLocalBricksCompatibility(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	idProvider := app.NewAppIDProvider(cfg)
+
+	docker, err := dockerClient.NewClientWithOpts(
+		dockerClient.FromEnv,
+		dockerClient.WithAPIVersionNegotiation(),
+	)
+	require.NoError(t, err)
+	dockerCli, err := command.NewDockerCli(
+		command.WithAPIClient(docker),
+		command.WithBaseContext(t.Context()),
+	)
+	require.NoError(t, err)
+	err = dockerCli.Initialize(&flags.ClientOptions{})
+	require.NoError(t, err)
+
+	// Create an example that references a local brick not in the built-in index
+	exampleID := createApp(t, "local-brick-example", true, idProvider, cfg)
+	exampleApp, err := app.Load(exampleID.ToPath())
+	require.NoError(t, err)
+	exampleApp.Descriptor.Bricks = []app.Brick{{ID: "local:my_custom_brick"}}
+	require.NoError(t, exampleApp.Save())
+
+	// Add a local brick to the app's bricks/ folder
+	localBrickDir := exampleID.ToPath().Join("bricks", "local", "my_custom_brick")
+	require.NoError(t, localBrickDir.MkdirAll())
+	localBrickConfig := []byte("id: local:my_custom_brick\nname: My Custom Brick\ndescription: A local brick\n")
+	require.NoError(t, localBrickDir.Join("brick_config.yaml").WriteFile(localBrickConfig))
+
+	// Build a bricks index with no built-in bricks (empty)
+	bricksIndexContent := []byte("bricks: []\n")
+	require.NoError(t, cfg.AssetsDir().MkdirAll())
+	require.NoError(t, cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent))
+	idx, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
+	require.NoError(t, err)
+
+	t.Run("example with only local bricks is listed even when index is empty", func(t *testing.T) {
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowExamples: true}, idProvider, idx, cfg)
+		require.NoError(t, err)
+		require.Len(t, res.Apps, 1)
+		assert.Equal(t, exampleID, res.Apps[0].ID)
 	})
 }
 

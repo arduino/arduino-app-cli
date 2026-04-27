@@ -471,6 +471,7 @@ func ListApps(
 	docker command.Cli,
 	req ListAppRequest,
 	idProvider *app.IDProvider,
+	bricksIndex *bricksindex.BricksIndex,
 	cfg config.Configuration,
 ) (ListAppResult, error) {
 	// Get the default app to mark it in the list
@@ -546,6 +547,11 @@ func ListApps(
 			return ListAppResult{}, fmt.Errorf("failed to get app ID from path %s: %w", file.String(), err)
 		}
 
+		// Filter example apps that use bricks incompatible with the board
+		if bricksIndex != nil && id.IsExample() && !exampleCompatibleWithBricksIndex(app, bricksIndex) {
+			continue
+		}
+
 		result.Apps = append(result.Apps,
 			AppInfo{
 				ID:          id,
@@ -560,6 +566,25 @@ func ListApps(
 	}
 
 	return result, nil
+}
+
+// exampleCompatibleWithBricksIndex returns true if all built-in bricks referenced by the app
+// are present in the given bricks index. Local bricks bundled with the app are always treated
+// as compatible and are skipped in the check.
+func exampleCompatibleWithBricksIndex(a app.ArduinoApp, idx *bricksindex.BricksIndex) bool {
+	localBrickIDs := make(map[string]struct{}, len(a.LocalBricks))
+	for _, lb := range a.LocalBricks {
+		localBrickIDs[lb.ID] = struct{}{}
+	}
+	for _, brick := range a.Descriptor.Bricks {
+		if _, isLocal := localBrickIDs[brick.ID]; isLocal {
+			continue
+		}
+		if _, ok := idx.FindBrickByID(brick.ID); !ok {
+			return false
+		}
+	}
+	return true
 }
 
 type AppDetailedInfo struct {

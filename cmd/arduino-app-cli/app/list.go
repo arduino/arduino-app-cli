@@ -56,6 +56,7 @@ func listHandler(ctx context.Context, cfg config.Configuration, showBrokenApps b
 			IncludeNonStandardLocationApps: true,
 		},
 		servicelocator.GetAppIDProvider(),
+		servicelocator.GetBricksIndex(),
 		cfg,
 	)
 	if err != nil {

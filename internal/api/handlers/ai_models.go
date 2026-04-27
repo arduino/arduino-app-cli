@@ -75,7 +75,7 @@ func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	}
 }
 
-func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, idProvider *app.IDProvider, platform platform.Platform) http.HandlerFunc {
+func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, idProvider *app.IDProvider, platform platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := strings.TrimSpace(r.PathValue("modelID"))
 		if id == "" {
@@ -88,7 +88,7 @@ func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, 
 			force = false
 		}
 
-		err = orchestrator.AIModelDelete(r.Context(), dockerClient, cfg, modelsIndex, platform, id, idProvider, force)
+		err = orchestrator.AIModelDelete(r.Context(), dockerClient, cfg, modelsIndex, bricksIndex, platform, id, idProvider, force)
 		if err != nil {
 			switch {
 			case errors.Is(err, orchestrator.ErrNotFound):

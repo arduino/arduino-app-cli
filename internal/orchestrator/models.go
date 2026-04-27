@@ -156,7 +156,7 @@ var (
 	ErrIncompleteImpulse   = errors.New("inpulse not ready for deployment")
 )
 
-func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, platform platform.Platform, id string, idProvider *app.IDProvider, force bool) (err error) {
+func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, platform platform.Platform, id string, idProvider *app.IDProvider, force bool) (err error) {
 	res, found := modelsIndex.GetModelByID(id)
 	if !found {
 		return fmt.Errorf("%q: %w", id, ErrNotFound)
@@ -166,7 +166,7 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 		return ErrCannotRemoveModel
 	}
 
-	references, runningAppReference, err := checkForModelReferences(ctx, dockerClient, cfg, idProvider, id)
+	references, runningAppReference, err := checkForModelReferences(ctx, dockerClient, cfg, idProvider, bricksIndex, id)
 	if err != nil {
 		return err
 	}
@@ -216,14 +216,13 @@ func buildModelInUseMessage(references []string, runningAppRef *app.ArduinoApp) 
 // Both checks are performed simultaneously to support the "force" flag logic.
 // This allows the user to see both issues before deciding to use the flag
 // preventing the second error from being masked.
-func checkForModelReferences(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, idProvider *app.IDProvider, modelId string) ([]string, *app.ArduinoApp, error) {
-	apps, err := ListApps(ctx, dockerClient, ListAppRequest{
-		ShowExamples:                   true,
-		ShowApps:                       true,
-		IncludeNonStandardLocationApps: true,
-	},
-		idProvider, cfg)
-
+func checkForModelReferences(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, idProvider *app.IDProvider, bricksIndex *bricksindex.BricksIndex, modelId string) ([]string, *app.ArduinoApp, error) {
+	apps, err := ListApps(
+		ctx, dockerClient, ListAppRequest{
+			ShowExamples:                   true,
+			ShowApps:                       true,
+			IncludeNonStandardLocationApps: true,
+		}, idProvider, bricksIndex, cfg)
 	if err != nil {
 		return nil, nil, err
 	}

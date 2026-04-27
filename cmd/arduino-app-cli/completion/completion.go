@@ -85,6 +85,7 @@ func ApplicationNamesWithFilterFunc(cfg config.Configuration, filter func(apps o
 				IncludeNonStandardLocationApps: true,
 			},
 			servicelocator.GetAppIDProvider(),
+			servicelocator.GetBricksIndex(),
 			cfg,
 		)
 		if err != nil {

@@ -47,7 +47,7 @@ func newModelDeleteCmd(cfg config.Configuration) *cobra.Command {
 }
 
 func modelDeleteHandler(ctx context.Context, cfg config.Configuration, id string, force bool) {
-	err := orchestrator.AIModelDelete(ctx, servicelocator.GetDockerClient(), cfg, servicelocator.GetModelsIndex(), servicelocator.GetPlatform(), id, servicelocator.GetAppIDProvider(), force)
+	err := orchestrator.AIModelDelete(ctx, servicelocator.GetDockerClient(), cfg, servicelocator.GetModelsIndex(), servicelocator.GetBricksIndex(), servicelocator.GetPlatform(), id, servicelocator.GetAppIDProvider(), force)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}
