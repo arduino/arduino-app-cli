@@ -1,0 +1,22 @@
+version = 1
+
+# Debian build scripts
+[[annotations]]
+path = "debian/arduino-app-cli/**"
+SPDX-FileCopyrightText = "Arduino s.r.l. and/or its affiliated companies"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# Tool-generated or configuration files.
+[[annotations]]
+path = [
+  ".editorconfig",
+  ".golangci.yml",
+  ".gitignore",
+  ".licensed.yml",
+  ".licenses/**",
+  "dprint.json",
+  "go.mod",
+  "go.sum",
+]
+SPDX-FileCopyrightText = "Arduino s.r.l. and/or its affiliated companies"
+SPDX-License-Identifier = "GPL-3.0-or-later"
