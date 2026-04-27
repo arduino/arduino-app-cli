@@ -27,7 +27,7 @@ jobs:
         with:
           dprint-version: 0.48.0
 
-      - uses: golangci/golangci-lint-action@v8
+      - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.11.4
           args: --timeout 300s
