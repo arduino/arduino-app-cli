@@ -27,6 +27,8 @@ import (
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
+
+	linuxconfig "github.com/arduino/arduino-app-cli/internal/orchestrator/linuxConfig"
 )
 
 type AvailableDevices struct {
@@ -189,8 +191,23 @@ func HasVirtualDevice(deviceClass DeviceClass, devices []string) bool {
 	return false
 }
 
-// TODO: call arduino-linux-config to detect connected and enabled media carriers.
-// For now returns empty slice — CONNECTED_CARRIERS will not be set in the environment.
-func GetMediaCarriers() []string {
-	return []string{}
+func GetConfiguredCarriers() ([]string, error) {
+	return getConfiguredCarriers(linuxconfig.CarrierShow)
+}
+
+type carrierShowFn func() (*linuxconfig.CarrierStatusOutput, error)
+
+func getConfiguredCarriers(carrierShow carrierShowFn) ([]string, error) {
+	carriersStatus, err := carrierShow()
+	if err != nil {
+		return nil, fmt.Errorf("unable to get configured carriers: %w", err)
+	}
+
+	var enabled []string
+	for _, c := range carriersStatus.Carriers {
+		if c.CurrentEnabled {
+			enabled = append(enabled, c.CarrierName)
+		}
+	}
+	return enabled, nil
 }

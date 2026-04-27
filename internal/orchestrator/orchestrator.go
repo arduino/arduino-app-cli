@@ -258,9 +258,13 @@ func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.Bric
 		envs["VIDEO_DEVICE"] = videoDevices[0]
 	}
 
-	if mediaCarriers := peripherals.GetMediaCarriers(); len(mediaCarriers) > 0 {
-		envs["CONNECTED_CARRIERS"] = strings.Join(mediaCarriers, ",")
+	mediaCarriers, err := peripherals.GetConfiguredCarriers()
+	if err != nil {
+		slog.Warn("unable to get configured carriers", slog.String("error", err.Error()))
+	} else if len(mediaCarriers) > 0 {
+		envs["CONFIGURED_CARRIERS"] = strings.Join(mediaCarriers, ",")
 	}
+
 	if hostIP, err := helpers.GetHostIP(); err == nil {
 		envs["HOST_IP"] = hostIP
 	} else {

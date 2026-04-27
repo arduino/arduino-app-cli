@@ -18,10 +18,13 @@
 package peripherals
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	linuxconfig "github.com/arduino/arduino-app-cli/internal/orchestrator/linuxConfig"
 )
 
 func TestSortV4LVideoDevices(t *testing.T) {
@@ -115,6 +118,65 @@ func TestContainsVirtualDevice(t *testing.T) {
 			got := HasVirtualDevice(tt.deviceClass, tt.devices)
 			if got != tt.want {
 				t.Errorf("HasVirtualDevice() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetConfiguredCarriers(t *testing.T) {
+	tests := []struct {
+		name             string
+		mockOutput       *linuxconfig.CarrierStatusOutput
+		mockErr          error
+		expectedCarriers []string
+		wantErr          bool
+	}{
+		{
+			name: "enabled carriers are returned",
+			mockOutput: &linuxconfig.CarrierStatusOutput{
+				Carriers: []linuxconfig.Carrier{
+					{CarrierName: "carrier1", CurrentEnabled: true},
+					{CarrierName: "carrier2", CurrentEnabled: false},
+					{CarrierName: "carrier3", CurrentEnabled: true},
+				},
+			},
+			expectedCarriers: []string{"carrier1", "carrier3"},
+		},
+		{
+			name: "no enabled carriers returns nil",
+			mockOutput: &linuxconfig.CarrierStatusOutput{
+				Carriers: []linuxconfig.Carrier{
+					{CarrierName: "carrier1", CurrentEnabled: false},
+					{CarrierName: "carrier2", CurrentEnabled: false},
+				},
+			},
+			expectedCarriers: nil,
+		},
+		{
+			name:             "empty carrier list returns nil",
+			mockOutput:       &linuxconfig.CarrierStatusOutput{Carriers: []linuxconfig.Carrier{}},
+			expectedCarriers: nil,
+		},
+		{
+			name:    "error from CarrierShow is propagated",
+			mockErr: fmt.Errorf("tool not found"),
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := func() (*linuxconfig.CarrierStatusOutput, error) {
+				return tt.mockOutput, tt.mockErr
+			}
+
+			carriers, err := getConfiguredCarriers(mock)
+
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expectedCarriers, carriers)
 			}
 		})
 	}
