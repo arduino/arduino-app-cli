@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/go-paths-helper"
+
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
 
 func ValidateApp(appPath *paths.Path) error {
@@ -15,6 +16,7 @@ func ValidateApp(appPath *paths.Path) error {
 	}
 	return ValidateAppContent(appPath)
 }
+
 func ValidateAppContent(appPath *paths.Path) error {
 	descriptorFile := appPath.Join("app.yaml")
 	if _, err := validateAndParseDescriptor(descriptorFile); err != nil {
