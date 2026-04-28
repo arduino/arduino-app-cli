@@ -129,9 +129,9 @@ tasks:
       - addlicense -check $(find . -name "*.go" -type f -print0 | xargs -0)
 
   go:update-license-headers:
-    desc: Update license headers in Go files
+    desc: Update license headers in Go files with reuse template
     cmds:
-      - addlicense -c "Arduino s.r.l. and/or its affiliated companies" -f ./license_header.tpl $(find . -name "*.go" -type f -print0 | xargs -0)
+      - uvx reuse annotate --template arduino-app-cli --copyright "Arduino s.r.l. and/or its affiliated companies"  --license GPL-3.0-or-later -r  $(find . -name "*.go" -type f -print0 | xargs -0)
 
   build-deb:
     desc: Build debian package
