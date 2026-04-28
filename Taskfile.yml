@@ -63,6 +63,7 @@ tasks:
       - go build ./cmd/arduino-app-cli
       - task: generate
       - go tool gotest.tools/gotestsum $(go list ./internal/... ./cmd/... | grep -v internal/e2e/updatetest) -v -race {{ .CLI_ARGS }}
+
   test:update:
     cmds:
       - go tool gotest.tools/gotestsum -- -v -timeout=30m ./internal/e2e/updatetest
