@@ -46,6 +46,7 @@ import (
 	appgenerator "github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	linuxconfig "github.com/arduino/arduino-app-cli/internal/orchestrator/linuxConfig"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
@@ -258,7 +259,7 @@ func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.Bric
 		envs["VIDEO_DEVICE"] = videoDevices[0]
 	}
 
-	mediaCarriers, err := peripherals.GetConfiguredCarriers()
+	mediaCarriers, err := linuxconfig.GetEnabledCarriers()
 	if err != nil {
 		slog.Warn("unable to get configured carriers", slog.String("error", err.Error()))
 	} else if len(mediaCarriers) > 0 {

@@ -18,36 +18,42 @@
 package linuxconfig
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os/exec"
+
+	"github.com/arduino/go-paths-helper"
 )
 
 const linuxConfigTool = "arduino-linux-config"
 
-func CarrierShow() (*CarrierStatusOutput, error) {
+func GetEnabledCarriers() ([]string, error) {
+
 	if _, err := exec.LookPath(linuxConfigTool); err != nil {
 		return nil, fmt.Errorf("arduino-linux-config tool not found in PATH: %w", err)
 	}
 
-	cmd := exec.Command(linuxConfigTool, "carrier", "show", "--format", "json")
-
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
+	cmd, err := paths.NewProcess(nil, linuxConfigTool, "carrier", "show", "--format", "json")
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute 'arduino-linux-config carrier show': %w\nstderr: %s", err, stderr.String())
+		return nil, fmt.Errorf("failed to create process 'arduino-linux-config carrier show': %w", err)
 	}
 
-	// 3. parsing JSON
-	var result CarrierStatusOutput
-	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON from 'arduino-linux-config carrier show': %w\noutput: %s", err, out.String())
+	stdout, stderr, err := cmd.RunAndCaptureOutput(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute 'arduino-linux-config carrier show': %w\nstderr: %s", err, string(stderr))
 	}
 
-	return &result, nil
+	var carriersStatus CarrierStatusOutput
+	if err := json.Unmarshal(stdout, &carriersStatus); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON from 'arduino-linux-config carrier show': %w\noutput: %s", err, string(stdout))
+	}
+
+	var enabled []string
+	for _, c := range carriersStatus.Carriers {
+		if c.CurrentEnabled {
+			enabled = append(enabled, c.CarrierName)
+		}
+	}
+	return enabled, nil
 }
