@@ -62,7 +62,6 @@ The following metadata fields are required for Edge Impulse models:
 - **`ei-model-url`** (String, Optional): URL to the model page on Edge Impulse Studio.
 - **`ei-gpu-mode`** (Boolean, Optional): Whether the model runs in GPU mode. Defaults to `false`.
 
-
 ### Brick Configuration
 
 The `bricks` list defines which AI Bricks are compatible with the model and how they are configured. The `model_configuration` for each brick must include two variables:
