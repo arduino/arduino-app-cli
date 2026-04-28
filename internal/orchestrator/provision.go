@@ -34,6 +34,7 @@ import (
 	"github.com/containerd/errdefs"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/mount"
 	yaml "github.com/goccy/go-yaml"
 
 	"github.com/arduino/arduino-app-cli/internal/helpers"
@@ -158,9 +159,29 @@ func (p *Provision) init(
 			),
 		},
 	}
+
+	devices := []string{"video4linux", "snd", "media", "dma_heap", "drm", "misc"}
+	rules := GenerateRules(devices)
+
 	containerHostCfg := &container.HostConfig{
 		Binds:      []string{srcPath + ":/app"},
 		AutoRemove: true,
+		Resources: container.Resources{
+			DeviceCgroupRules: rules,
+		},
+		Mounts: []mount.Mount{
+			{
+				Type:   mount.TypeBind,
+				Source: "/dev",
+				Target: "/dev",
+			},
+			{
+				Type:     "bind",
+				Source:   "/run/udev",
+				Target:   "/run/udev",
+				ReadOnly: true,
+			},
+		},
 	}
 	resp, err := p.docker.Client().ContainerCreate(context.Background(), containerCfg, containerHostCfg, nil, nil, "")
 	if err != nil {
@@ -674,4 +695,62 @@ func extractVolumesFromComposeFile(additionalComposeFile string) ([]string, erro
 		volumes = append(volumes, svc.Volumes...)
 	}
 	return volumes, nil
+}
+
+func GenerateRules(patterns []string) []string {
+	ruleSet := make(map[string]struct{})
+
+	for _, p := range patterns {
+		majors := majorFromProcDevices(p)
+		for _, m := range majors {
+			rule := fmt.Sprintf("c %d:* rmw", m)
+			ruleSet[rule] = struct{}{}
+		}
+	}
+
+	var rules []string
+	for r := range ruleSet {
+		rules = append(rules, r)
+	}
+	return rules
+}
+
+func majorFromProcDevices(namePattern string) []int {
+	var majors []int
+
+	data, err := os.ReadFile("/proc/devices")
+	if err != nil {
+		return nil
+	}
+
+	lines := strings.Split(string(data), "\n")
+	isCharSection := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		if trimmed == "Character devices:" {
+			isCharSection = true
+			continue
+		}
+		if trimmed == "Block devices:" || (isCharSection && trimmed == "") {
+			isCharSection = false
+			continue
+		}
+
+		if isCharSection {
+			fields := strings.Fields(trimmed)
+			if len(fields) >= 2 {
+				majorStr := fields[0]
+				deviceName := fields[1]
+
+				if strings.Contains(deviceName, namePattern) {
+					if m, err := strconv.Atoi(majorStr); err == nil {
+						majors = append(majors, m)
+					}
+				}
+			}
+		}
+	}
+	return majors
 }
