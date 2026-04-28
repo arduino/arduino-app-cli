@@ -2,9 +2,21 @@ version = 1
 
 # Debian build scripts
 [[annotations]]
-path = "debian/arduino-app-cli/**"
+path = "debian/**"
 SPDX-FileCopyrightText = "Arduino s.r.l. and/or its affiliated companies"
 SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# E2eTest
+[[annotations]]
+path = "internal/e2e/daemon/**"
+SPDX-FileCopyrightText = "Arduino s.r.l. and/or its affiliated companies"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+[[annotations]]
+path = "**/testdata/**"
+SPDX-FileCopyrightText = "Arduino s.r.l. and/or its affiliated companies"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
 
 # Tool-generated or configuration files.
 [[annotations]]
@@ -15,6 +27,8 @@ path = [
   ".licensed.yml",
   ".licenses/**",
   "dprint.json",
+  "adbd.Dockerfile",
+  "Taskfile.yml",
   "go.mod",
   "go.sum",
 ]
