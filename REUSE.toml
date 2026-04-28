@@ -6,17 +6,29 @@ path = "debian/**"
 SPDX-FileCopyrightText = "Arduino s.r.l. and/or its affiliated companies"
 SPDX-License-Identifier = "GPL-3.0-or-later"
 
-# E2eTest
+# Test data and e2e Tests
 [[annotations]]
-path = "internal/e2e/daemon/**"
+path = [
+    "internal/e2e/**",
+     "**/testdata/**"
+]
 SPDX-FileCopyrightText = "Arduino s.r.l. and/or its affiliated companies"
 SPDX-License-Identifier = "GPL-3.0-or-later"
 
+
+# Docs
 [[annotations]]
-path = "**/testdata/**"
+path = [
+    "docs/**"
+]
 SPDX-FileCopyrightText = "Arduino s.r.l. and/or its affiliated companies"
 SPDX-License-Identifier = "GPL-3.0-or-later"
 
+# Scripts
+[[annotations]]
+path = "scripts/**"
+SPDX-FileCopyrightText = "Arduino s.r.l. and/or its affiliated companies"
+SPDX-License-Identifier = "GPL-3.0-or-later"
 
 # Tool-generated or configuration files.
 [[annotations]]
@@ -31,6 +43,8 @@ path = [
   "Taskfile.yml",
   "go.mod",
   "go.sum",
+  "README.md",
+  "internal/api/docs/**"
 ]
 SPDX-FileCopyrightText = "Arduino s.r.l. and/or its affiliated companies"
 SPDX-License-Identifier = "GPL-3.0-or-later"
