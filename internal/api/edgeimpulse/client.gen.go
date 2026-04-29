@@ -446,8 +446,8 @@ type DSPGroupItem struct {
 
 	// Properties Recursive definition for a parameter with type 'object'.
 	Properties *map[string]any `json:"properties,omitempty"`
-	Readonly   bool                    `json:"readonly"`
-	Required   bool                    `json:"required"`
+	Readonly   bool            `json:"readonly"`
+	Required   bool            `json:"required"`
 
 	// Section Interface section to render parameter in.
 	Section       *DSPGroupItemSection `json:"section,omitempty"`
@@ -481,7 +481,7 @@ type DSPGroupItem struct {
 
 	// Valid Valid values for parameter.
 	Valid *[]map[string]any `json:"valid,omitempty"`
-	Value *string                   `json:"value,omitempty"`
+	Value *string           `json:"value,omitempty"`
 }
 
 // DSPGroupItemSection Interface section to render parameter in.
@@ -1057,7 +1057,7 @@ type Project struct {
 
 	// Metadata Metadata about the project
 	Metadata map[string]any `json:"metadata"`
-	Name     string                 `json:"name"`
+	Name     string         `json:"name"`
 
 	// Owner User or organization that owns the project
 	Owner string `json:"owner"`
@@ -1259,8 +1259,8 @@ type ProjectInfoResponse struct {
 	} `json:"computeTime"`
 
 	// CsvImportConfig Config file specifying how to process CSV files.
-	CsvImportConfig        *map[string]any `json:"csvImportConfig,omitempty"`
-	DataSummary            ProjectDataSummary      `json:"dataSummary"`
+	CsvImportConfig        *map[string]any    `json:"csvImportConfig,omitempty"`
+	DataSummary            ProjectDataSummary `json:"dataSummary"`
 	DataSummaryPerCategory struct {
 		PostProcessing ProjectDataSummary `json:"postProcessing"`
 		Testing        ProjectDataSummary `json:"testing"`

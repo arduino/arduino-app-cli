@@ -9,17 +9,16 @@ SPDX-License-Identifier = "GPL-3.0-or-later"
 # Test data and e2e Tests
 [[annotations]]
 path = [
-    "internal/e2e/**",
-     "**/testdata/**"
+  "internal/e2e/**",
+  "**/testdata/**",
 ]
 SPDX-FileCopyrightText = "Arduino s.r.l. and/or its affiliated companies"
 SPDX-License-Identifier = "GPL-3.0-or-later"
 
-
 # Docs
 [[annotations]]
 path = [
-    "docs/**"
+  "docs/**",
 ]
 SPDX-FileCopyrightText = "Arduino s.r.l. and/or its affiliated companies"
 SPDX-License-Identifier = "GPL-3.0-or-later"
@@ -43,7 +42,7 @@ path = [
   "go.mod",
   "go.sum",
   "README.md",
-  "internal/api/docs/**"
+  "internal/api/docs/**",
 ]
 SPDX-FileCopyrightText = "Arduino s.r.l. and/or its affiliated companies"
 SPDX-License-Identifier = "GPL-3.0-or-later"

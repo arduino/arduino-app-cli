@@ -13,7 +13,7 @@ path = [
   "workflows/release.yml",
   "workflows/test-update.yml",
   "ISSUE_TEMPLATE/bug-report.yml",
-  "ISSUE_TEMPLATE/feature-request.yml"
+  "ISSUE_TEMPLATE/feature-request.yml",
 ]
 SPDX-FileCopyrightText = "Arduino s.r.l. and/or its affiliated companies"
 SPDX-License-Identifier = "GPL-3.0-or-later"
