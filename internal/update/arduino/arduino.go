@@ -97,17 +97,13 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ f
 	platforms, err := srv.PlatformSearch(ctx, &rpc.PlatformSearchRequest{
 		Instance:          inst,
 		ManuallyInstalled: true,
-		SearchArgs:        a.platform.PlatformID,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Printf("Found %d platforms\n", len(platforms.GetSearchOutput()))
-
 	var platformSummary *rpc.PlatformSummary
 	for _, v := range platforms.GetSearchOutput() {
-		fmt.Printf("Platform: %s, Installed version: %s, Latest version: %s\n", v.GetMetadata().GetId(), v.GetInstalledVersion(), v.GetLatestRelease().GetVersion())
 		if v.GetMetadata().GetId() == a.platform.PlatformID {
 			platformSummary = v
 			break
