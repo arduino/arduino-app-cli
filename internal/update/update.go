@@ -24,7 +24,6 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -58,7 +57,8 @@ type ServiceUpdater interface {
 }
 
 type Manager struct {
-	isUpgrading                  atomic.Bool
+	isUgradingMutex              sync.RWMutex
+	isUpgrading                  bool
 	debUpdateService             ServiceUpdater
 	arduinoPlatformUpdateService ServiceUpdater
 
@@ -75,9 +75,12 @@ func NewManager(debUpdateService ServiceUpdater, arduinoPlatformUpdateService Se
 }
 
 func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(UpgradablePackage) bool) ([]UpgradablePackage, error) {
-	if m.isUpgrading.Load() {
+	m.isUgradingMutex.RLock()
+	if m.isUpgrading {
+		defer m.isUgradingMutex.RUnlock()
 		return nil, ErrOperationAlreadyInProgress
 	}
+	m.isUgradingMutex.RLocker()
 
 	// Make sure to be connected to the internet, before checking for updates.
 	// This is needed because the checks below work also when offline (using cached data).
@@ -142,12 +145,18 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 		}
 	}
 
-	if !m.isUpgrading.CompareAndSwap(false, true) {
+	m.isUgradingMutex.Lock()
+	defer m.isUgradingMutex.Unlock()
+	if m.isUpgrading {
 		return ErrOperationAlreadyInProgress
 	}
+	m.isUpgrading = true
 	go func() {
-		defer m.isUpgrading.Store(false)
-
+		defer func() {
+			m.isUgradingMutex.Lock()
+			defer m.isUgradingMutex.Unlock()
+			m.isUpgrading = false
+		}()
 		// We are launching on purpose the update sequentially. The reason is that
 		// the deb pkgs restart the orchestrator, and if we run in parallel the
 		// update of the cores we will end up with inconsistent state, or
@@ -174,10 +183,13 @@ func (b *Manager) Subscribe() chan Event {
 	eventCh := make(chan Event, 100)
 
 	// return a closed channel if there isn't an update in progress, to avoid subscribers to wait for events that will never come.
-	if !b.isUpgrading.Load() {
+	b.isUgradingMutex.RLock()
+	if !b.isUpgrading {
+		defer b.isUgradingMutex.RUnlock()
 		close(eventCh)
 		return eventCh
 	}
+	b.isUgradingMutex.RUnlock()
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
