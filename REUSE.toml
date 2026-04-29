@@ -37,7 +37,6 @@ path = [
   ".golangci.yml",
   ".gitignore",
   ".licensed.yml",
-  ".licenses/**",
   "dprint.json",
   "adbd.Dockerfile",
   "Taskfile.yml",
