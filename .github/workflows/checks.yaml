@@ -43,7 +43,7 @@ jobs:
       - name: Install reuse
         run: go tool task install:reuse
 
-      - name: Check license headers
+      - name: Check Reuse compliance
         run: go tool task go:check-license-headers
 
       - name: Check go mod
