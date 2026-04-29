@@ -37,6 +37,12 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install uv
+        run: go tool task install:reuse
+
       - name: Check license headers
         run: go tool task go:check-license-headers
 
