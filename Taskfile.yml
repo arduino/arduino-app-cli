@@ -78,12 +78,6 @@ tasks:
   lint:
     desc: Run the linters
     cmds:
-      - task: lint:go
-
-
-  lint:go:
-    desc: Run golangci-lint
-    cmds:
       - ${PWD}/.bin/golangci-lint run --fix -v --timeout 300s {{ .CLI_ARGS }}
 
   fmt:
