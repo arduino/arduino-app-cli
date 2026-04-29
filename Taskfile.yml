@@ -22,7 +22,6 @@ tasks:
       - install:watcher
       - install:dprint
       - install:oapi-codegen
-      - install:addlicense
       - install:reuse
 
   install:linter:
@@ -45,10 +44,6 @@ tasks:
     cmds:
       - curl -fsSL https://dprint.dev/install.sh | sh -s {{ .DPRINT_VERSION }}
       - mkdir -p .bin && cp $HOME/.dprint/bin/dprint .bin/dprint # workaround for local install
-
-  install:addlicense:
-    cmds:
-      - go install github.com/google/addlicense@v1.2.0
 
   install:oapi-codegen:
     cmds:
@@ -84,12 +79,7 @@ tasks:
     desc: Run the linters
     cmds:
       - task: lint:go
-      - task: lint:reuse
 
-  lint:reuse:
-    desc: Run reuse linter
-    cmds:
-      - uvx reuse lint
 
   lint:go:
     desc: Run golangci-lint
@@ -125,8 +115,7 @@ tasks:
   go:check-license-headers:
     desc: verify presence of license headers and exit with non-zero code if missing
     cmds:
-      - go install github.com/google/addlicense@v1.2.0
-      - addlicense -check $(find . -name "*.go" -type f -print0 | xargs -0)
+      - uvx reuse lint
 
   go:update-license-headers:
     desc: Update license headers in Go files with reuse template
