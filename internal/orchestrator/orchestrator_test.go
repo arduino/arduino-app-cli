@@ -384,6 +384,25 @@ func TestListApp(t *testing.T) {
 			assert.NotContains(t, b.Name, tmpAppName, "the temporary app should not be in the broken apps list")
 		}
 	})
+
+	t.Run("test nested apps do not produce bogus broken apps in parent dirs", func(t *testing.T) {
+		// https://github.com/arduino/arduino-app-cli/issues/220
+
+		createApp(t, "inside", false, idProvider, cfg)
+		outsideAppDir := cfg.AppsDir().Join("inside")
+		t.Cleanup(func() { _ = outsideAppDir.RemoveAll() })
+
+		nestedAppDir := cfg.AppsDir().Join("nested")
+		require.NoError(t, cfg.AppsDir().Join("nested").Mkdir())
+		t.Cleanup(func() { _ = nestedAppDir.RemoveAll() })
+		require.NoError(t, outsideAppDir.Rename(nestedAppDir.Join("inside")))
+
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
+			ShowApps: true,
+		}, idProvider, cfg)
+		require.NoError(t, err)
+		require.Empty(t, res.BrokenApps)
+	})
 }
 
 func setTestOrchestratorConfig(t *testing.T) config.Configuration {

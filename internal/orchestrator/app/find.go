@@ -35,7 +35,7 @@ func FindAppsInFolder(pathToExplore *paths.Path) (paths.PathList, error) {
 		paths.FilterDirectories(),
 		paths.FilterOutNames("python", "sketch", ".cache"),
 		paths.NotFilter(IsTmpAppDir),
-		// TODO: DirHasAppDescriptor ?
+		DirHasAppDescriptor,
 	)
 }
 
