@@ -166,7 +166,7 @@ func StartApp(
 	}
 
 	if appToStart.MainPythonFile != nil {
-		envs := getAppEnvironmentVariables(appToStart, bricksIndex, modelsIndex)
+		envs := getAppEnvironmentVariables(ctx, appToStart, bricksIndex, modelsIndex)
 
 		cb(StreamMessage{data: "python provisioning"})
 		provisionStartProgress := float32(0.0)
