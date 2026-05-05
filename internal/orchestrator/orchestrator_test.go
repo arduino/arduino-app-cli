@@ -644,7 +644,7 @@ models:
 	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetsDir(), nil)
 	require.NoError(t, err)
 
-	env := getAppEnvironmentVariables(appDesc, bricksIndex, modelIndex)
+	env := getAppEnvironmentVariables(t.Context(), appDesc, bricksIndex, modelIndex)
 	require.Equal(t, cfg.AppsDir().Join("app1").String(), env["APP_HOME"])
 	require.Equal(t, "/models/ootb/ei/yolo-x-nano.eim", env["EI_OBJ_DETECTION_MODEL"])
 	require.Equal(t, "/home/arduino/.arduino-bricks/models", env["CUSTOM_MODEL_PATH"])
@@ -725,7 +725,7 @@ models:
 	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetsDir(), nil)
 	require.NoError(t, err)
 
-	env := getAppEnvironmentVariables(appDesc, bricksIndex, modelIndex)
+	env := getAppEnvironmentVariables(t.Context(), appDesc, bricksIndex, modelIndex)
 	require.Equal(t, cfg.AppsDir().Join("app1").String(), env["APP_HOME"])
 	require.Equal(t, "/home/arduino/.arduino-bricks/models/face-det.eim", env["EI_OBJ_DETECTION_MODEL"])
 	require.Equal(t, "/home/arduino/.arduino-bricks/models", env["CUSTOM_MODEL_PATH"])
@@ -808,7 +808,7 @@ models:
 	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetsDir(), nil)
 	require.NoError(t, err)
 
-	env := getAppEnvironmentVariables(appDesc, bricksIndex, modelIndex)
+	env := getAppEnvironmentVariables(t.Context(), appDesc, bricksIndex, modelIndex)
 	require.Equal(t, "/models/path/obj.eim", env["EI_OBJ_DETECTION_MODEL"])
 	require.Equal(t, "/models/path/video.eim", env["EI_V_OBJ_DETECTION_MODEL"])
 	require.Equal(t, "/default/video/value", env["MY_VIDEO_ENV"])

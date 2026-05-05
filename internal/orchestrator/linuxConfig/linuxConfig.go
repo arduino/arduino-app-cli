@@ -28,8 +28,7 @@ import (
 
 const linuxConfigTool = "arduino-linux-config"
 
-func GetEnabledCarriers() ([]string, error) {
-
+func GetEnabledCarriers(ctx context.Context) ([]string, error) {
 	if _, err := exec.LookPath(linuxConfigTool); err != nil {
 		return nil, fmt.Errorf("arduino-linux-config tool not found in PATH: %w", err)
 	}
@@ -39,7 +38,7 @@ func GetEnabledCarriers() ([]string, error) {
 		return nil, fmt.Errorf("failed to create process 'arduino-linux-config carrier show': %w", err)
 	}
 
-	stdout, stderr, err := cmd.RunAndCaptureOutput(context.Background())
+	stdout, stderr, err := cmd.RunAndCaptureOutput(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute 'arduino-linux-config carrier show': %w\nstderr: %s", err, string(stderr))
 	}

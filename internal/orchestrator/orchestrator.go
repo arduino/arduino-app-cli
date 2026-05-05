@@ -231,7 +231,7 @@ func StartApp(
 // - model configuration variables (variables defined in the model configuration)
 // - brick instance variables (variables defined in the app.yaml for the brick instance)
 // In addition, it adds some useful environment variables like APP_HOME and HOST_IP.
-func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex) helpers.EnvVars {
+func getAppEnvironmentVariables(ctx context.Context, app app.ArduinoApp, brickIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex) helpers.EnvVars {
 	envs := make(helpers.EnvVars)
 
 	for _, brick := range app.Descriptor.Bricks {
@@ -259,7 +259,7 @@ func getAppEnvironmentVariables(app app.ArduinoApp, brickIndex *bricksindex.Bric
 		envs["VIDEO_DEVICE"] = videoDevices[0]
 	}
 
-	mediaCarriers, err := linuxconfig.GetEnabledCarriers()
+	mediaCarriers, err := linuxconfig.GetEnabledCarriers(ctx)
 	if err != nil {
 		slog.Warn("unable to get configured carriers", slog.String("error", err.Error()))
 	} else if len(mediaCarriers) > 0 {
