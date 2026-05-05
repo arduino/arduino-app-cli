@@ -1,0 +1,3 @@
+# Allow the video group to use DMA heaps for camera buffers
+KERNEL=="udmabuf", GROUP="video", MODE="0660"
+SUBSYSTEM=="dma_heap", GROUP="video", MODE="0660"

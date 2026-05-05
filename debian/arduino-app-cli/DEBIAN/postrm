@@ -2,4 +2,5 @@
 
 if [ -d /run/systemd/system ]; then
   systemctl daemon-reload
+  udevadm control --reload-rules && udevadm trigger
 fi
