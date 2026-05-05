@@ -22,6 +22,7 @@ type AvailableDevices struct {
 	HasVideoDevice bool
 	HasSoundDevice bool
 	HasGPUDevice   bool
+	HasCSIDevice   bool
 }
 
 type DeviceClass string
@@ -63,6 +64,8 @@ func Detect() (AvailableDevices, error) {
 	if res.HasGPUDevice {
 		res.DevicePaths = append(res.DevicePaths, "/dev/dri")
 	}
+	// TODO: call arduino-linux-config to detect if CSI devices are present and enabled.
+	res.HasCSIDevice = true
 
 	return res, nil
 }
