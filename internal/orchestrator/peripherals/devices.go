@@ -188,9 +188,3 @@ func HasVirtualDevice(deviceClass DeviceClass, devices []string) bool {
 	}
 	return false
 }
-
-// TODO: call arduino-linux-config to detect connected and enabled media carriers.
-// For now returns empty slice — CONNECTED_CARRIERS will not be set in the environment.
-func GetMediaCarriers() []string {
-	return []string{}
-}
