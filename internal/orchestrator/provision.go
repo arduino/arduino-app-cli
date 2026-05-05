@@ -346,7 +346,7 @@ func generateMainComposeFile(
 	}
 
 	var cgroupRules []string
-	//Has Media Carrier?
+	// Has Media Carrier?
 	if devices.HasCSIDevice {
 		volumes = append(volumes,
 			volume{
