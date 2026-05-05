@@ -110,6 +110,10 @@ func SystemInit(ctx context.Context, cfg config.Configuration, platform platform
 		downloadDockerImages = true
 	}
 
+	if err := installPlatformPackage(ctx, plat); err != nil {
+		slog.Error("failed to install platform package", "error", err)
+	}
+
 	if downloadPlatformAndLibs {
 		if err := downloadLibsAndPlatformsUsedInExamples(ctx, cfg, platform, progressCB); err != nil {
 			return fmt.Errorf("failed to download libs and platforms used in examples: %w", err)
@@ -473,6 +477,40 @@ func removeDanglingNetworks(ctx context.Context, docker dockerClient.APIClient) 
 	}
 
 	return counter, nil
+}
+
+func installPlatformPackage(ctx context.Context, plat platform.Platform) error {
+	var packageName string
+
+	switch plat.BoardName {
+	case "unoq":
+		packageName = "arduino-unoq"
+	case "ventunoq":
+		packageName = "arduino-ventunoq"
+	default:
+		slog.Debug("no platform-specific package to install", "board_name", plat.BoardName)
+		return nil
+	}
+
+	slog.Info("Installing package", "package_name", packageName)
+	cmd, err := paths.NewProcess(nil, "sudo", "apt-get", "install", "-y", packageName)
+	if err != nil {
+		return err
+	}
+	// stdout := orchestrator.NewCallbackWriter(func(line string) {
+	// 	if !yield(line, nil) {
+	// 		if err := cmd.Kill(); err != nil {
+	// 			slog.Error("Failed to kill apt clean command", slog.String("error", err.Error()))
+	// 		}
+	// 	}
+	// })
+	// cmd.RedirectStderrTo(stdout)
+	// cmd.RedirectStdoutTo(stdout)
+
+	if err := cmd.RunWithinContext(ctx); err != nil {
+		return err
+	}
+	return nil
 }
 
 func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Configuration, platform platform.Platform, progressCB initProgressCallback) error {
