@@ -58,13 +58,13 @@ func GetPlatform(dir *paths.Path) Platform {
 			Linux: struct{ BoardLeds paths.PathList }{
 				BoardLeds: paths.NewPathList(
 					// LED 1
-					"/sys/class/leds/blue:user",
-					"/sys/class/leds/green:user",
-					"/sys/class/leds/red:user",
+					"/dev/leds/builtin/led1_b",
+					"/dev/leds/builtin/led1_g",
+					"/dev/leds/builtin/led1_r",
 					// LED 2
-					"/sys/class/leds/blue:bt",
-					"/sys/class/leds/green:wlan",
-					"/sys/class/leds/red:panic",
+					"/dev/leds/builtin/led2_b",
+					"/dev/leds/builtin/led2_g",
+					"/dev/leds/builtin/led2_r",
 				),
 			},
 			CompileJobs: 2,
