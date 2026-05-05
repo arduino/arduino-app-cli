@@ -62,7 +62,7 @@ func newDownloadImageCmd(cfg config.Configuration) *cobra.Command {
 		Args:   cobra.ExactArgs(0),
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return orchestrator.SystemInit(cmd.Context(), cfg, servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), servicelocator.GetDockerClient(), orchestrator.SystemInitOptions{
+			return orchestrator.SystemInit(cmd.Context(), cfg, servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), servicelocator.GetDockerClient(), servicelocator.GetPlatform(), orchestrator.SystemInitOptions{
 				OnlyDockerImages:    onlyImages,
 				OnlyPlatformAndLibs: onlyPlatformAndLibraries,
 			})

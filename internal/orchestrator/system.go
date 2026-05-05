@@ -79,7 +79,7 @@ func (o SystemInitOptions) Validate() error {
 // SystemInit pulls all the docker images needed for the current version of the software to run and the
 // sketch libraries used in the example apps. Can be used to pre-install docker images/libraries on an
 // empty system, or to update all the docker images/libraries that need it.
-func SystemInit(ctx context.Context, cfg config.Configuration, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, docker *command.DockerCli, options SystemInitOptions) error {
+func SystemInit(ctx context.Context, cfg config.Configuration, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, docker *command.DockerCli, plat platform.Platform, options SystemInitOptions) error {
 	if err := options.Validate(); err != nil {
 		return err
 	}
@@ -108,6 +108,10 @@ func SystemInit(ctx context.Context, cfg config.Configuration, bricksindex *bric
 	default:
 		downloadPlatformAndLibs = true
 		downloadDockerImages = true
+	}
+
+	if err := installPlatformPackage(ctx, plat); err != nil {
+		slog.Error("failed to install platform package", "error", err)
 	}
 
 	if downloadPlatformAndLibs {
@@ -473,6 +477,40 @@ func removeDanglingNetworks(ctx context.Context, docker dockerClient.APIClient) 
 	}
 
 	return counter, nil
+}
+
+func installPlatformPackage(ctx context.Context, plat platform.Platform) error {
+	var packageName string
+
+	switch plat.BoardName {
+	case "unoq":
+		packageName = "arduino-unoq"
+	case "ventunoq":
+		packageName = "arduino-ventunoq"
+	default:
+		slog.Debug("no platform-specific package to install", "board_name", plat.BoardName)
+		return nil
+	}
+
+	slog.Info("Installing package", "package_name", packageName)
+	cmd, err := paths.NewProcess(nil, "sudo", "apt-get", "install", "-y", packageName)
+	if err != nil {
+		return err
+	}
+	// stdout := orchestrator.NewCallbackWriter(func(line string) {
+	// 	if !yield(line, nil) {
+	// 		if err := cmd.Kill(); err != nil {
+	// 			slog.Error("Failed to kill apt clean command", slog.String("error", err.Error()))
+	// 		}
+	// 	}
+	// })
+	// cmd.RedirectStderrTo(stdout)
+	// cmd.RedirectStdoutTo(stdout)
+
+	if err := cmd.RunWithinContext(ctx); err != nil {
+		return err
+	}
+	return nil
 }
 
 func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Configuration, progressCB initProgressCallback) error {
