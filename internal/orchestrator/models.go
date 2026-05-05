@@ -153,7 +153,7 @@ var (
 	ErrConflict            = errors.New("can't delete the model")
 	ErrCannotRemoveModel   = errors.New("cannot remove an internal model")
 	ErrInsufficientStorage = errors.New("insufficient storage to install the model")
-	ErrIncompleteImpulse   = errors.New("inpulse not ready for deployment")
+	ErrIncompleteImpulse   = errors.New("impulse not ready for deployment")
 )
 
 func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, platform platform.Platform, id string, idProvider *app.IDProvider, force bool) (err error) {

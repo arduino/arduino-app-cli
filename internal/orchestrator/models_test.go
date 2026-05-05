@@ -515,7 +515,7 @@ func TestInstallEIModel_WhenModelIsNotFullyTrained_ThanRaiseError(t *testing.T) 
 	_, err = InstallEIModel(context.Background(), nil, &modelsindex.ModelsIndex{}, nil, client, paths.New(tempDir), projectId, impulseId)
 
 	// assert
-	require.Equal(t, "inpulse not ready for deployment for project 100 impulse 1", err.Error())
+	require.Equal(t, "impulse not ready for deployment for project 100 impulse 1", err.Error())
 
 	// assert mock calls
 	expectedCalls := []string{
