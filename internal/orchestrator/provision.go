@@ -688,7 +688,6 @@ func extractVolumesFromComposeFile(additionalComposeFile string) ([]string, erro
 	return volumes, nil
 }
 
-// resolveMajorNumber reads /proc/devices and returns the major number
 func resolveMajorNumber(driverName string) (int, error) {
 	content, err := os.ReadFile("/proc/devices")
 	if err != nil {
@@ -707,13 +706,11 @@ func resolveMajorNumber(driverName string) (int, error) {
 	return 0, fmt.Errorf("driver %q not found in /proc/devices", driverName)
 }
 
-// buildCgroupRules constructs the device_cgroup_rules slice.
-// Static rules (V4L2, ALSA) use known major numbers.
-// Dynamic rules (DRM, DMA Heap, Media) are resolved at runtime.
 func buildCgroupRules() []string {
 	rules := []string{
-		"c 81:* rmw",  // V4L2  — static
-		"c 116:* rmw", // ALSA  — static
+		// As defined in https://www.kernel.org/doc/Documentation/admin-guide/devices.txt
+		"c 81:* rmw",  // V4L2
+		"c 116:* rmw", // ALSA
 	}
 
 	dynamic := []struct {
