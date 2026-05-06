@@ -110,7 +110,7 @@ func SystemInit(ctx context.Context, cfg config.Configuration, platform platform
 		downloadDockerImages = true
 	}
 
-	if err := installPlatformPackage(ctx, platform); err != nil {
+	if err := installPlatformPackage(ctx, platform, stdout); err != nil {
 		slog.Error("failed to install platform package", "error", err)
 	}
 
@@ -418,7 +418,7 @@ func removeImage(ctx context.Context, docker dockerClient.APIClient, imageName s
 	return size, nil
 }
 
-// imgages required by the system
+// images required by the system
 func getRequiredImages(cfg config.Configuration, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex) ([]string, error) {
 	bricksContainers, err := getAllSupportedBrickImages(bricksindex, servicesindex)
 	if err != nil {
@@ -479,7 +479,7 @@ func removeDanglingNetworks(ctx context.Context, docker dockerClient.APIClient) 
 	return counter, nil
 }
 
-func installPlatformPackage(ctx context.Context, plat platform.Platform) error {
+func installPlatformPackage(ctx context.Context, plat platform.Platform, stdout io.Writer) error {
 	var packageName string
 
 	switch plat.BoardName {
@@ -488,24 +488,18 @@ func installPlatformPackage(ctx context.Context, plat platform.Platform) error {
 	case "ventunoq":
 		packageName = "arduino-ventunoq"
 	default:
-		slog.Debug("no platform-specific package to install", "board_name", plat.BoardName)
+		fmt.Fprintf(stdout, "no platform-specific debian package to install for board '%s'\n", plat.BoardName)
 		return nil
 	}
 
-	slog.Info("Installing package", "package_name", packageName)
+	fmt.Fprintf(stdout, "Installing package '%s'\n", packageName)
+
 	cmd, err := paths.NewProcess(nil, "sudo", "apt-get", "install", "-y", packageName)
 	if err != nil {
 		return err
 	}
-	// stdout := orchestrator.NewCallbackWriter(func(line string) {
-	// 	if !yield(line, nil) {
-	// 		if err := cmd.Kill(); err != nil {
-	// 			slog.Error("Failed to kill apt clean command", slog.String("error", err.Error()))
-	// 		}
-	// 	}
-	// })
-	// cmd.RedirectStderrTo(stdout)
-	// cmd.RedirectStdoutTo(stdout)
+	cmd.RedirectStderrTo(stdout)
+	cmd.RedirectStdoutTo(stdout)
 
 	if err := cmd.RunWithinContext(ctx); err != nil {
 		return err
