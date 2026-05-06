@@ -185,11 +185,7 @@ func ImportAppFromZip(
 		finalDestPath, _ = findAppPathByName(newName, cfg)
 	}
 
-	if !app.IsValidFolderName(finalDestPath.Base()) {
-		return app.ID{}, fmt.Errorf("root folder name %q is not valid: use only alphanumeric, underscores, dashes and spaces", finalDestPath.Base())
-	}
-
-	tempDestDir, err := app.MkTmpAppDir(finalDestPath.Parent())
+	tempDestDir, err := paths.MkTempDir(finalDestPath.Parent().String(), "tmp_")
 	if err != nil {
 		return app.ID{}, fmt.Errorf("unable to create temp app directory: %w", err)
 	}
@@ -202,9 +198,12 @@ func ImportAppFromZip(
 	if finalDestPath.Exist() {
 		return app.ID{}, ErrAppAlreadyExists
 	}
-
-	if err := app.ValidateAppContent(tempDestDir); err != nil {
-		return app.ID{}, fmt.Errorf("%w: %v", ErrBadRequest, err)
+	if !app.IsValidFolderName(finalDestPath.Base()) {
+		return app.ID{}, fmt.Errorf("root folder name %q is not valid: use only alphanumeric, underscores, dashes and spaces", finalDestPath.Base())
+	}
+	// Validate the extracted app before moving to final destination.
+	if _, err := app.Load(tempDestDir); err != nil {
+		return app.ID{}, fmt.Errorf("invalid app: %w: %v", ErrBadRequest, err)
 	}
 
 	if err := tempDestDir.Rename(finalDestPath); err != nil {

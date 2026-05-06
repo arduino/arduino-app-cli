@@ -65,8 +65,8 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 		return ArduinoApp{}, fmt.Errorf("cannot get absolute path for app: %w", err)
 	}
 
-	if err := ValidateApp(appPath); err != nil {
-		return ArduinoApp{}, err
+	if !IsValidFolderName(appPath.Base()) {
+		return ArduinoApp{}, fmt.Errorf("app folder name %q is not valid: use only alphanumeric, underscores, dashes and spaces", appPath.Base())
 	}
 
 	app := ArduinoApp{
@@ -76,7 +76,7 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 
 	desc, err := ParseDescriptorFile(app.GetDescriptorPath())
 	if err != nil {
-		return ArduinoApp{}, err
+		return app, err
 	}
 	app.Descriptor = desc
 	app.Name = desc.Name
@@ -91,9 +91,20 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 	}
 
 	app.MainPythonFile = appPath.Join("python", "main.py")
+	if !app.MainPythonFile.Exist() {
+		return app, errors.New("main python file missing from app")
+	}
 
 	sketchPath := appPath.Join("sketch")
 	if sketchPath.IsDir() {
+		sketchIno := sketchPath.Join("sketch.ino")
+		sketchYaml := sketchPath.Join("sketch.yaml")
+
+		if sketchIno.Exist() || sketchYaml.Exist() {
+			if !sketchIno.Exist() || !sketchYaml.Exist() {
+				return app, fmt.Errorf("sketch folder is incomplete: both sketch.ino and sketch.yaml are required")
+			}
+		}
 		app.mainSketchPath = sketchPath
 	}
 
@@ -102,6 +113,11 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 	}
 
 	return app, nil
+}
+
+func IsValidFolderName(s string) bool {
+	matched, _ := regexp.MatchString(`^[a-zA-Z0-9][a-zA-Z0-9_ -]*$`, s)
+	return matched
 }
 
 func (a *ArduinoApp) GetSketchPath() (*paths.Path, bool) {
@@ -287,6 +303,14 @@ func loadBricksFromFolder(dir *paths.Path) []bricksindex.Brick {
 		bricks = append(bricks, brick)
 	}
 	return bricks
+}
+
+func isValid(brick bricksindex.Brick) error {
+	if brick.ID == "" {
+		return errors.New("brick ID is required")
+	}
+	// TODO: add other validation
+	return nil
 }
 
 func load(brickPath *paths.Path) (b bricksindex.Brick, err error) {
