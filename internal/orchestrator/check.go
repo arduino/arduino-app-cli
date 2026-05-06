@@ -89,7 +89,7 @@ func checkRequiredDevices(bricksIndex *bricksindex.BricksIndex, appBricks []app.
 		for _, class := range devices {
 			switch class {
 			case peripherals.CameraClass:
-				if !availableDevices.HasVideoDevice && !availableDevices.HasCSIDevice {
+				if !availableDevices.HasVideoDevice && !availableDevices.HasCSICameraDevice {
 					allErrors = errors.Join(allErrors, fmt.Errorf("no camera device found"))
 				}
 			case peripherals.MicrophoneClass:

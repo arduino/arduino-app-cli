@@ -6,6 +6,7 @@
 package peripherals
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -14,15 +15,16 @@ import (
 	"strconv"
 	"strings"
 
+	linuxconfig "github.com/arduino/arduino-app-cli/internal/orchestrator/linuxConfig"
 	"github.com/arduino/go-paths-helper"
 )
 
 type AvailableDevices struct {
-	DevicePaths    []string
-	HasVideoDevice bool
-	HasSoundDevice bool
-	HasGPUDevice   bool
-	HasCSIDevice   bool
+	DevicePaths        []string
+	HasVideoDevice     bool
+	HasSoundDevice     bool
+	HasGPUDevice       bool
+	HasCSICameraDevice bool
 }
 
 type DeviceClass string
@@ -64,8 +66,13 @@ func Detect() (AvailableDevices, error) {
 	if res.HasGPUDevice {
 		res.DevicePaths = append(res.DevicePaths, "/dev/dri")
 	}
-	// TODO: call arduino-linux-config to detect if CSI devices are present and enabled.
-	res.HasCSIDevice = true
+
+	carrierDevices, err := linuxconfig.GetEnabledDevices(context.Background())
+	if err != nil {
+		slog.Warn("unable to get enabled devices from linux config", slog.String("error", err.Error()))
+	}
+
+	res.HasCSICameraDevice = HasCSICamera(carrierDevices)
 
 	return res, nil
 }
@@ -175,6 +182,15 @@ func HasVirtualDevice(deviceClass DeviceClass, devices []string) bool {
 			if v == d {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func HasCSICamera(deviceList []string) bool {
+	for _, d := range deviceList {
+		if strings.Contains(d, "camera") {
+			return true
 		}
 	}
 	return false
