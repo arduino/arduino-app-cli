@@ -56,16 +56,7 @@ func GetPlatform(dir *paths.Path) Platform {
 			PlatformID: "arduino:zephyr",
 			BoardName:  "unoq",
 			Linux: struct{ BoardLeds paths.PathList }{
-				BoardLeds: paths.NewPathList(
-					// LED 1
-					"/dev/leds/builtin/led1_b",
-					"/dev/leds/builtin/led1_g",
-					"/dev/leds/builtin/led1_r",
-					// LED 2
-					"/dev/leds/builtin/led2_b",
-					"/dev/leds/builtin/led2_g",
-					"/dev/leds/builtin/led2_r",
-				),
+				BoardLeds: GetUnoQBoardLeds(),
 			},
 			CompileJobs: 2,
 			Micro: struct{ ResetPin GpioPin }{
@@ -115,4 +106,35 @@ func (p Platform) GetMicro() micro.Micro {
 
 func (p Platform) SupportFlashToRam() bool {
 	return p.FQBN == "arduino:zephyr:unoq"
+}
+
+func GetUnoQBoardLeds() paths.PathList {
+	// new leds paths
+	newPaths := []string{
+		// LED 1
+		"/dev/leds/builtin/led1_b",
+		"/dev/leds/builtin/led1_g",
+		"/dev/leds/builtin/led1_r",
+		// LED 2
+		"/dev/leds/builtin/led2_b",
+		"/dev/leds/builtin/led2_g",
+		"/dev/leds/builtin/led2_r",
+	}
+
+	// legacy paths, old code expects this ones
+	legacyPaths := []string{
+		// LED 1
+		"/sys/class/leds/blue:user",
+		"/sys/class/leds/green:user",
+		"/sys/class/leds/red:user",
+		// LED 2
+		"/sys/class/leds/blue:bt",
+		"/sys/class/leds/green:wlan",
+		"/sys/class/leds/red:panic",
+	}
+
+	if paths.New(newPaths[0]).Exist() {
+		return paths.NewPathList(newPaths...)
+	}
+	return paths.NewPathList(legacyPaths...)
 }
