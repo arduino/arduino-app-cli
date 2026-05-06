@@ -110,7 +110,7 @@ func (p Platform) SupportFlashToRam() bool {
 
 func GetUnoQBoardLeds() paths.PathList {
 	// new leds paths
-	newPaths := []string{
+	newPaths := paths.NewPathList(
 		// LED 1
 		"/dev/leds/builtin/led1_b",
 		"/dev/leds/builtin/led1_g",
@@ -119,10 +119,10 @@ func GetUnoQBoardLeds() paths.PathList {
 		"/dev/leds/builtin/led2_b",
 		"/dev/leds/builtin/led2_g",
 		"/dev/leds/builtin/led2_r",
-	}
+	)
 
 	// legacy paths, old code expects this ones
-	legacyPaths := []string{
+	legacyPaths := paths.NewPathList(
 		// LED 1
 		"/sys/class/leds/blue:user",
 		"/sys/class/leds/green:user",
@@ -131,10 +131,10 @@ func GetUnoQBoardLeds() paths.PathList {
 		"/sys/class/leds/blue:bt",
 		"/sys/class/leds/green:wlan",
 		"/sys/class/leds/red:panic",
-	}
+	)
 
-	if paths.New(newPaths[0]).Exist() {
-		return paths.NewPathList(newPaths...)
+	if newPaths[0].Exist() {
+		return newPaths
 	}
-	return paths.NewPathList(legacyPaths...)
+	return legacyPaths
 }
