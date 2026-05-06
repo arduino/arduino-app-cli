@@ -69,6 +69,11 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 		return ArduinoApp{}, fmt.Errorf("app folder name %q is not valid: use only alphanumeric, underscores, dashes and spaces", appPath.Base())
 	}
 
+	descriptorFile := appPath.Join("app.yaml")
+	if !descriptorFile.Exist() {
+		return ArduinoApp{}, errors.New("descriptor app.yaml file missing from app")
+	}
+
 	app := ArduinoApp{
 		FullPath:   appPath,
 		Descriptor: AppDescriptor{},

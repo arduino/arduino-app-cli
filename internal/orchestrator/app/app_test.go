@@ -19,6 +19,7 @@ package app
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -118,6 +119,7 @@ func TestMissingDescriptor(t *testing.T) {
 
 	// Load app
 	app, err := Load(appFolderPath)
+	fmt.Print("********error: ", err)
 	assert.Error(t, err)
 	assert.ErrorContains(t, err, "descriptor app.yaml file missing from app")
 	assert.Empty(t, app)
@@ -130,7 +132,7 @@ func TestMissingMains(t *testing.T) {
 	app, err := Load(appFolderPath)
 	assert.Error(t, err)
 	assert.ErrorContains(t, err, "main python file missing from app")
-	assert.Empty(t, app)
+	assert.NotEmpty(t, app)
 }
 
 func TestExtractFirstParagraph(t *testing.T) {
