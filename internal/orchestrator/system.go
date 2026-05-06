@@ -110,7 +110,7 @@ func SystemInit(ctx context.Context, cfg config.Configuration, platform platform
 		downloadDockerImages = true
 	}
 
-	if err := installPlatformPackage(ctx, plat); err != nil {
+	if err := installPlatformPackage(ctx, platform); err != nil {
 		slog.Error("failed to install platform package", "error", err)
 	}
 
