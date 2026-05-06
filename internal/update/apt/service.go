@@ -240,7 +240,7 @@ func runAptCleanCommand(ctx context.Context) iter.Seq2[string, error] {
 
 func pullDockerImages(ctx context.Context) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
-		cmd, err := paths.NewProcess(nil, "arduino-app-cli", "version")
+		cmd, err := paths.NewProcess(nil, "arduino-app-cli", "system", "init")
 		if err != nil {
 			_ = yield("", err)
 			return
