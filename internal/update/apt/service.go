@@ -109,7 +109,6 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 	}
 
-	eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Pulling the latest docker images ..."))
 	for line, err := range pullDockerImages(ctx) {
 		if err != nil {
 			// In case of errors, including "out of disk space" erros, do a cleanup and then retry once.

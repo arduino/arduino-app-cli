@@ -115,6 +115,7 @@ func SystemInit(ctx context.Context, cfg config.Configuration, platform platform
 	}
 
 	if downloadPlatformAndLibs {
+		fmt.Fprintf(stdout, "Downloading libs and platforms used in examples ...")
 		if err := downloadLibsAndPlatformsUsedInExamples(ctx, cfg, platform, progressCB); err != nil {
 			return fmt.Errorf("failed to download libs and platforms used in examples: %w", err)
 		}
@@ -131,6 +132,7 @@ func SystemInit(ctx context.Context, cfg config.Configuration, platform platform
 }
 
 func downloadSupportedImages(ctx context.Context, cfg config.Configuration, brickindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, docker *command.DockerCli, stdout io.Writer) error {
+	fmt.Fprintf(stdout, "Pulling the latest docker images ...") //
 	imagesToPreinstall := []string{cfg.PythonImage}
 	brickImages, err := getAllSupportedBrickImages(brickindex, servicesindex)
 	if err != nil {
