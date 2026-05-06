@@ -132,7 +132,7 @@ func SystemInit(ctx context.Context, cfg config.Configuration, platform platform
 }
 
 func downloadSupportedImages(ctx context.Context, cfg config.Configuration, brickindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, docker *command.DockerCli, stdout io.Writer) error {
-	fmt.Fprintf(stdout, "Pulling the latest docker images ...") //
+	fmt.Fprintf(stdout, "Pulling the latest docker images ...")
 	imagesToPreinstall := []string{cfg.PythonImage}
 	brickImages, err := getAllSupportedBrickImages(brickindex, servicesindex)
 	if err != nil {
