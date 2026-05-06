@@ -707,12 +707,8 @@ func resolveMajorNumber(driverName string) (int, error) {
 }
 
 func buildCgroupRules() []string {
-	rules := []string{
-		// As defined in https://www.kernel.org/doc/Documentation/admin-guide/devices.txt
-		"c 81:* rmw",  // V4L2
-		"c 116:* rmw", // ALSA
-	}
-
+	var rules []string
+	
 	dynamic := []struct {
 		driver string
 		label  string
@@ -720,6 +716,8 @@ func buildCgroupRules() []string {
 		{"drm", "DRM"},
 		{"dma_heap", "DMA Heap"},
 		{"media", "Media"},
+		{"video4linux", "video4linux"},
+		{"alsa", "ALSA"},
 	}
 
 	for _, d := range dynamic {
