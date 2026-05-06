@@ -54,15 +54,13 @@ func fetchDebPackageLatest(t *testing.T, path, repo string) string {
 		log.Fatalf("command failed: %v\nOutput: %s", err, output)
 	}
 
-	fmt.Println(string(output))
-
 	fields := strings.Fields(string(output))
 	if len(fields) == 0 {
 		log.Fatal("could not parse tag from gh release list output")
 	}
 	tag := fields[0]
 
-	fmt.Println("Detected tag:", tag)
+	fmt.Println("Repo:", repo, "Detected tag:", tag)
 	cmd2 := exec.Command(
 		"gh", "release", "download",
 		tag,
@@ -128,9 +126,16 @@ func genMinorTag(t *testing.T, tag string) string {
 	lastNum, _ := strconv.Atoi(strings.TrimPrefix(last, "v"))
 	if lastNum > 0 {
 		lastNum--
+		parts[len(parts)-1] = strconv.Itoa(lastNum)
+	} else if len(parts) >= 2 {
+		minorStr := parts[len(parts)-2]
+		minorNum, _ := strconv.Atoi(minorStr)
+		if minorNum > 0 {
+			minorNum--
+		}
+		parts[len(parts)-2] = strconv.Itoa(minorNum)
 	}
 
-	parts[len(parts)-1] = strconv.Itoa(lastNum)
 	newTag := strings.Join(parts, ".")
 
 	if !strings.HasPrefix(newTag, "v") {
