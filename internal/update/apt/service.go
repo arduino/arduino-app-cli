@@ -109,7 +109,7 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 	}
 
-	for line, err := range pullDockerImages(ctx) {
+	for line, err := range runSystemInit(ctx) {
 		if err != nil {
 			// In case of errors, including "out of disk space" erros, do a cleanup and then retry once.
 
@@ -125,7 +125,7 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 
 			// Try again to pull the docker containers.
 			eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Pulling the latest docker images (again) ..."))
-			for line, err := range pullDockerImages(ctx) {
+			for line, err := range runSystemInit(ctx) {
 				if err != nil {
 					return fmt.Errorf("error pulling docker images: %w", err)
 				}
@@ -237,7 +237,7 @@ func runAptCleanCommand(ctx context.Context) iter.Seq2[string, error] {
 	}
 }
 
-func pullDockerImages(ctx context.Context) iter.Seq2[string, error] {
+func runSystemInit(ctx context.Context) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
 		cmd, err := paths.NewProcess(nil, "arduino-app-cli", "system", "init")
 		if err != nil {
