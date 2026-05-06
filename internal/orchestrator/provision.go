@@ -323,6 +323,17 @@ func generateMainComposeFile(
 			Source: app.FullPath.String(),
 			Target: "/app",
 		},
+		{
+			Type:   "bind",
+			Source: "/dev",
+			Target: "/dev",
+		},
+		{
+			Type:     "bind",
+			Source:   "/run/udev",
+			Target:   "/run/udev",
+			ReadOnly: true,
+		},
 	}
 	slog.Debug("Adding UNIX socket", slog.Any("sock", cfg.RouterSocketPath().String()), slog.Bool("exists", cfg.RouterSocketPath().Exist()))
 	if cfg.RouterSocketPath().Exist() {
@@ -331,48 +342,6 @@ func generateMainComposeFile(
 			Source: cfg.RouterSocketPath().String(),
 			Target: "/var/run/arduino-router.sock",
 		})
-	}
-
-	// provide additional devices to the container
-	if devices.HasVideoDevice {
-		// If we are adding video devices, mount also /dev/v4l if it exists to allow access to by-id/path links
-		if paths.New("/dev/v4l").Exist() {
-			volumes = append(volumes, volume{
-				Type:   "bind",
-				Source: "/dev/v4l",
-				Target: "/dev/v4l",
-			})
-		}
-	}
-
-	var cgroupRules []string
-	// Has Media Carrier?
-	if devices.HasCSIDevice {
-		volumes = append(volumes,
-			volume{
-				Type:   "bind",
-				Source: "/dev",
-				Target: "/dev",
-			},
-			volume{
-				Type:     "bind",
-				Source:   "/run/udev",
-				Target:   "/run/udev",
-				ReadOnly: true,
-			},
-		)
-		cgroupRules = buildCgroupRules()
-	}
-
-	if devices.HasSoundDevice {
-		// If we are adding sound devices, mount also /dev/snd/by-id if it exists to allow access to by-id links
-		if paths.New("/dev/snd/by-id").Exist() {
-			volumes = append(volumes, volume{
-				Type:   "bind",
-				Source: "/dev/snd/by-id",
-				Target: "/dev/snd/by-id",
-			})
-		}
 	}
 
 	volumes = addLedControl(platform, volumes)
@@ -397,6 +366,8 @@ func generateMainComposeFile(
 			}
 		}
 	}
+
+	cgroupRules := buildCgroupRules()
 
 	mainAppCompose.Services = &mainService{
 		Main: service{
@@ -708,7 +679,7 @@ func resolveMajorNumber(driverName string) (int, error) {
 
 func buildCgroupRules() []string {
 	var rules []string
-	
+
 	dynamic := []struct {
 		driver string
 		label  string
