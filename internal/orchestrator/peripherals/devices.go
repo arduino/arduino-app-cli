@@ -67,7 +67,7 @@ func Detect() (AvailableDevices, error) {
 		res.DevicePaths = append(res.DevicePaths, "/dev/dri")
 	}
 
-	carrierDevices, err := linuxconfig.GetEnabledDevices(context.Background())
+	carriers, err := linuxconfig.GetEnabledCarrier(context.Background())
 	if err != nil {
 		slog.Warn("unable to get enabled devices from linux config", slog.String("error", err.Error()))
 	}
