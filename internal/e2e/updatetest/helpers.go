@@ -120,28 +120,35 @@ func genMajorTag(t *testing.T, tag string) string {
 func genMinorTag(t *testing.T, tag string) string {
 	t.Helper()
 
-	parts := strings.Split(tag, ".")
-	last := parts[len(parts)-1]
-
-	lastNum, _ := strconv.Atoi(strings.TrimPrefix(last, "v"))
-	if lastNum > 0 {
-		lastNum--
-		parts[len(parts)-1] = strconv.Itoa(lastNum)
-	} else if len(parts) >= 2 {
-		minorStr := parts[len(parts)-2]
-		minorNum, _ := strconv.Atoi(minorStr)
-		if minorNum > 0 {
-			minorNum--
+	buildVersion := func(major, minor, patch string) string {
+		newTag := strings.Join([]string{major, minor, patch}, ".")
+		if !strings.HasPrefix(newTag, "v") {
+			newTag = "v" + newTag
 		}
-		parts[len(parts)-2] = strconv.Itoa(minorNum)
+		return newTag
 	}
 
-	newTag := strings.Join(parts, ".")
-
-	if !strings.HasPrefix(newTag, "v") {
-		newTag = "v" + newTag
+	parts := strings.Split(tag, ".")
+	if len(parts) != 3 {
+		log.Fatalf("invalid tag format: %s", tag)
 	}
-	return newTag
+	majorPart := parts[0]
+	minorPart := parts[1]
+	patchPart := parts[2]
+
+	if patchNum, _ := strconv.Atoi(patchPart); patchNum > 0 {
+		patchNum--
+		return buildVersion(majorPart, minorPart, strconv.Itoa(patchNum))
+	}
+	if minorNum, _ := strconv.Atoi(minorPart); minorNum > 0 {
+		minorNum--
+		return buildVersion(majorPart, strconv.Itoa(minorNum), "0")
+	}
+	if majorNum, _ := strconv.Atoi(strings.TrimPrefix(majorPart, "v")); majorNum > 0 {
+		majorNum--
+		return buildVersion(strconv.Itoa(majorNum), "9", "0")
+	}
+	return buildVersion(parts[0], parts[1], parts[2])
 }
 
 func buildDockerImage(t *testing.T, dockerfile, name, arch string) {
