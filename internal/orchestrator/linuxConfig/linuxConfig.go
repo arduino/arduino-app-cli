@@ -72,4 +72,3 @@ func GetEnabledDevices(ctx context.Context) ([]string, error) {
 		}
 	}
 	return enableDevices, nil
-}
