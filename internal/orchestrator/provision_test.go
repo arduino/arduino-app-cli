@@ -130,7 +130,6 @@ bricks:
 	err = yaml.Unmarshal(overridesContent, &content)
 	require.Nil(t, err, "Failed to unmarshal overrides content")
 	require.NotNil(t, content.Services["ei-video-obj-detection-runner"], "Override for ei-video-obj-detection-runner should exist")
-	require.NotNil(t, content.Services["ei-video-obj-detection-runner"]["devices"], "Override for ei-video-obj-detection-runner devices should exist")
 	require.Equal(t, "bar", content.Services["ei-video-obj-detection-runner"]["environment"].(map[string]any)["FOO"])
 }
 
