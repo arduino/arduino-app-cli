@@ -251,10 +251,9 @@ func getAppEnvironmentVariables(ctx context.Context, app app.ArduinoApp, brickIn
 	if err != nil {
 		slog.Warn("unable to get configured carriers", slog.String("error", err.Error()))
 	} else if len(mediaCarriers) > 0 {
-		var carrierNames []string
-		for _, c := range mediaCarriers {
-			carrierNames = append(carrierNames, c.CarrierName)
-		}
+		carrierNames := f.Map(mediaCarriers, func(c linuxconfig.Carrier) string {
+			return c.CarrierName
+		})
 		envs["CONFIGURED_CARRIERS"] = strings.Join(carrierNames, ",")
 	}
 
