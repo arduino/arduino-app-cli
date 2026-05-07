@@ -110,21 +110,37 @@ func FromHost(host string, adbPath string) (*ADBConnection, error) {
 }
 
 func (a *ADBConnection) Forward(ctx context.Context, localPort int, remotePort int) error {
+	localString := fmt.Sprintf("tcp:%d", localPort)
+	remoteString := fmt.Sprintf("tcp:%d", remotePort)
+
 	if !ports.IsAvailable(localPort) {
+		// Check if the port is already forwarded by adb to the expected remote port
+		checkCmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "forward", "--list")
+		if err == nil {
+			if out, err := checkCmd.RunAndCaptureCombinedOutput(ctx); err == nil {
+				scanner := bufio.NewScanner(bytes.NewReader(out))
+				for scanner.Scan() {
+					// Output format is typically: <serial> <local> <remote>
+					fields := strings.Fields(scanner.Text())
+					if len(fields) >= 3 && fields[0] == a.host && fields[1] == localString && fields[2] == remoteString {
+						return nil // Port is already forwarded exactly as requested
+					}
+				}
+			}
+		}
+
 		return remote.ErrPortAvailable
 	}
 
-	local := fmt.Sprintf("tcp:%d", localPort)
-	remote := fmt.Sprintf("tcp:%d", remotePort)
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "forward", local, remote)
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "forward", localString, remoteString)
 	if err != nil {
 		return err
 	}
 	if out, err := cmd.RunAndCaptureCombinedOutput(ctx); err != nil {
 		return fmt.Errorf(
 			"failed to forward ADB port %s to %s: %w: %s",
-			local,
-			remote,
+			localString,
+			remoteString,
 			err,
 			out,
 		)
