@@ -24,7 +24,7 @@ type Device struct {
 }
 
 func (c Carrier) EnabledDevices() []Device {
-	return slices.DeleteFunc(slices.Clone(c.Devices), func(device Device) bool {
-		return device.Option == "none"
+	return f.Filter(c.Devices, func(device Device) bool {
+		return device.Option != "none"
 	})
 }
