@@ -187,11 +187,13 @@ func HasVirtualDevice(deviceClass DeviceClass, devices []string) bool {
 	return false
 }
 
-func HasCSICamera(deviceList []string) bool {
-	for _, d := range deviceList {
-		if strings.Contains(d, "camera") {
-			return true
-		}
-	}
-	return false
+func HasCSICamera(carriers []Carrier) bool {
+    for _, c in range carriers{
+         if c.Name !="mediacarrier"{
+              continue
+         }
+         if slices.ContainsFunc(c.EnabledDevices(), func (d Device) bool{ return c.Type == "camera" })
+             return true
+         }
+      }
 }
