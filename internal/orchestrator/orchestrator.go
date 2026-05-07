@@ -164,7 +164,7 @@ func StartApp(
 
 		cb(StreamMessage{progress: &Progress{Name: "python provisioning", Progress: provisionStartProgress}})
 
-		if err := provisioner.App(ctx, bricksIndex, servicesIndex, &appToStart, cfg, envs, platform, devices); err != nil {
+		if err := provisioner.App(ctx, bricksIndex, servicesIndex, &appToStart, cfg, envs, platform); err != nil {
 			return err
 		}
 

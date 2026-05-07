@@ -387,7 +387,6 @@ func TestCheckRequiredDevice(t *testing.T) {
 			name:                      "No required devices",
 			brickRequiredDevicesClass: []peripherals.DeviceClass{},
 			availableDevices: peripherals.AvailableDevices{
-				DevicePaths:    []string{},
 				HasSoundDevice: false,
 				HasVideoDevice: true,
 			},
