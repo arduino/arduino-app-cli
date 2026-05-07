@@ -42,7 +42,7 @@ func GetEnabledCarriers(ctx context.Context) ([]string, error) {
 			enabled = append(enabled, c.CarrierName)
 		}
 	}
-	return enabled, nil
+return f.Filter(carriersStatus.Carriers, func(c Carrier) bool{ return  c.CurrentEnabled }), nil
 }
 
 func GetEnabledDevices(ctx context.Context) ([]string, error) {
