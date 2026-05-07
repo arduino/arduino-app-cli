@@ -209,7 +209,7 @@ func getAppCliVersion(t *testing.T, containerName string) string {
 	}
 	err = json.Unmarshal(output, &version)
 	require.NoError(t, err)
-	// TODOD: enable
+	// TODO to enable after 0.6.7
 	// require.Equal(t, version.Version, version.DaemonVersion, "client and daemon versions should match")
 	require.NotEmpty(t, version.Version)
 	return version.Version
