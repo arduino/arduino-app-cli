@@ -72,7 +72,7 @@ func Detect() (AvailableDevices, error) {
 		slog.Warn("unable to get enabled devices from linux config", slog.String("error", err.Error()))
 	}
 
-	res.HasCSICameraDevice = HasCSICamera(carrierDevices)
+	res.HasCSICameraDevice = HasCSICamera(carriers)
 
 	return res, nil
 }
