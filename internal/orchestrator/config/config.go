@@ -115,14 +115,6 @@ func NewFromEnv() (Configuration, error) {
 	}
 	slog.Debug("Using update version constraint", slog.String("constraint", constraintStr))
 
-	cgroupDrivers := map[string]string{
-		"drm":         "DRM",
-		"dma_heap":    "DMA Heap",
-		"media":       "Media",
-		"video4linux": "video4linux",
-		"alsa":        "ALSA",
-	}
-
 	c := Configuration{
 		appsDir:                          appsDir,
 		dataDir:                          dataDir,
@@ -135,7 +127,6 @@ func NewFromEnv() (Configuration, error) {
 		LibrariesAPIURL:                  parsedLibrariesURL,
 		EdgeImpulseAPIURL:                parsedEdgeImpulseURL,
 		ArduinoPlatformVersionConstraint: constraint,
-		CgroupRules:                      buildCgroupRules(cgroupDrivers),
 	}
 	if err := c.init(); err != nil {
 		return Configuration{}, err
@@ -197,41 +188,4 @@ func getPythonImageAndTag() (string, string) {
 		usedPythonImageTag = pythonImage[idx+1:]
 	}
 	return pythonImage, usedPythonImageTag
-}
-
-func buildCgroupRules(drivers map[string]string) []string {
-	var rules []string
-
-	for driver, label := range drivers {
-		major, err := resolveMajorNumber(driver)
-		if err != nil {
-			slog.Warn("could not resolve major number, skipping cgroup rule",
-				slog.String("driver", driver),
-				slog.String("label", label),
-				slog.Any("error", err),
-			)
-			continue
-		}
-		rules = append(rules, fmt.Sprintf("c %d:* rmw", major))
-	}
-
-	return rules
-}
-
-func resolveMajorNumber(driverName string) (int, error) {
-	content, err := os.ReadFile("/proc/devices")
-	if err != nil {
-		return 0, fmt.Errorf("failed to read /proc/devices: %w", err)
-	}
-	for _, line := range strings.Split(string(content), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) == 2 && fields[1] == driverName {
-			major, err := strconv.Atoi(fields[0])
-			if err != nil {
-				return 0, fmt.Errorf("failed to parse major for %s: %w", driverName, err)
-			}
-			return major, nil
-		}
-	}
-	return 0, fmt.Errorf("driver %q not found in /proc/devices", driverName)
 }

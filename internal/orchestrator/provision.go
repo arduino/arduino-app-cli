@@ -363,12 +363,20 @@ func generateMainComposeFile(
 		}
 	}
 
+	cgroupDrivers := map[string]string{
+		"drm":         "DRM",
+		"dma_heap":    "DMA Heap",
+		"media":       "Media",
+		"video4linux": "video4linux",
+		"alsa":        "ALSA",
+	}
+
 	mainAppCompose.Services = &mainService{
 		Main: service{
 			Image:             pythonImage,
 			Volumes:           volumes,
 			Ports:             slices.Collect(maps.Keys(ports)),
-			DeviceCgroupRules: cfg.CgroupRules,
+			DeviceCgroupRules: buildCgroupRules(cgroupDrivers),
 			Entrypoint:        "/run.sh",
 			DependsOn:         dependsOn,
 			User:              getCurrentUser(),
@@ -654,4 +662,41 @@ func extractVolumesFromComposeFile(additionalComposeFile string) ([]string, erro
 		volumes = append(volumes, svc.Volumes...)
 	}
 	return volumes, nil
+}
+
+func buildCgroupRules(drivers map[string]string) []string {
+	var rules []string
+
+	for driver, label := range drivers {
+		major, err := resolveMajorNumber(driver)
+		if err != nil {
+			slog.Warn("could not resolve major number, skipping cgroup rule",
+				slog.String("driver", driver),
+				slog.String("label", label),
+				slog.Any("error", err),
+			)
+			continue
+		}
+		rules = append(rules, fmt.Sprintf("c %d:* rmw", major))
+	}
+
+	return rules
+}
+
+func resolveMajorNumber(driverName string) (int, error) {
+	content, err := os.ReadFile("/proc/devices")
+	if err != nil {
+		return 0, fmt.Errorf("failed to read /proc/devices: %w", err)
+	}
+	for _, line := range strings.Split(string(content), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 2 && fields[1] == driverName {
+			major, err := strconv.Atoi(fields[0])
+			if err != nil {
+				return 0, fmt.Errorf("failed to parse major for %s: %w", driverName, err)
+			}
+			return major, nil
+		}
+	}
+	return 0, fmt.Errorf("driver %q not found in /proc/devices", driverName)
 }
