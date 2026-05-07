@@ -661,7 +661,9 @@ func extractVolumesFromComposeFile(additionalComposeFile string) ([]string, erro
 	return volumes, nil
 }
 
-func resolveMajorNumber(driverName string) (int, error) {
+func buildCgroupRules(drivers []string) []string {
+
+resolveMajorNumber := func(driverName string) (int, error) {
 	content, err := os.ReadFile("/proc/devices")
 	if err != nil {
 		return 0, fmt.Errorf("failed to read /proc/devices: %w", err)
@@ -678,20 +680,6 @@ func resolveMajorNumber(driverName string) (int, error) {
 	}
 	return 0, fmt.Errorf("driver %q not found in /proc/devices", driverName)
 }
-
-func buildCgroupRules() []string {
-	var rules []string
-
-	dynamic := []struct {
-		driver string
-		label  string
-	}{
-		{"drm", "DRM"},
-		{"dma_heap", "DMA Heap"},
-		{"media", "Media"},
-		{"video4linux", "video4linux"},
-		{"alsa", "ALSA"},
-	}
 
 	for _, d := range dynamic {
 		major, err := resolveMajorNumber(d.driver)
