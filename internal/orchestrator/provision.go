@@ -370,13 +370,14 @@ func generateMainComposeFile(
 		"video4linux": "video4linux",
 		"alsa":        "ALSA",
 	}
+	deviceCgroupsRules := buildCgroupRules(cgroupDrivers)
 
 	mainAppCompose.Services = &mainService{
 		Main: service{
 			Image:             pythonImage,
 			Volumes:           volumes,
 			Ports:             slices.Collect(maps.Keys(ports)),
-			DeviceCgroupRules: buildCgroupRules(cgroupDrivers),
+			DeviceCgroupRules: deviceCgroupsRules,
 			Entrypoint:        "/run.sh",
 			DependsOn:         dependsOn,
 			User:              getCurrentUser(),
@@ -409,7 +410,7 @@ func generateMainComposeFile(
 
 	// If there are services that require devices, we need to generate an override compose file
 	// Write additional file to override devices section in included compose files
-	if err := generateServicesOverrideFile(app, services, getCurrentUser(), groups, overrideComposeFile, envs, cfg); err != nil {
+	if err := generateServicesOverrideFile(app, services, getCurrentUser(), groups, overrideComposeFile, envs, deviceCgroupsRules); err != nil {
 		return err
 	}
 
@@ -493,7 +494,7 @@ func extractServicesFromComposeFile(composeFile *paths.Path) ([]serviceInfo, err
 	return services, nil
 }
 
-func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []serviceInfo, user string, groups []uint32, overrideComposeFile *paths.Path, envs helpers.EnvVars, cfg config.Configuration) error {
+func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []serviceInfo, user string, groups []uint32, overrideComposeFile *paths.Path, envs helpers.EnvVars, deviceCgroupsRules []string) error {
 	if overrideComposeFile.Exist() {
 		if err := overrideComposeFile.Remove(); err != nil {
 			return fmt.Errorf("failed to remove existing override compose file: %w", err)
@@ -530,7 +531,7 @@ func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []service
 			override.User = &user
 		}
 		if svc.requireDevices {
-			override.DeviceCgroupRules = &cfg.CgroupRules
+			override.DeviceCgroupRules = &deviceCgroupsRules
 			devVolumes := []volume{
 				{Type: "bind", Source: "/dev", Target: "/dev"},
 			}
