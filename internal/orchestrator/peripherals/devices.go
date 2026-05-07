@@ -67,7 +67,7 @@ func Detect() (AvailableDevices, error) {
 		res.DevicePaths = append(res.DevicePaths, "/dev/dri")
 	}
 
-	carriers, err := linuxconfig.GetEnabledCarrier(context.Background())
+	carriers, err := linuxconfig.GetEnabledCarriers(context.Background())
 	if err != nil {
 		slog.Warn("unable to get enabled devices from linux config", slog.String("error", err.Error()))
 	}
@@ -187,13 +187,15 @@ func HasVirtualDevice(deviceClass DeviceClass, devices []string) bool {
 	return false
 }
 
-func HasCSICamera(carriers []Carrier) bool {
-    for _, c in range carriers{
-         if c.Name !="mediacarrier"{
-              continue
-         }
-         if slices.ContainsFunc(c.EnabledDevices(), func (d Device) bool{ return c.Type == "camera" })
-             return true
-         }
-      }
+func HasCSICamera(carriers []linuxconfig.Carrier) bool {
+	for _, c := range carriers {
+		if c.CarrierName != "media-carrier" {
+			continue
+		}
+		if slices.ContainsFunc(c.EnabledDevices(), func(d linuxconfig.Device) bool { return strings.Contains(d.Device, "camera") }) {
+			return true
+		}
+
+	}
+	return false
 }

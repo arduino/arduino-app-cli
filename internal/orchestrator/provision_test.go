@@ -559,7 +559,7 @@ services:
 
 		// Generate overrides file
 		overrideComposeFile := paths.New(tempDirectory).Join(".cache").Join("app-compose-overrides.yaml")
-		err = generateServicesOverrideFile(&app, svcInfo, user, groups, overrideComposeFile, env)
+		err = generateServicesOverrideFile(&app, svcInfo, user, groups, overrideComposeFile, env, cfg)
 		require.NoError(t, err)
 
 		// load and validate override file content

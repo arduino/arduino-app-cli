@@ -5,7 +5,7 @@
 
 package linuxconfig
 
-import "slices"
+import "go.bug.st/f"
 
 type Carrier struct {
 	CarrierName    string   `json:"carrier_name"`

@@ -365,14 +365,12 @@ func generateMainComposeFile(
 		}
 	}
 
-	cgroupRules := buildCgroupRules()
-
 	mainAppCompose.Services = &mainService{
 		Main: service{
 			Image:             pythonImage,
 			Volumes:           volumes,
 			Ports:             slices.Collect(maps.Keys(ports)),
-			DeviceCgroupRules: cgroupRules,
+			DeviceCgroupRules: cfg.CgroupRules,
 			Entrypoint:        "/run.sh",
 			DependsOn:         dependsOn,
 			User:              getCurrentUser(),
@@ -405,7 +403,7 @@ func generateMainComposeFile(
 
 	// If there are services that require devices, we need to generate an override compose file
 	// Write additional file to override devices section in included compose files
-	if err := generateServicesOverrideFile(app, services, getCurrentUser(), groups, overrideComposeFile, envs); err != nil {
+	if err := generateServicesOverrideFile(app, services, getCurrentUser(), groups, overrideComposeFile, envs, cfg); err != nil {
 		return err
 	}
 
@@ -489,7 +487,7 @@ func extractServicesFromComposeFile(composeFile *paths.Path) ([]serviceInfo, err
 	return services, nil
 }
 
-func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []serviceInfo, user string, groups []uint32, overrideComposeFile *paths.Path, envs helpers.EnvVars) error {
+func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []serviceInfo, user string, groups []uint32, overrideComposeFile *paths.Path, envs helpers.EnvVars, cfg config.Configuration) error {
 	if overrideComposeFile.Exist() {
 		if err := overrideComposeFile.Remove(); err != nil {
 			return fmt.Errorf("failed to remove existing override compose file: %w", err)
@@ -526,8 +524,7 @@ func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []service
 			override.User = &user
 		}
 		if svc.requireDevices {
-			cgroupRules := buildCgroupRules()
-			override.DeviceCgroupRules = &cgroupRules
+			override.DeviceCgroupRules = &cfg.CgroupRules
 			devVolumes := []volume{
 				{Type: "bind", Source: "/dev", Target: "/dev"},
 			}
@@ -659,40 +656,4 @@ func extractVolumesFromComposeFile(additionalComposeFile string) ([]string, erro
 		volumes = append(volumes, svc.Volumes...)
 	}
 	return volumes, nil
-}
-
-func buildCgroupRules(drivers []string) []string {
-
-resolveMajorNumber := func(driverName string) (int, error) {
-	content, err := os.ReadFile("/proc/devices")
-	if err != nil {
-		return 0, fmt.Errorf("failed to read /proc/devices: %w", err)
-	}
-	for _, line := range strings.Split(string(content), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) == 2 && fields[1] == driverName {
-			major, err := strconv.Atoi(fields[0])
-			if err != nil {
-				return 0, fmt.Errorf("failed to parse major for %s: %w", driverName, err)
-			}
-			return major, nil
-		}
-	}
-	return 0, fmt.Errorf("driver %q not found in /proc/devices", driverName)
-}
-
-	for _, d := range dynamic {
-		major, err := resolveMajorNumber(d.driver)
-		if err != nil {
-			slog.Warn("could not resolve major number, skipping cgroup rule",
-				slog.String("driver", d.driver),
-				slog.String("label", d.label),
-				slog.Any("error", err),
-			)
-			continue
-		}
-		rules = append(rules, fmt.Sprintf("c %d:* rmw", major))
-	}
-
-	return rules
 }

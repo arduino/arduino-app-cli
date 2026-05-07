@@ -251,7 +251,11 @@ func getAppEnvironmentVariables(ctx context.Context, app app.ArduinoApp, brickIn
 	if err != nil {
 		slog.Warn("unable to get configured carriers", slog.String("error", err.Error()))
 	} else if len(mediaCarriers) > 0 {
-		envs["CONFIGURED_CARRIERS"] = strings.Join(mediaCarriers, ",")
+		var carrierNames []string
+		for _, c := range mediaCarriers {
+			carrierNames = append(carrierNames, c.CarrierName)
+		}
+		envs["CONFIGURED_CARRIERS"] = strings.Join(carrierNames, ",")
 	}
 
 	if hostIP, err := helpers.GetHostIP(); err == nil {
