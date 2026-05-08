@@ -2,7 +2,7 @@
 
 This specification defines the Edge Impulse AI model format used with Arduino Apps via AI Bricks.
 
-Edge Impulse models are distributed as `.eim` binaries: .eim files are self-contained, platform-specific artefacts that bundle the model weights and inference runtime together. For more details, refer to the [Edge Impulse documentation](https://edgeimpulse.com).
+Edge Impulse models are distributed as `.eim` binaries: .eim files are self-contained, platform-specific artifacts that bundle the model weights and inference runtime together. For more details, refer to the [Edge Impulse documentation](https://edgeimpulse.com).
 
 In the Arduino Apps context, the `arduino-app-cli` recognizes an Edge Impulse model as a directory containing two required files: a descriptor file (`model.yaml`) and the model asset (`.eim` file).
 
@@ -12,23 +12,22 @@ EI Models can be added to the board by the user, either downloaded from [Edge Im
 
 A **Brick** is a modular service that acts as a standardized interface for specific functionalities. An **AI Brick** is a specialized Brick that manages a specific AI domain or use case (e.g., _Object Detection_, _Speech-to-Text_, or _Face Detection_). For a general introduction to Bricks and how they work, see [Understanding Bricks](https://docs.arduino.cc/software/app-lab/bricks/about-bricks/).
 
-## EI Model-AI Brick Relationship and Compatibility
+## EI Model Brick Relationship and Compatibility
 
-The ecosystem implements a flexible N:N (many-to-many) relationship between Models and Bricks. Compatibility is determined by the model's category as defined in Edge Impulse: for example, a model in the "Object Detection" category is automatically compatible with both `arduino:object_detection` and `arduino:video_object_detection`.
+The ecosystem implements a flexible N:N (many-to-many) relationship between Models and Bricks. Compatibility is determined by the model's category as defined in Edge Impulse: for example, a model in the "Object Detection" category is automatically compatible with both `arduino:object_detection` and `arduino:video_object_detection` bricks.
 
-Conversely, a Brick can support multiple models of the same class, allowing users to swap models (e.g., from a lightweight to a more accurate one) while keeping the Python API identical.
+Conversely, a Brick can support multiple models of the same category, allowing users to swap models (e.g., from a lightweight to a more accurate one) while keeping the Python API identical.
 
 A single EI Model can also be shared simultaneously by multiple Bricks. In that case, the model assets are shared, but a separate AI Runner instance is created for each Brick.
 
-## Model Lifecycle and States
+## Model Lifecycle and States in Arduino App Lab
 
-The system tracks the status of a model to manage its availability and synchronization:
+In App Lab a model can have the following states:  
 
 - **Available**: The model is available in the user's [Edge Impulse projects](https://studio.edgeimpulse.com) but has not been downloaded to the board yet.
 - **Installed**: The `.eim` file and the `model.yaml` descriptor are present on the board and ready for execution.
-- **Detached**: An "Installed" model whose link to the original remote provider has been severed (e.g., the user logged out, or the project was deleted from the cloud). The model remains functional locally but cannot receive updates.
+- **Detached**: An "Installed" model whose link to the original remote Edge Impulse project has been severed (e.g., the user logged out, or the project was deleted from the cloud). The model remains functional locally but cannot receive updates.
 
-> **Note**: The `Available` and `Detached` states are managed by Arduino App Lab. Within `arduino-app-cli`, only the Installed state is applicable.
 
 ## The Model Descriptor (`model.yaml`)
 
@@ -39,7 +38,7 @@ The descriptor is mandatory and must be placed at the root of the model director
 
 The `model.yaml` file uses a structured format to define the model's identity, its execution environment, and its compatibility with various Bricks.
 
-- **`id`** (String, Mandatory): A unique identifier for the model (e.g., a UUID or a slug).
+- **`id`** (String, Mandatory): A string that uniquely identifies the model within the board (e.g., a UUID or a slug).
 - **`name`** (String, Mandatory): A human-readable name displayed in Arduino App Lab.
 - **`runner`** (String, Mandatory): Specifies the **Runner** (always `brick`).
 - **`description`** (String, Optional): A brief summary of the model's purpose and capabilities.
@@ -52,7 +51,7 @@ The `model.yaml` file uses a structured format to define the model's identity, i
 The following metadata fields are required for Edge Impulse models:
 
 - **`source`** (String, Mandatory): Must be set to `"edgeimpulse"`.
-- **`ei-project-id`** (Integer, Mandatory): The numeric ID of the Edge Impulse project.
+- **`ei-project-id`** (Integer, Mandatory): The numeric ID of the Edge Impulse project.TODO CONTROLLARE IL TIPO DI TUTTI QUANTI 
 - **`ei-impulse-id`** (Integer, Mandatory): The numeric ID of the impulse within the project.
 - **`ei-impulse-name`** (String, Mandatory): The human-readable name of the impulse.
 - **`ei-model-type`** (String, Mandatory): The model type. Must be `float32`.
@@ -64,7 +63,7 @@ The following metadata fields are required for Edge Impulse models:
 
 ### Brick Configuration
 
-The `bricks` list defines which AI Bricks are compatible with the model and how they are configured. The `model_configuration` for each brick must include two variables:
+For Edge Impulse compatible bricks, the `bricks` list defines which AI Bricks are compatible with the model and how they are configured. The `model_configuration` for each brick must include two variables:
 
 - **`EI_*_MODEL`** (String, Mandatory): The absolute path to the `.eim` binary. The variable name follows the pattern `EI_<BRICK_TYPE>_MODEL` (e.g.,
   `EI_OBJ_DETECTION_MODEL`, `EI_CLASSIFICATION_MODEL`). The exact name depends on the target brick (see the "Edge Impulse Category to AI Brick Mapping" section).
@@ -102,15 +101,15 @@ category: Images
 bricks:
   - id: arduino:object_detection
     model_configuration:
-      EI_OBJ_DETECTION_MODEL: /home/.arduino-bricks/models/custom-ei/ei-model-842271-1/model.eim
+      EI_OBJ_DETECTION_MODEL: /home/arduino/.arduino-bricks/models/custom-ei/ei-model-842271-1/model.eim
       CUSTOM_MODEL_PATH: /home/.arduino-bricks/models/custom-ei/ei-model-842271-1
   - id: arduino:video_object_detection
     model_configuration:
-      EI_V_OBJ_DETECTION_MODEL: /home/.arduino-bricks/models/custom-ei/ei-model-842271-1/model.eim
-      CUSTOM_MODEL_PATH: /home/.arduino-bricks/models/custom-ei/ei-model-842271-1
+      EI_V_OBJ_DETECTION_MODEL: /home/arduino/.arduino-bricks/models/custom-ei/ei-model-842271-1/model.eim
+      CUSTOM_MODEL_PATH: /home/arduino/.arduino-bricks/models/custom-ei/ei-model-842271-1
 metadata:
   source: edgeimpulse
-  ei-project-id: 842271
+  ei-project-id: 842271 //TODO CONTROLLARE SE LA SINTASSI PER RAPPRESENTARE QUESTI NUMERI COME STRINGHE è CORRETTO. CONTROLLARE OGNI CAMPO 
   ei-impulse-id: 1
   ei-impulse-name: Hand gestures impulse
   ei-model-type: float32
@@ -122,13 +121,13 @@ metadata:
 
 ### Standard Shared Path
 
-The default location for user-installed models is `/home/.arduino-bricks/models/`, but it can be overridden via environment variable `ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR`.
+The default location for user-installed models is `/home/<username>/.arduino-bricks/models/`, but it can be overridden via environment variable `ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR`.
 
 The system recursively scans the root directory for valid model folders. Folder names and nesting levels are flexible. The only requirement is that each model folder contains its own `model.yaml` and `.eim` file.
-
+TODO DA TESTARE , TESTARE ANCHE LA VAR DI AMBIENTE ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR, CONTROLLARE I PATH USATI CON E SENZA LA ENV VAR
 ```text
 /models/
-├── edge-impulse/                 # Example: Grouped by provider
+├── custom-ei/                  # Example: Grouped by provider 
 │   └── impulse-123/            # A valid model folder
 │       ├── model.yaml          # Mandatory metadata
 │       ├── README.md           # Optional documentation for App Lab
