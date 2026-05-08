@@ -35,7 +35,7 @@ const (
 	SpeakerClass    DeviceClass = "speaker"
 )
 
-func Detect() (AvailableDevices, error) {
+func Detect(ctx context.Context) (AvailableDevices, error) {
 	res := AvailableDevices{}
 
 	deviceList, err := paths.New("/dev").ReadDir()
