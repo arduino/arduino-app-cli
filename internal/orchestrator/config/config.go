@@ -34,7 +34,6 @@ type Configuration struct {
 	LibrariesAPIURL                  *url.URL
 	EdgeImpulseAPIURL                *url.URL
 	ArduinoPlatformVersionConstraint semver.Constraint
-	CgroupRules                      []string
 }
 
 func NewFromEnv() (Configuration, error) {
