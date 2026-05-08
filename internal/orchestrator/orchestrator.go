@@ -110,7 +110,7 @@ func StartApp(
 		return err
 	}
 
-	devices, err := peripherals.Detect()
+	devices, err := peripherals.Detect(ctx)
 	if err != nil {
 		return err
 	}
