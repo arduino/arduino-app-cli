@@ -363,13 +363,7 @@ func generateMainComposeFile(
 		}
 	}
 
-	cgroupDrivers := map[string]string{
-		"drm":         "DRM",
-		"dma_heap":    "DMA Heap",
-		"media":       "Media",
-		"video4linux": "video4linux",
-		"alsa":        "ALSA",
-	}
+	cgroupDrivers := []string{"drm", "dma_heap", "media", "video4linux", "alsa"}
 	deviceCgroupsRules := buildCgroupRules(cgroupDrivers)
 
 	mainAppCompose.Services = &mainService{
