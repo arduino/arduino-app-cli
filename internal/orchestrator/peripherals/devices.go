@@ -59,7 +59,7 @@ func Detect(ctx context.Context) (AvailableDevices, error) {
 		res.HasSoundDevice = true
 	}
 
-	carriers, err := linuxconfig.GetEnabledCarriers(context.Background())
+	carriers, err := linuxconfig.GetEnabledCarriers(ctx)
 	if err != nil {
 		slog.Warn("unable to get enabled devices from linux config", slog.String("error", err.Error()))
 	}
