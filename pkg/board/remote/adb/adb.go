@@ -115,8 +115,7 @@ func (a *ADBConnection) Forward(ctx context.Context, localPort int, remotePort i
 
 	if !ports.IsAvailable(localPort) {
 		// Check if the port is already forwarded by adb to the expected remote port
-		checkCmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "forward", "--list")
-		if err == nil {
+		if checkCmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "forward", "--list"); err == nil {
 			if out, err := checkCmd.RunAndCaptureCombinedOutput(ctx); err == nil {
 				scanner := bufio.NewScanner(bytes.NewReader(out))
 				for scanner.Scan() {

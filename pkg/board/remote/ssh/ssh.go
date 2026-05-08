@@ -27,6 +27,7 @@ import (
 	"log/slog"
 	"net"
 	"path"
+	"slices"
 	"strings"
 	"sync"
 
@@ -38,18 +39,18 @@ import (
 
 var ErrAuthFailed = errors.New("ssh authentication failed")
 
-type ForwardedPort struct {
-	Listener   net.Listener
-	LocalPort  int
-	RemotePort int
-}
-
 type SSHConnection struct {
 	client *ssh.Client
 	wg     sync.WaitGroup
 
 	mu             sync.Mutex
 	ForwardedPorts []ForwardedPort
+}
+
+type ForwardedPort struct {
+	Listener   net.Listener
+	LocalPort  int
+	RemotePort int
 }
 
 // Ensures SSHConnection implements the RemoteConn interface at compile time.
@@ -81,16 +82,13 @@ func FromHost(user, password, address string) (*SSHConnection, error) {
 
 func (a *SSHConnection) Forward(ctx context.Context, localPort int, remotePort int) error {
 	a.mu.Lock()
-	for _, fp := range a.ForwardedPorts {
-		if fp.LocalPort == localPort {
-			a.mu.Unlock()
-			if fp.RemotePort == remotePort {
-				return nil // Port already forwarded as requested
-			}
-			return remote.ErrPortAvailable // Already mapped but to a different remote port
-		}
+	defer a.mu.Unlock()
+
+	if slices.ContainsFunc(a.ForwardedPorts, func(fp ForwardedPort) bool {
+		return fp.LocalPort == localPort && fp.RemotePort == remotePort
+	}) {
+		return nil // Port already forwarded as requested
 	}
-	a.mu.Unlock()
 
 	if !ports.IsAvailable(localPort) {
 		return remote.ErrPortAvailable
@@ -101,13 +99,11 @@ func (a *SSHConnection) Forward(ctx context.Context, localPort int, remotePort i
 		return err
 	}
 
-	a.mu.Lock()
 	a.ForwardedPorts = append(a.ForwardedPorts, ForwardedPort{
 		Listener:   listener,
 		LocalPort:  localPort,
 		RemotePort: remotePort,
 	})
-	a.mu.Unlock()
 
 	a.wg.Add(1)
 	go func() {
