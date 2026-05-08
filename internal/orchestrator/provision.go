@@ -662,7 +662,7 @@ func extractVolumesFromComposeFile(additionalComposeFile string) ([]string, erro
 func buildCgroupRules(drivers []string) []string {
 	var rules []string
 
-	for driver, label := range drivers {
+	for _, driver := range drivers {
 		major, err := resolveMajorNumber(driver)
 		if err != nil {
 			slog.Warn("could not resolve major number, skipping cgroup rule",
