@@ -667,7 +667,6 @@ func buildCgroupRules(drivers []string) []string {
 		if err != nil {
 			slog.Warn("could not resolve major number, skipping cgroup rule",
 				slog.String("driver", driver),
-				slog.String("label", label),
 				slog.Any("error", err),
 			)
 			continue
