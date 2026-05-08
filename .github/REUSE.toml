@@ -3,17 +3,7 @@ version = 1
 # GitHub workflows
 [[annotations]]
 path = [
-  "PULL_REQUEST_TEMPLATE.md",
-  "workflows/block-merge-label.yml",
-  "workflows/check-go-dependencies-task.yml",
-  "workflows/check-reuse-compliance.yml",
-  "workflows/checks.yaml",
-  "workflows/go-test.yml",
-  "workflows/openapi-spec.yml",
-  "workflows/release.yml",
-  "workflows/test-update.yml",
-  "ISSUE_TEMPLATE/bug-report.yml",
-  "ISSUE_TEMPLATE/feature-request.yml",
+  path = "**"
 ]
 SPDX-FileCopyrightText = "Arduino s.r.l. and/or its affiliated companies"
 SPDX-License-Identifier = "GPL-3.0-or-later"
