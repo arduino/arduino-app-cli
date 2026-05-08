@@ -1,0 +1,24 @@
+name: Check REUSE Compliance
+
+on:
+  create:
+  push:
+  pull_request:
+  workflow_dispatch:
+  repository_dispatch:
+
+jobs:
+  run-reuse-linter:
+    name: Run REUSE linter
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: REUSE Compliance Check
+        uses: fsfe/reuse-action@v6
