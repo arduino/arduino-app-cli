@@ -665,7 +665,7 @@ func extractVolumesFromComposeFile(additionalComposeFile string) ([]string, erro
 	return volumes, nil
 }
 
-func buildCgroupRules(drivers map[string]string) []string {
+func buildCgroupRules(drivers []string) []string {
 	var rules []string
 
 	for driver, label := range drivers {
