@@ -22,12 +22,11 @@ A single EI Model can also be shared simultaneously by multiple Bricks. In that 
 
 ## Model Lifecycle and States in Arduino App Lab
 
-In App Lab a model can have the following states:  
+In App Lab a model can have the following states:
 
 - **Available**: The model is available in the user's [Edge Impulse projects](https://studio.edgeimpulse.com) but has not been downloaded to the board yet.
 - **Installed**: The `.eim` file and the `model.yaml` descriptor are present on the board and ready for execution.
 - **Detached**: An "Installed" model whose link to the original remote Edge Impulse project has been severed (e.g., the user logged out, or the project was deleted from the cloud). The model remains functional locally but cannot receive updates.
-
 
 ## The Model Descriptor (`model.yaml`)
 
@@ -51,12 +50,12 @@ The `model.yaml` file uses a structured format to define the model's identity, i
 The following metadata fields are required for Edge Impulse models:
 
 - **`source`** (String, Mandatory): Must be set to `"edgeimpulse"`.
-- **`ei-project-id`** (Integer, Mandatory): The numeric ID of the Edge Impulse project.TODO CONTROLLARE IL TIPO DI TUTTI QUANTI 
-- **`ei-impulse-id`** (Integer, Mandatory): The numeric ID of the impulse within the project.
+- **`ei-project-id`** (string, Mandatory): The numeric ID of the Edge Impulse project.
+- **`ei-impulse-id`** (string, Mandatory): The numeric ID of the impulse within the project.
 - **`ei-impulse-name`** (String, Mandatory): The human-readable name of the impulse.
 - **`ei-model-type`** (String, Mandatory): The model type. Must be `float32`.
 - **`ei-engine`** (String, Mandatory): The inference engine. Must be `tflite`.
-- **`ei-deployment-version`** (Integer, Mandatory): The deployment version number from Edge Impulse.
+- **`ei-deployment-version`** (string, Mandatory): The deployment version number from Edge Impulse.
 - **`ei-last-modified`** (String, Optional): Timestamp of the last project modification in RFC3339Nano format.
 - **`ei-model-url`** (String, Optional): URL to the model page on Edge Impulse Studio.
 - **`ei-gpu-mode`** (Boolean, Optional): Whether the model runs in GPU mode. Defaults to `false`.
@@ -102,19 +101,20 @@ bricks:
   - id: arduino:object_detection
     model_configuration:
       EI_OBJ_DETECTION_MODEL: /home/arduino/.arduino-bricks/models/custom-ei/ei-model-842271-1/model.eim
-      CUSTOM_MODEL_PATH: /home/.arduino-bricks/models/custom-ei/ei-model-842271-1
+      CUSTOM_MODEL_PATH: /home/arduino/.arduino-bricks/models/custom-ei/ei-model-842271-1
   - id: arduino:video_object_detection
     model_configuration:
       EI_V_OBJ_DETECTION_MODEL: /home/arduino/.arduino-bricks/models/custom-ei/ei-model-842271-1/model.eim
       CUSTOM_MODEL_PATH: /home/arduino/.arduino-bricks/models/custom-ei/ei-model-842271-1
 metadata:
   source: edgeimpulse
-  ei-project-id: 842271 //TODO CONTROLLARE SE LA SINTASSI PER RAPPRESENTARE QUESTI NUMERI COME STRINGHE è CORRETTO. CONTROLLARE OGNI CAMPO 
-  ei-impulse-id: 1
-  ei-impulse-name: Hand gestures impulse
+  ei-project-id: "842271"
+  ei-impulse-id: "1"
+  ei-impulse-name: "Hand gestures impulse"
+  ei-last-modified: "2026-04-03T15:35:35.214Z"
   ei-model-type: float32
   ei-engine: tflite
-  ei-deployment-version: 3
+  ei-deployment-version: "3"
   ei-model-url: https://studio.edgeimpulse.com/public/842271/live
   ei-gpu-mode: false
 ```
@@ -123,20 +123,19 @@ metadata:
 
 The default location for user-installed models is `/home/<username>/.arduino-bricks/models/`, but it can be overridden via environment variable `ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR`.
 
-The system recursively scans the root directory for valid model folders. Folder names and nesting levels are flexible. The only requirement is that each model folder contains its own `model.yaml` and `.eim` file.
-TODO DA TESTARE , TESTARE ANCHE LA VAR DI AMBIENTE ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR, CONTROLLARE I PATH USATI CON E SENZA LA ENV VAR
+The system recursively scans the root directory for valid model folders. Folder names and nesting levels are flexible, with one constraint: **the scanner stops descending into a folder as soon as it finds a `model.yaml`**. This means a model cannot be nested inside another model's folder.
+
 ```text
 /models/
-├── custom-ei/                  # Example: Grouped by provider 
+├── custom-ei/                  # Example: Grouped by provider
 │   └── impulse-123/            # A valid model folder
 │       ├── model.yaml          # Mandatory metadata
 │       ├── README.md           # Optional documentation for App Lab
 │       └── model.eim           # Provider-specific asset
-├── custom-projects/            # Example: Deeply nested structure
-│   └── quality-control/
-│       └── v1-beta/            # Also a valid model folder
-│           ├── model.yaml
-│           └── model_beta.eim
+├── nested-independent/         # Example: Independent nested structure
+│   └── ei-model-456/           # A valid model folder
+│       ├── model.yaml
+│       └── model.eim
 └── direct-model-folder/        # Example: Flat structure
     ├── model.yaml
     └── my-model.eim
