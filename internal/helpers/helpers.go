@@ -18,24 +18,30 @@ func ArduinoCLIDownloadProgressToString(progress *rpc.DownloadProgress) string {
 	case progress.GetStart() != nil:
 		return fmt.Sprintf("Download started: %s", progress.GetStart().GetUrl())
 	case progress.GetUpdate() != nil:
-		return fmt.Sprintf("Download progress: %s", progress.GetUpdate())
+		update := progress.GetUpdate()
+		downloaded := ToHumanMiB(update.GetDownloaded())
+		total := ToHumanMiB(update.GetTotalSize())
+		return fmt.Sprintf("Download progress: %s / %s", downloaded, total)
 	case progress.GetEnd() != nil:
-		return fmt.Sprintf("Download completed: %s", progress.GetEnd())
+		end := progress.GetEnd()
+		if !end.GetSuccess() {
+			return fmt.Sprintf("Download failed: %s", end.GetMessage())
+		}
+		return "Download completed"
 	}
 	return progress.String()
 }
 
 func ArduinoCLITaskProgressToString(progress *rpc.TaskProgress) string {
-	data := fmt.Sprintf("Task %s:", progress.GetName())
-	if progress.GetMessage() != "" {
-		data += fmt.Sprintf(" (%s)", progress.GetMessage())
+	name := progress.GetName()
+	if msg := progress.GetMessage(); msg != "" {
+		name += fmt.Sprintf(" (%s)", msg)
 	}
+
 	if progress.GetCompleted() {
-		data += " completed"
-	} else {
-		data += fmt.Sprintf(" %.2f%%", progress.GetPercent())
+		return fmt.Sprintf("%s: completed", name)
 	}
-	return data
+	return fmt.Sprintf("%s: %.0f%%", name, progress.GetPercent())
 }
 
 // getDefaultNetworkInterfaceAndIP attempts to determine the IPv4 address of the default network interface

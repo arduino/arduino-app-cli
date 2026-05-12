@@ -14,16 +14,22 @@ const (
 	UpgradeLineEvent EventType = iota
 	StartEvent
 	RestartEvent
+	ProgressEvent
 	DoneEvent
 	ErrorEvent
 )
 
 // Event represents a single event in the upgrade process.
 type Event struct {
-	Type EventType
+	Type     EventType
+	progress *ProgressInfo
+	data     string
+	err      error // error field for error events
+}
 
-	data string
-	err  error // error field for error events
+type ProgressInfo struct {
+	Name     string
+	Progress float32
 }
 
 func (t EventType) String() string {
@@ -36,6 +42,8 @@ func (t EventType) String() string {
 		return "starting"
 	case DoneEvent:
 		return "done"
+	case ProgressEvent:
+		return "progress"
 	case ErrorEvent:
 		return "error"
 	default:
@@ -47,6 +55,16 @@ func NewDataEvent(t EventType, data string) Event {
 	return Event{
 		Type: t,
 		data: data,
+	}
+}
+
+func NewProgressEvent(name string, progress float32) Event {
+	return Event{
+		Type: ProgressEvent,
+		progress: &ProgressInfo{
+			Name:     name,
+			Progress: progress,
+		},
 	}
 }
 
@@ -65,6 +83,11 @@ func (e Event) GetData() string {
 func (e Event) GetError() error {
 	f.Assert(e.Type == ErrorEvent, "not an error event")
 	return e.err
+}
+
+func (e Event) GetProgress() ProgressInfo {
+	f.Assert(e.Type == ProgressEvent, "not a progress event")
+	return *e.progress
 }
 
 type PackageType string

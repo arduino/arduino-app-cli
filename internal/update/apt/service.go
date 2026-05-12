@@ -69,7 +69,6 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 	// This makes sure key services are restarted even if an error happens in the upgrade steps (for examples container images download).
 	defer func() {
 		eventCB(update.NewDataEvent(update.RestartEvent, "Upgrade completed. Restarting ..."))
-
 		err := restartServices(ctx)
 		if err != nil {
 			eventCB(update.NewErrorEvent(fmt.Errorf("error restarting services after upgrade: %w", err)))
@@ -81,6 +80,7 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 		return pkg.Name
 	})
 	eventCB(update.NewDataEvent(update.StartEvent, "Upgrade is starting"))
+	eventCB(update.NewProgressEvent("apt upgrade", 65.0))
 	stream := runUpgradeCommand(ctx, names)
 	for line, err := range stream {
 		if err != nil {
@@ -90,12 +90,15 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 	}
 
 	eventCB(update.NewDataEvent(update.StartEvent, "apt cleaning cache is starting"))
+	eventCB(update.NewProgressEvent("apt cleanup", 68.0))
+
 	for line, err := range runAptCleanCommand(ctx) {
 		if err != nil {
 			return fmt.Errorf("error running apt clean command: %w", err)
 		}
 		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 	}
+	eventCB(update.NewProgressEvent("system init", 70.0))
 
 	for line, err := range runSystemInit(ctx) {
 		if err != nil {
@@ -112,6 +115,7 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 			}
 
 			// Try again to pull the docker containers.
+
 			eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Pulling the latest docker images (again) ..."))
 			for line, err := range runSystemInit(ctx) {
 				if err != nil {
@@ -123,7 +127,7 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 			eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 		}
 	}
-
+	eventCB(update.NewProgressEvent("cleanup images", 90.0))
 	// After pulling new images is completed, remove old images to free up space.
 	eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Cleanup docker containers and images, to remove old unused images"))
 	streamCleanup := cleanupDockerContainers(ctx)
@@ -134,7 +138,7 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 			eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 		}
 	}
-
+	eventCB(update.NewProgressEvent("cleanup images", 98.0))
 	return nil
 }
 

@@ -181,15 +181,36 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 		return fmt.Errorf("target version is empty for package '%s'", pkg.Name)
 	}
 
-	downloadProgressCB := func(curr *rpc.DownloadProgress) {
-		data := helpers.ArduinoCLIDownloadProgressToString(curr)
-		slog.Debug("Download progress", slog.String("download_progress", data))
-		eventCB(update.NewDataEvent(update.UpgradeLineEvent, data))
+	const indexBase float32 = 0.0
+	const indexWeight float32 = 30.0
+	const upgradeBase float32 = 30.0
+	const upgradeWeight float32 = 60.0
+
+	makeDownloadProgressCallback := func(name string, basePercentage, phaseWeight float32) func(*rpc.DownloadProgress) {
+		return func(curr *rpc.DownloadProgress) {
+			data := helpers.ArduinoCLIDownloadProgressToString(curr)
+			eventCB(update.NewDataEvent(update.UpgradeLineEvent, data))
+			if updateInfo := curr.GetUpdate(); updateInfo != nil {
+				if updateInfo.GetTotalSize() <= 0 {
+					return
+				}
+				localProgress := (float32(updateInfo.GetDownloaded()) / float32(updateInfo.GetTotalSize())) * 100.0
+				totalArduinoProgress := basePercentage + (localProgress/100.0)*phaseWeight
+				eventCB(update.NewProgressEvent(name, totalArduinoProgress))
+			}
+		}
 	}
-	taskProgressCB := func(msg *rpc.TaskProgress) {
-		data := helpers.ArduinoCLITaskProgressToString(msg)
-		slog.Debug("Task progress", slog.String("task_progress", data))
-		eventCB(update.NewDataEvent(update.UpgradeLineEvent, data))
+
+	makeTaskProgressCallback := func(name string, basePercentage, phaseWeight float32) func(*rpc.TaskProgress) {
+		return func(msg *rpc.TaskProgress) {
+			data := helpers.ArduinoCLITaskProgressToString(msg)
+			eventCB(update.NewDataEvent(update.UpgradeLineEvent, data))
+			if !msg.GetCompleted() {
+				localProgress := msg.GetPercent()
+				totalArduinoProgress := basePercentage + (localProgress/100.0)*phaseWeight
+				eventCB(update.NewProgressEvent(name, totalArduinoProgress))
+			}
+		}
 	}
 
 	eventCB(update.NewDataEvent(update.StartEvent, "Upgrade is starting"))
@@ -215,19 +236,24 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 	}()
 
 	{
-		stream, _ := commands.UpdateIndexStreamResponseToCallbackFunction(ctx, downloadProgressCB)
+		updateIndexProgressCB := makeDownloadProgressCallback("update index", indexBase, indexWeight)
+		stream, _ := commands.UpdateIndexStreamResponseToCallbackFunction(ctx, updateIndexProgressCB)
 		if err := srv.UpdateIndex(&rpc.UpdateIndexRequest{Instance: inst}, stream); err != nil {
 			return fmt.Errorf("error updating index: %w", err)
 		}
 		if err := srv.Init(&rpc.InitRequest{Instance: inst}, commands.InitStreamResponseToCallbackFunction(ctx, nil)); err != nil {
 			return fmt.Errorf("error initializing instance: %w", err)
 		}
+		eventCB(update.NewProgressEvent("update index", indexBase+indexWeight))
 	}
+
+	platformDownloadCB := makeDownloadProgressCallback("platform download", upgradeBase, upgradeWeight)
+	platformTaskCB := makeTaskProgressCallback("platform upgrade", upgradeBase, upgradeWeight)
 
 	stream := commands.PlatformInstallStreamResponseToCallbackFunction(
 		ctx,
-		downloadProgressCB,
-		taskProgressCB,
+		platformDownloadCB,
+		platformTaskCB,
 	)
 
 	if err := srv.PlatformInstall(
