@@ -17,6 +17,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
@@ -36,6 +37,7 @@ func HandleBrickList(brickService *bricks.Service) http.HandlerFunc {
 func HandleAppBrickInstancesList(
 	brickService *bricks.Service,
 	idProvider *app.IDProvider,
+	platform platform.Platform,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		appId, err := idProvider.IDFromBase64(r.PathValue("appID"))
@@ -52,7 +54,7 @@ func HandleAppBrickInstancesList(
 			return
 		}
 
-		res, err := brickService.AppBrickInstancesList(&app)
+		res, err := brickService.AppBrickInstancesList(&app, platform)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			details := fmt.Sprintf("unable to find brick list for app %q", appId)

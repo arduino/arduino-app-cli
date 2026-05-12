@@ -30,3 +30,12 @@ bricks:
   variables:
   - name: EI_OBJ_DETECTION_MODEL
   - name: CUSTOM_MODEL_PATH
+- id: arduino:brick-with-board-model
+  name: A brick with boards models
+  description: "Brick with board defined default model"
+  require_model: true
+  model_by_boards:
+    - board: ventunoq
+      model_name: ventunoq-model
+    - board: unoq
+      model_name: unoq-model

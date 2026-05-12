@@ -15,3 +15,11 @@ models:
       ei-gpu-mode: false
       source-model-id: "face-det-lite"
       source-model-url: "https://aihub.qualcomm.com/models/face_det_lite"
+ - unoq-model:
+    runner: brick
+    name : "UnoQ Model"
+    description: "UnoQ Model"
+ - ventunoq-model:
+    runner: brick
+    name : "VentunoQ Model"
+    description: "VentunoQ Model"

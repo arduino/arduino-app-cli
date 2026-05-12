@@ -973,7 +973,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := svc.AppBrickInstancesList(tt.app)
+			result, err := svc.AppBrickInstancesList(tt.app, platform.Platform{})
 
 			if tt.expectedError != "" {
 				require.Error(t, err)
@@ -1083,4 +1083,67 @@ func TestLocalBrickRename(t *testing.T) {
 		require.Contains(t, string(appYamlRaw), "nested-renamed-brick")
 		require.NotContains(t, string(appYamlRaw), "nested-local-brick")
 	})
+}
+
+func TestBricksModelsByBoard(t *testing.T) {
+	tests := []struct {
+		name                string
+		boardName           string
+		definedModelName    string
+		definedModelByBoard []bricksindex.ModelsBoard
+		expectedModelName   string
+	}{
+		{
+			name:      "Brick with two default models",
+			boardName: "ventunoq",
+			definedModelByBoard: []bricksindex.ModelsBoard{
+				{
+					Board:     "unoq",
+					ModelName: "unoq-model",
+				},
+				{
+					Board:     "ventunoq",
+					ModelName: "ventunoq-model",
+				},
+			},
+			expectedModelName: "ventunoq-model",
+		},
+		{
+			name:                "Brick with one default model",
+			boardName:           "ventunoq",
+			definedModelName:    "defaultModelName",
+			definedModelByBoard: []bricksindex.ModelsBoard{},
+			expectedModelName:   "defaultModelName",
+		},
+		{
+			name:              "Brick with one model and no board type",
+			boardName:         "ventunoq",
+			definedModelName:  "defaultModelName",
+			expectedModelName: "defaultModelName",
+		},
+		{
+			name:             "Brick with a default models and the board type override",
+			boardName:        "ventunoq",
+			definedModelName: "defaultModelName",
+			definedModelByBoard: []bricksindex.ModelsBoard{
+				{
+					Board:     "unoq",
+					ModelName: "unoq-model",
+				},
+				{
+					Board:     "ventunoq",
+					ModelName: "ventunoq-model",
+				},
+			},
+			expectedModelName: "ventunoq-model",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			modelName := getModelName(tt.definedModelName, tt.definedModelByBoard, tt.boardName)
+			require.Equal(t, tt.expectedModelName, modelName)
+		})
+	}
+
 }

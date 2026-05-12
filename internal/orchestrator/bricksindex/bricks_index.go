@@ -62,6 +62,11 @@ type BrickVariable struct {
 	Secret       bool   `yaml:"secret"`
 }
 
+type ModelsBoard struct {
+	Board     string `yaml:"board"`
+	ModelName string `yaml:"model_name"`
+}
+
 func (v BrickVariable) IsRequired() bool {
 	return v.DefaultValue == ""
 }
@@ -79,6 +84,7 @@ type Brick struct {
 	Variables                 []BrickVariable           `yaml:"variables,omitempty"`
 	Ports                     []string                  `yaml:"ports,omitempty"`
 	ModelName                 string                    `yaml:"model_name,omitempty"`
+	ModelByBoard              []ModelsBoard             `yaml:"model_by_boards,omitempty"`
 	MountDevicesIntoContainer bool                      `yaml:"mount_devices_into_container,omitempty"`
 	RequiredDevices           []peripherals.DeviceClass `yaml:"required_devices,omitempty"`
 	RequiresServices          []string                  `yaml:"requires_services,omitempty"`

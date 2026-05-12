@@ -22,6 +22,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 var (
@@ -62,7 +63,7 @@ func (s *Service) List() (BrickListResult, error) {
 	return res, nil
 }
 
-func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesResult, error) {
+func (s *Service) AppBrickInstancesList(a *app.ArduinoApp, platform platform.Platform) (AppBrickInstancesResult, error) {
 	res := AppBrickInstancesResult{BrickInstances: make([]BrickInstance, len(a.Descriptor.Bricks))}
 	for i, brickInstance := range a.Descriptor.Bricks {
 		brick, found := s.bricksIndex.WithAppBricks(a.LocalBricks).FindBrickByID(brickInstance.ID)
@@ -84,7 +85,7 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 			Category:        brick.Category,
 			Status:          "installed",
 			RequireModel:    brick.RequireModel,
-			ModelID:         cmp.Or(brickInstance.Model, brick.ModelName),
+			ModelID:         cmp.Or(brickInstance.Model, getModelName(brick.ModelName, brick.ModelByBoard, platform.BoardName)),
 			Variables:       variablesMap,
 			ConfigVariables: configVariables,
 			CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModel) AIModel {
@@ -98,6 +99,19 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 
 	}
 	return res, nil
+}
+
+func getModelName(defaultModelName string, modelsBoard []bricksindex.ModelsBoard, boardName string) string {
+
+	if boardName != "" {
+		idx := slices.IndexFunc(modelsBoard, func(mb bricksindex.ModelsBoard) bool {
+			return mb.Board == boardName
+		})
+		if idx != -1 {
+			return modelsBoard[idx].ModelName
+		}
+	}
+	return defaultModelName
 }
 
 func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (BrickInstance, error) {
