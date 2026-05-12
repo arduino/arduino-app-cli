@@ -114,7 +114,7 @@ tasks:
   go:update-license-headers:
     desc: Update license headers in Go files with reuse template
     cmds:
-      - uvx reuse annotate --template arduino-app-cli --exclude-year --copyright "Arduino s.r.l. and/or its affiliated companies"  --license GPL-3.0-or-later -r  $(find . -name "*.go" -type f -print0 | xargs -0)
+      - uvx reuse annotate --template arduino-app-cli --exclude-year --copyright "Arduino s.r.l. and/or its affiliated companies"  --license GPL-3.0-or-later -r  $(find . -name "*.go" -o -name "*.sh" -type f -print0 | xargs -0)
 
   build-deb:
     desc: Build debian package
