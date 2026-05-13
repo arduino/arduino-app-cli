@@ -8,7 +8,6 @@ package update
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -247,8 +246,6 @@ func TestManagerUpgradePackages(t *testing.T) {
 					break loop
 				}
 			}
-			fmt.Println("*********", events)
-			fmt.Println("*********", tc.expectEvts)
 			assert.Equal(t, tc.expectEvts, events, "unexpected event sequence")
 		})
 	}
