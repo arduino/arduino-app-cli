@@ -8,6 +8,7 @@ package update
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -194,13 +195,13 @@ func TestManagerUpgradePackages(t *testing.T) {
 		{
 			name:       "both services upgrade successfully",
 			packages:   []UpgradablePackage{{Type: Arduino, Name: "arduino:zephyr", ToVersion: "2.0"}, {Type: Debian, Name: "pkg1", ToVersion: "1.1"}},
-			expectEvts: []EventType{DoneEvent},
+			expectEvts: []EventType{ProgressEvent, DoneEvent},
 		},
 		{
 			name:       "arduino service fails, deb succeeds",
 			packages:   []UpgradablePackage{{Type: Arduino, Name: "arduino:zephyr", ToVersion: "2.0"}, {Type: Debian, Name: "pkg1", ToVersion: "1.1"}},
 			svc1Err:    errors.New("arduino upgrade failed"),
-			expectEvts: []EventType{ErrorEvent, DoneEvent}, // should continue to deb upgrade and complete
+			expectEvts: []EventType{ErrorEvent, ProgressEvent, DoneEvent}, // should continue to deb upgrade and complete
 		},
 		{
 			name:     "deb service fails",
@@ -246,7 +247,8 @@ func TestManagerUpgradePackages(t *testing.T) {
 					break loop
 				}
 			}
-
+			fmt.Println("*********", events)
+			fmt.Println("*********", tc.expectEvts)
 			assert.Equal(t, tc.expectEvts, events, "unexpected event sequence")
 		})
 	}
