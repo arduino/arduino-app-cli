@@ -283,6 +283,7 @@ func TestManagerSubscribeReceivesUpgradeEvents(t *testing.T) {
 		applyFn: func(ctx context.Context, pkgs []PackageInfo, cb EventCallback) error {
 			cb(NewDataEvent(StartEvent, "starting arduino"))
 			cb(NewDataEvent(UpgradeLineEvent, "upgrading arduino"))
+			cb(NewProgressEvent("arduino upgrade", 50.0))
 			return nil
 		},
 	}
@@ -290,6 +291,7 @@ func TestManagerSubscribeReceivesUpgradeEvents(t *testing.T) {
 		applyFn: func(ctx context.Context, pkgs []PackageInfo, cb EventCallback) error {
 			cb(NewDataEvent(StartEvent, "starting deb"))
 			cb(NewDataEvent(UpgradeLineEvent, "upgrading deb"))
+			cb(NewProgressEvent("deb upgrade", 70.0))
 			return nil
 		},
 	}
@@ -307,8 +309,8 @@ func TestManagerSubscribeReceivesUpgradeEvents(t *testing.T) {
 
 	var events []Event
 	timeout := time.After(2 * time.Second)
-	// 2 from arduino + 2 from deb + 1 DoneEvent = 5
-	for range 5 {
+	// 3 from arduino + 3 from deb + 1 ProgressEvent 1 + DoneEvent  = 8
+	for range 8 {
 		select {
 		case ev := <-ch:
 			events = append(events, ev)
@@ -317,7 +319,7 @@ func TestManagerSubscribeReceivesUpgradeEvents(t *testing.T) {
 		}
 	}
 
-	assert.Len(t, events, 5, "expected 5 events")
+	assert.Len(t, events, 8, "expected 8 events")
 	assert.Equal(t, StartEvent, events[0].Type, "expected first event to be StartEvent")
-	assert.Equal(t, DoneEvent, events[len(events)-1].Type, "expected first event to be StartEvent")
+	assert.Equal(t, DoneEvent, events[len(events)-1].Type, "expected last event to be DoneEvent")
 }
