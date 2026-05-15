@@ -292,10 +292,9 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 		}
 		if running != nil && running.FullPath.String() == app.FullPath.String() {
 			cb(StreamMessage{data: "Stopping microcontroller..."})
-			if err := platform.GetMicro().Disable(); err != nil {
-				return err
-				// XXX: if we fail to stop the sketch, do we want to continue to stop the app anyway?
-				//      maybe we can just log the error and continue
+			// Reset the microcontroller stops the sketch because the micro will wait for the wait-for-app signal.
+			if err := platform.GetMicro().Reset(); err != nil {
+				slog.Warn("failed to reset microcontroller", slog.String("error", err.Error()))
 			}
 		}
 	}
