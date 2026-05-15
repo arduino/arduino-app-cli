@@ -1058,7 +1058,7 @@ func compileUploadSketch(
 
 	fqbn := platform.FQBN
 	if menuOptions.Has(WaitForApp) {
-		fqbn += ":" + WaitForApp.String()
+		fqbn = addOptionToFqbn(fqbn, WaitForApp)
 	}
 
 	slog.Debug("compile and upload sketch", slog.String("fqbn", fqbn), slog.Any("menuOptions", menuOptions))
