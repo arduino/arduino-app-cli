@@ -292,16 +292,11 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 		}
 		if running != nil && running.FullPath.String() == app.FullPath.String() {
 			cb(StreamMessage{data: "Stopping microcontroller..."})
-// Reset() triggers a reset of the microcontroller.
-// Note: If the sketch was compiled with 'Wait for App', the microcontroller 
-// will stop and wait for the wait-for-app signal before restarting the sketch. 
-// In all other boot modes (e.g., 'Wait for Linux' or 'Immediate'), the 
- 				// Reset() triggers a reset of the microcontroller.
-				// Note: If the sketch was compiled with 'Wait for App', the microcontroller 
-				// will stop and wait for the wait-for-app signal before restarting the sketch. 
-				// In all other boot modes (e.g., 'Wait for Linux' or 'Immediate'), the 
-				// sketch will simply restart.
-
+			// Reset() triggers a reset of the microcontroller.
+			// Note: If the sketch was compiled with 'Wait for App', the microcontroller
+			// will stop and wait for the wait-for-app signal before restarting the sketch.
+			// In all other boot modes (e.g., 'Wait for Linux' or 'Immediate'), the
+			// sketch will simply restart.
 			if err := platform.GetMicro().Reset(); err != nil {
 				slog.Warn("failed to reset microcontroller", slog.String("error", err.Error()))
 			}
