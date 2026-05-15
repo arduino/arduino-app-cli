@@ -85,7 +85,7 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp, platform platform.Pla
 			Category:        brick.Category,
 			Status:          "installed",
 			RequireModel:    brick.RequireModel,
-			ModelID:         cmp.Or(brickInstance.Model, getModelName(brick.ModelName, brick.ModelByBoard, platform.BoardName)),
+			ModelID:         cmp.Or(brickInstance.Model, brick.GetModelNameByBoard(platform.BoardName)),
 			Variables:       variablesMap,
 			ConfigVariables: configVariables,
 			CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModel) AIModel {
@@ -99,19 +99,6 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp, platform platform.Pla
 
 	}
 	return res, nil
-}
-
-func getModelName(defaultModelName string, modelsBoard []bricksindex.ModelsBoard, boardName string) string {
-
-	if boardName != "" {
-		idx := slices.IndexFunc(modelsBoard, func(mb bricksindex.ModelsBoard) bool {
-			return mb.Board == boardName
-		})
-		if idx != -1 {
-			return modelsBoard[idx].ModelName
-		}
-	}
-	return defaultModelName
 }
 
 func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (BrickInstance, error) {

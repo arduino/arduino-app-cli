@@ -1087,52 +1087,70 @@ func TestLocalBrickRename(t *testing.T) {
 
 func TestBricksModelsByBoard(t *testing.T) {
 	tests := []struct {
-		name                string
-		boardName           string
-		definedModelName    string
-		definedModelByBoard []bricksindex.ModelsBoard
-		expectedModelName   string
+		name              string
+		boardName         string
+		brick             bricksindex.Brick
+		expectedModelName string
 	}{
 		{
 			name:      "Brick with two default models",
 			boardName: "ventunoq",
-			definedModelByBoard: []bricksindex.ModelsBoard{
-				{
-					Board:     "unoq",
-					ModelName: "unoq-model",
-				},
-				{
-					Board:     "ventunoq",
-					ModelName: "ventunoq-model",
+			brick: bricksindex.Brick{
+				ModelName: "defaultModelName",
+				ModelByBoard: []bricksindex.ModelsBoard{
+					{
+						Board:     "unoq",
+						ModelName: "unoq-model",
+					},
+					{
+						Board:     "ventunoq",
+						ModelName: "ventunoq-model",
+					},
 				},
 			},
 			expectedModelName: "ventunoq-model",
 		},
 		{
-			name:                "Brick with one default model",
-			boardName:           "ventunoq",
-			definedModelName:    "defaultModelName",
-			definedModelByBoard: []bricksindex.ModelsBoard{},
-			expectedModelName:   "defaultModelName",
-		},
-		{
-			name:              "Brick with one model and no board type",
-			boardName:         "ventunoq",
-			definedModelName:  "defaultModelName",
+			name:      "Brick with one default model",
+			boardName: "ventunoq",
+			brick: bricksindex.Brick{
+				ModelName:    "defaultModelName",
+				ModelByBoard: []bricksindex.ModelsBoard{},
+			},
 			expectedModelName: "defaultModelName",
 		},
 		{
-			name:             "Brick with a default models and the board type override",
-			boardName:        "ventunoq",
-			definedModelName: "defaultModelName",
-			definedModelByBoard: []bricksindex.ModelsBoard{
-				{
-					Board:     "unoq",
-					ModelName: "unoq-model",
-				},
-				{
-					Board:     "ventunoq",
-					ModelName: "ventunoq-model",
+			name:      "Brick with one default model and null value for the Board Models",
+			boardName: "ventunoq",
+			brick: bricksindex.Brick{
+				ModelName:    "defaultModelName",
+				ModelByBoard: nil,
+			},
+			expectedModelName: "defaultModelName",
+		},
+		{
+			name:      "Brick with one model and no board type",
+			boardName: "ventunoq",
+			brick: bricksindex.Brick{
+				ModelName: "defaultModelName",
+			},
+
+			expectedModelName: "defaultModelName",
+		},
+		{
+			name:      "Brick with a default models and the board type override",
+			boardName: "ventunoq",
+			brick: bricksindex.Brick{
+				ModelName: "defaultModelName",
+				ModelByBoard: []bricksindex.ModelsBoard{
+					{
+						Board:     "unoq",
+						ModelName: "unoq-model",
+					},
+					{
+						Board:     "ventunoq",
+						ModelName: "ventunoq-model",
+					},
 				},
 			},
 			expectedModelName: "ventunoq-model",
@@ -1141,7 +1159,7 @@ func TestBricksModelsByBoard(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			modelName := getModelName(tt.definedModelName, tt.definedModelByBoard, tt.boardName)
+			modelName := tt.brick.GetModelNameByBoard(tt.boardName)
 			require.Equal(t, tt.expectedModelName, modelName)
 		})
 	}

@@ -167,6 +167,20 @@ func (b Brick) GetPorts() []string {
 	return slices.Compact(ports)
 }
 
+func (b Brick) GetModelNameByBoard(boardName string) string {
+	defaultModelName := b.ModelName
+	modelsBoard := b.ModelByBoard
+	if boardName != "" {
+		idx := slices.IndexFunc(modelsBoard, func(mb ModelsBoard) bool {
+			return mb.Board == boardName
+		})
+		if idx != -1 {
+			return modelsBoard[idx].ModelName
+		}
+	}
+	return defaultModelName
+}
+
 type YamlBricksIndex struct {
 	Bricks []Brick `yaml:"bricks"`
 }
