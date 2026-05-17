@@ -1340,6 +1340,20 @@ paths:
       summary: SSE stream of the update process
       tags:
       - System
+  /v1/system/update/stop:
+    put:
+      description: Stop the upgrade process.
+      operationId: stopUpdate
+      responses:
+        "200":
+          description: Successful response
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Stop the upgrade process in background
+      tags:
+      - System
   /v1/version:
     get:
       description: returns the application current version

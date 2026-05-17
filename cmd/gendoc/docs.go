@@ -964,6 +964,22 @@ Contains a JSON object with the details of an error.
 			},
 		},
 		{
+			OperationId: "stopUpdate",
+			Method:      http.MethodPut,
+			Path:        "/v1/system/update/stop",
+			CustomSuccessResponse: &CustomResponseDef{
+				Description: "Successful response",
+				StatusCode:  http.StatusOK,
+			},
+			Description: "Stop the upgrade process.",
+			Summary:     "Stop the upgrade process in background",
+			Tags:        []Tag{SystemTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusConflict, Reference: "#/components/responses/Conflict"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
 			OperationId: "applyUpdate",
 			Method:      http.MethodPut,
 			Path:        "/v1/system/update/apply",

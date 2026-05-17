@@ -51,8 +51,10 @@ type Manager struct {
 	debUpdateService             ServiceUpdater
 	arduinoPlatformUpdateService ServiceUpdater
 
-	mu   sync.RWMutex
-	subs map[chan Event]struct{}
+	mu                   sync.RWMutex
+	subs                 map[chan Event]struct{}
+	currentUpgradeCancel atomic.Pointer[context.CancelFunc]
+	currentCheckCancel   atomic.Pointer[context.CancelFunc]
 }
 
 func NewManager(debUpdateService ServiceUpdater, arduinoPlatformUpdateService ServiceUpdater) *Manager {
@@ -74,6 +76,10 @@ func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(Upgra
 	if !isConnected() {
 		return nil, ErrNoInternetConnection
 	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	m.currentCheckCancel.Store(&cancel)
+	defer m.currentCheckCancel.Store(nil)
 
 	// Get the list of upgradable packages from two sources (deb and platform) in parallel.
 	g, ctx := errgroup.WithContext(ctx)
@@ -112,6 +118,7 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 	ctx = context.WithoutCancel(ctx)
 	var debPkgs []PackageInfo
 	var arduinoPlatform []PackageInfo
+
 	for _, v := range pkgs {
 		switch v.Type {
 		case Arduino:
@@ -130,6 +137,12 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 	go func() {
 		defer m.lock.Unlock()
 		defer m.isUpgrading.Store(false)
+
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		m.currentUpgradeCancel.Store(&cancel)
+		defer m.currentUpgradeCancel.Store(nil)
 
 		// We are launching on purpose the update sequentially. The reason is that
 		// the deb pkgs restart the orchestrator, and if we run in parallel the
@@ -150,6 +163,28 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 		m.broadcast(NewDataEvent(DoneEvent, "Update completed"))
 	}()
 	return nil
+}
+
+func (m *Manager) StopUpgrade() bool {
+	stoppedUpgrade := m.stopUpgrade()
+	stoppedCheck := m.stopCheck()
+	return stoppedUpgrade || stoppedCheck
+}
+
+func (m *Manager) stopUpgrade() bool {
+	if cancelFuncPtr := m.currentUpgradeCancel.Swap(nil); cancelFuncPtr != nil {
+		(*cancelFuncPtr)()
+		return true
+	}
+	return false
+
+}
+func (m *Manager) stopCheck() bool {
+	if cancelFuncPtr := m.currentCheckCancel.Swap(nil); cancelFuncPtr != nil {
+		(*cancelFuncPtr)()
+		return true
+	}
+	return false
 }
 
 // Subscribe creates a new channel for receiving APT events.
