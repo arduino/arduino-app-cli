@@ -11,7 +11,6 @@ import (
 	"log/slog"
 	"os"
 	"slices"
-	"strings"
 
 	"github.com/arduino/arduino-cli/commands"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
@@ -157,11 +156,4 @@ func GetPlatformMenuOptions(ctx context.Context, platform platform.Platform) (Me
 		options = append(options, option)
 	}
 	return options, nil
-}
-
-func addOptionToFqbn(fqbn string, option MenuOptionValue) string {
-	if strings.Count(fqbn, ":") == 2 {
-		return fqbn + ":" + option.String()
-	}
-	return fqbn + "," + option.String()
 }
