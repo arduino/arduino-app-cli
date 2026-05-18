@@ -6,7 +6,7 @@ Edge Impulse models are distributed as `.eim` binaries: .eim files are self-cont
 
 In the Arduino Apps context, the `arduino-app-cli` recognizes an Edge Impulse model as a directory containing two required files: a descriptor file (`model.yaml`) and the model asset (`.eim` file).
 
-EI Models can be added to the board by the user, either downloaded from [Edge Impulse](https://www.edgeimpulse.com/) via App Lab or imported manually. They are stored in a dedicated user-writable partition.
+EI Models can be added to the board by the user, either downloaded from [Edge Impulse](https://www.edgeimpulse.com/) via App Lab or imported manually. They are stored in a dedicated user-writable folder.
 
 ## Understanding Bricks and AI Bricks
 
