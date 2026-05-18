@@ -1052,16 +1052,16 @@ func compileUploadSketch(
 		return err
 	}
 
-	menuOptions, err := GetPlatformMenuOptions(ctx, platform)
-	if err != nil {
-		slog.Warn("failed to get platform menu options", slog.String("error", err.Error()))
-	}
-
 	compileFqbn := fqbn.MustParse(platform.FQBN)
 	if f, err := fqbn.Parse(sketch.GetDefaultProfile().GetFqbn()); err == nil {
 		compileFqbn = f
 	} else {
 		slog.Warn("failed to parse FQBN from sketch profile, using platform FQBN for compilation", slog.String("error", err.Error()))
+	}
+
+	menuOptions, err := GetPlatformMenuOptions(ctx, compileFqbn.String())
+	if err != nil {
+		slog.Warn("failed to get platform menu options", slog.String("error", err.Error()))
 	}
 	if menuOptions.Has(WaitForApp) {
 		compileFqbn.Configs.Set(WaitForApp.name, WaitForApp.value)
