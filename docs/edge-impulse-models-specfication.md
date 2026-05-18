@@ -30,8 +30,8 @@ In App Lab a model can have the following states:
 
 ## Model folder
 
-The `model.yaml` file is the manifest that describes an Edge Impulse model. It is the single source of truth for identifying the model's capabilities and requirements.
-The descriptor is mandatory and must be placed at the root of the model directory, alongside the corresponding `.eim` file. Only the `.yaml` extension is supported.
+The `model.yaml` file is the manifest that describes an Edge Impulse model. It is the single source of truth for identifying the model's capabilities and requirements. Only the `.yaml` extension is supported.
+The descriptor is mandatory and must be placed at the root of the model directory, alongside the corresponding `.eim` file. The model folder itself must be placed under the custom models path (see the [Custom models path](#custom-models-path) section).
 
 ## model.yaml file format
 
