@@ -28,7 +28,7 @@ In App Lab a model can have the following states:
 - **Installed**: The `.eim` file and the `model.yaml` descriptor are present on the board and ready for execution.
 - **Detached**: An "Installed" model whose link to the original remote Edge Impulse project has been severed (e.g., the user logged out, or the project was deleted from the cloud). The model remains functional locally but cannot receive updates.
 
-## The Model Descriptor (`model.yaml`)
+## Model folder
 
 The `model.yaml` file is the manifest that describes an Edge Impulse model. It is the single source of truth for identifying the model's capabilities and requirements.
 The descriptor is mandatory and must be placed at the root of the model directory, alongside the corresponding `.eim` file. Only the `.yaml` extension is supported.
@@ -119,7 +119,7 @@ metadata:
   ei-gpu-mode: false
 ```
 
-### Standard Shared Path
+### Custom models path
 
 The default location for user-installed models is `/home/<username>/.arduino-bricks/models/`, but it can be overridden via environment variable `ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR`.
 
