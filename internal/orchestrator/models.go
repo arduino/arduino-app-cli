@@ -229,12 +229,11 @@ func isModelInUse(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, doc
 	return nil
 }
 
-func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, projectID int, impulseID int) (AIModelItem, error) {
+func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, p platform.Platform, projectID int, impulseID int) (AIModelItem, error) {
 
-	// TODO these parameters aim to build a model optimized for the Imola hardware, they should change based on the target device
 	mType := "float32"
 	mEngine := "tflite"
-	deviceType := "runner-linux-aarch64"
+	deviceType := p.EIDeviceType()
 	var mversion int
 
 	id := fmt.Sprintf("ei-model-%d-%d", projectID, impulseID)
