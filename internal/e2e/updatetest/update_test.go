@@ -39,7 +39,7 @@ func TestUpdatePackage(t *testing.T) {
 		const dockerImageName = "apt-test-update-image"
 		fmt.Println("**** BUILD docker image *****")
 		buildDockerImage(t, dockerFile, dockerImageName, arch)
-		//TODO: t cleanup remove docker image
+		t.Cleanup(func() { removeDockerImage(t, dockerImageName) })
 
 		t.Run("CLI Command", func(t *testing.T) {
 			const containerName = "apt-test-update"
@@ -92,7 +92,7 @@ func TestUpdatePackage(t *testing.T) {
 		const dockerImageName = "test-apt-update-unstable-image"
 
 		buildDockerImage(t, dockerFile, dockerImageName, arch)
-		// TODO: t cleanup remove docker image
+		t.Cleanup(func() { removeDockerImage(t, dockerImageName) })
 
 		t.Run("CLI Command", func(t *testing.T) {
 			const containerName = "apt-test-update-unstable"
