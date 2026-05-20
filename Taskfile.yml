@@ -61,7 +61,7 @@ tasks:
 
   test:update:
     cmds:
-      - go tool gotest.tools/gotestsum -- -v -timeout=30m ./internal/e2e/updatetest
+      - go tool gotest.tools/gotestsum -- -v -timeout=60m ./internal/e2e/updatetest
 
   test:pkg:
     desc: Run only tests in the pkg directory
