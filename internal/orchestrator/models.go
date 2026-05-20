@@ -229,12 +229,17 @@ func isModelInUse(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, doc
 	return nil
 }
 
-func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, p platform.Platform, projectID int, impulseID int) (AIModelItem, error) {
+func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, platform platform.Platform, projectID int, impulseID int) (AIModelItem, error) {
 
 	mType := "float32"
 	mEngine := "tflite"
-	deviceType := p.EIDeviceType()
-	var mversion int
+	var deviceType string
+	switch platform.BoardName {
+	case "unoq":
+		deviceType = "runner-linux-aarch64"
+	case "ventunoq":
+		deviceType = "runner-linux-aarch64-qnn"
+	}
 
 	id := fmt.Sprintf("ei-model-%d-%d", projectID, impulseID)
 	err := isModelInUse(ctx, modelsIndex, dockerClient, id)
@@ -255,7 +260,8 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 	if err != nil {
 		return AIModelItem{}, err
 	}
-	// check if there is a deployment and si valid for arduino uno Q, otherwise build it.
+	// check if there is a deployment and is valid for arduino uno Q or ventuno target, otherwise build it.
+	var mversion int
 	if len(dpList) == 0 || dpList[0].ImpulseHasChangedSinceDeployment ||
 		dpList[0].DeploymentFormat != deviceType || string(dpList[0].Engine) != mEngine || string(*dpList[0].ModelType) != mType {
 

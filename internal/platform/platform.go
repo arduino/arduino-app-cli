@@ -91,16 +91,6 @@ func (p Platform) GetMicro() micro.Micro {
 	return micro.New(micro.GpioPin(p.Micro.ResetPin))
 }
 
-// EIDeviceType returns the Edge Impulse runner device type for this platform.
-// VentunoQ uses Qualcomm Neural Network acceleration; all others default to the
-// standard aarch64 runner.
-func (p Platform) EIDeviceType() string {
-	if p.BoardName == "ventunoq" {
-		return "runner-linux-aarch64-qnn"
-	}
-	return "runner-linux-aarch64"
-}
-
 func (p Platform) SupportFlashToRam() bool {
 	return p.FQBN == "arduino:zephyr:unoq"
 }
