@@ -29,6 +29,9 @@ RUN usermod -aG docker arduino
 RUN echo "deb [trusted=yes arch=${ARCH}] file:/var/www/html/myrepo trixie main" \
     > /etc/apt/sources.list.d/my-mock-repo.list
 
+# Limit the tests to UNO Q (this reduces the number of pulled containers).
+RUN echo '{"board_name": "unoq"}' > /var/lib/arduino-app-cli/platform.json
+
 EXPOSE 8800
 # CMD: systemd must be PID 1
 CMD ["/sbin/init"]
