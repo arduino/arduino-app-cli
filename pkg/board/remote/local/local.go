@@ -156,7 +156,8 @@ func (a *LocalConnection) Push(ctx context.Context, src string, dst string) erro
 	}
 
 	if !info.IsDir() {
-		return copyFile(ctx, src, dst, info.Mode().Perm())
+		perm := info.Mode().Perm() | 0600 // Ensure files are readable and writable.
+		return copyFile(ctx, src, dst, perm)
 	}
 
 	return fs.WalkDir(os.DirFS(src), ".", func(path string, d fs.DirEntry, err error) error {
@@ -176,7 +177,8 @@ func (a *LocalConnection) Push(ctx context.Context, src string, dst string) erro
 		}
 
 		if d.IsDir() {
-			if err := os.MkdirAll(target, info.Mode().Perm()); err != nil {
+			perm := info.Mode().Perm() | 0700 // Ensure directories are executable.
+			if err := os.MkdirAll(target, perm); err != nil {
 				return fmt.Errorf("failed to create directory %q: %w", target, err)
 			}
 			return nil

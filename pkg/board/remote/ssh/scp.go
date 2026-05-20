@@ -128,7 +128,8 @@ func pushFile(ctx context.Context, rw io.ReadWriteCloser, f fs.File) error {
 		return err
 	}
 
-	fmt.Fprintf(rw, "C%04o %d %s\n", info.Mode().Perm(), info.Size(), info.Name())
+	perm := info.Mode().Perm() | 0600 // ensure files are readable and writable by the owner.
+	fmt.Fprintf(rw, "C%04o %d %s\n", perm, info.Size(), info.Name())
 
 	if err := checkErr(rw); err != nil {
 		return err
@@ -158,7 +159,8 @@ func pushDir(ctx context.Context, rw io.ReadWriteCloser, fsys fs.FS, remoteBase 
 func pushDirRec(ctx context.Context, rw io.ReadWriteCloser, fsys fs.FS, name, remote string, info os.FileInfo) error {
 	switch info.Mode().Type() {
 	case fs.ModeDir:
-		fmt.Fprintf(rw, "D%04o 0 %s\n", info.Mode().Perm(), remote)
+		perm := info.Mode().Perm() | 0700 // ensure directories are readable, writable and executable by the owner.
+		fmt.Fprintf(rw, "D%04o 0 %s\n", perm, remote)
 		if err := checkErr(rw); err != nil {
 			return err
 		}

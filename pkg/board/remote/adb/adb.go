@@ -353,6 +353,13 @@ func (a *ADBConnection) Push(ctx context.Context, local, remote string) error {
 	if err != nil {
 		return fmt.Errorf("failed to push file from %q to %q: %w: %s", local, remote, err, string(stdout))
 	}
+
+	if cmd, err = paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "chmod", "-R", "u+wr", strconv.Quote(remote)); err == nil {
+		if stdout, err = cmd.RunAndCaptureCombinedOutput(ctx); err != nil {
+			slog.Warn("failed to set permissions for remote path", "path", remote, "error", err, "output", string(stdout))
+		}
+	}
+
 	return nil
 }
 
