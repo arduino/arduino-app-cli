@@ -35,20 +35,19 @@ services:
       - ${BIND_ADDRESS:-127.0.0.1}:8085:8085
     volumes:
       - /var/lib/arduino-app-cli/models/audio-analytics:/mnt/work/models:ro
-      # Mount system libraries from host for DSP access
-      - /usr/lib/aarch64-linux-gnu/libdmabufheap.so.0:/usr/lib/libdmabufheap.so.0:ro
-      - /usr/lib/aarch64-linux-gnu/libcdsprpc.so:/usr/lib/libcdsprpc.so:ro
-      - /usr/lib/aarch64-linux-gnu/libadsprpc.so:/usr/lib/libadsprpc.so:ro
-      - /usr/lib/aarch64-linux-gnu/libatomic.so.1.2.0:/usr/lib/libatomic.so.1:ro
+      # Mount hexagon firmware
+      - /sys/firmware/devicetree/base/model:/run/device-model
+      - /usr/share/qcom:/usr/share/qcom
     # Use tmpfs for uploads to ensure proper permissions
     tmpfs:
       - /app/uploads:rw,size=500m,mode=777
+      - /usr/share/qcom/conf.d
     command: >
       bash -c "chmod 666 /dev/fastrpc* 2>/dev/null || true;
-               chmod 666 /dev/dma_heap/* 2>/dev/null || true;
-               chmod 666 /dev/snd/* 2>/dev/null || true;
+               chmod 666 /dev/dma_heap/* 2>/dev/null || true;               
                chmod -R 777 /var/log/supervisor;
                chmod 666 /proc/1/fd/1 /proc/1/fd/2 2>/dev/null || true;
+               cp /etc/fastrpc/hexagon-dsp-binaries.yaml /usr/share/qcom/conf.d/;
                exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf"
     logging:
       driver: "json-file"
