@@ -629,15 +629,17 @@ func TestRemoteTransferBehavioralCheck(t *testing.T) {
 					t.Cleanup(func() { _ = impl.conn.Remove(remoteDir) })
 
 					// Build local source.
-					src := filepath.Join(t.TempDir(), name)
+					tmp := t.TempDir()
+					src := filepath.Join(tmp, name)
 					switch tc.srcKind {
 					case file:
-						require.NoError(t, os.WriteFile(src, []byte("hello"), 0600))
+						require.NoError(t, os.WriteFile(src, []byte("hello"), 0440)) //nolint:gosec
 					case dir:
-						require.NoError(t, os.MkdirAll(src, 0755))
-						require.NoError(t, os.WriteFile(filepath.Join(src, "a.txt"), []byte("hello"), 0600))
+						require.NoError(t, os.MkdirAll(src, 0730))                                           //nolint:gosec
+						require.NoError(t, os.WriteFile(filepath.Join(src, "a.txt"), []byte("hello"), 0440)) //nolint:gosec
+						require.NoError(t, os.Chmod(src, 0530))
 					case emptyDir:
-						require.NoError(t, os.MkdirAll(src, 0755))
+						require.NoError(t, os.MkdirAll(src, 0530)) //nolint:gosec
 					}
 
 					// Pre-create destination if required.
@@ -652,6 +654,15 @@ func TestRemoteTransferBehavioralCheck(t *testing.T) {
 					case emptyDir:
 						require.NoError(t, impl.conn.MkDirAll(dst))
 					}
+					defer func() {
+						_ = os.Chmod(tmp, 0777) //nolint:gosec
+						_ = filepath.WalkDir(tmp, func(path string, d os.DirEntry, err error) error {
+							if err != nil {
+								return nil
+							}
+							return os.Chmod(path, 0777) //nolint:gosec
+						})
+					}()
 
 					// Perform the push operation.
 					err := impl.conn.Push(t.Context(), src, dst)
@@ -677,8 +688,10 @@ func TestRemoteTransferBehavioralCheck(t *testing.T) {
 					switch tc.wantKind {
 					case file:
 						assert.Equal(t, "hello", readRemoteFile(t, impl.conn, dst))
+						assert.Equal(t, uint32(0600), info.Mode&0700, "files should be accessible by owner")
 					case dir:
 						assert.True(t, info.IsDir)
+						assert.Equal(t, uint32(0700), info.Mode&0700, "files should be accessible by owner")
 						assert.Equal(t,
 							"hello",
 							readRemoteFile(t, impl.conn, path.Join(dst, "/a.txt")),
@@ -692,7 +705,9 @@ func TestRemoteTransferBehavioralCheck(t *testing.T) {
 						}
 					case emptyDir:
 						assert.True(t, info.IsDir)
+						assert.Equal(t, uint32(0700), info.Mode&0700, "files should be accessible by owner")
 					}
+
 				})
 			}
 		})
