@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"log/slog"
 	"net"
 	"os"
@@ -245,29 +244,13 @@ func (a *SSHConnection) Stats(p string) (remote.FileInfo, error) {
 	}
 	defer session.Close()
 
-	cmd := fmt.Sprintf("file %q", p)
+	cmd := fmt.Sprintf("stat -c '%%A %%n' %q", p)
 	output, err := session.Output(cmd)
 	if err != nil {
-		return remote.FileInfo{}, err
+		return remote.FileInfo{}, fmt.Errorf("failed to stat file: %w", err)
 	}
 
-	line := bytes.TrimSpace(output)
-	parts := bytes.Split(line, []byte(":"))
-	if len(parts) < 2 {
-		return remote.FileInfo{}, fmt.Errorf("unexpected file command output: %s", line)
-	}
-
-	name := string(bytes.TrimSpace(parts[0]))
-	other := string(bytes.TrimSpace(parts[1]))
-
-	if strings.Contains(other, "cannot open") {
-		return remote.FileInfo{}, fs.ErrNotExist
-	}
-
-	return remote.FileInfo{
-		Name:  path.Base(name),
-		IsDir: other == "directory",
-	}, nil
+	return remote.ParseStatOutput(output)
 }
 
 type SSHCommand struct {

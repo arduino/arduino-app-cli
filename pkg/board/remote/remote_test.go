@@ -81,10 +81,9 @@ func TestRemoteFS(t *testing.T) {
 					require.NoError(t, err)
 					info, err := tc.conn.Stats("./" + dir)
 					require.NoError(t, err)
-					assert.Equal(t, remote.FileInfo{
-						Name:  dir,
-						IsDir: true,
-					}, info)
+					assert.Equal(t, info.Name, dir)
+					assert.True(t, info.IsDir)
+					assert.Equal(t, info.Mode&0700, uint32(0700), "directory should be accessible by owner")
 				}
 			})
 
@@ -95,11 +94,9 @@ func TestRemoteFS(t *testing.T) {
 						require.NoError(t, err)
 						info, err := tc.conn.Stats("./" + file)
 						require.NoError(t, err)
-						assert.Equal(t, remote.FileInfo{
-							Name:  path.Base(file),
-							IsDir: false,
-						}, info)
-
+						assert.Equal(t, path.Base(file), info.Name)
+						assert.False(t, info.IsDir)
+						assert.Equal(t, uint32(0600), info.Mode&0700, "file should be readable and writable by owner")
 						r, err := tc.conn.ReadFile("./" + file)
 						require.NoError(t, err)
 						data, err := io.ReadAll(r)
@@ -113,7 +110,11 @@ func TestRemoteFS(t *testing.T) {
 				gotFiles, err := tc.conn.List("./")
 				require.NoError(t, err)
 				for _, dir := range dirs {
-					assert.Contains(t, gotFiles, remote.FileInfo{Name: dir, IsDir: true})
+					for _, gotFile := range gotFiles {
+						if gotFile.Name == dir && gotFile.IsDir {
+							assert.Equal(t, uint32(0700), gotFile.Mode&0700, "directory should be accessible by owner")
+						}
+					}
 				}
 
 				for _, dir := range dirs {
@@ -121,7 +122,12 @@ func TestRemoteFS(t *testing.T) {
 					require.NoError(t, err)
 					assert.Len(t, gotFiles, 2)
 					for _, gotFile := range gotFiles {
-						assert.Contains(t, files, path.Join(dir, gotFile.Name))
+						for _, file := range files {
+							if path.Join(dir, gotFile.Name) == file {
+								assert.False(t, gotFile.IsDir)
+								assert.Equal(t, gotFile.Mode&0700, uint32(0600), "file should be readable and writable by owner")
+							}
+						}
 					}
 				}
 			})
@@ -334,10 +340,8 @@ func TestRemoteTransfer(t *testing.T) {
 
 				info, err := tc.conn.Stats("./testdir/pushfile.txt")
 				require.NoError(t, err)
-				assert.Equal(t, remote.FileInfo{
-					Name:  "pushfile.txt",
-					IsDir: false,
-				}, info)
+				assert.Equal(t, "pushfile.txt", info.Name)
+				assert.False(t, info.IsDir)
 
 				r, err := tc.conn.ReadFile("./testdir/pushfile.txt")
 				require.NoError(t, err)
@@ -352,18 +356,18 @@ func TestRemoteTransfer(t *testing.T) {
 
 				info, err := tc.conn.Stats("./testdir/pushdir")
 				require.NoError(t, err)
-				assert.Equal(t, remote.FileInfo{
-					Name:  "pushdir",
-					IsDir: true,
-				}, info)
+				assert.Equal(t, "pushdir", info.Name)
+				assert.True(t, info.IsDir)
 
 				info, err = tc.conn.Stats("./testdir/pushdir/a.txt")
 				require.NoError(t, err)
-				assert.Equal(t, remote.FileInfo{Name: "a.txt", IsDir: false}, info)
+				assert.Equal(t, "a.txt", info.Name)
+				assert.False(t, info.IsDir)
 
 				info, err = tc.conn.Stats("./testdir/pushdir/nested")
 				require.NoError(t, err)
-				assert.Equal(t, remote.FileInfo{Name: "nested", IsDir: true}, info)
+				assert.Equal(t, "nested", info.Name)
+				assert.True(t, info.IsDir)
 
 				r, err := tc.conn.ReadFile("./testdir/pushdir/a.txt")
 				require.NoError(t, err)
@@ -388,10 +392,8 @@ func TestRemoteTransfer(t *testing.T) {
 
 				info, err := tc.conn.Stats("./testdir/pushfile.txt")
 				require.NoError(t, err)
-				assert.Equal(t, remote.FileInfo{
-					Name:  "pushfile.txt",
-					IsDir: false,
-				}, info)
+				assert.Equal(t, "pushfile.txt", info.Name)
+				assert.False(t, info.IsDir)
 
 				r, err := tc.conn.ReadFile("./testdir/pushfile.txt")
 				require.NoError(t, err)

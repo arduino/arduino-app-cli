@@ -10,7 +10,11 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"os"
+	"path"
 	"strings"
+
+	"go.bug.st/f"
 )
 
 func ParseChage(r io.Reader) (bool, error) {
@@ -32,38 +36,83 @@ func ParseChage(r io.Reader) (bool, error) {
 	return false, fmt.Errorf("unexpected output from chage command")
 }
 
-// ParseLsOutput parses the output of the `ls -laQ` command and returns a slice of FileInfo.
-func ParseLsOutput(out io.Reader) ([]FileInfo, error) {
-	// skip the first line which contains the total size
-	r := bufio.NewReader(out)
-	if _, err := r.ReadBytes('\n'); err != nil {
-		return nil, err
+// ParseStatOutput parses the output of the `stat -c "%A %n"`
+func ParseStatOutput(out []byte) (FileInfo, error) {
+	out = bytes.TrimSpace(out)
+	if bytes.HasPrefix(out, []byte("stat: ")) {
+		if bytes.Contains(out, []byte("No such file or directory")) {
+			return FileInfo{}, os.ErrNotExist
+		}
+		return FileInfo{}, fmt.Errorf("unexpected stat output: %q", string(out))
 	}
 
-	var files []FileInfo
-	for {
-		line, err := r.ReadBytes('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, err
+	if len(out) < 12 {
+		return FileInfo{}, fmt.Errorf("unexpected stat output: %q", string(out))
+	}
+	perm := out[:10]
+	name := out[11:] // skip the space after perm
+	return FileInfo{
+		Name:  path.Base(string(name)),
+		IsDir: perm[0] == 'd',
+		Mode:  parsePermissions(perm),
+	}, nil
+}
+
+// parsePermissions parses a Unix permission string like "-rwxr-xr-x" into an os.FileMode.
+func parsePermissions(s []byte) uint32 {
+	f.Assert(len(s) == 10, "permission string must be 10 characters long")
+
+	var mode uint32
+	bits := []struct {
+		char byte
+		bit  uint32
+	}{
+		{s[1], 0400}, {s[2], 0200}, {s[3], 0100},
+		{s[4], 0040}, {s[5], 0020}, {s[6], 0010},
+		{s[7], 0004}, {s[8], 0002}, {s[9], 0001},
+	}
+	for _, b := range bits {
+		if b.char != '-' {
+			mode |= b.bit
 		}
-		line = bytes.TrimSpace(line)
+	}
+	return mode
+}
+
+// ParseLsOutput parses the output of the `ls -laQ` command and returns a slice of FileInfo.
+func ParseLsOutput(out io.Reader) ([]FileInfo, error) {
+	var files []FileInfo
+	scanner := bufio.NewScanner(out)
+	first := true
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if first {
+			first = false
+			if strings.HasPrefix(line, "total") {
+				continue
+			}
+		}
 		if len(line) == 0 {
 			continue
 		}
-		first := strings.IndexByte(string(line), '"')
-		last := strings.LastIndexByte(string(line), '"')
-		name := string(line[first+1 : last])
+		first_quote := strings.IndexByte(line, '"')
+		last_quote := strings.LastIndexByte(line, '"')
+		if first_quote < 0 || last_quote <= first_quote {
+			continue
+		}
+		name := line[first_quote+1 : last_quote]
 		if name == "." || name == ".." {
 			continue
 		}
+		mode := parsePermissions([]byte(line[:10]))
 		files = append(files, FileInfo{
 			Name:  name,
 			IsDir: line[0] == 'd',
+			Mode:  mode,
 		})
 	}
-
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
 	return files, nil
 }

@@ -11,11 +11,9 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/fs"
 	"log/slog"
 	"os"
 	"os/user"
-	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -168,43 +166,16 @@ func (a *ADBConnection) List(path string) ([]remote.FileInfo, error) {
 }
 
 func (a *ADBConnection) Stats(p string) (remote.FileInfo, error) {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "file", strconv.Quote(p))
+	runCmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "stat", "-c", "'%A %n'", strconv.Quote(p))
 	if err != nil {
 		return remote.FileInfo{}, err
 	}
-	output, err := cmd.StdoutPipe()
+	output, err := runCmd.RunAndCaptureCombinedOutput(context.TODO())
 	if err != nil {
-		return remote.FileInfo{}, err
-	}
-	defer output.Close()
-	if err := cmd.Start(); err != nil {
-		return remote.FileInfo{}, err
-	}
-	defer func() { _ = cmd.Wait() }()
-
-	r := bufio.NewReader(output)
-	line, err := r.ReadBytes('\n')
-	if err != nil {
-		return remote.FileInfo{}, err
+		return remote.FileInfo{}, fmt.Errorf("failed to stat path %q: %w: %s", p, err, output)
 	}
 
-	line = bytes.TrimSpace(line)
-	parts := bytes.Split(line, []byte(":"))
-	if len(parts) < 2 {
-		return remote.FileInfo{}, fmt.Errorf("unexpected file command output: %s", line)
-	}
-
-	name := string(bytes.TrimSpace(parts[0]))
-	other := string(bytes.TrimSpace(parts[1]))
-
-	if strings.Contains(other, "cannot open") {
-		return remote.FileInfo{}, fs.ErrNotExist
-	}
-
-	return remote.FileInfo{
-		Name:  path.Base(name),
-		IsDir: other == "directory",
-	}, nil
+	return remote.ParseStatOutput(output)
 }
 
 func (a *ADBConnection) ReadFile(path string) (io.ReadCloser, error) {
@@ -216,7 +187,7 @@ func (a *ADBConnection) WriteFile(r io.Reader, path string) error {
 }
 
 func (a *ADBConnection) MkDirAll(path string) error {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "install", "-o", username, "-g", username, "-m", "755", "-d", strconv.Quote(path))
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "install", "-o", username, "-g", username, "-m", "775", "-d", strconv.Quote(path))
 	if err != nil {
 		return err
 	}

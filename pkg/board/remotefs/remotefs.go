@@ -171,6 +171,7 @@ func (a *RemoteDir) ReadDir(n int) ([]fs.DirEntry, error) {
 		return RemoteDirEntry{
 			name:  file.Name,
 			isDir: file.IsDir,
+			mode:  file.Mode,
 		}
 	}), nil
 }
@@ -193,6 +194,7 @@ type RemoteDirEntry struct {
 	name string
 
 	isDir bool
+	mode  uint32
 }
 
 func (a RemoteDirEntry) Name() string {
@@ -203,9 +205,9 @@ func (a RemoteDirEntry) IsDir() bool {
 }
 func (a RemoteDirEntry) Type() fs.FileMode {
 	if a.isDir {
-		return fs.ModeDir
+		return fs.ModeDir | fs.FileMode(a.mode)
 	}
-	return 0
+	return fs.FileMode(a.mode)
 }
 
 func (a RemoteDirEntry) Info() (fs.FileInfo, error) {
