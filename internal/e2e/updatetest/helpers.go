@@ -147,8 +147,8 @@ func buildDockerImage(t *testing.T, dockerfile, name, arch string) {
 	// Capture both stdout and stderr
 	var out bytes.Buffer
 	var stderr bytes.Buffer
-	cmd.Stderr = os.Stderr
-	cmd.Stdout = os.Stdout
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
 
 	err := cmd.Run()
 	if err != nil {
@@ -176,9 +176,6 @@ func startDockerContainer(t *testing.T, containerName string, containerImageName
 		"--name", containerName,
 		containerImageName,
 	)
-
-	cmd.Stderr = os.Stderr
-	cmd.Stdout = os.Stdout
 
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("failed to run container: %v", err)
