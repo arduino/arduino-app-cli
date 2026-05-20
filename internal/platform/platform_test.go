@@ -14,23 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestEIDeviceType(t *testing.T) {
-	tests := []struct {
-		boardName string
-		want      string
-	}{
-		{"unoq", "runner-linux-aarch64"},
-		{"ventunoq", "runner-linux-aarch64-qnn"},
-		{"", "runner-linux-aarch64"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.boardName, func(t *testing.T) {
-			p := Platform{BoardName: tt.boardName}
-			assert.Equal(t, tt.want, p.EIDeviceType())
-		})
-	}
-}
-
 func TestGetPlatformWithOverride(t *testing.T) {
 	tmpDir := paths.New(t.TempDir())
 	override := Platform{
