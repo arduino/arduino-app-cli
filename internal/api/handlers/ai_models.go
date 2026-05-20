@@ -99,7 +99,7 @@ func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, 
 	}
 }
 
-func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, p platform.Platform) http.HandlerFunc {
+func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, platform platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		projectID, err := strconv.Atoi(r.PathValue("projectID"))
 		if err != nil {
@@ -131,7 +131,7 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 			return
 		}
 
-		eiModel, err := orchestrator.InstallEIModel(r.Context(), bricksIndex, modelsIndex, dockerClient, eiClient, cfg.CustomModelsDir(), p, projectID, *req.ImpulseID)
+		eiModel, err := orchestrator.InstallEIModel(r.Context(), bricksIndex, modelsIndex, dockerClient, eiClient, cfg.CustomModelsDir(), platform, projectID, *req.ImpulseID)
 		if err != nil {
 			switch {
 			case errors.Is(err, edgeimpulse.ErrUnauthorized):

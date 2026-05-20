@@ -239,6 +239,19 @@ bricks:
 	}
 }
 
+
+const impulseInfoJSON = `{
+	"success": true,
+	"impulse": {
+		"id": 1,
+		"name": "My Impulse",
+		"created": true,
+		"configured": true,
+		"complete": true
+	}
+}`
+
+
 type mockResponse struct {
 	status int
 	body   string
@@ -297,18 +310,6 @@ func TestInstallEIModel_WhenModelIsNotBuilt_ThanTriggerTheBuild(t *testing.T) {
 			"finished": "2026-02-05T18:00:00Z",
 			"finishedSuccessful": true,
 			"jobType": "build-on-device"
-		}
-	}`
-
-	// GetImpulseInfo
-	impulseInfoJSON := `{
-		"success": true,
-		"impulse": {
-			"id": 1,
-			"name": "My Impulse",
-			"created": true,
-			"configured": true,
-			"complete": true
 		}
 	}`
 
@@ -433,18 +434,6 @@ func TestInstallEIModel_WhenModelIsBuilt_DoNotTriggerTheBuild_and_StoreSucceeded
     ]
 	}`
 
-	// GetImpulseInfo
-	impulseInfoJSON := `{
-		"success": true,
-		"impulse": {
-			"id": 1,
-			"name": "My Impulse",
-			"created": true,
-			"configured": true,
-			"complete": true
-		}
-	}`
-
 	responses := map[string]mockResponse{
 		"/api/100":                               {status: http.StatusOK, body: projectInfoJSON},
 		"/api/100/deployment/history":            {status: http.StatusOK, body: deploymentHistoryJson},
@@ -518,17 +507,6 @@ func TestInstallEIModel_VentunoQ_UsesQNNDeviceType(t *testing.T) {
 			"finished": "2026-02-05T18:00:00Z",
 			"finishedSuccessful": true,
 			"jobType": "build-on-device"
-		}
-	}`
-
-	impulseInfoJSON := `{
-		"success": true,
-		"impulse": {
-			"id": 1,
-			"name": "My Impulse",
-			"created": true,
-			"configured": true,
-			"complete": true
 		}
 	}`
 
