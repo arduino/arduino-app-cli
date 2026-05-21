@@ -7,7 +7,6 @@ package updatetest
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -47,7 +46,7 @@ func fetchDebPackageLatest(t *testing.T, path, repo string) string {
 	}
 	tag := fields[0]
 
-	fmt.Println("Repo:", repo, "Detected tag:", tag)
+	t.Logf("Repo: %s Detected tag: %s", repo, tag)
 	cmd2 := exec.Command(
 		"gh", "release", "download",
 		tag,
@@ -144,21 +143,13 @@ func buildDockerImage(t *testing.T, dockerfile, name, arch string) {
 	arch = fmt.Sprintf("ARCH=%s", arch)
 
 	cmd := exec.Command("docker", "build", "--build-arg", arch, "-t", name, "-f", dockerfile, ".")
-	// Capture both stdout and stderr
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
 
-	err := cmd.Run()
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Printf("❌ Docker build failed: %v\n", err)
-		fmt.Printf("---- STDERR ----\n%s\n", stderr.String())
-		fmt.Printf("---- STDOUT ----\n%s\n", out.String())
-		return
+		t.Fatalf("Docker build failed: %v\n%s", err, out)
 	}
 
-	fmt.Println("✅ Docker build succeeded!")
+	t.Log("Docker build succeeded!")
 }
 
 func startDockerContainer(t *testing.T, containerName string, containerImageName string) {
@@ -230,9 +221,9 @@ func removeDockerImage(t *testing.T, imageName string) {
 	t.Helper()
 
 	cmd := exec.Command("docker", "rmi", "-f", imageName)
-	fmt.Println("🧹 Removing Docker image " + imageName)
+	t.Log("Removing Docker image " + imageName)
 	if err := cmd.Run(); err != nil {
-		fmt.Printf("⚠️  Warning: could not remove image (might not exist): %v\n", err)
+		t.Logf("Warning: could not remove image: %v\n", err)
 	}
 }
 
@@ -241,11 +232,10 @@ func stopDockerContainer(t *testing.T, containerName string) {
 
 	cleanupCmd := exec.Command("docker", "rm", "-f", containerName)
 
-	fmt.Println("🧹 Removing Docker container " + containerName)
+	t.Log("Removing Docker container " + containerName)
 	if err := cleanupCmd.Run(); err != nil {
-		fmt.Printf("⚠️  Warning: could not remove container (might not exist): %v\n", err)
+		t.Logf("Warning: could not remove container: %v\n", err)
 	}
-
 }
 
 func putUpdateRequest(t *testing.T, host string) {
