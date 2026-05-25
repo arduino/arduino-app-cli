@@ -22,6 +22,7 @@ require (
 	github.com/docker/cli v29.0.3+incompatible
 	github.com/docker/compose/v2 v2.38.3-0.20250716153459-17ba6c7188fe
 	github.com/docker/docker v28.5.2+incompatible
+	github.com/ebitengine/purego v0.8.4
 	github.com/fatih/color v1.19.0
 	github.com/goccy/go-yaml v1.19.2
 	github.com/gofrs/flock v0.12.1
@@ -157,7 +158,6 @@ require (
 	github.com/dominikbraun/graph v0.23.0 // indirect
 	github.com/dprotaso/go-yit v0.0.0-20220510233725-9ba8df137936 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/ebitengine/purego v0.8.4 // indirect
 	github.com/eiannone/keyboard v0.0.0-20220611211555-0d226195f203 // indirect
 	github.com/elliotchance/orderedmap v1.8.0 // indirect
 	github.com/elliotchance/orderedmap/v3 v3.1.0 // indirect
