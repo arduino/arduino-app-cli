@@ -41,13 +41,17 @@ const (
 	ReturnCodeDeinitFailed      = 6
 )
 
-// TODO
+// TODO/open points to be discussed
 //   - add sudo groupadd fastrpc because: chmod 666 /dev/fastrpc-cdsp-secure /dev/fastrpc-cdsp
 //     better using groups
 //   - create the package with the library
 //   - refactor, move init/deinit at startup/shutdown
 //   - if the deinit is not called is there someone in charge to deallocate the DSP allocated memory?
-//   - fix return code
+//   - fix return error
+//   - we call this once, as daemon, and several times as client, we use npu metrics from daemon mode,
+//     we should call init from daemon mode only
+//   - We can have more than one board, served from the same arduino-app-cli daemon instance. How to handle
+//     per board memory allocation?
 func GetDataAll() string {
 	// Load the shared library
 	lib, err := purego.Dlopen("/var/lib/arduino-app-cli/libqcnpuperf.so", purego.RTLD_NOW|purego.RTLD_GLOBAL)
