@@ -8,6 +8,8 @@ chmod -R 775 /var/lib/arduino-app-cli
 systemctl enable arduino-app-cli
 systemctl enable arduino-burn-bootloader
 systemctl enable arduino-avahi-serial.service
+systemctl enable pipewire-no-session.path
+systemctl enable pipewire-no-session.service
 
 mkdir -p /etc/bash_completion.d/
 export ARDUINO_APP_CLI__ALLOW_ROOT=true && arduino-app-cli completion bash > /etc/bash_completion.d/arduino-app-cli.bash || true

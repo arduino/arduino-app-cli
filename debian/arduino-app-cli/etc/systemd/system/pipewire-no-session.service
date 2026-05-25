@@ -1,0 +1,29 @@
+[Unit]
+Description=Pipewire Session for user 1000
+After=sound.target
+Before=user@1000.service
+Conflicts=user@1000.service
+ConditionPathExists=!/run/user/1000/bus
+
+[Service]
+Type=simple
+User=1000
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+Restart=always
+RestartSec=3
+
+ExecStartPre=+/bin/mkdir -p /run/user/1000
+ExecStartPre=+/bin/chown 1000:1000 /run/user/1000
+ExecStartPre=+/bin/chmod 700 /run/user/1000
+
+ExecStart=/usr/local/bin/start-pipewire-session.sh
+
+# Cleanup on stop
+#ExecStopPost=+/bin/rm -f /run/user/1000/pipewire-0 /run/user/1000/pipewire-0-manager
+
+# Be more aggressive in killing pipweire
+TimeoutStopSec=5
+
+[Install]
+WantedBy=multi-user.target
