@@ -6,13 +6,11 @@
 package custommodel
 
 import (
+	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/goccy/go-yaml"
-
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 )
 
 type ModelDescriptor struct {
@@ -44,41 +42,23 @@ func ParseModelDescriptorFile(file *paths.Path) (ModelDescriptor, error) {
 }
 
 func (a *ModelDescriptor) Validate() error {
+	var err error
 	if a.ID == "" {
-		return fmt.Errorf("invalid model descriptor: id is empty")
+		err = errors.Join(err, fmt.Errorf("invalid model descriptor: id is empty"))
 	}
 	if a.Name == "" {
-		return fmt.Errorf("invalid model descriptor: name is empty")
+		err = errors.Join(err, fmt.Errorf("invalid model descriptor: name is empty"))
 	}
 	source, ok := a.Metadata["source"]
-	if !ok {
-		return nil // source is optional
-	}
-
-	switch source {
-	case "edgeimpulse":
-		return validateEdgeImpulseMetadata(a.Metadata)
-	default:
-		return fmt.Errorf("invalid model descriptor: unsupported source '%s'", source)
-	}
-}
-
-func (a *ModelDescriptor) CheckEdgeImpulseBricks(bricksIndex *bricksindex.BricksIndex) error {
-	for _, brickConfig := range a.Bricks {
-		brick, ok := bricksIndex.FindBrickByID(brickConfig.ID)
-		if !ok {
-			return fmt.Errorf("invalid model descriptor: brick with ID '%s' not found", brickConfig.ID)
-		}
-
-		for _, variable := range brick.Variables {
-			if strings.HasPrefix(variable.Name, "EI_") && strings.HasSuffix(variable.Name, "_MODEL") {
-				if val, ok := brickConfig.ModelConfiguration[variable.Name]; !ok || val == "" {
-					return fmt.Errorf("invalid model descriptor: missing model configuration for variable '%s' in brick '%s'", variable.Name, brickConfig.ID)
-				}
-			}
+	if ok {
+		switch source {
+		case "edgeimpulse":
+			err = errors.Join(err, validateEdgeImpulseMetadata(a.Metadata))
+		default:
+			err = errors.Join(err, fmt.Errorf("invalid model descriptor: unsupported source '%s'", source))
 		}
 	}
-	return nil
+	return err
 }
 
 func validateEdgeImpulseMetadata(metadata map[string]string) error {
@@ -88,19 +68,18 @@ func validateEdgeImpulseMetadata(metadata map[string]string) error {
 		"ei-impulse-name",
 		"ei-deployment-version",
 	}
+
+	var err error
 	for _, field := range requiredFields {
 		if val, ok := metadata[field]; !ok || val == "" {
-			return fmt.Errorf("invalid Edge Impulse metadata: missing required field '%s'", field)
+			err = errors.Join(err, fmt.Errorf("invalid Edge Impulse metadata: missing required field '%s'", field))
 		}
 	}
-
 	if metadata["ei-model-type"] != "float32" {
-		return fmt.Errorf("invalid Edge Impulse metadata: unsupported model type")
+		err = errors.Join(err, fmt.Errorf("invalid Edge Impulse metadata: unsupported model type"))
 	}
-
 	if metadata["ei-engine"] != "tflite" {
-		return fmt.Errorf("invalid Edge Impulse metadata: unsupported engine")
+		err = errors.Join(err, fmt.Errorf("invalid Edge Impulse metadata: unsupported engine"))
 	}
-
-	return nil
+	return err
 }
