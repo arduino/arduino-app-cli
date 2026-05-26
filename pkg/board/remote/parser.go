@@ -46,15 +46,14 @@ func ParseStatOutput(out []byte) (FileInfo, error) {
 		return FileInfo{}, fmt.Errorf("unexpected stat output: %q", string(out))
 	}
 
-	if len(out) < 12 {
+	perm, name, ok := strings.Cut(string(out), " ")
+	if !ok || len(perm) < 10 {
 		return FileInfo{}, fmt.Errorf("unexpected stat output: %q", string(out))
 	}
-	perm := out[:10]
-	name := out[11:] // skip the space after perm
 	return FileInfo{
 		Name:  path.Base(string(name)),
 		IsDir: perm[0] == 'd',
-		Mode:  parsePermissions(perm),
+		Mode:  parsePermissions([]byte(perm[:10])), // make sure to pass only permissions bit.
 	}, nil
 }
 
