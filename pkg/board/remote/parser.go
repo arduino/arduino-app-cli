@@ -94,12 +94,12 @@ func ParseLsOutput(out io.Reader) ([]FileInfo, error) {
 		if len(line) == 0 {
 			continue
 		}
-		first_quote := strings.IndexByte(line, '"')
-		last_quote := strings.LastIndexByte(line, '"')
-		if first_quote < 0 || last_quote <= first_quote {
+		firstQuote := strings.IndexByte(line, '"')
+		lastQuote := strings.LastIndexByte(line, '"')
+		if firstQuote < 0 || lastQuote <= firstQuote {
 			continue
 		}
-		name := line[first_quote+1 : last_quote]
+		name := line[firstQuote+1 : lastQuote]
 		if name == "." || name == ".." {
 			continue
 		}
