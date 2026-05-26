@@ -199,6 +199,17 @@ func (s *SftpFS) Remove(path string) error {
 	return nil
 }
 
+func (s *SftpFS) Rename(oldPath, newPath string) error {
+	c, err := s.get()
+	if err != nil {
+		return err
+	}
+	if err := c.PosixRename(oldPath, newPath); err != nil {
+		return fmt.Errorf("failed to rename %q to %q: %w", oldPath, newPath, err)
+	}
+	return nil
+}
+
 func removeRec(client *sftp.Client, path string) error {
 	info, err := client.Lstat(path)
 	if err != nil {

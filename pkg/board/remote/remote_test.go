@@ -166,6 +166,30 @@ func TestRemoteFS(t *testing.T) {
 					assert.ErrorIs(t, err, os.ErrNotExist)
 				}
 			})
+
+			t.Run("Rename", func(t *testing.T) {
+				// Create a file to rename.
+				src := prefix + "rename_src.txt"
+				dst := prefix + "rename_dst.txt"
+				err := tc.conn.WriteFile(strings.NewReader("rename me"), src)
+				require.NoError(t, err)
+
+				err = tc.conn.Rename(src, dst)
+				require.NoError(t, err)
+				_, err = tc.conn.Stats(src)
+				assert.ErrorIs(t, err, os.ErrNotExist)
+
+				info, err := tc.conn.Stats(dst)
+				require.NoError(t, err)
+				assert.Equal(t, "rename_dst.txt", info.Name)
+				assert.False(t, info.IsDir)
+
+				r, err := tc.conn.ReadFile(dst)
+				require.NoError(t, err)
+				data, err := io.ReadAll(r)
+				require.NoError(t, err)
+				assert.Equal(t, "rename me", string(data))
+			})
 		})
 	}
 }
