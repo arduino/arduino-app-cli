@@ -24,6 +24,7 @@ type RemoteConn interface {
 	RemoteShell // TODO: should be removed after refactoring.
 	Forwarder
 	RemoteTransfer
+	Close() error
 }
 
 type FS interface {
