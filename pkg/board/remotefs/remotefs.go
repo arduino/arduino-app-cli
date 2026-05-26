@@ -39,11 +39,13 @@ func (a RemoteFS) Open(name string) (fs.File, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if stats.IsDir {
-		return &RemoteDir{name: name, base: a.base, conn: a.conn}, nil
+		mode := fs.FileMode(stats.Mode) | fs.ModeDir
+		return &RemoteDir{name: name, base: a.base, conn: a.conn, mode: mode}, nil
 	}
 
-	return &RemoteFile{name: name, base: a.base, conn: a.conn}, nil
+	return &RemoteFile{name: name, base: a.base, conn: a.conn, mode: fs.FileMode(stats.Mode)}, nil
 }
 
 type RemoteFSWriter struct {
@@ -71,6 +73,7 @@ func (a RemoteFSWriter) RmFile(p string) error {
 type RemoteFile struct {
 	name string
 	base string
+	mode fs.FileMode
 
 	read io.ReadCloser
 
@@ -100,13 +103,15 @@ func (a RemoteFile) Close() error {
 }
 
 func (a RemoteFile) Stat() (fs.FileInfo, error) {
-	return &RemoteFileInfo{name: path.Base(a.name)}, nil
+	return &RemoteFileInfo{
+		name: path.Base(a.name),
+		mode: a.mode,
+	}, nil
 }
 
 type RemoteFileInfo struct {
 	name string
-
-	isDir bool
+	mode fs.FileMode
 }
 
 func (a RemoteFileInfo) Name() string {
@@ -119,10 +124,7 @@ func (a RemoteFileInfo) Size() int64 {
 }
 
 func (a RemoteFileInfo) Mode() fs.FileMode {
-	if a.isDir {
-		return fs.ModeDir
-	}
-	return 0
+	return a.mode
 }
 
 func (a RemoteFileInfo) ModTime() time.Time {
@@ -131,7 +133,7 @@ func (a RemoteFileInfo) ModTime() time.Time {
 }
 
 func (a RemoteFileInfo) IsDir() bool {
-	return a.isDir
+	return a.Mode().IsDir()
 }
 
 func (a RemoteFileInfo) Sys() any {
@@ -141,6 +143,7 @@ func (a RemoteFileInfo) Sys() any {
 type RemoteDir struct {
 	name string
 	base string
+	mode fs.FileMode
 
 	files []remote.FileInfo
 	valid bool
@@ -168,15 +171,22 @@ func (a *RemoteDir) ReadDir(n int) ([]fs.DirEntry, error) {
 	a.files = rest
 
 	return f.Map(files, func(file remote.FileInfo) fs.DirEntry {
+		mode := fs.FileMode(file.Mode)
+		if file.IsDir {
+			mode |= fs.ModeDir
+		}
 		return RemoteDirEntry{
-			name:  file.Name,
-			isDir: file.IsDir,
+			name: file.Name,
+			mode: mode,
 		}
 	}), nil
 }
 
 func (a RemoteDir) Stat() (fs.FileInfo, error) {
-	return &RemoteFileInfo{name: path.Base(a.name), isDir: true}, nil
+	return &RemoteFileInfo{
+		name: path.Base(a.name),
+		mode: a.mode,
+	}, nil
 }
 
 func (a RemoteDir) Close() error {
@@ -191,23 +201,19 @@ func (a RemoteDir) Read(p []byte) (n int, err error) {
 
 type RemoteDirEntry struct {
 	name string
-
-	isDir bool
+	mode fs.FileMode
 }
 
 func (a RemoteDirEntry) Name() string {
 	return a.name
 }
 func (a RemoteDirEntry) IsDir() bool {
-	return a.isDir
+	return a.mode.IsDir()
 }
 func (a RemoteDirEntry) Type() fs.FileMode {
-	if a.isDir {
-		return fs.ModeDir
-	}
-	return 0
+	return a.mode.Type()
 }
 
 func (a RemoteDirEntry) Info() (fs.FileInfo, error) {
-	return &RemoteFileInfo{name: a.name, isDir: a.isDir}, nil
+	return &RemoteFileInfo{name: a.name, mode: a.mode}, nil
 }
