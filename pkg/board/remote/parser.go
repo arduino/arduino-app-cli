@@ -57,7 +57,7 @@ func ParseStatOutput(out []byte) (FileInfo, error) {
 	}, nil
 }
 
-// parsePermissions parses a Unix permission string like "-rwxr-xr-x" into an os.FileMode.
+// parsePermissions parses a Unix permission string like "-rwxr-xr-x" into a uint32 Unix permission bitmask.
 func parsePermissions(s []byte) uint32 {
 	f.Assert(len(s) == 10, "permission string must be 10 characters long")
 
