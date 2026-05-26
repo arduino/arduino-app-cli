@@ -649,7 +649,7 @@ func TestRemoteTransferBehavioralCheck(t *testing.T) {
 
 					// Build local source.
 					tmp := t.TempDir()
-					src := filepath.Join(tmp, name)
+					src := filepath.Join(tmp, tc.srcName)
 					switch tc.srcKind {
 					case file:
 						require.NoError(t, os.WriteFile(src, []byte("hello"), 0440)) //nolint:gosec
