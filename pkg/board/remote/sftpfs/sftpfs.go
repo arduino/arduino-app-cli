@@ -49,50 +49,54 @@ func (s *SftpFS) get() (*sftp.Client, error) {
 	if c := s.client.Load(); c != nil {
 		return c, nil
 	}
-	return s.genLocked()
-}
-
-func (s *SftpFS) genLocked() (*sftp.Client, error) {
 	c, extra, err := s.dial()
 	if err != nil {
 		return nil, err
 	}
 	s.client.Store(c)
 	s.extra = extra
+	go s.watch(c)
 	return c, nil
 }
 
-// Close tears down the current client (if any). Subsequent calls will re-dial.
+// watch blocks until the given sftp client's underlying connection ends,
+// then invalidates the cache if this client is still the current one.
+func (s *SftpFS) watch(c *sftp.Client) {
+	_ = c.Wait()
+	s.initMu.Lock()
+	defer s.initMu.Unlock()
+	if s.client.Load() != c {
+		// Already replaced or closed by someone else.
+		return
+	}
+	fmt.Printf("DEBUG: SftpFS connection lost, invalidating client\n")
+	_ = s.closeLocked()
+}
+
+// Close tears down the current client.
 func (s *SftpFS) Close() error {
 	s.initMu.Lock()
 	defer s.initMu.Unlock()
+	fmt.Printf("DEBUG: SftpFS close client\n")
 	return s.closeLocked()
 }
 
+// closeLocked closes the cached client and runs the extra close funcs.
+// Caller must hold s.initMu.
 func (s *SftpFS) closeLocked() error {
-	fmt.Printf("DEBUG: SftpFS close client\n")
-	var err error
-	if c := s.client.Load(); c != nil {
-		err = errors.Join(err, c.Close())
+	c := s.client.Load()
+	if c == nil {
+		return nil
 	}
+	err := c.Close()
 	for _, f := range s.extra {
-		if err1 := f(); err1 != nil {
-			err = errors.Join(err, err1)
+		if e := f(); e != nil {
+			err = errors.Join(err, e)
 		}
 	}
 	s.client.Store(nil)
 	s.extra = nil
 	return err
-}
-
-// onErr drops the cached client if the connection was lost.
-func (s *SftpFS) onErr(err error) {
-	fmt.Printf("DEBUG: SftpFS error: %v\n", err)
-	if errors.Is(err, sftp.ErrSSHFxConnectionLost) {
-		if old := s.client.Swap(nil); old != nil {
-			_ = s.Close()
-		}
-	}
 }
 
 func (s *SftpFS) List(path string) ([]remote.FileInfo, error) {
@@ -103,7 +107,6 @@ func (s *SftpFS) List(path string) ([]remote.FileInfo, error) {
 	}
 	entries, err := c.ReadDir(path)
 	if err != nil {
-		s.onErr(err)
 		return nil, fmt.Errorf("failed to list %q: %w", path, err)
 	}
 	out := make([]remote.FileInfo, 0, len(entries))
@@ -124,7 +127,6 @@ func (s *SftpFS) Stats(p string) (remote.FileInfo, error) {
 	}
 	info, err := c.Stat(p)
 	if err != nil {
-		s.onErr(err)
 		if errors.Is(err, os.ErrNotExist) {
 			return remote.FileInfo{}, fs.ErrNotExist
 		}
@@ -145,7 +147,6 @@ func (s *SftpFS) ReadFile(path string) (io.ReadCloser, error) {
 	}
 	f, err := c.Open(path)
 	if err != nil {
-		s.onErr(err)
 		return nil, fmt.Errorf("failed to open file %q: %w", path, err)
 	}
 	return f, nil
@@ -158,7 +159,6 @@ func (s *SftpFS) WriteFile(r io.Reader, path string) error {
 	}
 	f, err := c.Create(path)
 	if err != nil {
-		s.onErr(err)
 		return fmt.Errorf("failed to create file %q: %w", path, err)
 	}
 	if _, err := io.Copy(f, r); err != nil {
@@ -170,7 +170,6 @@ func (s *SftpFS) WriteFile(r io.Reader, path string) error {
 	}
 
 	if err := c.Chmod(path, 0664); err != nil {
-		s.onErr(err)
 		return fmt.Errorf("failed to set permissions for file %q: %w", path, err)
 	}
 
@@ -183,12 +182,10 @@ func (s *SftpFS) MkDirAll(path string) error {
 		return err
 	}
 	if err := c.MkdirAll(path); err != nil {
-		s.onErr(err)
 		return fmt.Errorf("failed to create directory %q: %w", path, err)
 	}
 
 	if err := c.Chmod(path, 0775); err != nil {
-		s.onErr(err)
 		return fmt.Errorf("failed to set permissions for directory %q: %w", path, err)
 	}
 
@@ -201,7 +198,6 @@ func (s *SftpFS) Remove(path string) error {
 		return err
 	}
 	if err := removeRec(c, path); err != nil {
-		s.onErr(err)
 		return fmt.Errorf("failed to remove path %q: %w", path, err)
 	}
 	return nil
