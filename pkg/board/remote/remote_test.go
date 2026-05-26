@@ -87,9 +87,9 @@ func TestRemoteFS(t *testing.T) {
 					require.NoError(t, err)
 					info, err := tc.conn.Stats(prefix + dir)
 					require.NoError(t, err)
-					assert.Equal(t, info.Name, dir)
+					assert.Equal(t, dir, info.Name)
 					assert.True(t, info.IsDir)
-					assert.Equal(t, info.Mode&0700, uint32(0700), "directory should be accessible by owner")
+					assert.Equal(t, uint32(0700), info.Mode&0700, "directory should be accessible by owner")
 				}
 			})
 
