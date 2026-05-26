@@ -43,7 +43,6 @@ func (s *SftpFS) get() (*sftp.Client, error) {
 	if c := s.client.Load(); c != nil {
 		return c, nil
 	}
-	fmt.Printf("DEBUG: SftpFS crete client\n")
 	s.initMu.Lock()
 	defer s.initMu.Unlock()
 	if c := s.client.Load(); c != nil {
@@ -69,7 +68,6 @@ func (s *SftpFS) watch(c *sftp.Client) {
 		// Already replaced or closed by someone else.
 		return
 	}
-	fmt.Printf("DEBUG: SftpFS connection lost, invalidating client\n")
 	_ = s.closeLocked()
 }
 
@@ -78,7 +76,6 @@ func (s *SftpFS) watch(c *sftp.Client) {
 func (s *SftpFS) Teardown() error {
 	s.initMu.Lock()
 	defer s.initMu.Unlock()
-	fmt.Printf("DEBUG: SftpFS close client\n")
 	return s.closeLocked()
 }
 
@@ -101,7 +98,6 @@ func (s *SftpFS) closeLocked() error {
 }
 
 func (s *SftpFS) List(path string) ([]remote.FileInfo, error) {
-	fmt.Printf("DEBUG: SftpFS list %q\n", path)
 	c, err := s.get()
 	if err != nil {
 		return nil, err
@@ -141,7 +137,6 @@ func (s *SftpFS) Stats(p string) (remote.FileInfo, error) {
 }
 
 func (s *SftpFS) ReadFile(path string) (io.ReadCloser, error) {
-	fmt.Printf("DEBUG: SftpFS read file %q\n", path)
 	c, err := s.get()
 	if err != nil {
 		return nil, err
