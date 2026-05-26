@@ -186,6 +186,10 @@ func (a *ADBConnection) ForwardKillAll(ctx context.Context) error {
 	return nil
 }
 
+func (a *ADBConnection) Close() error {
+	return a.SftpFS.Teardown()
+}
+
 type ADBCommand struct {
 	cmd *paths.Process
 	err error

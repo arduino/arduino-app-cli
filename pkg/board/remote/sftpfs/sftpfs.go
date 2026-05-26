@@ -73,8 +73,9 @@ func (s *SftpFS) watch(c *sftp.Client) {
 	_ = s.closeLocked()
 }
 
-// Close tears down the current client.
-func (s *SftpFS) Close() error {
+// Teardown closes the cached client and runs the extra close funcs.
+// After this method is called, the SftpFS instance can be reused and will create a new client on demand.
+func (s *SftpFS) Teardown() error {
 	s.initMu.Lock()
 	defer s.initMu.Unlock()
 	fmt.Printf("DEBUG: SftpFS close client\n")

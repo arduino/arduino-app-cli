@@ -196,13 +196,13 @@ func FromFQBN(ctx context.Context, fqbns []string) ([]Board, error) {
 				if _, last, ok := strings.Cut(sn, "-"); ok {
 					customName = strings.TrimSpace(last)
 				}
-				conn.Close()
 			} else {
 				// fallback to get custom name from the board if product property is not available.
 				if conn, err := adb.FromSerial(serial, ""); err == nil {
 					if name, err := GetCustomName(ctx, conn); err == nil {
 						customName = name
 					}
+					conn.Close()
 				} else {
 					slog.Warn("failed to get custom name", "serial", serial, "error", err)
 				}

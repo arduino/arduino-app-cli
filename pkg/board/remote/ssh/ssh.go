@@ -6,6 +6,7 @@
 package ssh
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
@@ -162,6 +164,15 @@ func (a *SSHConnection) dialSftp() (*sftp.Client, []sftpfs.CloseFunc, error) {
 		return nil, nil, fmt.Errorf("failed to create sftp client: %w", err)
 	}
 	return client, nil, nil
+}
+
+func (a *SSHConnection) Close() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err1 := a.ForwardKillAll(ctx)
+	err2 := a.SftpFS.Teardown()
+	err3 := a.client.Close()
+	return cmp.Or(err1, err2, err3)
 }
 
 type SSHCommand struct {
