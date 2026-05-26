@@ -19,6 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/testtools"
 	"github.com/arduino/arduino-app-cli/pkg/board/remote"
@@ -75,32 +76,36 @@ func TestRemoteFS(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			prefix := fmt.Sprintf("./testdir_%s/", tc.name)
+			tc.conn.MkDirAll(prefix)
+
 			t.Run("Mkdir", func(t *testing.T) {
 				for _, dir := range dirs {
-					err := tc.conn.MkDirAll("./" + dir)
+					_, err := tc.conn.Stats(prefix + dir)
+					require.ErrorIs(t, err, os.ErrNotExist)
+					err = tc.conn.MkDirAll(prefix + dir)
 					require.NoError(t, err)
-					info, err := tc.conn.Stats("./" + dir)
+					info, err := tc.conn.Stats(prefix + dir)
 					require.NoError(t, err)
-					assert.Equal(t, remote.FileInfo{
-						Name:  dir,
-						IsDir: true,
-					}, info)
+					assert.Equal(t, dir, info.Name)
+					assert.True(t, info.IsDir)
+					assert.Equal(t, uint32(0700), info.Mode&0700, "directory should be accessible by owner")
 				}
 			})
 
 			t.Run("WriteFile/ReadFile", func(t *testing.T) {
 				for _, file := range files {
 					t.Run(file, func(t *testing.T) {
-						err := tc.conn.WriteFile(strings.NewReader("Hello, World!"), "./"+file)
+						_, err := tc.conn.Stats(prefix + file)
+						require.ErrorIs(t, err, os.ErrNotExist)
+						err = tc.conn.WriteFile(strings.NewReader("Hello, World!"), prefix+file)
 						require.NoError(t, err)
-						info, err := tc.conn.Stats("./" + file)
+						info, err := tc.conn.Stats(prefix + file)
 						require.NoError(t, err)
-						assert.Equal(t, remote.FileInfo{
-							Name:  path.Base(file),
-							IsDir: false,
-						}, info)
-
-						r, err := tc.conn.ReadFile("./" + file)
+						assert.Equal(t, path.Base(file), info.Name)
+						assert.False(t, info.IsDir)
+						assert.Equal(t, uint32(0600), info.Mode&0700, "file should be readable and writable by owner")
+						r, err := tc.conn.ReadFile(prefix + file)
 						require.NoError(t, err)
 						data, err := io.ReadAll(r)
 						require.NoError(t, err)
@@ -110,35 +115,55 @@ func TestRemoteFS(t *testing.T) {
 			})
 
 			t.Run("List", func(t *testing.T) {
-				gotFiles, err := tc.conn.List("./")
+				gotFiles, err := tc.conn.List(prefix)
 				require.NoError(t, err)
-				for _, dir := range dirs {
-					assert.Contains(t, gotFiles, remote.FileInfo{Name: dir, IsDir: true})
+
+				gotDirs := f.Filter(gotFiles, func(f remote.FileInfo) bool {
+					return f.IsDir
+				})
+
+				assert.ElementsMatch(t, dirs, f.Map(gotDirs, func(f remote.FileInfo) string {
+					return f.Name
+				}), "should contain the expected directories")
+
+				for _, dir := range gotDirs {
+					assert.Equal(t, dir.Mode&0700, uint32(0700), "file should be readable and writable by owner")
 				}
 
 				for _, dir := range dirs {
-					gotFiles, err = tc.conn.List("./" + dir)
+					gotFiles, err = tc.conn.List(prefix + dir)
 					require.NoError(t, err)
-					assert.Len(t, gotFiles, 2)
+					gotFileNames := make([]string, 0, len(gotFiles))
 					for _, gotFile := range gotFiles {
-						assert.Contains(t, files, path.Join(dir, gotFile.Name))
+						assert.False(t, gotFile.IsDir)
+						assert.Equal(t, uint32(0600), gotFile.Mode&0700, "file should be readable and writable by owner")
+						gotFileNames = append(gotFileNames, path.Join(dir, gotFile.Name))
 					}
+
+					expectedFiles := f.Filter(files, func(file string) bool {
+						return path.Dir(file) == dir
+					})
+					assert.ElementsMatch(t, expectedFiles, gotFileNames, "should contain the expected files in %q", dir)
 				}
 			})
 
 			t.Run("Remove", func(t *testing.T) {
 				for _, file := range files {
-					err := tc.conn.Remove("./" + file)
+					_, err := tc.conn.Stats(prefix + file)
+					assert.NoError(t, err)
+					err = tc.conn.Remove(prefix + file)
 					require.NoError(t, err)
-					_, err = tc.conn.Stats("./" + file)
-					assert.Error(t, err)
+					_, err = tc.conn.Stats(prefix + file)
+					assert.ErrorIs(t, err, os.ErrNotExist)
 				}
 
 				for _, dir := range dirs {
-					err := tc.conn.Remove("./" + dir)
+					_, err := tc.conn.Stats(prefix + dir)
+					assert.NoError(t, err)
+					err = tc.conn.Remove(prefix + dir)
 					require.NoError(t, err)
-					_, err = tc.conn.Stats("./" + dir)
-					assert.Error(t, err)
+					_, err = tc.conn.Stats(prefix + dir)
+					assert.ErrorIs(t, err, os.ErrNotExist)
 				}
 			})
 		})
@@ -334,10 +359,8 @@ func TestRemoteTransfer(t *testing.T) {
 
 				info, err := tc.conn.Stats("./testdir/pushfile.txt")
 				require.NoError(t, err)
-				assert.Equal(t, remote.FileInfo{
-					Name:  "pushfile.txt",
-					IsDir: false,
-				}, info)
+				assert.Equal(t, "pushfile.txt", info.Name)
+				assert.False(t, info.IsDir)
 
 				r, err := tc.conn.ReadFile("./testdir/pushfile.txt")
 				require.NoError(t, err)
@@ -352,18 +375,18 @@ func TestRemoteTransfer(t *testing.T) {
 
 				info, err := tc.conn.Stats("./testdir/pushdir")
 				require.NoError(t, err)
-				assert.Equal(t, remote.FileInfo{
-					Name:  "pushdir",
-					IsDir: true,
-				}, info)
+				assert.Equal(t, "pushdir", info.Name)
+				assert.True(t, info.IsDir)
 
 				info, err = tc.conn.Stats("./testdir/pushdir/a.txt")
 				require.NoError(t, err)
-				assert.Equal(t, remote.FileInfo{Name: "a.txt", IsDir: false}, info)
+				assert.Equal(t, "a.txt", info.Name)
+				assert.False(t, info.IsDir)
 
 				info, err = tc.conn.Stats("./testdir/pushdir/nested")
 				require.NoError(t, err)
-				assert.Equal(t, remote.FileInfo{Name: "nested", IsDir: true}, info)
+				assert.Equal(t, "nested", info.Name)
+				assert.True(t, info.IsDir)
 
 				r, err := tc.conn.ReadFile("./testdir/pushdir/a.txt")
 				require.NoError(t, err)
@@ -388,10 +411,8 @@ func TestRemoteTransfer(t *testing.T) {
 
 				info, err := tc.conn.Stats("./testdir/pushfile.txt")
 				require.NoError(t, err)
-				assert.Equal(t, remote.FileInfo{
-					Name:  "pushfile.txt",
-					IsDir: false,
-				}, info)
+				assert.Equal(t, "pushfile.txt", info.Name)
+				assert.False(t, info.IsDir)
 
 				r, err := tc.conn.ReadFile("./testdir/pushfile.txt")
 				require.NoError(t, err)
@@ -627,15 +648,17 @@ func TestRemoteTransferBehavioralCheck(t *testing.T) {
 					t.Cleanup(func() { _ = impl.conn.Remove(remoteDir) })
 
 					// Build local source.
-					src := filepath.Join(t.TempDir(), name)
+					tmp := t.TempDir()
+					src := filepath.Join(tmp, tc.srcName)
 					switch tc.srcKind {
 					case file:
-						require.NoError(t, os.WriteFile(src, []byte("hello"), 0600))
+						require.NoError(t, os.WriteFile(src, []byte("hello"), 0440)) //nolint:gosec
 					case dir:
-						require.NoError(t, os.MkdirAll(src, 0755))
-						require.NoError(t, os.WriteFile(filepath.Join(src, "a.txt"), []byte("hello"), 0600))
+						require.NoError(t, os.MkdirAll(src, 0730))                                           //nolint:gosec
+						require.NoError(t, os.WriteFile(filepath.Join(src, "a.txt"), []byte("hello"), 0440)) //nolint:gosec
+						require.NoError(t, os.Chmod(src, 0530))
 					case emptyDir:
-						require.NoError(t, os.MkdirAll(src, 0755))
+						require.NoError(t, os.MkdirAll(src, 0530)) //nolint:gosec
 					}
 
 					// Pre-create destination if required.
@@ -650,6 +673,15 @@ func TestRemoteTransferBehavioralCheck(t *testing.T) {
 					case emptyDir:
 						require.NoError(t, impl.conn.MkDirAll(dst))
 					}
+					defer func() {
+						_ = os.Chmod(tmp, 0777) //nolint:gosec
+						_ = filepath.WalkDir(tmp, func(path string, d os.DirEntry, err error) error {
+							if err != nil {
+								return nil
+							}
+							return os.Chmod(path, 0777) //nolint:gosec
+						})
+					}()
 
 					// Perform the push operation.
 					err := impl.conn.Push(t.Context(), src, dst)
@@ -675,8 +707,10 @@ func TestRemoteTransferBehavioralCheck(t *testing.T) {
 					switch tc.wantKind {
 					case file:
 						assert.Equal(t, "hello", readRemoteFile(t, impl.conn, dst))
+						assert.Equal(t, uint32(0600), info.Mode&0700, "files should be accessible by owner")
 					case dir:
 						assert.True(t, info.IsDir)
+						assert.Equal(t, uint32(0700), info.Mode&0700, "files should be accessible by owner")
 						assert.Equal(t,
 							"hello",
 							readRemoteFile(t, impl.conn, path.Join(dst, "/a.txt")),
@@ -690,7 +724,9 @@ func TestRemoteTransferBehavioralCheck(t *testing.T) {
 						}
 					case emptyDir:
 						assert.True(t, info.IsDir)
+						assert.Equal(t, uint32(0700), info.Mode&0700, "files should be accessible by owner")
 					}
+
 				})
 			}
 		})

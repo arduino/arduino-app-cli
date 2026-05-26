@@ -108,7 +108,11 @@ func (s *SftpFS) List(path string) ([]remote.FileInfo, error) {
 	}
 	out := make([]remote.FileInfo, 0, len(entries))
 	for _, e := range entries {
-		out = append(out, remote.FileInfo{Name: e.Name(), IsDir: e.IsDir()})
+		out = append(out, remote.FileInfo{
+			Name:  e.Name(),
+			IsDir: e.IsDir(),
+			Mode:  uint32(e.Mode().Perm()),
+		})
 	}
 	return out, nil
 }
@@ -120,13 +124,17 @@ func (s *SftpFS) Stats(p string) (remote.FileInfo, error) {
 	}
 	info, err := c.Stat(p)
 	if err != nil {
+		s.onErr(err)
 		if errors.Is(err, os.ErrNotExist) {
 			return remote.FileInfo{}, fs.ErrNotExist
 		}
-		s.onErr(err)
 		return remote.FileInfo{}, fmt.Errorf("failed to stat %q: %w", p, err)
 	}
-	return remote.FileInfo{Name: filepath.Base(p), IsDir: info.IsDir()}, nil
+	return remote.FileInfo{
+		Name:  filepath.Base(p),
+		IsDir: info.IsDir(),
+		Mode:  uint32(info.Mode().Perm()),
+	}, nil
 }
 
 func (s *SftpFS) ReadFile(path string) (io.ReadCloser, error) {
@@ -160,6 +168,12 @@ func (s *SftpFS) WriteFile(r io.Reader, path string) error {
 	if err := f.Close(); err != nil {
 		return fmt.Errorf("failed to close file %q: %w", path, err)
 	}
+
+	if err := c.Chmod(path, 0664); err != nil {
+		s.onErr(err)
+		return fmt.Errorf("failed to set permissions for file %q: %w", path, err)
+	}
+
 	return nil
 }
 
@@ -172,6 +186,12 @@ func (s *SftpFS) MkDirAll(path string) error {
 		s.onErr(err)
 		return fmt.Errorf("failed to create directory %q: %w", path, err)
 	}
+
+	if err := c.Chmod(path, 0775); err != nil {
+		s.onErr(err)
+		return fmt.Errorf("failed to set permissions for directory %q: %w", path, err)
+	}
+
 	return nil
 }
 
