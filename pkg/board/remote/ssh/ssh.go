@@ -7,6 +7,7 @@ package ssh
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -245,12 +246,9 @@ func (a *SSHConnection) Stats(p string) (remote.FileInfo, error) {
 	defer session.Close()
 
 	cmd := fmt.Sprintf("stat -c '%%A %%n' %q", p)
-	output, err := session.Output(cmd)
-	if err != nil {
-		return remote.FileInfo{}, fmt.Errorf("failed to stat file: %w", err)
-	}
-
-	return remote.ParseStatOutput(output)
+	output, err1 := session.CombinedOutput(cmd)
+	info, err2 := remote.ParseStatOutput(output)
+	return info, cmp.Or(err2, err1)
 }
 
 type SSHCommand struct {

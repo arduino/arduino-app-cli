@@ -77,7 +77,9 @@ func TestRemoteFS(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Run("Mkdir", func(t *testing.T) {
 				for _, dir := range dirs {
-					err := tc.conn.MkDirAll("./" + dir)
+					_, err := tc.conn.Stats("./" + dir)
+					require.ErrorIs(t, err, os.ErrNotExist)
+					err = tc.conn.MkDirAll("./" + dir)
 					require.NoError(t, err)
 					info, err := tc.conn.Stats("./" + dir)
 					require.NoError(t, err)
@@ -90,7 +92,9 @@ func TestRemoteFS(t *testing.T) {
 			t.Run("WriteFile/ReadFile", func(t *testing.T) {
 				for _, file := range files {
 					t.Run(file, func(t *testing.T) {
-						err := tc.conn.WriteFile(strings.NewReader("Hello, World!"), "./"+file)
+						_, err := tc.conn.Stats("./" + file)
+						require.ErrorIs(t, err, os.ErrNotExist)
+						err = tc.conn.WriteFile(strings.NewReader("Hello, World!"), "./"+file)
 						require.NoError(t, err)
 						info, err := tc.conn.Stats("./" + file)
 						require.NoError(t, err)
@@ -134,17 +138,21 @@ func TestRemoteFS(t *testing.T) {
 
 			t.Run("Remove", func(t *testing.T) {
 				for _, file := range files {
-					err := tc.conn.Remove("./" + file)
+					_, err := tc.conn.Stats("./" + file)
+					assert.NoError(t, err)
+					err = tc.conn.Remove("./" + file)
 					require.NoError(t, err)
 					_, err = tc.conn.Stats("./" + file)
-					assert.Error(t, err)
+					assert.ErrorIs(t, err, os.ErrNotExist)
 				}
 
 				for _, dir := range dirs {
-					err := tc.conn.Remove("./" + dir)
+					_, err := tc.conn.Stats("./" + dir)
+					assert.NoError(t, err)
+					err = tc.conn.Remove("./" + dir)
 					require.NoError(t, err)
 					_, err = tc.conn.Stats("./" + dir)
-					assert.Error(t, err)
+					assert.ErrorIs(t, err, os.ErrNotExist)
 				}
 			})
 		})

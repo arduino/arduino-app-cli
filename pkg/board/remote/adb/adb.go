@@ -8,6 +8,7 @@ package adb
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -170,12 +171,9 @@ func (a *ADBConnection) Stats(p string) (remote.FileInfo, error) {
 	if err != nil {
 		return remote.FileInfo{}, err
 	}
-	output, err := runCmd.RunAndCaptureCombinedOutput(context.TODO())
-	if err != nil {
-		return remote.FileInfo{}, fmt.Errorf("failed to stat path %q: %w: %s", p, err, output)
-	}
-
-	return remote.ParseStatOutput(output)
+	output, err1 := runCmd.RunAndCaptureCombinedOutput(context.TODO())
+	info, err2 := remote.ParseStatOutput(output)
+	return info, cmp.Or(err2, err1)
 }
 
 func (a *ADBConnection) ReadFile(path string) (io.ReadCloser, error) {
