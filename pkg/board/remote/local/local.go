@@ -91,6 +91,10 @@ func (a *LocalConnection) Remove(path string) error {
 	return os.RemoveAll(path)
 }
 
+func (a *LocalConnection) Rename(oldPath, newPath string) error {
+	return os.Rename(oldPath, newPath)
+}
+
 func (a *LocalConnection) Close() error {
 	return nil
 }

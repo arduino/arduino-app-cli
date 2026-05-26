@@ -34,6 +34,7 @@ type FS interface {
 	ReadFile(path string) (io.ReadCloser, error)
 	Remove(path string) error
 	Stats(path string) (FileInfo, error)
+	Rename(oldPath, newPath string) error
 }
 
 type RemoteShell interface {

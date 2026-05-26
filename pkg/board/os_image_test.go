@@ -41,6 +41,10 @@ func (m *MockRemoteConn) WriteFile(data io.Reader, path string) error {
 	return nil
 }
 
+func (m *MockRemoteConn) Rename(oldPath, newPath string) error {
+	return nil
+}
+
 func createBuildInfoConnection(imageVersion string) remote.FS {
 	mockConn := MockRemoteConn{
 		ReadFileFunc: func(path string) (io.ReadCloser, error) {
