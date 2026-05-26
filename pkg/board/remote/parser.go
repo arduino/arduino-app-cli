@@ -103,6 +103,9 @@ func ParseLsOutput(out io.Reader) ([]FileInfo, error) {
 		if name == "." || name == ".." {
 			continue
 		}
+		if len(line) < 10 {
+			return nil, fmt.Errorf("unexpected ls output line: %q", line)
+		}
 		mode := parsePermissions([]byte(line[:10]))
 		files = append(files, FileInfo{
 			Name:  name,
