@@ -187,7 +187,7 @@ func (a *ADBConnection) ForwardKillAll(ctx context.Context) error {
 }
 
 func (a *ADBConnection) Close() error {
-	return a.SftpFS.Teardown()
+	return a.Teardown()
 }
 
 type ADBCommand struct {

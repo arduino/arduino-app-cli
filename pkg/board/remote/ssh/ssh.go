@@ -170,7 +170,7 @@ func (a *SSHConnection) Close() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err1 := a.ForwardKillAll(ctx)
-	err2 := a.SftpFS.Teardown()
+	err2 := a.Teardown()
 	err3 := a.client.Close()
 	return cmp.Or(err1, err2, err3)
 }

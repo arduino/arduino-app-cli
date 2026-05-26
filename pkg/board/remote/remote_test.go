@@ -77,7 +77,7 @@ func TestRemoteFS(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			prefix := fmt.Sprintf("./testdir_%s/", tc.name)
-			tc.conn.MkDirAll(prefix)
+			require.NoError(t, tc.conn.MkDirAll(prefix))
 
 			t.Run("Mkdir", func(t *testing.T) {
 				for _, dir := range dirs {
