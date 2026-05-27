@@ -6,6 +6,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,7 +32,7 @@ type InstallEIModelRequest struct {
 	ImpulseID *int `json:"impulse_id" description:"Edge Impulse impulse ID" example:"1" required:"true"`
 }
 
-func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
+func HandleModelsList(modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		params := r.URL.Query()
 
@@ -39,21 +40,21 @@ func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 		if brick := params.Get("bricks"); brick != "" {
 			brickFilter = strings.Split(strings.TrimSpace(brick), ",")
 		}
-		res := orchestrator.AIModelsList(orchestrator.AIModelsListRequest{
+		res := orchestrator.AIModelsList(r.Context(), orchestrator.AIModelsListRequest{
 			FilterByBrickID: brickFilter,
-		}, modelsIndex)
+		}, modelsIndex, cfg, plat)
 		render.EncodeResponse(w, http.StatusOK, res)
 	}
 }
 
-func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
+func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("modelID")
 		if id == "" {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "id must be set"})
 			return
 		}
-		res, found := orchestrator.AIModelDetails(modelsIndex, id)
+		res, found := orchestrator.AIModelDetails(r.Context(), modelsIndex, id, cfg)
 		if !found {
 			details := fmt.Sprintf("models with id %q not found", id)
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})
@@ -155,6 +156,61 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 
 		// FIXME: read the installed model using the modelindex.getModelByID
 		render.EncodeResponse(w, http.StatusOK, eiModel)
+	}
+}
+
+func HandleInstallModel(cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, installMgr *orchestrator.ModelInstallManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := strings.TrimSpace(r.PathValue("modelID"))
+		if id == "" {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "modelID must be set"})
+			return
+		}
+
+		if _, found := modelsIndex.GetModelByID(id); !found {
+			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: fmt.Sprintf("model %q not found", id)})
+			return
+		}
+
+		go func() {
+			if err := orchestrator.InstallModelByHandler(context.Background(), id, modelsIndex, cfg, installMgr); err != nil {
+				slog.Error("model install failed", "model", id, "err", err)
+			}
+		}()
+
+		render.EncodeResponse(w, http.StatusAccepted, nil)
+	}
+}
+
+func HandleModelInstallEvents(installMgr *orchestrator.ModelInstallManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodHead {
+			render.EncodeResponse(w, http.StatusOK, nil)
+			return
+		}
+
+		sseStream, err := render.NewSSEStream(r.Context(), w)
+		if err != nil {
+			slog.Error("unable to create SSE stream", slog.String("error", err.Error()))
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to create SSE stream"})
+			return
+		}
+		defer sseStream.Close()
+
+		ch := installMgr.Subscribe()
+		defer installMgr.Unsubscribe(ch)
+
+		for {
+			select {
+			case event, ok := <-ch:
+				if !ok {
+					return
+				}
+				sseStream.Send(render.SSEEvent{Type: string(event.Type), Data: event})
+			case <-r.Context().Done():
+				return
+			}
+		}
 	}
 }
 
