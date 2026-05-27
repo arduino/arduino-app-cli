@@ -6,10 +6,17 @@
 package modelsindex
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/goccy/go-yaml"
+
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 type HandlerActions struct {
@@ -58,6 +65,72 @@ func (h *HandlersIndex) AllHandlers() []ModelHandler {
 	return handlers
 }
 
+type handlerModelListOutput struct {
+	Event  string              `json:"event"`
+	Models []handlerModelEntry `json:"models"`
+}
+
+type handlerModelEntry struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Handler   string `json:"handler"`
+	Platform  string `json:"platform"`
+	ModelType string `json:"model_type"`
+	Path      string `json:"path"`
+	Installed bool   `json:"installed"`
+}
+
+// InstalledStatuses runs the list action for every handler and returns a map
+// of model ID → installed status.
+func (h *HandlersIndex) InstalledStatuses(ctx context.Context, cfg config.Configuration, plat platform.Platform) map[string]bool {
+	result := make(map[string]bool)
+	for _, handler := range h.handlers {
+		entries, err := runListAction(ctx, handler, cfg, plat)
+		if err != nil {
+			slog.Warn("cannot list models from handler", "handler", handler.ID, "err", err)
+			continue
+		}
+		for _, entry := range entries {
+			result[entry.ID] = entry.Installed
+		}
+	}
+	return result
+}
+
+func runListAction(ctx context.Context, handler ModelHandler, cfg config.Configuration, plat platform.Platform) ([]handlerModelEntry, error) {
+	handlerModelsDir := cfg.CustomModelsDir().Join(handler.ID)
+
+	args := []string{
+		"docker", "run", "--rm",
+		"-v", fmt.Sprintf("%s:/models", handlerModelsDir),
+	}
+	if plat.BoardName != "" {
+		args = append(args, "-e", fmt.Sprintf("board=%s", plat.BoardName))
+	}
+	args = append(args, handler.Image, "list_models.sh")
+
+	slog.Debug("running list action", "handler", handler.ID, "image", handler.Image)
+	process, err := paths.NewProcess(nil, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	var buf bytes.Buffer
+	process.RedirectStdoutTo(&buf)
+	process.RedirectStderrTo(slog.NewLogLogger(slog.Default().Handler(), slog.LevelDebug).Writer())
+
+	if err := process.RunWithinContext(ctx); err != nil {
+		return nil, fmt.Errorf("list action failed: %w", err)
+	}
+
+	var output handlerModelListOutput
+	if err := json.Unmarshal(buf.Bytes(), &output); err != nil {
+		return nil, fmt.Errorf("parsing list output: %w", err)
+	}
+
+	return output.Models, nil
+}
+
 // rawHandlerEntry wraps HandlerActions with the per-handler image field.
 type rawHandlerEntry struct {
 	Image          string `yaml:"image"`
@@ -98,7 +171,7 @@ func loadHandlers(dir *paths.Path, registryBase string) (*HandlersIndex, error) 
 			if entry.Image == "" {
 				return nil, fmt.Errorf("models-handlers.yaml: handler %q missing required field \"image\"", id)
 			}
-			if err := entry.HandlerActions.validate(id); err != nil {
+			if err := entry.validate(id); err != nil {
 				return nil, fmt.Errorf("models-handlers.yaml: %w", err)
 			}
 			handlers[id] = ModelHandler{
