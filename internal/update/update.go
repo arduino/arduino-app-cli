@@ -46,8 +46,8 @@ type ServiceUpdater interface {
 }
 
 type UpgradableImage struct {
-	Image        string `json:"from_version,omitempty"`
-	CurrentImage string `json:"to_version,omitempty"`
+	ToVersion   string `json:"from_version,omitempty"`
+	FromVersion string `json:"to_version,omitempty"`
 }
 
 type ContainerUpdater interface {

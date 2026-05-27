@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/docker/cli/cli/command"
+	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -55,11 +56,33 @@ func (c *ContainerUpdater) ListUpgradableImages(ctx context.Context) ([]update.U
 
 		// Otherwise, the image is either new or a newer version of an already installed one.
 		current := GetHighestVersion(img, pulledImages)
+
+		if current != "" && !isNewerVersion(img, current) {
+			continue
+		}
 		result = append(result, update.UpgradableImage{
-			Image:        img,
-			CurrentImage: current,
+			ToVersion:   img,
+			FromVersion: current,
 		})
 	}
 
 	return result, nil
+}
+
+// isNewerVersion returns true if newImage has a strictly higher semver tag than currentImage.
+// Both arguments are expected to share the same image base name.
+// If either tag cannot be parsed as semver, it returns true (treat as upgrade to be safe).
+func isNewerVersion(newImage, currentImage string) bool {
+	_, newTag := parseDockerImage(newImage)
+	_, currentTag := parseDockerImage(currentImage)
+
+	newVer, err := semver.Parse(newTag)
+	if err != nil {
+		return true
+	}
+	currentVer, err := semver.Parse(currentTag)
+	if err != nil {
+		return true
+	}
+	return currentVer.LessThan(newVer)
 }
