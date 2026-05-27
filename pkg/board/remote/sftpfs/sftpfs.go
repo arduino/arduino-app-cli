@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -41,17 +42,22 @@ func New(dial SftpFSDialer) *SftpFS {
 
 func (s *SftpFS) get() (*sftp.Client, error) {
 	if c := s.client.Load(); c != nil {
+		slog.Debug("sftpfs: reusing existing client")
 		return c, nil
 	}
 	s.initMu.Lock()
 	defer s.initMu.Unlock()
 	if c := s.client.Load(); c != nil {
+		slog.Debug("sftpfs: reusing existing client (after lock)")
 		return c, nil
 	}
+	slog.Info("sftpfs: dialing new SFTP connection")
 	c, extra, err := s.dial()
 	if err != nil {
+		slog.Error("sftpfs: failed to dial SFTP connection", "error", err)
 		return nil, err
 	}
+	slog.Info("sftpfs: SFTP connection established")
 	s.client.Store(c)
 	s.extra = extra
 	go s.watch(c)
@@ -61,22 +67,33 @@ func (s *SftpFS) get() (*sftp.Client, error) {
 // watch blocks until the given sftp client's underlying connection ends,
 // then invalidates the cache if this client is still the current one.
 func (s *SftpFS) watch(c *sftp.Client) {
+	slog.Info("sftpfs: watching client for disconnect")
 	_ = c.Wait()
 	s.initMu.Lock()
 	defer s.initMu.Unlock()
 	if s.client.Load() != c {
-		// Already replaced or closed by someone else.
+		slog.Debug("sftpfs: client already replaced or closed, skipping invalidation")
 		return
 	}
-	_ = s.closeLocked()
+	slog.Warn("sftpfs: client connection ended, invalidating cache")
+	if err := s.closeLocked(); err != nil {
+		slog.Warn("sftpfs: error while closing stale client", "error", err)
+	}
 }
 
 // Teardown closes the cached client and runs the extra close funcs.
 // After this method is called, the SftpFS instance can be reused and will create a new client on demand.
 func (s *SftpFS) Teardown() error {
+	slog.Info("sftpfs: teardown requested")
 	s.initMu.Lock()
 	defer s.initMu.Unlock()
-	return s.closeLocked()
+	err := s.closeLocked()
+	if err != nil {
+		slog.Warn("sftpfs: teardown completed with errors", "error", err)
+	} else {
+		slog.Info("sftpfs: teardown completed successfully")
+	}
+	return err
 }
 
 // closeLocked closes the cached client and runs the extra close funcs.
@@ -84,16 +101,23 @@ func (s *SftpFS) Teardown() error {
 func (s *SftpFS) closeLocked() error {
 	c := s.client.Load()
 	if c == nil {
+		slog.Debug("sftpfs: closeLocked called but no client to close")
 		return nil
 	}
+	slog.Info("sftpfs: closing SFTP client")
 	err := c.Close()
+	if err != nil {
+		slog.Warn("sftpfs: error closing SFTP client", "error", err)
+	}
 	for _, f := range s.extra {
 		if e := f(); e != nil {
+			slog.Warn("sftpfs: error running extra close func", "error", e)
 			err = errors.Join(err, e)
 		}
 	}
 	s.client.Store(nil)
 	s.extra = nil
+	slog.Info("sftpfs: client closed and cache cleared")
 	return err
 }
 
