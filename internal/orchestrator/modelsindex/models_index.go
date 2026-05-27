@@ -38,6 +38,11 @@ func (b *assetsModelList) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
+type ModelDeployment struct {
+	Handler   string `yaml:"handler"`
+	PreLoaded bool   `yaml:"pre-loaded"`
+}
+
 type AIModel struct {
 	ID                string            `yaml:"-"`
 	ModelFolderPath   *paths.Path       `yaml:"-"`
@@ -49,6 +54,8 @@ type AIModel struct {
 	Metadata          map[string]string `yaml:"metadata,omitempty"`
 	IsInternal        bool              `yaml:"-"`
 	SupportedBoards   []string          `yaml:"supported_boards,omitempty"`
+	DownloadLocation  string            `yaml:"download_location,omitempty"`
+	Deployment        *ModelDeployment  `yaml:"deployment,omitempty"`
 }
 
 type BrickConfig struct {
@@ -59,6 +66,7 @@ type BrickConfig struct {
 type ModelsIndex struct {
 	InternalModels []AIModel
 	modelsDir      *paths.Path
+	Handlers       *HandlersIndex
 }
 
 func (m *ModelsIndex) GetModels() []AIModel {
@@ -105,7 +113,7 @@ func (m *ModelsIndex) loadModels() []AIModel {
 	return append(m.InternalModels, eimodels...)
 }
 
-func Load(platform platform.Platform, dir *paths.Path, modelsDir *paths.Path) (*ModelsIndex, error) {
+func Load(platform platform.Platform, dir *paths.Path, modelsDir *paths.Path, registryBase string) (*ModelsIndex, error) {
 	if dir == nil && modelsDir == nil {
 		return &ModelsIndex{}, errors.New("either dir or modelsDir must be provided")
 	}
@@ -120,7 +128,13 @@ func Load(platform platform.Platform, dir *paths.Path, modelsDir *paths.Path) (*
 			!slices.Contains(model.SupportedBoards, platform.BoardName)
 	})
 
-	return &ModelsIndex{InternalModels: models, modelsDir: modelsDir}, nil
+	handlers, err := loadHandlers(dir, registryBase)
+	if err != nil {
+		slog.Warn("cannot load models handlers", "err", err)
+		handlers = &HandlersIndex{handlers: make(map[string]ModelHandler)}
+	}
+
+	return &ModelsIndex{InternalModels: models, modelsDir: modelsDir, Handlers: handlers}, nil
 }
 
 func loadInternalModels(dir *paths.Path) ([]AIModel, error) {

@@ -27,6 +27,7 @@ type Configuration struct {
 	dataDir                          *paths.Path
 	routerSocketPath                 *paths.Path
 	customModelsDir                  *paths.Path
+	dockerRegistryBase               string
 	PythonImage                      string
 	UsedPythonImageTag               string
 	RunnerVersion                    string
@@ -79,7 +80,8 @@ func NewFromEnv() (Configuration, error) {
 		}
 	}
 
-	pythonImage, usedPythonImageTag := getPythonImageAndTag()
+	registryBase := getDockerRegistryBase()
+	pythonImage, usedPythonImageTag := getPythonImageAndTag(registryBase)
 	slog.Debug("Using pythonImage", slog.String("image", pythonImage))
 
 	allowRoot, err := strconv.ParseBool(os.Getenv("ARDUINO_APP_CLI__ALLOW_ROOT"))
@@ -119,6 +121,7 @@ func NewFromEnv() (Configuration, error) {
 		dataDir:                          dataDir,
 		routerSocketPath:                 routerSocket,
 		customModelsDir:                  customModelsDir,
+		dockerRegistryBase:               registryBase,
 		PythonImage:                      pythonImage,
 		UsedPythonImageTag:               usedPythonImageTag,
 		RunnerVersion:                    RunnerVersion,
@@ -170,12 +173,19 @@ func (c *Configuration) CustomModelsDir() *paths.Path {
 	return c.customModelsDir
 }
 
-func getPythonImageAndTag() (string, string) {
+func (c *Configuration) DockerRegistryBase() string {
+	return c.dockerRegistryBase
+}
+
+func getDockerRegistryBase() string {
 	registryBase := os.Getenv("DOCKER_REGISTRY_BASE")
 	if registryBase == "" {
 		registryBase = "ghcr.io/arduino/"
 	}
+	return registryBase
+}
 
+func getPythonImageAndTag(registryBase string) (string, string) {
 	// Python image: image name (repository) and optionally a tag.
 	pythonImageAndTag := os.Getenv("DOCKER_PYTHON_BASE_IMAGE")
 	if pythonImageAndTag == "" {
