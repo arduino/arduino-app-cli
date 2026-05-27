@@ -6,10 +6,13 @@
 package remote_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"fmt"
+	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
@@ -167,23 +170,14 @@ func runPushBenchmark(b *testing.B, pushFunc func(ctx context.Context, conn remo
 // writeRandomFile creates a file at p filled with size bytes of random data.
 func writeRandomFile(tb testing.TB, p string, size int) {
 	tb.Helper()
+	require.True(tb, size >= 0, "size must be non-negative")
 	require.NoError(tb, os.MkdirAll(filepath.Dir(p), 0755))
 	f, err := os.Create(p)
 	require.NoError(tb, err)
 	defer f.Close()
-	if size == 0 {
-		return
-	}
-	buf := make([]byte, 64*1024)
-	remaining := size
-	for remaining > 0 {
-		n := min(len(buf), remaining)
-		_, err := rand.Read(buf[:n])
-		require.NoError(tb, err)
-		_, err = f.Write(buf[:n])
-		require.NoError(tb, err)
-		remaining -= n
-	}
+	n, err := io.CopyN(f, rand.Reader, int64(size))
+	require.NoError(tb, err)
+	require.Equal(tb, int64(size), n, "unexpected number of bytes written")
 }
 
 // fsWalkPush is a baseline implementation that recursively walks src using
@@ -313,4 +307,209 @@ func legacyPush(ctx context.Context, conn remote.RemoteConn, src, dst string) er
 	wg.Wait()
 
 	return firstErr
+}
+
+// connFactory builds a RemoteConn for each backend.
+type connFactory struct {
+	name     string
+	basePath string
+	build    func(tb testing.TB) remote.RemoteConn
+}
+
+func fsBackends(tb testing.TB) []connFactory {
+	tb.Helper()
+	name, adbPort, sshPort := testtools.StartAdbDContainer(tb)
+	tb.Cleanup(func() { testtools.StopAdbDContainer(tb, name) })
+
+	tmp := tb.TempDir()
+	return []connFactory{
+		{
+			name:     "adb",
+			basePath: "/home/arduino",
+			build: func(tb testing.TB) remote.RemoteConn {
+				c, err := adb.FromHost("localhost:"+adbPort, "")
+				require.NoError(tb, err)
+				return c
+			},
+		},
+		{
+			name:     "ssh",
+			basePath: "./",
+			build: func(tb testing.TB) remote.RemoteConn {
+				c, err := ssh.FromHost("arduino", "arduino", "127.0.0.1:"+sshPort)
+				require.NoError(tb, err)
+				return c
+			},
+		},
+		{
+			name:     "local",
+			basePath: tmp,
+			build: func(tb testing.TB) remote.RemoteConn {
+				return &local.LocalConnection{}
+			},
+		},
+	}
+}
+
+var Sink []byte
+var (
+	Fresh = "fresh"
+	Reuse = "reuse"
+)
+
+// BenchmarkRemoteWrite measures WriteFile throughput for a single file.
+// Fresh creates a new connection per iteration; Reuse keeps one connection.
+func BenchmarkRemoteWrite(b *testing.B) {
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	for _, be := range fsBackends(b) {
+		b.Run(be.name, func(b *testing.B) {
+			conn := be.build(b)
+			remoteBase := path.Join(be.basePath, "bench_write_"+be.name)
+			_ = conn.Remove(remoteBase)
+			require.NoError(b, conn.MkDirAll(remoteBase))
+			b.Cleanup(func() { _ = conn.Remove(remoteBase) })
+
+			for _, size := range []int{4 * 1024, 256 * 1024, 4 * 1024 * 1024} {
+				b.Run(fmt.Sprintf("%dKB", size/1024), func(b *testing.B) {
+					srcDir := b.TempDir()
+					srcFile := filepath.Join(srcDir, "payload.bin")
+					writeRandomFile(b, srcFile, size)
+
+					for _, label := range []string{Fresh, Reuse} {
+						b.Run(label, func(b *testing.B) {
+							b.SetBytes(int64(size))
+							b.ResetTimer()
+							for i := 0; i < b.N; i++ {
+								c := conn
+								if label == Fresh {
+									c = be.build(b)
+								}
+								in, err := os.Open(srcFile)
+								require.NoError(b, err)
+								dst := path.Join(remoteBase, fmt.Sprintf("file_%s_%d", label, i))
+								require.NoError(b, c.WriteFile(in, dst))
+								in.Close()
+								if label == Fresh {
+									c.Close()
+								}
+							}
+						})
+					}
+				})
+			}
+		})
+	}
+}
+
+// BenchmarkRemoteRead measures ReadFile throughput for a single file.
+// Fresh creates a new connection per iteration; Reuse keeps one connection.
+func BenchmarkRemoteRead(b *testing.B) {
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	for _, be := range fsBackends(b) {
+		b.Run(be.name, func(b *testing.B) {
+			conn := be.build(b)
+			remoteBase := path.Join(be.basePath, "bench_read_"+be.name)
+			_ = conn.Remove(remoteBase)
+			require.NoError(b, conn.MkDirAll(remoteBase))
+			b.Cleanup(func() { _ = conn.Remove(remoteBase) })
+
+			for _, size := range []int{4 * 1024, 256 * 1024, 4 * 1024 * 1024} {
+				b.Run(fmt.Sprintf("%dKB", size/1024), func(b *testing.B) {
+					// Seed one remote file of the given size.
+					remoteFile := path.Join(remoteBase, fmt.Sprintf("payload_%d.bin", size))
+					r, w := io.Pipe()
+					go func() { w.CloseWithError(writeRandom(w, size)) }()
+					require.NoError(b, conn.WriteFile(r, remoteFile))
+
+					for _, label := range []string{Fresh, Reuse} {
+						b.Run(label, func(b *testing.B) {
+							b.SetBytes(int64(size))
+							b.ResetTimer()
+							for i := 0; i < b.N; i++ {
+								c := conn
+								if label == Fresh {
+									c = be.build(b)
+								}
+								rc, err := c.ReadFile(remoteFile)
+								require.NoError(b, err)
+
+								// Force parallel read via WriteTo.
+								var buf bytes.Buffer
+								_, err = io.Copy(&buf, rc)
+								require.NoError(b, err)
+								Sink = buf.Bytes() // prevent compiler optimization
+
+								rc.Close()
+								if label == Fresh {
+									c.Close()
+								}
+							}
+						})
+					}
+				})
+			}
+		})
+	}
+}
+
+// writeRandom writes size bytes of random data to w.
+func writeRandom(w io.Writer, size int) error {
+	n, err := io.CopyN(w, rand.Reader, int64(size))
+	if err != nil {
+		return fmt.Errorf("failed to write random data: %w", err)
+	}
+	if n != int64(size) {
+		return fmt.Errorf("unexpected number of bytes written: got %d, want %d", n, size)
+	}
+	return nil
+}
+
+var SinkList []remote.FileInfo
+
+// BenchmarkRemoteList measures List latency for varying directory sizes.
+// Fresh creates a new connection per iteration; Reuse keeps one connection.
+func BenchmarkRemoteList(b *testing.B) {
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	for _, be := range fsBackends(b) {
+		b.Run(be.name, func(b *testing.B) {
+			conn := be.build(b)
+			remoteBase := path.Join(be.basePath, "bench_list_"+be.name)
+			_ = conn.Remove(remoteBase)
+			require.NoError(b, conn.MkDirAll(remoteBase))
+			b.Cleanup(func() { _ = conn.Remove(remoteBase) })
+
+			for _, count := range []int{10, 50, 200} {
+				b.Run(fmt.Sprintf("%dentries", count), func(b *testing.B) {
+					dir := path.Join(remoteBase, fmt.Sprintf("entries_%d", count))
+					require.NoError(b, conn.MkDirAll(dir))
+					for i := range count {
+						p := path.Join(dir, fmt.Sprintf("file_%04d.bin", i))
+						r, w := io.Pipe()
+						go func() { w.CloseWithError(writeRandom(w, 1024)) }()
+						require.NoError(b, conn.WriteFile(r, p))
+					}
+
+					for _, label := range []string{Fresh, Reuse} {
+						b.Run(label, func(b *testing.B) {
+							b.ResetTimer()
+							for i := 0; i < b.N; i++ {
+								c := conn
+								if label == Fresh {
+									c = be.build(b)
+								}
+								entries, err := c.List(dir)
+								require.NoError(b, err)
+								require.Len(b, entries, count)
+								SinkList = entries
+								if label == Fresh {
+									c.Close()
+								}
+							}
+						})
+					}
+				})
+			}
+		})
+	}
 }
