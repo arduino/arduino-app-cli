@@ -119,6 +119,51 @@ func SystemInit(ctx context.Context, cfg config.Configuration, platform platform
 	return nil
 }
 
+type UpgradableImage struct {
+	Image        string // image that will be pulled, e.g. ghcr.io/arduino/foo:1.3.0
+	CurrentImage string // image currently installed locally, e.g. ghcr.io/arduino/foo:1.2.0. Empty if no previous version exists.
+}
+
+// ListUpgradableImages returns the list of docker images that will be pulled or updated
+// during the next system init. For each upgradable image, it reports the new image reference
+// and the currently installed one (if any).
+func ListUpgradableImages(
+	ctx context.Context,
+	cfg config.Configuration,
+	bricksIndex *bricksindex.BricksIndex,
+	servicesIndex *servicesindex.ServicesIndex,
+	docker dockerClient.APIClient,
+) ([]UpgradableImage, error) {
+	requiredImages := []string{cfg.PythonImage}
+	brickImages, err := getAllSupportedBrickImages(bricksIndex, servicesIndex)
+	if err != nil {
+		return nil, err
+	}
+	requiredImages = append(requiredImages, brickImages...)
+
+	pulledImages, err := listImagesAlreadyPulled(ctx, docker)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []UpgradableImage
+	for _, img := range requiredImages {
+		// If the exact image (same tag) is already present locally, nothing to do.
+		if slices.Contains(pulledImages, img) {
+			continue
+		}
+
+		// Otherwise, the image is either new or a newer version of an already installed one.
+		current := GetHighestVersion(img, pulledImages)
+		result = append(result, UpgradableImage{
+			Image:        img,
+			CurrentImage: current,
+		})
+	}
+
+	return result, nil
+}
+
 func downloadSupportedImages(ctx context.Context, cfg config.Configuration, brickindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, docker *command.DockerCli, stdout io.Writer) error {
 	fmt.Fprintf(stdout, "Pulling the latest docker images ...\n")
 	imagesToPreinstall := []string{cfg.PythonImage}

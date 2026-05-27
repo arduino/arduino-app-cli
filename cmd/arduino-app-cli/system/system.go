@@ -76,9 +76,15 @@ func newUpdateCmd(cfg config.Configuration) *cobra.Command {
 			updater := update.NewManager(
 				apt.New(),
 				arduino.NewArduinoPlatformUpdater(servicelocator.GetPlatform(), cfg.ArduinoPlatformVersionConstraint),
+				orchestrator.NewContainerUpdater(
+					cfg,
+					servicelocator.GetBricksIndex(),
+					servicelocator.GetServicesIndex(),
+					servicelocator.GetDockerClient(),
+				),
 			)
 
-			pkgs, err := updater.ListUpgradablePackages(cmd.Context(), filterFunc)
+			pkgs, _, err := updater.ListUpgradablePackages(cmd.Context(), filterFunc)
 			if err != nil {
 				return err
 			}

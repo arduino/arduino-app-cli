@@ -105,6 +105,12 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 		update.NewManager(
 			apt.New(),
 			arduino.NewArduinoPlatformUpdater(servicelocator.GetPlatform(), cfg.ArduinoPlatformVersionConstraint),
+			orchestrator.NewContainerUpdater(
+				cfg,
+				servicelocator.GetBricksIndex(),
+				servicelocator.GetServicesIndex(),
+				servicelocator.GetDockerClient(),
+			),
 		),
 		servicelocator.GetProvisioner(),
 		servicelocator.GetStaticStore(),
