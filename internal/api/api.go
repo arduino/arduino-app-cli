@@ -43,6 +43,7 @@ func NewHTTPRouter(
 	platform platform.Platform,
 	cfg config.Configuration,
 	allowedOrigins []string,
+	installMgr *orchestrator.ModelInstallManager,
 ) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /debug/", http.DefaultServeMux) // pprof endpoints
@@ -62,9 +63,11 @@ func NewHTTPRouter(
 	mux.Handle("PUT /v1/system/update/apply", handlers.HandleUpdateApply(updater))
 	mux.Handle("GET /v1/system/resources", handlers.HandleSystemResources(cfg))
 
-	mux.Handle("GET /v1/models", handlers.HandleModelsList(modelsIndex))
-	mux.Handle("GET /v1/models/{modelID}", handlers.HandlerModelByID(modelsIndex))
+	mux.Handle("GET /v1/models", handlers.HandleModelsList(modelsIndex, cfg, platform))
+	mux.Handle("GET /v1/models/{modelID}", handlers.HandlerModelByID(modelsIndex, cfg))
 	mux.Handle("PUT /v1/models/ei/projects/{projectID}", handlers.HandleInstallEIModel(cfg, bricksIndex, modelsIndex, dockerClient))
+	mux.Handle("PUT /v1/models/{modelID}/install", handlers.HandleInstallModel(cfg, modelsIndex, installMgr))
+	mux.Handle("GET /v1/models/events", handlers.HandleModelInstallEvents(installMgr))
 	mux.Handle("DELETE /v1/models/{modelID}", handlers.HandlerDeleteModelByID(dockerClient, cfg, modelsIndex, bricksIndex, idProvider, platform))
 
 	mux.Handle("GET /v1/apps", handlers.HandleAppList(dockerClient, idProvider, bricksIndex, cfg))
