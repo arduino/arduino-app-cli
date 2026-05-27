@@ -57,6 +57,25 @@ func GetHighestVersion(targetImage string, existingImages []string) string {
 	return highestImg
 }
 
+// isNewerVersion returns true if newImage has a strictly higher semver tag than currentImage.
+// Both arguments are expected to share the same image base name.
+// If either tag cannot be parsed as semver, it returns true (treat as upgrade to be safe).
+func isNewerVersion(newImage, currentImage string) bool {
+	_, newTag := parseDockerImage(newImage)
+	_, currentTag := parseDockerImage(currentImage)
+
+	newVer, err := semver.Parse(newTag)
+	if err != nil {
+		return true
+	}
+	currentVer, err := semver.Parse(currentTag)
+	if err != nil {
+		return true
+	}
+	//TODO for python image we have the pre-releases like 0.10.0rc2, we should consider them as lower than the final release (0.10.0). but semver considers them as higher. We should add a special handling for this case?
+	return currentVer.LessThan(newVer)
+}
+
 // Splits a docker image in the name and tag/version parts.
 func parseDockerImage(image string) (name string, version string) {
 	if idx := strings.LastIndex(image, "@"); idx != -1 {
