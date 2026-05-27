@@ -30,7 +30,7 @@ func HandleCheckUpgradable(updater *update.Manager) http.HandlerFunc {
 			filterFunc = update.MatchArduinoPackage
 		}
 
-		pkgs, err := updater.ListUpgradablePackages(r.Context(), filterFunc)
+		pkgs, images, err := updater.ListUpgradablePackages(r.Context(), filterFunc)
 		if err != nil {
 			code := update.GetUpdateErrorCode(err)
 			if code == update.OperationInProgressCode {
@@ -51,12 +51,13 @@ func HandleCheckUpgradable(updater *update.Manager) http.HandlerFunc {
 			return
 		}
 
-		render.EncodeResponse(w, http.StatusOK, UpdateCheckResult{Packages: pkgs})
+		render.EncodeResponse(w, http.StatusOK, UpdateCheckResult{Packages: pkgs, Images: images})
 	}
 }
 
 type UpdateCheckResult struct {
 	Packages []update.UpgradablePackage `json:"updates"`
+	Images   []update.UpgradableImage   `json:"upgradable_images,omitempty"`
 }
 
 func HandleUpdateApply(updater *update.Manager) http.HandlerFunc {
@@ -72,7 +73,7 @@ func HandleUpdateApply(updater *update.Manager) http.HandlerFunc {
 			filterFunc = update.MatchArduinoPackage
 		}
 
-		pkgs, err := updater.ListUpgradablePackages(r.Context(), filterFunc)
+		pkgs, _, err := updater.ListUpgradablePackages(r.Context(), filterFunc)
 		if err != nil {
 			code := update.GetUpdateErrorCode(err)
 			if code == update.OperationInProgressCode {

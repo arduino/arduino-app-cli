@@ -110,7 +110,7 @@ func TestManagerListUpgradablePackages(t *testing.T) {
 			}
 			m := newTestManager(svc1, svc2)
 
-			results, err := m.ListUpgradablePackages(context.Background(), nil)
+			results, _, err := m.ListUpgradablePackages(context.Background(), nil)
 			if tc.expectErr {
 				require.Error(t, err)
 				return
@@ -146,7 +146,7 @@ func TestManagerListUpgradablePackagesMultipleConcurrentChecks(t *testing.T) {
 	for i := range n {
 		go func(idx int) {
 			defer wg.Done()
-			_, errs[idx] = m.ListUpgradablePackages(context.Background(), nil)
+			_, _, errs[idx] = m.ListUpgradablePackages(context.Background(), nil)
 		}(i)
 	}
 	wg.Wait()
@@ -172,14 +172,14 @@ func TestManagerListUpgradablePackagesMultipleConcurrentChecks(t *testing.T) {
 	require.NoError(t, err, "unexpected error starting upgrade")
 	<-started
 
-	_, err = m.ListUpgradablePackages(context.Background(), nil)
+	_, _, err = m.ListUpgradablePackages(context.Background(), nil)
 	require.ErrorIs(t, err, ErrOperationAlreadyInProgress, "expected ErrOperationAlreadyInProgress during upgrade")
 
 	// Wait for upgrade goroutine to finish
 	time.Sleep(300 * time.Millisecond)
 
 	// After upgrade completes, check should work again
-	_, err = m.ListUpgradablePackages(context.Background(), nil)
+	_, _, err = m.ListUpgradablePackages(context.Background(), nil)
 	require.NoError(t, err, "unexpected error after upgrade completed")
 }
 

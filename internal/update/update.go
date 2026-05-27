@@ -45,34 +45,45 @@ type ServiceUpdater interface {
 	UpgradePackages(ctx context.Context, packages []PackageInfo, eventCB EventCallback) error
 }
 
+type UpgradableImage struct {
+	Image        string `json:"from_version,omitempty"`
+	CurrentImage string `json:"to_version,omitempty"`
+}
+
+type ContainerUpdater interface {
+	ListUpgradableImages(ctx context.Context) ([]UpgradableImage, error)
+}
+
 type Manager struct {
 	lock                         sync.Mutex
 	isUpgrading                  atomic.Bool
 	debUpdateService             ServiceUpdater
 	arduinoPlatformUpdateService ServiceUpdater
+	containerUpdateService       ContainerUpdater
 
 	mu   sync.RWMutex
 	subs map[chan Event]struct{}
 }
 
-func NewManager(debUpdateService ServiceUpdater, arduinoPlatformUpdateService ServiceUpdater) *Manager {
+func NewManager(debUpdateService ServiceUpdater, arduinoPlatformUpdateService ServiceUpdater, containerUpdateService ContainerUpdater) *Manager {
 	return &Manager{
 		debUpdateService:             debUpdateService,
 		arduinoPlatformUpdateService: arduinoPlatformUpdateService,
+		containerUpdateService:       containerUpdateService,
 		subs:                         make(map[chan Event]struct{}),
 	}
 }
 
-func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(UpgradablePackage) bool) ([]UpgradablePackage, error) {
+func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(UpgradablePackage) bool) ([]UpgradablePackage, []UpgradableImage, error) {
 	// Atomically check if an upgrade operation is already in progress. See https://github.com/arduino/arduino-app-cli/issues/381.
 	if m.isUpgrading.Load() {
-		return nil, ErrOperationAlreadyInProgress
+		return nil, nil, ErrOperationAlreadyInProgress
 	}
 
 	// Make sure to be connected to the internet, before checking for updates.
 	// This is needed because the checks below work also when offline (using cached data).
 	if !isConnected() {
-		return nil, ErrNoInternetConnection
+		return nil, nil, ErrNoInternetConnection
 	}
 
 	// Get the list of upgradable packages from two sources (deb and platform) in parallel.
@@ -80,6 +91,7 @@ func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(Upgra
 	var (
 		debPkgs     []UpgradablePackage
 		arduinoPkgs []UpgradablePackage
+		images      []UpgradableImage
 	)
 
 	g.Go(func() error {
@@ -100,12 +112,21 @@ func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(Upgra
 		return nil
 	})
 
+	g.Go(func() error {
+		imgs, err := m.containerUpdateService.ListUpgradableImages(ctx)
+		if err != nil {
+			return err
+		}
+		images = imgs
+		return nil
+	})
+
 	// Wait for all the checks to complete (or any to fail).
 	if err := g.Wait(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return append(arduinoPkgs, debPkgs...), nil
+	return append(arduinoPkgs, debPkgs...), images, nil
 }
 
 func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage) error {
