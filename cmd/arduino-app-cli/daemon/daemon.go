@@ -116,6 +116,7 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 		servicelocator.GetPlatform(),
 		cfg,
 		corsConfig.Origins,
+		orchestrator.NewModelInstallManager(),
 	)
 
 	// Wrap the API server with CORS middleware
