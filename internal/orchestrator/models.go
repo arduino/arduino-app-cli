@@ -6,9 +6,7 @@
 package orchestrator
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -48,21 +46,6 @@ type AIModelItem struct {
 	Installed         bool              `json:"installed"`
 }
 
-type handlerModelListOutput struct {
-	Event  string              `json:"event"`
-	Models []handlerModelEntry `json:"models"`
-}
-
-type handlerModelEntry struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Handler   string `json:"handler"`
-	Platform  string `json:"platform"`
-	ModelType string `json:"model_type"`
-	Path      string `json:"path"`
-	Installed bool   `json:"installed"`
-}
-
 type AIModelsListRequest struct {
 	FilterByBrickID []string
 }
@@ -89,35 +72,14 @@ func AIModelsList(ctx context.Context, req AIModelsListRequest, modelsIndex *mod
 		}
 	}
 
-	// Always augment with handler list to get authoritative Installed status.
-	for _, handler := range modelsIndex.Handlers.AllHandlers() {
-		entries, err := runListAction(ctx, handler, cfg, plat)
-		if err != nil {
-			slog.Warn("cannot list models from handler", "handler", handler.ID, "err", err)
-			continue
-		}
-		for _, entry := range entries {
-			if existing, ok := resultMap[entry.ID]; ok {
-				existing.Installed = entry.Installed
-				resultMap[entry.ID] = existing
-			} else if len(req.FilterByBrickID) == 0 {
-				resultMap[entry.ID] = AIModelItem{
-					ID:        entry.ID,
-					Name:      entry.Name,
-					Installed: entry.Installed,
-				}
-			}
+	for id, installed := range modelsIndex.Handlers.InstalledStatuses(ctx, cfg, plat) {
+		if existing, ok := resultMap[id]; ok {
+			existing.Installed = installed
+			resultMap[id] = existing
 		}
 	}
 
-	result := make([]AIModelItem, 0, len(resultMap))
-	for _, item := range resultMap {
-		result = append(result, item)
-	}
-	slices.SortFunc(result, func(a, b AIModelItem) int {
-		return strings.Compare(a.ID, b.ID)
-	})
-	return AIModelsListResult{Models: result}
+	return AIModelsListResult{Models: slices.Collect(maps.Values(resultMap))}
 }
 
 func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, id string, cfg config.Configuration) (AIModelItem, bool) {
@@ -154,15 +116,8 @@ func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, i
 	}, true
 }
 
-// modelInstalled returns whether the model's files are present on disk.
-// Custom models (loaded from the filesystem) are always installed by definition.
-// Pre-loaded internal models are always installed.
-// Handler-managed internal models are checked via the handler's check action.
 func modelInstalled(ctx context.Context, model *modelsindex.AIModel, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration) bool {
 	if !model.IsInternal {
-		return true
-	}
-	if model.Deployment == nil || model.Deployment.PreLoaded || model.Deployment.Handler == "" {
 		return true
 	}
 	handler, ok := modelsIndex.Handlers.GetHandlerByID(model.Deployment.Handler)
@@ -170,12 +125,7 @@ func modelInstalled(ctx context.Context, model *modelsindex.AIModel, modelsIndex
 		return false
 	}
 	downloadPath := cfg.CustomModelsDir().Join(handler.ID).Join(model.ID)
-	installed, err := isModelDownloaded(ctx, *model, handler, downloadPath)
-	if err != nil {
-		slog.Warn("cannot check model installed status", "model", model.ID, "err", err)
-		return false
-	}
-	return installed
+	return isModelDownloaded(ctx, *model, handler, downloadPath)
 }
 
 func getModelSize(dirPath *paths.Path) (uint64, error) {
@@ -224,7 +174,6 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 		return fmt.Errorf("%q: %w", id, ErrNotFound)
 	}
 
-	// Pre-loaded internal models and internal models with no handler cannot be removed.
 	if res.IsInternal {
 		if res.Deployment == nil || res.Deployment.PreLoaded || res.Deployment.Handler == "" {
 			return ErrCannotRemoveModel
@@ -248,8 +197,7 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 		}
 	}
 
-	// Handler-managed internal model: delegate removal to the handler's delete action.
-	if res.IsInternal {
+	if res.Deployment != nil && res.Deployment.Handler != "" {
 		handler, ok := modelsIndex.Handlers.GetHandlerByID(res.Deployment.Handler)
 		if !ok {
 			return fmt.Errorf("handler %q not found for model %q", res.Deployment.Handler, id)
@@ -523,9 +471,7 @@ func InstallModelByHandler(ctx context.Context, modelID string, modelsIndex *mod
 
 	downloadPath := cfg.CustomModelsDir().Join(handler.ID).Join(model.ID)
 
-	if downloaded, err := isModelDownloaded(ctx, *model, handler, downloadPath); err != nil {
-		return fmt.Errorf("cannot check model %q: %w", modelID, err)
-	} else if downloaded {
+	if isModelDownloaded(ctx, *model, handler, downloadPath) {
 		slog.Info("model already installed", "model", modelID)
 		mgr.broadcast(modelID, ModelInstallEvent{Type: ModelInstallEventDone})
 		return nil
@@ -543,13 +489,13 @@ func InstallModelByHandler(ctx context.Context, modelID string, modelsIndex *mod
 	return err
 }
 
-func isModelDownloaded(ctx context.Context, model modelsindex.AIModel, handler modelsindex.ModelHandler, downloadPath *paths.Path) (bool, error) {
+func isModelDownloaded(ctx context.Context, model modelsindex.AIModel, handler modelsindex.ModelHandler, downloadPath *paths.Path) bool {
 	err := runHandlerAction(ctx, model, handler.Image, handler.Actions.Check, downloadPath, nil)
 	if err != nil {
 		slog.Debug("model check reported not downloaded", "model", model.ID, "err", err)
-		return false, nil
+		return false
 	}
-	return true, nil
+	return true
 }
 
 func installModel(ctx context.Context, model modelsindex.AIModel, handler modelsindex.ModelHandler, downloadPath *paths.Path, publish func(ModelInstallEvent)) error {
@@ -559,102 +505,3 @@ func installModel(ctx context.Context, model modelsindex.AIModel, handler models
 	return runHandlerAction(ctx, model, handler.Image, handler.Actions.Download, downloadPath, publish)
 }
 
-// runListAction runs the container's list script and returns the parsed model entries.
-// The script reads models-list.yaml baked into the image and checks /models for
-// installed status.
-func runListAction(ctx context.Context, handler modelsindex.ModelHandler, cfg config.Configuration, plat platform.Platform) ([]handlerModelEntry, error) {
-	handlerModelsDir := cfg.CustomModelsDir().Join(handler.ID)
-
-	args := []string{
-		"docker", "run", "--rm",
-		"-v", fmt.Sprintf("%s:/models", handlerModelsDir),
-	}
-	if plat.BoardName != "" {
-		args = append(args, "-e", fmt.Sprintf("board=%s", plat.BoardName))
-	}
-	args = append(args, handler.Image, "list_models.sh")
-
-	slog.Debug("running list action", "handler", handler.ID, "image", handler.Image)
-	process, err := paths.NewProcess(nil, args...)
-	if err != nil {
-		return nil, err
-	}
-
-	var buf bytes.Buffer
-	process.RedirectStdoutTo(&buf)
-	process.RedirectStderrTo(slog.NewLogLogger(slog.Default().Handler(), slog.LevelDebug).Writer())
-
-	if err := process.RunWithinContext(ctx); err != nil {
-		return nil, fmt.Errorf("list action failed: %w", err)
-	}
-
-	var output handlerModelListOutput
-	if err := json.Unmarshal(buf.Bytes(), &output); err != nil {
-		return nil, fmt.Errorf("parsing list output: %w", err)
-	}
-
-	return output.Models, nil
-}
-
-func runHandlerAction(ctx context.Context, model modelsindex.AIModel, image string, action string, downloadPath *paths.Path, publish func(ModelInstallEvent)) error {
-	args := []string{
-		"docker", "run", "--rm",
-		"-v", fmt.Sprintf("%s:/models", downloadPath),
-		image,
-		action,
-		model.ID,
-	}
-
-	slog.Debug("running handler action", "model", model.ID, "action", action, "image", image)
-	process, err := paths.NewProcess(nil, args...)
-	if err != nil {
-		return err
-	}
-	process.RedirectStderrTo(slog.NewLogLogger(slog.Default().Handler(), slog.LevelDebug).Writer())
-	if publish != nil {
-		process.RedirectStdoutTo(&handlerOutputParser{publish: publish})
-	} else {
-		process.RedirectStdoutTo(slog.NewLogLogger(slog.Default().Handler(), slog.LevelDebug).Writer())
-	}
-	return process.RunWithinContext(ctx)
-}
-
-// handlerOutputParser parses newline-delimited JSON from container stdout and
-// emits ModelInstallEvents. Container scripts emit {"event":"info|error","description":"..."}.
-type handlerOutputParser struct {
-	publish func(ModelInstallEvent)
-	buf     []byte
-}
-
-func (p *handlerOutputParser) Write(b []byte) (int, error) {
-	p.buf = append(p.buf, b...)
-	for {
-		idx := bytes.IndexByte(p.buf, '\n')
-		if idx == -1 {
-			break
-		}
-		line := bytes.TrimSpace(p.buf[:idx])
-		p.buf = p.buf[idx+1:]
-		if len(line) == 0 {
-			continue
-		}
-		p.parseLine(line)
-	}
-	return len(b), nil
-}
-
-func (p *handlerOutputParser) parseLine(line []byte) {
-	var raw struct {
-		Event       string `json:"event"`
-		Description string `json:"description"`
-	}
-	if err := json.Unmarshal(line, &raw); err != nil {
-		slog.Debug("non-JSON stdout from handler", "line", string(line))
-		return
-	}
-	eventType := ModelInstallEventInfo
-	if raw.Event == "error" {
-		eventType = ModelInstallEventError
-	}
-	p.publish(ModelInstallEvent{Type: eventType, Description: raw.Description})
-}
