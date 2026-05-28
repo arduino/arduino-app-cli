@@ -39,11 +39,13 @@ func NewContainerUpdater(
 }
 
 func (c *ContainerUpdater) ListUpgradableImages(ctx context.Context) ([]update.UpgradableImage, error) {
-	requiredImages := []string{c.cfg.PythonImage}
 	brickImages, err := getAllSupportedBrickImages(c.bricksIndex, c.servicesIndex)
 	if err != nil {
 		return nil, err
 	}
+
+	requiredImages := make([]string, 0, 1+len(brickImages))
+	requiredImages = append(requiredImages, c.cfg.PythonImage)
 	requiredImages = append(requiredImages, brickImages...)
 
 	pulledImages, err := listImagesAlreadyPulled(ctx, c.docker.Client())
