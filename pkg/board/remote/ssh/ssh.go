@@ -159,7 +159,12 @@ func (a *SSHConnection) ForwardKillAll(ctx context.Context) error {
 
 // dialSftp creates a new SFTP client using the existing SSH connection.
 func (a *SSHConnection) dialSftp() (*sftp.Client, []sftpfs.CloseFunc, error) {
-	client, err := sftp.NewClient(a.client)
+	client, err := sftp.NewClient(a.client,
+		sftp.MaxPacketUnchecked(1<<17), // 128 KiB packets
+		sftp.MaxConcurrentRequestsPerFile(64),
+		sftp.UseConcurrentReads(true),
+		sftp.UseConcurrentWrites(true),
+	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create sftp client: %w", err)
 	}
