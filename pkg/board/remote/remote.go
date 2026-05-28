@@ -31,6 +31,10 @@ type FS interface {
 	List(path string) ([]FileInfo, error)
 	MkDirAll(path string) error
 	WriteFile(data io.Reader, path string) error
+	// ReadFile opens the file at path for reading.
+	// Prefer io.Copy over io.ReadAll to drain the reader: some backends
+	// (e.g. sftp) use WriteTo to fetch concurrently, which is much faster
+	// on high-latency links.
 	ReadFile(path string) (io.ReadCloser, error)
 	Remove(path string) error
 	Stats(path string) (FileInfo, error)

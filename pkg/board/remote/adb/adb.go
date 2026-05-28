@@ -9,7 +9,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -123,16 +122,20 @@ func (a *ADBConnection) dialSftp() (*sftp.Client, []sftpfs.CloseFunc, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, nil, fmt.Errorf("failed to start sftp-server: %w", err)
 	}
-	client, err := sftp.NewClientPipe(stdout, stdin)
+	client, err := sftp.NewClientPipe(stdout, stdin,
+		sftp.MaxPacketUnchecked(1<<17), // 128 KiB packets
+		sftp.MaxConcurrentRequestsPerFile(64),
+		sftp.UseConcurrentReads(true),
+		sftp.UseConcurrentWrites(true),
+	)
 	if err != nil {
 		_ = cmd.Kill()
 		_ = cmd.Wait()
 		return nil, nil, fmt.Errorf("failed to create sftp client: %w", err)
 	}
 	return client, []sftpfs.CloseFunc{func() error {
-		err1 := cmd.Kill()
-		err2 := cmd.Wait()
-		return errors.Join(err1, err2)
+		_ = cmd.Kill() // best-effort, process should exit on its own
+		return cmd.Wait()
 	}}, nil
 }
 
