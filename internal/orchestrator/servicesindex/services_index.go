@@ -35,7 +35,7 @@ func Load(platform platform.Platform, dir *paths.Path) (*ServicesIndex, error) {
 	if !dir.IsDir() {
 		return &ServicesIndex{}, nil
 	}
-	services, err := loadFromFolder(dir)
+	services, err := loadFromFolder(platform, dir)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (s *ServicesIndex) FindServiceByID(id string) (*Service, bool) {
 	return &s.Services[idx], true
 }
 
-func loadFromFolder(dir *paths.Path) ([]Service, error) {
+func loadFromFolder(platform platform.Platform, dir *paths.Path) ([]Service, error) {
 	pathsList, err := dir.ReadDirRecursiveFiltered(nil, paths.AndFilter(paths.FilterDirectories(), func(file *paths.Path) bool {
 		return file.Join("service_config.yaml").Exist()
 	}))
@@ -74,7 +74,7 @@ func loadFromFolder(dir *paths.Path) ([]Service, error) {
 
 	services := make([]Service, 0, len(pathsList))
 	for _, path := range pathsList {
-		service, err := load(path)
+		service, err := load(platform, path)
 		if err != nil {
 			return nil, err
 		}
@@ -83,7 +83,7 @@ func loadFromFolder(dir *paths.Path) ([]Service, error) {
 	return services, nil
 }
 
-func load(servicePath *paths.Path) (a Service, err error) {
+func load(platform platform.Platform, servicePath *paths.Path) (a Service, err error) {
 	serviceConfigPath := servicePath.Join("service_config.yaml")
 	if serviceConfigPath.NotExist() {
 		return Service{}, fmt.Errorf("service_config.yaml does not exist: %v", serviceConfigPath)
@@ -96,6 +96,12 @@ func load(servicePath *paths.Path) (a Service, err error) {
 	if err := yaml.Unmarshal(serviceConfigContent, &service); err != nil {
 		return Service{}, fmt.Errorf("cannot unmarshal service_config.yaml: %w", err)
 	}
-	service.ComposeFile = servicePath.Join("service_compose.yaml")
+	composeFile := servicePath.Join("service_compose.yaml")
+	if platform.BoardName != "" {
+		if platformCompose := servicePath.Join("service_compose." + platform.BoardName + ".yaml"); platformCompose.Exist() {
+			composeFile = platformCompose
+		}
+	}
+	service.ComposeFile = composeFile
 	return service, nil
 }
