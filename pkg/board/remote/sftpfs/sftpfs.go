@@ -205,6 +205,7 @@ func (s *SftpFS) MkDirAll(path string) error {
 		return fmt.Errorf("failed to create directory %q: %w", path, err)
 	}
 
+	// FIXME: MkdirAll should set the permissions of all created directories, but sftp package doesn't support that.
 	if err := c.Chmod(path, 0775); err != nil {
 		return fmt.Errorf("failed to set permissions for directory %q: %w", path, err)
 	}
