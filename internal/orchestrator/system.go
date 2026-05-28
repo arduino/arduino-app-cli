@@ -44,13 +44,13 @@ var ErrDockerOutOfSpace = errors.New("not enough disk space to pull the docker i
 
 const ExitCodeDockerOutOfSpace = 80
 
-type initProgress struct {
-	label string
-	curr  int64
-	total int64
+type InitProgress struct {
+	Label string
+	Curr  int64
+	Total int64
 }
 
-type initProgressCallback func(progress initProgress)
+type InitProgressCallback func(progress InitProgress)
 
 type SystemInitOptions struct {
 	OnlyDockerImages    bool
@@ -67,24 +67,10 @@ func (o SystemInitOptions) Validate() error {
 // SystemInit pulls all the docker images needed for the current version of the software to run and the
 // sketch libraries used in the example apps. Can be used to pre-install docker images/libraries on an
 // empty system, or to update all the docker images/libraries that need it.
-func SystemInit(ctx context.Context, cfg config.Configuration, platform platform.Platform, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, docker *command.DockerCli, options SystemInitOptions) error {
+func SystemInit(ctx context.Context, cfg config.Configuration, platform platform.Platform, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, docker *command.DockerCli, options SystemInitOptions,
+	progressCB InitProgressCallback, stdout io.Writer) error {
 	if err := options.Validate(); err != nil {
 		return err
-	}
-
-	stdout, _, err := feedback.DirectStreams()
-	if err != nil {
-		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
-		return nil
-	}
-
-	// TODO: Move this callback up in the call chain, closer to Cobra command definition
-	progressCB := func(progress initProgress) {
-		percentage := float64(progress.curr) / float64(progress.total) * 100
-		fmt.Fprintf(stdout, "%s: %.2f%% (%d/%d)\r", progress.label, percentage, progress.curr, progress.total)
-		if progress.curr == progress.total {
-			fmt.Fprintln(stdout)
-		}
 	}
 
 	var downloadPlatformAndLibs, downloadDockerImages bool
@@ -111,7 +97,7 @@ func SystemInit(ctx context.Context, cfg config.Configuration, platform platform
 
 	if downloadDockerImages {
 		// TODO: use progressCB instead of stdout
-		if err := downloadSupportedImages(ctx, cfg, bricksindex, servicesindex, docker, stdout); err != nil {
+		if err := downloadSupportedImages(ctx, cfg, bricksindex, servicesindex, docker, stdout, progressCB); err != nil {
 			return fmt.Errorf("failed to download container images used in examples: %w", err)
 		}
 	}
@@ -164,7 +150,15 @@ func ListUpgradableImages(
 	return result, nil
 }
 
-func downloadSupportedImages(ctx context.Context, cfg config.Configuration, brickindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, docker *command.DockerCli, stdout io.Writer) error {
+func downloadSupportedImages(
+	ctx context.Context,
+	cfg config.Configuration,
+	brickindex *bricksindex.BricksIndex,
+	servicesindex *servicesindex.ServicesIndex,
+	docker *command.DockerCli,
+	stdout io.Writer,
+	progressCB InitProgressCallback,
+) error {
 	fmt.Fprintf(stdout, "Pulling the latest docker images ...\n")
 	imagesToPreinstall := []string{cfg.PythonImage}
 	brickImages, err := getAllSupportedBrickImages(brickindex, servicesindex)
@@ -178,28 +172,60 @@ func downloadSupportedImages(ctx context.Context, cfg config.Configuration, bric
 		return err
 	}
 
-	// Filter out container images that are alredy pulled
+	// Filter out container images that are already pulled
 	imagesToPreinstall = slices.DeleteFunc(imagesToPreinstall, func(v string) bool {
 		return slices.Contains(pulledImages, v)
 	})
 
+	// Pre-compute bytes to download for each image, so we know the total upfront
+	// and we don't have to call GetBytesToDownload twice per image.
+	bytesByImage := make(map[string]int64, len(imagesToPreinstall))
+	var totalBytes int64
+	for _, image := range imagesToPreinstall {
+		previousExistingImage := GetHighestVersion(image, pulledImages)
+		toDownload, err := GetBytesToDownload(previousExistingImage, image, stdout)
+		if err != nil {
+			// In case of errors, proceed anyway: this image won't contribute to the total.
+			slog.Warn("Unable to get the new image layers size", "image", image, "error", err)
+			continue
+		}
+		bytesByImage[image] = toDownload
+		totalBytes += toDownload
+	}
+
+	downloaded := make(map[string]int64) // layerID -> bytes downloaded
+	var downloadedBytes int64
+
+	onLayerProgress := func(layerID string, current int64) {
+		if progressCB == nil {
+			return
+		}
+		// Update the running total: add the delta since the last update for this layer.
+		downloadedBytes += current - downloaded[layerID]
+		downloaded[layerID] = current
+
+		progressCB(InitProgress{
+			Label: "Pulling docker images",
+			Curr:  downloadedBytes,
+			Total: totalBytes,
+		})
+	}
+
+	// Pull images
 	for _, image := range imagesToPreinstall {
 		freeSpace, err := GetDockerFreeSpace()
 		if err != nil {
 			return err
 		}
 
-		// Check that there is enough disk space for the additional layers needed by the image.
-		previousExistingImage := GetHighestVersion(image, pulledImages)
-		if toDownload, err := GetBytesToDownload(previousExistingImage, image, stdout); err != nil {
-			// In case of errors getting the size to download, proceed anyway.
-			slog.Warn("Unable to get the new image layers size", "image", image, "error", err)
-		} else if uint64(float64(toDownload)*2.5) > freeSpace {
-			return ErrDockerOutOfSpace
+		if toDownload, ok := bytesByImage[image]; ok {
+			if uint64(float64(toDownload)*2.5) > freeSpace {
+				return ErrDockerOutOfSpace
+			}
 		}
 
 		feedback.Printf("Pulling container image %s ...", image)
-		if err := pullImage(ctx, stdout, docker.Client(), image); err != nil {
+		if err := pullImage(ctx, stdout, docker.Client(), image, onLayerProgress); err != nil {
 			return fmt.Errorf("failed to pull image %s: %w", image, err)
 		}
 	}
@@ -210,7 +236,17 @@ func downloadSupportedImages(ctx context.Context, cfg config.Configuration, bric
 const minDelay = 1 * time.Second
 const maxDelay = 10 * time.Second
 
-func pullImage(ctx context.Context, stdout io.Writer, docker dockerClient.APIClient, imageName string) error {
+// layerProgressCallback is invoked for each per-layer progress event reported by docker.
+// layerID identifies the docker layer; current is the number of bytes downloaded so far.
+type layerProgressCallback func(layerID string, current int64)
+
+func pullImage(
+	ctx context.Context,
+	stdout io.Writer,
+	docker dockerClient.APIClient,
+	imageName string,
+	onLayerProgress layerProgressCallback,
+) error {
 	delay := minDelay
 	var out io.ReadCloser
 	var allErr error
@@ -242,10 +278,15 @@ func pullImage(ctx context.Context, stdout io.Writer, docker dockerClient.APICli
 
 	scanner := bufio.NewScanner(out)
 	for scanner.Scan() {
+		type ProgressDetail struct {
+			Current int64 `json:"current"`
+			Total   int64 `json:"total"`
+		}
 		type Payload struct {
-			Status   string `json:"status"`
-			Progress string `json:"progress"`
-			ID       string `json:"id"`
+			Status         string         `json:"status"`
+			Progress       string         `json:"progress"`
+			ID             string         `json:"id"`
+			ProgressDetail ProgressDetail `json:"progressDetail"`
 		}
 
 		var payload Payload
@@ -257,6 +298,14 @@ func pullImage(ctx context.Context, stdout io.Writer, docker dockerClient.APICli
 				fmt.Fprintf(stdout, "[%s] %s\r", payload.ID, payload.Progress)
 			} else {
 				fmt.Fprintln(stdout)
+			}
+
+			// Notify per-layer download progress (only during the Downloading phase).
+			if onLayerProgress != nil &&
+				payload.ID != "" &&
+				payload.ProgressDetail.Total > 0 &&
+				payload.Status == "Downloading" {
+				onLayerProgress(payload.ID, payload.ProgressDetail.Current)
 			}
 		}
 	}
@@ -542,7 +591,7 @@ func installPlatformPackage(ctx context.Context, plat platform.Platform, stdout 
 	return nil
 }
 
-func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Configuration, platform platform.Platform, progressCB initProgressCallback) error {
+func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Configuration, platform platform.Platform, progressCB InitProgressCallback) error {
 	// Start an Arduino Core Server RPC server
 	logrus.SetOutput(io.Discard) // Suppress logs from Arduino CLI
 	var cliInstance *rpc.Instance
@@ -571,10 +620,10 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 		}
 		if update := curr.GetUpdate(); update != nil {
 			totalSize = update.GetTotalSize()
-			progressCB(initProgress{
-				label: currLabel,
-				curr:  update.GetDownloaded(),
-				total: totalSize,
+			progressCB(InitProgress{
+				Label: currLabel,
+				Curr:  update.GetDownloaded(),
+				Total: totalSize,
 			})
 		}
 	}

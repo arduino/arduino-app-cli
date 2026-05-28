@@ -50,10 +50,21 @@ func newDownloadImageCmd(cfg config.Configuration) *cobra.Command {
 		Args:   cobra.ExactArgs(0),
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+
+			stdout, _, err := feedback.DirectStreams()
+			if err != nil {
+				feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+				return nil
+			}
+			progressCB := func(progress orchestrator.InitProgress) {
+				percentage := float64(progress.Curr) / float64(progress.Total) * 100
+				fmt.Fprintf(stdout, "[AGGREGATED] %s: %.2f%% (%d/%d)\n", progress.Label, percentage, progress.Curr, progress.Total)
+			}
+
 			return orchestrator.SystemInit(cmd.Context(), cfg, servicelocator.GetPlatform(), servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), servicelocator.GetDockerClient(), orchestrator.SystemInitOptions{
 				OnlyDockerImages:    onlyImages,
 				OnlyPlatformAndLibs: onlyPlatformAndLibraries,
-			})
+			}, progressCB, stdout)
 		},
 	}
 
