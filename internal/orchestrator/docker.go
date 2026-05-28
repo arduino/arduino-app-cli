@@ -72,7 +72,7 @@ func isNewerVersion(newImage, currentImage string) bool {
 	if err != nil {
 		return true
 	}
-	//TODO for python image we have the pre-releases like 0.10.0rc2, we should consider them as lower than the final release (0.10.0). but semver considers them as higher. We should add a special handling for this case?
+	// TODO for python image we have the pre-releases like 0.10.0rc2, we should consider them as lower than the final release (0.10.0). but semver considers them as higher. We should add a special handling for this case?
 	return currentVer.LessThan(newVer)
 }
 
