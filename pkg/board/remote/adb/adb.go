@@ -125,7 +125,7 @@ func (a *ADBConnection) resolveSftpBinary() string {
 // client speaking SFTP over its stdio. The returned closer kills the process.
 func (a *ADBConnection) dialSftp() (*sftp.Client, []sftpfs.CloseFunc, error) {
 	binary := a.getSftpBinary()
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", binary)
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "-T", "-x", binary)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create sftp-server command: %w", err)
 	}
