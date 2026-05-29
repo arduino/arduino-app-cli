@@ -33,7 +33,7 @@ jobs:
         os: [ubuntu-latest, windows-latest]
 
     steps:
-      - name: install dependencies [Linux]
+      - name: Install dependencies [Linux]
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
@@ -46,6 +46,59 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+
+      - name: Set up WSL with Docker [Windows]
+        if: runner.os == 'Windows'
+        uses: Vampire/setup-wsl@v6
+        with:
+          distribution: Ubuntu-24.04
+          additional-packages: docker.io
+
+      - name: Start Docker daemon in WSL and expose over TCP [Windows]
+        if: runner.os == 'Windows'
+        run: |
+          # Keep WSL2 distro alive across subsequent steps by running a
+          # long-lived process in the background. WSL2 reaps a distro once
+          # all its processes exit.
+          Start-Process -FilePath "wsl.exe" `
+            -ArgumentList "-d","Ubuntu-24.04","--","sleep","infinity" `
+            -WindowStyle Hidden
+
+          # Launch dockerd detached inside WSL. `setsid` + `nohup` + closed
+          # fds prevent WSL from tearing the process down when this wsl
+          # invocation returns.
+          wsl -d Ubuntu-24.04 -- bash -c "setsid bash -c 'nohup dockerd -H tcp://0.0.0.0:2375 -H unix:///var/run/docker.sock </dev/null >/tmp/dockerd.log 2>&1 &'"
+
+          # Wait for dockerd readiness via the UNIX socket inside WSL.
+          $ok = $false
+          for ($i = 0; $i -lt 30; $i++) {
+            wsl -d Ubuntu-24.04 -- docker -H unix:///var/run/docker.sock info *> $null
+            if ($LASTEXITCODE -eq 0) { $ok = $true; break }
+            Start-Sleep -Seconds 1
+          }
+          if (-not $ok) {
+            Write-Host "dockerd failed to start"
+            wsl -d Ubuntu-24.04 -- cat /tmp/dockerd.log
+            exit 1
+          }
+          Write-Host "dockerd is up"
+          # WSL2 localhost forwarding is unreliable for services bound by
+          # background processes. Use the WSL2 VM's IP directly.
+          $wslIp = (wsl -d Ubuntu-24.04 -- hostname -I).Trim().Split()[0]
+          Write-Host "WSL2 IP: $wslIp"
+          "DOCKER_HOST=tcp://${wslIp}:2375" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Install adb and docker CLI [Windows]
+        if: runner.os == 'Windows'
+        run: choco install adb docker-cli -y --no-progress
+
+      - name: Verify docker setup [Windows]
+        if: runner.os == 'Windows'
+        run: |
+          docker version
+          docker info
+          adb version
+          docker build -t adbd -f adbd.Dockerfile .
 
       - name: Run `pkg` tests
         run: go tool task test:pkg

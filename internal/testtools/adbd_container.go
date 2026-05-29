@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -21,18 +20,13 @@ import (
 )
 
 func StartAdbDContainer(t testing.TB) (string, string, string) {
-	if runtime.GOOS != "linux" && os.Getenv("CI") != "" {
-		t.Skip("Skipping tests in CI that requires docker on non-Linux systems")
-	}
 	t.Helper()
-
 	cmd := exec.Command("docker", "build", "-t", "adbd", "-f", "adbd.Dockerfile", ".")
 	cmd.Dir = getBaseProjectPath(t)
-	err := cmd.Run()
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("failed to build adb daemon: %v", err)
+		t.Fatalf("failed to build adb daemon: %v\n%s", err, out)
 	}
-
 	containerName := genContainerName(t)
 	var adbPort, sshPort string
 	for range 10 {
