@@ -208,6 +208,7 @@ func (a *ADBConnection) ForwardKillAll(ctx context.Context) error {
 }
 
 func (a *ADBConnection) Close() error {
+	// TODO: we should keep track of the active ports and remove them on close.
 	return a.Teardown()
 }
 
