@@ -17,6 +17,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type mockContainerUpdater struct {
+	listFn func(ctx context.Context) ([]UpgradableImage, error)
+}
+
+func (m *mockContainerUpdater) ListUpgradableImages(ctx context.Context) ([]UpgradableImage, error) {
+	if m.listFn != nil {
+		return m.listFn(ctx)
+	}
+	return nil, nil
+}
+
 type mockServiceUpdater struct {
 	checkFn func(ctx context.Context, matcher func(UpgradablePackage) bool) ([]UpgradablePackage, error)
 	applyFn func(ctx context.Context, packages []PackageInfo, eventCB EventCallback) error
@@ -36,10 +47,11 @@ func (m *mockServiceUpdater) UpgradePackages(ctx context.Context, pkgs []Package
 	return nil
 }
 
-func newTestManager(deb, arduino ServiceUpdater) *Manager {
+func newTestManager(deb, arduino ServiceUpdater, container ContainerUpdater) *Manager {
 	return &Manager{
 		debUpdateService:             deb,
 		arduinoPlatformUpdateService: arduino,
+		containerUpdateService:       container,
 		subs:                         make(map[chan Event]struct{}),
 	}
 }
@@ -51,32 +63,40 @@ func TestManagerListUpgradablePackages(t *testing.T) {
 		svc1Err        error
 		svc2Packages   []UpgradablePackage
 		svc2Err        error
+		containerImgs  []UpgradableImage
+		containerErr   error
 		expectErr      bool
 		expectPackages int
+		expectImages   int
 	}{
 		{
 			name:           "both services return packages",
 			svc1Packages:   []UpgradablePackage{{Name: "pkg1", FromVersion: "1.0", ToVersion: "2.0"}},
 			svc2Packages:   []UpgradablePackage{{Name: "pkg2", FromVersion: "0.1", ToVersion: "0.2"}},
+			containerImgs:  []UpgradableImage{{FromVersion: "img1:1.0", ToVersion: "img1:2.0"}},
 			expectPackages: 2,
+			expectImages:   1,
 		},
 		{
 			name:           "only deb service returns packages",
 			svc1Packages:   []UpgradablePackage{{Name: "pkg1", FromVersion: "1.0", ToVersion: "2.0"}},
 			svc2Packages:   nil,
 			expectPackages: 1,
+			expectImages:   0,
 		},
 		{
 			name:           "only arduino service returns packages",
 			svc1Packages:   nil,
 			svc2Packages:   []UpgradablePackage{{Name: "pkg2", FromVersion: "0.1", ToVersion: "0.2"}},
 			expectPackages: 1,
+			expectImages:   0,
 		},
 		{
 			name:           "both services return no packages",
 			svc1Packages:   nil,
 			svc2Packages:   nil,
 			expectPackages: 0,
+			expectImages:   0,
 		},
 		{
 			name:      "deb service fails",
@@ -94,6 +114,50 @@ func TestManagerListUpgradablePackages(t *testing.T) {
 			svc2Err:   errors.New("error 2"),
 			expectErr: true,
 		},
+		{
+			name:         "only container service returns images",
+			svc1Packages: nil,
+			svc2Packages: nil,
+			containerImgs: []UpgradableImage{
+				{FromVersion: "img1:1.0", ToVersion: "img1:2.0"},
+				{FromVersion: "img2:0.5", ToVersion: "img2:0.6"},
+			},
+			expectPackages: 0,
+			expectImages:   2,
+		},
+		{
+			name:           "all three sources return data",
+			svc1Packages:   []UpgradablePackage{{Name: "pkg1", FromVersion: "1.0", ToVersion: "2.0"}},
+			svc2Packages:   []UpgradablePackage{{Name: "pkg2", FromVersion: "0.1", ToVersion: "0.2"}},
+			containerImgs:  []UpgradableImage{{FromVersion: "img1:1.0", ToVersion: "img1:2.0"}},
+			expectPackages: 2,
+			expectImages:   1,
+		},
+		{
+			name:         "container service fails",
+			containerErr: errors.New("docker error"),
+			expectErr:    true,
+		},
+		{
+			name:          "deb fails, container succeeds → still error",
+			svc1Err:       errors.New("apt error"),
+			containerImgs: []UpgradableImage{{FromVersion: "img1:1.0", ToVersion: "img1:2.0"}},
+			expectErr:     true,
+		},
+		{
+			name:         "all three sources fail",
+			svc1Err:      errors.New("apt error"),
+			svc2Err:      errors.New("arduino error"),
+			containerErr: errors.New("docker error"),
+			expectErr:    true,
+		},
+		{
+			name:           "empty container result is fine",
+			svc1Packages:   []UpgradablePackage{{Name: "pkg1", FromVersion: "1.0", ToVersion: "2.0"}},
+			containerImgs:  []UpgradableImage{},
+			expectPackages: 1,
+			expectImages:   0,
+		},
 	}
 
 	for _, tc := range tests {
@@ -108,15 +172,21 @@ func TestManagerListUpgradablePackages(t *testing.T) {
 					return tc.svc2Packages, tc.svc2Err
 				},
 			}
-			m := newTestManager(svc1, svc2)
+			container := &mockContainerUpdater{
+				listFn: func(ctx context.Context) ([]UpgradableImage, error) {
+					return tc.containerImgs, tc.containerErr
+				},
+			}
+			m := newTestManager(svc1, svc2, container)
 
-			results, _, err := m.ListUpgradablePackages(context.Background(), nil)
+			results, images, err := m.ListUpgradablePackages(context.Background(), nil)
 			if tc.expectErr {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
 			assert.Len(t, results, tc.expectPackages)
+			assert.Len(t, images, tc.expectImages)
 		})
 	}
 }
@@ -137,7 +207,8 @@ func TestManagerListUpgradablePackagesMultipleConcurrentChecks(t *testing.T) {
 			return []UpgradablePackage{{Name: "pkg2"}}, nil
 		},
 	}
-	m := newTestManager(svc1, svc2)
+	container := &mockContainerUpdater{}
+	m := newTestManager(svc1, svc2, container)
 
 	const n = 5
 	var wg sync.WaitGroup
@@ -223,7 +294,8 @@ func TestManagerUpgradePackages(t *testing.T) {
 					return tc.svc2Err
 				},
 			}
-			m := newTestManager(svc2, svc1) // deb first, arduino second
+			container := &mockContainerUpdater{}
+			m := newTestManager(svc2, svc1, container)
 
 			ch := m.Subscribe()
 			defer m.Unsubscribe(ch)
@@ -266,7 +338,8 @@ func TestManagerUpgradePackagesConcurrentUpgradeReturnsError(t *testing.T) {
 			return nil
 		},
 	}
-	m := newTestManager(svc1, svc2)
+	container := &mockContainerUpdater{}
+	m := newTestManager(svc1, svc2, container)
 
 	pkgs := []UpgradablePackage{{Type: Debian, Name: "pkg1", ToVersion: "2.0"}}
 
@@ -294,7 +367,8 @@ func TestManagerSubscribeReceivesUpgradeEvents(t *testing.T) {
 			return nil
 		},
 	}
-	m := newTestManager(svc2, svc1) // deb, arduino
+	container := &mockContainerUpdater{}
+	m := newTestManager(svc2, svc1, container)
 
 	ch := m.Subscribe()
 	defer m.Unsubscribe(ch)
