@@ -33,6 +33,7 @@ type ADBConnection struct {
 	adbPath string
 	host    string
 
+	getSftpBinary func() string
 	*sftpfs.SftpFS
 }
 
@@ -83,6 +84,7 @@ func FromSerial(serial string, adbPath string) (*ADBConnection, error) {
 		adbPath: adbPath,
 		host:    serial,
 	}
+	conn.getSftpBinary = sync.OnceValue(conn.resolveSftpBinary)
 	conn.SftpFS = sftpfs.New(conn.dialSftp)
 	return conn, nil
 }
@@ -101,13 +103,29 @@ func FromHost(host string, adbPath string) (*ADBConnection, error) {
 	return FromSerial(host, adbPath)
 }
 
-// TODO: ok on ubuntu/debian, may differ on other distros.
-const sftpServerBin = "/usr/lib/openssh/sftp-server"
+func (a *ADBConnection) resolveSftpBinary() string {
+	const defaultPath = "/usr/lib/openssh/sftp-server"
+
+	shellCmd := fmt.Sprintf("test -f %s && echo %s || find /usr/lib /usr/libexec -name sftp-server 2>/dev/null | head -1", defaultPath, defaultPath)
+
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", shellCmd)
+	if err != nil {
+		slog.Warn("failed to create command to find sftp-server on device", "error", err)
+		return defaultPath
+	}
+	out, err := cmd.RunAndCaptureCombinedOutput(context.TODO())
+	if err != nil || len(bytes.TrimSpace(out)) == 0 {
+		slog.Warn("failed to find sftp-server on device", "error", err, "output", string(out))
+		return defaultPath
+	}
+	return string(bytes.TrimSpace(out))
+}
 
 // dialSftp launches sftp-server on the device via `adb shell` and returns a
 // client speaking SFTP over its stdio. The returned closer kills the process.
 func (a *ADBConnection) dialSftp() (*sftp.Client, []sftpfs.CloseFunc, error) {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", sftpServerBin)
+	binary := a.getSftpBinary()
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", binary)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create sftp-server command: %w", err)
 	}
