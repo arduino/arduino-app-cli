@@ -12,7 +12,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
-	"path/filepath"
+	"path"
 	"sync"
 	"sync/atomic"
 
@@ -154,7 +154,7 @@ func (s *SftpFS) Stats(p string) (remote.FileInfo, error) {
 		return remote.FileInfo{}, fmt.Errorf("failed to stat %q: %w", p, err)
 	}
 	return remote.FileInfo{
-		Name:  filepath.Base(p),
+		Name:  path.Base(p),
 		IsDir: info.IsDir(),
 		Mode:  uint32(info.Mode().Perm()),
 	}, nil
@@ -235,8 +235,8 @@ func (s *SftpFS) Rename(oldPath, newPath string) error {
 	return nil
 }
 
-func removeRec(client *sftp.Client, path string) error {
-	info, err := client.Lstat(path)
+func removeRec(client *sftp.Client, p string) error {
+	info, err := client.Lstat(p)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil
@@ -244,16 +244,16 @@ func removeRec(client *sftp.Client, path string) error {
 		return err
 	}
 	if !info.IsDir() {
-		return client.Remove(path)
+		return client.Remove(p)
 	}
-	entries, err := client.ReadDir(path)
+	entries, err := client.ReadDir(p)
 	if err != nil {
 		return err
 	}
 	for _, e := range entries {
-		if err := removeRec(client, filepath.ToSlash(filepath.Join(path, e.Name()))); err != nil {
+		if err := removeRec(client, path.Join(p, e.Name())); err != nil {
 			return err
 		}
 	}
-	return client.RemoveDirectory(path)
+	return client.RemoveDirectory(p)
 }
