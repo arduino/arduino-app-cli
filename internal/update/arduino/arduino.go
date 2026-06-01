@@ -194,8 +194,8 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 				if updateInfo.GetTotalSize() <= 0 {
 					return
 				}
-				localProgress := (float32(updateInfo.GetDownloaded()) / float32(updateInfo.GetTotalSize())) * 100.0
-				totalArduinoProgress := basePercentage + (localProgress/100.0)*phaseWeight
+				localProgress := float32(updateInfo.GetDownloaded()) / float32(updateInfo.GetTotalSize())
+				totalArduinoProgress := basePercentage + localProgress*phaseWeight
 				eventCB(update.NewProgressEvent(name, totalArduinoProgress))
 			}
 		}
