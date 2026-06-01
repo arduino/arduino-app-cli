@@ -29,7 +29,6 @@ func TestUpdatePackage(t *testing.T) {
 
 		tagAppCli := fetchDebPackageLatest(t, "build/stable", "arduino/arduino-app-cli")
 		fetchDebPackageLatest(t, "build/stable", "arduino/arduino-router")
-		fetchDebPackageLatest(t, "build/stable", "bcmi-labs/arduino-deb-packages")
 
 		majorTag := genMajorTag(t, tagAppCli)
 		t.Logf("Updating from stable version %s to unstable version %s", tagAppCli, majorTag)
@@ -84,7 +83,6 @@ func TestUpdatePackage(t *testing.T) {
 
 		tagAppCli := fetchDebPackageLatest(t, "build", "arduino/arduino-app-cli")
 		fetchDebPackageLatest(t, "build/stable", "arduino/arduino-router")
-		fetchDebPackageLatest(t, "build/stable", "bcmi-labs/arduino-deb-packages")
 
 		minorTag := genMinorTag(t, tagAppCli)
 		t.Logf("Updating from unstable version %s to stable version %s", minorTag, tagAppCli)
