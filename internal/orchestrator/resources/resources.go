@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package orchestrator
+package resources
 
 import (
 	"context"
@@ -22,7 +22,7 @@ import (
 )
 
 type SystemResource interface {
-	systemResource() string // Private method makes this a sealed interface
+	systemResource() string
 }
 
 type SystemDiskResource struct {
@@ -39,6 +39,12 @@ type SystemCPUResource struct {
 
 func (*SystemCPUResource) systemResource() string { return "cpu" }
 
+type SystemNPUResource struct {
+	UsedPercent float32 `json:"max_percent"`
+}
+
+func (*SystemNPUResource) systemResource() string { return "npu" }
+
 type SystemMemoryResource struct {
 	Used  uint64 `json:"used"`
 	Total uint64 `json:"total"`
@@ -48,14 +54,16 @@ func (*SystemMemoryResource) systemResource() string { return "memory" }
 
 type SystemResourceConfig struct {
 	CPUScrapeInterval    time.Duration
+	NPUScrapeInterval    time.Duration
 	MemoryScrapeInterval time.Duration
 	DiskScrapeInterval   time.Duration
 }
 
-func SystemResources(ctx context.Context, cfg config.Configuration, resourceCfg *SystemResourceConfig) (iter.Seq[SystemResource], error) {
+func SystemResources(ctx context.Context, cfg config.Configuration, resourceCfg *SystemResourceConfig, hasNPU bool) (iter.Seq[SystemResource], error) {
 	if resourceCfg == nil {
 		resourceCfg = &SystemResourceConfig{
 			CPUScrapeInterval:    time.Second * 5,
+			NPUScrapeInterval:    time.Second * 5,
 			MemoryScrapeInterval: time.Second * 5,
 			DiskScrapeInterval:   time.Second * 30,
 		}
@@ -73,6 +81,15 @@ func SystemResources(ctx context.Context, cfg config.Configuration, resourceCfg 
 		return helpers.EmptyIter[SystemResource](), err
 	}
 	firstMessagesToSend = append(firstMessagesToSend, &SystemCPUResource{UsedPercent: cpuStats[0]})
+
+	if hasNPU {
+		NPUInit()
+		npuStats, err := NPUPercent()
+		if err != nil {
+			return helpers.EmptyIter[SystemResource](), err
+		}
+		firstMessagesToSend = append(firstMessagesToSend, &SystemNPUResource{UsedPercent: npuStats})
+	}
 
 	diskPaths := []string{"/", "/tmp", cfg.AppsDir().Parent().String()}
 	for _, path := range diskPaths {
@@ -95,6 +112,12 @@ func SystemResources(ctx context.Context, cfg config.Configuration, resourceCfg 
 		cpuTicker := time.NewTicker(resourceCfg.CPUScrapeInterval)
 		defer cpuTicker.Stop()
 
+		var npuTicker *time.Ticker
+		if hasNPU {
+			npuTicker = time.NewTicker(resourceCfg.NPUScrapeInterval)
+			defer npuTicker.Stop()
+		}
+
 		memoryTicker := time.NewTicker(resourceCfg.MemoryScrapeInterval)
 		defer memoryTicker.Stop()
 
@@ -110,6 +133,15 @@ func SystemResources(ctx context.Context, cfg config.Configuration, resourceCfg 
 					continue
 				}
 				if !yield(&SystemCPUResource{UsedPercent: cpuStats[0]}) {
+					return
+				}
+			case <-npuTicker.C:
+				npuStats, err := NPUPercent()
+				if err != nil {
+					slog.Warn("Failed to get NPU usage", "error", err)
+					continue
+				}
+				if !yield(&SystemNPUResource{UsedPercent: npuStats}) {
 					return
 				}
 			case <-memoryTicker.C:
@@ -133,6 +165,9 @@ func SystemResources(ctx context.Context, cfg config.Configuration, resourceCfg 
 					}
 				}
 			case <-ctx.Done():
+				if hasNPU {
+					NPUDeInit()
+				}
 				return
 			}
 		}
