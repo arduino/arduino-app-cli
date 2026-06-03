@@ -218,20 +218,19 @@ func GetNpuPerformaceMain() error {
 		}
 
 		// Cast to struct
-		data := (*SysmonQueryProfData)(ptr)
+		// data := (*SysmonQueryProfData)(ptr)
+		// if i%1000 == 0 {
+		// 	mem := getMemoryStats()
+		// 	fmt.Printf("\nIter %d | NPU usage: %f | VmData: %d KB | VmSize: %d KB | VmRSS: %d KB\n",
+		// 		i, data.Q6Utilization, mem.VmData, mem.VmSize, mem.VmRSS)
+		// }
 
 		if i%1000 == 0 {
-			mem := getMemoryStats()
-			fmt.Printf("\nIter %d | NPU usage: %f | VmData: %d KB | VmSize: %d KB | VmRSS: %d KB\n",
-				i, data.Q6Utilization, mem.VmData, mem.VmSize, mem.VmRSS)
-		}
-
-		if i%10 == 0 {
 			fmt.Print(".")
 			os.Stdout.Sync() // Equivalent to fflush(stdout)
 		}
 
-		time.Sleep(1 * time.Millisecond)
+		time.Sleep(1 * time.Microsecond)
 	}
 
 	fmt.Println("\nDeinitializing DSP...")
