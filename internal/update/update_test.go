@@ -18,7 +18,8 @@ import (
 )
 
 type mockContainerUpdater struct {
-	listFn func(ctx context.Context) ([]UpgradablePackage, error)
+	listFn  func(ctx context.Context) ([]UpgradablePackage, error)
+	applyFn func(ctx context.Context, pkgs []PackageInfo, cb EventCallback) error
 }
 
 func (m *mockContainerUpdater) ListUpgradableImages(ctx context.Context) ([]UpgradablePackage, error) {
@@ -26,6 +27,13 @@ func (m *mockContainerUpdater) ListUpgradableImages(ctx context.Context) ([]Upgr
 		return m.listFn(ctx)
 	}
 	return nil, nil
+}
+
+func (m *mockContainerUpdater) UpgradePackages(ctx context.Context, pkgs []PackageInfo, cb EventCallback) error {
+	if m.applyFn != nil {
+		return m.applyFn(ctx, pkgs, cb)
+	}
+	return nil
 }
 
 type mockServiceUpdater struct {

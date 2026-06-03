@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/arduino/go-paths-helper"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -47,6 +48,7 @@ type ServiceUpdater interface {
 
 type ContainerUpdater interface {
 	ListUpgradableImages(ctx context.Context) ([]UpgradablePackage, error)
+	UpgradePackages(ctx context.Context, packages []PackageInfo, eventCB EventCallback) error
 }
 
 type Manager struct {
@@ -134,6 +136,9 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 			arduinoPlatform = append(arduinoPlatform, PackageInfo{Name: v.Name, ToVersion: v.ToVersion})
 		case Debian:
 			debPkgs = append(debPkgs, PackageInfo{Name: v.Name, ToVersion: v.ToVersion})
+		case Container:
+			// container images are handled in bulk by containerUpdateService,
+			// no per-package info needed here.
 		default:
 			return fmt.Errorf("unknown package type %s", v.Type)
 		}
@@ -142,10 +147,20 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 	if !m.lock.TryLock() {
 		return ErrOperationAlreadyInProgress
 	}
+
 	m.isUpgrading.Store(true)
 	go func() {
+
 		defer m.lock.Unlock()
 		defer m.isUpgrading.Store(false)
+		// At the end of the upgrade, always try to restart the services (that need it).
+		// This makes sure key services are restarted even if an error happens in the upgrade steps (for examples container images download).
+		defer func() {
+			m.broadcast(NewDataEvent(RestartEvent, "Upgrade completed. Restarting ..."))
+			if err := restartServices(ctx); err != nil {
+				m.broadcast(NewErrorEvent(fmt.Errorf("error restarting services after upgrade: %w", err)))
+			}
+		}()
 
 		// We are launching on purpose the update sequentially. The reason is that
 		// the deb pkgs restart the orchestrator, and if we run in parallel the
@@ -160,6 +175,11 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 
 		if err := m.debUpdateService.UpgradePackages(ctx, debPkgs, m.broadcast); err != nil {
 			m.broadcast(NewErrorEvent(fmt.Errorf("failed to upgrade APT packages: %w", err)))
+			return
+		}
+
+		if err := m.containerUpdateService.UpgradePackages(ctx, nil, m.broadcast); err != nil {
+			m.broadcast(NewErrorEvent(fmt.Errorf("failed to upgrade docker images: %w", err)))
 			return
 		}
 
@@ -218,4 +238,21 @@ func isConnected() bool {
 	defer resp.Body.Close()
 
 	return true
+}
+
+// RestartServices restarts services that need to be restarted after an upgrade.
+// It uses the `needrestart` command to determine which services need to be restarted.
+// It returns an error if the command fails to start or if it fails to wait for the command to finish.
+// It uses the '-r a' option to restart all services that need to be restarted automatically without prompting the user
+// Note: This function does not take the list of services as an argument because
+// `needrestart` automatically detects which services need to be restarted based on the system state.
+func restartServices(ctx context.Context) error {
+	needRestartCmd, err := paths.NewProcess(nil, "sudo", "needrestart", "-r", "a")
+	if err != nil {
+		return err
+	}
+	if out, err := needRestartCmd.RunAndCaptureCombinedOutput(ctx); err != nil {
+		return fmt.Errorf("error running needrestart command: %w: %s", err, out)
+	}
+	return nil
 }

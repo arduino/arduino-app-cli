@@ -65,18 +65,6 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	// At the end of the upgrade, always try to restart the services (that need it).
-	// This makes sure key services are restarted even if an error happens in the upgrade steps (for examples container images download).
-	defer func() {
-		eventCB(update.NewDataEvent(update.RestartEvent, "Upgrade completed. Restarting ..."))
-
-		err := restartServices(ctx)
-		if err != nil {
-			eventCB(update.NewErrorEvent(fmt.Errorf("error restarting services after upgrade: %w", err)))
-			return
-		}
-	}()
-
 	names := f.Map(packages, func(pkg update.PackageInfo) string {
 		return pkg.Name
 	})
@@ -96,45 +84,6 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 		}
 		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 	}
-
-	for line, err := range runSystemInit(ctx) {
-		if err != nil {
-			// In case of errors, including "out of disk space" erros, do a cleanup and then retry once.
-
-			eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Stop and destroy docker containers and images, to free up space ..."))
-			streamCleanup := cleanupDockerContainers(ctx)
-			for line, err := range streamCleanup {
-				if err != nil {
-					slog.Warn("Error during cleanup of container and images", "error", err)
-				} else {
-					eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
-				}
-			}
-
-			// Try again to pull the docker containers.
-			eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Pulling the latest docker images (again) ..."))
-			for line, err := range runSystemInit(ctx) {
-				if err != nil {
-					return fmt.Errorf("error pulling docker images: %w", err)
-				}
-				eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
-			}
-		} else {
-			eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
-		}
-	}
-
-	// After pulling new images is completed, remove old images to free up space.
-	eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Cleanup docker containers and images, to remove old unused images"))
-	streamCleanup := cleanupDockerContainers(ctx)
-	for line, err := range streamCleanup {
-		if err != nil {
-			slog.Warn("Error during cleanup of container and images", "error", err)
-		} else {
-			eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
-		}
-	}
-
 	return nil
 }
 
@@ -223,74 +172,6 @@ func runAptCleanCommand(ctx context.Context) iter.Seq2[string, error] {
 			return
 		}
 	}
-}
-
-func runSystemInit(ctx context.Context) iter.Seq2[string, error] {
-	return func(yield func(string, error) bool) {
-		cmd, err := paths.NewProcess(nil, "arduino-app-cli", "system", "init")
-		if err != nil {
-			_ = yield("", err)
-			return
-		}
-
-		stdout := orchestrator.NewCallbackWriter(func(line string) {
-			if !yield(line, nil) {
-				if err := cmd.Kill(); err != nil {
-					slog.Error("Failed to kill 'arduino-app-cli system init' command", slog.String("error", err.Error()))
-				}
-			}
-		})
-		cmd.RedirectStderrTo(stdout)
-		cmd.RedirectStdoutTo(stdout)
-
-		if err = cmd.RunWithinContext(ctx); err != nil {
-			_ = yield("", err)
-			return
-		}
-	}
-}
-
-// Remove all stopped containers
-func cleanupDockerContainers(ctx context.Context) iter.Seq2[string, error] {
-	return func(yield func(string, error) bool) {
-		cmd, err := paths.NewProcess(nil, "arduino-app-cli", "system", "cleanup")
-		if err != nil {
-			_ = yield("", err)
-			return
-		}
-
-		stdout := orchestrator.NewCallbackWriter(func(line string) {
-			if !yield(line, nil) {
-				if err := cmd.Kill(); err != nil {
-					slog.Error("Failed to kill 'arduino-app-cli system cleanup' command", slog.String("error", err.Error()))
-				}
-			}
-		})
-		cmd.RedirectStderrTo(stdout)
-		cmd.RedirectStdoutTo(stdout)
-
-		if err = cmd.RunWithinContext(ctx); err != nil {
-			_ = yield("", err)
-			return
-		}
-	}
-}
-
-// RestartServices restarts services that need to be restarted after an upgrade.
-// It uses the `needrestart` command to determine which services need to be restarted.
-// It returns an error if the command fails to start or if it fails to wait for the command to finish.
-// It uses the '-r a' option to restart all services that need to be restarted automatically without prompting the user
-// Note: This function does not take the list of services as an argument because
-// `needrestart` automatically detects which services need to be restarted based on the system state.
-func restartServices(ctx context.Context) error {
-	needRestartCmd, err := paths.NewProcess(nil, "sudo", "needrestart", "-r", "a")
-	if err != nil {
-		return err
-	}
-	if out, err := needRestartCmd.RunAndCaptureCombinedOutput(ctx); err != nil {
-		return fmt.Errorf("error running needrestart command: %w: %s", err, out)
-	}
-	return nil
 }
 
 func listUpgradablePackages(ctx context.Context, matcher func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
