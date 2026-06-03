@@ -20,6 +20,7 @@ import (
 const (
 	ArduinoPlatform PackageType = "arduino-platform"
 	DebianPackage   PackageType = "debian-package"
+	Container       PackageType = "container-image"
 )
 
 // Valid indicates whether the value is a known member of the PackageType enum.
@@ -28,6 +29,8 @@ func (e PackageType) Valid() bool {
 	case ArduinoPlatform:
 		return true
 	case DebianPackage:
+		return true
+	case Container:
 		return true
 	default:
 		return false

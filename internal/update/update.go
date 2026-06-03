@@ -45,13 +45,8 @@ type ServiceUpdater interface {
 	UpgradePackages(ctx context.Context, packages []PackageInfo, eventCB EventCallback) error
 }
 
-type UpgradableImage struct {
-	FromVersion string `json:"from_version,omitempty"`
-	ToVersion   string `json:"to_version,omitempty"`
-}
-
 type ContainerUpdater interface {
-	ListUpgradableImages(ctx context.Context) ([]UpgradableImage, error)
+	ListUpgradableImages(ctx context.Context) ([]UpgradablePackage, error)
 }
 
 type Manager struct {
@@ -74,16 +69,16 @@ func NewManager(debUpdateService ServiceUpdater, arduinoPlatformUpdateService Se
 	}
 }
 
-func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(UpgradablePackage) bool) ([]UpgradablePackage, []UpgradableImage, error) {
+func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(UpgradablePackage) bool) ([]UpgradablePackage, error) {
 	// Atomically check if an upgrade operation is already in progress. See https://github.com/arduino/arduino-app-cli/issues/381.
 	if m.isUpgrading.Load() {
-		return nil, nil, ErrOperationAlreadyInProgress
+		return nil, ErrOperationAlreadyInProgress
 	}
 
 	// Make sure to be connected to the internet, before checking for updates.
 	// This is needed because the checks below work also when offline (using cached data).
 	if !isConnected() {
-		return nil, nil, ErrNoInternetConnection
+		return nil, ErrNoInternetConnection
 	}
 
 	// Get the list of upgradable packages from two sources (deb and platform) in parallel.
@@ -91,7 +86,7 @@ func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(Upgra
 	var (
 		debPkgs     []UpgradablePackage
 		arduinoPkgs []UpgradablePackage
-		images      []UpgradableImage
+		images      []UpgradablePackage
 	)
 
 	g.Go(func() error {
@@ -123,10 +118,10 @@ func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(Upgra
 
 	// Wait for all the checks to complete (or any to fail).
 	if err := g.Wait(); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return append(arduinoPkgs, debPkgs...), images, nil
+	return append(append(arduinoPkgs, debPkgs...), images...), nil
 }
 
 func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage) error {

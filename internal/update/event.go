@@ -70,12 +70,13 @@ func (e Event) GetError() error {
 type PackageType string
 
 const (
-	Arduino PackageType = "arduino-platform"
-	Debian  PackageType = "debian-package"
+	Arduino   PackageType = "arduino-platform"
+	Debian    PackageType = "debian-package"
+	Container PackageType = "container-image"
 )
 
 func (s PackageType) AllowedStatuses() []PackageType {
-	return []PackageType{Arduino, Debian}
+	return []PackageType{Arduino, Debian, Container}
 }
 
 type EventCallback func(Event)

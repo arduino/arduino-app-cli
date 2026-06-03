@@ -38,7 +38,7 @@ func NewContainerUpdater(
 	}
 }
 
-func (c *ContainerUpdater) ListUpgradableImages(ctx context.Context) ([]update.UpgradableImage, error) {
+func (c *ContainerUpdater) ListUpgradableImages(ctx context.Context) ([]update.UpgradablePackage, error) {
 	brickImages, err := getAllSupportedBrickImages(c.bricksIndex, c.servicesIndex)
 	if err != nil {
 		return nil, err
@@ -53,7 +53,7 @@ func (c *ContainerUpdater) ListUpgradableImages(ctx context.Context) ([]update.U
 		return nil, err
 	}
 
-	var result []update.UpgradableImage
+	var result []update.UpgradablePackage
 	for _, img := range requiredImages {
 		// If the exact image (same tag) is already present locally, nothing to do.
 		if slices.Contains(pulledImages, img) {
@@ -66,9 +66,12 @@ func (c *ContainerUpdater) ListUpgradableImages(ctx context.Context) ([]update.U
 		if current != "" && !isNewerVersion(img, current) {
 			continue
 		}
-		result = append(result, update.UpgradableImage{
-			ToVersion:   img,
+		baseName, _ := parseDockerImage(img)
+		result = append(result, update.UpgradablePackage{
+			Type:        update.Container,
+			Name:        baseName,
 			FromVersion: current,
+			ToVersion:   img,
 		})
 	}
 

@@ -84,7 +84,7 @@ func newUpdateCmd(cfg config.Configuration) *cobra.Command {
 				),
 			)
 
-			pkgs, _, err := updater.ListUpgradablePackages(cmd.Context(), filterFunc)
+			pkgs, err := updater.ListUpgradablePackages(cmd.Context(), filterFunc)
 			if err != nil {
 				return err
 			}

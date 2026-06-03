@@ -18,10 +18,10 @@ import (
 )
 
 type mockContainerUpdater struct {
-	listFn func(ctx context.Context) ([]UpgradableImage, error)
+	listFn func(ctx context.Context) ([]UpgradablePackage, error)
 }
 
-func (m *mockContainerUpdater) ListUpgradableImages(ctx context.Context) ([]UpgradableImage, error) {
+func (m *mockContainerUpdater) ListUpgradableImages(ctx context.Context) ([]UpgradablePackage, error) {
 	if m.listFn != nil {
 		return m.listFn(ctx)
 	}
@@ -63,7 +63,7 @@ func TestManagerListUpgradablePackages(t *testing.T) {
 		svc1Err        error
 		svc2Packages   []UpgradablePackage
 		svc2Err        error
-		containerImgs  []UpgradableImage
+		containerImgs  []UpgradablePackage
 		containerErr   error
 		expectErr      bool
 		expectPackages int
@@ -73,7 +73,7 @@ func TestManagerListUpgradablePackages(t *testing.T) {
 			name:           "both services return packages",
 			svc1Packages:   []UpgradablePackage{{Name: "pkg1", FromVersion: "1.0", ToVersion: "2.0"}},
 			svc2Packages:   []UpgradablePackage{{Name: "pkg2", FromVersion: "0.1", ToVersion: "0.2"}},
-			containerImgs:  []UpgradableImage{{FromVersion: "img1:1.0", ToVersion: "img1:2.0"}},
+			containerImgs:  []UpgradablePackage{{Type: Container, Name: "img1", FromVersion: "img1:1.0", ToVersion: "img1:2.0"}},
 			expectPackages: 2,
 			expectImages:   1,
 		},
@@ -118,9 +118,9 @@ func TestManagerListUpgradablePackages(t *testing.T) {
 			name:         "only container service returns images",
 			svc1Packages: nil,
 			svc2Packages: nil,
-			containerImgs: []UpgradableImage{
-				{FromVersion: "img1:1.0", ToVersion: "img1:2.0"},
-				{FromVersion: "img2:0.5", ToVersion: "img2:0.6"},
+			containerImgs: []UpgradablePackage{
+				{Type: Container, Name: "img1", FromVersion: "img1:1.0", ToVersion: "img1:2.0"},
+				{Type: Container, Name: "img2", FromVersion: "img2:0.5", ToVersion: "img2:0.6"},
 			},
 			expectPackages: 0,
 			expectImages:   2,
@@ -129,7 +129,7 @@ func TestManagerListUpgradablePackages(t *testing.T) {
 			name:           "all three sources return data",
 			svc1Packages:   []UpgradablePackage{{Name: "pkg1", FromVersion: "1.0", ToVersion: "2.0"}},
 			svc2Packages:   []UpgradablePackage{{Name: "pkg2", FromVersion: "0.1", ToVersion: "0.2"}},
-			containerImgs:  []UpgradableImage{{FromVersion: "img1:1.0", ToVersion: "img1:2.0"}},
+			containerImgs:  []UpgradablePackage{{Type: Container, Name: "img1", FromVersion: "img1:1.0", ToVersion: "img1:2.0"}},
 			expectPackages: 2,
 			expectImages:   1,
 		},
@@ -141,7 +141,7 @@ func TestManagerListUpgradablePackages(t *testing.T) {
 		{
 			name:          "deb fails, container succeeds → still error",
 			svc1Err:       errors.New("apt error"),
-			containerImgs: []UpgradableImage{{FromVersion: "img1:1.0", ToVersion: "img1:2.0"}},
+			containerImgs: []UpgradablePackage{{Type: Container, Name: "img1", FromVersion: "img1:1.0", ToVersion: "img1:2.0"}},
 			expectErr:     true,
 		},
 		{
@@ -154,7 +154,7 @@ func TestManagerListUpgradablePackages(t *testing.T) {
 		{
 			name:           "empty container result is fine",
 			svc1Packages:   []UpgradablePackage{{Name: "pkg1", FromVersion: "1.0", ToVersion: "2.0"}},
-			containerImgs:  []UpgradableImage{},
+			containerImgs:  []UpgradablePackage{},
 			expectPackages: 1,
 			expectImages:   0,
 		},
@@ -173,20 +173,29 @@ func TestManagerListUpgradablePackages(t *testing.T) {
 				},
 			}
 			container := &mockContainerUpdater{
-				listFn: func(ctx context.Context) ([]UpgradableImage, error) {
+				listFn: func(ctx context.Context) ([]UpgradablePackage, error) {
 					return tc.containerImgs, tc.containerErr
 				},
 			}
 			m := newTestManager(svc1, svc2, container)
 
-			results, images, err := m.ListUpgradablePackages(context.Background(), nil)
+			results, err := m.ListUpgradablePackages(context.Background(), nil)
 			if tc.expectErr {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
-			assert.Len(t, results, tc.expectPackages)
-			assert.Len(t, images, tc.expectImages)
+
+			var pkgCount, imgCount int
+			for _, p := range results {
+				if p.Type == Container {
+					imgCount++
+				} else {
+					pkgCount++
+				}
+			}
+			assert.Equal(t, tc.expectPackages, pkgCount, "package count mismatch")
+			assert.Equal(t, tc.expectImages, imgCount, "image count mismatch")
 		})
 	}
 }
@@ -217,7 +226,7 @@ func TestManagerListUpgradablePackagesMultipleConcurrentChecks(t *testing.T) {
 	for i := range n {
 		go func(idx int) {
 			defer wg.Done()
-			_, _, errs[idx] = m.ListUpgradablePackages(context.Background(), nil)
+			_, errs[idx] = m.ListUpgradablePackages(context.Background(), nil)
 		}(i)
 	}
 	wg.Wait()
@@ -243,14 +252,14 @@ func TestManagerListUpgradablePackagesMultipleConcurrentChecks(t *testing.T) {
 	require.NoError(t, err, "unexpected error starting upgrade")
 	<-started
 
-	_, _, err = m.ListUpgradablePackages(context.Background(), nil)
+	_, err = m.ListUpgradablePackages(context.Background(), nil)
 	require.ErrorIs(t, err, ErrOperationAlreadyInProgress, "expected ErrOperationAlreadyInProgress during upgrade")
 
 	// Wait for upgrade goroutine to finish
 	time.Sleep(300 * time.Millisecond)
 
 	// After upgrade completes, check should work again
-	_, _, err = m.ListUpgradablePackages(context.Background(), nil)
+	_, err = m.ListUpgradablePackages(context.Background(), nil)
 	require.NoError(t, err, "unexpected error after upgrade completed")
 }
 
