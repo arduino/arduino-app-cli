@@ -19,6 +19,7 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
+	"github.com/docker/docker/client"
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
@@ -50,12 +51,12 @@ type AIModelsListRequest struct {
 	FilterByBrickID []string
 }
 
-func AIModelsList(ctx context.Context, req AIModelsListRequest, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform) AIModelsListResult {
+func AIModelsList(ctx context.Context, cli client.APIClient, req AIModelsListRequest, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform) AIModelsListResult {
 	var collection []modelsindex.AIModel
 	if len(req.FilterByBrickID) == 0 {
-		collection = modelsIndex.GetModels(ctx, cfg, plat)
+		collection = modelsIndex.GetModels(ctx, cli, cfg, plat)
 	} else {
-		collection = modelsIndex.GetModelsByBricks(ctx, cfg, plat, req.FilterByBrickID)
+		collection = modelsIndex.GetModelsByBricks(ctx, cli, cfg, plat, req.FilterByBrickID)
 	}
 
 	items := f.Map(collection, func(model modelsindex.AIModel) AIModelItem {
@@ -73,7 +74,7 @@ func AIModelsList(ctx context.Context, req AIModelsListRequest, modelsIndex *mod
 	return AIModelsListResult{Models: items}
 }
 
-func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, id string, cfg config.Configuration, plat platform.Platform) (AIModelItem, bool) {
+func AIModelDetails(ctx context.Context, cli client.APIClient, modelsIndex *modelsindex.ModelsIndex, id string, cfg config.Configuration, plat platform.Platform) (AIModelItem, bool) {
 	model, found := modelsIndex.GetModelByID(id)
 	if !found {
 		return AIModelItem{}, false
@@ -103,11 +104,11 @@ func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, i
 		Metadata:          model.Metadata,
 		IsBuiltin:         model.IsInternal,
 		DiskUsage:         modelSize,
-		Installed:         modelInstalled(ctx, model, modelsIndex, cfg, plat),
+		Installed:         modelInstalled(ctx, cli, model, modelsIndex, cfg, plat),
 	}, true
 }
 
-func modelInstalled(ctx context.Context, model *modelsindex.AIModel, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform) bool {
+func modelInstalled(ctx context.Context, cli client.APIClient, model *modelsindex.AIModel, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform) bool {
 	if !model.IsInternal {
 		return true
 	}
@@ -120,7 +121,7 @@ func modelInstalled(ctx context.Context, model *modelsindex.AIModel, modelsIndex
 	if model.Deployment != nil {
 		envVars = model.Deployment.VariablesForPlatform(plat.BoardName)
 	}
-	return isModelDownloaded(ctx, *model, handler, downloadPath, envVars)
+	return isModelDownloaded(ctx, cli, *model, handler, downloadPath, envVars)
 }
 
 func getModelSize(dirPath *paths.Path) (uint64, error) {
@@ -202,7 +203,7 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 		if res.Deployment != nil {
 			envVars = res.Deployment.VariablesForPlatform(platform.BoardName)
 		}
-		return runHandlerAction(ctx, *res, handler.Image, handler.Actions.Delete, downloadPath, envVars, nil)
+		return runHandlerAction(ctx, dockerClient.Client(), *res, handler.Image, handler.Actions.Delete, downloadPath, envVars, nil)
 	}
 
 	// Custom model (e.g. Edge Impulse): remove the model folder directly.
@@ -453,7 +454,7 @@ var (
 	ErrNoDeploymentHandler = errors.New("model has no deployment handler")
 )
 
-func InstallModelByHandler(ctx context.Context, modelID string, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform, mgr *ModelInstallManager) error {
+func InstallModelByHandler(ctx context.Context, cli client.APIClient, modelID string, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform, mgr *ModelInstallManager) error {
 	publish := func(event ModelInstallEvent) {
 		mgr.broadcast(modelID, event)
 	}
@@ -475,14 +476,14 @@ func InstallModelByHandler(ctx context.Context, modelID string, modelsIndex *mod
 		envVars = model.Deployment.VariablesForPlatform(plat.BoardName)
 	}
 
-	if isModelDownloaded(ctx, *model, handler, downloadPath, envVars) {
+	if isModelDownloaded(ctx, cli, *model, handler, downloadPath, envVars) {
 		slog.Info("model already installed", "model", modelID)
 		mgr.broadcast(modelID, ModelInstallEvent{Type: ModelInstallEventDone})
 		return nil
 	}
 
 	slog.Info("installing model", "model", modelID, "path", downloadPath)
-	err := installModel(ctx, *model, handler, downloadPath, envVars, publish)
+	err := installModel(ctx, cli, *model, handler, downloadPath, envVars, publish)
 
 	done := ModelInstallEvent{Type: ModelInstallEventDone}
 	if err != nil {
@@ -493,8 +494,11 @@ func InstallModelByHandler(ctx context.Context, modelID string, modelsIndex *mod
 	return err
 }
 
-func isModelDownloaded(ctx context.Context, model modelsindex.AIModel, handler modelsindex.ModelHandler, downloadPath *paths.Path, envVars map[string]string) bool {
-	err := runHandlerAction(ctx, model, handler.Image, handler.Actions.Check, downloadPath, envVars, nil)
+func isModelDownloaded(ctx context.Context, cli client.APIClient, model modelsindex.AIModel, handler modelsindex.ModelHandler, downloadPath *paths.Path, envVars map[string]string) bool {
+	publish := func(e ModelInstallEvent) {
+		slog.Info("model check", "model", model.ID, "event", e.Type, "description", e.Description)
+	}
+	err := runHandlerAction(ctx, cli, model, handler.Image, handler.Actions.Check, downloadPath, envVars, publish)
 	if err != nil {
 		slog.Debug("model check reported not downloaded", "model", model.ID, "err", err)
 		return false
@@ -502,9 +506,9 @@ func isModelDownloaded(ctx context.Context, model modelsindex.AIModel, handler m
 	return true
 }
 
-func installModel(ctx context.Context, model modelsindex.AIModel, handler modelsindex.ModelHandler, downloadPath *paths.Path, envVars map[string]string, publish func(ModelInstallEvent)) error {
+func installModel(ctx context.Context, cli client.APIClient, model modelsindex.AIModel, handler modelsindex.ModelHandler, downloadPath *paths.Path, envVars map[string]string, publish func(ModelInstallEvent)) error {
 	if err := downloadPath.MkdirAll(); err != nil {
 		return fmt.Errorf("cannot create download location %q: %w", downloadPath, err)
 	}
-	return runHandlerAction(ctx, model, handler.Image, handler.Actions.Download, downloadPath, envVars, publish)
+	return runHandlerAction(ctx, cli, model, handler.Image, handler.Actions.Download, downloadPath, envVars, publish)
 }
