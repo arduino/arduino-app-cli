@@ -6,22 +6,25 @@
 package model
 
 import (
+	"context"
+
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/tablestyle"
 )
 
-func newModelListCmd() *cobra.Command {
+func newModelListCmd(cfg config.Configuration) *cobra.Command {
 	var excludeBuiltin bool
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all models",
 		Run: func(cmd *cobra.Command, args []string) {
-			modelListHandler(excludeBuiltin)
+			modelListHandler(cmd.Context(), cfg, excludeBuiltin)
 		},
 	}
 
@@ -30,8 +33,8 @@ func newModelListCmd() *cobra.Command {
 	return cmd
 }
 
-func modelListHandler(excludeBuiltin bool) {
-	models := servicelocator.GetModelsIndex().GetModels()
+func modelListHandler(ctx context.Context, cfg config.Configuration, excludeBuiltin bool) {
+	models := servicelocator.GetModelsIndex().GetModels(ctx, cfg, servicelocator.GetPlatform())
 	result := make([]modelsindex.AIModel, 0)
 	for _, m := range models {
 		if excludeBuiltin && m.IsInternal {

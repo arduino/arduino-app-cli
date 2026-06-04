@@ -80,12 +80,12 @@ type handlerModelEntry struct {
 	Installed bool   `json:"installed"`
 }
 
-// InstalledStatuses runs the list action for every handler and returns a map
+// GetModelStatus runs the list action for every handler and returns a map
 // of model ID → installed status.
-func (h *HandlersIndex) InstalledStatuses(ctx context.Context, cfg config.Configuration, plat platform.Platform) map[string]bool {
+func (h *HandlersIndex) GetModelStatus(ctx context.Context, cfg config.Configuration, plat platform.Platform) map[string]bool {
 	result := make(map[string]bool)
 	for _, handler := range h.handlers {
-		entries, err := runListAction(ctx, handler, cfg, plat)
+		entries, err := runListAction(handler, cfg, plat)
 		if err != nil {
 			slog.Warn("cannot list models from handler", "handler", handler.ID, "err", err)
 			continue
@@ -97,8 +97,8 @@ func (h *HandlersIndex) InstalledStatuses(ctx context.Context, cfg config.Config
 	return result
 }
 
-func runListAction(ctx context.Context, handler ModelHandler, cfg config.Configuration, plat platform.Platform) ([]handlerModelEntry, error) {
-	handlerModelsDir := cfg.CustomModelsDir().Join(handler.ID)
+func runListAction(handler ModelHandler, cfg config.Configuration, plat platform.Platform) ([]handlerModelEntry, error) {
+	handlerModelsDir := cfg.CustomModelsDir()
 
 	args := []string{
 		"docker", "run", "--rm",
@@ -119,7 +119,7 @@ func runListAction(ctx context.Context, handler ModelHandler, cfg config.Configu
 	process.RedirectStdoutTo(&buf)
 	process.RedirectStderrTo(slog.NewLogLogger(slog.Default().Handler(), slog.LevelDebug).Writer())
 
-	if err := process.RunWithinContext(ctx); err != nil {
+	if err := process.Run(); err != nil {
 		return nil, fmt.Errorf("list action failed: %w", err)
 	}
 
