@@ -34,7 +34,7 @@ func newModelListCmd(cfg config.Configuration) *cobra.Command {
 }
 
 func modelListHandler(ctx context.Context, cfg config.Configuration, excludeBuiltin bool) {
-	models := servicelocator.GetModelsIndex().GetModels(ctx, cfg, servicelocator.GetPlatform())
+	models := servicelocator.GetModelsIndex().GetModels(ctx, servicelocator.GetDockerClient().Client(), cfg, servicelocator.GetPlatform())
 	result := make([]modelsindex.AIModel, 0)
 	for _, m := range models {
 		if excludeBuiltin && m.IsInternal {

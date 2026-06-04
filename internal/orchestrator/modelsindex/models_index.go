@@ -11,6 +11,8 @@ import (
 	"log/slog"
 	"slices"
 
+	"github.com/docker/docker/client"
+
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -86,9 +88,9 @@ type ModelsIndex struct {
 	Handlers       *HandlersIndex
 }
 
-func (m *ModelsIndex) GetModels(ctx context.Context, cfg config.Configuration, plat platform.Platform) []AIModel {
+func (m *ModelsIndex) GetModels(ctx context.Context, cli client.APIClient, cfg config.Configuration, plat platform.Platform) []AIModel {
 	models := m.loadModels()
-	statuses := m.Handlers.GetModelStatus(ctx, cfg, plat)
+	statuses := m.Handlers.GetModelStatus(ctx, cli, cfg, plat)
 	for i := range models {
 		if installed, ok := statuses[models[i].ID]; ok {
 			models[i].Installed = installed
@@ -99,9 +101,9 @@ func (m *ModelsIndex) GetModels(ctx context.Context, cfg config.Configuration, p
 	return models
 }
 
-func (m *ModelsIndex) GetModelsByBricks(ctx context.Context, cfg config.Configuration, plat platform.Platform, bricks []string) []AIModel {
+func (m *ModelsIndex) GetModelsByBricks(ctx context.Context, cli client.APIClient, cfg config.Configuration, plat platform.Platform, bricks []string) []AIModel {
 	models := m.filterByBricks(bricks)
-	statuses := m.Handlers.GetModelStatus(ctx, cfg, plat)
+	statuses := m.Handlers.GetModelStatus(ctx, cli, cfg, plat)
 	for i := range models {
 		if installed, ok := statuses[models[i].ID]; ok {
 			models[i].Installed = installed
