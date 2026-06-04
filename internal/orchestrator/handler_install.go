@@ -17,14 +17,12 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
-func runHandlerAction(ctx context.Context, model modelsindex.AIModel, image string, action string, downloadPath *paths.Path, publish func(ModelInstallEvent)) error {
-	args := []string{
-		"docker", "run", "--rm",
-		"-v", fmt.Sprintf("%s:/models", downloadPath),
-		image,
-		action,
-		model.ID,
+func runHandlerAction(ctx context.Context, model modelsindex.AIModel, image string, action string, downloadPath *paths.Path, envVars map[string]string, publish func(ModelInstallEvent)) error {
+	args := []string{"docker", "run", "--rm", "-v", fmt.Sprintf("%s:/models", downloadPath)}
+	for k, v := range envVars {
+		args = append(args, "-e", fmt.Sprintf("%s=%s", k, v))
 	}
+	args = append(args, image, action, model.ID)
 
 	slog.Debug("running handler action", "model", model.ID, "action", action, "image", image)
 	process, err := paths.NewProcess(nil, args...)
