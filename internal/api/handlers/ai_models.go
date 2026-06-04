@@ -47,14 +47,14 @@ func HandleModelsList(modelsIndex *modelsindex.ModelsIndex, cfg config.Configura
 	}
 }
 
-func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration) http.HandlerFunc {
+func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("modelID")
 		if id == "" {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "id must be set"})
 			return
 		}
-		res, found := orchestrator.AIModelDetails(r.Context(), modelsIndex, id, cfg)
+		res, found := orchestrator.AIModelDetails(r.Context(), modelsIndex, id, cfg, plat)
 		if !found {
 			details := fmt.Sprintf("models with id %q not found", id)
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})
@@ -159,7 +159,7 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 	}
 }
 
-func HandleInstallModel(cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, installMgr *orchestrator.ModelInstallManager) http.HandlerFunc {
+func HandleInstallModel(cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform, installMgr *orchestrator.ModelInstallManager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := strings.TrimSpace(r.PathValue("modelID"))
 		if id == "" {
@@ -173,7 +173,7 @@ func HandleInstallModel(cfg config.Configuration, modelsIndex *modelsindex.Model
 		}
 
 		go func() {
-			if err := orchestrator.InstallModelByHandler(context.Background(), id, modelsIndex, cfg, installMgr); err != nil {
+			if err := orchestrator.InstallModelByHandler(context.Background(), id, modelsIndex, cfg, plat, installMgr); err != nil {
 				slog.Error("model install failed", "model", id, "err", err)
 			}
 		}()
