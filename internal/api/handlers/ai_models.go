@@ -172,23 +172,6 @@ func HandleInstallModel(cfg config.Configuration, modelsIndex *modelsindex.Model
 			return
 		}
 
-		go func() {
-			if err := orchestrator.InstallModelByHandler(context.Background(), id, modelsIndex, cfg, plat, installMgr); err != nil {
-				slog.Error("model install failed", "model", id, "err", err)
-			}
-		}()
-
-		render.EncodeResponse(w, http.StatusAccepted, nil)
-	}
-}
-
-func HandleModelInstallEvents(installMgr *orchestrator.ModelInstallManager) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodHead {
-			render.EncodeResponse(w, http.StatusOK, nil)
-			return
-		}
-
 		sseStream, err := render.NewSSEStream(r.Context(), w)
 		if err != nil {
 			slog.Error("unable to create SSE stream", slog.String("error", err.Error()))
@@ -197,8 +180,15 @@ func HandleModelInstallEvents(installMgr *orchestrator.ModelInstallManager) http
 		}
 		defer sseStream.Close()
 
+		// Subscribe before launching the goroutine to avoid missing events.
 		ch := installMgr.Subscribe()
 		defer installMgr.Unsubscribe(ch)
+
+		go func() {
+			if err := orchestrator.InstallModelByHandler(context.Background(), id, modelsIndex, cfg, plat, installMgr); err != nil {
+				slog.Error("model install failed", "model", id, "err", err)
+			}
+		}()
 
 		for {
 			select {
@@ -206,7 +196,13 @@ func HandleModelInstallEvents(installMgr *orchestrator.ModelInstallManager) http
 				if !ok {
 					return
 				}
+				if event.ModelID != id {
+					continue
+				}
 				sseStream.Send(render.SSEEvent{Type: string(event.Type), Data: event})
+				if event.Type == orchestrator.ModelInstallEventDone {
+					return
+				}
 			case <-r.Context().Done():
 				return
 			}
