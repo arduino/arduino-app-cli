@@ -7,6 +7,7 @@ package resources
 
 import (
 	"fmt"
+	"log/slog"
 	"runtime"
 	"sync"
 )
@@ -20,7 +21,7 @@ Create a dedicated worker goroutine, locked via runtime.LockOSThread(),
 to ensures all NPU operations execute on the same thread, preventing Go
 from migrating the goroutine.
 
-There are three workers, one for each libqcnpuperf API call, which run
+There is one worker with three operations types, one for each libqcnpuperf API call, which run
 mutually exclusively to prevent stream collisions.
 
 A reference counter protects the resources, preventing deallocation while
@@ -78,7 +79,8 @@ func npuWorker() {
 	}
 }
 
-// NPUInit initializes the NPU DSP domain only once. Increments reference count.
+// Initializes the npu DSP domain only once.
+// Increments reference counter to keep trace of active streams.
 func NPUInit() error {
 	startNPUWorker()
 	req := npuRequest{
@@ -89,14 +91,15 @@ func NPUInit() error {
 	return <-req.err
 }
 
-// npuInitImpl is the implementation that runs on the dedicated worker thread.
 func npuInitImpl() error {
 	refCounter++
 	if refCounter > 1 {
+		slog.Info("DSP already initialized", "refCounter", refCounter)
 		return nil // DSP already initialized
 	}
 
 	if err := initLibqcnpuperf(); err != nil {
+		refCounter--
 		return err
 	}
 
@@ -109,8 +112,7 @@ func npuInitImpl() error {
 	return nil
 }
 
-// NPUDeInit deinitializes the NPU DSP domain. Decrements reference count.
-// DSP is only deinitialized when the last stream calles DeInit.
+// Deinitializes the npu DSP domain when the last active stream is closed
 func NPUDeInit() error {
 	req := npuRequest{
 		responseType: npuReqDeInit,
@@ -120,15 +122,14 @@ func NPUDeInit() error {
 	return <-req.err
 }
 
-// npuDeInitImpl is the implementation that runs on the dedicated worker thread.
 func npuDeInitImpl() error {
-	if refCounter == 0 {
+	if refCounter == 0 { // no references
 		return nil
 	}
 
 	refCounter--
-	if refCounter > 0 {
-		return nil // other callers still active, keep DSP running
+	if refCounter > 0 { // still active callers, keep running
+		return nil
 	}
 
 	ret := qcomDspDeinit(DSP_NPU0)
@@ -141,8 +142,7 @@ func npuDeInitImpl() error {
 	return nil
 }
 
-// NPUPercent returns the current NPU utilization percentage.
-// Requires prior call to NPUInit().
+// Returns the current NPU utilization percentage
 func NPUPercent() (float32, error) {
 	req := npuRequest{
 		responseType: npuReqMaxUsage,
@@ -156,14 +156,20 @@ func NPUPercent() (float32, error) {
 	return <-req.maxUsage, nil
 }
 
-// npuPercentImpl is the implementation that runs on the dedicated worker thread.
-// TODO Evaluate if it's better to return all three values and let the caller
+// TODO Evaluate if it's better to return all metrics and let the caller
 // to implement the choice logic
 func npuPercentImpl() (float32, error) {
+	if refCounter == 0 {
+		return 0, fmt.Errorf("NPU is not initialized, refCounter %d", refCounter)
+	}
+	if qcomDspGetProfData == nil {
+		return 0, fmt.Errorf("NPU profiling function is not initialized, refCounter %d", refCounter)
+	}
+
 	var noMetrics int32
 	ptr := qcomDspGetProfData(DSP_NPU0, &noMetrics)
 	if ptr == nil || noMetrics <= 0 {
-		return 0, fmt.Errorf("error getting profiling data")
+		return 0, fmt.Errorf("qcomDspGetProfData error: no profile data available")
 	}
 
 	data := (*SysmonQueryProfData)(ptr)

@@ -83,10 +83,12 @@ func SystemResources(ctx context.Context, cfg config.Configuration, resourceCfg 
 	firstMessagesToSend = append(firstMessagesToSend, &SystemCPUResource{UsedPercent: cpuStats[0]})
 
 	if hasNPU {
-		NPUInit()
+		if err := NPUInit(); err != nil {
+			slog.Error("Failed to init NPU", "error", err)
+		}
 		npuStats, err := NPUPercent()
 		if err != nil {
-			return helpers.EmptyIter[SystemResource](), err
+			slog.Error("Failed to get NPU metrics", "error", err)
 		}
 		firstMessagesToSend = append(firstMessagesToSend, &SystemNPUResource{UsedPercent: npuStats})
 	}
@@ -113,9 +115,11 @@ func SystemResources(ctx context.Context, cfg config.Configuration, resourceCfg 
 		defer cpuTicker.Stop()
 
 		var npuTicker *time.Ticker
+		var npuChannel <-chan time.Time
 		if hasNPU {
 			npuTicker = time.NewTicker(resourceCfg.NPUScrapeInterval)
 			defer npuTicker.Stop()
+			npuChannel = npuTicker.C
 		}
 
 		memoryTicker := time.NewTicker(resourceCfg.MemoryScrapeInterval)
@@ -135,7 +139,7 @@ func SystemResources(ctx context.Context, cfg config.Configuration, resourceCfg 
 				if !yield(&SystemCPUResource{UsedPercent: cpuStats[0]}) {
 					return
 				}
-			case <-npuTicker.C:
+			case <-npuChannel:
 				npuStats, err := NPUPercent()
 				if err != nil {
 					slog.Warn("Failed to get NPU usage", "error", err)

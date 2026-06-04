@@ -43,10 +43,11 @@ var (
 )
 
 var libqcnpuperfLib uintptr
+var libqcnpuperfLibraryPath = "/var/lib/arduino-app-cli/libqcnpuperf.so"
 
 func initLibqcnpuperf() error {
 	var err error
-	libqcnpuperfLib, err = purego.Dlopen("/var/lib/arduino-app-cli/libqcnpuperf.so", purego.RTLD_NOW|purego.RTLD_GLOBAL)
+	libqcnpuperfLib, err = purego.Dlopen(libqcnpuperfLibraryPath, purego.RTLD_NOW|purego.RTLD_GLOBAL)
 	if err != nil {
 		return fmt.Errorf("failed to open shared library: %v", err)
 	}
