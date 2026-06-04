@@ -6,10 +6,12 @@
 package modelsindex
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"slices"
 
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 
@@ -38,9 +40,23 @@ func (b *assetsModelList) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
+type PlatformDeploymentConfig struct {
+	Variables map[string]string `yaml:"variables"`
+}
+
 type ModelDeployment struct {
-	Handler   string `yaml:"handler"`
-	PreLoaded bool   `yaml:"pre-loaded"`
+	Handler   string                                `yaml:"handler"`
+	PreLoaded bool                                  `yaml:"pre-loaded"`
+	Variables []map[string]PlatformDeploymentConfig `yaml:"platforms,omitempty"`
+}
+
+func (d *ModelDeployment) VariablesForPlatform(boardName string) map[string]string {
+	for _, entry := range d.Variables {
+		if cfg, ok := entry[boardName]; ok {
+			return cfg.Variables
+		}
+	}
+	return nil
 }
 
 type AIModel struct {
@@ -53,6 +69,7 @@ type AIModel struct {
 	ModelLabels       []string          `yaml:"model_labels,omitempty"`
 	Metadata          map[string]string `yaml:"metadata,omitempty"`
 	IsInternal        bool              `yaml:"-"`
+	Installed         bool              `yaml:"-"`
 	SupportedBoards   []string          `yaml:"supported_boards,omitempty"`
 	DownloadLocation  string            `yaml:"download_location,omitempty"`
 	Deployment        *ModelDeployment  `yaml:"deployment,omitempty"`
@@ -69,8 +86,30 @@ type ModelsIndex struct {
 	Handlers       *HandlersIndex
 }
 
-func (m *ModelsIndex) GetModels() []AIModel {
-	return m.loadModels()
+func (m *ModelsIndex) GetModels(ctx context.Context, cfg config.Configuration, plat platform.Platform) []AIModel {
+	models := m.loadModels()
+	statuses := m.Handlers.GetModelStatus(ctx, cfg, plat)
+	for i := range models {
+		if installed, ok := statuses[models[i].ID]; ok {
+			models[i].Installed = installed
+		} else {
+			models[i].Installed = true
+		}
+	}
+	return models
+}
+
+func (m *ModelsIndex) GetModelsByBricks(ctx context.Context, cfg config.Configuration, plat platform.Platform, bricks []string) []AIModel {
+	models := m.filterByBricks(bricks)
+	statuses := m.Handlers.GetModelStatus(ctx, cfg, plat)
+	for i := range models {
+		if installed, ok := statuses[models[i].ID]; ok {
+			models[i].Installed = installed
+		} else {
+			models[i].Installed = true
+		}
+	}
+	return models
 }
 
 func (m *ModelsIndex) GetModelByID(id string) (*AIModel, bool) {
@@ -93,7 +132,7 @@ func (m *ModelsIndex) GetModelsByBrick(brickName string) []AIModel {
 	return matches
 }
 
-func (m *ModelsIndex) GetModelsByBricks(bricks []string) []AIModel {
+func (m *ModelsIndex) filterByBricks(bricks []string) []AIModel {
 	var matchingModels []AIModel
 	for _, model := range m.loadModels() {
 		if slices.ContainsFunc(model.Bricks, func(brick BrickConfig) bool {
