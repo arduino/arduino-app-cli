@@ -9,12 +9,11 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"log/slog"
 	"os"
-	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -24,19 +23,20 @@ import (
 	"github.com/arduino/arduino-cli/commands"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
+	"github.com/pkg/sftp"
 
 	"github.com/arduino/arduino-app-cli/pkg/board/remote"
+	"github.com/arduino/arduino-app-cli/pkg/board/remote/sftpfs"
 	"github.com/arduino/arduino-app-cli/pkg/x/ports"
 )
-
-const username = "arduino"
 
 type ADBConnection struct {
 	adbPath string
 	host    string
+
+	*sftpfs.SftpFS
 }
 
-// Ensures ADBConnection implements the RemoteConn interface at compile time.
 var _ remote.RemoteConn = (*ADBConnection)(nil)
 
 var (
@@ -80,10 +80,12 @@ func FromSerial(serial string, adbPath string) (*ADBConnection, error) {
 		return nil, fmt.Errorf("device %s is not connected", serial)
 	}
 
-	return &ADBConnection{
+	conn := &ADBConnection{
 		adbPath: adbPath,
 		host:    serial,
-	}, nil
+	}
+	conn.SftpFS = sftpfs.New(conn.dialSftp)
+	return conn, nil
 }
 
 func FromHost(host string, adbPath string) (*ADBConnection, error) {
@@ -98,6 +100,40 @@ func FromHost(host string, adbPath string) (*ADBConnection, error) {
 		return nil, fmt.Errorf("failed to connect to ADB host %s: %w: %s", host, err, out)
 	}
 	return FromSerial(host, adbPath)
+}
+
+// TODO: ok on ubuntu/debian, may differ on other distros.
+const sftpServerBin = "/usr/lib/openssh/sftp-server"
+
+// dialSftp launches sftp-server on the device via `adb shell` and returns a
+// client speaking SFTP over its stdio. The returned closer kills the process.
+func (a *ADBConnection) dialSftp() (*sftp.Client, []sftpfs.CloseFunc, error) {
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", sftpServerBin)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create sftp-server command: %w", err)
+	}
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get sftp stdin pipe: %w", err)
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get sftp stdout pipe: %w", err)
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, nil, fmt.Errorf("failed to start sftp-server: %w", err)
+	}
+	client, err := sftp.NewClientPipe(stdout, stdin)
+	if err != nil {
+		_ = cmd.Kill()
+		_ = cmd.Wait()
+		return nil, nil, fmt.Errorf("failed to create sftp client: %w", err)
+	}
+	return client, []sftpfs.CloseFunc{func() error {
+		err1 := cmd.Kill()
+		err2 := cmd.Wait()
+		return errors.Join(err1, err2)
+	}}, nil
 }
 
 func (a *ADBConnection) Forward(ctx context.Context, localPort int, remotePort int) error {
@@ -146,97 +182,6 @@ func (a *ADBConnection) ForwardKillAll(ctx context.Context) error {
 	}
 	if out, err := cmd.RunAndCaptureCombinedOutput(ctx); err != nil {
 		return fmt.Errorf("failed to kill all ADB forwarded ports: %w: %s", err, out)
-	}
-	return nil
-}
-
-func (a *ADBConnection) List(path string) ([]remote.FileInfo, error) {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "ls", "-laQ", strconv.Quote(path))
-	if err != nil {
-		return nil, err
-	}
-	cmd.RedirectStderrTo(os.Stdout)
-	output, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
-	defer output.Close()
-	if err := cmd.Start(); err != nil {
-		return nil, err
-	}
-	defer func() { _ = cmd.Wait() }()
-
-	return remote.ParseLsOutput(output)
-}
-
-func (a *ADBConnection) Stats(p string) (remote.FileInfo, error) {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "file", strconv.Quote(p))
-	if err != nil {
-		return remote.FileInfo{}, err
-	}
-	output, err := cmd.StdoutPipe()
-	if err != nil {
-		return remote.FileInfo{}, err
-	}
-	defer output.Close()
-	if err := cmd.Start(); err != nil {
-		return remote.FileInfo{}, err
-	}
-	defer func() { _ = cmd.Wait() }()
-
-	r := bufio.NewReader(output)
-	line, err := r.ReadBytes('\n')
-	if err != nil {
-		return remote.FileInfo{}, err
-	}
-
-	line = bytes.TrimSpace(line)
-	parts := bytes.Split(line, []byte(":"))
-	if len(parts) < 2 {
-		return remote.FileInfo{}, fmt.Errorf("unexpected file command output: %s", line)
-	}
-
-	name := string(bytes.TrimSpace(parts[0]))
-	other := string(bytes.TrimSpace(parts[1]))
-
-	if strings.Contains(other, "cannot open") {
-		return remote.FileInfo{}, fs.ErrNotExist
-	}
-
-	return remote.FileInfo{
-		Name:  path.Base(name),
-		IsDir: other == "directory",
-	}, nil
-}
-
-func (a *ADBConnection) ReadFile(path string) (io.ReadCloser, error) {
-	return adbReadFile(a, strconv.Quote(path))
-}
-
-func (a *ADBConnection) WriteFile(r io.Reader, path string) error {
-	return adbWriteFile(a, r, strconv.Quote(path))
-}
-
-func (a *ADBConnection) MkDirAll(path string) error {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "install", "-o", username, "-g", username, "-m", "755", "-d", strconv.Quote(path))
-	if err != nil {
-		return err
-	}
-	stdout, err := cmd.RunAndCaptureCombinedOutput(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to create directory %q: %w: %s", path, err, string(stdout))
-	}
-	return nil
-}
-
-func (a *ADBConnection) Remove(path string) error {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "rm", "-r", strconv.Quote(path))
-	if err != nil {
-		return err
-	}
-	stdout, err := cmd.RunAndCaptureCombinedOutput(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to remove path %q: %w: %s", path, err, string(stdout))
 	}
 	return nil
 }
