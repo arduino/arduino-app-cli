@@ -94,9 +94,4 @@ var (
 	GetPlatform = sync.OnceValue(func() platform.Platform {
 		return platform.GetPlatform(globalConfig.DataDir())
 	})
-
-	// // TODO
-	// NpuInit = sync.OnceValue(func() platform.Platform {
-
-	// })
 )
