@@ -85,6 +85,10 @@ func (a *LocalConnection) Remove(path string) error {
 	return os.RemoveAll(path)
 }
 
+func (a *LocalConnection) Close() error {
+	return nil
+}
+
 type LocalCommand struct {
 	cmd *paths.Process
 	err error
