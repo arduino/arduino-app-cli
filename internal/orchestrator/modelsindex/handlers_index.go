@@ -11,33 +11,33 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/docker/docker/client"
 	"github.com/goccy/go-yaml"
 
+	"github.com/arduino/arduino-app-cli/internal/dockerhandler"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 type HandlerActions struct {
-	Download string `yaml:"download"`
-	Delete   string `yaml:"delete"`
-	Check    string `yaml:"check"`
-	Info     string `yaml:"info"`
+	Download []string
+	Delete   []string
+	Check    []string
+	Info     []string
 }
 
 func (a HandlerActions) validate(id string) error {
-	if a.Download == "" {
+	if len(a.Download) == 0 {
 		return fmt.Errorf("handler %q: missing required action \"download\"", id)
 	}
-	if a.Delete == "" {
+	if len(a.Delete) == 0 {
 		return fmt.Errorf("handler %q: missing required action \"delete\"", id)
 	}
-	if a.Check == "" {
+	if len(a.Check) == 0 {
 		return fmt.Errorf("handler %q: missing required action \"check\"", id)
-	}
-	if a.Info == "" {
-		return fmt.Errorf("handler %q: missing required action \"info\"", id)
 	}
 	return nil
 }
@@ -82,10 +82,10 @@ type handlerModelEntry struct {
 
 // GetModelStatus runs the list action for every handler and returns a map
 // of model ID → installed status.
-func (h *HandlersIndex) GetModelStatus(ctx context.Context, cfg config.Configuration, plat platform.Platform) map[string]bool {
+func (h *HandlersIndex) GetModelStatus(ctx context.Context, cli client.APIClient, cfg config.Configuration, plat platform.Platform) map[string]bool {
 	result := make(map[string]bool)
 	for _, handler := range h.handlers {
-		entries, err := runListAction(handler, cfg, plat)
+		entries, err := runListAction(ctx, cli, handler, cfg, plat)
 		if err != nil {
 			slog.Warn("cannot list models from handler", "handler", handler.ID, "err", err)
 			continue
@@ -97,30 +97,26 @@ func (h *HandlersIndex) GetModelStatus(ctx context.Context, cfg config.Configura
 	return result
 }
 
-func runListAction(handler ModelHandler, cfg config.Configuration, plat platform.Platform) ([]handlerModelEntry, error) {
+func runListAction(ctx context.Context, cli client.APIClient, handler ModelHandler, cfg config.Configuration, plat platform.Platform) ([]handlerModelEntry, error) {
 	handlerModelsDir := cfg.CustomModelsDir()
 
-	args := []string{
-		"docker", "run", "--rm",
-		"-v", fmt.Sprintf("%s:/models", handlerModelsDir),
-	}
+	var env []string
 	if plat.BoardName != "" {
-		args = append(args, "-e", fmt.Sprintf("board=%s", plat.BoardName))
+		env = append(env, fmt.Sprintf("board=%s", plat.BoardName))
 	}
-	args = append(args, handler.Image, "list_models.sh")
 
 	slog.Debug("running list action", "handler", handler.ID, "image", handler.Image)
-	process, err := paths.NewProcess(nil, args...)
-	if err != nil {
-		return nil, err
-	}
 
 	var buf bytes.Buffer
-	process.RedirectStdoutTo(&buf)
-	process.RedirectStderrTo(slog.NewLogLogger(slog.Default().Handler(), slog.LevelDebug).Writer())
-
-	if err := process.Run(); err != nil {
-		return nil, fmt.Errorf("list action failed: %w", err)
+	err := dockerhandler.Run(ctx, cli, dockerhandler.RunOptions{
+		Image:  handler.Image,
+		Cmd:    []string{"/app/list_models.sh"},
+		Binds:  []string{fmt.Sprintf("%s:/models", handlerModelsDir)},
+		Env:    env,
+		Stdout: &buf,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list action: %w", err)
 	}
 
 	var output handlerModelListOutput
@@ -131,14 +127,29 @@ func runListAction(handler ModelHandler, cfg config.Configuration, plat platform
 	return output.Models, nil
 }
 
-// rawHandlerEntry wraps HandlerActions with the per-handler image field.
+type rawActionEntry struct {
+	Command []string `yaml:"command"`
+}
+
 type rawHandlerEntry struct {
-	Image          string `yaml:"image"`
-	HandlerActions `yaml:",inline"`
+	Description string                      `yaml:"description"`
+	Image       string                      `yaml:"image"`
+	Volumes     []string                    `yaml:"volumes"`
+	Actions     []map[string]rawActionEntry `yaml:"actions"`
 }
 
 type rawHandlersList struct {
 	Handlers []map[string]rawHandlerEntry `yaml:"handlers"`
+}
+
+// resolveImage replaces a ${VAR:-default} prefix in the image string with registryBase.
+func resolveImage(raw, registryBase string) string {
+	if start := strings.Index(raw, "${"); start != -1 {
+		if end := strings.Index(raw[start:], "}"); end != -1 {
+			return registryBase + raw[start+end+1:]
+		}
+	}
+	return registryBase + raw
 }
 
 func loadHandlers(dir *paths.Path, registryBase string) (*HandlersIndex, error) {
@@ -171,13 +182,28 @@ func loadHandlers(dir *paths.Path, registryBase string) (*HandlersIndex, error) 
 			if entry.Image == "" {
 				return nil, fmt.Errorf("models-handlers.yaml: handler %q missing required field \"image\"", id)
 			}
-			if err := entry.validate(id); err != nil {
+			var actions HandlerActions
+			for _, actionMap := range entry.Actions {
+				for name, actionEntry := range actionMap {
+					switch name {
+					case "download":
+						actions.Download = actionEntry.Command
+					case "delete":
+						actions.Delete = actionEntry.Command
+					case "check":
+						actions.Check = actionEntry.Command
+					case "info":
+						actions.Info = actionEntry.Command
+					}
+				}
+			}
+			if err := actions.validate(id); err != nil {
 				return nil, fmt.Errorf("models-handlers.yaml: %w", err)
 			}
 			handlers[id] = ModelHandler{
 				ID:      id,
-				Image:   fmt.Sprintf("%s%s", registryBase, entry.Image),
-				Actions: entry.HandlerActions,
+				Image:   resolveImage(entry.Image, registryBase),
+				Actions: actions,
 			}
 		}
 	}

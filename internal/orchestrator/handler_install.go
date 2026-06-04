@@ -10,32 +10,38 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/docker/docker/client"
 
+	"github.com/arduino/arduino-app-cli/internal/dockerhandler"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
-func runHandlerAction(ctx context.Context, model modelsindex.AIModel, image string, action string, downloadPath *paths.Path, envVars map[string]string, publish func(ModelInstallEvent)) error {
-	args := []string{"docker", "run", "--rm", "-v", fmt.Sprintf("%s:/models", downloadPath)}
+func runHandlerAction(ctx context.Context, cli client.APIClient, model modelsindex.AIModel, image string, action []string, downloadPath *paths.Path, envVars map[string]string, publish func(ModelInstallEvent)) error {
+	env := make([]string, 0, len(envVars))
 	for k, v := range envVars {
-		args = append(args, "-e", fmt.Sprintf("%s=%s", k, v))
+		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}
-	args = append(args, image, action, model.ID)
+
+	var stdout io.Writer
+	if publish != nil {
+		stdout = &handlerOutputParser{publish: publish}
+	} else {
+		stdout = slog.NewLogLogger(slog.Default().Handler(), slog.LevelDebug).Writer()
+	}
 
 	slog.Debug("running handler action", "model", model.ID, "action", action, "image", image)
-	process, err := paths.NewProcess(nil, args...)
-	if err != nil {
-		return err
-	}
-	process.RedirectStderrTo(slog.NewLogLogger(slog.Default().Handler(), slog.LevelDebug).Writer())
-	if publish != nil {
-		process.RedirectStdoutTo(&handlerOutputParser{publish: publish})
-	} else {
-		process.RedirectStdoutTo(slog.NewLogLogger(slog.Default().Handler(), slog.LevelDebug).Writer())
-	}
-	return process.RunWithinContext(ctx)
+	return dockerhandler.Run(ctx, cli, dockerhandler.RunOptions{
+		Image:  image,
+		Cmd:    action,
+		Binds:  []string{fmt.Sprintf("%s:/models", downloadPath)},
+		Env:    env,
+		Stdout: stdout,
+		Stderr: slog.NewLogLogger(slog.Default().Handler(), slog.LevelDebug).Writer(),
+	})
 }
 
 type handlerOutputParser struct {
