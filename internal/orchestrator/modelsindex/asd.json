@@ -1,291 +1,498 @@
-"models": [
-    {
-        "id": "face-detection",
-        "name": "Lightweight-Face-Detection",
-        "description": "A small and accurate model for detecting bounding boxes for faces in images.",
-        "runner": "",
-        "brick_ids": [
-            "arduino:object_detection",
-            "arduino:video_object_detection"
-        ],
-        "metadata": {
-            "ei-impulse-id": "3",
-            "ei-model-url": "https://studio.edgeimpulse.com/public/830703/live",
-            "ei-project-id": "830703",
-            "image-resolution": "320x240",
-            "model_size_mb": "17",
-            "source": "qualcomm-ai-hub",
-            "source-model-id": "face-det-lite",
-            "source-model-url": "https://aihub.qualcomm.com/models/face_det_lite"
-        },
-        "is_builtin": true,
-        "installed": true
+{
+    "id": "ei:efficientnet-b4",
+    "name": "General purpose object classification - EfficientNet-B4",
+    "description": "EfficientNetB4 is a machine learning model that can classify images from the Imagenet dataset. It can also be used as a backbone in building more complex models for specific use cases. This version of the model is optimized for NPU acceleration on supported devices, providing faster inference times while maintaining accuracy.",
+    "runner": "",
+    "brick_ids": [
+        "arduino:image_classification",
+        "arduino:video_image_classification"
+    ],
+    "metadata": {
+        "ei-impulse-id": "4",
+        "ei-model-url": "https://studio.edgeimpulse.com/public/948887/live",
+        "ei-project-id": "948887",
+        "hw_acceleration_backend": "qnn",
+        "image-resolution": "380x380",
+        "model_size_mb": "89",
+        "source": "edgeimpulse",
+        "source-model-id": "efficientnet_b4",
+        "source-model-url": "https://aihub.qualcomm.com/compute/models/efficientnet_b4"
     },
-    {
-        "id": "yolox-object-detection",
-        "name": "General purpose object detection - YoloX nano",
-        "description": "General purpose object detection model based on YoloX-Nano. This model is trained on the COCO dataset and can detect 80 different object classes.",
-        "runner": "",
-        "brick_ids": [
-            "arduino:object_detection",
-            "arduino:video_object_detection"
-        ],
-        "metadata": {
-            "ei-impulse-id": "1",
-            "ei-model-url": "https://studio.edgeimpulse.com/public/717280/live",
-            "ei-project-id": "717280",
-            "image-resolution": "416x416",
-            "model_size_mb": "17",
-            "source": "edgeimpulse",
-            "source-model-id": "YOLOX-Nano",
-            "source-model-url": "https://github.com/Megvii-BaseDetection/YOLOX"
+    "is_builtin": true,
+    "installed": true
+}
+
+Desktop/codes/arduino-app-cli on  feat/models-download-flow [!?
+] via 🐹 v1.26.1 took 6s 
+🕒 07: 37➜  curl http: //localhost:8801/v1/models                   
+{
+    "models": [
+        {
+            "id": "face-detection-qnn",
+            "name": "Lightweight-Face-Detection",
+            "description": "A small and accurate model for detecting bounding boxes for faces in images. This version of the model is optimized for NPU acceleration on supported devices, providing faster inference times while maintaining accuracy.",
+            "runner": "",
+            "brick_ids": [
+                "arduino:object_detection",
+                "arduino:video_object_detection"
+            ],
+            "metadata": {
+                "ei-impulse-id": "2",
+                "ei-model-url": "https://studio.edgeimpulse.com/public/830703/live",
+                "ei-project-id": "830703",
+                "hw_acceleration_backend": "qnn",
+                "image-resolution": "640x480",
+                "model_size_mb": "17",
+                "source": "qualcomm-ai-hub",
+                "source-model-id": "face-det-lite",
+                "source-model-url": "https://aihub.qualcomm.com/models/face_det_lite"
+            },
+            "is_builtin": true,
+            "installed": true
         },
-        "is_builtin": true,
-        "installed": true
-    },
-    {
-        "id": "mobilenet-image-classification",
-        "name": "General purpose image classification",
-        "description": "General purpose image classification model based on MobileNetV2. This model is trained on the ImageNet dataset and can classify images into 1000 categories.",
-        "runner": "",
-        "brick_ids": [
-            "arduino:image_classification",
-            "arduino:video_image_classification"
-        ],
-        "metadata": {
-            "ei-model-url": "https://studio.edgeimpulse.com/public/708500/live",
-            "ei-project-id": "708500",
-            "model_size_mb": "27",
-            "source": "edgeimpulse",
-            "source-model-id": "MobileNetV2",
-            "source-model-url": "https://www.tensorflow.org/api_docs/python/tf/keras/applications/MobileNetV2"
+        {
+            "id": "yolox-qnn-object-detection",
+            "name": "General purpose object detection - YoloX nano",
+            "description": "General purpose object detection model based on YoloX-Nano. This model is trained on the COCO dataset and can detect 80 different object classes. This version of the model is optimized for NPU acceleration on supported devices, providing faster inference times while maintaining accuracy.",
+            "runner": "",
+            "brick_ids": [
+                "arduino:object_detection",
+                "arduino:video_object_detection"
+            ],
+            "metadata": {
+                "ei-impulse-id": "1",
+                "ei-model-url": "https://studio.edgeimpulse.com/public/717280/live",
+                "ei-project-id": "717280",
+                "hw_acceleration_backend": "qnn",
+                "image-resolution": "416x416",
+                "model_size_mb": "17",
+                "source": "edgeimpulse",
+                "source-model-id": "YOLOX-Nano",
+                "source-model-url": "https://github.com/Megvii-BaseDetection/YOLOX"
+            },
+            "is_builtin": true,
+            "installed": true
         },
-        "is_builtin": true,
-        "installed": true
-    },
-    {
-        "id": "person-classification",
-        "name": "Person classification",
-        "description": "Person classification model based on WakeVision dataset. This model is trained to classify images into two categories: person and not-person.",
-        "runner": "",
-        "brick_ids": [
-            "arduino:image_classification",
-            "arduino:video_image_classification"
-        ],
-        "metadata": {
-            "ei-impulse-id": "1",
-            "ei-model-url": "https://studio.edgeimpulse.com/public/755016/live",
-            "ei-project-id": "755016",
-            "image-resolution": "224x224",
-            "model_size_mb": "14",
-            "source": "edgeimpulse",
-            "source-model-id": "person-classification-wakevision",
-            "source-model-url": "https://studio.edgeimpulse.com/public/755016/live"
+        {
+            "id": "mobilenet-image-classification",
+            "name": "General purpose image classification",
+            "description": "General purpose image classification model based on MobileNetV2. This model is trained on the ImageNet dataset and can classify images into 1000 categories.",
+            "runner": "",
+            "brick_ids": [
+                "arduino:image_classification",
+                "arduino:video_image_classification"
+            ],
+            "metadata": {
+                "ei-model-url": "https://studio.edgeimpulse.com/public/708500/live",
+                "ei-project-id": "708500",
+                "model_size_mb": "27",
+                "source": "edgeimpulse",
+                "source-model-id": "MobileNetV2",
+                "source-model-url": "https://www.tensorflow.org/api_docs/python/tf/keras/applications/MobileNetV2"
+            },
+            "is_builtin": true,
+            "installed": true
         },
-        "is_builtin": true,
-        "installed": true
-    },
-    {
-        "id": "concreate-crack-anomaly-detection",
-        "name": "Concrete crack anomaly detection",
-        "description": "Anomaly detection model to identify cracks in concrete structures.",
-        "runner": "",
-        "brick_ids": [
-            "arduino:visual_anomaly_detection"
-        ],
-        "metadata": {
-            "ei-model-url": "https://studio.edgeimpulse.com/public/800941/live",
-            "ei-project-id": "800941",
-            "image-resolution": "160x160",
-            "model_size_mb": "12",
-            "source": "edgeimpulse",
-            "source-model-id": "concrete-crack-anomaly-detection",
-            "source-model-url": "https://studio.edgeimpulse.com/public/800941/live"
+        {
+            "id": "person-classification",
+            "name": "Person classification",
+            "description": "Person classification model based on WakeVision dataset. This model is trained to classify images into two categories: person and not-person.",
+            "runner": "",
+            "brick_ids": [
+                "arduino:image_classification",
+                "arduino:video_image_classification"
+            ],
+            "metadata": {
+                "ei-impulse-id": "1",
+                "ei-model-url": "https://studio.edgeimpulse.com/public/755016/live",
+                "ei-project-id": "755016",
+                "image-resolution": "224x224",
+                "model_size_mb": "14",
+                "source": "edgeimpulse",
+                "source-model-id": "person-classification-wakevision",
+                "source-model-url": "https://studio.edgeimpulse.com/public/755016/live"
+            },
+            "is_builtin": true,
+            "installed": true
         },
-        "is_builtin": true,
-        "installed": true
-    },
-    {
-        "id": "keyword-spotting-hey-arduino",
-        "name": "Keyword spotting - Hey Arduino!",
-        "description": "A keyword-spotting model to detect the 'Hey Arduino!' in audio streams.",
-        "runner": "",
-        "brick_ids": [
-            "arduino:keyword_spotting"
-        ],
-        "metadata": {
-            "ei-impulse-id": "30",
-            "ei-model-url": "https://studio.edgeimpulse.com/studio/757509/live",
-            "ei-project-id": "757509",
-            "model_size_mb": "13",
-            "private": "true",
-            "source": "edgeimpulse",
-            "source-model-id": "hey-arduino",
-            "source-model-url": "https://studio.edgeimpulse.com/studio/757509/live"
+        {
+            "id": "concreate-crack-anomaly-detection-high-resolution",
+            "name": "Concrete crack anomaly detection - High resolution",
+            "description": "Anomaly detection model to identify cracks in concrete structures with higher resolution input images for improved accuracy. This version of the model is optimized for NPU acceleration on supported devices, providing faster inference times while maintaining accuracy.",
+            "runner": "",
+            "brick_ids": [
+                "arduino:visual_anomaly_detection"
+            ],
+            "metadata": {
+                "ei-model-url": "https://studio.edgeimpulse.com/public/906179/live",
+                "ei-project-id": "906179",
+                "hw_acceleration_backend": "qnn",
+                "image-resolution": "512x512",
+                "model_size_mb": "12",
+                "source": "edgeimpulse",
+                "source-model-id": "concrete-crack-anomaly-detection",
+                "source-model-url": "https://studio.edgeimpulse.com/public/906179/live"
+            },
+            "is_builtin": true,
+            "installed": true
         },
-        "is_builtin": true,
-        "installed": true
-    },
-    {
-        "id": "updown-wave-motion-detection",
-        "name": "Continuous motion detection",
-        "description": "A motion detection model designed to identify up/down, wave, and snake movements evalauting accelerometer data.",
-        "runner": "",
-        "brick_ids": [
-            "arduino:motion_detection"
-        ],
-        "metadata": {
-            "ei-model-url": "https://studio.edgeimpulse.com/public/734960/live",
-            "ei-project-id": "734960",
-            "model_size_mb": "13",
-            "source": "edgeimpulse",
-            "source-model-id": "continuous-motion-detection",
-            "source-model-url": "https://studio.edgeimpulse.com/public/734960/live"
+        {
+            "id": "keyword-spotting-hey-arduino",
+            "name": "Keyword spotting - Hey Arduino!",
+            "description": "A keyword-spotting model to detect the 'Hey Arduino!' in audio streams.",
+            "runner": "",
+            "brick_ids": [
+                "arduino:keyword_spotting"
+            ],
+            "metadata": {
+                "ei-impulse-id": "30",
+                "ei-model-url": "https://studio.edgeimpulse.com/studio/757509/live",
+                "ei-project-id": "757509",
+                "model_size_mb": "13",
+                "private": "true",
+                "source": "edgeimpulse",
+                "source-model-id": "hey-arduino",
+                "source-model-url": "https://studio.edgeimpulse.com/studio/757509/live"
+            },
+            "is_builtin": true,
+            "installed": true
         },
-        "is_builtin": true,
-        "installed": true
-    },
-    {
-        "id": "fan-anomaly-detection",
-        "name": "Fan anomaly detection",
-        "description": "An anomaly detection model designed to identify anomalies in fan operation.",
-        "runner": "",
-        "brick_ids": [
-            "arduino:vibration_anomaly_detection"
-        ],
-        "metadata": {
-            "ei-model-url": "https://studio.edgeimpulse.com/public/774707/live",
-            "ei-project-id": "774707",
-            "model_size_mb": "13",
-            "source": "edgeimpulse",
-            "source-model-id": "fan-anomaly-detection",
-            "source-model-url": "https://studio.edgeimpulse.com/public/774707/live"
+        {
+            "id": "updown-wave-motion-detection",
+            "name": "Continuous motion detection",
+            "description": "A motion detection model designed to identify up/down, wave, and snake movements evalauting accelerometer data.",
+            "runner": "",
+            "brick_ids": [
+                "arduino:motion_detection"
+            ],
+            "metadata": {
+                "ei-model-url": "https://studio.edgeimpulse.com/public/734960/live",
+                "ei-project-id": "734960",
+                "model_size_mb": "13",
+                "source": "edgeimpulse",
+                "source-model-id": "continuous-motion-detection",
+                "source-model-url": "https://studio.edgeimpulse.com/public/734960/live"
+            },
+            "is_builtin": true,
+            "installed": true
         },
-        "is_builtin": true,
-        "installed": true
-    },
-    {
-        "id": "glass-breaking",
-        "name": "Glass breaking classifier",
-        "description": "A glass breaking classifier model to detect glass breaking sounds in audio recordings",
-        "runner": "",
-        "brick_ids": [
-            "arduino:audio_classification"
-        ],
-        "metadata": {
-            "ei-model-url": "https://studio.edgeimpulse.com/public/749446/live",
-            "ei-project-id": "749446",
-            "model_size_mb": "13",
-            "private": "true",
-            "source": "edgeimpulse",
-            "source-model-id": "glass-breaking",
-            "source-model-url": "https://studio.edgeimpulse.com/public/749446/live"
+        {
+            "id": "fan-anomaly-detection",
+            "name": "Fan anomaly detection",
+            "description": "An anomaly detection model designed to identify anomalies in fan operation.",
+            "runner": "",
+            "brick_ids": [
+                "arduino:vibration_anomaly_detection"
+            ],
+            "metadata": {
+                "ei-model-url": "https://studio.edgeimpulse.com/public/774707/live",
+                "ei-project-id": "774707",
+                "model_size_mb": "13",
+                "source": "edgeimpulse",
+                "source-model-id": "fan-anomaly-detection",
+                "source-model-url": "https://studio.edgeimpulse.com/public/774707/live"
+            },
+            "is_builtin": true,
+            "installed": true
         },
-        "is_builtin": true,
-        "installed": true
-    },
-    {
-        "id": "hand-gestures",
-        "name": "Hand gestures",
-        "description": "A lightweight vision model that detects four hand gestures: neutral fist, open hand (five), V-sign (peace), and thumbs-up (good).",
-        "runner": "",
-        "brick_ids": [
-            "arduino:object_detection",
-            "arduino:video_object_detection"
-        ],
-        "metadata": {
-            "ei-model-url": "https://studio.edgeimpulse.com/public/842271/live",
-            "ei-project-id": "842271",
-            "model_size_mb": "15",
-            "source": "edgeimpulse",
-            "source-model-id": "hand-gestures",
-            "source-model-url": "https://studio.edgeimpulse.com/public/842271/live"
+        {
+            "id": "glass-breaking",
+            "name": "Glass breaking classifier",
+            "description": "A glass breaking classifier model to detect glass breaking sounds in audio recordings",
+            "runner": "",
+            "brick_ids": [
+                "arduino:audio_classification"
+            ],
+            "metadata": {
+                "ei-model-url": "https://studio.edgeimpulse.com/public/749446/live",
+                "ei-project-id": "749446",
+                "model_size_mb": "13",
+                "private": "true",
+                "source": "edgeimpulse",
+                "source-model-id": "glass-breaking",
+                "source-model-url": "https://studio.edgeimpulse.com/public/749446/live"
+            },
+            "is_builtin": true,
+            "installed": true
         },
-        "is_builtin": true,
-        "installed": true
-    },
-    {
-        "id": "gesture-recognition",
-        "name": "MediaPipe Hand-Gesture Recognition",
-        "description": "The MediaPipe Gesture Recognizer is a real-time machine learning pipeline that detects hands, predicts 21 hand landmarks, determines handedness (left/right), and classifies gestures from a predefined set.",
-        "runner": "",
-        "brick_ids": [
-            "arduino:gesture_recognition"
-        ],
-        "metadata": {
-            "model_size_mb": "6",
-            "source": "qualcomm-ai-hub",
-            "source-model-id": "mediapipe_hand_gesture",
-            "source-model-url": "https://aihub.qualcomm.com/models/mediapipe_hand_gesture"
+        {
+            "id": "hand-gestures",
+            "name": "Hand gestures",
+            "description": "A lightweight vision model that detects four hand gestures: neutral fist, open hand (five), V-sign (peace), and thumbs-up (good).",
+            "runner": "",
+            "brick_ids": [
+                "arduino:object_detection",
+                "arduino:video_object_detection"
+            ],
+            "metadata": {
+                "ei-model-url": "https://studio.edgeimpulse.com/public/842271/live",
+                "ei-project-id": "842271",
+                "model_size_mb": "15",
+                "source": "edgeimpulse",
+                "source-model-id": "hand-gestures",
+                "source-model-url": "https://studio.edgeimpulse.com/public/842271/live"
+            },
+            "is_builtin": true,
+            "installed": true
         },
-        "is_builtin": true,
-        "installed": true
-    },
-    {
-        "id": "ei-model-901144-1",
-        "name": "Person Detection",
-        "description": "Person Detection",
-        "runner": "",
-        "brick_ids": [
-            "arduino:object_detection",
-            "arduino:video_object_detection"
-        ],
-        "metadata": {
-            "ei-deployment-version": "43",
-            "ei-engine": "tflite",
-            "ei-impulse-id": "1",
-            "ei-impulse-name": "Image data, Image, Object Detection (Images) #1 (40 epochs - LR 0.005 - Data augm.)",
-            "ei-last-modified": "2026-05-08T12:35:21.979Z",
-            "ei-model-type": "float32",
-            "ei-project-id": "901144",
-            "source": "edgeimpulse"
+        {
+            "id": "genie:qwen3_4b_instruct_2507",
+            "name": "Qwen 3-4B Instruct",
+            "description": "The Qwen3-4B is a state-of-the-art multilingual base language model with 4 billion parameters, excelling in language understanding, generation, coding, and mathematics. This version of the model has been tuned as instruct model, optimized for following human instructions and providing detailed responses.  It is ideal for applications such as chatbots, virtual assistants, and any use case that benefits from a more conversational and responsive AI.",
+            "runner": "",
+            "brick_ids": [
+                "arduino:llm"
+            ],
+            "metadata": {
+                "model_size_mb": "3039",
+                "source": "qualcomm-ai-hub",
+                "source-model-id": "qwen3_4b_instruct_2507",
+                "source-model-url": "https://aihub.qualcomm.com/models/qwen3_4b_instruct_2507"
+            },
+            "is_builtin": true,
+            "installed": false
         },
-        "is_builtin": false,
-        "installed": true
-    },
-    {
-        "id": "ei-model-990187-1",
-        "name": "Food",
-        "description": "Food",
-        "runner": "",
-        "brick_ids": [
-            "arduino:image_classification",
-            "arduino:video_image_classification"
-        ],
-        "metadata": {
-            "ei-deployment-version": "11",
-            "ei-engine": "tflite",
-            "ei-impulse-id": "1",
-            "ei-impulse-name": "Impulse #1",
-            "ei-last-modified": "2026-05-11T08:04:41.062Z",
-            "ei-model-type": "float32",
-            "ei-project-id": "990187",
-            "source": "edgeimpulse"
+        {
+            "id": "genie:qwen2_5_vl_7b_instruct",
+            "name": "Qwen 2.5-VL-7B VLM",
+            "description": "The Qwen2.5 7B VLM is a state-of-the-art multilingual vision-language model with 7 billion parameters, excelling in language understanding, generation, coding, and mathematics.",
+            "runner": "",
+            "brick_ids": [
+                "arduino:vlm"
+            ],
+            "metadata": {
+                "model_size_mb": "6488",
+                "source": "qualcomm-ai-hub",
+                "source-model-id": "qwen2_5_vl_7b_instruct",
+                "source-model-url": "https://aihub.qualcomm.com/models/qwen2_5_vl_7b_instruct"
+            },
+            "is_builtin": true,
+            "installed": false
         },
-        "is_builtin": false,
-        "installed": true
-    },
-    {
-        "id": "ei-model-993630-1",
-        "name": "TestRoblox",
-        "description": "TestRoblox",
-        "runner": "",
-        "brick_ids": [
-            "arduino:object_detection",
-            "arduino:video_object_detection"
-        ],
-        "metadata": {
-            "ei-deployment-version": "1",
-            "ei-engine": "tflite",
-            "ei-impulse-id": "1",
-            "ei-impulse-name": "Impulse #1",
-            "ei-last-modified": "2026-05-12T14:13:58.356Z",
-            "ei-model-type": "float32",
-            "ei-project-id": "993630",
-            "source": "edgeimpulse"
+        {
+            "id": "gesture-recognition",
+            "name": "MediaPipe Hand-Gesture Recognition",
+            "description": "The MediaPipe Gesture Recognizer is a real-time machine learning pipeline that detects hands, predicts 21 hand landmarks, determines handedness (left/right), and classifies gestures from a predefined set.",
+            "runner": "",
+            "brick_ids": [
+                "arduino:gesture_recognition"
+            ],
+            "metadata": {
+                "model_size_mb": "6",
+                "source": "qualcomm-ai-hub",
+                "source-model-id": "mediapipe_hand_gesture",
+                "source-model-url": "https://aihub.qualcomm.com/models/mediapipe_hand_gesture"
+            },
+            "is_builtin": true,
+            "installed": true
         },
-        "is_builtin": false,
-        "installed": true
-    }
-]
+        {
+            "id": "whisper-small-quantized",
+            "name": "Whisper Small (quantized)",
+            "description": "Whisper ASR (Automatic Speech Recognition) model is a state-of-the-art system designed for transcribing spoken language into written text. This model is based on the transformer architecture and has been optimized for edge inference by replacing Multi-Head Attention (MHA) with Single-Head Attention (SHA) and linear layers with convolutional (conv) layers. It exhibits robust performance in realistic, noisy environments, making it highly reliable for real-world applications. Specifically, it excels in long-form transcription, capable of accurately transcribing audio clips up to 30 seconds long.",
+            "runner": "",
+            "brick_ids": [
+                "arduino:asr"
+            ],
+            "metadata": {
+                "model_size_mb": "343",
+                "source": "qualcomm-ai-hub",
+                "source-model-id": "whisper_small_quantized",
+                "source-model-url": "https://aihub.qualcomm.com/models/whisper_small_quantized"
+            },
+            "is_builtin": true,
+            "installed": false
+        },
+        {
+            "id": "melo-tts-en",
+            "name": "Melo TTS (English)",
+            "description": "MeloTTS is a high-quality multi-lingual text-to-speech library - English version.",
+            "runner": "",
+            "brick_ids": [
+                "arduino:tts"
+            ],
+            "metadata": {
+                "model_size_mb": "291",
+                "source": "qualcomm-ai-hub",
+                "source-model-id": "melotts_en",
+                "source-model-url": "https://aihub.qualcomm.com/models/melotts_en"
+            },
+            "is_builtin": true,
+            "installed": false
+        },
+        {
+            "id": "melo-tts-es",
+            "name": "Melo TTS (Spanish)",
+            "description": "MeloTTS is a high-quality multi-lingual text-to-speech library - Spanish version.",
+            "runner": "",
+            "brick_ids": [
+                "arduino:tts"
+            ],
+            "metadata": {
+                "model_size_mb": "106",
+                "source": "qualcomm-ai-hub",
+                "source-model-id": "melotts_es",
+                "source-model-url": "https://aihub.qualcomm.com/models/melotts_es"
+            },
+            "is_builtin": true,
+            "installed": false
+        },
+        {
+            "id": "melo-tts-zh",
+            "name": "Melo TTS (Chinese)",
+            "description": "MeloTTS is a high-quality multi-lingual text-to-speech library - Chinese version.",
+            "runner": "",
+            "brick_ids": [
+                "arduino:tts"
+            ],
+            "metadata": {
+                "model_size_mb": "360",
+                "source": "qualcomm-ai-hub",
+                "source-model-id": "melotts_zh",
+                "source-model-url": "https://aihub.qualcomm.com/models/melotts_zh"
+            },
+            "is_builtin": true,
+            "installed": false
+        },
+        {
+            "id": "piper-tts-de",
+            "name": "Piper TTS (German)",
+            "description": "Piper is a high-quality multi-lingual text-to-speech library - German version.",
+            "runner": "",
+            "brick_ids": [
+                "arduino:tts"
+            ],
+            "metadata": {
+                "model_size_mb": "44",
+                "source": "qualcomm-ai-hub",
+                "source-model-id": "piper_tts_de",
+                "source-model-url": "https://aihub.qualcomm.com/models/piper_tts_de"
+            },
+            "is_builtin": true,
+            "installed": true
+        },
+        {
+            "id": "piper-tts-it",
+            "name": "Piper TTS (Italian)",
+            "description": "Piper is a high-quality multi-lingual text-to-speech library - Italian version.",
+            "runner": "",
+            "brick_ids": [
+                "arduino:tts"
+            ],
+            "metadata": {
+                "model_size_mb": "44",
+                "source": "qualcomm-ai-hub",
+                "source-model-id": "piper_tts_it",
+                "source-model-url": "https://aihub.qualcomm.com/models/piper_tts_it"
+            },
+            "is_builtin": true,
+            "installed": true
+        },
+        {
+            "id": "piper-tts-en",
+            "name": "Piper TTS (English)",
+            "description": "Piper is a high-quality multi-lingual text-to-speech library - English version.",
+            "runner": "",
+            "brick_ids": [
+                "arduino:tts"
+            ],
+            "metadata": {
+                "model_size_mb": "46",
+                "source": "qualcomm-ai-hub",
+                "source-model-id": "piper_tts_en",
+                "source-model-url": "https://aihub.qualcomm.com/models/piper_tts_en"
+            },
+            "is_builtin": true,
+            "installed": true
+        },
+        {
+            "id": "ei:efficientnet-b4",
+            "name": "General purpose object classification - EfficientNet-B4",
+            "description": "EfficientNetB4 is a machine learning model that can classify images from the Imagenet dataset. It can also be used as a backbone in building more complex models for specific use cases. This version of the model is optimized for NPU acceleration on supported devices, providing faster inference times while maintaining accuracy.",
+            "runner": "",
+            "brick_ids": [
+                "arduino:image_classification",
+                "arduino:video_image_classification"
+            ],
+            "metadata": {
+                "ei-impulse-id": "4",
+                "ei-model-url": "https://studio.edgeimpulse.com/public/948887/live",
+                "ei-project-id": "948887",
+                "hw_acceleration_backend": "qnn",
+                "image-resolution": "380x380",
+                "model_size_mb": "89",
+                "source": "edgeimpulse",
+                "source-model-id": "efficientnet_b4",
+                "source-model-url": "https://aihub.qualcomm.com/compute/models/efficientnet_b4"
+            },
+            "is_builtin": true,
+            "installed": false
+        },
+        {
+            "id": "ei-model-901144-1",
+            "name": "Person Detection",
+            "description": "Person Detection",
+            "runner": "",
+            "brick_ids": [
+                "arduino:object_detection",
+                "arduino:video_object_detection"
+            ],
+            "metadata": {
+                "ei-deployment-version": "43",
+                "ei-engine": "tflite",
+                "ei-impulse-id": "1",
+                "ei-impulse-name": "Image data, Image, Object Detection (Images) #1 (40 epochs - LR 0.005 - Data augm.)",
+                "ei-last-modified": "2026-05-08T12:35:21.979Z",
+                "ei-model-type": "float32",
+                "ei-project-id": "901144",
+                "source": "edgeimpulse"
+            },
+            "is_builtin": false,
+            "installed": true
+        },
+        {
+            "id": "ei-model-990187-1",
+            "name": "Food",
+            "description": "Food",
+            "runner": "",
+            "brick_ids": [
+                "arduino:image_classification",
+                "arduino:video_image_classification"
+            ],
+            "metadata": {
+                "ei-deployment-version": "11",
+                "ei-engine": "tflite",
+                "ei-impulse-id": "1",
+                "ei-impulse-name": "Impulse #1",
+                "ei-last-modified": "2026-05-11T08:04:41.062Z",
+                "ei-model-type": "float32",
+                "ei-project-id": "990187",
+                "source": "edgeimpulse"
+            },
+            "is_builtin": false,
+            "installed": true
+        },
+        {
+            "id": "ei-model-993630-1",
+            "name": "TestRoblox",
+            "description": "TestRoblox",
+            "runner": "",
+            "brick_ids": [
+                "arduino:object_detection",
+                "arduino:video_object_detection"
+            ],
+            "metadata": {
+                "ei-deployment-version": "1",
+                "ei-engine": "tflite",
+                "ei-impulse-id": "1",
+                "ei-impulse-name": "Impulse #1",
+                "ei-last-modified": "2026-05-12T14:13:58.356Z",
+                "ei-model-type": "float32",
+                "ei-project-id": "993630",
+                "source": "edgeimpulse"
+            },
+            "is_builtin": false,
+            "installed": true
+        }
+    ]
 }
