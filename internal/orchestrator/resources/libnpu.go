@@ -9,8 +9,9 @@ import (
 	"fmt"
 	"unsafe"
 
-	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/ebitengine/purego"
+
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 // Go layout representing the C struct sysmon_query_prof_data.

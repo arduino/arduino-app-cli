@@ -170,7 +170,12 @@ func SystemResources(ctx context.Context, cfg config.Configuration, resourceCfg 
 				}
 			case <-ctx.Done():
 				if hasNPU {
-					NPUDeInit()
+					err := NPUDeInit()
+					if err != nil {
+						slog.Warn("Failed to deinit NPU DSP", "error", err)
+
+					}
+
 				}
 				return
 			}
