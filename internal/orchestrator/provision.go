@@ -237,7 +237,7 @@ func generateMainComposeFile(
 		for _, id := range idxBrick.RequiresServices {
 			idxService, found := servicesIndex.FindServiceByID(id)
 			if !found {
-				slog.Error("service required by brick not found in services index", slog.String("service_id", id), slog.String("brick_id", brick.ID))
+				slog.Debug("service required by brick not found or not available for current board", slog.String("service_id", id), slog.String("brick_id", brick.ID))
 				continue
 			}
 			brickServices[id] = *idxService
