@@ -1,0 +1,56 @@
+name: test models download flow
+
+on:
+  push:
+    branches:
+      - feat/models-download-flow
+  workflow_dispatch:
+    inputs:
+      model_id:
+        description: "Model ID to test (must exist in models-list.yaml)"
+        required: false
+        default: "melo-tts-es"
+
+permissions:
+  contents: read
+  packages: read # needed to pull from ghcr.io
+
+jobs:
+  test-models-download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y android-tools-adb
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pre-pull models-downloader image
+        run: docker pull ghcr.io/arduino/app-bricks/models-downloader:0.11.0rc3
+
+      - name: Build daemon binary
+        run: go build -o arduino-app-cli ./cmd/arduino-app-cli
+
+      - name: Run models handler e2e tests
+        env:
+          E2E_MODEL_ID: ${{ github.event.inputs.model_id || 'melo-tts-es' }}
+        run: |
+          go test -v -tags e2e_docker -timeout 15m \
+            ./internal/e2e/daemon/ \
+            -run TestModelHandlerDownloadFlow
