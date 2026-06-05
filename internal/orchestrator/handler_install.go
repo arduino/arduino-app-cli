@@ -13,7 +13,7 @@ import (
 	"io"
 	"log/slog"
 
-	"github.com/arduino/go-paths-helper"
+	paths "github.com/arduino/go-paths-helper"
 	"github.com/docker/docker/client"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhandler"
@@ -26,11 +26,10 @@ func runHandlerAction(ctx context.Context, cli client.APIClient, model modelsind
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}
 
-	var stdout io.Writer
-	if publish != nil {
-		stdout = &handlerOutputParser{publish: publish}
-	} else {
-		stdout = slog.NewLogLogger(slog.Default().Handler(), slog.LevelDebug).Writer()
+	if publish == nil {
+		publish = func(e ModelInstallEvent) {
+			slog.Debug("handler event", "model", model.ID, "event", e.Type, "description", e.Description)
+		}
 	}
 
 	slog.Debug("running handler action", "model", model.ID, "action", action, "image", image)
@@ -39,8 +38,8 @@ func runHandlerAction(ctx context.Context, cli client.APIClient, model modelsind
 		Cmd:    action,
 		Binds:  []string{fmt.Sprintf("%s:/models", downloadPath)},
 		Env:    env,
-		Stdout: stdout,
-		Stderr: slog.NewLogLogger(slog.Default().Handler(), slog.LevelDebug).Writer(),
+		Stdout: &handlerOutputParser{publish: publish},
+		Stderr: io.Discard,
 	})
 }
 
@@ -68,16 +67,38 @@ func (p *handlerOutputParser) Write(b []byte) (int, error) {
 
 func (p *handlerOutputParser) parseLine(line []byte) {
 	var raw struct {
-		Event       string `json:"event"`
-		Description string `json:"description"`
+		Event       string   `json:"event"`
+		Description string   `json:"description"`
+		Current     int64    `json:"current"`
+		Total       int64    `json:"total"`
+		Unit        string   `json:"unit"`
+		Percentage  string   `json:"percentage"`
+		Artifacts   []string `json:"artifacts"`
 	}
 	if err := json.Unmarshal(line, &raw); err != nil {
 		slog.Debug("non-JSON stdout from handler", "line", string(line))
 		return
 	}
-	eventType := ModelInstallEventInfo
-	if raw.Event == "error" {
+	var eventType ModelInstallEventType
+	switch raw.Event {
+	case "start":
+		eventType = ModelInstallEventStart
+	case "update":
+		eventType = ModelInstallEventUpdate
+	case "complete":
+		eventType = ModelInstallEventComplete
+	case "error":
 		eventType = ModelInstallEventError
+	default:
+		eventType = ModelInstallEventInfo
 	}
-	p.publish(ModelInstallEvent{Type: eventType, Description: raw.Description})
+	p.publish(ModelInstallEvent{
+		Type:        eventType,
+		Description: raw.Description,
+		Current:     raw.Current,
+		Total:       raw.Total,
+		Unit:        raw.Unit,
+		Percentage:  raw.Percentage,
+		Artifacts:   raw.Artifacts,
+	})
 }
