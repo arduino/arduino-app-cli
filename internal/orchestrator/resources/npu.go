@@ -17,6 +17,12 @@ The fastrpc kernel library stores initialization state tied to a specific OS thr
 Go's runtime can reschedule a goroutine to different OS threads between function calls,
 breaking fastrpc's thread-local state assumptions.
 
+there are more calls to remote_handle64_open
+https://github.com/qualcomm/libqcnpuperf/blob/main/src/qcom_dsp.c#L54
+
+this is the fastrpc code:
+https://github.com/qualcomm/fastrpc/blob/development/inc/remote.h#L799
+
 Create a dedicated worker goroutine, locked via runtime.LockOSThread(),
 to ensures all NPU operations execute on the same thread, preventing Go
 from migrating the goroutine.
@@ -156,9 +162,8 @@ func NPUPercent() (float32, error) {
 	return <-req.maxUsage, nil
 }
 
-// TODO Evaluate if it's better to return all metrics and let the caller
-// to implement the choice logic
 func npuPercentImpl() (float32, error) {
+	// Protect calls before the first init() or last deinit()
 	if refCounter == 0 {
 		return 0, fmt.Errorf("NPU is not initialized, refCounter %d", refCounter)
 	}
@@ -173,5 +178,7 @@ func npuPercentImpl() (float32, error) {
 	}
 
 	data := (*SysmonQueryProfData)(ptr)
+	// TODO Evaluate if it's better to return all metrics and let the caller
+	// to implement the choice logic
 	return max(data.Q6Utilization, data.HmxUtilization, data.HvxUtilization), nil
 }

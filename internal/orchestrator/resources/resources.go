@@ -175,7 +175,6 @@ func SystemResources(ctx context.Context, cfg config.Configuration, resourceCfg 
 						slog.Warn("Failed to deinit NPU DSP", "error", err)
 
 					}
-
 				}
 				return
 			}
