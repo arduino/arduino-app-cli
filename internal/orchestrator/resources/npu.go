@@ -45,7 +45,7 @@ type npuRequest struct {
 var (
 	npuWorkerOnce sync.Once
 	npuRequests   chan npuRequest
-	refCounter    int
+	refCounter    int // no need atomic here
 )
 
 func startNPUWorker() {
