@@ -22,7 +22,7 @@ import (
 )
 
 type SystemResource interface {
-	systemResource() string
+	systemResource() string // Private method makes this a sealed interface
 }
 
 type SystemDiskResource struct {
