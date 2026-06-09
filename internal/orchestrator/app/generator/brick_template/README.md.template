@@ -6,14 +6,14 @@ Write Python in `__init__.py`, then import your Brick into `main.py`.
 
 How to use it
 
-Write Python in __init__.py:
+Write Python in `__init__.py`
 ```
 # bricks/{{ .ID }}/__init__.py
 def greet(name):
     return f"Hello {name}, I am the {{ .ID }} brick
 ```
 
-Import it from `python/main.py`:
+Import tyou brick using the `bricks.{{ .ID }}` from `python/main.py`:
 ```
 # python/main.py
 from bricks.{{ .ID }} import greet
