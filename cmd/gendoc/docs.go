@@ -878,6 +878,57 @@ Contains a JSON object with the details of an error.
 			},
 		},
 		{
+			OperationId: "installModel",
+			Method:      http.MethodPut,
+			Path:        "/v1/models/{id}",
+			Request: (*struct {
+				ID string `path:"id" description:"AI model identifier."`
+			})(nil),
+			Description: "Starts the download and installation of a handler-backed AI model. Progress is streamed as Server-Sent Events until the operation completes.",
+			Summary:     "Install an AI model",
+			Tags:        []Tag{AIModelsTag},
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType: "text/event-stream",
+				StatusCode:  http.StatusOK,
+				Description: `A stream of Server-Sent Events (SSE) reporting install progress.
+Each event carries a JSON object with the following fields:
+- model_id (string): identifier of the model being installed
+- type (string): event type — one of start, update, complete, info, error, done
+- description (string, optional): human-readable message
+- current (integer, optional): bytes downloaded so far
+- total (integer, optional): total file size in bytes
+- unit (string, optional): unit of current/total, e.g. "B"
+- percentage (string, optional): formatted completion percentage, e.g. "42.00%"
+- artifacts (array of strings, optional): paths of files produced on completion
+
+**Event 'start'**: download begins
+'event: start'
+'data: {"model_id":"melo-tts-es","type":"start","description":"Downloading model.zip from https://...","current":0,"total":52428800,"unit":"B","percentage":"0.00%"}'
+
+**Event 'update'**: periodic progress (approx. every 1 s)
+'event: update'
+'data: {"model_id":"melo-tts-es","type":"update","current":10485760,"total":52428800,"unit":"B","percentage":"20.00%"}'
+
+**Event 'complete'**: download finished, artifacts available
+'event: complete'
+'data: {"model_id":"melo-tts-es","type":"complete","description":"Downloaded model.zip","artifacts":["/models/melo-tts-es/model.zip"]}'
+
+**Event 'error'**: a non-fatal error from the handler container
+'event: error'
+'data: {"model_id":"melo-tts-es","type":"error","description":"checksum mismatch"}'
+
+**Event 'done'**: final event — always sent; non-empty description signals failure
+'event: done'
+'data: {"model_id":"melo-tts-es","type":"done"}'
+`,
+			},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusNotFound, Reference: "#/components/responses/NotFound"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
 			OperationId: "installEIModel",
 			Method:      http.MethodPut,
 			Path:        "/v1/models/ei/projects/{projectID}",

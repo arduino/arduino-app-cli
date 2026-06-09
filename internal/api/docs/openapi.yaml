@@ -1055,6 +1055,64 @@ paths:
       summary: Get AI model details
       tags:
       - AIModels
+    put:
+      description: Starts the download and installation of a handler-backed AI model.
+        Progress is streamed as Server-Sent Events until the operation completes.
+      operationId: installModel
+      parameters:
+      - description: AI model identifier.
+        in: path
+        name: id
+        required: true
+        schema:
+          description: AI model identifier.
+          type: string
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                type: string
+          description: |
+            A stream of Server-Sent Events (SSE) reporting install progress.
+            Each event carries a JSON object with the following fields:
+            - model_id (string): identifier of the model being installed
+            - type (string): event type — one of start, update, complete, info, error, done
+            - description (string, optional): human-readable message
+            - current (integer, optional): bytes downloaded so far
+            - total (integer, optional): total file size in bytes
+            - unit (string, optional): unit of current/total, e.g. "B"
+            - percentage (string, optional): formatted completion percentage, e.g. "42.00%"
+            - artifacts (array of strings, optional): paths of files produced on completion
+
+            **Event 'start'**: download begins
+            'event: start'
+            'data: {"model_id":"melo-tts-es","type":"start","description":"Downloading model.zip from https://...","current":0,"total":52428800,"unit":"B","percentage":"0.00%"}'
+
+            **Event 'update'**: periodic progress (approx. every 1 s)
+            'event: update'
+            'data: {"model_id":"melo-tts-es","type":"update","current":10485760,"total":52428800,"unit":"B","percentage":"20.00%"}'
+
+            **Event 'complete'**: download finished, artifacts available
+            'event: complete'
+            'data: {"model_id":"melo-tts-es","type":"complete","description":"Downloaded model.zip","artifacts":["/models/melo-tts-es/model.zip"]}'
+
+            **Event 'error'**: a non-fatal error from the handler container
+            'event: error'
+            'data: {"model_id":"melo-tts-es","type":"error","description":"checksum mismatch"}'
+
+            **Event 'done'**: final event — always sent; non-empty description signals failure
+            'event: done'
+            'data: {"model_id":"melo-tts-es","type":"done"}'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Install an AI model
+      tags:
+      - AIModels
   /v1/models/ei/projects/{projectID}:
     put:
       description: Download and install a custom Edge Impulse AI model using the provided
@@ -1455,6 +1513,8 @@ components:
           type: integer
         id:
           type: string
+        installed:
+          type: boolean
         is_builtin:
           type: boolean
         metadata:
