@@ -203,7 +203,7 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 		if res.Deployment != nil {
 			envVars = res.Deployment.VariablesForPlatform(platform.BoardName)
 		}
-		return runHandlerAction(ctx, dockerClient.Client(), *res, handler.Image, handler.Actions.Delete, downloadPath, envVars, nil)
+		return runHandlerAction(ctx, dockerClient.Client(), *res, handler.Image, handler.Actions.Delete, handler.Volumes, downloadPath, envVars, nil)
 	}
 
 	// Custom model (e.g. Edge Impulse): remove the model folder directly.
@@ -469,7 +469,7 @@ func isModelInstalled(ctx context.Context, cli client.APIClient, model modelsind
 		}
 	}
 
-	err := runHandlerAction(ctx, cli, model, handler.Image, handler.Actions.Check, downloadPath, envVars, checkResponse)
+	err := runHandlerAction(ctx, cli, model, handler.Image, handler.Actions.Check, handler.Volumes, downloadPath, envVars, checkResponse)
 	if err != nil {
 		slog.Debug("model check reported not downloaded", "model", model.ID, "err", err)
 		return false
@@ -503,10 +503,62 @@ func InstallModelByHandler(ctx context.Context, cli client.APIClient, modelID st
 		return nil
 	}
 
+	if info, err := fetchModelInfo(ctx, cli, *model, handler, downloadPath, envVars); err != nil {
+		slog.Warn("could not fetch model info", "model", modelID, "err", err)
+	} else if info != nil && info.sizeBytes > 0 {
+		if err := hasSufficientDiskSpace(downloadPath, info.sizeBytes); err != nil {
+			return err
+		}
+	}
+
 	slog.Info("installing model", "model", modelID, "path", downloadPath)
 	installResponse := func(e ModelInstallEvent) {
 		// TODO: send the progress by capture the STDout of the container as raw string
 		cb(StreamMessage{data: e.Description})
 	}
-	return runHandlerAction(ctx, cli, *model, handler.Image, handler.Actions.Download, downloadPath, envVars, installResponse)
+	return runHandlerAction(ctx, cli, *model, handler.Image, handler.Actions.Download, handler.Volumes, downloadPath, envVars, installResponse)
+}
+
+type modelInfoResult struct {
+	sizeBytes int64
+}
+
+// fetchModelInfo runs the info action and returns the reported model size.
+// Returns nil if the handler has no info action defined.
+func fetchModelInfo(ctx context.Context, cli client.APIClient, model modelsindex.AIModel, handler modelsindex.ModelHandler, downloadPath *paths.Path, envVars map[string]string) (*modelInfoResult, error) {
+	if len(handler.Actions.Info) == 0 {
+		return nil, nil
+	}
+	var result modelInfoResult
+	publish := func(e ModelInstallEvent) {
+		if e.Total > 0 {
+			result.sizeBytes = e.Total
+		}
+	}
+	if err := runHandlerAction(ctx, cli, model, handler.Image, handler.Actions.Info, handler.Volumes, downloadPath, envVars, publish); err != nil {
+		return nil, fmt.Errorf("info action: %w", err)
+	}
+	return &result, nil
+}
+
+// hasSufficientDiskSpace checks whether the filesystem containing path has at
+// least requiredBytes of free space. It walks up to the first existing ancestor
+// if path does not yet exist.
+func hasSufficientDiskSpace(path *paths.Path, requiredBytes int64) error {
+	target := path
+	for target != nil && target.NotExist() {
+		target = target.Parent()
+	}
+	if target == nil {
+		return nil // cannot determine filesystem, skip check
+	}
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs(target.String(), &stat); err != nil {
+		return fmt.Errorf("cannot check disk space: %w", err)
+	}
+	available := int64(stat.Bavail) * int64(stat.Bsize)
+	if available < requiredBytes {
+		return ErrInsufficientStorage
+	}
+	return nil
 }

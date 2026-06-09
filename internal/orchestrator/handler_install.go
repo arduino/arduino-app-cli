@@ -20,8 +20,13 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
-func runHandlerAction(ctx context.Context, cli client.APIClient, model modelsindex.AIModel, image string, action []string, downloadPath *paths.Path, envVars map[string]string, publish func(ModelInstallEvent)) error {
-	env := make([]string, 0, len(envVars))
+func runHandlerAction(ctx context.Context, cli client.APIClient, model modelsindex.AIModel, image string, action []string, volumes []string, downloadPath *paths.Path, envVars map[string]string, publish func(ModelInstallEvent)) error {
+	binds, volumeEnv := modelsindex.ResolveVolumes(volumes, map[string]string{
+		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": downloadPath.String(),
+	})
+
+	env := make([]string, 0, len(envVars)+len(volumeEnv))
+	env = append(env, volumeEnv...)
 	for k, v := range envVars {
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}
@@ -36,7 +41,7 @@ func runHandlerAction(ctx context.Context, cli client.APIClient, model modelsind
 	return dockerhandler.Run(ctx, cli, dockerhandler.RunOptions{
 		Image:  image,
 		Cmd:    action,
-		Binds:  []string{fmt.Sprintf("%s:/models", downloadPath)},
+		Binds:  binds,
 		Env:    env,
 		Stdout: &handlerOutputParser{publish: publish},
 		Stderr: io.Discard, // TODO: consider parsing stderr as well, or at least logging it
