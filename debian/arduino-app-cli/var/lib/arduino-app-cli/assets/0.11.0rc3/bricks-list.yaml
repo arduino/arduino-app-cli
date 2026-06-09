@@ -109,6 +109,8 @@ bricks:
     model: yolox-object-detection
   ai_frameworks_compatibility:
   - edgeimpulse
+  model_configuration_variables:
+    - EI_V_OBJ_DETECTION_MODEL
   variables:
   - name: CUSTOM_MODEL_PATH
     default_value: /home/arduino/.arduino-bricks/ei-models
