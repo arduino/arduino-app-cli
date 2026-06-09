@@ -18,7 +18,7 @@ Import your brick using the `bricks.{{ .ID }}` from `python/main.py`:
 # python/main.py
 from bricks.{{ .ID }} import greet
 print(greet("world"))
-``
+```
 
 Configure your Brick
 
