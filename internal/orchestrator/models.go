@@ -373,15 +373,17 @@ func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *
 		modelConfigPerBrick := make(map[string]string)
 		for _, variable := range brick.Variables {
 			name := variable.Name
-			switch {
-			case name == "CUSTOM_MODEL_PATH":
+			if name == "CUSTOM_MODEL_PATH" {
 				modelConfigPerBrick[name] = edgeModelsDir.String()
-			case strings.HasPrefix(name, "EI_") && strings.HasSuffix(name, "_MODEL"):
-				// EI model variables (EI_*_MODEL) get the blob path
-				modelConfigPerBrick[name] = blobModelsDir.String()
-			default:
+			} else {
 				// Leave other variables unset here; they may be user-provided or have defaults
 				slog.Debug("skipping non-model variable for EI auto-config", "variable", name, "brick", brick.ID)
+			}
+		}
+		for _, name := range brick.ModelConfigurationVariables {
+			if strings.HasPrefix(name, "EI_") && strings.HasSuffix(name, "_MODEL") {
+				// EI model variables (EI_*_MODEL) get the blob path
+				modelConfigPerBrick[name] = blobModelsDir.String()
 			}
 		}
 

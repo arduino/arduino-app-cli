@@ -64,6 +64,8 @@ bricks:
   model_name: glass-breaking
   ai_frameworks_compatibility:
   - edgeimpulse
+  model_configuration_variables:
+    - EI_AUDIO_CLASSIFICATION_MODEL
   variables:
   - name: EI_AUDIO_CLASSIFICATION_MODEL
     default_value: /models/ootb/ei/glass-breaking.eim
@@ -169,6 +171,8 @@ bricks:
   - microphone
   ai_frameworks_compatibility:
   - edgeimpulse
+  model_configuration_variables:
+    - EI_KEYWORD_SPOTTING_MODEL
   variables:
   - name: EI_KEYWORD_SPOTTING_MODEL
     default_value: /models/ootb/ei/keyword-spotting-hey-arduino.eim
@@ -196,6 +200,8 @@ bricks:
   model_name: mobilenet-image-classification
   ai_frameworks_compatibility:
   - edgeimpulse
+  model_configuration_variables:
+    - EI_CLASSIFICATION_MODEL
   variables:
   - name: EI_CLASSIFICATION_MODEL
     default_value: /models/ootb/ei/mobilenet-v2-224px.eim
@@ -254,6 +260,8 @@ bricks:
   model_name: fan-anomaly-detection
   ai_frameworks_compatibility:
   - edgeimpulse
+  model_configuration_variables:
+    - EI_VIBRATION_ANOMALY_DETECTION_MODEL
   variables:
   - name: EI_VIBRATION_ANOMALY_DETECTION_MODEL
     default_value: /models/ootb/ei/fan-anomaly-detection.eim
@@ -281,6 +289,8 @@ bricks:
   model_name: yolox-object-detection
   ai_frameworks_compatibility:
   - edgeimpulse
+  model_configuration_variables:
+    - EI_OBJ_DETECTION_MODEL
   variables:
   - name: EI_OBJ_DETECTION_MODEL
     default_value: /models/ootb/ei/yolo-x-nano.eim
@@ -378,6 +388,8 @@ bricks:
   model_name: updown-wave-motion-detection
   ai_frameworks_compatibility:
   - edgeimpulse
+  model_configuration_variables:
+    - EI_MOTION_DETECTION_MODEL
   variables:
   - name: EI_MOTION_DETECTION_MODEL
     default_value: /models/ootb/ei/updown-wave-motion-detection.eim
@@ -522,6 +534,8 @@ bricks:
   - camera
   ai_frameworks_compatibility:
   - edgeimpulse
+  model_configuration_variables:
+    - EI_V_CLASSIFICATION_MODEL
   variables:
   - name: EI_V_CLASSIFICATION_MODEL
     default_value: /models/ootb/ei/mobilenet-v2-224px.eim
