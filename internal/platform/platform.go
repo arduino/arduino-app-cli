@@ -57,8 +57,7 @@ func GetPlatform(dir *paths.Path) Platform {
 			PlatformID: "arduino:zephyr",
 			BoardName:  "ventunoq",
 			Linux: struct{ BoardLeds paths.PathList }{
-				// TODO: add leds paths
-				BoardLeds: paths.NewPathList(),
+				BoardLeds: GetVentunoQBoardLeds(),
 			},
 			CompileJobs: 0, // unlimited
 			Micro: struct{ ResetPin GpioPin }{
@@ -125,4 +124,25 @@ func GetUnoQBoardLeds() paths.PathList {
 		return newPaths
 	}
 	return legacyPaths
+}
+
+func GetVentunoQBoardLeds() paths.PathList {
+	return paths.NewPathList(
+		// LED 1
+		"/dev/leds/builtin/led1_b",
+		"/dev/leds/builtin/led1_g",
+		"/dev/leds/builtin/led1_r",
+		// LED 2
+		"/dev/leds/builtin/led2_b",
+		"/dev/leds/builtin/led2_g",
+		"/dev/leds/builtin/led2_r",
+		// LED 3
+		"/dev/leds/builtin/led3_b",
+		"/dev/leds/builtin/led3_g",
+		"/dev/leds/builtin/led3_r",
+		// LED 4
+		"/dev/leds/builtin/led4_b",
+		"/dev/leds/builtin/led4_g",
+		"/dev/leds/builtin/led4_r",
+	)
 }
