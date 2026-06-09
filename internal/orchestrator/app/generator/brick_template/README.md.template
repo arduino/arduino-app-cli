@@ -2,28 +2,27 @@
 
 Your {{ .Name }} Brick is ready.
 Custom Bricks are modular components that add reusable functionality to your app.
-Write Python in `__init__.py`, then import your Brick into `main.py`.
 
-How to use it
+## How to use it
 
-Write Python in `__init__.py`
+Write Python in `bricks/{{ .ID }}/__init__.py`
 ```
 # bricks/{{ .ID }}/__init__.py
 def greet(name):
-    return f"Hello {name}, I am the {{ .ID }} brick
+    return f"Hello {name}, I am the {{ .Name }} brick"
 ```
 
-Import your brick using the `bricks.{{ .ID }}` from `python/main.py`:
+Import it  into `python/main.py`:
 ```
 # python/main.py
 from bricks.{{ .ID }} import greet
+
 print(greet("world"))
 ```
 
-Configure your Brick
-
+## Configure your Brick:
 `brick_config.yaml` defines your Brick's identity and variables:
-```
+```yaml
 id: {{ .ID }}
 name: {{ .Name }}
 description: "I am a custom brick"
@@ -33,13 +32,13 @@ variables:
      secret: true
 ```
 
-What's in the folder
+## What's in the folder
 ```
 __init__.py — your Python code
 brick_config.yaml — Brick identity, variables, and configuration
 brick_compose.yaml — Docker Compose file for adding containers
 ```
 
-Next
+## Next
 Replace this README with your Brick's docs: what it does, inputs, outputs, and a usage example.
-See Documentation on Docs
+[See Documentation on Docs](https://docs.arduino.cc/software/app-lab/bricks/about-bricks/)
