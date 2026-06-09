@@ -73,7 +73,6 @@ type AIModel struct {
 	IsInternal        bool              `yaml:"-"`
 	Installed         bool              `yaml:"-"`
 	SupportedBoards   []string          `yaml:"supported_boards,omitempty"`
-	DownloadLocation  string            `yaml:"download_location,omitempty"`
 	Deployment        *ModelDeployment  `yaml:"deployment,omitempty"`
 }
 

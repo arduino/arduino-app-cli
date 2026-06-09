@@ -180,7 +180,11 @@ func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, mode
 		}
 		defer sseStream.Close()
 
-		if err := orchestrator.InstallModelByHandler(context.Background(), dockerClient.Client(), id, modelsIndex, cfg, plat, func(item orchestrator.StreamMessage) {
+		// WithoutCancel detaches from the request so the install keeps running
+		// even if the SSE client disconnects, while still inheriting any
+		// request-scoped values (traces, etc.).
+		installCtx := context.WithoutCancel(r.Context())
+		if err := orchestrator.InstallModelByHandler(installCtx, dockerClient.Client(), id, modelsIndex, cfg, plat, func(item orchestrator.StreamMessage) {
 			switch item.GetType() {
 			case orchestrator.ProgressType:
 				// TODO: send the progress by capture the STDout of the container as raw string
