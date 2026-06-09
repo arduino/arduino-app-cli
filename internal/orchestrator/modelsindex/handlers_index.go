@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -45,7 +46,35 @@ func (a HandlerActions) validate(id string) error {
 type ModelHandler struct {
 	ID      string
 	Image   string
+	Volumes []string
 	Actions HandlerActions
+}
+
+// ResolveVolumes resolves template variables in each volume spec against vars.
+// It returns the Docker bind-mount strings (binds) and an "KEY=value" slice
+// (envAdditions) for every template variable that was substituted, so the
+// container can also reference the paths through environment variables.
+func ResolveVolumes(vols []string, vars map[string]string) (binds, envAdditions []string) {
+	seen := make(map[string]bool)
+	for _, vol := range vols {
+		expanded := os.Expand(vol, func(key string) string {
+			varName, defaultVal := key, ""
+			if idx := strings.Index(key, ":-"); idx != -1 {
+				varName, defaultVal = key[:idx], key[idx+2:]
+			}
+			val, ok := vars[varName]
+			if !ok {
+				return defaultVal
+			}
+			if !seen[varName] {
+				envAdditions = append(envAdditions, fmt.Sprintf("%s=%s", varName, val))
+				seen[varName] = true
+			}
+			return val
+		})
+		binds = append(binds, expanded)
+	}
+	return
 }
 
 type HandlersIndex struct {
@@ -107,11 +136,16 @@ func runListAction(ctx context.Context, cli client.APIClient, handler ModelHandl
 
 	slog.Debug("running list action", "handler", handler.ID, "image", handler.Image)
 
+	binds, volumeEnv := ResolveVolumes(handler.Volumes, map[string]string{
+		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": handlerModelsDir.String(),
+	})
+	env = append(env, volumeEnv...)
+
 	var buf bytes.Buffer
 	err := dockerhandler.Run(ctx, cli, dockerhandler.RunOptions{
 		Image:  handler.Image,
 		Cmd:    []string{"/app/list_models.sh"},
-		Binds:  []string{fmt.Sprintf("%s:/models", handlerModelsDir)},
+		Binds:  binds,
 		Env:    env,
 		Stdout: &buf,
 	})
@@ -200,9 +234,13 @@ func loadHandlers(dir *paths.Path, registryBase string) (*HandlersIndex, error) 
 			if err := actions.validate(id); err != nil {
 				return nil, fmt.Errorf("models-handlers.yaml: %w", err)
 			}
+			if len(entry.Volumes) == 0 {
+				return nil, fmt.Errorf("models-handlers.yaml: handler %q missing required field \"volumes\"", id)
+			}
 			handlers[id] = ModelHandler{
 				ID:      id,
 				Image:   resolveImage(entry.Image, registryBase),
+				Volumes: entry.Volumes,
 				Actions: actions,
 			}
 		}
