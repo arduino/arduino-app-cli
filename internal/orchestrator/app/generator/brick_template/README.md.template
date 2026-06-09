@@ -1,1 +1,45 @@
 # {{ .Name }}
+
+Your {{ .Name }} Brick is ready.
+Custom Bricks are modular components that add reusable functionality to your app.
+Write Python in `__init__.py`, then import your Brick into `main.py`.
+
+How to use it
+
+Write Python in __init__.py:
+```
+# bricks/{{ .ID }}/__init__.py
+def greet(name):
+    return f"Hello {name}, I am the {{ .ID }} brick
+```
+
+Import it from `python/main.py`:
+```
+# python/main.py
+from bricks.{{ .ID }} import greet
+print(greet("world"))
+``
+
+Configure your Brick
+
+`brick_config.yaml` defines your Brick's identity and variables:
+```
+id: {{ .ID }}
+name: {{ .Name }}
+description: "I am a custom brick"
+variables:
+    - name: API_KEY
+     description: Your key
+     secret: true
+```
+
+What's in the folder
+```
+__init__.py — your Python code
+brick_config.yaml — Brick identity, variables, and configuration
+brick_compose.yaml — Docker Compose file for adding containers
+```
+
+Next
+Replace this README with your Brick's docs: what it does, inputs, outputs, and a usage example.
+See Documentation on Docs
