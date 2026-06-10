@@ -121,7 +121,7 @@ func modelInstalled(ctx context.Context, cli client.APIClient, model *modelsinde
 	if model.Deployment != nil {
 		envVars = model.Deployment.VariablesForPlatform(plat.BoardName)
 	}
-	return isModelDownloaded(ctx, cli, *model, handler, downloadPath, envVars)
+	return isModelInstalled(ctx, cli, *model, handler, downloadPath, envVars)
 }
 
 func getModelSize(dirPath *paths.Path) (uint64, error) {
@@ -454,11 +454,30 @@ var (
 	ErrNoDeploymentHandler = errors.New("model has no deployment handler")
 )
 
-func InstallModelByHandler(ctx context.Context, cli client.APIClient, modelID string, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform, mgr *ModelInstallManager) error {
-	publish := func(event ModelInstallEvent) {
-		mgr.broadcast(modelID, event)
+func isModelInstalled(ctx context.Context, cli client.APIClient, model modelsindex.AIModel, handler modelsindex.ModelHandler, downloadPath *paths.Path, envVars map[string]string) bool {
+	installed := false
+
+	checkResponse := func(e ModelInstallEvent) {
+		// echo "{\"event\": \"info\", \"description\": \"Model exists: ${model_directory}\"}"
+		// echo "{\"event\": \"error\", \"description\": \"Model does not exist: ${model_directory}\"}"
+		switch e.Type {
+		case ModelInstallEventInfo:
+			installed = true
+		case ModelInstallEventError:
+		default:
+			slog.Warn("unknown event type from handler check action", "type", e.Type)
+		}
 	}
 
+	err := runHandlerAction(ctx, cli, model, handler.Image, handler.Actions.Check, downloadPath, envVars, checkResponse)
+	if err != nil {
+		slog.Debug("model check reported not downloaded", "model", model.ID, "err", err)
+		return false
+	}
+	return installed
+}
+
+func InstallModelByHandler(ctx context.Context, cli client.APIClient, modelID string, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform, cb func(item StreamMessage)) error {
 	model, found := modelsIndex.GetModelByID(modelID)
 	if !found {
 		return fmt.Errorf("%q: %w", modelID, ErrNotFound)
@@ -470,45 +489,24 @@ func InstallModelByHandler(ctx context.Context, cli client.APIClient, modelID st
 	}
 
 	downloadPath := cfg.CustomModelsDir()
+	if err := downloadPath.MkdirAll(); err != nil {
+		return fmt.Errorf("cannot create download location %q: %w", downloadPath, err)
+	}
 
 	var envVars map[string]string
 	if model.Deployment != nil {
 		envVars = model.Deployment.VariablesForPlatform(plat.BoardName)
 	}
 
-	if isModelDownloaded(ctx, cli, *model, handler, downloadPath, envVars) {
-		slog.Info("model already installed", "model", modelID)
-		mgr.broadcast(modelID, ModelInstallEvent{Type: ModelInstallEventDone})
+	if isModelInstalled(ctx, cli, *model, handler, downloadPath, envVars) {
+		cb(StreamMessage{data: "Model already installed"})
 		return nil
 	}
 
 	slog.Info("installing model", "model", modelID, "path", downloadPath)
-	err := installModel(ctx, cli, *model, handler, downloadPath, envVars, publish)
-
-	done := ModelInstallEvent{Type: ModelInstallEventDone}
-	if err != nil {
-		done.Description = err.Error()
+	installResponse := func(e ModelInstallEvent) {
+		// TODO: send the progress by capture the STDout of the container as raw string
+		cb(StreamMessage{data: e.Description})
 	}
-	mgr.broadcast(modelID, done)
-
-	return err
-}
-
-func isModelDownloaded(ctx context.Context, cli client.APIClient, model modelsindex.AIModel, handler modelsindex.ModelHandler, downloadPath *paths.Path, envVars map[string]string) bool {
-	publish := func(e ModelInstallEvent) {
-		slog.Info("model check", "model", model.ID, "event", e.Type, "description", e.Description)
-	}
-	err := runHandlerAction(ctx, cli, model, handler.Image, handler.Actions.Check, downloadPath, envVars, publish)
-	if err != nil {
-		slog.Debug("model check reported not downloaded", "model", model.ID, "err", err)
-		return false
-	}
-	return true
-}
-
-func installModel(ctx context.Context, cli client.APIClient, model modelsindex.AIModel, handler modelsindex.ModelHandler, downloadPath *paths.Path, envVars map[string]string, publish func(ModelInstallEvent)) error {
-	if err := downloadPath.MkdirAll(); err != nil {
-		return fmt.Errorf("cannot create download location %q: %w", downloadPath, err)
-	}
-	return runHandlerAction(ctx, cli, model, handler.Image, handler.Actions.Download, downloadPath, envVars, publish)
+	return runHandlerAction(ctx, cli, *model, handler.Image, handler.Actions.Download, downloadPath, envVars, installResponse)
 }

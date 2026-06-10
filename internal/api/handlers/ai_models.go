@@ -159,7 +159,7 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 	}
 }
 
-func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform, installMgr *orchestrator.ModelInstallManager) http.HandlerFunc {
+func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := strings.TrimSpace(r.PathValue("modelID"))
 		if id == "" {
@@ -180,32 +180,16 @@ func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, mode
 		}
 		defer sseStream.Close()
 
-		// Subscribe before launching the goroutine to avoid missing events.
-		ch := installMgr.Subscribe()
-		defer installMgr.Unsubscribe(ch)
-
-		go func() {
-			if err := orchestrator.InstallModelByHandler(context.Background(), dockerClient.Client(), id, modelsIndex, cfg, plat, installMgr); err != nil {
-				slog.Error("model install failed", "model", id, "err", err)
+		if err := orchestrator.InstallModelByHandler(context.Background(), dockerClient.Client(), id, modelsIndex, cfg, plat, func(item orchestrator.StreamMessage) {
+			switch item.GetType() {
+			case orchestrator.ProgressType:
+				// TODO: send the progress by capture the STDout of the container as raw string
+				sseStream.Send(render.SSEEvent{Type: "progress", Data: item.GetProgress()})
+			case orchestrator.InfoType:
+				sseStream.Send(render.SSEEvent{Type: "message", Data: item.GetData()})
 			}
-		}()
-
-		for {
-			select {
-			case event, ok := <-ch:
-				if !ok {
-					return
-				}
-				if event.ModelID != id {
-					continue
-				}
-				sseStream.Send(render.SSEEvent{Type: string(event.Type), Data: event})
-				if event.Type == orchestrator.ModelInstallEventDone {
-					return
-				}
-			case <-r.Context().Done():
-				return
-			}
+		}); err != nil {
+			slog.Error("model install failed", "model", id, "err", err)
 		}
 	}
 }
