@@ -38,7 +38,7 @@ func checkBricks(a app.AppDescriptor, index *bricksindex.BricksIndex, modelIndex
 		}
 
 		if len(appBrick.Model) != 0 {
-			_, modelFound := modelIndex.GetModelByID(appBrick.Model)
+			_, modelFound := modelIndex.FindModelByID(appBrick.Model)
 			if !modelFound {
 				allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q not found", appBrick.Model, appBrick.ID))
 			}

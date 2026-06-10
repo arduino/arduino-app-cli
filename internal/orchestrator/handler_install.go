@@ -6,7 +6,6 @@
 package orchestrator
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -43,34 +42,15 @@ func runHandlerAction(ctx context.Context, cli client.APIClient, model modelsind
 		Cmd:    action,
 		Binds:  binds,
 		Env:    env,
-		Stdout: &handlerOutputParser{publish: publish},
-		Stderr: io.Discard, // TODO: consider parsing stderr as well, or at least logging it
+		LineCallback: func(line string) {
+			slog.Debug("handler output", "model", model.ID, "line", line)
+			parseHandlerLine([]byte(line), publish)
+		},
+		Stderr: io.Discard,
 	})
 }
 
-type handlerOutputParser struct {
-	publish func(ModelInstallEvent)
-	buf     []byte
-}
-
-func (p *handlerOutputParser) Write(b []byte) (int, error) {
-	p.buf = append(p.buf, b...)
-	for {
-		idx := bytes.IndexByte(p.buf, '\n')
-		if idx == -1 {
-			break
-		}
-		line := bytes.TrimSpace(p.buf[:idx])
-		p.buf = p.buf[idx+1:]
-		if len(line) == 0 {
-			continue
-		}
-		p.parseLine(line)
-	}
-	return len(b), nil
-}
-
-func (p *handlerOutputParser) parseLine(line []byte) {
+func parseHandlerLine(line []byte, publish func(ModelInstallEvent)) {
 	var raw struct {
 		Event       string   `json:"event"`
 		Description string   `json:"description"`
@@ -97,7 +77,7 @@ func (p *handlerOutputParser) parseLine(line []byte) {
 	default:
 		eventType = ModelInstallEventInfo
 	}
-	p.publish(ModelInstallEvent{
+	publish(ModelInstallEvent{
 		Type:        eventType,
 		Description: raw.Description,
 		Current:     raw.Current,

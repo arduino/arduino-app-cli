@@ -13,18 +13,17 @@ import (
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/tablestyle"
 )
 
-func newModelListCmd(cfg config.Configuration) *cobra.Command {
+func newModelListCmd() *cobra.Command {
 	var excludeBuiltin bool
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all models",
 		Run: func(cmd *cobra.Command, args []string) {
-			modelListHandler(cmd.Context(), cfg, excludeBuiltin)
+			modelListHandler(cmd.Context(), excludeBuiltin)
 		},
 	}
 
@@ -33,8 +32,8 @@ func newModelListCmd(cfg config.Configuration) *cobra.Command {
 	return cmd
 }
 
-func modelListHandler(ctx context.Context, cfg config.Configuration, excludeBuiltin bool) {
-	models := servicelocator.GetModelsIndex().GetModels(ctx, servicelocator.GetDockerClient().Client(), cfg, servicelocator.GetPlatform())
+func modelListHandler(ctx context.Context, excludeBuiltin bool) {
+	models := servicelocator.GetModelsIndex().GetModels(ctx)
 	result := make([]modelsindex.AIModel, 0)
 	for _, m := range models {
 		if excludeBuiltin && m.IsInternal {
