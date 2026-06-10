@@ -17,7 +17,7 @@ func NewModelCmd(cfg config.Configuration) *cobra.Command {
 		Short: "Manage Arduino Models",
 	}
 
-	modelCmd.AddCommand(newModelListCmd(cfg))
+	modelCmd.AddCommand(newModelListCmd())
 	modelCmd.AddCommand(newModelDeleteCmd(cfg))
 
 	return modelCmd
