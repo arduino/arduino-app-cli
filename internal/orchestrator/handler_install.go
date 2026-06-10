@@ -39,7 +39,7 @@ func runHandlerAction(ctx context.Context, cli client.APIClient, model modelsind
 		Binds:  []string{fmt.Sprintf("%s:/models", downloadPath)},
 		Env:    env,
 		Stdout: &handlerOutputParser{publish: publish},
-		Stderr: io.Discard,
+		Stderr: io.Discard, // TODO: consider parsing stderr as well, or at least logging it
 	})
 }
 

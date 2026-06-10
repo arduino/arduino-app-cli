@@ -5,8 +5,6 @@
 
 package orchestrator
 
-import "sync"
-
 type ModelInstallEventType string
 
 const (
@@ -29,44 +27,4 @@ type ModelInstallEvent struct {
 	Unit        string                `json:"unit,omitempty"`
 	Percentage  string                `json:"percentage,omitempty"`
 	Artifacts   []string              `json:"artifacts,omitempty"`
-}
-
-// ModelInstallManager is a global pub/sub hub for model install progress events.
-// All subscribers receive events for every model; each event carries its ModelID
-// so the frontend can filter by model.
-type ModelInstallManager struct {
-	mu   sync.Mutex
-	subs map[chan ModelInstallEvent]struct{}
-}
-
-func NewModelInstallManager() *ModelInstallManager {
-	return &ModelInstallManager{subs: make(map[chan ModelInstallEvent]struct{})}
-}
-
-func (m *ModelInstallManager) Subscribe() chan ModelInstallEvent {
-	ch := make(chan ModelInstallEvent, 100)
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.subs[ch] = struct{}{}
-	return ch
-}
-
-// Unsubscribe removes the channel from the list of subscribers and closes it.
-func (m *ModelInstallManager) Unsubscribe(ch chan ModelInstallEvent) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	delete(m.subs, ch)
-	close(ch)
-}
-
-func (m *ModelInstallManager) broadcast(modelID string, event ModelInstallEvent) {
-	event.ModelID = modelID
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for ch := range m.subs {
-		select {
-		case ch <- event:
-		default: // drop if subscriber is not keeping up
-		}
-	}
 }
