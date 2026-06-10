@@ -227,7 +227,7 @@ func getAppEnvironmentVariables(ctx context.Context, app app.ArduinoApp, brickIn
 			maps.Insert(envs, brickDef.GetDefaultVariables())
 		}
 
-		if m, found := modelsIndex.GetModelByID(brick.Model); found {
+		if m, found := modelsIndex.FindModelByID(brick.Model); found {
 			for _, b := range m.Bricks {
 				maps.Insert(envs, maps.All(b.ModelConfiguration))
 			}

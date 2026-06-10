@@ -54,9 +54,9 @@ type AIModelsListRequest struct {
 func AIModelsList(ctx context.Context, cli client.APIClient, req AIModelsListRequest, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform) AIModelsListResult {
 	var collection []modelsindex.AIModel
 	if len(req.FilterByBrickID) == 0 {
-		collection = modelsIndex.GetModels(ctx, cli, cfg, plat)
+		collection = modelsIndex.GetModels(ctx)
 	} else {
-		collection = modelsIndex.GetModelsByBricks(ctx, cli, cfg, plat, req.FilterByBrickID)
+		collection = modelsIndex.GetModelsByBricks(ctx, req.FilterByBrickID)
 	}
 
 	items := f.Map(collection, func(model modelsindex.AIModel) AIModelItem {
@@ -75,7 +75,7 @@ func AIModelsList(ctx context.Context, cli client.APIClient, req AIModelsListReq
 }
 
 func AIModelDetails(ctx context.Context, cli client.APIClient, modelsIndex *modelsindex.ModelsIndex, id string, cfg config.Configuration, plat platform.Platform) (AIModelItem, bool) {
-	model, found := modelsIndex.GetModelByID(id)
+	model, found := modelsIndex.GetModelByID(ctx, id)
 	if !found {
 		return AIModelItem{}, false
 	}
@@ -104,24 +104,8 @@ func AIModelDetails(ctx context.Context, cli client.APIClient, modelsIndex *mode
 		Metadata:          model.Metadata,
 		IsBuiltin:         model.IsInternal,
 		DiskUsage:         modelSize,
-		Installed:         modelInstalled(ctx, cli, model, modelsIndex, cfg, plat),
+		Installed:         model.Installed,
 	}, true
-}
-
-func modelInstalled(ctx context.Context, cli client.APIClient, model *modelsindex.AIModel, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform) bool {
-	if !model.IsInternal {
-		return true
-	}
-	handler, ok := modelsIndex.Handlers.GetHandlerByID(model.Deployment.Handler)
-	if !ok {
-		return false
-	}
-	downloadPath := cfg.CustomModelsDir()
-	var envVars map[string]string
-	if model.Deployment != nil {
-		envVars = model.Deployment.VariablesForPlatform(plat.BoardName)
-	}
-	return isModelInstalled(ctx, cli, *model, handler, downloadPath, envVars)
 }
 
 func getModelSize(dirPath *paths.Path) (uint64, error) {
@@ -165,7 +149,7 @@ var (
 )
 
 func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, platform platform.Platform, id string, idProvider *app.IDProvider, force bool) (err error) {
-	res, found := modelsIndex.GetModelByID(id)
+	res, found := modelsIndex.GetModelByID(ctx, id)
 	if !found {
 		return fmt.Errorf("%q: %w", id, ErrNotFound)
 	}
@@ -268,7 +252,7 @@ func checkForModelReferences(ctx context.Context, dockerClient command.Cli, cfg 
 }
 
 func isModelInUse(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, modelId string) error {
-	_, found := modelsIndex.GetModelByID(modelId)
+	_, found := modelsIndex.FindModelByID(modelId)
 	if found {
 		runningApp, err := getRunningApp(ctx, dockerClient.Client())
 		if err != nil {
@@ -454,31 +438,8 @@ var (
 	ErrNoDeploymentHandler = errors.New("model has no deployment handler")
 )
 
-func isModelInstalled(ctx context.Context, cli client.APIClient, model modelsindex.AIModel, handler modelsindex.ModelHandler, downloadPath *paths.Path, envVars map[string]string) bool {
-	installed := false
-
-	checkResponse := func(e ModelInstallEvent) {
-		// echo "{\"event\": \"info\", \"description\": \"Model exists: ${model_directory}\"}"
-		// echo "{\"event\": \"error\", \"description\": \"Model does not exist: ${model_directory}\"}"
-		switch e.Type {
-		case ModelInstallEventInfo:
-			installed = true
-		case ModelInstallEventError:
-		default:
-			slog.Warn("unknown event type from handler check action", "type", e.Type)
-		}
-	}
-
-	err := runHandlerAction(ctx, cli, model, handler.Image, handler.Actions.Check, handler.Volumes, downloadPath, envVars, checkResponse)
-	if err != nil {
-		slog.Debug("model check reported not downloaded", "model", model.ID, "err", err)
-		return false
-	}
-	return installed
-}
-
 func InstallModelByHandler(ctx context.Context, cli client.APIClient, modelID string, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform, cb func(item StreamMessage)) error {
-	model, found := modelsIndex.GetModelByID(modelID)
+	model, found := modelsIndex.GetModelByID(ctx, modelID)
 	if !found {
 		return fmt.Errorf("%q: %w", modelID, ErrNotFound)
 	}
@@ -498,7 +459,8 @@ func InstallModelByHandler(ctx context.Context, cli client.APIClient, modelID st
 		envVars = model.Deployment.VariablesForPlatform(plat.BoardName)
 	}
 
-	if isModelInstalled(ctx, cli, *model, handler, downloadPath, envVars) {
+	if model.Installed {
+		slog.Info("model already installed", "model", modelID)
 		cb(StreamMessage{data: "Model already installed"})
 		return nil
 	}

@@ -8,6 +8,7 @@
 package dockerhandler
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -19,12 +20,35 @@ import (
 
 // RunOptions configures a one-shot container run.
 type RunOptions struct {
-	Image  string
-	Cmd    []string
-	Binds  []string  // "host-path:container-path" volume mounts
-	Env    []string  // "KEY=VALUE" pairs
-	Stdout io.Writer // nil defaults to io.Discard
-	Stderr io.Writer // nil defaults to io.Discard
+	Image        string
+	Cmd          []string
+	Binds        []string     // "host-path:container-path" volume mounts
+	Env          []string     // "KEY=VALUE" pairs
+	Stdout       io.Writer    // nil defaults to io.Discard; ignored when LineCallback is set
+	Stderr       io.Writer    // nil defaults to io.Discard
+	LineCallback func(string) // if set, called once per trimmed non-empty stdout line
+}
+
+// lineWriter buffers container stdout and fires a callback for every complete line.
+type lineWriter struct {
+	buf      []byte
+	callback func(string)
+}
+
+func (w *lineWriter) Write(b []byte) (int, error) {
+	w.buf = append(w.buf, b...)
+	for {
+		idx := bytes.IndexByte(w.buf, '\n')
+		if idx == -1 {
+			break
+		}
+		line := string(bytes.TrimSpace(w.buf[:idx]))
+		w.buf = w.buf[idx+1:]
+		if line != "" {
+			w.callback(line)
+		}
+	}
+	return len(b), nil
 }
 
 // Run creates, starts, and waits for a container to exit, streaming stdout and
@@ -35,7 +59,10 @@ type RunOptions struct {
 // containers can close the raw attach connection mid-frame, producing spurious
 // "short write" errors.
 func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
-	if opts.Stdout == nil {
+	switch {
+	case opts.LineCallback != nil:
+		opts.Stdout = &lineWriter{callback: opts.LineCallback}
+	case opts.Stdout == nil:
 		opts.Stdout = io.Discard
 	}
 	if opts.Stderr == nil {
