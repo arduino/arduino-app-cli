@@ -16,10 +16,8 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/docker/client"
-	"github.com/goccy/go-yaml"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhandler"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -109,12 +107,10 @@ type handlerModelEntry struct {
 	Installed bool   `json:"installed"`
 }
 
-// GetModelStatus runs the list action for every handler and returns a map
-// of model ID → installed status.
-func (h *HandlersIndex) GetModelStatus(ctx context.Context, cli client.APIClient, cfg config.Configuration, plat platform.Platform) map[string]bool {
+func (h *HandlersIndex) getModelStatus(ctx context.Context, cli client.APIClient, modelsDir *paths.Path, plat platform.Platform) map[string]bool {
 	result := make(map[string]bool)
 	for _, handler := range h.handlers {
-		entries, err := runListAction(ctx, cli, handler, cfg, plat)
+		entries, err := runListAction(ctx, cli, handler, modelsDir, plat)
 		if err != nil {
 			slog.Warn("cannot list models from handler", "handler", handler.ID, "err", err)
 			continue
@@ -126,8 +122,7 @@ func (h *HandlersIndex) GetModelStatus(ctx context.Context, cli client.APIClient
 	return result
 }
 
-func runListAction(ctx context.Context, cli client.APIClient, handler ModelHandler, cfg config.Configuration, plat platform.Platform) ([]handlerModelEntry, error) {
-	handlerModelsDir := cfg.CustomModelsDir()
+func runListAction(ctx context.Context, cli client.APIClient, handler ModelHandler, modelsDir *paths.Path, plat platform.Platform) ([]handlerModelEntry, error) {
 
 	var env []string
 	if plat.BoardName != "" {
@@ -137,7 +132,7 @@ func runListAction(ctx context.Context, cli client.APIClient, handler ModelHandl
 	slog.Debug("running list action", "handler", handler.ID, "image", handler.Image)
 
 	binds, volumeEnv := ResolveVolumes(handler.Volumes, map[string]string{
-		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": handlerModelsDir.String(),
+		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": modelsDir.String(),
 	})
 	env = append(env, volumeEnv...)
 
@@ -184,67 +179,4 @@ func resolveImage(raw, registryBase string) string {
 		}
 	}
 	return registryBase + raw
-}
-
-func loadHandlers(dir *paths.Path, registryBase string) (*HandlersIndex, error) {
-	empty := &HandlersIndex{handlers: make(map[string]ModelHandler)}
-	if dir == nil {
-		return empty, nil
-	}
-
-	handlersFile := dir.Join("models-handlers.yaml")
-	if handlersFile.NotExist() {
-		return empty, nil
-	}
-
-	content, err := handlersFile.ReadFile()
-	if err != nil {
-		return nil, err
-	}
-
-	var raw rawHandlersList
-	if err := yaml.Unmarshal(content, &raw); err != nil {
-		return nil, fmt.Errorf("models-handlers.yaml: %w", err)
-	}
-
-	handlers := make(map[string]ModelHandler, len(raw.Handlers))
-	for _, handlerMap := range raw.Handlers {
-		for id, entry := range handlerMap {
-			if id == "" {
-				return nil, fmt.Errorf("models-handlers.yaml: handler has empty id")
-			}
-			if entry.Image == "" {
-				return nil, fmt.Errorf("models-handlers.yaml: handler %q missing required field \"image\"", id)
-			}
-			var actions HandlerActions
-			for _, actionMap := range entry.Actions {
-				for name, actionEntry := range actionMap {
-					switch name {
-					case "download":
-						actions.Download = actionEntry.Command
-					case "delete":
-						actions.Delete = actionEntry.Command
-					case "check":
-						actions.Check = actionEntry.Command
-					case "info":
-						actions.Info = actionEntry.Command
-					}
-				}
-			}
-			if err := actions.validate(id); err != nil {
-				return nil, fmt.Errorf("models-handlers.yaml: %w", err)
-			}
-			if len(entry.Volumes) == 0 {
-				return nil, fmt.Errorf("models-handlers.yaml: handler %q missing required field \"volumes\"", id)
-			}
-			handlers[id] = ModelHandler{
-				ID:      id,
-				Image:   resolveImage(entry.Image, registryBase),
-				Volumes: entry.Volumes,
-				Actions: actions,
-			}
-		}
-	}
-
-	return &HandlersIndex{handlers: handlers}, nil
 }

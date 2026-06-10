@@ -167,7 +167,7 @@ func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, mode
 			return
 		}
 
-		if _, found := modelsIndex.GetModelByID(id); !found {
+		if _, found := modelsIndex.FindModelByID(id); !found {
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: fmt.Sprintf("model %q not found", id)})
 			return
 		}

@@ -19,37 +19,37 @@ import (
 
 func TestModelsIndex(t *testing.T) {
 	t.Run("it parses a valid model-list.yaml and custom models", func(t *testing.T) {
-		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), "")
+		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, "")
 		require.NoError(t, err)
 		require.NotNil(t, modelsIndex)
-		models := modelsIndex.loadModels()
+		models := modelsIndex.getModels()
 		assert.Len(t, models, 4, "Expected 4 models to be parsed")
 	})
 
 	t.Run("at least one model folders must be provided", func(t *testing.T) {
-		_, err := Load(platform.GetPlatform(nil), nil, nil, "")
+		_, err := Load(platform.GetPlatform(nil), nil, nil, nil, "")
 		require.Error(t, err)
 	})
 
 	t.Run("custom models folder is optional", func(t *testing.T) {
-		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), nil, "")
+		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), nil, nil, "")
 		require.NoError(t, err)
-		require.Len(t, modelsIndex.loadModels(), 3)
+		require.Len(t, modelsIndex.getModels(), 3)
 	})
 
 	t.Run("custom models folder can be empty", func(t *testing.T) {
-		modelsIndex, err := Load(platform.GetPlatform(nil), nil, paths.New(t.TempDir()), "")
+		modelsIndex, err := Load(platform.GetPlatform(nil), nil, paths.New(t.TempDir()), nil, "")
 		require.NoError(t, err)
-		require.Len(t, modelsIndex.loadModels(), 0)
+		require.Len(t, modelsIndex.getModels(), 0)
 	})
 
 	t.Run("it loads nested custom models correctly", func(t *testing.T) {
-		modelsIndex, err := Load(platform.GetPlatform(nil), nil, paths.New("testdata/with-nested-models"), "")
+		modelsIndex, err := Load(platform.GetPlatform(nil), nil, paths.New("testdata/with-nested-models"), nil, "")
 		assert.NoError(t, err)
 		assert.NotEmpty(t, modelsIndex)
-		assert.Len(t, modelsIndex.loadModels(), 2)
+		assert.Len(t, modelsIndex.getModels(), 2)
 
-		got := modelsIndex.loadModels()
+		got := modelsIndex.getModels()
 
 		assert.Equal(t, f.Must(filepath.Abs("testdata/with-nested-models/nested/nested-model")), got[1].ModelFolderPath.String())
 		assert.Equal(t, "my-nested-model-id", got[1].ID)
@@ -60,41 +60,41 @@ func TestModelsIndex(t *testing.T) {
 
 	t.Run("it filter model for supported boards", func(t *testing.T) {
 		t.Run("app", func(t *testing.T) {
-			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), nil, "")
+			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), nil, nil, "")
 			require.NoError(t, err)
 
-			models := modelsIndex.loadModels()
+			models := modelsIndex.getModels()
 			assert.Len(t, models, 3, "all models")
 		})
 
 		t.Run("foo-board", func(t *testing.T) {
 			platform := platform.Platform{BoardName: "foo-board"}
-			modelsIndex, err := Load(platform, paths.New("testdata"), nil, "")
+			modelsIndex, err := Load(platform, paths.New("testdata"), nil, nil, "")
 			require.NoError(t, err)
 
-			models := modelsIndex.loadModels()
+			models := modelsIndex.getModels()
 			assert.Len(t, models, 3, "all models")
 		})
 
 		t.Run("other board", func(t *testing.T) {
 			platform := platform.Platform{BoardName: "some-other-board"}
-			modelsIndex, err := Load(platform, paths.New("testdata"), nil, "")
+			modelsIndex, err := Load(platform, paths.New("testdata"), nil, nil, "")
 			require.NoError(t, err)
 
-			models := modelsIndex.loadModels()
+			models := modelsIndex.getModels()
 			assert.Len(t, models, 2, "no model another-model-id")
 
 		})
 	})
 
 	t.Run("it gets a preloaded model by ID", func(t *testing.T) {
-		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), "")
+		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, "")
 		require.NoError(t, err)
-		model, found := modelsIndex.GetModelByID("not-existing-model")
+		model, found := modelsIndex.FindModelByID("not-existing-model")
 		assert.False(t, found)
 		assert.Nil(t, model)
 
-		model, found = modelsIndex.GetModelByID("face-detection")
+		model, found = modelsIndex.FindModelByID("face-detection")
 		require.True(t, found)
 		assert.Equal(t, &AIModel{
 			ID:                "face-detection",
@@ -117,10 +117,10 @@ func TestModelsIndex(t *testing.T) {
 	})
 
 	t.Run("it get custom model by id", func(t *testing.T) {
-		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), "")
+		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, "")
 		require.NoError(t, err)
 
-		eimodel, found := modelsIndex.GetModelByID("my-model-id")
+		eimodel, found := modelsIndex.FindModelByID("my-model-id")
 		assert.True(t, found)
 		assert.NotNil(t, eimodel)
 
@@ -135,18 +135,19 @@ func TestModelsIndex(t *testing.T) {
 				"a-string-metadata": "a-string-value",
 			},
 			ModelFolderPath: paths.New(f.Must(filepath.Abs("testdata/models/my-custom-model"))),
+			Installed:       true,
 		}, eimodel)
 	})
 
 	t.Run("it fails if model-list.yaml does not exist", func(t *testing.T) {
 		nonExistentPath := paths.New("nonexistentdir")
-		modelsIndex, err := Load(platform.GetPlatform(nil), nonExistentPath, nil, "")
+		modelsIndex, err := Load(platform.GetPlatform(nil), nonExistentPath, nil, nil, "")
 		assert.Error(t, err)
 		assert.Nil(t, modelsIndex)
 	})
 
 	t.Run("it gets models by a brick", func(t *testing.T) {
-		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), "")
+		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, "")
 		require.NoError(t, err)
 
 		model := modelsIndex.GetModelsByBrick("not-existing-brick")
@@ -158,7 +159,7 @@ func TestModelsIndex(t *testing.T) {
 	})
 
 	t.Run("it gets models by bricks", func(t *testing.T) {
-		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), "")
+		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, "")
 		require.NoError(t, err)
 
 		models := modelsIndex.filterByBricks([]string{"arduino:non_existing"})
