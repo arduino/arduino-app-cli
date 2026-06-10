@@ -1,0 +1,1854 @@
+models:
+ - face-detection:
+    name : "Lightweight-Face-Detection"
+    description: "A small and accurate model for detecting bounding boxes for faces in images."
+    model_labels:
+      - face
+    supported_boards: ["unoq"]
+    bricks:
+      - id: "arduino:object_detection"
+        model_configuration:
+          "EI_OBJ_DETECTION_MODEL": "/models/ootb/ei/lw-face-det.eim"
+      - id: "arduino:video_object_detection"
+        model_configuration:
+          "EI_V_OBJ_DETECTION_MODEL": "/models/ootb/ei/lw-face-det.eim"
+    deployment:
+      handler: "ei-handler"
+      pre-loaded: true          
+    metadata:
+      model_size_mb: 17
+      source: "qualcomm-ai-hub"
+      image-resolution: "320x240"
+      ei-project-id: 830703
+      ei-impulse-id: 3
+      ei-model-url: "https://studio.edgeimpulse.com/public/830703/live"      
+      source-model-id: "face-det-lite"
+      source-model-url: "https://aihub.qualcomm.com/models/face_det_lite"
+ - face-detection-qnn:
+    name : "Lightweight-Face-Detection"
+    description: "A small and accurate model for detecting bounding boxes for faces in images. This version of the model is optimized for NPU acceleration on supported devices, providing faster inference times while maintaining accuracy."
+    model_labels:
+      - face
+    supported_boards: ["ventunoq"]
+    bricks:
+      - id: "arduino:object_detection"
+        model_configuration:
+          "EI_OBJ_DETECTION_MODEL": "/models/ootb/ei/lw-face-det-qnn-640.eim"
+      - id: "arduino:video_object_detection"
+        model_configuration:
+          "EI_V_OBJ_DETECTION_MODEL": "/models/ootb/ei/lw-face-det-qnn-640.eim"
+    deployment:
+      handler: "ei-handler"
+      pre-loaded: true          
+    metadata:
+      model_size_mb: 17
+      source: "qualcomm-ai-hub"
+      hw_acceleration_backend: "qnn"
+      image-resolution: "640x480"
+      ei-project-id: 830703
+      ei-impulse-id: 2
+      ei-model-url: "https://studio.edgeimpulse.com/public/830703/live"      
+      source-model-id: "face-det-lite"
+      source-model-url: "https://aihub.qualcomm.com/models/face_det_lite"      
+ - yolox-object-detection:
+    name : "General purpose object detection - YoloX nano"
+    description: "General purpose object detection model based on YoloX-Nano. This model is trained on the COCO dataset and can detect 80 different object classes."
+    model_labels:
+      - airplane
+      - apple
+      - backpack
+      - banana
+      - baseball bat
+      - baseball glove
+      - bear
+      - bed
+      - bench
+      - bicycle
+      - bird
+      - boat
+      - book
+      - bottle
+      - bowl
+      - broccoli
+      - bus
+      - cake
+      - car
+      - carrot
+      - cat
+      - cell phone
+      - chair
+      - clock
+      - couch
+      - cow
+      - cup
+      - dining table
+      - dog
+      - donut
+      - elephant
+      - fire hydrant
+      - fork
+      - frisbee
+      - giraffe
+      - hair drier
+      - handbag
+      - hot dog
+      - horse
+      - keyboard
+      - kite
+      - knife
+      - laptop
+      - microwave
+      - motorcycle
+      - mouse
+      - orange
+      - oven
+      - parking meter
+      - person
+      - pizza
+      - potted plant
+      - refrigerator
+      - remote
+      - sandwich
+      - scissors
+      - sheep
+      - sink
+      - skateboard
+      - skis
+      - snowboard
+      - spoon
+      - sports ball
+      - stop sign
+      - suitcase
+      - surfboard
+      - teddy bear
+      - tennis racket
+      - tie
+      - toaster
+      - toilet
+      - toothbrush
+      - traffic light
+      - train
+      - truck
+      - tv
+      - umbrella
+      - vase
+      - wine glass
+      - zebra
+    metadata:
+      model_size_mb: 17
+      source: "edgeimpulse"
+      image-resolution: "416x416"
+      ei-project-id: 717280
+      ei-impulse-id: 1
+      ei-model-url: "https://studio.edgeimpulse.com/public/717280/live"
+      source-model-id: "YOLOX-Nano"
+      source-model-url: "https://github.com/Megvii-BaseDetection/YOLOX"
+    supported_boards: ["unoq"]
+    deployment:
+      handler: "ei-handler"
+      pre-loaded: true    
+    bricks:
+      - id: "arduino:object_detection"
+        model_configuration:
+          "EI_OBJ_DETECTION_MODEL": "/models/ootb/ei/yolo-x-nano.eim"
+      - id: "arduino:video_object_detection"
+        model_configuration:
+          "EI_V_OBJ_DETECTION_MODEL": "/models/ootb/ei/yolo-x-nano.eim"
+ - yolox-qnn-object-detection:
+    name : "General purpose object detection - YoloX nano"
+    description: "General purpose object detection model based on YoloX-Nano. This model is trained on the COCO dataset and can detect 80 different object classes. This version of the model is optimized for NPU acceleration on supported devices, providing faster inference times while maintaining accuracy."
+    model_labels:
+      - airplane
+      - apple
+      - backpack
+      - banana
+      - baseball bat
+      - baseball glove
+      - bear
+      - bed
+      - bench
+      - bicycle
+      - bird
+      - boat
+      - book
+      - bottle
+      - bowl
+      - broccoli
+      - bus
+      - cake
+      - car
+      - carrot
+      - cat
+      - cell phone
+      - chair
+      - clock
+      - couch
+      - cow
+      - cup
+      - dining table
+      - dog
+      - donut
+      - elephant
+      - fire hydrant
+      - fork
+      - frisbee
+      - giraffe
+      - hair drier
+      - handbag
+      - hot dog
+      - horse
+      - keyboard
+      - kite
+      - knife
+      - laptop
+      - microwave
+      - motorcycle
+      - mouse
+      - orange
+      - oven
+      - parking meter
+      - person
+      - pizza
+      - potted plant
+      - refrigerator
+      - remote
+      - sandwich
+      - scissors
+      - sheep
+      - sink
+      - skateboard
+      - skis
+      - snowboard
+      - spoon
+      - sports ball
+      - stop sign
+      - suitcase
+      - surfboard
+      - teddy bear
+      - tennis racket
+      - tie
+      - toaster
+      - toilet
+      - toothbrush
+      - traffic light
+      - train
+      - truck
+      - tv
+      - umbrella
+      - vase
+      - wine glass
+      - zebra
+    metadata:
+      model_size_mb: 17
+      source: "edgeimpulse"
+      image-resolution: "416x416"
+      hw_acceleration_backend: "qnn"
+      ei-project-id: 717280
+      ei-impulse-id: 1
+      ei-model-url: "https://studio.edgeimpulse.com/public/717280/live"
+      source-model-id: "YOLOX-Nano"
+      source-model-url: "https://github.com/Megvii-BaseDetection/YOLOX"
+    supported_boards: ["ventunoq"]
+    deployment:
+      handler: "ei-handler"
+      pre-loaded: true    
+    bricks:
+      - id: "arduino:object_detection"
+        model_configuration:
+          "EI_OBJ_DETECTION_MODEL": "/models/ootb/ei/yolo-x-nano-qnn.eim"
+      - id: "arduino:video_object_detection"
+        model_configuration:
+          "EI_V_OBJ_DETECTION_MODEL": "/models/ootb/ei/yolo-x-nano-qnn.eim"          
+ - mobilenet-image-classification:
+    name : "General purpose image classification"
+    description: "General purpose image classification model based on MobileNetV2. This model is trained on the ImageNet dataset and can classify images into 1000 categories."
+    model_labels:
+      - abacus
+      - abaya
+      - academic gown
+      - acorn
+      - acorn squash
+      - acoustic guitar
+      - admiral
+      - Afghan hound
+      - African chameleon
+      - African crocodile
+      - African elephant
+      - African grey
+      - African hunting dog
+      - agaric
+      - Airedale
+      - aircraft carrier
+      - airliner
+      - airship
+      - albatross
+      - alp
+      - altar
+      - American alligator
+      - American black bear
+      - American chameleon
+      - American coot
+      - American egret
+      - American lobster
+      - American Staffordshire terrier
+      - amphibian
+      - analog clock
+      - anemone fish
+      - Angora
+      - ant
+      - Appenzeller
+      - Arabian camel
+      - armadillo
+      - assault rifle
+      - Australian terrier
+      - axolotl
+      - baboon
+      - backpack
+      - badger
+      - bagel
+      - balance beam
+      - bald eagle
+      - ballplayer
+      - balloon
+      - ballpoint
+      - banana
+      - Band Aid
+      - banded gecko
+      - banjo
+      - bannister
+      - barber chair
+      - barbershop
+      - barbell
+      - barn
+      - barn spider
+      - barometer
+      - barracouta
+      - barrel
+      - barrow
+      - basenji
+      - baseball
+      - basset
+      - bassinet
+      - bassoon
+      - bath towel
+      - bathing cap
+      - bathtub
+      - beacon
+      - beagle
+      - beak
+      - bearskin
+      - beaver
+      - Bedlington terrier
+      - bee
+      - bee eater
+      - beer bottle
+      - beer glass
+      - bell cote
+      - bell pepper
+      - Bernese mountain dog
+      - bikini
+      - binder
+      - binoculars
+      - bison
+      - bittern
+      - black and gold garden spider
+      - black grouse
+      - black stork
+      - black swan
+      - black-and-tan coonhound
+      - black-footed ferret
+      - black widow
+      - Blenheim spaniel
+      - bloodhound
+      - bluetick
+      - boa constrictor
+      - boathouse
+      - bobsled
+      - bolete
+      - bolo tie
+      - bonnet
+      - book jacket
+      - bookcase
+      - bookshop
+      - Border collie
+      - Border terrier
+      - borzoi
+      - Boston bull
+      - bottlecap
+      - Bouvier des Flandres
+      - bow
+      - bow tie
+      - boxer
+      - box turtle
+      - Brabancon griffon
+      - brain coral
+      - brambling
+      - brass
+      - brassiere
+      - breakwater
+      - breastplate
+      - briard
+      - broccoli
+      - brown bear
+      - bubble
+      - buckeye
+      - bucket
+      - buckle
+      - bulbul
+      - bull mastiff
+      - bullfrog
+      - bullet train
+      - bulletproof vest
+      - burrito
+      - bus
+      - bustard
+      - butcher shop
+      - butternut squash
+      - cabbage butterfly
+      - cab
+      - cairn
+      - cake
+      - caldron
+      - camel
+      - candle
+      - canoe
+      - can opener
+      - capuchin
+      - car mirror
+      - carbonara
+      - cardigan
+      - Cardigan
+      - cardinal
+      - caribou
+      - carousel
+      - carpenter's kit
+      - carton
+      - car wheel
+      - cash machine
+      - cassette
+      - cassette player
+      - castle
+      - catamaran
+      - cauliflower
+      - CD player
+      - celestial sphere
+      - cello
+      - cellular telephone
+      - centipede
+      - chain
+      - chain saw
+      - chainlink fence
+      - chain mail
+      - chair
+      - chambered nautilus
+      - cheetah
+      - cheeseburger
+      - chest
+      - chickadee
+      - Chihuahua
+      - chime
+      - chimpanzee
+      - china cabinet
+      - Chinchilla
+      - chocolate sauce
+      - Christmas stocking
+      - church
+      - cicada
+      - cinema
+      - cock
+      - cockatoo
+      - cocker spaniel
+      - cocktail shaker
+      - coffeepot
+      - coffee mug
+      - coho
+      - coil
+      - collie
+      - colobus
+      - combination lock
+      - comic book
+      - common iguana
+      - common newt
+      - Komodo dragon
+      - Komondor
+      - conch
+      - confectionery
+      - container ship
+      - convertible
+      - copperhead
+      - coral fungus
+      - coral reef
+      - corkscrew
+      - cormorant
+      - cornet
+      - cougar
+      - coucal
+      - cowboy boot
+      - cowboy hat
+      - coyote
+      - coypu
+      - crab
+      - cradle
+      - crane
+      - crash helmet
+      - crate
+      - crayfish
+      - cricket
+      - crib
+      - Crock Pot
+      - crocodile
+      - croquet ball
+      - crossword puzzle
+      - crutch
+      - cuirass
+      - cucumber
+      - cup
+      - curly-coated retriever
+      - custard apple
+      - dam
+      - damselfly
+      - Dandie Dinmont
+      - dhole
+      - dial telephone
+      - diamondback
+      - diaper
+      - digital clock
+      - digital watch
+      - dingo
+      - dog
+      - dogsled
+      - doormat
+      - Doberman
+      - dome
+      - donkey
+      - dowitcher
+      - dragonfly
+      - drake
+      - drilling platform
+      - drum
+      - drumstick
+      - duck
+      - dugong
+      - dumbbell
+      - Dungeness crab
+      - dung beetle
+      - Dutch oven
+      - ear
+      - earthstar
+      - echidna
+      - eel
+      - eft
+      - Egyptian cat
+      - electric fan
+      - electric guitar
+      - electric locomotive
+      - electric ray
+      - elephant
+      - elk
+      - English foxhound
+      - English setter
+      - English springer
+      - EntleBucher
+      - envelope
+      - Eskimo dog
+      - espresso
+      - espresso maker
+      - European fire salamander
+      - European gallinule
+      - face powder
+      - feather boa
+      - fiddler crab
+      - fig
+      - file
+      - fire engine
+      - fire screen
+      - fireboat
+      - fire hydrant
+      - flamingo
+      - flat-coated retriever
+      - flatworm
+      - flip-flop
+      - folding chair
+      - football helmet
+      - forklift
+      - fountain
+      - fountain pen
+      - four-poster
+      - fox squirrel
+      - French bulldog
+      - French horn
+      - French loaf
+      - freight car
+      - frilled lizard
+      - frying pan
+      - fur coat
+      - gallinule
+      - gamecock
+      - garbage truck
+      - garden spider
+      - gar
+      - garter snake
+      - gasmask
+      - gas pump
+      - gazelle
+      - gecko
+      - German shepherd
+      - German short-haired pointer
+      - geyser
+      - giant panda
+      - giant schnauzer
+      - gibbon
+      - Gila monster
+      - giraffe
+      - goat
+      - goblet
+      - go-kart
+      - golden retriever
+      - goldfinch
+      - goldfish
+      - golf ball
+      - golfcart
+      - gondola
+      - gong
+      - Gordon setter
+      - gorilla
+      - gown
+      - grand piano
+      - Granny Smith
+      - grasshopper
+      - great dane
+      - great grey owl
+      - great white shark
+      - Greater Swiss Mountain dog
+      - green lizard
+      - green mamba
+      - green snake
+      - greenhouse
+      - grille
+      - groom
+      - groenendael
+      - ground beetle
+      - guacamole
+      - guenon
+      - guinea pig
+      - guillotine
+      - gyromitra
+      - hair drier
+      - hair slide
+      - hair spray
+      - half track
+      - hammer
+      - hammerhead
+      - hamper
+      - hamster
+      - hand blower
+      - hand-held computer
+      - handkerchief
+      - hard disc
+      - hare
+      - harp
+      - hartebeest
+      - harvester
+      - hatchet
+      - hay
+      - head cabbage
+      - hen
+      - hen-of-the-woods
+      - hermit crab
+      - hippopotamus
+      - hip
+      - hognose snake
+      - hog
+      - holster
+      - home theater
+      - honeycomb
+      - hook
+      - hoopskirt
+      - horizontal bar
+      - hornbill
+      - horned viper
+      - horse cart
+      - hourglass
+      - house finch
+      - howler monkey
+      - hummingbird
+      - hyena
+      - Ibizan hound
+      - ibex
+      - ice cream
+      - ice lolly
+      - ice bear
+      - impala
+      - Indian cobra
+      - Indian elephant
+      - indigo bunting
+      - indri
+      - iPod
+      - Irish setter
+      - Irish terrier
+      - Irish wolfhound
+      - Irish water spaniel
+      - iron
+      - isopod
+      - jackfruit
+      - jack-o'-lantern
+      - jacamar
+      - jaguar
+      - jay
+      - jean
+      - jellyfish
+      - jersey
+      - jeep
+      - jigsaw puzzle
+      - jinrikisha
+      - joystick
+      - junco
+      - keeshond
+      - kelpie
+      - Kerry blue terrier
+      - keyboard
+      - king crab
+      - king penguin
+      - king snake
+      - kimono
+      - kitten
+      - kit fox
+      - knot
+      - koala
+      - kuvasz
+      - lab coat
+      - Labrador retriever
+      - lacewing
+      - ladle
+      - lakeside
+      - lampshade
+      - langur
+      - laptop
+      - lawn mower
+      - leatherback turtle
+      - leaf beetle
+      - leafhopper
+      - lemon
+      - len
+      - lens cap
+      - Leonberg
+      - leopard
+      - lesser panda
+      - letter opener
+      - Lhasa
+      - library
+      - lifeboat
+      - lighter
+      - limpkin
+      - limousine
+      - lion
+      - lionfish
+      - lipstick
+      - little blue heron
+      - Loafer
+      - loggerhead
+      - long-horned beetle
+      - lorikeet
+      - lotion
+      - loudspeaker
+      - loupe
+      - lumbermill
+      - lycaenid
+      - lynx
+      - macaque
+      - macaw
+      - Madagascar cat
+      - magpie
+      - mailbag
+      - mailbox
+      - maillot
+      - malamute
+      - malinois
+      - Maltese dog
+      - manhole cover
+      - mantis
+      - maraca
+      - marimba
+      - marmoset
+      - marmot
+      - mask
+      - mashed potato
+      - mastiff
+      - matchstick
+      - maypole
+      - maze
+      - measuring cup
+      - meat loaf
+      - medicine chest
+      - meerkat
+      - megalith
+      - menu
+      - Mexican hairless
+      - microphone
+      - microwave
+      - military uniform
+      - milk can
+      - minibike
+      - minibus
+      - miniature pinscher
+      - miniature poodle
+      - miniature schnauzer
+      - miniskirt
+      - mink
+      - minivan
+      - missile
+      - mitten
+      - mixing bowl
+      - mobile home
+      - Model T
+      - modem
+      - monarch
+      - mongoose
+      - monitor
+      - moped
+      - mortar
+      - mortarboard
+      - mosque
+      - mosquito net
+      - motor scooter
+      - mountain bike
+      - mountain tent
+      - mouse
+      - mousetrap
+      - moving van
+      - mud turtle
+      - mudpuppy
+      - mushroom
+      - muzzle
+      - nail
+      - necklace
+      - nematode
+      - Newfoundland
+      - night snake
+      - nipple
+      - Norfolk terrier
+      - Norwegian elkhound
+      - notebook
+      - Norwich terrier
+      - obelisk
+      - oboe
+      - ocarina
+      - odometer
+      - Old English sheepdog
+      - oil filter
+      - orangutan
+      - organ
+      - orange
+      - oscilloscope
+      - ostrich
+      - otter
+      - otterhound
+      - overskirt
+      - ox
+      - oxcart
+      - oxygen mask
+      - oystercatcher
+      - ox
+      - oxcart
+      - oxygen mask
+      - oystercatcher
+      - paddle
+      - paddlewheel
+      - padlock
+      - pajama
+      - palace
+      - panpipe
+      - papillon
+      - parachute
+      - parallel bars
+      - park bench
+      - parking meter
+      - partridge
+      - passenger car
+      - patas
+      - patio
+      - peacock
+      - Pekinese
+      - pelican
+      - Pembroke
+      - pencil box
+      - pencil sharpener
+      - penguin
+      - Persian cat
+      - person
+      - perfume
+      - Petri dish
+      - photocopier
+      - pick
+      - pickelhaube
+      - picket fence
+      - pickup
+      - pier
+      - piggy bank
+      - pill bottle
+      - pillow
+      - ping-pong ball
+      - pinwheel
+      - pineapple
+      - pirate
+      - pitcher
+      - pizza
+      - platypus
+      - plate
+      - plate rack
+      - plow
+      - plunger
+      - pole
+      - polecat
+      - Polaroid camera
+      - police van
+      - Pomeranian
+      - pomegranate
+      - poncho
+      - pool table
+      - pop bottle
+      - porcupine
+      - pot
+      - potpie
+      - potter's wheel
+      - power drill
+      - prairie chicken
+      - prayer rug
+      - pretzel
+      - printer
+      - prison
+      - proboscis monkey
+      - projectile
+      - projector
+      - promontory
+      - ptarmigan
+      - puck
+      - puffer
+      - pug
+      - punching bag
+      - purse
+      - quail
+      - quill
+      - quilt
+      - rabbit
+      - racer
+      - racket
+      - radiator
+      - radio
+      - radio telescope
+      - rain barrel
+      - ram
+      - rapeseed
+      - red fox
+      - red wine
+      - red-backed sandpiper
+      - red-breasted merganser
+      - redbone
+      - redshank
+      - red wolf
+      - reel
+      - reflex camera
+      - refrigerator
+      - remote control
+      - restaurant
+      - revolver
+      - rhinoceros beetle
+      - Rhodesian ridgeback
+      - rifle
+      - ringlet
+      - ringneck snake
+      - robin
+      - rock crab
+      - rocking chair
+      - rock python
+      - rod
+      - Rottweiler
+      - rotisserie
+      - rubber eraser
+      - ruddy turnstone
+      - ruffed grouse
+      - rugby ball
+      - rule
+      - running shoe
+      - safe
+      - safety pin
+      - Saint Bernard
+      - Saluki
+      - saltshaker
+      - Samoyed
+      - sandbar
+      - sandal
+      - sarong
+      - sax
+      - scabbard
+      - scale
+      - schipperke
+      - schooner
+      - schnauzer
+      - scoreboard
+      - scorpion
+      - Scotch terrier
+      - screwdriver
+      - screw
+      - scuba diver
+      - sea anemone
+      - sea cucumber
+      - sea lion
+      - sea snake
+      - seashore
+      - Sealyham terrier
+      - seat belt
+      - sewing machine
+      - shield
+      - Shih-Tzu
+      - shoji
+      - shoe shop
+      - shopping basket
+      - shopping cart
+      - shovel
+      - shower cap
+      - shower curtain
+      - siamang
+      - Siamese cat
+      - Siberian husky
+      - sidewinder
+      - silky terrier
+      - skunk
+      - ski mask
+      - ski
+      - sleeping bag
+      - slide rule
+      - sliding door
+      - slot
+      - slug
+      - snail
+      - snake
+      - snorkel
+      - snow leopard
+      - snowmobile
+      - snowplow
+      - soap dispenser
+      - soccer ball
+      - sock
+      - soft-coated wheaten terrier
+      - solar dish
+      - sombrero
+      - sorrel
+      - soup bowl
+      - space bar
+      - space heater
+      - space shuttle
+      - spatula
+      - speedboat
+      - spider monkey
+      - spider web
+      - spindle
+      - spiny lobster
+      - spoonbill
+      - sports car
+      - spotted salamander
+      - spotlight
+      - squirrel monkey
+      - stage
+      - Staffordshire bullterrier
+      - standard poodle
+      - standard schnauzer
+      - starfish
+      - steam locomotive
+      - steel arch bridge
+      - steel drum
+      - stethoscope
+      - stingray
+      - stinkhorn
+      - stole
+      - stone wall
+      - stopwatch
+      - store
+      - strainer
+      - strawberry
+      - street sign
+      - streetcar
+      - stretcher
+      - studio couch
+      - stupa
+      - sturgeon
+      - submarine
+      - suit
+      - sulphur butterfly
+      - sulphur-crested cockatoo
+      - sundial
+      - sunglass
+      - sunglasses
+      - sunscreen
+      - Sussex spaniel
+      - suspension bridge
+      - swab
+      - sweatshirt
+      - swimming trunks
+      - swing
+      - switch
+      - syringe
+      - tabby
+      - table lamp
+      - tailed frog
+      - tank
+      - tape player
+      - tarantula
+      - teapot
+      - teddy
+      - television
+      - tench
+      - tennis ball
+      - terrapin
+      - theater curtain
+      - thatch
+      - thimble
+      - three-toed sloth
+      - thresher
+      - throne
+      - thunder snake
+      - Tibetan mastiff
+      - Tibetan terrier
+      - tiger beetle
+      - tiger cat
+      - tiger shark
+      - tiger
+      - tile roof
+      - timber wolf
+      - titi
+      - toaster
+      - tobacco shop
+      - toilet seat
+      - toilet tissue
+      - torch
+      - totem pole
+      - toucan
+      - toy poodle
+      - toy terrier
+      - toyshop
+      - tractor
+      - traffic light
+      - trailer truck
+      - train
+      - tray
+      - tree frog
+      - trench coat
+      - triceratops
+      - tricycle
+      - trilobite
+      - trimaran
+      - tripod
+      - triumphal arch
+      - trifle
+      - trolleybus
+      - trombone
+      - tub
+      - turnstile
+      - tusker
+      - tv
+      - typewriter keyboard
+      - umbrella
+      - unicycle
+      - upright
+      - vacuum
+      - valley
+      - vase
+      - vault
+      - velvet
+      - vending machine
+      - vestment
+      - viaduct
+      - violin
+      - vine snake
+      - vizsla
+      - volcano
+      - volleyball
+      - vulture
+      - waffle iron
+      - Walker hound
+      - wallaby
+      - wall clock
+      - wallet
+      - warthog
+      - wardrobe
+      - warplane
+      - washbasin
+      - washer
+      - water bottle
+      - water buffalo
+      - water jug
+      - water ouzel
+      - water snake
+      - water tower
+      - weasel
+      - weevil
+      - Weimaraner
+      - Welsh springer spaniel
+      - West Highland white terrier
+      - white stork
+      - white wolf
+      - whippet
+      - whiskey jug
+      - whistle
+      - whiptail
+      - wig
+      - wild boar
+      - window screen
+      - window shade
+      - Windsor tie
+      - wine bottle
+      - wing
+      - wire-haired fox terrier
+      - wok
+      - wolf spider
+      - wombat
+      - wooden spoon
+      - wool
+      - wood rabbit
+      - worm fence
+      - wreck
+      - yak
+      - yawl
+      - yellow lady's slipper
+      - Yorkshire terrier
+      - yurt
+      - zebra
+      - zucchini
+    metadata:
+      model_size_mb: 27
+      source: "edgeimpulse"
+      ei-project-id: 708500
+      ei-model-url: "https://studio.edgeimpulse.com/public/708500/live"
+      source-model-id: "MobileNetV2"
+      source-model-url: "https://www.tensorflow.org/api_docs/python/tf/keras/applications/MobileNetV2"
+    deployment:
+      handler: "ei-handler"
+      pre-loaded: true      
+    bricks:
+      - id: "arduino:image_classification"
+        model_configuration:
+          "EI_CLASSIFICATION_MODEL": "/models/ootb/ei/mobilenet-v2-224px.eim"
+      - id: "arduino:video_image_classification"
+        model_configuration:
+          "EI_V_CLASSIFICATION_MODEL": "/models/ootb/ei/mobilenet-v2-224px.eim"
+ - person-classification:
+    name : "Person classification"
+    description: "Person classification model based on WakeVision dataset. This model is trained to classify images into two categories: person and not-person."
+    model_labels: 
+      - "non person"
+      - "person"
+    metadata:
+      model_size_mb: 14
+      source: "edgeimpulse"
+      image-resolution: "224x224"
+      ei-project-id: 755016
+      ei-impulse-id: 1
+      ei-model-url: "https://studio.edgeimpulse.com/public/755016/live"
+      source-model-id: "person-classification-wakevision"
+      source-model-url: "https://studio.edgeimpulse.com/public/755016/live"
+    bricks:
+      - id: "arduino:image_classification"
+        model_configuration:
+          "EI_CLASSIFICATION_MODEL": "/models/ootb/ei/person-classification.eim"
+      - id: "arduino:video_image_classification"
+        model_configuration:
+          "EI_V_CLASSIFICATION_MODEL": "/models/ootb/ei/person-classification.eim"   
+    deployment:
+      handler: "ei-handler"
+      pre-loaded: true
+ - concreate-crack-anomaly-detection:
+    name : "Concrete crack anomaly detection"
+    description: "Anomaly detection model to identify cracks in concrete structures."
+    metadata:
+      model_size_mb: 12
+      source: "edgeimpulse"
+      image-resolution: "160x160"
+      ei-project-id: 800941
+      ei-model-url: "https://studio.edgeimpulse.com/public/800941/live"
+      source-model-id: "concrete-crack-anomaly-detection"
+      source-model-url: "https://studio.edgeimpulse.com/public/800941/live"
+    supported_boards: ["unoq"]
+    deployment:
+      handler: "ei-handler"
+      pre-loaded: true    
+    bricks:
+      - id: "arduino:visual_anomaly_detection"
+        model_configuration:
+          "EI_V_ANOMALY_DETECTION_MODEL": "/models/ootb/ei/concrete-crack-anomaly-detection.eim"
+ - concreate-crack-anomaly-detection-high-resolution:
+    name : "Concrete crack anomaly detection - High resolution"
+    description: "Anomaly detection model to identify cracks in concrete structures with higher resolution input images for improved accuracy. This version of the model is optimized for NPU acceleration on supported devices, providing faster inference times while maintaining accuracy."
+    metadata:
+      model_size_mb: 12
+      source: "edgeimpulse"
+      image-resolution: "512x512"
+      hw_acceleration_backend: "qnn"
+      ei-project-id: 906179
+      ei-model-url: "https://studio.edgeimpulse.com/public/906179/live"
+      source-model-id: "concrete-crack-anomaly-detection"
+      source-model-url: "https://studio.edgeimpulse.com/public/906179/live"
+    supported_boards: ["ventunoq"]
+    deployment:
+      handler: "ei-handler"
+      pre-loaded: true    
+    bricks:
+      - id: "arduino:visual_anomaly_detection"
+        model_configuration:
+          "EI_V_ANOMALY_DETECTION_MODEL": "/models/ootb/ei/concrete-crack-anomaly-detection-qnn.eim"          
+ - keyword-spotting-hey-arduino:
+    name : "Keyword spotting - Hey Arduino!"
+    description: "A keyword-spotting model to detect the 'Hey Arduino!' in audio streams."
+    model_labels: 
+      - "background"
+      - "hey_arduino"
+      - "other"
+    metadata:
+      model_size_mb: 13
+      source: "edgeimpulse"
+      ei-project-id: 757509
+      ei-model-url: "https://studio.edgeimpulse.com/studio/757509/live"
+      ei-impulse-id: 30
+      source-model-id: "hey-arduino"
+      source-model-url: "https://studio.edgeimpulse.com/studio/757509/live"
+      private: true
+    bricks:
+      - id: "arduino:keyword_spotting"
+        model_configuration:
+          "EI_KEYWORD_SPOTTING_MODEL": "/models/ootb/ei/keyword-spotting-hey-arduino.eim"
+    deployment:
+      handler: "ei-handler"
+      pre-loaded: true          
+ - updown-wave-motion-detection:
+    name : "Continuous motion detection"
+    description: "A motion detection model designed to identify up/down, wave, and snake movements evalauting accelerometer data."
+    model_labels:
+      - idle
+      - snake
+      - updown
+      - wave      
+    metadata:
+      model_size_mb: 13
+      source: "edgeimpulse"
+      ei-project-id: 734960
+      ei-model-url: "https://studio.edgeimpulse.com/public/734960/live"
+      source-model-id: "continuous-motion-detection"
+      source-model-url: "https://studio.edgeimpulse.com/public/734960/live"
+    bricks:
+      - id: "arduino:motion_detection"
+        model_configuration:
+          "EI_MOTION_DETECTION_MODEL": "/models/ootb/ei/updown-wave-motion-detection.eim"
+    deployment:
+      handler: "ei-handler"
+      pre-loaded: true          
+ - fan-anomaly-detection:
+    name : "Fan anomaly detection"
+    description: "An anomaly detection model designed to identify anomalies in fan operation."
+    metadata:
+      model_size_mb: 13
+      source: "edgeimpulse"
+      ei-project-id: 774707
+      ei-model-url: "https://studio.edgeimpulse.com/public/774707/live"
+      source-model-id: "fan-anomaly-detection"
+      source-model-url: "https://studio.edgeimpulse.com/public/774707/live"
+    bricks:
+      - id: "arduino:vibration_anomaly_detection"
+        model_configuration:
+          "EI_VIBRATION_ANOMALY_DETECTION_MODEL": "/models/ootb/ei/fan-anomaly-detection.eim" 
+    deployment:
+      handler: "ei-handler"
+      pre-loaded: true
+ - glass-breaking:
+    name : "Glass breaking classifier"
+    description: "A glass breaking classifier model to detect glass breaking sounds in audio recordings"
+    model_labels:
+      - "Background"
+      - "Glass_Breaking"
+    metadata:
+      model_size_mb: 13
+      source: "edgeimpulse"
+      ei-project-id: 749446
+      ei-model-url: "https://studio.edgeimpulse.com/public/749446/live"
+      source-model-id: "glass-breaking"
+      source-model-url: "https://studio.edgeimpulse.com/public/749446/live"
+      private: true
+    bricks:
+      - id: "arduino:audio_classification"
+        model_configuration:
+          "EI_AUDIO_CLASSIFICATION_MODEL": "/models/ootb/ei/glass-breaking.eim"
+    deployment:
+      handler: "ei-handler"
+      pre-loaded: true          
+ - hand-gestures:
+    name : "Hand gestures"
+    description: "A lightweight vision model that detects four hand gestures: neutral fist, open hand (five), V-sign (peace), and thumbs-up (good)."
+    model_labels:
+      - five
+      - good
+      - neut
+      - peace
+    bricks:
+      - id: "arduino:object_detection"
+        model_configuration:
+          "EI_OBJ_DETECTION_MODEL": "/models/ootb/ei/hand-gestures.eim"
+      - id: "arduino:video_object_detection"
+        model_configuration:
+          "EI_V_OBJ_DETECTION_MODEL": "/models/ootb/ei/hand-gestures.eim"
+    metadata:
+      model_size_mb: 15
+      source: "edgeimpulse"
+      ei-project-id: 842271
+      ei-model-url: "https://studio.edgeimpulse.com/public/842271/live"      
+      source-model-id: "hand-gestures"
+      source-model-url: "https://studio.edgeimpulse.com/public/842271/live"
+    deployment:
+      handler: "ei-handler"
+      pre-loaded: true      
+ - "genie:qwen3_4b_instruct_2507":
+    name : "Qwen 3-4B Instruct"
+    description: >-
+      The Qwen3-4B is a state-of-the-art multilingual base language model with 4 billion
+      parameters, excelling in language understanding, generation, coding, and mathematics.
+      This version of the model has been tuned as instruct model, optimized for following human
+      instructions and providing detailed responses.  It is ideal for applications such as chatbots,
+      virtual assistants, and any use case that benefits from a more conversational and responsive AI.
+    supported_boards: ["ventunoq"]
+    bricks:
+      - id: "arduino:llm"
+    deployment:
+      handler: "ai-hub-handler"
+      platforms:
+        - ventunoq:
+            variables:
+              model_type: "genie"
+              model_name: "qwen3_4b_instruct_2507"
+              models_repository: "models/genai"
+              model_directory: "qwen3_4b_instruct_2507-genie-w4a16-qualcomm_qcs8275"
+              quantization: "w4a16"
+              chipset: "qualcomm-qcs8275"
+              version: "0.51.0"
+    metadata:
+      model_size_mb: 3039
+      source: "qualcomm-ai-hub"
+      source-model-id: "qwen3_4b_instruct_2507"
+      source-model-url: "https://aihub.qualcomm.com/models/qwen3_4b_instruct_2507"
+ - "genie:qwen2_5_vl_7b_instruct":
+    name : "Qwen 2.5-VL-7B VLM"
+    description: >-
+      The Qwen2.5 7B VLM is a state-of-the-art multilingual vision-language model with 7
+      billion parameters, excelling in language understanding, generation, coding, and
+      mathematics.
+    supported_boards: ["ventunoq"]
+    bricks:
+      - id: "arduino:vlm"
+    deployment:
+      handler: "ai-hub-handler"
+      platforms:
+        - ventunoq:
+            variables:
+              model_type: "genie"
+              model_name: "qwen2_5_vl_7b_instruct"
+              models_repository: "models/genai"
+              quantization: "w4a16"
+              chipset: "qualcomm-qcs8275"
+              version: "0.53.1"
+    metadata:
+      model_size_mb: 6488
+      source: "qualcomm-ai-hub"
+      source-model-id: "qwen2_5_vl_7b_instruct"
+      source-model-url: "https://aihub.qualcomm.com/models/qwen2_5_vl_7b_instruct"
+ - gesture-recognition:
+    name : "MediaPipe Hand-Gesture Recognition"
+    description: >-
+      The MediaPipe Gesture Recognizer is a real-time machine learning pipeline that detects hands, predicts 21 hand landmarks, determines handedness (left/right),
+      and classifies gestures from a predefined set.
+    model_labels:
+      - Thumb_Up
+      - Thumb_Down
+      - Victory
+      - Pointing_Up
+      - Open_Palm
+      - ILoveYou
+    bricks:
+      - id: "arduino:gesture_recognition"
+    metadata:
+      model_size_mb: 6
+      source: "qualcomm-ai-hub"  
+      source-model-id: "mediapipe_hand_gesture"
+      source-model-url: "https://aihub.qualcomm.com/models/mediapipe_hand_gesture"
+ - whisper-small-quantized:
+    name : "Whisper Small (quantized)"
+    description: >-
+      Whisper ASR (Automatic Speech Recognition) model is a state-of-the-art system designed for transcribing spoken language into written text.
+      This model is based on the transformer architecture and has been optimized for edge inference by replacing Multi-Head Attention (MHA)
+      with Single-Head Attention (SHA) and linear layers with convolutional (conv) layers. It exhibits robust performance in realistic, noisy environments,
+      making it highly reliable for real-world applications.
+      Specifically, it excels in long-form transcription, capable of accurately transcribing audio clips up to 30 seconds long.
+    supported_boards: ["ventunoq"]
+    deployment:
+      handler: "ai-hub-handler"
+      platforms:
+        - ventunoq:
+            variables:
+              model_type: "voice_ai"
+              model_name: "whisper_small_quantized"
+              models_repository: "models/audio-analytics/asr"
+              model_directory: "whisper_small_quantized-voice_ai-w8a16-qualcomm_qcs8275"
+              quantization: "w8a16"
+              chipset: "qualcomm-qcs8275"
+              version: "0.51.0"
+    bricks:
+      - id: "arduino:asr"
+    metadata:
+      model_size_mb: 343
+      source: "qualcomm-ai-hub"
+      source-model-id: "whisper_small_quantized"
+      source-model-url: "https://aihub.qualcomm.com/models/whisper_small_quantized"
+    supported_languages:
+      - en
+      - zh
+      - de
+      - es
+      - ru
+      - ko
+      - fr
+      - ja
+      - pt
+      - tr
+      - pl
+      - ca
+      - nl
+      - ar
+      - sv
+      - it
+      - id
+      - hi
+      - fi
+      - vi
+      - he
+      - uk
+      - el
+      - ms
+      - cs
+      - ro
+      - da
+      - hu
+      - ta
+      - no
+      - th
+      - ur
+      - hr
+      - bg
+      - lt
+      - la
+      - mi
+      - ml
+      - cy
+      - sk
+      - te
+      - fa
+      - lv
+      - bn
+      - sr
+      - az
+      - sl
+      - kn
+      - et
+      - mk
+      - br
+      - eu
+      - is
+      - hy
+      - ne
+      - mn
+      - bs
+      - kk
+      - sq
+      - sw
+      - gl
+      - mr
+      - pa
+      - si
+      - km
+      - sn
+      - yo
+      - so
+      - af
+      - oc
+      - ka
+      - be
+      - tg
+      - sd
+      - gu
+      - am
+      - yi
+      - lo
+      - uz
+      - fo
+      - ht
+      - ps
+      - tk
+      - nn
+      - mt
+      - sa
+      - lb
+      - my
+      - bo
+      - tl
+      - mg
+      - as
+      - tt
+      - haw
+      - ln
+      - ha
+      - ba
+      - jw
+      - su
+ - melo-tts-en:
+    name : "Melo TTS (English)"
+    description: >-
+      MeloTTS is a high-quality multi-lingual text-to-speech library - English version.
+    supported_boards: ["ventunoq"]
+    bricks:
+      - id: "arduino:tts"
+    deployment:
+      handler: "ai-hub-handler"
+      platforms:
+        - ventunoq:
+            variables:
+              model_type: "voice_ai"
+              model_name: "melotts_en"
+              models_repository: "models/audio-analytics/tts"
+              model_directory: "melotts_en-voice_ai-mixed_with_float-qualcomm_qcs8275"
+              quantization: "mixed_with_float"
+              chipset: "qualcomm-qcs8275"
+              version: "0.51.0"
+    metadata:
+      model_size_mb: 291
+      source: "qualcomm-ai-hub"
+      source-model-id: "melotts_en"
+      source-model-url: "https://aihub.qualcomm.com/models/melotts_en"
+ - melo-tts-es:
+    name : "Melo TTS (Spanish)"
+    description: >-
+      MeloTTS is a high-quality multi-lingual text-to-speech library - Spanish version.
+    supported_boards: ["ventunoq"]
+    bricks:
+      - id: "arduino:tts"
+    deployment:
+      handler: "ai-hub-handler"
+      platforms:
+        - ventunoq:
+            variables:
+              model_type: "voice_ai"
+              model_name: "melotts_es"
+              models_repository: "models/audio-analytics/tts"
+              model_directory: "melotts_es-voice_ai-mixed_with_float-qualcomm_qcs8275"
+              quantization: "mixed_with_float"
+              chipset: "qualcomm-qcs8275"
+              version: "0.51.0"
+    metadata:
+      model_size_mb: 106
+      source: "qualcomm-ai-hub"
+      source-model-id: "melotts_es"
+      source-model-url: "https://aihub.qualcomm.com/models/melotts_es"
+ - melo-tts-zh:
+    name : "Melo TTS (Chinese)"
+    description: >-
+      MeloTTS is a high-quality multi-lingual text-to-speech library - Chinese version.
+    supported_boards: ["ventunoq"]
+    bricks:
+      - id: "arduino:tts"
+    deployment:
+      handler: "ai-hub-handler"
+      platforms:
+        - ventunoq:
+            variables:
+              model_type: "voice_ai"
+              model_name: "melotts_zh"
+              models_repository: "models/audio-analytics/tts"
+              model_directory: "melotts_zh-voice_ai-mixed_with_float-qualcomm_qcs8275"
+              quantization: "mixed_with_float"
+              chipset: "qualcomm-qcs8275"
+              version: "0.51.0"
+    metadata:
+      model_size_mb: 360
+      source: "qualcomm-ai-hub"
+      source-model-id: "melotts_zh"
+      source-model-url: "https://aihub.qualcomm.com/models/melotts_zh"
+ - piper-tts-de:
+    name : "Piper TTS (German)"
+    description: >-
+      Piper is a high-quality multi-lingual text-to-speech library - German version.
+    supported_boards: ["ventunoq"]
+    bricks:
+      - id: "arduino:tts"
+    deployment:
+      handler: "ai-hub-handler"
+      pre-loaded: true      
+    metadata:
+      model_size_mb: 44
+      source: "qualcomm-ai-hub"
+      source-model-id: "piper_tts_de"
+      source-model-url: "https://aihub.qualcomm.com/models/piper_tts_de"
+ - piper-tts-it:
+    name : "Piper TTS (Italian)"
+    description: >-
+      Piper is a high-quality multi-lingual text-to-speech library - Italian version.
+    supported_boards: ["ventunoq"]
+    bricks:
+      - id: "arduino:tts"
+    deployment:
+      handler: "ai-hub-handler"
+      pre-loaded: true
+    metadata:
+      model_size_mb: 44
+      source: "qualcomm-ai-hub"
+      source-model-id: "piper_tts_it"
+      source-model-url: "https://aihub.qualcomm.com/models/piper_tts_it"
+ - piper-tts-en:
+    name : "Piper TTS (English)"
+    description: >-
+      Piper is a high-quality multi-lingual text-to-speech library - English version.
+    supported_boards: ["ventunoq"]
+    bricks:
+      - id: "arduino:tts"
+    deployment:
+      handler: "ai-hub-handler"
+      pre-loaded: true
+    metadata:
+      model_size_mb: 46
+      source: "qualcomm-ai-hub"
+      source-model-id: "piper_tts_en"
+      source-model-url: "https://aihub.qualcomm.com/models/piper_tts_en"
+ - "ei:efficientnet-b4":
+    name : "General purpose object classification - EfficientNet-B4"
+    description: "EfficientNetB4 is a machine learning model that can classify images from the Imagenet dataset. It can also be used as a backbone in building more complex models for specific use cases. This version of the model is optimized for NPU acceleration on supported devices, providing faster inference times while maintaining accuracy."
+    metadata:
+      requires_softmax: true
+      model_size_mb: 89
+      source: "edgeimpulse"
+      image-resolution: "380x380"
+      hw_acceleration_backend: "qnn"
+      ei-project-id: 948887
+      ei-impulse-id: 10
+      ei-model-url: "https://studio.edgeimpulse.com/public/948887/live"
+      source-model-id: "efficientnet_b4"
+      source-model-url: "https://aihub.qualcomm.com/compute/models/efficientnet_b4"
+    supported_boards: ["ventunoq"]
+    deployment:
+      handler: "ei-handler"
+      platforms:
+        - ventunoq:
+            variables:
+              ei_project_id: 948887
+              ei_impulse_id: 4
+              models_repository: "models/edge-impulse"
+              model_name: efficientnet-b4-qnn.eim
+              quantization: float32
+              target: runner-linux-aarch64-qnn
+    bricks:
+      - id: "arduino:image_classification"
+        model_configuration:
+          "EI_IMAGE_CLASSIFICATION_MODEL": "${models_repository}/efficientnet-b4-qnn.eim"
+      - id: "arduino:video_image_classification"
+        model_configuration:
+          "EI_V_IMAGE_CLASSIFICATION_MODEL": "${models_repository}/efficientnet-b4-qnn.eim"
+ - "llamacpp:gemma-4-E2B_q4_0-it":
+    name : "Gemma 4 E2B"
+    description: >-
+      Gemma 4 E2B is an efficient, open multimodal AI model developed by Google DeepMind.
+      Activating an effective two billion parameters, it is engineered specifically for mobile and edge devices.
+      It's optimized for offline agentic workflows.
+    supported_boards: ["ventunoq"]
+    bricks:
+      - id: "arduino:llm"
+    deployment:
+      handler: "hf-handler"
+      platforms:
+        - ventunoq:
+            variables:
+              model_url: "https://huggingface.co/google/gemma-4-E2B-it-qat-q4_0-gguf/blob/main/gemma-4-E2B_q4_0-it.gguf"
+              models_repository: "models/llamacpp"
+              model_directory: "google/gemma-4-E2B-it-qat-q4_0-gguf"
+    metadata:
+      model_size_mb: 3430
+      source: "huggingface"
+      source-model-id: "gemma-4-E2B-it-qat-q4_0-gguf"
+      source-model-url: "https://huggingface.co/google/gemma-4-E2B-it-qat-q4_0-gguf"
+ - "llamacpp:gemma-4-E4B_q4_0-it":
+    name : "Gemma 4 E4B"
+    description: >-
+      Gemma 4 E4B is an efficient, open multimodal AI model developed by Google DeepMind.
+      Activating an effective four billion parameters, it is engineered specifically for mobile and edge devices.
+      It's optimized for offline agentic workflows.
+    supported_boards: ["ventunoq"]
+    bricks:
+      - id: "arduino:llm"
+        model_configuration:
+          GGML_HEXAGON_NDEV: 2
+    deployment:
+      handler: "hf-handler"
+      platforms:
+        - ventunoq:
+            variables:
+              model_url: "https://huggingface.co/google/gemma-4-E4B-it-qat-q4_0-gguf/blob/main/gemma-4-E4B_q4_0-it.gguf"
+              models_repository: "models/llamacpp"
+              model_directory: "google/gemma-4-E4B-it-qat-q4_0-gguf"
+    metadata:
+      model_size_mb: 5273
+      source: "huggingface"
+      source-model-id: "gemma-4-E4B-it-qat-q4_0-gguf"
+      source-model-url: "https://huggingface.co/google/gemma-4-E4B-it-qat-q4_0-gguf"
+ - "llamacpp:gemma-3-1b-it-Q4_0":
+     name : "Gemma 3 1B"
+     description: >-
+        Gemma 3 1B is an efficient, open multimodal AI model developed by Google DeepMind.
+        Activating an effective one billion parameters, it is engineered specifically for mobile and edge devices.
+        It's optimized for offline agentic workflows.
+     supported_boards: ["ventunoq", "unoq"]
+     bricks:
+       - id: "arduino:llm"
+     deployment:
+       handler: "hf-handler"
+       platforms:
+         - ventunoq:
+             variables:
+               model_url: "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/blob/main/gemma-3-1b-it-Q4_0.gguf"
+               models_repository: "models/llamacpp"
+               model_directory: "unsloth/gemma-3-1b-it-GGUF"
+         - unoq:
+             variables:
+               model_url: "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/blob/main/gemma-3-1b-it-Q4_0.gguf"
+               models_repository: "models/llamacpp"
+               model_directory: "unsloth/gemma-3-1b-it-GGUF"
+     metadata:
+       model_size_mb: 722
+       source: "huggingface"
+       source-model-id: "gemma-3-1b-it-GGUF"
+       source-model-url: "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF"
+ - "llamacpp:Qwen3.5-0.8B-Q4_0":
+     name : "Qwen 3.5 0.8B"
+     description: >-
+       Qwen 3.5 0.8B is a compact yet powerful language model developed by Alibaba, designed to deliver efficient performance on edge devices.
+       With 0.8 billion parameters, it strikes a balance between capability and resource efficiency, making it ideal for applications that require natural language understanding and generation in constrained environments.
+     supported_boards: ["ventunoq", "unoq"]
+     bricks:
+       - id: "arduino:llm"
+     deployment:
+       handler: "hf-handler"
+       platforms:
+         - ventunoq:
+             variables:
+               model_url: "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/blob/main/Qwen3.5-0.8B-Q4_0.gguf"
+               models_repository: "models/llamacpp"
+               model_directory: "unsloth/Qwen3.5-0.8B-GGUF"
+         - unoq:
+             variables:
+               model_url: "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/blob/main/Qwen3.5-0.8B-Q4_0.gguf"
+               models_repository: "models/llamacpp"
+               model_directory: "unsloth/Qwen3.5-0.8B-GGUF"
+     metadata:
+       model_size_mb: 507
+       source: "huggingface"
+       source-model-id: "Qwen3.5-0.8B-Q4_0"
+       source-model-url: "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF"
