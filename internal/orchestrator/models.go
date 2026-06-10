@@ -381,7 +381,7 @@ func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *
 			}
 		}
 		for _, name := range brick.ModelConfigurationVariables {
-			// TODO: here we should use the `ai_frameworks_compatibility` for selecting only bricks compatible with edge impusle models.
+			// TODO: here we should use the `ai_frameworks_compatibility` for selecting only bricks compatible with Edge Impulse models.
 			if strings.HasPrefix(name, "EI_") && strings.HasSuffix(name, "_MODEL") {
 				// EI model variables (EI_*_MODEL) get the blob path
 				modelConfigPerBrick[name] = blobModelsDir.String()
