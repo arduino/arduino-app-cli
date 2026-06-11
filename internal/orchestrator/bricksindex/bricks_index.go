@@ -79,15 +79,16 @@ type Brick struct {
 	Category        string   `yaml:"category,omitempty"`
 	RequiresDisplay string   `yaml:"requires_display,omitempty"`
 	// Deprecated : the field `require_container` is deprecated, you can remove it from the brick config. It will be ignored if present.
-	RequireContainer          bool                      `yaml:"require_container"` // Deprecated
-	RequireModel              bool                      `yaml:"require_model"`
-	Variables                 []BrickVariable           `yaml:"variables,omitempty"`
-	Ports                     []string                  `yaml:"ports,omitempty"`
-	ModelName                 string                    `yaml:"model_name,omitempty"`
-	ModelByBoard              []ModelsBoard             `yaml:"model_by_boards,omitempty"`
-	MountDevicesIntoContainer bool                      `yaml:"mount_devices_into_container,omitempty"`
-	RequiredDevices           []peripherals.DeviceClass `yaml:"required_devices,omitempty"`
-	RequiresServices          []string                  `yaml:"requires_services,omitempty"`
+	RequireContainer            bool                      `yaml:"require_container"` // Deprecated
+	RequireModel                bool                      `yaml:"require_model"`
+	Variables                   []BrickVariable           `yaml:"variables,omitempty"`
+	Ports                       []string                  `yaml:"ports,omitempty"`
+	ModelName                   string                    `yaml:"model_name,omitempty"`
+	ModelByBoard                []ModelsBoard             `yaml:"model_by_boards,omitempty"`
+	MountDevicesIntoContainer   bool                      `yaml:"mount_devices_into_container,omitempty"`
+	RequiredDevices             []peripherals.DeviceClass `yaml:"required_devices,omitempty"`
+	RequiresServices            []string                  `yaml:"requires_services,omitempty"`
+	ModelConfigurationVariables []string                  `yaml:"model_configuration_variables,omitempty"`
 
 	Source string `yaml:"-"`
 
