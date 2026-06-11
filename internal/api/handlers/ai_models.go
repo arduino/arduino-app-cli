@@ -186,13 +186,19 @@ func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, mode
 		}
 		defer sseStream.Close()
 
+		type progress struct {
+			Name     string  `json:"name"`
+			Progress float32 `json:"progress"`
+		}
+		type log struct {
+			Message string `json:"message"`
+		}
 		if err := orchestrator.InstallModelByHandler(r.Context(), dockerClient.Client(), id, modelsIndex, cfg, plat, func(item orchestrator.StreamMessage) {
 			switch item.GetType() {
 			case orchestrator.ProgressType:
-				// TODO: send the progress by capture the STDout of the container as raw string
-				sseStream.Send(render.SSEEvent{Type: "progress", Data: item.GetProgress()})
+				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress(*item.GetProgress())})
 			case orchestrator.InfoType:
-				sseStream.Send(render.SSEEvent{Type: "message", Data: item.GetData()})
+				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: item.GetData()}})
 			}
 		}); err != nil {
 			slog.Error("model install failed", "model", id, "err", err)
