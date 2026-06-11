@@ -472,7 +472,24 @@ func InstallModelByHandler(ctx context.Context, cli client.APIClient, modelID st
 
 	slog.Info("installing model", "model", modelID, "path", downloadPath)
 	installResponse := func(e ModelInstallEvent) {
-		cb(StreamMessage{progress: &Progress{Name: "download", Progress: float32(e.Current) / float32(e.Total)}})
+		switch e.Type {
+		case ModelInstallEventStart:
+			cb(StreamMessage{data: "Starting model installation..."})
+		case ModelInstallEventUpdate:
+			if e.Total > 0 {
+				cb(StreamMessage{progress: &Progress{Name: e.ModelID, Progress: float32(e.Current) * 100 / float32(e.Total)}})
+			} else {
+				cb(StreamMessage{progress: &Progress{Name: e.ModelID, Progress: 0}})
+			}
+		case ModelInstallEventComplete:
+			cb(StreamMessage{data: "Download complete"})
+		case ModelInstallEventError:
+			cb(StreamMessage{data: fmt.Sprintf("Error: %s", e.Description)})
+		case ModelInstallEventDone:
+			cb(StreamMessage{data: "Download complete"})
+		default:
+			cb(StreamMessage{data: e.Description})
+		}
 	}
 	return runHandlerAction(ctx, cli, *model, handler.Image, handler.Actions.Download, handler.Volumes, downloadPath, envVars, installResponse)
 }
