@@ -475,8 +475,7 @@ func InstallModelByHandler(ctx context.Context, cli client.APIClient, modelID st
 
 	slog.Info("installing model", "model", modelID, "path", downloadPath)
 	installResponse := func(e ModelInstallEvent) {
-		// TODO: send the progress by capture the STDout of the container as raw string
-		cb(StreamMessage{data: e.Description})
+		cb(StreamMessage{progress: &Progress{Name: "download", Progress: float32(e.Current) / float32(e.Total)}})
 	}
 	return runHandlerAction(ctx, cli, *model, handler.Image, handler.Actions.Download, handler.Volumes, downloadPath, envVars, installResponse)
 }

@@ -38,10 +38,10 @@ func runHandlerAction(ctx context.Context, cli client.APIClient, model modelsind
 
 	slog.Debug("running handler action", "model", model.ID, "action", action, "image", image)
 	return dockerhandler.Run(ctx, cli, dockerhandler.RunOptions{
-		Image:  image,
-		Cmd:    action,
-		Binds:  binds,
-		Env:    env,
+		Image: image,
+		Cmd:   action,
+		Binds: binds,
+		Env:   env,
 		LineCallback: func(line string) {
 			slog.Debug("handler output", "model", model.ID, "line", line)
 			parseHandlerLine([]byte(line), publish)
