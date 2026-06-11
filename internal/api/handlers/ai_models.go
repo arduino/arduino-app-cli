@@ -158,6 +158,13 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 	}
 }
 
+func (r InstallEIModelRequest) Validate() error {
+	if r.ImpulseID == nil || *r.ImpulseID <= 0 {
+		return fmt.Errorf("impulse_id must be an integer greater than 0")
+	}
+	return nil
+}
+
 func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := strings.TrimSpace(r.PathValue("modelID"))
@@ -189,13 +196,10 @@ func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, mode
 			}
 		}); err != nil {
 			slog.Error("model install failed", "model", id, "err", err)
+			sseStream.SendError(render.SSEErrorData{
+				Code:    render.InternalServiceErr,
+				Message: err.Error(),
+			})
 		}
 	}
-}
-
-func (r InstallEIModelRequest) Validate() error {
-	if r.ImpulseID == nil || *r.ImpulseID <= 0 {
-		return fmt.Errorf("impulse_id must be an integer greater than 0")
-	}
-	return nil
 }
