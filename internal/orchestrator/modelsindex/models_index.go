@@ -196,9 +196,6 @@ func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, cli cl
 }
 
 func (m *ModelsIndex) modelInstalled(ctx context.Context, model AIModel) bool {
-	if !model.IsInternal {
-		return true
-	}
 	handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)
 	if !ok {
 		return false
