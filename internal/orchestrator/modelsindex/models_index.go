@@ -6,15 +6,10 @@
 package modelsindex
 
 import (
-	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"slices"
 
-	"github.com/docker/docker/client"
-
-	"github.com/arduino/arduino-app-cli/internal/dockerhandler"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 
@@ -43,14 +38,28 @@ func (b *assetsModelList) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
-type PlatformDeploymentConfig struct {
-	Variables map[string]string `yaml:"variables"`
+type AIModel struct {
+	ID                string            `yaml:"-"`
+	ModelFolderPath   *paths.Path       `yaml:"-"`
+	Name              string            `yaml:"name"`
+	ModuleDescription string            `yaml:"description"`
+	Runner            string            `yaml:"runner"`
+	Bricks            []BrickConfig     `yaml:"bricks,omitempty"`
+	ModelLabels       []string          `yaml:"model_labels,omitempty"`
+	Metadata          map[string]string `yaml:"metadata,omitempty"`
+	IsInternal        bool              `yaml:"-"`
+	SupportedBoards   []string          `yaml:"supported_boards,omitempty"`
+	Deployment        *ModelDeployment  `yaml:"deployment,omitempty"`
 }
 
 type ModelDeployment struct {
 	Handler   string                                `yaml:"handler"`
 	PreLoaded bool                                  `yaml:"pre-loaded"`
 	Variables []map[string]PlatformDeploymentConfig `yaml:"platforms,omitempty"`
+}
+
+type PlatformDeploymentConfig struct {
+	Variables map[string]string `yaml:"variables"`
 }
 
 func (d *ModelDeployment) VariablesForPlatform(boardName string) map[string]string {
@@ -62,21 +71,6 @@ func (d *ModelDeployment) VariablesForPlatform(boardName string) map[string]stri
 	return nil
 }
 
-type AIModel struct {
-	ID                string            `yaml:"-"`
-	ModelFolderPath   *paths.Path       `yaml:"-"`
-	Name              string            `yaml:"name"`
-	ModuleDescription string            `yaml:"description"`
-	Runner            string            `yaml:"runner"`
-	Bricks            []BrickConfig     `yaml:"bricks,omitempty"`
-	ModelLabels       []string          `yaml:"model_labels,omitempty"`
-	Metadata          map[string]string `yaml:"metadata,omitempty"`
-	IsInternal        bool              `yaml:"-"`
-	Installed         bool              `yaml:"-"`
-	SupportedBoards   []string          `yaml:"supported_boards,omitempty"`
-	Deployment        *ModelDeployment  `yaml:"deployment,omitempty"`
-}
-
 type BrickConfig struct {
 	ID                 string            `yaml:"id"`
 	ModelConfiguration map[string]string `yaml:"model_configuration"`
@@ -85,22 +79,14 @@ type BrickConfig struct {
 type ModelsIndex struct {
 	InternalModels []AIModel
 	modelsDir      *paths.Path
-	Handlers       *HandlersIndex
-	cli            client.APIClient
-	plat           platform.Platform
 }
 
-func (m *ModelsIndex) GetModels(ctx context.Context) []AIModel {
-	return m.loadModels(ctx)
+func (m *ModelsIndex) GetModels() []AIModel {
+	return m.loadModels()
 }
 
-func (m *ModelsIndex) GetModelsByBricks(ctx context.Context, bricks []string) []AIModel {
-	return m.filterByBricks(bricks)
-}
-
-// FindModelByID returns the model with the given ID without checking installed status.
-func (m *ModelsIndex) FindModelByID(id string) (*AIModel, bool) {
-	models := m.loadModels(context.Background())
+func (m *ModelsIndex) GetModelByID(id string) (*AIModel, bool) {
+	models := m.loadModels()
 	idx := slices.IndexFunc(models, func(v AIModel) bool { return v.ID == id })
 	if idx == -1 {
 		return nil, false
@@ -108,19 +94,10 @@ func (m *ModelsIndex) FindModelByID(id string) (*AIModel, bool) {
 	return &models[idx], true
 }
 
-// GetModelByID returns the model with the given ID and populates its Installed field.
-func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, bool) {
-	model, ok := m.FindModelByID(id)
-	if !ok {
-		return nil, false
-	}
-	model.Installed = m.modelInstalled(ctx, *model)
-	return model, true
-}
-
 func (m *ModelsIndex) GetModelsByBrick(brickName string) []AIModel {
 	var matches []AIModel
-	for _, model := range m.loadModels(context.Background()) {
+	models := m.loadModels()
+	for _, model := range models {
 		if slices.ContainsFunc(model.Bricks, func(b BrickConfig) bool { return b.ID == brickName }) {
 			matches = append(matches, model)
 		}
@@ -128,25 +105,19 @@ func (m *ModelsIndex) GetModelsByBrick(brickName string) []AIModel {
 	return matches
 }
 
-func (m *ModelsIndex) filterByBricks(bricks []string) []AIModel {
-	var modelList []AIModel
-	for _, model := range m.loadModels(context.Background()) {
+func (m *ModelsIndex) GetModelsByBricks(bricks []string) []AIModel {
+	var matchingModels []AIModel
+	for _, model := range m.loadModels() {
 		if slices.ContainsFunc(model.Bricks, func(brick BrickConfig) bool {
 			return slices.Contains(bricks, brick.ID)
 		}) {
-			modelList = append(modelList, model)
+			matchingModels = append(matchingModels, model)
 		}
 	}
-	return modelList
+	return matchingModels
 }
 
-func (m *ModelsIndex) loadModels(ctx context.Context) []AIModel {
-	models := m.getModels()
-	m.setStatus(ctx, models)
-	return models
-}
-
-func (m *ModelsIndex) getModels() []AIModel {
+func (m *ModelsIndex) loadModels() []AIModel {
 	eimodels, err := loadCustomModels(m.modelsDir)
 	if err != nil {
 		slog.Error("cannot load edge impulse custom models", "err", err)
@@ -154,19 +125,7 @@ func (m *ModelsIndex) getModels() []AIModel {
 	return append(m.InternalModels, eimodels...)
 }
 
-func (m *ModelsIndex) setStatus(ctx context.Context, l []AIModel) []AIModel {
-	statuses := m.Handlers.getModelStatus(ctx, m.cli, m.modelsDir, m.plat)
-	for i := range l {
-		if installed, ok := statuses[l[i].ID]; ok && !l[i].IsInternal {
-			l[i].Installed = installed
-		}
-	}
-	return l
-}
-
-// Load constructs a ModelsIndex. Pass the result of LoadHandlers as handlers;
-// nil is accepted and disables handler-backed status checks.
-func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, cli client.APIClient, dockerRegistryBase string) (*ModelsIndex, error) {
+func Load(platform platform.Platform, dir *paths.Path, modelsDir *paths.Path) (*ModelsIndex, error) {
 	if dir == nil && modelsDir == nil {
 		return &ModelsIndex{}, errors.New("either dir or modelsDir must be provided")
 	}
@@ -176,56 +135,12 @@ func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, cli cl
 	}
 
 	models = slices.DeleteFunc(models, func(model AIModel) bool {
-		return plat.BoardName != "" &&
+		return platform.BoardName != "" &&
 			len(model.SupportedBoards) != 0 &&
-			!slices.Contains(model.SupportedBoards, plat.BoardName)
+			!slices.Contains(model.SupportedBoards, platform.BoardName)
 	})
 
-	handlers, err := loadHandlers(dir, dockerRegistryBase)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ModelsIndex{
-		InternalModels: models,
-		modelsDir:      modelsDir,
-		Handlers:       handlers,
-		cli:            cli,
-		plat:           plat,
-	}, nil
-}
-
-func (m *ModelsIndex) modelInstalled(ctx context.Context, model AIModel) bool {
-	handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)
-	if !ok {
-		return false
-	}
-	var envVars map[string]string
-	if model.Deployment != nil {
-		envVars = model.Deployment.VariablesForPlatform(m.plat.BoardName)
-	}
-	return isModelDownloaded(ctx, m.cli, model, handler, m.modelsDir, envVars)
-}
-
-func isModelDownloaded(ctx context.Context, cli client.APIClient, model AIModel, handler ModelHandler, downloadPath *paths.Path, envVars map[string]string) bool {
-	binds, volumeEnv := ResolveVolumes(handler.Volumes, map[string]string{
-		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": downloadPath.String(),
-	})
-	env := volumeEnv
-	for k, v := range envVars {
-		env = append(env, fmt.Sprintf("%s=%s", k, v))
-	}
-	err := dockerhandler.Run(ctx, cli, dockerhandler.RunOptions{
-		Image: handler.Image,
-		Cmd:   handler.Actions.Check,
-		Binds: binds,
-		Env:   env,
-	})
-	if err != nil {
-		slog.Debug("model check reported not downloaded", "model", model.ID, "err", err)
-		return false
-	}
-	return true
+	return &ModelsIndex{InternalModels: models, modelsDir: modelsDir}, nil
 }
 
 func loadInternalModels(dir *paths.Path) ([]AIModel, error) {
@@ -287,72 +202,8 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 			Metadata:        m.ModelDescriptor.Metadata,
 			ModelFolderPath: m.FullPath,
 			IsInternal:      false,
-			Installed:       true,
 		})
 	}
 
 	return models, nil
-}
-
-func loadHandlers(dir *paths.Path, registryBase string) (*HandlersIndex, error) {
-	empty := &HandlersIndex{handlers: make(map[string]ModelHandler)}
-	if dir == nil {
-		return empty, nil
-	}
-
-	handlersFile := dir.Join("models-handlers.yaml")
-	if handlersFile.NotExist() {
-		return empty, nil
-	}
-
-	content, err := handlersFile.ReadFile()
-	if err != nil {
-		return nil, err
-	}
-
-	var raw rawHandlersList
-	if err := yaml.Unmarshal(content, &raw); err != nil {
-		return nil, fmt.Errorf("models-handlers.yaml: %w", err)
-	}
-
-	handlers := make(map[string]ModelHandler, len(raw.Handlers))
-	for _, handlerMap := range raw.Handlers {
-		for id, entry := range handlerMap {
-			if id == "" {
-				return nil, fmt.Errorf("models-handlers.yaml: handler has empty id")
-			}
-			if entry.Image == "" {
-				return nil, fmt.Errorf("models-handlers.yaml: handler %q missing required field \"image\"", id)
-			}
-			var actions HandlerActions
-			for _, actionMap := range entry.Actions {
-				for name, actionEntry := range actionMap {
-					switch name {
-					case "download":
-						actions.Download = actionEntry.Command
-					case "delete":
-						actions.Delete = actionEntry.Command
-					case "check":
-						actions.Check = actionEntry.Command
-					case "info":
-						actions.Info = actionEntry.Command
-					}
-				}
-			}
-			if err := actions.validate(id); err != nil {
-				return nil, fmt.Errorf("models-handlers.yaml: %w", err)
-			}
-			if len(entry.Volumes) == 0 {
-				return nil, fmt.Errorf("models-handlers.yaml: handler %q missing required field \"volumes\"", id)
-			}
-			handlers[id] = ModelHandler{
-				ID:      id,
-				Image:   resolveImage(entry.Image, registryBase),
-				Volumes: entry.Volumes,
-				Actions: actions,
-			}
-		}
-	}
-
-	return &HandlersIndex{handlers: handlers}, nil
 }

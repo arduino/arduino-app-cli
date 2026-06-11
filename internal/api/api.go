@@ -15,6 +15,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelshandler"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -36,6 +37,7 @@ func NewHTTPRouter(
 	provisioner *orchestrator.Provision,
 	staticStore *store.StaticStore,
 	modelsIndex *modelsindex.ModelsIndex,
+	modelsHandler *modelshandler.HandlersIndex,
 	bricksIndex *bricksindex.BricksIndex,
 	servicesIndex *servicesindex.ServicesIndex,
 	brickService *bricks.Service,
@@ -62,11 +64,11 @@ func NewHTTPRouter(
 	mux.Handle("PUT /v1/system/update/apply", handlers.HandleUpdateApply(updater))
 	mux.Handle("GET /v1/system/resources", handlers.HandleSystemResources(cfg))
 
-	mux.Handle("GET /v1/models", handlers.HandleModelsList(dockerClient, modelsIndex, cfg, platform))
-	mux.Handle("GET /v1/models/{modelID}", handlers.HandlerModelByID(dockerClient, modelsIndex, cfg, platform))
+	mux.Handle("GET /v1/models", handlers.HandleModelsList(dockerClient, modelsIndex, modelsHandler, platform))
+	mux.Handle("GET /v1/models/{modelID}", handlers.HandlerModelByID(dockerClient, modelsIndex, modelsHandler))
 	mux.Handle("PUT /v1/models/ei/projects/{projectID}", handlers.HandleInstallEIModel(cfg, bricksIndex, modelsIndex, dockerClient))
-	mux.Handle("PUT /v1/models/{modelID}", handlers.HandleInstallModel(dockerClient, cfg, modelsIndex, platform))
-	mux.Handle("DELETE /v1/models/{modelID}", handlers.HandlerDeleteModelByID(dockerClient, cfg, modelsIndex, bricksIndex, idProvider, platform))
+	mux.Handle("PUT /v1/models/{modelID}", handlers.HandleInstallModel(dockerClient, cfg, modelsIndex, modelsHandler))
+	mux.Handle("DELETE /v1/models/{modelID}", handlers.HandlerDeleteModelByID(dockerClient, cfg, modelsIndex, modelsHandler, bricksIndex, idProvider, platform))
 
 	mux.Handle("GET /v1/apps", handlers.HandleAppList(dockerClient, idProvider, bricksIndex, cfg))
 	mux.Handle("POST /v1/apps", handlers.HandleAppCreate(idProvider, cfg))

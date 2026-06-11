@@ -26,6 +26,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelshandler"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -51,12 +52,18 @@ type AIModelsListRequest struct {
 	FilterByBrickID []string
 }
 
-func AIModelsList(ctx context.Context, cli client.APIClient, req AIModelsListRequest, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform) AIModelsListResult {
+func AIModelsList(ctx context.Context, cli client.APIClient, req AIModelsListRequest, modelsIndex *modelsindex.ModelsIndex, modelsHandler *modelshandler.HandlersIndex, plat platform.Platform) AIModelsListResult {
 	var collection []modelsindex.AIModel
 	if len(req.FilterByBrickID) == 0 {
-		collection = modelsIndex.GetModels(ctx)
+		collection = modelsIndex.GetModels()
 	} else {
-		collection = modelsIndex.GetModelsByBricks(ctx, req.FilterByBrickID)
+		collection = modelsIndex.GetModelsByBricks(req.FilterByBrickID)
+	}
+
+	res, err := modelsHandler.ListModels(ctx, plat)
+	if err != nil {
+		slog.Error("failed to list models", slog.String("error", err.Error()))
+		return AIModelsListResult{Models: []AIModelItem{}}
 	}
 
 	items := f.Map(collection, func(model modelsindex.AIModel) AIModelItem {
@@ -68,17 +75,24 @@ func AIModelsList(ctx context.Context, cli client.APIClient, req AIModelsListReq
 			Bricks:            f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
 			Metadata:          model.Metadata,
 			IsBuiltin:         model.IsInternal,
-			Installed:         model.Installed,
+			Installed:         res[model.ID],
 		}
 	})
 	return AIModelsListResult{Models: items}
 }
 
-func AIModelDetails(ctx context.Context, cli client.APIClient, modelsIndex *modelsindex.ModelsIndex, id string, cfg config.Configuration, plat platform.Platform) (AIModelItem, bool) {
-	model, found := modelsIndex.GetModelByID(ctx, id)
+func AIModelDetails(ctx context.Context, cli client.APIClient, modelsIndex *modelsindex.ModelsIndex, modelsHandler *modelshandler.HandlersIndex, id string) (AIModelItem, bool) {
+	model, found := modelsIndex.GetModelByID(id)
 	if !found {
 		return AIModelItem{}, false
 	}
+
+	handler, ok := modelsHandler.GetHandler(model.Deployment.Handler)
+	if !ok {
+		return AIModelItem{}, false
+	}
+
+	isInstalled := modelsHandler.RunCheckAction(ctx, handler, model)
 
 	var modelSize *uint64
 	if !model.IsInternal && model.ModelFolderPath != nil {
@@ -104,7 +118,7 @@ func AIModelDetails(ctx context.Context, cli client.APIClient, modelsIndex *mode
 		Metadata:          model.Metadata,
 		IsBuiltin:         model.IsInternal,
 		DiskUsage:         modelSize,
-		Installed:         model.Installed,
+		Installed:         isInstalled,
 	}, true
 }
 
@@ -148,8 +162,8 @@ var (
 	ErrIncompleteImpulse   = errors.New("impulse not ready for deployment")
 )
 
-func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, platform platform.Platform, id string, idProvider *app.IDProvider, force bool) (err error) {
-	res, found := modelsIndex.GetModelByID(ctx, id)
+func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, modelsHandler *modelshandler.HandlersIndex, bricksIndex *bricksindex.BricksIndex, platform platform.Platform, id string, idProvider *app.IDProvider, force bool) (err error) {
+	res, found := modelsIndex.GetModelByID(id)
 	if !found {
 		return fmt.Errorf("%q: %w", id, ErrNotFound)
 	}
@@ -178,16 +192,13 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 	}
 
 	if res.Deployment != nil && res.Deployment.Handler != "" {
-		handler, ok := modelsIndex.Handlers.GetHandlerByID(res.Deployment.Handler)
+		handler, ok := modelsHandler.GetHandler(res.Deployment.Handler)
 		if !ok {
 			return fmt.Errorf("handler %q not found for model %q", res.Deployment.Handler, id)
 		}
-		downloadPath := cfg.CustomModelsDir()
-		var envVars map[string]string
-		if res.Deployment != nil {
-			envVars = res.Deployment.VariablesForPlatform(platform.BoardName)
-		}
-		return runHandlerAction(ctx, dockerClient.Client(), *res, handler.Image, handler.Actions.Delete, handler.Volumes, downloadPath, envVars, nil)
+		return modelsHandler.RunRemoveAction(ctx, handler, res, func(msg modelshandler.DeleteMsg) {
+			slog.Info("Model remove progress", "model_id", id, "message", msg.Description)
+		})
 	}
 
 	// Custom model (e.g. Edge Impulse): remove the model folder directly.
@@ -252,7 +263,7 @@ func checkForModelReferences(ctx context.Context, dockerClient command.Cli, cfg 
 }
 
 func isModelInUse(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, modelId string) error {
-	_, found := modelsIndex.FindModelByID(modelId)
+	_, found := modelsIndex.GetModelByID(modelId)
 	if found {
 		runningApp, err := getRunningApp(ctx, dockerClient.Client())
 		if err != nil {
@@ -435,103 +446,83 @@ var (
 	ErrNoDeploymentHandler = errors.New("model has no deployment handler")
 )
 
-func InstallModelByHandler(ctx context.Context, cli client.APIClient, modelID string, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform, cb func(item StreamMessage)) error {
-	model, found := modelsIndex.GetModelByID(ctx, modelID)
+func InstallModelByHandler(ctx context.Context, cli client.APIClient, modelID string, modelsIndex *modelsindex.ModelsIndex, modelsHandler *modelshandler.HandlersIndex, cb func(item StreamMessage)) error {
+	model, found := modelsIndex.GetModelByID(modelID)
 	if !found {
 		return fmt.Errorf("%q: %w", modelID, ErrNotFound)
 	}
 
-	handler, ok := modelsIndex.Handlers.GetHandlerByID(model.Deployment.Handler)
+	handler, ok := modelsHandler.GetHandler(model.Deployment.Handler)
 	if !ok {
 		return fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, modelID)
 	}
 
-	downloadPath := cfg.CustomModelsDir()
-	if err := downloadPath.MkdirAll(); err != nil {
-		return fmt.Errorf("cannot create download location %q: %w", downloadPath, err)
-	}
-
-	var envVars map[string]string
-	if model.Deployment != nil {
-		envVars = model.Deployment.VariablesForPlatform(plat.BoardName)
-	}
-
-	if model.Installed {
+	isInstalled := modelsHandler.RunCheckAction(ctx, handler, model)
+	if isInstalled {
 		slog.Info("model already installed", "model", modelID)
 		cb(StreamMessage{data: "Model already installed"})
 		return nil
 	}
 
-	if info, err := fetchModelInfo(ctx, cli, *model, handler, downloadPath, envVars); err != nil {
+	// var size int64
+	err := modelsHandler.RunInfoAction(ctx, handler, model, func(msg modelshandler.InfoMsg) {
+		slog.Debug("model info", "model", modelID, "event", msg.Event, "description", msg.Description, "size_mb", msg.SizeMB)
+		// size = msg.SizeMB * 1024 * 1024 // Convert MB to bytes
+	})
+	if err != nil {
 		slog.Warn("could not fetch model info", "model", modelID, "err", err)
-	} else if info != nil && info.sizeBytes > 0 {
-		if err := hasSufficientDiskSpace(downloadPath, info.sizeBytes); err != nil {
-			return err
-		}
 	}
+	// TODO: check the free space in the
+	// if size > 0 {
+	// 	// if err := hasSufficientDiskSpace(downloadPath, size); err != nil {
+	// 	// 	return err
+	// 	// }
+	// }
 
-	slog.Info("installing model", "model", modelID, "path", downloadPath)
-	installResponse := func(e ModelInstallEvent) {
-		switch e.Type {
-		case ModelInstallEventStart:
-			cb(StreamMessage{data: "Starting model installation..."})
-		case ModelInstallEventUpdate:
-			if e.Total > 0 {
-				cb(StreamMessage{progress: &Progress{Name: modelID, Progress: float32(e.Current) * 100 / float32(e.Total)}})
+	err = modelsHandler.RunDownloadAction(ctx, handler, model, func(msg modelshandler.DownloadMsg) {
+		slog.Debug("model download", "model", modelID, "event", msg.Event, "description", msg.Description, "current", msg.Current, "total", msg.Total)
+		switch msg.Event {
+		case "start":
+			cb(StreamMessage{data: "Starting model download..."})
+		case "update":
+			if msg.Total > 0 {
+				cb(StreamMessage{progress: &Progress{Name: modelID, Progress: float32(msg.Current) * 100 / float32(msg.Total)}})
 			} else {
 				cb(StreamMessage{progress: &Progress{Name: modelID, Progress: 0}})
 			}
-		case ModelInstallEventComplete:
-			cb(StreamMessage{progress: &Progress{Name: modelID, Progress: 100}}) // used by the FE to understand that the installation is complete
-		case ModelInstallEventError:
-			cb(StreamMessage{data: fmt.Sprintf("Error: %s", e.Description)})
+		case "complete":
+			cb(StreamMessage{progress: &Progress{Name: modelID, Progress: 100}}) // used by the FE to understand that the download is complete
+		case "error":
+			cb(StreamMessage{data: fmt.Sprintf("Error: %s", msg.Description)})
 		default:
-			cb(StreamMessage{data: e.Description})
+			cb(StreamMessage{data: msg.Description})
 		}
+	})
+	if err != nil {
+		return fmt.Errorf("%w: %s", ErrModelDownloadFailed, err.Error())
 	}
-	return runHandlerAction(ctx, cli, *model, handler.Image, handler.Actions.Download, handler.Volumes, downloadPath, envVars, installResponse)
-}
 
-type modelInfoResult struct {
-	sizeBytes int64
-}
-
-// fetchModelInfo runs the info action and returns the reported model size.
-// Returns nil if the handler has no info action defined.
-func fetchModelInfo(ctx context.Context, cli client.APIClient, model modelsindex.AIModel, handler modelsindex.ModelHandler, downloadPath *paths.Path, envVars map[string]string) (*modelInfoResult, error) {
-	if len(handler.Actions.Info) == 0 {
-		return nil, nil
-	}
-	var result modelInfoResult
-	publish := func(e ModelInstallEvent) {
-		if e.Total > 0 {
-			result.sizeBytes = e.Total
-		}
-	}
-	if err := runHandlerAction(ctx, cli, model, handler.Image, handler.Actions.Info, handler.Volumes, downloadPath, envVars, publish); err != nil {
-		return nil, fmt.Errorf("info action: %w", err)
-	}
-	return &result, nil
-}
-
-// hasSufficientDiskSpace checks whether the filesystem containing path has at
-// least requiredBytes of free space. It walks up to the first existing ancestor
-// if path does not yet exist.
-func hasSufficientDiskSpace(path *paths.Path, requiredBytes int64) error {
-	target := path
-	for target != nil && target.NotExist() {
-		target = target.Parent()
-	}
-	if target == nil {
-		return nil // cannot determine filesystem, skip check
-	}
-	var stat syscall.Statfs_t
-	if err := syscall.Statfs(target.String(), &stat); err != nil {
-		return fmt.Errorf("cannot check disk space: %w", err)
-	}
-	available := int64(stat.Bavail) * int64(stat.Bsize)
-	if available < requiredBytes {
-		return ErrInsufficientStorage
-	}
 	return nil
 }
+
+// // hasSufficientDiskSpace checks whether the filesystem containing path has at
+// // least requiredBytes of free space. It walks up to the first existing ancestor
+// // if path does not yet exist.
+// func hasSufficientDiskSpace(path *paths.Path, requiredBytes int64) error {
+// 	target := path
+// 	for target != nil && target.NotExist() {
+// 		target = target.Parent()
+// 	}
+// 	if target == nil {
+// 		return nil // cannot determine filesystem, skip check
+// 	}
+// 	var stat syscall.Statfs_t
+// 	if err := syscall.Statfs(target.String(), &stat); err != nil {
+// 		return fmt.Errorf("cannot check disk space: %w", err)
+// 	}
+// 	available := int64(stat.Bavail) * int64(stat.Bsize)
+// 	if available < requiredBytes {
+// 		return ErrInsufficientStorage
+// 	}
+// 	return nil
+// }

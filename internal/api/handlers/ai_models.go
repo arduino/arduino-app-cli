@@ -22,6 +22,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelshandler"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/render"
@@ -31,7 +32,7 @@ type InstallEIModelRequest struct {
 	ImpulseID *int `json:"impulse_id" description:"Edge Impulse impulse ID" example:"1" required:"true"`
 }
 
-func HandleModelsList(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform) http.HandlerFunc {
+func HandleModelsList(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, modelsHandler *modelshandler.HandlersIndex, plat platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		params := r.URL.Query()
 
@@ -41,19 +42,19 @@ func HandleModelsList(dockerClient command.Cli, modelsIndex *modelsindex.ModelsI
 		}
 		res := orchestrator.AIModelsList(r.Context(), dockerClient.Client(), orchestrator.AIModelsListRequest{
 			FilterByBrickID: brickFilter,
-		}, modelsIndex, cfg, plat)
+		}, modelsIndex, modelsHandler, plat)
 		render.EncodeResponse(w, http.StatusOK, res)
 	}
 }
 
-func HandlerModelByID(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform) http.HandlerFunc {
+func HandlerModelByID(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, modelsHandler *modelshandler.HandlersIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("modelID")
 		if id == "" {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "id must be set"})
 			return
 		}
-		res, found := orchestrator.AIModelDetails(r.Context(), dockerClient.Client(), modelsIndex, id, cfg, plat)
+		res, found := orchestrator.AIModelDetails(r.Context(), dockerClient.Client(), modelsIndex, modelsHandler, id)
 		if !found {
 			details := fmt.Sprintf("models with id %q not found", id)
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})
@@ -63,7 +64,7 @@ func HandlerModelByID(dockerClient command.Cli, modelsIndex *modelsindex.ModelsI
 	}
 }
 
-func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, idProvider *app.IDProvider, platform platform.Platform) http.HandlerFunc {
+func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, modelsHandler *modelshandler.HandlersIndex, bricksIndex *bricksindex.BricksIndex, idProvider *app.IDProvider, platform platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := strings.TrimSpace(r.PathValue("modelID"))
 		if id == "" {
@@ -76,7 +77,7 @@ func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, 
 			force = false
 		}
 
-		err = orchestrator.AIModelDelete(r.Context(), dockerClient, cfg, modelsIndex, bricksIndex, platform, id, idProvider, force)
+		err = orchestrator.AIModelDelete(r.Context(), dockerClient, cfg, modelsIndex, modelsHandler, bricksIndex, platform, id, idProvider, force)
 		if err != nil {
 			switch {
 			case errors.Is(err, orchestrator.ErrNotFound):
@@ -165,7 +166,7 @@ func (r InstallEIModelRequest) Validate() error {
 	return nil
 }
 
-func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform) http.HandlerFunc {
+func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, modelsHandler *modelshandler.HandlersIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := strings.TrimSpace(r.PathValue("modelID"))
 		if id == "" {
@@ -173,7 +174,7 @@ func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, mode
 			return
 		}
 
-		if _, found := modelsIndex.FindModelByID(id); !found {
+		if _, found := modelsIndex.GetModelByID(id); !found {
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: fmt.Sprintf("model %q not found", id)})
 			return
 		}
@@ -193,7 +194,7 @@ func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, mode
 		type log struct {
 			Message string `json:"message"`
 		}
-		if err := orchestrator.InstallModelByHandler(r.Context(), dockerClient.Client(), id, modelsIndex, cfg, plat, func(item orchestrator.StreamMessage) {
+		if err := orchestrator.InstallModelByHandler(r.Context(), dockerClient.Client(), id, modelsIndex, modelsHandler, func(item orchestrator.StreamMessage) {
 			switch item.GetType() {
 			case orchestrator.ProgressType:
 				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress(*item.GetProgress())})
