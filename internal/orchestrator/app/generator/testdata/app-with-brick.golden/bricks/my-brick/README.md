@@ -15,7 +15,7 @@ def greet(name):
 Import it  into `python/main.py`:
 ```
 # python/main.py
-from bricks.my-brick import greet
+from my-brick import greet
 
 print(greet("world"))
 ```
