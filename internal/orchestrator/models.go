@@ -482,11 +482,9 @@ func InstallModelByHandler(ctx context.Context, cli client.APIClient, modelID st
 				cb(StreamMessage{progress: &Progress{Name: modelID, Progress: 0}})
 			}
 		case ModelInstallEventComplete:
-			cb(StreamMessage{data: "Download completed"})
+			cb(StreamMessage{progress: &Progress{Name: modelID, Progress: 100}}) // used by the FE to understand that the installation is complete
 		case ModelInstallEventError:
 			cb(StreamMessage{data: fmt.Sprintf("Error: %s", e.Description)})
-		case ModelInstallEventDone:
-			cb(StreamMessage{data: "Install done"})
 		default:
 			cb(StreamMessage{data: e.Description})
 		}
