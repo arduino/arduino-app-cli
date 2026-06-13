@@ -121,40 +121,30 @@ func (a *ADBConnection) resolveSftpBinary() string {
 	return string(bytes.TrimSpace(out))
 }
 
-// dialSftp launches sftp-server on the device via `adb shell` and returns a
-// client speaking SFTP over its stdio. The returned closer kills the process.
+// dialSftp launches sftp-server on the device through the adb server's `exec:`
+// service and returns a client speaking SFTP over its stdio.
+//
+// We talk to the local adb server over TCP directly (rather than shelling out
+// to `adb shell`) because `adb shell` stdio is not 8-bit-clean on Windows,
+// even with the `-T -x` flags.
 func (a *ADBConnection) dialSftp() (*sftp.Client, []sftpfs.CloseFunc, error) {
-	binary := a.getSftpBinary()
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", binary)
+	conn, err := OpenExecStream(a.adbPath, a.host, a.getSftpBinary())
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create sftp-server command: %w", err)
+		return nil, nil, fmt.Errorf("failed to open adb exec stream to sftp-server on device %q: %w", a.host, err)
 	}
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get sftp stdin pipe: %w", err)
-	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get sftp stdout pipe: %w", err)
-	}
-	if err := cmd.Start(); err != nil {
-		return nil, nil, fmt.Errorf("failed to start sftp-server: %w", err)
-	}
-	client, err := sftp.NewClientPipe(stdout, stdin,
+
+	client, err := sftp.NewClientPipe(conn, conn,
 		sftp.MaxPacketUnchecked(1<<17), // 128 KiB packets
 		sftp.MaxConcurrentRequestsPerFile(64),
 		sftp.UseConcurrentReads(true),
 		sftp.UseConcurrentWrites(true),
 	)
 	if err != nil {
-		_ = cmd.Kill()
-		_ = cmd.Wait()
+		_ = conn.Close()
 		return nil, nil, fmt.Errorf("failed to create sftp client: %w", err)
 	}
-	return client, []sftpfs.CloseFunc{func() error {
-		_ = cmd.Kill() // best-effort, process should exit on its own
-		return cmd.Wait()
-	}}, nil
+
+	return client, []sftpfs.CloseFunc{conn.Close}, nil
 }
 
 func (a *ADBConnection) Forward(ctx context.Context, localPort int, remotePort int) error {
