@@ -53,7 +53,11 @@ func HandlerModelByID(dockerClient command.Cli, modelsIndex *modelsindex.ModelsI
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "id must be set"})
 			return
 		}
-		res, found := orchestrator.AIModelDetails(r.Context(), dockerClient.Client(), modelsIndex, id, cfg, plat)
+		res, found, err := orchestrator.AIModelDetails(r.Context(), dockerClient.Client(), modelsIndex, id, cfg, plat)
+		if err != nil {
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: err.Error()})
+			return
+		}
 		if !found {
 			details := fmt.Sprintf("models with id %q not found", id)
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})

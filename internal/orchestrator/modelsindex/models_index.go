@@ -7,6 +7,7 @@ package modelsindex
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -74,7 +75,7 @@ type AIModel struct {
 	Metadata          map[string]string `yaml:"metadata,omitempty"`
 	IsInternal        bool              `yaml:"-"`
 	Installed         bool              `yaml:"-"`
-	Size              int64             `yaml:"-"`
+	Size              uint64            `yaml:"-"`
 	SupportedBoards   []string          `yaml:"supported_boards,omitempty"`
 	Deployment        *ModelDeployment  `yaml:"deployment,omitempty"`
 }
@@ -102,7 +103,7 @@ func (m *ModelsIndex) GetModelsByBricks(ctx context.Context, bricks []string) []
 
 // FindModelByID returns the model with the given ID without checking installed status.
 func (m *ModelsIndex) FindModelByID(id string) (*AIModel, bool) {
-	models := m.loadModels(context.Background())
+	models := m.getModels()
 	idx := slices.IndexFunc(models, func(v AIModel) bool { return v.ID == id })
 	if idx == -1 {
 		return nil, false
@@ -110,14 +111,31 @@ func (m *ModelsIndex) FindModelByID(id string) (*AIModel, bool) {
 	return &models[idx], true
 }
 
-// GetModelByID returns the model with the given ID and populates its Installed field.
-func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, bool) {
+// GetModelByID returns the model with the given ID and populates its Installed and Size fields.
+func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, bool, error) {
 	model, ok := m.FindModelByID(id)
 	if !ok {
-		return nil, false
+		return nil, false, nil
 	}
-	model.Installed = m.modelInstalled(ctx, *model)
-	return model, true
+	if model.IsInternal && model.Deployment != nil && model.Deployment.PreLoaded {
+		if sizeMBStr, ok := model.Metadata["model_size_mb"]; ok {
+			if sizeMB, err := strconv.ParseFloat(sizeMBStr, 64); err == nil && sizeMB > 0 {
+				model.Size = uint64(sizeMB * 1024 * 1024)
+			}
+		}
+	} else if model.IsInternal {
+		installed, err := m.modelInstalled(ctx, *model)
+		if err != nil {
+			return nil, false, fmt.Errorf("cannot determine install status for model %q: %w", id, err)
+		}
+		model.Installed = installed
+		if model.Installed {
+			model.Size = m.modelSize(ctx, *model)
+		}
+
+	}
+
+	return model, true, nil
 }
 
 func (m *ModelsIndex) GetModelsByBrick(brickName string) []AIModel {
@@ -172,7 +190,7 @@ func (m *ModelsIndex) setSizes(ctx context.Context, l []AIModel) []AIModel {
 	for i := range l {
 		if sizeMBStr, ok := l[i].Metadata["model_size_mb"]; ok {
 			if sizeMB, err := strconv.ParseFloat(sizeMBStr, 64); err == nil && sizeMB > 0 {
-				l[i].Size = int64(sizeMB * 1024 * 1024)
+				l[i].Size = uint64(sizeMB * 1024 * 1024)
 			}
 		} else if size, ok := sizes[l[i].ID]; ok {
 			l[i].Size = size
@@ -213,19 +231,41 @@ func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, cli cl
 	}, nil
 }
 
-func (m *ModelsIndex) modelInstalled(ctx context.Context, model AIModel) bool {
+func (m *ModelsIndex) modelSize(ctx context.Context, model AIModel) uint64 {
+	if sizeMBStr, ok := model.Metadata["model_size_mb"]; ok {
+		if sizeMB, err := strconv.ParseFloat(sizeMBStr, 64); err == nil && sizeMB > 0 {
+			return uint64(sizeMB * 1024 * 1024)
+		}
+	}
+	if model.Deployment == nil || model.Deployment.Handler == "" {
+		return 0
+	}
+	handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)
+	if !ok || len(handler.Actions.Info) == 0 {
+		return 0
+	}
+	size, err := runInfoAction(ctx, m.cli, handler, model, m.modelsDir, m.plat)
+	if err != nil {
+		slog.Warn("cannot get model size", "model", model.ID, "err", err)
+		return 0
+	}
+	return size
+}
+
+func (m *ModelsIndex) modelInstalled(ctx context.Context, model AIModel) (bool, error) {
+	if model.Deployment == nil || model.Deployment.Handler == "" {
+		return false, fmt.Errorf("model %q has no deployment handler", model.ID)
+	}
 	handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)
 	if !ok {
-		return false
+		return false, fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
 	}
 	var envVars map[string]string
-	if model.Deployment != nil {
-		envVars = model.Deployment.VariablesForPlatform(m.plat.BoardName)
-	}
+	envVars = model.Deployment.VariablesForPlatform(m.plat.BoardName)
 	return isModelDownloaded(ctx, m.cli, model, handler, m.modelsDir, envVars)
 }
 
-func isModelDownloaded(ctx context.Context, cli client.APIClient, model AIModel, handler ModelHandler, downloadPath *paths.Path, envVars map[string]string) bool {
+func isModelDownloaded(ctx context.Context, cli client.APIClient, model AIModel, handler ModelHandler, downloadPath *paths.Path, envVars map[string]string) (bool, error) {
 	binds, volumeEnv := ResolveVolumes(handler.Volumes, map[string]string{
 		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": downloadPath.String(),
 	})
@@ -233,17 +273,30 @@ func isModelDownloaded(ctx context.Context, cli client.APIClient, model AIModel,
 	for k, v := range envVars {
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}
+	var hasInfoEvent bool
 	err := dockerhandler.Run(ctx, cli, dockerhandler.RunOptions{
 		Image: handler.Image,
 		Cmd:   handler.Actions.Check,
 		Binds: binds,
 		Env:   env,
+		LineCallback: func(line string) {
+			var out struct {
+				Event string `json:"event"`
+			}
+			if jsonErr := json.Unmarshal([]byte(line), &out); jsonErr == nil && out.Event == "error" {
+				hasInfoEvent = true
+			}
+		},
 	})
 	if err != nil {
-		slog.Debug("model check reported not downloaded", "model", model.ID, "err", err)
-		return false
+		if hasInfoEvent {
+			slog.Debug("model not installed", "model", model.ID)
+			return false, nil
+		} else {
+			return false, fmt.Errorf("model check failed for %q: %w", model.ID, err)
+		}
 	}
-	return true
+	return true, nil
 }
 
 func loadInternalModels(dir *paths.Path) ([]AIModel, error) {
@@ -295,6 +348,18 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 			slog.Warn("unable to load custom model", slog.String("error", err.Error()), "path", file)
 			continue // FIXME: collect broken models
 		}
+
+		var modelSizeMB uint64
+		if modelFileInfo, err := m.FullPath.Join("model.eim").Stat(); err != nil {
+			slog.Warn("unable to stat custom model file", slog.String("error", err.Error()), "path", m.FullPath.Join("model.eim"))
+		} else {
+			modelSizeBytes := modelFileInfo.Size()
+			if modelSizeBytes > 0 {
+				sizeBytes := uint64(modelSizeBytes)
+				modelSizeMB = (sizeBytes + (1024*1024 - 1)) / (1024 * 1024)
+			}
+		}
+
 		models = append(models, AIModel{
 			ID:                m.ModelDescriptor.ID,
 			Name:              m.ModelDescriptor.Name,
@@ -306,6 +371,7 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 			ModelFolderPath: m.FullPath,
 			IsInternal:      false,
 			Installed:       true,
+			Size:            modelSizeMB,
 		})
 	}
 
