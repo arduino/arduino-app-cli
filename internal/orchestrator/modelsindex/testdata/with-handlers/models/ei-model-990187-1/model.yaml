@@ -1,0 +1,10 @@
+id: "ei-model-990187-1"
+name: "Custom EI Model 990187"
+description: "A custom Edge Impulse model for object detection."
+bricks:
+  - id: "arduino:object_detection"
+    model_configuration:
+      "EI_OBJ_DETECTION_MODEL": "/models/custom/ei-model-990187-1.eim"
+metadata:
+  source: "edgeimpulse"
+  ei-project-id: 990187
