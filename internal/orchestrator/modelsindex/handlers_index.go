@@ -132,8 +132,8 @@ func (h *HandlersIndex) getModelStatus(ctx context.Context, cli client.APIClient
 	return result
 }
 
-func (h *HandlersIndex) getModelSizes(ctx context.Context, cli client.APIClient, models []AIModel, modelsDir *paths.Path, plat platform.Platform) map[string]int64 {
-	result := make(map[string]int64)
+func (h *HandlersIndex) getModelSizes(ctx context.Context, cli client.APIClient, models []AIModel, modelsDir *paths.Path, plat platform.Platform) map[string]uint64 {
+	result := make(map[string]uint64)
 	for _, model := range models {
 		if model.Deployment == nil || model.Deployment.Handler == "" || !model.Installed {
 			continue
@@ -152,7 +152,7 @@ func (h *HandlersIndex) getModelSizes(ctx context.Context, cli client.APIClient,
 	return result
 }
 
-func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandler, model AIModel, modelsDir *paths.Path, plat platform.Platform) (int64, error) {
+func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandler, model AIModel, modelsDir *paths.Path, plat platform.Platform) (uint64, error) {
 	var env []string
 	if plat.BoardName != "" {
 		env = append(env, fmt.Sprintf("board=%s", plat.BoardName))
@@ -169,7 +169,7 @@ func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandl
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}
 
-	var size int64
+	var size uint64
 	err := dockerhandler.Run(ctx, cli, dockerhandler.RunOptions{
 		Image: handler.Image,
 		Cmd:   handler.Actions.Info,
@@ -181,7 +181,7 @@ func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandl
 				SizeMB float64 `json:"size_mb"`
 			}
 			if jsonErr := json.Unmarshal([]byte(line), &out); jsonErr == nil && out.Event == "stat" && out.SizeMB > 0 {
-				size = int64(out.SizeMB * 1024 * 1024)
+				size = uint64(out.SizeMB * 1024 * 1024)
 			}
 		},
 	})
