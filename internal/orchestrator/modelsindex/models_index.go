@@ -195,7 +195,7 @@ func (m *ModelsIndex) setSizes(ctx context.Context, l []AIModel) []AIModel {
 		} else if size, ok := sizes[l[i].ID]; ok {
 			l[i].Size = size
 		}
-		//TODO Custom-EI are out from this flow.
+		// TODO Custom-EI are out from this flow.
 	}
 	return l
 }
