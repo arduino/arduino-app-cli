@@ -65,8 +65,8 @@ type BrickVariable struct {
 }
 
 type ModelsBoard struct {
-	Board     string `yaml:"board"`
-	ModelName string `yaml:"model_name"`
+	Platform string `yaml:"platform"`
+	Model    string `yaml:"model"`
 }
 
 func (v BrickVariable) IsRequired() bool {
@@ -211,10 +211,10 @@ func (b Brick) GetModelNameByBoard(boardName string) string {
 	modelsBoard := b.ModelByBoard
 	if boardName != "" {
 		idx := slices.IndexFunc(modelsBoard, func(mb ModelsBoard) bool {
-			return mb.Board == boardName
+			return mb.Platform == boardName
 		})
 		if idx != -1 {
-			return modelsBoard[idx].ModelName
+			return modelsBoard[idx].Model
 		}
 	}
 	return defaultModelName

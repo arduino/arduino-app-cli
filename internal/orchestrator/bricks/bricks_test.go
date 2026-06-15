@@ -1099,12 +1099,12 @@ func TestBricksModelsByBoard(t *testing.T) {
 				ModelName: "defaultModelName",
 				ModelByBoard: []bricksindex.ModelsBoard{
 					{
-						Board:     "unoq",
-						ModelName: "unoq-model",
+						Platform: "unoq",
+						Model:    "unoq-model",
 					},
 					{
-						Board:     "ventunoq",
-						ModelName: "ventunoq-model",
+						Platform: "ventunoq",
+						Model:    "ventunoq-model",
 					},
 				},
 			},
@@ -1144,12 +1144,12 @@ func TestBricksModelsByBoard(t *testing.T) {
 				ModelName: "defaultModelName",
 				ModelByBoard: []bricksindex.ModelsBoard{
 					{
-						Board:     "unoq",
-						ModelName: "unoq-model",
+						Platform: "unoq",
+						Model:    "unoq-model",
 					},
 					{
-						Board:     "ventunoq",
-						ModelName: "ventunoq-model",
+						Platform: "ventunoq",
+						Model:    "ventunoq-model",
 					},
 				},
 			},
