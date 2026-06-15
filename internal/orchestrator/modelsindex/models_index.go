@@ -233,7 +233,7 @@ func (m *ModelsIndex) modelInstalled(ctx context.Context, model AIModel) (bool, 
 	if !ok {
 		return false, fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
 	}
-	var envVars map[string]string = model.Deployment.VariablesForPlatform(m.plat.BoardName)
+	var envVars = model.Deployment.VariablesForPlatform(m.plat.BoardName)
 	return isModelDownloaded(ctx, m.cli, model, handler, m.modelsDir, envVars)
 }
 
