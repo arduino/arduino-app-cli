@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"github.com/docker/docker/client"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhandler"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -220,6 +222,109 @@ func runListAction(ctx context.Context, cli client.APIClient, listing *ListingCo
 	}
 
 	return output.Models, nil
+}
+
+func RunDownloadAction(ctx context.Context, cli client.APIClient, model AIModel, handler ModelHandler, config config.Configuration, plat platform.Platform, publish func(e ModelDownloadEvent)) error {
+	downloadPath := config.CustomModelsDir()
+	if err := downloadPath.MkdirAll(); err != nil {
+		return fmt.Errorf("cannot create download location %q: %w", downloadPath, err)
+	}
+
+	binds, volumeEnv := ResolveVolumes(handler.Volumes, map[string]string{
+		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": downloadPath.String(),
+	})
+
+	var envVars map[string]string
+	if model.Deployment != nil {
+		envVars = model.Deployment.VariablesForPlatform(plat.BoardName)
+	}
+
+	env := make([]string, 0, len(envVars)+len(volumeEnv))
+	env = append(env, volumeEnv...)
+	for k, v := range envVars {
+		env = append(env, fmt.Sprintf("%s=%s", k, v))
+	}
+
+	slog.Debug("running download action", "model", model.ID)
+	return dockerhandler.Run(ctx, cli, dockerhandler.RunOptions{
+		Image: handler.Image,
+		Cmd:   handler.Actions.Download,
+		Binds: binds,
+		Env:   env,
+		LineCallback: func(line string) {
+			slog.Debug("download line", "model", model.ID, "line", line)
+			parseDownloadHandlerLine(line, publish)
+		},
+		Stderr: io.Discard,
+	})
+}
+
+type ModelInstallEventType string
+
+const (
+	// Container-emitted event types (match the Python script's event field).
+	ModelInstallEventStart    ModelInstallEventType = "start"
+	ModelInstallEventUpdate   ModelInstallEventType = "update"
+	ModelInstallEventComplete ModelInstallEventType = "complete"
+	ModelInstallEventInfo     ModelInstallEventType = "info"
+	ModelInstallEventError    ModelInstallEventType = "error"
+	// Synthetic event emitted by Go after the container exits.
+	ModelInstallEventDone ModelInstallEventType = "done"
+)
+
+type ModelDownloadEvent struct {
+	ModelID     string                `json:"model_id"`
+	Type        ModelInstallEventType `json:"type"`
+	Description string                `json:"description,omitempty"`
+	Current     int64                 `json:"current,omitempty"`
+	Total       int64                 `json:"total,omitempty"`
+	Unit        string                `json:"unit,omitempty"`
+	Percentage  string                `json:"percentage,omitempty"`
+	Artifacts   []string              `json:"artifacts,omitempty"`
+}
+
+func parseDownloadHandlerLine(line string, publish func(ModelDownloadEvent)) {
+	var raw struct {
+		Event       string   `json:"event"`
+		Description string   `json:"description"`
+		Current     int64    `json:"current"`
+		Total       int64    `json:"total"`
+		SizeMB      float64  `json:"size_mb"`
+		Unit        string   `json:"unit"`
+		Percentage  string   `json:"percentage"`
+		Artifacts   []string `json:"artifacts"`
+	}
+	if err := json.Unmarshal([]byte(line), &raw); err != nil {
+		slog.Debug("non-JSON stdout from handler", "line", line)
+		return
+	}
+	var eventType ModelInstallEventType
+	switch raw.Event {
+	case "start":
+		eventType = ModelInstallEventStart
+	case "update":
+		eventType = ModelInstallEventUpdate
+	case "complete":
+		eventType = ModelInstallEventComplete
+	case "error":
+		eventType = ModelInstallEventError
+	case "stat":
+		eventType = ModelInstallEventInfo
+		if raw.SizeMB > 0 {
+			raw.Total = int64(raw.SizeMB * 1024 * 1024)
+		}
+	default:
+		eventType = ModelInstallEventInfo
+	}
+	publish(ModelDownloadEvent{
+		Type:        eventType,
+		Description: raw.Description,
+		Current:     raw.Current,
+		Total:       raw.Total,
+		Unit:        raw.Unit,
+		Percentage:  raw.Percentage,
+		Artifacts:   raw.Artifacts,
+	})
 }
 
 type rawActionEntry struct {
