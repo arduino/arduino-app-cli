@@ -266,6 +266,7 @@ tasks:
           fi
       - licensed cache
       - licensed notices
+      - go tool licensed-notice-deduplicate .licenses/arduino-app-cli/NOTICE
 
   # Source: https://github.com/arduino/tooling-project-assets/blob/main/workflow-templates/assets/check-dependencies-task/Taskfile.yml
   general:check-dep-licenses:
