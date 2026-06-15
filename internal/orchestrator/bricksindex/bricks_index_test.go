@@ -244,6 +244,54 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "requires_services as plain string list",
+			yamlContent: `bricks:
+- id: arduino:simple_brick
+  name: Test Brick
+  description: A test brick
+  requires_services:
+  - arduino:genie_audio
+  - arduino:other_service
+`,
+			expectedBricks: []Brick{
+				{
+					ID:          "arduino:simple_brick",
+					Name:        "Test Brick",
+					Description: "A test brick",
+					RequiresServices: []RequiresService{
+						{ID: "arduino:genie_audio"},
+						{ID: "arduino:other_service"},
+					},
+				},
+			},
+		},
+		{
+			name: "requires_services as struct list with when condition",
+			yamlContent: `bricks:
+- id: arduino:simple_brick
+  name: Test Brick
+  description: A test brick
+  requires_services:
+  - id: arduino:genie
+    when:
+      model: genie:*
+  - id: arduino:llamacpp_npu
+    when:
+      model: llamacpp:*
+`,
+			expectedBricks: []Brick{
+				{
+					ID:          "arduino:simple_brick",
+					Name:        "Test Brick",
+					Description: "A test brick",
+					RequiresServices: []RequiresService{
+						{ID: "arduino:genie", When: &RequiresServiceMatch{Model: new("genie:*")}},
+						{ID: "arduino:llamacpp_npu", When: &RequiresServiceMatch{Model: new("llamacpp:*")}},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -581,6 +629,93 @@ func TestGetMatchingService(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				assert.Equal(t, tt.wantServices, got)
+			}
+		})
+	}
+}
+
+func TestRequiresServicesUnmarshalYAML(t *testing.T) {
+	tests := []struct {
+		name        string
+		yaml        string
+		want        RequiresServices
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name: "list of plain strings",
+			yaml: `
+- arduino:genie_audio
+- arduino:other_service
+`,
+			want: RequiresServices{
+				{ID: "arduino:genie_audio"},
+				{ID: "arduino:other_service"},
+			},
+		},
+		{
+			name: "list of structs with when condition",
+			yaml: `
+- id: arduino:genie
+  when:
+    model: genie:*
+- id: arduino:llamacpp_npu
+  when:
+    model: llamacpp:*
+`,
+			want: RequiresServices{
+				{ID: "arduino:genie", When: &RequiresServiceMatch{Model: new("genie:*")}},
+				{ID: "arduino:llamacpp_npu", When: &RequiresServiceMatch{Model: new("llamacpp:*")}},
+			},
+		},
+		{
+			name: "mixed plain strings and structs",
+			yaml: `
+- arduino:genie_audio
+- id: arduino:genie
+  when:
+    model: genie:*
+`,
+			want: RequiresServices{
+				{ID: "arduino:genie_audio"},
+				{ID: "arduino:genie", When: &RequiresServiceMatch{Model: new("genie:*")}},
+			},
+		},
+		{
+			name: "struct with no when condition",
+			yaml: `
+- id: arduino:genie
+`,
+			want: RequiresServices{
+				{ID: "arduino:genie"},
+			},
+		},
+		{
+			name:        "not a sequence",
+			yaml:        `arduino:genie_audio`,
+			wantErr:     true,
+			errContains: "requires_services: expected a sequence",
+		},
+		{
+			name: "unexpected node type in sequence",
+			yaml: `
+- - nested
+`,
+			wantErr:     true,
+			errContains: "requires_services: unexpected node type",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got RequiresServices
+			err := yaml.Unmarshal([]byte(tt.yaml), &got)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.want, got)
 			}
 		})
 	}

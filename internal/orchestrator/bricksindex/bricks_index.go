@@ -18,6 +18,7 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
+	"github.com/goccy/go-yaml/ast"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -72,13 +73,40 @@ func (v BrickVariable) IsRequired() bool {
 	return v.DefaultValue == ""
 }
 
-type RequiresServiceMatch struct {
-	Model *string `yaml:"model,omitempty"`
-}
+type RequiresServices []RequiresService
 
 type RequiresService struct {
 	ID   string                `yaml:"id"`
 	When *RequiresServiceMatch `yaml:"when,omitempty"`
+}
+
+type RequiresServiceMatch struct {
+	Model *string `yaml:"model,omitempty"`
+}
+
+func (r *RequiresServices) UnmarshalYAML(node ast.Node) error {
+	seq, ok := node.(*ast.SequenceNode)
+	if !ok {
+		return fmt.Errorf("requires_services: expected a sequence, got %s", node.Type())
+	}
+	*r = make(RequiresServices, 0, len(seq.Values))
+	for _, item := range seq.Values {
+		switch item.Type() {
+		case ast.StringType:
+			// Plain string form: "- arduino:genie_audio"
+			*r = append(*r, RequiresService{ID: item.(*ast.StringNode).Value})
+		case ast.MappingType:
+			// Struct form: "- id: arduino:genie\n  when:\n    model: genie:*"
+			var svc RequiresService
+			if err := yaml.Unmarshal([]byte(item.String()), &svc); err != nil {
+				return fmt.Errorf("requires_services: failed to unmarshal service entry: %w", err)
+			}
+			*r = append(*r, svc)
+		default:
+			return fmt.Errorf("requires_services: unexpected node type %s", item.Type())
+		}
+	}
+	return nil
 }
 
 type Brick struct {
@@ -97,7 +125,7 @@ type Brick struct {
 	ModelByBoard                []ModelsBoard             `yaml:"model_by_boards,omitempty"`
 	MountDevicesIntoContainer   bool                      `yaml:"mount_devices_into_container,omitempty"`
 	RequiredDevices             []peripherals.DeviceClass `yaml:"required_devices,omitempty"`
-	RequiresServices            []RequiresService         `yaml:"requires_services,omitempty"`
+	RequiresServices            RequiresServices          `yaml:"requires_services,omitempty"`
 	ModelConfigurationVariables []string                  `yaml:"model_configuration_variables,omitempty"`
 
 	Source string `yaml:"-"`
