@@ -69,6 +69,12 @@ func AIModelsList(ctx context.Context, cli client.APIClient, req AIModelsListReq
 			Metadata:          model.Metadata,
 			IsBuiltin:         model.IsInternal,
 			Installed:         model.Installed,
+			Size: func() *uint64 {
+				if model.Size > 0 {
+					return &model.Size
+				}
+				return nil
+			}(),
 		}
 	})
 	return AIModelsListResult{Models: items}

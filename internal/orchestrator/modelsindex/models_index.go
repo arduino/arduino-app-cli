@@ -132,7 +132,6 @@ func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, bo
 		if model.Installed {
 			model.Size = m.modelSize(ctx, *model)
 		}
-
 	}
 
 	return model, true, nil
@@ -162,8 +161,7 @@ func (m *ModelsIndex) filterByBricks(bricks []string) []AIModel {
 
 func (m *ModelsIndex) loadModels(ctx context.Context) []AIModel {
 	models := m.getModels()
-	m.setStatus(ctx, models)
-	m.setSizes(ctx, models)
+	m.Handlers.getModelInfo(ctx, m.cli, models, m.modelsDir, m.plat)
 	return models
 }
 
@@ -173,31 +171,6 @@ func (m *ModelsIndex) getModels() []AIModel {
 		slog.Error("cannot load edge impulse custom models", "err", err)
 	}
 	return append(m.InternalModels, eimodels...)
-}
-
-func (m *ModelsIndex) setStatus(ctx context.Context, l []AIModel) []AIModel {
-	statuses := m.Handlers.getModelStatus(ctx, m.cli, m.modelsDir, m.plat)
-	for i := range l {
-		if installed, ok := statuses[l[i].ID]; ok && !l[i].IsInternal {
-			l[i].Installed = installed
-		}
-	}
-	return l
-}
-
-func (m *ModelsIndex) setSizes(ctx context.Context, l []AIModel) []AIModel {
-	sizes := m.Handlers.getModelSizes(ctx, m.cli, l, m.modelsDir, m.plat)
-	for i := range l {
-		if sizeMBStr, ok := l[i].Metadata["model_size_mb"]; ok {
-			if sizeMB, err := strconv.ParseFloat(sizeMBStr, 64); err == nil && sizeMB > 0 {
-				l[i].Size = uint64(sizeMB * 1024 * 1024)
-			}
-		} else if size, ok := sizes[l[i].ID]; ok {
-			l[i].Size = size
-		}
-		// TODO Custom-EI are out from this flow.
-	}
-	return l
 }
 
 // Load constructs a ModelsIndex. Pass the result of LoadHandlers as handlers;
@@ -319,6 +292,11 @@ func loadInternalModels(dir *paths.Path) ([]AIModel, error) {
 		for id, model := range modelMap {
 			model.ID = id
 			model.IsInternal = true
+			if sizeMBStr, ok := model.Metadata["model_size_mb"]; ok {
+				if sizeMB, err := strconv.ParseFloat(sizeMBStr, 64); err == nil && sizeMB > 0 {
+					model.Size = uint64(sizeMB * 1024 * 1024)
+				}
+			}
 			models[i] = model
 		}
 	}

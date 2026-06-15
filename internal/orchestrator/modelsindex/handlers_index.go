@@ -107,49 +107,42 @@ type handlerModelListOutput struct {
 }
 
 type handlerModelEntry struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Handler   string `json:"handler"`
-	Platform  string `json:"platform"`
-	ModelType string `json:"model_type"`
-	Path      string `json:"path"`
-	Installed bool   `json:"installed"`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Handler     string   `json:"handler"`
+	Platform    string   `json:"platform"`
+	ModelType   string   `json:"model_type"`
+	Path        string   `json:"path"`
+	Installed   bool     `json:"installed"`
+	ModelSizeMB *float64 `json:"model_size_mb"` // from yaml metadata
+	DiskSizeMB  *float64 `json:"disk_size_mb"`  // actual on-disk size, only when installed
 }
 
-func (h *HandlersIndex) getModelStatus(ctx context.Context, cli client.APIClient, modelsDir *paths.Path, plat platform.Platform) map[string]bool {
-	result := make(map[string]bool)
+func (h *HandlersIndex) getModelInfo(ctx context.Context, cli client.APIClient, models []AIModel, modelsDir *paths.Path, plat platform.Platform) {
 	if h.listing == nil {
-		return result
+		return
 	}
 	entries, err := runListAction(ctx, cli, h.listing, modelsDir, plat)
 	if err != nil {
 		slog.Warn("cannot list models", "err", err)
-		return result
+		return
+	}
+	idx := make(map[string]int, len(models))
+	for i, m := range models {
+		idx[m.ID] = i
 	}
 	for _, entry := range entries {
-		result[entry.ID] = entry.Installed
+		i, ok := idx[entry.ID]
+		if !ok || models[i].IsInternal {
+			continue
+		}
+		models[i].Installed = entry.Installed
+		if entry.Installed && entry.DiskSizeMB != nil && *entry.DiskSizeMB > 0 {
+			models[i].Size = uint64(*entry.DiskSizeMB * 1024 * 1024)
+		} else if entry.ModelSizeMB != nil && *entry.ModelSizeMB > 0 {
+			models[i].Size = uint64(*entry.ModelSizeMB * 1024 * 1024)
+		}
 	}
-	return result
-}
-
-func (h *HandlersIndex) getModelSizes(ctx context.Context, cli client.APIClient, models []AIModel, modelsDir *paths.Path, plat platform.Platform) map[string]uint64 {
-	result := make(map[string]uint64)
-	for _, model := range models {
-		if model.Deployment == nil || model.Deployment.Handler == "" || !model.Installed {
-			continue
-		}
-		handler, ok := h.handlers[model.Deployment.Handler]
-		if !ok || len(handler.Actions.Info) == 0 {
-			continue
-		}
-		size, err := runInfoAction(ctx, cli, handler, model, modelsDir, plat)
-		if err != nil {
-			slog.Warn("cannot get model size", "model", model.ID, "err", err)
-			continue
-		}
-		result[model.ID] = size
-	}
-	return result
 }
 
 func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandler, model AIModel, modelsDir *paths.Path, plat platform.Platform) (uint64, error) {

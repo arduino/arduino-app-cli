@@ -148,7 +148,7 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, found)
 		assert.False(t, model.Installed)
-		assert.Equal(t, uint64(0), model.Size)
+		assert.Equal(t, uint64(89*1024*1024), model.Size)
 	})
 
 	t.Run("ei:efficientnet-b4 installed: check exits 0, size from metadata", func(t *testing.T) {
