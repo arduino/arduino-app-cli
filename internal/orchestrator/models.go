@@ -74,34 +74,14 @@ func AIModelsList(ctx context.Context, cli client.APIClient, req AIModelsListReq
 	return AIModelsListResult{Models: items}
 }
 
-func AIModelDetails(ctx context.Context, cli client.APIClient, modelsIndex *modelsindex.ModelsIndex, id string, cfg config.Configuration, plat platform.Platform) (AIModelItem, bool) {
-	model, found := modelsIndex.GetModelByID(ctx, id)
-	if !found {
-		return AIModelItem{}, false
-	}
+func AIModelDetails(ctx context.Context, _ client.APIClient, modelsIndex *modelsindex.ModelsIndex, id string, _ config.Configuration, _ platform.Platform) (AIModelItem, bool, error) {
 
-	var modelSize *uint64
-	if model.Deployment != nil && model.Deployment.Handler != "" {
-		if handler, ok := modelsIndex.Handlers.GetHandlerByID(model.Deployment.Handler); ok {
-			downloadPath := cfg.CustomModelsDir()
-			var envVars map[string]string
-			if model.Deployment != nil {
-				envVars = model.Deployment.VariablesForPlatform(plat.BoardName)
-			}
-			if info, err := fetchModelInfo(ctx, cli, *model, handler, downloadPath, envVars); err != nil {
-				slog.Warn("could not fetch model size", "model_id", model.ID, "err", err)
-			} else if info != nil && info.sizeBytes > 0 {
-				size := uint64(info.sizeBytes)
-				modelSize = &size
-			}
-		}
-	} else if !model.IsInternal && model.ModelFolderPath != nil {
-		size, err := getModelSize(model.ModelFolderPath)
-		if err != nil {
-			slog.Warn("failed to calculate model size", "model_id", model.ID, "path", model.ModelFolderPath, "err", err)
-		} else {
-			modelSize = &size
-		}
+	model, found, err := modelsIndex.GetModelByID(ctx, id)
+	if err != nil {
+		return AIModelItem{}, false, err
+	}
+	if !found {
+		return AIModelItem{}, false, nil
 	}
 
 	return AIModelItem{
@@ -112,9 +92,9 @@ func AIModelDetails(ctx context.Context, cli client.APIClient, modelsIndex *mode
 		Bricks:            f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
 		Metadata:          model.Metadata,
 		IsBuiltin:         model.IsInternal,
-		Size:              modelSize,
+		Size:              &model.Size,
 		Installed:         model.Installed,
-	}, true
+	}, true, nil
 }
 
 func getModelSize(dirPath *paths.Path) (uint64, error) {
@@ -158,7 +138,10 @@ var (
 )
 
 func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, platform platform.Platform, id string, idProvider *app.IDProvider, force bool) (err error) {
-	res, found := modelsIndex.GetModelByID(ctx, id)
+	res, found, err := modelsIndex.GetModelByID(ctx, id)
+	if err != nil {
+		return err
+	}
 	if !found {
 		return fmt.Errorf("%q: %w", id, ErrNotFound)
 	}
@@ -445,7 +428,10 @@ var (
 )
 
 func InstallModelByHandler(ctx context.Context, cli client.APIClient, modelID string, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform, cb func(item StreamMessage)) error {
-	model, found := modelsIndex.GetModelByID(ctx, modelID)
+	model, found, err := modelsIndex.GetModelByID(ctx, modelID)
+	if err != nil {
+		return err
+	}
 	if !found {
 		return fmt.Errorf("%q: %w", modelID, ErrNotFound)
 	}
@@ -502,7 +488,7 @@ func InstallModelByHandler(ctx context.Context, cli client.APIClient, modelID st
 }
 
 type modelInfoResult struct {
-	sizeBytes int64
+	sizeBytes uint64
 }
 
 // fetchModelInfo runs the info action and returns the reported model size.
@@ -514,7 +500,7 @@ func fetchModelInfo(ctx context.Context, cli client.APIClient, model modelsindex
 	var result modelInfoResult
 	publish := func(e ModelInstallEvent) {
 		if e.Total > 0 {
-			result.sizeBytes = e.Total
+			result.sizeBytes = uint64(e.Total)
 		}
 	}
 	if err := runHandlerAction(ctx, cli, model, handler.Image, handler.Actions.Info, handler.Volumes, downloadPath, envVars, publish); err != nil {
@@ -526,7 +512,7 @@ func fetchModelInfo(ctx context.Context, cli client.APIClient, model modelsindex
 // hasSufficientDiskSpace checks whether the filesystem containing path has at
 // least requiredBytes of free space. It walks up to the first existing ancestor
 // if path does not yet exist.
-func hasSufficientDiskSpace(path *paths.Path, requiredBytes int64) error {
+func hasSufficientDiskSpace(path *paths.Path, requiredBytes uint64) error {
 	target := path
 	for target != nil && target.NotExist() {
 		target = target.Parent()
@@ -538,7 +524,7 @@ func hasSufficientDiskSpace(path *paths.Path, requiredBytes int64) error {
 	if err := syscall.Statfs(target.String(), &stat); err != nil {
 		return fmt.Errorf("cannot check disk space: %w", err)
 	}
-	available := int64(stat.Bavail) * int64(stat.Bsize)
+	available := uint64(stat.Bavail) * uint64(stat.Bsize)
 	if available < requiredBytes {
 		return ErrInsufficientStorage
 	}
