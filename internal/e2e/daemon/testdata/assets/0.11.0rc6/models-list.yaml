@@ -1621,7 +1621,7 @@ models:
               model_directory: "melotts_en-voice_ai-mixed_with_float-qualcomm_qcs8275"
               quantization: "mixed_with_float"
               chipset: "qualcomm-qcs8275"
-              version: "0.51.0" 
+              version: "0.51.0"
     metadata:
       model_size_mb: 291
       source: "qualcomm-ai-hub"
@@ -1740,7 +1740,6 @@ models:
       platforms:
         - ventunoq:
             variables:
-          
               ei_project_id: 948887
               ei_impulse_id: 4
               models_repository: "models/edge-impulse"
