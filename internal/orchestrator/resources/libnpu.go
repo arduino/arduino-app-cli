@@ -45,7 +45,6 @@ const (
 var (
 	qcomDspInit        func(int32) int32
 	qcomDspGetProfData func(int32, *int32) unsafe.Pointer
-	qcomDspDeinit      func(int32) int32
 )
 
 var libqcnpuperfLib uintptr
@@ -61,14 +60,8 @@ func initLibqcnpuperf() error {
 	// Register function bindings with the correct C calling convention.
 	purego.RegisterLibFunc(&qcomDspInit, libqcnpuperfLib, "qcom_dsp_init")
 	purego.RegisterLibFunc(&qcomDspGetProfData, libqcnpuperfLib, "qcom_dsp_get_prof_data")
-	purego.RegisterLibFunc(&qcomDspDeinit, libqcnpuperfLib, "qcom_dsp_deinit")
 
 	return nil
-}
-
-func deInitLibqcnpuperfLib() {
-	purego.Dlclose(libqcnpuperfLib)
-	libqcnpuperfLib = uintptr(0)
 }
 
 func BoardSupportsNPU(platform platform.Platform) bool {

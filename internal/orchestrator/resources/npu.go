@@ -7,7 +7,6 @@ package resources
 
 import (
 	"fmt"
-	"log/slog"
 	"runtime"
 	"sync"
 )
@@ -32,7 +31,6 @@ type npuRequestType int
 
 const (
 	npuReqInit npuRequestType = iota
-	npuReqDeInit
 	npuReqMaxUsage
 )
 
@@ -45,7 +43,6 @@ type npuRequest struct {
 var (
 	npuWorkerOnce sync.Once
 	npuRequests   chan npuRequest
-	refCounter    int // no need atomic here
 )
 
 func startNPUWorker() {
@@ -65,8 +62,6 @@ func npuWorker() {
 		switch req.responseType {
 		case npuReqInit:
 			req.err <- npuInitImpl()
-		case npuReqDeInit:
-			req.err <- npuDeInitImpl()
 		case npuReqMaxUsage:
 			val, err := npuPercentImpl()
 			if err != nil {
@@ -92,53 +87,13 @@ func NPUInit() error {
 }
 
 func npuInitImpl() error {
-	refCounter++
-	if refCounter > 1 {
-		slog.Info("DSP already initialized", "refCounter", refCounter)
-		return nil // DSP already initialized
-	}
-
 	if err := initLibqcnpuperf(); err != nil {
-		refCounter--
 		return err
 	}
-
 	ret := qcomDspInit(DSP_NPU0)
 	if ret != RETURN_CODE_DSP_LIB_SUCCESS {
-		refCounter--
 		return fmt.Errorf("qcom_dsp_init failed, ret=%d", ret)
 	}
-
-	return nil
-}
-
-// Deinitializes the npu DSP domain when the last active stream is closed
-func NPUDeInit() error {
-	req := npuRequest{
-		responseType: npuReqDeInit,
-		err:          make(chan error, 1),
-	}
-	npuRequests <- req
-	return <-req.err
-}
-
-func npuDeInitImpl() error {
-	if refCounter == 0 { // no references
-		return nil
-	}
-
-	refCounter--
-	if refCounter > 0 { // still active callers, keep running
-		return nil
-	}
-
-	ret := qcomDspDeinit(DSP_NPU0)
-	if ret != RETURN_CODE_DSP_LIB_SUCCESS {
-		refCounter++ // rollback on failure
-		return fmt.Errorf("failed to deinit: error code %d", ret)
-	}
-
-	deInitLibqcnpuperfLib()
 	return nil
 }
 
@@ -157,14 +112,6 @@ func NPUPercent() (float32, error) {
 }
 
 func npuPercentImpl() (float32, error) {
-	// Protect calls before the first init() or last deinit()
-	if refCounter == 0 {
-		return 0, fmt.Errorf("NPU is not initialized, refCounter %d", refCounter)
-	}
-	if qcomDspGetProfData == nil {
-		return 0, fmt.Errorf("NPU profiling function is not initialized, refCounter %d", refCounter)
-	}
-
 	var noMetrics int32
 	ptr := qcomDspGetProfData(DSP_NPU0, &noMetrics)
 	if ptr == nil || noMetrics <= 0 {
