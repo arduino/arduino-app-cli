@@ -13,8 +13,12 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/docker/cli/cli/command"
+	"github.com/shirou/gopsutil/v4/disk"
+
+	"github.com/arduino/go-paths-helper"
 
 	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/api/models"
@@ -191,6 +195,13 @@ func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, mode
 			render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: fmt.Sprintf("model %q already installed", id)})
 			return
 		}
+		if err := hasSufficientDiskSpace(cfg.AppsDir().Parent(), m.Size); err != nil {
+			if errors.Is(err, ErrInsufficientStorage) {
+				render.EncodeResponse(w, http.StatusInsufficientStorage, models.ErrorResponse{Details: "insufficient disk space"})
+				return
+			}
+			slog.Warn("unable to check disk space", slog.String("error", err.Error()))
+		}
 
 		sseStream, err := render.NewSSEStream(r.Context(), w)
 		if err != nil {
@@ -207,19 +218,53 @@ func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, mode
 		type log struct {
 			Message string `json:"message"`
 		}
-		if err := orchestrator.InstallModelByHandler(r.Context(), dockerClient.Client(), id, modelsIndex, cfg, plat, func(item orchestrator.StreamMessage) {
-			switch item.GetType() {
-			case orchestrator.ProgressType:
-				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress(*item.GetProgress())})
-			case orchestrator.InfoType:
-				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: item.GetData()}})
+
+		handler, ok := modelsIndex.Handlers.GetHandlerByID(m.Deployment.Handler)
+		if !ok {
+			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: fmt.Sprintf("handler %q not found for model %q", m.Deployment.Handler, id)})
+			return
+		}
+
+		installResponse := func(e modelsindex.ModelDownloadEvent) {
+			switch e.Type {
+			case modelsindex.ModelInstallEventStart:
+				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: e.Description}})
+			case modelsindex.ModelInstallEventUpdate:
+				if e.Total > 0 {
+					sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: m.ID, Progress: float32(e.Current) * 100 / float32(e.Total)}})
+				} else {
+					sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: m.ID, Progress: 0}})
+				}
+			case modelsindex.ModelInstallEventComplete:
+				sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: m.ID, Progress: 100}}) // used by the FE to understand that the installation is complete
+			case modelsindex.ModelInstallEventError:
+				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: e.Description}})
+			default:
+				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: e.Description}})
 			}
-		}); err != nil {
-			slog.Error("model install failed", "model", id, "err", err)
-			sseStream.SendError(render.SSEErrorData{
-				Code:    render.InternalServiceErr,
-				Message: err.Error(),
-			})
+		}
+
+		err = modelsindex.RunDownloadAction(r.Context(), dockerClient.Client(), *m, handler, cfg, plat, installResponse)
+		if err != nil {
+			slog.Error("unable to install model", slog.String("error", err.Error()))
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to install model: " + err.Error()})
+			return
 		}
 	}
+}
+
+var ErrInsufficientStorage = errors.New("insufficient storage to install model")
+
+func hasSufficientDiskSpace(path *paths.Path, requiredBytes uint64) error {
+	diskStats, err := disk.Usage(path.String())
+	if err != nil && !errors.Is(err, syscall.ENOENT) {
+		return err
+	}
+	if diskStats != nil {
+		if diskStats.Used+requiredBytes > diskStats.Total {
+			return ErrInsufficientStorage
+		}
+		return nil
+	}
+	return nil
 }
