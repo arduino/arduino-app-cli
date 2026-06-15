@@ -56,6 +56,7 @@ func parseHandlerLine(line []byte, publish func(ModelInstallEvent)) {
 		Description string   `json:"description"`
 		Current     int64    `json:"current"`
 		Total       int64    `json:"total"`
+		SizeMB      float64  `json:"size_mb"`
 		Unit        string   `json:"unit"`
 		Percentage  string   `json:"percentage"`
 		Artifacts   []string `json:"artifacts"`
@@ -74,6 +75,11 @@ func parseHandlerLine(line []byte, publish func(ModelInstallEvent)) {
 		eventType = ModelInstallEventComplete
 	case "error":
 		eventType = ModelInstallEventError
+	case "stat":
+		eventType = ModelInstallEventInfo
+		if raw.SizeMB > 0 {
+			raw.Total = int64(raw.SizeMB * 1024 * 1024)
+		}
 	default:
 		eventType = ModelInstallEventInfo
 	}
