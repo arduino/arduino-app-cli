@@ -75,8 +75,15 @@ func ResolveVolumes(vols []string, vars map[string]string) (binds, envAdditions 
 	return
 }
 
+type ListingConfig struct {
+	Image   string
+	Volumes []string
+	Command []string
+}
+
 type HandlersIndex struct {
 	handlers map[string]ModelHandler
+	listing  *ListingConfig
 }
 
 func (h *HandlersIndex) GetHandlerByID(id string) (ModelHandler, bool) {
@@ -109,37 +116,96 @@ type handlerModelEntry struct {
 
 func (h *HandlersIndex) getModelStatus(ctx context.Context, cli client.APIClient, modelsDir *paths.Path, plat platform.Platform) map[string]bool {
 	result := make(map[string]bool)
-	for _, handler := range h.handlers {
-		entries, err := runListAction(ctx, cli, handler, modelsDir, plat)
-		if err != nil {
-			slog.Warn("cannot list models from handler", "handler", handler.ID, "err", err)
-			continue
-		}
-		for _, entry := range entries {
-			result[entry.ID] = entry.Installed
-		}
+	if h.listing == nil {
+		return result
+	}
+	entries, err := runListAction(ctx, cli, h.listing, modelsDir, plat)
+	if err != nil {
+		slog.Warn("cannot list models", "err", err)
+		return result
+	}
+	for _, entry := range entries {
+		result[entry.ID] = entry.Installed
 	}
 	return result
 }
 
-func runListAction(ctx context.Context, cli client.APIClient, handler ModelHandler, modelsDir *paths.Path, plat platform.Platform) ([]handlerModelEntry, error) {
+func (h *HandlersIndex) getModelSizes(ctx context.Context, cli client.APIClient, models []AIModel, modelsDir *paths.Path, plat platform.Platform) map[string]int64 {
+	result := make(map[string]int64)
+	for _, model := range models {
+		if model.Deployment == nil || model.Deployment.Handler == "" || !model.Installed {
+			continue
+		}
+		handler, ok := h.handlers[model.Deployment.Handler]
+		if !ok || len(handler.Actions.Info) == 0 {
+			continue
+		}
+		size, err := runInfoAction(ctx, cli, handler, model, modelsDir, plat)
+		if err != nil {
+			slog.Warn("cannot get model size", "model", model.ID, "err", err)
+			continue
+		}
+		result[model.ID] = size
+	}
+	return result
+}
 
+func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandler, model AIModel, modelsDir *paths.Path, plat platform.Platform) (int64, error) {
 	var env []string
 	if plat.BoardName != "" {
 		env = append(env, fmt.Sprintf("board=%s", plat.BoardName))
 	}
-
-	slog.Debug("running list action", "handler", handler.ID, "image", handler.Image)
-
+	var envVars map[string]string
+	if model.Deployment != nil {
+		envVars = model.Deployment.VariablesForPlatform(plat.BoardName)
+	}
 	binds, volumeEnv := ResolveVolumes(handler.Volumes, map[string]string{
+		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": modelsDir.String(),
+	})
+	env = append(env, volumeEnv...)
+	for k, v := range envVars {
+		env = append(env, fmt.Sprintf("%s=%s", k, v))
+	}
+
+	var size int64
+	err := dockerhandler.Run(ctx, cli, dockerhandler.RunOptions{
+		Image: handler.Image,
+		Cmd:   handler.Actions.Info,
+		Binds: binds,
+		Env:   env,
+		LineCallback: func(line string) {
+			var out struct {
+				Event  string  `json:"event"`
+				SizeMB float64 `json:"size_mb"`
+			}
+			if jsonErr := json.Unmarshal([]byte(line), &out); jsonErr == nil && out.Event == "stat" && out.SizeMB > 0 {
+				size = int64(out.SizeMB * 1024 * 1024)
+			}
+		},
+	})
+	if err != nil {
+		return 0, fmt.Errorf("info action: %w", err)
+	}
+	return size, nil
+}
+
+func runListAction(ctx context.Context, cli client.APIClient, listing *ListingConfig, modelsDir *paths.Path, plat platform.Platform) ([]handlerModelEntry, error) {
+	var env []string
+	if plat.BoardName != "" {
+		env = append(env, fmt.Sprintf("BOARD_NAME=%s", plat.BoardName))
+	}
+
+	slog.Debug("running list action", "image", listing.Image)
+
+	binds, volumeEnv := ResolveVolumes(listing.Volumes, map[string]string{
 		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": modelsDir.String(),
 	})
 	env = append(env, volumeEnv...)
 
 	var buf bytes.Buffer
 	err := dockerhandler.Run(ctx, cli, dockerhandler.RunOptions{
-		Image:  handler.Image,
-		Cmd:    []string{"/app/list_models.sh"},
+		Image:  listing.Image,
+		Cmd:    listing.Command,
 		Binds:  binds,
 		Env:    env,
 		Stdout: &buf,
@@ -167,7 +233,14 @@ type rawHandlerEntry struct {
 	Actions     []map[string]rawActionEntry `yaml:"actions"`
 }
 
+type rawListingEntry struct {
+	Image   string   `yaml:"image"`
+	Volumes []string `yaml:"volumes"`
+	Command []string `yaml:"command"`
+}
+
 type rawHandlersList struct {
+	Listing  rawListingEntry              `yaml:"listing"`
 	Handlers []map[string]rawHandlerEntry `yaml:"handlers"`
 }
 

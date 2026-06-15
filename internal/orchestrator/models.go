@@ -43,7 +43,7 @@ type AIModelItem struct {
 	Bricks            []string          `json:"brick_ids"`
 	Metadata          map[string]string `json:"metadata,omitempty"`
 	IsBuiltin         bool              `json:"is_builtin"`
-	DiskUsage         *uint64           `json:"disk_usage,omitempty"`
+	Size              *uint64           `json:"size,omitempty"`
 	Installed         bool              `json:"installed"`
 }
 
@@ -81,15 +81,24 @@ func AIModelDetails(ctx context.Context, cli client.APIClient, modelsIndex *mode
 	}
 
 	var modelSize *uint64
-	if !model.IsInternal && model.ModelFolderPath != nil {
+	if model.Deployment != nil && model.Deployment.Handler != "" {
+		if handler, ok := modelsIndex.Handlers.GetHandlerByID(model.Deployment.Handler); ok {
+			downloadPath := cfg.CustomModelsDir()
+			var envVars map[string]string
+			if model.Deployment != nil {
+				envVars = model.Deployment.VariablesForPlatform(plat.BoardName)
+			}
+			if info, err := fetchModelInfo(ctx, cli, *model, handler, downloadPath, envVars); err != nil {
+				slog.Warn("could not fetch model size", "model_id", model.ID, "err", err)
+			} else if info != nil && info.sizeBytes > 0 {
+				size := uint64(info.sizeBytes)
+				modelSize = &size
+			}
+		}
+	} else if !model.IsInternal && model.ModelFolderPath != nil {
 		size, err := getModelSize(model.ModelFolderPath)
 		if err != nil {
-			slog.Warn(
-				"failed to calculate model size",
-				"model_id", model.ID,
-				"path", model.ModelFolderPath,
-				"err", err,
-			)
+			slog.Warn("failed to calculate model size", "model_id", model.ID, "path", model.ModelFolderPath, "err", err)
 		} else {
 			modelSize = &size
 		}
@@ -103,7 +112,7 @@ func AIModelDetails(ctx context.Context, cli client.APIClient, modelsIndex *mode
 		Bricks:            f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
 		Metadata:          model.Metadata,
 		IsBuiltin:         model.IsInternal,
-		DiskUsage:         modelSize,
+		Size:              modelSize,
 		Installed:         model.Installed,
 	}, true
 }

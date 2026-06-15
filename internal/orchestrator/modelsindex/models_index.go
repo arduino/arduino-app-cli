@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strconv"
 
 	"github.com/docker/docker/client"
 
@@ -73,6 +74,7 @@ type AIModel struct {
 	Metadata          map[string]string `yaml:"metadata,omitempty"`
 	IsInternal        bool              `yaml:"-"`
 	Installed         bool              `yaml:"-"`
+	Size              int64             `yaml:"-"`
 	SupportedBoards   []string          `yaml:"supported_boards,omitempty"`
 	Deployment        *ModelDeployment  `yaml:"deployment,omitempty"`
 }
@@ -143,6 +145,7 @@ func (m *ModelsIndex) filterByBricks(bricks []string) []AIModel {
 func (m *ModelsIndex) loadModels(ctx context.Context) []AIModel {
 	models := m.getModels()
 	m.setStatus(ctx, models)
+	m.setSizes(ctx, models)
 	return models
 }
 
@@ -160,6 +163,21 @@ func (m *ModelsIndex) setStatus(ctx context.Context, l []AIModel) []AIModel {
 		if installed, ok := statuses[l[i].ID]; ok && !l[i].IsInternal {
 			l[i].Installed = installed
 		}
+	}
+	return l
+}
+
+func (m *ModelsIndex) setSizes(ctx context.Context, l []AIModel) []AIModel {
+	sizes := m.Handlers.getModelSizes(ctx, m.cli, l, m.modelsDir, m.plat)
+	for i := range l {
+		if sizeMBStr, ok := l[i].Metadata["model_size_mb"]; ok {
+			if sizeMB, err := strconv.ParseFloat(sizeMBStr, 64); err == nil && sizeMB > 0 {
+				l[i].Size = int64(sizeMB * 1024 * 1024)
+			}
+		} else if size, ok := sizes[l[i].ID]; ok {
+			l[i].Size = size
+		}
+		//TODO Custom-EI are out from this flow.
 	}
 	return l
 }
@@ -315,6 +333,15 @@ func loadHandlers(dir *paths.Path, registryBase string) (*HandlersIndex, error) 
 		return nil, fmt.Errorf("models-handlers.yaml: %w", err)
 	}
 
+	var listing *ListingConfig
+	if raw.Listing.Image != "" {
+		listing = &ListingConfig{
+			Image:   resolveImage(raw.Listing.Image, registryBase),
+			Volumes: raw.Listing.Volumes,
+			Command: raw.Listing.Command,
+		}
+	}
+
 	handlers := make(map[string]ModelHandler, len(raw.Handlers))
 	for _, handlerMap := range raw.Handlers {
 		for id, entry := range handlerMap {
@@ -354,5 +381,5 @@ func loadHandlers(dir *paths.Path, registryBase string) (*HandlersIndex, error) 
 		}
 	}
 
-	return &HandlersIndex{handlers: handlers}, nil
+	return &HandlersIndex{handlers: handlers, listing: listing}, nil
 }
