@@ -450,12 +450,6 @@ func InstallModelByHandler(ctx context.Context, cli client.APIClient, modelID st
 		return fmt.Errorf("%q: %w", modelID, ErrNotFound)
 	}
 
-	if model.Installed {
-		slog.Info("model already installed", "model", modelID)
-		cb(StreamMessage{data: "Model already installed"})
-		return nil
-	}
-
 	handler, ok := modelsIndex.Handlers.GetHandlerByID(model.Deployment.Handler)
 	if !ok {
 		return fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, modelID)
@@ -473,7 +467,7 @@ func InstallModelByHandler(ctx context.Context, cli client.APIClient, modelID st
 	installResponse := func(e modelsindex.ModelDownloadEvent) {
 		switch e.Type {
 		case modelsindex.ModelInstallEventStart:
-			cb(StreamMessage{data: "Starting model installation..."})
+			cb(StreamMessage{data: e.Description})
 		case modelsindex.ModelInstallEventUpdate:
 			if e.Total > 0 {
 				cb(StreamMessage{progress: &Progress{Name: modelID, Progress: float32(e.Current) * 100 / float32(e.Total)}})
