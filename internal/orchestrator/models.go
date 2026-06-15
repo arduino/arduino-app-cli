@@ -444,50 +444,35 @@ func InstallModelByHandler(ctx context.Context, cli client.APIClient, modelID st
 		return fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, modelID)
 	}
 
-	downloadPath := cfg.CustomModelsDir()
-	if err := downloadPath.MkdirAll(); err != nil {
-		return fmt.Errorf("cannot create download location %q: %w", downloadPath, err)
-	}
+	// TODO: move the fetch ModelInfo inise a RunModelInfo inside the modelsindex
+	// if info, err := fetchModelInfo(ctx, cli, *model, handler, downloadPath, envVars); err != nil {
+	// 	slog.Warn("could not fetch model info", "model", modelID, "err", err)
+	// } else if info != nil && info.sizeBytes > 0 {
+	// 	if err := hasSufficientDiskSpace(downloadPath, info.sizeBytes); err != nil {
+	// 		return err
+	// 	}
+	// }
 
-	var envVars map[string]string
-	if model.Deployment != nil {
-		envVars = model.Deployment.VariablesForPlatform(plat.BoardName)
-	}
-
-	if model.Installed {
-		slog.Info("model already installed", "model", modelID)
-		cb(StreamMessage{data: "Model already installed"})
-		return nil
-	}
-
-	if info, err := fetchModelInfo(ctx, cli, *model, handler, downloadPath, envVars); err != nil {
-		slog.Warn("could not fetch model info", "model", modelID, "err", err)
-	} else if info != nil && info.sizeBytes > 0 {
-		if err := hasSufficientDiskSpace(downloadPath, info.sizeBytes); err != nil {
-			return err
-		}
-	}
-
-	slog.Info("installing model", "model", modelID, "path", downloadPath)
-	installResponse := func(e ModelInstallEvent) {
+	installResponse := func(e modelsindex.ModelDownloadEvent) {
 		switch e.Type {
-		case ModelInstallEventStart:
-			cb(StreamMessage{data: "Starting model installation..."})
-		case ModelInstallEventUpdate:
+		case modelsindex.ModelInstallEventStart:
+			cb(StreamMessage{data: e.Description})
+		case modelsindex.ModelInstallEventUpdate:
 			if e.Total > 0 {
 				cb(StreamMessage{progress: &Progress{Name: modelID, Progress: float32(e.Current) * 100 / float32(e.Total)}})
 			} else {
 				cb(StreamMessage{progress: &Progress{Name: modelID, Progress: 0}})
 			}
-		case ModelInstallEventComplete:
+		case modelsindex.ModelInstallEventComplete:
 			cb(StreamMessage{progress: &Progress{Name: modelID, Progress: 100}}) // used by the FE to understand that the installation is complete
-		case ModelInstallEventError:
+		case modelsindex.ModelInstallEventError:
 			cb(StreamMessage{data: fmt.Sprintf("Error: %s", e.Description)})
 		default:
 			cb(StreamMessage{data: e.Description})
 		}
 	}
-	return runHandlerAction(ctx, cli, *model, handler.Image, handler.Actions.Download, handler.Volumes, downloadPath, envVars, installResponse)
+
+	return modelsindex.RunDownloadAction(ctx, cli, *model, handler, cfg, plat, installResponse)
 }
 
 type modelInfoResult struct {
@@ -512,24 +497,24 @@ func fetchModelInfo(ctx context.Context, cli client.APIClient, model modelsindex
 	return &result, nil
 }
 
-// hasSufficientDiskSpace checks whether the filesystem containing path has at
-// least requiredBytes of free space. It walks up to the first existing ancestor
-// if path does not yet exist.
-func hasSufficientDiskSpace(path *paths.Path, requiredBytes uint64) error {
-	target := path
-	for target != nil && target.NotExist() {
-		target = target.Parent()
-	}
-	if target == nil {
-		return nil // cannot determine filesystem, skip check
-	}
-	var stat syscall.Statfs_t
-	if err := syscall.Statfs(target.String(), &stat); err != nil {
-		return fmt.Errorf("cannot check disk space: %w", err)
-	}
-	available := uint64(stat.Bavail) * uint64(stat.Bsize)
-	if available < requiredBytes {
-		return ErrInsufficientStorage
-	}
-	return nil
-}
+// // hasSufficientDiskSpace checks whether the filesystem containing path has at
+// // least requiredBytes of free space. It walks up to the first existing ancestor
+// // if path does not yet exist.
+// func hasSufficientDiskSpace(path *paths.Path, requiredBytes int64) error {
+// 	target := path
+// 	for target != nil && target.NotExist() {
+// 		target = target.Parent()
+// 	}
+// 	if target == nil {
+// 		return nil // cannot determine filesystem, skip check
+// 	}
+// 	var stat syscall.Statfs_t
+// 	if err := syscall.Statfs(target.String(), &stat); err != nil {
+// 		return fmt.Errorf("cannot check disk space: %w", err)
+// 	}
+// 	available := int64(stat.Bavail) * int64(stat.Bsize)
+// 	if available < requiredBytes {
+// 		return ErrInsufficientStorage
+// 	}
+// 	return nil
+// }
