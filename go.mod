@@ -88,7 +88,7 @@ require (
 	github.com/arduino/go-serial-utils v0.1.2 // indirect
 	github.com/arduino/go-timeutils v0.0.0-20171220113728-d1dd9e313b1b // indirect
 	github.com/arduino/go-win32-utils v1.0.0 // indirect
-	github.com/arduino/licensed-notice-deduplicate v0.0.0-20260615142018-12228910231f // indirect
+	github.com/arduino/licensed-notice-deduplicate v1.0.0 // indirect
 	github.com/arduino/pluggable-discovery-protocol-handler/v2 v2.2.1 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.41.5 // indirect
