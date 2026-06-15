@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
@@ -80,6 +81,9 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 		},
 		nil, nil, "",
 	)
+
+	slog.Debug("creating container", "id", resp.ID, "image", opts.Image, "cmd", opts.Cmd, "env", opts.Env, "binds", opts.Binds)
+
 	if err != nil {
 		return fmt.Errorf("container create: %w", err)
 	}
