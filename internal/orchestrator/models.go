@@ -460,7 +460,7 @@ func InstallModelByHandler(ctx context.Context, cli client.APIClient, modelID st
 	if info, err := fetchModelInfo(ctx, cli, *model, handler, downloadPath, envVars); err != nil {
 		slog.Warn("could not fetch model info", "model", modelID, "err", err)
 	} else if info != nil && info.sizeBytes > 0 {
-		if err := hasSufficientDiskSpace(downloadPath, int64(info.sizeBytes)); err != nil {
+		if err := hasSufficientDiskSpace(downloadPath, int64(info.sizeBytes)); err != nil { //nolint:gosec
 			return err
 		}
 	}
@@ -524,7 +524,7 @@ func hasSufficientDiskSpace(path *paths.Path, requiredBytes int64) error {
 	if err := syscall.Statfs(target.String(), &stat); err != nil {
 		return fmt.Errorf("cannot check disk space: %w", err)
 	}
-	available := int64(stat.Bavail) * int64(stat.Bsize)
+	available := int64(stat.Bavail) * int64(stat.Bsize) //nolint:gosec
 	if available < requiredBytes {
 		return ErrInsufficientStorage
 	}

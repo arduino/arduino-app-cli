@@ -13,7 +13,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
@@ -94,14 +93,14 @@ func (f *fakeDockerClient) ContainerLogs(_ context.Context, id string, _ contain
 	return io.NopCloser(&buf), nil
 }
 
-func (f *fakeDockerClient) ContainerInspect(_ context.Context, id string) (types.ContainerJSON, error) {
+func (f *fakeDockerClient) ContainerInspect(_ context.Context, id string) (container.InspectResponse, error) {
 	f.mu.Lock()
 	r := f.results[id]
 	f.mu.Unlock()
 
-	return types.ContainerJSON{
-		ContainerJSONBase: &types.ContainerJSONBase{
-			State: &types.ContainerState{ExitCode: r.exitCode},
+	return container.InspectResponse{
+		ContainerJSONBase: &container.ContainerJSONBase{
+			State: &container.State{ExitCode: r.exitCode},
 		},
 	}, nil
 }
