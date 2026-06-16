@@ -96,51 +96,36 @@ func TestParseDownloadHandlerLine(t *testing.T) {
 }
 
 func TestResolveVolumes(t *testing.T) {
-	t.Run("it resolves variables and adds env only once", func(t *testing.T) {
+	t.Run("substitutes a variable used multiple times", func(t *testing.T) {
 		vols := []string{
 			"${MODELS_DIR}:/models",
 			"${MODELS_DIR}:/backup",
-			"${CACHE_DIR:-/tmp/cache}:/cache",
 		}
-		vars := map[string]string{
-			"MODELS_DIR": "/var/models",
-		}
-
-		binds, envAdditions := ResolveVolumes(vols, vars)
-
+		binds := ResolveVolumes(vols, map[string]string{"MODELS_DIR": "/var/models"})
 		assert.Equal(t, []string{
 			"/var/models:/models",
 			"/var/models:/backup",
-			"/tmp/cache:/cache",
 		}, binds)
-		assert.Equal(t, []string{"MODELS_DIR=/var/models"}, envAdditions)
 	})
 
-	t.Run("it uses provided value instead of default and tracks multiple variables", func(t *testing.T) {
+	t.Run("substitutes multiple variables", func(t *testing.T) {
 		vols := []string{
-			"${MODELS_DIR:-/tmp/models}:/models",
-			"${CACHE_DIR:-/tmp/cache}:/cache",
+			"${MODELS_DIR}:/models",
+			"${CACHE_DIR}:/cache",
 		}
-		vars := map[string]string{
+		binds := ResolveVolumes(vols, map[string]string{
 			"MODELS_DIR": "/opt/models",
 			"CACHE_DIR":  "/opt/cache",
-		}
-
-		binds, envAdditions := ResolveVolumes(vols, vars)
-
+		})
 		assert.Equal(t, []string{
 			"/opt/models:/models",
 			"/opt/cache:/cache",
 		}, binds)
-		assert.Equal(t, []string{"MODELS_DIR=/opt/models", "CACHE_DIR=/opt/cache"}, envAdditions)
 	})
 
-	t.Run("it leaves empty substitution when variable is missing and no default", func(t *testing.T) {
+	t.Run("leaves placeholder unchanged when variable is missing", func(t *testing.T) {
 		vols := []string{"${UNSET_VAR}:/models"}
-
-		binds, envAdditions := ResolveVolumes(vols, map[string]string{})
-
-		assert.Equal(t, []string{":/models"}, binds)
-		assert.Empty(t, envAdditions)
+		binds := ResolveVolumes(vols, map[string]string{})
+		assert.Equal(t, []string{"${UNSET_VAR}:/models"}, binds)
 	})
 }
