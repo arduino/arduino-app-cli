@@ -27,7 +27,7 @@ func newListCmd(cfg config.Configuration) *cobra.Command {
 		Use:   "list",
 		Short: "List the Arduino apps",
 		Run: func(cmd *cobra.Command, args []string) {
-			listHandler(cmd.Context(), cfg, showBrokenApps)
+			listHandler(cfg, showBrokenApps)
 		},
 	}
 
@@ -35,8 +35,8 @@ func newListCmd(cfg config.Configuration) *cobra.Command {
 	return cmd
 }
 
-func listHandler(ctx context.Context, cfg config.Configuration, showBrokenApps bool) {
-	res, err := orchestrator.ListApps(ctx,
+func listHandler(cfg config.Configuration, showBrokenApps bool) {
+	res, err := orchestrator.ListApps(context.Background(),
 		servicelocator.GetDockerClient(),
 		orchestrator.ListAppRequest{
 			ShowExamples:                   true,
