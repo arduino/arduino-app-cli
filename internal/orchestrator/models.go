@@ -471,7 +471,7 @@ func InstallModelByHandler(ctx context.Context, cli client.APIClient, modelID st
 			cb(StreamMessage{data: e.Description})
 		case modelsindex.ModelInstallEventUpdate:
 			if e.Total > 0 {
-				cb(StreamMessage{progress: &Progress{Name: modelID, Progress: float32(e.Current) * 100 / float32(e.Total)}})
+				cb(StreamMessage{progress: &Progress{Name: modelID, Progress: float32(e.Current * 100 / e.Total)}})
 			} else {
 				cb(StreamMessage{progress: &Progress{Name: modelID, Progress: 0}})
 			}

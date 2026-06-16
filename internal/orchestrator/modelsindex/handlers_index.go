@@ -255,14 +255,12 @@ func RunDownloadAction(ctx context.Context, cli client.APIClient, model AIModel,
 type ModelInstallEventType string
 
 const (
-	// Container-emitted event types (match the Python script's event field).
 	ModelInstallEventStart    ModelInstallEventType = "start"
 	ModelInstallEventUpdate   ModelInstallEventType = "update"
 	ModelInstallEventComplete ModelInstallEventType = "complete"
 	ModelInstallEventInfo     ModelInstallEventType = "info"
 	ModelInstallEventError    ModelInstallEventType = "error"
-	// Synthetic event emitted by Go after the container exits.
-	ModelInstallEventDone ModelInstallEventType = "done"
+	ModelInstallEventDone     ModelInstallEventType = "done"
 )
 
 type ModelDownloadEvent struct {
