@@ -50,31 +50,17 @@ type ModelHandler struct {
 	Actions HandlerActions
 }
 
-// ResolveVolumes resolves template variables in each volume spec against vars.
-// It returns the Docker bind-mount strings (binds) and an "KEY=value" slice
-// (envAdditions) for every template variable that was substituted, so the
-// container can also reference the paths through environment variables.
-func ResolveVolumes(vols []string, vars map[string]string) (binds, envAdditions []string) {
-	seen := make(map[string]bool)
+// ResolveVolumes resolves template variables in each volume spec against vars
+// and returns the Docker bind-mount strings.
+func ResolveVolumes(vols []string, vars map[string]string) []string {
+	var binds []string
 	for _, vol := range vols {
-		expanded := os.Expand(vol, func(key string) string {
-			varName, defaultVal := key, ""
-			if idx := strings.Index(key, ":-"); idx != -1 {
-				varName, defaultVal = key[:idx], key[idx+2:]
-			}
-			val, ok := vars[varName]
-			if !ok {
-				return defaultVal
-			}
-			if !seen[varName] {
-				envAdditions = append(envAdditions, fmt.Sprintf("%s=%s", varName, val))
-				seen[varName] = true
-			}
-			return val
-		})
-		binds = append(binds, expanded)
+		for k, v := range vars {
+			vol = strings.ReplaceAll(vol, "${"+k+"}", v)
+		}
+		binds = append(binds, vol)
 	}
-	return
+	return binds
 }
 
 type ListingConfig struct {
@@ -133,9 +119,10 @@ func (h *HandlersIndex) getModelInfo(ctx context.Context, cli client.APIClient, 
 	}
 	for _, entry := range entries {
 		i, ok := idx[entry.ID]
-		if !ok || models[i].IsInternal {
+		if !ok {
 			continue
 		}
+
 		models[i].Installed = entry.Installed
 		if entry.Installed && entry.DiskSizeMB != nil && *entry.DiskSizeMB > 0 {
 			models[i].Size = uint64(*entry.DiskSizeMB * 1024 * 1024)
@@ -154,10 +141,9 @@ func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandl
 	if model.Deployment != nil {
 		envVars = model.Deployment.VariablesForPlatform(plat.BoardName)
 	}
-	binds, volumeEnv := ResolveVolumes(handler.Volumes, map[string]string{
+	binds := ResolveVolumes(handler.Volumes, map[string]string{
 		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": modelsDir.String(),
 	})
-	env = append(env, volumeEnv...)
 	for k, v := range envVars {
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}
@@ -192,10 +178,9 @@ func runListAction(ctx context.Context, cli client.APIClient, listing *ListingCo
 
 	slog.Debug("running list action", "image", listing.Image)
 
-	binds, volumeEnv := ResolveVolumes(listing.Volumes, map[string]string{
+	binds := ResolveVolumes(listing.Volumes, map[string]string{
 		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": modelsDir.String(),
 	})
-	env = append(env, volumeEnv...)
 
 	var buf bytes.Buffer
 	err := dockerhandler.Run(ctx, cli, dockerhandler.RunOptions{
@@ -223,17 +208,31 @@ func RunDownloadAction(ctx context.Context, cli client.APIClient, model AIModel,
 		return fmt.Errorf("cannot create download location %q: %w", downloadPath, err)
 	}
 
-	binds, volumeEnv := ResolveVolumes(handler.Volumes, map[string]string{
-		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": downloadPath.String(),
-	})
-
 	var envVars map[string]string
 	if model.Deployment != nil {
 		envVars = model.Deployment.VariablesForPlatform(plat.BoardName)
 	}
 
-	env := make([]string, 0, len(envVars)+len(volumeEnv))
-	env = append(env, volumeEnv...)
+	// model_repository in YAML is "models/<model_structure>"; drop the leading "models/" prefix.
+	modelRepo := envVars["models_repository"]
+	if i := strings.Index(modelRepo, "/"); i >= 0 {
+		modelRepo = modelRepo[i+1:]
+	}
+	bindPath := downloadPath
+	if modelRepo != "" {
+		bindPath = downloadPath.Join(modelRepo)
+	}
+	if err := bindPath.MkdirAll(); err != nil {
+		return fmt.Errorf("cannot create model directory %q: %w", bindPath, err)
+	}
+	if err := os.Chmod(bindPath.String(), 0777); err != nil { //nolint:gosec
+		slog.Warn("cannot set permissions on model directory", "path", bindPath, "err", err)
+	}
+	binds := ResolveVolumes(handler.Volumes, map[string]string{
+		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": bindPath.String(),
+	})
+
+	env := make([]string, 0, len(envVars))
 	for k, v := range envVars {
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}

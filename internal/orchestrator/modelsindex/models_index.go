@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/docker/docker/client"
 
@@ -238,10 +239,15 @@ func (m *ModelsIndex) modelInstalled(ctx context.Context, model AIModel) (bool, 
 }
 
 func isModelDownloaded(ctx context.Context, cli client.APIClient, model AIModel, handler ModelHandler, downloadPath *paths.Path, envVars map[string]string) (bool, error) {
-	binds, volumeEnv := ResolveVolumes(handler.Volumes, map[string]string{
-		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": downloadPath.String(),
+	// model_repository in YAML is "models/llamacpp"; drop the leading "models/" prefix.
+	modelRepo := envVars["models_repository"]
+	if i := strings.Index(modelRepo, "/"); i >= 0 {
+		modelRepo = modelRepo[i+1:]
+	}
+	binds := ResolveVolumes(handler.Volumes, map[string]string{
+		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": downloadPath.String() + "/" + modelRepo,
 	})
-	env := volumeEnv
+	var env []string
 	for k, v := range envVars {
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}

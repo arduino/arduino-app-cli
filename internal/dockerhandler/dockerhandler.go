@@ -13,6 +13,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
+	"syscall"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
@@ -61,6 +65,21 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 	}
 	if opts.Stderr == nil {
 		opts.Stderr = io.Discard
+	}
+
+	for _, bind := range opts.Binds {
+		hostPath, _, _ := strings.Cut(bind, ":")
+		if err := os.MkdirAll(hostPath, 0755); err != nil {
+			slog.Warn("cannot pre-create bind mount directory", "path", hostPath, "err", err)
+			continue
+		}
+		if info, err := os.Stat(filepath.Dir(hostPath)); err == nil {
+			if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+				if err := os.Chown(hostPath, int(stat.Uid), int(stat.Gid)); err != nil {
+					slog.Warn("cannot chown bind mount directory", "path", hostPath, "err", err)
+				}
+			}
+		}
 	}
 
 	resp, err := cli.ContainerCreate(ctx,
