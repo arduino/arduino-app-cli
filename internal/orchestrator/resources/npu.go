@@ -27,63 +27,52 @@ A reference counter protects the resources, preventing deallocation while
 there are still active streams.
 */
 
-type npuRequestType int
-
-const (
-	npuReqInit npuRequestType = iota
-	npuReqMaxUsage
-)
-
 type npuRequest struct {
-	responseType npuRequestType
-	err          chan error
-	maxUsage     chan float32
+	err      chan error
+	maxUsage chan float32
 }
 
 var (
 	npuWorkerOnce sync.Once
+	npuWorkerErr  error
 	npuRequests   chan npuRequest
 )
 
-func startNPUWorker() {
+// startNPUWorker starts the dedicated OS-thread-locked goroutine and runs
+// npuInitImpl exactly once on that thread.  Subsequent calls are no-ops and
+// return the result of the first initialisation attempt.
+func startNPUWorker() error {
 	npuWorkerOnce.Do(func() {
+		initDone := make(chan error, 1)
 		npuRequests = make(chan npuRequest)
-		go npuWorker()
+		go npuWorker(initDone)
+		npuWorkerErr = <-initDone
 	})
+	return npuWorkerErr
 }
 
 // npuWorker is the dedicated goroutine that locks to a single OS thread.
 // It processes all NPU requests sequentially, ensuring thread-local state consistency.
-func npuWorker() {
+func npuWorker(initDone chan<- error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
+	initDone <- npuInitImpl()
+
 	for req := range npuRequests {
-		switch req.responseType {
-		case npuReqInit:
-			req.err <- npuInitImpl()
-		case npuReqMaxUsage:
-			val, err := npuPercentImpl()
-			if err != nil {
-				req.err <- err
-			} else {
-				req.maxUsage <- val
-				req.err <- nil
-			}
+		val, err := npuPercentImpl()
+		if err != nil {
+			req.err <- err
+		} else {
+			req.maxUsage <- val
+			req.err <- nil
 		}
 	}
 }
 
-// Initializes the npu DSP domain only once.
-// Increments reference counter to keep trace of active streams.
+// NPUInit initializes the NPU DSP domain exactly once.
 func NPUInit() error {
-	startNPUWorker()
-	req := npuRequest{
-		responseType: npuReqInit,
-		err:          make(chan error, 1),
-	}
-	npuRequests <- req
-	return <-req.err
+	return startNPUWorker()
 }
 
 func npuInitImpl() error {
@@ -97,12 +86,14 @@ func npuInitImpl() error {
 	return nil
 }
 
-// Returns the current NPU utilization percentage
+// NPUPercent returns the current NPU utilization percentage.
 func NPUPercent() (float32, error) {
+	if err := startNPUWorker(); err != nil {
+		return 0, fmt.Errorf("NPU not initialized: %w", err)
+	}
 	req := npuRequest{
-		responseType: npuReqMaxUsage,
-		err:          make(chan error, 1),
-		maxUsage:     make(chan float32, 1),
+		err:      make(chan error, 1),
+		maxUsage: make(chan float32, 1),
 	}
 	npuRequests <- req
 	if err := <-req.err; err != nil {
@@ -112,9 +103,18 @@ func NPUPercent() (float32, error) {
 }
 
 func npuPercentImpl() (float32, error) {
-	var noMetrics int32
-	ptr := qcomDspGetProfData(DSP_NPU0, &noMetrics)
-	if ptr == nil || noMetrics <= 0 {
+	// noMetrics must be heap-allocated: FastRPC pins the backing pages via
+	// get_user_pages for DMA access.  A Go stack variable may live on a
+	// Go-managed stack page that the kernel cannot DMA-map, causing EFAULT
+	// (remote_handle64_invoke error 0xe).  Pin the allocation to prevent the
+	// GC from moving it while the native call is in progress.
+	noMetrics := new(int32)
+	var pinner runtime.Pinner
+	pinner.Pin(noMetrics)
+	defer pinner.Unpin()
+
+	ptr := qcomDspGetProfData(DSP_NPU0, noMetrics)
+	if ptr == nil || *noMetrics <= 0 {
 		return 0, fmt.Errorf("qcomDspGetProfData error: no profile data available")
 	}
 

@@ -86,11 +86,6 @@ func SystemResources(ctx context.Context, cfg config.Configuration, resourceCfg 
 		if err := NPUInit(); err != nil {
 			slog.Error("Failed to init NPU", "error", err)
 		}
-		npuStats, err := NPUPercent()
-		if err == nil {
-			firstMessagesToSend = append(firstMessagesToSend, &SystemNPUResource{UsedPercent: npuStats})
-		}
-		slog.Error("Failed to get NPU metrics", "error", err)
 	}
 
 	diskPaths := []string{"/", "/tmp", cfg.AppsDir().Parent().String()}
