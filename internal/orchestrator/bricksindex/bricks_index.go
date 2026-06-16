@@ -224,6 +224,11 @@ type BrickInstance struct {
 	Model string
 }
 
+// GetMatchingService returns the list of service IDs required by the brick for the given instance.
+// It evaluates any conditional constraints (e.g. model pattern matching) defined in each RequiresService entry.
+//
+// A service with no "when" condition is always included. A service with "when.model" is included
+// only when the instance model matches the pattern (e.g. "genie:*" matches "genie:mini", "genie:pro").
 func (b Brick) GetMatchingService(brick BrickInstance) ([]string, error) {
 	services := make([]string, 0, len(b.RequiresServices))
 	for _, r := range b.RequiresServices {
