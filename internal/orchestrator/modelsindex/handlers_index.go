@@ -119,7 +119,7 @@ type handlerModelEntry struct {
 }
 
 func (h *HandlersIndex) getModelInfo(ctx context.Context, cli client.APIClient, models []AIModel, modelsDir *paths.Path, plat platform.Platform) {
-	if h.listing == nil {
+	if h == nil || h.listing == nil {
 		return
 	}
 	entries, err := runListAction(ctx, cli, h.listing, modelsDir, plat)
