@@ -450,14 +450,20 @@ func InstallModelByHandler(ctx context.Context, cli client.APIClient, modelID st
 		return fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, modelID)
 	}
 
-	// TODO: move the fetch ModelInfo inise a RunModelInfo inside the modelsindex
-	// if info, err := fetchModelInfo(ctx, cli, *model, handler, downloadPath, envVars); err != nil {
-	// 	slog.Warn("could not fetch model info", "model", modelID, "err", err)
-	// } else if info != nil && info.sizeBytes > 0 {
-	// 	if err := hasSufficientDiskSpace(downloadPath, info.sizeBytes); err != nil {
-	// 		return err
-	// 	}
-	// }
+	downloadPath := cfg.CustomModelsDir()
+	var envVars map[string]string
+	if model.Deployment != nil {
+		envVars = model.Deployment.VariablesForPlatform(plat.BoardName)
+	}
+
+	// TODO: move the fetch ModelInfo inside a RunModelInfo inside the modelsindex
+	if info, err := fetchModelInfo(ctx, cli, *model, handler, downloadPath, envVars); err != nil {
+		slog.Warn("could not fetch model info", "model", modelID, "err", err)
+	} else if info != nil && info.sizeBytes > 0 {
+		if err := hasSufficientDiskSpace(downloadPath, int64(info.sizeBytes)); err != nil {
+			return err
+		}
+	}
 
 	installResponse := func(e modelsindex.ModelDownloadEvent) {
 		switch e.Type {
@@ -503,24 +509,24 @@ func fetchModelInfo(ctx context.Context, cli client.APIClient, model modelsindex
 	return &result, nil
 }
 
-// // hasSufficientDiskSpace checks whether the filesystem containing path has at
-// // least requiredBytes of free space. It walks up to the first existing ancestor
-// // if path does not yet exist.
-// func hasSufficientDiskSpace(path *paths.Path, requiredBytes int64) error {
-// 	target := path
-// 	for target != nil && target.NotExist() {
-// 		target = target.Parent()
-// 	}
-// 	if target == nil {
-// 		return nil // cannot determine filesystem, skip check
-// 	}
-// 	var stat syscall.Statfs_t
-// 	if err := syscall.Statfs(target.String(), &stat); err != nil {
-// 		return fmt.Errorf("cannot check disk space: %w", err)
-// 	}
-// 	available := int64(stat.Bavail) * int64(stat.Bsize)
-// 	if available < requiredBytes {
-// 		return ErrInsufficientStorage
-// 	}
-// 	return nil
-// }
+// hasSufficientDiskSpace checks whether the filesystem containing path has at
+// least requiredBytes of free space. It walks up to the first existing ancestor
+// if path does not yet exist.
+func hasSufficientDiskSpace(path *paths.Path, requiredBytes int64) error {
+	target := path
+	for target != nil && target.NotExist() {
+		target = target.Parent()
+	}
+	if target == nil {
+		return nil // cannot determine filesystem, skip check
+	}
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs(target.String(), &stat); err != nil {
+		return fmt.Errorf("cannot check disk space: %w", err)
+	}
+	available := int64(stat.Bavail) * int64(stat.Bsize)
+	if available < requiredBytes {
+		return ErrInsufficientStorage
+	}
+	return nil
+}
