@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"sync"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
@@ -35,15 +36,16 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 	if opts.LineCallback != nil {
 		pr, pw := io.Pipe()
 		opts.Stdout = pw
-		go func() {
+		var wg sync.WaitGroup
+		wg.Go(func() {
 			scanner := bufio.NewScanner(pr)
 			for scanner.Scan() {
 				if line := scanner.Text(); line != "" {
 					opts.LineCallback(line)
 				}
 			}
-		}()
-		defer pw.Close()
+		})
+		defer func() { pw.Close(); wg.Wait() }()
 	} else if opts.Stdout == nil {
 		opts.Stdout = io.Discard
 	}
