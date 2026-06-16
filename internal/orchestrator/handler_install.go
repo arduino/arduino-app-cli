@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
+	"strings"
 
 	paths "github.com/arduino/go-paths-helper"
 	"github.com/docker/docker/client"
@@ -20,12 +22,25 @@ import (
 )
 
 func runHandlerAction(ctx context.Context, cli client.APIClient, model modelsindex.AIModel, image string, action []string, volumes []string, downloadPath *paths.Path, envVars map[string]string, publish func(ModelInstallEvent)) error {
-	binds, volumeEnv := modelsindex.ResolveVolumes(volumes, map[string]string{
-		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": downloadPath.String(),
+	modelRepo := envVars["models_repository"]
+	if i := strings.Index(modelRepo, "/"); i >= 0 {
+		modelRepo = modelRepo[i+1:]
+	}
+	bindPath := downloadPath
+	if modelRepo != "" {
+		bindPath = downloadPath.Join(modelRepo)
+	}
+	if err := bindPath.MkdirAll(); err != nil {
+		return fmt.Errorf("cannot create model directory %q: %w", bindPath, err)
+	}
+	if err := os.Chmod(bindPath.String(), 0777); err != nil { //nolint:gosec
+		slog.Warn("cannot set permissions on model directory", "path", bindPath, "err", err)
+	}
+	binds := modelsindex.ResolveVolumes(volumes, map[string]string{
+		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": bindPath.String(),
 	})
 
-	env := make([]string, 0, len(envVars)+len(volumeEnv))
-	env = append(env, volumeEnv...)
+	env := make([]string, 0, len(envVars))
 	for k, v := range envVars {
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}
