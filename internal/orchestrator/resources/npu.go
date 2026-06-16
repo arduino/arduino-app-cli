@@ -103,16 +103,7 @@ func NPUPercent() (float32, error) {
 }
 
 func npuPercentImpl() (float32, error) {
-	// noMetrics must be heap-allocated: FastRPC pins the backing pages via
-	// get_user_pages for DMA access.  A Go stack variable may live on a
-	// Go-managed stack page that the kernel cannot DMA-map, causing EFAULT
-	// (remote_handle64_invoke error 0xe).  Pin the allocation to prevent the
-	// GC from moving it while the native call is in progress.
 	noMetrics := new(int32)
-	var pinner runtime.Pinner
-	pinner.Pin(noMetrics)
-	defer pinner.Unpin()
-
 	ptr := qcomDspGetProfData(DSP_NPU0, noMetrics)
 	if ptr == nil || *noMetrics <= 0 {
 		return 0, fmt.Errorf("qcomDspGetProfData error: no profile data available")
