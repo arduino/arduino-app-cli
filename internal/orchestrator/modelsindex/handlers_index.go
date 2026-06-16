@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -225,9 +224,7 @@ func RunDownloadAction(ctx context.Context, cli client.APIClient, model AIModel,
 	if err := bindPath.MkdirAll(); err != nil {
 		return fmt.Errorf("cannot create model directory %q: %w", bindPath, err)
 	}
-	if err := os.Chmod(bindPath.String(), 0777); err != nil { //nolint:gosec
-		slog.Warn("cannot set permissions on model directory", "path", bindPath, "err", err)
-	}
+
 	binds := ResolveVolumes(handler.Volumes, map[string]string{
 		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": bindPath.String(),
 	})

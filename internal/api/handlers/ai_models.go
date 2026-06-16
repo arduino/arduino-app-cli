@@ -231,7 +231,7 @@ func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, mode
 				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: e.Description}})
 			case modelsindex.ModelInstallEventUpdate:
 				if e.Total > 0 {
-					sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: m.ID, Progress: float32(e.Current) * 100 / float32(e.Total)}})
+					sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: m.ID, Progress: float32(e.Current * 100 / e.Total)}})
 				} else {
 					sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: m.ID, Progress: 0}})
 				}
