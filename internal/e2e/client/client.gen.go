@@ -821,9 +821,6 @@ type ClientInterface interface {
 	// GetAIModelDetails request
 	GetAIModelDetails(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// InstallModel request
-	InstallModel(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// GetPropertyKeys request
 	GetPropertyKeys(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1336,18 +1333,6 @@ func (c *Client) DeleteAIModel(ctx context.Context, id string, params *DeleteAIM
 
 func (c *Client) GetAIModelDetails(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAIModelDetailsRequest(c.Server, id)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) InstallModel(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewInstallModelRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -3059,40 +3044,6 @@ func NewGetAIModelDetailsRequest(server string, id string) (*http.Request, error
 	return req, nil
 }
 
-// NewInstallModelRequest generates requests for InstallModel
-func NewInstallModelRequest(server string, id string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/v1/models/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PUT", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewGetPropertyKeysRequest generates requests for GetPropertyKeys
 func NewGetPropertyKeysRequest(server string) (*http.Request, error) {
 	var err error
@@ -3570,9 +3521,6 @@ type ClientWithResponsesInterface interface {
 
 	// GetAIModelDetailsWithResponse request
 	GetAIModelDetailsWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetAIModelDetailsResp, error)
-
-	// InstallModelWithResponse request
-	InstallModelWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*InstallModelResp, error)
 
 	// GetPropertyKeysWithResponse request
 	GetPropertyKeysWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetPropertyKeysResp, error)
@@ -4384,30 +4332,6 @@ func (r GetAIModelDetailsResp) StatusCode() int {
 	return 0
 }
 
-type InstallModelResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON400      *BadRequest
-	JSON404      *NotFound
-	JSON500      *InternalServerError
-}
-
-// Status returns HTTPResponse.Status
-func (r InstallModelResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r InstallModelResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 type GetPropertyKeysResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4978,15 +4902,6 @@ func (c *ClientWithResponses) GetAIModelDetailsWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseGetAIModelDetailsResp(rsp)
-}
-
-// InstallModelWithResponse request returning *InstallModelResp
-func (c *ClientWithResponses) InstallModelWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*InstallModelResp, error) {
-	rsp, err := c.InstallModel(ctx, id, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseInstallModelResp(rsp)
 }
 
 // GetPropertyKeysWithResponse request returning *GetPropertyKeysResp
@@ -6411,46 +6326,6 @@ func ParseGetAIModelDetailsResp(rsp *http.Response) (*GetAIModelDetailsResp, err
 			return nil, err
 		}
 		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalServerError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseInstallModelResp parses an HTTP response from a InstallModelWithResponse call
-func ParseInstallModelResp(rsp *http.Response) (*InstallModelResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &InstallModelResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
