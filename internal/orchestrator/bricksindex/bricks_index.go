@@ -12,6 +12,7 @@ import (
 	"iter"
 	"log/slog"
 	"os"
+	"path"
 	"slices"
 	"strings"
 
@@ -71,6 +72,15 @@ func (v BrickVariable) IsRequired() bool {
 	return v.DefaultValue == ""
 }
 
+type RequiresServiceMatch struct {
+	Model *string `yaml:"model,omitempty"`
+}
+
+type RequiresService struct {
+	ID   string                `yaml:"id"`
+	When *RequiresServiceMatch `yaml:"when,omitempty"`
+}
+
 type Brick struct {
 	ID              string   `yaml:"id"`
 	Name            string   `yaml:"name"`
@@ -87,7 +97,7 @@ type Brick struct {
 	ModelByBoard                []ModelsBoard             `yaml:"model_by_boards,omitempty"`
 	MountDevicesIntoContainer   bool                      `yaml:"mount_devices_into_container,omitempty"`
 	RequiredDevices             []peripherals.DeviceClass `yaml:"required_devices,omitempty"`
-	RequiresServices            []string                  `yaml:"requires_services,omitempty"`
+	RequiresServices            []RequiresService         `yaml:"requires_services,omitempty"`
 	ModelConfigurationVariables []string                  `yaml:"model_configuration_variables,omitempty"`
 
 	Source string `yaml:"-"`
@@ -180,6 +190,30 @@ func (b Brick) GetModelNameByBoard(boardName string) string {
 		}
 	}
 	return defaultModelName
+}
+
+type BrickInstance struct {
+	Model string
+}
+
+func (b Brick) GetMatchingService(brick BrickInstance) ([]string, error) {
+	services := make([]string, 0, len(b.RequiresServices))
+	for _, r := range b.RequiresServices {
+		if r.When == nil {
+			services = append(services, r.ID)
+			continue
+		}
+		if r.When.Model == nil {
+			services = append(services, r.ID)
+			continue
+		}
+		if ok, err := path.Match(*r.When.Model, brick.Model); err != nil {
+			return services, fmt.Errorf("invalid pattern in requires_services.when.model: %w", err)
+		} else if ok {
+			services = append(services, r.ID)
+		}
+	}
+	return services, nil
 }
 
 type YamlBricksIndex struct {

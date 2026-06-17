@@ -488,3 +488,100 @@ services
 		})
 	}
 }
+
+func TestGetMatchingService(t *testing.T) {
+	tests := []struct {
+		name             string
+		requiresServices []RequiresService
+		brickInstance    BrickInstance
+		wantServices     []string
+		wantErr          bool
+	}{
+		{
+			name:             "no requires_services returns empty slice",
+			requiresServices: nil,
+			brickInstance:    BrickInstance{Model: "some-model"},
+			wantServices:     []string{},
+		},
+		{
+			name: "service with no when condition matches unconditionally",
+			requiresServices: []RequiresService{
+				{ID: "service-a", When: nil},
+			},
+			brickInstance: BrickInstance{Model: "any-model"},
+			wantServices:  []string{"service-a"},
+		},
+		{
+			name: "service with when but no model field matches unconditionally",
+			requiresServices: []RequiresService{
+				{ID: "service-b", When: &RequiresServiceMatch{Model: nil}},
+			},
+			brickInstance: BrickInstance{Model: "any-model"},
+			wantServices:  []string{"service-b"},
+		},
+		{
+			name: "service with matching model pattern returns service ID",
+			requiresServices: []RequiresService{
+				{ID: "service-c", When: &RequiresServiceMatch{Model: new("mobilenet-*")}},
+			},
+			brickInstance: BrickInstance{Model: "mobilenet-image-classification"},
+			wantServices:  []string{"service-c"},
+		},
+		{
+			name: "service with non-matching model pattern returns empty slice",
+			requiresServices: []RequiresService{
+				{ID: "service-d", When: &RequiresServiceMatch{Model: new("mobilenet-*")}},
+			},
+			brickInstance: BrickInstance{Model: "yolo-object-detection"},
+			wantServices:  []string{},
+		},
+		{
+			name: "only second service matches",
+			requiresServices: []RequiresService{
+				{ID: "service-e", When: &RequiresServiceMatch{Model: new("mobilenet-*")}},
+				{ID: "service-f", When: &RequiresServiceMatch{Model: new("yolo-*")}},
+			},
+			brickInstance: BrickInstance{Model: "yolo-object-detection"},
+			wantServices:  []string{"service-f"},
+		},
+		{
+			name: "multiple services match and all are returned",
+			requiresServices: []RequiresService{
+				{ID: "service-g", When: &RequiresServiceMatch{Model: new("mobilenet-*")}},
+				{ID: "service-h", When: nil},
+			},
+			brickInstance: BrickInstance{Model: "mobilenet-image-classification"},
+			wantServices:  []string{"service-g", "service-h"},
+		},
+		{
+			name: "no service matches returns empty slice",
+			requiresServices: []RequiresService{
+				{ID: "service-i", When: &RequiresServiceMatch{Model: new("mobilenet-*")}},
+				{ID: "service-j", When: &RequiresServiceMatch{Model: new("yolo-*")}},
+			},
+			brickInstance: BrickInstance{Model: "resnet-classification"},
+			wantServices:  []string{},
+		},
+		{
+			name: "invalid pattern returns error",
+			requiresServices: []RequiresService{
+				{ID: "service-k", When: &RequiresServiceMatch{Model: new("[invalid")}},
+			},
+			brickInstance: BrickInstance{Model: "any-model"},
+			wantErr:       true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			brick := Brick{RequiresServices: tt.requiresServices}
+			got, err := brick.GetMatchingService(tt.brickInstance)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantServices, got)
+			}
+		})
+	}
+}
