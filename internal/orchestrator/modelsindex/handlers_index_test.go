@@ -95,37 +95,34 @@ func TestParseDownloadHandlerLine(t *testing.T) {
 	})
 }
 
-func TestResolveVolumes(t *testing.T) {
-	t.Run("substitutes a variable used multiple times", func(t *testing.T) {
-		vols := []string{
-			"${MODELS_DIR}:/models",
-			"${MODELS_DIR}:/backup",
-		}
-		binds := ResolveVolumes(vols, map[string]string{"MODELS_DIR": "/var/models"})
-		assert.Equal(t, []string{
-			"/var/models:/models",
-			"/var/models:/backup",
-		}, binds)
+func TestResolveVars(t *testing.T) {
+	t.Run("substitutes a known variable", func(t *testing.T) {
+		got := ResolveVars("${FOO}/bar", map[string]string{"FOO": "/opt"})
+		assert.Equal(t, "/opt/bar", got)
 	})
 
 	t.Run("substitutes multiple variables", func(t *testing.T) {
-		vols := []string{
-			"${MODELS_DIR}:/models",
-			"${CACHE_DIR}:/cache",
-		}
-		binds := ResolveVolumes(vols, map[string]string{
-			"MODELS_DIR": "/opt/models",
-			"CACHE_DIR":  "/opt/cache",
-		})
-		assert.Equal(t, []string{
-			"/opt/models:/models",
-			"/opt/cache:/cache",
-		}, binds)
+		got := ResolveVars("${A}:${B}", map[string]string{"A": "hello", "B": "world"})
+		assert.Equal(t, "hello:world", got)
 	})
 
-	t.Run("leaves placeholder unchanged when variable is missing", func(t *testing.T) {
-		vols := []string{"${UNSET_VAR}:/models"}
-		binds := ResolveVolumes(vols, map[string]string{})
-		assert.Equal(t, []string{"${UNSET_VAR}:/models"}, binds)
+	t.Run("substitutes a variable used multiple times", func(t *testing.T) {
+		got := ResolveVars("${X}/${X}", map[string]string{"X": "val"})
+		assert.Equal(t, "val/val", got)
+	})
+
+	t.Run("unknown variable resolves to empty string", func(t *testing.T) {
+		got := ResolveVars("${UNSET}/suffix", map[string]string{})
+		assert.Equal(t, "/suffix", got)
+	})
+
+	t.Run("uses inline default when variable is missing", func(t *testing.T) {
+		got := ResolveVars("${REG:-ghcr.io/arduino/}image:tag", map[string]string{})
+		assert.Equal(t, "ghcr.io/arduino/image:tag", got)
+	})
+
+	t.Run("provided value takes precedence over inline default", func(t *testing.T) {
+		got := ResolveVars("${REG:-ghcr.io/arduino/}image:tag", map[string]string{"REG": "myregistry.io/"})
+		assert.Equal(t, "myregistry.io/image:tag", got)
 	})
 }

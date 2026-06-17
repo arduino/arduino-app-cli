@@ -15,7 +15,9 @@ import (
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
+	composetmpl "github.com/compose-spec/compose-go/v2/template"
 	"github.com/docker/docker/client"
+	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhandler"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -49,17 +51,25 @@ type ModelHandler struct {
 	Actions HandlerActions
 }
 
-// ResolveVolumes resolves template variables in each volume spec against vars
-// and returns the Docker bind-mount strings.
-func ResolveVolumes(vols []string, vars map[string]string) []string {
-	var binds []string
-	for _, vol := range vols {
-		for k, v := range vars {
-			vol = strings.ReplaceAll(vol, "${"+k+"}", v)
-		}
-		binds = append(binds, vol)
+// resolveVars substitutes compose-style ${VAR} and ${VAR:-default} placeholders
+// in raw using the provided vars map. Unknown variables are left unchanged.
+func ResolveVars(raw string, vars map[string]string) string {
+	result, err := composetmpl.Substitute(raw, func(key string) (string, bool) {
+		v, ok := vars[key]
+		return v, ok
+	})
+	if err != nil {
+		slog.Warn("cannot resolve template variables", "raw", raw, "err", err)
+		return raw
 	}
-	return binds
+	return result
+}
+
+// ResolveVarsSlice applies ResolveVars to each string in raws and returns a new slice with the results.
+func ResolveVarsSlice(raws []string, vars map[string]string) []string {
+	return f.Map(raws, func(v string) string {
+		return ResolveVars(v, vars)
+	})
 }
 
 type ListingConfig struct {
@@ -140,7 +150,7 @@ func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandl
 	if model.Deployment != nil {
 		envVars = model.Deployment.VariablesForPlatform(plat.BoardName)
 	}
-	binds := ResolveVolumes(handler.Volumes, map[string]string{
+	binds := ResolveVarsSlice(handler.Volumes, map[string]string{
 		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": modelsDir.String(),
 	})
 	for k, v := range envVars {
@@ -177,7 +187,7 @@ func runListAction(ctx context.Context, cli client.APIClient, listing *ListingCo
 
 	slog.Debug("running list action", "image", listing.Image)
 
-	binds := ResolveVolumes(listing.Volumes, map[string]string{
+	binds := ResolveVarsSlice(listing.Volumes, map[string]string{
 		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": modelsDir.String(),
 	})
 
@@ -225,7 +235,7 @@ func RunDownloadAction(ctx context.Context, cli client.APIClient, model AIModel,
 		return fmt.Errorf("cannot create model directory %q: %w", bindPath, err)
 	}
 
-	binds := ResolveVolumes(handler.Volumes, map[string]string{
+	binds := ResolveVarsSlice(handler.Volumes, map[string]string{
 		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": bindPath.String(),
 	})
 
@@ -334,14 +344,4 @@ type rawListingEntry struct {
 type rawHandlersList struct {
 	Listing  rawListingEntry              `yaml:"listing"`
 	Handlers []map[string]rawHandlerEntry `yaml:"handlers"`
-}
-
-// resolveImage replaces a ${VAR:-default} prefix in the image string with registryBase.
-func resolveImage(raw, registryBase string) string {
-	if start := strings.Index(raw, "${"); start != -1 {
-		if end := strings.Index(raw[start:], "}"); end != -1 {
-			return registryBase + raw[start+end+1:]
-		}
-	}
-	return registryBase + raw
 }
