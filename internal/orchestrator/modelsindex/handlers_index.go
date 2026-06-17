@@ -350,9 +350,10 @@ type rawHandlersList struct {
 	Handlers []map[string]rawHandlerEntry `yaml:"handlers"`
 }
 
-func GetModelHandlerImages(h *HandlersIndex) ([]string, error) {
+func GetModelHandlerImages(h *HandlersIndex) []string {
 	if h == nil {
-		return []string{}, fmt.Errorf("handlers index is nil")
+		slog.Warn("handlers index is nil, cannot get model handler images")
+		return []string{}
 	}
 
 	var images []string
@@ -368,8 +369,8 @@ func GetModelHandlerImages(h *HandlersIndex) ([]string, error) {
 	}
 
 	if len(images) == 0 {
-		return []string{}, fmt.Errorf("no download images found in models handlers or listing")
+		return []string{}
 	}
 
-	return f.Uniq(images), nil
+	return f.Uniq(images)
 }

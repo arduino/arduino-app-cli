@@ -172,7 +172,6 @@ handlers:
 	require.NoError(t, err)
 	require.NotNil(t, index)
 
-	images, err := GetModelHandlerImages(index)
-	require.NoError(t, err)
+	images := GetModelHandlerImages(index)
 	assert.Equal(t, []string{"test-registry/models-downloader:ai-hub", "test-registry/models-downloader:ei", "test-registry/models-downloader:listing"}, images)
 }
