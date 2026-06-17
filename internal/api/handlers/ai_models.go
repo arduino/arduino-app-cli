@@ -177,7 +177,7 @@ func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, mode
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := strings.TrimSpace(r.PathValue("modelID"))
 		if id == "" {
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "modelID must be set"})
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "model ID must be set"})
 			return
 		}
 
