@@ -26,6 +26,8 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
+var unoQPlatform = platform.Platform{BoardName: "unoq"}
+
 func TestCloneApp(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := app.NewAppIDProvider(cfg)
@@ -259,7 +261,7 @@ func TestListApp(t *testing.T) {
 			ShowApps:     true,
 			ShowExamples: true,
 			StatusFilter: "",
-		}, idProvider, nil, cfg)
+		}, idProvider, nil, cfg, unoQPlatform)
 		require.NoError(t, err)
 		assert.Empty(t, res.BrokenApps)
 		assert.Empty(t, gCmp.Diff([]AppInfo{
@@ -298,7 +300,7 @@ func TestListApp(t *testing.T) {
 			ShowApps:     true,
 			ShowExamples: false,
 			StatusFilter: "",
-		}, idProvider, nil, cfg)
+		}, idProvider, nil, cfg, unoQPlatform)
 		require.NoError(t, err)
 		assert.Empty(t, res.BrokenApps)
 		assert.Empty(t, gCmp.Diff([]AppInfo{
@@ -328,7 +330,7 @@ func TestListApp(t *testing.T) {
 			ShowApps:     false,
 			ShowExamples: true,
 			StatusFilter: "",
-		}, idProvider, nil, cfg)
+		}, idProvider, nil, cfg, unoQPlatform)
 		require.NoError(t, err)
 		assert.Empty(t, res.BrokenApps)
 		assert.Empty(t, gCmp.Diff([]AppInfo{
@@ -356,7 +358,7 @@ func TestListApp(t *testing.T) {
 
 		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
 			ShowApps: true,
-		}, idProvider, nil, cfg)
+		}, idProvider, nil, cfg, unoQPlatform)
 		require.NoError(t, err)
 
 		for _, a := range res.Apps {
@@ -387,7 +389,7 @@ func TestListApp(t *testing.T) {
 
 		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
 			ShowApps: true,
-		}, idProvider, nil, cfg)
+		}, idProvider, nil, cfg, unoQPlatform)
 		require.NoError(t, err)
 		require.Empty(t, res.BrokenApps)
 	})
@@ -444,14 +446,14 @@ bricks:
 	require.NoError(t, err)
 
 	t.Run("compatible example is listed", func(t *testing.T) {
-		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowExamples: true}, idProvider, idx, cfg)
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowExamples: true}, idProvider, idx, cfg, unoQPlatform)
 		require.NoError(t, err)
 		require.Len(t, res.Apps, 1)
 		assert.Equal(t, compatibleExID, res.Apps[0].ID)
 	})
 
 	t.Run("incompatible example is excluded", func(t *testing.T) {
-		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowExamples: true}, idProvider, idx, cfg)
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowExamples: true}, idProvider, idx, cfg, unoQPlatform)
 		require.NoError(t, err)
 		for _, a := range res.Apps {
 			assert.NotEqual(t, incompatibleExID, a.ID, "incompatible example should be filtered out")
@@ -459,14 +461,14 @@ bricks:
 	})
 
 	t.Run("user app with incompatible brick is still listed", func(t *testing.T) {
-		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowApps: true}, idProvider, idx, cfg)
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowApps: true}, idProvider, idx, cfg, unoQPlatform)
 		require.NoError(t, err)
 		require.Len(t, res.Apps, 1)
 		assert.Equal(t, userAppID, res.Apps[0].ID)
 	})
 
 	t.Run("nil bricks index disables filtering", func(t *testing.T) {
-		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowExamples: true}, idProvider, nil, cfg)
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowExamples: true}, idProvider, nil, cfg, unoQPlatform)
 		require.NoError(t, err)
 		assert.Len(t, res.Apps, 2)
 	})
@@ -510,7 +512,7 @@ func TestListAppsLocalBricksCompatibility(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("example with only local bricks is listed even when index is empty", func(t *testing.T) {
-		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowExamples: true}, idProvider, idx, cfg)
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowExamples: true}, idProvider, idx, cfg, unoQPlatform)
 		require.NoError(t, err)
 		require.Len(t, res.Apps, 1)
 		assert.Equal(t, exampleID, res.Apps[0].ID)

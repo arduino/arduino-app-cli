@@ -128,7 +128,7 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 		}
 	}
 
-	references, runningAppReference, err := checkForModelReferences(ctx, dockerClient, cfg, idProvider, bricksIndex, id)
+	references, runningAppReference, err := checkForModelReferences(ctx, dockerClient, cfg, idProvider, bricksIndex, id, platform)
 	if err != nil {
 		return err
 	}
@@ -172,13 +172,15 @@ func buildModelInUseMessage(references []string, runningAppRef *app.ArduinoApp) 
 // Both checks are performed simultaneously to support the "force" flag logic.
 // This allows the user to see both issues before deciding to use the flag
 // preventing the second error from being masked.
-func checkForModelReferences(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, idProvider *app.IDProvider, bricksIndex *bricksindex.BricksIndex, modelId string) ([]string, *app.ArduinoApp, error) {
+func checkForModelReferences(ctx context.Context, dockerClient command.Cli,
+	cfg config.Configuration, idProvider *app.IDProvider, bricksIndex *bricksindex.BricksIndex,
+	modelId string, platform platform.Platform) ([]string, *app.ArduinoApp, error) {
 	apps, err := ListApps(
 		ctx, dockerClient, ListAppRequest{
 			ShowExamples:                   true,
 			ShowApps:                       true,
 			IncludeNonStandardLocationApps: true,
-		}, idProvider, bricksIndex, cfg)
+		}, idProvider, bricksIndex, cfg, platform)
 	if err != nil {
 		return nil, nil, err
 	}

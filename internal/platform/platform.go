@@ -164,3 +164,11 @@ func GetVentunoQBoardLeds() paths.PathList {
 		"/dev/leds/builtin/led4_r",
 	)
 }
+
+func (p Platform) IsBoardVentunoQ() bool {
+	return p.BoardName == "ventunoq"
+}
+
+func (p Platform) IsBoardUnoQ() bool {
+	return p.BoardName == "unoq"
+}

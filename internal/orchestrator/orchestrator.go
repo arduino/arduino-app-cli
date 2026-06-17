@@ -469,6 +469,7 @@ type ListAppRequest struct {
 	IncludeNonStandardLocationApps bool
 }
 
+// main app
 func ListApps(
 	ctx context.Context,
 	docker command.Cli,
@@ -476,6 +477,7 @@ func ListApps(
 	idProvider *app.IDProvider,
 	bricksIndex *bricksindex.BricksIndex,
 	cfg config.Configuration,
+	platform platform.Platform,
 ) (ListAppResult, error) {
 	// Get the default app to mark it in the list
 	defaultApp, err := GetDefaultApp(cfg)
@@ -493,7 +495,14 @@ func ListApps(
 	var pathsToExplore paths.PathList
 	var appPaths paths.PathList
 	if req.ShowExamples || req.ShowOnlyDefault {
-		pathsToExplore.Add(cfg.ExamplesDir())
+		// include all boards path
+		pathsToExplore.Add(cfg.ExamplesDir().Join("common"))
+		if platform.IsBoardVentunoQ() {
+			pathsToExplore.Add(cfg.ExamplesDir().Join("platform_ventunoq"))
+		}
+		if platform.IsBoardUnoQ() {
+			pathsToExplore.Add(cfg.ExamplesDir().Join("platform_unoq"))
+		}
 	}
 	if req.ShowApps || req.ShowOnlyDefault {
 		pathsToExplore.Add(cfg.AppsDir())
