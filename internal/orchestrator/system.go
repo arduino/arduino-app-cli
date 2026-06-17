@@ -127,7 +127,11 @@ func downloadSupportedImages(ctx context.Context, cfg config.Configuration, bric
 	if err != nil {
 		return err
 	}
-	handlerImages := modelsIndex.Handlers.GetDockerImages()
+
+	var handlerImages []string
+	if modelsIndex.Handlers != nil {
+		handlerImages = modelsIndex.Handlers.GetDockerImages()
+	}
 
 	imagesToPreinstall = append(imagesToPreinstall, brickImages...)
 	imagesToPreinstall = append(imagesToPreinstall, handlerImages...)
@@ -339,7 +343,7 @@ func (s SystemCleanupResult) IsEmpty() bool {
 
 // SystemCleanup removes dangling containers and unused images.
 // Also running apps are stopped and removed.
-func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, handlers *modelsindex.HandlersIndex, docker command.Cli, platform platform.Platform) (SystemCleanupResult, error) {
+func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex, docker command.Cli, platform platform.Platform) (SystemCleanupResult, error) {
 	var result SystemCleanupResult
 
 	// Remove running app
@@ -369,7 +373,7 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 	}
 
 	// Remove unused images
-	containersMustStay, err := getRequiredImages(cfg, bricksindex, servicesindex, handlers)
+	containersMustStay, err := getRequiredImages(cfg, bricksindex, servicesindex, modelsIndex)
 	if err != nil {
 		return result, err
 	}
@@ -413,12 +417,16 @@ func removeImage(ctx context.Context, docker dockerClient.APIClient, imageName s
 }
 
 // images required by the system
-func getRequiredImages(cfg config.Configuration, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, handlers *modelsindex.HandlersIndex) ([]string, error) {
+func getRequiredImages(cfg config.Configuration, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex) ([]string, error) {
 	bricksContainers, err := getAllSupportedBrickImages(bricksindex, servicesindex)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse bricks runner images: %w", err)
 	}
-	handlerImages := handlers.GetDockerImages()
+
+	var handlerImages []string
+	if modelsIndex.Handlers != nil {
+		handlerImages = modelsIndex.Handlers.GetDockerImages()
+	}
 
 	requiredImages := make([]string, 0, 1+len(bricksContainers)+len(handlerImages))
 	requiredImages = append(requiredImages, cfg.PythonImage)
