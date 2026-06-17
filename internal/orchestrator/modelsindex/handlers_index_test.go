@@ -168,10 +168,10 @@ handlers:
 	err := tempDir.Join("models-handlers.yaml").WriteFile([]byte(yamlContent))
 	require.NoError(t, err)
 
-	index, err := loadHandlers(tempDir, nil)
+	handlersIndex, err := loadHandlers(tempDir, nil)
 	require.NoError(t, err)
-	require.NotNil(t, index)
+	require.NotNil(t, handlersIndex)
 
-	images := GetModelHandlerImages(index)
+	images := handlersIndex.GetDockerImages()
 	assert.Equal(t, []string{"test-registry/models-downloader:ai-hub", "test-registry/models-downloader:ei", "test-registry/models-downloader:listing"}, images)
 }

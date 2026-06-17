@@ -350,19 +350,19 @@ type rawHandlersList struct {
 	Handlers []map[string]rawHandlerEntry `yaml:"handlers"`
 }
 
-func GetModelHandlerImages(h *HandlersIndex) []string {
+func (h *HandlersIndex) GetDockerImages() []string {
 	if h == nil {
 		slog.Warn("handlers index is nil, cannot get model handler images")
 		return []string{}
 	}
 
-	var images []string
+	handlersWithImages := f.Filter(h.AllHandlers(), func(h ModelHandler) bool {
+		return h.Image != ""
+	})
 
-	for _, handler := range h.handlers {
-		if handler.Image != "" {
-			images = append(images, handler.Image)
-		}
-	}
+	images := f.Map(handlersWithImages, func(h ModelHandler) string {
+		return h.Image
+	})
 
 	if h.listing != nil && h.listing.Image != "" {
 		images = append(images, h.listing.Image)

@@ -239,7 +239,6 @@ bricks:
 	}
 }
 
-
 type mockResponse struct {
 	status int
 	body   string
