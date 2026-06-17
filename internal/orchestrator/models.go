@@ -103,38 +103,6 @@ func AIModelDetails(ctx context.Context, _ client.APIClient, modelsIndex *models
 	}, true, nil
 }
 
-func getModelSize(dirPath *paths.Path) (uint64, error) {
-	if dirPath == nil {
-		return 0, fmt.Errorf("directory path is nil")
-	}
-
-	files, err := dirPath.ReadDirRecursive()
-	if err != nil {
-		return 0, err
-	}
-
-	var totalSize uint64
-
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-
-		info, err := file.Stat()
-		if err != nil {
-			return 0, fmt.Errorf("cannot stat file %s: %w", file.String(), err)
-		}
-
-		size := info.Size()
-		if size < 0 {
-			return 0, fmt.Errorf("file has negative size: %s", file.String())
-		}
-		totalSize += uint64(size)
-	}
-
-	return totalSize, nil
-}
-
 var (
 	ErrNotFound            = errors.New("model not found")
 	ErrConflict            = errors.New("can't delete the model")
