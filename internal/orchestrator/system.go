@@ -36,6 +36,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -67,7 +68,7 @@ func (o SystemInitOptions) Validate() error {
 // SystemInit pulls all the docker images needed for the current version of the software to run and the
 // sketch libraries used in the example apps. Can be used to pre-install docker images/libraries on an
 // empty system, or to update all the docker images/libraries that need it.
-func SystemInit(ctx context.Context, cfg config.Configuration, platform platform.Platform, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, docker *command.DockerCli, options SystemInitOptions) error {
+func SystemInit(ctx context.Context, cfg config.Configuration, platform platform.Platform, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, handlersIndex *modelsindex.HandlersIndex, docker *command.DockerCli, options SystemInitOptions) error {
 	if err := options.Validate(); err != nil {
 		return err
 	}
@@ -111,7 +112,7 @@ func SystemInit(ctx context.Context, cfg config.Configuration, platform platform
 
 	if downloadDockerImages {
 		// TODO: use progressCB instead of stdout
-		if err := downloadSupportedImages(ctx, cfg, bricksindex, servicesindex, docker, stdout); err != nil {
+		if err := downloadSupportedImages(ctx, cfg, bricksindex, servicesindex, handlersIndex, docker, stdout); err != nil {
 			return fmt.Errorf("failed to download container images used in examples: %w", err)
 		}
 	}
@@ -119,7 +120,7 @@ func SystemInit(ctx context.Context, cfg config.Configuration, platform platform
 	return nil
 }
 
-func downloadSupportedImages(ctx context.Context, cfg config.Configuration, brickindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, docker *command.DockerCli, stdout io.Writer) error {
+func downloadSupportedImages(ctx context.Context, cfg config.Configuration, brickindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, handlers *modelsindex.HandlersIndex, docker *command.DockerCli, stdout io.Writer) error {
 	fmt.Fprintf(stdout, "Pulling the latest docker images ...\n")
 	imagesToPreinstall := []string{cfg.PythonImage}
 	brickImages, err := getAllSupportedBrickImages(brickindex, servicesindex)
@@ -127,6 +128,12 @@ func downloadSupportedImages(ctx context.Context, cfg config.Configuration, bric
 		return err
 	}
 	imagesToPreinstall = append(imagesToPreinstall, brickImages...)
+
+	modelHandlerImages, err := modelsindex.GetModelHandlerImages(handlers)
+	if err != nil {
+		slog.Warn("failed to get model handler images", "error", err)
+	}
+	imagesToPreinstall = append(imagesToPreinstall, modelHandlerImages...)
 
 	pulledImages, err := listImagesAlreadyPulled(ctx, docker.Client())
 	if err != nil {

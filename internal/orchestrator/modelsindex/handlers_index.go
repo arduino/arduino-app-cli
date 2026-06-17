@@ -96,6 +96,10 @@ func (h *HandlersIndex) AllHandlers() []ModelHandler {
 	return handlers
 }
 
+func (h *HandlersIndex) GetListingConfig() *ListingConfig {
+	return h.listing
+}
+
 type handlerModelListOutput struct {
 	Event  string              `json:"event"`
 	Models []handlerModelEntry `json:"models"`
@@ -344,4 +348,28 @@ type rawListingEntry struct {
 type rawHandlersList struct {
 	Listing  rawListingEntry              `yaml:"listing"`
 	Handlers []map[string]rawHandlerEntry `yaml:"handlers"`
+}
+
+func GetModelHandlerImages(h *HandlersIndex) ([]string, error) {
+	if h == nil {
+		return []string{}, fmt.Errorf("handlers index is nil")
+	}
+
+	var images []string
+
+	for _, handler := range h.handlers {
+		if handler.Image != "" {
+			images = append(images, handler.Image)
+		}
+	}
+
+	if h.listing != nil && h.listing.Image != "" {
+		images = append(images, h.listing.Image)
+	}
+
+	if len(images) == 0 {
+		return []string{}, fmt.Errorf("no download images found in models handlers or listing")
+	}
+
+	return f.Uniq(images), nil
 }
