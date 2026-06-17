@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -356,21 +358,14 @@ func (h *HandlersIndex) GetDockerImages() []string {
 		return []string{}
 	}
 
-	handlersWithImages := f.Filter(h.AllHandlers(), func(h ModelHandler) bool {
-		return h.Image != ""
-	})
-
-	images := f.Map(handlersWithImages, func(h ModelHandler) string {
-		return h.Image
-	})
+	images := make(map[string]struct{})
+	for _, h := range h.AllHandlers() {
+		images[h.Image] = struct{}{}
+	}
 
 	if h.listing != nil && h.listing.Image != "" {
-		images = append(images, h.listing.Image)
+		images[h.listing.Image] = struct{}{}
 	}
 
-	if len(images) == 0 {
-		return []string{}
-	}
-
-	return f.Uniq(images)
+	return slices.Collect(maps.Keys(images))
 }
