@@ -240,7 +240,7 @@ func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, mode
 			case modelsindex.ModelInstallEventError:
 				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: e.Description}})
 			default:
-				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: e.Description}})
+			     panic("unkown event")
 			}
 		}
 
