@@ -168,7 +168,7 @@ handlers:
 	err := tempDir.Join("models-handlers.yaml").WriteFile([]byte(yamlContent))
 	require.NoError(t, err)
 
-	index, err := loadHandlers(tempDir, "")
+	index, err := loadHandlers(tempDir, nil)
 	require.NoError(t, err)
 	require.NotNil(t, index)
 
