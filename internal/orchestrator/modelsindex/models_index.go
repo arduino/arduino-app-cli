@@ -424,9 +424,10 @@ func loadHandlers(dir *paths.Path, vars map[string]string) (*HandlersIndex, erro
 				return nil, fmt.Errorf("models-handlers.yaml: handler %q missing required field \"volumes\"", id)
 			}
 			handlers[id] = ModelHandler{
-				ID:      id,
-				Image:   ResolveVars(entry.Image, vars),
-				Volumes: ResolveVarsSlice(entry.Volumes, vars),
+				ID:    id,
+				Image: ResolveVars(entry.Image, vars),
+				// FIXME: currenlty only ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR volume is present and it is resolved at runtime beacsue the host volume requires the model repository name which is only known at runtime
+				Volumes: entry.Volumes,
 				Actions: actions,
 			}
 		}
