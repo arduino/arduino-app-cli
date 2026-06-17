@@ -128,10 +128,7 @@ func downloadSupportedImages(ctx context.Context, cfg config.Configuration, bric
 		return err
 	}
 
-	var handlerImages []string
-	if modelsIndex.Handlers != nil {
-		handlerImages = modelsIndex.Handlers.GetDockerImages()
-	}
+	handlerImages := modelsIndex.Handlers.GetDockerImages()
 
 	imagesToPreinstall = append(imagesToPreinstall, brickImages...)
 	imagesToPreinstall = append(imagesToPreinstall, handlerImages...)
@@ -423,10 +420,7 @@ func getRequiredImages(cfg config.Configuration, bricksindex *bricksindex.Bricks
 		return nil, fmt.Errorf("failed to parse bricks runner images: %w", err)
 	}
 
-	var handlerImages []string
-	if modelsIndex.Handlers != nil {
-		handlerImages = modelsIndex.Handlers.GetDockerImages()
-	}
+	handlerImages := modelsIndex.Handlers.GetDockerImages()
 
 	requiredImages := make([]string, 0, 1+len(bricksContainers)+len(handlerImages))
 	requiredImages = append(requiredImages, cfg.PythonImage)
