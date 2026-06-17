@@ -426,7 +426,7 @@ func loadHandlers(dir *paths.Path, vars map[string]string) (*HandlersIndex, erro
 			handlers[id] = ModelHandler{
 				ID:    id,
 				Image: ResolveVars(entry.Image, vars),
-				// FIXME: currenlty only ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR volume is present and it is resolved at runtime beacsue the host volume requires the model repository name which is only known at runtime
+				// FIXME: Only ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR is supported for now. We do not resolve this variable here because the host volume path (including the model repository segment) is only known at runtime and must be finalized before the container starts.
 				Volumes: entry.Volumes,
 				Actions: actions,
 			}
