@@ -36,7 +36,7 @@ func runHandlerAction(ctx context.Context, cli client.APIClient, model modelsind
 	if err := os.Chmod(bindPath.String(), 0777); err != nil { //nolint:gosec
 		slog.Warn("cannot set permissions on model directory", "path", bindPath, "err", err)
 	}
-	binds := modelsindex.ResolveVolumes(volumes, map[string]string{
+	binds := modelsindex.ResolveVarsSlice(volumes, map[string]string{
 		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": bindPath.String(),
 	})
 

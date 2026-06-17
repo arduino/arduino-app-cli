@@ -191,7 +191,9 @@ func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, cli cl
 			!slices.Contains(model.SupportedBoards, plat.BoardName)
 	})
 
-	handlers, err := loadHandlers(dir, dockerRegistryBase)
+	handlers, err := loadHandlers(dir, map[string]string{
+		"DOCKER_REGISTRY_BASE": dockerRegistryBase,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -244,7 +246,7 @@ func isModelDownloaded(ctx context.Context, cli client.APIClient, model AIModel,
 	if i := strings.Index(modelRepo, "/"); i >= 0 {
 		modelRepo = modelRepo[i+1:]
 	}
-	binds := ResolveVolumes(handler.Volumes, map[string]string{
+	binds := ResolveVarsSlice(handler.Volumes, map[string]string{
 		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": downloadPath.String() + "/" + modelRepo,
 	})
 	var env []string
@@ -361,7 +363,7 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 	return models, nil
 }
 
-func loadHandlers(dir *paths.Path, registryBase string) (*HandlersIndex, error) {
+func loadHandlers(dir *paths.Path, vars map[string]string) (*HandlersIndex, error) {
 	empty := &HandlersIndex{handlers: make(map[string]ModelHandler)}
 	if dir == nil {
 		return empty, nil
@@ -385,8 +387,8 @@ func loadHandlers(dir *paths.Path, registryBase string) (*HandlersIndex, error) 
 	var listing *ListingConfig
 	if raw.Listing.Image != "" {
 		listing = &ListingConfig{
-			Image:   resolveImage(raw.Listing.Image, registryBase),
-			Volumes: raw.Listing.Volumes,
+			Image:   ResolveVars(raw.Listing.Image, vars),
+			Volumes: ResolveVarsSlice(raw.Listing.Volumes, vars),
 			Command: raw.Listing.Command,
 		}
 	}
@@ -423,8 +425,8 @@ func loadHandlers(dir *paths.Path, registryBase string) (*HandlersIndex, error) 
 			}
 			handlers[id] = ModelHandler{
 				ID:      id,
-				Image:   resolveImage(entry.Image, registryBase),
-				Volumes: entry.Volumes,
+				Image:   ResolveVars(entry.Image, vars),
+				Volumes: ResolveVarsSlice(entry.Volumes, vars),
 				Actions: actions,
 			}
 		}
