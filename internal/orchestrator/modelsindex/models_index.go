@@ -192,7 +192,8 @@ func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, cli cl
 	})
 
 	handlers, err := loadHandlers(dir, map[string]string{
-		"DOCKER_REGISTRY_BASE": dockerRegistryBase,
+		"DOCKER_REGISTRY_BASE":                 dockerRegistryBase,
+		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": modelsDir.String(),
 	})
 	if err != nil {
 		return nil, err
@@ -249,7 +250,7 @@ func isModelDownloaded(ctx context.Context, cli client.APIClient, model AIModel,
 	binds := ResolveVarsSlice(handler.Volumes, map[string]string{
 		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": downloadPath.String() + "/" + modelRepo,
 	})
-	var env []string
+	env := make([]string, 0, len(envVars))
 	for k, v := range envVars {
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}
@@ -388,7 +389,7 @@ func loadHandlers(dir *paths.Path, vars map[string]string) (*HandlersIndex, erro
 	if raw.Listing.Image != "" {
 		listing = &ListingConfig{
 			Image:   ResolveVars(raw.Listing.Image, vars),
-			Volumes: ResolveVarsSlice(raw.Listing.Volumes, vars),
+			Volumes: raw.Listing.Volumes,
 			Command: raw.Listing.Command,
 		}
 	}
