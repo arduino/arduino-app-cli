@@ -192,8 +192,7 @@ func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, cli cl
 	})
 
 	handlers, err := loadHandlers(dir, map[string]string{
-		"DOCKER_REGISTRY_BASE":                 dockerRegistryBase,
-		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": modelsDir.String(),
+		"DOCKER_REGISTRY_BASE": dockerRegistryBase,
 	})
 	if err != nil {
 		return nil, err
