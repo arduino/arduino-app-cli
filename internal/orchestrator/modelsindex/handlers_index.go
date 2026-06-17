@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -94,6 +96,10 @@ func (h *HandlersIndex) AllHandlers() []ModelHandler {
 		handlers = append(handlers, handler)
 	}
 	return handlers
+}
+
+func (h *HandlersIndex) GetListingConfig() *ListingConfig {
+	return h.listing
 }
 
 type handlerModelListOutput struct {
@@ -344,4 +350,22 @@ type rawListingEntry struct {
 type rawHandlersList struct {
 	Listing  rawListingEntry              `yaml:"listing"`
 	Handlers []map[string]rawHandlerEntry `yaml:"handlers"`
+}
+
+func (h *HandlersIndex) GetDockerImages() []string {
+	if h == nil {
+		slog.Warn("handlers index is nil, cannot get model handler images")
+		return []string{}
+	}
+
+	images := make(map[string]struct{})
+	for _, h := range h.AllHandlers() {
+		images[h.Image] = struct{}{}
+	}
+
+	if h.listing != nil && h.listing.Image != "" {
+		images[h.listing.Image] = struct{}{}
+	}
+
+	return slices.Collect(maps.Keys(images))
 }

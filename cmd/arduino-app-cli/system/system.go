@@ -50,7 +50,7 @@ func newDownloadImageCmd(cfg config.Configuration) *cobra.Command {
 		Args:   cobra.ExactArgs(0),
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return orchestrator.SystemInit(cmd.Context(), cfg, servicelocator.GetPlatform(), servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), servicelocator.GetDockerClient(), orchestrator.SystemInitOptions{
+			return orchestrator.SystemInit(cmd.Context(), cfg, servicelocator.GetPlatform(), servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), servicelocator.GetModelsIndex(), servicelocator.GetDockerClient(), orchestrator.SystemInitOptions{
 				OnlyDockerImages:    onlyImages,
 				OnlyPlatformAndLibs: onlyPlatformAndLibraries,
 			})
@@ -151,7 +151,7 @@ func newCleanUpCmd(cfg config.Configuration, docker command.Cli) *cobra.Command 
 		Args:  cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			feedback.Printf("Running cleanup...")
-			result, err := orchestrator.SystemCleanup(cmd.Context(), cfg, servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), docker, servicelocator.GetPlatform())
+			result, err := orchestrator.SystemCleanup(cmd.Context(), cfg, servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), servicelocator.GetModelsIndex(), docker, servicelocator.GetPlatform())
 			if err != nil {
 				return err
 			}

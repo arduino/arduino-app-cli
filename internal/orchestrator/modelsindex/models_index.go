@@ -387,7 +387,8 @@ func loadHandlers(dir *paths.Path, vars map[string]string) (*HandlersIndex, erro
 	var listing *ListingConfig
 	if raw.Listing.Image != "" {
 		listing = &ListingConfig{
-			Image:   ResolveVars(raw.Listing.Image, vars),
+			Image: ResolveVars(raw.Listing.Image, vars),
+			// FIXME: See other FIXME about ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR.
 			Volumes: raw.Listing.Volumes,
 			Command: raw.Listing.Command,
 		}

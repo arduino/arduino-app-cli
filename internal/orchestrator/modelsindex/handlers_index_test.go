@@ -8,6 +8,7 @@ package modelsindex
 import (
 	"testing"
 
+	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -125,4 +126,52 @@ func TestResolveVars(t *testing.T) {
 		got := ResolveVars("${REG:-ghcr.io/arduino/}image:tag", map[string]string{"REG": "myregistry.io/"})
 		assert.Equal(t, "myregistry.io/image:tag", got)
 	})
+}
+
+func TestGetImagesHandlersFromInlineYAML(t *testing.T) {
+	tempDir := paths.New(t.TempDir())
+
+	yamlContent := `listing:
+  image: test-registry/models-downloader:listing
+  volumes:
+    - ${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}:/models
+  command: ["/app/list_models.sh"]
+handlers:
+  - ai-hub-handler:
+      image: test-registry/models-downloader:ai-hub
+      volumes:
+        - ${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}:/models
+      actions:
+        - download:
+            command: ["/app/ai_hub/ai_hub_model_downloader.sh"]
+        - delete:
+            command: ["/app/ai_hub/ai_hub_model_remover.sh"]
+        - check:
+            command: ["/app/ai_hub/ai_hub_model_checker.sh"]
+        - info:
+            command: ["/app/ai_hub/ai_hub_model_info.sh"]
+  - ei-handler:
+      image: test-registry/models-downloader:ei
+      volumes:
+        - ${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}:/models
+      actions:
+        - download:
+            command: ["/app/edge_impulse/ei_model_downloader.sh"]
+        - delete:
+            command: ["/app/edge_impulse/ei_model_remover.sh"]
+        - check:
+            command: ["/app/edge_impulse/ei_model_checker.sh"]
+        - info:
+            command: ["/app/edge_impulse/ei_model_info.sh"]
+`
+
+	err := tempDir.Join("models-handlers.yaml").WriteFile([]byte(yamlContent))
+	require.NoError(t, err)
+
+	handlersIndex, err := loadHandlers(tempDir, nil)
+	require.NoError(t, err)
+	require.NotNil(t, handlersIndex)
+
+	images := handlersIndex.GetDockerImages()
+	assert.Equal(t, []string{"test-registry/models-downloader:ai-hub", "test-registry/models-downloader:ei", "test-registry/models-downloader:listing"}, images)
 }
