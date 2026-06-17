@@ -123,6 +123,19 @@ func loadHandlersTestIndex(t *testing.T, dockerCli client.APIClient) *ModelsInde
 }
 
 func TestGetModelByID_WithDockerMock(t *testing.T) {
+	t.Run("the custom modeldir volume is not resolved at load time", func(t *testing.T) {
+		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
+			return "", 0
+		})
+		idx := loadHandlersTestIndex(t, cli)
+
+		h, ok := idx.Handlers.GetHandlerByID("ai-hub-handler")
+		require.True(t, ok)
+
+		require.Equal(t, []string{"${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}:/models"}, h.Volumes)
+
+	})
+
 	t.Run("piper-tts-en is pre-loaded: returns size from metadata, no Docker call", func(t *testing.T) {
 		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
 			t.Fatal("unexpected Docker call for pre-loaded model")
