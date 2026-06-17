@@ -12,7 +12,7 @@ def greet(name):
     return f"Hello {name}, I am the {{ .Name }} brick"
 ```
 
-Import it  into `python/main.py`:
+Import it into `python/main.py`:
 ```
 # python/main.py
 from {{ .ID }} import greet
