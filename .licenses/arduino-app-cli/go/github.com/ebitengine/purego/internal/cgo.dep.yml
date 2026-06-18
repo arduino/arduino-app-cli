@@ -1,14 +1,13 @@
 ---
-name: github.com/tklauser/numcpus
-version: v0.10.0
+name: github.com/ebitengine/purego/internal/cgo
+version: v0.8.4
 type: go
-summary: Package numcpus provides information about the number of CPUs in the system.
-homepage: https://pkg.go.dev/github.com/tklauser/numcpus
+summary:
+homepage: https://pkg.go.dev/github.com/ebitengine/purego/internal/cgo
 license: apache-2.0
 licenses:
-- sources: LICENSE
+- sources: purego@v0.8.4/LICENSE
   text: |2
-
                                      Apache License
                                Version 2.0, January 2004
                             http://www.apache.org/licenses/
@@ -189,7 +188,7 @@ licenses:
        APPENDIX: How to apply the Apache License to your work.
 
           To apply the Apache License to your work, attach the following
-          boilerplate notice, with the fields enclosed by brackets "[]"
+          boilerplate notice, with the fields enclosed by brackets "{}"
           replaced with your own identifying information. (Don't include
           the brackets!)  The text should be enclosed in the appropriate
           comment syntax for the file format. We also recommend that a
@@ -197,7 +196,7 @@ licenses:
           same "printed page" as the copyright notice for easier
           identification within third-party archives.
 
-       Copyright [yyyy] [name of copyright owner]
+       Copyright {yyyy} {name of copyright owner}
 
        Licensed under the Apache License, Version 2.0 (the "License");
        you may not use this file except in compliance with the License.
