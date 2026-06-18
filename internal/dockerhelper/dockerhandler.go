@@ -66,8 +66,8 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 			User:  getCurrentUser(),
 		},
 		&container.HostConfig{
-			Binds: opts.Binds,
-			LogConfig: container.LogConfig{Type: "none"},
+			Binds:      opts.Binds,
+			LogConfig:  container.LogConfig{Type: "none"},
 			AutoRemove: true,
 		},
 		nil, nil, "",
@@ -77,30 +77,36 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 	}
 	slog.Debug("creating container", "id", resp.ID, "image", opts.Image, "cmd", opts.Cmd, "env", opts.Env, "binds", opts.Binds)
 
+	statusCh, errCh := cli.ContainerWait(ctx, resp.ID, container.WaitConditionNotRunning)
+
+	attachResp, err := cli.ContainerAttach(ctx, resp.ID, container.AttachOptions{
+		Stream: true,
+		Stdout: true,
+		Stderr: true,
+	})
+	if err != nil {
+		return fmt.Errorf("container attach: %w", err)
+	}
+	defer attachResp.Close()
 	if err := cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
 		return fmt.Errorf("container start: %w", err)
 	}
-
-	out, err := cli.ContainerLogs(ctx, resp.ID, container.LogsOptions{
-		ShowStdout: true,
-		ShowStderr: true,
-		Follow:     true,
-	})
-	if err != nil {
-		return fmt.Errorf("container logs: %w", err)
-	}
-	defer out.Close()
-
-	if _, err := stdcopy.StdCopy(opts.Stdout, opts.Stderr, out); err != nil {
+	if _, err := stdcopy.StdCopy(opts.Stdout, opts.Stderr, attachResp.Reader); err != nil {
 		return fmt.Errorf("reading output: %w", err)
 	}
 
-	inspect, err := cli.ContainerInspect(context.Background(), resp.ID)
-	if err != nil {
-		return fmt.Errorf("container inspect: %w", err)
-	}
-	if inspect.State.ExitCode != 0 {
-		return fmt.Errorf("container exited with status %d", inspect.State.ExitCode)
+	select {
+	case err := <-errCh:
+		if err != nil {
+			return fmt.Errorf("container wait: %w", err)
+		}
+	case status := <-statusCh:
+		if status.Error != nil {
+			return fmt.Errorf("container exit error: %s", status.Error.Message)
+		}
+		if status.StatusCode != 0 {
+			return fmt.Errorf("container exited with status %d", status.StatusCode)
+		}
 	}
 
 	return nil

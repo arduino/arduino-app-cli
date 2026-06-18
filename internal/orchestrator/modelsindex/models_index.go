@@ -17,7 +17,7 @@ import (
 
 	"github.com/docker/docker/client"
 
-	"github.com/arduino/arduino-app-cli/internal/dockerhandler"
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 
@@ -253,30 +253,35 @@ func isModelDownloaded(ctx context.Context, cli client.APIClient, model AIModel,
 	for k, v := range envVars {
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}
-	var hasInfoEvent bool
-	err := dockerhandler.Run(ctx, cli, dockerhandler.RunOptions{
+	var isModelDownloaded bool
+	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
 		Image: handler.Image,
 		Cmd:   handler.Actions.Check,
 		Binds: binds,
 		Env:   env,
-		Stdout: dockerhandler.NewCallbackWriter(func(line string) {
+		Stdout: dockerhelper.NewCallbackWriter(func(line string) {
 			var out struct {
 				Event string `json:"event"`
 			}
 			if jsonErr := json.Unmarshal([]byte(line), &out); jsonErr == nil && out.Event == "error" {
-				hasInfoEvent = true
+				isModelDownloaded = false
+			}
+			if jsonErr := json.Unmarshal([]byte(line), &out); jsonErr == nil && out.Event == "info" {
+				isModelDownloaded = true
 			}
 		}),
 	})
 	if err != nil {
-		if hasInfoEvent {
-			slog.Debug("model not installed", "model", model.ID)
-			return false, nil
-		} else {
-			return false, fmt.Errorf("model check failed for %q: %w", model.ID, err)
-		}
+		return false, fmt.Errorf("model check failed for %q: %w", model.ID, err)
 	}
-	return true, nil
+
+	if isModelDownloaded {
+		slog.Debug("model installed", "model", model.ID)
+		return true, nil
+	} else {
+		slog.Debug("model not installed", "model", model.ID)
+		return false, nil
+	}
 }
 
 func loadInternalModels(dir *paths.Path) ([]AIModel, error) {

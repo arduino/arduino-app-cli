@@ -17,7 +17,7 @@ import (
 	paths "github.com/arduino/go-paths-helper"
 	"github.com/docker/docker/client"
 
-	"github.com/arduino/arduino-app-cli/internal/dockerhandler"
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
@@ -52,7 +52,7 @@ func runHandlerAction(ctx context.Context, cli client.APIClient, model modelsind
 	}
 
 	slog.Debug("running handler action", "model", model.ID, "action", action, "image", image)
-	return dockerhandler.Run(ctx, cli, dockerhandler.RunOptions{
+	return dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
 		Image: image,
 		Cmd:   action,
 		Binds: binds,

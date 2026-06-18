@@ -21,7 +21,7 @@ import (
 	"github.com/docker/docker/client"
 	"go.bug.st/f"
 
-	"github.com/arduino/arduino-app-cli/internal/dockerhandler"
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -164,12 +164,12 @@ func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandl
 	}
 
 	var size uint64
-	err := dockerhandler.Run(ctx, cli, dockerhandler.RunOptions{
+	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
 		Image: handler.Image,
 		Cmd:   handler.Actions.Info,
 		Binds: binds,
 		Env:   env,
-		Stdout: dockerhandler.NewCallbackWriter(func(line string) {
+		Stdout: dockerhelper.NewCallbackWriter(func(line string) {
 			var out struct {
 				Event  string  `json:"event"`
 				SizeMB float64 `json:"size_mb"`
@@ -198,7 +198,7 @@ func runListAction(ctx context.Context, cli client.APIClient, listing *ListingCo
 	})
 
 	var buf bytes.Buffer
-	err := dockerhandler.Run(ctx, cli, dockerhandler.RunOptions{
+	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
 		Image:  listing.Image,
 		Cmd:    listing.Command,
 		Binds:  binds,
@@ -251,12 +251,12 @@ func RunDownloadAction(ctx context.Context, cli client.APIClient, model AIModel,
 	}
 
 	slog.Debug("running download action", "model", model.ID)
-	return dockerhandler.Run(ctx, cli, dockerhandler.RunOptions{
+	return dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
 		Image: handler.Image,
 		Cmd:   handler.Actions.Download,
 		Binds: binds,
 		Env:   env,
-		Stdout: dockerhandler.NewCallbackWriter(func(line string) {
+		Stdout: dockerhelper.NewCallbackWriter(func(line string) {
 			slog.Debug("download line", "model", model.ID, "line", line)
 			parseDownloadHandlerLine(line, publish)
 		}),
