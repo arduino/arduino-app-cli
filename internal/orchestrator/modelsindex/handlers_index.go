@@ -169,7 +169,7 @@ func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandl
 		Cmd:   handler.Actions.Info,
 		Binds: binds,
 		Env:   env,
-		LineCallback: func(line string) {
+		Stdout: dockerhandler.NewCallbackWriter(func(line string) {
 			var out struct {
 				Event  string  `json:"event"`
 				SizeMB float64 `json:"size_mb"`
@@ -177,7 +177,7 @@ func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandl
 			if jsonErr := json.Unmarshal([]byte(line), &out); jsonErr == nil && out.Event == "stat" && out.SizeMB > 0 {
 				size = uint64(out.SizeMB * 1024 * 1024)
 			}
-		},
+		}),
 	})
 	if err != nil {
 		return 0, fmt.Errorf("info action: %w", err)
@@ -256,10 +256,10 @@ func RunDownloadAction(ctx context.Context, cli client.APIClient, model AIModel,
 		Cmd:   handler.Actions.Download,
 		Binds: binds,
 		Env:   env,
-		LineCallback: func(line string) {
+		Stdout: dockerhandler.NewCallbackWriter(func(line string) {
 			slog.Debug("download line", "model", model.ID, "line", line)
 			parseDownloadHandlerLine(line, publish)
-		},
+		}),
 		Stderr: io.Discard,
 	})
 }

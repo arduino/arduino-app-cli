@@ -259,14 +259,14 @@ func isModelDownloaded(ctx context.Context, cli client.APIClient, model AIModel,
 		Cmd:   handler.Actions.Check,
 		Binds: binds,
 		Env:   env,
-		LineCallback: func(line string) {
+		Stdout: dockerhandler.NewCallbackWriter(func(line string) {
 			var out struct {
 				Event string `json:"event"`
 			}
 			if jsonErr := json.Unmarshal([]byte(line), &out); jsonErr == nil && out.Event == "error" {
 				hasInfoEvent = true
 			}
-		},
+		}),
 	})
 	if err != nil {
 		if hasInfoEvent {

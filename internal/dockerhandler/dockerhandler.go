@@ -8,7 +8,6 @@
 package dockerhandler
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -26,43 +25,18 @@ import (
 )
 
 type RunOptions struct {
-	Image        string
-	Cmd          []string
-	Binds        []string
-	Env          []string
-	Stdout       io.Writer
-	Stderr       io.Writer
-	LineCallback func(string)
-}
-
-type lineWriter struct {
-	buf      []byte
-	callback func(string)
-}
-
-func (w *lineWriter) Write(b []byte) (int, error) {
-	w.buf = append(w.buf, b...)
-	for {
-		idx := bytes.IndexByte(w.buf, '\n')
-		if idx == -1 {
-			break
-		}
-		line := string(bytes.TrimSpace(w.buf[:idx]))
-		w.buf = w.buf[idx+1:]
-		if line != "" {
-			w.callback(line)
-		}
-	}
-	return len(b), nil
+	Image  string
+	Cmd    []string
+	Binds  []string
+	Env    []string
+	Stdout io.Writer
+	Stderr io.Writer
 }
 
 // Run creates, starts, and waits for a container to exit, streaming stdout and
 // stderr to the provided writers. The container is always removed on return.
 func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
-	switch {
-	case opts.LineCallback != nil:
-		opts.Stdout = &lineWriter{callback: opts.LineCallback}
-	case opts.Stdout == nil:
+	if opts.Stdout == nil {
 		opts.Stdout = io.Discard
 	}
 	if opts.Stderr == nil {

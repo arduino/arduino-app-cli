@@ -236,9 +236,9 @@ func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, mode
 					sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: m.ID, Progress: 0}})
 				}
 			case modelsindex.ModelInstallEventComplete:
-				sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: m.ID, Progress: 100}}) // used by the FE to understand that the installation is complete
+				sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: m.ID, Progress: 100}})
 			case modelsindex.ModelInstallEventDone:
-				sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: m.ID, Progress: 100}}) // used by the FE to understand that the installation is complete
+				sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: m.ID, Progress: 100}})
 			case modelsindex.ModelInstallEventError:
 				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: e.Description}})
 			case modelsindex.ModelInstallEventInfo:

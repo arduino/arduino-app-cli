@@ -57,10 +57,10 @@ func runHandlerAction(ctx context.Context, cli client.APIClient, model modelsind
 		Cmd:   action,
 		Binds: binds,
 		Env:   env,
-		LineCallback: func(line string) {
+		Stdout: NewCallbackWriter(func(line string) {
 			slog.Debug("handler output", "model", model.ID, "line", line)
 			parseHandlerLine([]byte(line), publish)
-		},
+		}),
 		Stderr: io.Discard,
 	})
 }
