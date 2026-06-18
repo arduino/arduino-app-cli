@@ -1,0 +1,33 @@
+services:
+  llamacpp-models-runner:
+    image: ${DOCKER_REGISTRY_BASE:-ghcr.io/arduino/}app-bricks/llamacpp-runner:0.11.0
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+    environment:
+      - LLAMA_LOG_LEVEL=error
+      - LLAMA_ARG_HOST=0.0.0.0
+      - LLAMA_ARG_PORT=9999
+      - LLAMA_ARG_POLL=0
+      - LLAMA_ARG_BATCH=512
+      - LLAMA_ARG_UBATCH=128
+      - LLAMA_ARG_MODELS_DIR=/models
+      - LLAMA_ARG_FLASH_ATTN=off
+      - LLAMA_ARG_MODELS_MAX=${X_LLAMA_ARG_MODELS_MAX:-1}
+      - LLAMA_ARG_CTX_SIZE=${X_LLAMA_ARG_CTX_SIZE:-16384}
+      - LLAMA_ARG_REASONING=${X_LLAMA_ARG_REASONING:-off}
+      - LLAMA_ARG_THREADS=${X_LLAMA_ARG_THREADS:-4}
+      - OMP_NUM_THREADS=${X_LLAMA_ARG_THREADS:-4}
+      - OMP_WAIT_POLICY=passive
+      - GOMP_SPINCOUNT=0
+      - XDG_CACHE_HOME=/models
+    working_dir: /models
+    ports:
+      - ${BIND_ADDRESS:-127.0.0.1}:9999:9999
+      - ${BIND_ADDRESS_IPV6:-[::1]}:9999:9999
+    mem_limit: 2500m
+    memswap_limit: 2500m
+    volumes:
+      - /var/lib/arduino-app-cli/models/llamacpp/:/models/

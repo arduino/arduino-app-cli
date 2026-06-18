@@ -1,0 +1,62 @@
+services:
+  audio-analytics-runner:
+    image: artifacts.codelinaro.org/iot-solutions-microservices/audio-analytics:1.0.1
+    user: 0:0
+    devices:
+      - /dev/dma_heap/system
+      - /dev/dma_heap/qcom,system
+      - /dev/fastrpc-cdsp
+      - /dev/fastrpc-adsp-secure
+      - /dev/fastrpc-cdsp-secure
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-20}
+      - NODE_ENV=production
+      - BLACKBOX_CONTAINER=true
+      - DEV_MODE=false
+      - MODELS_DIR=${MODELS_DIR:-/mnt/work/models}
+      - ASR_MODELS_DIR=${ASR_MODELS_DIR:-/mnt/work/models/asr}
+      - TRANSLATION_MODELS_DIR=${TRANSLATION_MODELS_DIR:-/mnt/work/models/translation}
+      - TTS_MODELS_DIR=${TTS_MODELS_DIR:-/mnt/work/models/tts}
+      - SOCKET_PATH=/tmp/audio-sockets/audio-analytics.sock
+      # VAD_LEN_HANGOVER: Voice Activity Detection length hangover (in units of 10ms)      
+      # Example: 120 = 1.2s, 200 = 2.0s, 50 = 0.5s
+      - VAD_LEN_HANGOVER=${VAD_LEN_HANGOVER:-70}
+      - ASR_TRANSCRIPTION_IN=asr.transcription.in
+      - ASR_TRANSCRIPTION_OUT=asr.transcription.out
+      - ASR_MODELS=asr.models
+      - T2T_TRANSLATION_IN=t2t.translation.in
+      - T2T_TRANSLATION_OUT=t2t.translation.out
+      - T2T_MODELS=t2t.models
+      - TTS_TEXT_IN=tts.text.in
+      - TTS_AUDIO_OUT=tts.audio.out
+      - TTS_MODELS=tts.models
+      - SD_ENABLE_PULSE=1
+    ports:
+      - ${BIND_ADDRESS:-127.0.0.1}:8085:8085
+      - ${BIND_ADDRESS_IPV6:-[::1]}:8085:8085
+    volumes:
+      - /var/lib/arduino-app-cli/models/audio-analytics:/mnt/work/models:ro
+      # Mount hexagon firmware
+      - /sys/firmware/devicetree/base/model:/run/device-model
+      - /usr/share/qcom:/usr/share/qcom
+    # Use tmpfs for uploads to ensure proper permissions
+    tmpfs:
+      - /app/uploads:rw,size=500m,mode=777
+      - /usr/share/qcom/conf.d
+    command: >
+      bash -c "chmod 666 /dev/fastrpc* 2>/dev/null || true;
+               chmod 666 /dev/dma_heap/* 2>/dev/null || true;               
+               chmod -R 777 /var/log/supervisor;
+               chmod 666 /proc/1/fd/1 /proc/1/fd/2 2>/dev/null || true;
+               cp /etc/fastrpc/hexagon-dsp-binaries.yaml /usr/share/qcom/conf.d/;
+               exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/audio-analytics/v1/api/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5

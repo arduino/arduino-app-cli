@@ -1,0 +1,24 @@
+services:
+  gesture_recognition:
+    image: ${DOCKER_REGISTRY_BASE:-ghcr.io/arduino/}app-bricks/gesture-recognition-runner:0.11.0
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+    ports:
+      - ${BIND_ADDRESS:-0.0.0.0}:5002:5002
+      - ${BIND_ADDRESS_IPV6:-[::]}:5002:5002
+    devices:
+      - /dev/dma_heap/system
+      - /dev/dma_heap/qcom,system
+      - /dev/fastrpc-cdsp
+      - /dev/fastrpc-cdsp-secure
+    volumes:
+      # Mount hexagon firmware
+      - /usr/share/qcom/qcs8300/Qualcomm/QCS8300-RIDE/dsp/cdsp:/lib/dsp/cdsp      
+    healthcheck:
+      test: [ "CMD-SHELL", "nc -zv gesture_recognition 5002 || exit 1" ]
+      interval: 1s
+      timeout: 2s
+      retries: 30
