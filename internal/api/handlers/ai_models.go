@@ -227,8 +227,6 @@ func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, mode
 
 		installResponse := func(e modelsindex.ModelDownloadEvent) {
 			switch e.Type {
-			case modelsindex.ModelInstallEventInfo:
-				sseStream.Send(render.SSEEvent{Type: "info", Data: log{Message: e.Description}})
 			case modelsindex.ModelInstallEventStart:
 				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: e.Description}})
 			case modelsindex.ModelInstallEventUpdate:
