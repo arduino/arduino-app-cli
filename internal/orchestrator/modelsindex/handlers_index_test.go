@@ -6,6 +6,7 @@
 package modelsindex
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
@@ -173,5 +174,6 @@ handlers:
 	require.NotNil(t, handlersIndex)
 
 	images := handlersIndex.GetDockerImages()
+	slices.Sort(images)
 	assert.Equal(t, []string{"test-registry/models-downloader:ai-hub", "test-registry/models-downloader:ei", "test-registry/models-downloader:listing"}, images)
 }
