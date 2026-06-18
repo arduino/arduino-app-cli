@@ -219,7 +219,7 @@ func (m *ModelsIndex) modelSize(ctx context.Context, model AIModel) uint64 {
 	if !ok || len(handler.Actions.Info) == 0 {
 		return 0
 	}
-	size, err := runInfoAction(ctx, m.cli, handler, model, m.modelsDir, m.plat, m.Handlers.configEnv)
+	size, err := runInfoAction(ctx, m.cli, handler, model, m.plat, m.Handlers.configEnv)
 	if err != nil {
 		slog.Warn("cannot get model size", "model", model.ID, "err", err)
 		return 0

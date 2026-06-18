@@ -132,7 +132,7 @@ func (h *HandlersIndex) getModelInfo(ctx context.Context, cli client.APIClient, 
 	if h == nil || h.listing == nil {
 		return
 	}
-	entries, err := runListAction(ctx, cli, h.listing, modelsDir, plat, h.configEnv)
+	entries, err := runListAction(ctx, cli, h.listing, plat, h.configEnv)
 	if err != nil {
 		slog.Warn("cannot list models", "err", err)
 		return
@@ -156,7 +156,7 @@ func (h *HandlersIndex) getModelInfo(ctx context.Context, cli client.APIClient, 
 	}
 }
 
-func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandler, model AIModel, modelsDir *paths.Path, plat platform.Platform, configEnv map[string]string) (uint64, error) {
+func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandler, model AIModel, plat platform.Platform, configEnv map[string]string) (uint64, error) {
 	var env []string
 	if plat.BoardName != "" {
 		env = append(env, fmt.Sprintf("board=%s", plat.BoardName))
@@ -192,7 +192,7 @@ func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandl
 	return size, nil
 }
 
-func runListAction(ctx context.Context, cli client.APIClient, listing *ListingConfig, modelsDir *paths.Path, plat platform.Platform, configEnv map[string]string) ([]handlerModelEntry, error) {
+func runListAction(ctx context.Context, cli client.APIClient, listing *ListingConfig, plat platform.Platform, configEnv map[string]string) ([]handlerModelEntry, error) {
 	var env []string
 	if plat.BoardName != "" {
 		env = append(env, fmt.Sprintf("BOARD_NAME=%s", plat.BoardName))

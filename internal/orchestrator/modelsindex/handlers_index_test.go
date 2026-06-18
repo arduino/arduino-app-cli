@@ -9,10 +9,11 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
 func TestParseDownloadHandlerLine(t *testing.T) {
