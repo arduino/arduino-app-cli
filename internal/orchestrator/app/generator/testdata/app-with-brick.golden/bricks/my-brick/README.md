@@ -29,6 +29,7 @@ class Greeter:
     def loop(self):
         logger.info(f"Hello, {self.name}!")
         time.sleep(1)
+
 ```
 
 You can then import and use your Brick in your main application code:
