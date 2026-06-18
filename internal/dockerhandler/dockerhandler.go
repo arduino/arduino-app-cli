@@ -14,6 +14,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -21,6 +22,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
+	"go.bug.st/f"
 )
 
 type RunOptions struct {
@@ -87,6 +89,7 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 			Image: opts.Image,
 			Cmd:   opts.Cmd,
 			Env:   opts.Env,
+			User:  getCurrentUser(),
 		},
 		&container.HostConfig{
 			Binds: opts.Binds,
@@ -128,4 +131,17 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 	}
 
 	return nil
+}
+
+func getCurrentUser() string {
+	userInfo := f.Must(user.Current())
+	uid := userInfo.Uid
+	gid := userInfo.Gid
+
+	// If exist use arduino group to avoid permission issue on files /var/lib/arduino-app-cli in.
+	if gInfo, err := user.LookupGroup("arduino"); err == nil {
+		gid = gInfo.Gid
+	}
+
+	return uid + ":" + gid
 }
