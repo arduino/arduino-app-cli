@@ -147,14 +147,14 @@ func HandleBrickCreate(
 }
 
 func HandleBrickDetails(brickService *bricks.Service, idProvider *app.IDProvider,
-	cfg config.Configuration) http.HandlerFunc {
+	cfg config.Configuration, platform platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("brickID")
 		if id == "" {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "id must be set"})
 			return
 		}
-		res, err := brickService.BricksDetails(id, idProvider, cfg)
+		res, err := brickService.BricksDetails(id, idProvider, cfg, platform)
 		if err != nil {
 			if errors.Is(err, bricks.ErrBrickNotFound) {
 				details := fmt.Sprintf("brick with id %q not found", id)

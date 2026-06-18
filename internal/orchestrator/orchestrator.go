@@ -495,14 +495,7 @@ func ListApps(
 	var pathsToExplore paths.PathList
 	var appPaths paths.PathList
 	if req.ShowExamples || req.ShowOnlyDefault {
-		// include all boards path
-		pathsToExplore.Add(cfg.ExamplesDir().Join("common"))
-		if platform.IsBoardVentunoQ() {
-			pathsToExplore.Add(cfg.ExamplesDir().Join("platform_ventunoq"))
-		}
-		if platform.IsBoardUnoQ() {
-			pathsToExplore.Add(cfg.ExamplesDir().Join("platform_unoq"))
-		}
+		pathsToExplore.AddAll(app.GetExamplesByBoard(platform, cfg))
 	}
 	if req.ShowApps || req.ShowOnlyDefault {
 		pathsToExplore.Add(cfg.AppsDir())

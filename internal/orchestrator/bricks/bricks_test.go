@@ -435,7 +435,7 @@ bricks:
 	idProvider := app.NewAppIDProvider(cfg)
 
 	t.Run("Brick Not Found", func(t *testing.T) {
-		res, err := svc.BricksDetails("arduino:non_existing", idProvider, cfg)
+		res, err := svc.BricksDetails("arduino:non_existing", idProvider, cfg, platform.GetPlatform(nil))
 		require.Error(t, err)
 		require.Equal(t, ErrBrickNotFound, err)
 		require.Empty(t, res.ID)
@@ -457,7 +457,7 @@ bricks:
 			},
 		}
 
-		res, err := svc.BricksDetails("arduino:object_detection", idProvider, cfg)
+		res, err := svc.BricksDetails("arduino:object_detection", idProvider, cfg, platform.GetPlatform(nil))
 		require.NoError(t, err)
 
 		require.Equal(t, "arduino:object_detection", res.ID)
@@ -485,7 +485,7 @@ bricks:
 	})
 
 	t.Run("Success - Full Details - no models", func(t *testing.T) {
-		res, err := svc.BricksDetails("arduino:weather_forecast", idProvider, cfg)
+		res, err := svc.BricksDetails("arduino:weather_forecast", idProvider, cfg, platform.GetPlatform(nil))
 		require.NoError(t, err)
 
 		require.Equal(t, "arduino:weather_forecast", res.ID)
@@ -505,7 +505,7 @@ bricks:
 	})
 
 	t.Run("Success - Full Details - one model", func(t *testing.T) {
-		res, err := svc.BricksDetails("arduino:one_model_brick", idProvider, cfg)
+		res, err := svc.BricksDetails("arduino:one_model_brick", idProvider, cfg, platform.GetPlatform(nil))
 		require.NoError(t, err)
 
 		require.Equal(t, "arduino:one_model_brick", res.ID)

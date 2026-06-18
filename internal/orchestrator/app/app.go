@@ -20,6 +20,8 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 const maxDescriptionLength = 150
@@ -331,4 +333,16 @@ func load(brickPath *paths.Path) (b bricksindex.Brick, err error) {
 	brick.ExamplesPath = brickPath.Join("examples")
 	brick.DocsAPIPath = brickPath.Join("docs/API.md")
 	return brick, nil
+}
+
+func GetExamplesByBoard(platform platform.Platform, cfg config.Configuration) paths.PathList {
+	var pathsToExplore paths.PathList
+	pathsToExplore.Add(cfg.ExamplesDir().Join("common"))
+	if platform.IsBoardVentunoQ() {
+		pathsToExplore.Add(cfg.ExamplesDir().Join("platform_ventunoq"))
+	}
+	if platform.IsBoardUnoQ() {
+		pathsToExplore.Add(cfg.ExamplesDir().Join("platform_unoq"))
+	}
+	return pathsToExplore
 }

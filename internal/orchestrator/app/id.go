@@ -8,6 +8,7 @@ package app
 import (
 	"encoding/base64"
 	"errors"
+	"log/slog"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -70,6 +71,7 @@ func (p *IDProvider) IDFromBase64(id string) (ID, error) {
 }
 
 func (p *IDProvider) IDFromPath(path *paths.Path) (ID, error) {
+	slog.Error("IDFromPath:74", slog.String("path", path.String()))
 	if path == nil || !path.Exist() {
 		return ID{}, ErrInvalidID
 	}
