@@ -120,7 +120,6 @@ func TestGenerateAppBrick(t *testing.T) {
 
 		err = GenerateLocalBrick(a.GetBricksPath(), "my-brick", "a-brick-name")
 		require.NoError(t, err)
-
 		if os.Getenv("UPDATE_GOLDEN") == "true" {
 			t.Logf("UPDATE_GOLDEN=true: updating  golden files in %s", "testdata/app-with-brick.golden")
 			require.NoError(t, os.RemoveAll("testdata/app-with-brick.golden"))
