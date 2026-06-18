@@ -5,7 +5,7 @@
 
 // Package dockerhandler provides a thin Docker API wrapper for running a container
 // to completion and streaming its output.
-package dockerhandler
+package dockerhelper
 
 import (
 	"context"
