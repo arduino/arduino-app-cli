@@ -9,40 +9,26 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
-	"strings"
 
 	paths "github.com/arduino/go-paths-helper"
 	"github.com/docker/docker/client"
 
-	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
 func runHandlerAction(ctx context.Context, cli client.APIClient, model modelsindex.AIModel, image string, action []string, volumes []string, downloadPath *paths.Path, envVars map[string]string, publish func(ModelInstallEvent)) error {
-	modelRepo := envVars["models_repository"]
-	if i := strings.Index(modelRepo, "/"); i >= 0 {
-		modelRepo = modelRepo[i+1:]
-	}
+
 	bindPath := downloadPath
-	if modelRepo != "" {
-		bindPath = downloadPath.Join(modelRepo)
+	if envVars["models_repository"] != "" {
+		bindPath = downloadPath.Join(envVars["models_repository"])
 	}
 	if err := bindPath.MkdirAll(); err != nil {
 		return fmt.Errorf("cannot create model directory %q: %w", bindPath, err)
 	}
 	if err := os.Chmod(bindPath.String(), 0777); err != nil { //nolint:gosec
 		slog.Warn("cannot set permissions on model directory", "path", bindPath, "err", err)
-	}
-	binds := modelsindex.ResolveVarsSlice(volumes, map[string]string{
-		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": bindPath.String(),
-	})
-
-	env := make([]string, 0, len(envVars))
-	for k, v := range envVars {
-		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}
 
 	if publish == nil {
@@ -52,17 +38,7 @@ func runHandlerAction(ctx context.Context, cli client.APIClient, model modelsind
 	}
 
 	slog.Debug("running handler action", "model", model.ID, "action", action, "image", image)
-	return dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
-		Image: image,
-		Cmd:   action,
-		Binds: binds,
-		Env:   env,
-		Stdout: NewCallbackWriter(func(line string) {
-			slog.Debug("handler output", "model", model.ID, "line", line)
-			parseHandlerLine([]byte(line), publish)
-		}),
-		Stderr: io.Discard,
-	})
+	return nil
 }
 
 func parseHandlerLine(line []byte, publish func(ModelInstallEvent)) {

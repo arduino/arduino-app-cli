@@ -11,13 +11,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/docker/docker/client"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 
@@ -125,7 +126,7 @@ func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, bo
 			}
 		}
 	} else if model.IsInternal {
-		installed, err := m.modelInstalled(ctx, *model)
+		installed, err := m.modelInstalled(ctx, *model, m.cli)
 		if err != nil {
 			return nil, false, fmt.Errorf("cannot determine install status for model %q: %w", id, err)
 		}
@@ -176,7 +177,7 @@ func (m *ModelsIndex) getModels() []AIModel {
 
 // Load constructs a ModelsIndex. Pass the result of LoadHandlers as handlers;
 // nil is accepted and disables handler-backed status checks.
-func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, cli client.APIClient, dockerRegistryBase string) (*ModelsIndex, error) {
+func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, cli client.APIClient, dockerRegistryBase string, cfg config.Configuration) (*ModelsIndex, error) {
 	if dir == nil && modelsDir == nil {
 		return &ModelsIndex{}, errors.New("either dir or modelsDir must be provided")
 	}
@@ -191,9 +192,7 @@ func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, cli cl
 			!slices.Contains(model.SupportedBoards, plat.BoardName)
 	})
 
-	handlers, err := loadHandlers(dir, map[string]string{
-		"DOCKER_REGISTRY_BASE": dockerRegistryBase,
-	})
+	handlers, err := loadHandlers(dir, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +219,7 @@ func (m *ModelsIndex) modelSize(ctx context.Context, model AIModel) uint64 {
 	if !ok || len(handler.Actions.Info) == 0 {
 		return 0
 	}
-	size, err := runInfoAction(ctx, m.cli, handler, model, m.modelsDir, m.plat)
+	size, err := runInfoAction(ctx, m.cli, handler, model, m.modelsDir, m.plat, m.Handlers.configEnv)
 	if err != nil {
 		slog.Warn("cannot get model size", "model", model.ID, "err", err)
 		return 0
@@ -228,7 +227,11 @@ func (m *ModelsIndex) modelSize(ctx context.Context, model AIModel) uint64 {
 	return size
 }
 
-func (m *ModelsIndex) modelInstalled(ctx context.Context, model AIModel) (bool, error) {
+func (m *ModelsIndex) GetHandlerConfigEnv() map[string]string {
+	return m.Handlers.configEnv
+}
+
+func (m *ModelsIndex) modelInstalled(ctx context.Context, model AIModel, cli client.APIClient) (bool, error) {
 	if model.Deployment == nil || model.Deployment.Handler == "" {
 		return false, fmt.Errorf("model %q has no deployment handler", model.ID)
 	}
@@ -237,29 +240,20 @@ func (m *ModelsIndex) modelInstalled(ctx context.Context, model AIModel) (bool, 
 		return false, fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
 	}
 	envVars := model.Deployment.VariablesForPlatform(m.plat.BoardName)
-	return isModelDownloaded(ctx, m.cli, model, handler, m.modelsDir, envVars)
-}
+	maps.Insert(envVars, maps.All(m.Handlers.configEnv))
 
-func isModelDownloaded(ctx context.Context, cli client.APIClient, model AIModel, handler ModelHandler, downloadPath *paths.Path, envVars map[string]string) (bool, error) {
-	// model_repository in YAML is "models/llamacpp"; drop the leading "models/" prefix.
-	modelRepo := envVars["models_repository"]
-	if i := strings.Index(modelRepo, "/"); i >= 0 {
-		modelRepo = modelRepo[i+1:]
-	}
-	binds := ResolveVarsSlice(handler.Volumes, map[string]string{
-		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": downloadPath.String() + "/" + modelRepo,
-	})
+	binds := ResolveVarsSlice(handler.Volumes, envVars)
 	env := make([]string, 0, len(envVars))
 	for k, v := range envVars {
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}
 	var isModelDownloaded bool
 	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
-		Image: handler.Image,
+		Image: ResolveVars(handler.Image, envVars),
 		Cmd:   handler.Actions.Check,
 		Binds: binds,
 		Env:   env,
-		Stdout: dockerhelper.NewCallbackWriter(func(line string) {
+		Stdout: f.NewCallbackWriter(func(line string) {
 			var out struct {
 				Event string `json:"event"`
 			}
@@ -368,8 +362,10 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 	return models, nil
 }
 
-func loadHandlers(dir *paths.Path, vars map[string]string) (*HandlersIndex, error) {
-	empty := &HandlersIndex{handlers: make(map[string]ModelHandler)}
+func loadHandlers(dir *paths.Path, cfg config.Configuration) (*HandlersIndex, error) {
+	// TODO : we should add a method on config to return env variables
+	empty := &HandlersIndex{handlers: make(map[string]ModelHandler), configEnv: map[string]string{}}
+
 	if dir == nil {
 		return empty, nil
 	}
@@ -392,7 +388,7 @@ func loadHandlers(dir *paths.Path, vars map[string]string) (*HandlersIndex, erro
 	var listing *ListingConfig
 	if raw.Listing.Image != "" {
 		listing = &ListingConfig{
-			Image: ResolveVars(raw.Listing.Image, vars),
+			Image: raw.Listing.Image,
 			// FIXME: See other FIXME about ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR.
 			Volumes: raw.Listing.Volumes,
 			Command: raw.Listing.Command,
@@ -431,7 +427,7 @@ func loadHandlers(dir *paths.Path, vars map[string]string) (*HandlersIndex, erro
 			}
 			handlers[id] = ModelHandler{
 				ID:    id,
-				Image: ResolveVars(entry.Image, vars),
+				Image: entry.Image,
 				// FIXME: Only ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR is supported for now. We do not resolve this variable here because the host volume path (including the model repository segment) is only known at runtime and must be finalized before the container starts.
 				Volumes: entry.Volumes,
 				Actions: actions,
@@ -439,5 +435,6 @@ func loadHandlers(dir *paths.Path, vars map[string]string) (*HandlersIndex, erro
 		}
 	}
 
-	return &HandlersIndex{handlers: handlers, listing: listing}, nil
+	return &HandlersIndex{handlers: handlers, listing: listing, configEnv: map[string]string{"DOCKER_REGISTRY_BASE": cfg.DockerRegistryBase(),
+		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": cfg.CustomModelsDir().String()}}, nil
 }

@@ -9,12 +9,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"maps"
 	"slices"
-	"strings"
 
 	"github.com/arduino/go-paths-helper"
 	composetmpl "github.com/compose-spec/compose-go/v2/template"
@@ -81,8 +81,9 @@ type ListingConfig struct {
 }
 
 type HandlersIndex struct {
-	handlers map[string]ModelHandler
-	listing  *ListingConfig
+	handlers  map[string]ModelHandler
+	listing   *ListingConfig
+	configEnv map[string]string
 }
 
 func (h *HandlersIndex) GetHandlerByID(id string) (ModelHandler, bool) {
@@ -119,11 +120,19 @@ type handlerModelEntry struct {
 	DiskSizeMB  *float64 `json:"disk_size_mb"`  // actual on-disk size, only when installed
 }
 
+var (
+	ErrNotFound            = errors.New("model not found")
+	ErrConflict            = errors.New("can't delete the model")
+	ErrCannotRemoveModel   = errors.New("cannot remove an internal model")
+	ErrInsufficientStorage = errors.New("insufficient storage to install the model")
+	ErrIncompleteImpulse   = errors.New("impulse not ready for deployment")
+)
+
 func (h *HandlersIndex) getModelInfo(ctx context.Context, cli client.APIClient, models []AIModel, modelsDir *paths.Path, plat platform.Platform) {
 	if h == nil || h.listing == nil {
 		return
 	}
-	entries, err := runListAction(ctx, cli, h.listing, modelsDir, plat)
+	entries, err := runListAction(ctx, cli, h.listing, modelsDir, plat, h.configEnv)
 	if err != nil {
 		slog.Warn("cannot list models", "err", err)
 		return
@@ -147,7 +156,7 @@ func (h *HandlersIndex) getModelInfo(ctx context.Context, cli client.APIClient, 
 	}
 }
 
-func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandler, model AIModel, modelsDir *paths.Path, plat platform.Platform) (uint64, error) {
+func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandler, model AIModel, modelsDir *paths.Path, plat platform.Platform, configEnv map[string]string) (uint64, error) {
 	var env []string
 	if plat.BoardName != "" {
 		env = append(env, fmt.Sprintf("board=%s", plat.BoardName))
@@ -156,20 +165,18 @@ func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandl
 	if model.Deployment != nil {
 		envVars = model.Deployment.VariablesForPlatform(plat.BoardName)
 	}
-	binds := ResolveVarsSlice(handler.Volumes, map[string]string{
-		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": modelsDir.String(),
-	})
+	binds := ResolveVarsSlice(handler.Volumes, configEnv)
 	for k, v := range envVars {
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}
 
 	var size uint64
 	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
-		Image: handler.Image,
+		Image: ResolveVars(handler.Image, configEnv),
 		Cmd:   handler.Actions.Info,
-		Binds: binds,
+		Binds: ResolveVarsSlice(binds, configEnv),
 		Env:   env,
-		Stdout: dockerhelper.NewCallbackWriter(func(line string) {
+		Stdout: f.NewCallbackWriter(func(line string) {
 			var out struct {
 				Event  string  `json:"event"`
 				SizeMB float64 `json:"size_mb"`
@@ -185,7 +192,7 @@ func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandl
 	return size, nil
 }
 
-func runListAction(ctx context.Context, cli client.APIClient, listing *ListingConfig, modelsDir *paths.Path, plat platform.Platform) ([]handlerModelEntry, error) {
+func runListAction(ctx context.Context, cli client.APIClient, listing *ListingConfig, modelsDir *paths.Path, plat platform.Platform, configEnv map[string]string) ([]handlerModelEntry, error) {
 	var env []string
 	if plat.BoardName != "" {
 		env = append(env, fmt.Sprintf("BOARD_NAME=%s", plat.BoardName))
@@ -193,15 +200,11 @@ func runListAction(ctx context.Context, cli client.APIClient, listing *ListingCo
 
 	slog.Debug("running list action", "image", listing.Image)
 
-	binds := ResolveVarsSlice(listing.Volumes, map[string]string{
-		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": modelsDir.String(),
-	})
-
 	var buf bytes.Buffer
 	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
-		Image:  listing.Image,
+		Image:  ResolveVars(listing.Image, configEnv),
 		Cmd:    listing.Command,
-		Binds:  binds,
+		Binds:  ResolveVarsSlice(listing.Volumes, configEnv),
 		Env:    env,
 		Stdout: &buf,
 	})
@@ -217,33 +220,27 @@ func runListAction(ctx context.Context, cli client.APIClient, listing *ListingCo
 	return output.Models, nil
 }
 
-func RunDownloadAction(ctx context.Context, cli client.APIClient, model AIModel, handler ModelHandler, config config.Configuration, plat platform.Platform, publish func(e ModelDownloadEvent)) error {
+func RunDownloadAction(ctx context.Context, cli client.APIClient, model AIModel, handler ModelHandler, config config.Configuration, plat platform.Platform, configEnv map[string]string, publish func(e ModelDownloadEvent)) error {
+
+	var envVars map[string]string
+	if model.Deployment != nil {
+		envVars = model.Deployment.VariablesForPlatform(plat.BoardName)
+
+	}
+	maps.Insert(envVars, maps.All(configEnv))
+
 	downloadPath := config.CustomModelsDir()
 	if err := downloadPath.MkdirAll(); err != nil {
 		return fmt.Errorf("cannot create download location %q: %w", downloadPath, err)
 	}
 
-	var envVars map[string]string
-	if model.Deployment != nil {
-		envVars = model.Deployment.VariablesForPlatform(plat.BoardName)
-	}
-
-	// model_repository in YAML is "models/<model_structure>"; drop the leading "models/" prefix.
-	modelRepo := envVars["models_repository"]
-	if i := strings.Index(modelRepo, "/"); i >= 0 {
-		modelRepo = modelRepo[i+1:]
-	}
 	bindPath := downloadPath
-	if modelRepo != "" {
-		bindPath = downloadPath.Join(modelRepo)
+	if envVars["models_repository"] != "" {
+		bindPath = downloadPath.Join(envVars["models_repository"])
 	}
 	if err := bindPath.MkdirAll(); err != nil {
 		return fmt.Errorf("cannot create model directory %q: %w", bindPath, err)
 	}
-
-	binds := ResolveVarsSlice(handler.Volumes, map[string]string{
-		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": bindPath.String(),
-	})
 
 	env := make([]string, 0, len(envVars))
 	for k, v := range envVars {
@@ -252,14 +249,39 @@ func RunDownloadAction(ctx context.Context, cli client.APIClient, model AIModel,
 
 	slog.Debug("running download action", "model", model.ID)
 	return dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
-		Image: handler.Image,
+		Image: ResolveVars(handler.Image, envVars),
 		Cmd:   handler.Actions.Download,
-		Binds: binds,
+		Binds: ResolveVarsSlice(handler.Volumes, envVars),
 		Env:   env,
-		Stdout: dockerhelper.NewCallbackWriter(func(line string) {
+		Stdout: f.NewCallbackWriter(func(line string) {
 			slog.Debug("download line", "model", model.ID, "line", line)
 			parseDownloadHandlerLine(line, publish)
 		}),
+		Stderr: io.Discard,
+	})
+}
+
+func RunDeleteAction(ctx context.Context, cli client.APIClient, model AIModel, handler ModelHandler, plat platform.Platform, configEnv map[string]string) error {
+
+	if model.Deployment == nil || model.Deployment.Handler == "" {
+		return fmt.Errorf("model %q has no deployment handler", model.ID)
+	}
+
+	envVars := model.Deployment.VariablesForPlatform(plat.BoardName)
+	maps.Insert(envVars, maps.All(configEnv)) // include config env vars for template resolution
+
+	env := make([]string, 0, len(envVars))
+	for k, v := range envVars {
+		env = append(env, fmt.Sprintf("%s=%s", k, v))
+	}
+
+	slog.Debug("running delete action", "model", model.ID)
+	return dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
+		Image:  ResolveVars(handler.Image, envVars),
+		Cmd:    handler.Actions.Delete,
+		Binds:  ResolveVarsSlice(handler.Volumes, envVars),
+		Env:    env,
+		Stdout: io.Discard,
 		Stderr: io.Discard,
 	})
 }

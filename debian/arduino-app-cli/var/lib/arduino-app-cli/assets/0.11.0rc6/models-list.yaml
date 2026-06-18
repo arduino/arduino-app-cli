@@ -1421,7 +1421,7 @@ models:
             variables:
               model_type: "genie"
               model_name: "qwen3_4b_instruct_2507"
-              models_repository: "models/genai"
+              models_repository: "genai"
               model_directory: "qwen3_4b_instruct_2507-genie-w4a16-qualcomm_qcs8275"
               quantization: "w4a16"
               chipset: "qualcomm-qcs8275"
@@ -1447,7 +1447,7 @@ models:
             variables:
               model_type: "genie"
               model_name: "qwen2_5_vl_7b_instruct"
-              models_repository: "models/genai"
+              models_repository: "genai"
               quantization: "w4a16"
               chipset: "qualcomm-qcs8275"
               version: "0.53.1"
@@ -1491,7 +1491,7 @@ models:
             variables:
               model_type: "voice_ai"
               model_name: "whisper_small_quantized"
-              models_repository: "models/audio-analytics/asr"
+              models_repository: "audio-analytics/asr"
               model_directory: "whisper_small_quantized-voice_ai-w8a16-qualcomm_qcs8275"
               quantization: "w8a16"
               chipset: "qualcomm-qcs8275"
@@ -1617,7 +1617,7 @@ models:
             variables:
               model_type: "voice_ai"
               model_name: "melotts_en"
-              models_repository: "models/audio-analytics/tts"
+              models_repository: "audio-analytics/tts"
               model_directory: "melotts_en-voice_ai-mixed_with_float-qualcomm_qcs8275"
               quantization: "mixed_with_float"
               chipset: "qualcomm-qcs8275"
@@ -1641,7 +1641,7 @@ models:
             variables:
               model_type: "voice_ai"
               model_name: "melotts_es"
-              models_repository: "models/audio-analytics/tts"
+              models_repository: "audio-analytics/tts"
               model_directory: "melotts_es-voice_ai-mixed_with_float-qualcomm_qcs8275"
               quantization: "mixed_with_float"
               chipset: "qualcomm-qcs8275"
@@ -1665,7 +1665,7 @@ models:
             variables:
               model_type: "voice_ai"
               model_name: "melotts_zh"
-              models_repository: "models/audio-analytics/tts"
+              models_repository: "audio-analytics/tts"
               model_directory: "melotts_zh-voice_ai-mixed_with_float-qualcomm_qcs8275"
               quantization: "mixed_with_float"
               chipset: "qualcomm-qcs8275"
@@ -1742,16 +1742,16 @@ models:
             variables:
               ei_project_id: 948887
               ei_impulse_id: 4
-              models_repository: "models/edge-impulse"
+              models_repository: "edge-impulse"
               model_name: efficientnet-b4-qnn.eim
               target: runner-linux-aarch64-qnn
     bricks:
       - id: "arduino:image_classification"
         model_configuration:
-          "EI_IMAGE_CLASSIFICATION_MODEL": "${models_repository}/efficientnet-b4-qnn.eim"
+          "EI_IMAGE_CLASSIFICATION_MODEL": "models/${models_repository}/efficientnet-b4-qnn.eim"
       - id: "arduino:video_image_classification"
         model_configuration:
-          "EI_V_IMAGE_CLASSIFICATION_MODEL": "${models_repository}/efficientnet-b4-qnn.eim"
+          "EI_V_IMAGE_CLASSIFICATION_MODEL": "models/${models_repository}/efficientnet-b4-qnn.eim"
  - "llamacpp:gemma-4-E2B_q4_0-it":
     name : "Gemma 4 E2B"
     description: >-
@@ -1767,7 +1767,7 @@ models:
         - ventunoq:
             variables:
               model_url: "https://huggingface.co/google/gemma-4-E2B-it-qat-q4_0-gguf/blob/main/gemma-4-E2B_q4_0-it.gguf"
-              models_repository: "models/llamacpp"
+              models_repository: "llamacpp"
               model_directory: "google/gemma-4-E2B-it-qat-q4_0-gguf"
     metadata:
       model_size_mb: 3430
@@ -1791,7 +1791,7 @@ models:
         - ventunoq:
             variables:
               model_url: "https://huggingface.co/google/gemma-4-E4B-it-qat-q4_0-gguf/blob/main/gemma-4-E4B_q4_0-it.gguf"
-              models_repository: "models/llamacpp"
+              models_repository: "llamacpp"
               model_directory: "google/gemma-4-E4B-it-qat-q4_0-gguf"
     metadata:
       model_size_mb: 5273
@@ -1813,12 +1813,12 @@ models:
          - ventunoq:
              variables:
                model_url: "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/blob/main/gemma-3-1b-it-Q4_0.gguf"
-               models_repository: "models/llamacpp"
+               models_repository: "llamacpp"
                model_directory: "unsloth/gemma-3-1b-it-GGUF"
          - unoq:
              variables:
                model_url: "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/blob/main/gemma-3-1b-it-Q4_0.gguf"
-               models_repository: "models/llamacpp"
+               models_repository: "llamacpp"
                model_directory: "unsloth/gemma-3-1b-it-GGUF"
      metadata:
        model_size_mb: 722
@@ -1839,12 +1839,12 @@ models:
          - ventunoq:
              variables:
                model_url: "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/blob/main/Qwen3.5-0.8B-Q4_0.gguf"
-               models_repository: "models/llamacpp"
+               models_repository: "llamacpp"
                model_directory: "unsloth/Qwen3.5-0.8B-GGUF"
          - unoq:
              variables:
                model_url: "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/blob/main/Qwen3.5-0.8B-Q4_0.gguf"
-               models_repository: "models/llamacpp"
+               models_repository: "llamacpp"
                model_directory: "unsloth/Qwen3.5-0.8B-GGUF"
      metadata:
        model_size_mb: 507
@@ -1953,13 +1953,13 @@ models:
             variables:
               ei_project_id: 1014102
               ei_impulse_id: 1
-              models_repository: "models/edge-impulse"
+              models_repository: "edge-impulse"
               model_name: yolo-x-small-qnn.eim
-              target: runner-linux-aarch64-qnn   
+              target: runner-linux-aarch64-qnn
     bricks:
       - id: "arduino:object_detection"
         model_configuration:
-          "EI_OBJ_DETECTION_MODEL": "${models_repository}/yolo-x-small-qnn.eim"
+          "EI_OBJ_DETECTION_MODEL": "models/${models_repository}/yolo-x-small-qnn.eim"
       - id: "arduino:video_object_detection"
         model_configuration:
-          "EI_V_OBJ_DETECTION_MODEL": "${models_repository}/yolo-x-small-qnn.eim"          
+          "EI_V_OBJ_DETECTION_MODEL": "models/${models_repository}/yolo-x-small-qnn.eim"

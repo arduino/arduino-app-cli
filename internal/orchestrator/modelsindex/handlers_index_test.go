@@ -9,6 +9,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -169,7 +170,7 @@ handlers:
 	err := tempDir.Join("models-handlers.yaml").WriteFile([]byte(yamlContent))
 	require.NoError(t, err)
 
-	handlersIndex, err := loadHandlers(tempDir, nil)
+	handlersIndex, err := loadHandlers(tempDir, config.Configuration{})
 	require.NoError(t, err)
 	require.NotNil(t, handlersIndex)
 

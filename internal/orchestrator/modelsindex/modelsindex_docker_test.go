@@ -6,13 +6,14 @@
 package modelsindex
 
 import (
-	"bytes"
+	"bufio"
 	"context"
 	"fmt"
-	"io"
+	"net"
 	"sync"
 	"testing"
 
+	dockertypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
@@ -23,10 +24,11 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
-// fakeDockerClient intercepts ContainerCreate/Start/Logs/Inspect/Remove.
+// fakeDockerClient intercepts ContainerCreate/Wait/Attach/Start.
 // All other client.APIClient methods panic — they must not be called.
 type fakeDockerClient struct {
 	client.APIClient
@@ -35,25 +37,21 @@ type fakeDockerClient struct {
 
 	mu        sync.Mutex
 	idCounter int
-	pending   map[string]pendingContainer
-	results   map[string]containerRun
+	pending   map[string]*pendingContainer
 }
 
 type pendingContainer struct {
-	image string
-	cmd   []string
-}
-
-type containerRun struct {
-	stdout   string
-	exitCode int
+	image      string
+	cmd        []string
+	attachConn net.Conn
+	statusCh   chan container.WaitResponse
+	errCh      chan error
 }
 
 func newFakeDockerClient(runFunc func(image string, cmd []string) (stdout string, exitCode int)) *fakeDockerClient {
 	return &fakeDockerClient{
 		runFunc: runFunc,
-		pending: make(map[string]pendingContainer),
-		results: make(map[string]containerRun),
+		pending: make(map[string]*pendingContainer),
 	}
 }
 
@@ -62,8 +60,29 @@ func (f *fakeDockerClient) ContainerCreate(_ context.Context, cfg *container.Con
 	defer f.mu.Unlock()
 	f.idCounter++
 	id := fmt.Sprintf("fake-%d", f.idCounter)
-	f.pending[id] = pendingContainer{image: cfg.Image, cmd: cfg.Cmd}
+	f.pending[id] = &pendingContainer{image: cfg.Image, cmd: cfg.Cmd}
 	return container.CreateResponse{ID: id}, nil
+}
+
+func (f *fakeDockerClient) ContainerWait(_ context.Context, id string, _ container.WaitCondition) (<-chan container.WaitResponse, <-chan error) {
+	statusCh := make(chan container.WaitResponse, 1)
+	errCh := make(chan error, 1)
+	f.mu.Lock()
+	f.pending[id].statusCh = statusCh
+	f.pending[id].errCh = errCh
+	f.mu.Unlock()
+	return statusCh, errCh
+}
+
+func (f *fakeDockerClient) ContainerAttach(_ context.Context, id string, _ container.AttachOptions) (dockertypes.HijackedResponse, error) {
+	clientConn, serverConn := net.Pipe()
+	f.mu.Lock()
+	f.pending[id].attachConn = serverConn
+	f.mu.Unlock()
+	return dockertypes.HijackedResponse{
+		Conn:   clientConn,
+		Reader: bufio.NewReader(clientConn),
+	}, nil
 }
 
 func (f *fakeDockerClient) ContainerStart(_ context.Context, id string, _ container.StartOptions) error {
@@ -72,43 +91,15 @@ func (f *fakeDockerClient) ContainerStart(_ context.Context, id string, _ contai
 	delete(f.pending, id)
 	f.mu.Unlock()
 
-	stdout, code := f.runFunc(p.image, p.cmd)
-
-	f.mu.Lock()
-	f.results[id] = containerRun{stdout: stdout, exitCode: code}
-	f.mu.Unlock()
-	return nil
-}
-
-func (f *fakeDockerClient) ContainerLogs(_ context.Context, id string, _ container.LogsOptions) (io.ReadCloser, error) {
-	f.mu.Lock()
-	r := f.results[id]
-	f.mu.Unlock()
-
-	var buf bytes.Buffer
-	w := stdcopy.NewStdWriter(&buf, stdcopy.Stdout)
-	if r.stdout != "" {
-		fmt.Fprint(w, r.stdout)
-	}
-	return io.NopCloser(&buf), nil
-}
-
-func (f *fakeDockerClient) ContainerInspect(_ context.Context, id string) (container.InspectResponse, error) {
-	f.mu.Lock()
-	r := f.results[id]
-	f.mu.Unlock()
-
-	return container.InspectResponse{
-		ContainerJSONBase: &container.ContainerJSONBase{
-			State: &container.State{ExitCode: r.exitCode},
-		},
-	}, nil
-}
-
-func (f *fakeDockerClient) ContainerRemove(_ context.Context, id string, _ container.RemoveOptions) error {
-	f.mu.Lock()
-	delete(f.results, id)
-	f.mu.Unlock()
+	go func() {
+		stdout, exitCode := f.runFunc(p.image, p.cmd)
+		if stdout != "" {
+			w := stdcopy.NewStdWriter(p.attachConn, stdcopy.Stdout)
+			fmt.Fprint(w, stdout)
+		}
+		p.attachConn.Close()
+		p.statusCh <- container.WaitResponse{StatusCode: int64(exitCode)}
+	}()
 	return nil
 }
 
@@ -117,7 +108,7 @@ func loadHandlersTestIndex(t *testing.T, dockerCli client.APIClient) *ModelsInde
 	t.Helper()
 	dir := paths.New("testdata/with-handlers")
 	modelsDir := dir.Join("models")
-	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, modelsDir, dockerCli, "")
+	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, modelsDir, dockerCli, "", config.Configuration{})
 	require.NoError(t, err)
 	return idx
 }

@@ -248,7 +248,7 @@ func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, mode
 			}
 		}
 
-		err = modelsindex.RunDownloadAction(r.Context(), dockerClient.Client(), *m, handler, cfg, plat, installResponse)
+		err = modelsindex.RunDownloadAction(r.Context(), dockerClient.Client(), *m, handler, cfg, plat, modelsIndex.GetHandlerConfigEnv(), installResponse)
 		if err != nil {
 			slog.Error("unable to install model", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to install model: " + err.Error()})
