@@ -93,16 +93,14 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 		},
 		&container.HostConfig{
 			Binds: opts.Binds,
+			AutoRemove: true,
 		},
 		nil, nil, "",
 	)
-
-	slog.Debug("creating container", "id", resp.ID, "image", opts.Image, "cmd", opts.Cmd, "env", opts.Env, "binds", opts.Binds)
-
 	if err != nil {
 		return fmt.Errorf("container create: %w", err)
 	}
-	defer cli.ContainerRemove(context.Background(), resp.ID, container.RemoveOptions{Force: true}) //nolint:errcheck
+	slog.Debug("creating container", "id", resp.ID, "image", opts.Image, "cmd", opts.Cmd, "env", opts.Env, "binds", opts.Binds)
 
 	if err := cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
 		return fmt.Errorf("container start: %w", err)
