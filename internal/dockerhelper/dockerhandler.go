@@ -67,6 +67,7 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 		},
 		&container.HostConfig{
 			Binds: opts.Binds,
+			LogConfig: container.LogConfig{Type: "none"},
 			AutoRemove: true,
 		},
 		nil, nil, "",
