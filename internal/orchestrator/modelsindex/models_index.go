@@ -129,7 +129,7 @@ func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, er
 	}
 	model := models[idx]
 	if model.IsInternal && model.Deployment != nil && !model.Deployment.PreLoaded {
-		// TODO we should have a single method taht do the check and get the info
+		// TODO we should have a single method that do the check and get the info
 		installed, err := m.modelInstalled(ctx, model, m.cli)
 		if err != nil {
 			return nil, fmt.Errorf("cannot determine install status for model %q: %w", id, err)

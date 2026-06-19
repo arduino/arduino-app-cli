@@ -21,10 +21,11 @@ import (
 	"github.com/goccy/go-yaml"
 	"go.bug.st/f"
 
+	"github.com/arduino/go-paths-helper"
+
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
-	"github.com/arduino/go-paths-helper"
 )
 
 type HandlerActions struct {

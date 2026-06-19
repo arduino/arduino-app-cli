@@ -40,11 +40,12 @@ func checkBricks(a app.AppDescriptor, index *bricksindex.BricksIndex, modelIndex
 
 		if len(appBrick.Model) != 0 {
 			model, err := modelIndex.GetModelByID(context.TODO(), appBrick.Model)
-			if err != nil {
+			switch {
+			case err != nil:
 				allErrors = errors.Join(allErrors, fmt.Errorf("error retrieving model %q for brick %q: %w", appBrick.Model, appBrick.ID, err))
-			} else if model == nil {
+			case model == nil:
 				allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q not found", appBrick.Model, appBrick.ID))
-			} else if !model.Installed {
+			case !model.Installed:
 				allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q is not installed", appBrick.Model, appBrick.ID))
 			}
 
