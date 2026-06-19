@@ -381,12 +381,14 @@ func (h *HandlersIndex) GetDockerImages() []string {
 	}
 
 	images := make(map[string]struct{})
-	for _, h := range h.AllHandlers() {
-		images[h.Image] = struct{}{}
+	for _, handler := range h.AllHandlers() {
+		image := ResolveVars(handler.Image, h.configEnv)
+		images[image] = struct{}{}
 	}
 
 	if h.listing != nil && h.listing.Image != "" {
-		images[h.listing.Image] = struct{}{}
+		image := ResolveVars(h.listing.Image, h.configEnv)
+		images[image] = struct{}{}
 	}
 
 	return slices.Collect(maps.Keys(images))
