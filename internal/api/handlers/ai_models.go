@@ -213,40 +213,36 @@ func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, mode
 
 		type progress struct {
 			Name     string  `json:"name"`
+			Total    int64   `json:"total"`
+			Current  int64   `json:"current"`
 			Progress float32 `json:"progress"`
 		}
 		type log struct {
 			Message string `json:"message"`
 		}
 
-		installResponse := func(e modelsindex.ModelDownloadEvent) {
-			switch e.Type {
-			case modelsindex.ModelInstallEventStart:
-				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: e.Description}})
-			case modelsindex.ModelInstallEventUpdate:
-				if e.Total > 0 {
-					sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: model.ID, Progress: float32(e.Current * 100 / e.Total)}})
-				} else {
-					sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: model.ID, Progress: 0}})
+		installResponse := func(e modelsindex.StreamMessage) {
+			switch e.GetType() {
+			case modelsindex.InfoType:
+				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: e.GetData()}})
+			case modelsindex.ProgressType:
+				var progressValue float32
+				if e.GetProgress().Total > 0 {
+					progressValue = float32(e.GetProgress().Current) / float32(e.GetProgress().Total) * 100
 				}
-			case modelsindex.ModelInstallEventComplete:
-				sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: model.ID, Progress: 100}})
-			case modelsindex.ModelInstallEventDone:
-				sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: model.ID, Progress: 100}})
-			case modelsindex.ModelInstallEventError:
-				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: e.Description}})
-			case modelsindex.ModelInstallEventInfo:
-				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: e.Description}})
-			default:
-				panic(fmt.Sprintf("unknown event: %+v", e.Type))
+				sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: model.ID, Current: e.GetProgress().Current, Total: e.GetProgress().Total, Progress: progressValue}})
+
+			case modelsindex.ErrorType:
+				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: e.GetError()}})
 			}
 		}
 
 		err = modelsindex.Download(r.Context(), modelsIndex, dockerClient.Client(), *model, plat, installResponse)
 		if err != nil {
-			slog.Error("unable to install model", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to install model: " + err.Error()})
-			return
+			sseStream.SendError(render.SSEErrorData{
+				Code:    render.InternalServiceErr,
+				Message: err.Error(),
+			})
 		}
 	}
 }

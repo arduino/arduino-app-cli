@@ -15,8 +15,10 @@ import (
 	"os"
 	"os/user"
 	"strings"
+	"time"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 	"go.bug.st/f"
@@ -49,6 +51,15 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 		}
 	}
 
+	pullResp, err := cli.ImagePull(ctx, opts.Image, image.PullOptions{})
+	if err != nil {
+		return fmt.Errorf("image pull: %w", err)
+	}
+	if _, err := io.Copy(io.Discard, pullResp); err != nil {
+		return fmt.Errorf("image pull read: %w", err)
+	}
+	pullResp.Close()
+
 	resp, err := cli.ContainerCreate(ctx,
 		&container.Config{
 			Image: opts.Image,
@@ -79,6 +90,10 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 		return fmt.Errorf("container attach: %w", err)
 	}
 	defer attachResp.Close()
+	now := time.Now()
+	defer func() {
+		slog.Warn("container finished", "id", resp.ID, "image", opts.Image, "cmd", opts.Cmd, "env", opts.Env, "binds", opts.Binds, "duration", time.Since(now))
+	}()
 	if err := cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
 		return fmt.Errorf("container start: %w", err)
 	}

@@ -18,10 +18,13 @@ import (
 
 	composetmpl "github.com/compose-spec/compose-go/v2/template"
 	"github.com/docker/docker/client"
+	"github.com/goccy/go-yaml"
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
+	"github.com/arduino/go-paths-helper"
 )
 
 type HandlerActions struct {
@@ -49,6 +52,84 @@ type ModelHandler struct {
 	Image   string
 	Volumes []string
 	Actions HandlerActions
+}
+
+func loadHandlers(dir *paths.Path, cfg config.Configuration, plat platform.Platform) (*HandlersIndex, error) {
+	// TODO : we should add a method on config to return env variables
+
+	handlersFile := dir.Join("models-handlers.yaml")
+	if handlersFile.NotExist() {
+		return nil, nil
+	}
+
+	content, err := handlersFile.ReadFile()
+	if err != nil {
+		return nil, err
+	}
+
+	var raw rawHandlersList
+	if err := yaml.Unmarshal(content, &raw); err != nil {
+		return nil, fmt.Errorf("models-handlers.yaml: %w", err)
+	}
+
+	var listing *ListingConfig
+	if raw.Listing.Image != "" {
+		listing = &ListingConfig{
+			Image: raw.Listing.Image,
+			// FIXME: See other FIXME about ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR.
+			Volumes: raw.Listing.Volumes,
+			Command: raw.Listing.Command,
+		}
+	}
+
+	handlers := make(map[string]ModelHandler, len(raw.Handlers))
+	for _, handlerMap := range raw.Handlers {
+		for id, entry := range handlerMap {
+			if id == "" {
+				return nil, fmt.Errorf("models-handlers.yaml: handler has empty id")
+			}
+			if entry.Image == "" {
+				return nil, fmt.Errorf("models-handlers.yaml: handler %q missing required field \"image\"", id)
+			}
+			var actions HandlerActions
+			for _, actionMap := range entry.Actions {
+				for name, actionEntry := range actionMap {
+					switch name {
+					case "download":
+						actions.Download = actionEntry.Command
+					case "delete":
+						actions.Delete = actionEntry.Command
+					case "check":
+						actions.Check = actionEntry.Command
+					case "info":
+						actions.Info = actionEntry.Command
+					}
+				}
+			}
+			if err := actions.validate(id); err != nil {
+				return nil, fmt.Errorf("models-handlers.yaml: %w", err)
+			}
+			if len(entry.Volumes) == 0 {
+				return nil, fmt.Errorf("models-handlers.yaml: handler %q missing required field \"volumes\"", id)
+			}
+			handlers[id] = ModelHandler{
+				ID:    id,
+				Image: entry.Image,
+				// FIXME: Only ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR is supported for now. We do not resolve this variable here because the host volume path (including the model repository segment) is only known at runtime and must be finalized before the container starts.
+				Volumes: entry.Volumes,
+				Actions: actions,
+			}
+		}
+	}
+
+	configEnv := map[string]string{
+		"DOCKER_REGISTRY_BASE": cfg.DockerRegistryBase(),
+		"BOARD_NAME":           plat.BoardName,
+	}
+	if modelsDir := cfg.CustomModelsDir(); modelsDir != nil {
+		configEnv["ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR"] = modelsDir.String()
+	}
+	return &HandlersIndex{handlers: handlers, listing: listing, configEnv: configEnv}, nil
 }
 
 // resolveVars substitutes compose-style ${VAR} and ${VAR:-default} placeholders
@@ -213,7 +294,7 @@ func runListAction(ctx context.Context, cli client.APIClient, listing *ListingCo
 	return output.Models, nil
 }
 
-func Download(ctx context.Context, modelsIndex *ModelsIndex, cli client.APIClient, model AIModel, plat platform.Platform, publish func(e ModelDownloadEvent)) error {
+func Download(ctx context.Context, modelsIndex *ModelsIndex, cli client.APIClient, model AIModel, plat platform.Platform, publish func(e StreamMessage)) error {
 
 	handler, ok := modelsIndex.Handlers.GetHandlerByID(model.Deployment.Handler)
 	if !ok {
@@ -242,31 +323,6 @@ func Download(ctx context.Context, modelsIndex *ModelsIndex, cli client.APIClien
 	})
 }
 
-func deleteInternalModel(ctx context.Context, cli client.APIClient, model AIModel, handler ModelHandler, plat platform.Platform, configEnv map[string]string) error {
-
-	if model.Deployment == nil || model.Deployment.Handler == "" {
-		return fmt.Errorf("model %q has no deployment handler", model.ID)
-	}
-
-	envVars := model.Deployment.VariablesForPlatform(plat.BoardName)
-	maps.Insert(envVars, maps.All(configEnv)) // include config env vars for template resolution
-
-	env := make([]string, 0, len(envVars))
-	for k, v := range envVars {
-		env = append(env, fmt.Sprintf("%s=%s", k, v))
-	}
-
-	slog.Debug("running delete action", "model", model.ID)
-	return dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
-		Image:  ResolveVars(handler.Image, envVars),
-		Cmd:    handler.Actions.Delete,
-		Binds:  ResolveVarsSlice(handler.Volumes, envVars),
-		Env:    env,
-		Stdout: io.Discard,
-		Stderr: io.Discard,
-	})
-}
-
 type ModelInstallEventType string
 
 const (
@@ -278,18 +334,48 @@ const (
 	ModelInstallEventDone     ModelInstallEventType = "done"
 )
 
-type ModelDownloadEvent struct {
-	ModelID     string                `json:"model_id"`
-	Type        ModelInstallEventType `json:"type"`
-	Description string                `json:"description,omitempty"`
-	Current     int64                 `json:"current,omitempty"`
-	Total       int64                 `json:"total,omitempty"`
-	Unit        string                `json:"unit,omitempty"`
-	Percentage  string                `json:"percentage,omitempty"`
-	Artifacts   []string              `json:"artifacts,omitempty"`
+type MessageType string
+
+const (
+	UnknownType  MessageType = ""
+	ProgressType MessageType = "progress"
+	InfoType     MessageType = "info"
+	ErrorType    MessageType = "error"
+)
+
+type StreamMessage struct {
+	err      string
+	data     string
+	progress *Progress
 }
 
-func parseDownloadHandlerLine(line string, publish func(ModelDownloadEvent)) {
+type Progress struct {
+	Name     string
+	Total    int64
+	Current  int64
+	Progress float32
+}
+
+func (p *StreamMessage) IsData() bool           { return p.data != "" }
+func (p *StreamMessage) IsError() bool          { return p.err != "" }
+func (p *StreamMessage) IsProgress() bool       { return p.progress != nil }
+func (p *StreamMessage) GetData() string        { return p.data }
+func (p *StreamMessage) GetError() string       { return p.err }
+func (p *StreamMessage) GetProgress() *Progress { return p.progress }
+func (p *StreamMessage) GetType() MessageType {
+	if p.IsData() {
+		return InfoType
+	}
+	if p.IsProgress() {
+		return ProgressType
+	}
+	if p.IsError() {
+		return ErrorType
+	}
+	return UnknownType
+}
+
+func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
 	var raw struct {
 		Event       string   `json:"event"`
 		Description string   `json:"description"`
@@ -297,40 +383,58 @@ func parseDownloadHandlerLine(line string, publish func(ModelDownloadEvent)) {
 		Total       int64    `json:"total"`
 		SizeMB      float64  `json:"size_mb"`
 		Unit        string   `json:"unit"`
-		Percentage  string   `json:"percentage"`
 		Artifacts   []string `json:"artifacts"`
 	}
 	if err := json.Unmarshal([]byte(line), &raw); err != nil {
 		slog.Debug("non-JSON stdout from handler", "line", line)
 		return
 	}
-	var eventType ModelInstallEventType
+
 	switch raw.Event {
 	case "start":
-		eventType = ModelInstallEventStart
+		publish(StreamMessage{
+			data: raw.Description,
+		})
 	case "update":
-		eventType = ModelInstallEventUpdate
+		publish(StreamMessage{
+			progress: &Progress{
+				Name:     raw.Description,
+				Current:  raw.Current,
+				Total:    raw.Total,
+				Progress: float32(raw.Current) / float32(raw.Total) * 100,
+			},
+		})
 	case "complete":
-		eventType = ModelInstallEventComplete
+		publish(StreamMessage{
+			data: raw.Description,
+		})
 	case "error":
-		eventType = ModelInstallEventError
-	case "stat":
-		eventType = ModelInstallEventInfo
-		if raw.SizeMB > 0 {
-			raw.Total = int64(raw.SizeMB * 1024 * 1024)
-		}
+		publish(StreamMessage{
+			err: raw.Description,
+		})
 	default:
-		eventType = ModelInstallEventInfo
+		slog.Warn("unknown event from handler", "event", raw.Event, "line", line)
 	}
-	publish(ModelDownloadEvent{
-		Type:        eventType,
-		Description: raw.Description,
-		Current:     raw.Current,
-		Total:       raw.Total,
-		Unit:        raw.Unit,
-		Percentage:  raw.Percentage,
-		Artifacts:   raw.Artifacts,
-	})
+}
+
+func (h *HandlersIndex) GetDockerImages() []string {
+	if h == nil {
+		slog.Warn("handlers index is nil, cannot get model handler images")
+		return []string{}
+	}
+
+	images := make(map[string]struct{})
+	for _, handler := range h.handlers {
+		image := ResolveVars(handler.Image, h.configEnv)
+		images[image] = struct{}{}
+	}
+
+	if h.listing != nil && h.listing.Image != "" {
+		image := ResolveVars(h.listing.Image, h.configEnv)
+		images[image] = struct{}{}
+	}
+
+	return slices.Collect(maps.Keys(images))
 }
 
 type rawActionEntry struct {
@@ -355,22 +459,27 @@ type rawHandlersList struct {
 	Handlers []map[string]rawHandlerEntry `yaml:"handlers"`
 }
 
-func (h *HandlersIndex) GetDockerImages() []string {
-	if h == nil {
-		slog.Warn("handlers index is nil, cannot get model handler images")
-		return []string{}
+func deleteInternalModel(ctx context.Context, cli client.APIClient, model AIModel, handler ModelHandler, plat platform.Platform, configEnv map[string]string) error {
+
+	if model.Deployment == nil || model.Deployment.Handler == "" {
+		return fmt.Errorf("model %q has no deployment handler", model.ID)
 	}
 
-	images := make(map[string]struct{})
-	for _, handler := range h.handlers {
-		image := ResolveVars(handler.Image, h.configEnv)
-		images[image] = struct{}{}
+	envVars := model.Deployment.VariablesForPlatform(plat.BoardName)
+	maps.Insert(envVars, maps.All(configEnv)) // include config env vars for template resolution
+
+	env := make([]string, 0, len(envVars))
+	for k, v := range envVars {
+		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}
 
-	if h.listing != nil && h.listing.Image != "" {
-		image := ResolveVars(h.listing.Image, h.configEnv)
-		images[image] = struct{}{}
-	}
-
-	return slices.Collect(maps.Keys(images))
+	slog.Debug("running delete action", "model", model.ID)
+	return dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
+		Image:  ResolveVars(handler.Image, envVars),
+		Cmd:    handler.Actions.Delete,
+		Binds:  ResolveVarsSlice(handler.Volumes, envVars),
+		Env:    env,
+		Stdout: io.Discard,
+		Stderr: io.Discard,
+	})
 }
