@@ -134,9 +134,9 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		})
 		idx := loadHandlersTestIndex(t, cli)
 
-		model, found, err := idx.GetModelByID(context.Background(), "piper-tts-en")
+		model, err := idx.GetModelByID(t.Context(), "piper-tts-en")
 		require.NoError(t, err)
-		require.True(t, found)
+		require.NotNil(t, model)
 		assert.Equal(t, uint64(46*1024*1024), model.Size)
 	})
 
@@ -147,9 +147,9 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		})
 		idx := loadHandlersTestIndex(t, cli)
 
-		model, found, err := idx.GetModelByID(context.Background(), "ei:efficientnet-b4")
+		model, err := idx.GetModelByID(t.Context(), "ei:efficientnet-b4")
 		require.NoError(t, err)
-		require.True(t, found)
+		require.NotNil(t, model)
 		assert.False(t, model.Installed)
 		assert.Equal(t, uint64(89*1024*1024), model.Size)
 	})
@@ -161,9 +161,9 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		})
 		idx := loadHandlersTestIndex(t, cli)
 
-		model, found, err := idx.GetModelByID(context.Background(), "ei:efficientnet-b4")
+		model, err := idx.GetModelByID(t.Context(), "ei:efficientnet-b4")
 		require.NoError(t, err)
-		require.True(t, found)
+		require.NotNil(t, model)
 		assert.True(t, model.Installed)
 		assert.Equal(t, uint64(89*1024*1024), model.Size)
 	})
@@ -175,7 +175,7 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		})
 		idx := loadHandlersTestIndex(t, cli)
 
-		_, _, err := idx.GetModelByID(context.Background(), "ei:efficientnet-b4")
+		_, err := idx.GetModelByID(t.Context(), "ei:efficientnet-b4")
 		require.Error(t, err)
 	})
 
@@ -186,9 +186,9 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		})
 		idx := loadHandlersTestIndex(t, cli)
 
-		model, found, err := idx.GetModelByID(context.Background(), "ei-model-990187-1")
+		model, err := idx.GetModelByID(t.Context(), "ei-model-990187-1")
 		require.NoError(t, err)
-		require.True(t, found)
+		require.NotNil(t, model)
 		assert.True(t, model.Installed)
 	})
 }

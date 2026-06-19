@@ -103,22 +103,14 @@ func (m *ModelsIndex) GetModelsByBricks(ctx context.Context, bricks []string) []
 	return m.filterByBricks(bricks)
 }
 
-// FindModelByID returns the model with the given ID without checking installed status.
-func (m *ModelsIndex) FindModelByID(id string) (*AIModel, bool) {
+// GetModelByID returns the model with the given ID and populates its Installed and Size fields.
+func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, error) {
 	models := m.getModels()
 	idx := slices.IndexFunc(models, func(v AIModel) bool { return v.ID == id })
 	if idx == -1 {
-		return nil, false
+		return nil, nil
 	}
-	return &models[idx], true
-}
-
-// GetModelByID returns the model with the given ID and populates its Installed and Size fields.
-func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, bool, error) {
-	model, ok := m.FindModelByID(id)
-	if !ok {
-		return nil, false, nil
-	}
+	model := models[idx]
 	if model.IsInternal && model.Deployment != nil && model.Deployment.PreLoaded {
 		if sizeMBStr, ok := model.Metadata["model_size_mb"]; ok {
 			if sizeMB, err := strconv.ParseFloat(sizeMBStr, 64); err == nil && sizeMB > 0 {
@@ -126,17 +118,18 @@ func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, bo
 			}
 		}
 	} else if model.IsInternal {
-		installed, err := m.modelInstalled(ctx, *model, m.cli)
+		installed, err := m.modelInstalled(ctx, model, m.cli)
 		if err != nil {
-			return nil, false, fmt.Errorf("cannot determine install status for model %q: %w", id, err)
+			return nil, fmt.Errorf("cannot determine install status for model %q: %w", id, err)
 		}
 		model.Installed = installed
 		if model.Installed {
-			model.Size = m.modelSize(ctx, *model)
+			// TODO : we should return an error if the size cannot be determined
+			model.Size = m.modelSize(ctx, model)
 		}
 	}
 
-	return model, true, nil
+	return &model, nil
 }
 
 func (m *ModelsIndex) GetModelsByBrick(brickName string) []AIModel {
@@ -163,7 +156,7 @@ func (m *ModelsIndex) filterByBricks(bricks []string) []AIModel {
 
 func (m *ModelsIndex) loadModels(ctx context.Context) []AIModel {
 	models := m.getModels()
-	m.Handlers.getModelInfo(ctx, m.cli, models, m.modelsDir, m.plat)
+	m.Handlers.getModelsInfo(ctx, m.cli, models, m.plat)
 	return models
 }
 

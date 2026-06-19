@@ -16,7 +16,6 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/arduino/go-paths-helper"
 	composetmpl "github.com/compose-spec/compose-go/v2/template"
 	"github.com/docker/docker/client"
 	"go.bug.st/f"
@@ -128,7 +127,7 @@ var (
 	ErrIncompleteImpulse   = errors.New("impulse not ready for deployment")
 )
 
-func (h *HandlersIndex) getModelInfo(ctx context.Context, cli client.APIClient, models []AIModel, modelsDir *paths.Path, plat platform.Platform) {
+func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient, models []AIModel, plat platform.Platform) {
 	if h == nil || h.listing == nil {
 		return
 	}

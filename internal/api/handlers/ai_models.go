@@ -181,13 +181,13 @@ func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, mode
 			return
 		}
 
-		m, found, err := modelsIndex.GetModelByID(r.Context(), id)
+		m, err := modelsIndex.GetModelByID(r.Context(), id)
 		if err != nil {
 			slog.Error("unable to get model by ID", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to get model by ID"})
 			return
 		}
-		if !found {
+		if m == nil {
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: fmt.Sprintf("model %q not found", id)})
 			return
 		}

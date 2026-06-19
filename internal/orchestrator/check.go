@@ -6,6 +6,7 @@
 package orchestrator
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -38,10 +39,15 @@ func checkBricks(a app.AppDescriptor, index *bricksindex.BricksIndex, modelIndex
 		}
 
 		if len(appBrick.Model) != 0 {
-			_, modelFound := modelIndex.FindModelByID(appBrick.Model)
-			if !modelFound {
+			model, err := modelIndex.GetModelByID(context.TODO(), appBrick.Model)
+			if err != nil {
+				allErrors = errors.Join(allErrors, fmt.Errorf("error retrieving model %q for brick %q: %w", appBrick.Model, appBrick.ID, err))
+			} else if model == nil {
 				allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q not found", appBrick.Model, appBrick.ID))
+			} else if !model.Installed {
+				allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q is not installed", appBrick.Model, appBrick.ID))
 			}
+
 		}
 
 		for appBrickVariableName := range appBrick.Variables {

@@ -82,11 +82,11 @@ func AIModelsList(ctx context.Context, cli client.APIClient, req AIModelsListReq
 
 func AIModelDetails(ctx context.Context, _ client.APIClient, modelsIndex *modelsindex.ModelsIndex, id string, _ config.Configuration, _ platform.Platform) (AIModelItem, bool, error) {
 
-	model, found, err := modelsIndex.GetModelByID(ctx, id)
+	model, err := modelsIndex.GetModelByID(ctx, id)
 	if err != nil {
 		return AIModelItem{}, false, err
 	}
-	if !found {
+	if model == nil {
 		return AIModelItem{}, false, nil
 	}
 
@@ -112,11 +112,11 @@ var (
 )
 
 func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, platform platform.Platform, id string, idProvider *app.IDProvider, force bool) (err error) {
-	res, found, err := modelsIndex.GetModelByID(ctx, id)
+	res, err := modelsIndex.GetModelByID(ctx, id)
 	if err != nil {
 		return err
 	}
-	if !found {
+	if res == nil {
 		return fmt.Errorf("%q: %w", id, ErrNotFound)
 	}
 
@@ -216,8 +216,11 @@ func checkForModelReferences(ctx context.Context, dockerClient command.Cli, cfg 
 }
 
 func isModelInUse(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, modelId string) error {
-	_, found := modelsIndex.FindModelByID(modelId)
-	if found {
+	model, err := modelsIndex.GetModelByID(ctx, modelId)
+	if err != nil {
+		return fmt.Errorf("error retrieving model %q: %w", modelId, err)
+	}
+	if model != nil {
 		runningApp, err := getRunningApp(ctx, dockerClient.Client())
 		if err != nil {
 			return fmt.Errorf("error retrieving the current running app: %w", err)

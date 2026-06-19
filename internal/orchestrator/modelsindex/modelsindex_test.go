@@ -91,12 +91,13 @@ func TestModelsIndex(t *testing.T) {
 	t.Run("it gets a preloaded model by ID", func(t *testing.T) {
 		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, "", config.Configuration{})
 		require.NoError(t, err)
-		model, found := modelsIndex.FindModelByID("not-existing-model")
-		assert.False(t, found)
+		model, err := modelsIndex.GetModelByID(t.Context(), "not-existing-model")
+		require.NoError(t, err)
 		assert.Nil(t, model)
 
-		model, found = modelsIndex.FindModelByID("face-detection")
-		require.True(t, found)
+		model, err = modelsIndex.GetModelByID(t.Context(), "face-detection")
+		require.NoError(t, err)
+		require.NotNil(t, model)
 		assert.Equal(t, &AIModel{
 			ID:                "face-detection",
 			Name:              "Lightweight-Face-Detection",
@@ -121,9 +122,9 @@ func TestModelsIndex(t *testing.T) {
 		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, "", config.Configuration{})
 		require.NoError(t, err)
 
-		eimodel, found := modelsIndex.FindModelByID("my-model-id")
-		assert.True(t, found)
-		assert.NotNil(t, eimodel)
+		eimodel, err := modelsIndex.GetModelByID(t.Context(), "my-model-id")
+		require.NoError(t, err)
+		require.NotNil(t, eimodel)
 
 		assert.Equal(t, &AIModel{
 			ID:                "my-model-id",
