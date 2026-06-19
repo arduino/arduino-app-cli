@@ -435,6 +435,11 @@ func loadHandlers(dir *paths.Path, cfg config.Configuration) (*HandlersIndex, er
 		}
 	}
 
-	return &HandlersIndex{handlers: handlers, listing: listing, configEnv: map[string]string{"DOCKER_REGISTRY_BASE": cfg.DockerRegistryBase(),
-		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": cfg.CustomModelsDir().String()}}, nil
+	configEnv := map[string]string{
+		"DOCKER_REGISTRY_BASE": cfg.DockerRegistryBase(),
+	}
+	if modelsDir := cfg.CustomModelsDir(); modelsDir != nil {
+		configEnv["ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR"] = modelsDir.String()
+	}
+	return &HandlersIndex{handlers: handlers, listing: listing, configEnv: configEnv}, nil
 }
