@@ -21,7 +21,6 @@ import (
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -90,14 +89,6 @@ func (h *HandlersIndex) GetHandlerByID(id string) (ModelHandler, bool) {
 	return handler, ok
 }
 
-func (h *HandlersIndex) AllHandlers() []ModelHandler {
-	handlers := make([]ModelHandler, 0, len(h.handlers))
-	for _, handler := range h.handlers {
-		handlers = append(handlers, handler)
-	}
-	return handlers
-}
-
 func (h *HandlersIndex) GetListingConfig() *ListingConfig {
 	return h.listing
 }
@@ -127,32 +118,35 @@ var (
 	ErrIncompleteImpulse   = errors.New("impulse not ready for deployment")
 )
 
-func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient, models []AIModel, plat platform.Platform) {
+func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient, models []AIModel, plat platform.Platform) ([]AIModel, error) {
 	if h == nil || h.listing == nil {
-		return
+		slog.Warn("handlers index or listing config is nil, cannot get model info")
+		return models, nil
 	}
 	entries, err := runListAction(ctx, cli, h.listing, plat, h.configEnv)
 	if err != nil {
-		slog.Warn("cannot list models", "err", err)
-		return
+		return models, fmt.Errorf("cannot list models: %w", err)
 	}
-	idx := make(map[string]int, len(models))
+	// Cloning! this works because we are updating only the Installed and Size fields.
+	modelsInfo := slices.Clone(models)
+	dryIndex := make(map[string]int, len(models))
 	for i, m := range models {
-		idx[m.ID] = i
+		dryIndex[m.ID] = i
 	}
 	for _, entry := range entries {
-		i, ok := idx[entry.ID]
+		i, ok := dryIndex[entry.ID]
 		if !ok {
 			continue
 		}
 
-		models[i].Installed = entry.Installed
+		modelsInfo[i].Installed = entry.Installed
 		if entry.Installed && entry.DiskSizeMB != nil && *entry.DiskSizeMB > 0 {
-			models[i].Size = uint64(*entry.DiskSizeMB * 1024 * 1024)
+			modelsInfo[i].Size = uint64(*entry.DiskSizeMB * 1024 * 1024)
 		} else if entry.ModelSizeMB != nil && *entry.ModelSizeMB > 0 {
-			models[i].Size = uint64(*entry.ModelSizeMB * 1024 * 1024)
+			modelsInfo[i].Size = uint64(*entry.ModelSizeMB * 1024 * 1024)
 		}
 	}
+	return modelsInfo, nil
 }
 
 func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandler, model AIModel, plat platform.Platform, configEnv map[string]string) (uint64, error) {
@@ -219,34 +213,21 @@ func runListAction(ctx context.Context, cli client.APIClient, listing *ListingCo
 	return output.Models, nil
 }
 
-func RunDownloadAction(ctx context.Context, cli client.APIClient, model AIModel, handler ModelHandler, config config.Configuration, plat platform.Platform, configEnv map[string]string, publish func(e ModelDownloadEvent)) error {
+func Download(ctx context.Context, modelsIndex *ModelsIndex, cli client.APIClient, model AIModel, plat platform.Platform, publish func(e ModelDownloadEvent)) error {
 
-	var envVars map[string]string
-	if model.Deployment != nil {
-		envVars = model.Deployment.VariablesForPlatform(plat.BoardName)
-
-	}
-	maps.Insert(envVars, maps.All(configEnv))
-
-	downloadPath := config.CustomModelsDir()
-	if err := downloadPath.MkdirAll(); err != nil {
-		return fmt.Errorf("cannot create download location %q: %w", downloadPath, err)
+	handler, ok := modelsIndex.Handlers.GetHandlerByID(model.Deployment.Handler)
+	if !ok {
+		return fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
 	}
 
-	bindPath := downloadPath
-	if envVars["models_repository"] != "" {
-		bindPath = downloadPath.Join(envVars["models_repository"])
-	}
-	if err := bindPath.MkdirAll(); err != nil {
-		return fmt.Errorf("cannot create model directory %q: %w", bindPath, err)
-	}
+	envVars := model.Deployment.VariablesForPlatform(plat.BoardName)
+	maps.Insert(envVars, maps.All(modelsIndex.Handlers.configEnv))
 
 	env := make([]string, 0, len(envVars))
 	for k, v := range envVars {
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}
 
-	slog.Debug("running download action", "model", model.ID)
 	return dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
 		Image: ResolveVars(handler.Image, envVars),
 		Cmd:   handler.Actions.Download,
@@ -254,13 +235,14 @@ func RunDownloadAction(ctx context.Context, cli client.APIClient, model AIModel,
 		Env:   env,
 		Stdout: f.NewCallbackWriter(func(line string) {
 			slog.Debug("download line", "model", model.ID, "line", line)
+			// TODO: unify
 			parseDownloadHandlerLine(line, publish)
 		}),
 		Stderr: io.Discard,
 	})
 }
 
-func RunDeleteAction(ctx context.Context, cli client.APIClient, model AIModel, handler ModelHandler, plat platform.Platform, configEnv map[string]string) error {
+func deleteInternalModel(ctx context.Context, cli client.APIClient, model AIModel, handler ModelHandler, plat platform.Platform, configEnv map[string]string) error {
 
 	if model.Deployment == nil || model.Deployment.Handler == "" {
 		return fmt.Errorf("model %q has no deployment handler", model.ID)
@@ -380,7 +362,7 @@ func (h *HandlersIndex) GetDockerImages() []string {
 	}
 
 	images := make(map[string]struct{})
-	for _, handler := range h.AllHandlers() {
+	for _, handler := range h.handlers {
 		image := ResolveVars(handler.Image, h.configEnv)
 		images[image] = struct{}{}
 	}

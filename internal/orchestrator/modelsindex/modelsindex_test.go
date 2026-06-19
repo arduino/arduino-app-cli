@@ -23,7 +23,7 @@ func TestModelsIndex(t *testing.T) {
 		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, "", config.Configuration{})
 		require.NoError(t, err)
 		require.NotNil(t, modelsIndex)
-		models := modelsIndex.getModels()
+		models := modelsIndex.loadDryModels()
 		assert.Len(t, models, 4, "Expected 4 models to be parsed")
 	})
 
@@ -35,22 +35,22 @@ func TestModelsIndex(t *testing.T) {
 	t.Run("custom models folder is optional", func(t *testing.T) {
 		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), nil, nil, "", config.Configuration{})
 		require.NoError(t, err)
-		require.Len(t, modelsIndex.getModels(), 3)
+		require.Len(t, modelsIndex.loadDryModels(), 3)
 	})
 
 	t.Run("custom models folder can be empty", func(t *testing.T) {
 		modelsIndex, err := Load(platform.GetPlatform(nil), nil, paths.New(t.TempDir()), nil, "", config.Configuration{})
 		require.NoError(t, err)
-		require.Len(t, modelsIndex.getModels(), 0)
+		require.Len(t, modelsIndex.loadDryModels(), 0)
 	})
 
 	t.Run("it loads nested custom models correctly", func(t *testing.T) {
 		modelsIndex, err := Load(platform.GetPlatform(nil), nil, paths.New("testdata/with-nested-models"), nil, "", config.Configuration{})
 		assert.NoError(t, err)
 		assert.NotEmpty(t, modelsIndex)
-		assert.Len(t, modelsIndex.getModels(), 2)
+		assert.Len(t, modelsIndex.loadDryModels(), 2)
 
-		got := modelsIndex.getModels()
+		got := modelsIndex.loadDryModels()
 
 		assert.Equal(t, f.Must(filepath.Abs("testdata/with-nested-models/nested/nested-model")), got[1].ModelFolderPath.String())
 		assert.Equal(t, "my-nested-model-id", got[1].ID)
@@ -64,7 +64,7 @@ func TestModelsIndex(t *testing.T) {
 			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), nil, nil, "", config.Configuration{})
 			require.NoError(t, err)
 
-			models := modelsIndex.getModels()
+			models := modelsIndex.loadDryModels()
 			assert.Len(t, models, 3, "all models")
 		})
 
@@ -73,7 +73,7 @@ func TestModelsIndex(t *testing.T) {
 			modelsIndex, err := Load(platform, paths.New("testdata"), nil, nil, "", config.Configuration{})
 			require.NoError(t, err)
 
-			models := modelsIndex.getModels()
+			models := modelsIndex.loadDryModels()
 			assert.Len(t, models, 3, "all models")
 		})
 
@@ -82,7 +82,7 @@ func TestModelsIndex(t *testing.T) {
 			modelsIndex, err := Load(platform, paths.New("testdata"), nil, nil, "", config.Configuration{})
 			require.NoError(t, err)
 
-			models := modelsIndex.getModels()
+			models := modelsIndex.loadDryModels()
 			assert.Len(t, models, 2, "no model another-model-id")
 
 		})
@@ -152,10 +152,10 @@ func TestModelsIndex(t *testing.T) {
 		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, "", config.Configuration{})
 		require.NoError(t, err)
 
-		model := modelsIndex.GetModelsByBrick("not-existing-brick")
+		model := modelsIndex.GetModelsByBrick(t.Context(), "not-existing-brick")
 		assert.Nil(t, model)
 
-		model = modelsIndex.GetModelsByBrick("arduino:object_detection")
+		model = modelsIndex.GetModelsByBrick(t.Context(), "arduino:object_detection")
 		assert.Len(t, model, 1)
 		assert.Equal(t, "face-detection", model[0].ID)
 	})
@@ -164,16 +164,16 @@ func TestModelsIndex(t *testing.T) {
 		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, "", config.Configuration{})
 		require.NoError(t, err)
 
-		models := modelsIndex.filterByBricks([]string{"arduino:non_existing"})
+		models := modelsIndex.GetModelsByBricks(t.Context(), []string{"arduino:non_existing"})
 		assert.Len(t, models, 0)
 		assert.Nil(t, models)
 
-		models = modelsIndex.filterByBricks([]string{"arduino:video_object_detection"})
+		models = modelsIndex.GetModelsByBricks(t.Context(), []string{"arduino:video_object_detection"})
 		assert.Len(t, models, 2)
 		assert.Equal(t, "face-detection", models[0].ID)
 		assert.Equal(t, "yolox-object-detection", models[1].ID)
 
-		models = modelsIndex.filterByBricks([]string{"arduino:object_detection", "arduino:video_object_detection"})
+		models = modelsIndex.GetModelsByBricks(t.Context(), []string{"arduino:object_detection", "arduino:video_object_detection"})
 		assert.Len(t, models, 2)
 		assert.Equal(t, "face-detection", models[0].ID)
 		assert.Equal(t, "yolox-object-detection", models[1].ID)

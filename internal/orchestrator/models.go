@@ -138,28 +138,15 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 	}
 
 	if runningAppReference != nil {
+		// TODO: we should destroy the app
 		if err := StopApp(ctx, dockerClient, platform, *runningAppReference, func(StreamMessage) {}); err != nil {
 			slog.Warn("Error while stopping the app using the model", "app", runningAppReference.Name, "error", err.Error())
 		}
 	}
 
-	if res.Deployment != nil && res.Deployment.Handler != "" {
-		handler, ok := modelsIndex.Handlers.GetHandlerByID(res.Deployment.Handler)
-		if !ok {
-			return fmt.Errorf("handler %q not found for model %q", res.Deployment.Handler, id)
-		}
-		if err := modelsindex.RunDeleteAction(ctx, dockerClient.Client(), *res, handler, platform, modelsIndex.GetHandlerConfigEnv()); err != nil {
-			return fmt.Errorf("delete action: %w", err)
-		}
-	} else {
-		// Custom model (e.g. Edge Impulse): remove the model folder directly.
-		if res.ModelFolderPath == nil {
-			slog.Warn("Cannot remove the model with missing model folder", "id", id)
-			return nil
-		}
-		if err := res.ModelFolderPath.RemoveAll(); err != nil {
-			return fmt.Errorf("error removing model folder %s", res.ModelFolderPath.String())
-		}
+	err = modelsindex.Delete(ctx, modelsIndex, dockerClient, platform, *res)
+	if err != nil {
+		return fmt.Errorf("error deleting model %q: %w", id, err)
 	}
 
 	return nil

@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/docker/cli/cli/command"
 	"github.com/docker/docker/client"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
@@ -96,28 +97,39 @@ type ModelsIndex struct {
 }
 
 func (m *ModelsIndex) GetModels(ctx context.Context) []AIModel {
-	return m.loadModels(ctx)
+	models := m.loadDryModels()
+	if m.Handlers != nil {
+		models, err := m.Handlers.getModelsInfo(ctx, m.cli, models, m.plat)
+		if err != nil {
+			slog.Warn("cannot get models info", "err", err)
+		}
+		return models
+	}
+	return models
 }
 
 func (m *ModelsIndex) GetModelsByBricks(ctx context.Context, bricks []string) []AIModel {
-	return m.filterByBricks(bricks)
+	var modelList []AIModel
+	for _, model := range m.GetModels(ctx) {
+		if slices.ContainsFunc(model.Bricks, func(brick BrickConfig) bool {
+			return slices.Contains(bricks, brick.ID)
+		}) {
+			modelList = append(modelList, model)
+		}
+	}
+	return modelList
 }
 
 // GetModelByID returns the model with the given ID and populates its Installed and Size fields.
 func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, error) {
-	models := m.getModels()
+	models := m.loadDryModels()
 	idx := slices.IndexFunc(models, func(v AIModel) bool { return v.ID == id })
 	if idx == -1 {
 		return nil, nil
 	}
 	model := models[idx]
-	if model.IsInternal && model.Deployment != nil && model.Deployment.PreLoaded {
-		if sizeMBStr, ok := model.Metadata["model_size_mb"]; ok {
-			if sizeMB, err := strconv.ParseFloat(sizeMBStr, 64); err == nil && sizeMB > 0 {
-				model.Size = uint64(sizeMB * 1024 * 1024)
-			}
-		}
-	} else if model.IsInternal {
+	if model.IsInternal && model.Deployment != nil && !model.Deployment.PreLoaded {
+		// TODO we should have a single method taht do the check and get the info
 		installed, err := m.modelInstalled(ctx, model, m.cli)
 		if err != nil {
 			return nil, fmt.Errorf("cannot determine install status for model %q: %w", id, err)
@@ -132,9 +144,9 @@ func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, er
 	return &model, nil
 }
 
-func (m *ModelsIndex) GetModelsByBrick(brickName string) []AIModel {
+func (m *ModelsIndex) GetModelsByBrick(ctx context.Context, brickName string) []AIModel {
 	var matches []AIModel
-	for _, model := range m.loadModels(context.Background()) {
+	for _, model := range m.GetModels(ctx) {
 		if slices.ContainsFunc(model.Bricks, func(b BrickConfig) bool { return b.ID == brickName }) {
 			matches = append(matches, model)
 		}
@@ -142,30 +154,13 @@ func (m *ModelsIndex) GetModelsByBrick(brickName string) []AIModel {
 	return matches
 }
 
-func (m *ModelsIndex) filterByBricks(bricks []string) []AIModel {
-	var modelList []AIModel
-	for _, model := range m.loadModels(context.Background()) {
-		if slices.ContainsFunc(model.Bricks, func(brick BrickConfig) bool {
-			return slices.Contains(bricks, brick.ID)
-		}) {
-			modelList = append(modelList, model)
-		}
-	}
-	return modelList
-}
-
-func (m *ModelsIndex) loadModels(ctx context.Context) []AIModel {
-	models := m.getModels()
-	m.Handlers.getModelsInfo(ctx, m.cli, models, m.plat)
-	return models
-}
-
-func (m *ModelsIndex) getModels() []AIModel {
+func (m *ModelsIndex) loadDryModels() []AIModel {
 	eimodels, err := loadCustomModels(m.modelsDir)
 	if err != nil {
 		slog.Error("cannot load edge impulse custom models", "err", err)
 	}
-	return append(m.InternalModels, eimodels...)
+	models := slices.Clone(m.InternalModels)
+	return append(models, eimodels...)
 }
 
 // Load constructs a ModelsIndex. Pass the result of LoadHandlers as handlers;
@@ -174,7 +169,13 @@ func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, cli cl
 	if dir == nil && modelsDir == nil {
 		return &ModelsIndex{}, errors.New("either dir or modelsDir must be provided")
 	}
-	models, err := loadInternalModels(dir)
+
+	handlers, err := loadHandlers(dir, cfg, plat)
+	if err != nil {
+		return nil, err
+	}
+
+	models, err := loadInternalModels(dir, handlers)
 	if err != nil {
 		return nil, err
 	}
@@ -184,11 +185,6 @@ func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, cli cl
 			len(model.SupportedBoards) != 0 &&
 			!slices.Contains(model.SupportedBoards, plat.BoardName)
 	})
-
-	handlers, err := loadHandlers(dir, cfg)
-	if err != nil {
-		return nil, err
-	}
 
 	return &ModelsIndex{
 		InternalModels: models,
@@ -218,10 +214,6 @@ func (m *ModelsIndex) modelSize(ctx context.Context, model AIModel) uint64 {
 		return 0
 	}
 	return size
-}
-
-func (m *ModelsIndex) GetHandlerConfigEnv() map[string]string {
-	return m.Handlers.configEnv
 }
 
 func (m *ModelsIndex) modelInstalled(ctx context.Context, model AIModel, cli client.APIClient) (bool, error) {
@@ -271,11 +263,12 @@ func (m *ModelsIndex) modelInstalled(ctx context.Context, model AIModel, cli cli
 	}
 }
 
-func loadInternalModels(dir *paths.Path) ([]AIModel, error) {
+func loadInternalModels(dir *paths.Path, handlers *HandlersIndex) ([]AIModel, error) {
 	if dir == nil {
 		// skip loading internal models
 		return []AIModel{}, nil
 	}
+
 	content, err := dir.Join("models-list.yaml").ReadFile()
 	if err != nil {
 		return nil, err
@@ -291,10 +284,21 @@ func loadInternalModels(dir *paths.Path) ([]AIModel, error) {
 		for id, model := range modelMap {
 			model.ID = id
 			model.IsInternal = true
+			model.Installed = true
+
 			if sizeMBStr, ok := model.Metadata["model_size_mb"]; ok {
 				if sizeMB, err := strconv.ParseFloat(sizeMBStr, 64); err == nil && sizeMB > 0 {
 					model.Size = uint64(sizeMB * 1024 * 1024)
 				}
+			}
+
+			if model.Deployment != nil {
+				_, ok := handlers.GetHandlerByID(model.Deployment.Handler)
+				if !ok {
+					return nil, fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
+				}
+
+				model.Installed = model.Deployment.PreLoaded
 			}
 			models[i] = model
 		}
@@ -355,17 +359,12 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 	return models, nil
 }
 
-func loadHandlers(dir *paths.Path, cfg config.Configuration) (*HandlersIndex, error) {
+func loadHandlers(dir *paths.Path, cfg config.Configuration, plat platform.Platform) (*HandlersIndex, error) {
 	// TODO : we should add a method on config to return env variables
-	empty := &HandlersIndex{handlers: make(map[string]ModelHandler), configEnv: map[string]string{}}
-
-	if dir == nil {
-		return empty, nil
-	}
 
 	handlersFile := dir.Join("models-handlers.yaml")
 	if handlersFile.NotExist() {
-		return empty, nil
+		return nil, nil
 	}
 
 	content, err := handlersFile.ReadFile()
@@ -430,9 +429,34 @@ func loadHandlers(dir *paths.Path, cfg config.Configuration) (*HandlersIndex, er
 
 	configEnv := map[string]string{
 		"DOCKER_REGISTRY_BASE": cfg.DockerRegistryBase(),
+		"BOARD_NAME":           plat.BoardName,
 	}
 	if modelsDir := cfg.CustomModelsDir(); modelsDir != nil {
 		configEnv["ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR"] = modelsDir.String()
 	}
 	return &HandlersIndex{handlers: handlers, listing: listing, configEnv: configEnv}, nil
+}
+
+func Delete(ctx context.Context, m *ModelsIndex, dockerClient command.Cli, platform platform.Platform, model AIModel) error {
+
+	if model.Deployment != nil && model.Deployment.Handler != "" {
+		// Internal model: run the delete action using the handler.
+		handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)
+		if !ok {
+			return fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
+		}
+		if err := deleteInternalModel(ctx, dockerClient.Client(), model, handler, platform, m.Handlers.configEnv); err != nil {
+			return fmt.Errorf("delete action: %w", err)
+		}
+	} else {
+		// Custom model (e.g. Edge Impulse): remove the model folder directly.
+		if model.ModelFolderPath == nil {
+			slog.Warn("Cannot remove the model with missing model folder", "id", model.ID)
+			return nil
+		}
+		if err := model.ModelFolderPath.RemoveAll(); err != nil {
+			return fmt.Errorf("error removing model folder %s", model.ModelFolderPath.String())
+		}
+	}
+	return nil
 }

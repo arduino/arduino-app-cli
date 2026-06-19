@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 func TestParseDownloadHandlerLine(t *testing.T) {
@@ -171,7 +172,7 @@ handlers:
 	err := tempDir.Join("models-handlers.yaml").WriteFile([]byte(yamlContent))
 	require.NoError(t, err)
 
-	handlersIndex, err := loadHandlers(tempDir, config.Configuration{})
+	handlersIndex, err := loadHandlers(tempDir, config.Configuration{}, platform.Platform{})
 	require.NoError(t, err)
 	require.NotNil(t, handlersIndex)
 

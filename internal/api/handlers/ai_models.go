@@ -181,21 +181,21 @@ func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, mode
 			return
 		}
 
-		m, err := modelsIndex.GetModelByID(r.Context(), id)
+		model, err := modelsIndex.GetModelByID(r.Context(), id)
 		if err != nil {
 			slog.Error("unable to get model by ID", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to get model by ID"})
 			return
 		}
-		if m == nil {
+		if model == nil {
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: fmt.Sprintf("model %q not found", id)})
 			return
 		}
-		if m.Installed {
+		if model.Installed {
 			render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: fmt.Sprintf("model %q already installed", id)})
 			return
 		}
-		if err := hasSufficientDiskSpace(cfg.AppsDir().Parent(), m.Size); err != nil {
+		if err := hasSufficientDiskSpace(cfg.AppsDir().Parent(), model.Size); err != nil {
 			if errors.Is(err, ErrInsufficientStorage) {
 				render.EncodeResponse(w, http.StatusInsufficientStorage, models.ErrorResponse{Details: "insufficient disk space"})
 				return
@@ -219,26 +219,20 @@ func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, mode
 			Message string `json:"message"`
 		}
 
-		handler, ok := modelsIndex.Handlers.GetHandlerByID(m.Deployment.Handler)
-		if !ok {
-			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: fmt.Sprintf("handler %q not found for model %q", m.Deployment.Handler, id)})
-			return
-		}
-
 		installResponse := func(e modelsindex.ModelDownloadEvent) {
 			switch e.Type {
 			case modelsindex.ModelInstallEventStart:
 				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: e.Description}})
 			case modelsindex.ModelInstallEventUpdate:
 				if e.Total > 0 {
-					sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: m.ID, Progress: float32(e.Current * 100 / e.Total)}})
+					sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: model.ID, Progress: float32(e.Current * 100 / e.Total)}})
 				} else {
-					sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: m.ID, Progress: 0}})
+					sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: model.ID, Progress: 0}})
 				}
 			case modelsindex.ModelInstallEventComplete:
-				sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: m.ID, Progress: 100}})
+				sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: model.ID, Progress: 100}})
 			case modelsindex.ModelInstallEventDone:
-				sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: m.ID, Progress: 100}})
+				sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: model.ID, Progress: 100}})
 			case modelsindex.ModelInstallEventError:
 				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: e.Description}})
 			case modelsindex.ModelInstallEventInfo:
@@ -248,7 +242,7 @@ func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, mode
 			}
 		}
 
-		err = modelsindex.RunDownloadAction(r.Context(), dockerClient.Client(), *m, handler, cfg, plat, modelsIndex.GetHandlerConfigEnv(), installResponse)
+		err = modelsindex.Download(r.Context(), modelsIndex, dockerClient.Client(), *model, plat, installResponse)
 		if err != nil {
 			slog.Error("unable to install model", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to install model: " + err.Error()})
