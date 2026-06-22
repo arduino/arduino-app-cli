@@ -132,9 +132,10 @@ func TestGetImagesHandlersFromInlineYAML(t *testing.T) {
   command: ["/app/list_models.sh"]
 handlers:
   - ai-hub-handler:
+      description: "Handler for models from AI Hub"
       image: test-registry/models-downloader:ai-hub
       volumes:
-        - ${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}:/models
+        - ${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}/${models_repository}:/models
       actions:
         - download:
             command: ["/app/ai_hub/ai_hub_model_downloader.sh"]
@@ -145,9 +146,10 @@ handlers:
         - info:
             command: ["/app/ai_hub/ai_hub_model_info.sh"]
   - ei-handler:
+      description: "Handler for models from Edge Impulse"
       image: test-registry/models-downloader:ei
       volumes:
-        - ${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}:/models
+        - ${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}/${models_repository}:/models
       actions:
         - download:
             command: ["/app/edge_impulse/ei_model_downloader.sh"]
@@ -157,6 +159,20 @@ handlers:
             command: ["/app/edge_impulse/ei_model_checker.sh"]
         - info:
             command: ["/app/edge_impulse/ei_model_info.sh"]
+  - hf-handler:
+      description: "Handler for models from Hugging Face"
+      image: test-registry/models-downloader:hf
+      volumes:
+        - ${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}/${models_repository}:/models
+      actions:
+        - download:
+            command: ["/app/hugging_face/hf_model_downloader.sh"]
+        - delete:
+            command: ["/app/hugging_face/hf_model_remover.sh"]
+        - check:
+            command: ["/app/hugging_face/hf_model_checker.sh"]
+        - info:
+            command: ["/app/hugging_face/hf_model_info.sh"]
 `
 
 	err := tempDir.Join("models-handlers.yaml").WriteFile([]byte(yamlContent))
@@ -168,5 +184,5 @@ handlers:
 
 	images := handlersIndex.GetDockerImages()
 	slices.Sort(images)
-	assert.Equal(t, []string{"test-registry/models-downloader:ai-hub", "test-registry/models-downloader:ei", "test-registry/models-downloader:listing"}, images)
+	assert.Equal(t, []string{"test-registry/models-downloader:ai-hub", "test-registry/models-downloader:ei", "test-registry/models-downloader:hf", "test-registry/models-downloader:listing"}, images)
 }

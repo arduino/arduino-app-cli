@@ -130,7 +130,7 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		require.Equal(t, []string{"${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}:/models"}, idx.Handlers.listing.Volumes)
 		h, ok := idx.Handlers.GetHandlerByID("ai-hub-handler")
 		require.True(t, ok)
-		require.Equal(t, []string{"${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}:/models"}, h.Volumes)
+		require.Equal(t, []string{"${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}/${models_repository}:/models"}, h.Volumes)
 
 	})
 

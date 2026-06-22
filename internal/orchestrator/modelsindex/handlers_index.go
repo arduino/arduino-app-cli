@@ -320,7 +320,6 @@ func Download(ctx context.Context, modelsIndex *ModelsIndex, cli client.APIClien
 		Env:   env,
 		Stdout: f.NewCallbackWriter(func(line string) {
 			slog.Debug("download line", "model", model.ID, "line", line)
-			// TODO: unify
 			parseDownloadHandlerLine(line, publish)
 		}),
 		Stderr: io.Discard,

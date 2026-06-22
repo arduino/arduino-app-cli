@@ -22,7 +22,7 @@ models:
               variables:
                 ei_project_id: 948887
                 ei_impulse_id: 4
-                models_repository: "models/edge-impulse"
+                models_repository: "edge-impulse"
                 model_name: efficientnet-b4-qnn.eim
       metadata:
         model_size_mb: 89
@@ -30,4 +30,4 @@ models:
       bricks:
         - id: "arduino:image_classification"
           model_configuration:
-            "EI_IMAGE_CLASSIFICATION_MODEL": "${models_repository}/efficientnet-b4-qnn.eim"
+            "EI_IMAGE_CLASSIFICATION_MODEL": "models/${models_repository}/efficientnet-b4-qnn.eim"
