@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package orchestrator
+package resources
 
 import (
 	"context"
@@ -39,6 +39,12 @@ type SystemCPUResource struct {
 
 func (*SystemCPUResource) systemResource() string { return "cpu" }
 
+type SystemNPUResource struct {
+	UsedPercent float32 `json:"max_percent"`
+}
+
+func (*SystemNPUResource) systemResource() string { return "npu" }
+
 type SystemMemoryResource struct {
 	Used  uint64 `json:"used"`
 	Total uint64 `json:"total"`
@@ -48,6 +54,7 @@ func (*SystemMemoryResource) systemResource() string { return "memory" }
 
 type SystemResourceConfig struct {
 	CPUScrapeInterval    time.Duration
+	NPUScrapeInterval    time.Duration
 	MemoryScrapeInterval time.Duration
 	DiskScrapeInterval   time.Duration
 }
@@ -56,6 +63,7 @@ func SystemResources(ctx context.Context, cfg config.Configuration, resourceCfg 
 	if resourceCfg == nil {
 		resourceCfg = &SystemResourceConfig{
 			CPUScrapeInterval:    time.Second * 5,
+			NPUScrapeInterval:    time.Second * 5,
 			MemoryScrapeInterval: time.Second * 5,
 			DiskScrapeInterval:   time.Second * 30,
 		}
@@ -73,6 +81,8 @@ func SystemResources(ctx context.Context, cfg config.Configuration, resourceCfg 
 		return helpers.EmptyIter[SystemResource](), err
 	}
 	firstMessagesToSend = append(firstMessagesToSend, &SystemCPUResource{UsedPercent: cpuStats[0]})
+
+	npu := NewNPUMonitor(ctx)
 
 	diskPaths := []string{"/", "/tmp", cfg.AppsDir().Parent().String()}
 	for _, path := range diskPaths {
@@ -95,6 +105,9 @@ func SystemResources(ctx context.Context, cfg config.Configuration, resourceCfg 
 		cpuTicker := time.NewTicker(resourceCfg.CPUScrapeInterval)
 		defer cpuTicker.Stop()
 
+		npuTicker := time.NewTicker(resourceCfg.NPUScrapeInterval)
+		defer npuTicker.Stop()
+
 		memoryTicker := time.NewTicker(resourceCfg.MemoryScrapeInterval)
 		defer memoryTicker.Stop()
 
@@ -111,6 +124,12 @@ func SystemResources(ctx context.Context, cfg config.Configuration, resourceCfg 
 				}
 				if !yield(&SystemCPUResource{UsedPercent: cpuStats[0]}) {
 					return
+				}
+			case <-npuTicker.C:
+				if npu != nil {
+					if !yield(&SystemNPUResource{UsedPercent: npu.Percent()}) {
+						return
+					}
 				}
 			case <-memoryTicker.C:
 				memory, err := mem.VirtualMemory()
