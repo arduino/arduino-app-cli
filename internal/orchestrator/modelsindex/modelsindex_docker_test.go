@@ -9,12 +9,15 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"net"
+	"strings"
 	"sync"
 	"testing"
 
 	dockertypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
@@ -103,6 +106,10 @@ func (f *fakeDockerClient) ContainerStart(_ context.Context, id string, _ contai
 	return nil
 }
 
+func (f *fakeDockerClient) ImagePull(_ context.Context, _ string, _ image.PullOptions) (io.ReadCloser, error) {
+	return io.NopCloser(strings.NewReader("")), nil
+}
+
 // loadHandlersTestIndex loads a ModelsIndex from testdata/with-handlers using the given fake client.
 func loadHandlersTestIndex(t *testing.T, dockerCli client.APIClient) *ModelsIndex {
 	t.Helper()
@@ -142,8 +149,8 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 
 	t.Run("ei:efficientnet-b4 not installed: check exits 1 with error event", func(t *testing.T) {
 		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
-			// check action → model not present (script signals this via error event + exit 1)
-			return "{\"event\":\"error\",\"description\":\"model not installed\"}\n", 1
+			// check action → model not present (script signals this via error event + exit 0)
+			return "{\"event\":\"error\",\"description\":\"model not installed\"}\n", 0
 		})
 		idx := loadHandlersTestIndex(t, cli)
 
@@ -156,8 +163,8 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 
 	t.Run("ei:efficientnet-b4 installed: check exits 0, size from metadata", func(t *testing.T) {
 		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
-			// check action → model is present
-			return "", 0
+			// check action → model is present (script signals this via info event + exit 0)
+			return "{\"event\":\"info\"}\n", 0
 		})
 		idx := loadHandlersTestIndex(t, cli)
 

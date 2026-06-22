@@ -67,7 +67,8 @@ func TestValidateAppDescriptorBricks(t *testing.T) {
 	modelIndex := &modelsindex.ModelsIndex{
 		InternalModels: []modelsindex.AIModel{
 			{
-				ID: "i-am-model-2",
+				ID:        "i-am-model-2",
+				Installed: true,
 			},
 		},
 	}

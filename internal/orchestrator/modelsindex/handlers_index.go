@@ -57,6 +57,9 @@ type ModelHandler struct {
 
 func loadHandlers(dir *paths.Path, cfg config.Configuration, plat platform.Platform) (*HandlersIndex, error) {
 	// TODO : we should add a method on config to return env variables
+	if dir == nil {
+		return nil, nil
+	}
 
 	handlersFile := dir.Join("models-handlers.yaml")
 	if handlersFile.NotExist() {

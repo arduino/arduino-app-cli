@@ -257,10 +257,9 @@ func (m *ModelsIndex) modelInstalled(ctx context.Context, model AIModel, cli cli
 	if isModelDownloaded {
 		slog.Debug("model installed", "model", model.ID)
 		return true, nil
-	} else {
-		slog.Debug("model not installed", "model", model.ID)
-		return false, nil
 	}
+	slog.Debug("model not installed", "model", model.ID)
+	return false, nil
 }
 
 func loadInternalModels(dir *paths.Path, handlers *HandlersIndex) ([]AIModel, error) {

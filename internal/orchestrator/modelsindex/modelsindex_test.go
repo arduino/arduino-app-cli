@@ -115,6 +115,7 @@ func TestModelsIndex(t *testing.T) {
 			ModelLabels: []string{"face"},
 			Runner:      "brick",
 			IsInternal:  true,
+			Installed:   true,
 		}, model)
 	})
 
