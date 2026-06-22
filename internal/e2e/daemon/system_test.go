@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tmaxmax/go-sse"
 
-	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/resources"
 )
 
 func TestSystemResources(t *testing.T) {
@@ -34,9 +34,9 @@ func TestSystemResources(t *testing.T) {
 		conn := sse.DefaultClient.NewConnection(systemResources.Request.WithContext(reqCtx))
 
 		var (
-			cpuResp  orchestrator.SystemCPUResource
-			memResp  orchestrator.SystemMemoryResource
-			diskResp orchestrator.SystemDiskResource
+			cpuResp  resources.SystemCPUResource
+			memResp  resources.SystemMemoryResource
+			diskResp resources.SystemDiskResource
 		)
 
 		conn.SubscribeToAll(func(event sse.Event) {
@@ -48,9 +48,9 @@ func TestSystemResources(t *testing.T) {
 			case "disk":
 				require.NoError(t, json.Unmarshal([]byte(event.Data), &diskResp))
 			}
-			if cpuResp != (orchestrator.SystemCPUResource{}) &&
-				memResp != (orchestrator.SystemMemoryResource{}) &&
-				diskResp != (orchestrator.SystemDiskResource{}) {
+			if cpuResp != (resources.SystemCPUResource{}) &&
+				memResp != (resources.SystemMemoryResource{}) &&
+				diskResp != (resources.SystemDiskResource{}) {
 				cancelCtx() // Stop the connection once we have all resources
 			}
 		})
