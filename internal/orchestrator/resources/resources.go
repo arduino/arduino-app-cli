@@ -83,6 +83,7 @@ func SystemResources(ctx context.Context, cfg config.Configuration, resourceCfg 
 	firstMessagesToSend = append(firstMessagesToSend, &SystemCPUResource{UsedPercent: cpuStats[0]})
 
 	npu := NewNPUMonitor(ctx)
+	firstMessagesToSend = append(firstMessagesToSend, &SystemNPUResource{UsedPercent: npu.Percent()})
 
 	diskPaths := []string{"/", "/tmp", cfg.AppsDir().Parent().String()}
 	for _, path := range diskPaths {
