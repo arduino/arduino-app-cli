@@ -412,7 +412,7 @@ func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
 		})
 	case "complete":
 		publish(StreamMessage{
-			data: raw.Description,
+			data: "download complete",
 		})
 	case "error":
 		publish(StreamMessage{
