@@ -84,6 +84,11 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 	}
 	slog.Debug("creating container", "id", resp.ID, "image", opts.Image, "cmd", opts.Cmd, "env", opts.Env, "binds", opts.Binds)
 
+	// Ensure the container is stopped and removed even if ctx is cancelled.
+	defer func() {
+		_ = cli.ContainerStop(context.Background(), resp.ID, container.StopOptions{})
+	}()
+
 	statusCh, errCh := cli.ContainerWait(ctx, resp.ID, container.WaitConditionNotRunning)
 
 	attachResp, err := cli.ContainerAttach(ctx, resp.ID, container.AttachOptions{
@@ -106,11 +111,20 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 		slog.Debug("container finished", "id", resp.ID, "image", opts.Image, "exec_s", time.Since(execStart).Seconds())
 	}()
 
-	if _, err := stdcopy.StdCopy(opts.Stdout, opts.Stderr, attachResp.Reader); err != nil {
-		return fmt.Errorf("reading output: %w", err)
-	}
+	// Read output in a goroutine so we can return immediately if ctx is cancelled.
+	outputErr := make(chan error, 1)
+	go func() {
+		_, err := stdcopy.StdCopy(opts.Stdout, opts.Stderr, attachResp.Reader)
+		outputErr <- err
+	}()
 
 	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-outputErr:
+		if err != nil {
+			return fmt.Errorf("reading output: %w", err)
+		}
 	case err := <-errCh:
 		if err != nil {
 			return fmt.Errorf("container wait: %w", err)
