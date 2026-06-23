@@ -347,6 +347,21 @@ func generateMainComposeFile(
 		})
 	}
 
+	// Bind-mount the arduino-app-cloud daemon's socket directory so the
+	// arduino_cloud brick can reach the daemon over its UNIX socket. We mount
+	// the directory (not the socket file) so the mount stays valid when the
+	// daemon recreates the socket across restarts. The brick connects to
+	// <dir>/daemon.sock by default.
+	cloudSocketDir := cfg.CloudDaemonSocketDir()
+	slog.Debug("Adding cloud daemon socket dir", slog.Any("dir", cloudSocketDir.String()), slog.Bool("exists", cloudSocketDir.Exist()))
+	if cloudSocketDir.Exist() {
+		volumes = append(volumes, volume{
+			Type:   "bind",
+			Source: cloudSocketDir.String(),
+			Target: cloudSocketDir.String(),
+		})
+	}
+
 	volumes = addLedControl(platform, volumes)
 	groups := lookupGroups("video", "audio", "render", "dialout")
 	// Support for NPU

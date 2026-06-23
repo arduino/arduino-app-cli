@@ -26,6 +26,7 @@ type Configuration struct {
 	appsDir                          *paths.Path
 	dataDir                          *paths.Path
 	routerSocketPath                 *paths.Path
+	cloudDaemonSocketDir             *paths.Path
 	customModelsDir                  *paths.Path
 	PythonImage                      string
 	UsedPythonImageTag               string
@@ -62,6 +63,14 @@ func NewFromEnv() (Configuration, error) {
 	routerSocket := paths.New(os.Getenv("ARDUINO_ROUTER_SOCKET"))
 	if routerSocket == nil || routerSocket.NotExist() {
 		routerSocket = paths.New("/var/run/arduino-router.sock")
+	}
+
+	// Directory holding the arduino-app-cloud daemon's UNIX socket; bind-mounted
+	// (the directory, so it stays valid across daemon restarts) into app
+	// containers so the arduino_cloud brick can reach the daemon.
+	cloudDaemonSocketDir := paths.New(os.Getenv("ARDUINO_CLOUD_DAEMON_SOCKET_DIR"))
+	if cloudDaemonSocketDir == nil {
+		cloudDaemonSocketDir = paths.New("/run/arduino-app-cloud")
 	}
 
 	// Ensure the custom modules directory exists
@@ -118,6 +127,7 @@ func NewFromEnv() (Configuration, error) {
 		appsDir:                          appsDir,
 		dataDir:                          dataDir,
 		routerSocketPath:                 routerSocket,
+		cloudDaemonSocketDir:             cloudDaemonSocketDir,
 		customModelsDir:                  customModelsDir,
 		PythonImage:                      pythonImage,
 		UsedPythonImageTag:               usedPythonImageTag,
@@ -160,6 +170,10 @@ func (c *Configuration) ExamplesDir() *paths.Path {
 
 func (c *Configuration) RouterSocketPath() *paths.Path {
 	return c.routerSocketPath
+}
+
+func (c *Configuration) CloudDaemonSocketDir() *paths.Path {
+	return c.cloudDaemonSocketDir
 }
 
 func (c *Configuration) AssetsDir() *paths.Path {
