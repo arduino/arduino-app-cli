@@ -51,14 +51,19 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 		}
 	}
 
-	pullResp, err := cli.ImagePull(ctx, opts.Image, image.PullOptions{})
-	if err != nil {
-		return fmt.Errorf("image pull: %w", err)
+	launchStart := time.Now()
+
+	if _, err := cli.ImageInspect(ctx, opts.Image); err != nil {
+		slog.Debug("image not found locally, pulling", "image", opts.Image)
+		pullResp, err := cli.ImagePull(ctx, opts.Image, image.PullOptions{})
+		if err != nil {
+			return fmt.Errorf("image pull: %w", err)
+		}
+		if _, err := io.Copy(io.Discard, pullResp); err != nil {
+			return fmt.Errorf("image pull read: %w", err)
+		}
+		pullResp.Close()
 	}
-	if _, err := io.Copy(io.Discard, pullResp); err != nil {
-		return fmt.Errorf("image pull read: %w", err)
-	}
-	pullResp.Close()
 
 	resp, err := cli.ContainerCreate(ctx,
 		&container.Config{
@@ -90,13 +95,17 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 		return fmt.Errorf("container attach: %w", err)
 	}
 	defer attachResp.Close()
-	now := time.Now()
-	defer func() {
-		slog.Warn("container finished", "id", resp.ID, "image", opts.Image, "cmd", opts.Cmd, "env", opts.Env, "binds", opts.Binds, "duration", time.Since(now))
-	}()
+
 	if err := cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
 		return fmt.Errorf("container start: %w", err)
 	}
+	slog.Debug("container launched", "id", resp.ID, "image", opts.Image, "launch_s", time.Since(launchStart).Seconds())
+
+	execStart := time.Now()
+	defer func() {
+		slog.Debug("container finished", "id", resp.ID, "image", opts.Image, "exec_s", time.Since(execStart).Seconds())
+	}()
+
 	if _, err := stdcopy.StdCopy(opts.Stdout, opts.Stderr, attachResp.Reader); err != nil {
 		return fmt.Errorf("reading output: %w", err)
 	}

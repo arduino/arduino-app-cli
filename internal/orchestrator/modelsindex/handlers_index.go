@@ -15,6 +15,7 @@ import (
 	"log/slog"
 	"maps"
 	"slices"
+	"time"
 
 	composetmpl "github.com/compose-spec/compose-go/v2/template"
 	"github.com/docker/docker/client"
@@ -279,6 +280,7 @@ func runListAction(ctx context.Context, cli client.APIClient, listing *ListingCo
 	slog.Debug("running list action", "image", listing.Image)
 
 	var buf bytes.Buffer
+	start := time.Now()
 	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
 		Image:  ResolveVars(listing.Image, configEnv),
 		Cmd:    listing.Command,
@@ -286,6 +288,7 @@ func runListAction(ctx context.Context, cli client.APIClient, listing *ListingCo
 		Env:    env,
 		Stdout: &buf,
 	})
+	slog.Debug("list action finished", "duration_s", time.Since(start).Seconds())
 	if err != nil {
 		return nil, fmt.Errorf("list action: %w", err)
 	}
