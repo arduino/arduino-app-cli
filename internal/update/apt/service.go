@@ -8,6 +8,7 @@ package apt
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"iter"
@@ -15,6 +16,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/arduino/go-paths-helper"
 	"go.bug.st/f"
@@ -58,6 +60,8 @@ func (s *Service) ListUpgradablePackages(ctx context.Context, matcher func(updat
 	return pkgs, nil
 }
 
+const restartServicesTimeout = 5 * time.Minute
+
 // UpgradePackages upgrades the specified packages using the `apt-get upgrade` command.
 // It publishes events to subscribers during the upgrade process.
 // It returns an error if the upgrade is already in progress or if the upgrade command fails.
@@ -65,12 +69,20 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
+
 	// At the end of the upgrade, always try to restart the services (that need it).
 	// This makes sure key services are restarted even if an error happens in the upgrade steps (for examples container images download).
 	defer func() {
 		eventCB(update.NewDataEvent(update.RestartEvent, "Upgrade completed. Restarting ..."))
 
-		err := restartServices(ctx)
+		// Use a fresh context for restarting services, independent from the upgrade context,
+		// to ensure the restart always happens even if the upgrade was canceled or timed out.
+		restartCtx, restartCancel := context.WithTimeout(context.Background(), restartServicesTimeout)
+		defer restartCancel()
+
+		err := restartServices(restartCtx)
 		if err != nil {
 			eventCB(update.NewErrorEvent(fmt.Errorf("error restarting services after upgrade: %w", err)))
 			return
@@ -84,7 +96,12 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 	stream := runUpgradeCommand(ctx, names)
 	for line, err := range stream {
 		if err != nil {
-			return fmt.Errorf("error running upgrade command: %w", err)
+			if errors.Is(err, context.Canceled) {
+				eventCB(update.NewCancelEvent("Run upgrade operation canceled"))
+				return nil
+			} else {
+				return fmt.Errorf("error running upgrade command: %w", err)
+			}
 		}
 		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 	}
@@ -92,7 +109,12 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 	eventCB(update.NewDataEvent(update.StartEvent, "apt cleaning cache is starting"))
 	for line, err := range runAptCleanCommand(ctx) {
 		if err != nil {
-			return fmt.Errorf("error running apt clean command: %w", err)
+			if errors.Is(err, context.Canceled) {
+				eventCB(update.NewCancelEvent("Run apt clean operation canceled"))
+				return nil
+			} else {
+				return fmt.Errorf("error running apt clean command: %w", err)
+			}
 		}
 		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 	}
@@ -100,12 +122,21 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 	for line, err := range runSystemInit(ctx) {
 		if err != nil {
 			// In case of errors, including "out of disk space" erros, do a cleanup and then retry once.
+			if errors.Is(err, context.Canceled) {
+				eventCB(update.NewCancelEvent("Run system init operation canceled"))
+				return nil
+			}
 
 			eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Stop and destroy docker containers and images, to free up space ..."))
 			streamCleanup := cleanupDockerContainers(ctx)
 			for line, err := range streamCleanup {
 				if err != nil {
-					slog.Warn("Error during cleanup of container and images", "error", err)
+					if errors.Is(err, context.Canceled) {
+						eventCB(update.NewCancelEvent("run docker cleanup operation canceled"))
+						return nil
+					} else {
+						slog.Warn("Error during cleanup of container and images", "error", err)
+					}
 				} else {
 					eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 				}
@@ -115,7 +146,12 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 			eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Pulling the latest docker images (again) ..."))
 			for line, err := range runSystemInit(ctx) {
 				if err != nil {
-					return fmt.Errorf("error pulling docker images: %w", err)
+					if errors.Is(err, context.Canceled) {
+						eventCB(update.NewCancelEvent("Run system init operation canceled"))
+						return nil
+					} else {
+						return fmt.Errorf("error pulling docker images: %w", err)
+					}
 				}
 				eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 			}
@@ -129,7 +165,12 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 	streamCleanup := cleanupDockerContainers(ctx)
 	for line, err := range streamCleanup {
 		if err != nil {
-			slog.Warn("Error during cleanup of container and images", "error", err)
+			if errors.Is(err, context.Canceled) {
+				eventCB(update.NewCancelEvent("run docker cleanup operation canceled"))
+				return nil
+			} else {
+				slog.Warn("Error during cleanup of container and images", "error", err)
+			}
 		} else {
 			eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 		}
