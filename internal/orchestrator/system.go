@@ -45,13 +45,16 @@ var ErrDockerOutOfSpace = errors.New("not enough disk space to pull the docker i
 
 const ExitCodeDockerOutOfSpace = 80
 
-type initProgress struct {
-	label string
-	curr  int64
-	total int64
+// InitProgress represents a single progress update emitted during SystemInit.
+type InitProgress struct {
+	Label string
+	Curr  int64
+	Total int64
 }
 
-type initProgressCallback func(progress initProgress)
+// InitProgressCallback is invoked by SystemInit to report progress updates.
+// It is provided by the caller, which decides how to render the progress.
+type InitProgressCallback func(progress InitProgress)
 
 type SystemInitOptions struct {
 	OnlyDockerImages    bool
@@ -68,7 +71,7 @@ func (o SystemInitOptions) Validate() error {
 // SystemInit pulls all the docker images needed for the current version of the software to run and the
 // sketch libraries used in the example apps. Can be used to pre-install docker images/libraries on an
 // empty system, or to update all the docker images/libraries that need it.
-func SystemInit(ctx context.Context, cfg config.Configuration, platform platform.Platform, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex, docker *command.DockerCli, options SystemInitOptions) error {
+func SystemInit(ctx context.Context, cfg config.Configuration, platform platform.Platform, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, docker *command.DockerCli, modelsIndex *modelsindex.ModelsIndex, options SystemInitOptions, progressCB InitProgressCallback) error {
 	if err := options.Validate(); err != nil {
 		return err
 	}
@@ -77,15 +80,6 @@ func SystemInit(ctx context.Context, cfg config.Configuration, platform platform
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 		return nil
-	}
-
-	// TODO: Move this callback up in the call chain, closer to Cobra command definition
-	progressCB := func(progress initProgress) {
-		percentage := float64(progress.curr) / float64(progress.total) * 100
-		fmt.Fprintf(stdout, "%s: %.2f%% (%d/%d)\r", progress.label, percentage, progress.curr, progress.total)
-		if progress.curr == progress.total {
-			fmt.Fprintln(stdout)
-		}
 	}
 
 	var downloadPlatformAndLibs, downloadDockerImages bool
@@ -518,7 +512,7 @@ func installPlatformPackage(ctx context.Context, plat platform.Platform, stdout 
 	return nil
 }
 
-func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Configuration, platform platform.Platform, progressCB initProgressCallback) error {
+func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Configuration, platform platform.Platform, progressCB InitProgressCallback) error {
 	// Start an Arduino Core Server RPC server
 	logrus.SetOutput(io.Discard) // Suppress logs from Arduino CLI
 	var cliInstance *rpc.Instance
@@ -547,10 +541,10 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 		}
 		if update := curr.GetUpdate(); update != nil {
 			totalSize = update.GetTotalSize()
-			progressCB(initProgress{
-				label: currLabel,
-				curr:  update.GetDownloaded(),
-				total: totalSize,
+			progressCB(InitProgress{
+				Label: currLabel,
+				Curr:  update.GetDownloaded(),
+				Total: totalSize,
 			})
 		}
 	}
