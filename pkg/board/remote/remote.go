@@ -16,6 +16,7 @@ var ErrPortAvailable = fmt.Errorf("port is not available")
 type FileInfo struct {
 	Name  string
 	IsDir bool
+	Mode  uint32
 }
 
 type RemoteConn interface {
@@ -23,15 +24,21 @@ type RemoteConn interface {
 	RemoteShell // TODO: should be removed after refactoring.
 	Forwarder
 	RemoteTransfer
+	Close() error
 }
 
 type FS interface {
 	List(path string) ([]FileInfo, error)
 	MkDirAll(path string) error
 	WriteFile(data io.Reader, path string) error
+	// ReadFile opens the file at path for reading.
+	// Prefer io.Copy over io.ReadAll to drain the reader: some backends
+	// (e.g. sftp) use WriteTo to fetch concurrently, which is much faster
+	// on high-latency links.
 	ReadFile(path string) (io.ReadCloser, error)
 	Remove(path string) error
 	Stats(path string) (FileInfo, error)
+	Rename(oldPath, newPath string) error
 }
 
 type RemoteShell interface {

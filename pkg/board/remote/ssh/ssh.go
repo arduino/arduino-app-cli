@@ -6,12 +6,11 @@
 package ssh
 
 import (
-	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"log/slog"
 	"net"
 	"os"
@@ -19,10 +18,13 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/arduino/arduino-app-cli/pkg/board/remote"
+	"github.com/arduino/arduino-app-cli/pkg/board/remote/sftpfs"
 	"github.com/arduino/arduino-app-cli/pkg/x/ports"
 )
 
@@ -34,6 +36,8 @@ type SSHConnection struct {
 
 	mu             sync.Mutex
 	ForwardedPorts []ForwardedPort
+
+	*sftpfs.SftpFS
 }
 
 type ForwardedPort struct {
@@ -64,9 +68,9 @@ func FromHost(user, password, address string) (*SSHConnection, error) {
 		return nil, fmt.Errorf("failed to dial SSH: %w", err)
 	}
 
-	return &SSHConnection{
-		client: client,
-	}, nil
+	conn := &SSHConnection{client: client}
+	conn.SftpFS = sftpfs.New(conn.dialSftp)
+	return conn, nil
 }
 
 func (a *SSHConnection) Forward(ctx context.Context, localPort int, remotePort int) error {
@@ -153,121 +157,27 @@ func (a *SSHConnection) ForwardKillAll(ctx context.Context) error {
 	return nil
 }
 
-func (a *SSHConnection) List(path string) ([]remote.FileInfo, error) {
-	session, err := a.client.NewSession()
+// dialSftp creates a new SFTP client using the existing SSH connection.
+func (a *SSHConnection) dialSftp() (*sftp.Client, []sftpfs.CloseFunc, error) {
+	client, err := sftp.NewClient(a.client,
+		sftp.MaxPacketUnchecked(1<<17), // 128 KiB packets
+		sftp.MaxConcurrentRequestsPerFile(64),
+		sftp.UseConcurrentReads(true),
+		sftp.UseConcurrentWrites(true),
+	)
 	if err != nil {
-		return nil, err
+		return nil, nil, fmt.Errorf("failed to create sftp client: %w", err)
 	}
-	defer session.Close()
-
-	cmd := fmt.Sprintf("ls -laQ %q", path)
-	output, err := session.Output(cmd)
-	if err != nil {
-		return nil, err
-	}
-
-	return remote.ParseLsOutput(bytes.NewReader(output))
+	return client, nil, nil
 }
 
-func (a *SSHConnection) MkDirAll(path string) error {
-	session, err := a.client.NewSession()
-	if err != nil {
-		return err
-	}
-	defer session.Close()
-
-	cmd := fmt.Sprintf("mkdir -p %q", path)
-	if err := session.Run(cmd); err != nil {
-		return fmt.Errorf("failed to create directory: %w", err)
-	}
-
-	return nil
-}
-
-func (a *SSHConnection) WriteFile(r io.Reader, path string) error {
-	session, err := a.client.NewSession()
-	if err != nil {
-		return err
-	}
-	defer session.Close()
-
-	cmd := fmt.Sprintf("cat > %q", path)
-	session.Stdin = r
-
-	if err := session.Run(cmd); err != nil {
-		return fmt.Errorf("failed to write file: %w", err)
-	}
-
-	return nil
-}
-
-func (a *SSHConnection) ReadFile(path string) (io.ReadCloser, error) {
-	session, err := a.client.NewSession()
-	if err != nil {
-		return nil, err
-	}
-
-	cmd := fmt.Sprintf("cat %q", path)
-	output, err := session.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
-
-	if err := session.Start(cmd); err != nil {
-		return nil, fmt.Errorf("failed to start command: %w", err)
-	}
-
-	return remote.WithCloser{
-		Reader:   output,
-		CloseFun: session.Close,
-	}, nil
-}
-
-func (a *SSHConnection) Remove(path string) error {
-	session, err := a.client.NewSession()
-	if err != nil {
-		return err
-	}
-	defer session.Close()
-
-	cmd := fmt.Sprintf("rm -rf %q", path)
-	if err := session.Run(cmd); err != nil {
-		return fmt.Errorf("failed to remove file: %w", err)
-	}
-
-	return nil
-}
-
-func (a *SSHConnection) Stats(p string) (remote.FileInfo, error) {
-	session, err := a.client.NewSession()
-	if err != nil {
-		return remote.FileInfo{}, err
-	}
-	defer session.Close()
-
-	cmd := fmt.Sprintf("file %q", p)
-	output, err := session.Output(cmd)
-	if err != nil {
-		return remote.FileInfo{}, err
-	}
-
-	line := bytes.TrimSpace(output)
-	parts := bytes.Split(line, []byte(":"))
-	if len(parts) < 2 {
-		return remote.FileInfo{}, fmt.Errorf("unexpected file command output: %s", line)
-	}
-
-	name := string(bytes.TrimSpace(parts[0]))
-	other := string(bytes.TrimSpace(parts[1]))
-
-	if strings.Contains(other, "cannot open") {
-		return remote.FileInfo{}, fs.ErrNotExist
-	}
-
-	return remote.FileInfo{
-		Name:  path.Base(name),
-		IsDir: other == "directory",
-	}, nil
+func (a *SSHConnection) Close() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err1 := a.ForwardKillAll(ctx)
+	err2 := a.Teardown()
+	err3 := a.client.Close()
+	return cmp.Or(err1, err2, err3)
 }
 
 type SSHCommand struct {

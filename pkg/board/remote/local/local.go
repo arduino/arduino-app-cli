@@ -40,9 +40,14 @@ func (a *LocalConnection) List(path string) ([]remote.FileInfo, error) {
 	}
 
 	return f.Map(dirs, func(d fs.DirEntry) remote.FileInfo {
+		var mode fs.FileMode
+		if info, err := d.Info(); err == nil {
+			mode = info.Mode().Perm()
+		}
 		return remote.FileInfo{
 			Name:  d.Name(),
 			IsDir: d.IsDir(),
+			Mode:  uint32(mode),
 		}
 	}), nil
 }
@@ -56,6 +61,7 @@ func (a *LocalConnection) Stats(path string) (remote.FileInfo, error) {
 	return remote.FileInfo{
 		Name:  info.Name(),
 		IsDir: info.IsDir(),
+		Mode:  uint32(info.Mode().Perm()),
 	}, nil
 }
 
@@ -78,11 +84,19 @@ func (a *LocalConnection) WriteFile(r io.Reader, path string) error {
 }
 
 func (a *LocalConnection) MkDirAll(path string) error {
-	return os.MkdirAll(path, 0700)
+	return os.MkdirAll(path, 0775)
 }
 
 func (a *LocalConnection) Remove(path string) error {
 	return os.RemoveAll(path)
+}
+
+func (a *LocalConnection) Rename(oldPath, newPath string) error {
+	return os.Rename(oldPath, newPath)
+}
+
+func (a *LocalConnection) Close() error {
+	return nil
 }
 
 type LocalCommand struct {
