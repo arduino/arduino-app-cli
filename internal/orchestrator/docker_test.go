@@ -203,3 +203,20 @@ func TestUpdateLayerProgress(t *testing.T) {
 		t.Errorf("got %d, want 350 (empty id ignored)", got)
 	}
 }
+
+func TestImageDisplayName(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"ghcr.io/arduino/app-bricks/python-apps-base:0.11.0rc6", "python-apps-base"},
+		{"influxdb:2.7-alpine", "influxdb"},
+		{"ghcr.io/arduino/app-bricks/ei-models-runner@sha256:abc", "ei-models-runner"},
+		{"nginx", "nginx"},
+	}
+	for _, tt := range tests {
+		if got := imageDisplayName(tt.input); got != tt.expected {
+			t.Errorf("imageDisplayName(%q) = %q, want %q", tt.input, got, tt.expected)
+		}
+	}
+}

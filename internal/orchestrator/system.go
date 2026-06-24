@@ -168,7 +168,7 @@ func downloadSupportedImages(ctx context.Context, cfg config.Configuration, bric
 	// Second pass: pull the images, accumulating downloaded bytes across all of
 	// them so progress reflects the global download status.
 	layerProgress := map[string]int64{}
-	for _, img := range imagesToPull {
+	for i, img := range imagesToPull {
 		freeSpace, err := GetDockerFreeSpace()
 		if err != nil {
 			return err
@@ -180,7 +180,10 @@ func downloadSupportedImages(ctx context.Context, cfg config.Configuration, bric
 		}
 
 		feedback.Printf("Pulling container image %s ...", img.ref)
-		if err := pullImage(ctx, stdout, docker.Client(), img.ref, layerProgress, totalBytes, progressCB); err != nil {
+		// The percentage stays global (across all images); the label tells the
+		// user which image is currently being pulled.
+		label := fmt.Sprintf("Pulling image %d/%d (%s)", i+1, len(imagesToPull), imageDisplayName(img.ref))
+		if err := pullImage(ctx, stdout, docker.Client(), img.ref, layerProgress, totalBytes, label, progressCB); err != nil {
 			return fmt.Errorf("failed to pull image %s: %w", img.ref, err)
 		}
 	}
@@ -209,7 +212,7 @@ func updateLayerProgress(layerProgress map[string]int64, status, id string, curr
 	return downloaded
 }
 
-func pullImage(ctx context.Context, stdout io.Writer, docker dockerClient.APIClient, imageName string, layerProgress map[string]int64, totalBytes int64, progressCB InitProgressCallback) error {
+func pullImage(ctx context.Context, stdout io.Writer, docker dockerClient.APIClient, imageName string, layerProgress map[string]int64, totalBytes int64, progressLabel string, progressCB InitProgressCallback) error {
 	delay := minDelay
 	var out io.ReadCloser
 	var allErr error
@@ -269,7 +272,7 @@ func pullImage(ctx context.Context, stdout io.Writer, docker dockerClient.APICli
 				if downloaded > totalBytes {
 					downloaded = totalBytes
 				}
-				progressCB(InitProgress{Label: "Downloading container images", Curr: downloaded, Total: totalBytes})
+				progressCB(InitProgress{Label: progressLabel, Curr: downloaded, Total: totalBytes})
 			}
 		}
 	}
