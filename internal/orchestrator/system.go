@@ -106,7 +106,7 @@ func SystemInit(ctx context.Context, cfg config.Configuration, platform platform
 
 	if downloadDockerImages {
 		// TODO: use progressCB instead of stdout
-		if err := downloadSupportedImages(ctx, cfg, bricksindex, servicesindex, modelsIndex, docker, stdout); err != nil {
+		if err := downloadSupportedImages(ctx, cfg, bricksindex, servicesindex, modelsIndex, docker, stdout, progressCB); err != nil {
 			return fmt.Errorf("failed to download container images used in examples: %w", err)
 		}
 	}
@@ -114,7 +114,7 @@ func SystemInit(ctx context.Context, cfg config.Configuration, platform platform
 	return nil
 }
 
-func downloadSupportedImages(ctx context.Context, cfg config.Configuration, brickindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex, docker *command.DockerCli, stdout io.Writer) error {
+func downloadSupportedImages(ctx context.Context, cfg config.Configuration, brickindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex, docker *command.DockerCli, stdout io.Writer, progressCB InitProgressCallback) error {
 	fmt.Fprintf(stdout, "Pulling the latest docker images ...\n")
 	imagesToPreinstall := []string{cfg.PythonImage}
 	brickImages, err := getAllSupportedBrickImages(brickindex, servicesindex)
@@ -137,24 +137,51 @@ func downloadSupportedImages(ctx context.Context, cfg config.Configuration, bric
 		return slices.Contains(pulledImages, v)
 	})
 
+	// First pass: resolve the layers that actually need to be downloaded for each
+	// image. We keep the per-image bytes for the disk-space check, and compute the
+	// global total from the union of unique layers (shared layers count once), so
+	// the aggregated download progress can reach 100%.
+	type imageToPull struct {
+		ref   string
+		bytes int64
+	}
+	imagesToPull := make([]imageToPull, 0, len(imagesToPreinstall))
+	layersPerImage := make([][]dockerImageLayer, 0, len(imagesToPreinstall))
 	for _, image := range imagesToPreinstall {
+		previousExistingImage := GetHighestVersion(image, pulledImages)
+		layers, err := missingLayers(previousExistingImage, image)
+		if err != nil {
+			// In case of errors getting the layers to download, proceed anyway.
+			slog.Warn("Unable to get the new image layers size", "image", image, "error", err)
+		}
+		var bytes int64
+		for _, l := range layers {
+			bytes += l.Size
+		}
+		imagesToPull = append(imagesToPull, imageToPull{ref: image, bytes: bytes})
+		layersPerImage = append(layersPerImage, layers)
+		slog.Info("docker image to download", "image", image, "bytes", bytes)
+	}
+	totalBytes := sumUniqueLayers(layersPerImage)
+	slog.Info("total docker images download size", "bytes", totalBytes)
+
+	// Second pass: pull the images, accumulating downloaded bytes across all of
+	// them so progress reflects the global download status.
+	layerProgress := map[string]int64{}
+	for _, img := range imagesToPull {
 		freeSpace, err := GetDockerFreeSpace()
 		if err != nil {
 			return err
 		}
 
 		// Check that there is enough disk space for the additional layers needed by the image.
-		previousExistingImage := GetHighestVersion(image, pulledImages)
-		if toDownload, err := GetBytesToDownload(previousExistingImage, image); err != nil {
-			// In case of errors getting the size to download, proceed anyway.
-			slog.Warn("Unable to get the new image layers size", "image", image, "error", err)
-		} else if uint64(float64(toDownload)*2.5) > freeSpace {
+		if uint64(float64(img.bytes)*2.5) > freeSpace {
 			return ErrDockerOutOfSpace
 		}
 
-		feedback.Printf("Pulling container image %s ...", image)
-		if err := pullImage(ctx, stdout, docker.Client(), image); err != nil {
-			return fmt.Errorf("failed to pull image %s: %w", image, err)
+		feedback.Printf("Pulling container image %s ...", img.ref)
+		if err := pullImage(ctx, stdout, docker.Client(), img.ref, layerProgress, totalBytes, progressCB); err != nil {
+			return fmt.Errorf("failed to pull image %s: %w", img.ref, err)
 		}
 	}
 
@@ -164,7 +191,25 @@ func downloadSupportedImages(ctx context.Context, cfg config.Configuration, bric
 const minDelay = 1 * time.Second
 const maxDelay = 10 * time.Second
 
-func pullImage(ctx context.Context, stdout io.Writer, docker dockerClient.APIClient, imageName string) error {
+// updateLayerProgress records the bytes downloaded so far for a single layer
+// from a docker pull stream payload and returns the new global downloaded total
+// (the sum across all tracked layers). Only "Downloading" events contribute, so
+// the "Extracting" (decompression) phase is not double-counted. layerProgress is
+// keyed by layer ID and holds the latest reported value, which makes the count
+// safe across pull retries.
+func updateLayerProgress(layerProgress map[string]int64, status, id string, current int64) int64 {
+	if status == "Downloading" && id != "" {
+		layerProgress[id] = current
+	}
+
+	var downloaded int64
+	for _, c := range layerProgress {
+		downloaded += c
+	}
+	return downloaded
+}
+
+func pullImage(ctx context.Context, stdout io.Writer, docker dockerClient.APIClient, imageName string, layerProgress map[string]int64, totalBytes int64, progressCB InitProgressCallback) error {
 	delay := minDelay
 	var out io.ReadCloser
 	var allErr error
@@ -197,9 +242,13 @@ func pullImage(ctx context.Context, stdout io.Writer, docker dockerClient.APICli
 	scanner := bufio.NewScanner(out)
 	for scanner.Scan() {
 		type Payload struct {
-			Status   string `json:"status"`
-			Progress string `json:"progress"`
-			ID       string `json:"id"`
+			Status         string `json:"status"`
+			Progress       string `json:"progress"`
+			ID             string `json:"id"`
+			ProgressDetail struct {
+				Current int64 `json:"current"`
+				Total   int64 `json:"total"`
+			} `json:"progressDetail"`
 		}
 
 		var payload Payload
@@ -211,6 +260,16 @@ func pullImage(ctx context.Context, stdout io.Writer, docker dockerClient.APICli
 				fmt.Fprintf(stdout, "[%s] %s\r", payload.ID, payload.Progress)
 			} else {
 				fmt.Fprintln(stdout)
+			}
+
+			// Accumulate the downloaded bytes across all layers/images and report
+			// the global download progress.
+			downloaded := updateLayerProgress(layerProgress, payload.Status, payload.ID, payload.ProgressDetail.Current)
+			if totalBytes > 0 && progressCB != nil {
+				if downloaded > totalBytes {
+					downloaded = totalBytes
+				}
+				progressCB(InitProgress{Label: "Downloading container images", Curr: downloaded, Total: totalBytes})
 			}
 		}
 	}
