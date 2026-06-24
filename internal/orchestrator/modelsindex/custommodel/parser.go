@@ -61,6 +61,7 @@ func (a *ModelDescriptor) Validate() error {
 	return err
 }
 
+// validateEdgeImpulseMetadata checks that all metadata fields required by App Lab are present and valid.
 func validateEdgeImpulseMetadata(metadata map[string]string) error {
 	requiredFields := []string{
 		"ei-project-id",
