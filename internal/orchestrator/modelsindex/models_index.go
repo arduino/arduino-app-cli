@@ -7,20 +7,20 @@ package modelsindex
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
-	"maps"
+	"os"
 	"slices"
 	"strconv"
 
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/docker/client"
 
-	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/manifest"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 
 	"github.com/arduino/go-paths-helper"
@@ -97,13 +97,27 @@ type ModelsIndex struct {
 }
 
 func (m *ModelsIndex) GetModels(ctx context.Context) []AIModel {
+	_ = ctx
 	models := m.loadDryModels()
-	if m.Handlers != nil {
-		models, err := m.Handlers.getModelsInfo(ctx, m.cli, models, m.plat)
-		if err != nil {
-			slog.Warn("cannot get models info", "err", err)
-		}
+	if m.modelsDir == nil {
 		return models
+	}
+	manifests := manifest.Find(m.modelsDir)
+	for i := range models {
+		model := &models[i]
+		if !model.IsInternal || model.Deployment == nil || model.Deployment.PreLoaded {
+			continue
+		}
+		var size uint64
+		for _, mf := range manifests {
+			if mf.ModelID == model.ID {
+				size += mf.TotalSize()
+			}
+		}
+		if size > 0 {
+			model.Installed = true
+			model.Size = size
+		}
 	}
 	return models
 }
@@ -122,25 +136,26 @@ func (m *ModelsIndex) GetModelsByBricks(ctx context.Context, bricks []string) []
 
 // GetModelByID returns the model with the given ID and populates its Installed and Size fields.
 func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, error) {
+	_ = ctx
 	models := m.loadDryModels()
 	idx := slices.IndexFunc(models, func(v AIModel) bool { return v.ID == id })
 	if idx == -1 {
 		return nil, nil
 	}
 	model := models[idx]
-	if model.IsInternal && model.Deployment != nil && !model.Deployment.PreLoaded {
-		// TODO we should have a single method that do the check and get the info
-		installed, err := m.modelInstalled(ctx, model, m.cli)
-		if err != nil {
-			return nil, fmt.Errorf("cannot determine install status for model %q: %w", id, err)
-		}
-		model.Installed = installed
-		if model.Installed {
-			// TODO : we should return an error if the size cannot be determined
-			model.Size = m.modelSize(ctx, model)
+	if !model.IsInternal || model.Deployment == nil || model.Deployment.PreLoaded || m.modelsDir == nil {
+		return &model, nil
+	}
+	var size uint64
+	for _, mf := range manifest.Find(m.modelsDir) {
+		if mf.ModelID == model.ID {
+			size += mf.TotalSize()
 		}
 	}
-
+	if size > 0 {
+		model.Installed = true
+		model.Size = size
+	}
 	return &model, nil
 }
 
@@ -193,73 +208,6 @@ func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, cli cl
 		cli:            cli,
 		plat:           plat,
 	}, nil
-}
-
-func (m *ModelsIndex) modelSize(ctx context.Context, model AIModel) uint64 {
-	if sizeMBStr, ok := model.Metadata["model_size_mb"]; ok {
-		if sizeMB, err := strconv.ParseFloat(sizeMBStr, 64); err == nil && sizeMB > 0 {
-			return uint64(sizeMB * 1024 * 1024)
-		}
-	}
-	if model.Deployment == nil || model.Deployment.Handler == "" {
-		return 0
-	}
-	handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)
-	if !ok || len(handler.Actions.Info) == 0 {
-		return 0
-	}
-	size, err := runInfoAction(ctx, m.cli, handler, model, m.plat, m.Handlers.configEnv)
-	if err != nil {
-		slog.Warn("cannot get model size", "model", model.ID, "err", err)
-		return 0
-	}
-	return size
-}
-
-func (m *ModelsIndex) modelInstalled(ctx context.Context, model AIModel, cli client.APIClient) (bool, error) {
-	if model.Deployment == nil || model.Deployment.Handler == "" {
-		return false, fmt.Errorf("model %q has no deployment handler", model.ID)
-	}
-	handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)
-	if !ok {
-		return false, fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
-	}
-	envVars := model.Deployment.VariablesForPlatform(m.plat.BoardName)
-	maps.Insert(envVars, maps.All(m.Handlers.configEnv))
-
-	binds := ResolveVarsSlice(handler.Volumes, envVars)
-	env := make([]string, 0, len(envVars))
-	for k, v := range envVars {
-		env = append(env, fmt.Sprintf("%s=%s", k, v))
-	}
-	var isModelDownloaded bool
-	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
-		Image: ResolveVars(handler.Image, envVars),
-		Cmd:   handler.Actions.Check,
-		Binds: binds,
-		Env:   env,
-		Stdout: f.NewCallbackWriter(func(line string) {
-			var out struct {
-				Event string `json:"event"`
-			}
-			if jsonErr := json.Unmarshal([]byte(line), &out); jsonErr == nil && out.Event == "error" {
-				isModelDownloaded = false
-			}
-			if jsonErr := json.Unmarshal([]byte(line), &out); jsonErr == nil && out.Event == "info" {
-				isModelDownloaded = true
-			}
-		}),
-	})
-	if err != nil {
-		return false, fmt.Errorf("model check failed for %q: %w", model.ID, err)
-	}
-
-	if isModelDownloaded {
-		slog.Debug("model installed", "model", model.ID)
-		return true, nil
-	}
-	slog.Debug("model not installed", "model", model.ID)
-	return false, nil
 }
 
 func loadInternalModels(dir *paths.Path, handlers *HandlersIndex) ([]AIModel, error) {
@@ -358,26 +306,57 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 	return models, nil
 }
 
-func Delete(ctx context.Context, m *ModelsIndex, dockerClient command.Cli, platform platform.Platform, model AIModel) error {
+func Delete(ctx context.Context, m *ModelsIndex, dockerClient command.Cli, plat platform.Platform, model AIModel) error {
+	_ = ctx
+	_ = dockerClient
+	_ = plat
 
 	if model.Deployment != nil && model.Deployment.Handler != "" {
-		// Internal model: run the delete action using the handler.
-		handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)
-		if !ok {
-			return fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
+		var removed int
+		for _, mf := range manifest.Find(m.modelsDir) {
+			if mf.ModelID != model.ID {
+				continue
+			}
+			for _, p := range mf.AbsPaths() {
+				if err := os.Remove(p); err != nil && !errors.Is(err, fs.ErrNotExist) {
+					return fmt.Errorf("remove %s: %w", p, err)
+				}
+			}
+			pruneEmptyDirs(paths.New(mf.Dir), m.modelsDir)
+			removed++
 		}
-		if err := deleteInternalModel(ctx, dockerClient.Client(), model, handler, platform, m.Handlers.configEnv); err != nil {
-			return fmt.Errorf("delete action: %w", err)
+		if removed == 0 {
+			slog.Warn("delete: model is not installed (no manifest)", "id", model.ID)
 		}
-	} else {
-		// Custom model (e.g. Edge Impulse): remove the model folder directly.
-		if model.ModelFolderPath == nil {
-			slog.Warn("Cannot remove the model with missing model folder", "id", model.ID)
-			return nil
-		}
-		if err := model.ModelFolderPath.RemoveAll(); err != nil {
-			return fmt.Errorf("error removing model folder %s", model.ModelFolderPath.String())
-		}
+		return nil
+	}
+
+	if model.ModelFolderPath == nil {
+		slog.Warn("Cannot remove the model with missing model folder", "id", model.ID)
+		return nil
+	}
+	if err := model.ModelFolderPath.RemoveAll(); err != nil {
+		return fmt.Errorf("error removing model folder %s", model.ModelFolderPath.String())
 	}
 	return nil
+}
+
+// pruneEmptyDirs removes dir if empty and walks upwards, stopping at stopAt.
+// Failures are best-effort and silently ignored.
+func pruneEmptyDirs(dir, stopAt *paths.Path) {
+	if dir == nil || stopAt == nil {
+		return
+	}
+	stop := stopAt.Clean().String()
+	cur := dir.Clean()
+	for cur.String() != stop && cur.String() != "." && cur.String() != "/" {
+		entries, err := cur.ReadDir()
+		if err != nil || len(entries) > 0 {
+			return
+		}
+		if err := os.Remove(cur.String()); err != nil {
+			return
+		}
+		cur = cur.Parent()
+	}
 }

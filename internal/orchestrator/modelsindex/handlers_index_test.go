@@ -125,12 +125,7 @@ func TestResolveVars(t *testing.T) {
 func TestGetImagesHandlersFromInlineYAML(t *testing.T) {
 	tempDir := paths.New(t.TempDir())
 
-	yamlContent := `listing:
-  image: test-registry/models-downloader:listing
-  volumes:
-    - ${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}:/models
-  command: ["/app/list_models.sh"]
-handlers:
+	yamlContent := `handlers:
   - ai-hub-handler:
       description: "Handler for models from AI Hub"
       image: test-registry/models-downloader:ai-hub
@@ -139,10 +134,6 @@ handlers:
       actions:
         - download:
             command: ["/app/ai_hub/ai_hub_model_downloader.sh"]
-        - delete:
-            command: ["/app/ai_hub/ai_hub_model_remover.sh"]
-        - check:
-            command: ["/app/ai_hub/ai_hub_model_checker.sh"]
         - info:
             command: ["/app/ai_hub/ai_hub_model_info.sh"]
   - ei-handler:
@@ -153,10 +144,6 @@ handlers:
       actions:
         - download:
             command: ["/app/edge_impulse/ei_model_downloader.sh"]
-        - delete:
-            command: ["/app/edge_impulse/ei_model_remover.sh"]
-        - check:
-            command: ["/app/edge_impulse/ei_model_checker.sh"]
         - info:
             command: ["/app/edge_impulse/ei_model_info.sh"]
   - hf-handler:
@@ -167,10 +154,6 @@ handlers:
       actions:
         - download:
             command: ["/app/hugging_face/hf_model_downloader.sh"]
-        - delete:
-            command: ["/app/hugging_face/hf_model_remover.sh"]
-        - check:
-            command: ["/app/hugging_face/hf_model_checker.sh"]
         - info:
             command: ["/app/hugging_face/hf_model_info.sh"]
 `
@@ -184,5 +167,59 @@ handlers:
 
 	images := handlersIndex.GetDockerImages()
 	slices.Sort(images)
-	assert.Equal(t, []string{"test-registry/models-downloader:ai-hub", "test-registry/models-downloader:ei", "test-registry/models-downloader:hf", "test-registry/models-downloader:listing"}, images)
+	assert.Equal(t, []string{"test-registry/models-downloader:ai-hub", "test-registry/models-downloader:ei", "test-registry/models-downloader:hf"}, images)
+}
+
+func TestLoadHandlersRequiresDownloadAction(t *testing.T) {
+	tempDir := paths.New(t.TempDir())
+	yamlContent := `handlers:
+  - bad-handler:
+      image: test:image
+      volumes:
+        - ${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}:/models
+      actions:
+        - info:
+            command: ["/app/info.sh"]
+`
+	require.NoError(t, tempDir.Join("models-handlers.yaml").WriteFile([]byte(yamlContent)))
+
+	_, err := loadHandlers(tempDir, config.Configuration{}, platform.Platform{})
+	require.ErrorContains(t, err, "missing required action \"download\"")
+}
+
+func TestLoadHandlersAcceptsOnlyDownload(t *testing.T) {
+	tempDir := paths.New(t.TempDir())
+	yamlContent := `handlers:
+  - minimal-handler:
+      image: test:image
+      volumes:
+        - ${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}:/models
+      actions:
+        - download:
+            command: ["/app/download.sh"]
+`
+	require.NoError(t, tempDir.Join("models-handlers.yaml").WriteFile([]byte(yamlContent)))
+
+	idx, err := loadHandlers(tempDir, config.Configuration{}, platform.Platform{})
+	require.NoError(t, err)
+	h, ok := idx.GetHandlerByID("minimal-handler")
+	require.True(t, ok)
+	assert.Equal(t, []string{"/app/download.sh"}, h.Actions.Download)
+	assert.Empty(t, h.Actions.Info)
+}
+
+func TestVolumeStringsAreNotResolvedAtLoadTime(t *testing.T) {
+	idx, err := Load(
+		platform.Platform{BoardName: "ventunoq"},
+		paths.New("testdata/with-handlers"),
+		paths.New(t.TempDir()),
+		nil, "", config.Configuration{},
+	)
+	require.NoError(t, err)
+	h, ok := idx.Handlers.GetHandlerByID("ai-hub-handler")
+	require.True(t, ok)
+	require.Equal(t,
+		[]string{"${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}/${models_repository}:/models"},
+		h.Volumes,
+	)
 }

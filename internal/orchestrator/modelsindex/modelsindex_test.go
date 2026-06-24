@@ -6,6 +6,9 @@
 package modelsindex
 
 import (
+	"context"
+	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -179,4 +182,156 @@ func TestModelsIndex(t *testing.T) {
 		assert.Equal(t, "face-detection", models[0].ID)
 		assert.Equal(t, "yolox-object-detection", models[1].ID)
 	})
+}
+
+// fakeArtifact is a file to materialise in the models dir.
+type fakeArtifact struct {
+	path string // relative to modelsDir
+	size int
+}
+
+// fakeManifest is a *downloaded.json to drop next to the artifacts.
+type fakeManifest struct {
+	dir     string // relative to modelsDir
+	name    string
+	modelID string
+	files   map[string]int64 // path (relative to dir) -> declared size
+}
+
+func writeFakeArtifact(t *testing.T, path string, size int) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, make([]byte, size), 0o600))
+}
+
+func writeFakeManifest(t *testing.T, dir, name, modelID string, files map[string]int64) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	b := fmt.Appendf(nil, `{"version":1,"model_id":%q,"files":[`, modelID)
+	first := true
+	for p, sz := range files {
+		if !first {
+			b = append(b, ',')
+		}
+		first = false
+		b = fmt.Appendf(b, `{"path":%q,"size":%d}`, p, sz)
+	}
+	b = append(b, "]}"...)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, name), b, 0o600))
+}
+
+func TestInstallStatus(t *testing.T) {
+	tests := []struct {
+		name          string
+		modelID       string
+		artifacts     []fakeArtifact
+		manifests     []fakeManifest
+		wantInstalled bool
+		wantSize      uint64 // 0 means: don't assert size (e.g. fallback to metadata)
+	}{
+		{
+			name:          "pre-loaded model is installed from metadata",
+			modelID:       "piper-tts-en",
+			wantInstalled: true,
+			wantSize:      46 * 1024 * 1024,
+		},
+		{
+			name:          "no manifest means not installed",
+			modelID:       "ei:efficientnet-b4",
+			wantInstalled: false,
+		},
+		{
+			name:    "valid manifest marks model installed with manifest size",
+			modelID: "ei:efficientnet-b4",
+			artifacts: []fakeArtifact{
+				{path: "edge-impulse/efficientnet-b4-qnn.eim", size: 4096},
+			},
+			manifests: []fakeManifest{{
+				dir: "edge-impulse", name: "efficientnet-b4-qnn.eim.downloaded.json",
+				modelID: "ei:efficientnet-b4",
+				files:   map[string]int64{"efficientnet-b4-qnn.eim": 4096},
+			}},
+			wantInstalled: true,
+			wantSize:      4096,
+		},
+		{
+			name:    "manifest with size mismatch is dropped",
+			modelID: "ei:efficientnet-b4",
+			artifacts: []fakeArtifact{
+				{path: "edge-impulse/efficientnet-b4-qnn.eim", size: 100},
+			},
+			manifests: []fakeManifest{{
+				dir: "edge-impulse", name: "efficientnet-b4-qnn.eim.downloaded.json",
+				modelID: "ei:efficientnet-b4",
+				files:   map[string]int64{"efficientnet-b4-qnn.eim": 4096},
+			}},
+			wantInstalled: false,
+		},
+		{
+			name:    "manifests of other models do not leak",
+			modelID: "ei:efficientnet-b4",
+			artifacts: []fakeArtifact{
+				{path: "edge-impulse/intruder.eim", size: 9999},
+			},
+			manifests: []fakeManifest{{
+				dir: "edge-impulse", name: "intruder.eim.downloaded.json",
+				modelID: "ei:some-other-model",
+				files:   map[string]int64{"intruder.eim": 9999},
+			}},
+			wantInstalled: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			modelsDir := paths.New(t.TempDir())
+			for _, a := range tt.artifacts {
+				writeFakeArtifact(t, filepath.Join(modelsDir.String(), a.path), a.size)
+			}
+			for _, m := range tt.manifests {
+				writeFakeManifest(t, filepath.Join(modelsDir.String(), m.dir), m.name, m.modelID, m.files)
+			}
+
+			idx, err := Load(
+				platform.Platform{BoardName: "ventunoq"},
+				paths.New("testdata/with-handlers"),
+				modelsDir, nil, "", config.Configuration{},
+			)
+			require.NoError(t, err)
+
+			model, err := idx.GetModelByID(context.Background(), tt.modelID)
+			require.NoError(t, err)
+			require.NotNil(t, model)
+			assert.Equal(t, tt.wantInstalled, model.Installed)
+			if tt.wantSize > 0 {
+				assert.Equal(t, tt.wantSize, model.Size)
+			}
+		})
+	}
+}
+
+func TestGetModelsPopulatesEveryModel(t *testing.T) {
+	modelsDir := paths.New(t.TempDir())
+	eiDir := modelsDir.Join("edge-impulse").String()
+	writeFakeArtifact(t, filepath.Join(eiDir, "efficientnet-b4-qnn.eim"), 2048)
+	writeFakeManifest(t, eiDir, "efficientnet-b4-qnn.eim.downloaded.json", "ei:efficientnet-b4",
+		map[string]int64{"efficientnet-b4-qnn.eim": 2048})
+
+	idx, err := Load(
+		platform.Platform{BoardName: "ventunoq"},
+		paths.New("testdata/with-handlers"),
+		modelsDir, nil, "", config.Configuration{},
+	)
+	require.NoError(t, err)
+
+	byID := map[string]AIModel{}
+	for _, m := range idx.GetModels(context.Background()) {
+		byID[m.ID] = m
+	}
+
+	assert.True(t, byID["piper-tts-en"].Installed)
+	assert.Equal(t, uint64(46*1024*1024), byID["piper-tts-en"].Size)
+
+	assert.True(t, byID["ei:efficientnet-b4"].Installed)
+	assert.Equal(t, uint64(2048), byID["ei:efficientnet-b4"].Size)
 }
