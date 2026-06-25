@@ -13,12 +13,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/docker/cli/cli/command"
-	"github.com/shirou/gopsutil/v4/disk"
-
-	"github.com/arduino/go-paths-helper"
 
 	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/api/models"
@@ -173,7 +169,7 @@ func (r InstallEIModelRequest) Validate() error {
 	return nil
 }
 
-func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform) http.HandlerFunc {
+func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := strings.TrimSpace(r.PathValue("modelID"))
 		if id == "" {
@@ -194,13 +190,6 @@ func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, mode
 		if model.Installed {
 			render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: fmt.Sprintf("model %q already installed", id)})
 			return
-		}
-		if err := hasSufficientDiskSpace(cfg.AppsDir().Parent(), model.Size); err != nil {
-			if errors.Is(err, ErrInsufficientStorage) {
-				render.EncodeResponse(w, http.StatusInsufficientStorage, models.ErrorResponse{Details: "insufficient disk space"})
-				return
-			}
-			slog.Warn("unable to check disk space", slog.String("error", err.Error()))
 		}
 
 		sseStream, err := render.NewSSEStream(r.Context(), w)
@@ -233,32 +222,25 @@ func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, mode
 				sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: model.ID, Current: e.GetProgress().Current, Total: e.GetProgress().Total, Progress: progressValue}})
 
 			case modelsindex.ErrorType:
-				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: e.GetError()}})
+				sseStream.Send(render.SSEEvent{Type: "error", Data: e.GetError()})
+			case modelsindex.DoneType:
+				sseStream.Send(render.SSEEvent{Type: "done", Data: e.GetDone()})
 			}
 		}
 
 		err = modelsIndex.Download(r.Context(), dockerClient.Client(), *model, plat, installResponse)
 		if err != nil {
+			if errors.Is(err, modelsindex.ErrInsufficientStorage) {
+				sseStream.SendError(render.SSEErrorData{
+					Code:    "insufficient_storage",
+					Message: "insufficient disk space to install model",
+				})
+				return
+			}
 			sseStream.SendError(render.SSEErrorData{
 				Code:    render.InternalServiceErr,
 				Message: err.Error(),
 			})
 		}
 	}
-}
-
-var ErrInsufficientStorage = errors.New("insufficient storage to install model")
-
-func hasSufficientDiskSpace(path *paths.Path, requiredBytes uint64) error {
-	diskStats, err := disk.Usage(path.String())
-	if err != nil && !errors.Is(err, syscall.ENOENT) {
-		return err
-	}
-	if diskStats != nil {
-		if diskStats.Used+requiredBytes > diskStats.Total {
-			return ErrInsufficientStorage
-		}
-		return nil
-	}
-	return nil
 }

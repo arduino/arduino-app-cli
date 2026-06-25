@@ -277,12 +277,14 @@ const (
 	ProgressType MessageType = "progress"
 	InfoType     MessageType = "info"
 	ErrorType    MessageType = "error"
+	DoneType     MessageType = "done"
 )
 
 type StreamMessage struct {
 	err      string
 	data     string
 	progress *Progress
+	done     string
 }
 
 type Progress struct {
@@ -295,9 +297,11 @@ type Progress struct {
 func (p *StreamMessage) IsData() bool           { return p.data != "" }
 func (p *StreamMessage) IsError() bool          { return p.err != "" }
 func (p *StreamMessage) IsProgress() bool       { return p.progress != nil }
+func (p *StreamMessage) IsDone() bool           { return p.done != "" }
 func (p *StreamMessage) GetData() string        { return p.data }
 func (p *StreamMessage) GetError() string       { return p.err }
 func (p *StreamMessage) GetProgress() *Progress { return p.progress }
+func (p *StreamMessage) GetDone() string        { return p.done }
 func (p *StreamMessage) GetType() MessageType {
 	if p.IsData() {
 		return InfoType
@@ -307,6 +311,9 @@ func (p *StreamMessage) GetType() MessageType {
 	}
 	if p.IsError() {
 		return ErrorType
+	}
+	if p.IsDone() {
+		return DoneType
 	}
 	return UnknownType
 }
@@ -342,7 +349,7 @@ func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
 		})
 	case "complete":
 		publish(StreamMessage{
-			data: "download complete",
+			done: "download complete",
 		})
 	case "error":
 		publish(StreamMessage{

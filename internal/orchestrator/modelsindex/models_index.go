@@ -16,9 +16,11 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"syscall"
 
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/docker/client"
+	"github.com/shirou/gopsutil/v4/disk"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -372,6 +374,10 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 }
 
 func (m *ModelsIndex) Download(ctx context.Context, cli client.APIClient, model AIModel, plat platform.Platform, publish func(e StreamMessage)) error {
+	if err := hasSufficientDiskSpace(m.modelsDir, model.Size); err != nil {
+		return fmt.Errorf("insufficient disk space to download model %q: %w", model.ID, err)
+	}
+
 	handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)
 	if !ok {
 		return fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
@@ -412,6 +418,22 @@ func (m *ModelsIndex) Delete(ctx context.Context, dockerClient command.Cli, plat
 		if err := model.ModelFolderPath.RemoveAll(); err != nil {
 			return fmt.Errorf("error removing model folder %s", model.ModelFolderPath.String())
 		}
+	}
+	return nil
+}
+
+var ErrInsufficientStorage = errors.New("insufficient storage to install model")
+
+func hasSufficientDiskSpace(path *paths.Path, requiredBytes uint64) error {
+	diskStats, err := disk.Usage(path.String())
+	if err != nil && !errors.Is(err, syscall.ENOENT) {
+		return err
+	}
+	if diskStats != nil {
+		if diskStats.Used+requiredBytes > diskStats.Total {
+			return ErrInsufficientStorage
+		}
+		return nil
 	}
 	return nil
 }
