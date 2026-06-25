@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -196,14 +195,6 @@ type handlerModelEntry struct {
 	DiskSizeMB  *float64 `json:"disk_size_mb"`  // actual on-disk size, only when installed
 }
 
-var (
-	ErrNotFound            = errors.New("model not found")
-	ErrConflict            = errors.New("can't delete the model")
-	ErrCannotRemoveModel   = errors.New("cannot remove an internal model")
-	ErrInsufficientStorage = errors.New("insufficient storage to install the model")
-	ErrIncompleteImpulse   = errors.New("impulse not ready for deployment")
-)
-
 func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient, models []AIModel, plat platform.Platform) ([]AIModel, error) {
 	if h == nil || h.listing == nil {
 		slog.Warn("handlers index or listing config is nil, cannot get model info")
@@ -236,25 +227,19 @@ func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient,
 }
 
 func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandler, model AIModel, plat platform.Platform, configEnv map[string]string) (uint64, error) {
-	var env []string
-	if plat.BoardName != "" {
-		env = append(env, fmt.Sprintf("board=%s", plat.BoardName))
-	}
 	var envVars map[string]string
 	if model.Deployment != nil {
 		envVars = model.Deployment.VariablesForPlatform(plat.BoardName)
 	}
+
 	binds := ResolveVarsSlice(handler.Volumes, configEnv)
-	for k, v := range envVars {
-		env = append(env, fmt.Sprintf("%s=%s", k, v))
-	}
 
 	var size uint64
 	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
 		Image: ResolveVars(handler.Image, configEnv),
 		Cmd:   handler.Actions.Info,
 		Binds: ResolveVarsSlice(binds, configEnv),
-		Env:   env,
+		Env:   envVars,
 		Stdout: f.NewCallbackWriter(func(line string) {
 			var out struct {
 				Event  string  `json:"event"`
@@ -272,11 +257,6 @@ func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandl
 }
 
 func runListAction(ctx context.Context, cli client.APIClient, listing *ListingConfig, plat platform.Platform, configEnv map[string]string) ([]handlerModelEntry, error) {
-	var env []string
-	if plat.BoardName != "" {
-		env = append(env, fmt.Sprintf("BOARD_NAME=%s", plat.BoardName))
-	}
-
 	slog.Debug("running list action", "image", listing.Image)
 
 	var buf bytes.Buffer
@@ -285,7 +265,7 @@ func runListAction(ctx context.Context, cli client.APIClient, listing *ListingCo
 		Image:  ResolveVars(listing.Image, configEnv),
 		Cmd:    listing.Command,
 		Binds:  ResolveVarsSlice(listing.Volumes, configEnv),
-		Env:    env,
+		Env:    configEnv,
 		Stdout: &buf,
 	})
 	slog.Debug("list action finished", "duration_s", time.Since(start).Seconds())
@@ -300,45 +280,6 @@ func runListAction(ctx context.Context, cli client.APIClient, listing *ListingCo
 
 	return output.Models, nil
 }
-
-func Download(ctx context.Context, modelsIndex *ModelsIndex, cli client.APIClient, model AIModel, plat platform.Platform, publish func(e StreamMessage)) error {
-
-	handler, ok := modelsIndex.Handlers.GetHandlerByID(model.Deployment.Handler)
-	if !ok {
-		return fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
-	}
-
-	envVars := model.Deployment.VariablesForPlatform(plat.BoardName)
-	maps.Insert(envVars, maps.All(modelsIndex.Handlers.configEnv))
-
-	env := make([]string, 0, len(envVars))
-	for k, v := range envVars {
-		env = append(env, fmt.Sprintf("%s=%s", k, v))
-	}
-
-	return dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
-		Image: ResolveVars(handler.Image, envVars),
-		Cmd:   handler.Actions.Download,
-		Binds: ResolveVarsSlice(handler.Volumes, envVars),
-		Env:   env,
-		Stdout: f.NewCallbackWriter(func(line string) {
-			slog.Debug("download line", "model", model.ID, "line", line)
-			parseDownloadHandlerLine(line, publish)
-		}),
-		Stderr: io.Discard,
-	})
-}
-
-type ModelInstallEventType string
-
-const (
-	ModelInstallEventStart    ModelInstallEventType = "start"
-	ModelInstallEventUpdate   ModelInstallEventType = "update"
-	ModelInstallEventComplete ModelInstallEventType = "complete"
-	ModelInstallEventInfo     ModelInstallEventType = "info"
-	ModelInstallEventError    ModelInstallEventType = "error"
-	ModelInstallEventDone     ModelInstallEventType = "done"
-)
 
 type MessageType string
 
@@ -466,7 +407,6 @@ type rawHandlersList struct {
 }
 
 func deleteInternalModel(ctx context.Context, cli client.APIClient, model AIModel, handler ModelHandler, plat platform.Platform, configEnv map[string]string) error {
-
 	if model.Deployment == nil || model.Deployment.Handler == "" {
 		return fmt.Errorf("model %q has no deployment handler", model.ID)
 	}
@@ -474,17 +414,12 @@ func deleteInternalModel(ctx context.Context, cli client.APIClient, model AIMode
 	envVars := model.Deployment.VariablesForPlatform(plat.BoardName)
 	maps.Insert(envVars, maps.All(configEnv)) // include config env vars for template resolution
 
-	env := make([]string, 0, len(envVars))
-	for k, v := range envVars {
-		env = append(env, fmt.Sprintf("%s=%s", k, v))
-	}
-
 	slog.Debug("running delete action", "model", model.ID)
 	return dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
 		Image:  ResolveVars(handler.Image, envVars),
 		Cmd:    handler.Actions.Delete,
 		Binds:  ResolveVarsSlice(handler.Volumes, envVars),
-		Env:    env,
+		Env:    envVars,
 		Stdout: io.Discard,
 		Stderr: io.Discard,
 	})

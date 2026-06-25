@@ -30,7 +30,7 @@ type RunOptions struct {
 	Image  string
 	Cmd    []string
 	Binds  []string
-	Env    []string
+	Env    map[string]string
 	Stdout io.Writer
 	Stderr io.Writer
 }
@@ -59,11 +59,16 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 		return err
 	}
 
+	env := make([]string, 0, len(opts.Env))
+	for k, v := range opts.Env {
+		env = append(env, k+"="+v)
+	}
+
 	resp, err := cli.ContainerCreate(ctx,
 		&container.Config{
 			Image: opts.Image,
 			Cmd:   opts.Cmd,
-			Env:   opts.Env,
+			Env:   env,
 			User:  getCurrentUser(),
 		},
 		&container.HostConfig{

@@ -3,12 +3,11 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//go:build e2e_docker
-
 package daemon
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -21,7 +20,15 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+)
+
+const (
+	ModelInstallEventStart    = "start"
+	ModelInstallEventUpdate   = "update"
+	ModelInstallEventComplete = "complete"
+	ModelInstallEventInfo     = "info"
+	ModelInstallEventError    = "error"
+	ModelInstallEventDone     = "done"
 )
 
 // TestModelHandlerDownloadFlow exercises the full install → verify → delete cycle
@@ -31,12 +38,9 @@ import (
 //   - The model is reported as installed after download
 //   - The delete container runs without "short write" errors
 //
-// Requires E2E_MODEL_ID env var (e.g. "melo-tts-es") and a running Docker daemon.
+// Optional E2E_MODEL_ID env var for changing the model ID to test. Defaults to "melo-tts-es".
 func TestModelHandlerDownloadFlow(t *testing.T) {
-	modelID := os.Getenv("E2E_MODEL_ID")
-	if modelID == "" {
-		t.Skip("set E2E_MODEL_ID to run Docker-backed model handler tests")
-	}
+	modelID := cmp.Or(os.Getenv("E2E_MODEL_ID"), "melo-tts-es")
 
 	httpClient, daemonAddr := GetHttpclientAndAddr(t, e2e.WithCustomModelDir(nil))
 	requestEditor := func(_ context.Context, _ *http.Request) error { return nil }
@@ -46,6 +50,7 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode(), "model %q not found in index", modelID)
 		require.NotNil(t, resp.JSON200)
+		require.NotNil(t, resp.JSON200.Installed)
 		require.False(t, *resp.JSON200.Installed, "model should not be installed in a fresh environment")
 	})
 
@@ -62,20 +67,20 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 			byType[e.Type] = append(byType[e.Type], e)
 		}
 
-		require.Contains(t, byType, string(orchestrator.ModelInstallEventDone),
+		require.Contains(t, byType, ModelInstallEventDone,
 			"install stream must end with a 'done' event")
 
-		doneEvents := byType[string(orchestrator.ModelInstallEventDone)]
+		doneEvents := byType[string(ModelInstallEventDone)]
 		doneEvent := doneEvents[len(doneEvents)-1]
 		require.Empty(t, doneEvent.Description,
 			"'done' description should be empty on success; got error: %s", doneEvent.Description)
 
-		require.Contains(t, byType, string(orchestrator.ModelInstallEventStart),
+		require.Contains(t, byType, ModelInstallEventStart,
 			"expected a 'start' progress event")
-		require.Contains(t, byType, string(orchestrator.ModelInstallEventComplete),
+		require.Contains(t, byType, ModelInstallEventComplete,
 			"expected a 'complete' progress event")
 
-		startEvent := byType[string(orchestrator.ModelInstallEventStart)][0]
+		startEvent := byType[ModelInstallEventStart][0]
 		require.Greater(t, startEvent.Total, int64(0), "'start' event must carry the file size as Total")
 		require.Equal(t, "B", startEvent.Unit)
 		require.NotEmpty(t, startEvent.Percentage)
@@ -149,7 +154,7 @@ func collectInstallSSE(ctx context.Context, baseURL, modelID string) ([]handlerS
 			var e handlerSSEEvent
 			if err := json.Unmarshal([]byte(dataBuf.String()), &e); err == nil {
 				events = append(events, e)
-				if e.Type == string(orchestrator.ModelInstallEventDone) {
+				if e.Type == ModelInstallEventDone {
 					return events, nil
 				}
 			}

@@ -6,10 +6,12 @@
 package modelsindex
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"maps"
 	"slices"
@@ -228,38 +230,34 @@ func (m *ModelsIndex) modelInstalled(ctx context.Context, model AIModel, cli cli
 	maps.Insert(envVars, maps.All(m.Handlers.configEnv))
 
 	binds := ResolveVarsSlice(handler.Volumes, envVars)
-	env := make([]string, 0, len(envVars))
-	for k, v := range envVars {
-		env = append(env, fmt.Sprintf("%s=%s", k, v))
-	}
-	var isModelDownloaded bool
+
+	var buf bytes.Buffer
 	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
-		Image: ResolveVars(handler.Image, envVars),
-		Cmd:   handler.Actions.Check,
-		Binds: binds,
-		Env:   env,
-		Stdout: f.NewCallbackWriter(func(line string) {
-			var out struct {
-				Event string `json:"event"`
-			}
-			if jsonErr := json.Unmarshal([]byte(line), &out); jsonErr == nil && out.Event == "error" {
-				isModelDownloaded = false
-			}
-			if jsonErr := json.Unmarshal([]byte(line), &out); jsonErr == nil && out.Event == "info" {
-				isModelDownloaded = true
-			}
-		}),
+		Image:  ResolveVars(handler.Image, envVars),
+		Cmd:    handler.Actions.Check,
+		Binds:  binds,
+		Env:    envVars,
+		Stdout: &buf,
 	})
 	if err != nil {
 		return false, fmt.Errorf("model check failed for %q: %w", model.ID, err)
 	}
 
-	if isModelDownloaded {
-		slog.Debug("model installed", "model", model.ID)
+	var out struct {
+		Event       string `json:"event"`
+		Description string `json:"description"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		return false, fmt.Errorf("model check returned invalid JSON for %q: %w", model.ID, err)
+	}
+	if out.Event == "error" {
+		slog.Debug("model check returned error", "model", model.ID, "description", out.Description)
+		return false, nil
+	}
+	if out.Event == "info" {
 		return true, nil
 	}
-	slog.Debug("model not installed", "model", model.ID)
-	return false, nil
+	return false, fmt.Errorf("model check returned unexpected event %q for %q", out.Event, model.ID)
 }
 
 func loadInternalModels(dir *paths.Path, handlers *HandlersIndex) ([]AIModel, error) {
@@ -358,8 +356,29 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 	return models, nil
 }
 
-func Delete(ctx context.Context, m *ModelsIndex, dockerClient command.Cli, platform platform.Platform, model AIModel) error {
+func (m *ModelsIndex) Download(ctx context.Context, cli client.APIClient, model AIModel, plat platform.Platform, publish func(e StreamMessage)) error {
+	handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)
+	if !ok {
+		return fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
+	}
 
+	envVars := model.Deployment.VariablesForPlatform(plat.BoardName)
+	maps.Insert(envVars, maps.All(m.Handlers.configEnv))
+
+	return dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
+		Image: ResolveVars(handler.Image, envVars),
+		Cmd:   handler.Actions.Download,
+		Binds: ResolveVarsSlice(handler.Volumes, envVars),
+		Env:   envVars,
+		Stdout: f.NewCallbackWriter(func(line string) {
+			slog.Debug("download line", "model", model.ID, "line", line)
+			parseDownloadHandlerLine(line, publish)
+		}),
+		Stderr: io.Discard,
+	})
+}
+
+func (m *ModelsIndex) Delete(ctx context.Context, dockerClient command.Cli, platform platform.Platform, model AIModel) error {
 	if model.Deployment != nil && model.Deployment.Handler != "" {
 		// Internal model: run the delete action using the handler.
 		handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)

@@ -144,7 +144,7 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 		}
 	}
 
-	err = modelsindex.Delete(ctx, modelsIndex, dockerClient, platform, *res)
+	err = modelsIndex.Delete(ctx, dockerClient, platform, *res)
 	if err != nil {
 		return fmt.Errorf("error deleting model %q: %w", id, err)
 	}

@@ -237,7 +237,7 @@ func HandleInstallModel(dockerClient command.Cli, cfg config.Configuration, mode
 			}
 		}
 
-		err = modelsindex.Download(r.Context(), modelsIndex, dockerClient.Client(), *model, plat, installResponse)
+		err = modelsIndex.Download(r.Context(), dockerClient.Client(), *model, plat, installResponse)
 		if err != nil {
 			sseStream.SendError(render.SSEErrorData{
 				Code:    render.InternalServiceErr,
