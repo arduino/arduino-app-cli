@@ -51,33 +51,21 @@ type InitProgress struct {
 	Total int64
 }
 
-// InitEventType discriminates the kind of event emitted during SystemInit.
 type InitEventType int
 
 const (
-	// InitLogEvent carries a human-readable status line.
 	InitLogEvent InitEventType = iota
-	// InitProgressEvent carries a structured progress update.
 	InitProgressEvent
 )
 
-// InitEventSource identifies which part of SystemInit produced an event, so a
-// consumer can route events (e.g. drive a docker-specific progress bar) without
-// discarding the others.
 type InitEventSource string
 
 const (
-	// InitSourceDocker is emitted while pulling docker images.
-	InitSourceDocker InitEventSource = "docker"
-	// InitSourceLibs is emitted while downloading Arduino libs and platforms.
-	InitSourceLibs InitEventSource = "libs"
-	// InitSourcePlatform is emitted while installing the platform debian package.
+	InitSourceDocker   InitEventSource = "docker"
+	InitSourceLibs     InitEventSource = "libs"
 	InitSourcePlatform InitEventSource = "platform"
 )
 
-// InitEvent is the single unit of output emitted during SystemInit. The Type
-// field selects which payload is meaningful: Message for InitLogEvent, Progress
-// for InitProgressEvent. Source tells which stage produced the event.
 type InitEvent struct {
 	Type     InitEventType
 	Source   InitEventSource
@@ -85,20 +73,8 @@ type InitEvent struct {
 	Progress InitProgress
 }
 
-// InitEventCallback is the sole output sink for SystemInit. The orchestrator is
-// rendering-agnostic: it emits semantic events and the caller decides how to
-// render them (e.g. raw text lines or JSON lines).
+// InitEventCallback is the sole output sink for SystemInit.
 type InitEventCallback func(event InitEvent)
-
-// withSource returns a callback that stamps every event with the given source
-// before forwarding it. This lets each stage emit events without repeating the
-// source at every call site.
-func withSource(cb InitEventCallback, source InitEventSource) InitEventCallback {
-	return func(e InitEvent) {
-		e.Source = source
-		cb(e)
-	}
-}
 
 type SystemInitOptions struct {
 	OnlyDockerImages    bool
@@ -131,14 +107,13 @@ func SystemInit(ctx context.Context, cfg config.Configuration, platform platform
 		downloadDockerImages = true
 	}
 
-	if err := installPlatformPackage(ctx, platform, withSource(eventCB, InitSourcePlatform)); err != nil {
+	if err := installPlatformPackage(ctx, platform, eventCB); err != nil {
 		slog.Error("failed to install platform package", "error", err)
 	}
 
 	if downloadPlatformAndLibs {
-		libsCB := withSource(eventCB, InitSourceLibs)
-		libsCB(InitEvent{Type: InitLogEvent, Message: "Downloading libs and platforms used in examples ..."})
-		if err := downloadLibsAndPlatformsUsedInExamples(ctx, cfg, platform, libsCB); err != nil {
+		eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceLibs, Message: "Downloading libs and platforms used in examples ..."})
+		if err := downloadLibsAndPlatformsUsedInExamples(ctx, cfg, platform, eventCB); err != nil {
 			return fmt.Errorf("failed to download libs and platforms used in examples: %w", err)
 		}
 	}
@@ -211,7 +186,7 @@ func downloadSupportedImages(ctx context.Context, cfg config.Configuration, bric
 			return ErrDockerOutOfSpace
 		}
 
-		eventCB(InitEvent{Type: InitLogEvent, Message: fmt.Sprintf("Pulling container image %s ...", img.ref)})
+		eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDocker, Message: fmt.Sprintf("Pulling container image %s ...", img.ref)})
 		// The percentage stays global (across all images); the label tells the
 		// user which image is currently being pulled.
 		lastLabel = fmt.Sprintf("Pulling image %d/%d (%s)", i+1, len(imagesToPull), imageDisplayName(img.ref))
@@ -226,7 +201,7 @@ func downloadSupportedImages(ctx context.Context, cfg config.Configuration, bric
 	// progress would otherwise stall a few points below 100%. Emit a final
 	// progress event to guarantee a clean 100% once every image has been pulled.
 	if totalBytes > 0 && len(imagesToPull) > 0 {
-		eventCB(InitEvent{Type: InitProgressEvent, Progress: InitProgress{Label: lastLabel, Curr: totalBytes, Total: totalBytes}})
+		eventCB(InitEvent{Type: InitProgressEvent, Source: InitSourceDocker, Progress: InitProgress{Label: lastLabel, Curr: totalBytes, Total: totalBytes}})
 	}
 
 	return nil
@@ -269,7 +244,7 @@ func pullImage(ctx context.Context, docker dockerClient.APIClient, imageName str
 			return allErr // Non-retryable error
 		}
 
-		eventCB(InitEvent{Type: InitLogEvent, Message: fmt.Sprintf("received 'toomanyrequests' error from Docker registry, retrying in %s ...", delay)})
+		eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDocker, Message: fmt.Sprintf("received 'toomanyrequests' error from Docker registry, retrying in %s ...", delay)})
 
 		select {
 		case <-ctx.Done():
@@ -306,7 +281,7 @@ func pullImage(ctx context.Context, docker dockerClient.APIClient, imageName str
 				if downloaded > totalBytes {
 					downloaded = totalBytes
 				}
-				eventCB(InitEvent{Type: InitProgressEvent, Progress: InitProgress{Label: progressLabel, Curr: downloaded, Total: totalBytes}})
+				eventCB(InitEvent{Type: InitProgressEvent, Source: InitSourceDocker, Progress: InitProgress{Label: progressLabel, Curr: downloaded, Total: totalBytes}})
 			}
 		}
 	}
@@ -589,11 +564,11 @@ func installPlatformPackage(ctx context.Context, plat platform.Platform, eventCB
 	case "ventunoq":
 		packageName = "arduino-ventunoq"
 	default:
-		eventCB(InitEvent{Type: InitLogEvent, Message: fmt.Sprintf("no platform-specific debian package to install for board '%s'", plat.BoardName)})
+		eventCB(InitEvent{Type: InitLogEvent, Source: InitSourcePlatform, Message: fmt.Sprintf("no platform-specific debian package to install for board '%s'", plat.BoardName)})
 		return nil
 	}
 
-	eventCB(InitEvent{Type: InitLogEvent, Message: fmt.Sprintf("Installing package '%s'", packageName)})
+	eventCB(InitEvent{Type: InitLogEvent, Source: InitSourcePlatform, Message: fmt.Sprintf("Installing package '%s'", packageName)})
 
 	cmd, err := paths.NewProcess(nil, "sudo", "apt-get", "install", "-y", packageName)
 	if err != nil {
@@ -601,7 +576,7 @@ func installPlatformPackage(ctx context.Context, plat platform.Platform, eventCB
 	}
 	// Route the subprocess output through the event callback, one log event per line.
 	subprocessOut := NewCallbackWriter(func(line string) {
-		eventCB(InitEvent{Type: InitLogEvent, Message: line})
+		eventCB(InitEvent{Type: InitLogEvent, Source: InitSourcePlatform, Message: line})
 	})
 	cmd.RedirectStderrTo(subprocessOut)
 	cmd.RedirectStdoutTo(subprocessOut)
@@ -641,7 +616,7 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 		}
 		if update := curr.GetUpdate(); update != nil {
 			totalSize = update.GetTotalSize()
-			eventCB(InitEvent{Type: InitProgressEvent, Progress: InitProgress{
+			eventCB(InitEvent{Type: InitProgressEvent, Source: InitSourceLibs, Progress: InitProgress{
 				Label: currLabel,
 				Curr:  update.GetDownloaded(),
 				Total: totalSize,
