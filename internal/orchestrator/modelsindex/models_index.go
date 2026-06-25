@@ -6,7 +6,6 @@
 package modelsindex
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,8 +13,10 @@ import (
 	"io"
 	"log/slog"
 	"maps"
+	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/docker/cli/cli/command"
@@ -113,12 +114,23 @@ type ModelsIndex struct {
 func (m *ModelsIndex) GetModels(ctx context.Context) []AIModel {
 	models := m.loadDryModels()
 	if m.Handlers != nil {
-		models, err := m.Handlers.getModelsInfo(ctx, m.cli, models)
+		var err error
+		models, err = m.Handlers.getModelsInfo(ctx, m.cli, models)
 		if err != nil {
 			slog.Warn("cannot get models info", "err", err)
 		}
-		return models
 	}
+
+	// trust the sentinel files instead of the handler list action.
+	for i := range models {
+		installed, err := m.modelInstalled(ctx, models[i], m.cli)
+		if err != nil {
+			slog.Warn("cannot determine install status for model", "model", models[i].ID, "err", err)
+			continue
+		}
+		models[i].Installed = installed
+	}
+
 	return models
 }
 
@@ -233,45 +245,12 @@ func (m *ModelsIndex) modelSize(ctx context.Context, model AIModel) uint64 {
 	return size
 }
 
-func (m *ModelsIndex) modelInstalled(ctx context.Context, model AIModel, cli client.APIClient) (bool, error) {
-	if model.Deployment == nil || model.Deployment.Handler == "" {
-		return false, fmt.Errorf("model %q has no deployment handler", model.ID)
-	}
-	handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)
-	if !ok {
-		return false, fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
-	}
+func sentinelPath(modelsDir *paths.Path, modelID string) *paths.Path {
+	return modelsDir.Join(fmt.Sprintf(".%s.downloaded.json", modelID))
+}
 
-	envVars := model.Deployment.VariablesForPlatform(m.plat.BoardName)
-	maps.Insert(envVars, maps.All(m.Handlers.configEnv))
-
-	var buf bytes.Buffer
-	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
-		Image:  ResolveVars(handler.Image, envVars),
-		Cmd:    handler.Actions.Check,
-		Binds:  ResolveVarsSlice(handler.Volumes, envVars),
-		Env:    envVars,
-		Stdout: &buf,
-	})
-	if err != nil {
-		return false, fmt.Errorf("model check failed for %q: %w", model.ID, err)
-	}
-
-	var out struct {
-		Event       string `json:"event"`
-		Description string `json:"description"`
-	}
-	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
-		return false, fmt.Errorf("model check returned invalid JSON for %q: %w", model.ID, err)
-	}
-	if out.Event == "error" {
-		slog.Debug("model check returned error", "model", model.ID, "description", out.Description)
-		return false, nil
-	}
-	if out.Event == "info" {
-		return true, nil
-	}
-	return false, fmt.Errorf("model check returned unexpected event %q for %q", out.Event, model.ID)
+func (m *ModelsIndex) modelInstalled(_ context.Context, model AIModel, _ client.APIClient) (bool, error) {
+	return sentinelPath(m.modelsDir, model.ID).Exist(), nil
 }
 
 func loadInternalModels(dir *paths.Path, handlers *HandlersIndex) ([]AIModel, error) {
@@ -383,22 +362,88 @@ func (m *ModelsIndex) Download(ctx context.Context, cli client.APIClient, model 
 	envVars := model.Deployment.VariablesForPlatform(plat.BoardName)
 	maps.Insert(envVars, maps.All(m.Handlers.configEnv))
 
-	return dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
+	volumes := ResolveVarsSlice(handler.Volumes, envVars)
+
+	var artifacts []string
+	if err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
 		Image: ResolveVars(handler.Image, envVars),
 		Cmd:   handler.Actions.Download,
-		Binds: ResolveVarsSlice(handler.Volumes, envVars),
+		Binds: volumes,
 		Env:   envVars,
 		Stdout: f.NewCallbackWriter(func(line string) {
 			slog.Debug("download line", "model", model.ID, "line", line)
-			parseDownloadHandlerLine(line, publish)
+			if a := parseDownloadHandlerLine(line, publish); a != nil {
+				artifacts = a
+			}
 		}),
 		Stderr: io.Discard,
-	})
+	}); err != nil {
+		return fmt.Errorf("download action failed for model %q: %w", model.ID, err)
+	}
+
+	if len(artifacts) == 0 {
+		return fmt.Errorf("download action for model %q did not produce any artifacts", model.ID)
+	}
+
+	resolved := resolveArtifactPaths(volumes, artifacts)
+	hostPaths := make([]string, 0, len(resolved))
+	for _, p := range resolved {
+		hostPaths = append(hostPaths, p.String())
+	}
+	payload, err := json.Marshal(struct {
+		Artifacts []string `json:"artifacts"`
+	}{Artifacts: hostPaths})
+	if err != nil {
+		return fmt.Errorf("cannot encode sentinel for model %q: %w", model.ID, err)
+	}
+
+	sentinelFile := sentinelPath(m.modelsDir, model.ID)
+	if err := sentinelFile.WriteFile(payload); err != nil {
+		return fmt.Errorf("cannot write sentinel file for model %q: %w", model.ID, err)
+	}
+
+	return nil
+}
+
+// resolveArtifactPaths translates artifact paths emitted by a handler
+// (container-absolute or relative to the volume mount) into absolute host paths.
+func resolveArtifactPaths(bindVolumes []string, artifacts []string) []*paths.Path {
+	type bind struct{ host, container string }
+	binds := make([]bind, 0, len(bindVolumes))
+	for _, bv := range bindVolumes {
+		host, container, ok := strings.Cut(bv, ":")
+		if !ok || host == "" || container == "" {
+			continue
+		}
+		binds = append(binds, bind{host: host, container: container})
+	}
+
+	result := make([]*paths.Path, 0, len(artifacts))
+	for _, art := range artifacts {
+		var resolved string
+		switch {
+		case filepath.IsAbs(art):
+			for _, b := range binds {
+				if rel, ok := strings.CutPrefix(art, b.container); ok {
+					resolved = filepath.Join(b.host, rel)
+					break
+				}
+			}
+			if resolved == "" {
+				resolved = art
+			}
+		case len(binds) > 0:
+			resolved = filepath.Join(binds[0].host, art)
+		default:
+			resolved = art
+		}
+		result = append(result, paths.New(resolved))
+	}
+	return result
 }
 
 func (m *ModelsIndex) Delete(ctx context.Context, dockerClient command.Cli, platform platform.Platform, model AIModel) error {
 	if model.Deployment != nil && model.Deployment.Handler != "" {
-		// Internal model: run the delete action using the handler.
 		handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)
 		if !ok {
 			return fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
@@ -406,8 +451,13 @@ func (m *ModelsIndex) Delete(ctx context.Context, dockerClient command.Cli, plat
 		if err := deleteInternalModel(ctx, dockerClient.Client(), model, handler, platform, m.Handlers.configEnv); err != nil {
 			return fmt.Errorf("delete action: %w", err)
 		}
+		sentinel := sentinelPath(m.modelsDir, model.ID)
+		if sentinel.Exist() {
+			if err := sentinel.Remove(); err != nil {
+				return fmt.Errorf("cannot remove sentinel file for model %q: %w", model.ID, err)
+			}
+		}
 	} else {
-		// Custom model (e.g. Edge Impulse): remove the model folder directly.
 		if model.ModelFolderPath == nil {
 			slog.Warn("Cannot remove the model with missing model folder", "id", model.ID)
 			return nil

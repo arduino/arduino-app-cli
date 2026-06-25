@@ -318,7 +318,7 @@ func (p *StreamMessage) GetType() MessageType {
 	return UnknownType
 }
 
-func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
+func parseDownloadHandlerLine(line string, publish func(StreamMessage)) []string {
 	var raw struct {
 		Event       string   `json:"event"`
 		Description string   `json:"description"`
@@ -330,7 +330,7 @@ func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
 	}
 	if err := json.Unmarshal([]byte(line), &raw); err != nil {
 		slog.Debug("non-JSON stdout from handler", "line", line)
-		return
+		return nil
 	}
 
 	switch raw.Event {
@@ -351,6 +351,7 @@ func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
 		publish(StreamMessage{
 			done: "download complete",
 		})
+		return raw.Artifacts
 	case "error":
 		publish(StreamMessage{
 			err: raw.Description,
@@ -358,6 +359,8 @@ func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
 	default:
 		slog.Warn("unknown event from handler", "event", raw.Event, "line", line)
 	}
+
+	return nil
 }
 
 func (h *HandlersIndex) GetDockerImages() []string {
