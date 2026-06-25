@@ -164,14 +164,11 @@ func (m *ModelsIndex) GetModelsByBrick(brickID string) []AIModelLite {
 	return matches
 }
 
-func (m *ModelsIndex) HasModelForBrick(brickID string) bool {
-	models := m.loadDryModels()
-	for _, model := range models {
-		if slices.ContainsFunc(model.Bricks, func(b BrickConfig) bool { return b.ID == brickID }) {
-			return true
-		}
-	}
-	return false
+func (m *ModelsIndex) IsModelSupportedByBrick(modelID, brickID string) bool {
+	models := m.GetModelsByBrick(brickID)
+	return slices.ContainsFunc(models, func(model AIModelLite) bool {
+		return model.ID == modelID
+	})
 }
 
 func (m *ModelsIndex) loadDryModels() []AIModel {

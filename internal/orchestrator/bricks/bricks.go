@@ -348,7 +348,7 @@ func (s *Service) BrickCreate(
 	brickInstance.ID = req.ID
 
 	if req.Model != nil {
-		if !s.modelsIndex.HasModelForBrick(brickInstance.ID) {
+		if !s.modelsIndex.IsModelSupportedByBrick(*req.Model, req.ID) {
 			return fmt.Errorf("model %s does not exsist", *req.Model)
 		}
 		brickInstance.Model = *req.Model
@@ -389,7 +389,7 @@ func (s *Service) BrickUpdate(
 	brickModel := appCurrent.Descriptor.Bricks[brickPosition].Model
 
 	if req.Model != nil && *req.Model != brickModel {
-		if !s.modelsIndex.HasModelForBrick(req.ID) {
+		if !s.modelsIndex.IsModelSupportedByBrick(req.ID, *req.Model) {
 			return fmt.Errorf("model %s does not exsist", *req.Model)
 		}
 		brickModel = *req.Model
