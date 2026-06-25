@@ -61,11 +61,26 @@ const (
 	InitProgressEvent
 )
 
+// InitEventSource identifies which part of SystemInit produced an event, so a
+// consumer can route events (e.g. drive a docker-specific progress bar) without
+// discarding the others.
+type InitEventSource string
+
+const (
+	// InitSourceDocker is emitted while pulling docker images.
+	InitSourceDocker InitEventSource = "docker"
+	// InitSourceLibs is emitted while downloading Arduino libs and platforms.
+	InitSourceLibs InitEventSource = "libs"
+	// InitSourcePlatform is emitted while installing the platform debian package.
+	InitSourcePlatform InitEventSource = "platform"
+)
+
 // InitEvent is the single unit of output emitted during SystemInit. The Type
 // field selects which payload is meaningful: Message for InitLogEvent, Progress
-// for InitProgressEvent.
+// for InitProgressEvent. Source tells which stage produced the event.
 type InitEvent struct {
 	Type     InitEventType
+	Source   InitEventSource
 	Message  string
 	Progress InitProgress
 }
@@ -74,6 +89,16 @@ type InitEvent struct {
 // rendering-agnostic: it emits semantic events and the caller decides how to
 // render them (e.g. raw text lines or JSON lines).
 type InitEventCallback func(event InitEvent)
+
+// withSource returns a callback that stamps every event with the given source
+// before forwarding it. This lets each stage emit events without repeating the
+// source at every call site.
+func withSource(cb InitEventCallback, source InitEventSource) InitEventCallback {
+	return func(e InitEvent) {
+		e.Source = source
+		cb(e)
+	}
+}
 
 type SystemInitOptions struct {
 	OnlyDockerImages    bool
@@ -106,19 +131,20 @@ func SystemInit(ctx context.Context, cfg config.Configuration, platform platform
 		downloadDockerImages = true
 	}
 
-	if err := installPlatformPackage(ctx, platform, eventCB); err != nil {
+	if err := installPlatformPackage(ctx, platform, withSource(eventCB, InitSourcePlatform)); err != nil {
 		slog.Error("failed to install platform package", "error", err)
 	}
 
 	if downloadPlatformAndLibs {
-		eventCB(InitEvent{Type: InitLogEvent, Message: "Downloading libs and platforms used in examples ..."})
-		if err := downloadLibsAndPlatformsUsedInExamples(ctx, cfg, platform, eventCB); err != nil {
+		libsCB := withSource(eventCB, InitSourceLibs)
+		libsCB(InitEvent{Type: InitLogEvent, Message: "Downloading libs and platforms used in examples ..."})
+		if err := downloadLibsAndPlatformsUsedInExamples(ctx, cfg, platform, libsCB); err != nil {
 			return fmt.Errorf("failed to download libs and platforms used in examples: %w", err)
 		}
 	}
 
 	if downloadDockerImages {
-		if err := downloadSupportedImages(ctx, cfg, bricksindex, servicesindex, modelsIndex, docker, eventCB); err != nil {
+		if err := downloadSupportedImages(ctx, cfg, bricksindex, servicesindex, modelsIndex, docker, withSource(eventCB, InitSourceDocker)); err != nil {
 			return fmt.Errorf("failed to download container images used in examples: %w", err)
 		}
 	}
@@ -144,15 +170,11 @@ func downloadSupportedImages(ctx context.Context, cfg config.Configuration, bric
 		return err
 	}
 
-	// Filter out container images that are alredy pulled
+	// Filter out container images that are already pulled
 	imagesToPreinstall = slices.DeleteFunc(imagesToPreinstall, func(v string) bool {
 		return slices.Contains(pulledImages, v)
 	})
 
-	// First pass: resolve the layers that actually need to be downloaded for each
-	// image. We keep the per-image bytes for the disk-space check, and compute the
-	// global total from the union of unique layers (shared layers count once), so
-	// the aggregated download progress can reach 100%.
 	type imageToPull struct {
 		ref   string
 		bytes int64
@@ -163,7 +185,6 @@ func downloadSupportedImages(ctx context.Context, cfg config.Configuration, bric
 		previousExistingImage := GetHighestVersion(image, pulledImages)
 		layers, err := missingLayers(previousExistingImage, image)
 		if err != nil {
-			// In case of errors getting the layers to download, proceed anyway.
 			slog.Warn("Unable to get the new image layers size", "image", image, "error", err)
 		}
 		var bytes int64
@@ -177,8 +198,6 @@ func downloadSupportedImages(ctx context.Context, cfg config.Configuration, bric
 	totalBytes := sumUniqueLayers(layersPerImage)
 	slog.Info("total docker images download size", "bytes", totalBytes)
 
-	// Second pass: pull the images, accumulating downloaded bytes across all of
-	// them so progress reflects the global download status.
 	layerProgress := map[string]int64{}
 	var lastLabel string
 	for i, img := range imagesToPull {

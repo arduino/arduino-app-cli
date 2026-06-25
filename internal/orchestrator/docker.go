@@ -7,7 +7,6 @@ package orchestrator
 
 import (
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
@@ -76,23 +75,6 @@ func imageDisplayName(image string) string {
 		return name[idx+1:]
 	}
 	return name
-}
-
-// Returns the number of bytes that would be downloaded when pulling the new docker image while the old one is
-// already present locally. It accounts for image layers that are already present locally.
-func GetBytesToDownload(localRefStr string, remoteRefStr string) (int64, error) {
-	layers, err := missingLayers(localRefStr, remoteRefStr)
-	if err != nil {
-		return 0, err
-	}
-
-	var downloadBytes int64
-	for _, l := range layers {
-		downloadBytes += l.Size
-	}
-
-	slog.Debug("docker image bytes to download", "image", remoteRefStr, "byte", downloadBytes)
-	return downloadBytes, nil
 }
 
 // missingLayers returns the layers present in the remote image but not already

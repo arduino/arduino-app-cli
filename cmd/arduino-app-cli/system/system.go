@@ -6,9 +6,7 @@
 package system
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"slices"
 	"strings"
 
@@ -44,89 +42,10 @@ func NewSystemCmd(cfg config.Configuration) *cobra.Command {
 	return cmd
 }
 
-// jsonInitEvent is the JSON-lines representation of a single event emitted by
-// `system init --json-feedback`. The Type field ("log" | "progress") is a
-// discriminator that tells the consumer which fields are meaningful.
-type jsonInitEvent struct {
-	Type    string `json:"type"`
-	Message string `json:"message,omitempty"`
-	Label   string `json:"label,omitempty"`
-	Current int64  `json:"current,omitempty"`
-	Total   int64  `json:"total,omitempty"`
-	Percent int    `json:"percent,omitempty"`
-}
-
-// newInitEventCallback builds the single callback that renders SystemInit events
-// to stdout. The same events are emitted regardless of the flag; only the
-// formatting differs (plain text lines vs JSON lines). Progress events are
-// throttled so consecutive updates with the same integer percentage are dropped.
-func newInitEventCallback(stdout io.Writer, jsonFeedback bool) orchestrator.InitEventCallback {
-	var render orchestrator.InitEventCallback
-	if jsonFeedback {
-		// One JSON object per line (JSONL). json.Encoder.Encode writes a trailing
-		// newline after each object, which is exactly the framing a line-based
-		// consumer needs.
-		enc := json.NewEncoder(stdout)
-		render = func(e orchestrator.InitEvent) {
-			switch e.Type {
-			case orchestrator.InitLogEvent:
-				_ = enc.Encode(jsonInitEvent{Type: "log", Message: e.Message})
-			case orchestrator.InitProgressEvent:
-				p := e.Progress
-				var percentage int
-				if p.Total > 0 {
-					percentage = int(float64(p.Curr) / float64(p.Total) * 100)
-				}
-				_ = enc.Encode(jsonInitEvent{
-					Type:    "progress",
-					Label:   p.Label,
-					Current: p.Curr,
-					Total:   p.Total,
-					Percent: percentage,
-				})
-			}
-		}
-	} else {
-		render = func(e orchestrator.InitEvent) {
-			switch e.Type {
-			case orchestrator.InitLogEvent:
-				fmt.Fprintln(stdout, e.Message)
-			case orchestrator.InitProgressEvent:
-				p := e.Progress
-				percentage := float64(p.Curr) / float64(p.Total) * 100
-				fmt.Fprintf(stdout, "%s: %.0f%%\n", p.Label, percentage)
-			}
-		}
-	}
-	return throttleProgress(render)
-}
-
-// throttleProgress wraps an event callback so that consecutive progress events
-// for the same label are only forwarded when their integer percentage changes.
-// Log events always pass through. This bounds the output volume (~100 progress
-// lines per label) without dropping any log line, identically in both formats.
-func throttleProgress(next orchestrator.InitEventCallback) orchestrator.InitEventCallback {
-	lastPct := map[string]int{}
-	return func(e orchestrator.InitEvent) {
-		if e.Type == orchestrator.InitProgressEvent {
-			p := e.Progress
-			if p.Total <= 0 {
-				return
-			}
-			pct := int(float64(p.Curr) / float64(p.Total) * 100)
-			if last, ok := lastPct[p.Label]; ok && last == pct {
-				return
-			}
-			lastPct[p.Label] = pct
-		}
-		next(e)
-	}
-}
-
 func newDownloadImageCmd(cfg config.Configuration) *cobra.Command {
 	var onlyImages bool
 	var onlyPlatformAndLibraries bool
-	var jsonFeedback bool
+	var jsonStream bool
 	cmd := &cobra.Command{
 		Use:    "init",
 		Args:   cobra.ExactArgs(0),
@@ -136,20 +55,9 @@ func newDownloadImageCmd(cfg config.Configuration) *cobra.Command {
 			if err != nil {
 				return err
 			}
-<<<<<<< HEAD
-			progressCB := func(progress orchestrator.InitProgress) {
-				percentage := float64(progress.Curr) / float64(progress.Total) * 100
-				fmt.Fprintf(stdout, "%s: %.2f%% (%d/%d)\r", progress.Label, percentage, progress.Curr, progress.Total)
-				if progress.Curr == progress.Total {
-					fmt.Fprintln(stdout)
-				}
-			}
-			return orchestrator.SystemInit(cmd.Context(), cfg, servicelocator.GetPlatform(), servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), servicelocator.GetDockerClient(), servicelocator.GetModelsIndex(), orchestrator.SystemInitOptions{
-=======
 
-			eventCB := newInitEventCallback(stdout, jsonFeedback)
-			return orchestrator.SystemInit(cmd.Context(), cfg, servicelocator.GetPlatform(), servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), servicelocator.GetDockerClient(), orchestrator.SystemInitOptions{
->>>>>>> ede498ed2 (add json output and refactoring)
+			eventCB := newInitEventCallback(stdout, jsonStream)
+			return orchestrator.SystemInit(cmd.Context(), cfg, servicelocator.GetPlatform(), servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), servicelocator.GetDockerClient(), servicelocator.GetModelsIndex(), orchestrator.SystemInitOptions{
 				OnlyDockerImages:    onlyImages,
 				OnlyPlatformAndLibs: onlyPlatformAndLibraries,
 			}, eventCB)
@@ -158,7 +66,7 @@ func newDownloadImageCmd(cfg config.Configuration) *cobra.Command {
 
 	cmd.PersistentFlags().BoolVar(&onlyImages, "only-docker-images", false, "Only download the application docker images")
 	cmd.PersistentFlags().BoolVar(&onlyPlatformAndLibraries, "only-arduino-platform", false, "Only download the Arduino platform and libraries")
-	cmd.PersistentFlags().BoolVar(&jsonFeedback, "json-feedback", false, "Emit logs and progress as JSON lines (one event per line) instead of plain text")
+	cmd.PersistentFlags().BoolVar(&jsonStream, "json-stream", false, "Emit logs and progress as JSON lines (one event per line) instead of plain text")
 
 	return cmd
 }
