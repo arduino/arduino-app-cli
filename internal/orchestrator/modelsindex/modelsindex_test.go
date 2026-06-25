@@ -27,25 +27,29 @@ func TestModelsIndex(t *testing.T) {
 		assert.Len(t, models, 4, "Expected 4 models to be parsed")
 	})
 
-	t.Run("at least one model folders must be provided", func(t *testing.T) {
+	t.Run("dir and modelsDir are required", func(t *testing.T) {
 		_, err := Load(platform.GetPlatform(nil), nil, nil, nil, config.Configuration{})
+		require.Error(t, err)
+
+		_, err = Load(platform.GetPlatform(nil), paths.New("testdata"), nil, nil, config.Configuration{})
+		require.Error(t, err)
+
+		_, err = Load(platform.GetPlatform(nil), nil, paths.New(t.TempDir()), nil, config.Configuration{})
 		require.Error(t, err)
 	})
 
-	t.Run("custom models folder is optional", func(t *testing.T) {
-		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), nil, nil, config.Configuration{})
-		require.NoError(t, err)
-		require.Len(t, modelsIndex.loadDryModels(), 3)
-	})
-
 	t.Run("custom models folder can be empty", func(t *testing.T) {
-		modelsIndex, err := Load(platform.GetPlatform(nil), nil, paths.New(t.TempDir()), nil, config.Configuration{})
+		dir := paths.New(t.TempDir())
+		require.NoError(t, dir.Join("models-list.yaml").WriteFile([]byte("models: []\n")))
+		modelsIndex, err := Load(platform.GetPlatform(nil), dir, paths.New(t.TempDir()), nil, config.Configuration{})
 		require.NoError(t, err)
 		require.Len(t, modelsIndex.loadDryModels(), 0)
 	})
 
 	t.Run("it loads nested custom models correctly", func(t *testing.T) {
-		modelsIndex, err := Load(platform.GetPlatform(nil), nil, paths.New("testdata/with-nested-models"), nil, config.Configuration{})
+		dir := paths.New(t.TempDir())
+		require.NoError(t, dir.Join("models-list.yaml").WriteFile([]byte("models: []\n")))
+		modelsIndex, err := Load(platform.GetPlatform(nil), dir, paths.New("testdata/with-nested-models"), nil, config.Configuration{})
 		assert.NoError(t, err)
 		assert.NotEmpty(t, modelsIndex)
 		assert.Len(t, modelsIndex.loadDryModels(), 2)
@@ -61,7 +65,7 @@ func TestModelsIndex(t *testing.T) {
 
 	t.Run("it filter model for supported boards", func(t *testing.T) {
 		t.Run("app", func(t *testing.T) {
-			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), nil, nil, config.Configuration{})
+			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New(t.TempDir()), nil, config.Configuration{})
 			require.NoError(t, err)
 
 			models := modelsIndex.loadDryModels()
@@ -70,7 +74,7 @@ func TestModelsIndex(t *testing.T) {
 
 		t.Run("foo-board", func(t *testing.T) {
 			platform := platform.Platform{BoardName: "foo-board"}
-			modelsIndex, err := Load(platform, paths.New("testdata"), nil, nil, config.Configuration{})
+			modelsIndex, err := Load(platform, paths.New("testdata"), paths.New(t.TempDir()), nil, config.Configuration{})
 			require.NoError(t, err)
 
 			models := modelsIndex.loadDryModels()
@@ -79,7 +83,7 @@ func TestModelsIndex(t *testing.T) {
 
 		t.Run("other board", func(t *testing.T) {
 			platform := platform.Platform{BoardName: "some-other-board"}
-			modelsIndex, err := Load(platform, paths.New("testdata"), nil, nil, config.Configuration{})
+			modelsIndex, err := Load(platform, paths.New("testdata"), paths.New(t.TempDir()), nil, config.Configuration{})
 			require.NoError(t, err)
 
 			models := modelsIndex.loadDryModels()
@@ -144,7 +148,7 @@ func TestModelsIndex(t *testing.T) {
 
 	t.Run("it fails if model-list.yaml does not exist", func(t *testing.T) {
 		nonExistentPath := paths.New("nonexistentdir")
-		modelsIndex, err := Load(platform.GetPlatform(nil), nonExistentPath, nil, nil, config.Configuration{})
+		modelsIndex, err := Load(platform.GetPlatform(nil), nonExistentPath, paths.New(t.TempDir()), nil, config.Configuration{})
 		assert.Error(t, err)
 		assert.Nil(t, modelsIndex)
 	})

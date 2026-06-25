@@ -63,10 +63,13 @@ type ModelDeployment struct {
 func (d *ModelDeployment) VariablesForPlatform(boardName string) map[string]string {
 	for _, entry := range d.Variables {
 		if cfg, ok := entry[boardName]; ok {
+			if cfg.Variables == nil {
+				return map[string]string{}
+			}
 			return cfg.Variables
 		}
 	}
-	return nil
+	return map[string]string{}
 }
 
 type AIModel struct {
