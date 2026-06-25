@@ -47,6 +47,14 @@ func WithCustomModelDir(dir *paths.Path) ArduinoAppCLIOption {
 	}
 }
 
+func WithBoardName(name string) ArduinoAppCLIOption {
+	return func(cli *ArduinoAppCLI) {
+		dataDir := paths.New(cli.envVars["ARDUINO_APP_CLI__DATA_DIR"])
+		content := fmt.Sprintf(`{"board_name":%q}`, name)
+		cli.t.NoError(dataDir.Join("platform.json").WriteFile([]byte(content)))
+	}
+}
+
 func NewArduinoAppCLI(t *testing.T, opts ...ArduinoAppCLIOption) *ArduinoAppCLI {
 	rootDir, err := paths.MkTempDir("", "app-cli")
 	require.NoError(t, err)

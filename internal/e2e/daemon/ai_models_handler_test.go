@@ -44,7 +44,7 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 	modelID := cmp.Or(os.Getenv("E2E_MODEL_ID"), "melo-tts-es")
 
 	modelsDir := paths.New(t.TempDir()).Join("custom-models")
-	httpClient, daemonAddr := GetHttpclientAndAddr(t, e2e.WithCustomModelDir(modelsDir))
+	httpClient, daemonAddr := GetHttpclientAndAddr(t, e2e.WithCustomModelDir(modelsDir), e2e.WithBoardName("ventunoq"))
 	requestEditor := func(_ context.Context, _ *http.Request) error { return nil }
 
 	t.Run("model is not installed before download", func(t *testing.T) {
