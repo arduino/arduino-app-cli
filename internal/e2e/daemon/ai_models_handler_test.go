@@ -129,13 +129,13 @@ type handlerSSEEvent struct {
 }
 
 // collectInstallSSE issues PUT /v1/models/{id} and reads SSE events until the
-// daemon sends a "done" event or the context is cancelled.
+// daemon sends a "done" event or the context is canceled.
 func collectInstallSSE(ctx context.Context, baseURL, modelID string) ([]handlerSSEEvent, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, baseURL+"/v1/models/"+modelID, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, baseURL+"/v1/models/"+modelID, nil) //nolint:gosec
 	if err != nil {
 		return nil, err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req) //nolint:gosec
 	if err != nil {
 		return nil, err
 	}

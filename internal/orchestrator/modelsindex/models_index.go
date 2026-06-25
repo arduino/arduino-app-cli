@@ -101,7 +101,7 @@ type ModelsIndex struct {
 func (m *ModelsIndex) GetModels(ctx context.Context) []AIModel {
 	models := m.loadDryModels()
 	if m.Handlers != nil {
-		models, err := m.Handlers.getModelsInfo(ctx, m.cli, models, m.plat)
+		models, err := m.Handlers.getModelsInfo(ctx, m.cli, models)
 		if err != nil {
 			slog.Warn("cannot get models info", "err", err)
 		}

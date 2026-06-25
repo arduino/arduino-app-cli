@@ -188,7 +188,7 @@ type handlerModelEntry struct {
 	DiskSizeMB  *float64 `json:"disk_size_mb"`  // actual on-disk size, only when installed
 }
 
-func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient, models []AIModel, plat platform.Platform) ([]AIModel, error) {
+func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient, models []AIModel) ([]AIModel, error) {
 	if h == nil || h.listing == nil {
 		slog.Warn("handlers index or listing config is nil, cannot get model info")
 		return models, nil
