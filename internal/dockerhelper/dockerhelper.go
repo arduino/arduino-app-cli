@@ -80,6 +80,9 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 	if err != nil {
 		return fmt.Errorf("container create: %w", err)
 	}
+	defer func() {
+		_ = cli.ContainerRemove(context.Background(), resp.ID, container.RemoveOptions{Force: true})
+	}()
 	slog.Debug("creating container", "id", resp.ID, "image", opts.Image, "cmd", opts.Cmd, "env", opts.Env, "binds", opts.Binds)
 
 	statusCh, errCh := cli.ContainerWait(ctx, resp.ID, container.WaitConditionNotRunning)

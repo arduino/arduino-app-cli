@@ -106,6 +106,10 @@ func (f *fakeDockerClient) ContainerStart(_ context.Context, id string, _ contai
 	return nil
 }
 
+func (f *fakeDockerClient) ContainerRemove(_ context.Context, _ string, _ container.RemoveOptions) error {
+	return nil
+}
+
 func (f *fakeDockerClient) ImagePull(_ context.Context, _ string, _ image.PullOptions) (io.ReadCloser, error) {
 	return io.NopCloser(strings.NewReader("")), nil
 }
