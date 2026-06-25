@@ -45,16 +45,35 @@ var ErrDockerOutOfSpace = errors.New("not enough disk space to pull the docker i
 
 const ExitCodeDockerOutOfSpace = 80
 
-// InitProgress represents a single progress update emitted during SystemInit.
 type InitProgress struct {
 	Label string
 	Curr  int64
 	Total int64
 }
 
-// InitProgressCallback is invoked by SystemInit to report progress updates.
-// It is provided by the caller, which decides how to render the progress.
-type InitProgressCallback func(progress InitProgress)
+// InitEventType discriminates the kind of event emitted during SystemInit.
+type InitEventType int
+
+const (
+	// InitLogEvent carries a human-readable status line.
+	InitLogEvent InitEventType = iota
+	// InitProgressEvent carries a structured progress update.
+	InitProgressEvent
+)
+
+// InitEvent is the single unit of output emitted during SystemInit. The Type
+// field selects which payload is meaningful: Message for InitLogEvent, Progress
+// for InitProgressEvent.
+type InitEvent struct {
+	Type     InitEventType
+	Message  string
+	Progress InitProgress
+}
+
+// InitEventCallback is the sole output sink for SystemInit. The orchestrator is
+// rendering-agnostic: it emits semantic events and the caller decides how to
+// render them (e.g. raw text lines or JSON lines).
+type InitEventCallback func(event InitEvent)
 
 type SystemInitOptions struct {
 	OnlyDockerImages    bool
@@ -71,15 +90,9 @@ func (o SystemInitOptions) Validate() error {
 // SystemInit pulls all the docker images needed for the current version of the software to run and the
 // sketch libraries used in the example apps. Can be used to pre-install docker images/libraries on an
 // empty system, or to update all the docker images/libraries that need it.
-func SystemInit(ctx context.Context, cfg config.Configuration, platform platform.Platform, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, docker *command.DockerCli, modelsIndex *modelsindex.ModelsIndex, options SystemInitOptions, progressCB InitProgressCallback) error {
+func SystemInit(ctx context.Context, cfg config.Configuration, platform platform.Platform, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, docker *command.DockerCli, modelsIndex *modelsindex.ModelsIndex, options SystemInitOptions, eventCB InitEventCallback) error {
 	if err := options.Validate(); err != nil {
 		return err
-	}
-
-	stdout, _, err := feedback.DirectStreams()
-	if err != nil {
-		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
-		return nil
 	}
 
 	var downloadPlatformAndLibs, downloadDockerImages bool
@@ -93,20 +106,19 @@ func SystemInit(ctx context.Context, cfg config.Configuration, platform platform
 		downloadDockerImages = true
 	}
 
-	if err := installPlatformPackage(ctx, platform, stdout); err != nil {
+	if err := installPlatformPackage(ctx, platform, eventCB); err != nil {
 		slog.Error("failed to install platform package", "error", err)
 	}
 
 	if downloadPlatformAndLibs {
-		fmt.Fprintf(stdout, "Downloading libs and platforms used in examples ...\n")
-		if err := downloadLibsAndPlatformsUsedInExamples(ctx, cfg, platform, progressCB); err != nil {
+		eventCB(InitEvent{Type: InitLogEvent, Message: "Downloading libs and platforms used in examples ..."})
+		if err := downloadLibsAndPlatformsUsedInExamples(ctx, cfg, platform, eventCB); err != nil {
 			return fmt.Errorf("failed to download libs and platforms used in examples: %w", err)
 		}
 	}
 
 	if downloadDockerImages {
-		// TODO: use progressCB instead of stdout
-		if err := downloadSupportedImages(ctx, cfg, bricksindex, servicesindex, modelsIndex, docker, stdout, progressCB); err != nil {
+		if err := downloadSupportedImages(ctx, cfg, bricksindex, servicesindex, modelsIndex, docker, eventCB); err != nil {
 			return fmt.Errorf("failed to download container images used in examples: %w", err)
 		}
 	}
@@ -114,8 +126,8 @@ func SystemInit(ctx context.Context, cfg config.Configuration, platform platform
 	return nil
 }
 
-func downloadSupportedImages(ctx context.Context, cfg config.Configuration, brickindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex, docker *command.DockerCli, stdout io.Writer, progressCB InitProgressCallback) error {
-	fmt.Fprintf(stdout, "Pulling the latest docker images ...\n")
+func downloadSupportedImages(ctx context.Context, cfg config.Configuration, brickindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex, docker *command.DockerCli, eventCB InitEventCallback) error {
+	eventCB(InitEvent{Type: InitLogEvent, Message: "Pulling the latest docker images ..."})
 	imagesToPreinstall := []string{cfg.PythonImage}
 	brickImages, err := getAllSupportedBrickImages(brickindex, servicesindex)
 	if err != nil {
@@ -168,6 +180,7 @@ func downloadSupportedImages(ctx context.Context, cfg config.Configuration, bric
 	// Second pass: pull the images, accumulating downloaded bytes across all of
 	// them so progress reflects the global download status.
 	layerProgress := map[string]int64{}
+	var lastLabel string
 	for i, img := range imagesToPull {
 		freeSpace, err := GetDockerFreeSpace()
 		if err != nil {
@@ -179,13 +192,22 @@ func downloadSupportedImages(ctx context.Context, cfg config.Configuration, bric
 			return ErrDockerOutOfSpace
 		}
 
-		feedback.Printf("Pulling container image %s ...", img.ref)
+		eventCB(InitEvent{Type: InitLogEvent, Message: fmt.Sprintf("Pulling container image %s ...", img.ref)})
 		// The percentage stays global (across all images); the label tells the
 		// user which image is currently being pulled.
-		label := fmt.Sprintf("Pulling image %d/%d (%s)", i+1, len(imagesToPull), imageDisplayName(img.ref))
-		if err := pullImage(ctx, stdout, docker.Client(), img.ref, layerProgress, totalBytes, label, progressCB); err != nil {
+		lastLabel = fmt.Sprintf("Pulling image %d/%d (%s)", i+1, len(imagesToPull), imageDisplayName(img.ref))
+		if err := pullImage(ctx, docker.Client(), img.ref, layerProgress, totalBytes, lastLabel, eventCB); err != nil {
 			return fmt.Errorf("failed to pull image %s: %w", img.ref, err)
 		}
+	}
+
+	// The per-byte accounting from the docker pull stream rarely sums exactly to
+	// the computed total (the last "Downloading" event of a layer stops short of
+	// its full size before docker moves on to extraction), so the aggregate
+	// progress would otherwise stall a few points below 100%. Emit a final
+	// progress event to guarantee a clean 100% once every image has been pulled.
+	if totalBytes > 0 && len(imagesToPull) > 0 {
+		eventCB(InitEvent{Type: InitProgressEvent, Progress: InitProgress{Label: lastLabel, Curr: totalBytes, Total: totalBytes}})
 	}
 
 	return nil
@@ -212,7 +234,7 @@ func updateLayerProgress(layerProgress map[string]int64, status, id string, curr
 	return downloaded
 }
 
-func pullImage(ctx context.Context, stdout io.Writer, docker dockerClient.APIClient, imageName string, layerProgress map[string]int64, totalBytes int64, progressLabel string, progressCB InitProgressCallback) error {
+func pullImage(ctx context.Context, docker dockerClient.APIClient, imageName string, layerProgress map[string]int64, totalBytes int64, progressLabel string, eventCB InitEventCallback) error {
 	delay := minDelay
 	var out io.ReadCloser
 	var allErr error
@@ -228,7 +250,7 @@ func pullImage(ctx context.Context, stdout io.Writer, docker dockerClient.APICli
 			return allErr // Non-retryable error
 		}
 
-		feedback.Warnf("received 'toomanyrequests' error from Docker registry, retrying in %s ...", delay)
+		eventCB(InitEvent{Type: InitLogEvent, Message: fmt.Sprintf("received 'toomanyrequests' error from Docker registry, retrying in %s ...", delay)})
 
 		select {
 		case <-ctx.Done():
@@ -256,23 +278,16 @@ func pullImage(ctx context.Context, stdout io.Writer, docker dockerClient.APICli
 
 		var payload Payload
 		if err := json.Unmarshal(scanner.Bytes(), &payload); err == nil {
-			if payload.Status != "" {
-				fmt.Fprintf(stdout, "%s", payload.Status)
-			}
-			if payload.Progress != "" {
-				fmt.Fprintf(stdout, "[%s] %s\r", payload.ID, payload.Progress)
-			} else {
-				fmt.Fprintln(stdout)
-			}
-
 			// Accumulate the downloaded bytes across all layers/images and report
-			// the global download progress.
+			// the global download progress. The per-layer docker status lines are
+			// intentionally not emitted: they are redundant with this aggregate
+			// progress and would otherwise flood the output stream.
 			downloaded := updateLayerProgress(layerProgress, payload.Status, payload.ID, payload.ProgressDetail.Current)
-			if totalBytes > 0 && progressCB != nil {
+			if totalBytes > 0 && eventCB != nil {
 				if downloaded > totalBytes {
 					downloaded = totalBytes
 				}
-				progressCB(InitProgress{Label: progressLabel, Curr: downloaded, Total: totalBytes})
+				eventCB(InitEvent{Type: InitProgressEvent, Progress: InitProgress{Label: progressLabel, Curr: downloaded, Total: totalBytes}})
 			}
 		}
 	}
@@ -546,7 +561,7 @@ func removeDanglingNetworks(ctx context.Context, docker dockerClient.APIClient) 
 	return counter, nil
 }
 
-func installPlatformPackage(ctx context.Context, plat platform.Platform, stdout io.Writer) error {
+func installPlatformPackage(ctx context.Context, plat platform.Platform, eventCB InitEventCallback) error {
 	var packageName string
 
 	switch plat.BoardName {
@@ -555,18 +570,22 @@ func installPlatformPackage(ctx context.Context, plat platform.Platform, stdout 
 	case "ventunoq":
 		packageName = "arduino-ventunoq"
 	default:
-		fmt.Fprintf(stdout, "no platform-specific debian package to install for board '%s'\n", plat.BoardName)
+		eventCB(InitEvent{Type: InitLogEvent, Message: fmt.Sprintf("no platform-specific debian package to install for board '%s'", plat.BoardName)})
 		return nil
 	}
 
-	fmt.Fprintf(stdout, "Installing package '%s'\n", packageName)
+	eventCB(InitEvent{Type: InitLogEvent, Message: fmt.Sprintf("Installing package '%s'", packageName)})
 
 	cmd, err := paths.NewProcess(nil, "sudo", "apt-get", "install", "-y", packageName)
 	if err != nil {
 		return err
 	}
-	cmd.RedirectStderrTo(stdout)
-	cmd.RedirectStdoutTo(stdout)
+	// Route the subprocess output through the event callback, one log event per line.
+	subprocessOut := NewCallbackWriter(func(line string) {
+		eventCB(InitEvent{Type: InitLogEvent, Message: line})
+	})
+	cmd.RedirectStderrTo(subprocessOut)
+	cmd.RedirectStdoutTo(subprocessOut)
 
 	if err := cmd.RunWithinContext(ctx); err != nil {
 		return err
@@ -574,7 +593,7 @@ func installPlatformPackage(ctx context.Context, plat platform.Platform, stdout 
 	return nil
 }
 
-func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Configuration, platform platform.Platform, progressCB InitProgressCallback) error {
+func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Configuration, platform platform.Platform, eventCB InitEventCallback) error {
 	// Start an Arduino Core Server RPC server
 	logrus.SetOutput(io.Discard) // Suppress logs from Arduino CLI
 	var cliInstance *rpc.Instance
@@ -603,11 +622,11 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 		}
 		if update := curr.GetUpdate(); update != nil {
 			totalSize = update.GetTotalSize()
-			progressCB(InitProgress{
+			eventCB(InitEvent{Type: InitProgressEvent, Progress: InitProgress{
 				Label: currLabel,
 				Curr:  update.GetDownloaded(),
 				Total: totalSize,
-			})
+			}})
 		}
 	}
 
