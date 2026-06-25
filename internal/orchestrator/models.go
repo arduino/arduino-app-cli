@@ -36,15 +36,15 @@ type AIModelsListResult struct {
 }
 
 type AIModelItem struct {
-	ID                string            `json:"id"`
-	Name              string            `json:"name"`
-	ModuleDescription string            `json:"description"`
-	Runner            string            `json:"runner"`
-	Bricks            []string          `json:"brick_ids"`
-	Metadata          map[string]string `json:"metadata,omitempty"`
-	IsBuiltin         bool              `json:"is_builtin"`
-	Size              *uint64           `json:"size,omitempty"`
-	Installed         bool              `json:"installed"`
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Description string            `json:"description"`
+	Runner      string            `json:"runner"`
+	Bricks      []string          `json:"brick_ids"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
+	IsBuiltin   bool              `json:"is_builtin"`
+	Size        *uint64           `json:"size,omitempty"`
+	Installed   bool              `json:"installed"`
 }
 
 type AIModelsListRequest struct {
@@ -63,14 +63,14 @@ func AIModelsList(ctx context.Context, cli client.APIClient, req AIModelsListReq
 
 	items := f.Map(collection, func(model modelsindex.AIModel) AIModelItem {
 		return AIModelItem{
-			ID:                model.ID,
-			Name:              model.Name,
-			ModuleDescription: model.ModuleDescription,
-			Runner:            model.Runner,
-			Bricks:            f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
-			Metadata:          model.Metadata,
-			IsBuiltin:         model.IsInternal,
-			Installed:         model.Installed,
+			ID:          model.ID,
+			Name:        model.Name,
+			Description: model.Description,
+			Runner:      model.Runner,
+			Bricks:      f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
+			Metadata:    model.Metadata,
+			IsBuiltin:   model.IsInternal,
+			Installed:   model.Installed,
 			Size: func() *uint64 {
 				if model.Size > 0 {
 					return &model.Size
@@ -93,15 +93,15 @@ func AIModelDetails(ctx context.Context, _ client.APIClient, modelsIndex *models
 	}
 
 	return AIModelItem{
-		ID:                model.ID,
-		Name:              model.Name,
-		ModuleDescription: model.ModuleDescription,
-		Runner:            model.Runner,
-		Bricks:            f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
-		Metadata:          model.Metadata,
-		IsBuiltin:         model.IsInternal,
-		Size:              &model.Size,
-		Installed:         model.Installed,
+		ID:          model.ID,
+		Name:        model.Name,
+		Description: model.Description,
+		Runner:      model.Runner,
+		Bricks:      f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
+		Metadata:    model.Metadata,
+		IsBuiltin:   model.IsInternal,
+		Size:        &model.Size,
+		Installed:   model.Installed,
 	}, true, nil
 }
 
@@ -316,10 +316,10 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 	}
 
 	return AIModelItem{
-		ID:                aimodel.ModelDescriptor.ID,
-		Name:              aimodel.ModelDescriptor.Name,
-		ModuleDescription: aimodel.ModelDescriptor.Description,
-		Runner:            aimodel.ModelDescriptor.Runner,
+		ID:          aimodel.ModelDescriptor.ID,
+		Name:        aimodel.ModelDescriptor.Name,
+		Description: aimodel.ModelDescriptor.Description,
+		Runner:      aimodel.ModelDescriptor.Runner,
 		Bricks: f.Map(aimodel.ModelDescriptor.Bricks, func(b custommodel.BrickConfig) string {
 			return b.ID
 		}),

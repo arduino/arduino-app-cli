@@ -103,9 +103,9 @@ func TestModelsIndex(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, model)
 		assert.Equal(t, &AIModel{
-			ID:                "face-detection",
-			Name:              "Lightweight-Face-Detection",
-			ModuleDescription: "Face bounding box detection. This model is trained on the WIDER FACE dataset and can detect faces in images.",
+			ID:          "face-detection",
+			Name:        "Lightweight-Face-Detection",
+			Description: "Face bounding box detection. This model is trained on the WIDER FACE dataset and can detect faces in images.",
 			Bricks: []BrickConfig{
 				{ID: "arduino:object_detection", ModelConfiguration: map[string]string{"EI_OBJ_DETECTION_MODEL": "/models/ootb/ei/lw-face-det.eim"}},
 				{ID: "arduino:video_object_detection", ModelConfiguration: map[string]string{"EI_V_OBJ_DETECTION_MODEL": "/models/ootb/ei/video-face-det.eim"}},
@@ -132,10 +132,10 @@ func TestModelsIndex(t *testing.T) {
 		require.NotNil(t, eimodel)
 
 		assert.Equal(t, &AIModel{
-			ID:                "my-model-id",
-			Name:              "my custom model from edge impulse",
-			ModuleDescription: "A small and accurate model for detecting bounding boxes for faces in images.",
-			Bricks:            []BrickConfig{{ID: "object-detection", ModelConfiguration: map[string]string{"AN_ENV_VARIABLE": "/my/env7variable"}}},
+			ID:          "my-model-id",
+			Name:        "my custom model from edge impulse",
+			Description: "A small and accurate model for detecting bounding boxes for faces in images.",
+			Bricks:      []BrickConfig{{ID: "object-detection", ModelConfiguration: map[string]string{"AN_ENV_VARIABLE": "/my/env7variable"}}},
 			Metadata: map[string]string{
 				"a-bool-metadata":   "true",
 				"a-int-metadata":    "1",
@@ -157,30 +157,11 @@ func TestModelsIndex(t *testing.T) {
 		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, config.Configuration{})
 		require.NoError(t, err)
 
-		model := modelsIndex.GetModelsByBrick(t.Context(), "not-existing-brick")
+		model := modelsIndex.GetModelsByBrick("not-existing-brick")
 		assert.Nil(t, model)
 
-		model = modelsIndex.GetModelsByBrick(t.Context(), "arduino:object_detection")
+		model = modelsIndex.GetModelsByBrick("arduino:object_detection")
 		assert.Len(t, model, 1)
 		assert.Equal(t, "face-detection", model[0].ID)
-	})
-
-	t.Run("it gets models by bricks", func(t *testing.T) {
-		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, config.Configuration{})
-		require.NoError(t, err)
-
-		models := modelsIndex.GetModelsByBricks(t.Context(), []string{"arduino:non_existing"})
-		assert.Len(t, models, 0)
-		assert.Nil(t, models)
-
-		models = modelsIndex.GetModelsByBricks(t.Context(), []string{"arduino:video_object_detection"})
-		assert.Len(t, models, 2)
-		assert.Equal(t, "face-detection", models[0].ID)
-		assert.Equal(t, "yolox-object-detection", models[1].ID)
-
-		models = modelsIndex.GetModelsByBricks(t.Context(), []string{"arduino:object_detection", "arduino:video_object_detection"})
-		assert.Len(t, models, 2)
-		assert.Equal(t, "face-detection", models[0].ID)
-		assert.Equal(t, "yolox-object-detection", models[1].ID)
 	})
 }
