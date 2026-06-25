@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-app-cli/internal/e2e"
@@ -42,7 +43,8 @@ const (
 func TestModelHandlerDownloadFlow(t *testing.T) {
 	modelID := cmp.Or(os.Getenv("E2E_MODEL_ID"), "melo-tts-es")
 
-	httpClient, daemonAddr := GetHttpclientAndAddr(t, e2e.WithCustomModelDir(nil))
+	modelsDir := paths.New(t.TempDir()).Join("custom-models")
+	httpClient, daemonAddr := GetHttpclientAndAddr(t, e2e.WithCustomModelDir(modelsDir))
 	requestEditor := func(_ context.Context, _ *http.Request) error { return nil }
 
 	t.Run("model is not installed before download", func(t *testing.T) {

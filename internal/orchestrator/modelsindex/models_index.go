@@ -168,7 +168,7 @@ func (m *ModelsIndex) loadDryModels() []AIModel {
 // Load constructs a ModelsIndex. Pass the result of LoadHandlers as handlers;
 // nil is accepted and disables handler-backed status checks.
 func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, cli client.APIClient, cfg config.Configuration) (*ModelsIndex, error) {
-	if dir == nil && modelsDir == nil {
+	if dir == nil || modelsDir == nil {
 		return &ModelsIndex{}, errors.New("either dir or modelsDir must be provided")
 	}
 
