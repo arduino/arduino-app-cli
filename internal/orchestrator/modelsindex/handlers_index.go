@@ -55,10 +55,12 @@ type ModelHandler struct {
 	Actions HandlerActions
 }
 
-func loadHandlers(dir *paths.Path, cfg config.Configuration, plat platform.Platform) (*HandlersIndex, error) {
+func loadHandlers(dir *paths.Path, modelsDir *paths.Path, cfg config.Configuration, plat platform.Platform) (*HandlersIndex, error) {
 	// TODO : we should add a method on config to return env variables
-	if dir == nil {
-		return nil, nil
+	configEnv := map[string]string{
+		"DOCKER_REGISTRY_BASE":                 cfg.DockerRegistryBase(),
+		"BOARD_NAME":                           plat.BoardName,
+		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": modelsDir.String(),
 	}
 
 	handlersFile := dir.Join("models-handlers.yaml")
@@ -79,8 +81,7 @@ func loadHandlers(dir *paths.Path, cfg config.Configuration, plat platform.Platf
 	var listing *ListingConfig
 	if raw.Listing.Image != "" {
 		listing = &ListingConfig{
-			Image: raw.Listing.Image,
-			// FIXME: See other FIXME about ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR.
+			Image:   raw.Listing.Image,
 			Volumes: raw.Listing.Volumes,
 			Command: raw.Listing.Command,
 		}
@@ -117,22 +118,14 @@ func loadHandlers(dir *paths.Path, cfg config.Configuration, plat platform.Platf
 				return nil, fmt.Errorf("models-handlers.yaml: handler %q missing required field \"volumes\"", id)
 			}
 			handlers[id] = ModelHandler{
-				ID:    id,
-				Image: entry.Image,
-				// FIXME: Only ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR is supported for now. We do not resolve this variable here because the host volume path (including the model repository segment) is only known at runtime and must be finalized before the container starts.
+				ID:      id,
+				Image:   entry.Image,
 				Volumes: entry.Volumes,
 				Actions: actions,
 			}
 		}
 	}
 
-	configEnv := map[string]string{
-		"DOCKER_REGISTRY_BASE": cfg.DockerRegistryBase(),
-		"BOARD_NAME":           plat.BoardName,
-	}
-	if modelsDir := cfg.CustomModelsDir(); modelsDir != nil {
-		configEnv["ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR"] = modelsDir.String()
-	}
 	return &HandlersIndex{handlers: handlers, listing: listing, configEnv: configEnv}, nil
 }
 
@@ -200,7 +193,7 @@ func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient,
 		slog.Warn("handlers index or listing config is nil, cannot get model info")
 		return models, nil
 	}
-	entries, err := runListAction(ctx, cli, h.listing, plat, h.configEnv)
+	entries, err := runListAction(ctx, cli, h.listing, h.configEnv)
 	if err != nil {
 		return models, fmt.Errorf("cannot list models: %w", err)
 	}
@@ -227,18 +220,14 @@ func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient,
 }
 
 func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandler, model AIModel, plat platform.Platform, configEnv map[string]string) (uint64, error) {
-	var envVars map[string]string
-	if model.Deployment != nil {
-		envVars = model.Deployment.VariablesForPlatform(plat.BoardName)
-	}
-
-	binds := ResolveVarsSlice(handler.Volumes, configEnv)
+	envVars := model.Deployment.VariablesForPlatform(plat.BoardName)
+	maps.Insert(envVars, maps.All(configEnv))
 
 	var size uint64
 	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
-		Image: ResolveVars(handler.Image, configEnv),
+		Image: ResolveVars(handler.Image, envVars),
 		Cmd:   handler.Actions.Info,
-		Binds: ResolveVarsSlice(binds, configEnv),
+		Binds: ResolveVarsSlice(handler.Volumes, envVars),
 		Env:   envVars,
 		Stdout: f.NewCallbackWriter(func(line string) {
 			var out struct {
@@ -256,7 +245,7 @@ func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandl
 	return size, nil
 }
 
-func runListAction(ctx context.Context, cli client.APIClient, listing *ListingConfig, plat platform.Platform, configEnv map[string]string) ([]handlerModelEntry, error) {
+func runListAction(ctx context.Context, cli client.APIClient, listing *ListingConfig, configEnv map[string]string) ([]handlerModelEntry, error) {
 	slog.Debug("running list action", "image", listing.Image)
 
 	var buf bytes.Buffer

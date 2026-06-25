@@ -178,7 +178,8 @@ handlers:
 	err := tempDir.Join("models-handlers.yaml").WriteFile([]byte(yamlContent))
 	require.NoError(t, err)
 
-	handlersIndex, err := loadHandlers(tempDir, config.Configuration{}, platform.Platform{})
+	modelsDir := paths.New()
+	handlersIndex, err := loadHandlers(tempDir, modelsDir, config.Configuration{}, platform.Platform{})
 	require.NoError(t, err)
 	require.NotNil(t, handlersIndex)
 

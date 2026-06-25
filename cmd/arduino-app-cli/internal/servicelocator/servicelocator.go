@@ -38,7 +38,7 @@ var (
 	})
 
 	GetModelsIndex = sync.OnceValue(func() *modelsindex.ModelsIndex {
-		return f.Must(modelsindex.Load(GetPlatform(), GetStaticStore().GetAssetsFolder(), globalConfig.CustomModelsDir(), GetDockerClient().Client(), globalConfig.DockerRegistryBase(), globalConfig))
+		return f.Must(modelsindex.Load(GetPlatform(), GetStaticStore().GetAssetsFolder(), globalConfig.CustomModelsDir(), GetDockerClient().Client(), globalConfig))
 	})
 
 	GetServicesIndex = sync.OnceValue(func() *servicesindex.ServicesIndex {

@@ -167,12 +167,12 @@ func (m *ModelsIndex) loadDryModels() []AIModel {
 
 // Load constructs a ModelsIndex. Pass the result of LoadHandlers as handlers;
 // nil is accepted and disables handler-backed status checks.
-func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, cli client.APIClient, dockerRegistryBase string, cfg config.Configuration) (*ModelsIndex, error) {
+func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, cli client.APIClient, cfg config.Configuration) (*ModelsIndex, error) {
 	if dir == nil && modelsDir == nil {
 		return &ModelsIndex{}, errors.New("either dir or modelsDir must be provided")
 	}
 
-	handlers, err := loadHandlers(dir, cfg, plat)
+	handlers, err := loadHandlers(dir, modelsDir, cfg, plat)
 	if err != nil {
 		return nil, err
 	}
@@ -226,16 +226,15 @@ func (m *ModelsIndex) modelInstalled(ctx context.Context, model AIModel, cli cli
 	if !ok {
 		return false, fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
 	}
+
 	envVars := model.Deployment.VariablesForPlatform(m.plat.BoardName)
 	maps.Insert(envVars, maps.All(m.Handlers.configEnv))
-
-	binds := ResolveVarsSlice(handler.Volumes, envVars)
 
 	var buf bytes.Buffer
 	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
 		Image:  ResolveVars(handler.Image, envVars),
 		Cmd:    handler.Actions.Check,
-		Binds:  binds,
+		Binds:  ResolveVarsSlice(handler.Volumes, envVars),
 		Env:    envVars,
 		Stdout: &buf,
 	})

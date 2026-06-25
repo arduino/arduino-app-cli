@@ -110,17 +110,20 @@ func (f *fakeDockerClient) ImagePull(_ context.Context, _ string, _ image.PullOp
 	return io.NopCloser(strings.NewReader("")), nil
 }
 
-// loadHandlersTestIndex loads a ModelsIndex from testdata/with-handlers using the given fake client.
-func loadHandlersTestIndex(t *testing.T, dockerCli client.APIClient) *ModelsIndex {
-	t.Helper()
-	dir := paths.New("testdata/with-handlers")
-	modelsDir := dir.Join("models")
-	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, modelsDir, dockerCli, "", config.Configuration{})
-	require.NoError(t, err)
-	return idx
+func (f *fakeDockerClient) ImageInspect(ctx context.Context, _ string, _ ...client.ImageInspectOption) (image.InspectResponse, error) {
+	return image.InspectResponse{}, nil
 }
 
 func TestGetModelByID_WithDockerMock(t *testing.T) {
+	loadHandlersTestIndex := func(t *testing.T, dockerCli client.APIClient) *ModelsIndex {
+		t.Helper()
+		dir := paths.New("testdata/with-handlers")
+		modelsDir := dir.Join("models")
+		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, modelsDir, dockerCli, config.Configuration{})
+		require.NoError(t, err)
+		return idx
+	}
+
 	t.Run("the custom modeldir volume is not resolved at load time", func(t *testing.T) {
 		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
 			return "", 0
