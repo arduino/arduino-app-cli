@@ -158,7 +158,7 @@ func TestModelsIndex(t *testing.T) {
 		require.NoError(t, err)
 
 		model := modelsIndex.GetModelsByBrick("not-existing-brick")
-		assert.Nil(t, model)
+		assert.Empty(t, model)
 
 		model = modelsIndex.GetModelsByBrick("arduino:object_detection")
 		assert.Len(t, model, 1)

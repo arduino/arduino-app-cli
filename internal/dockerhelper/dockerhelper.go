@@ -72,9 +72,8 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 			User:  getCurrentUser(),
 		},
 		&container.HostConfig{
-			Binds:      opts.Binds,
-			LogConfig:  container.LogConfig{Type: "none"},
-			AutoRemove: true,
+			Binds:     opts.Binds,
+			LogConfig: container.LogConfig{Type: "none"},
 		},
 		nil, nil, "",
 	)

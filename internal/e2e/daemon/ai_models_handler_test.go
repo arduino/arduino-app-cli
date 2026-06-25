@@ -149,7 +149,7 @@ func collectInstallSSE(ctx context.Context, baseURL, modelID string) ([]handlerS
 }
 
 // getModelWithRetry retries GetAIModelDetailsWithResponse up to 5 times with a 1s
-// delay between attempts to tolerate the Docker check-container output race with AutoRemove.
+// delay between attempts to tolerate transient Docker errors.
 func getModelWithRetry(t *testing.T, httpClient *client.ClientWithResponses, modelID string, editor client.RequestEditorFn) (*client.GetAIModelDetailsResp, error) {
 	t.Helper()
 	const (

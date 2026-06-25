@@ -45,7 +45,7 @@ func TestParseDownloadHandlerLine(t *testing.T) {
 			line:        `{"event":"complete","description":"download complete","artifacts":["model.eim","meta.json"]}`,
 			expectEvent: 1,
 			expected: StreamMessage{
-				data: "download complete",
+				done: "download complete",
 			},
 		},
 		{
