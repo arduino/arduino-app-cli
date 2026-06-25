@@ -73,19 +73,26 @@ func (d *ModelDeployment) VariablesForPlatform(boardName string) map[string]stri
 }
 
 type AIModel struct {
-	ID                string            `yaml:"-"`
-	ModelFolderPath   *paths.Path       `yaml:"-"`
-	Name              string            `yaml:"name"`
-	ModuleDescription string            `yaml:"description"`
-	Runner            string            `yaml:"runner"`
-	Bricks            []BrickConfig     `yaml:"bricks,omitempty"`
-	ModelLabels       []string          `yaml:"model_labels,omitempty"`
-	Metadata          map[string]string `yaml:"metadata,omitempty"`
-	IsInternal        bool              `yaml:"-"`
-	Installed         bool              `yaml:"-"`
-	Size              uint64            `yaml:"-"`
-	SupportedBoards   []string          `yaml:"supported_boards,omitempty"`
-	Deployment        *ModelDeployment  `yaml:"deployment,omitempty"`
+	ID              string            `yaml:"-"`
+	ModelFolderPath *paths.Path       `yaml:"-"`
+	Name            string            `yaml:"name"`
+	Description     string            `yaml:"description"`
+	Runner          string            `yaml:"runner"`
+	Bricks          []BrickConfig     `yaml:"bricks,omitempty"`
+	ModelLabels     []string          `yaml:"model_labels,omitempty"`
+	Metadata        map[string]string `yaml:"metadata,omitempty"`
+	SupportedBoards []string          `yaml:"supported_boards,omitempty"`
+	Deployment      *ModelDeployment  `yaml:"deployment,omitempty"`
+
+	IsInternal bool   `yaml:"-"`
+	Installed  bool   `yaml:"-"`
+	Size       uint64 `yaml:"-"`
+}
+
+type AIModelLite struct {
+	ID          string
+	Name        string
+	Description string
 }
 
 type BrickConfig struct {
@@ -113,18 +120,6 @@ func (m *ModelsIndex) GetModels(ctx context.Context) []AIModel {
 	return models
 }
 
-func (m *ModelsIndex) GetModelsByBricks(ctx context.Context, bricks []string) []AIModel {
-	var modelList []AIModel
-	for _, model := range m.GetModels(ctx) {
-		if slices.ContainsFunc(model.Bricks, func(brick BrickConfig) bool {
-			return slices.Contains(bricks, brick.ID)
-		}) {
-			modelList = append(modelList, model)
-		}
-	}
-	return modelList
-}
-
 // GetModelByID returns the model with the given ID and populates its Installed and Size fields.
 func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, error) {
 	models := m.loadDryModels()
@@ -149,14 +144,32 @@ func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, er
 	return &model, nil
 }
 
-func (m *ModelsIndex) GetModelsByBrick(ctx context.Context, brickName string) []AIModel {
-	var matches []AIModel
-	for _, model := range m.GetModels(ctx) {
-		if slices.ContainsFunc(model.Bricks, func(b BrickConfig) bool { return b.ID == brickName }) {
-			matches = append(matches, model)
+// GetModelsByBrick returns the models that are associated with the given brick name.
+func (m *ModelsIndex) GetModelsByBrick(brickID string) []AIModelLite {
+	models := m.loadDryModels()
+	matches := make([]AIModelLite, 0, len(models))
+
+	for _, model := range models {
+		if slices.ContainsFunc(model.Bricks, func(b BrickConfig) bool { return b.ID == brickID }) {
+			matches = append(matches, AIModelLite{
+				ID:          model.ID,
+				Name:        model.Name,
+				Description: model.Description,
+			})
 		}
 	}
+
 	return matches
+}
+
+func (m *ModelsIndex) HasModelForBrick(brickID string) bool {
+	models := m.loadDryModels()
+	for _, model := range models {
+		if slices.ContainsFunc(model.Bricks, func(b BrickConfig) bool { return b.ID == brickID }) {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *ModelsIndex) loadDryModels() []AIModel {
@@ -341,9 +354,9 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 		}
 
 		models = append(models, AIModel{
-			ID:                m.ModelDescriptor.ID,
-			Name:              m.ModelDescriptor.Name,
-			ModuleDescription: m.ModelDescriptor.Description,
+			ID:          m.ModelDescriptor.ID,
+			Name:        m.ModelDescriptor.Name,
+			Description: m.ModelDescriptor.Description,
 			Bricks: f.Map(m.ModelDescriptor.Bricks, func(b custommodel.BrickConfig) BrickConfig {
 				return BrickConfig(b)
 			}),

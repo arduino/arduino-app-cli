@@ -52,11 +52,13 @@ type AIModelsListRequest struct {
 }
 
 func AIModelsList(ctx context.Context, cli client.APIClient, req AIModelsListRequest, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform) AIModelsListResult {
-	var collection []modelsindex.AIModel
-	if len(req.FilterByBrickID) == 0 {
-		collection = modelsIndex.GetModels(ctx)
-	} else {
-		collection = modelsIndex.GetModelsByBricks(ctx, req.FilterByBrickID)
+	collection := modelsIndex.GetModels(ctx)
+	if len(req.FilterByBrickID) != 0 {
+		collection = slices.DeleteFunc(collection, func(model modelsindex.AIModel) bool {
+			return !slices.ContainsFunc(model.Bricks, func(brick modelsindex.BrickConfig) bool {
+				return slices.Contains(req.FilterByBrickID, brick.ID)
+			})
+		})
 	}
 
 	items := f.Map(collection, func(model modelsindex.AIModel) AIModelItem {

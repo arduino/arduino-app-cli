@@ -40,7 +40,7 @@ type BrickInstance struct {
 type AIModel struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
-	Description string `json:"description"`
+	Description string `json:"description" description:"Deprecated: This field is kept for backward compatibility."`
 }
 type BrickConfigVariable struct {
 	Name        string `json:"name"`

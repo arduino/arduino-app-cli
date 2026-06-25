@@ -7,7 +7,6 @@ package bricks
 
 import (
 	"cmp"
-	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -89,11 +88,11 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp, platform platform.Pla
 			ModelID:         cmp.Or(brickInstance.Model, brick.GetModelNameByBoard(platform.BoardName)),
 			Variables:       variablesMap,
 			ConfigVariables: configVariables,
-			CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(context.TODO(), brick.ID), func(m modelsindex.AIModel) AIModel {
+			CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModelLite) AIModel {
 				return AIModel{
 					ID:          m.ID,
 					Name:        m.Name,
-					Description: m.ModuleDescription,
+					Description: m.Description,
 				}
 			}),
 		}
@@ -133,11 +132,12 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 		Variables:       variables,
 		ConfigVariables: configVariables,
 		ModelID:         cmp.Or(a.Descriptor.Bricks[brickIndex].Model, brick.ModelName),
-		CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(context.TODO(), brick.ID), func(m modelsindex.AIModel) AIModel {
+		CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModelLite) AIModel {
 			return AIModel{
-				ID:          m.ID,
-				Name:        m.Name,
-				Description: m.ModuleDescription,
+				ID:   m.ID,
+				Name: m.Name,
+				// TODO: deprecated field, remove in future versions
+				Description: m.Description,
 			}
 		}),
 		Readme: readme,
@@ -208,6 +208,7 @@ func (s *Service) BricksDetails(id string, idProvider *app.IDProvider,
 	}
 
 	variables, configVariables := getBrickConfigVariableDetails(brick)
+
 	return BrickDetailsResult{
 		ID:           id,
 		Name:         brick.Name,
@@ -221,11 +222,11 @@ func (s *Service) BricksDetails(id string, idProvider *app.IDProvider,
 		ApiDocsPath:  apiDocsPath,
 		CodeExamples: codeExamples,
 		UsedByApps:   usedByApps,
-		CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(context.TODO(), brick.ID), func(m modelsindex.AIModel) AIModel {
+		CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModelLite) AIModel {
 			return AIModel{
 				ID:          m.ID,
 				Name:        m.Name,
-				Description: m.ModuleDescription,
+				Description: m.Description,
 			}
 		}),
 		ConfigVariables: configVariables,
@@ -347,12 +348,10 @@ func (s *Service) BrickCreate(
 	brickInstance.ID = req.ID
 
 	if req.Model != nil {
-		models := s.modelsIndex.GetModelsByBrick(context.TODO(), brickInstance.ID)
-		idx := slices.IndexFunc(models, func(m modelsindex.AIModel) bool { return m.ID == *req.Model })
-		if idx == -1 {
+		if !s.modelsIndex.HasModelForBrick(brickInstance.ID) {
 			return fmt.Errorf("model %s does not exsist", *req.Model)
 		}
-		brickInstance.Model = models[idx].ID
+		brickInstance.Model = *req.Model
 	}
 	brickInstance.Variables = req.Variables
 
@@ -390,9 +389,7 @@ func (s *Service) BrickUpdate(
 	brickModel := appCurrent.Descriptor.Bricks[brickPosition].Model
 
 	if req.Model != nil && *req.Model != brickModel {
-		models := s.modelsIndex.GetModelsByBrick(context.TODO(), req.ID)
-		idx := slices.IndexFunc(models, func(m modelsindex.AIModel) bool { return m.ID == *req.Model })
-		if idx == -1 {
+		if !s.modelsIndex.HasModelForBrick(req.ID) {
 			return fmt.Errorf("model %s does not exsist", *req.Model)
 		}
 		brickModel = *req.Model
