@@ -14,3 +14,6 @@ export ARDUINO_APP_CLI__ALLOW_ROOT=true && arduino-app-cli completion bash > /et
 if [ "$1" = "configure" ]; then
     rm -rf /home/arduino/.local/share/arduino-app-cli
 fi
+
+#LOAD_HELPER
+configure_agent_profiles

@@ -2,3 +2,6 @@
 
 systemctl disable arduino-app-cli
 systemctl disable arduino-avahi-serial.service
+
+#LOAD_HELPER
+cleanup_agent_profiles
