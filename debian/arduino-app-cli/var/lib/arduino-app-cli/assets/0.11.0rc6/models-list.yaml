@@ -1741,17 +1741,17 @@ models:
         - ventunoq:
             variables:
               ei_project_id: 948887
-              ei_impulse_id: 4
+              ei_impulse_id: 10
               models_repository: "edge-impulse"
               model_name: efficientnet-b4-qnn.eim
               target: runner-linux-aarch64-qnn
     bricks:
       - id: "arduino:image_classification"
         model_configuration:
-          "EI_IMAGE_CLASSIFICATION_MODEL": "models/${models_repository}/efficientnet-b4-qnn.eim"
+          "EI_IMAGE_CLASSIFICATION_MODEL": "models/edge-impulse/efficientnet-b4-qnn.eim"
       - id: "arduino:video_image_classification"
         model_configuration:
-          "EI_V_IMAGE_CLASSIFICATION_MODEL": "models/${models_repository}/efficientnet-b4-qnn.eim"
+          "EI_V_IMAGE_CLASSIFICATION_MODEL": "models/edge-impulse/efficientnet-b4-qnn.eim"
  - "llamacpp:gemma-4-E2B_q4_0-it":
     name : "Gemma 4 E2B"
     description: >-
@@ -1959,7 +1959,7 @@ models:
     bricks:
       - id: "arduino:object_detection"
         model_configuration:
-          "EI_OBJ_DETECTION_MODEL": "models/${models_repository}/yolo-x-small-qnn.eim"
+          "EI_OBJ_DETECTION_MODEL": "models/edge-impulse/yolo-x-small-qnn.eim"
       - id: "arduino:video_object_detection"
         model_configuration:
-          "EI_V_OBJ_DETECTION_MODEL": "models/${models_repository}/yolo-x-small-qnn.eim"
+          "EI_V_OBJ_DETECTION_MODEL": "models/edge-impulse/yolo-x-small-qnn.eim"
