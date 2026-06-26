@@ -46,10 +46,10 @@ func WithCustomModelDir(dir *paths.Path) ArduinoAppCLIOption {
 	}
 }
 
-func WithBoardName(cfg config. Configuration, name string) ArduinoAppCLIOption {
+func WithBoardName(name string) ArduinoAppCLIOption {
 	return func(cli *ArduinoAppCLI) {
 		content := fmt.Sprintf(`{"board_name":%q}`, name)
-		dataDir := cfg.DataDir()
+		dataDir := paths.New(cli.envVars["ARDUINO_APP_CLI__DATA_DIR"])
 		cli.t.NoError(dataDir.Join("platform.json").WriteFile([]byte(content)))
 	}
 }
