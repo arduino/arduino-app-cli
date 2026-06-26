@@ -43,5 +43,5 @@ func TestListLibrariesWithParams(t *testing.T) {
 	require.Equal(t, http.StatusOK, createResp.StatusCode())
 	require.NotNil(t, createResp.JSON200, "The creation response body should not be nil")
 	require.True(t, len(*createResp.JSON200.Libraries) == 1, "There must at least one Modulino library matching the search term (we hope so...)")
-	require.Equal(t, new("https://github.com/arduino-libraries/Modulino"), (*createResp.JSON200.Libraries)[0].Website, "The website must match the search term")
+	require.Equal(t, new("https://github.com/arduino-libraries/Arduino_Modulino"), (*createResp.JSON200.Libraries)[0].Website, "The website must match the search term")
 }
