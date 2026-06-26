@@ -96,6 +96,7 @@ func (e ListLibrariesParamsSort) Valid() bool {
 
 // AIModel defines model for AIModel.
 type AIModel struct {
+	// Description Deprecated: This field is kept for backward compatibility.
 	Description *string `json:"description,omitempty"`
 	Id          *string `json:"id,omitempty"`
 	Name        *string `json:"name,omitempty"`
@@ -105,13 +106,13 @@ type AIModel struct {
 type AIModelItem struct {
 	BrickIds    *[]string          `json:"brick_ids,omitempty"`
 	Description *string            `json:"description,omitempty"`
-	DiskUsage   *int               `json:"disk_usage,omitempty"`
 	Id          *string            `json:"id,omitempty"`
 	Installed   *bool              `json:"installed,omitempty"`
 	IsBuiltin   *bool              `json:"is_builtin,omitempty"`
 	Metadata    *map[string]string `json:"metadata,omitempty"`
 	Name        *string            `json:"name,omitempty"`
 	Runner      *string            `json:"runner,omitempty"`
+	Size        *int               `json:"size,omitempty"`
 }
 
 // AIModelsListResult defines model for AIModelsListResult.
@@ -305,7 +306,8 @@ type ConfigDirectories struct {
 
 // ConfigResponse defines model for ConfigResponse.
 type ConfigResponse struct {
-	Directories *ConfigDirectories `json:"directories,omitempty"`
+	Directories  *ConfigDirectories `json:"directories,omitempty"`
+	PythonRunner *string            `json:"python_runner,omitempty"`
 }
 
 // CreateAppRequest defines model for CreateAppRequest.

@@ -15,6 +15,7 @@ import (
 	"log/slog"
 	"os"
 	"os/user"
+	"runtime"
 	"strings"
 	"time"
 
@@ -72,17 +73,16 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 			User:  getCurrentUser(),
 		},
 		&container.HostConfig{
-			Binds:     opts.Binds,
-			LogConfig: container.LogConfig{Type: "none"},
+			Binds:      opts.Binds,
+			LogConfig:  container.LogConfig{Type: "none"},
+			AutoRemove: true,
 		},
 		nil, nil, "",
 	)
 	if err != nil {
 		return fmt.Errorf("container create: %w", err)
 	}
-	defer func() {
-		_ = cli.ContainerRemove(context.Background(), resp.ID, container.RemoveOptions{Force: true})
-	}()
+
 	slog.Debug("creating container", "id", resp.ID, "image", opts.Image, "cmd", opts.Cmd, "env", opts.Env, "binds", opts.Binds)
 
 	statusCh, errCh := cli.ContainerWait(ctx, resp.ID, container.WaitConditionNotRunning)
@@ -161,6 +161,9 @@ func ensureImage(ctx context.Context, cli client.APIClient, img string) error {
 }
 
 func getCurrentUser() string {
+	if runtime.GOOS != "linux" {
+		return ""
+	}
 	userInfo := f.Must(user.Current())
 	uid := userInfo.Uid
 	gid := userInfo.Gid

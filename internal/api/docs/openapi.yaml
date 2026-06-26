@@ -1434,6 +1434,7 @@ components:
     AIModel:
       properties:
         description:
+          description: 'Deprecated: This field is kept for backward compatibility.'
           type: string
         id:
           type: string
@@ -1449,10 +1450,6 @@ components:
           type: array
         description:
           type: string
-        disk_usage:
-          minimum: 0
-          nullable: true
-          type: integer
         id:
           type: string
         installed:
@@ -1467,6 +1464,10 @@ components:
           type: string
         runner:
           type: string
+        size:
+          minimum: 0
+          nullable: true
+          type: integer
       type: object
     AIModelsListResult:
       properties:
@@ -1768,6 +1769,8 @@ components:
       properties:
         directories:
           $ref: '#/components/schemas/ConfigDirectories'
+        python_runner:
+          type: string
       type: object
     CreateAppRequest:
       properties:

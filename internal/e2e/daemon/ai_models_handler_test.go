@@ -9,7 +9,8 @@ import (
 	"bufio"
 	"cmp"
 	"context"
-	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -17,26 +18,20 @@ import (
 	"time"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
 )
 
-// TestModelHandlerDownloadFlow exercises the full install → verify → delete cycle
-// for a handler-backed model, validating that:
-//   - Docker containers are spawned correctly via the Docker API
-//   - SSE progress events are emitted and parsed
-//   - The model is reported as installed after download
-//   - The delete container runs without errors
-//
-// Optional E2E_MODEL_ID env var for changing the model ID to test. Defaults to "melo-tts-es".
 func TestModelHandlerDownloadFlow(t *testing.T) {
 	modelID := cmp.Or(os.Getenv("E2E_MODEL_ID"), "melo-tts-es")
 
 	modelsDir := paths.New(t.TempDir()).Join("custom-models")
 	httpClient, daemonAddr := GetHttpclientAndAddr(t, e2e.WithCustomModelDir(modelsDir), e2e.WithBoardName("ventunoq"))
 	requestEditor := func(_ context.Context, _ *http.Request) error { return nil }
+	time.Sleep(2 * time.Second)
 
 	t.Run("model is not installed before download", func(t *testing.T) {
 		resp, err := getModelWithRetry(t, httpClient, modelID, requestEditor)
@@ -48,21 +43,26 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 	})
 
 	t.Run("install emits progress events", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Minute)
-		defer cancel()
 
-		events, err := collectInstallSSE(ctx, daemonAddr, modelID)
+		req, err := http.NewRequest(http.MethodPut, daemonAddr+"/v1/models/"+modelID, nil)
+		assert.NoError(t, err, "failed to create request for model install")
+		events, err := newSSEClient(req, 0)
 		require.NoError(t, err)
-		require.NotEmpty(t, events, "expected at least one SSE event from the install stream")
-
-		bySSEType := make(map[string][]handlerSSEEvent)
-		for _, e := range events {
-			bySSEType[e.SSEType] = append(bySSEType[e.SSEType], e)
+		hasProgress := false
+		hasComplete := false
+		for e := range events {
+			t.Log("Received SSE event", "id", e.ID, "event", e.Event, "data", string(e.Data))
+			if e.Event == "progress" {
+				hasProgress = true
+			}
+			if e.Event == "complete" {
+				hasComplete = true
+			}
 		}
 
-		require.Contains(t, bySSEType, "progress", "expected at least one 'progress' SSE event")
-		firstProgress := bySSEType["progress"][0]
-		require.Greater(t, firstProgress.Total, int64(0), "'progress' event must carry the file size as Total")
+		require.True(t, hasProgress, "expected at least one 'progress' SSE event")
+		require.True(t, hasComplete, "expected at least one 'complete' SSE event")
+
 	})
 
 	t.Run("model is installed after download", func(t *testing.T) {
@@ -94,58 +94,54 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 	})
 }
 
-// handlerSSEEvent mirrors the SSE events emitted by the daemon's install handler.
-// SSEType is the value from the SSE "event:" line; the remaining fields cover both
-// the "message" payload {"message":...} and the "progress" payload {"name":...,"total":...}.
-type handlerSSEEvent struct {
-	SSEType  string  `json:"-"`
-	Name     string  `json:"name"`
-	Total    int64   `json:"total"`
-	Current  int64   `json:"current"`
-	Progress float32 `json:"progress"`
-	Message  string  `json:"message"`
-	Code     string  `json:"code"`
+func newSSEClient(req *http.Request, lastEventID int64) (events chan Event, err error) {
+
+	if lastEventID > 0 {
+		req.Header.Set("Last-Event-ID", fmt.Sprintf("%d", lastEventID))
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("got response status code %d", resp.StatusCode)
+	}
+	events = make(chan Event)
+	go loop(resp.Body, events)
+	return events, nil
 }
 
-// collectInstallSSE issues PUT /v1/models/{id} and collects SSE events until the
-// server sends an "close" event (stream ended) or the context is canceled.
-func collectInstallSSE(ctx context.Context, baseURL, modelID string) ([]handlerSSEEvent, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, baseURL+"/v1/models/"+modelID, nil) //nolint:gosec
-	if err != nil {
-		return nil, err
-	}
-	resp, err := http.DefaultClient.Do(req) //nolint:gosec
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+type Event struct {
+	ID    string
+	Event string
+	Data  []byte // json
+}
 
-	var events []handlerSSEEvent
-	scanner := bufio.NewScanner(resp.Body)
-	var dataBuf strings.Builder
-	var currentSSEType string
+func loop(r io.Reader, events chan Event) {
+	reader := bufio.NewReader(r)
 
-	for scanner.Scan() {
-		line := scanner.Text()
+	evt := Event{}
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			close(events)
+			return
+		}
 		switch {
-		case strings.HasPrefix(line, "event: "):
-			currentSSEType = strings.TrimPrefix(line, "event: ")
-		case strings.HasPrefix(line, "data: "):
-			dataBuf.WriteString(strings.TrimPrefix(line, "data: "))
-		case line == "" && dataBuf.Len() > 0:
-			var e handlerSSEEvent
-			if err := json.Unmarshal([]byte(dataBuf.String()), &e); err == nil {
-				e.SSEType = currentSSEType
-				events = append(events, e)
-				if e.SSEType == "close" {
-					return events, nil
-				}
-			}
-			dataBuf.Reset()
-			currentSSEType = ""
+		case strings.HasPrefix(line, "data:"):
+			evt.Data = []byte(strings.TrimSpace(strings.TrimPrefix(line, "data:")))
+		case strings.HasPrefix(line, "event:"):
+			evt.Event = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
+		case strings.HasPrefix(line, "id:"):
+			evt.ID = strings.TrimSpace(strings.TrimPrefix(line, "id:"))
+		case strings.HasPrefix(line, "\n"):
+			events <- evt
+		default:
+			fmt.Fprintf(os.Stderr, "Unknown line: '%s'", line)
+			close(events)
 		}
 	}
-	return events, scanner.Err()
 }
 
 // getModelWithRetry retries GetAIModelDetailsWithResponse up to 5 times with a 1s

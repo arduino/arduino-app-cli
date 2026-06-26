@@ -60,7 +60,6 @@ func NewArduinoAppCLI(t *testing.T, opts ...ArduinoAppCLIOption) *ArduinoAppCLI 
 	require.NoError(t, err)
 	appDir := rootDir.Join("ArduinoApps")
 	dataDir := rootDir.Join("data")
-	configDir := rootDir.Join("config")
 	originalTestDataDir := FindRepositoryRootPath(t).Join("internal", "e2e", "daemon", "testdata")
 	if originalTestDataDir.Exist() {
 		require.NoError(t, os.CopyFS(dataDir.String(), os.DirFS(originalTestDataDir.String())))
@@ -72,11 +71,9 @@ func NewArduinoAppCLI(t *testing.T, opts ...ArduinoAppCLIOption) *ArduinoAppCLI 
 		DaemonAddr: "",
 		path:       FindArduinoAppCLIPath(t),
 		appDir:     appDir,
-		configDir:  configDir,
 		envVars: map[string]string{
-			"ARDUINO_APP_CLI__APPS_DIR":   appDir.String(),
-			"ARDUINO_APP_CLI__CONFIG_DIR": configDir.String(),
-			"ARDUINO_APP_CLI__DATA_DIR":   dataDir.String(),
+			"ARDUINO_APP_CLI__APPS_DIR": appDir.String(),
+			"ARDUINO_APP_CLI__DATA_DIR": dataDir.String(),
 			// allow ci to run cli with whatever user it wants.
 			"ARDUINO_APP_CLI__ALLOW_ROOT": "true",
 		},

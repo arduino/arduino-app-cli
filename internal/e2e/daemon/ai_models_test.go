@@ -96,7 +96,7 @@ func TestAIModelDetails(t *testing.T) {
 
 		require.NotNil(t, modelDetails.Runner, "Response model's Runner should not be nil")
 		require.Equal(t, *expectedModel.Runner, *modelDetails.Runner, "Runner should match")
-		require.Nil(t, modelDetails.DiskUsage, "Response model's DiskUsage should be nil")
+		require.Nil(t, modelDetails.Size, "Response model's Size should be nil")
 
 	})
 
