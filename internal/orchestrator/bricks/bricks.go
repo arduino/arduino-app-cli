@@ -389,8 +389,8 @@ func (s *Service) BrickUpdate(
 	brickModel := appCurrent.Descriptor.Bricks[brickPosition].Model
 
 	if req.Model != nil && *req.Model != brickModel {
-		if !s.modelsIndex.IsModelSupportedByBrick(req.ID, *req.Model) {
-			return fmt.Errorf("model %s does not exsist", *req.Model)
+		if !s.modelsIndex.IsModelSupportedByBrick(*req.Model, req.ID) {
+			return fmt.Errorf("model %s is not supported by brick %q", *req.Model, req.ID)
 		}
 		brickModel = *req.Model
 	}

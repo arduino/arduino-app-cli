@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -25,6 +26,9 @@ import (
 )
 
 func TestModelHandlerDownloadFlow(t *testing.T) {
+	if runtime.GOARCH != "arm64" {
+		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
+	}
 	modelID := cmp.Or(os.Getenv("E2E_MODEL_ID"), "melo-tts-es")
 
 	modelsDir := e2e.FindRepositoryRootPath(t).Join("custom-models")
