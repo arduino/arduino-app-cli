@@ -7,7 +7,6 @@ package modelsindex
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -19,18 +18,18 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/docker/client"
+	"github.com/goccy/go-yaml"
 	"github.com/shirou/gopsutil/v4/disk"
+	"go.bug.st/f"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
 	"github.com/arduino/arduino-app-cli/internal/platform"
-
-	"github.com/arduino/go-paths-helper"
-	"github.com/goccy/go-yaml"
-	"go.bug.st/f"
 )
 
 type assetsModelList struct {
@@ -113,23 +112,18 @@ type ModelsIndex struct {
 
 func (m *ModelsIndex) GetModels(ctx context.Context) []AIModel {
 	models := m.loadDryModels()
-	if m.Handlers != nil {
-		var err error
-		models, err = m.Handlers.getModelsInfo(ctx, m.cli, models)
-		if err != nil {
-			slog.Warn("cannot get models info", "err", err)
-		}
-	}
 
-	// trust the sentinel files instead of the handler list action.
+	wg, ctx := errgroup.WithContext(ctx)
+	wg.SetLimit(10)
 	for i := range models {
-		installed, err := m.modelInstalled(ctx, models[i], m.cli)
-		if err != nil {
-			slog.Warn("cannot determine install status for model", "model", models[i].ID, "err", err)
-			continue
-		}
-		models[i].Installed = installed
+		wg.Go(func(i int) func() error {
+			return func() error {
+				models[i] = m.enrichModel(ctx, models[i])
+				return nil
+			}
+		}(i))
 	}
+	_ = wg.Wait()
 
 	return models
 }
@@ -142,17 +136,9 @@ func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, er
 		return nil, nil
 	}
 	model := models[idx]
+
 	if model.IsInternal && model.Deployment != nil && !model.Deployment.PreLoaded {
-		// TODO we should have a single method that do the check and get the info
-		installed, err := m.modelInstalled(ctx, model, m.cli)
-		if err != nil {
-			return nil, fmt.Errorf("cannot determine install status for model %q: %w", id, err)
-		}
-		model.Installed = installed
-		if model.Installed {
-			// TODO : we should return an error if the size cannot be determined
-			model.Size = m.modelSize(ctx, model)
-		}
+		model = m.enrichModel(ctx, model)
 	}
 
 	return &model, nil
@@ -224,33 +210,43 @@ func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, cli cl
 	}, nil
 }
 
-func (m *ModelsIndex) modelSize(ctx context.Context, model AIModel) uint64 {
-	if sizeMBStr, ok := model.Metadata["model_size_mb"]; ok {
-		if sizeMB, err := strconv.ParseFloat(sizeMBStr, 64); err == nil && sizeMB > 0 {
-			return uint64(sizeMB * 1024 * 1024)
+// enrichModel populates Installed and Size on the given model, loading the
+// sentinel at most once. Size priority is: sentinel → index metadata → container.
+func (m *ModelsIndex) enrichModel(ctx context.Context, model AIModel) AIModel {
+	sentinel, sentinelErr := LoadSentinel(m.modelsDir, model.ID)
+	model.Installed = sentinelErr == nil
+
+	// 1) Sentinel (always the source of truth when installed).
+	if sentinelErr == nil {
+		if total := sentinel.TotalSize(); total > 0 {
+			model.Size = total
+			return model
 		}
 	}
+
+	// 2) Index metadata.
+	if sizeMBStr, ok := model.Metadata["model_size_mb"]; ok {
+		if sizeMB, err := strconv.ParseFloat(sizeMBStr, 64); err == nil && sizeMB > 0 {
+			model.Size = uint64(sizeMB * 1024 * 1024)
+			return model
+		}
+	}
+
+	// 3) Handler container info action.
 	if model.Deployment == nil || model.Deployment.Handler == "" {
-		return 0
+		return model
 	}
 	handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)
 	if !ok || len(handler.Actions.Info) == 0 {
-		return 0
+		return model
 	}
 	size, err := runInfoAction(ctx, m.cli, handler, model, m.plat, m.Handlers.configEnv)
 	if err != nil {
 		slog.Warn("cannot get model size", "model", model.ID, "err", err)
-		return 0
+		return model
 	}
-	return size
-}
-
-func sentinelPath(modelsDir *paths.Path, modelID string) *paths.Path {
-	return modelsDir.Join(fmt.Sprintf(".%s.downloaded.json", modelID))
-}
-
-func (m *ModelsIndex) modelInstalled(_ context.Context, model AIModel, _ client.APIClient) (bool, error) {
-	return sentinelPath(m.modelsDir, model.ID).Exist(), nil
+	model.Size = size
+	return model
 }
 
 func loadInternalModels(dir *paths.Path, handlers *HandlersIndex) ([]AIModel, error) {
@@ -386,19 +382,28 @@ func (m *ModelsIndex) Download(ctx context.Context, cli client.APIClient, model 
 	}
 
 	resolved := resolveArtifactPaths(volumes, artifacts)
-	hostPaths := make([]string, 0, len(resolved))
+
+	// Keep only regular files in the sentinel. Folders can always be
+	// derived from file paths, and storing them would make cleanup ambiguous.
+	sentinelArtifacts := make([]Artifact, 0, len(resolved))
 	for _, p := range resolved {
-		hostPaths = append(hostPaths, p.String())
-	}
-	payload, err := json.Marshal(struct {
-		Artifacts []string `json:"artifacts"`
-	}{Artifacts: hostPaths})
-	if err != nil {
-		return fmt.Errorf("cannot encode sentinel for model %q: %w", model.ID, err)
+		info, err := p.Stat()
+		if err != nil {
+			slog.Warn("cannot stat artifact, skipping", "model", model.ID, "path", p, "err", err)
+			continue
+		}
+		if !info.Mode().IsRegular() {
+			slog.Debug("skipping non-file artifact", "model", model.ID, "path", p)
+			continue
+		}
+		sentinelArtifacts = append(sentinelArtifacts, Artifact{
+			Path: p.String(),
+			Size: uint64(info.Size()),
+		})
 	}
 
-	sentinelFile := sentinelPath(m.modelsDir, model.ID)
-	if err := sentinelFile.WriteFile(payload); err != nil {
+	s := Sentinel{Artifacts: sentinelArtifacts}
+	if err := SaveSentinel(m.modelsDir, model.ID, s); err != nil {
 		return fmt.Errorf("cannot write sentinel file for model %q: %w", model.ID, err)
 	}
 
@@ -444,18 +449,25 @@ func resolveArtifactPaths(bindVolumes []string, artifacts []string) []*paths.Pat
 
 func (m *ModelsIndex) Delete(ctx context.Context, dockerClient command.Cli, platform platform.Platform, model AIModel) error {
 	if model.Deployment != nil && model.Deployment.Handler != "" {
-		handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)
-		if !ok {
-			return fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
+		sentinel, err := LoadSentinel(m.modelsDir, model.ID)
+		if err != nil {
+			return fmt.Errorf("cannot load sentinel file for model %q: %w", model.ID, err)
 		}
-		if err := deleteInternalModel(ctx, dockerClient.Client(), model, handler, platform, m.Handlers.configEnv); err != nil {
-			return fmt.Errorf("delete action: %w", err)
-		}
-		sentinel := sentinelPath(m.modelsDir, model.ID)
-		if sentinel.Exist() {
-			if err := sentinel.Remove(); err != nil {
-				return fmt.Errorf("cannot remove sentinel file for model %q: %w", model.ID, err)
+
+		for _, artifact := range sentinel.Artifacts {
+			artifactPath := paths.New(artifact.Path)
+			if err := artifactPath.RemoveAll(); err != nil {
+				return fmt.Errorf("cannot remove artifact %q for model %q: %w", artifact.Path, model.ID, err)
 			}
+		}
+
+		if err := DeleteSentinel(m.modelsDir, model.ID); err != nil {
+			return fmt.Errorf("cannot delete sentinel file for model %q: %w", model.ID, err)
+		}
+
+		// Best-effort cleanup of any empty directories left under modelsDir.
+		if err := removeEmptyDirs(m.modelsDir); err != nil {
+			slog.Warn("cannot clean up empty model directories", "model", model.ID, "err", err)
 		}
 	} else {
 		if model.ModelFolderPath == nil {
@@ -470,6 +482,37 @@ func (m *ModelsIndex) Delete(ctx context.Context, dockerClient command.Cli, plat
 }
 
 var ErrInsufficientStorage = errors.New("insufficient storage to install model")
+
+// removeEmptyDirs walks the directory tree rooted at root and removes any
+// empty subdirectory (depth-first). The root itself is preserved even if
+// empty. It is best-effort: per-entry errors are returned only if the walk
+// itself fails.
+func removeEmptyDirs(root *paths.Path) error {
+	if root == nil {
+		return nil
+	}
+	entries, err := root.ReadDir()
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		if err := removeEmptyDirs(entry); err != nil {
+			slog.Debug("cannot walk dir for cleanup", "path", entry, "err", err)
+			continue
+		}
+		children, err := entry.ReadDir()
+		if err != nil || len(children) > 0 {
+			continue
+		}
+		if err := entry.RemoveAll(); err != nil {
+			slog.Debug("cannot remove empty dir", "path", entry, "err", err)
+		}
+	}
+	return nil
+}
 
 func hasSufficientDiskSpace(path *paths.Path, requiredBytes uint64) error {
 	diskStats, err := disk.Usage(path.String())
