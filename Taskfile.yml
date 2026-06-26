@@ -47,7 +47,7 @@ tasks:
 
   install:oapi-codegen:
     cmds:
-      - go get -tool github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+      - go get -tool github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.7.1
 
   test:
     desc: Run all tests
@@ -213,7 +213,7 @@ tasks:
       - adb shell chmod +x {{.BOARD_PATH}}
       - adb forward tcp:{{.DLV_PORT}} tcp:{{.DLV_PORT}}
       - adb forward tcp:{{.APP_PORT}} tcp:{{.APP_PORT}}
-      - adb shell "/home/arduino/go/bin/dlv --listen=:{{.DLV_PORT}} --headless --api-version=2 exec {{.BOARD_PATH}} -- daemon --port {{.APP_PORT}}"
+      - adb shell "/home/arduino/go/bin/dlv --listen=:{{.DLV_PORT}} --headless --api-version=2 exec {{.BOARD_PATH}} -- daemon --port {{.APP_PORT}} --log-level debug"
 
   setup:examples:local:
     desc: Download and locally install the official examples

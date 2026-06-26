@@ -104,7 +104,7 @@ func newSSEClient(req *http.Request, lastEventID int64) (events chan Event, err 
 	if lastEventID > 0 {
 		req.Header.Set("Last-Event-ID", fmt.Sprintf("%d", lastEventID))
 	}
-	resp, err := http.DefaultClient.Do(req) //nolint:gosec
+	resp, err := http.DefaultClient.Do(req) //nolint
 	if err != nil {
 		return nil, err
 	}
