@@ -32,9 +32,7 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 	modelID := cmp.Or(os.Getenv("E2E_MODEL_ID"), "melo-tts-es")
 
 	modelsDir := e2e.FindRepositoryRootPath(t).Join("custom-models")
-	t.Cleanup(func() {
-		modelsDir.RemoveAll()
-	})
+	t.Cleanup(func() { _ = modelsDir.RemoveAll() })
 
 	httpClient, daemonAddr := GetHttpclientAndAddr(t, e2e.WithCustomModelDir(modelsDir), e2e.WithBoardName("ventunoq"))
 	requestEditor := func(_ context.Context, _ *http.Request) error { return nil }
@@ -51,7 +49,7 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 
 	t.Run("install emits progress events", func(t *testing.T) {
 
-		req, err := http.NewRequest(http.MethodPut, daemonAddr+"/v1/models/"+modelID, nil)
+		req, err := http.NewRequest(http.MethodPut, daemonAddr+"/v1/models/"+modelID, nil) //nolint:gosec
 		assert.NoError(t, err, "failed to create request for model install")
 		events, err := newSSEClient(req, 0)
 		require.NoError(t, err)
@@ -106,7 +104,7 @@ func newSSEClient(req *http.Request, lastEventID int64) (events chan Event, err 
 	if lastEventID > 0 {
 		req.Header.Set("Last-Event-ID", fmt.Sprintf("%d", lastEventID))
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req) //nolint:gosec
 	if err != nil {
 		return nil, err
 	}

@@ -28,7 +28,6 @@ type ArduinoAppCLI struct {
 	DaemonAddr   string
 	path         *paths.Path
 	appDir       *paths.Path
-	configDir    *paths.Path
 	envVars      map[string]string
 	proc         *paths.Process
 	stdIn        io.WriteCloser
