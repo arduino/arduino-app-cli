@@ -123,7 +123,8 @@ type Event struct {
 	Data  []byte // json
 }
 
-func loop(r io.Reader, events chan Event) {
+func loop(r io.ReadCloser, events chan Event) {
+	defer r.Close()
 	reader := bufio.NewReader(r)
 
 	evt := Event{}
