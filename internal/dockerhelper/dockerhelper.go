@@ -15,7 +15,6 @@ import (
 	"log/slog"
 	"os"
 	"os/user"
-	"runtime"
 	"strings"
 	"time"
 
@@ -161,9 +160,6 @@ func ensureImage(ctx context.Context, cli client.APIClient, img string) error {
 }
 
 func getCurrentUser() string {
-	if runtime.GOOS != "linux" {
-		return ""
-	}
 	userInfo := f.Must(user.Current())
 	uid := userInfo.Uid
 	gid := userInfo.Gid

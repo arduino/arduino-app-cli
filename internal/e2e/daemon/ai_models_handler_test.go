@@ -17,7 +17,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -28,7 +27,11 @@ import (
 func TestModelHandlerDownloadFlow(t *testing.T) {
 	modelID := cmp.Or(os.Getenv("E2E_MODEL_ID"), "melo-tts-es")
 
-	modelsDir := paths.New(t.TempDir()).Join("custom-models")
+	modelsDir := e2e.FindRepositoryRootPath(t).Join("custom-models")
+	t.Cleanup(func() {
+		modelsDir.RemoveAll()
+	})
+
 	httpClient, daemonAddr := GetHttpclientAndAddr(t, e2e.WithCustomModelDir(modelsDir), e2e.WithBoardName("ventunoq"))
 	requestEditor := func(_ context.Context, _ *http.Request) error { return nil }
 	time.Sleep(2 * time.Second)
@@ -55,7 +58,7 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 			if e.Event == "progress" {
 				hasProgress = true
 			}
-			if e.Event == "complete" {
+			if e.Event == "done" {
 				hasComplete = true
 			}
 		}

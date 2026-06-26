@@ -111,7 +111,7 @@ func CreateEnvForDaemon(t *testing.T, opts ...ArduinoAppCLIOption) *ArduinoAppCL
 }
 
 func (cli *ArduinoAppCLI) StartDaemon(verbose bool) string {
-	args := []string{"daemon"}
+	args := []string{"daemon", "--port", "6789"}
 	cliProc, err := paths.NewProcessFromPath(cli.convertEnvForExecutils(cli.envVars), cli.path, args...)
 	cli.t.NoError(err)
 	stdout, err := cliProc.StdoutPipe()
@@ -124,7 +124,7 @@ func (cli *ArduinoAppCLI) StartDaemon(verbose bool) string {
 	cli.t.NoError(cliProc.Start())
 	cli.stdIn = stdIn
 	cli.proc = cliProc
-	cli.DaemonAddr = "http://127.0.0.1:8080"
+	cli.DaemonAddr = "http://127.0.0.1:6789"
 
 	_copy := func(dst io.Writer, src io.Reader) {
 		buff := make([]byte, 1024)
