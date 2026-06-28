@@ -119,7 +119,7 @@ func SystemInit(ctx context.Context, cfg config.Configuration, platform platform
 	}
 
 	if downloadDockerImages {
-		if err := downloadSupportedImages(ctx, cfg, bricksindex, servicesindex, modelsIndex, docker, withSource(eventCB, InitSourceDocker)); err != nil {
+		if err := downloadSupportedImages(ctx, cfg, bricksindex, servicesindex, modelsIndex, docker, eventCB); err != nil {
 			return fmt.Errorf("failed to download container images used in examples: %w", err)
 		}
 	}
@@ -128,7 +128,7 @@ func SystemInit(ctx context.Context, cfg config.Configuration, platform platform
 }
 
 func downloadSupportedImages(ctx context.Context, cfg config.Configuration, brickindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex, docker *command.DockerCli, eventCB InitEventCallback) error {
-	eventCB(InitEvent{Type: InitLogEvent, Message: "Pulling the latest docker images ..."})
+	eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDocker, Message: "Pulling the latest docker images ..."})
 	imagesToPreinstall := []string{cfg.PythonImage}
 	brickImages, err := getAllSupportedBrickImages(brickindex, servicesindex)
 	if err != nil {
