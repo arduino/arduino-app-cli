@@ -398,7 +398,7 @@ func (m *ModelsIndex) Download(ctx context.Context, cli client.APIClient, model 
 		}
 		sentinelArtifacts = append(sentinelArtifacts, Artifact{
 			Path: p.String(),
-			Size: uint64(info.Size()),
+			Size: uint64(max(info.Size(), 0)),
 		})
 	}
 
