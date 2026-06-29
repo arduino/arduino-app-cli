@@ -86,9 +86,9 @@ type AIModel struct {
 	SupportedBoards []string          `yaml:"supported_boards,omitempty"`
 	Deployment      *ModelDeployment  `yaml:"deployment,omitempty"`
 
-	IsInternal bool   `yaml:"-"`
-	Installed  bool   `yaml:"-"`
-	Size       uint64 `yaml:"-"`
+	IsBuiltIn bool   `yaml:"-"`
+	Installed bool   `yaml:"-"`
+	Size      uint64 `yaml:"-"`
 }
 
 type AIModelLite struct {
@@ -131,7 +131,7 @@ func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, er
 		return nil, nil
 	}
 	model := models[idx]
-	if model.IsInternal && model.Deployment != nil && !model.Deployment.PreLoaded {
+	if model.IsBuiltIn && model.Deployment != nil && !model.Deployment.PreLoaded {
 		// TODO we should have a single method that do the check and get the info
 		installed, err := m.modelInstalled(ctx, model, m.cli)
 		if err != nil {
@@ -296,7 +296,7 @@ func loadInternalModels(dir *paths.Path, handlers *HandlersIndex) ([]AIModel, er
 	for i, modelMap := range list.Models {
 		for id, model := range modelMap {
 			model.ID = id
-			model.IsInternal = true
+			model.IsBuiltIn = true
 			model.Installed = true
 
 			if sizeMBStr, ok := model.Metadata["model_size_mb"]; ok {
@@ -363,7 +363,7 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 			}),
 			Metadata:        m.ModelDescriptor.Metadata,
 			ModelFolderPath: m.FullPath,
-			IsInternal:      false,
+			IsBuiltIn:       false,
 			Installed:       true,
 			Size:            modelSizeMB,
 		})
