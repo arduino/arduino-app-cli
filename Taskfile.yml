@@ -8,7 +8,7 @@ vars:
   GOLANGCI_LINT_VERSION: v2.11.4
   GOIMPORTS_VERSION: v0.42.0
   DPRINT_VERSION: 0.48.0
-  EXAMPLE_VERSION: "0.11.0rc1"
+  EXAMPLE_VERSION: "0.11.0rc3"
   RUNNER_VERSION: "0.11.0rc6"
   VERSION: # if version is not passed we hack the semver by encoding the commit as pre-release
     sh: echo "${VERSION:-0.0.0-$(git rev-parse --short HEAD)}"
