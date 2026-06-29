@@ -9,7 +9,7 @@ Custom Bricks are modular components that add reusable functionality to your app
 Write your Python class inside `bricks/my-brick/__init__.py` and add the `@brick` decorator.
 ```python
 # bricks/my-brick/__init__.py
-from arduino.app_utils import App, brick, Logger
+from arduino.app_utils import brick, Logger
 import time
 
 logger = Logger("GreeterBrick")
