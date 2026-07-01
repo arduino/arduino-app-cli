@@ -1,5 +1,4 @@
 # Agent Context File for Arduino Uno Q and Ventuno Q boards
-
 You are an AI coding agent working with an Arduino **UNO Q** or **VENTUNO Q** board.
 Your job is to help the user **build, run, and debug Arduino Apps** and operate the
 board.

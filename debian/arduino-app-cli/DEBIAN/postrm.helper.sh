@@ -1,6 +1,6 @@
 cleanup_agent_profiles() {
   USER_HOME="/home/arduino"
-  MASTER_AGENT="/var/lib/arduino-app-cli/AGENTS.md"
+  MASTER_AGENT="/etc/arduino-app-cli/AGENTS.md"
   PATHS_TO_LINK="
 $USER_HOME/.claude/CLAUDE.md
 $USER_HOME/.gemini/GEMINI.md
