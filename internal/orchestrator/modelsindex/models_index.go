@@ -304,9 +304,11 @@ func loadInternalModels(dir *paths.Path, handlers *HandlersIndex) ([]AIModel, er
 			}
 
 			if model.Deployment != nil {
-				_, ok := handlers.GetHandlerByID(model.Deployment.Handler)
-				if !ok {
-					return nil, fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
+				if model.Deployment.Handler != "" {
+					_, ok := handlers.GetHandlerByID(model.Deployment.Handler)
+					if !ok {
+						return nil, fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
+					}
 				}
 
 				if model.Deployment.PreLoaded {
