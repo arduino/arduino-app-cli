@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 chown -R arduino:arduino /var/lib/arduino-app-cli \
 || chown -R :arduino /var/lib/arduino-app-cli
