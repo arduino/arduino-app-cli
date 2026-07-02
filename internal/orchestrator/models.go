@@ -323,8 +323,8 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 		Bricks: f.Map(aimodel.ModelDescriptor.Bricks, func(b custommodel.BrickConfig) string {
 			return b.ID
 		}),
-		Metadata:  aimodel.ModelDescriptor.Metadata,
-		Installed: true,
+		Metadata: aimodel.ModelDescriptor.Metadata,
+		Status:   modelsindex.InstalledStatus,
 	}, nil
 }
 

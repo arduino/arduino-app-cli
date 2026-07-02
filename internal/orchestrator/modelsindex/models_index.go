@@ -91,11 +91,16 @@ type AIModel struct {
 	Size      uint64 `yaml:"-"`
 }
 
+var (
+	InstalledStatus    string = "installed"
+	NotinstalledStatus string = "notinstalled"
+)
+
 func (m *AIModel) GetStatus() string {
 	if m.Installed {
-		return "installed"
+		return InstalledStatus
 	}
-	return "notinstalled"
+	return NotinstalledStatus
 }
 
 type AIModelLite struct {
