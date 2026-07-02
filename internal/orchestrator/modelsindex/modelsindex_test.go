@@ -143,6 +143,21 @@ func TestModelsIndex(t *testing.T) {
 			Installed: true,
 		}, model)
 
+		model, err = modelsIndex.GetModelByID(t.Context(), "a-not-builtin-model")
+		require.NoError(t, err)
+		require.NotNil(t, model)
+		assert.Equal(t, &AIModel{
+			ID:          "a-not-builtin-model",
+			Name:        "A fake not built-in model",
+			Description: "A fake not built-in model for testing purposes.",
+			Deployment: &ModelDeployment{
+				Handler:   "",
+				PreLoaded: false,
+			},
+			IsBuiltIn: false,
+			Installed: false,
+		}, model)
+
 	})
 
 	t.Run("it get custom model by id", func(t *testing.T) {

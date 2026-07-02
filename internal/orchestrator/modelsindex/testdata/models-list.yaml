@@ -44,3 +44,8 @@ models:
     description: "A fake built-in model for testing purposes."
     deployment:
       pre-loaded: true
+ - a-not-builtin-model:
+    name : "A fake not built-in model"
+    description: "A fake not built-in model for testing purposes."
+    deployment:
+      pre-loaded: false
