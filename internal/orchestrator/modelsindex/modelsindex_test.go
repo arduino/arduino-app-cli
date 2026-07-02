@@ -24,7 +24,7 @@ func TestModelsIndex(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, modelsIndex)
 		models := modelsIndex.loadDryModels()
-		assert.Len(t, models, 4, "Expected 4 models to be parsed")
+		assert.Len(t, models, 6, "Expected 6 models to be parsed")
 	})
 
 	t.Run("dir and modelsDir are required", func(t *testing.T) {
