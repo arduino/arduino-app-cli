@@ -157,7 +157,7 @@ func TestModelsIndex(t *testing.T) {
 			IsBuiltIn: false,
 			Installed: false,
 		}, model)
-
+		assert.Equal(t, "notinstalled", model.GetStatus())
 	})
 
 	t.Run("it get custom model by id", func(t *testing.T) {
