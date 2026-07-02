@@ -86,7 +86,7 @@ type AIModel struct {
 	SupportedBoards []string          `yaml:"supported_boards,omitempty"`
 	Deployment      *ModelDeployment  `yaml:"deployment,omitempty"`
 
-	IsBuiltIn bool   `yaml:"-"` // a model is considered built-in if it is in the model-list.yaml and the "pre-loaded" flag is true
+	IsBuiltIn bool   `yaml:"-"` // a model is considered built-in if it is in the models-list.yaml and the "pre-loaded" flag is true
 	Installed bool   `yaml:"-"`
 	Size      uint64 `yaml:"-"`
 }
