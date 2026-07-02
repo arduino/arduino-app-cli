@@ -86,21 +86,20 @@ type AIModel struct {
 	SupportedBoards []string          `yaml:"supported_boards,omitempty"`
 	Deployment      *ModelDeployment  `yaml:"deployment,omitempty"`
 
-	IsBuiltIn bool   `yaml:"-"` // a model is considered built-in if it is in the models-list.yaml and the "pre-loaded" flag is true
-	Installed bool   `yaml:"-"`
-	Size      uint64 `yaml:"-"`
+	IsBuiltIn bool        `yaml:"-"` // a model is considered built-in if it is in the models-list.yaml and the "pre-loaded" flag is true
+	Status    ModelStatus `yaml:"-"`
+	Size      uint64      `yaml:"-"`
 }
 
+type ModelStatus string
+
 const (
-	InstalledStatus    string = "installed"
-	NotInstalledStatus string = "notinstalled"
+	InstalledStatus    ModelStatus = "installed"
+	NotInstalledStatus ModelStatus = "notinstalled"
 )
 
-func (m *AIModel) GetStatus() string {
-	if m.Installed {
-		return InstalledStatus
-	}
-	return NotInstalledStatus
+func (s ModelStatus) AllowedStatuses() []ModelStatus {
+	return []ModelStatus{InstalledStatus, NotInstalledStatus}
 }
 
 type AIModelLite struct {
@@ -149,10 +148,12 @@ func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, er
 		if err != nil {
 			return nil, fmt.Errorf("cannot determine install status for model %q: %w", id, err)
 		}
-		model.Installed = installed
-		if model.Installed {
+		if installed {
+			model.Status = InstalledStatus
 			// TODO : we should return an error if the size cannot be determined
 			model.Size = m.modelSize(ctx, model)
+		} else {
+			model.Status = NotInstalledStatus
 		}
 	}
 
@@ -308,6 +309,7 @@ func loadInternalModels(dir *paths.Path, handlers *HandlersIndex) ([]AIModel, er
 	for i, modelMap := range list.Models {
 		for id, model := range modelMap {
 			model.ID = id
+			model.Status = NotInstalledStatus
 
 			if sizeMBStr, ok := model.Metadata["model_size_mb"]; ok {
 				if sizeMB, err := strconv.ParseFloat(sizeMBStr, 64); err == nil && sizeMB > 0 {
@@ -317,7 +319,7 @@ func loadInternalModels(dir *paths.Path, handlers *HandlersIndex) ([]AIModel, er
 
 			if model.Deployment == nil {
 				model.IsBuiltIn = true
-				model.Installed = true
+				model.Status = InstalledStatus
 			} else {
 				// Handler must be non-empty when pre-loaded is false
 				if model.Deployment.Handler == "" && !model.Deployment.PreLoaded {
@@ -333,7 +335,7 @@ func loadInternalModels(dir *paths.Path, handlers *HandlersIndex) ([]AIModel, er
 
 				if model.Deployment.PreLoaded {
 					model.IsBuiltIn = true
-					model.Installed = true
+					model.Status = InstalledStatus
 				}
 			}
 			models[i] = model
@@ -387,7 +389,7 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 			Metadata:        m.ModelDescriptor.Metadata,
 			ModelFolderPath: m.FullPath,
 			IsBuiltIn:       false,
-			Installed:       true,
+			Status:          InstalledStatus,
 			Size:            modelSizeMB,
 		})
 	}

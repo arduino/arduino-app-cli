@@ -119,13 +119,13 @@ func TestModelsIndex(t *testing.T) {
 			ModelLabels: []string{"face"},
 			Runner:      "brick",
 			IsBuiltIn:   true,
-			Installed:   true,
+			Status:      InstalledStatus,
 		}, model)
 
 	})
 
 	t.Run("it load builtin model", func(t *testing.T) {
-		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, config.Configuration{})
+		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, nil, config.Configuration{})
 		require.NoError(t, err)
 
 		model, err := modelsIndex.GetModelByID(t.Context(), "a-builtin-model")
@@ -138,9 +138,9 @@ func TestModelsIndex(t *testing.T) {
 				PreLoaded: true,
 			},
 			IsBuiltIn: true,
-			Installed: true,
+			Status:    InstalledStatus,
 		}, model)
-		assert.Equal(t, "installed", model.GetStatus())
+		assert.Equal(t, InstalledStatus, model.Status)
 
 		model, err = modelsIndex.GetModelByID(t.Context(), "a-builtin-model-with-handler")
 		require.NoError(t, err)
@@ -152,9 +152,9 @@ func TestModelsIndex(t *testing.T) {
 				PreLoaded: true,
 			},
 			IsBuiltIn: true,
-			Installed: true,
+			Status:    InstalledStatus,
 		}, model)
-		assert.Equal(t, "installed", model.GetStatus())
+		assert.Equal(t, InstalledStatus, model.Status)
 	})
 
 	t.Run("it loads a not preloaded model with handler", func(t *testing.T) {
@@ -162,7 +162,7 @@ func TestModelsIndex(t *testing.T) {
 			// it always return that the model is installed
 			return "{\"event\":\"info\"}\n", 0
 		})
-		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), cli, config.Configuration{})
+		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, cli, config.Configuration{})
 		require.NoError(t, err)
 
 		model, err := modelsIndex.GetModelByID(t.Context(), "a-model-not-preloaded-with-handler")
@@ -175,9 +175,9 @@ func TestModelsIndex(t *testing.T) {
 				PreLoaded: false,
 			},
 			IsBuiltIn: false,
-			Installed: true,
+			Status:    InstalledStatus,
 		}, model)
-		assert.Equal(t, "installed", model.GetStatus())
+		assert.Equal(t, InstalledStatus, model.Status)
 	})
 
 	t.Run("it get custom model by id", func(t *testing.T) {
@@ -199,7 +199,7 @@ func TestModelsIndex(t *testing.T) {
 				"a-string-metadata": "a-string-value",
 			},
 			ModelFolderPath: paths.New(f.Must(filepath.Abs("testdata/custom-models/my-custom-model"))),
-			Installed:       true,
+			Status:          InstalledStatus,
 			IsBuiltIn:       false, // a custom model is never built-in
 		}, eimodel)
 	})

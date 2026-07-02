@@ -24,6 +24,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/update"
 )
 
@@ -75,6 +76,18 @@ func NewOpenApiGenerator(version string) *Generator {
 				Type:        new(openapi3.SchemaTypeString),
 				Description: new("Package type"),
 				ReflectType: reflect.TypeOf(update.PackageType("")),
+			},
+		},
+	)
+	reflector.Spec.Components.Schemas.WithMapOfSchemaOrRefValuesItem(
+		"ModelStatus",
+		openapi3.SchemaOrRef{
+			Schema: &openapi3.Schema{
+				UniqueItems: new(true),
+				Enum:        f.Map(modelsindex.ModelStatus("").AllowedStatuses(), func(v modelsindex.ModelStatus) any { return v }),
+				Type:        new(openapi3.SchemaTypeString),
+				Description: new("Model status"),
+				ReflectType: reflect.TypeOf(modelsindex.ModelStatus("")),
 			},
 		},
 	)

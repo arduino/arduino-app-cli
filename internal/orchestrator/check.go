@@ -45,7 +45,7 @@ func checkBricks(a app.AppDescriptor, index *bricksindex.BricksIndex, modelIndex
 				allErrors = errors.Join(allErrors, fmt.Errorf("error retrieving model %q for brick %q: %w", appBrick.Model, appBrick.ID, err))
 			case model == nil:
 				allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q not found", appBrick.Model, appBrick.ID))
-			case !model.Installed:
+			case model.Status != modelsindex.InstalledStatus:
 				allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q is not installed", appBrick.Model, appBrick.ID))
 			}
 

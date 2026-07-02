@@ -164,7 +164,7 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		model, err := idx.GetModelByID(t.Context(), "ei:efficientnet-b4")
 		require.NoError(t, err)
 		require.NotNil(t, model)
-		assert.False(t, model.Installed)
+		assert.Equal(t, NotInstalledStatus, model.Status)
 		assert.Equal(t, uint64(89*1024*1024), model.Size)
 	})
 
@@ -178,7 +178,7 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		model, err := idx.GetModelByID(t.Context(), "ei:efficientnet-b4")
 		require.NoError(t, err)
 		require.NotNil(t, model)
-		assert.True(t, model.Installed)
+		assert.Equal(t, InstalledStatus, model.Status)
 		assert.Equal(t, uint64(89*1024*1024), model.Size)
 	})
 
@@ -203,6 +203,6 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		model, err := idx.GetModelByID(t.Context(), "ei-model-990187-1")
 		require.NoError(t, err)
 		require.NotNil(t, model)
-		assert.True(t, model.Installed)
+		assert.Equal(t, InstalledStatus, model.Status)
 	})
 }

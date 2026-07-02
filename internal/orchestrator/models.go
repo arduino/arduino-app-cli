@@ -36,15 +36,15 @@ type AIModelsListResult struct {
 }
 
 type AIModelItem struct {
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	Description string            `json:"description"`
-	Runner      string            `json:"runner"`
-	Bricks      []string          `json:"brick_ids"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
-	IsBuiltIn   bool              `json:"is_builtin"`
-	Size        *uint64           `json:"size,omitempty"`
-	Status      string            `json:"status"`
+	ID          string                  `json:"id"`
+	Name        string                  `json:"name"`
+	Description string                  `json:"description"`
+	Runner      string                  `json:"runner"`
+	Bricks      []string                `json:"brick_ids"`
+	Metadata    map[string]string       `json:"metadata,omitempty"`
+	IsBuiltIn   bool                    `json:"is_builtin"`
+	Size        *uint64                 `json:"size,omitempty"`
+	Status      modelsindex.ModelStatus `json:"status"`
 }
 
 type AIModelsListRequest struct {
@@ -70,7 +70,7 @@ func AIModelsList(ctx context.Context, cli client.APIClient, req AIModelsListReq
 			Bricks:      f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
 			Metadata:    model.Metadata,
 			IsBuiltIn:   model.IsBuiltIn,
-			Status:      model.GetStatus(),
+			Status:      model.Status,
 			Size: func() *uint64 {
 				if model.Size > 0 {
 					return &model.Size
@@ -101,7 +101,7 @@ func AIModelDetails(ctx context.Context, _ client.APIClient, modelsIndex *models
 		Metadata:    model.Metadata,
 		IsBuiltIn:   model.IsBuiltIn,
 		Size:        &model.Size,
-		Status:      model.GetStatus(),
+		Status:      model.Status,
 	}, true, nil
 }
 
