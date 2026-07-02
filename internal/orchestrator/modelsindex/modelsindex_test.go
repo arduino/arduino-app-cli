@@ -124,7 +124,7 @@ func TestModelsIndex(t *testing.T) {
 
 	})
 
-	t.Run("it loads a builtin model", func(t *testing.T) {
+	t.Run("it loads builtin and notbuiltin model", func(t *testing.T) {
 		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, config.Configuration{})
 		require.NoError(t, err)
 
@@ -180,6 +180,7 @@ func TestModelsIndex(t *testing.T) {
 			},
 			ModelFolderPath: paths.New(f.Must(filepath.Abs("testdata/custom-models/my-custom-model"))),
 			Installed:       true,
+			IsBuiltIn:       false, // a custom model is never built-in
 		}, eimodel)
 	})
 
