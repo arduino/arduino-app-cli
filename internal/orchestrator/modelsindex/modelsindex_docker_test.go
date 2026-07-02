@@ -122,8 +122,8 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 	loadHandlersTestIndex := func(t *testing.T, dockerCli client.APIClient) *ModelsIndex {
 		t.Helper()
 		dir := paths.New("testdata/with-handlers")
-		modelsDir := dir.Join("models")
-		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, modelsDir, paths.New("not-existing-path"), dockerCli, config.Configuration{})
+		customModelsDir := dir.Join("custom-models")
+		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), customModelsDir, dockerCli, config.Configuration{})
 		require.NoError(t, err)
 		return idx
 	}
@@ -137,7 +137,7 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		require.Equal(t, []string{"${MODELS_PATH}:/models"}, idx.Handlers.listing.Volumes)
 		h, ok := idx.Handlers.GetHandlerByID("ai-hub-handler")
 		require.True(t, ok)
-		require.Equal(t, []string{"${MODELS_PATH}/${models_repository}:/models"}, h.Volumes)
+		require.Equal(t, []string{"${MODELS_PATH:-/var/lib/arduino-app-cli/models}:/models"}, h.Volumes)
 
 	})
 
