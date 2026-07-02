@@ -104,6 +104,7 @@ type BrickConfig struct {
 
 type ModelsIndex struct {
 	InternalModels  []AIModel
+	modelsDir       *paths.Path
 	customModelsDir *paths.Path
 	Handlers        *HandlersIndex
 	cli             client.APIClient
@@ -172,22 +173,22 @@ func (m *ModelsIndex) IsModelSupportedByBrick(modelID, brickID string) bool {
 }
 
 func (m *ModelsIndex) loadDryModels() []AIModel {
-	eimodels, err := loadCustomModels(m.customModelsDir)
+	eiModels, err := loadCustomModels(m.customModelsDir)
 	if err != nil {
 		slog.Error("cannot load edge impulse custom models", "err", err)
 	}
 	models := slices.Clone(m.InternalModels)
-	return append(models, eimodels...)
+	return append(models, eiModels...)
 }
 
 // Load constructs a ModelsIndex. Pass the result of LoadHandlers as handlers;
 // nil is accepted and disables handler-backed status checks.
-func Load(plat platform.Platform, dir *paths.Path, customModelsDir *paths.Path, cli client.APIClient, cfg config.Configuration) (*ModelsIndex, error) {
-	if dir == nil || customModelsDir == nil {
-		return &ModelsIndex{}, errors.New("either dir or customModelsDir must be provided")
+func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, customModelsDir *paths.Path, cli client.APIClient, cfg config.Configuration) (*ModelsIndex, error) {
+	if dir == nil || modelsDir == nil {
+		return &ModelsIndex{}, errors.New("either dir or modelsDir must be provided")
 	}
 
-	handlers, err := loadHandlers(dir, customModelsDir, cfg, plat)
+	handlers, err := loadHandlers(dir, modelsDir, cfg, plat)
 	if err != nil {
 		return nil, err
 	}
@@ -206,6 +207,7 @@ func Load(plat platform.Platform, dir *paths.Path, customModelsDir *paths.Path, 
 	return &ModelsIndex{
 		InternalModels:  models,
 		customModelsDir: customModelsDir,
+		modelsDir:       modelsDir,
 		Handlers:        handlers,
 		cli:             cli,
 		plat:            plat,
@@ -371,7 +373,7 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 }
 
 func (m *ModelsIndex) Download(ctx context.Context, cli client.APIClient, model AIModel, plat platform.Platform, publish func(e StreamMessage)) error {
-	if err := hasSufficientDiskSpace(m.customModelsDir, model.Size); err != nil {
+	if err := hasSufficientDiskSpace(m.modelsDir, model.Size); err != nil {
 		return fmt.Errorf("insufficient disk space to download model %q: %w", model.ID, err)
 	}
 

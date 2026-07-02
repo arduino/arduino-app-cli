@@ -122,8 +122,8 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 	loadHandlersTestIndex := func(t *testing.T, dockerCli client.APIClient) *ModelsIndex {
 		t.Helper()
 		dir := paths.New("testdata/with-handlers")
-		customModelsDir := dir.Join("models")
-		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, customModelsDir, dockerCli, config.Configuration{})
+		modelsDir := dir.Join("models")
+		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, modelsDir, paths.New("not-existing-path"), dockerCli, config.Configuration{})
 		require.NoError(t, err)
 		return idx
 	}

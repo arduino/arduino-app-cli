@@ -238,7 +238,7 @@ func TestUpdateBrick(t *testing.T) {
 		require.Nil(t, paths.New("testdata/dummy-app-for-model").CopyDirTo(tempDummyApp))
 		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 		require.NoError(t, err)
-		modelsIndex, err := modelsindex.Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("not_exixsting_path"), nil, config.Configuration{})
+		modelsIndex, err := modelsindex.Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("not_exixsting_path"), paths.New("not_exixsting_path"), nil, config.Configuration{})
 		require.NoError(t, err)
 		brickService := NewService(modelsIndex, bricksIndex)
 

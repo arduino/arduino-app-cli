@@ -66,12 +66,8 @@ func NewFromEnv() (Configuration, error) {
 		routerSocket = paths.New("/var/run/arduino-router.sock")
 	}
 
-	// Directory where all AI models are installed. Shared with the containerized
-	// runners, which mount this path to load models at runtime.
-	modelsDir := paths.New(os.Getenv("MODELS_PATH"))
-	if modelsDir == nil {
-		modelsDir = dataDir.Join("models")
-	}
+	// Directory where all AI models are installed.
+	modelsDir := dataDir.Join("models")
 
 	// Ensure the custom modules directory exists
 	customModelsDir := paths.New(os.Getenv("ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR"))
