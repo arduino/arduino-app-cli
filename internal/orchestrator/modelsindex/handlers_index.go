@@ -55,12 +55,16 @@ type ModelHandler struct {
 	Actions HandlerActions
 }
 
-func loadHandlers(dir *paths.Path, modelsDir *paths.Path, cfg config.Configuration, plat platform.Platform) (*HandlersIndex, error) {
+func loadHandlers(dir *paths.Path, customModelsDir *paths.Path, cfg config.Configuration, plat platform.Platform) (*HandlersIndex, error) {
 	// TODO : we should add a method on config to return env variables
 	configEnv := map[string]string{
 		"DOCKER_REGISTRY_BASE":                 cfg.DockerRegistryBase(),
 		"BOARD_NAME":                           plat.BoardName,
-		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": modelsDir.String(),
+		"ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR": customModelsDir.String(),
+	}
+	// Shared models dir used by the containerized runners;
+	if modelsPath := cfg.ModelsDir(); modelsPath != nil {
+		configEnv["MODELS_PATH"] = modelsPath.String()
 	}
 
 	handlersFile := dir.Join("models-handlers.yaml")

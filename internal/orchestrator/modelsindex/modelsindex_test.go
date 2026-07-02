@@ -27,7 +27,7 @@ func TestModelsIndex(t *testing.T) {
 		assert.Len(t, models, 4, "Expected 4 models to be parsed")
 	})
 
-	t.Run("dir and modelsDir are required", func(t *testing.T) {
+	t.Run("dir and customModelsDir are required", func(t *testing.T) {
 		_, err := Load(platform.GetPlatform(nil), nil, nil, nil, config.Configuration{})
 		require.Error(t, err)
 
