@@ -1,0 +1,9 @@
+name: An app with a custom model
+description: An app with a custom model
+ports: []
+bricks:
+- arduino:brick-with-custom-model:
+    model: ei-model-123-1
+    variables:
+      CUSTOM_MODEL_PATH: /home/arduino/.arduino-bricks/ei-model-123-1/model.eim
+      EI_OBJ_DETECTION_MODEL: ei-model-123-1

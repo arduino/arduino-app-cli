@@ -1,6 +1,6 @@
 services:
   audio-analytics-runner:
-    image: artifacts.codelinaro.org/iot-solutions-microservices/audio-analytics:1.0.1
+    image: artifacts.codelinaro.org/iot-solutions-microservices/audio-analytics:1.0.2
     user: 0:0
     devices:
       - /dev/dma_heap/system

@@ -361,6 +361,15 @@ bricks:
     default_value: 127.0.0.1
     description: Bind address
     hidden: true
+- id: arduino:air_quality_monitoring
+  name: Air Quality Monitoring
+  description: Online air quality monitoring module for Arduino using aqicn.org. Requires
+    an internet connection.
+  require_container: false
+  require_model: false
+  mount_devices_into_container: false
+  ports: []
+  category: miscellaneous
 - id: arduino:sound_generator
   name: Sound Generator
   description: Generate sounds like notes, tones, or melodies using waveforms.
@@ -487,10 +496,11 @@ bricks:
 
     '
   require_container: true
-  require_model: false
+  require_model: true
   mount_devices_into_container: false
   ports: []
   category: video
+  model_name: gesture_recognition
   required_devices:
   - camera
   supported_boards:
