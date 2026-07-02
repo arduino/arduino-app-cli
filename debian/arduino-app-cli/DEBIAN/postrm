@@ -4,10 +4,6 @@ if [ -d /run/systemd/system ]; then
   systemctl daemon-reload
 fi
 
-
-echo "dollar 1: $1"
-echo "all : $*"
-
 #LOAD_HELPER
 if [ "$1" = "purge" ]; then
     cleanup_agent_profiles
