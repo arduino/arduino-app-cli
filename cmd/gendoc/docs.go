@@ -274,6 +274,10 @@ func NewOpenApiGenerator(version string) *Generator {
 				params.Schema.WithRef("#/components/schemas/PackageType")
 				return true, nil
 			}
+			if params.Value.Type() == reflect.TypeOf(modelsindex.ModelStatus("")) {
+				params.Schema.WithRef("#/components/schemas/ModelStatus")
+				return true, nil
+			}
 			return false, nil
 		}),
 		jsonschema.InterceptDefName(func(t reflect.Type, defaultDefName string) string {
