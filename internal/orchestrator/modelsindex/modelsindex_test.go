@@ -124,10 +124,9 @@ func TestModelsIndex(t *testing.T) {
 
 	})
 
-	t.Run("it loads builtin and notbuiltin model", func(t *testing.T) {
+	t.Run("it loads builtin model", func(t *testing.T) {
 		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, config.Configuration{})
 		require.NoError(t, err)
-
 		model, err := modelsIndex.GetModelByID(t.Context(), "a-fake-builtin-model")
 		require.NoError(t, err)
 		require.NotNil(t, model)
@@ -142,22 +141,31 @@ func TestModelsIndex(t *testing.T) {
 			IsBuiltIn: true,
 			Installed: true,
 		}, model)
+		assert.Equal(t, "installed", model.GetStatus())
+	})
 
-		model, err = modelsIndex.GetModelByID(t.Context(), "a-not-builtin-model")
+	t.Run("it loads an installed preloaded model", func(t *testing.T) {
+		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
+			// it always return that the model is installed
+			return "{\"event\":\"info\"}\n", 0
+		})
+		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), cli, config.Configuration{})
+		require.NoError(t, err)
+		model, err := modelsIndex.GetModelByID(t.Context(), "a-model-not-preloaded")
 		require.NoError(t, err)
 		require.NotNil(t, model)
 		assert.Equal(t, &AIModel{
-			ID:          "a-not-builtin-model",
-			Name:        "A fake not built-in model",
-			Description: "A fake not built-in model for testing purposes.",
+			ID:          "a-model-not-preloaded",
+			Name:        "A model not preloaded",
+			Description: "A model not preloaded for testing purposes.",
 			Deployment: &ModelDeployment{
-				Handler:   "",
+				Handler:   "my-handler",
 				PreLoaded: false,
 			},
 			IsBuiltIn: false,
-			Installed: false,
+			Installed: true,
 		}, model)
-		assert.Equal(t, "notinstalled", model.GetStatus())
+		assert.Equal(t, "installed", model.GetStatus())
 	})
 
 	t.Run("it get custom model by id", func(t *testing.T) {
