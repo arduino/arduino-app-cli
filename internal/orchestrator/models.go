@@ -123,9 +123,7 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 	}
 
 	if res.IsBuiltIn {
-		if res.Deployment == nil || res.Deployment.PreLoaded || res.Deployment.Handler == "" {
-			return ErrCannotRemoveModel
-		}
+		return ErrCannotRemoveModel
 	}
 
 	references, runningAppReference, err := checkForModelReferences(ctx, dockerClient, cfg, idProvider, bricksIndex, id)
