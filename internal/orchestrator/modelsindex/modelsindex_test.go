@@ -144,7 +144,7 @@ func TestModelsIndex(t *testing.T) {
 		assert.Equal(t, "installed", model.GetStatus())
 	})
 
-	t.Run("it loads an installed preloaded model", func(t *testing.T) {
+	t.Run("it loads an installed but not pre-loaded model", func(t *testing.T) {
 		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
 			// it always return that the model is installed
 			return "{\"event\":\"info\"}\n", 0
