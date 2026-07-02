@@ -231,18 +231,13 @@ func isModelInUse(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, doc
 
 func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, platform platform.Platform, projectID int, impulseID int) (AIModelItem, error) {
 
-	mType := "float32"
-	mEngine := "tflite"
-	var deviceType string
-	switch platform.BoardName {
-	case "unoq":
-		deviceType = "runner-linux-aarch64"
-	case "ventunoq":
-		deviceType = "runner-linux-aarch64-qnn"
+	eiParams, err := platform.EIDeploymentParams()
+	if err != nil {
+		return AIModelItem{}, err
 	}
 
 	id := fmt.Sprintf("ei-model-%d-%d", projectID, impulseID)
-	err := isModelInUse(ctx, modelsIndex, dockerClient, id)
+	err = isModelInUse(ctx, modelsIndex, dockerClient, id)
 	if err != nil {
 		return AIModelItem{}, fmt.Errorf("cannot install EI model: %w", err)
 	}
@@ -263,9 +258,9 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 	// check if there is a deployment and is valid for arduino uno Q or ventuno target, otherwise build it.
 	var mversion int
 	if len(dpList) == 0 || dpList[0].ImpulseHasChangedSinceDeployment ||
-		dpList[0].DeploymentFormat != deviceType || string(dpList[0].Engine) != mEngine || string(*dpList[0].ModelType) != mType {
+		dpList[0].DeploymentFormat != eiParams.DeviceType || string(dpList[0].Engine) != eiParams.Engine || string(*dpList[0].ModelType) != eiParams.ModelType {
 
-		job, err := eiClient.Build(ctx, projectID, impulseID, mType, mEngine, deviceType)
+		job, err := eiClient.Build(ctx, projectID, impulseID, eiParams.ModelType, eiParams.Engine, eiParams.DeviceType)
 		if err != nil {
 			return AIModelItem{}, err
 		}
@@ -304,8 +299,8 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 			"ei-project-id":         strconv.Itoa(projectID),
 			"ei-impulse-id":         strconv.Itoa(impulseID),
 			"ei-impulse-name":       impulse.Name,
-			"ei-model-type":         mType,
-			"ei-engine":             mEngine,
+			"ei-model-type":         eiParams.ModelType,
+			"ei-engine":             eiParams.Engine,
 			"ei-last-modified":      project.Details.LastModified.Local().Format(time.RFC3339Nano),
 			"ei-deployment-version": strconv.Itoa(mversion),
 		},

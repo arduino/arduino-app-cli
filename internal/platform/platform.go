@@ -7,6 +7,7 @@ package platform
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 
 	"github.com/arduino/go-paths-helper"
@@ -93,6 +94,23 @@ func (p Platform) GetMicro() micro.Micro {
 
 func (p Platform) SupportFlashToRam() bool {
 	return p.FQBN == "arduino:zephyr:unoq"
+}
+
+type EIDeploymentParams struct {
+	ModelType  string
+	Engine     string
+	DeviceType string
+}
+
+func (p Platform) EIDeploymentParams() (EIDeploymentParams, error) {
+	switch p.BoardName {
+	case "unoq":
+		return EIDeploymentParams{ModelType: "float32", Engine: "tflite", DeviceType: "runner-linux-aarch64"}, nil
+	case "ventunoq":
+		return EIDeploymentParams{ModelType: "float32", Engine: "tflite", DeviceType: "runner-linux-aarch64-qnn"}, nil
+	default:
+		return EIDeploymentParams{}, fmt.Errorf("unsupported platform %q for Edge Impulse deployment", p.BoardName)
+	}
 }
 
 func GetUnoQBoardLeds() paths.PathList {
