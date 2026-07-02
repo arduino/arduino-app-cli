@@ -93,14 +93,14 @@ type AIModel struct {
 
 const (
 	InstalledStatus    string = "installed"
-	NotinstalledStatus string = "notinstalled"
+	NotInstalledStatus string = "notinstalled"
 )
 
 func (m *AIModel) GetStatus() string {
 	if m.Installed {
 		return InstalledStatus
 	}
-	return NotinstalledStatus
+	return NotInstalledStatus
 }
 
 type AIModelLite struct {
@@ -315,13 +315,15 @@ func loadInternalModels(dir *paths.Path, handlers *HandlersIndex) ([]AIModel, er
 				}
 			}
 
-			if model.Deployment != nil {
+			if model.Deployment == nil {
+				model.IsBuiltIn = true
+				model.Installed = true
+			} else {
 				// Handler must be non-empty when pre-loaded is false
 				if model.Deployment.Handler == "" && !model.Deployment.PreLoaded {
 					return nil, fmt.Errorf("model %q has no handler but is not pre-loaded", model.ID)
 				}
 
-				// Validate handler exists if specified
 				if model.Deployment.Handler != "" {
 					_, ok := handlers.GetHandlerByID(model.Deployment.Handler)
 					if !ok {

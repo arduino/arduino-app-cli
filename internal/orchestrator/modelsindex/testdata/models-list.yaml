@@ -39,14 +39,14 @@ models:
     description: "A small and accurate model"
     supported_boards:
       - foo-board
- - a-fake-builtin-model:
-    name : "A fake built-in model"
-    description: "A fake built-in model for testing purposes."
+ - a-builtin-model:
     deployment:
       pre-loaded: true
- - a-model-not-preloaded:
-    name : "A model not preloaded"
-    description: "A model not preloaded for testing purposes."
+ - a-builtin-model-with-handler:
+    deployment:
+      handler: "my-handler"
+      pre-loaded: true
+ - a-model-not-preloaded-with-handler:
     deployment:
       handler: "my-handler"
       pre-loaded: false

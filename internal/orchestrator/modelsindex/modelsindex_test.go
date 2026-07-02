@@ -24,7 +24,7 @@ func TestModelsIndex(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, modelsIndex)
 		models := modelsIndex.loadDryModels()
-		assert.Len(t, models, 6, "Expected 6 models to be parsed")
+		assert.Len(t, models, 7, "Expected 6 models to be parsed")
 	})
 
 	t.Run("dir and modelsDir are required", func(t *testing.T) {
@@ -69,7 +69,7 @@ func TestModelsIndex(t *testing.T) {
 			require.NoError(t, err)
 
 			models := modelsIndex.loadDryModels()
-			assert.Len(t, models, 5, "all models")
+			assert.Len(t, models, 6, "all models")
 		})
 
 		t.Run("foo-board", func(t *testing.T) {
@@ -78,7 +78,7 @@ func TestModelsIndex(t *testing.T) {
 			require.NoError(t, err)
 
 			models := modelsIndex.loadDryModels()
-			assert.Len(t, models, 5, "all models")
+			assert.Len(t, models, 6, "all models")
 		})
 
 		t.Run("other board", func(t *testing.T) {
@@ -87,7 +87,7 @@ func TestModelsIndex(t *testing.T) {
 			require.NoError(t, err)
 
 			models := modelsIndex.loadDryModels()
-			assert.Len(t, models, 4, "no model another-model-id")
+			assert.Len(t, models, 5, "no model another-model-id")
 
 		})
 	})
@@ -118,22 +118,21 @@ func TestModelsIndex(t *testing.T) {
 			},
 			ModelLabels: []string{"face"},
 			Runner:      "brick",
-			IsBuiltIn:   false,
-			Installed:   false,
+			IsBuiltIn:   true,
+			Installed:   true,
 		}, model)
 
 	})
 
-	t.Run("it loads a built-in model", func(t *testing.T) {
+	t.Run("it load builtin model", func(t *testing.T) {
 		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, config.Configuration{})
 		require.NoError(t, err)
-		model, err := modelsIndex.GetModelByID(t.Context(), "a-fake-builtin-model")
+
+		model, err := modelsIndex.GetModelByID(t.Context(), "a-builtin-model")
 		require.NoError(t, err)
 		require.NotNil(t, model)
 		assert.Equal(t, &AIModel{
-			ID:          "a-fake-builtin-model",
-			Name:        "A fake built-in model",
-			Description: "A fake built-in model for testing purposes.",
+			ID: "a-builtin-model",
 			Deployment: &ModelDeployment{
 				Handler:   "",
 				PreLoaded: true,
@@ -142,22 +141,35 @@ func TestModelsIndex(t *testing.T) {
 			Installed: true,
 		}, model)
 		assert.Equal(t, "installed", model.GetStatus())
+
+		model, err = modelsIndex.GetModelByID(t.Context(), "a-builtin-model-with-handler")
+		require.NoError(t, err)
+		require.NotNil(t, model)
+		assert.Equal(t, &AIModel{
+			ID: "a-builtin-model-with-handler",
+			Deployment: &ModelDeployment{
+				Handler:   "my-handler",
+				PreLoaded: true,
+			},
+			IsBuiltIn: true,
+			Installed: true,
+		}, model)
+		assert.Equal(t, "installed", model.GetStatus())
 	})
 
-	t.Run("it loads an installed but not pre-loaded model", func(t *testing.T) {
+	t.Run("it loads a not preloaded model with handler", func(t *testing.T) {
 		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
 			// it always return that the model is installed
 			return "{\"event\":\"info\"}\n", 0
 		})
 		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), cli, config.Configuration{})
 		require.NoError(t, err)
-		model, err := modelsIndex.GetModelByID(t.Context(), "a-model-not-preloaded")
+
+		model, err := modelsIndex.GetModelByID(t.Context(), "a-model-not-preloaded-with-handler")
 		require.NoError(t, err)
 		require.NotNil(t, model)
 		assert.Equal(t, &AIModel{
-			ID:          "a-model-not-preloaded",
-			Name:        "A model not preloaded",
-			Description: "A model not preloaded for testing purposes.",
+			ID: "a-model-not-preloaded-with-handler",
 			Deployment: &ModelDeployment{
 				Handler:   "my-handler",
 				PreLoaded: false,
