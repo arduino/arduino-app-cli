@@ -199,7 +199,7 @@ func TestAIModelDelete(t *testing.T) {
 	t.Run("conflict error on internal model deletion", func(t *testing.T) {
 		modelId := "face-detection"
 		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
-		expectedDetails := "cannot remove an internal model"
+		expectedDetails := "cannot remove a built-in model"
 		var actualBody models.ErrorResponse
 
 		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), modelId, &client.DeleteAIModelParams{Force: new(false)}, requestEditor)
