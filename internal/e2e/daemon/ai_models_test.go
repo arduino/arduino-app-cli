@@ -196,7 +196,7 @@ func TestAIModelDelete(t *testing.T) {
 		require.Equal(t, expectedDetails, actualBody.Details)
 	})
 
-	t.Run("conflict error on internal model deletion", func(t *testing.T) {
+	t.Run("conflict error on built-in model deletion", func(t *testing.T) {
 		modelId := "face-detection"
 		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
 		expectedDetails := "cannot remove a built-in model"
