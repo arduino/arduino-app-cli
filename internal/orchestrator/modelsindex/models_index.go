@@ -91,7 +91,7 @@ type AIModel struct {
 	Size      uint64 `yaml:"-"`
 }
 
-var (
+const(
 	InstalledStatus    string = "installed"
 	NotinstalledStatus string = "notinstalled"
 )
