@@ -128,14 +128,14 @@ func TestGetImagesHandlersFromInlineYAML(t *testing.T) {
 	yamlContent := `listing:
   image: test-registry/models-downloader:listing
   volumes:
-    - ${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}:/models
+    - ${MODELS_PATH}:/models
   command: ["/app/list_models.sh"]
 handlers:
   - ai-hub-handler:
       description: "Handler for models from AI Hub"
       image: test-registry/models-downloader:ai-hub
       volumes:
-        - ${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}/${models_repository}:/models
+        - ${MODELS_PATH}/${models_repository}:/models
       actions:
         - download:
             command: ["/app/ai_hub/ai_hub_model_downloader.sh"]
@@ -149,7 +149,7 @@ handlers:
       description: "Handler for models from Edge Impulse"
       image: test-registry/models-downloader:ei
       volumes:
-        - ${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}/${models_repository}:/models
+        - ${MODELS_PATH}/${models_repository}:/models
       actions:
         - download:
             command: ["/app/edge_impulse/ei_model_downloader.sh"]
@@ -163,7 +163,7 @@ handlers:
       description: "Handler for models from Hugging Face"
       image: test-registry/models-downloader:hf
       volumes:
-        - ${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}/${models_repository}:/models
+        - ${MODELS_PATH}/${models_repository}:/models
       actions:
         - download:
             command: ["/app/hugging_face/hf_model_downloader.sh"]

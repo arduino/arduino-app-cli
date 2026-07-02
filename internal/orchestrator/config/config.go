@@ -67,7 +67,10 @@ func NewFromEnv() (Configuration, error) {
 	}
 
 	// Directory where all AI models are installed.
-	modelsDir := dataDir.Join("models")
+	modelsDir := paths.New(os.Getenv("MODELS_PATH"))
+	if modelsDir == nil {
+		modelsDir = dataDir.Join("models")
+	}
 
 	// Ensure the custom modules directory exists
 	customModelsDir := paths.New(os.Getenv("ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR"))

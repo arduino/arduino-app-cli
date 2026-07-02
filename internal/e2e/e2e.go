@@ -46,6 +46,15 @@ func WithCustomModelDir(dir *paths.Path) ArduinoAppCLIOption {
 	}
 }
 
+// WithModelDir sets a custom model directory in envVars
+func WithModelsDir(dir *paths.Path) ArduinoAppCLIOption {
+	return func(cli *ArduinoAppCLI) {
+		if dir != nil {
+			cli.envVars["MODELS_PATH"] = dir.String()
+		}
+	}
+}
+
 func WithBoardName(name string) ArduinoAppCLIOption {
 	return func(cli *ArduinoAppCLI) {
 		content := fmt.Sprintf(`{"board_name":%q}`, name)
