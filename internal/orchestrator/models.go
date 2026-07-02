@@ -44,7 +44,7 @@ type AIModelItem struct {
 	Metadata    map[string]string `json:"metadata,omitempty"`
 	IsBuiltIn   bool              `json:"is_builtin"`
 	Size        *uint64           `json:"size,omitempty"`
-	Installed   bool              `json:"installed"`
+	Status      string            `json:"status"`
 }
 
 type AIModelsListRequest struct {
@@ -70,7 +70,7 @@ func AIModelsList(ctx context.Context, cli client.APIClient, req AIModelsListReq
 			Bricks:      f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
 			Metadata:    model.Metadata,
 			IsBuiltIn:   model.IsBuiltIn,
-			Installed:   model.Installed,
+			Status:      model.GetStatus(),
 			Size: func() *uint64 {
 				if model.Size > 0 {
 					return &model.Size
@@ -101,7 +101,7 @@ func AIModelDetails(ctx context.Context, _ client.APIClient, modelsIndex *models
 		Metadata:    model.Metadata,
 		IsBuiltIn:   model.IsBuiltIn,
 		Size:        &model.Size,
-		Installed:   model.Installed,
+		Status:      model.GetStatus(),
 	}, true, nil
 }
 
