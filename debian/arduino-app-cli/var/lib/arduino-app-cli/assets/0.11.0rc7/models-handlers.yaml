@@ -1,14 +1,14 @@
 listing:
   image: ${DOCKER_REGISTRY_BASE:-ghcr.io/arduino/}app-bricks/models-downloader:0.11.0rc7
   volumes:
-    - ${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}:/models
+    - ${MODELS_PATH:-/var/lib/arduino-app-cli/models}:/models
   command: ["/app/list_models.sh"]
 handlers:
   - ai-hub-handler:
       description: "Handler for models from AI Hub"
       image: ${DOCKER_REGISTRY_BASE:-ghcr.io/arduino/}app-bricks/models-downloader:0.11.0rc7
       volumes:
-        - ${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}/${models_repository}:/models
+        - ${MODELS_PATH:-/var/lib/arduino-app-cli/models}/${models_repository}:/models
       actions:
         - download:
             command: ["/app/ai_hub/ai_hub_model_downloader.sh"]
@@ -22,7 +22,7 @@ handlers:
       description: "Handler for models from Edge Impulse"
       image: ${DOCKER_REGISTRY_BASE:-ghcr.io/arduino/}app-bricks/models-downloader:0.11.0rc7
       volumes:
-        - ${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}/${models_repository}:/models
+        - ${MODELS_PATH:-/var/lib/arduino-app-cli/models}/${models_repository}:/models
       actions:
         - download:
             command: ["/app/edge_impulse/ei_model_downloader.sh"]
@@ -36,7 +36,7 @@ handlers:
       description: "Handler for models from Hugging Face"
       image: ${DOCKER_REGISTRY_BASE:-ghcr.io/arduino/}app-bricks/models-downloader:0.11.0rc7
       volumes:
-        - ${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}/${models_repository}:/models
+        - ${MODELS_PATH:-/var/lib/arduino-app-cli/models}/${models_repository}:/models
       actions:
         - download:
             command: ["/app/hugging_face/hf_model_downloader.sh"]

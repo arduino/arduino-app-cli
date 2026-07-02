@@ -36,7 +36,8 @@ handlers:
       description: "Handler for models from Hugging Face"
       image: test-registry/models-downloader:test
       volumes:
-        - ${MODELS_PATH:-/var/lib/arduino-app-cli/models}:/models
+        - ${MODELS_PATH:-/var/lib/arduino-app-cli/models}/${models_repository}:/models
+
       actions:
         - download:
             command: ["/app/hugging_face/hf_model_downloader.sh"]
