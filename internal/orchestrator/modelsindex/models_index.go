@@ -138,7 +138,7 @@ func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, er
 		return nil, nil
 	}
 	model := models[idx]
-	if model.IsBuiltIn && model.Deployment != nil && !model.Deployment.PreLoaded {
+	if model.Deployment != nil && model.Deployment.Handler != "" && !model.Deployment.PreLoaded {  // non-preloaded internal models: determine actual install status
 		// TODO we should have a single method that do the check and get the info
 		installed, err := m.modelInstalled(ctx, model, m.cli)
 		if err != nil {
