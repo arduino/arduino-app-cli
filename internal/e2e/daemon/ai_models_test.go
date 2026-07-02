@@ -126,7 +126,7 @@ func TestAIModelDetails(t *testing.T) {
 			Runner:      new(""),
 			Description: new("this is the description of the model"),
 			BrickIds:    &[]string{"arduino:audio_classification"},
-			Installed:   new(true),
+			Status:      new("installed"),
 			Size:        new(1),
 		}, got, "The returned model details should match the expected values")
 
