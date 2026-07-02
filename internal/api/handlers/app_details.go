@@ -37,14 +37,12 @@ func HandleAppDetails(
 
 		app, err := app.Load(id.ToPath())
 		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", id.String()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
 			return
 		}
 
 		res, err := orchestrator.AppDetails(r.Context(), dockerClient, app, bricksIndex, idProvider, cfg)
 		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
 			return
 		}
@@ -73,7 +71,6 @@ func HandleAppDetailsEdits(
 		}
 		appToEdit, err := app.Load(id.ToPath())
 		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", id.String()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
 			return
 		}
@@ -122,7 +119,6 @@ func HandleAppDetailsEdits(
 
 		res, err := orchestrator.AppDetails(r.Context(), dockerClient, appToEdit, bricksIndex, idProvider, cfg)
 		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
 			return
 		}

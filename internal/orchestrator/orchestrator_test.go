@@ -30,7 +30,7 @@ var unoQPlatform = platform.Platform{BoardName: "unoq"}
 
 func TestCloneApp(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg)
+	idProvider := app.NewAppIDProvider(cfg, unkownPlatform)
 
 	originalAppID := f.Must(idProvider.ParseID("user:original-app"))
 	originalAppPath := originalAppID.ToPath()
@@ -150,7 +150,7 @@ func TestCloneApp(t *testing.T) {
 
 func TestEditApp(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg)
+	idProvider := app.NewAppIDProvider(cfg, unkownPlatform)
 
 	t.Run("with default", func(t *testing.T) {
 		_, err := CreateApp(t.Context(), CreateAppRequest{Name: "app-default"}, idProvider, cfg)
@@ -236,7 +236,7 @@ func TestEditApp(t *testing.T) {
 
 func TestListApp(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg)
+	idProvider := app.NewAppIDProvider(cfg, unkownPlatform)
 
 	docker, err := dockerClient.NewClientWithOpts(
 		dockerClient.FromEnv,
@@ -397,7 +397,7 @@ func TestListApp(t *testing.T) {
 
 func TestListAppsFiltersByBricksIndex(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg)
+	idProvider := app.NewAppIDProvider(cfg, unkownPlatform)
 
 	docker, err := dockerClient.NewClientWithOpts(
 		dockerClient.FromEnv,
@@ -476,7 +476,7 @@ bricks:
 
 func TestListAppsLocalBricksCompatibility(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg)
+	idProvider := app.NewAppIDProvider(cfg, unkownPlatform)
 
 	docker, err := dockerClient.NewClientWithOpts(
 		dockerClient.FromEnv,
@@ -562,7 +562,7 @@ func createApp(
 
 func TestGetAppEnvironmentVariablesWithDefaults(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg)
+	idProvider := app.NewAppIDProvider(cfg, unkownPlatform)
 
 	docker, err := dockerClient.NewClientWithOpts(
 		dockerClient.FromEnv,
@@ -644,7 +644,7 @@ models:
 
 func TestGetAppEnvironmentVariablesWithCustomModelOverrides(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg)
+	idProvider := app.NewAppIDProvider(cfg, unkownPlatform)
 
 	docker, err := dockerClient.NewClientWithOpts(
 		dockerClient.FromEnv,
@@ -725,7 +725,7 @@ models:
 
 func TestGetAppEnvironmentVariablesUsingMultipleBricks(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg)
+	idProvider := app.NewAppIDProvider(cfg, unkownPlatform)
 
 	docker, err := dockerClient.NewClientWithOpts(
 		dockerClient.FromEnv,

@@ -6,6 +6,7 @@
 package app
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -13,18 +14,27 @@ import (
 
 // FindAppsInFolder scans the given paths recursively to find Arduino Apps and
 // returns the list of found app paths.
-func FindAppsInFolder(pathToExplore *paths.Path) (paths.PathList, error) {
-	return pathToExplore.ReadDirRecursiveFiltered(
-		paths.AndFilter( // Recursion filter
-			paths.FilterOutNames(".cache"),       // Do not recurse into .cache folders
-			paths.NotFilter(IsTmpAppDir),         // Do not recurse into temporary apps
-			paths.NotFilter(DirHasAppDescriptor), // Do not recurse into valid app dirs
-		),
-		paths.FilterDirectories(),
-		paths.FilterOutNames("python", "sketch", ".cache"),
-		paths.NotFilter(IsTmpAppDir),
-		DirHasAppDescriptor,
-	)
+func FindAppsInFolders(pathsToExplore paths.PathList) (paths.PathList, error) {
+	var result paths.PathList
+	var allErrors error
+	for _, p := range pathsToExplore {
+		apps, err := p.ReadDirRecursiveFiltered(
+			paths.AndFilter( // Recursion filter
+				paths.FilterOutNames(".cache"),       // Do not recurse into .cache folders
+				paths.NotFilter(IsTmpAppDir),         // Do not recurse into temporary apps
+				paths.NotFilter(DirHasAppDescriptor), // Do not recurse into valid app dirs
+			),
+			paths.FilterDirectories(),
+			paths.FilterOutNames("python", "sketch", ".cache"),
+			paths.NotFilter(IsTmpAppDir),
+			DirHasAppDescriptor,
+		)
+		if err != nil {
+			allErrors = errors.Join(allErrors, err)
+		}
+		result.AddAllMissing(apps)
+	}
+	return result, allErrors
 }
 
 const tmpAppPrefix = ".tmp_"

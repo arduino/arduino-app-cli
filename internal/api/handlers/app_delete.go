@@ -6,7 +6,6 @@
 package handlers
 
 import (
-	"log/slog"
 	"net/http"
 
 	"github.com/docker/cli/cli/command"
@@ -36,14 +35,12 @@ func HandleAppDelete(
 
 		app, err := app.Load(id.ToPath())
 		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", id.String()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
 			return
 		}
 
 		err = orchestrator.DeleteApp(r.Context(), dockerClient, platform, app)
 		if err != nil {
-			slog.Error("Unable to delete the app", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to delete the app"})
 			return
 		}

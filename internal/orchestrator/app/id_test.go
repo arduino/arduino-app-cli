@@ -14,6 +14,7 @@ import (
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 func TestNewIDFromPath(t *testing.T) {
@@ -27,7 +28,7 @@ func TestNewIDFromPath(t *testing.T) {
 	require.NoError(t, orchestratorConfig.ExamplesDir().Join("example-app").MkdirAll())
 	require.NoError(t, tmp.Join("other-app").MkdirAll())
 
-	idProvider := NewAppIDProvider(orchestratorConfig)
+	idProvider := NewAppIDProvider(orchestratorConfig, platform.Platform{})
 
 	tests := []struct {
 		name    string
@@ -74,7 +75,7 @@ func TestParseID(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, tmp.Join("other-app").MkdirAll())
 
-	idProvider := NewAppIDProvider(orchestratorConfig)
+	idProvider := NewAppIDProvider(orchestratorConfig, platform.Platform{})
 
 	tests := []struct {
 		name    string

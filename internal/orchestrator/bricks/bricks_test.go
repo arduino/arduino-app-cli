@@ -432,7 +432,7 @@ bricks:
 		bricksIndex: bIndex,
 		modelsIndex: mIndex,
 	}
-	idProvider := app.NewAppIDProvider(cfg)
+	idProvider := app.NewAppIDProvider(cfg, platform.Platform{})
 
 	t.Run("Brick Not Found", func(t *testing.T) {
 		res, err := svc.BricksDetails("arduino:non_existing", idProvider, cfg, platform.GetPlatform(nil))

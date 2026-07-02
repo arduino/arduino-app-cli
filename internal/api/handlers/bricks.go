@@ -25,7 +25,7 @@ func HandleBrickList(brickService *bricks.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		res, err := brickService.List()
 		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
+			slog.Error("", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to retrieve brick list"})
 
 			return
@@ -49,14 +49,12 @@ func HandleAppBrickInstancesList(
 
 		app, err := app.Load(appPath)
 		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", appId.String()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
 			return
 		}
 
 		res, err := brickService.AppBrickInstancesList(&app, platform)
 		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			details := fmt.Sprintf("unable to find brick list for app %q", appId)
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: details})
 			return
@@ -79,7 +77,6 @@ func HandleAppBrickInstanceDetails(
 
 		app, err := app.Load(appPath)
 		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", appId.String()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
 			return
 		}
@@ -92,7 +89,6 @@ func HandleAppBrickInstanceDetails(
 
 		res, err := brickService.AppBrickInstanceDetails(&app, brickID)
 		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to obtain brick details"})
 			return
 		}
@@ -114,7 +110,6 @@ func HandleBrickCreate(
 
 		app, err := app.Load(appPath)
 		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", appId.String()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
 			return
 		}
@@ -184,7 +179,6 @@ func HandleBrickUpdates(
 
 		app, err := app.Load(appPath)
 		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", appId.String()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
 			return
 		}
@@ -230,7 +224,6 @@ func HandleBrickDelete(
 
 		app, err := app.Load(appPath)
 		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", appId.String()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
 			return
 		}

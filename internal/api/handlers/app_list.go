@@ -6,7 +6,6 @@
 package handlers
 
 import (
-	"log/slog"
 	"net/http"
 	"slices"
 	"strings"
@@ -62,7 +61,6 @@ func HandleAppList(
 			StatusFilter:    statusFilter,
 		}, idProvider, bricksIndex, cfg, platform)
 		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
 
 			return

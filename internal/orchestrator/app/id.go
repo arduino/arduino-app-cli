@@ -8,12 +8,12 @@ package app
 import (
 	"encoding/base64"
 	"errors"
-	"log/slog"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 var ErrInvalidID = errors.New("not a valid id")
@@ -55,11 +55,12 @@ func (id ID) Equal(other ID) bool {
 }
 
 type IDProvider struct {
-	cfg config.Configuration
+	cfg  config.Configuration
+	plat platform.Platform
 }
 
-func NewAppIDProvider(cfg config.Configuration) *IDProvider {
-	return &IDProvider{cfg: cfg}
+func NewAppIDProvider(cfg config.Configuration, plat platform.Platform) *IDProvider {
+	return &IDProvider{cfg: cfg, plat: plat}
 }
 
 func (p *IDProvider) IDFromBase64(id string) (ID, error) {
@@ -71,7 +72,6 @@ func (p *IDProvider) IDFromBase64(id string) (ID, error) {
 }
 
 func (p *IDProvider) IDFromPath(path *paths.Path) (ID, error) {
-	slog.Error("IDFromPath:74", slog.String("path", path.String()))
 	if path == nil || !path.Exist() {
 		return ID{}, ErrInvalidID
 	}
@@ -94,11 +94,8 @@ func (p *IDProvider) IDFromPath(path *paths.Path) (ID, error) {
 		id = "user:" + rel.String()
 		isFromKnownLocation = true
 	case strings.HasPrefix(path.String(), p.cfg.ExamplesDir().String()):
-		rel, err := path.RelFrom(p.cfg.ExamplesDir())
-		if err != nil {
-			return ID{}, ErrInvalidID
-		}
-		id = "examples:" + rel.String()
+		baseName := path.Base()
+		id = "examples:" + baseName
 		isFromKnownLocation = true
 		isExample = true
 	default:
@@ -129,7 +126,11 @@ func (p *IDProvider) parseID(id string) (ID, error) {
 		case "user":
 			path = p.cfg.AppsDir().Join(appPath)
 		case "examples":
-			path = p.cfg.ExamplesDir().Join(appPath)
+			var err error
+			path, err = FindExampleByName(p.plat, p.cfg, appPath)
+			if err != nil {
+				return ID{}, ErrInvalidID
+			}
 			isExample = true
 		default:
 			return ID{}, ErrInvalidID

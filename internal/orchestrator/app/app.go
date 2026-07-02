@@ -338,11 +338,20 @@ func load(brickPath *paths.Path) (b bricksindex.Brick, err error) {
 func GetExamplesByBoard(platform platform.Platform, cfg config.Configuration) paths.PathList {
 	var pathsToExplore paths.PathList
 	pathsToExplore.Add(cfg.ExamplesDir().Join("common"))
-	if platform.IsBoardVentunoQ() {
-		pathsToExplore.Add(cfg.ExamplesDir().Join("platform_ventunoq"))
-	}
-	if platform.IsBoardUnoQ() {
-		pathsToExplore.Add(cfg.ExamplesDir().Join("platform_unoq"))
-	}
+	pathsToExplore.Add(cfg.ExamplesDir().Join(fmt.Sprintf("platform_%s", platform.BoardName)))
 	return pathsToExplore
+}
+
+func FindExampleByName(platform platform.Platform, cfg config.Configuration, name string) (*paths.Path, error) {
+	platformExampleDir := cfg.ExamplesDir().Join(fmt.Sprintf("platform_%s", platform.BoardName))
+
+	result, err := platformExampleDir.ReadDir(paths.FilterNames(name), paths.FilterDirectories())
+	if err != nil {
+		return nil, err
+	}
+	if len(result) == 1 {
+		return result[0], nil
+	}
+
+	return cfg.ExamplesDir().Join("common").Join(name), nil
 }

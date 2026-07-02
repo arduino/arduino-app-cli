@@ -88,7 +88,7 @@ var (
 	})
 
 	GetAppIDProvider = sync.OnceValue(func() *app.IDProvider {
-		return app.NewAppIDProvider(globalConfig)
+		return app.NewAppIDProvider(globalConfig, GetPlatform())
 	})
 
 	GetPlatform = sync.OnceValue(func() platform.Platform {

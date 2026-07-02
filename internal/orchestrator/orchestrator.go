@@ -506,14 +506,13 @@ func ListApps(
 			}
 		}
 	}
-	for _, p := range pathsToExplore {
-		res, err := app.FindAppsInFolder(p)
-		if err != nil {
-			slog.Error("unable to list apps", slog.String("error", err.Error()))
-			return ListAppResult{}, err
-		}
-		appPaths.AddAllMissing(res)
+
+	appPathsTmp, err := app.FindAppsInFolders(pathsToExplore)
+	if err != nil {
+		slog.Error("unable to list apps", slog.String("error", err.Error()))
+		return ListAppResult{}, err
 	}
+	appPaths.AddAllMissing(appPathsTmp)
 
 	// Compose the result
 	result := ListAppResult{Apps: []AppInfo{}, BrokenApps: []BrokenAppInfo{}}

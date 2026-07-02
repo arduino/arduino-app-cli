@@ -260,18 +260,13 @@ func getBrickConfigVariableDetails(
 }
 
 func getUsedByApps(cfg config.Configuration, brickId string, idProvider *app.IDProvider, platform platform.Platform) ([]AppReference, error) {
-	var appPaths paths.PathList
-
 	pathsToExplore := paths.NewPathList()
 	pathsToExplore.AddAll(app.GetExamplesByBoard(platform, cfg))
 	pathsToExplore.Add(cfg.AppsDir())
-	for _, p := range pathsToExplore {
-		res, err := app.FindAppsInFolder(p)
-		if err != nil {
-			slog.Error("unable to list apps", slog.String("error", err.Error()))
-			return []AppReference{}, err
-		}
-		appPaths.AddAllMissing(res)
+	appPaths, err := app.FindAppsInFolders(pathsToExplore)
+	if err != nil {
+		slog.Error("unable to list apps", slog.String("error", err.Error()))
+		return []AppReference{}, err
 	}
 
 	usedByApps := []AppReference{}
