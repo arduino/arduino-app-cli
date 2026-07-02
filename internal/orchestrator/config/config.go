@@ -27,6 +27,7 @@ type Configuration struct {
 	dataDir                          *paths.Path
 	routerSocketPath                 *paths.Path
 	customModelsDir                  *paths.Path
+	modelsDir                        *paths.Path
 	dockerRegistryBase               string
 	PythonImage                      string
 	UsedPythonImageTag               string
@@ -63,6 +64,13 @@ func NewFromEnv() (Configuration, error) {
 	routerSocket := paths.New(os.Getenv("ARDUINO_ROUTER_SOCKET"))
 	if routerSocket == nil || routerSocket.NotExist() {
 		routerSocket = paths.New("/var/run/arduino-router.sock")
+	}
+
+	// Directory where all AI models are installed. Shared with the containerized
+	// runners, which mount this path to load models at runtime.
+	modelsDir := paths.New(os.Getenv("MODELS_PATH"))
+	if modelsDir == nil {
+		modelsDir = dataDir.Join("models")
 	}
 
 	// Ensure the custom modules directory exists
@@ -121,6 +129,7 @@ func NewFromEnv() (Configuration, error) {
 		dataDir:                          dataDir,
 		routerSocketPath:                 routerSocket,
 		customModelsDir:                  customModelsDir,
+		modelsDir:                        modelsDir,
 		dockerRegistryBase:               registryBase,
 		PythonImage:                      pythonImage,
 		UsedPythonImageTag:               usedPythonImageTag,
@@ -144,6 +153,9 @@ func (c *Configuration) init() error {
 		return err
 	}
 	if err := c.AssetsDir().MkdirAll(); err != nil {
+		return err
+	}
+	if err := c.ModelsDir().MkdirAll(); err != nil {
 		return err
 	}
 	return nil
@@ -171,6 +183,10 @@ func (c *Configuration) AssetsDir() *paths.Path {
 
 func (c *Configuration) CustomModelsDir() *paths.Path {
 	return c.customModelsDir
+}
+
+func (c *Configuration) ModelsDir() *paths.Path {
+	return c.modelsDir
 }
 
 func (c *Configuration) DockerRegistryBase() string {
