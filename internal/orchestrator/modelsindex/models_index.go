@@ -296,8 +296,6 @@ func loadInternalModels(dir *paths.Path, handlers *HandlersIndex) ([]AIModel, er
 	for i, modelMap := range list.Models {
 		for id, model := range modelMap {
 			model.ID = id
-			model.IsBuiltIn = true
-			model.Installed = true
 
 			if sizeMBStr, ok := model.Metadata["model_size_mb"]; ok {
 				if sizeMB, err := strconv.ParseFloat(sizeMBStr, 64); err == nil && sizeMB > 0 {
@@ -311,7 +309,10 @@ func loadInternalModels(dir *paths.Path, handlers *HandlersIndex) ([]AIModel, er
 					return nil, fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
 				}
 
-				model.Installed = model.Deployment.PreLoaded
+				if model.Deployment.PreLoaded {
+					model.IsBuiltIn = true
+					model.Installed = true
+				}
 			}
 			models[i] = model
 		}
