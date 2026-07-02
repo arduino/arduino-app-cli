@@ -1452,8 +1452,8 @@ components:
           type: string
         id:
           type: string
-        installed:
-          type: boolean
+        status:
+          type: string
         is_builtin:
           type: boolean
         metadata:

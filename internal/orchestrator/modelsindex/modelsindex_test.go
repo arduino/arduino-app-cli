@@ -69,7 +69,7 @@ func TestModelsIndex(t *testing.T) {
 			require.NoError(t, err)
 
 			models := modelsIndex.loadDryModels()
-			assert.Len(t, models, 3, "all models")
+			assert.Len(t, models, 5, "all models")
 		})
 
 		t.Run("foo-board", func(t *testing.T) {
@@ -78,7 +78,7 @@ func TestModelsIndex(t *testing.T) {
 			require.NoError(t, err)
 
 			models := modelsIndex.loadDryModels()
-			assert.Len(t, models, 3, "all models")
+			assert.Len(t, models, 5, "all models")
 		})
 
 		t.Run("other board", func(t *testing.T) {
@@ -87,7 +87,7 @@ func TestModelsIndex(t *testing.T) {
 			require.NoError(t, err)
 
 			models := modelsIndex.loadDryModels()
-			assert.Len(t, models, 2, "no model another-model-id")
+			assert.Len(t, models, 4, "no model another-model-id")
 
 		})
 	})
