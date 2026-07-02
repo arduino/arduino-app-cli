@@ -239,7 +239,6 @@ bricks:
 	}
 }
 
-
 const impulseInfoJSON = `{
 	"success": true,
 	"impulse": {
@@ -250,7 +249,6 @@ const impulseInfoJSON = `{
 		"complete": true
 	}
 }`
-
 
 type mockResponse struct {
 	status int
