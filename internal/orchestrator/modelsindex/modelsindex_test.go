@@ -124,7 +124,7 @@ func TestModelsIndex(t *testing.T) {
 
 	})
 
-	t.Run("it loads builtin model", func(t *testing.T) {
+	t.Run("it loads a built-in model", func(t *testing.T) {
 		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, config.Configuration{})
 		require.NoError(t, err)
 		model, err := modelsIndex.GetModelByID(t.Context(), "a-fake-builtin-model")
