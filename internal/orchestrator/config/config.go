@@ -150,7 +150,7 @@ func (c *Configuration) init() error {
 	if err := c.AppsDir().MkdirAll(); err != nil {
 		return err
 	}
-	if err := c.ExamplesDir().MkdirAll(); err != nil {
+	if err := c.ExamplesDir().Join("common").MkdirAll(); err != nil {
 		return err
 	}
 	if err := c.AssetsDir().MkdirAll(); err != nil {
@@ -217,8 +217,12 @@ func getPythonImageAndTag(registryBase string) (string, string) {
 }
 
 func (c *Configuration) ExamplesByBoard(platform platform.Platform) paths.PathList {
-	return paths.PathList{
+	result := paths.PathList{
 		c.ExamplesDir().Join("common"),
-		c.ExamplesDir().Join(fmt.Sprintf("platform_%s", platform.BoardName)),
 	}
+	boardExampleDir := c.ExamplesDir().Join(fmt.Sprintf("platform_%s", platform.BoardName))
+	if boardExampleDir.Exist() {
+		result.Add(boardExampleDir)
+	}
+	return result
 }
