@@ -25,7 +25,7 @@ var RunnerVersion = "0.11.0rc7"
 type Configuration struct {
 	appsDir                          *paths.Path
 	dataDir                          *paths.Path
-	requiredUnits                    []string
+	requiredRuntimes                 []string
 	customModelsDir                  *paths.Path
 	modelsDir                        *paths.Path
 	dockerRegistryBase               string
@@ -62,14 +62,14 @@ func NewFromEnv() (Configuration, error) {
 	}
 
 	// Required host units bind-mounted as /run/<unit> into app containers.
-	requiredUnitsEnv, ok := os.LookupEnv("ARDUINO_APP_CLI__REQUIRED_UNITS")
+	requiredRuntimesEnv, ok := os.LookupEnv("ARDUINO_APP_CLI__REQUIRED_RUNTIMES")
 	if !ok {
-		requiredUnitsEnv = "arduino-router,arduino-app-cloud"
+		requiredRuntimesEnv = "arduino-router,arduino-app-cloud"
 	}
-	var requiredUnits []string
-	for u := range strings.SplitSeq(requiredUnitsEnv, ",") {
+	var requiredRuntimes []string
+	for u := range strings.SplitSeq(requiredRuntimesEnv, ",") {
 		if u = strings.TrimSpace(u); u != "" {
-			requiredUnits = append(requiredUnits, u)
+			requiredRuntimes = append(requiredRuntimes, u)
 		}
 	}
 
@@ -133,7 +133,7 @@ func NewFromEnv() (Configuration, error) {
 	c := Configuration{
 		appsDir:                          appsDir,
 		dataDir:                          dataDir,
-		requiredUnits:                    requiredUnits,
+		requiredRuntimes:                 requiredRuntimes,
 		customModelsDir:                  customModelsDir,
 		modelsDir:                        modelsDir,
 		dockerRegistryBase:               registryBase,
@@ -184,7 +184,7 @@ func (c *Configuration) ExamplesDir() *paths.Path {
 // /var/run/<unit>.sock. The first existing entry per unit is returned.
 func (c *Configuration) RequiredUnitsPaths() paths.PathList {
 	var result paths.PathList
-	for _, unit := range c.requiredUnits {
+	for _, unit := range c.requiredRuntimes {
 		candidates := []*paths.Path{
 			paths.New("/run", unit),
 			paths.New("/var/run", unit),
