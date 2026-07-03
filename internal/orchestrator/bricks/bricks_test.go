@@ -21,8 +21,10 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
+var unoQPlatform = platform.Platform{BoardName: "unoq"}
+
 func TestBrickCreate(t *testing.T) {
-	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
+	bricksIndex, err := bricksindex.Load(unoQPlatform, paths.New("testdata"))
 	require.Nil(t, err)
 	brickService := NewService(nil, bricksIndex)
 
@@ -92,7 +94,7 @@ func TestBrickCreate(t *testing.T) {
 		require.Nil(t, err)
 		err = paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp)
 		require.Nil(t, err)
-		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
+		bricksIndex, err := bricksindex.Load(unoQPlatform, paths.New("testdata"))
 		require.Nil(t, err)
 		brickService := NewService(nil, bricksIndex)
 
@@ -119,7 +121,7 @@ func TestBrickCreate(t *testing.T) {
 }
 
 func TestUpdateBrick(t *testing.T) {
-	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
+	bricksIndex, err := bricksindex.Load(unoQPlatform, paths.New("testdata"))
 	require.Nil(t, err)
 	brickService := NewService(nil, bricksIndex)
 
@@ -179,7 +181,7 @@ func TestUpdateBrick(t *testing.T) {
 		tempDummyApp := paths.New("testdata/dummy-app-temp")
 		require.Nil(t, tempDummyApp.RemoveAll())
 		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
-		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
+		bricksIndex, err := bricksindex.Load(unoQPlatform, paths.New("testdata"))
 		require.Nil(t, err)
 		brickService := NewService(nil, bricksIndex)
 
@@ -208,7 +210,7 @@ func TestUpdateBrick(t *testing.T) {
 		tempDummyApp := paths.New("testdata/dummy-app-for-update-temp")
 		require.Nil(t, tempDummyApp.RemoveAll())
 		require.Nil(t, paths.New("testdata/dummy-app-for-update").CopyDirTo(tempDummyApp))
-		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
+		bricksIndex, err := bricksindex.Load(unoQPlatform, paths.New("testdata"))
 		require.Nil(t, err)
 		brickService := NewService(nil, bricksIndex)
 
@@ -236,9 +238,9 @@ func TestUpdateBrick(t *testing.T) {
 		tempDummyApp := paths.New("testdata/dummy-app-for-model-temp")
 		require.Nil(t, tempDummyApp.RemoveAll())
 		require.Nil(t, paths.New("testdata/dummy-app-for-model").CopyDirTo(tempDummyApp))
-		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
+		bricksIndex, err := bricksindex.Load(unoQPlatform, paths.New("testdata"))
 		require.NoError(t, err)
-		modelsIndex, err := modelsindex.Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("not_exixsting_path"), paths.New("not_exixsting_path"), nil, config.Configuration{})
+		modelsIndex, err := modelsindex.Load(unoQPlatform, paths.New("testdata"), paths.New("not_exixsting_path"), paths.New("not_exixsting_path"), nil, config.Configuration{})
 		require.NoError(t, err)
 		brickService := NewService(modelsIndex, bricksIndex)
 
@@ -369,6 +371,7 @@ func TestBricksDetails(t *testing.T) {
 	assetsDir := filepath.Join(dataDir, "assets")
 
 	require.NoError(t, os.MkdirAll(appsDir, 0755))
+	require.NoError(t, os.MkdirAll(appsDir, 0755))
 	require.NoError(t, os.MkdirAll(assetsDir, 0755))
 
 	brickYaml := filepath.Join(assetsDir, "bricks-list.yaml")
@@ -409,7 +412,7 @@ bricks:
 	}
 	createFakeApp(t, appsDir)
 
-	bIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New(assetsDir))
+	bIndex, err := bricksindex.Load(unoQPlatform, paths.New(assetsDir))
 	require.NoError(t, err)
 
 	mIndex := &modelsindex.ModelsIndex{
@@ -432,10 +435,10 @@ bricks:
 		bricksIndex: bIndex,
 		modelsIndex: mIndex,
 	}
-	idProvider := app.NewAppIDProvider(cfg, platform.Platform{})
+	idProvider := app.NewAppIDProvider(cfg, unoQPlatform)
 
 	t.Run("Brick Not Found", func(t *testing.T) {
-		res, err := svc.BricksDetails("arduino:non_existing", idProvider, cfg, platform.GetPlatform(nil))
+		res, err := svc.BricksDetails("arduino:non_existing", idProvider, cfg, unoQPlatform)
 		require.Error(t, err)
 		require.Equal(t, ErrBrickNotFound, err)
 		require.Empty(t, res.ID)
@@ -457,7 +460,7 @@ bricks:
 			},
 		}
 
-		res, err := svc.BricksDetails("arduino:object_detection", idProvider, cfg, platform.GetPlatform(nil))
+		res, err := svc.BricksDetails("arduino:object_detection", idProvider, cfg, unoQPlatform)
 		require.NoError(t, err)
 
 		require.Equal(t, "arduino:object_detection", res.ID)
@@ -485,7 +488,7 @@ bricks:
 	})
 
 	t.Run("Success - Full Details - no models", func(t *testing.T) {
-		res, err := svc.BricksDetails("arduino:weather_forecast", idProvider, cfg, platform.GetPlatform(nil))
+		res, err := svc.BricksDetails("arduino:weather_forecast", idProvider, cfg, unoQPlatform)
 		require.NoError(t, err)
 
 		require.Equal(t, "arduino:weather_forecast", res.ID)
@@ -505,7 +508,7 @@ bricks:
 	})
 
 	t.Run("Success - Full Details - one model", func(t *testing.T) {
-		res, err := svc.BricksDetails("arduino:one_model_brick", idProvider, cfg, platform.GetPlatform(nil))
+		res, err := svc.BricksDetails("arduino:one_model_brick", idProvider, cfg, unoQPlatform)
 		require.NoError(t, err)
 
 		require.Equal(t, "arduino:one_model_brick", res.ID)
@@ -580,7 +583,7 @@ bricks:
 	brickYamlPath := filepath.Join(tmpDir, "bricks-list.yaml")
 	require.NoError(t, os.WriteFile(brickYamlPath, []byte(brickYamlContent), 0600))
 
-	bIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New(tmpDir))
+	bIndex, err := bricksindex.Load(unoQPlatform, paths.New(tmpDir))
 	require.NoError(t, err)
 
 	mIndex := &modelsindex.ModelsIndex{
@@ -766,7 +769,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 	brickYamlPath := filepath.Join(tmpDir, "bricks-list.yaml")
 	require.NoError(t, os.WriteFile(brickYamlPath, []byte(bricksYaml), 0600))
 
-	bIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New(tmpDir))
+	bIndex, err := bricksindex.Load(unoQPlatform, paths.New(tmpDir))
 	require.NoError(t, err)
 
 	svc := &Service{
@@ -1003,7 +1006,7 @@ func TestLocalBrickRename(t *testing.T) {
 		return &a
 	}
 
-	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
+	bricksIndex, err := bricksindex.Load(unoQPlatform, paths.New("testdata"))
 	require.NoError(t, err)
 	svc := NewService(nil, bricksIndex)
 
