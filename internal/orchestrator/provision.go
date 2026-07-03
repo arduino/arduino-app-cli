@@ -347,6 +347,14 @@ func generateMainComposeFile(
 		})
 	}
 
+	for _, unitDir := range cfg.RequiredUnitsRuntimeDir() {
+		volumes = append(volumes, volume{
+			Type:   "bind",
+			Source: unitDir.String(),
+			Target: unitDir.String(),
+		})
+	}
+
 	volumes = addLedControl(platform, volumes)
 	groups := lookupGroups("video", "audio", "render", "dialout")
 	// Support for NPU

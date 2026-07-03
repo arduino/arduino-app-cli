@@ -26,6 +26,7 @@ type Configuration struct {
 	appsDir                          *paths.Path
 	dataDir                          *paths.Path
 	routerSocketPath                 *paths.Path
+	requiredUnits                    []string
 	customModelsDir                  *paths.Path
 	modelsDir                        *paths.Path
 	dockerRegistryBase               string
@@ -61,9 +62,22 @@ func NewFromEnv() (Configuration, error) {
 		dataDir = paths.New("/var/lib/arduino-app-cli")
 	}
 
+	// FIXME: this should be removed at some point, when the router expose the new socket /run/arduino-router/arduno-router.sock
 	routerSocket := paths.New(os.Getenv("ARDUINO_ROUTER_SOCKET"))
 	if routerSocket == nil || routerSocket.NotExist() {
 		routerSocket = paths.New("/var/run/arduino-router.sock")
+	}
+
+	// Required host units bind-mounted as /run/<unit> into app containers.
+	requiredUnitsEnv, ok := os.LookupEnv("ARDUINO_APP_CLI__REQUIRED_UNITS")
+	if !ok {
+		requiredUnitsEnv = "arduino-router,arduino-app-cloud"
+	}
+	var requiredUnits []string
+	for u := range strings.SplitSeq(requiredUnitsEnv, ",") {
+		if u = strings.TrimSpace(u); u != "" {
+			requiredUnits = append(requiredUnits, u)
+		}
 	}
 
 	// Directory where all AI models are installed.
@@ -127,6 +141,7 @@ func NewFromEnv() (Configuration, error) {
 		appsDir:                          appsDir,
 		dataDir:                          dataDir,
 		routerSocketPath:                 routerSocket,
+		requiredUnits:                    requiredUnits,
 		customModelsDir:                  customModelsDir,
 		modelsDir:                        modelsDir,
 		dockerRegistryBase:               registryBase,
@@ -174,6 +189,20 @@ func (c *Configuration) ExamplesDir() *paths.Path {
 
 func (c *Configuration) RouterSocketPath() *paths.Path {
 	return c.routerSocketPath
+}
+
+// RequiredUnitsRuntimeDir returns existing /run/<unit> dirs for configured required units.
+func (c *Configuration) RequiredUnitsRuntimeDir() paths.PathList {
+	var requiredUnits paths.PathList
+	for _, unit := range c.requiredUnits {
+		unitRuntimeDir := paths.New("/run").Join(unit)
+		if unitRuntimeDir.Exist() {
+			requiredUnits.AddIfMissing(unitRuntimeDir)
+		} else {
+			slog.Debug("required unit runtime directory does not exist", "unit", unit, "path", unitRuntimeDir.String())
+		}
+	}
+	return requiredUnits
 }
 
 func (c *Configuration) AssetsDir() *paths.Path {
