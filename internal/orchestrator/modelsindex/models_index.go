@@ -95,7 +95,7 @@ type ModelStatus string
 
 const (
 	InstalledStatus    ModelStatus = "installed"
-	NotInstalledStatus ModelStatus = "notinstalled"
+	NotInstalledStatus ModelStatus = "not-installed"
 )
 
 func (s ModelStatus) AllowedStatuses() []ModelStatus {

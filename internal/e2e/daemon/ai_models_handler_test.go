@@ -44,7 +44,7 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 		require.Equal(t, http.StatusOK, resp.StatusCode(), "model %q not found in index", modelID)
 		require.NotNil(t, resp.JSON200)
 		require.NotNil(t, resp.JSON200.Status)
-		require.Equal(t, "notinstalled", *resp.JSON200.Status, "model should not be installed in a fresh environment")
+		require.Equal(t, "not-installed", *resp.JSON200.Status, "model should not be installed in a fresh environment")
 	})
 
 	t.Run("install emits progress events", func(t *testing.T) {
@@ -95,7 +95,7 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode())
 		require.NotNil(t, resp.JSON200)
-		require.Equal(t, "notinstalled", *resp.JSON200.Status, "model should not be installed after delete")
+		require.Equal(t, "not-installed", *resp.JSON200.Status, "model should not be installed after delete")
 	})
 }
 

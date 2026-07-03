@@ -19,7 +19,7 @@ import (
 // Defines values for ModelStatus.
 const (
 	Installed    ModelStatus = "installed"
-	Notinstalled ModelStatus = "notinstalled"
+	NotInstalled ModelStatus = "not-installed"
 )
 
 // Valid indicates whether the value is a known member of the ModelStatus enum.
@@ -27,7 +27,7 @@ func (e ModelStatus) Valid() bool {
 	switch e {
 	case Installed:
 		return true
-	case Notinstalled:
+	case NotInstalled:
 		return true
 	default:
 		return false

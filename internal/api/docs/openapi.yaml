@@ -1910,7 +1910,7 @@ components:
       description: Model status
       enum:
       - installed
-      - notinstalled
+      - not-installed
       type: string
       uniqueItems: true
     PackageType:
