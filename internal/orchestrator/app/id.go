@@ -94,8 +94,11 @@ func (p *IDProvider) IDFromPath(path *paths.Path) (ID, error) {
 		id = "user:" + rel.String()
 		isFromKnownLocation = true
 	case strings.HasPrefix(path.String(), p.cfg.ExamplesDir().String()):
-		baseName := path.Base()
-		id = "examples:" + baseName
+		name, err := ExampleNameFromPath(p.plat, p.cfg, path)
+		if err != nil {
+			return ID{}, ErrInvalidID
+		}
+		id = "examples:" + name
 		isFromKnownLocation = true
 		isExample = true
 	default:
