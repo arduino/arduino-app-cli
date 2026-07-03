@@ -15,9 +15,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/go-paths-helper"
 	semver "go.bug.st/relaxed-semver"
+
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 // runnerVersion do not edit, this is generate with `task generate:assets`

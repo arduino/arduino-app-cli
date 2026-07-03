@@ -548,7 +548,7 @@ func createApp(
 	require.NoError(t, err)
 	require.Empty(t, gCmp.Diff(f.Must(idProvider.ParseID("user:"+name)), res.ID))
 	if isExample {
-		newPath := cfg.ExamplesDir().Join(name)
+		newPath := cfg.ExamplesDir().Join("common").Join(name)
 		err = os.Rename(res.ID.ToPath().String(), newPath.String())
 		require.NoError(t, err)
 		newID, err := idProvider.IDFromPath(newPath)

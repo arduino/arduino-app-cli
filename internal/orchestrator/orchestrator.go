@@ -469,7 +469,6 @@ type ListAppRequest struct {
 	IncludeNonStandardLocationApps bool
 }
 
-// main app
 func ListApps(
 	ctx context.Context,
 	docker command.Cli,
