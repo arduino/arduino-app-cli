@@ -346,10 +346,7 @@ func FindExampleByName(platform platform.Platform, cfg config.Configuration, nam
 	platformExampleDir := cfg.ExamplesDir().Join(fmt.Sprintf("platform_%s", platform.BoardName))
 
 	result, err := platformExampleDir.ReadDir(paths.FilterNames(name), paths.FilterDirectories())
-	if err != nil {
-		return nil, err
-	}
-	if len(result) == 1 {
+	if err == nil && len(result) == 1 {
 		return result[0], nil
 	}
 

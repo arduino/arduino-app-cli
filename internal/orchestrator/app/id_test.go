@@ -17,6 +17,8 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
+var unoQPlatform = platform.Platform{BoardName: "unoq"}
+
 func TestNewIDFromPath(t *testing.T) {
 	tmp := paths.New(t.TempDir())
 	t.Setenv("ARDUINO_APP_CLI__APPS_DIR", tmp.Join("apps").String())
@@ -25,10 +27,13 @@ func TestNewIDFromPath(t *testing.T) {
 	orchestratorConfig, err := config.NewFromEnv()
 	require.NoError(t, err)
 	require.NoError(t, orchestratorConfig.AppsDir().Join("user-app").MkdirAll())
-	require.NoError(t, orchestratorConfig.ExamplesDir().Join("example-app").MkdirAll())
+	require.NoError(t, orchestratorConfig.ExamplesDir().Join("common").Join("example-app").MkdirAll())
+	require.NoError(t, orchestratorConfig.ExamplesDir().Join("platform_unoq").Join("special-example-app").MkdirAll())
+	require.NoError(t, orchestratorConfig.ExamplesDir().Join("common").Join("duplicated-example-app").MkdirAll())
+	require.NoError(t, orchestratorConfig.ExamplesDir().Join("platform_unoq").Join("duplicated-example-app").MkdirAll())
 	require.NoError(t, tmp.Join("other-app").MkdirAll())
 
-	idProvider := NewAppIDProvider(orchestratorConfig, platform.Platform{})
+	idProvider := NewAppIDProvider(orchestratorConfig, unoQPlatform)
 
 	tests := []struct {
 		name    string
@@ -43,9 +48,20 @@ func TestNewIDFromPath(t *testing.T) {
 		},
 		{
 			name: "valid example id",
-			in:   orchestratorConfig.ExamplesDir().Join("example-app"),
+			in:   orchestratorConfig.ExamplesDir().Join("common").Join("example-app"),
 			want: f.Must(idProvider.ParseID("examples:example-app")),
 		},
+		{
+			name: "duplicated example id, the platform specific wins",
+			in:   orchestratorConfig.ExamplesDir().Join("platform_unoq").Join("duplicated-example-app"),
+			want: f.Must(idProvider.ParseID("examples:duplicated-example-app")),
+		},
+		{
+			name: "platform specific valid example id",
+			in:   orchestratorConfig.ExamplesDir().Join("platform_unoq").Join("special-example-app"),
+			want: f.Must(idProvider.ParseID("examples:special-example-app")),
+		},
+
 		{
 			name: "valid absolute path",
 			in:   tmp.Join("other-app"),
