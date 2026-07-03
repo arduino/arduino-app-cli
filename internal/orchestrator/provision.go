@@ -339,11 +339,11 @@ func generateMainComposeFile(
 		},
 	}
 
-	for _, unitPath := range cfg.RequiredUnitsPaths() {
+	for _, p := range cfg.RequiredRuntimesPaths() {
 		volumes = append(volumes, volume{
 			Type:   "bind",
-			Source: unitPath.String(),
-			Target: unitPath.String(),
+			Source: p.String(),
+			Target: p.String(),
 		})
 	}
 

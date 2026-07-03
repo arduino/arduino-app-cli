@@ -179,10 +179,10 @@ func (c *Configuration) ExamplesDir() *paths.Path {
 	return c.dataDir.Join("examples")
 }
 
-// RequiredUnitsPaths returns the discovered host paths for configured required
+// RequiredRuntimesPaths returns the discovered host paths for configured required
 // units, searching in order: /run/<unit>, /var/run/<unit>, /run/<unit>.sock,
 // /var/run/<unit>.sock. The first existing entry per unit is returned.
-func (c *Configuration) RequiredUnitsPaths() paths.PathList {
+func (c *Configuration) RequiredRuntimesPaths() paths.PathList {
 	var result paths.PathList
 	for _, unit := range c.requiredRuntimes {
 		candidates := []*paths.Path{
