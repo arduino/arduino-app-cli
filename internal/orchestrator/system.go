@@ -580,7 +580,7 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 	}
 
 	// Get a list of example apps
-	pathsToExplore := app.GetExamplesByBoard(platform, cfg)
+	pathsToExplore := cfg.ExamplesByBoard(platform)
 	exampleAppsPath, err := app.FindAppsInFolders(pathsToExplore)
 	if err != nil {
 		slog.Error("unable to list apps", slog.String("error", err.Error()))

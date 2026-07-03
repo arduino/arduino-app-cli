@@ -495,7 +495,7 @@ func ListApps(
 	var pathsToExplore paths.PathList
 	var appPaths paths.PathList
 	if req.ShowExamples || req.ShowOnlyDefault {
-		pathsToExplore.AddAll(app.GetExamplesByBoard(platform, cfg))
+		pathsToExplore.AddAll(cfg.ExamplesByBoard(platform))
 	}
 	if req.ShowApps || req.ShowOnlyDefault {
 		pathsToExplore.Add(cfg.AppsDir())

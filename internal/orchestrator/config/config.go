@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/go-paths-helper"
 	semver "go.bug.st/relaxed-semver"
 )
@@ -212,4 +213,11 @@ func getPythonImageAndTag(registryBase string) (string, string) {
 		usedPythonImageTag = pythonImage[idx+1:]
 	}
 	return pythonImage, usedPythonImageTag
+}
+
+func (c *Configuration) ExamplesByBoard(platform platform.Platform) paths.PathList {
+	return paths.PathList{
+		c.ExamplesDir().Join("common"),
+		c.ExamplesDir().Join(fmt.Sprintf("platform_%s", platform.BoardName)),
+	}
 }

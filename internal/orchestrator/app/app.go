@@ -335,13 +335,6 @@ func load(brickPath *paths.Path) (b bricksindex.Brick, err error) {
 	return brick, nil
 }
 
-func GetExamplesByBoard(platform platform.Platform, cfg config.Configuration) paths.PathList {
-	var pathsToExplore paths.PathList
-	pathsToExplore.Add(cfg.ExamplesDir().Join("common"))
-	pathsToExplore.Add(cfg.ExamplesDir().Join(fmt.Sprintf("platform_%s", platform.BoardName)))
-	return pathsToExplore
-}
-
 func FindExampleByName(platform platform.Platform, cfg config.Configuration, name string) (*paths.Path, error) {
 	platformExampleDir := cfg.ExamplesDir().Join(fmt.Sprintf("platform_%s", platform.BoardName))
 
