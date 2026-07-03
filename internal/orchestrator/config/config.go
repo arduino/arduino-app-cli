@@ -25,7 +25,6 @@ var RunnerVersion = "0.11.0rc7"
 type Configuration struct {
 	appsDir                          *paths.Path
 	dataDir                          *paths.Path
-	routerSocketPath                 *paths.Path
 	requiredUnits                    []string
 	customModelsDir                  *paths.Path
 	modelsDir                        *paths.Path
@@ -60,12 +59,6 @@ func NewFromEnv() (Configuration, error) {
 	dataDir := paths.New(os.Getenv("ARDUINO_APP_CLI__DATA_DIR"))
 	if dataDir == nil {
 		dataDir = paths.New("/var/lib/arduino-app-cli")
-	}
-
-	// FIXME: this should be removed at some point, when the router expose the new socket /run/arduino-router/arduno-router.sock
-	routerSocket := paths.New(os.Getenv("ARDUINO_ROUTER_SOCKET"))
-	if routerSocket == nil || routerSocket.NotExist() {
-		routerSocket = paths.New("/var/run/arduino-router.sock")
 	}
 
 	// Required host units bind-mounted as /run/<unit> into app containers.
@@ -140,7 +133,6 @@ func NewFromEnv() (Configuration, error) {
 	c := Configuration{
 		appsDir:                          appsDir,
 		dataDir:                          dataDir,
-		routerSocketPath:                 routerSocket,
 		requiredUnits:                    requiredUnits,
 		customModelsDir:                  customModelsDir,
 		modelsDir:                        modelsDir,
@@ -187,22 +179,31 @@ func (c *Configuration) ExamplesDir() *paths.Path {
 	return c.dataDir.Join("examples")
 }
 
-func (c *Configuration) RouterSocketPath() *paths.Path {
-	return c.routerSocketPath
-}
-
-// RequiredUnitsRuntimeDir returns existing /run/<unit> dirs for configured required units.
-func (c *Configuration) RequiredUnitsRuntimeDir() paths.PathList {
-	var requiredUnits paths.PathList
+// RequiredUnitsPaths returns the discovered host paths for configured required
+// units, searching in order: /run/<unit>, /var/run/<unit>, /run/<unit>.sock,
+// /var/run/<unit>.sock. The first existing entry per unit is returned.
+func (c *Configuration) RequiredUnitsPaths() paths.PathList {
+	var result paths.PathList
 	for _, unit := range c.requiredUnits {
-		unitRuntimeDir := paths.New("/run").Join(unit)
-		if unitRuntimeDir.Exist() {
-			requiredUnits.AddIfMissing(unitRuntimeDir)
-		} else {
-			slog.Debug("required unit runtime directory does not exist", "unit", unit, "path", unitRuntimeDir.String())
+		candidates := []*paths.Path{
+			paths.New("/run", unit),
+			paths.New("/var/run", unit),
+			paths.New("/run", unit+".sock"),
+			paths.New("/var/run", unit+".sock"),
+		}
+		found := false
+		for _, p := range candidates {
+			if p.Exist() {
+				result.AddIfMissing(p)
+				found = true
+				break
+			}
+		}
+		if !found {
+			slog.Debug("required unit not found on host", "unit", unit)
 		}
 	}
-	return requiredUnits
+	return result
 }
 
 func (c *Configuration) AssetsDir() *paths.Path {

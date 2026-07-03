@@ -338,20 +338,12 @@ func generateMainComposeFile(
 			ReadOnly: true,
 		},
 	}
-	slog.Debug("Adding UNIX socket", slog.Any("sock", cfg.RouterSocketPath().String()), slog.Bool("exists", cfg.RouterSocketPath().Exist()))
-	if cfg.RouterSocketPath().Exist() {
-		volumes = append(volumes, volume{
-			Type:   "bind",
-			Source: cfg.RouterSocketPath().String(),
-			Target: "/var/run/arduino-router.sock",
-		})
-	}
 
-	for _, unitDir := range cfg.RequiredUnitsRuntimeDir() {
+	for _, unitPath := range cfg.RequiredUnitsPaths() {
 		volumes = append(volumes, volume{
 			Type:   "bind",
-			Source: unitDir.String(),
-			Target: unitDir.String(),
+			Source: unitPath.String(),
+			Target: unitPath.String(),
 		})
 	}
 
