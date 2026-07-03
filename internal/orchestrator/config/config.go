@@ -184,12 +184,12 @@ func (c *Configuration) ExamplesDir() *paths.Path {
 // /var/run/<unit>.sock. The first existing entry per unit is returned.
 func (c *Configuration) RequiredRuntimesPaths() paths.PathList {
 	var result paths.PathList
-	for _, unit := range c.requiredRuntimes {
+	for _, runtime := range c.requiredRuntimes {
 		candidates := []*paths.Path{
-			paths.New("/run", unit),
-			paths.New("/var/run", unit),
-			paths.New("/run", unit+".sock"),
-			paths.New("/var/run", unit+".sock"),
+			paths.New("/run", runtime),
+			paths.New("/var/run", runtime),
+			paths.New("/run", runtime+".sock"),
+			paths.New("/var/run", runtime+".sock"),
 		}
 		found := false
 		for _, p := range candidates {
@@ -200,7 +200,7 @@ func (c *Configuration) RequiredRuntimesPaths() paths.PathList {
 			}
 		}
 		if !found {
-			slog.Debug("required unit not found on host", "unit", unit)
+			slog.Debug("required runtime not found on host", "runtime", runtime)
 		}
 	}
 	return result
