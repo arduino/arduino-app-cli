@@ -206,12 +206,12 @@ func (b Brick) GetPorts() []string {
 	return slices.Compact(ports)
 }
 
-func (b Brick) GetModelNameByBoard(boardName string) string {
+func (b Brick) GetModelNameByBoard(platform platform.Platform) string {
 	defaultModelName := b.ModelName
 	modelsBoard := b.ModelByBoard
-	if boardName != "" {
+	if platform.BoardName != "" {
 		idx := slices.IndexFunc(modelsBoard, func(mb ModelsBoard) bool {
-			return mb.Platform == boardName
+			return mb.Platform == platform.BoardName
 		})
 		if idx != -1 {
 			return modelsBoard[idx].Model

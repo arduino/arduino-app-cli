@@ -807,7 +807,7 @@ func TestGetModelNameByBoard(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.brick.GetModelNameByBoard(tt.boardName)
+			got := tt.brick.GetModelNameByBoard(platform.Platform{BoardName: tt.boardName})
 			assert.Equal(t, tt.want, got)
 		})
 	}

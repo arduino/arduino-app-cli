@@ -760,6 +760,14 @@ func TestAppBrickInstancesList(t *testing.T) {
   - name: VISIBLE_VAR_IF_MISSING
     default_value: /i/am/visible
     hidden: false
+- id: arduino:brick-with-boards
+  require_model: true
+  supported_boards:
+  - ventunoq
+  model_name: yolox-qnn-object-detection
+  model_by_boards:
+  - platform: ventunoq
+    model: a-model-for-ventunoq
 `
 
 	tmpDir := t.TempDir()
@@ -784,6 +792,11 @@ func TestAppBrickInstancesList(t *testing.T) {
 					Name:   "Lightweight-Face-Detection",
 					Bricks: []modelsindex.BrickConfig{{ID: "arduino:object_detection"}},
 				},
+				{
+					ID:     "a-model-for-ventunoq",
+					Name:   "A model for ventunoq",
+					Bricks: []modelsindex.BrickConfig{{ID: "arduino:brick-with-boards"}},
+				},
 			},
 		},
 	}
@@ -791,6 +804,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 	tests := []struct {
 		name          string
 		app           *app.ArduinoApp
+		platform      platform.Platform
 		expectedError string
 		validate      func(*testing.T, AppBrickInstancesResult)
 	}{
@@ -908,6 +922,28 @@ func TestAppBrickInstancesList(t *testing.T) {
 			},
 		},
 		{
+			name: "Success - Brick uses board-specific model from platform",
+			app: &app.ArduinoApp{
+				Descriptor: app.AppDescriptor{
+					Bricks: []app.Brick{
+						{
+							ID: "arduino:brick-with-boards",
+						},
+					},
+				},
+			},
+			platform: platform.Platform{BoardName: "ventunoq"},
+			validate: func(t *testing.T, res AppBrickInstancesResult) {
+				require.Len(t, res.BrickInstances, 1)
+				brick := res.BrickInstances[0]
+
+				require.Equal(t, "arduino:brick-with-boards", brick.ID)
+				require.True(t, brick.RequireModel)
+				require.Equal(t, "a-model-for-ventunoq", brick.ModelID)
+				require.Equal(t, []AIModel{{ID: "a-model-for-ventunoq", Name: "A model for ventunoq"}}, brick.CompatibleModels)
+			},
+		},
+		{
 			name: "Success - Multiple Bricks",
 			app: &app.ArduinoApp{
 				Descriptor: app.AppDescriptor{
@@ -973,7 +1009,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := svc.AppBrickInstancesList(tt.app, platform.Platform{})
+			result, err := svc.AppBrickInstancesList(tt.app, tt.platform)
 
 			if tt.expectedError != "" {
 				require.Error(t, err)
