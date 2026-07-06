@@ -135,19 +135,15 @@ func (p *IDProvider) parseID(id string) (ID, error) {
 		case "user":
 			path = p.cfg.AppsDir().Join(appPath)
 		case "examples":
+			isExample = true
+			// Falls back to the last dir if none contains the example.
 			for _, examplePath := range p.cfg.ExamplesDirs(p.plat) {
-				examplePath = examplePath.Join(appPath)
-				if examplePath.Exist() {
-					path = examplePath
-					isExample = true
+				path = examplePath.Join(appPath)
+				if path.Exist() {
 					break
 				}
 			}
 		default:
-			return ID{}, ErrInvalidID
-		}
-
-		if path == nil {
 			return ID{}, ErrInvalidID
 		}
 
