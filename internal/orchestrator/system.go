@@ -242,7 +242,13 @@ func isTemporaryDockerError(err error) bool {
 }
 
 // List of prefixes used to identify current or past Arduino images. Used both during 'system init' and during cleanup.
-var imagePrefixes = []string{"ghcr.io/bcmi-labs/", "public.ecr.aws/arduino/", "ghcr.io/arduino/", "influxdb"}
+var imagePrefixes = []string{
+	"ghcr.io/bcmi-labs/",
+	"public.ecr.aws/arduino/",
+	"ghcr.io/arduino/",
+	"influxdb",
+	"artifacts.codelinaro.org/iot-solutions-microservices/",
+}
 
 // Lists all the local docker images that could have been, or are downloaded by Arduino.
 // This is used both to avoid pulling already existing images and cleaning up unused old Arduino images.
@@ -255,10 +261,10 @@ func listImagesAlreadyPulled(ctx context.Context, docker dockerClient.APIClient)
 	result := make([]string, 0, len(images))
 	for _, image := range images {
 		for _, tag := range image.RepoTags {
-			for _, prefix := range imagePrefixes {
-				if strings.HasPrefix(tag, prefix) {
-					result = append(result, tag)
-				}
+			if slices.ContainsFunc(imagePrefixes, func(p string) bool {
+				return strings.HasPrefix(tag, p)
+			}) {
+				result = append(result, tag)
 			}
 		}
 	}
@@ -269,15 +275,13 @@ func listImagesAlreadyPulled(ctx context.Context, docker dockerClient.APIClient)
 func getAllSupportedBrickImages(bricksIndex *bricksindex.BricksIndex, servicesIndex *servicesindex.ServicesIndex) ([]string, error) {
 	var result []string
 	for _, brick := range bricksIndex.ListBricks() {
-		composeFile, ok := brick.GetComposeFile()
-		if !ok {
-			continue
+		if composeFile, ok := brick.GetComposeFile(); ok {
+			images, err := extractImagesFromCompose(composeFile)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, images...)
 		}
-		images, err := extractImagesFromCompose(composeFile)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, images...)
 
 		for _, r := range brick.RequiresServices {
 			service, ok := servicesIndex.FindServiceByID(r.ID)
@@ -317,10 +321,12 @@ func extractImagesFromCompose(composeFile *paths.Path) ([]string, error) {
 		return nil, err
 	}
 	for _, v := range prj.Services {
-		for _, prefix := range imagePrefixes {
-			if strings.HasPrefix(v.Image, prefix) {
-				result = append(result, v.Image)
-			}
+		if slices.ContainsFunc(imagePrefixes, func(p string) bool {
+			return strings.HasPrefix(v.Image, p)
+		}) {
+			result = append(result, v.Image)
+		} else {
+			slog.Warn("skipping image that does not match known prefixes", "image", v.Image, "prefixes", imagePrefixes)
 		}
 	}
 	return result, nil
@@ -370,17 +376,22 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 	}
 
 	// Remove unused images
-	containersMustStay, err := getRequiredImages(cfg, bricksindex, servicesindex, modelsIndex)
+	imagesMustStay, err := getRequiredImages(cfg, bricksindex, servicesindex, modelsIndex)
 	if err != nil {
 		return result, err
 	}
+	slog.Debug("images that must stay", "imagesMustStay", imagesMustStay)
+
 	allImages, err := listImagesAlreadyPulled(ctx, docker.Client())
 	if err != nil {
 		return result, err
 	}
+	slog.Debug("all images already pulled", "allImages", allImages)
+
 	imagesToRemove := slices.DeleteFunc(allImages, func(v string) bool {
-		return slices.Contains(containersMustStay, v)
+		return slices.Contains(imagesMustStay, v)
 	})
+	slog.Info("images to remove", "imagesToRemove", imagesToRemove)
 
 	for _, image := range imagesToRemove {
 		imageSize, err := removeImage(ctx, docker.Client(), image)
