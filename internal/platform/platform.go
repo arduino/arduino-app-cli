@@ -84,7 +84,7 @@ func GetPlatform(dir *paths.Path) Platform {
 		}
 	}
 
-	slog.Info("using platform config", "platform", platform)
+	slog.Debug("using platform config", "platform", platform)
 	return platform
 }
 
