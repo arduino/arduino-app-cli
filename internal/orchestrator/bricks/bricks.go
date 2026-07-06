@@ -101,7 +101,7 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp, platform platform.Pla
 	return res, nil
 }
 
-func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (BrickInstance, error) {
+func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string, platform platform.Platform) (BrickInstance, error) {
 	bricksindex := s.bricksIndex.WithAppBricks(a.LocalBricks)
 	brick, found := bricksindex.FindBrickByID(brickID)
 	if !found {
@@ -131,7 +131,7 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 		RequireModel:    brick.RequireModel,
 		Variables:       variables,
 		ConfigVariables: configVariables,
-		ModelID:         cmp.Or(a.Descriptor.Bricks[brickIndex].Model, brick.ModelName),
+		ModelID:         cmp.Or(a.Descriptor.Bricks[brickIndex].Model, brick.GetModelNameByBoard(platform.BoardName)),
 		CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModelLite) AIModel {
 			return AIModel{
 				ID:   m.ID,
