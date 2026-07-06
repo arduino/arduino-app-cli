@@ -437,7 +437,7 @@ func TestDeleteApp(t *testing.T) {
 
 	t.Run("DeletingExampleApp_Fail", func(t *testing.T) {
 		var actualResponseBody models.ErrorResponse
-		deleteResp, err := httpClient.DeleteApp(t.Context(), "ZXhhbXBsZXM6Ymxpbms")
+		deleteResp, err := httpClient.DeleteApp(t.Context(), "ZXhhbXBsZXM6anVzdGJsaW5f")
 		require.NoError(t, err)
 		defer deleteResp.Body.Close()
 
