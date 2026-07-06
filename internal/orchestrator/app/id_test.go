@@ -26,13 +26,15 @@ func TestNewIDFromPath(t *testing.T) {
 
 	orchestratorConfig, err := config.NewFromEnv()
 	require.NoError(t, err)
+	examplesBoardDir := orchestratorConfig.DataDir().Join("examples", "platform_unoq")
+	examplesCommonDir := orchestratorConfig.DataDir().Join("examples", "common")
 	require.NoError(t, orchestratorConfig.AppsDir().Join("user-app").MkdirAll())
-	require.NoError(t, orchestratorConfig.ExamplesDir().Join("common").Join("example-app").MkdirAll())
-	require.NoError(t, orchestratorConfig.ExamplesDir().Join("platform_unoq").Join("special-example-app").MkdirAll())
-	require.NoError(t, orchestratorConfig.ExamplesDir().Join("common").Join("duplicated-example-app").MkdirAll())
-	require.NoError(t, orchestratorConfig.ExamplesDir().Join("platform_unoq").Join("duplicated-example-app").MkdirAll())
-	require.NoError(t, orchestratorConfig.ExamplesDir().Join("common").Join("nested", "deep", "example-app").MkdirAll())
-	require.NoError(t, orchestratorConfig.ExamplesDir().Join("platform_unoq").Join("nested", "platform-example").MkdirAll())
+	require.NoError(t, examplesCommonDir.Join("example-app").MkdirAll())
+	require.NoError(t, examplesBoardDir.Join("special-example-app").MkdirAll())
+	require.NoError(t, examplesCommonDir.Join("duplicated-example-app").MkdirAll())
+	require.NoError(t, examplesBoardDir.Join("duplicated-example-app").MkdirAll())
+	require.NoError(t, examplesCommonDir.Join("nested", "deep", "example-app").MkdirAll())
+	require.NoError(t, examplesBoardDir.Join("nested", "platform-example").MkdirAll())
 	require.NoError(t, tmp.Join("other-app").MkdirAll())
 
 	idProvider := NewAppIDProvider(orchestratorConfig, unoQPlatform)
@@ -50,27 +52,27 @@ func TestNewIDFromPath(t *testing.T) {
 		},
 		{
 			name: "valid example id",
-			in:   orchestratorConfig.ExamplesDir().Join("common").Join("example-app"),
+			in:   examplesCommonDir.Join("example-app"),
 			want: f.Must(idProvider.ParseID("examples:example-app")),
 		},
 		{
 			name: "duplicated example id, the platform specific wins",
-			in:   orchestratorConfig.ExamplesDir().Join("platform_unoq").Join("duplicated-example-app"),
+			in:   examplesBoardDir.Join("duplicated-example-app"),
 			want: f.Must(idProvider.ParseID("examples:duplicated-example-app")),
 		},
 		{
 			name: "platform specific valid example id",
-			in:   orchestratorConfig.ExamplesDir().Join("platform_unoq").Join("special-example-app"),
+			in:   examplesBoardDir.Join("special-example-app"),
 			want: f.Must(idProvider.ParseID("examples:special-example-app")),
 		},
 		{
 			name: "nested common example id",
-			in:   orchestratorConfig.ExamplesDir().Join("common").Join("nested", "deep", "example-app"),
+			in:   examplesCommonDir.Join("nested", "deep", "example-app"),
 			want: f.Must(idProvider.ParseID("examples:nested/deep/example-app")),
 		},
 		{
 			name: "nested platform example id",
-			in:   orchestratorConfig.ExamplesDir().Join("platform_unoq").Join("nested", "platform-example"),
+			in:   examplesBoardDir.Join("nested", "platform-example"),
 			want: f.Must(idProvider.ParseID("examples:nested/platform-example")),
 		},
 
@@ -102,8 +104,11 @@ func TestParseID(t *testing.T) {
 	orchestratorConfig, err := config.NewFromEnv()
 	require.NoError(t, err)
 	require.NoError(t, tmp.Join("other-app").MkdirAll())
-	require.NoError(t, orchestratorConfig.ExamplesDir().Join("common").Join("nested", "deep", "example-app").MkdirAll())
-	require.NoError(t, orchestratorConfig.ExamplesDir().Join("platform_unoq").Join("nested", "platform-example").MkdirAll())
+	examplesBoardDir := orchestratorConfig.DataDir().Join("examples", "platform_unoq")
+	examplesCommonDir := orchestratorConfig.DataDir().Join("examples", "common")
+	require.NoError(t, examplesCommonDir.Join("example-app").MkdirAll())
+	require.NoError(t, examplesCommonDir.Join("nested", "deep", "example-app").MkdirAll())
+	require.NoError(t, examplesBoardDir.Join("nested", "platform-example").MkdirAll())
 
 	idProvider := NewAppIDProvider(orchestratorConfig, unoQPlatform)
 
@@ -121,17 +126,17 @@ func TestParseID(t *testing.T) {
 		{
 			name:     "valid example id",
 			in:       "examples:example-app",
-			wantPath: orchestratorConfig.ExamplesDir().Join("common", "example-app"),
+			wantPath: examplesCommonDir.Join("example-app"),
 		},
 		{
 			name:     "nested common example id",
 			in:       "examples:nested/deep/example-app",
-			wantPath: orchestratorConfig.ExamplesDir().Join("common", "nested", "deep", "example-app"),
+			wantPath: examplesCommonDir.Join("nested", "deep", "example-app"),
 		},
 		{
 			name:     "nested platform example id wins over common",
 			in:       "examples:nested/platform-example",
-			wantPath: orchestratorConfig.ExamplesDir().Join("platform_unoq", "nested", "platform-example"),
+			wantPath: examplesBoardDir.Join("nested", "platform-example"),
 		},
 		{
 			name:     "absolute path to app",

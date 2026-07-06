@@ -494,7 +494,7 @@ func ListApps(
 	var pathsToExplore paths.PathList
 	var appPaths paths.PathList
 	if req.ShowExamples || req.ShowOnlyDefault {
-		pathsToExplore.AddAll(cfg.ExamplesByBoard(platform))
+		pathsToExplore.AddAll(cfg.ExamplesDirs(platform))
 	}
 	if req.ShowApps || req.ShowOnlyDefault {
 		pathsToExplore.Add(cfg.AppsDir())
@@ -1224,9 +1224,10 @@ type ConfigDirectories struct {
 func GetOrchestratorConfig(cfg config.Configuration) ConfigResponse {
 	return ConfigResponse{
 		Directories: ConfigDirectories{
-			Data:     cfg.DataDir().String(),
-			Apps:     cfg.AppsDir().String(),
-			Examples: cfg.ExamplesDir().String(),
+			Data: cfg.DataDir().String(),
+			Apps: cfg.AppsDir().String(),
+			// FIXME: ExamplesDir() is not the right directory, we should return the examples by board directory.
+			// Examples: cfg.ExamplesDir().String(),
 		},
 		PythonRunner: cfg.RunnerVersion,
 	}

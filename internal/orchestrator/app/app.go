@@ -20,8 +20,6 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 const maxDescriptionLength = 150
@@ -333,25 +331,4 @@ func load(brickPath *paths.Path) (b bricksindex.Brick, err error) {
 	brick.ExamplesPath = brickPath.Join("examples")
 	brick.DocsAPIPath = brickPath.Join("docs/API.md")
 	return brick, nil
-}
-
-func FindExampleByName(platform platform.Platform, cfg config.Configuration, name string) (*paths.Path, error) {
-	platformExample := cfg.ExamplesDir().Join(fmt.Sprintf("platform_%s", platform.BoardName), name)
-	if platformExample.Exist() {
-		return platformExample, nil
-	}
-	return cfg.ExamplesDir().Join("common", name), nil
-}
-
-func ExampleNameFromPath(platform platform.Platform, cfg config.Configuration, path *paths.Path) (string, error) {
-	for _, root := range []*paths.Path{
-		cfg.ExamplesDir().Join("common"),
-		cfg.ExamplesDir().Join(fmt.Sprintf("platform_%s", platform.BoardName)),
-	} {
-		rel, err := path.RelFrom(root)
-		if err == nil && !strings.HasPrefix(rel.String(), "..") && rel.String() != "." {
-			return rel.String(), nil
-		}
-	}
-	return "", fmt.Errorf("path %q is not a valid example location", path)
 }
