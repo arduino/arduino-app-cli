@@ -217,9 +217,7 @@ func getPythonImageAndTag(registryBase string) (string, string) {
 }
 
 func (c *Configuration) ExamplesByBoard(platform platform.Platform) paths.PathList {
-	result := paths.PathList{
-		c.ExamplesDir().Join("common"),
-	}
+	result := paths.PathList{c.ExamplesDir().Join("common")}
 	boardExampleDir := c.ExamplesDir().Join(fmt.Sprintf("platform_%s", platform.BoardName))
 	if boardExampleDir.Exist() {
 		result.Add(boardExampleDir)
