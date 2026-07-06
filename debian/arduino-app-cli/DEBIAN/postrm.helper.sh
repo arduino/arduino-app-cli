@@ -5,7 +5,7 @@ cleanup_agent_profiles() {
 $USER_HOME/.claude/CLAUDE.md
 $USER_HOME/.gemini/GEMINI.md
 $USER_HOME/.codex/AGENTS.md
-$USER_HOME/.config/github-copilot/agents.md
+$USER_HOME/.copilot/copilot-instructions.md
 "
 
   echo "arduino-app-cli: Cleaning up AI agent symlinks in $USER_HOME..."
