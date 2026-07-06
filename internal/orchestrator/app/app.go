@@ -336,12 +336,22 @@ func load(brickPath *paths.Path) (b bricksindex.Brick, err error) {
 }
 
 func FindExampleByName(platform platform.Platform, cfg config.Configuration, name string) (*paths.Path, error) {
-	platformExampleDir := cfg.ExamplesDir().Join(fmt.Sprintf("platform_%s", platform.BoardName))
-
-	result, err := platformExampleDir.ReadDir(paths.FilterNames(name), paths.FilterDirectories())
-	if err == nil && len(result) == 1 {
-		return result[0], nil
+	platformExample := cfg.ExamplesDir().Join(fmt.Sprintf("platform_%s", platform.BoardName), name)
+	if platformExample.Exist() {
+		return platformExample, nil
 	}
+	return cfg.ExamplesDir().Join("common", name), nil
+}
 
-	return cfg.ExamplesDir().Join("common").Join(name), nil
+func ExampleNameFromPath(platform platform.Platform, cfg config.Configuration, path *paths.Path) (string, error) {
+	for _, root := range []*paths.Path{
+		cfg.ExamplesDir().Join("common"),
+		cfg.ExamplesDir().Join(fmt.Sprintf("platform_%s", platform.BoardName)),
+	} {
+		rel, err := path.RelFrom(root)
+		if err == nil && !strings.HasPrefix(rel.String(), "..") && rel.String() != "." {
+			return rel.String(), nil
+		}
+	}
+	return "", fmt.Errorf("path %q is not a valid example location", path)
 }
