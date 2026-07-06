@@ -764,7 +764,7 @@ func TestAppBrickInstancesList(t *testing.T) {
   require_model: true
   supported_boards:
   - ventunoq
-  model_name: yolox-qnn-object-detection
+  model_name: face-detection
   model_by_boards:
   - platform: ventunoq
     model: a-model-for-ventunoq
