@@ -209,7 +209,11 @@ func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient,
 			continue
 		}
 
-		modelsInfo[i].Installed = entry.Installed
+		if entry.Installed {
+			modelsInfo[i].Status = InstalledStatus
+		} else {
+			modelsInfo[i].Status = NotInstalledStatus
+		}
 		if entry.Installed && entry.DiskSizeMB != nil && *entry.DiskSizeMB > 0 {
 			modelsInfo[i].Size = uint64(*entry.DiskSizeMB * 1024 * 1024)
 		} else if entry.ModelSizeMB != nil && *entry.ModelSizeMB > 0 {

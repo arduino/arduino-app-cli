@@ -36,15 +36,15 @@ type AIModelsListResult struct {
 }
 
 type AIModelItem struct {
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	Description string            `json:"description"`
-	Runner      string            `json:"runner"`
-	Bricks      []string          `json:"brick_ids"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
-	IsBuiltin   bool              `json:"is_builtin"`
-	Size        *uint64           `json:"size,omitempty"`
-	Installed   bool              `json:"installed"`
+	ID          string                  `json:"id"`
+	Name        string                  `json:"name"`
+	Description string                  `json:"description"`
+	Runner      string                  `json:"runner"`
+	Bricks      []string                `json:"brick_ids"`
+	Metadata    map[string]string       `json:"metadata,omitempty"`
+	IsBuiltIn   bool                    `json:"is_builtin"`
+	Size        *uint64                 `json:"size,omitempty"`
+	Status      modelsindex.ModelStatus `json:"status"`
 }
 
 type AIModelsListRequest struct {
@@ -69,8 +69,8 @@ func AIModelsList(ctx context.Context, cli client.APIClient, req AIModelsListReq
 			Runner:      model.Runner,
 			Bricks:      f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
 			Metadata:    model.Metadata,
-			IsBuiltin:   model.IsInternal,
-			Installed:   model.Installed,
+			IsBuiltIn:   model.IsBuiltIn,
+			Status:      model.Status,
 			Size: func() *uint64 {
 				if model.Size > 0 {
 					return &model.Size
@@ -99,16 +99,16 @@ func AIModelDetails(ctx context.Context, _ client.APIClient, modelsIndex *models
 		Runner:      model.Runner,
 		Bricks:      f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
 		Metadata:    model.Metadata,
-		IsBuiltin:   model.IsInternal,
+		IsBuiltIn:   model.IsBuiltIn,
 		Size:        &model.Size,
-		Installed:   model.Installed,
+		Status:      model.Status,
 	}, true, nil
 }
 
 var (
 	ErrNotFound            = errors.New("model not found")
 	ErrConflict            = errors.New("can't delete the model")
-	ErrCannotRemoveModel   = errors.New("cannot remove an internal model")
+	ErrCannotRemoveModel   = errors.New("cannot remove a built-in model")
 	ErrInsufficientStorage = errors.New("insufficient storage to install the model")
 	ErrIncompleteImpulse   = errors.New("impulse not ready for deployment")
 )
@@ -122,10 +122,8 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 		return fmt.Errorf("%q: %w", id, ErrNotFound)
 	}
 
-	if res.IsInternal {
-		if res.Deployment == nil || res.Deployment.PreLoaded || res.Deployment.Handler == "" {
-			return ErrCannotRemoveModel
-		}
+	if res.IsBuiltIn {
+		return ErrCannotRemoveModel
 	}
 
 	references, runningAppReference, err := checkForModelReferences(ctx, dockerClient, cfg, idProvider, bricksIndex, id, platform)
@@ -325,8 +323,8 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 		Bricks: f.Map(aimodel.ModelDescriptor.Bricks, func(b custommodel.BrickConfig) string {
 			return b.ID
 		}),
-		Metadata:  aimodel.ModelDescriptor.Metadata,
-		Installed: true,
+		Metadata: aimodel.ModelDescriptor.Metadata,
+		Status:   modelsindex.InstalledStatus,
 	}, nil
 }
 

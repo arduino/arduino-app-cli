@@ -126,7 +126,7 @@ func TestAIModelDetails(t *testing.T) {
 			Runner:      new(""),
 			Description: new("this is the description of the model"),
 			BrickIds:    &[]string{"arduino:audio_classification"},
-			Installed:   new(true),
+			Status:      new(client.ModelStatus("installed")),
 			Size:        new(1),
 		}, got, "The returned model details should match the expected values")
 
@@ -196,10 +196,10 @@ func TestAIModelDelete(t *testing.T) {
 		require.Equal(t, expectedDetails, actualBody.Details)
 	})
 
-	t.Run("conflict error on internal model deletion", func(t *testing.T) {
+	t.Run("conflict error on built-in model deletion", func(t *testing.T) {
 		modelId := "face-detection"
 		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
-		expectedDetails := "cannot remove an internal model"
+		expectedDetails := "cannot remove a built-in model"
 		var actualBody models.ErrorResponse
 
 		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), modelId, &client.DeleteAIModelParams{Force: new(false)}, requestEditor)

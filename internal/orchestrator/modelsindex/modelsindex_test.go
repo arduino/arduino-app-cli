@@ -24,7 +24,7 @@ func TestModelsIndex(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, modelsIndex)
 		models := modelsIndex.loadDryModels()
-		assert.Len(t, models, 4, "Expected 4 models to be parsed")
+		assert.Len(t, models, 7, "Expected 6 models to be parsed")
 	})
 
 	t.Run("dir and modelsDir are required", func(t *testing.T) {
@@ -69,7 +69,7 @@ func TestModelsIndex(t *testing.T) {
 			require.NoError(t, err)
 
 			models := modelsIndex.loadDryModels()
-			assert.Len(t, models, 3, "all models")
+			assert.Len(t, models, 6, "all models")
 		})
 
 		t.Run("foo-board", func(t *testing.T) {
@@ -78,7 +78,7 @@ func TestModelsIndex(t *testing.T) {
 			require.NoError(t, err)
 
 			models := modelsIndex.loadDryModels()
-			assert.Len(t, models, 3, "all models")
+			assert.Len(t, models, 6, "all models")
 		})
 
 		t.Run("other board", func(t *testing.T) {
@@ -87,7 +87,7 @@ func TestModelsIndex(t *testing.T) {
 			require.NoError(t, err)
 
 			models := modelsIndex.loadDryModels()
-			assert.Len(t, models, 2, "no model another-model-id")
+			assert.Len(t, models, 5, "no model another-model-id")
 
 		})
 	})
@@ -118,9 +118,66 @@ func TestModelsIndex(t *testing.T) {
 			},
 			ModelLabels: []string{"face"},
 			Runner:      "brick",
-			IsInternal:  true,
-			Installed:   true,
+			IsBuiltIn:   true,
+			Status:      InstalledStatus,
 		}, model)
+
+	})
+
+	t.Run("it load builtin model", func(t *testing.T) {
+		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, nil, config.Configuration{})
+		require.NoError(t, err)
+
+		model, err := modelsIndex.GetModelByID(t.Context(), "a-builtin-model")
+		require.NoError(t, err)
+		require.NotNil(t, model)
+		assert.Equal(t, &AIModel{
+			ID: "a-builtin-model",
+			Deployment: &ModelDeployment{
+				Handler:   "",
+				PreLoaded: true,
+			},
+			IsBuiltIn: true,
+			Status:    InstalledStatus,
+		}, model)
+		assert.Equal(t, InstalledStatus, model.Status)
+
+		model, err = modelsIndex.GetModelByID(t.Context(), "a-builtin-model-with-handler")
+		require.NoError(t, err)
+		require.NotNil(t, model)
+		assert.Equal(t, &AIModel{
+			ID: "a-builtin-model-with-handler",
+			Deployment: &ModelDeployment{
+				Handler:   "my-handler",
+				PreLoaded: true,
+			},
+			IsBuiltIn: true,
+			Status:    InstalledStatus,
+		}, model)
+		assert.Equal(t, InstalledStatus, model.Status)
+	})
+
+	t.Run("it loads a not preloaded model with handler", func(t *testing.T) {
+		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
+			// it always return that the model is installed
+			return "{\"event\":\"info\"}\n", 0
+		})
+		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, cli, config.Configuration{})
+		require.NoError(t, err)
+
+		model, err := modelsIndex.GetModelByID(t.Context(), "a-model-not-preloaded-with-handler")
+		require.NoError(t, err)
+		require.NotNil(t, model)
+		assert.Equal(t, &AIModel{
+			ID: "a-model-not-preloaded-with-handler",
+			Deployment: &ModelDeployment{
+				Handler:   "my-handler",
+				PreLoaded: false,
+			},
+			IsBuiltIn: false,
+			Status:    InstalledStatus,
+		}, model)
+		assert.Equal(t, InstalledStatus, model.Status)
 	})
 
 	t.Run("it get custom model by id", func(t *testing.T) {
@@ -142,7 +199,8 @@ func TestModelsIndex(t *testing.T) {
 				"a-string-metadata": "a-string-value",
 			},
 			ModelFolderPath: paths.New(f.Must(filepath.Abs("testdata/custom-models/my-custom-model"))),
-			Installed:       true,
+			Status:          InstalledStatus,
+			IsBuiltIn:       false, // a custom model is never built-in
 		}, eimodel)
 	})
 

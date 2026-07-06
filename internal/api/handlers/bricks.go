@@ -68,6 +68,7 @@ func HandleAppBrickInstancesList(
 func HandleAppBrickInstanceDetails(
 	brickService *bricks.Service,
 	idProvider *app.IDProvider,
+	platform platform.Platform,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		appId, err := idProvider.IDFromBase64(r.PathValue("appID"))
@@ -90,7 +91,7 @@ func HandleAppBrickInstanceDetails(
 			return
 		}
 
-		res, err := brickService.AppBrickInstanceDetails(&app, brickID)
+		res, err := brickService.AppBrickInstanceDetails(&app, brickID, platform)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to obtain brick details"})

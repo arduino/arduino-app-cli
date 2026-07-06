@@ -1452,8 +1452,6 @@ components:
           type: string
         id:
           type: string
-        installed:
-          type: boolean
         is_builtin:
           type: boolean
         metadata:
@@ -1468,6 +1466,8 @@ components:
           minimum: 0
           nullable: true
           type: integer
+        status:
+          $ref: '#/components/schemas/ModelStatus'
       type: object
     AIModelsListResult:
       properties:
@@ -1906,6 +1906,13 @@ components:
         id:
           type: string
       type: object
+    ModelStatus:
+      description: Model status
+      enum:
+      - installed
+      - not-installed
+      type: string
+      uniqueItems: true
     PackageType:
       description: Package type
       enum:

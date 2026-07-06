@@ -27,7 +27,7 @@ var RunnerVersion = "0.11.0rc8"
 type Configuration struct {
 	appsDir                          *paths.Path
 	dataDir                          *paths.Path
-	routerSocketPath                 *paths.Path
+	requiredRuntimes                 []string
 	customModelsDir                  *paths.Path
 	modelsDir                        *paths.Path
 	dockerRegistryBase               string
@@ -63,9 +63,16 @@ func NewFromEnv() (Configuration, error) {
 		dataDir = paths.New("/var/lib/arduino-app-cli")
 	}
 
-	routerSocket := paths.New(os.Getenv("ARDUINO_ROUTER_SOCKET"))
-	if routerSocket == nil || routerSocket.NotExist() {
-		routerSocket = paths.New("/var/run/arduino-router.sock")
+	// Required host units bind-mounted as /run/<unit> into app containers.
+	requiredRuntimesEnv, ok := os.LookupEnv("ARDUINO_APP_CLI__REQUIRED_RUNTIMES")
+	if !ok {
+		requiredRuntimesEnv = "arduino-router,arduino-app-cloud"
+	}
+	var requiredRuntimes []string
+	for u := range strings.SplitSeq(requiredRuntimesEnv, ",") {
+		if u = strings.TrimSpace(u); u != "" {
+			requiredRuntimes = append(requiredRuntimes, u)
+		}
 	}
 
 	// Directory where all AI models are installed.
@@ -128,7 +135,7 @@ func NewFromEnv() (Configuration, error) {
 	c := Configuration{
 		appsDir:                          appsDir,
 		dataDir:                          dataDir,
-		routerSocketPath:                 routerSocket,
+		requiredRuntimes:                 requiredRuntimes,
 		customModelsDir:                  customModelsDir,
 		modelsDir:                        modelsDir,
 		dockerRegistryBase:               registryBase,
@@ -174,6 +181,7 @@ func (c *Configuration) examplesDir() *paths.Path {
 	return c.dataDir.Join("examples")
 }
 
+
 func (c *Configuration) ExamplesDirs(platform platform.Platform) paths.PathList {
 	boardExampleDir := c.examplesDir().Join(fmt.Sprintf("platform_%s", platform.BoardName))
 	if boardExampleDir.Exist() {
@@ -182,8 +190,31 @@ func (c *Configuration) ExamplesDirs(platform platform.Platform) paths.PathList 
 	return paths.PathList{c.examplesDir().Join("common")}
 }
 
-func (c *Configuration) RouterSocketPath() *paths.Path {
-	return c.routerSocketPath
+// RequiredRuntimesPaths returns the discovered host paths for configured required
+// units, searching in order: /run/<unit>, /var/run/<unit>, /run/<unit>.sock,
+// /var/run/<unit>.sock. The first existing entry per unit is returned.
+func (c *Configuration) RequiredRuntimesPaths() paths.PathList {
+	var result paths.PathList
+	for _, runtime := range c.requiredRuntimes {
+		candidates := []*paths.Path{
+			paths.New("/run", runtime),
+			paths.New("/var/run", runtime),
+			paths.New("/run", runtime+".sock"),
+			paths.New("/var/run", runtime+".sock"),
+		}
+		found := false
+		for _, p := range candidates {
+			if p.Exist() {
+				result.AddIfMissing(p)
+				found = true
+				break
+			}
+		}
+		if !found {
+			slog.Debug("required runtime not found on host", "runtime", runtime)
+		}
+	}
+	return result
 }
 
 func (c *Configuration) AssetsDir() *paths.Path {

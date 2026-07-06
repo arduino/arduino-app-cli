@@ -16,6 +16,24 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// Defines values for ModelStatus.
+const (
+	Installed    ModelStatus = "installed"
+	NotInstalled ModelStatus = "not-installed"
+)
+
+// Valid indicates whether the value is a known member of the ModelStatus enum.
+func (e ModelStatus) Valid() bool {
+	switch e {
+	case Installed:
+		return true
+	case NotInstalled:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PackageType.
 const (
 	ArduinoPlatform PackageType = "arduino-platform"
@@ -107,12 +125,14 @@ type AIModelItem struct {
 	BrickIds    *[]string          `json:"brick_ids,omitempty"`
 	Description *string            `json:"description,omitempty"`
 	Id          *string            `json:"id,omitempty"`
-	Installed   *bool              `json:"installed,omitempty"`
 	IsBuiltin   *bool              `json:"is_builtin,omitempty"`
 	Metadata    *map[string]string `json:"metadata,omitempty"`
 	Name        *string            `json:"name,omitempty"`
 	Runner      *string            `json:"runner,omitempty"`
 	Size        *int               `json:"size,omitempty"`
+
+	// Status Model status
+	Status *ModelStatus `json:"status,omitempty"`
 }
 
 // AIModelsListResult defines model for AIModelsListResult.
@@ -388,6 +408,9 @@ type LibraryListResponse struct {
 type LocalBrickRenameResult struct {
 	Id *string `json:"id,omitempty"`
 }
+
+// ModelStatus Model status
+type ModelStatus string
 
 // PackageType Package type
 type PackageType string

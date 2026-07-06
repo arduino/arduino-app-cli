@@ -236,7 +236,7 @@ func generateMainComposeFile(
 
 		// 2. Retrieve the required singleton services
 		matchingServices, err := idxBrick.GetMatchingService(bricksindex.BrickInstance{
-			Model: cmp.Or(brick.Model, idxBrick.GetModelNameByBoard(platform.BoardName)),
+			Model: cmp.Or(brick.Model, idxBrick.GetModelNameByBoard(platform)),
 		})
 		if err != nil {
 			return fmt.Errorf("failed to get required services for brick %s: %w", brick.ID, err)
@@ -338,12 +338,12 @@ func generateMainComposeFile(
 			ReadOnly: true,
 		},
 	}
-	slog.Debug("Adding UNIX socket", slog.Any("sock", cfg.RouterSocketPath().String()), slog.Bool("exists", cfg.RouterSocketPath().Exist()))
-	if cfg.RouterSocketPath().Exist() {
+
+	for _, p := range cfg.RequiredRuntimesPaths() {
 		volumes = append(volumes, volume{
 			Type:   "bind",
-			Source: cfg.RouterSocketPath().String(),
-			Target: "/var/run/arduino-router.sock",
+			Source: p.String(),
+			Target: p.String(),
 		})
 	}
 

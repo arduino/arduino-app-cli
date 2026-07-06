@@ -187,7 +187,7 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: fmt.Sprintf("model %q not found", id)})
 			return
 		}
-		if model.Installed {
+		if model.Status == modelsindex.InstalledStatus {
 			render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: fmt.Sprintf("model %q already installed", id)})
 			return
 		}

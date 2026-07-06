@@ -5,7 +5,7 @@ configure_agent_profiles() {
 $USER_HOME/.claude/CLAUDE.md
 $USER_HOME/.gemini/GEMINI.md
 $USER_HOME/.codex/AGENTS.md
-$USER_HOME/.config/github-copilot/agents.md
+$USER_HOME/.copilot/copilot-instructions.md
 "
 
   INSTALLED_LINKS=""
@@ -30,40 +30,26 @@ $USER_HOME/.config/github-copilot/agents.md
     fi
   done
 
-  echo "======================================================================"
-  echo "A new version of the Arduino AGENTS.md file has been deployed"
-  echo "======================================================================"
-
   if [ -n "$INSTALLED_LINKS" ]; then
-    echo "NEW DEFAULT INSTALLATIONS:"
-    echo "   No agents configuration was detected at these paths:"
+    echo "  Arduino AI agent configuration links:"
     printf "$INSTALLED_LINKS" | while read -r path; do
       [ -z "$path" ] && continue
       echo "   - $path"
     done
-    echo ""
-    echo "  A symbolic link has been successfully deployed to the Arduino AI agent"
-    echo "  configuration file at $MASTER_AGENT"
+    echo "  Arduino AI agent configuration file installed at $MASTER_AGENT"
     if [ -n "$UNTOUCHED_FILES" ]; then
       echo ""
     fi
   fi
 
   if [ -n "$UNTOUCHED_FILES" ]; then
-    echo "NOTICE FOR EXISTING CUSTOMIZATIONS:"
-    echo "   A custom agent or link was found at these paths:"
+    echo "   A custom Arduino AI agent or link was found at these paths:"
     printf "$UNTOUCHED_FILES" | while read -r path; do
       [ -z "$path" ] && continue
       echo "   - $path"
     done
     echo ""
-    echo "   Your files have been left untouched. The new configuration file is at:"
-    echo "   $MASTER_AGENT"
-    echo "   If your configuration already points to the configuration file,"
-    echo "   you are already using the latest version."
-    echo "   If your agent was customized you can decide if you want to integrate it into yours."
+    echo "   Your files have been left untouched. The new configuration file is at: $MASTER_AGENT"
   fi
-
-  echo "======================================================================"
 }
 

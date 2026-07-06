@@ -1,0 +1,21 @@
+listing:
+  image: test-registry/models-downloader:test
+  volumes:
+    - ${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}:/models
+  command: ["/app/list_models.sh"]
+handlers:
+  - my-handler:
+      description: "Handler for models from my"
+      image: test-registry/models-downloader:test
+      volumes:
+        - ${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}/${models_repository}:/models
+      actions:
+        - download:
+            command: ["/app/my/my_model_downloader.sh"]
+        - delete:
+            command: ["/app/my/my_model_remover.sh"]
+        - check:
+            command: ["/app/my/my_model_checker.sh"]
+        - info:
+            command: ["/app/my/my_model_info.sh"]
+
