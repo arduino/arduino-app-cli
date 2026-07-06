@@ -150,7 +150,7 @@ func (c *Configuration) init() error {
 	if err := c.AppsDir().MkdirAll(); err != nil {
 		return err
 	}
-	if err := c.ExamplesDir().Join("common").MkdirAll(); err != nil {
+	if err := c.examplesDir().Join("common").MkdirAll(); err != nil {
 		return err
 	}
 	if err := c.AssetsDir().MkdirAll(); err != nil {
@@ -170,8 +170,16 @@ func (c *Configuration) DataDir() *paths.Path {
 	return c.dataDir
 }
 
-func (c *Configuration) ExamplesDir() *paths.Path {
+func (c *Configuration) examplesDir() *paths.Path {
 	return c.dataDir.Join("examples")
+}
+
+func (c *Configuration) ExamplesDirs(platform platform.Platform) paths.PathList {
+	boardExampleDir := c.examplesDir().Join(fmt.Sprintf("platform_%s", platform.BoardName))
+	if boardExampleDir.Exist() {
+		return paths.PathList{boardExampleDir, c.examplesDir().Join("common")}
+	}
+	return paths.PathList{c.examplesDir().Join("common")}
 }
 
 func (c *Configuration) RouterSocketPath() *paths.Path {
@@ -214,13 +222,4 @@ func getPythonImageAndTag(registryBase string) (string, string) {
 		usedPythonImageTag = pythonImage[idx+1:]
 	}
 	return pythonImage, usedPythonImageTag
-}
-
-func (c *Configuration) ExamplesByBoard(platform platform.Platform) paths.PathList {
-	result := paths.PathList{c.ExamplesDir().Join("common")}
-	boardExampleDir := c.ExamplesDir().Join(fmt.Sprintf("platform_%s", platform.BoardName))
-	if boardExampleDir.Exist() {
-		result.Add(boardExampleDir)
-	}
-	return result
 }

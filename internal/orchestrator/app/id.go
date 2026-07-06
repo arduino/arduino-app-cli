@@ -85,23 +85,29 @@ func (p *IDProvider) IDFromPath(path *paths.Path) (ID, error) {
 		isFromKnownLocation bool
 		isExample           bool
 	)
-	switch {
-	case strings.HasPrefix(path.String(), p.cfg.AppsDir().String()):
+	if strings.HasPrefix(path.String(), p.cfg.AppsDir().String()) {
 		rel, err := path.RelFrom(p.cfg.AppsDir())
 		if err != nil {
 			return ID{}, ErrInvalidID
 		}
 		id = "user:" + rel.String()
 		isFromKnownLocation = true
-	case strings.HasPrefix(path.String(), p.cfg.ExamplesDir().String()):
-		name, err := ExampleNameFromPath(p.plat, p.cfg, path)
-		if err != nil {
-			return ID{}, ErrInvalidID
+	} else {
+		for _, example := range p.cfg.ExamplesDirs(p.plat) {
+			if strings.HasPrefix(path.String(), example.String()) {
+				rel, err := path.RelFrom(example)
+				if err != nil {
+					return ID{}, ErrInvalidID
+				}
+				id = "examples:" + rel.String()
+				isFromKnownLocation = true
+				isExample = true
+				break
+			}
 		}
-		id = "examples:" + name
-		isFromKnownLocation = true
-		isExample = true
-	default:
+	}
+
+	if id == "" {
 		id = path.String()
 	}
 
@@ -129,15 +135,22 @@ func (p *IDProvider) parseID(id string) (ID, error) {
 		case "user":
 			path = p.cfg.AppsDir().Join(appPath)
 		case "examples":
-			var err error
-			path, err = FindExampleByName(p.plat, p.cfg, appPath)
-			if err != nil {
-				return ID{}, ErrInvalidID
+			for _, examplePath := range p.cfg.ExamplesDirs(p.plat) {
+				examplePath = examplePath.Join(appPath)
+				if examplePath.Exist() {
+					path = examplePath
+					isExample = true
+					break
+				}
 			}
-			isExample = true
 		default:
 			return ID{}, ErrInvalidID
 		}
+
+		if path == nil {
+			return ID{}, ErrInvalidID
+		}
+
 		return ID{
 			path:                 path,
 			encodedID:            base64.RawURLEncoding.EncodeToString([]byte(id)),
