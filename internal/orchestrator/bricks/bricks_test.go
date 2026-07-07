@@ -769,29 +769,23 @@ func TestAppBrickInstancesList(t *testing.T) {
 	brickYamlPath := filepath.Join(tmpDir, "bricks-list.yaml")
 	require.NoError(t, os.WriteFile(brickYamlPath, []byte(bricksYaml), 0600))
 
-	bIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New(tmpDir))
-	require.NoError(t, err)
-
-	svc := &Service{
-		bricksIndex: bIndex,
-		modelsIndex: &modelsindex.ModelsIndex{
-			InternalModels: []modelsindex.AIModel{
-				{
-					ID:          "yolox-object-detection",
-					Name:        "General purpose object detection - YoloX",
-					Description: "a-model-description",
-					Bricks:      []modelsindex.BrickConfig{{ID: "arduino:object_detection"}},
-				},
-				{
-					ID:     "face-detection",
-					Name:   "Lightweight-Face-Detection",
-					Bricks: []modelsindex.BrickConfig{{ID: "arduino:object_detection"}},
-				},
-				{
-					ID:     "a-model-for-ventunoq",
-					Name:   "A model for ventunoq",
-					Bricks: []modelsindex.BrickConfig{{ID: "arduino:brick-with-boards"}},
-				},
+	modelsIdx := &modelsindex.ModelsIndex{
+		InternalModels: []modelsindex.AIModel{
+			{
+				ID:          "yolox-object-detection",
+				Name:        "General purpose object detection - YoloX",
+				Description: "a-model-description",
+				Bricks:      []modelsindex.BrickConfig{{ID: "arduino:object_detection"}},
+			},
+			{
+				ID:     "face-detection",
+				Name:   "Lightweight-Face-Detection",
+				Bricks: []modelsindex.BrickConfig{{ID: "arduino:object_detection"}},
+			},
+			{
+				ID:     "a-model-for-ventunoq",
+				Name:   "A model for ventunoq",
+				Bricks: []modelsindex.BrickConfig{{ID: "arduino:brick-with-boards"}},
 			},
 		},
 	}
@@ -1004,6 +998,12 @@ func TestAppBrickInstancesList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			bIndex, err := bricksindex.Load(tt.platform, paths.New(tmpDir))
+			require.NoError(t, err)
+			svc := &Service{
+				bricksIndex: bIndex,
+				modelsIndex: modelsIdx,
+			}
 			result, err := svc.AppBrickInstancesList(tt.app, tt.platform)
 
 			if tt.expectedError != "" {

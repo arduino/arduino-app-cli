@@ -236,7 +236,7 @@ func generateMainComposeFile(
 
 		// 2. Retrieve the required singleton services
 		matchingServices, err := idxBrick.GetMatchingService(bricksindex.BrickInstance{
-			Model: cmp.Or(brick.Model, idxBrick.GetModelNameByBoard(platform)),
+			Model: cmp.Or(brick.Model, idxBrick.ModelName),
 		})
 		if err != nil {
 			return fmt.Errorf("failed to get required services for brick %s: %w", brick.ID, err)

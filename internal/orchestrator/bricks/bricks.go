@@ -85,7 +85,7 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp, platform platform.Pla
 			Category:        brick.Category,
 			Status:          "installed",
 			RequireModel:    brick.RequireModel,
-			ModelID:         cmp.Or(brickInstance.Model, brick.GetModelNameByBoard(platform)),
+			ModelID:         cmp.Or(brickInstance.Model, brick.ModelName),
 			Variables:       variablesMap,
 			ConfigVariables: configVariables,
 			CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModelLite) AIModel {
@@ -131,7 +131,7 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string, pla
 		RequireModel:    brick.RequireModel,
 		Variables:       variables,
 		ConfigVariables: configVariables,
-		ModelID:         cmp.Or(a.Descriptor.Bricks[brickIndex].Model, brick.GetModelNameByBoard(platform)),
+		ModelID:         cmp.Or(a.Descriptor.Bricks[brickIndex].Model, brick.ModelName),
 		CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModelLite) AIModel {
 			return AIModel{
 				ID:   m.ID,

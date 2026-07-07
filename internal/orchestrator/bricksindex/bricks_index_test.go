@@ -756,68 +756,63 @@ func TestRequiresServicesUnmarshalYAML(t *testing.T) {
 	}
 }
 
-func TestGetModelNameByBoard(t *testing.T) {
+func TestLoadResolvesModelNameByBoard(t *testing.T) {
+	yamlContent := `bricks:
+- id: arduino:brick-a
+  name: Brick A
+  model_name: default-model
+  model_by_boards:
+  - platform: ventunoq
+    model: ventunoq-model
+  - platform: portenta
+    model: portenta-model
+- id: arduino:brick-b
+  name: Brick B
+  model_name: only-default
+`
+
 	tests := []struct {
-		name      string
-		brick     Brick
-		boardName string
-		want      string
+		name              string
+		boardName         string
+		wantBrickAModel   string
+		wantBrickBModel   string
 	}{
 		{
-			name: "returns model for matching platform",
-			brick: Brick{
-				ModelName: "default-model",
-				ModelByBoard: []ModelsBoard{
-					{Platform: "ventunoq", Model: "ventunoq-model"},
-					{Platform: "portenta", Model: "portenta-model"},
-				},
-			},
-			boardName: "ventunoq",
-			want:      "ventunoq-model",
+			name:            "matching platform overrides default",
+			boardName:       "ventunoq",
+			wantBrickAModel: "ventunoq-model",
+			wantBrickBModel: "only-default",
 		},
 		{
-			name: "falls back to default model name when board not in list",
-			brick: Brick{
-				ModelName: "default-model",
-				ModelByBoard: []ModelsBoard{
-					{Platform: "ventunoq", Model: "ventunoq-model"},
-				},
-			},
-			boardName: "portenta",
-			want:      "default-model",
+			name:            "board not in list keeps default",
+			boardName:       "opta",
+			wantBrickAModel: "default-model",
+			wantBrickBModel: "only-default",
 		},
 		{
-			name: "empty board name returns default model name",
-			brick: Brick{
-				ModelName: "default-model",
-				ModelByBoard: []ModelsBoard{
-					{Platform: "ventunoq", Model: "ventunoq-model"},
-				},
-			},
-			boardName: "",
-			want:      "default-model",
-		},
-		{
-			name: "empty model_by_boards returns default model name",
-			brick: Brick{
-				ModelName:    "default-model",
-				ModelByBoard: nil,
-			},
-			boardName: "ventunoq",
-			want:      "default-model",
-		},
-		{
-			name:      "all empty returns empty string",
-			brick:     Brick{},
-			boardName: "ventunoq",
-			want:      "",
+			name:            "empty board keeps default",
+			boardName:       "",
+			wantBrickAModel: "default-model",
+			wantBrickBModel: "only-default",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.brick.GetModelNameByBoard(platform.Platform{BoardName: tt.boardName})
-			assert.Equal(t, tt.want, got)
+			tempDir := t.TempDir()
+			brickIndex := paths.New(tempDir, "bricks-list.yaml")
+			require.NoError(t, os.WriteFile(brickIndex.String(), []byte(yamlContent), 0600))
+
+			index, err := Load(platform.Platform{BoardName: tt.boardName}, paths.New(tempDir))
+			require.NoError(t, err)
+
+			brickA, found := index.FindBrickByID("arduino:brick-a")
+			require.True(t, found)
+			assert.Equal(t, tt.wantBrickAModel, brickA.ModelName)
+
+			brickB, found := index.FindBrickByID("arduino:brick-b")
+			require.True(t, found)
+			assert.Equal(t, tt.wantBrickBModel, brickB.ModelName)
 		})
 	}
 }

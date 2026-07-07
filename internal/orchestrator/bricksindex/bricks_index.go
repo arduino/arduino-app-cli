@@ -206,27 +206,12 @@ func (b Brick) GetPorts() []string {
 	return slices.Compact(ports)
 }
 
-func (b Brick) GetModelNameByBoard(platform platform.Platform) string {
-	defaultModelName := b.ModelName
-	modelsBoard := b.ModelByBoard
-	if platform.BoardName != "" {
-		idx := slices.IndexFunc(modelsBoard, func(mb ModelsBoard) bool {
-			return mb.Platform == platform.BoardName
-		})
-		if idx != -1 {
-			return modelsBoard[idx].Model
-		}
-	}
-	return defaultModelName
-}
-
 func (b Brick) isAiBrick(platform platform.Platform) bool {
 	for _, mb := range b.ModelByBoard {
 		if mb.Platform == platform.BoardName && mb.Model != "" {
 			return true
 		}
 	}
-
 	return b.ModelName != ""
 }
 
@@ -315,6 +300,16 @@ func Load(platform platform.Platform, path *paths.Path) (*BricksIndex, error) {
 				yamlIndex.Bricks[i].containerPorts = ports
 			} else {
 				slog.Warn("cannot extract ports from compose file, skipping", "brick_id", yamlIndex.Bricks[i].ID, "error", err)
+			}
+		}
+
+		// Resolve the board-specific model name, if any.
+		if platform.BoardName != "" {
+			idx := slices.IndexFunc(yamlIndex.Bricks[i].ModelByBoard, func(mb ModelsBoard) bool {
+				return mb.Platform == platform.BoardName
+			})
+			if idx != -1 {
+				yamlIndex.Bricks[i].ModelName = yamlIndex.Bricks[i].ModelByBoard[idx].Model
 			}
 		}
 	}
