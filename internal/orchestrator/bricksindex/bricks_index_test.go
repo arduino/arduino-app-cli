@@ -67,7 +67,7 @@ bricks:
 	err := assetDir.Join("bricks-list.yaml").WriteFile([]byte(yamlContent))
 	require.NoError(t, err)
 
-	index, err := Load(platform.GetPlatform(nil), assetDir)
+	index, err := Load(platform.Platform{BoardName: "ventunoq"}, assetDir)
 	require.NoError(t, err)
 
 	brickBasi, found := index.FindBrickByID("arduino:basic")
@@ -107,6 +107,10 @@ bricks:
 	bRequireModelForPlatform, found := index.FindBrickByID("arduino:with-model-by-boards")
 	require.True(t, found)
 	require.True(t, bRequireModelForPlatform.RequireModel)
+	indexUnoQ, err := Load(platform.Platform{BoardName: "unoq"}, assetDir)
+	require.NoError(t, err)
+	bRequireModelForPlatform, found = indexUnoQ.FindBrickByID("arduino:with-model-by-boards")
+	require.True(t, found)
 	require.False(t, bRequireModelForPlatform.RequireModel)
 
 	withHidden, found := index.FindBrickByID("arduino:with-hidden-variables")
