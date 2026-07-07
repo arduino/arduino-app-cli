@@ -35,13 +35,17 @@ func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.Bri
 		if indexBrick.RequireModel {
 			selectedModel := cmp.Or(appBrick.Model, indexBrick.ModelName)
 			model, err := modelIndex.GetModelByID(ctx, selectedModel)
-			switch {
-			case err != nil:
-				allErrors = errors.Join(allErrors, fmt.Errorf("error retrieving model %q for brick %q: %w", appBrick.Model, appBrick.ID, err))
-			case model == nil:
-				allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q not found", appBrick.Model, appBrick.ID))
-			case model.Status != modelsindex.InstalledStatus:
-				allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q is not installed", appBrick.Model, appBrick.ID))
+			if err != nil {
+				allErrors = errors.Join(allErrors, fmt.Errorf("retrieving model %q for brick %q: %w", selectedModel, appBrick.ID, err))
+			} else if model == nil {
+				allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q not found", selectedModel, appBrick.ID))
+			} else {
+				if model.Status != modelsindex.InstalledStatus {
+					allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q is not installed", selectedModel, appBrick.ID))
+				}
+				if !modelIndex.IsModelSupportedByBrick(selectedModel, appBrick.ID) {
+					allErrors = errors.Join(allErrors, fmt.Errorf("model %q is not compatible with brick %q", selectedModel, appBrick.ID))
+				}
 			}
 		}
 

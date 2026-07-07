@@ -70,6 +70,7 @@ func TestValidateAppDescriptorBricks(t *testing.T) {
 			{
 				ID:     "i-am-model-2",
 				Status: modelsindex.InstalledStatus,
+				Bricks: []modelsindex.BrickConfig{{ID: "arduino:ai-brick"}},
 			},
 		},
 	}
