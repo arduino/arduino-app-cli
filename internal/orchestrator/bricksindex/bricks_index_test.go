@@ -40,11 +40,13 @@ bricks:
     description: description for the first variable
   - name: SECOND_VARIABLE
     description: description for the second variable
-- id: arduino:model_required
-  require_model: true
-- id: arduino:model_required_false
-  require_model: false
-- id: arduino:missing-model-require
+- id: arduino:with-model-name
+  model_name: mobilenet-image-classification
+- id: arduino:with-model-by-boards
+  model_by_boards:
+  - platform: ventunoq
+    model: mobilenet-image-classification
+- id: arduino:missing-model
 - id: arduino:with-hidden-variables
   variables:
     - name: HIDDEN_VARIABLE
@@ -94,17 +96,18 @@ bricks:
 	require.Equal(t, "description for the second variable", bWithVariables.Variables[1].Description)
 	require.True(t, bWithVariables.Variables[1].IsRequired())
 
-	bRequireModel, found := index.FindBrickByID("arduino:model_required")
+	bRequireModel, found := index.FindBrickByID("arduino:with-model-name")
 	require.True(t, found)
 	require.True(t, bRequireModel.RequireModel)
 
-	bDb, found := index.FindBrickByID("arduino:model_required_false")
-	require.True(t, found)
-	require.False(t, bDb.RequireModel)
-
-	bNoRequireModel, found := index.FindBrickByID("arduino:missing-model-require")
+	bNoRequireModel, found := index.FindBrickByID("arduino:missing-model")
 	require.True(t, found)
 	require.False(t, bNoRequireModel.RequireModel)
+
+	bRequireModelForPlatform, found := index.FindBrickByID("arduino:with-model-by-boards")
+	require.True(t, found)
+	require.True(t, bRequireModelForPlatform.RequireModel)
+	require.False(t, bRequireModelForPlatform.RequireModel)
 
 	withHidden, found := index.FindBrickByID("arduino:with-hidden-variables")
 	require.True(t, found)
@@ -186,7 +189,6 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 					Category:                  "",
 					RequiresDisplay:           "",
 					RequireContainer:          false,
-					RequireModel:              false,
 					RequiredDevices:           nil,
 					Variables:                 nil,
 					Ports:                     nil,
@@ -224,7 +226,6 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 					Description:               "A complex test brick",
 					Category:                  "storage",
 					RequiresDisplay:           "",
-					RequireModel:              true,
 					RequiredDevices:           []peripherals.DeviceClass{peripherals.CameraClass},
 					MountDevicesIntoContainer: true,
 					Variables: []BrickVariable{
