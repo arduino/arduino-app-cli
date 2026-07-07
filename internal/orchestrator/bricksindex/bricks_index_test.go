@@ -104,14 +104,17 @@ bricks:
 	require.True(t, found)
 	require.False(t, bNoRequireModel.RequireModel)
 
-	bRequireModelForPlatform, found := index.FindBrickByID("arduino:with-model-by-boards")
+	indexVentuno, err := Load(platform.Platform{BoardName: "ventunoq"}, assetDir)
+	require.NoError(t, err)
+	brickVentuno, found := indexVentuno.FindBrickByID("arduino:with-model-by-boards")
 	require.True(t, found)
-	require.True(t, bRequireModelForPlatform.RequireModel)
+	require.True(t, brickVentuno.RequireModel)
+
 	indexUnoQ, err := Load(platform.Platform{BoardName: "unoq"}, assetDir)
 	require.NoError(t, err)
-	bRequireModelForPlatform, found = indexUnoQ.FindBrickByID("arduino:with-model-by-boards")
+	brickUno, found := indexUnoQ.FindBrickByID("arduino:with-model-by-boards")
 	require.True(t, found)
-	require.False(t, bRequireModelForPlatform.RequireModel)
+	require.False(t, brickUno.RequireModel)
 
 	withHidden, found := index.FindBrickByID("arduino:with-hidden-variables")
 	require.True(t, found)
@@ -208,7 +211,6 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
   name: Complex Brick
   description: A complex test brick
   category: storage
-  require_model: true
   mount_devices_into_container: true
   model_name: a-complex-model
   required_devices:
@@ -230,6 +232,7 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 					Description:               "A complex test brick",
 					Category:                  "storage",
 					RequiresDisplay:           "",
+					RequireModel:              true,
 					RequiredDevices:           []peripherals.DeviceClass{peripherals.CameraClass},
 					MountDevicesIntoContainer: true,
 					Variables: []BrickVariable{
@@ -312,10 +315,11 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 `,
 			expectedBricks: []Brick{
 				{
-					ID:          "arduino:brick_with_model_by_boards",
-					Name:        "Brick With Model By Boards",
-					Description: "A brick with model_by_boards",
-					ModelName:   "default-model",
+					ID:           "arduino:brick_with_model_by_boards",
+					Name:         "Brick With Model By Boards",
+					Description:  "A brick with model_by_boards",
+					ModelName:    "default-model",
+					RequireModel: true,
 					ModelByBoard: []ModelsBoard{
 						{Platform: "ventunoq", Model: "ventunoq-model"},
 						{Platform: "portenta", Model: "portenta-model"},
