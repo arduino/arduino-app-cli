@@ -268,25 +268,28 @@ func (m *ModelsIndex) modelInstalled(ctx context.Context, model AIModel, cli cli
 		Env:    envVars,
 		Stdout: &buf,
 	})
-	if err != nil {
+	if err != nil && !dockerhelper.IsExitError(err) {
 		return false, fmt.Errorf("model check failed for %q: %w", model.ID, err)
 	}
 
+	slog.Debug("model check output", "model", model.ID, "output", buf.String())
 	var out struct {
 		Event       string `json:"event"`
 		Description string `json:"description"`
+		Downloading bool   `json:"downloading"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
 		return false, fmt.Errorf("model check returned invalid JSON for %q: %w", model.ID, err)
 	}
-	if out.Event == "error" {
-		slog.Debug("model check returned error", "model", model.ID, "description", out.Description)
+
+	switch out.Event {
+	case "error":
 		return false, nil
+	case "info":
+		return !out.Downloading, nil
+	default:
+		return false, fmt.Errorf("model check returned unexpected event %q for %q", out.Event, model.ID)
 	}
-	if out.Event == "info" {
-		return true, nil
-	}
-	return false, fmt.Errorf("model check returned unexpected event %q for %q", out.Event, model.ID)
 }
 
 func loadInternalModels(dir *paths.Path, handlers *HandlersIndex) ([]AIModel, error) {

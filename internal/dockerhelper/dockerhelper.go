@@ -10,6 +10,7 @@ package dockerhelper
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -132,7 +133,7 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 		if status.Error != nil {
 			runErr = fmt.Errorf("container exit error: %s", status.Error.Message)
 		} else if status.StatusCode != 0 {
-			runErr = fmt.Errorf("container exited with status %d", status.StatusCode)
+			runErr = &ExitError{Code: status.StatusCode}
 		}
 	}
 
@@ -140,6 +141,23 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 	_ = g.Wait()
 
 	return cmp.Or(ctx.Err(), runErr)
+}
+
+// ExitError is returned by Run when the container exits with a non-zero status.
+// Callers can use errors.AsType to inspect the exit code, or IsExitError for
+// a simple boolean check.
+type ExitError struct {
+	Code int64
+}
+
+func (e *ExitError) Error() string {
+	return fmt.Sprintf("container exited with status %d", e.Code)
+}
+
+// IsExitError reports whether err (or any error wrapped by it) is an *ExitError.
+func IsExitError(err error) bool {
+	_, ok := errors.AsType[*ExitError](err)
+	return ok
 }
 
 func ensureImage(ctx context.Context, cli client.APIClient, img string) error {
