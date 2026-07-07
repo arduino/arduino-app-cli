@@ -16,7 +16,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 func NewCompletionCommand() *cobra.Command {
@@ -61,10 +60,10 @@ func NewCompletionCommand() *cobra.Command {
 }
 
 func ApplicationNames(cfg config.Configuration) cobra.CompletionFunc {
-	return ApplicationNamesWithFilterFunc(cfg, func(_ orchestrator.AppInfo) bool { return true }, servicelocator.GetPlatform())
+	return ApplicationNamesWithFilterFunc(cfg, func(_ orchestrator.AppInfo) bool { return true })
 }
 
-func ApplicationNamesWithFilterFunc(cfg config.Configuration, filter func(apps orchestrator.AppInfo) bool, platform platform.Platform) cobra.CompletionFunc {
+func ApplicationNamesWithFilterFunc(cfg config.Configuration, filter func(apps orchestrator.AppInfo) bool) cobra.CompletionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		apps, err := orchestrator.ListApps(cmd.Context(),
 			servicelocator.GetDockerClient(),
@@ -75,7 +74,8 @@ func ApplicationNamesWithFilterFunc(cfg config.Configuration, filter func(apps o
 			},
 			servicelocator.GetAppIDProvider(),
 			servicelocator.GetBricksIndex(),
-			cfg, platform,
+			cfg,
+			servicelocator.GetPlatform(),
 		)
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveError

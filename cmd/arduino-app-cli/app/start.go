@@ -40,7 +40,7 @@ func newStartCmd(cfg config.Configuration) *cobra.Command {
 		ValidArgsFunction: completion.ApplicationNamesWithFilterFunc(cfg, func(apps orchestrator.AppInfo) bool {
 			return apps.Status != orchestrator.StatusStarting &&
 				apps.Status != orchestrator.StatusRunning
-		}, servicelocator.GetPlatform()),
+		}),
 	}
 
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")

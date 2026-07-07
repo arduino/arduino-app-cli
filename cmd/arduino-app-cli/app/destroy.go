@@ -36,7 +36,7 @@ func newDestroyCmd(cfg config.Configuration) *cobra.Command {
 		},
 		ValidArgsFunction: completion.ApplicationNamesWithFilterFunc(cfg, func(apps orchestrator.AppInfo) bool {
 			return apps.Status != orchestrator.StatusUninitialized
-		}, servicelocator.GetPlatform()),
+		}),
 	}
 }
 

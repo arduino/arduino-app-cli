@@ -53,7 +53,7 @@ Use '-' as output_path to write the zip to stdout.`,
 			}
 			return completion.ApplicationNamesWithFilterFunc(cfg, func(apps orchestrator.AppInfo) bool {
 				return !apps.Example
-			}, servicelocator.GetPlatform())(cmd, args, toComplete)
+			})(cmd, args, toComplete)
 		},
 	}
 
