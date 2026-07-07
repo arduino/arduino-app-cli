@@ -137,17 +137,17 @@ tasks:
     desc: "Clones the examples repo directly into the debian structure"
     cmds:
       - |
-        set -e
-        echo "Runner version set as: {{ .EXAMPLE_VERSION }}"
-        TMP_PATH="$(mktemp -d)"
-        DEST_PATH="debian/arduino-app-cli/var/lib/arduino-app-cli/"
-        echo "Cloning arduino/app-bricks-examples into temporary directory ${TMP_PATH}..."
-        git clone --depth 1 --branch "{{ .EXAMPLE_VERSION }}" https://github.com/arduino/app-bricks-examples "${TMP_PATH}"
-        rm -rf "${DEST_PATH}/examples"
-        mkdir -p "${DEST_PATH}"
-        mv "${TMP_PATH}/examples" "${DEST_PATH}"
-        rm -rf "${TMP_PATH}/examples"
-        echo "Examples successfully cloned."
+          set -e
+          echo "Runner version set as: {{ .EXAMPLE_VERSION }}"
+          TMP_PATH="$(mktemp -d)"
+          DEST_PATH="debian/arduino-app-cli/var/lib/arduino-app-cli/"
+          echo "Cloning arduino/app-bricks-examples into temporary directory ${TMP_PATH}..."
+          git clone --depth 1 --branch "{{ .EXAMPLE_VERSION }}" https://github.com/arduino/app-bricks-examples "${TMP_PATH}"
+          rm -rf "${DEST_PATH}/examples"
+          mkdir -p "${DEST_PATH}"
+          mv "${TMP_PATH}/examples" "${DEST_PATH}"
+          rm -rf "${TMP_PATH}/examples"
+          echo "Examples successfully cloned."
     silent: false
 
   download-runner-assets:
@@ -156,7 +156,7 @@ tasks:
       SEMVER_TAG: "{{.RUNNER_VERSION}}"
       TMPDIR: '{{trimSuffix "/" (env "TMPDIR")| default "/tmp"}}/runner-assets'
       OUTPUT_DIR: "{{.TMPDIR}}/{{.RUNNER_VERSION}}"
-      DEST: '{{.DEST}}'
+      DEST: "{{.DEST}}"
     requires:
       vars: [DEST]
     status:
@@ -164,15 +164,15 @@ tasks:
       - test -d "{{.DEST}}/{{.SEMVER_TAG}}"
     cmds:
       - |
-        set -e
-        echo "Runner version set as: {{ .RUNNER_VERSION }}"
-        gh release download -R arduino/app-bricks-py "release/{{.SEMVER_TAG}}" -p '*.whl' -D "{{.TMPDIR}}" --clobber
-        unzip -o "{{.TMPDIR}}/arduino_app_bricks-{{.SEMVER_TAG}}-py3-none-any.whl" -d "{{.OUTPUT_DIR}}"
-        # Wipe any previous versions so the destination contains exactly one.
-        rm -rf "{{.DEST}}" && mkdir -p "{{.DEST}}"
-        cp -r "{{.OUTPUT_DIR}}/arduino/app_bricks/static" "{{.DEST}}/{{.SEMVER_TAG}}"
-        rm -rf "{{.TMPDIR}}"
-        echo "Runner assets successfully downloaded to {{.DEST}}."
+          set -e
+          echo "Runner version set as: {{ .RUNNER_VERSION }}"
+          gh release download -R arduino/app-bricks-py "release/{{.SEMVER_TAG}}" -p '*.whl' -D "{{.TMPDIR}}" --clobber
+          unzip -o "{{.TMPDIR}}/arduino_app_bricks-{{.SEMVER_TAG}}-py3-none-any.whl" -d "{{.OUTPUT_DIR}}"
+          # Wipe any previous versions so the destination contains exactly one.
+          rm -rf "{{.DEST}}" && mkdir -p "{{.DEST}}"
+          cp -r "{{.OUTPUT_DIR}}/arduino/app_bricks/static" "{{.DEST}}/{{.SEMVER_TAG}}"
+          rm -rf "{{.TMPDIR}}"
+          echo "Runner assets successfully downloaded to {{.DEST}}."
     silent: false
 
   build:
@@ -190,10 +190,10 @@ tasks:
     desc: Create a tag on the current commit and push it to the remote to create the release
     cmds:
       - |
-        if [ -z "{{.CLI_ARGS}}" ]; then
-          echo "Error: Version argument is required. Usage: task orchestrator:trigger:release -- <version>"
-          exit 1
-        fi
+          if [ -z "{{.CLI_ARGS}}" ]; then
+            echo "Error: Version argument is required. Usage: task orchestrator:trigger:release -- <version>"
+            exit 1
+          fi
       - git tag -a "{{.CLI_ARGS}}" -m "Release {{.CLI_ARGS}}"
       - git push origin "{{.CLI_ARGS}}"
 
@@ -247,19 +247,19 @@ tasks:
       - task: general:prepare-deps
     cmds:
       - |
-        if
-          ! which licensed \
-          &>/dev/null
-        then
-          if [[ {{OS}} == "windows" ]]; then
-            echo "Licensed does not have Windows support."
-            echo "Please use Linux/macOS or download the dependencies cache from the GitHub Actions workflow artifact."
-          else
-            echo "licensed not found or not in PATH."
-            echo "Please install: https://github.com/licensee/licensed#installation"
+          if
+            ! which licensed \
+            &>/dev/null
+          then
+            if [[ {{OS}} == "windows" ]]; then
+              echo "Licensed does not have Windows support."
+              echo "Please use Linux/macOS or download the dependencies cache from the GitHub Actions workflow artifact."
+            else
+              echo "licensed not found or not in PATH."
+              echo "Please install: https://github.com/licensee/licensed#installation"
+            fi
+            exit 1
           fi
-          exit 1
-        fi
       - licensed cache
       - licensed notices
 
@@ -270,26 +270,26 @@ tasks:
       - task: general:cache-dep-licenses
     cmds:
       - |
-        MATCHES="$(
-          find \
-            .licenses \
-            -regex '.+\.yml' \
-            -type f \
-            -print0 \
-          | \
-            xargs \
-              --null \
-              go tool \
-                github.com/mikefarah/yq/v4 \
-                  'select(.license == "other") | filename'
-        )"
-        if [[ "$MATCHES" != "" ]]; then
-          printf "%s" "$MATCHES"
-          echo
-          echo "The license cache files above have the license set to 'other'. Please manually define the license type and retry."
-          echo "See: https://github.com/arduino/tooling-project-assets/blob/main/workflow-templates/check-go-dependencies-task.md#unrecognized-licenses"
-          exit 1
-        fi
+          MATCHES="$(
+            find \
+              .licenses \
+              -regex '.+\.yml' \
+              -type f \
+              -print0 \
+            | \
+              xargs \
+                --null \
+                go tool \
+                  github.com/mikefarah/yq/v4 \
+                    'select(.license == "other") | filename'
+          )"
+          if [[ "$MATCHES" != "" ]]; then
+            printf "%s" "$MATCHES"
+            echo
+            echo "The license cache files above have the license set to 'other'. Please manually define the license type and retry."
+            echo "See: https://github.com/arduino/tooling-project-assets/blob/main/workflow-templates/check-go-dependencies-task.md#unrecognized-licenses"
+            exit 1
+          fi
       - licensed status
 
   # Source: https://github.com/arduino/tooling-project-assets/blob/main/workflow-templates/assets/check-go-dependencies-task/Taskfile.yml
@@ -301,14 +301,14 @@ tasks:
     desc: "Generate Go client for Edge Impulse API using oapi-codegen and filtering by used paths"
     cmds:
       - |
-        curl -fsSL https://studio.edgeimpulse.com/openapi.yml | yq '.paths = {
-        "/api/{projectId}/deployment": .paths."/api/{projectId}/deployment",
-        "/api/{projectId}/deployment/download": .paths."/api/{projectId}/deployment/download",
-        "/api/{projectId}/jobs/build-ondevice-model": .paths."/api/{projectId}/jobs/build-ondevice-model",
-        "/api/{projectId}/jobs/{jobId}/status": .paths."/api/{projectId}/jobs/{jobId}/status",
-        "/api/{projectId}": .paths."/api/{projectId}",
-        "/api/{projectId}/jobs/{jobId}/stdout": .paths."/api/{projectId}/jobs/{jobId}/stdout",
-        "/api/{projectId}/deployment/last": .paths."/api/{projectId}/deployment/last"
-          }' > openapi-filtered.yml
+          curl -fsSL https://studio.edgeimpulse.com/openapi.yml | yq '.paths = {
+          "/api/{projectId}/deployment": .paths."/api/{projectId}/deployment",
+          "/api/{projectId}/deployment/download": .paths."/api/{projectId}/deployment/download",
+          "/api/{projectId}/jobs/build-ondevice-model": .paths."/api/{projectId}/jobs/build-ondevice-model",
+          "/api/{projectId}/jobs/{jobId}/status": .paths."/api/{projectId}/jobs/{jobId}/status",
+          "/api/{projectId}": .paths."/api/{projectId}",
+          "/api/{projectId}/jobs/{jobId}/stdout": .paths."/api/{projectId}/jobs/{jobId}/stdout",
+          "/api/{projectId}/deployment/last": .paths."/api/{projectId}/deployment/last"
+            }' > openapi-filtered.yml
       - oapi-codegen --package=edgeimpulse --generate types,client --response-type-suffix=HTTPResponse openapi-filtered.yml > internal/api/edgeimpulse/client.gen.go
       - rm openapi-filtered.yml
