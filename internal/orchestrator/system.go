@@ -312,10 +312,12 @@ func extractImagesFromCompose(composeFile *paths.Path) ([]string, error) {
 	prj, err := loader.LoadWithContext(
 		context.Background(),
 		types.ConfigDetails{
+			WorkingDir:  composeFile.Parent().String(),
 			ConfigFiles: []types.ConfigFile{{Content: content}},
 			Environment: types.NewMapping(os.Environ()),
 		},
 		func(o *loader.Options) { o.SetProjectName("default", false) },
+		loader.WithSkipValidation, // avoid os.Getwd() in schema validation, which fails when CWD is missing (e.g. during .deb postinst)
 	)
 	if err != nil {
 		return nil, err
