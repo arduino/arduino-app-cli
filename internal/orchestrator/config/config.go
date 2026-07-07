@@ -66,7 +66,7 @@ func NewFromEnv() (Configuration, error) {
 	// Required host units bind-mounted as /run/<unit> into app containers.
 	requiredRuntimesEnv, ok := os.LookupEnv("ARDUINO_APP_CLI__REQUIRED_RUNTIMES")
 	if !ok {
-		requiredRuntimesEnv = "arduino-router,arduino-app-cloud"
+		requiredRuntimesEnv = "arduino-router,arduino-cloud-connector"
 	}
 	var requiredRuntimes []string
 	for u := range strings.SplitSeq(requiredRuntimesEnv, ",") {
