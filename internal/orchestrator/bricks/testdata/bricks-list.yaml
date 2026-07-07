@@ -2,7 +2,6 @@ bricks:
 - id: arduino:arduino_cloud
   name: Arduino Cloud
   description: Connects to Arduino Cloud
-  require_model: false
   mount_devices_into_container: false
   ports: []
   category: null
@@ -15,14 +14,12 @@ bricks:
   name: Database - SQL
   description: Simplified database storage layer for Arduino sensor data using SQLite
     local database.
-  require_model: false
   mount_devices_into_container: false
   ports: []
   category: storage
 - id: arduino:brick-with-require-model
   name: A brick with required model
   description: "Brick with required model"
-  require_model: true
   model_name: mobilenet-image-classification
 - id: arduino:brick-with-custom-model
   name: A brick with a custom model

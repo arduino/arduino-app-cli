@@ -379,7 +379,7 @@ bricks:
 - id: arduino:object_detection
   name: Object Detection
   description: Detect objects in images using a pre-trained model
-  require_model: true
+  model_name: yolox-object-detection
   mount_devices_into_container: true
   ports: ["8000"]
   category: video
@@ -562,7 +562,6 @@ func TestAppBrickInstanceModelsDetails(t *testing.T) {
 bricks:
 - id: arduino:object_detection
   name: Object Detection
-  require_model: true
   model_name: yolox-object-detection
   category: video
   variables:
@@ -576,7 +575,6 @@ bricks:
   name: Weather Forecast
   category:  "miscellaneous"
   model_name: ""
-  require_model: false
 `
 	tmpDir := t.TempDir()
 	brickYamlPath := filepath.Join(tmpDir, "bricks-list.yaml")
@@ -720,13 +718,11 @@ func TestAppBrickInstancesList(t *testing.T) {
 - id: arduino:weather_forecast
   name: Weather Forecast
   category: miscellaneous
-  require_model: false
   variables: []
 - id: arduino:object_detection
   name: Object Detection
   category: video
   model_name: yolox-object-detection
-  require_model: true
   variables:
   - name: CUSTOM_MODEL_PATH
     default_value: /home/arduino/.arduino-bricks/models
@@ -738,7 +734,6 @@ func TestAppBrickInstancesList(t *testing.T) {
   name: Audio Classification
   category: audio
   model_name: glass-breaking
-  require_model: true
   variables:
   - name: CUSTOM_MODEL_PATH
     default_value: /home/arduino/.arduino-bricks/models
@@ -747,7 +742,6 @@ func TestAppBrickInstancesList(t *testing.T) {
 - id: arduino:streamlit_ui
   name: WebUI - Streamlit
   category: ui
-  require_model: false
   ports:
   - "7000"
   - "8000"
@@ -763,7 +757,6 @@ func TestAppBrickInstancesList(t *testing.T) {
     default_value: /i/am/visible
     hidden: false
 - id: arduino:brick-with-boards
-  require_model: true
   supported_boards:
   - ventunoq
   model_name: face-detection

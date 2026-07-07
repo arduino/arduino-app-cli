@@ -597,7 +597,6 @@ bricks:
     \ images and returns the predicted class label, bounding-boxes and confidence\
     \ score.\nBrick is designed to work with pre-trained models provided by framework\
     \ or with custom object detection models trained on Edge Impulse platform. \n"
-  require_model: true
   ports: []
   category: video
   model_name: yolox-object-detection
@@ -680,7 +679,6 @@ bricks:
     \ images and returns the predicted class label, bounding-boxes and confidence\
     \ score.\nBrick is designed to work with pre-trained models provided by framework\
     \ or with custom object detection models trained on Edge Impulse platform. \n"
-  require_model: true
   category: video
   model_name: yolox-object-detection
   variables:
