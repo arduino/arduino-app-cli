@@ -160,8 +160,9 @@ tasks:
     requires:
       vars: [DEST]
     status:
-      # Skip if the assets for the current version are already present.
+      # Skip only if the assets for the current version are the sole content of DEST.
       - test -d "{{.DEST}}/{{.SEMVER_TAG}}"
+      - test "$(ls -A {{.DEST}} 2>/dev/null | wc -l)" -eq 1
     cmds:
       - |
           set -e
