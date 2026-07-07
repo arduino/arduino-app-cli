@@ -35,11 +35,12 @@ func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.Bri
 		if indexBrick.RequireModel {
 			selectedModel := cmp.Or(appBrick.Model, indexBrick.ModelName)
 			model, err := modelIndex.GetModelByID(ctx, selectedModel)
-			if err != nil {
+			switch {
+			case err != nil:
 				allErrors = errors.Join(allErrors, fmt.Errorf("retrieving model %q for brick %q: %w", selectedModel, appBrick.ID, err))
-			} else if model == nil {
+			case model == nil:
 				allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q not found", selectedModel, appBrick.ID))
-			} else {
+			default:
 				if model.Status != modelsindex.InstalledStatus {
 					allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q is not installed", selectedModel, appBrick.ID))
 				}
