@@ -221,15 +221,13 @@ func (b Brick) GetModelNameByBoard(platform platform.Platform) string {
 }
 
 func (b Brick) isModelRequired(platform platform.Platform) bool {
-	if b.ModelName != "" {
-		return true
-	}
 	for _, mb := range b.ModelByBoard {
 		if mb.Platform == platform.BoardName && mb.Model != "" {
 			return true
 		}
 	}
-	return false
+
+	return b.ModelName != ""
 }
 
 type BrickInstance struct {
