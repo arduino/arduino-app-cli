@@ -24,6 +24,8 @@ jobs:
           go-version-file: go.mod
 
       - name: Run `internal` tests
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: go tool task test:internal
 
   go-test-pkg:
