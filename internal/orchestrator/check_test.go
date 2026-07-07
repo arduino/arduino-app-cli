@@ -42,9 +42,10 @@ func TestValidateAppDescriptorBricks(t *testing.T) {
 				},
 			},
 			{
-				ID:        "arduino:ai-brick",
-				Name:      "Arduino using an ai model",
-				ModelName: "i-am-default-model",
+				ID:           "arduino:ai-brick",
+				Name:         "Arduino using an ai model",
+				RequireModel: true,
+				ModelName:    "i-am-default-model",
 			},
 			{
 				ID:   "arduino:brick-with-hidden-variable",
@@ -228,7 +229,7 @@ bricks:
 			appDescriptor, err := app.ParseDescriptorFile(appYaml)
 			require.NoError(t, err)
 
-			err = checkBricks(appDescriptor, bricksIndex, modelIndex)
+			err = checkBricks(t.Context(), appDescriptor.Bricks, bricksIndex, modelIndex)
 			if tc.expectedError == nil {
 				assert.NoError(t, err, "Expected no validation errors")
 			} else {

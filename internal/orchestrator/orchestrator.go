@@ -106,7 +106,7 @@ func StartApp(
 ) error {
 	bricksIndex = bricksIndex.WithAppBricks(appToStart.LocalBricks)
 
-	if err := checkBricks(appToStart.Descriptor, bricksIndex, modelsIndex); err != nil {
+	if err := checkBricks(ctx, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex); err != nil {
 		return err
 	}
 
