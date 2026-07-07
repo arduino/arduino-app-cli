@@ -772,10 +772,10 @@ func TestLoadResolvesModelNameByBoard(t *testing.T) {
 `
 
 	tests := []struct {
-		name              string
-		boardName         string
-		wantBrickAModel   string
-		wantBrickBModel   string
+		name            string
+		boardName       string
+		wantBrickAModel string
+		wantBrickBModel string
 	}{
 		{
 			name:            "matching platform overrides default",
