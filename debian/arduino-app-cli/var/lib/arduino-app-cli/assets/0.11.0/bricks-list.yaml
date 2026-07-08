@@ -475,7 +475,7 @@ bricks:
   mount_devices_into_container: false
   ports: []
   category: video
-  model_name: gesture_recognition
+  model_name: gesture-recognition
   required_devices:
   - camera
   supported_boards:
