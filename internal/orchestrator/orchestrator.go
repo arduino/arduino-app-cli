@@ -118,12 +118,6 @@ func StartApp(
 	if err != nil {
 		return err
 	}
-	if devices.HasCarrierSoundDevice {
-
-		if err := pipewire.EnsureRunning(ctx); err != nil {
-			return fmt.Errorf("failed to start audio service: %w", err)
-		}
-	}
 
 	if err := checkRequiredDevices(bricksIndex, appToStart.Descriptor.Bricks, devices); err != nil {
 		return err
@@ -162,6 +156,13 @@ func StartApp(
 	}
 
 	cb(StreamMessage{data: fmt.Sprintf("Starting app %q", appToStart.Name)})
+
+	//TODO Pipewire is started if a media-carrier is present we should check also if it's required by the app.
+	if devices.HasCarrierSoundDevice {
+		if err := pipewire.EnsureRunning(ctx); err != nil {
+			return fmt.Errorf("failed to start audio service: %w", err)
+		}
+	}
 
 	if err := setLedsToUserControlledMode(platform); err != nil {
 		slog.Debug("unable to set status leds", slog.String("error", err.Error()))
@@ -295,6 +296,8 @@ func getAppEnvironmentVariables(ctx context.Context, app app.ArduinoApp, brickIn
 			return c.CarrierName
 		})
 		envs["CONFIGURED_CARRIERS"] = strings.Join(carrierNames, ",")
+		//TODO Maybe a better place?
+		envs["XDG_RUNTIME_DIR"] = "/run/user/1000"
 	}
 
 	if hostIP, err := helpers.GetHostIP(); err == nil {
