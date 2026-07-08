@@ -37,6 +37,7 @@ import (
 	linuxconfig "github.com/arduino/arduino-app-cli/internal/orchestrator/linuxConfig"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/pipewire"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -115,6 +116,12 @@ func StartApp(
 	devices, err := peripherals.Detect(ctx)
 	if err != nil {
 		return err
+	}
+	if devices.HasCarrierSoundDevice {
+
+		if err := pipewire.EnsureRunning(ctx); err != nil {
+			return fmt.Errorf("failed to start audio service: %w", err)
+		}
 	}
 
 	if err := checkRequiredDevices(bricksIndex, appToStart.Descriptor.Bricks, devices); err != nil {
@@ -314,6 +321,10 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 
 	if err := restoreLedsState(platform); err != nil {
 		slog.Debug("unable to set status leds", slog.String("error", err.Error()))
+	}
+
+	if err := pipewire.TeardownIfUnneeded(ctx); err != nil {
+		slog.Debug("unable to tear down pipewire", slog.String("error", err.Error()))
 	}
 
 	callbackWriter := NewCallbackWriter(func(line string) {
