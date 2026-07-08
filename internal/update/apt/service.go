@@ -7,11 +7,13 @@ package apt
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"iter"
 	"log/slog"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -75,6 +77,8 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 			eventCB(update.NewErrorEvent(fmt.Errorf("error restarting services after upgrade: %w", err)))
 			return
 		}
+
+		os.Exit(0) // Restart the orchestrator to make sure all services are restarted after the upgrade.
 	}()
 
 	names := f.Map(packages, func(pkg update.PackageInfo) string {
@@ -289,6 +293,11 @@ func restartServices(ctx context.Context) error {
 	}
 	if out, err := needRestartCmd.RunAndCaptureCombinedOutput(ctx); err != nil {
 		return fmt.Errorf("error running needrestart command: %w: %s", err, out)
+	} else {
+		lines := f.Map(bytes.Split(out, []byte("\n")), func(line []byte) string {
+			return string(line)
+		})
+		slog.Debug("needrestart output", slog.String("output", strings.Join(lines, "\n")))
 	}
 	return nil
 }
