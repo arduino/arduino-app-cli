@@ -157,27 +157,61 @@ func TestModelsIndex(t *testing.T) {
 		assert.Equal(t, InstalledStatus, model.Status)
 	})
 
-	t.Run("it loads a not preloaded model with handler", func(t *testing.T) {
-		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
-			// it always return that the model is installed
-			return "{\"event\":\"info\"}\n", 0
-		})
-		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, cli, config.Configuration{})
-		require.NoError(t, err)
+	t.Run("it read the status of the model using the check handler", func(t *testing.T) {
+		t.Run("installed: info event with downloading=false", func(t *testing.T) {
+			cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
+				return "{\"event\":\"info\",\"downloading\":false}\n", 0
+			})
+			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, cli, config.Configuration{})
+			require.NoError(t, err)
 
-		model, err := modelsIndex.GetModelByID(t.Context(), "a-model-not-preloaded-with-handler")
-		require.NoError(t, err)
-		require.NotNil(t, model)
-		assert.Equal(t, &AIModel{
-			ID: "a-model-not-preloaded-with-handler",
-			Deployment: &ModelDeployment{
-				Handler:   "my-handler",
-				PreLoaded: false,
-			},
-			IsBuiltIn: false,
-			Status:    InstalledStatus,
-		}, model)
-		assert.Equal(t, InstalledStatus, model.Status)
+			model, err := modelsIndex.GetModelByID(t.Context(), "a-model-not-preloaded-with-handler")
+			require.NoError(t, err)
+			require.NotNil(t, model)
+			assert.Equal(t, &AIModel{
+				ID: "a-model-not-preloaded-with-handler",
+				Deployment: &ModelDeployment{
+					Handler:   "my-handler",
+					PreLoaded: false,
+				},
+				IsBuiltIn: false,
+				Status:    InstalledStatus,
+			}, model)
+		})
+
+		t.Run("not installed: info event with downloading=true", func(t *testing.T) {
+			cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
+				return "{\"event\":\"info\",\"downloading\":true}\n", 0
+			})
+			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, cli, config.Configuration{})
+			require.NoError(t, err)
+
+			model, err := modelsIndex.GetModelByID(t.Context(), "a-model-not-preloaded-with-handler")
+			require.NoError(t, err)
+			require.NotNil(t, model)
+			assert.Equal(t, &AIModel{
+				ID: "a-model-not-preloaded-with-handler",
+				Deployment: &ModelDeployment{
+					Handler:   "my-handler",
+					PreLoaded: false,
+				},
+				IsBuiltIn: false,
+				Status:    NotInstalledStatus,
+			}, model)
+		})
+
+		t.Run("not installed: error event", func(t *testing.T) {
+			cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
+				return "{\"event\":\"error\",\"description\":\"model not found\"}\n", 1
+			})
+			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, cli, config.Configuration{})
+			require.NoError(t, err)
+
+			model, err := modelsIndex.GetModelByID(t.Context(), "a-model-not-preloaded-with-handler")
+			require.NoError(t, err)
+			require.NotNil(t, model)
+			assert.Equal(t, NotInstalledStatus, model.Status)
+		})
 	})
 
 	t.Run("it get custom model by id", func(t *testing.T) {
