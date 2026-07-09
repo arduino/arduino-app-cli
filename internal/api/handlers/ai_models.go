@@ -31,7 +31,7 @@ type InstallEIModelRequest struct {
 	ImpulseID *int `json:"impulse_id" description:"Edge Impulse impulse ID" example:"1" required:"true"`
 }
 
-func HandleModelsList(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform) http.HandlerFunc {
+func HandleModelsList(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		params := r.URL.Query()
 
@@ -41,19 +41,19 @@ func HandleModelsList(dockerClient command.Cli, modelsIndex *modelsindex.ModelsI
 		}
 		res := orchestrator.AIModelsList(r.Context(), dockerClient.Client(), orchestrator.AIModelsListRequest{
 			FilterByBrickID: brickFilter,
-		}, modelsIndex, cfg, plat)
+		}, modelsIndex, cfg)
 		render.EncodeResponse(w, http.StatusOK, res)
 	}
 }
 
-func HandlerModelByID(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform) http.HandlerFunc {
+func HandlerModelByID(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("modelID")
 		if id == "" {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "id must be set"})
 			return
 		}
-		res, found, err := orchestrator.AIModelDetails(r.Context(), dockerClient.Client(), modelsIndex, id, cfg, plat)
+		res, found, err := orchestrator.AIModelDetails(r.Context(), dockerClient.Client(), modelsIndex, id, cfg)
 		if err != nil {
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: err.Error()})
 			return

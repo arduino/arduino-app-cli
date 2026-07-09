@@ -62,8 +62,8 @@ func NewHTTPRouter(
 	mux.Handle("PUT /v1/system/update/apply", handlers.HandleUpdateApply(updater))
 	mux.Handle("GET /v1/system/resources", handlers.HandleSystemResources(cfg))
 
-	mux.Handle("GET /v1/models", handlers.HandleModelsList(dockerClient, modelsIndex, cfg, platform))
-	mux.Handle("GET /v1/models/{modelID}", handlers.HandlerModelByID(dockerClient, modelsIndex, cfg, platform))
+	mux.Handle("GET /v1/models", handlers.HandleModelsList(dockerClient, modelsIndex, cfg))
+	mux.Handle("GET /v1/models/{modelID}", handlers.HandlerModelByID(dockerClient, modelsIndex, cfg))
 	mux.Handle("PUT /v1/models/ei/projects/{projectID}", handlers.HandleInstallEIModel(cfg, bricksIndex, modelsIndex, dockerClient, platform))
 	mux.Handle("PUT /v1/models/{modelID}", handlers.HandleInstallModel(dockerClient, modelsIndex, cfg, platform))
 	mux.Handle("DELETE /v1/models/{modelID}", handlers.HandlerDeleteModelByID(dockerClient, cfg, modelsIndex, bricksIndex, idProvider, platform))
@@ -85,8 +85,8 @@ func NewHTTPRouter(
 	mux.Handle("DELETE /v1/apps/{appID}/sketch/libraries/{libRef}", handlers.HandleSketchRemoveLibrary(idProvider))
 	mux.Handle("GET /v1/apps/{appID}/sketch/libraries", handlers.HandleSketchListLibraries(idProvider))
 
-	mux.Handle("GET /v1/apps/{appID}/bricks", handlers.HandleAppBrickInstancesList(brickService, idProvider, platform))
-	mux.Handle("GET /v1/apps/{appID}/bricks/{brickID}", handlers.HandleAppBrickInstanceDetails(brickService, idProvider, platform))
+	mux.Handle("GET /v1/apps/{appID}/bricks", handlers.HandleAppBrickInstancesList(brickService, idProvider))
+	mux.Handle("GET /v1/apps/{appID}/bricks/{brickID}", handlers.HandleAppBrickInstanceDetails(brickService, idProvider))
 	mux.Handle("PUT /v1/apps/{appID}/bricks/{brickID}", handlers.HandleBrickCreate(brickService, idProvider))
 	mux.Handle("PATCH /v1/apps/{appID}/bricks/{brickID}", handlers.HandleBrickUpdates(brickService, idProvider))
 	mux.Handle("DELETE /v1/apps/{appID}/bricks/{brickID}", handlers.HandleBrickDelete(brickService, idProvider))
