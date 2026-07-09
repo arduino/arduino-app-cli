@@ -7,7 +7,6 @@ package apt
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -306,10 +305,7 @@ func restartServices(ctx context.Context) error {
 	if out, err := needRestartCmd.RunAndCaptureCombinedOutput(ctx); err != nil {
 		return fmt.Errorf("error running needrestart command: %w: %s", err, out)
 	} else {
-		lines := f.Map(bytes.Split(out, []byte("\n")), func(line []byte) string {
-			return string(line)
-		})
-		slog.Debug("needrestart output", slog.String("output", strings.Join(lines, "\n")))
+		slog.Debug("needrestart output", slog.String("output", string(out)))
 	}
 	return nil
 }
