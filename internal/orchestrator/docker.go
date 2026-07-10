@@ -7,7 +7,6 @@ package orchestrator
 
 import (
 	"fmt"
-	"io"
 	"log/slog"
 	"strings"
 
@@ -70,7 +69,7 @@ func parseDockerImage(image string) (name string, version string) {
 
 // Returns the number of bytes that would be downloaded when pulling the new docker image while the old one is
 // already present locally. It accounts for image layers that are already present locally.
-func GetBytesToDownload(localRefStr string, remoteRefStr string, stdout io.Writer) (int64, error) {
+func GetBytesToDownload(localRefStr string, remoteRefStr string) (int64, error) {
 	localLayers, err := getImageLayers(localRefStr)
 	if err != nil {
 		return 0, err

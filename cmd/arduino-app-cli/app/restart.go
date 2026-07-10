@@ -57,7 +57,6 @@ func restartHandler(ctx context.Context, cfg config.Configuration, app app.Ardui
 		servicelocator.GetServicesIndex(),
 		app,
 		cfg,
-		servicelocator.GetStaticStore(),
 		servicelocator.GetPlatform(),
 		verbose,
 		func(message orchestrator.StreamMessage) {

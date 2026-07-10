@@ -53,7 +53,6 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 					servicelocator.GetServicesIndex(),
 					servicelocator.GetAppIDProvider(),
 					cfg,
-					servicelocator.GetStaticStore(),
 					servicelocator.GetPlatform(),
 				)
 				if err != nil {
@@ -107,7 +106,6 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 			arduino.NewArduinoPlatformUpdater(servicelocator.GetPlatform(), cfg.ArduinoPlatformVersionConstraint),
 		),
 		servicelocator.GetProvisioner(),
-		servicelocator.GetStaticStore(),
 		servicelocator.GetModelsIndex(),
 		servicelocator.GetBricksIndex(),
 		servicelocator.GetServicesIndex(),

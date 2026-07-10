@@ -28,7 +28,7 @@ import (
 )
 
 func ExportAppZip(
-	ctx context.Context,
+	_ context.Context,
 	bricksIndex *bricksindex.BricksIndex,
 	appTarget app.ArduinoApp,
 	includeData bool,

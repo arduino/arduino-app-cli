@@ -262,7 +262,7 @@ func putUpdateRequest(t *testing.T, host string) {
 
 }
 
-func NewSSEClient(ctx context.Context, method, url string) iter.Seq2[Event, error] {
+func NewSSEClient(ctx context.Context, url string) iter.Seq2[Event, error] {
 	return func(yield func(Event, error) bool) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
@@ -337,7 +337,7 @@ func waitForUpgrade(t *testing.T, host string) {
 
 	url := fmt.Sprintf("http://%s/v1/system/update/events", host)
 
-	itr := NewSSEClient(t.Context(), "GET", url)
+	itr := NewSSEClient(t.Context(), url)
 	for event, err := range itr {
 		require.NoError(t, err)
 		t.Logf("Received event: ID=%s, Event=%s, Data=%s\n", event.ID, event.Event, string(event.Data))

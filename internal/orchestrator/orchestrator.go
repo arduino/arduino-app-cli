@@ -39,7 +39,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
-	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
 var (
@@ -99,7 +98,6 @@ func StartApp(
 	servicesIndex *servicesindex.ServicesIndex,
 	appToStart app.ArduinoApp,
 	cfg config.Configuration,
-	staticStore *store.StaticStore,
 	platform platform.Platform,
 	verbose bool,
 	cb func(StreamMessage),
@@ -415,7 +413,6 @@ func RestartApp(
 	servicesIndex *servicesindex.ServicesIndex,
 	appToStart app.ArduinoApp,
 	cfg config.Configuration,
-	staticStore *store.StaticStore,
 	platform platform.Platform,
 	verbose bool,
 	cb func(StreamMessage),
@@ -435,7 +432,7 @@ func RestartApp(
 		}
 	}
 
-	return StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, staticStore, platform, verbose, cb)
+	return StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, platform, verbose, cb)
 }
 
 func StartDefaultApp(
@@ -447,7 +444,6 @@ func StartDefaultApp(
 	servicesIndex *servicesindex.ServicesIndex,
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
-	staticStore *store.StaticStore,
 	platform platform.Platform,
 ) error {
 	app, err := GetDefaultApp(cfg)
@@ -468,7 +464,7 @@ func StartDefaultApp(
 	}
 
 	// TODO: we need to stop all other running app before starting the default app.
-	if err := StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, *app, cfg, staticStore, platform, false, func(sm StreamMessage) {}); err != nil {
+	if err := StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, *app, cfg, platform, false, func(sm StreamMessage) {}); err != nil {
 		return fmt.Errorf("failed to start app: %w", err)
 	}
 
@@ -726,7 +722,7 @@ type CreateAppResponse struct {
 }
 
 func CreateApp(
-	ctx context.Context,
+	_ context.Context,
 	req CreateAppRequest,
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
@@ -772,7 +768,7 @@ type CloneAppResponse struct {
 }
 
 func CloneApp(
-	ctx context.Context,
+	_ context.Context,
 	req CloneAppRequest,
 	idProvider *app.IDProvider,
 	cfg config.Configuration,

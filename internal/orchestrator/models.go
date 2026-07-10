@@ -51,7 +51,7 @@ type AIModelsListRequest struct {
 	FilterByBrickID []string
 }
 
-func AIModelsList(ctx context.Context, cli client.APIClient, req AIModelsListRequest, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration) AIModelsListResult {
+func AIModelsList(ctx context.Context, req AIModelsListRequest, modelsIndex *modelsindex.ModelsIndex) AIModelsListResult {
 	collection := modelsIndex.GetModels(ctx)
 	if len(req.FilterByBrickID) != 0 {
 		collection = slices.DeleteFunc(collection, func(model modelsindex.AIModel) bool {

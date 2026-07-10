@@ -60,7 +60,6 @@ func startHandler(ctx context.Context, cfg config.Configuration, app app.Arduino
 		servicelocator.GetServicesIndex(),
 		app,
 		cfg,
-		servicelocator.GetStaticStore(),
 		servicelocator.GetPlatform(),
 		verbose,
 		func(message orchestrator.StreamMessage) {

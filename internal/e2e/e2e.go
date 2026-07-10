@@ -114,11 +114,11 @@ func FindArduinoAppCLIPath(t *testing.T) *paths.Path {
 // The Environment must be disposed by calling the CleanUp method via defer.
 func CreateEnvForDaemon(t *testing.T, opts ...ArduinoAppCLIOption) *ArduinoAppCLI {
 	cli := NewArduinoAppCLI(t, opts...)
-	_ = cli.StartDaemon(false)
+	_ = cli.StartDaemon()
 	return cli
 }
 
-func (cli *ArduinoAppCLI) StartDaemon(verbose bool) string {
+func (cli *ArduinoAppCLI) StartDaemon() string {
 	args := []string{"daemon", "--port", "6789"}
 	cliProc, err := paths.NewProcessFromPath(cli.convertEnvForExecutils(cli.envVars), cli.path, args...)
 	cli.t.NoError(err)
