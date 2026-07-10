@@ -47,7 +47,7 @@ func NewService(
 	}
 }
 
-func (s *Service) List() (BrickListResult, error) {
+func (s *Service) List() BrickListResult {
 	res := BrickListResult{Bricks: make([]BrickListItem, len(s.bricksIndex.ListBricks()))}
 	for i, brick := range s.bricksIndex.ListBricks() {
 		res.Bricks[i] = BrickListItem{
@@ -60,10 +60,10 @@ func (s *Service) List() (BrickListResult, error) {
 			RequireModel: brick.RequireModel,
 		}
 	}
-	return res, nil
+	return res
 }
 
-func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesResult, error) {
+func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) AppBrickInstancesResult {
 	res := AppBrickInstancesResult{BrickInstances: make([]BrickInstance, len(a.Descriptor.Bricks))}
 	for i, brickInstance := range a.Descriptor.Bricks {
 		brick, found := s.bricksIndex.WithAppBricks(a.LocalBricks).FindBrickByID(brickInstance.ID)
@@ -98,7 +98,7 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) (AppBrickInstancesRes
 		}
 
 	}
-	return res, nil
+	return res
 }
 
 func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (BrickInstance, error) {

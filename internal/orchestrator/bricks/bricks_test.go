@@ -1004,15 +1004,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 				bricksIndex: bIndex,
 				modelsIndex: modelsIdx,
 			}
-			result, err := svc.AppBrickInstancesList(tt.app)
-
-			if tt.expectedError != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.expectedError)
-				return
-			}
-
-			require.NoError(t, err)
+			result := svc.AppBrickInstancesList(tt.app)
 			if tt.validate != nil {
 				tt.validate(t, result)
 			}
