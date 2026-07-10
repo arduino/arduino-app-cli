@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"iter"
 	"net"
@@ -214,7 +215,17 @@ func runSystemUpdate(t *testing.T, containerName string) {
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	err := cmd.Run()
-	require.NoError(t, err, "system update failed")
+	if err != nil {
+		// The apt service SIGTERMs the current process after upgrading the
+		// arduino-app-cli package itself, so exit status 143 (128 + SIGTERM)
+		// is an expected successful outcome for the CLI path.
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 143 {
+			t.Logf("system update exited with SIGTERM (143), treating as success")
+			return
+		}
+		require.NoError(t, err, "system update failed")
+	}
 }
 
 func removeDockerImage(t *testing.T, imageName string) {
