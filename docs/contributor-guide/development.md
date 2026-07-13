@@ -29,13 +29,13 @@ To run Arduino App CLI on the board see the **Running Arduino App CLI on the boa
 
 ## Updating the Python runner version
 
-The python runner assets are no longer tracked in the repo; they're downloaded on demand at `.deb` build time.
+The python runner assets are no longer tracked in the repo; they're downloaded on demand at `.deb` build time and when running e2e tests.
 
 1. Bump `RUNNER_VERSION` in `Taskfile.yml`.
-2. Run `go tool task generate:assets`. It refreshes the tracked e2e testdata under `internal/e2e/daemon/testdata/assets/<version>` and updates `RunnerVersion` in `internal/orchestrator/config/config.go`.
-3. Commit the changes to `Taskfile.yml`, `internal/orchestrator/config/config.go`, and the refreshed testdata folder.
+2. Run `go tool task bump:runner-version`. It updates `RunnerVersion` in `internal/orchestrator/config/config.go` to match.
+3. Commit the changes to `Taskfile.yml` and `internal/orchestrator/config/config.go`.
 
-`build-deb` downloads the runner assets on its own (via `build-deb:download-runner-assets`) and caches by version.
+`build-deb` and `test:internal` download the runner assets on their own (via `download-runner-assets`) and cache them by version.
 
 ## Running Checks
 

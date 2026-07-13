@@ -230,7 +230,7 @@ tasks:
       - adb push ./build/arduino-app-cli_*_arm64.deb /tmp/
       - ./scripts/run-remote-sudo.sh "dpkg -i /tmp/arduino-app-cli*_arm64.deb && needrestart -r a"
 
-  generate:assets:
+  bump:runner-version:
     desc: Update the RunnerVersion constant in config.go to match RUNNER_VERSION.
     vars:
       sed_replacement: s#RunnerVersion = \".*#RunnerVersion = \"{{.RUNNER_VERSION}}\"#
