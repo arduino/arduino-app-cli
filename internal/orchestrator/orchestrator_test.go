@@ -34,14 +34,14 @@ func TestCloneApp(t *testing.T) {
 
 	originalAppID := f.Must(idProvider.ParseID("user:original-app"))
 	originalAppPath := originalAppID.ToPath()
-	r, err := CreateApp(t.Context(), CreateAppRequest{Name: "original-app"}, idProvider, cfg)
+	r, err := CreateApp(CreateAppRequest{Name: "original-app"}, idProvider, cfg)
 	require.NoError(t, err)
 	require.Equal(t, originalAppID, r.ID)
 	require.DirExists(t, originalAppPath.String())
 
 	t.Run("valid clone", func(t *testing.T) {
 		t.Run("without name", func(t *testing.T) {
-			resp, err := CloneApp(t.Context(), CloneAppRequest{FromID: originalAppID}, idProvider, cfg)
+			resp, err := CloneApp(CloneAppRequest{FromID: originalAppID}, idProvider, cfg)
 			require.NoError(t, err)
 			require.Equal(t, f.Must(idProvider.ParseID("user:original-app-copy0")), resp.ID)
 			appDir := cfg.AppsDir().Join("original-app-copy0")
@@ -71,7 +71,7 @@ func TestCloneApp(t *testing.T) {
 			}
 		})
 		t.Run("with name", func(t *testing.T) {
-			resp, err := CloneApp(t.Context(), CloneAppRequest{
+			resp, err := CloneApp(CloneAppRequest{
 				FromID: originalAppID,
 				Name:   new("new-name"),
 			}, idProvider, cfg)
@@ -88,7 +88,7 @@ func TestCloneApp(t *testing.T) {
 			require.Equal(t, "new-name", clonedApp.Name)
 		})
 		t.Run("with icon", func(t *testing.T) {
-			resp, err := CloneApp(t.Context(), CloneAppRequest{
+			resp, err := CloneApp(CloneAppRequest{
 				FromID: originalAppID,
 				Name:   new("with-icon"),
 				Icon:   new("🦄"),
@@ -112,7 +112,7 @@ func TestCloneApp(t *testing.T) {
 			require.NoError(t, baseApp.Join("data").MkdirAll())
 			require.NoError(t, baseApp.Join("app.yaml").WriteFile([]byte("name: app-with-cache")))
 
-			resp, err := CloneApp(t.Context(), CloneAppRequest{FromID: f.Must(idProvider.ParseID("user:app-with-cache"))}, idProvider, cfg)
+			resp, err := CloneApp(CloneAppRequest{FromID: f.Must(idProvider.ParseID("user:app-with-cache"))}, idProvider, cfg)
 			require.NoError(t, err)
 			require.Equal(t, f.Must(idProvider.ParseID("user:app-with-cache-copy0")), resp.ID)
 			appDir := resp.ID.ToPath()
@@ -129,17 +129,17 @@ func TestCloneApp(t *testing.T) {
 
 	t.Run("invalid app", func(t *testing.T) {
 		t.Run("not existing origin", func(t *testing.T) {
-			_, err := CloneApp(t.Context(), CloneAppRequest{FromID: f.Must(idProvider.ParseID("user:not-existing"))}, idProvider, cfg)
+			_, err := CloneApp(CloneAppRequest{FromID: f.Must(idProvider.ParseID("user:not-existing"))}, idProvider, cfg)
 			require.ErrorIs(t, err, ErrAppDoesntExists)
 		})
 		t.Run("missing app yaml", func(t *testing.T) {
 			err := cfg.AppsDir().Join("app-without-yaml").Mkdir()
 			require.NoError(t, err)
-			_, err = CloneApp(t.Context(), CloneAppRequest{FromID: f.Must(idProvider.ParseID("user:app-without-yaml"))}, idProvider, cfg)
+			_, err = CloneApp(CloneAppRequest{FromID: f.Must(idProvider.ParseID("user:app-without-yaml"))}, idProvider, cfg)
 			require.ErrorIs(t, err, app.ErrInvalidApp)
 		})
 		t.Run("name already exists", func(t *testing.T) {
-			_, err = CloneApp(t.Context(), CloneAppRequest{
+			_, err = CloneApp(CloneAppRequest{
 				FromID: originalAppID,
 				Name:   new("original-app"),
 			}, idProvider, cfg)
@@ -153,7 +153,7 @@ func TestEditApp(t *testing.T) {
 	idProvider := app.NewAppIDProvider(cfg, unoQPlatform)
 
 	t.Run("with default", func(t *testing.T) {
-		_, err := CreateApp(t.Context(), CreateAppRequest{Name: "app-default"}, idProvider, cfg)
+		_, err := CreateApp(CreateAppRequest{Name: "app-default"}, idProvider, cfg)
 		require.NoError(t, err)
 		appDir := cfg.AppsDir().Join("app-default")
 
@@ -191,7 +191,7 @@ func TestEditApp(t *testing.T) {
 
 	t.Run("with name", func(t *testing.T) {
 		originalAppName := "original-name"
-		_, err := CreateApp(t.Context(), CreateAppRequest{Name: originalAppName}, idProvider, cfg)
+		_, err := CreateApp(CreateAppRequest{Name: originalAppName}, idProvider, cfg)
 		require.NoError(t, err)
 		appDir := cfg.AppsDir().Join(originalAppName)
 		userApp := f.Must(app.Load(appDir))
@@ -206,7 +206,7 @@ func TestEditApp(t *testing.T) {
 
 		t.Run("already existing name", func(t *testing.T) {
 			existingAppName := "existing-name"
-			_, err := CreateApp(t.Context(), CreateAppRequest{Name: existingAppName}, idProvider, cfg)
+			_, err := CreateApp(CreateAppRequest{Name: existingAppName}, idProvider, cfg)
 			require.NoError(t, err)
 			appDir := cfg.AppsDir().Join(existingAppName)
 			existingApp := f.Must(app.Load(appDir))
@@ -218,7 +218,7 @@ func TestEditApp(t *testing.T) {
 
 	t.Run("with icon and description", func(t *testing.T) {
 		commonAppName := "common-app"
-		_, err := CreateApp(t.Context(), CreateAppRequest{Name: commonAppName}, idProvider, cfg)
+		_, err := CreateApp(CreateAppRequest{Name: commonAppName}, idProvider, cfg)
 		require.NoError(t, err)
 		commonAppDir := cfg.AppsDir().Join(commonAppName)
 		commonApp := f.Must(app.Load(commonAppDir))
@@ -541,7 +541,7 @@ func createApp(
 ) app.ID {
 	t.Helper()
 
-	res, err := CreateApp(t.Context(), CreateAppRequest{
+	res, err := CreateApp(CreateAppRequest{
 		Name: name,
 		Icon: "😃",
 	}, idProvider, cfg)

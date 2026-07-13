@@ -52,7 +52,7 @@ func HandleAppClone(
 			}
 		}
 
-		res, err := orchestrator.CloneApp(r.Context(), orchestrator.CloneAppRequest{
+		res, err := orchestrator.CloneApp(orchestrator.CloneAppRequest{
 			FromID: id,
 			Name:   req.Name,
 			Icon:   req.Icon,

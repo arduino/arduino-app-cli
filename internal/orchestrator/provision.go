@@ -108,7 +108,6 @@ func NewProvision(
 }
 
 func (p *Provision) App(
-	_ context.Context,
 	bricksIndex *bricksindex.BricksIndex,
 	servicesIndex *servicesindex.ServicesIndex,
 	arduinoApp *app.ArduinoApp,

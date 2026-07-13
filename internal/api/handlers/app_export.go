@@ -53,7 +53,7 @@ func HandleAppExport(
 			}
 		}
 
-		zipBytes, fileName, err := orchestrator.ExportAppZip(r.Context(), bricksIndex, appToExport, includeData)
+		zipBytes, fileName, err := orchestrator.ExportAppZip(bricksIndex, appToExport, includeData)
 		if err != nil {
 			slog.Error("failed to export app", "app_id", id.String(), "error", err)
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{

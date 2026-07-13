@@ -45,7 +45,6 @@ func HandleAppCreate(
 		}
 
 		resp, err := orchestrator.CreateApp(
-			r.Context(),
 			orchestrator.CreateAppRequest{
 				Name:        req.Name,
 				Icon:        req.Icon,

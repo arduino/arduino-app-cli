@@ -192,7 +192,7 @@ func StartApp(
 
 		cb(StreamMessage{progress: &Progress{Name: "python provisioning", Progress: provisionStartProgress}})
 
-		if err := provisioner.App(ctx, bricksIndex, servicesIndex, &appToStart, cfg, envs, platform); err != nil {
+		if err := provisioner.App(bricksIndex, servicesIndex, &appToStart, cfg, envs, platform); err != nil {
 			return err
 		}
 
@@ -722,7 +722,6 @@ type CreateAppResponse struct {
 }
 
 func CreateApp(
-	_ context.Context,
 	req CreateAppRequest,
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
@@ -768,7 +767,6 @@ type CloneAppResponse struct {
 }
 
 func CloneApp(
-	_ context.Context,
 	req CloneAppRequest,
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
