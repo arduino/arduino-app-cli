@@ -80,6 +80,10 @@ func NewHTTPRouter(
 	mux.Handle("DELETE /v1/apps/{appID}", handlers.HandleAppDelete(dockerClient, idProvider, platform))
 	mux.Handle("GET /v1/apps/{appID}/export", handlers.HandleAppExport(cfg, idProvider, bricksIndex))
 	mux.Handle("POST /v1/apps/import", handlers.HandleAppImport(cfg, idProvider))
+
+	mux.Handle("GET /v1/apps/{appID}/release", handlers.HandleAppReleaseBuild(bricksIndex, modelsIndex, idProvider, cfg, platform, version))
+	mux.Handle("POST /v1/apps/release/install", handlers.HandleReleaseInstall(dockerClient, cfg, idProvider, bricksIndex, modelsIndex, platform))
+	mux.Handle("POST /v1/apps/{appID}/prepare", handlers.HandleAppReleasePrepare(dockerClient, idProvider))
 	mux.Handle("GET /v1/apps/{appID}/exposed-ports", handlers.HandleAppPorts(bricksIndex, idProvider))
 	mux.Handle("PUT /v1/apps/{appID}/sketch/libraries/{libRef}", handlers.HandleSketchAddLibrary(idProvider))
 	mux.Handle("DELETE /v1/apps/{appID}/sketch/libraries/{libRef}", handlers.HandleSketchRemoveLibrary(idProvider))

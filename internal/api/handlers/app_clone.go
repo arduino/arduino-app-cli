@@ -24,6 +24,10 @@ import (
 type CloneRequest struct {
 	Name *string `json:"name" description:"application name" example:"My Awesome App"`
 	Icon *string `json:"icon" description:"application icon"`
+	// StripFrozenRelease turns a release-installed app back into a live, editable app: the
+	// release manifest and the frozen_release metadata in app.yaml are dropped so the clone is
+	// recompiled and re-provisioned on the next start.
+	StripFrozenRelease bool `json:"strip_release,omitempty" description:"clone a release-installed app as a regular editable app"`
 }
 
 func HandleAppClone(
@@ -56,9 +60,10 @@ func HandleAppClone(
 		}
 
 		res, err := orchestrator.CloneApp(r.Context(), orchestrator.CloneAppRequest{
-			FromID: id,
-			Name:   req.Name,
-			Icon:   req.Icon,
+			FromID:             id,
+			Name:               req.Name,
+			Icon:               req.Icon,
+			StripFrozenRelease: req.StripFrozenRelease,
 		}, idProvider, cfg)
 		if err != nil {
 			if errors.Is(err, orchestrator.ErrAppAlreadyExists) {

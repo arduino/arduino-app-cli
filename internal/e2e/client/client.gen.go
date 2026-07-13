@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // Defines values for ModelStatus.
@@ -310,6 +311,9 @@ type CloneRequest struct {
 
 	// Name application name
 	Name *string `json:"name,omitempty"`
+
+	// StripRelease Clone a release-installed app as a regular editable app (drops the release manifest and the frozen_release metadata in app.yaml, so the clone is recompiled and re-provisioned on the next start).
+	StripRelease *bool `json:"strip_release,omitempty"`
 }
 
 // CodeExample defines model for CodeExample.
@@ -535,6 +539,21 @@ type ImportAppParams struct {
 	File *string `form:"file,omitempty" json:"file,omitempty"`
 }
 
+// InstallAppReleaseMultipartBody defines parameters for InstallAppRelease.
+type InstallAppReleaseMultipartBody struct {
+	// File The .tar.gz Arduino App Release to install.
+	File *openapi_types.File `json:"file,omitempty"`
+}
+
+// InstallAppReleaseParams defines parameters for InstallAppRelease.
+type InstallAppReleaseParams struct {
+	// Force If true, install even if the release targets a different board, and overwrite bundled models that already exist on the destination.
+	Force *bool `form:"force,omitempty" json:"force,omitempty"`
+
+	// Prepare If false, skip pre-pulling the app's container images. Default is true.
+	Prepare *bool `form:"prepare,omitempty" json:"prepare,omitempty"`
+}
+
 // AppSketchRemoveLibraryParams defines parameters for AppSketchRemoveLibrary.
 type AppSketchRemoveLibraryParams struct {
 	// RemoveDeps if set to "true", the library's dependencies will be removed as well if not needed anymore.
@@ -551,6 +570,9 @@ type AppSketchAddLibraryParams struct {
 type ExportAppParams struct {
 	// IncludeData If true, the exported archive will include the 'data' directory. Default is false.
 	IncludeData *bool `form:"include_data,omitempty" json:"include_data,omitempty"`
+
+	// ScrubSecrets If true, replace secret variable values with ${NAME} placeholders (and add a data/secrets.env template) instead of emptying them. Default is false.
+	ScrubSecrets *bool `form:"scrub_secrets,omitempty" json:"scrub_secrets,omitempty"`
 }
 
 // GetAppLogsParams defines parameters for GetAppLogs.
@@ -558,6 +580,18 @@ type GetAppLogsParams struct {
 	Filter   *string `form:"filter,omitempty" json:"filter,omitempty"`
 	Tail     *int    `form:"tail,omitempty" json:"tail,omitempty"`
 	Nofollow *bool   `form:"nofollow,omitempty" json:"nofollow,omitempty"`
+}
+
+// BuildAppReleaseParams defines parameters for BuildAppRelease.
+type BuildAppReleaseParams struct {
+	// Models If false, do not bundle required AI models. Default is true.
+	Models *bool `form:"models,omitempty" json:"models,omitempty"`
+
+	// ReleaseNumber Release number to record in the release manifest. Defaults to the current timestamp (YYYYMMDDhhmmss).
+	ReleaseNumber *string `form:"release_number,omitempty" json:"release_number,omitempty"`
+
+	// KeepSecrets If true, embed secret variable values in the release instead of scrubbing them (sensitive). Default is false.
+	KeepSecrets *bool `form:"keep_secrets,omitempty" json:"keep_secrets,omitempty"`
 }
 
 // StartAppParams defines parameters for StartApp.
@@ -634,6 +668,9 @@ type CreateAppJSONRequestBody = CreateAppRequest
 
 // ImportAppFormdataRequestBody defines body for ImportApp for application/x-www-form-urlencoded ContentType.
 type ImportAppFormdataRequestBody ImportAppFormdataBody
+
+// InstallAppReleaseMultipartRequestBody defines body for InstallAppRelease for multipart/form-data ContentType.
+type InstallAppReleaseMultipartRequestBody InstallAppReleaseMultipartBody
 
 // CreateAppLocalBrickJSONRequestBody defines body for CreateAppLocalBrick for application/json ContentType.
 type CreateAppLocalBrickJSONRequestBody = AppLocalBrickCreateRequest
@@ -748,6 +785,9 @@ type ClientInterface interface {
 
 	ImportAppWithFormdataBody(ctx context.Context, params *ImportAppParams, body ImportAppFormdataRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// InstallAppReleaseWithBody request with any body
+	InstallAppReleaseWithBody(ctx context.Context, params *InstallAppReleaseParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetAppBrickInstances request
 	GetAppBrickInstances(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -813,6 +853,12 @@ type ClientInterface interface {
 
 	// GetAppLogs request
 	GetAppLogs(ctx context.Context, id string, params *GetAppLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PrepareAppRelease request
+	PrepareAppRelease(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// BuildAppRelease request
+	BuildAppRelease(ctx context.Context, id string, params *BuildAppReleaseParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// StartApp request
 	StartApp(ctx context.Context, id string, params *StartAppParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -938,6 +984,18 @@ func (c *Client) ImportAppWithBody(ctx context.Context, params *ImportAppParams,
 
 func (c *Client) ImportAppWithFormdataBody(ctx context.Context, params *ImportAppParams, body ImportAppFormdataRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewImportAppRequestWithFormdataBody(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) InstallAppReleaseWithBody(ctx context.Context, params *InstallAppReleaseParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewInstallAppReleaseRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1226,6 +1284,30 @@ func (c *Client) ExportApp(ctx context.Context, id string, params *ExportAppPara
 
 func (c *Client) GetAppLogs(ctx context.Context, id string, params *GetAppLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAppLogsRequest(c.Server, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PrepareAppRelease(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPrepareAppReleaseRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) BuildAppRelease(ctx context.Context, id string, params *BuildAppReleaseParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewBuildAppReleaseRequest(c.Server, id, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1690,6 +1772,74 @@ func NewImportAppRequestWithBody(server string, params *ImportAppParams, content
 		if params.File != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "file", *params.File, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "base64"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewInstallAppReleaseRequestWithBody generates requests for InstallAppRelease with any type of body
+func NewInstallAppReleaseRequestWithBody(server string, params *InstallAppReleaseParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/apps/release/install")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Force != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "force", *params.Force, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Prepare != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "prepare", *params.Prepare, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -2487,6 +2637,18 @@ func NewExportAppRequest(server string, id string, params *ExportAppParams) (*ht
 
 		}
 
+		if params.ScrubSecrets != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "scrub_secrets", *params.ScrubSecrets, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if encoded := queryValues.Encode(); encoded != "" {
 			rawQueryFragments = append(rawQueryFragments, encoded)
 		}
@@ -2563,6 +2725,125 @@ func NewGetAppLogsRequest(server string, id string, params *GetAppLogsParams) (*
 		if params.Nofollow != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "nofollow", *params.Nofollow, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPrepareAppReleaseRequest generates requests for PrepareAppRelease
+func NewPrepareAppReleaseRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/apps/%s/prepare", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewBuildAppReleaseRequest generates requests for BuildAppRelease
+func NewBuildAppReleaseRequest(server string, id string, params *BuildAppReleaseParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/apps/%s/release", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Models != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "models", *params.Models, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.ReleaseNumber != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "release_number", *params.ReleaseNumber, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.KeepSecrets != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "keep_secrets", *params.KeepSecrets, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -3482,6 +3763,9 @@ type ClientWithResponsesInterface interface {
 
 	ImportAppWithFormdataBodyWithResponse(ctx context.Context, params *ImportAppParams, body ImportAppFormdataRequestBody, reqEditors ...RequestEditorFn) (*ImportAppResp, error)
 
+	// InstallAppReleaseWithBodyWithResponse request with any body
+	InstallAppReleaseWithBodyWithResponse(ctx context.Context, params *InstallAppReleaseParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InstallAppReleaseResp, error)
+
 	// GetAppBrickInstancesWithResponse request
 	GetAppBrickInstancesWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*GetAppBrickInstancesResp, error)
 
@@ -3547,6 +3831,12 @@ type ClientWithResponsesInterface interface {
 
 	// GetAppLogsWithResponse request
 	GetAppLogsWithResponse(ctx context.Context, id string, params *GetAppLogsParams, reqEditors ...RequestEditorFn) (*GetAppLogsResp, error)
+
+	// PrepareAppReleaseWithResponse request
+	PrepareAppReleaseWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*PrepareAppReleaseResp, error)
+
+	// BuildAppReleaseWithResponse request
+	BuildAppReleaseWithResponse(ctx context.Context, id string, params *BuildAppReleaseParams, reqEditors ...RequestEditorFn) (*BuildAppReleaseResp, error)
 
 	// StartAppWithResponse request
 	StartAppWithResponse(ctx context.Context, id string, params *StartAppParams, reqEditors ...RequestEditorFn) (*StartAppResp, error)
@@ -3734,6 +4024,45 @@ func (r ImportAppResp) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ImportAppResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type InstallAppReleaseResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *struct {
+		// AppName The name of the installed application.
+		AppName *string `json:"app_name,omitempty"`
+
+		// Id The Base64 encoded identifier of the installed application.
+		Id *string `json:"id,omitempty"`
+	}
+	JSON400 *BadRequest
+	JSON409 *Conflict
+	JSON500 *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r InstallAppReleaseResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r InstallAppReleaseResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r InstallAppReleaseResp) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -4321,6 +4650,72 @@ func (r GetAppLogsResp) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetAppLogsResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PrepareAppReleaseResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON412      *PreconditionFailed
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r PrepareAppReleaseResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PrepareAppReleaseResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PrepareAppReleaseResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type BuildAppReleaseResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON412      *PreconditionFailed
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r BuildAppReleaseResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r BuildAppReleaseResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r BuildAppReleaseResp) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -4982,6 +5377,15 @@ func (c *ClientWithResponses) ImportAppWithFormdataBodyWithResponse(ctx context.
 	return ParseImportAppResp(rsp)
 }
 
+// InstallAppReleaseWithBodyWithResponse request with arbitrary body returning *InstallAppReleaseResp
+func (c *ClientWithResponses) InstallAppReleaseWithBodyWithResponse(ctx context.Context, params *InstallAppReleaseParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InstallAppReleaseResp, error) {
+	rsp, err := c.InstallAppReleaseWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseInstallAppReleaseResp(rsp)
+}
+
 // GetAppBrickInstancesWithResponse request returning *GetAppBrickInstancesResp
 func (c *ClientWithResponses) GetAppBrickInstancesWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*GetAppBrickInstancesResp, error) {
 	rsp, err := c.GetAppBrickInstances(ctx, appID, reqEditors...)
@@ -5190,6 +5594,24 @@ func (c *ClientWithResponses) GetAppLogsWithResponse(ctx context.Context, id str
 		return nil, err
 	}
 	return ParseGetAppLogsResp(rsp)
+}
+
+// PrepareAppReleaseWithResponse request returning *PrepareAppReleaseResp
+func (c *ClientWithResponses) PrepareAppReleaseWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*PrepareAppReleaseResp, error) {
+	rsp, err := c.PrepareAppRelease(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePrepareAppReleaseResp(rsp)
+}
+
+// BuildAppReleaseWithResponse request returning *BuildAppReleaseResp
+func (c *ClientWithResponses) BuildAppReleaseWithResponse(ctx context.Context, id string, params *BuildAppReleaseParams, reqEditors ...RequestEditorFn) (*BuildAppReleaseResp, error) {
+	rsp, err := c.BuildAppRelease(ctx, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseBuildAppReleaseResp(rsp)
 }
 
 // StartAppWithResponse request returning *StartAppResp
@@ -5502,6 +5924,59 @@ func ParseImportAppResp(rsp *http.Response) (*ImportAppResp, error) {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest struct {
 			// Id The Base64 encoded identifier of the imported application.
+			Id *string `json:"id,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseInstallAppReleaseResp parses an HTTP response from a InstallAppReleaseWithResponse call
+func ParseInstallAppReleaseResp(rsp *http.Response) (*InstallAppReleaseResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &InstallAppReleaseResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest struct {
+			// AppName The name of the installed application.
+			AppName *string `json:"app_name,omitempty"`
+
+			// Id The Base64 encoded identifier of the installed application.
 			Id *string `json:"id,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -6312,6 +6787,100 @@ func ParseGetAppLogsResp(rsp *http.Response) (*GetAppLogsResp, error) {
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePrepareAppReleaseResp parses an HTTP response from a PrepareAppReleaseWithResponse call
+func ParsePrepareAppReleaseResp(rsp *http.Response) (*PrepareAppReleaseResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PrepareAppReleaseResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseBuildAppReleaseResp parses an HTTP response from a BuildAppReleaseWithResponse call
+func ParseBuildAppReleaseResp(rsp *http.Response) (*BuildAppReleaseResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &BuildAppReleaseResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
 		var dest PreconditionFailed

@@ -621,6 +621,14 @@ paths:
           description: If true, the exported archive will include the 'data' directory.
             Default is false.
           type: boolean
+      - description: If true, replace secret variable values with ${NAME} placeholders (and
+          add a data/secrets.env template) instead of emptying them. Default is false.
+        in: query
+        name: scrub_secrets
+        schema:
+          description: If true, replace secret variable values with ${NAME} placeholders (and
+            add a data/secrets.env template) instead of emptying them. Default is false.
+          type: boolean
       responses:
         "200":
           content:
@@ -636,6 +644,62 @@ paths:
         "500":
           $ref: '#/components/responses/InternalServerError'
       summary: Exports an app as ZIP
+      tags:
+      - Application
+  /v1/apps/{id}/release:
+    get:
+      description: Builds a reproducible Arduino App Release (.tar.gz) from a pre-built
+        app and streams it back. The app must have been started at least once; the sketch
+        is not recompiled nor the Python environment provisioned. Required on-disk AI
+        models are bundled unless 'models' is false.
+      operationId: buildAppRelease
+      parameters:
+      - description: application identifier.
+        in: path
+        name: id
+        required: true
+        schema:
+          description: application identifier.
+          type: string
+      - description: If false, do not bundle required AI models. Default is true.
+        in: query
+        name: models
+        schema:
+          description: If false, do not bundle required AI models. Default is true.
+          type: boolean
+      - description: Release number to record in the release manifest. Defaults to the
+          current timestamp (YYYYMMDDhhmmss).
+        in: query
+        name: release_number
+        schema:
+          description: Release number to record in the release manifest. Defaults to the
+            current timestamp (YYYYMMDDhhmmss).
+          type: string
+      - description: If true, embed secret variable values in the release instead of scrubbing
+          them (sensitive). Default is false.
+        in: query
+        name: keep_secrets
+        schema:
+          description: If true, embed secret variable values in the release instead of
+            scrubbing them (sensitive). Default is false.
+          type: boolean
+      responses:
+        "200":
+          content:
+            application/gzip:
+              schema:
+                format: binary
+                type: string
+          description: The .tar.gz Arduino App Release.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "412":
+          $ref: '#/components/responses/PreconditionFailed'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Build and download an Arduino App Release
       tags:
       - Application
   /v1/apps/{id}/logs:
@@ -843,6 +907,90 @@ paths:
         "500":
           $ref: '#/components/responses/InternalServerError'
       summary: Imports an app from ZIP
+      tags:
+      - Application
+  /v1/apps/release/install:
+    post:
+      description: Installs an Arduino App Release (.tar.gz) into the apps directory,
+        ready to be started. Validates board compatibility against the current board
+        unless 'force' is set. Unless 'prepare' is false, it also pre-pulls the app's
+        container images before responding (this blocks until the pull completes); a pull
+        failure does not fail the install.
+      operationId: installAppRelease
+      parameters:
+      - description: If true, install even if the release targets a different board, and
+          overwrite bundled models that already exist on the destination.
+        in: query
+        name: force
+        schema:
+          description: If true, install even if the release targets a different board, and
+            overwrite bundled models that already exist on the destination.
+          type: boolean
+      - description: If false, skip pre-pulling the app's container images. Default is true.
+        in: query
+        name: prepare
+        schema:
+          description: If false, skip pre-pulling the app's container images. Default is true.
+          type: boolean
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                file:
+                  description: The .tar.gz Arduino App Release to install.
+                  format: binary
+                  type: string
+              type: object
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                properties:
+                  app_name:
+                    description: The name of the installed application.
+                    type: string
+                  id:
+                    description: The Base64 encoded identifier of the installed application.
+                    type: string
+                type: object
+          description: Release installed successfully.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Install an Arduino App Release
+      tags:
+      - Application
+  /v1/apps/{id}/prepare:
+    post:
+      description: Pre-pulls the container images the installed app needs (per its compose
+        file) so that a subsequent start finds them locally. The app is not started and no
+        AI models are downloaded; images already present locally are skipped.
+      operationId: prepareAppRelease
+      parameters:
+      - description: application identifier.
+        in: path
+        name: id
+        required: true
+        schema:
+          description: application identifier.
+          type: string
+      responses:
+        "204":
+          description: The container images are present locally.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "412":
+          $ref: '#/components/responses/PreconditionFailed'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Pre-pull an installed app's container images
       tags:
       - Application
   /v1/bricks:
@@ -1750,6 +1898,11 @@ components:
           example: My Awesome App
           nullable: true
           type: string
+        strip_release:
+          description: Clone a release-installed app as a regular editable app (drops the
+            release manifest and the frozen_release metadata in app.yaml, so the clone is recompiled
+            and re-provisioned on the next start).
+          type: boolean
       type: object
     CodeExample:
       properties:
