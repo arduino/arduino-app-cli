@@ -14,8 +14,10 @@ import (
 	"io"
 	"log/slog"
 	"maps"
+	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/docker/cli/cli/command"
@@ -290,6 +292,75 @@ func (m *ModelsIndex) modelInstalled(ctx context.Context, model AIModel, cli cli
 	default:
 		return false, fmt.Errorf("model check returned unexpected event %q for %q", out.Event, model.ID)
 	}
+}
+
+// GetModelLocalArtifacts returns the host filesystem paths (files and/or folders) that
+// make up the given model on disk. It is used to bundle the model into a reproducible
+// package so that nothing model-related needs to be downloaded on the destination.
+//
+// Preloaded models live inside (version-pinned) container images and return nil. Custom
+// models return their self-contained folder. Handler-backed models are located by
+// resolving the handler's bind volumes with the model's deployment variables (e.g.
+// ${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}/${models_repository}), refined to the specific
+// model file when the deployment declares a model_name. Only existing paths located under
+// the custom-models dir are returned (so they can be mapped back on install).
+func (m *ModelsIndex) GetModelLocalArtifacts(model AIModel) []*paths.Path {
+	// Custom (e.g. Edge Impulse) models: a self-contained folder.
+	if model.ModelFolderPath != nil && model.ModelFolderPath.Exist() {
+		return []*paths.Path{model.ModelFolderPath}
+	}
+
+	// Handler-backed internal models: resolve the handler bind volumes.
+	if model.Deployment == nil || model.Deployment.PreLoaded || model.Deployment.Handler == "" || m.Handlers == nil {
+		return nil
+	}
+	handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)
+	if !ok {
+		return nil
+	}
+
+	envVars := model.Deployment.VariablesForPlatform(m.plat.BoardName)
+	maps.Insert(envVars, maps.All(m.Handlers.configEnv))
+
+	// Handler bind volumes resolve via ${ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR}, so artifacts
+	// live under the custom-models dir — which is also where the release restores them and
+	// against which resolveAppModels re-validates them. Filtering against modelsDir (MODELS_PATH)
+	// instead would reject every handler-backed artifact and break `release build`.
+	if m.customModelsDir == nil {
+		return nil
+	}
+	modelsDir := m.customModelsDir.String()
+	seen := make(map[string]struct{})
+	var artifacts []*paths.Path
+	for _, vol := range handler.Volumes {
+		resolved := ResolveVars(vol, envVars)
+		// Volume format is "source:target[:mode]"; the host source has no colon.
+		hostSide := resolved
+		if i := strings.Index(resolved, ":"); i > 0 {
+			hostSide = resolved[:i]
+		}
+		candidate := paths.New(hostSide)
+		// Refine to the specific model file when the handler exposes one, to avoid bundling
+		// sibling models that share the same repository folder.
+		if name := envVars["model_name"]; name != "" {
+			if file := candidate.Join(name); file.Exist() {
+				candidate = file
+			}
+		}
+		if candidate.NotExist() {
+			continue
+		}
+		// Only bundle paths under the custom-models dir so they can be restored back.
+		if rel, err := filepath.Rel(modelsDir, candidate.String()); err != nil || strings.HasPrefix(rel, "..") {
+			continue
+		}
+		if _, dup := seen[candidate.String()]; dup {
+			continue
+		}
+		seen[candidate.String()] = struct{}{}
+		artifacts = append(artifacts, candidate)
+	}
+	return artifacts
 }
 
 func loadInternalModels(dir *paths.Path, handlers *HandlersIndex) ([]AIModel, error) {
