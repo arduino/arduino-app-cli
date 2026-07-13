@@ -6,7 +6,6 @@
 package store
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/arduino/go-paths-helper"
