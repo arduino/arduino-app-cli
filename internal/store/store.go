@@ -27,16 +27,6 @@ func NewStaticStore(baseDir string) *StaticStore {
 		servicesPath: filepath.Join(baseDir, "services")}
 }
 
-func (s *StaticStore) SaveComposeFolderTo(dst string) error {
-	composeFS := s.GetComposeFolder()
-	dstPath := paths.New(dst)
-	_ = dstPath.RemoveAll()
-	if err := composeFS.CopyDirTo(dstPath); err != nil {
-		return fmt.Errorf("failed to copy assets directory: %w", err)
-	}
-	return nil
-}
-
 func (s *StaticStore) GetAssetsFolder() *paths.Path {
 	return s.assetsPath
 }
