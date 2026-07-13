@@ -27,6 +27,7 @@ import (
 func newExportCmd(cfg config.Configuration) *cobra.Command {
 	var includeData bool
 	var override bool
+	var scrubSecrets bool
 
 	cmd := &cobra.Command{
 		Use:   "export app_path [output_path]",
@@ -45,7 +46,7 @@ Use '-' as output_path to write the zip to stdout.`,
 			if len(args) > 1 {
 				outputPath = args[1]
 			}
-			return exportHandler(cmd.Context(), servicelocator.GetBricksIndex(), app, outputPath, includeData, override)
+			return exportHandler(cmd.Context(), servicelocator.GetBricksIndex(), app, outputPath, includeData, override, scrubSecrets)
 		},
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 			if len(args) != 0 {
@@ -59,13 +60,14 @@ Use '-' as output_path to write the zip to stdout.`,
 
 	cmd.Flags().BoolVar(&includeData, "include-data", false, "Include data directory in the archive")
 	cmd.Flags().BoolVar(&override, "overwrite", false, "Overwrite output file if it exists")
+	cmd.Flags().BoolVar(&scrubSecrets, "scrub-secrets", false, "Replace secret values with ${NAME} placeholders (to be provided in data/secrets.env) instead of emptying them")
 
 	return cmd
 }
 
-func exportHandler(ctx context.Context, bricksIndex *bricksindex.BricksIndex, appToExport app.ArduinoApp, outputDest string, includeData bool, override bool) error {
+func exportHandler(ctx context.Context, bricksIndex *bricksindex.BricksIndex, appToExport app.ArduinoApp, outputDest string, includeData bool, override bool, scrubSecrets bool) error {
 
-	zipBytes, originalName, err := orchestrator.ExportAppZip(ctx, bricksIndex, appToExport, includeData)
+	zipBytes, originalName, err := orchestrator.ExportAppZip(ctx, bricksIndex, appToExport, includeData, scrubSecrets)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}

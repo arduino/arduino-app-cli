@@ -32,6 +32,7 @@ func ExportAppZip(
 	bricksIndex *bricksindex.BricksIndex,
 	appTarget app.ArduinoApp,
 	includeData bool,
+	scrubSecrets bool,
 ) ([]byte, string, error) {
 
 	bricksIndex = bricksIndex.WithAppBricks(appTarget.LocalBricks)
@@ -41,14 +42,14 @@ func ExportAppZip(
 		appName = "app-export"
 	}
 	filename := fmt.Sprintf("%s.zip", appName)
-	zipBytes, err := zipAppToBuffer(bricksIndex, appTarget.FullPath.String(), appName, includeData)
+	zipBytes, err := zipAppToBuffer(bricksIndex, appTarget.FullPath.String(), appName, includeData, scrubSecrets)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create zip archive: %w", err)
 	}
 	return zipBytes, filename, nil
 }
 
-func zipAppToBuffer(bricksIndex *bricksindex.BricksIndex, sourcePath string, rootFolderName string, includeData bool) ([]byte, error) {
+func zipAppToBuffer(bricksIndex *bricksindex.BricksIndex, sourcePath string, rootFolderName string, includeData bool, scrubSecrets bool) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	zipWriter := zip.NewWriter(buf)
 
@@ -69,11 +70,17 @@ func zipAppToBuffer(bricksIndex *bricksindex.BricksIndex, sourcePath string, roo
 		return nil, err
 	}
 
+	var requiredSecrets []ReleaseSecret
 	for _, entry := range entries {
 		relPath, err := filepath.Rel(sourcePath, entry.String())
 		if err != nil {
 			zipWriter.Close()
 			return nil, err
+		}
+
+		// When scrubbing, never ship an existing secrets file (it would leak values).
+		if scrubSecrets && filepath.ToSlash(relPath) == "data/secrets.env" {
+			continue
 		}
 
 		info, err := entry.Stat() // follows symlinks
@@ -115,7 +122,13 @@ func zipAppToBuffer(bricksIndex *bricksindex.BricksIndex, sourcePath string, roo
 				zipWriter.Close()
 				return nil, err
 			}
-			redactSecrets(bricksIndex, &desc)
+			if scrubSecrets {
+				// Replace secret values with ${NAME} env placeholders (the importer provides
+				// them in data/secrets.env), instead of silently emptying them.
+				requiredSecrets, _ = scrubAppSecrets(&desc, bricksIndex)
+			} else {
+				redactSecrets(bricksIndex, &desc)
+			}
 			if err := yaml.NewEncoder(writer).Encode(desc); err != nil {
 				zipWriter.Close()
 				return nil, err
@@ -132,6 +145,22 @@ func zipAppToBuffer(bricksIndex *bricksindex.BricksIndex, sourcePath string, roo
 				zipWriter.Close()
 				return nil, copyErr
 			}
+		}
+	}
+
+	// Add a data/secrets.env template so the importer knows which secrets to provide.
+	if scrubSecrets && len(requiredSecrets) > 0 {
+		writer, err := zipWriter.CreateHeader(&zip.FileHeader{
+			Name:   filepath.ToSlash(filepath.Join(rootFolderName, "data", "secrets.env")),
+			Method: zip.Deflate,
+		})
+		if err != nil {
+			zipWriter.Close()
+			return nil, err
+		}
+		if _, err := writer.Write(renderSecretsTemplate(requiredSecrets)); err != nil {
+			zipWriter.Close()
+			return nil, err
 		}
 	}
 
