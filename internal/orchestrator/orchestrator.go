@@ -167,35 +167,66 @@ func StartApp(
 
 	cb(StreamMessage{progress: &Progress{Name: "preparing", Progress: 0.0}})
 
+	// A release-installed app ships a prebuilt sketch binary and a frozen, already-localized
+	// compose: it must not be recompiled nor re-provisioned. A regular app is compiled and
+	// provisioned as usual. Everything else (containers, env, docker compose up) is shared.
+	frozenRelease := appToStart.IsFrozenRelease()
+
 	if _, ok := appToStart.GetSketchPath(); ok {
-		cb(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}})
+		if frozenRelease {
+			cb(StreamMessage{progress: &Progress{Name: "uploading prebuilt sketch", Progress: 0.0}})
+			if err := uploadPrebuiltSketch(ctx, platform, appToStart, sketchCallbackWriter); err != nil {
+				return err
+			}
+			cb(StreamMessage{progress: &Progress{Name: "sketch uploaded", Progress: 10.0}})
+		} else {
+			cb(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}})
 
-		if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, appToStart); err != nil {
-			cb(StreamMessage{data: "Failed to apply app migration for platform arduino:zephyr >0.54.1. Error: " + err.Error()})
-		} else if ok {
-			cb(StreamMessage{data: "Applied app migration for platform arduino:zephyr >0.54.1. Arduino_RouterBridge is now part of the platform and shouldn't be explicitly specified"})
+			if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, appToStart); err != nil {
+				cb(StreamMessage{data: "Failed to apply app migration for platform arduino:zephyr >0.54.1. Error: " + err.Error()})
+			} else if ok {
+				cb(StreamMessage{data: "Applied app migration for platform arduino:zephyr >0.54.1. Arduino_RouterBridge is now part of the platform and shouldn't be explicitly specified"})
+			}
+
+			if err := compileUploadSketch(ctx, verbose, platform, appToStart, sketchCallbackWriter); err != nil {
+				return err
+			}
+
+			cb(StreamMessage{progress: &Progress{Name: "sketch updated", Progress: 10.0}})
 		}
-
-		if err := compileUploadSketch(ctx, verbose, platform, appToStart, sketchCallbackWriter); err != nil {
-			return err
-		}
-
-		cb(StreamMessage{progress: &Progress{Name: "sketch updated", Progress: 10.0}})
 	}
 
 	if appToStart.MainPythonFile != nil {
 		envs := getAppEnvironmentVariables(ctx, appToStart, bricksIndex, modelsIndex, platform, cfg)
 
-		cb(StreamMessage{data: "python provisioning"})
+		// Resolve any scrubbed secrets (${NAME} placeholders) from data/secrets.env and fail
+		// early (with a clear message) if a required secret is missing. This applies to any
+		// app whose secret variables were scrubbed — frozen releases and scrubbed exports
+		// alike; it is a no-op for apps with no secret placeholders.
+		missing, err := applyReleaseSecrets(appToStart, envs)
+		if err != nil {
+			return err
+		}
+		if len(missing) > 0 {
+			return fmt.Errorf("missing required secret(s) %s: set them in %s",
+				strings.Join(missing, ", "), appToStart.SecretsEnvFilePath())
+		}
+
 		provisionStartProgress := float32(0.0)
 		if _, ok := appToStart.GetSketchPath(); ok {
 			provisionStartProgress = 10.0
 		}
 
-		cb(StreamMessage{progress: &Progress{Name: "python provisioning", Progress: provisionStartProgress}})
+		if frozenRelease {
+			// Compose is already on disk and version-pinned; nothing to provision.
+			cb(StreamMessage{progress: &Progress{Name: "python provisioning", Progress: provisionStartProgress}})
+		} else {
+			cb(StreamMessage{data: "python provisioning"})
+			cb(StreamMessage{progress: &Progress{Name: "python provisioning", Progress: provisionStartProgress}})
 
-		if err := provisioner.App(ctx, bricksIndex, servicesIndex, &appToStart, cfg, envs, platform); err != nil {
-			return err
+			if err := provisioner.App(ctx, bricksIndex, servicesIndex, &appToStart, cfg, envs, platform); err != nil {
+				return err
+			}
 		}
 
 		cb(StreamMessage{data: "python downloading"})
@@ -765,6 +796,11 @@ type CloneAppRequest struct {
 
 	Name *string
 	Icon *string
+	// StripFrozenRelease turns a release-installed app back into a live, editable app: it omits
+	// the release manifest and clears the frozen_release metadata from app.yaml. Combined with
+	// the normal exclusion of the .cache folder, the clone has no prebuilt artifacts and will
+	// be compiled and provisioned again on the next start.
+	StripFrozenRelease bool
 }
 
 type CloneAppResponse struct {
@@ -811,7 +847,12 @@ func CloneApp(
 		}
 	}()
 
-	list, err := originPath.ReadDir(paths.FilterOutNames(".cache", "data"))
+	excluded := []string{".cache", "data"}
+	if req.StripFrozenRelease {
+		// Drop the release manifest so the clone is no longer recognized as a release.
+		excluded = append(excluded, ReleaseManifestFileName)
+	}
+	list, err := originPath.ReadDir(paths.FilterOutNames(excluded...))
 	if err != nil {
 		return CloneAppResponse{}, fmt.Errorf("failed to read app directory: %w", err)
 	}
@@ -827,7 +868,7 @@ func CloneApp(
 		}
 	}
 
-	if (req.Name != nil && *req.Name != "") || (req.Icon != nil && *req.Icon != "") {
+	if (req.Name != nil && *req.Name != "") || (req.Icon != nil && *req.Icon != "") || req.StripFrozenRelease {
 
 		appYamlPath := dstPath.Join("app.yaml")
 		if !appYamlPath.Exist() {
@@ -842,6 +883,10 @@ func CloneApp(
 		}
 		if req.Icon != nil && *req.Icon != "" {
 			descriptor.Icon = *req.Icon
+		}
+		if req.StripFrozenRelease {
+			// Clear the frozen-release marker so the clone runs as a regular (recompiled) app.
+			descriptor.FrozenRelease = nil
 		}
 
 		// TODO: implement MarshalYaml directly in the descriptor.
