@@ -19,7 +19,6 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
-	"github.com/docker/docker/client"
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
@@ -82,7 +81,7 @@ func AIModelsList(ctx context.Context, req AIModelsListRequest, modelsIndex *mod
 	return AIModelsListResult{Models: items}
 }
 
-func AIModelDetails(ctx context.Context, _ client.APIClient, modelsIndex *modelsindex.ModelsIndex, id string, _ config.Configuration) (AIModelItem, bool, error) {
+func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, id string) (AIModelItem, bool, error) {
 
 	model, err := modelsIndex.GetModelByID(ctx, id)
 	if err != nil {

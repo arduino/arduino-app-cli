@@ -46,14 +46,14 @@ func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	}
 }
 
-func HandlerModelByID(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration) http.HandlerFunc {
+func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("modelID")
 		if id == "" {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "id must be set"})
 			return
 		}
-		res, found, err := orchestrator.AIModelDetails(r.Context(), dockerClient.Client(), modelsIndex, id, cfg)
+		res, found, err := orchestrator.AIModelDetails(r.Context(), modelsIndex, id)
 		if err != nil {
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: err.Error()})
 			return

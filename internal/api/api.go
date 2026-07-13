@@ -61,7 +61,7 @@ func NewHTTPRouter(
 	mux.Handle("GET /v1/system/resources", handlers.HandleSystemResources(cfg))
 
 	mux.Handle("GET /v1/models", handlers.HandleModelsList(modelsIndex))
-	mux.Handle("GET /v1/models/{modelID}", handlers.HandlerModelByID(dockerClient, modelsIndex, cfg))
+	mux.Handle("GET /v1/models/{modelID}", handlers.HandlerModelByID(modelsIndex))
 	mux.Handle("PUT /v1/models/ei/projects/{projectID}", handlers.HandleInstallEIModel(cfg, bricksIndex, modelsIndex, dockerClient, platform))
 	mux.Handle("PUT /v1/models/{modelID}", handlers.HandleInstallModel(dockerClient, modelsIndex, platform))
 	mux.Handle("DELETE /v1/models/{modelID}", handlers.HandlerDeleteModelByID(dockerClient, cfg, modelsIndex, bricksIndex, idProvider, platform))
