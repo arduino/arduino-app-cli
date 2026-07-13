@@ -440,9 +440,9 @@ bricks:
   name: Compatible Brick
   description: A brick compatible with the selected board
 `)
-	require.NoError(t, cfg.AssetsDir().MkdirAll())
-	require.NoError(t, cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent))
-	idx, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
+	require.NoError(t, cfg.AssetDir().MkdirAll())
+	require.NoError(t, cfg.AssetDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent))
+	idx, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetDir())
 	require.NoError(t, err)
 
 	t.Run("compatible example is listed", func(t *testing.T) {
@@ -506,9 +506,9 @@ func TestListAppsLocalBricksCompatibility(t *testing.T) {
 
 	// Build a bricks index with no built-in bricks (empty)
 	bricksIndexContent := []byte("bricks: []\n")
-	require.NoError(t, cfg.AssetsDir().MkdirAll())
-	require.NoError(t, cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent))
-	idx, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
+	require.NoError(t, cfg.AssetDir().MkdirAll())
+	require.NoError(t, cfg.AssetDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent))
+	idx, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetDir())
 	require.NoError(t, err)
 
 	t.Run("example with only local bricks is listed even when index is empty", func(t *testing.T) {
@@ -608,9 +608,9 @@ bricks:
     default_value: /models/ootb/ei/yolo-x-nano.eim
     description: path to the model file
 `)
-	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
+	err = cfg.AssetDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
-	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetDir())
 	assert.NoError(t, err)
 
 	modelsIndexContent := []byte(`
@@ -628,9 +628,9 @@ models:
     - id: arduino:object_detection
     - id: arduino:video_object_detection
 `)
-	err = cfg.AssetsDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
+	err = cfg.AssetDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
 	require.NoError(t, err)
-	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetsDir(), cfg.ModelsDir(), cfg.CustomModelsDir(), nil, config.Configuration{})
+	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetDir(), cfg.ModelsDir(), cfg.CustomModelsDir(), nil, config.Configuration{})
 	require.NoError(t, err)
 
 	env := getAppEnvironmentVariables(t.Context(), appDesc, bricksIndex, modelIndex, platform.Platform{}, cfg)
@@ -689,9 +689,9 @@ bricks:
     default_value: /models/ootb/ei/yolo-x-nano.eim
     description: path to the model file
 `)
-	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
+	err = cfg.AssetDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
-	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetDir())
 	assert.NoError(t, err)
 
 	modelsIndexContent := []byte(`
@@ -709,9 +709,9 @@ models:
     - id: arduino:object_detection
     - id: arduino:video_object_detection
 `)
-	err = cfg.AssetsDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
+	err = cfg.AssetDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
 	require.NoError(t, err)
-	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetsDir(), cfg.ModelsDir(), cfg.CustomModelsDir(), nil, config.Configuration{})
+	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetDir(), cfg.ModelsDir(), cfg.CustomModelsDir(), nil, config.Configuration{})
 	require.NoError(t, err)
 
 	env := getAppEnvironmentVariables(t.Context(), appDesc, bricksIndex, modelIndex, platform.Platform{}, cfg)
@@ -776,9 +776,9 @@ bricks:
         default_value: /default/video/value
 
   `)
-	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
+	err = cfg.AssetDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
-	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetDir())
 	assert.NoError(t, err)
 
 	modelsIndexContent := []byte(`
@@ -792,9 +792,9 @@ models:
           model_configuration:
             EI_V_OBJ_DETECTION_MODEL: "/models/path/video.eim"
 `)
-	err = cfg.AssetsDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
+	err = cfg.AssetDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
 	require.NoError(t, err)
-	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetsDir(), cfg.ModelsDir(), cfg.CustomModelsDir(), nil, config.Configuration{})
+	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetDir(), cfg.ModelsDir(), cfg.CustomModelsDir(), nil, config.Configuration{})
 	require.NoError(t, err)
 
 	env := getAppEnvironmentVariables(t.Context(), appDesc, bricksIndex, modelIndex, platform.Platform{}, cfg)

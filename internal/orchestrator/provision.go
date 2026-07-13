@@ -69,10 +69,6 @@ type Provision struct {
 	pythonImage string
 }
 
-func isDevelopmentMode(cfg config.Configuration) bool {
-	return cfg.RunnerVersion != cfg.UsedPythonImageTag
-}
-
 func NewProvision(
 	docker command.Cli,
 	cfg config.Configuration,
@@ -82,10 +78,10 @@ func NewProvision(
 		pythonImage: cfg.PythonImage,
 	}
 
-	dynamicProvisionDir := cfg.AssetsDir().Join(cfg.UsedPythonImageTag)
+	dynamicProvisionDir := cfg.AssetDir()
 
 	// In development mode we want to make sure everything is fresh.
-	if isDevelopmentMode(cfg) {
+	if cfg.IsDevelopmentMode() {
 		_ = dynamicProvisionDir.RemoveAll()
 	}
 
@@ -93,7 +89,7 @@ func NewProvision(
 		return provision, nil
 	}
 
-	tmpProvisionDir, err := cfg.AssetsDir().MkTempDir("dynamic-provisioning")
+	tmpProvisionDir, err := cfg.MkTempAssetDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform creation of dynamic provisioning dir: %w", err)
 	}

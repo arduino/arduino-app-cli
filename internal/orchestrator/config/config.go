@@ -30,9 +30,10 @@ type Configuration struct {
 	requiredRuntimes                 []string
 	customModelsDir                  *paths.Path
 	modelsDir                        *paths.Path
+	assetDir                         *paths.Path
 	dockerRegistryBase               string
 	PythonImage                      string
-	UsedPythonImageTag               string
+	usedPythonImageTag               string
 	RunnerVersion                    string
 	AllowRoot                        bool
 	LibrariesAPIURL                  *url.URL
@@ -100,6 +101,8 @@ func NewFromEnv() (Configuration, error) {
 	pythonImage, usedPythonImageTag := getPythonImageAndTag(registryBase)
 	slog.Debug("Using pythonImage", slog.String("image", pythonImage))
 
+	assetsDir := dataDir.Join("assets").Join(usedPythonImageTag)
+
 	allowRoot, err := strconv.ParseBool(os.Getenv("ARDUINO_APP_CLI__ALLOW_ROOT"))
 	if err != nil {
 		allowRoot = false
@@ -138,9 +141,10 @@ func NewFromEnv() (Configuration, error) {
 		requiredRuntimes:                 requiredRuntimes,
 		customModelsDir:                  customModelsDir,
 		modelsDir:                        modelsDir,
+		assetDir:                         assetsDir,
 		dockerRegistryBase:               registryBase,
 		PythonImage:                      pythonImage,
-		UsedPythonImageTag:               usedPythonImageTag,
+		usedPythonImageTag:               usedPythonImageTag,
 		RunnerVersion:                    RunnerVersion,
 		AllowRoot:                        allowRoot,
 		LibrariesAPIURL:                  parsedLibrariesURL,
@@ -160,7 +164,7 @@ func (c *Configuration) init() error {
 	if err := c.examplesDir().Join("common").MkdirAll(); err != nil {
 		return err
 	}
-	if err := c.AssetsDir().MkdirAll(); err != nil {
+	if err := c.AssetDir().MkdirAll(); err != nil {
 		return err
 	}
 	if err := c.ModelsDir().MkdirAll(); err != nil {
@@ -216,8 +220,16 @@ func (c *Configuration) RequiredRuntimesPaths() paths.PathList {
 	return result
 }
 
-func (c *Configuration) AssetsDir() *paths.Path {
-	return c.dataDir.Join("assets")
+// func (c *Configuration) AssetsDir() *paths.Path {
+// 	return c.dataDir.Join("assets")
+// }
+
+func (c *Configuration) AssetDir() *paths.Path {
+	return c.assetDir
+}
+
+func (c *Configuration) MkTempAssetDir() (*paths.Path, error) {
+	return c.assetDir.Parent().MkTempDir("dynamic-provisioning")
 }
 
 func (c *Configuration) CustomModelsDir() *paths.Path {
@@ -230,6 +242,10 @@ func (c *Configuration) ModelsDir() *paths.Path {
 
 func (c *Configuration) DockerRegistryBase() string {
 	return c.dockerRegistryBase
+}
+
+func (c *Configuration) IsDevelopmentMode() bool {
+	return c.RunnerVersion != c.usedPythonImageTag
 }
 
 func getDockerRegistryBase() string {
