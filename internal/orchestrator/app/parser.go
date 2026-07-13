@@ -23,23 +23,33 @@ type Brick struct {
 	Devices   []string          `yaml:"devices,omitempty"`
 }
 
+// FrozenReleaseInfo marks an app as installed from an Arduino App Release and records its
+// release number. Its presence tells the run command to launch the app as a frozen release
+// (prebuilt sketch + frozen compose) rather than recompiling/re-provisioning it.
+type FrozenReleaseInfo struct {
+	Number string `yaml:"number"`
+}
+
 type AppDescriptor struct {
 	Name        string  `yaml:"name"`
 	Description string  `yaml:"description"`
 	Ports       []int   `yaml:"ports"`
 	Bricks      []Brick `yaml:"bricks"`
 	Icon        string  `yaml:"icon,omitempty"`
+	// FrozenRelease is set when the app was installed from an Arduino App Release.
+	FrozenRelease *FrozenReleaseInfo `yaml:"frozen_release,omitempty"`
 	// Deprecated: Use the RequiredDevices section defined per Brick instead.
 	RequiredDevices []string `yaml:"required_devices,omitempty"`
 }
 
 func (d AppDescriptor) MarshalYAML() (any, error) {
 	type raw struct {
-		Name        string             `yaml:"name"`
-		Description string             `yaml:"description"`
-		Ports       []int              `yaml:"ports"`
-		Bricks      []map[string]Brick `yaml:"bricks"`
-		Icon        string             `yaml:"icon,omitempty"`
+		Name          string             `yaml:"name"`
+		Description   string             `yaml:"description"`
+		Ports         []int              `yaml:"ports"`
+		Bricks        []map[string]Brick `yaml:"bricks"`
+		Icon          string             `yaml:"icon,omitempty"`
+		FrozenRelease *FrozenReleaseInfo `yaml:"frozen_release,omitempty"`
 		// Deprecated: Use the RequiredDevices section defined per Brick instead.
 		RequiredDevices []string `yaml:"required_devices,omitempty"`
 	}
@@ -54,6 +64,7 @@ func (d AppDescriptor) MarshalYAML() (any, error) {
 		Ports:           d.Ports,
 		Bricks:          bricks,
 		Icon:            d.Icon,
+		FrozenRelease:   d.FrozenRelease,
 		RequiredDevices: d.RequiredDevices,
 	}, nil
 }

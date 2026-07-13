@@ -175,6 +175,44 @@ func (a *ArduinoApp) AppComposeOverrideFilePath() *paths.Path {
 	return a.ProvisioningStateDir().Join("app-compose-overrides.yaml")
 }
 
+// ReleaseComposeFilePath returns the path to the flattened, version-pinned compose file
+// produced by `release build` (staged inside the release archive). Unlike
+// AppComposeFilePath, this file is self-contained (no external includes) and uses
+// ${APP_HOME}/${HOST_IP} placeholders instead of host-absolute paths, so it can be moved
+// between machines; on install it is localized into AppComposeFilePath.
+func (a *ArduinoApp) ReleaseComposeFilePath() *paths.Path {
+	return a.ProvisioningStateDir().Join("release-compose.yaml")
+}
+
+// ReleaseManifestPath returns the path to the release manifest file. Its presence (together
+// with the app.yaml frozen_release marker) indicates an app installed from a release.
+func (a *ArduinoApp) ReleaseManifestPath() *paths.Path {
+	return a.FullPath.Join("arduino-app-release.yaml")
+}
+
+// IsFrozenRelease reports whether the app was installed from an Arduino App Release. When
+// true, the run command launches it as a frozen release (flashing the prebuilt sketch and
+// using the frozen compose) instead of recompiling/re-provisioning. The signal is the
+// frozen_release metadata in app.yaml, written at install time.
+func (a *ArduinoApp) IsFrozenRelease() bool {
+	return a.Descriptor.FrozenRelease != nil
+}
+
+// ReleaseNumber returns the release number when the app is a frozen release, or "".
+func (a *ArduinoApp) ReleaseNumber() string {
+	if a.Descriptor.FrozenRelease == nil {
+		return ""
+	}
+	return a.Descriptor.FrozenRelease.Number
+}
+
+// SecretsEnvFilePath returns the path to the per-app secrets file. It lives inside the
+// reserved data/ folder so it is never included when the app is released or exported. The
+// user fills it in on the destination to provide the secret values the app needs.
+func (a *ArduinoApp) SecretsEnvFilePath() *paths.Path {
+	return a.FullPath.Join("data", "secrets.env")
+}
+
 func (a *ArduinoApp) getAppDescriptionFromReadme() (string, error) {
 	readmePath := a.FullPath.Join("README.md")
 	if !readmePath.Exist() {
