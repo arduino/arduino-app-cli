@@ -32,8 +32,8 @@ type Configuration struct {
 	modelsDir                        *paths.Path
 	assetDir                         *paths.Path
 	dockerRegistryBase               string
-	PythonImage                      string
 	usedPythonImageTag               string
+	PythonImage                      string
 	RunnerVersion                    string
 	AllowRoot                        bool
 	LibrariesAPIURL                  *url.URL
@@ -219,10 +219,6 @@ func (c *Configuration) RequiredRuntimesPaths() paths.PathList {
 	}
 	return result
 }
-
-// func (c *Configuration) AssetsDir() *paths.Path {
-// 	return c.dataDir.Join("assets")
-// }
 
 func (c *Configuration) AssetDir() *paths.Path {
 	return c.assetDir
