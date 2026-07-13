@@ -154,9 +154,9 @@ tasks:
     desc: "Downloads the python runner assets into the given DEST directory"
     vars:
       SEMVER_TAG: "{{.RUNNER_VERSION}}"
-      TMPDIR: '{{trimSuffix "/" (env "TMPDIR")| default "/tmp"}}/runner-assets'
-      OUTPUT_DIR: "{{.TMPDIR}}/{{.RUNNER_VERSION}}"
       DEST: "{{.DEST}}"
+      TMPDIR:
+        sh: mktemp -d
     requires:
       vars: [DEST]
     status:
@@ -164,15 +164,15 @@ tasks:
       - test -d "{{.DEST}}/{{.SEMVER_TAG}}"
       - test "$(ls -A {{.DEST}} 2>/dev/null | wc -l)" -eq 1
     cmds:
+      - defer: rm -rf "{{.TMPDIR}}"
       - |
           set -e
           echo "Runner version set as: {{ .RUNNER_VERSION }}"
           gh release download -R arduino/app-bricks-py "release/{{.SEMVER_TAG}}" -p '*.whl' -D "{{.TMPDIR}}" --clobber
-          unzip -o "{{.TMPDIR}}/arduino_app_bricks-{{.SEMVER_TAG}}-py3-none-any.whl" -d "{{.OUTPUT_DIR}}"
+          unzip -o "{{.TMPDIR}}/arduino_app_bricks-{{.SEMVER_TAG}}-py3-none-any.whl" -d "{{.TMPDIR}}/extract"
           # Wipe any previous versions so the destination contains exactly one.
           rm -rf "{{.DEST}}" && mkdir -p "{{.DEST}}"
-          cp -r "{{.OUTPUT_DIR}}/arduino/app_bricks/static" "{{.DEST}}/{{.SEMVER_TAG}}"
-          rm -rf "{{.TMPDIR}}"
+          cp -r "{{.TMPDIR}}/extract/arduino/app_bricks/static" "{{.DEST}}/{{.SEMVER_TAG}}"
           echo "Runner assets successfully downloaded to {{.DEST}}."
     silent: false
 
