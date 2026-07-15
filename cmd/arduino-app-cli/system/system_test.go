@@ -6,8 +6,11 @@
 package system
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
+	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 )
 
@@ -22,9 +25,9 @@ func TestThrottleProgress(t *testing.T) {
 		return orchestrator.InitEvent{Type: orchestrator.InitLogEvent, Message: msg}
 	}
 
-	var got []orchestrator.InitEvent
-	cb := throttleProgress(func(e orchestrator.InitEvent) {
-		got = append(got, e)
+	var got []initEvent
+	cb := throttleProgress(func(e *initEvent) {
+		got = append(got, *e)
 	})
 
 	// Sequence: same integer percentage is collapsed; each new integer step and
@@ -38,13 +41,13 @@ func TestThrottleProgress(t *testing.T) {
 	cb(progress("other", 5, 100)) // 5%  -> forwarded (different label tracked separately)
 	cb(logEvt("done"))            //     -> forwarded
 
-	want := []orchestrator.InitEvent{
-		progress("img", 0, 100),
-		progress("img", 4, 100),
-		logEvt("hello"),
-		progress("img", 5, 100),
-		progress("other", 5, 100),
-		logEvt("done"),
+	want := []initEvent{
+		*newInitEvent(progress("img", 0, 100)),
+		*newInitEvent(progress("img", 4, 100)),
+		*newInitEvent(logEvt("hello")),
+		*newInitEvent(progress("img", 5, 100)),
+		*newInitEvent(progress("other", 5, 100)),
+		*newInitEvent(logEvt("done")),
 	}
 
 	if len(got) != len(want) {
@@ -54,5 +57,102 @@ func TestThrottleProgress(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("event %d = %+v, want %+v", i, got[i], want[i])
 		}
+	}
+}
+
+// The rendering of a result stream per output format is covered in the feedback
+// package, here we only check that the events reach the stream, throttled.
+func TestNewInitEventCallback(t *testing.T) {
+	var got []feedback.Result
+	cb := newInitEventCallback(func(res feedback.Result) {
+		got = append(got, res)
+	})
+
+	cb(orchestrator.InitEvent{Type: orchestrator.InitLogEvent, Message: "pulling image"})
+	cb(orchestrator.InitEvent{
+		Type:     orchestrator.InitProgressEvent,
+		Progress: orchestrator.InitProgress{Label: "img", Curr: 25, Total: 50},
+	})
+	// Same integer percentage as the previous event, dropped by the throttle.
+	cb(orchestrator.InitEvent{
+		Type:     orchestrator.InitProgressEvent,
+		Progress: orchestrator.InitProgress{Label: "img", Curr: 250, Total: 500},
+	})
+
+	want := []string{"pulling image", "img: 50%"}
+	if len(got) != len(want) {
+		t.Fatalf("got %d results, want %d: %+v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i].String() != want[i] {
+			t.Errorf("result %d = %q, want %q", i, got[i].String(), want[i])
+		}
+	}
+}
+
+func TestInitEventJSON(t *testing.T) {
+	tests := []struct {
+		name  string
+		event orchestrator.InitEvent
+		want  string
+	}{
+		{
+			name:  "log event",
+			event: orchestrator.InitEvent{Type: orchestrator.InitLogEvent, Message: "pulling image"},
+			want:  `{"type":"log","message":"pulling image"}`,
+		},
+		{
+			name: "progress event",
+			event: orchestrator.InitEvent{
+				Type:     orchestrator.InitProgressEvent,
+				Progress: orchestrator.InitProgress{Label: "img", Curr: 25, Total: 50},
+			},
+			want: `{"type":"progress","label":"img","current":25,"total":50,"percent":50}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Each event must serialize to a single line, so that the JSON output
+			// is a stream of JSON lines, one object per event.
+			d, err := json.Marshal(newInitEvent(tt.event).Data())
+			if err != nil {
+				t.Fatalf("Marshal() error = %v", err)
+			}
+			if got := string(d); got != tt.want {
+				t.Errorf("Data() = %s, want %s", got, tt.want)
+			}
+			if strings.Contains(string(d), "\n") {
+				t.Errorf("Data() spans multiple lines: %s", d)
+			}
+		})
+	}
+}
+
+func TestInitEventString(t *testing.T) {
+	tests := []struct {
+		name  string
+		event orchestrator.InitEvent
+		want  string
+	}{
+		{
+			name:  "log event renders its message",
+			event: orchestrator.InitEvent{Type: orchestrator.InitLogEvent, Message: "pulling image"},
+			want:  "pulling image",
+		},
+		{
+			name: "progress event renders label and percentage",
+			event: orchestrator.InitEvent{
+				Type:     orchestrator.InitProgressEvent,
+				Progress: orchestrator.InitProgress{Label: "img", Curr: 25, Total: 50},
+			},
+			want: "img: 50%",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := newInitEvent(tt.event).String(); got != tt.want {
+				t.Errorf("String() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

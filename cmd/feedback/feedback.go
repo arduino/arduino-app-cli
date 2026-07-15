@@ -8,6 +8,7 @@ package feedback
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -22,16 +23,19 @@ type OutputFormat int
 const (
 	// Text is the plain text format, suitable for interactive terminals
 	Text OutputFormat = iota
-	// JSON format
+	// JSON is a single, indented JSON document
 	JSON
-	// MinifiedJSON format
+	// MinifiedJSON is a single, compact JSON document
 	MinifiedJSON
+	// JSONLines is a stream of compact JSON documents
+	JSONLines
 )
 
 var formats = map[string]OutputFormat{
-	"json":     JSON,
-	"jsonmini": MinifiedJSON,
-	"text":     Text,
+	"json":       JSON,
+	"jsonmini":   MinifiedJSON,
+	"json-lines": JSONLines,
+	"text":       Text,
 }
 
 func (f OutputFormat) String() string {
@@ -190,7 +194,7 @@ func Fatal(errorMsg string, exitCode ExitCode) {
 	switch format {
 	case JSON:
 		d, _ = json.MarshalIndent(augment(res), "", "  ")
-	case MinifiedJSON:
+	case MinifiedJSON, JSONLines:
 		d, _ = json.Marshal(augment(res))
 	default:
 		panic("unknown output format")
@@ -230,7 +234,8 @@ func PrintResult(res Result) {
 			Fatal(i18n.Tr("Error during JSON encoding of the output: %v", err), ErrGeneric)
 		}
 		data = string(d)
-	case MinifiedJSON:
+	case MinifiedJSON, JSONLines:
+		// A single result under JSONLines is just one compact line.
 		d, err := json.Marshal(augment(res.Data()))
 		if err != nil {
 			Fatal(i18n.Tr("Error during JSON encoding of the output: %v", err), ErrGeneric)
@@ -249,5 +254,36 @@ func PrintResult(res Result) {
 	}
 	if dataErr != "" {
 		fmt.Fprintln(stdErr, dataErr)
+	}
+}
+
+// NewResultStream returns a function to print an unbounded stream of Results,
+// like the events emitted by a long running command. The results are written to
+// the out writer as they come, they are not accumulated, so this is the
+// counterpart of PrintResult for a stream (and the two must not be mixed).
+//
+// The JSON and MinifiedJSON formats are single-document formats, so they are
+// not available for a stream and the function errors: JSONLines must be used
+// instead, it renders the stream as one JSON object per line.
+func NewResultStream() (func(Result), error) {
+	if !formatSelected {
+		panic("output format not yet selected")
+	}
+	switch format {
+	case Text:
+		return func(res Result) {
+			if data := res.String(); data != "" {
+				fmt.Fprintln(stdOut, data)
+			}
+		}, nil
+	case JSONLines:
+		enc := json.NewEncoder(stdOut)
+		return func(res Result) {
+			// Encode writes a single line per result, the warnings are not
+			// augmented in: they would be repeated in every result of the stream.
+			_ = enc.Encode(res.Data())
+		}, nil
+	default:
+		return nil, errors.New(i18n.Tr("streaming output is not available in %[1]s format, use %[2]s to get one JSON object per line", format, JSONLines))
 	}
 }

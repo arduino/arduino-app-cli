@@ -45,18 +45,17 @@ func NewSystemCmd(cfg config.Configuration) *cobra.Command {
 func newDownloadImageCmd(cfg config.Configuration) *cobra.Command {
 	var onlyImages bool
 	var onlyPlatformAndLibraries bool
-	var jsonStream bool
 	cmd := &cobra.Command{
 		Use:    "init",
 		Args:   cobra.ExactArgs(0),
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			stdout, _, err := feedback.DirectStreams()
+			printEvent, err := feedback.NewResultStream()
 			if err != nil {
 				return err
 			}
 
-			eventCB := newInitEventCallback(stdout, jsonStream)
+			eventCB := newInitEventCallback(printEvent)
 			return orchestrator.SystemInit(cmd.Context(), cfg, servicelocator.GetPlatform(), servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), servicelocator.GetDockerClient(), servicelocator.GetModelsIndex(), orchestrator.SystemInitOptions{
 				OnlyDockerImages:    onlyImages,
 				OnlyPlatformAndLibs: onlyPlatformAndLibraries,
@@ -66,7 +65,6 @@ func newDownloadImageCmd(cfg config.Configuration) *cobra.Command {
 
 	cmd.PersistentFlags().BoolVar(&onlyImages, "only-docker-images", false, "Only download the application docker images")
 	cmd.PersistentFlags().BoolVar(&onlyPlatformAndLibraries, "only-arduino-platform", false, "Only download the Arduino platform and libraries")
-	cmd.PersistentFlags().BoolVar(&jsonStream, "json-stream", false, "Emit logs and progress as JSON lines (one event per line) instead of plain text")
 
 	return cmd
 }
