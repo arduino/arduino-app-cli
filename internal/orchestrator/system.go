@@ -195,11 +195,6 @@ func downloadSupportedImages(ctx context.Context, cfg config.Configuration, bric
 		}
 	}
 
-	// The per-byte accounting from the docker pull stream rarely sums exactly to
-	// the computed total (the last "Downloading" event of a layer stops short of
-	// its full size before docker moves on to extraction), so the aggregate
-	// progress would otherwise stall a few points below 100%. Emit a final
-	// progress event to guarantee a clean 100% once every image has been pulled.
 	if totalBytes > 0 && len(imagesToPull) > 0 {
 		eventCB(InitEvent{Type: InitProgressEvent, Source: InitSourceDocker, Progress: InitProgress{Label: lastLabel, Curr: totalBytes, Total: totalBytes}})
 	}
@@ -211,11 +206,6 @@ const minDelay = 1 * time.Second
 const maxDelay = 10 * time.Second
 
 // updateLayerProgress records the bytes downloaded so far for a single layer
-// from a docker pull stream payload and returns the new global downloaded total
-// (the sum across all tracked layers). Only "Downloading" events contribute, so
-// the "Extracting" (decompression) phase is not double-counted. layerProgress is
-// keyed by layer ID and holds the latest reported value, which makes the count
-// safe across pull retries.
 func updateLayerProgress(layerProgress map[string]int64, status, id string, current int64) int64 {
 	if status == "Downloading" && id != "" {
 		layerProgress[id] = current
@@ -273,9 +263,7 @@ func pullImage(ctx context.Context, docker dockerClient.APIClient, imageName str
 		var payload Payload
 		if err := json.Unmarshal(scanner.Bytes(), &payload); err == nil {
 			// Accumulate the downloaded bytes across all layers/images and report
-			// the global download progress. The per-layer docker status lines are
-			// intentionally not emitted: they are redundant with this aggregate
-			// progress and would otherwise flood the output stream.
+			// the global download progress.
 			downloaded := updateLayerProgress(layerProgress, payload.Status, payload.ID, payload.ProgressDetail.Current)
 			if totalBytes > 0 && eventCB != nil {
 				if downloaded > totalBytes {
