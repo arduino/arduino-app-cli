@@ -158,7 +158,7 @@ func StartApp(
 
 	//TODO Pipewire is started if a media-carrier is present we should check also if it's required by the app.
 	if devices.HasCarrierSoundDevice {
-		if err := pipewire.EnsureRunning(ctx); err != nil {
+		if err := pipewire.StartPipewire(ctx); err != nil {
 			return fmt.Errorf("failed to start audio service: %w", err)
 		}
 	}
@@ -326,7 +326,7 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 		slog.Debug("unable to set status leds", slog.String("error", err.Error()))
 	}
 
-	if err := pipewire.TeardownIfUnneeded(ctx); err != nil {
+	if err := pipewire.StopPipewire(ctx); err != nil {
 		slog.Debug("unable to tear down pipewire", slog.String("error", err.Error()))
 	}
 
