@@ -29,11 +29,7 @@ var pipewireUnits = []string{"pipewire.socket", "pipewire-pulse.socket", "wirepl
 
 const userManagerUnit = "user@%d.service"
 
-// EnsureRunning brings up the PipeWire ecosystem for the current user if it
-// isn't already active. If it's already active — started by a real
-// lightdm/SSH session, or a previous run we never tore down — it's left
-// untouched and we don't claim ownership of it.
-func EnsureRunning(ctx context.Context) error {
+func StartPipewire(ctx context.Context) error {
 	uid := currentUID()
 
 	active, err := checkActive(ctx, uid)
@@ -61,7 +57,7 @@ func EnsureRunning(ctx context.Context) error {
 	return markOwned(uid)
 }
 
-// TeardownIfUnneeded stops the PipeWire ecosystem for the current user by
+// StopPipewire stops the PipeWire ecosystem for the current user by
 // stopping user@<uid>.service outright — but only if EnsureRunning was the
 // one that started it, and only if no other logind session for that user is
 // currently active (stopping the user manager would otherwise pull audio
@@ -69,7 +65,7 @@ func EnsureRunning(ctx context.Context) error {
 // itself cascades: systemd --user runs its own shutdown transaction first,
 // stopping pipewire/wireplumber along with everything else it manages, so
 // there's no need to stop those units individually beforehand.
-func TeardownIfUnneeded(ctx context.Context) error {
+func StopPipewire(ctx context.Context) error {
 	uid := currentUID()
 
 	owned, err := isOwned(uid)
