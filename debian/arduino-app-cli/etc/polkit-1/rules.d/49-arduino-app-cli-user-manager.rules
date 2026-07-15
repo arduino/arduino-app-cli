@@ -1,0 +1,10 @@
+// Lets arduino-app-cli start/stop its own user@<uid>.service over the system
+// bus (see internal/orchestrator/pipewire) without a real logind session or
+// linger. Only ever grants a subject authority over its own uid's user
+// manager unit, never anyone else's.
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.freedesktop.systemd1.manage-units" &&
+        action.lookup("unit") == ("user@" + subject.uid + ".service")) {
+        return polkit.Result.YES;
+    }
+});
