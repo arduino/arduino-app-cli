@@ -5,12 +5,7 @@
 
 // Package pipewire manages the PipeWire audio stack's systemd --user lifecycle
 // for the current process's own user, via direct D-Bus calls to systemd and
-// logind (no shelling out to systemctl/loginctl). This only works because the
-// arduino-app-cli daemon itself runs as the board's own unprivileged user
-// (see debian/arduino-app-cli/etc/systemd/system/arduino-app-cli.service),
-// i.e. the exact account whose systemd --user instance runs PipeWire — so
-// every D-Bus call here can authenticate as that user directly, no privilege
-// dance needed.
+// logind
 package pipewire
 
 import (
@@ -32,16 +27,7 @@ const (
 
 var pipewireUnits = []string{"pipewire.socket", "pipewire-pulse.socket", "wireplumber.service"}
 
-// Stopped in this order (not dependency order — Requires= doesn't propagate
-// stops, so each unit is stopped explicitly rather than relying on one stop
-// cascading to the others).
-var stopUnits = []string{
-	"wireplumber.service",
-	"pipewire-pulse.service",
-	"pipewire-pulse.socket",
-	"pipewire.service",
-	"pipewire.socket",
-}
+const userManagerUnit = "user@%d.service"
 
 // EnsureRunning brings up the PipeWire ecosystem for the current user if it
 // isn't already active. If it's already active — started by a real
@@ -58,8 +44,8 @@ func EnsureRunning(ctx context.Context) error {
 		return nil
 	}
 
-	if err := setLinger(ctx, uid, true); err != nil {
-		return fmt.Errorf("enable linger: %w", err)
+	if err := startUserManager(ctx, uid); err != nil {
+		return fmt.Errorf("start user manager: %w", err)
 	}
 
 	conn, err := retryDialUserBus(ctx, uid, userBusDialAttempts, userBusDialInterval)
@@ -75,12 +61,14 @@ func EnsureRunning(ctx context.Context) error {
 	return markOwned(uid)
 }
 
-// TeardownIfUnneeded stops the PipeWire ecosystem for the current user and
-// disables linger — but only if EnsureRunning was the one that started it,
-// and only stops the units outright if no other logind session for that
-// user is currently active. If another session is present, linger is still
-// disabled (so that session's own eventual logout tears things down
-// normally) but the units themselves are left running for it.
+// TeardownIfUnneeded stops the PipeWire ecosystem for the current user by
+// stopping user@<uid>.service outright — but only if EnsureRunning was the
+// one that started it, and only if no other logind session for that user is
+// currently active (stopping the user manager would otherwise pull audio
+// out from under a real lightdm/SSH login). Stopping user@<uid>.service
+// itself cascades: systemd --user runs its own shutdown transaction first,
+// stopping pipewire/wireplumber along with everything else it manages, so
+// there's no need to stop those units individually beforehand.
 func TeardownIfUnneeded(ctx context.Context) error {
 	uid := currentUID()
 
@@ -98,13 +86,9 @@ func TeardownIfUnneeded(ctx context.Context) error {
 	}
 
 	if !otherSession {
-		if err := stopUnitsOnUserBus(ctx, uid); err != nil {
-			return fmt.Errorf("stop units: %w", err)
+		if err := stopUserManager(ctx, uid); err != nil {
+			return fmt.Errorf("stop user manager: %w", err)
 		}
-	}
-
-	if err := setLinger(ctx, uid, false); err != nil {
-		return fmt.Errorf("disable linger: %w", err)
 	}
 
 	return clearOwned(uid)
@@ -127,19 +111,39 @@ func checkActive(ctx context.Context, uid uint32) (bool, error) {
 	return active, nil
 }
 
-func stopUnitsOnUserBus(ctx context.Context, uid uint32) error {
-	conn, err := retryDialUserBus(ctx, uid, userBusDialAttempts, userBusDialInterval)
+// startUserManager starts user@<uid>.service on the system bus, the same
+// unit logind itself would start on a real login (or previously, on
+// enabling linger) — bringing up the user's systemd --user instance
+// (runtime dir, D-Bus user bus, etc.) without going through a logind
+// session or linger at all.
+func startUserManager(ctx context.Context, uid uint32) error {
+	conn, err := dbus.ConnectSystemBus()
 	if err != nil {
-		return fmt.Errorf("dial user bus: %w", err)
+		return err
 	}
 	defer conn.Close()
 
+	unit := fmt.Sprintf(userManagerUnit, uid)
 	systemd := conn.Object("org.freedesktop.systemd1", "/org/freedesktop/systemd1")
-	for _, unit := range stopUnits {
-		call := systemd.CallWithContext(ctx, "org.freedesktop.systemd1.Manager.StopUnit", 0, unit, "replace")
-		if call.Err != nil && !isNoSuchUnit(call.Err) {
-			return fmt.Errorf("stop %s: %w", unit, call.Err)
-		}
+	call := systemd.CallWithContext(ctx, "org.freedesktop.systemd1.Manager.StartUnit", 0, unit, "replace")
+	return call.Err
+}
+
+// stopUserManager stops user@<uid>.service on the system bus. systemd --user
+// runs its own shutdown transaction first, stopping every unit it manages
+// (pipewire, wireplumber, ...) before the manager itself exits.
+func stopUserManager(ctx context.Context, uid uint32) error {
+	conn, err := dbus.ConnectSystemBus()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	unit := fmt.Sprintf(userManagerUnit, uid)
+	systemd := conn.Object("org.freedesktop.systemd1", "/org/freedesktop/systemd1")
+	call := systemd.CallWithContext(ctx, "org.freedesktop.systemd1.Manager.StopUnit", 0, unit, "replace")
+	if call.Err != nil && !isNoSuchUnit(call.Err) {
+		return call.Err
 	}
 	return nil
 }
@@ -195,18 +199,6 @@ func unitActive(ctx context.Context, conn *dbus.Conn, name string) (bool, error)
 	return state == "active" || state == "listening" || state == "reloading", nil
 }
 
-func setLinger(ctx context.Context, uid uint32, enable bool) error {
-	conn, err := dbus.ConnectSystemBus()
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-
-	logind := conn.Object("org.freedesktop.login1", dbus.ObjectPath("/org/freedesktop/login1"))
-	call := logind.CallWithContext(ctx, "org.freedesktop.login1.Manager.SetUserLinger", 0, uid, enable, true)
-	return call.Err
-}
-
 // sessionInfo mirrors logind's ListSessions reply struct field-for-field —
 // godbus decodes the D-Bus struct array positionally into these fields.
 type sessionInfo struct {
@@ -217,6 +209,22 @@ type sessionInfo struct {
 	Path     dbus.ObjectPath
 }
 
+// nonHumanSessionClasses are logind session classes that exist purely as
+// bookkeeping for a systemd --user manager instance, not for an actual
+// logged-in person. Starting user@<uid>.service — which EnsureRunning does
+// on every run — always creates one of these for its own uid, so without
+// filtering them out, hasActiveSession would report "another session is
+// active" for the very session we just started ourselves, and
+// TeardownIfUnneeded would never be able to stop anything.
+var nonHumanSessionClasses = map[string]bool{
+	"manager":       true,
+	"manager-early": true,
+	"background":    true,
+}
+
+// hasActiveSession reports whether a real, human logind session (lightdm,
+// SSH, a console login, ...) is currently active for uid, as opposed to the
+// bookkeeping session that merely reflects user@<uid>.service running.
 func hasActiveSession(ctx context.Context, uid uint32) (bool, error) {
 	conn, err := dbus.ConnectSystemBus()
 	if err != nil {
@@ -235,11 +243,28 @@ func hasActiveSession(ctx context.Context, uid uint32) (bool, error) {
 	}
 
 	for _, s := range sessions {
-		if s.UID == uid {
+		if s.UID != uid {
+			continue
+		}
+		class, err := sessionClass(conn, s.Path)
+		if err != nil {
+			return false, fmt.Errorf("get class of session %s: %w", s.ID, err)
+		}
+		if !nonHumanSessionClasses[class] {
 			return true, nil
 		}
 	}
 	return false, nil
+}
+
+func sessionClass(conn *dbus.Conn, path dbus.ObjectPath) (string, error) {
+	session := conn.Object("org.freedesktop.login1", path)
+	v, err := session.GetProperty("org.freedesktop.login1.Session.Class")
+	if err != nil {
+		return "", err
+	}
+	class, _ := v.Value().(string)
+	return class, nil
 }
 
 func dialUserBus(uid uint32) (*dbus.Conn, error) {
