@@ -42,12 +42,12 @@ func TestThrottleProgress(t *testing.T) {
 	cb(logEvt("done"))            //     -> forwarded
 
 	want := []initEvent{
-		*newInitEvent(progress("img", 0, 100)),
-		*newInitEvent(progress("img", 4, 100)),
-		*newInitEvent(logEvt("hello")),
-		*newInitEvent(progress("img", 5, 100)),
-		*newInitEvent(progress("other", 5, 100)),
-		*newInitEvent(logEvt("done")),
+		*fromInitEvent(progress("img", 0, 100)),
+		*fromInitEvent(progress("img", 4, 100)),
+		*fromInitEvent(logEvt("hello")),
+		*fromInitEvent(progress("img", 5, 100)),
+		*fromInitEvent(progress("other", 5, 100)),
+		*fromInitEvent(logEvt("done")),
 	}
 
 	if len(got) != len(want) {
@@ -114,7 +114,7 @@ func TestInitEventJSON(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Each event must serialize to a single line, so that the JSON output
 			// is a stream of JSON lines, one object per event.
-			d, err := json.Marshal(newInitEvent(tt.event).Data())
+			d, err := json.Marshal(fromInitEvent(tt.event).Data())
 			if err != nil {
 				t.Fatalf("Marshal() error = %v", err)
 			}
@@ -150,7 +150,7 @@ func TestInitEventString(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := newInitEvent(tt.event).String(); got != tt.want {
+			if got := fromInitEvent(tt.event).String(); got != tt.want {
 				t.Errorf("String() = %q, want %q", got, tt.want)
 			}
 		})

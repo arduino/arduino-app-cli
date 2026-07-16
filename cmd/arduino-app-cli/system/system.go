@@ -55,11 +55,20 @@ func newDownloadImageCmd(cfg config.Configuration) *cobra.Command {
 				return err
 			}
 
-			eventCB := newInitEventCallback(printEvent)
-			return orchestrator.SystemInit(cmd.Context(), cfg, servicelocator.GetPlatform(), servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), servicelocator.GetDockerClient(), servicelocator.GetModelsIndex(), orchestrator.SystemInitOptions{
-				OnlyDockerImages:    onlyImages,
-				OnlyPlatformAndLibs: onlyPlatformAndLibraries,
-			}, eventCB)
+			return orchestrator.SystemInit(
+				cmd.Context(),
+				cfg,
+				servicelocator.GetPlatform(),
+				servicelocator.GetBricksIndex(),
+				servicelocator.GetServicesIndex(),
+				servicelocator.GetDockerClient(),
+				servicelocator.GetModelsIndex(),
+				orchestrator.SystemInitOptions{
+					OnlyDockerImages:    onlyImages,
+					OnlyPlatformAndLibs: onlyPlatformAndLibraries,
+				},
+				newInitEventCallback(printEvent),
+			)
 		},
 	}
 

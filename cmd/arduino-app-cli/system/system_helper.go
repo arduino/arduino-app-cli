@@ -42,7 +42,7 @@ func (e *initEvent) String() string {
 	return e.Message
 }
 
-func newInitEvent(e orchestrator.InitEvent) *initEvent {
+func fromInitEvent(e orchestrator.InitEvent) *initEvent {
 	switch e.Type {
 	case orchestrator.InitLogEvent:
 		return &initEvent{
@@ -83,7 +83,7 @@ func newInitEventCallback(printEvent func(feedback.Result)) orchestrator.InitEve
 func throttleProgress(next func(*initEvent)) orchestrator.InitEventCallback {
 	lastPct := map[string]int{}
 	return func(event orchestrator.InitEvent) {
-		e := newInitEvent(event)
+		e := fromInitEvent(event)
 		if e == nil {
 			return
 		}
