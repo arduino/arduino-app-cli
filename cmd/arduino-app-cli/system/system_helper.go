@@ -17,9 +17,9 @@ const (
 	initProgressEventType = "progress"
 )
 
-var _ feedback.Result = (*initEvent)(nil)
+var _ feedback.Result = (*initResult)(nil)
 
-type initEvent struct {
+type initResult struct {
 	Type    string `json:"type"`
 	Source  string `json:"source,omitempty"`
 	Message string `json:"message,omitempty"`
@@ -30,29 +30,29 @@ type initEvent struct {
 }
 
 // Data implements feedback.Result.
-func (e *initEvent) Data() any {
+func (e *initResult) Data() any {
 	return e
 }
 
 // String implements feedback.Result.
-func (e *initEvent) String() string {
+func (e *initResult) String() string {
 	if e.Type == initProgressEventType {
 		return fmt.Sprintf("%s: %d%%", e.Label, e.Percent)
 	}
 	return e.Message
 }
 
-func fromInitEvent(e orchestrator.InitEvent) *initEvent {
+func fromInitEvent(e orchestrator.InitEvent) *initResult {
 	switch e.Type {
 	case orchestrator.InitLogEvent:
-		return &initEvent{
+		return &initResult{
 			Type:    initLogEventType,
 			Source:  string(e.Source),
 			Message: e.Message,
 		}
 	case orchestrator.InitProgressEvent:
 		p := e.Progress
-		return &initEvent{
+		return &initResult{
 			Type:    initProgressEventType,
 			Source:  string(e.Source),
 			Label:   p.Label,
@@ -73,14 +73,14 @@ func percent(curr, total int64) int {
 }
 
 func newInitEventCallback(printEvent func(feedback.Result)) orchestrator.InitEventCallback {
-	return throttleProgress(func(e *initEvent) {
+	return throttleProgress(func(e *initResult) {
 		printEvent(e)
 	})
 }
 
 // throttleProgress drops the progress events that would render the same
 // percentage twice in a row for a given label.
-func throttleProgress(next func(*initEvent)) orchestrator.InitEventCallback {
+func throttleProgress(next func(*initResult)) orchestrator.InitEventCallback {
 	lastPct := map[string]int{}
 	return func(event orchestrator.InitEvent) {
 		e := fromInitEvent(event)

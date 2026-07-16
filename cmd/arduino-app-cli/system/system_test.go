@@ -25,8 +25,8 @@ func TestThrottleProgress(t *testing.T) {
 		return orchestrator.InitEvent{Type: orchestrator.InitLogEvent, Message: msg}
 	}
 
-	var got []initEvent
-	cb := throttleProgress(func(e *initEvent) {
+	var got []initResult
+	cb := throttleProgress(func(e *initResult) {
 		got = append(got, *e)
 	})
 
@@ -41,7 +41,7 @@ func TestThrottleProgress(t *testing.T) {
 	cb(progress("other", 5, 100)) // 5%  -> forwarded (different label tracked separately)
 	cb(logEvt("done"))            //     -> forwarded
 
-	want := []initEvent{
+	want := []initResult{
 		*fromInitEvent(progress("img", 0, 100)),
 		*fromInitEvent(progress("img", 4, 100)),
 		*fromInitEvent(logEvt("hello")),
