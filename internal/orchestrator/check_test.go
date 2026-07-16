@@ -77,6 +77,16 @@ func TestValidateAppDescriptorBricks(t *testing.T) {
 				Status: modelsindex.InstalledStatus,
 				Bricks: []modelsindex.BrickConfig{{ID: "arduino:some-other-brick"}},
 			},
+			{
+				ID:     "i-am-not-installed-model",
+				Status: modelsindex.NotInstalledStatus,
+				Bricks: []modelsindex.BrickConfig{{ID: "arduino:ai-brick"}},
+			},
+			{
+				ID:     "i-am-default-model",
+				Status: modelsindex.InstalledStatus,
+				Bricks: []modelsindex.BrickConfig{{ID: "arduino:ai-brick"}},
+			},
 		},
 	}
 
@@ -210,6 +220,25 @@ bricks:
       model: i-am-incompatible-model
 `,
 			expectedError: errors.New("model \"i-am-incompatible-model\" is not compatible with brick \"arduino:ai-brick\""),
+		},
+		{
+			name: "invalid if the model is not installed",
+			yamlContent: `
+name: App with a not installed model
+bricks:
+  - arduino:ai-brick:
+      model: i-am-not-installed-model
+`,
+			expectedError: errors.New("model \"i-am-not-installed-model\" for brick \"arduino:ai-brick\" is not installed"),
+		},
+		{
+			name: "valid if no model is specified and the brick default model is installed",
+			yamlContent: `
+name: App using the brick default model
+bricks:
+  - arduino:ai-brick
+`,
+			expectedError: nil,
 		},
 		{
 			name: "an hiddden variable with a concrete value does not cause validation error",
