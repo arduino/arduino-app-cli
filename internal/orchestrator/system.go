@@ -189,7 +189,7 @@ func downloadSupportedImages(ctx context.Context, cfg config.Configuration, bric
 		eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDocker, Message: fmt.Sprintf("Pulling container image %s ...", img.ref)})
 		// The percentage stays global (across all images); the label tells the
 		// user which image is currently being pulled.
-		lastLabel = fmt.Sprintf("Pulling image %d/%d (%s)", i+1, len(imagesToPull), imageDisplayName(img.ref))
+		lastLabel = fmt.Sprintf("Pulling image %d/%d (%s)", i+1, len(imagesToPull), imageName(img.ref))
 		if err := pullImage(ctx, docker.Client(), img.ref, layerProgress, totalBytes, lastLabel, eventCB); err != nil {
 			return fmt.Errorf("failed to pull image %s: %w", img.ref, err)
 		}

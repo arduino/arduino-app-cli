@@ -66,14 +66,11 @@ func parseDockerImage(image string) (name string, version string) {
 	return image, ""
 }
 
-// imageDisplayName returns a short, human-friendly name for a docker image
-// reference, e.g. "python-apps-base" for
+// imageName returns the docker image reference without its tag/digest, e.g.
+// "ghcr.io/arduino/app-bricks/python-apps-base" for
 // "ghcr.io/arduino/app-bricks/python-apps-base:0.11.0rc6".
-func imageDisplayName(image string) string {
+func imageName(image string) string {
 	name, _ := parseDockerImage(image)
-	if idx := strings.LastIndex(name, "/"); idx != -1 {
-		return name[idx+1:]
-	}
 	return name
 }
 

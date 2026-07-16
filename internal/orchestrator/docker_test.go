@@ -204,19 +204,19 @@ func TestUpdateLayerProgress(t *testing.T) {
 	}
 }
 
-func TestImageDisplayName(t *testing.T) {
+func TestImageName(t *testing.T) {
 	tests := []struct {
 		input    string
 		expected string
 	}{
-		{"ghcr.io/arduino/app-bricks/python-apps-base:0.11.0rc6", "python-apps-base"},
+		{"ghcr.io/arduino/app-bricks/python-apps-base:0.11.0rc6", "ghcr.io/arduino/app-bricks/python-apps-base"},
 		{"influxdb:2.7-alpine", "influxdb"},
-		{"ghcr.io/arduino/app-bricks/ei-models-runner@sha256:abc", "ei-models-runner"},
+		{"ghcr.io/arduino/app-bricks/ei-models-runner@sha256:abc", "ghcr.io/arduino/app-bricks/ei-models-runner"},
 		{"nginx", "nginx"},
 	}
 	for _, tt := range tests {
-		if got := imageDisplayName(tt.input); got != tt.expected {
-			t.Errorf("imageDisplayName(%q) = %q, want %q", tt.input, got, tt.expected)
+		if got := imageName(tt.input); got != tt.expected {
+			t.Errorf("imageName(%q) = %q, want %q", tt.input, got, tt.expected)
 		}
 	}
 }
