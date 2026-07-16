@@ -13,6 +13,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestParseLsOutput(t *testing.T) {
+	input := `total 20
+drwxr-xr-x 2 u g 4096 Jan  1 12:00 "."
+drwxr-xr-x 3 u g 4096 Jan  1 12:00 ".."
+-rw-r--r-- 1 u g   13 Jan  1 12:00 "regular.txt"
+drwxr-xr-x 2 u g 4096 Jan  1 12:00 "subdir"
+lrwxrwxrwx 1 u g   10 Jan  1 12:00 "link" -> "target"
+`
+	got, err := ParseLsOutput(strings.NewReader(input))
+	require.NoError(t, err)
+	assert.Equal(t, []FileInfo{
+		{Name: "regular.txt"},
+		{Name: "subdir", IsDir: true},
+		{Name: "link", IsSymlink: true},
+	}, got)
+}
+
 func TestParseChage(t *testing.T) {
 	tests := []struct {
 		name    string
