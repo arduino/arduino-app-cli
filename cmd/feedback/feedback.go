@@ -257,14 +257,9 @@ func PrintResult(res Result) {
 	}
 }
 
-// NewResultStream returns a function to print an unbounded stream of Results,
-// like the events emitted by a long running command. The results are written to
-// the out writer as they come, they are not accumulated, so this is the
-// counterpart of PrintResult for a stream (and the two must not be mixed).
-//
-// The JSON and MinifiedJSON formats are single-document formats, so they are
-// not available for a stream and the function errors: JSONLines must be used
-// instead, it renders the stream as one JSON object per line.
+// NewResultStream returns a function that prints Results one at a time as they
+// arrive, for long-running commands. It is the streaming counterpart of
+// PrintResult (don't mix the two) and requires the JSONLines format.
 func NewResultStream() (func(Result), error) {
 	if !formatSelected {
 		panic("output format not yet selected")
