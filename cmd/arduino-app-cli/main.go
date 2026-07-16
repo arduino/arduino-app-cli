@@ -60,7 +60,7 @@ func run(configuration cfg.Configuration) error {
 		SilenceErrors: true,
 	}
 
-	rootCmd.PersistentFlags().StringVar(&format, "format", "text", "Output format (text, json, jsonmini, json-lines)")
+	rootCmd.PersistentFlags().StringVar(&format, "format", "text", "Output format (text, json, json-lines)")
 	rootCmd.PersistentFlags().StringVar(&logLevelStr, "log-level", "error", "Set the log level (debug, info, warn, error)")
 
 	rootCmd.AddCommand(
