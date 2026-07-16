@@ -170,7 +170,7 @@ func (a *ADBConnection) List(path string) ([]remote.FileInfo, error) {
 }
 
 func (a *ADBConnection) Stats(p string) (remote.FileInfo, error) {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "file", strconv.Quote(p))
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "file", "-L", strconv.Quote(p))
 	if err != nil {
 		return remote.FileInfo{}, err
 	}

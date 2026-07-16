@@ -245,7 +245,7 @@ func (a *SSHConnection) Stats(p string) (remote.FileInfo, error) {
 	}
 	defer session.Close()
 
-	cmd := fmt.Sprintf("file %q", p)
+	cmd := fmt.Sprintf("file -L %q", p)
 	output, err := session.Output(cmd)
 	if err != nil {
 		return remote.FileInfo{}, err
