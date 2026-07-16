@@ -92,6 +92,9 @@ func (o SystemInitOptions) Validate() error {
 // sketch libraries used in the example apps. Can be used to pre-install docker images/libraries on an
 // empty system, or to update all the docker images/libraries that need it.
 func SystemInit(ctx context.Context, cfg config.Configuration, platform platform.Platform, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, docker *command.DockerCli, modelsIndex *modelsindex.ModelsIndex, options SystemInitOptions, eventCB InitEventCallback) error {
+	if eventCB == nil {
+		eventCB = func(InitEvent) {}
+	}
 	if err := options.Validate(); err != nil {
 		return err
 	}
@@ -265,7 +268,7 @@ func pullImage(ctx context.Context, docker dockerClient.APIClient, imageName str
 			// Accumulate the downloaded bytes across all layers/images and report
 			// the global download progress.
 			downloaded := updateLayerProgress(layerProgress, payload.Status, payload.ID, payload.ProgressDetail.Current)
-			if totalBytes > 0 && eventCB != nil {
+			if totalBytes > 0 {
 				if downloaded > totalBytes {
 					downloaded = totalBytes
 				}
