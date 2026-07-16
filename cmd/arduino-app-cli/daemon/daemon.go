@@ -24,6 +24,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/httprecover"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/pipewire"
 	"github.com/arduino/arduino-app-cli/internal/update"
 	"github.com/arduino/arduino-app-cli/internal/update/apt"
 	"github.com/arduino/arduino-app-cli/internal/update/arduino"
@@ -39,6 +40,16 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 			err := stopArduinoContainers(cmd.Context(), servicelocator.GetDockerClient())
 			if err != nil {
 				slog.Warn("Failed to stop containers", slog.String("error", err.Error()))
+			}
+
+			//FIXME: if there is a default app do not disable linger.
+			// Clean up linger left on by a previous run that crashed (or lost
+			// power) before it got to disable it itself — nothing is using
+			// audio yet at daemon startup, so it's always safe to clear here.
+			// Never touches linger a human enabled directly; see
+			// DisableLingerIfOwned.
+			if err := pipewire.DisableLinger(cmd.Context()); err != nil {
+				slog.Warn("Failed to reconcile leftover audio service linger", slog.String("error", err.Error()))
 			}
 
 			// start the default app in the background

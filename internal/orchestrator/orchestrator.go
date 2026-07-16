@@ -158,6 +158,13 @@ func StartApp(
 
 	//TODO Pipewire is started if a media-carrier is present we should check also if it's required by the app.
 	if devices.HasCarrierSoundDevice {
+		// Linger keeps user@<uid>.service running regardless of logind's own
+		// session count for as long as this app needs audio, so an unrelated
+		// SSH/lightdm session logging out doesn't pull PipeWire out from
+		// under it.
+		if err := pipewire.EnableLinger(ctx); err != nil {
+			return fmt.Errorf("failed to enable audio service linger: %w", err)
+		}
 		if err := pipewire.StartPipewire(ctx); err != nil {
 			return fmt.Errorf("failed to start audio service: %w", err)
 		}
@@ -326,8 +333,8 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 		slog.Debug("unable to set status leds", slog.String("error", err.Error()))
 	}
 
-	if err := pipewire.StopPipewire(ctx); err != nil {
-		slog.Debug("unable to tear down pipewire", slog.String("error", err.Error()))
+	if err := pipewire.DisableLinger(ctx); err != nil {
+		slog.Debug("unable to disable audio service linger", slog.String("error", err.Error()))
 	}
 
 	callbackWriter := NewCallbackWriter(func(line string) {
