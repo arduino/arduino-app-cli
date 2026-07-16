@@ -31,7 +31,7 @@ type InstallEIModelRequest struct {
 	ImpulseID *int `json:"impulse_id" description:"Edge Impulse impulse ID" example:"1" required:"true"`
 }
 
-func HandleModelsList(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform) http.HandlerFunc {
+func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		params := r.URL.Query()
 
@@ -39,21 +39,21 @@ func HandleModelsList(dockerClient command.Cli, modelsIndex *modelsindex.ModelsI
 		if brick := params.Get("bricks"); brick != "" {
 			brickFilter = strings.Split(strings.TrimSpace(brick), ",")
 		}
-		res := orchestrator.AIModelsList(r.Context(), dockerClient.Client(), orchestrator.AIModelsListRequest{
+		res := orchestrator.AIModelsList(r.Context(), orchestrator.AIModelsListRequest{
 			FilterByBrickID: brickFilter,
-		}, modelsIndex, cfg, plat)
+		}, modelsIndex)
 		render.EncodeResponse(w, http.StatusOK, res)
 	}
 }
 
-func HandlerModelByID(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform) http.HandlerFunc {
+func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("modelID")
 		if id == "" {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "id must be set"})
 			return
 		}
-		res, found, err := orchestrator.AIModelDetails(r.Context(), dockerClient.Client(), modelsIndex, id, cfg, plat)
+		res, found, err := orchestrator.AIModelDetails(r.Context(), modelsIndex, id)
 		if err != nil {
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: err.Error()})
 			return
@@ -169,7 +169,7 @@ func (r InstallEIModelRequest) Validate() error {
 	return nil
 }
 
-func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, cfg config.Configuration, plat platform.Platform) http.HandlerFunc {
+func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := strings.TrimSpace(r.PathValue("modelID"))
 		if id == "" {

@@ -20,7 +20,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/render"
-	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
 func HandleAppStart(
@@ -31,7 +30,6 @@ func HandleAppStart(
 	servicesIndex *servicesindex.ServicesIndex,
 	idProvider *app.IDProvider,
 	cfg config.Configuration,
-	staticStore *store.StaticStore,
 	platform platform.Platform,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -68,7 +66,7 @@ func HandleAppStart(
 		type log struct {
 			Message string `json:"message"`
 		}
-		if err := orchestrator.StartApp(r.Context(), dockerCli, provisioner, modelsIndex, bricksIndex, servicesIndex, app, cfg, staticStore, platform, verbose, func(item orchestrator.StreamMessage) {
+		if err := orchestrator.StartApp(r.Context(), dockerCli, provisioner, modelsIndex, bricksIndex, servicesIndex, app, cfg, platform, verbose, func(item orchestrator.StreamMessage) {
 			switch item.GetType() {
 			case orchestrator.ProgressType:
 				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress(*item.GetProgress())})

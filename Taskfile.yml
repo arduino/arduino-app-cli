@@ -54,6 +54,10 @@ tasks:
     deps: [test:internal, test:pkg]
 
   test:internal:
+    deps:
+      - task: download-runner-assets
+        vars:
+          DEST: internal/e2e/daemon/testdata/assets
     cmds:
       - go build ./cmd/arduino-app-cli
       - task: generate
@@ -120,6 +124,9 @@ tasks:
     desc: Build debian package
     deps:
       - build-deb:clone-examples
+      - task: download-runner-assets
+        vars:
+          DEST: debian/arduino-app-cli/var/lib/arduino-app-cli/assets
     cmds:
       - docker build --build-arg BINARY_NAME=arduino-app-cli --build-arg DEB_NAME=arduino-app-cli --build-arg VERSION={{ .VERSION }} --build-arg ARCH={{ .ARCH }} --build-arg RELEASE={{ .RELEASE }} --output={{ .OUTPUT }} -f debian/Dockerfile .
     vars:
@@ -141,6 +148,32 @@ tasks:
           mv "${TMP_PATH}/examples" "${DEST_PATH}"
           rm -rf "${TMP_PATH}/examples"
           echo "Examples successfully cloned."
+    silent: false
+
+  download-runner-assets:
+    desc: "Downloads the python runner assets into the given DEST directory"
+    vars:
+      SEMVER_TAG: "{{.RUNNER_VERSION}}"
+      DEST: "{{.DEST}}"
+      TMPDIR:
+        sh: mktemp -d
+    requires:
+      vars: [DEST]
+    status:
+      # Skip only if the assets for the current version are the sole content of DEST.
+      - test -d "{{.DEST}}/{{.SEMVER_TAG}}"
+      - test "$(ls -A {{.DEST}} 2>/dev/null | wc -l)" -eq 1
+    cmds:
+      - defer: rm -rf "{{.TMPDIR}}"
+      - |
+          set -e
+          echo "Runner version set as: {{ .RUNNER_VERSION }}"
+          gh release download -R arduino/app-bricks-py "release/{{.SEMVER_TAG}}" -p '*.whl' -D "{{.TMPDIR}}" --clobber
+          unzip -o "{{.TMPDIR}}/arduino_app_bricks-{{.SEMVER_TAG}}-py3-none-any.whl" -d "{{.TMPDIR}}/extract"
+          # Wipe any previous versions so the destination contains exactly one.
+          rm -rf "{{.DEST}}" && mkdir -p "{{.DEST}}"
+          cp -r "{{.TMPDIR}}/extract/arduino/app_bricks/static" "{{.DEST}}/{{.SEMVER_TAG}}"
+          echo "Runner assets successfully downloaded to {{.DEST}}."
     silent: false
 
   build:
@@ -197,55 +230,11 @@ tasks:
       - adb push ./build/arduino-app-cli_*_arm64.deb /tmp/
       - ./scripts/run-remote-sudo.sh "dpkg -i /tmp/arduino-app-cli*_arm64.deb && needrestart -r a"
 
-  setup:examples:local:
-    desc: Download and locally install the official examples
-    cmds:
-      - |
-          set -e
-          DEST_PATH=$(case "$(uname)" in
-            Darwin) echo "$HOME/Library/Application Support/arduino-app-cli/" ;;
-            Linux) echo "$HOME/.config/arduino-app-cli/" ;;
-            *) echo "$AppData/arduino-app-cli/" ;;
-          esac)
-          TMP_PATH="$(mktemp -d)"
-
-          echo "Cloning examples into temporary directory ${TMP_PATH}..."
-          git clone --depth 1 https://github.com/arduino/app-bricks-examples.git "${TMP_PATH}"
-
-          echo "Installing examples to ${DEST_PATH}examples"
-          rm -rf "${DEST_PATH}examples"
-          mkdir -p "${DEST_PATH}"
-
-          mv "${TMP_PATH}/examples" "${DEST_PATH}"
-
-          rm -rf "${TMP_PATH}"
-          echo "Examples installed successfully."
-
-  generate:assets:
-    desc: This generates the models and bricks index. Also updates the corresponding testdata.
+  bump:runner-version:
+    desc: Update the RunnerVersion constant in config.go to match RUNNER_VERSION.
     vars:
       sed_replacement: s#RunnerVersion = \".*#RunnerVersion = \"{{.RUNNER_VERSION}}\"#
-      TMPDIR: '{{trimSuffix "/" (env "TMPDIR")| default "/tmp"}}/generate-assets'
-      SEMVER_TAG: "{{.RUNNER_VERSION}}"
-      OUTPUT_DIR: "{{.TMPDIR}}/{{.SEMVER_TAG}}"
-      ASSETS_DIR: debian/arduino-app-cli/var/lib/arduino-app-cli/assets
-      TESTDATA_DIR: internal/e2e/daemon/testdata/assets
-    preconditions:
-      - sh: '[ ! -d "{{.ASSETS_DIR}}/{{.SEMVER_TAG}}" ] || [ ! -d "{{.TESTDATA_DIR}}/{{.SEMVER_TAG}}" ]'
-        msg: "Both assets folder are already at version '{{.RUNNER_VERSION}}'. Nothing to do."
     cmds:
-      - |
-          # Get the corresponding models and bricks release, and unzip it.
-          gh release download -R arduino/app-bricks-py "release/{{.SEMVER_TAG}}" -p '*.whl' -D "{{.TMPDIR}}" --clobber
-          unzip -o "{{.TMPDIR}}/arduino_app_bricks-{{.SEMVER_TAG}}-py3-none-any.whl" -d "{{.OUTPUT_DIR}}"
-      - |
-          # Copy the assets and services replacing the previous version.
-          rm -rf "{{.ASSETS_DIR}}" && mkdir -p "{{.ASSETS_DIR}}"
-          cp -r "{{.OUTPUT_DIR}}/arduino/app_bricks/static" "{{.ASSETS_DIR}}/{{.SEMVER_TAG}}"
-          # fix e2e testdata, which only contains the static folder
-          rm -rf "{{.TESTDATA_DIR}}" && mkdir -p "{{.TESTDATA_DIR}}"
-          cp -r "{{.OUTPUT_DIR}}/arduino/app_bricks/static" "{{.TESTDATA_DIR}}/{{.SEMVER_TAG}}"
-      - cmd: rm -rf {{.TMPDIR}}
       - cmd: echo "Updating the runnerVersion in config.go to '{{.RUNNER_VERSION}}'"
       - cmd: sed -i "{{.sed_replacement}}" internal/orchestrator/config/config.go
         platforms: [linux, windows]

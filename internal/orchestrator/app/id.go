@@ -42,6 +42,8 @@ func (id ID) String() string {
 }
 
 // MarshalJSON implements the json.Marshaler interface for ID.
+//
+//nolint:unparam // json.Marshaler requires an error return even when this implementation cannot fail.
 func (id ID) MarshalJSON() ([]byte, error) {
 	return []byte(`"` + id.encodedID + `"`), nil
 }

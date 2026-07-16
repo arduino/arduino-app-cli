@@ -151,7 +151,7 @@ func downloadSupportedImages(ctx context.Context, cfg config.Configuration, bric
 
 		// Check that there is enough disk space for the additional layers needed by the image.
 		previousExistingImage := GetHighestVersion(image, pulledImages)
-		if toDownload, err := GetBytesToDownload(previousExistingImage, image, stdout); err != nil {
+		if toDownload, err := GetBytesToDownload(previousExistingImage, image); err != nil {
 			// In case of errors getting the size to download, proceed anyway.
 			slog.Warn("Unable to get the new image layers size", "image", image, "error", err)
 		} else if uint64(float64(toDownload)*2.5) > freeSpace {

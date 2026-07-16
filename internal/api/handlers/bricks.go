@@ -23,21 +23,13 @@ import (
 
 func HandleBrickList(brickService *bricks.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		res, err := brickService.List()
-		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to retrieve brick list"})
-
-			return
-		}
-		render.EncodeResponse(w, http.StatusOK, res)
+		render.EncodeResponse(w, http.StatusOK, brickService.List())
 	}
 }
 
 func HandleAppBrickInstancesList(
 	brickService *bricks.Service,
 	idProvider *app.IDProvider,
-	platform platform.Platform,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		appId, err := idProvider.IDFromBase64(r.PathValue("appID"))
@@ -54,13 +46,7 @@ func HandleAppBrickInstancesList(
 			return
 		}
 
-		res, err := brickService.AppBrickInstancesList(&app, platform)
-		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
-			details := fmt.Sprintf("unable to find brick list for app %q", appId)
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: details})
-			return
-		}
+		res := brickService.AppBrickInstancesList(&app)
 		render.EncodeResponse(w, http.StatusOK, res)
 	}
 }
@@ -68,7 +54,6 @@ func HandleAppBrickInstancesList(
 func HandleAppBrickInstanceDetails(
 	brickService *bricks.Service,
 	idProvider *app.IDProvider,
-	platform platform.Platform,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		appId, err := idProvider.IDFromBase64(r.PathValue("appID"))
@@ -91,7 +76,7 @@ func HandleAppBrickInstanceDetails(
 			return
 		}
 
-		res, err := brickService.AppBrickInstanceDetails(&app, brickID, platform)
+		res, err := brickService.AppBrickInstanceDetails(&app, brickID)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to obtain brick details"})

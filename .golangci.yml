@@ -41,6 +41,8 @@ linters:
       excludes:
         - G706 # Log injection via taint analysis
         - G703 # Path traversal via taint analysis
+    unparam:
+      check-exported: true
 
   exclusions:
     generated: lax

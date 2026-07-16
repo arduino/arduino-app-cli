@@ -21,17 +21,21 @@ The following development tools must be available in your local environment:
 ❗ Building on Windows machines is not supported.
 ---
 
-Build the project (run once):
+Set up the local environment (run once):
 
 - `go tool task init`
-- `go tool task build`
-- `go tool task generate:assets` to download locally the assets of the [Arduino Bricks](https://github.com/arduino/app-bricks-py)
 
-Start the arduino-app-cli in daemon mode:
+To run Arduino App CLI on the board see the **Running Arduino App CLI on the board** section below.
 
-- `ARDUINO_APP_CLI__DATA_DIR=debian/arduino-app-cli/var/lib/arduino-app-cli go tool task start`
+## Updating the Python runner version
 
-NOTE: only a subset of HTTP APIs are working by running the daemon mode on a development PC. To run Arduino App CLI on the board see the **Running Arduino App CLI on the board** section below.
+The python runner assets are no longer tracked in the repo; they're downloaded on demand at `.deb` build time and when running e2e tests.
+
+1. Bump `RUNNER_VERSION` in `Taskfile.yml`.
+2. Run `go tool task bump:runner-version`. It updates `RunnerVersion` in `internal/orchestrator/config/config.go` to match.
+3. Commit the changes to `Taskfile.yml` and `internal/orchestrator/config/config.go`.
+
+`build-deb` and `test:internal` download the runner assets on their own (via `download-runner-assets`) and cache them by version.
 
 ## Running Checks
 

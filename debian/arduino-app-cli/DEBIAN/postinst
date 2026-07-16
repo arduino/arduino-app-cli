@@ -1,15 +1,15 @@
 #!/bin/bash
 
-chown -R arduino:arduino /var/lib/arduino-app-cli \
-|| chown -R :arduino /var/lib/arduino-app-cli
-
-chmod -R 775 /var/lib/arduino-app-cli
-
 systemctl enable arduino-app-cli
 systemctl enable arduino-avahi-serial.service
 
 mkdir -p /etc/bash_completion.d/
 export ARDUINO_APP_CLI__ALLOW_ROOT=true && arduino-app-cli completion bash > /etc/bash_completion.d/arduino-app-cli.bash || true
+
+chown -R arduino:arduino /var/lib/arduino-app-cli \
+|| chown -R :arduino /var/lib/arduino-app-cli
+
+chmod -R 775 /var/lib/arduino-app-cli
 
 if [ "$1" = "configure" ]; then
     rm -rf /home/arduino/.local/share/arduino-app-cli

@@ -6,7 +6,6 @@
 package app
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -33,7 +32,7 @@ func newCreateCmd(cfg config.Configuration) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cobra.MinimumNArgs(1)
 			name := args[0]
-			return createHandler(cmd.Context(), cfg, name, icon, description, noSketch, fromApp)
+			return createHandler(cfg, name, icon, description, noSketch, fromApp)
 		},
 	}
 
@@ -46,7 +45,7 @@ func newCreateCmd(cfg config.Configuration) *cobra.Command {
 	return cmd
 }
 
-func createHandler(ctx context.Context, cfg config.Configuration, name string, icon string, description string, noSketch bool, fromApp string) error {
+func createHandler(cfg config.Configuration, name string, icon string, description string, noSketch bool, fromApp string) error {
 	if fromApp != "" {
 		id, err := servicelocator.GetAppIDProvider().ParseID(fromApp)
 		if err != nil {
@@ -54,7 +53,7 @@ func createHandler(ctx context.Context, cfg config.Configuration, name string, i
 			return nil
 		}
 
-		resp, err := orchestrator.CloneApp(ctx, orchestrator.CloneAppRequest{
+		resp, err := orchestrator.CloneApp(orchestrator.CloneAppRequest{
 			Name:   &name,
 			FromID: id,
 		}, servicelocator.GetAppIDProvider(), cfg)
@@ -71,7 +70,7 @@ func createHandler(ctx context.Context, cfg config.Configuration, name string, i
 		})
 
 	} else {
-		resp, err := orchestrator.CreateApp(ctx, orchestrator.CreateAppRequest{
+		resp, err := orchestrator.CreateApp(orchestrator.CreateAppRequest{
 			Name:        name,
 			Icon:        icon,
 			Description: description,

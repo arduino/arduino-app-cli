@@ -697,7 +697,7 @@ bricks:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := svc.AppBrickInstanceDetails(tt.app, tt.brickID, platform.Platform{})
+			result, err := svc.AppBrickInstanceDetails(tt.app, tt.brickID)
 
 			if tt.expectedError != "" {
 				require.Error(t, err)
@@ -1004,15 +1004,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 				bricksIndex: bIndex,
 				modelsIndex: modelsIdx,
 			}
-			result, err := svc.AppBrickInstancesList(tt.app, tt.platform)
-
-			if tt.expectedError != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.expectedError)
-				return
-			}
-
-			require.NoError(t, err)
+			result := svc.AppBrickInstancesList(tt.app)
 			if tt.validate != nil {
 				tt.validate(t, result)
 			}

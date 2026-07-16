@@ -104,7 +104,7 @@ func FromFQBN(ctx context.Context, fqbns []string) ([]Board, error) {
 		for fqbn, info := range supportedBoard {
 			if compatibles.IsCompatibleWith(info.Compatible) {
 				var customName string
-				if name, err := GetCustomName(ctx, &local.LocalConnection{}); err == nil {
+				if name, err := GetCustomName(&local.LocalConnection{}); err == nil {
 					customName = name
 				}
 				var serial string
@@ -199,7 +199,7 @@ func FromFQBN(ctx context.Context, fqbns []string) ([]Board, error) {
 			} else {
 				// fallback to get custom name from the board if product property is not available.
 				if conn, err := adb.FromSerial(serial, ""); err == nil {
-					if name, err := GetCustomName(ctx, conn); err == nil {
+					if name, err := GetCustomName(conn); err == nil {
 						customName = name
 					}
 				} else {
@@ -309,7 +309,7 @@ func SetCustomName(ctx context.Context, conn remote.RemoteConn, name string) err
 	return nil
 }
 
-func GetCustomName(ctx context.Context, conn remote.RemoteConn) (string, error) {
+func GetCustomName(conn remote.RemoteConn) (string, error) {
 	r, err := conn.ReadFile("/etc/hostname")
 	if err != nil {
 		return "", fmt.Errorf("failed to get board name: %w", err)
@@ -341,7 +341,7 @@ func IsUserPasswordSet(conn remote.RemoteShell) (bool, error) {
 	return isUserSet, nil
 }
 
-func SetUserPassword(ctx context.Context, conn remote.RemoteConn, newPass string) error {
+func SetUserPassword(conn remote.RemoteConn, newPass string) error {
 	cmd := conn.GetCmd("sudo", "arduino-passwd")
 	stdin, stdout, stderr, closer, err := cmd.Interactive()
 	if err != nil {
@@ -383,7 +383,7 @@ func LegacyEnableNetworkMode(ctx context.Context, conn remote.RemoteConn) error 
 	return nil
 }
 
-func EnableNetworkMode(ctx context.Context, conn remote.RemoteConn, password string) error {
+func EnableNetworkMode(conn remote.RemoteConn, password string) error {
 	cmds := [][]string{
 		{"systemctl", "unmask", "ssh.service"},
 		{"systemctl", "unmask", "avahi-daemon.service"},
@@ -422,7 +422,7 @@ func NetworkModeStatus(ctx context.Context, conn remote.RemoteConn) (bool, error
 	return true, nil
 }
 
-func DisableNetworkMode(ctx context.Context, conn remote.RemoteConn, password string) error {
+func DisableNetworkMode(conn remote.RemoteConn, password string) error {
 	cmds := [][]string{
 		{"systemctl", "mask", "ssh.service"},
 		{"systemctl", "mask", "avahi-daemon.service"},

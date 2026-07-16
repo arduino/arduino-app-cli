@@ -8,7 +8,6 @@ package orchestrator
 import (
 	"archive/zip"
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -28,7 +27,6 @@ import (
 )
 
 func ExportAppZip(
-	ctx context.Context,
 	bricksIndex *bricksindex.BricksIndex,
 	appTarget app.ArduinoApp,
 	includeData bool,

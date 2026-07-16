@@ -187,7 +187,7 @@ func newNetworkModeCmd() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("failed to read password: %w", err)
 				}
-				if err := board.EnableNetworkMode(cmd.Context(), &local.LocalConnection{}, pass); err != nil {
+				if err := board.EnableNetworkMode(&local.LocalConnection{}, pass); err != nil {
 					return fmt.Errorf("failed to enable network mode: %w", err)
 				}
 
@@ -198,7 +198,7 @@ func newNetworkModeCmd() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("failed to read password: %w", err)
 				}
-				if err := board.DisableNetworkMode(cmd.Context(), &local.LocalConnection{}, pass); err != nil {
+				if err := board.DisableNetworkMode(&local.LocalConnection{}, pass); err != nil {
 					return fmt.Errorf("failed to disable network mode: %w", err)
 				}
 				feedback.Printf("network mode disabled and stopped")

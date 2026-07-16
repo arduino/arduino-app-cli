@@ -17,12 +17,10 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
 func HandleAppExport(
-	cfg config.Configuration,
 	idProvider *app.IDProvider,
 	bricksIndex *bricksindex.BricksIndex,
 ) http.HandlerFunc {
@@ -55,7 +53,7 @@ func HandleAppExport(
 			}
 		}
 
-		zipBytes, fileName, err := orchestrator.ExportAppZip(r.Context(), bricksIndex, appToExport, includeData)
+		zipBytes, fileName, err := orchestrator.ExportAppZip(bricksIndex, appToExport, includeData)
 		if err != nil {
 			slog.Error("failed to export app", "app_id", id.String(), "error", err)
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{
