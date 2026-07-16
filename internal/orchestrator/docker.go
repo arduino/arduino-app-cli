@@ -102,15 +102,13 @@ func missingLayers(localRefStr string, remoteRefStr string) ([]dockerImageLayer,
 	return missing, nil
 }
 
-// sumUniqueLayers sums the sizes of the layers across all images, counting each
-// distinct layer (by digest) only once. Shared layers are downloaded a single
-// time, so this yields the real total number of bytes to download.
-func sumUniqueLayers(layersPerImage [][]dockerImageLayer) int64 {
+// sumUniqueLayers sums the sizes of the given layers, counting each distinct
+// layer (by digest) only once. Shared layers are downloaded a single time, so
+// this yields the real total number of bytes to download.
+func sumUniqueLayers(layers []dockerImageLayer) int64 {
 	uniq := map[string]int64{}
-	for _, layers := range layersPerImage {
-		for _, l := range layers {
-			uniq[l.Hash] = l.Size
-		}
+	for _, l := range layers {
+		uniq[l.Hash] = l.Size
 	}
 
 	var total int64

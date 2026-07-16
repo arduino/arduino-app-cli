@@ -145,26 +145,24 @@ func TestGetHighestVersion(t *testing.T) {
 func TestSumUniqueLayers(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    [][]dockerImageLayer
+		input    []dockerImageLayer
 		expected int64
 	}{
 		{
-			name:     "no images",
+			name:     "no layers",
 			input:    nil,
 			expected: 0,
 		},
 		{
-			name: "single image",
-			input: [][]dockerImageLayer{
-				{{Hash: "a", Size: 100}, {Hash: "b", Size: 50}},
-			},
+			name:     "single image",
+			input:    []dockerImageLayer{{Hash: "a", Size: 100}, {Hash: "b", Size: 50}},
 			expected: 150,
 		},
 		{
 			name: "shared layer counted once",
-			input: [][]dockerImageLayer{
-				{{Hash: "base", Size: 200}, {Hash: "a", Size: 50}},
-				{{Hash: "base", Size: 200}, {Hash: "b", Size: 30}},
+			input: []dockerImageLayer{
+				{Hash: "base", Size: 200}, {Hash: "a", Size: 50},
+				{Hash: "base", Size: 200}, {Hash: "b", Size: 30},
 			},
 			expected: 280, // base(200) once + a(50) + b(30)
 		},

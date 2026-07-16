@@ -153,12 +153,8 @@ func downloadSupportedImages(ctx context.Context, cfg config.Configuration, bric
 		return slices.Contains(pulledImages, v)
 	})
 
-	type imageToPull struct {
-		ref   string
-		bytes int64
-	}
-	imagesToPull := make([]imageToPull, 0, len(imagesToPreinstall))
-	layersPerImage := make([][]dockerImageLayer, 0, len(imagesToPreinstall))
+	imagesToPull := make([]string, 0, len(imagesToPreinstall))
+	allLayers := make([]dockerImageLayer, 0, len(imagesToPreinstall))
 	for _, image := range imagesToPreinstall {
 		previousExistingImage := GetHighestVersion(image, pulledImages)
 		layers, err := missingLayers(previousExistingImage, image)
@@ -169,32 +165,32 @@ func downloadSupportedImages(ctx context.Context, cfg config.Configuration, bric
 		for _, l := range layers {
 			bytes += l.Size
 		}
-		imagesToPull = append(imagesToPull, imageToPull{ref: image, bytes: bytes})
-		layersPerImage = append(layersPerImage, layers)
+		imagesToPull = append(imagesToPull, image)
+		allLayers = append(allLayers, layers...)
 		slog.Info("docker image to download", "image", image, "bytes", bytes)
 	}
-	totalBytes := sumUniqueLayers(layersPerImage)
+	totalBytes := sumUniqueLayers(allLayers)
 	slog.Info("total docker images download size", "bytes", totalBytes)
+
+	// Check that there is enough disk space for all the layers to download.
+	// Shared layers are counted once, so this is the real download size.
+	freeSpace, err := GetDockerFreeSpace()
+	if err != nil {
+		return err
+	}
+	if uint64(float64(totalBytes)*2.5) > freeSpace {
+		return ErrDockerOutOfSpace
+	}
 
 	layerProgress := map[string]int64{}
 	var lastLabel string
-	for i, img := range imagesToPull {
-		freeSpace, err := GetDockerFreeSpace()
-		if err != nil {
-			return err
-		}
-
-		// Check that there is enough disk space for the additional layers needed by the image.
-		if uint64(float64(img.bytes)*2.5) > freeSpace {
-			return ErrDockerOutOfSpace
-		}
-
-		eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDocker, Message: fmt.Sprintf("Pulling container image %s ...", img.ref)})
+	for i, image := range imagesToPull {
+		eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDocker, Message: fmt.Sprintf("Pulling container image %s ...", image)})
 		// The percentage stays global (across all images); the label tells the
 		// user which image is currently being pulled.
-		lastLabel = fmt.Sprintf("Pulling image %d/%d (%s)", i+1, len(imagesToPull), imageName(img.ref))
-		if err := pullImage(ctx, docker.Client(), img.ref, layerProgress, totalBytes, lastLabel, eventCB); err != nil {
-			return fmt.Errorf("failed to pull image %s: %w", img.ref, err)
+		lastLabel = fmt.Sprintf("Pulling image %d/%d (%s)", i+1, len(imagesToPull), imageName(image))
+		if err := pullImage(ctx, docker.Client(), image, layerProgress, totalBytes, lastLabel, eventCB); err != nil {
+			return fmt.Errorf("failed to pull image %s: %w", image, err)
 		}
 	}
 
