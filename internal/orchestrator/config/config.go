@@ -21,7 +21,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
-// runnerVersion do not edit, this is generate with `task generate:assets`
+// runnerVersion do not edit, this is generate with `task bump:runner-version`
 var RunnerVersion = "0.11.0"
 
 type Configuration struct {

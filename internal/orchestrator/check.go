@@ -6,6 +6,7 @@
 package orchestrator
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -19,36 +20,34 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 )
 
-// CheckBricks checks that all bricks referenced in the given AppDescriptor exist in the provided BricksIndex,
-// It collects and returns all validation errors as a single joined error, allowing the caller to see all issues at once rather than stopping at the first error.
-func checkBricks(a app.AppDescriptor, index *bricksindex.BricksIndex, modelIndex *modelsindex.ModelsIndex) error {
-	if index == nil {
-		return fmt.Errorf("bricks index cannot be nil")
-	}
-	if modelIndex == nil {
-		return fmt.Errorf("model index cannot be nil")
-	}
-
+// checkBricks validates that each app brick exists in the index, that its selected model (when
+// required) is installed, and that all required brick variables are set.
+// Errors are joined so every issue is reported at once.
+func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.BricksIndex, modelIndex *modelsindex.ModelsIndex) error {
 	var allErrors error
-
-	for _, appBrick := range a.Bricks {
+	for _, appBrick := range bricks {
 		indexBrick, found := index.FindBrickByID(appBrick.ID)
 		if !found {
 			allErrors = errors.Join(allErrors, fmt.Errorf("brick %q not found", appBrick.ID))
 			continue // Skip further validation for this brick since it doesn't exist
 		}
 
-		if len(appBrick.Model) != 0 {
-			model, err := modelIndex.GetModelByID(context.TODO(), appBrick.Model)
+		if indexBrick.RequireModel {
+			selectedModel := cmp.Or(appBrick.Model, indexBrick.ModelName)
+			model, err := modelIndex.GetModelByID(ctx, selectedModel)
 			switch {
 			case err != nil:
-				allErrors = errors.Join(allErrors, fmt.Errorf("error retrieving model %q for brick %q: %w", appBrick.Model, appBrick.ID, err))
+				allErrors = errors.Join(allErrors, fmt.Errorf("retrieving model %q for brick %q: %w", selectedModel, appBrick.ID, err))
 			case model == nil:
-				allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q not found", appBrick.Model, appBrick.ID))
-			case model.Status != modelsindex.InstalledStatus:
-				allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q is not installed", appBrick.Model, appBrick.ID))
+				allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q not found", selectedModel, appBrick.ID))
+			default:
+				if model.Status != modelsindex.InstalledStatus {
+					allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q is not installed", selectedModel, appBrick.ID))
+				}
+				if !modelIndex.IsModelSupportedByBrick(selectedModel, appBrick.ID) {
+					allErrors = errors.Join(allErrors, fmt.Errorf("model %q is not compatible with brick %q", selectedModel, appBrick.ID))
+				}
 			}
-
 		}
 
 		for appBrickVariableName := range appBrick.Variables {
@@ -68,6 +67,7 @@ func checkBricks(a app.AppDescriptor, index *bricksindex.BricksIndex, modelIndex
 			}
 		}
 	}
+
 	return allErrors
 }
 

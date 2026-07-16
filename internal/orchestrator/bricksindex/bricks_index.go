@@ -6,6 +6,7 @@
 package bricksindex
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -17,6 +18,8 @@ import (
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/compose-spec/compose-go/v2/loader"
+	"github.com/compose-spec/compose-go/v2/types"
 	yaml "github.com/goccy/go-yaml"
 	"github.com/goccy/go-yaml/ast"
 
@@ -334,34 +337,33 @@ func parseBrickID(brickID string) (namespace, name string, err error) {
 }
 
 func extractPortsFromComposeFile(composeFile *paths.Path) ([]string, error) {
-	var ports []string
-
-	f, err := composeFile.Open()
+	content, err := composeFile.ReadFile()
 	if err != nil {
-		return ports, err
-	}
-	defer f.Close()
-
-	var compose struct {
-		Services map[string]struct {
-			Ports []string `yaml:"ports,omitempty"`
-		} `yaml:"services"`
-	}
-	if err := yaml.NewDecoder(f).Decode(&compose); err != nil {
-		return ports, err
+		return nil, err
 	}
 
-	for _, service := range compose.Services {
-		for _, portStr := range service.Ports {
-			if strings.Contains(portStr, ":") {
-				parts := strings.Split(portStr, ":")
-				hostPort := parts[len(parts)-2] // Extract the host port (the one before the last colon)
-				ports = append(ports, hostPort)
+	prj, err := loader.LoadWithContext(
+		context.Background(),
+		types.ConfigDetails{
+			ConfigFiles: []types.ConfigFile{{Content: content}},
+			Environment: types.NewMapping(os.Environ()),
+		},
+		func(o *loader.Options) { o.SetProjectName("default", false); o.SkipConsistencyCheck = true },
+		loader.WithSkipValidation,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	var ports []string
+	for _, svc := range prj.Services {
+		for _, p := range svc.Ports {
+			if p.Published != "" {
+				ports = append(ports, p.Published)
 			} else {
-				ports = append(ports, portStr)
+				ports = append(ports, fmt.Sprintf("%d", p.Target))
 			}
 		}
 	}
-
 	return ports, nil
 }
