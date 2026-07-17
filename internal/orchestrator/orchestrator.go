@@ -267,6 +267,11 @@ func getAppEnvironmentVariables(ctx context.Context, app app.ArduinoApp, brickIn
 		maps.Insert(envs, maps.All(brick.Variables))
 	}
 
+	// Add platform-specific environment variables
+	if distroEnv := platform.GetLinuxDistroConfig(plat.Linux.Distro); len(distroEnv) > 0 {
+		maps.Insert(envs, maps.All(distroEnv))
+	}
+
 	envs["APP_HOME"] = app.FullPath.String()
 	envs["BOARD_NAME"] = plat.BoardName
 	// Directory where AI models are installed, shared with the containerized runners.
