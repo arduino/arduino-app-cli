@@ -9,12 +9,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
-
-	"github.com/godbus/dbus/v5"
 )
 
 const systemdLingerDir = "/var/lib/systemd/linger"
@@ -127,48 +127,43 @@ func DisableLinger(ctx context.Context) error {
 	return clearOwner(uid)
 }
 
+// isLingerEnabled reports whether logind linger is currently on for uid,
+// using `loginctl show-user ... -p Linger` rather than reading the
+// User.Linger property over D-Bus.
 func isLingerEnabled(ctx context.Context, uid int) (bool, error) {
-	conn, err := dbus.ConnectSystemBus()
+	out, err := runLoginctl(ctx, "show-user", strconv.Itoa(uid), "-p", "Linger", "--value")
 	if err != nil {
-		return false, err
-	}
-	defer conn.Close()
-
-	logind := conn.Object("org.freedesktop.login1", dbus.ObjectPath("/org/freedesktop/login1"))
-	var userPath dbus.ObjectPath
-	call := logind.CallWithContext(ctx, "org.freedesktop.login1.Manager.GetUser", 0, uint32(uid))
-	if call.Err != nil {
-		if isNoSuchUser(call.Err) {
+		if isNoSuchUser(err) {
 			return false, nil
 		}
-		return false, call.Err
-	}
-	if err := call.Store(&userPath); err != nil {
 		return false, err
 	}
-
-	userObj := conn.Object("org.freedesktop.login1", userPath)
-	v, err := userObj.GetProperty("org.freedesktop.login1.User.Linger")
-	if err != nil {
-		return false, err
-	}
-	enabled, _ := v.Value().(bool)
-	return enabled, nil
+	return strings.TrimSpace(out) == "yes", nil
 }
 
+// setLinger enables or disables logind linger for uid via `loginctl
+// enable-linger`/`loginctl disable-linger` rather than the SetUserLinger
+// D-Bus call. Like SetUserLinger, this needs no elevated privilege when
+// applied to one's own uid.
 func setLinger(ctx context.Context, uid int, enable bool) error {
-	conn, err := dbus.ConnectSystemBus()
-	if err != nil {
-		return err
+	sub := "disable-linger"
+	if enable {
+		sub = "enable-linger"
 	}
-	defer conn.Close()
+	_, err := runLoginctl(ctx, sub, strconv.Itoa(uid))
+	return err
+}
 
-	logind := conn.Object("org.freedesktop.login1", dbus.ObjectPath("/org/freedesktop/login1"))
-	call := logind.CallWithContext(ctx, "org.freedesktop.login1.Manager.SetUserLinger", 0, uint32(uid), enable, false)
-	return call.Err
+// runLoginctl runs `loginctl <args...>` and returns its combined output.
+func runLoginctl(ctx context.Context, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, "loginctl", args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return string(out), fmt.Errorf("%s: %w: %s", cmd.String(), err, strings.TrimSpace(string(out)))
+	}
+	return string(out), nil
 }
 
 func isNoSuchUser(err error) bool {
-	dbusErr, ok := err.(dbus.Error)
-	return ok && dbusErr.Name == "org.freedesktop.login1.NoSuchUser"
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "no such user")
 }

@@ -6,115 +6,94 @@
 // Package pipewire brings up the PipeWire audio stack for the current
 // process's own user. user@<uid>.service's own lifecycle is left entirely to
 // logind, driven by linger (see EnableLinger/DisableLinger in linger.go) —
-// this package only waits for the resulting user bus to appear and then
+// this package only waits for the resulting user manager to come up and then
 // enables/starts the PipeWire units themselves (pipewire.socket,
 // pipewire-pulse.socket, wireplumber.service), which logind has no notion of.
+//
+// Everything here shells out to systemctl --user rather than talking to
+// D-Bus directly, so it behaves exactly like an operator typing the
+// equivalent commands by hand.
 package pipewire
 
 import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 	"time"
-
-	"github.com/godbus/dbus/v5"
 )
 
 const (
-	userBusDialAttempts = 30
-	userBusDialInterval = 500 * time.Millisecond
+	userManagerDialAttempts = 30
+	userManagerDialInterval = 500 * time.Millisecond
 )
 
 var pipewireUnits = []string{"pipewire.socket", "pipewire-pulse.socket", "wireplumber.service"}
 
-// StartPipewire waits for the current user's bus to come up — brought up by
-// EnableLinger, which callers are expected to have called first — and
-// enables/starts the PipeWire units on it.
+// StartPipewire waits for the current user's systemd --user manager to come
+// up — brought up by EnableLinger, which callers are expected to have called
+// first — and enables/starts the PipeWire units on it.
 func StartPipewire(ctx context.Context) error {
-	uid := os.Getuid()
-
-	conn, err := waitForUserBus(ctx, uid, userBusDialAttempts, userBusDialInterval)
-	if err != nil {
-		return fmt.Errorf("dial user bus: %w", err)
-	}
-	defer conn.Close()
-
-	systemd := conn.Object("org.freedesktop.systemd1", "/org/freedesktop/systemd1")
-
-	if call := systemd.CallWithContext(ctx, "org.freedesktop.systemd1.Manager.Reload", 0); call.Err != nil {
-		return fmt.Errorf("reload: %w", call.Err)
+	if err := waitForUserManager(ctx, userManagerDialAttempts, userManagerDialInterval); err != nil {
+		return fmt.Errorf("wait for user systemd manager: %w", err)
 	}
 
-	if call := systemd.CallWithContext(ctx, "org.freedesktop.systemd1.Manager.EnableUnitFiles", 0,
-		pipewireUnits, false, true); call.Err != nil {
-		return fmt.Errorf("enable unit files: %w", call.Err)
+	if _, err := runSystemctlUser(ctx, "daemon-reload"); err != nil {
+		return fmt.Errorf("reload: %w", err)
 	}
 
-	for _, unit := range pipewireUnits {
-		if active, _ := unitActive(ctx, conn, unit); active {
-			continue
-		}
-		if call := systemd.CallWithContext(ctx, "org.freedesktop.systemd1.Manager.StartUnit", 0,
-			unit, "replace"); call.Err != nil {
-			return fmt.Errorf("start %s: %w", unit, call.Err)
-		}
+	// --now both enables the unit files and starts them; systemctl start
+	// is already a no-op on a unit that's already active (e.g. one that
+	// came up via socket activation), so there's no need for a separate
+	// is-active check before starting.
+	if _, err := runSystemctlUser(ctx, append([]string{"enable", "--now"}, pipewireUnits...)...); err != nil {
+		return fmt.Errorf("enable/start unit files: %w", err)
 	}
 
 	return nil
 }
 
-func unitActive(ctx context.Context, conn *dbus.Conn, name string) (bool, error) {
-	systemd := conn.Object("org.freedesktop.systemd1", "/org/freedesktop/systemd1")
-
-	var unitPath dbus.ObjectPath
-	call := systemd.CallWithContext(ctx, "org.freedesktop.systemd1.Manager.GetUnit", 0, name)
-	if call.Err != nil {
-		return false, call.Err // unit not loaded — treat as not-running by caller
-	}
-	if err := call.Store(&unitPath); err != nil {
-		return false, err
-	}
-
-	unitObj := conn.Object("org.freedesktop.systemd1", unitPath)
-	v, err := unitObj.GetProperty("org.freedesktop.systemd1.Unit.ActiveState")
-	if err != nil {
-		return false, err
-	}
-	state, _ := v.Value().(string)
-	return state == "active" || state == "listening" || state == "reloading", nil
-}
-
-func dialUserBus(uid int) (*dbus.Conn, error) {
-	addr := fmt.Sprintf("unix:path=/run/user/%d/bus", uid)
-	conn, err := dbus.Dial(addr)
-	if err != nil {
-		return nil, err
-	}
-	if err := conn.Auth(nil); err != nil {
-		conn.Close()
-		return nil, err
-	}
-	if err := conn.Hello(); err != nil {
-		conn.Close()
-		return nil, err
-	}
-	return conn, nil
-}
-
-func waitForUserBus(ctx context.Context, uid int, attempts int, delay time.Duration) (*dbus.Conn, error) {
+// waitForUserManager blocks until the current user's systemd --user manager
+// is reachable via systemctl, retrying up to attempts times with delay
+// between attempts.
+func waitForUserManager(ctx context.Context, attempts int, delay time.Duration) error {
 	var lastErr error
 	for i := 0; i < attempts; i++ {
-		conn, err := dialUserBus(uid)
-		if err == nil {
-			return conn, nil
+		if _, err := runSystemctlUser(ctx, "daemon-reload"); err == nil {
+			return nil
+		} else {
+			lastErr = err
 		}
-		lastErr = err
 
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return ctx.Err()
 		case <-time.After(delay):
 		}
 	}
-	return nil, lastErr
+	return lastErr
+}
+
+// runSystemctlUser runs `systemctl --user <args...>` for the current
+// process's own user and returns its combined output. XDG_RUNTIME_DIR is set
+// explicitly so the command can find /run/user/<uid>/bus even when the
+// daemon isn't running inside a full login session (e.g. over adb shell).
+func runSystemctlUser(ctx context.Context, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, "systemctl", append([]string{"--user"}, args...)...)
+	cmd.Env = userCommandEnv()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return string(out), fmt.Errorf("%s: %w: %s", cmd.String(), err, strings.TrimSpace(string(out)))
+	}
+	return string(out), nil
+}
+
+// userCommandEnv returns the environment systemctl/loginctl need to reach
+// the current user's own session.
+func userCommandEnv() []string {
+	uid := os.Getuid()
+	env := os.Environ()
+	env = append(env, fmt.Sprintf("XDG_RUNTIME_DIR=/run/user/%d", uid))
+	return env
 }
