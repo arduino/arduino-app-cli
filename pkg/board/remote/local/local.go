@@ -41,8 +41,9 @@ func (a *LocalConnection) List(path string) ([]remote.FileInfo, error) {
 
 	return f.Map(dirs, func(d fs.DirEntry) remote.FileInfo {
 		return remote.FileInfo{
-			Name:  d.Name(),
-			IsDir: d.IsDir(),
+			Name:      d.Name(),
+			IsDir:     d.IsDir(),
+			IsSymlink: d.Type()&fs.ModeSymlink != 0,
 		}
 	}), nil
 }

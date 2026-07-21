@@ -53,15 +53,25 @@ func ParseLsOutput(out io.Reader) ([]FileInfo, error) {
 		if len(line) == 0 {
 			continue
 		}
-		first := strings.IndexByte(string(line), '"')
-		last := strings.LastIndexByte(string(line), '"')
-		name := string(line[first+1 : last])
+
+		// Each entry looks like: `<type><perms> ... "<name>"` (or, for
+		// symlinks, `... "<name>" -> "<target>"`). Extract the name from
+		// between the first pair of double quotes.
+		_, after, ok := strings.Cut(string(line), `"`)
+		if !ok {
+			continue
+		}
+		name, _, ok := strings.Cut(after, `"`)
+		if !ok {
+			continue
+		}
 		if name == "." || name == ".." {
 			continue
 		}
 		files = append(files, FileInfo{
-			Name:  name,
-			IsDir: line[0] == 'd',
+			Name:      name,
+			IsDir:     line[0] == 'd',
+			IsSymlink: line[0] == 'l',
 		})
 	}
 
