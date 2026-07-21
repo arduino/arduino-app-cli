@@ -815,6 +815,24 @@ Contains a JSON object with the details of an error.
 			},
 		},
 		{
+			OperationId: "getExamples",
+			Method:      http.MethodGet,
+			Path:        "/v1/examples",
+			Request:     nil,
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: orchestrator.ExampleResponse{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "returns the example structure for rendering",
+			Summary:     "returns the example structure",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
 			OperationId: "getVersions",
 			Method:      http.MethodGet,
 			Path:        "/v1/version",
