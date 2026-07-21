@@ -233,9 +233,13 @@ func parseOSReleaseName(r io.Reader) string {
 func GetLinuxDistroConfig(distro Distro) map[string]string {
 	switch distro {
 	case DistroDebian:
-		return map[string]string{
-			"HOST_DSP_INSTALLATION_PATH": "/usr/share/hexagon-dsp",
+		const dspPath = "/usr/share/hexagon-dsp"
+		if paths.New(dspPath).Exist() {
+			return map[string]string{
+				"HOST_DSP_INSTALLATION_PATH": dspPath,
+			}
 		}
+		return map[string]string{}
 	default:
 		return map[string]string{}
 	}
