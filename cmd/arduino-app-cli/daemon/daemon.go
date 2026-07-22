@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/docker/cli/cli/command"
@@ -43,12 +44,7 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 			}
 
 			//FIXME: if there is a default app do not disable linger.
-			// Clean up linger left on by a previous run that crashed (or lost
-			// power) before it got to disable it itself — nothing is using
-			// audio yet at daemon startup, so it's always safe to clear here.
-			// Never touches linger a human enabled directly; see
-			// DisableLingerIfOwned.
-			if err := pipewire.DisableLinger(cmd.Context()); err != nil {
+			if err := pipewire.DisableLinger(cmd.Context(), *cfg.DataDir(), os.Geteuid()); err != nil {
 				slog.Warn("Failed to reconcile leftover audio service linger", slog.String("error", err.Error()))
 			}
 

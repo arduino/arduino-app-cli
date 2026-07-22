@@ -41,7 +41,8 @@ func StartPipewire(ctx context.Context) error {
 		return fmt.Errorf("reload: %w", err)
 	}
 
-	if _, err := runSystemctlUser(ctx, append([]string{"enable", "--now"}, pipewireUnits...)...); err != nil {
+	enableUnitsArgs := append([]string{"enable", "--now"}, pipewireUnits...)
+	if _, err := runSystemctlUser(ctx, enableUnitsArgs...); err != nil {
 		return fmt.Errorf("enable/start unit files: %w", err)
 	}
 

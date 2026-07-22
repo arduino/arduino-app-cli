@@ -139,7 +139,7 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 
 	if runningAppReference != nil {
 		// TODO: we should destroy the app
-		if err := StopApp(ctx, dockerClient, platform, *runningAppReference, func(StreamMessage) {}); err != nil {
+		if err := StopApp(ctx, dockerClient, platform, *runningAppReference, cfg, func(StreamMessage) {}); err != nil {
 			slog.Warn("Error while stopping the app using the model", "app", runningAppReference.Name, "error", err.Error())
 		}
 	}

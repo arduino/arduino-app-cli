@@ -18,22 +18,15 @@ import (
 	"github.com/arduino/go-paths-helper"
 )
 
-const systemdLingerDir = "/var/lib/systemd/linger"
-
-func ownerPath(uid int) string {
-	return filepath.Join(os.Getenv("ARDUINO_APP_CLI__DATA_DIR"), "pipewire", fmt.Sprintf("linger-owner-%d", uid))
-}
-
-func setOwner(uid int, systemdMtime time.Time) error {
-	path := ownerPath(uid)
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+func setOwner(ownerPath string, systemdMtime time.Time) error {
+	if err := os.MkdirAll(filepath.Dir(ownerPath), 0700); err != nil {
 		return err
 	}
-	return os.WriteFile(path, []byte(systemdMtime.Format(time.RFC3339Nano)), 0600)
+	return os.WriteFile(ownerPath, []byte(systemdMtime.Format(time.RFC3339Nano)), 0600)
 }
 
-func isSetbyApp(uid int) (owned bool, recordedMtime time.Time, err error) {
-	data, err := os.ReadFile(ownerPath(uid))
+func isSetbyApp(ownerPath string) (owned bool, recordedMtime time.Time, err error) {
+	data, err := os.ReadFile(ownerPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return false, time.Time{}, nil
@@ -47,8 +40,8 @@ func isSetbyApp(uid int) (owned bool, recordedMtime time.Time, err error) {
 	return true, t, nil
 }
 
-func clearOwner(uid int) error {
-	err := os.Remove(ownerPath(uid))
+func clearOwner(ownerPath string) error {
+	err := os.Remove(ownerPath)
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -64,7 +57,7 @@ func lookupUsername(uid int) (string, error) {
 }
 
 func systemdLingerMtime(username string) (time.Time, error) {
-	info, err := os.Stat(filepath.Join(systemdLingerDir, username))
+	info, err := os.Stat(filepath.Join("/var/lib/systemd/linger", username))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return time.Time{}, nil
@@ -74,9 +67,7 @@ func systemdLingerMtime(username string) (time.Time, error) {
 	return info.ModTime(), nil
 }
 
-func EnableLinger(ctx context.Context) error {
-	uid := os.Getuid()
-
+func EnableLinger(ctx context.Context, dataDir paths.Path, uid int) error {
 	alreadyOn, err := isLingerEnabled(ctx, uid)
 	if err != nil {
 		return fmt.Errorf("check linger: %w", err)
@@ -85,10 +76,9 @@ func EnableLinger(ctx context.Context) error {
 		return nil
 	}
 
-	if err := setLinger(ctx, uid, true); err != nil {
+	if err := setLinger(ctx, uid, "enable-linger"); err != nil {
 		return fmt.Errorf("enable linger: %w", err)
 	}
-
 	username, err := lookupUsername(uid)
 	if err != nil {
 		return fmt.Errorf("look up username: %w", err)
@@ -97,13 +87,15 @@ func EnableLinger(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("read linger state: %w", err)
 	}
-	return setOwner(uid, mtime)
+
+	ownerPath := dataDir.Join("pipewire").Join(fmt.Sprintf("linger-owner-%d", uid)).String()
+	return setOwner(ownerPath, mtime)
 }
 
-func DisableLinger(ctx context.Context) error {
-	uid := os.Getuid()
+func DisableLinger(ctx context.Context, dataDir paths.Path, uid int) error {
 
-	owned, recordedMtime, err := isSetbyApp(uid)
+	ownerPath := dataDir.Join("pipewire").Join(fmt.Sprintf("linger-owner-%d", uid)).String()
+	owned, recordedMtime, err := isSetbyApp(ownerPath)
 	if err != nil {
 		return fmt.Errorf("check linger ownership: %w", err)
 	}
@@ -119,22 +111,21 @@ func DisableLinger(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("read linger state: %w", err)
 	}
-
 	if currentMtime.Equal(recordedMtime) {
-		if err := setLinger(ctx, uid, false); err != nil {
+		if err := setLinger(ctx, uid, "disable-linger"); err != nil {
 			return fmt.Errorf("disable linger: %w", err)
 		}
 	}
-	return clearOwner(uid)
+
+	return clearOwner(ownerPath)
 }
 
 // isLingerEnabled reports whether logind linger is currently on for uid,
-// using `loginctl show-user ... -p Linger` rather than reading the
-// User.Linger property over D-Bus.
+// using `loginctl show-user ... -p Linger`
 func isLingerEnabled(ctx context.Context, uid int) (bool, error) {
 	out, err := runLoginctl(ctx, "show-user", strconv.Itoa(uid), "-p", "Linger", "--value")
 	if err != nil {
-		if isNoSuchUser(err) {
+		if strings.Contains(strings.ToLower(err.Error()), "no such user") {
 			return false, nil
 		}
 		return false, err
@@ -143,22 +134,15 @@ func isLingerEnabled(ctx context.Context, uid int) (bool, error) {
 }
 
 // setLinger enables or disables logind linger for uid via `loginctl
-// enable-linger`/`loginctl disable-linger` rather than the SetUserLinger
-// D-Bus call. Like SetUserLinger, this needs no elevated privilege when
-// applied to one's own uid.
-func setLinger(ctx context.Context, uid int, enable bool) error {
-	sub := "disable-linger"
-	if enable {
-		sub = "enable-linger"
-	}
-	_, err := runLoginctl(ctx, sub, strconv.Itoa(uid))
+// enable-linger`/`loginctl disable-linger`
+func setLinger(ctx context.Context, uid int, cmd string) error {
+	_, err := runLoginctl(ctx, cmd, strconv.Itoa(uid))
 	return err
 }
 
-// runLoginctl runs `loginctl <args...>` and returns its combined output.
 func runLoginctl(ctx context.Context, args ...string) (string, error) {
 	cmdArgs := append([]string{"loginctl"}, args...)
-	cmd, err := paths.NewProcess(nil, cmdArgs...)
+	cmd, err := paths.NewProcess(nil)
 	if err != nil {
 		return "", fmt.Errorf("create process %q: %w", strings.Join(cmdArgs, " "), err)
 	}
@@ -168,8 +152,4 @@ func runLoginctl(ctx context.Context, args ...string) (string, error) {
 		return string(out), fmt.Errorf("%s: %w: %s", strings.Join(cmdArgs, " "), err, strings.TrimSpace(string(out)))
 	}
 	return string(out), nil
-}
-
-func isNoSuchUser(err error) bool {
-	return err != nil && strings.Contains(strings.ToLower(err.Error()), "no such user")
 }
