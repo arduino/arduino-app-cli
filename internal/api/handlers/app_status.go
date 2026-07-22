@@ -13,16 +13,16 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/id"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
 func HandlerAppStatus(
 	dockerCli command.Cli,
-	idProvider *app.IDProvider,
+	idProvider *id.IDProvider,
 	bricksIndex *bricksindex.BricksIndex,
 	cfg config.Configuration,
 	platform platform.Platform,

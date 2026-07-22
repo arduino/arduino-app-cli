@@ -12,12 +12,13 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/id"
 	"github.com/arduino/arduino-app-cli/internal/render"
 
 	"go.bug.st/f"
 )
 
-func HandleSketchAddLibrary(idProvider *app.IDProvider) http.HandlerFunc {
+func HandleSketchAddLibrary(idProvider *id.IDProvider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {
@@ -59,7 +60,7 @@ type SketchAddLibraryResponse struct {
 	AddedLibraries []string `json:"libraries"`
 }
 
-func HandleSketchRemoveLibrary(idProvider *app.IDProvider) http.HandlerFunc {
+func HandleSketchRemoveLibrary(idProvider *id.IDProvider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {
@@ -101,7 +102,7 @@ type SketchRemoveLibraryResponse struct {
 	RemovedLibraries []string `json:"libraries"`
 }
 
-func HandleSketchListLibraries(idProvider *app.IDProvider) http.HandlerFunc {
+func HandleSketchListLibraries(idProvider *id.IDProvider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {

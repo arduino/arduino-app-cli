@@ -17,6 +17,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/id"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -434,7 +435,7 @@ bricks:
 		bricksIndex: bIndex,
 		modelsIndex: mIndex,
 	}
-	idProvider := app.NewAppIDProvider(cfg, unoQPlatform)
+	idProvider := id.NewAppIDProvider(cfg, unoQPlatform)
 
 	t.Run("Brick Not Found", func(t *testing.T) {
 		res, err := svc.BricksDetails("arduino:non_existing", idProvider, cfg, unoQPlatform)

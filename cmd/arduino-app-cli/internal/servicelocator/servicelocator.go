@@ -16,10 +16,10 @@ import (
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/id"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -82,8 +82,8 @@ var (
 		)
 	})
 
-	GetAppIDProvider = sync.OnceValue(func() *app.IDProvider {
-		return app.NewAppIDProvider(globalConfig, GetPlatform())
+	GetAppIDProvider = sync.OnceValue(func() *id.IDProvider {
+		return id.NewAppIDProvider(globalConfig, GetPlatform())
 	})
 
 	GetPlatform = sync.OnceValue(func() platform.Platform {

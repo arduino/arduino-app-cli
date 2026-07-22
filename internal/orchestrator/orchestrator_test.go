@@ -22,6 +22,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/id"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -30,7 +31,7 @@ var unoQPlatform = platform.Platform{BoardName: "unoq"}
 
 func TestCloneApp(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg, unoQPlatform)
+	idProvider := id.NewAppIDProvider(cfg, unoQPlatform)
 
 	originalAppID := f.Must(idProvider.ParseID("user:original-app"))
 	originalAppPath := originalAppID.ToPath()
@@ -150,7 +151,7 @@ func TestCloneApp(t *testing.T) {
 
 func TestEditApp(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg, unoQPlatform)
+	idProvider := id.NewAppIDProvider(cfg, unoQPlatform)
 
 	t.Run("with default", func(t *testing.T) {
 		_, err := CreateApp(CreateAppRequest{Name: "app-default"}, idProvider, cfg)
@@ -236,7 +237,7 @@ func TestEditApp(t *testing.T) {
 
 func TestListApp(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg, unoQPlatform)
+	idProvider := id.NewAppIDProvider(cfg, unoQPlatform)
 
 	docker, err := dockerClient.NewClientWithOpts(
 		dockerClient.FromEnv,
@@ -397,7 +398,7 @@ func TestListApp(t *testing.T) {
 
 func TestListAppsFiltersByBricksIndex(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg, unoQPlatform)
+	idProvider := id.NewAppIDProvider(cfg, unoQPlatform)
 
 	docker, err := dockerClient.NewClientWithOpts(
 		dockerClient.FromEnv,
@@ -476,7 +477,7 @@ bricks:
 
 func TestListAppsLocalBricksCompatibility(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg, unoQPlatform)
+	idProvider := id.NewAppIDProvider(cfg, unoQPlatform)
 
 	docker, err := dockerClient.NewClientWithOpts(
 		dockerClient.FromEnv,
@@ -536,9 +537,9 @@ func createApp(
 	t *testing.T,
 	name string,
 	isExample bool,
-	idProvider *app.IDProvider,
+	idProvider *id.IDProvider,
 	cfg config.Configuration,
-) app.ID {
+) id.ID {
 	t.Helper()
 
 	res, err := CreateApp(CreateAppRequest{
@@ -562,7 +563,7 @@ func createApp(
 
 func TestGetAppEnvironmentVariablesWithDefaults(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg, unoQPlatform)
+	idProvider := id.NewAppIDProvider(cfg, unoQPlatform)
 
 	docker, err := dockerClient.NewClientWithOpts(
 		dockerClient.FromEnv,
@@ -643,7 +644,7 @@ models:
 
 func TestGetAppEnvironmentVariablesWithCustomModelOverrides(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg, unoQPlatform)
+	idProvider := id.NewAppIDProvider(cfg, unoQPlatform)
 
 	docker, err := dockerClient.NewClientWithOpts(
 		dockerClient.FromEnv,
@@ -723,7 +724,7 @@ models:
 
 func TestGetAppEnvironmentVariablesUsingMultipleBricks(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg, unoQPlatform)
+	idProvider := id.NewAppIDProvider(cfg, unoQPlatform)
 
 	docker, err := dockerClient.NewClientWithOpts(
 		dockerClient.FromEnv,

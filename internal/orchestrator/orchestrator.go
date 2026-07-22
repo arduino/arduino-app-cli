@@ -34,6 +34,7 @@ import (
 	appgenerator "github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/id"
 	linuxconfig "github.com/arduino/arduino-app-cli/internal/orchestrator/linuxConfig"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
@@ -442,7 +443,7 @@ func StartDefaultApp(
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
 	servicesIndex *servicesindex.ServicesIndex,
-	idProvider *app.IDProvider,
+	idProvider *id.IDProvider,
 	cfg config.Configuration,
 	platform platform.Platform,
 ) error {
@@ -477,7 +478,7 @@ type ListAppResult struct {
 }
 
 type AppInfo struct {
-	ID          app.ID `json:"id"`
+	ID          id.ID  `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Icon        string `json:"icon"`
@@ -507,7 +508,7 @@ func ListApps(
 	ctx context.Context,
 	docker command.Cli,
 	req ListAppRequest,
-	idProvider *app.IDProvider,
+	idProvider *id.IDProvider,
 	bricksIndex *bricksindex.BricksIndex,
 	cfg config.Configuration,
 	platform platform.Platform,
@@ -625,7 +626,7 @@ func exampleCompatibleWithBricksIndex(a app.ArduinoApp, idx *bricksindex.BricksI
 }
 
 type AppDetailedInfo struct {
-	ID          app.ID             `json:"id" required:"true" `
+	ID          id.ID              `json:"id" required:"true" `
 	Name        string             `json:"name" required:"true"`
 	Path        string             `json:"path"`
 	Description string             `json:"description"`
@@ -648,7 +649,7 @@ func AppDetails(
 	docker command.Cli,
 	userApp app.ArduinoApp,
 	bricksIndex *bricksindex.BricksIndex,
-	idProvider *app.IDProvider,
+	idProvider *id.IDProvider,
 	cfg config.Configuration,
 ) (AppDetailedInfo, error) {
 	bricksIndex = bricksIndex.WithAppBricks(userApp.LocalBricks)
@@ -718,12 +719,12 @@ type CreateAppRequest struct {
 }
 
 type CreateAppResponse struct {
-	ID app.ID `json:"id"`
+	ID id.ID `json:"id"`
 }
 
 func CreateApp(
 	req CreateAppRequest,
-	idProvider *app.IDProvider,
+	idProvider *id.IDProvider,
 	cfg config.Configuration,
 ) (CreateAppResponse, error) {
 	if req.Name == "" {
@@ -756,19 +757,19 @@ func CreateApp(
 }
 
 type CloneAppRequest struct {
-	FromID app.ID
+	FromID id.ID
 
 	Name *string
 	Icon *string
 }
 
 type CloneAppResponse struct {
-	ID app.ID `json:"id"`
+	ID id.ID `json:"id"`
 }
 
 func CloneApp(
 	req CloneAppRequest,
-	idProvider *app.IDProvider,
+	idProvider *id.IDProvider,
 	cfg config.Configuration,
 ) (response CloneAppResponse, cloneErr error) {
 	originPath := req.FromID.ToPath()
