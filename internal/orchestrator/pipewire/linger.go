@@ -9,12 +9,13 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/arduino/go-paths-helper"
 )
 
 const systemdLingerDir = "/var/lib/systemd/linger"
@@ -156,10 +157,15 @@ func setLinger(ctx context.Context, uid int, enable bool) error {
 
 // runLoginctl runs `loginctl <args...>` and returns its combined output.
 func runLoginctl(ctx context.Context, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "loginctl", args...)
-	out, err := cmd.CombinedOutput()
+	cmdArgs := append([]string{"loginctl"}, args...)
+	cmd, err := paths.NewProcess(nil, cmdArgs...)
 	if err != nil {
-		return string(out), fmt.Errorf("%s: %w: %s", cmd.String(), err, strings.TrimSpace(string(out)))
+		return "", fmt.Errorf("create process %q: %w", strings.Join(cmdArgs, " "), err)
+	}
+
+	out, err := cmd.RunAndCaptureCombinedOutput(ctx)
+	if err != nil {
+		return string(out), fmt.Errorf("%s: %w: %s", strings.Join(cmdArgs, " "), err, strings.TrimSpace(string(out)))
 	}
 	return string(out), nil
 }

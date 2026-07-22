@@ -19,9 +19,10 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/arduino/go-paths-helper"
 )
 
 const (
@@ -80,20 +81,21 @@ func waitForUserManager(ctx context.Context, attempts int, delay time.Duration) 
 // explicitly so the command can find /run/user/<uid>/bus even when the
 // daemon isn't running inside a full login session (e.g. over adb shell).
 func runSystemctlUser(ctx context.Context, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "systemctl", append([]string{"--user"}, args...)...)
-	cmd.Env = userCommandEnv()
-	out, err := cmd.CombinedOutput()
+	cmdArgs := append([]string{"systemctl", "--user"}, args...)
+	cmd, err := paths.NewProcess(userExtraEnv(), cmdArgs...)
 	if err != nil {
-		return string(out), fmt.Errorf("%s: %w: %s", cmd.String(), err, strings.TrimSpace(string(out)))
+		return "", fmt.Errorf("create process %q: %w", strings.Join(cmdArgs, " "), err)
+	}
+
+	out, err := cmd.RunAndCaptureCombinedOutput(ctx)
+	if err != nil {
+		return string(out), fmt.Errorf("%s: %w: %s", strings.Join(cmdArgs, " "), err, strings.TrimSpace(string(out)))
 	}
 	return string(out), nil
 }
 
-// userCommandEnv returns the environment systemctl/loginctl need to reach
-// the current user's own session.
-func userCommandEnv() []string {
-	uid := os.Getuid()
-	env := os.Environ()
-	env = append(env, fmt.Sprintf("XDG_RUNTIME_DIR=/run/user/%d", uid))
-	return env
+// userExtraEnv returns the extra environment systemctl needs to reach the
+// current user's own session, on top of the process's normal environment.
+func userExtraEnv() []string {
+	return []string{fmt.Sprintf("XDG_RUNTIME_DIR=/run/user/%d", os.Getuid())}
 }
