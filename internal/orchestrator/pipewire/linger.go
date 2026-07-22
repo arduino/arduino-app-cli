@@ -8,6 +8,7 @@ package pipewire
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -115,6 +116,7 @@ func DisableLinger(ctx context.Context, dataDir paths.Path, uid int) error {
 		if err := setLinger(ctx, uid, "disable-linger"); err != nil {
 			return fmt.Errorf("disable linger: %w", err)
 		}
+		slog.Debug("linger disabled", slog.String("username", username), slog.Int("uid", uid))
 	}
 
 	return clearOwner(ownerPath)
@@ -142,7 +144,7 @@ func setLinger(ctx context.Context, uid int, cmd string) error {
 
 func runLoginctl(ctx context.Context, args ...string) (string, error) {
 	cmdArgs := append([]string{"loginctl"}, args...)
-	cmd, err := paths.NewProcess(nil)
+	cmd, err := paths.NewProcess(nil, cmdArgs...)
 	if err != nil {
 		return "", fmt.Errorf("create process %q: %w", strings.Join(cmdArgs, " "), err)
 	}

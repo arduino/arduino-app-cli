@@ -43,9 +43,15 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 				slog.Warn("Failed to stop containers", slog.String("error", err.Error()))
 			}
 
-			//FIXME: if there is a default app do not disable linger.
-			if err := pipewire.DisableLinger(cmd.Context(), *cfg.DataDir(), os.Geteuid()); err != nil {
-				slog.Warn("Failed to reconcile leftover audio service linger", slog.String("error", err.Error()))
+			app, err := orchestrator.GetDefaultApp(cfg)
+			if err != nil {
+				slog.Warn("failed to get default app", slog.String("error", err.Error()))
+			}
+			if app == nil {
+				slog.Debug("app is not set")
+				if err := pipewire.DisableLinger(cmd.Context(), *cfg.DataDir(), os.Geteuid()); err != nil {
+					slog.Warn("Failed to reconcile leftover audio service linger", slog.String("error", err.Error()))
+				}
 			}
 
 			// start the default app in the background
