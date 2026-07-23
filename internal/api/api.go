@@ -11,10 +11,10 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/id"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -37,7 +37,7 @@ func NewHTTPRouter(
 	bricksIndex *bricksindex.BricksIndex,
 	servicesIndex *servicesindex.ServicesIndex,
 	brickService *bricks.Service,
-	idProvider *id.IDProvider,
+	idProvider *appid.Provider,
 	platform platform.Platform,
 	cfg config.Configuration,
 	allowedOrigins []string,

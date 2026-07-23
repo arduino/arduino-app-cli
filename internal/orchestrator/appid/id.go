@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package id
+package appid
 
 import (
 	"encoding/base64"
@@ -56,16 +56,16 @@ func (id ID) Equal(other ID) bool {
 		id.encodedID == other.encodedID
 }
 
-type IDProvider struct {
+type Provider struct {
 	cfg  config.Configuration
 	plat platform.Platform
 }
 
-func NewAppIDProvider(cfg config.Configuration, plat platform.Platform) *IDProvider {
-	return &IDProvider{cfg: cfg, plat: plat}
+func NewAppProvider(cfg config.Configuration, plat platform.Platform) *Provider {
+	return &Provider{cfg: cfg, plat: plat}
 }
 
-func (p *IDProvider) IDFromBase64(id string) (ID, error) {
+func (p *Provider) IDFromBase64(id string) (ID, error) {
 	decodedID, err := base64.RawURLEncoding.DecodeString(id)
 	if err != nil {
 		return ID{}, err
@@ -73,7 +73,7 @@ func (p *IDProvider) IDFromBase64(id string) (ID, error) {
 	return p.parseID(string(decodedID))
 }
 
-func (p *IDProvider) IDFromPath(path *paths.Path) (ID, error) {
+func (p *Provider) IDFromPath(path *paths.Path) (ID, error) {
 	if path == nil || !path.Exist() {
 		return ID{}, ErrInvalidID
 	}
@@ -123,11 +123,11 @@ func (p *IDProvider) IDFromPath(path *paths.Path) (ID, error) {
 
 // ParseID parses a string into an ID.
 // It accepts both absolute paths and relative paths.
-func (p *IDProvider) ParseID(id string) (ID, error) {
+func (p *Provider) ParseID(id string) (ID, error) {
 	return p.parseID(id)
 }
 
-func (p *IDProvider) parseID(id string) (ID, error) {
+func (p *Provider) parseID(id string) (ID, error) {
 	var path *paths.Path
 
 	prefix, appPath, found := strings.Cut(id, ":")

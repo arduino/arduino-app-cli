@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package id
+package appid
 
 import (
 	"testing"
@@ -37,7 +37,7 @@ func TestNewIDFromPath(t *testing.T) {
 	require.NoError(t, examplesBoardDir.Join("nested", "platform-example").MkdirAll())
 	require.NoError(t, tmp.Join("other-app").MkdirAll())
 
-	idProvider := NewAppIDProvider(orchestratorConfig, unoQPlatform)
+	idProvider := NewAppProvider(orchestratorConfig, unoQPlatform)
 
 	tests := []struct {
 		name    string
@@ -110,7 +110,7 @@ func TestParseID(t *testing.T) {
 	require.NoError(t, examplesCommonDir.Join("nested", "deep", "example-app").MkdirAll())
 	require.NoError(t, examplesBoardDir.Join("nested", "platform-example").MkdirAll())
 
-	idProvider := NewAppIDProvider(orchestratorConfig, unoQPlatform)
+	idProvider := NewAppProvider(orchestratorConfig, unoQPlatform)
 
 	tests := []struct {
 		name     string

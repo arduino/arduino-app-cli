@@ -19,9 +19,9 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/id"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -174,7 +174,7 @@ func getInstanceBrickConfigVariableDetails(
 	return variablesMap, variableDetails
 }
 
-func (s *Service) BricksDetails(id string, idProvider *id.IDProvider,
+func (s *Service) BricksDetails(id string, idProvider *appid.Provider,
 	cfg config.Configuration, platform platform.Platform) (BrickDetailsResult, error) {
 	brick, found := s.bricksIndex.FindBrickByID(id)
 	if !found {
@@ -260,7 +260,7 @@ func getBrickConfigVariableDetails(
 	return variablesMap, variableDetails
 }
 
-func getUsedByApps(cfg config.Configuration, brickId string, idProvider *id.IDProvider, platform platform.Platform) ([]AppReference, error) {
+func getUsedByApps(cfg config.Configuration, brickId string, idProvider *appid.Provider, platform platform.Platform) ([]AppReference, error) {
 	pathsToExplore := paths.NewPathList()
 	pathsToExplore.AddAll(cfg.ExamplesDirs(platform))
 	pathsToExplore.Add(cfg.AppsDir())

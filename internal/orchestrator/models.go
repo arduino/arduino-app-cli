@@ -23,9 +23,9 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/id"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -113,7 +113,7 @@ var (
 	ErrIncompleteImpulse   = errors.New("impulse not ready for deployment")
 )
 
-func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, platform platform.Platform, id string, idProvider *id.IDProvider, force bool) (err error) {
+func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, platform platform.Platform, id string, idProvider *appid.Provider, force bool) (err error) {
 	res, err := modelsIndex.GetModelByID(ctx, id)
 	if err != nil {
 		return err
@@ -171,7 +171,7 @@ func buildModelInUseMessage(references []string, runningAppRef *app.ArduinoApp) 
 // This allows the user to see both issues before deciding to use the flag
 // preventing the second error from being masked.
 func checkForModelReferences(ctx context.Context, dockerClient command.Cli,
-	cfg config.Configuration, idProvider *id.IDProvider, bricksIndex *bricksindex.BricksIndex,
+	cfg config.Configuration, idProvider *appid.Provider, bricksIndex *bricksindex.BricksIndex,
 	modelId string, platform platform.Platform) ([]string, *app.ArduinoApp, error) {
 	apps, err := ListApps(
 		ctx, dockerClient, ListAppRequest{

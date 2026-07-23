@@ -14,8 +14,8 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/id"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
@@ -23,7 +23,7 @@ type AppLocalBrickRenameRequest struct {
 	Name string `json:"name"`
 }
 
-func HandleAppLocalBrickRename(brickService *bricks.Service, idProvider *id.IDProvider) http.HandlerFunc {
+func HandleAppLocalBrickRename(brickService *bricks.Service, idProvider *appid.Provider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		appId, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {

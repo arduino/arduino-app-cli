@@ -17,14 +17,14 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/id"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
 func HandleAppLogs(
 	dockerClient command.Cli,
-	idProvider *id.IDProvider,
+	idProvider *appid.Provider,
 	bricksIndex *bricksindex.BricksIndex,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

@@ -15,9 +15,9 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/id"
 	"github.com/arduino/arduino-app-cli/internal/render"
 
 	"github.com/docker/cli/cli/command"
@@ -26,7 +26,7 @@ import (
 func HandleAppDetails(
 	dockerClient command.Cli,
 	bricksIndex *bricksindex.BricksIndex,
-	idProvider *id.IDProvider,
+	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -63,7 +63,7 @@ type EditRequest struct {
 func HandleAppDetailsEdits(
 	dockerClient command.Cli,
 	bricksIndex *bricksindex.BricksIndex,
-	idProvider *id.IDProvider,
+	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
