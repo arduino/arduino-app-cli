@@ -69,7 +69,9 @@ func systemdLingerMtime(username string) (time.Time, error) {
 }
 
 func EnableLinger(ctx context.Context, cfg config.Configuration) error {
-	alreadyOn, err := isLingerEnabled(ctx, uid)
+    user, err := user.Current()
+    
+	alreadyOn, err := isLingerEnabled(ctx, user.Username)
 	if err != nil {
 		return fmt.Errorf("check linger: %w", err)
 	}
