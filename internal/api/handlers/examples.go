@@ -10,12 +10,12 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
-func HandleExamples(cfg config.Configuration, idProvider *app.IDProvider) http.HandlerFunc {
+func HandleExamples(cfg config.Configuration, idProvider *appid.Provider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		examples, err := orchestrator.GetExamples(cfg, idProvider)
 		if err != nil {
