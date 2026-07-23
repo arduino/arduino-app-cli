@@ -82,10 +82,6 @@ func EnableLinger(ctx context.Context, cfg config.Configuration) error {
 	if err := setLinger(ctx, uid, "enable-linger"); err != nil {
 		return fmt.Errorf("enable linger: %w", err)
 	}
-	username, err := lookupUsername(uid)
-	if err != nil {
-		return fmt.Errorf("look up username: %w", err)
-	}
 	mtime, err := systemdLingerMtime(user.Username)
 	if err != nil {
 		return fmt.Errorf("read linger state: %w", err)
