@@ -65,6 +65,7 @@ func Detect(ctx context.Context) (AvailableDevices, error) {
 		slog.Warn("unable to get enabled devices from linux config", slog.String("error", err.Error()))
 	}
 	devices = HasCarrierDevices(carriers, devices)
+	devices.HasCSICameraDevice = devices.HasCSICameraDevice || HasNativeCSICameraDriver()
 
 	return devices, nil
 }
@@ -175,8 +176,39 @@ func HasVirtualDevice(deviceClass DeviceClass, devices []string) bool {
 	return false
 }
 
-func HasCarrierDevices(carriers []linuxconfig.Carrier, devices AvailableDevices) AvailableDevices {
+// HasNativeCSICameraDriver reports if the board has built-in MIPI-CSI interfaces
+func HasNativeCSICameraDriver() bool {
+	return hasNativeCSICameraDriver("/sys/bus/platform/drivers", "/run/cam_server/le_cam_socket")
+}
 
+func hasNativeCSICameraDriver(driversDir string, camxSocket string) bool {
+	// Detect camss
+	if _, err := os.Stat(filepath.Join(driversDir, "qcom-camss")); err == nil {
+		slog.Debug("detected camss CSI camera driver")
+		return true
+	}
+
+	// Detect camx
+	entries, err := os.ReadDir(driversDir)
+	if err != nil {
+		slog.Debug("unable to list platform drivers", slog.String("dir", driversDir), slog.String("error", err.Error()))
+		return false
+	}
+	hasCamxDriver := slices.ContainsFunc(entries, func(e os.DirEntry) bool {
+		return e.IsDir() && strings.HasPrefix(e.Name(), "cam_")
+	})
+	if !hasCamxDriver {
+		return false
+	}
+	if _, err := os.Stat(camxSocket); err != nil {
+		return false
+	}
+	slog.Debug("detected camx CSI camera driver")
+
+	return true
+}
+
+func HasCarrierDevices(carriers []linuxconfig.Carrier, devices AvailableDevices) AvailableDevices {
 	for _, c := range carriers {
 		if c.CarrierName == "media-carrier" {
 			devices.HasCarrierSoundDevice = true
