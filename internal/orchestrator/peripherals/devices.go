@@ -25,7 +25,6 @@ type AvailableDevices struct {
 	HasSoundDevice        bool
 	HasGPUDevice          bool
 	HasCSICameraDevice    bool
-	HasCarrierSoundDevice bool
 }
 
 type DeviceClass string
