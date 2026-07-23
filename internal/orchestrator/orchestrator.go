@@ -163,7 +163,7 @@ func StartApp(
 		// session count for as long as this app needs audio, so an unrelated
 		// SSH/lightdm session logging out doesn't pull PipeWire out from
 		// under it.
-		if err := pipewire.EnableLinger(ctx, *cfg.DataDir(), os.Geteuid()); err != nil {
+		if err := pipewire.EnsurePipewireRunning(ctx, *cfg.DataDir(), os.Geteuid()); err != nil {
 			return fmt.Errorf("failed to enable audio service linger: %w", err)
 		}
 		if err := pipewire.StartPipewire(ctx); err != nil {
