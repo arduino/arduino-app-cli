@@ -52,7 +52,7 @@ func StartPipewire(ctx context.Context) error {
 func waitForUserManager(ctx context.Context, attempts int, delay time.Duration) error {
 	var lastErr error
 	for i := 0; i < attempts; i++ {
-		if _, err := runSystemctlUser(ctx, "daemon-reload"); err == nil {
+		if _, err := runSystemctlUser(ctx, "start", pipewireUnits... ); err == nil {
 			return nil
 		} else {
 			lastErr = err
