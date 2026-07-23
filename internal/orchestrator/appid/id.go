@@ -188,7 +188,7 @@ func (p *Provider) parseID(id string) (ID, error) {
 	}
 
 	path = paths.New(id)
-	if path == nil { //TODO Normalize here?
+	if path == nil {
 		return ID{}, ErrInvalidID
 	}
 
