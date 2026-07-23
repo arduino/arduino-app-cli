@@ -478,13 +478,13 @@ type ListAppResult struct {
 }
 
 type AppInfo struct {
-	ID          appid.ID  `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Icon        string `json:"icon"`
-	Status      Status `json:"status,omitempty"`
-	Example     bool   `json:"example"`
-	Default     bool   `json:"default"`
+	ID          appid.ID `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Icon        string   `json:"icon"`
+	Status      Status   `json:"status,omitempty"`
+	Example     bool     `json:"example"`
+	Default     bool     `json:"default"`
 }
 
 type BrokenAppInfo struct {
@@ -626,7 +626,7 @@ func exampleCompatibleWithBricksIndex(a app.ArduinoApp, idx *bricksindex.BricksI
 }
 
 type AppDetailedInfo struct {
-	ID          appid.ID              `json:"id" required:"true" `
+	ID          appid.ID           `json:"id" required:"true" `
 	Name        string             `json:"name" required:"true"`
 	Path        string             `json:"path"`
 	Description string             `json:"description"`
