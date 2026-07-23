@@ -334,7 +334,7 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 		slog.Debug("unable to set status leds", slog.String("error", err.Error()))
 	}
 
-	if err := pipewire.DisableLinger(ctx, *cfg.DataDir(), os.Geteuid()); err != nil {
+	if err := pipewire.StopIfNotNeeded(ctx, *cfg.DataDir(), os.Geteuid()); err != nil {
 		slog.Debug("unable to disable audio service linger", slog.String("error", err.Error()))
 	}
 
