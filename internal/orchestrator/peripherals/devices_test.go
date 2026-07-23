@@ -67,39 +67,39 @@ func TestExtractIndexFromVideoDeviceName(t *testing.T) {
 	}
 }
 
-func TestHasNativeCSICameraDriver(t *testing.T) {
+func TestDetectCSICameraDriver(t *testing.T) {
 	tests := []struct {
 		name       string
 		drivers    []string
 		camxSocket bool
-		want       bool
+		want       CSICameraDriver
 	}{
 		{
 			name:    "camss driver present",
 			drivers: []string{"qcom-camss"},
-			want:    true,
+			want:    CSICameraDriverCamss,
 		},
 		{
 			name:       "camx drivers with socket",
 			drivers:    []string{"cam_sync", "cam_smmu", "other-driver"},
 			camxSocket: true,
-			want:       true,
+			want:       CSICameraDriverCamx,
 		},
 		{
 			name:       "camx drivers without socket",
 			drivers:    []string{"cam_sync", "cam_smmu"},
 			camxSocket: false,
-			want:       false,
+			want:       CSICameraDriverNone,
 		},
 		{
 			name:       "socket without camx drivers",
 			drivers:    []string{"other-driver"},
 			camxSocket: true,
-			want:       false,
+			want:       CSICameraDriverNone,
 		},
 		{
 			name: "no drivers",
-			want: false,
+			want: CSICameraDriverNone,
 		},
 	}
 
@@ -113,13 +113,13 @@ func TestHasNativeCSICameraDriver(t *testing.T) {
 			if tt.camxSocket {
 				require.NoError(t, os.WriteFile(socketPath, nil, 0o644))
 			}
-			assert.Equal(t, tt.want, hasNativeCSICameraDriver(driversDir, socketPath))
+			assert.Equal(t, tt.want, detectCSICameraDriver(driversDir, socketPath))
 		})
 	}
 }
 
-func TestHasNativeCSICameraDriverMissingDriversDir(t *testing.T) {
-	assert.False(t, hasNativeCSICameraDriver(filepath.Join(t.TempDir(), "missing"), filepath.Join(t.TempDir(), "le_cam_socket")))
+func TestDetectCSICameraDriverMissingDriversDir(t *testing.T) {
+	assert.Equal(t, CSICameraDriverNone, detectCSICameraDriver(filepath.Join(t.TempDir(), "missing"), filepath.Join(t.TempDir(), "le_cam_socket")))
 }
 
 func TestContainsVirtualDevice(t *testing.T) {
