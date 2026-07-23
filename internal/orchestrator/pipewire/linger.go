@@ -95,7 +95,7 @@ func EnableLinger(ctx context.Context, cfg config.Configuration) error {
 	return setOwner(ownerPath, mtime)
 }
 
-func DisableLinger(ctx context.Context, dataDir paths.Path, uid int) error {
+func DisableLinger(ctx context.Context, dataDir paths.Path) error {
 
 	ownerPath := dataDir.Join("pipewire").Join(fmt.Sprintf("linger-owner-%d", uid)).String()
 	owned, recordedMtime, err := isSetbyApp(ownerPath)
