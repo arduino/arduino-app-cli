@@ -44,7 +44,8 @@ if [ "$1" = "upgrade" ]; then
         sed -s "s|/home/arduino/.local/share|/var/lib|" ${DEFAULT_APP_FILE} > /var/lib/arduino-app-cli/default.app
     fi
 
-    // the examples directory changed its structure,
-    // remove it to cleanup stale files
+    
+    # the examples directory changed its structure,
+    # remove it to cleanup stale files
     rm -rf /home/arduino/.local/share/arduino-app-cli/examples
 fi
