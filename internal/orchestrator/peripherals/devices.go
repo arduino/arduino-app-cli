@@ -18,6 +18,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 
 	linuxconfig "github.com/arduino/arduino-app-cli/internal/orchestrator/linuxConfig"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 type AvailableDevices struct {
@@ -36,7 +37,7 @@ const (
 	SpeakerClass    DeviceClass = "speaker"
 )
 
-func Detect(ctx context.Context) (AvailableDevices, error) {
+func Detect(ctx context.Context, plat platform.Platform) (AvailableDevices, error) {
 	devices := AvailableDevices{}
 
 	deviceList, err := paths.New("/dev").ReadDir()
@@ -65,7 +66,11 @@ func Detect(ctx context.Context) (AvailableDevices, error) {
 		slog.Warn("unable to get enabled devices from linux config", slog.String("error", err.Error()))
 	}
 	devices = HasCarrierDevices(carriers, devices)
-	devices.HasCSICameraDevice = devices.HasCSICameraDevice || HasNativeCSICameraDriver()
+	// A CSI camera is usable only if a CSI driver is bound AND the board exposes the
+	// interface natively or a hat with configured cameras provides it. The driver alone
+	// is not enough on hat-based boards: it gets bound as soon as the hat DTBO is loaded,
+	// even with no camera configured.
+	devices.HasCSICameraDevice = HasCSICameraDriver() && (plat.HasNativeCSICameraSupport() || HasCSICameraOnCarrier(carriers))
 
 	return devices, nil
 }
@@ -184,8 +189,8 @@ const (
 	CSICameraDriverCamx  CSICameraDriver = "camx"
 )
 
-// HasNativeCSICameraDriver reports if the board has built-in MIPI-CSI interfaces
-func HasNativeCSICameraDriver() bool {
+// HasCSICameraDriver reports if a CSI camera driver is bound on the board
+func HasCSICameraDriver() bool {
 	return DetectCSICameraDriver() != CSICameraDriverNone
 }
 
@@ -221,16 +226,25 @@ func detectCSICameraDriver(driversDir string, camxSocket string) CSICameraDriver
 	return CSICameraDriverCamx
 }
 
+// HasCarrierDevices reports carrier-provided devices that are not CSI cameras
 func HasCarrierDevices(carriers []linuxconfig.Carrier, devices AvailableDevices) AvailableDevices {
 	for _, c := range carriers {
 		if c.CarrierName == "media-carrier" {
 			devices.HasCarrierSoundDevice = true
-			if slices.ContainsFunc(c.EnabledDevices(), func(d linuxconfig.Device) bool { return strings.Contains(d.Device, "camera") }) {
-				devices.HasCSICameraDevice = true
-				return devices
-			}
 		}
-
 	}
 	return devices
+}
+
+// HasCSICameraOnCarrier reports if a CSI camera is configured on an enabled media carrier
+func HasCSICameraOnCarrier(carriers []linuxconfig.Carrier) bool {
+	for _, c := range carriers {
+		if c.CarrierName != "media-carrier" {
+			continue
+		}
+		if slices.ContainsFunc(c.EnabledDevices(), func(d linuxconfig.Device) bool { return strings.Contains(d.Device, "camera") }) {
+			return true
+		}
+	}
+	return false
 }
