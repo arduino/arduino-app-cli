@@ -111,7 +111,7 @@ func TestDetectCSICameraDriver(t *testing.T) {
 			}
 			socketPath := filepath.Join(t.TempDir(), "le_cam_socket")
 			if tt.camxSocket {
-				require.NoError(t, os.WriteFile(socketPath, nil, 0o644))
+				require.NoError(t, os.WriteFile(socketPath, nil, 0o600))
 			}
 			assert.Equal(t, tt.want, detectCSICameraDriver(driversDir, socketPath))
 		})
