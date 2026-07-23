@@ -125,9 +125,6 @@ func DisableLinger(ctx context.Context, dataDir paths.Path) error {
 func isLingerEnabled(ctx context.Context, uid int) (bool, error) {
 	out, err := runLoginctl(ctx, "show-user", strconv.Itoa(uid), "-p", "Linger", "--value")
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "no such user") {
-			return false, nil
-		}
 		return false, err
 	}
 	return strings.TrimSpace(out) == "yes", nil
