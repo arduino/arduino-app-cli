@@ -182,7 +182,7 @@ func (c *Configuration) DataDir() *paths.Path {
 }
 
 func (c *Configuration) examplesDir() *paths.Path {
-	return c.dataDir.Join("examples/inspirational/")
+	return c.dataDir.Join("examples", "inspirational")
 }
 
 func (c *Configuration) ExamplesBaseDir() *paths.Path {
