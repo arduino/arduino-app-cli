@@ -18,7 +18,7 @@ import (
 )
 
 type ExampleResponse struct {
-	CoreAndFoundational []CategoryExamples `json:"coreAndFoundational"`
+	CoreAndFoundational []CategoryExamples `json:"core-and-foundational"`
 	Bricks              []BrickExamples    `json:"bricks"`
 }
 
