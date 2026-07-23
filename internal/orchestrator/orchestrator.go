@@ -157,17 +157,10 @@ func StartApp(
 
 	cb(StreamMessage{data: fmt.Sprintf("Starting app %q", appToStart.Name)})
 
-	//TODO Pipewire is started if a media-carrier is present we should check also if it's required by the app.
+	// TODO Pipewire is started if a media-carrier is present we should check also if it's required by the app.
 	if devices.HasCarrierSoundDevice {
-		// Linger keeps user@<uid>.service running regardless of logind's own
-		// session count for as long as this app needs audio, so an unrelated
-		// SSH/lightdm session logging out doesn't pull PipeWire out from
-		// under it.
-		if err := pipewire.EnsurePipewireRunning(ctx, *cfg.DataDir(), os.Geteuid()); err != nil {
+		if err := pipewire.EnsurePipewireRunning(ctx); err != nil {
 			return fmt.Errorf("failed to enable audio service linger: %w", err)
-		}
-		if err := pipewire.StartPipewire(ctx); err != nil {
-			return fmt.Errorf("failed to start audio service: %w", err)
 		}
 	}
 
@@ -287,6 +280,7 @@ func getAppEnvironmentVariables(ctx context.Context, app app.ArduinoApp, brickIn
 	envs["BOARD_NAME"] = plat.BoardName
 	// Directory where AI models are installed, shared with the containerized runners.
 	envs["MODELS_PATH"] = cfg.ModelsDir().String()
+	envs["XDG_RUNTIME_DIR"] = "/run/user/1000"
 
 	// Pre-select default camera device if available. This can be overridden by the app environment variables (or in future by applab)
 	// This is required because there are some video devices for HW acceleration that are auto registered in /dev but are not real cameras.
@@ -303,8 +297,6 @@ func getAppEnvironmentVariables(ctx context.Context, app app.ArduinoApp, brickIn
 			return c.CarrierName
 		})
 		envs["CONFIGURED_CARRIERS"] = strings.Join(carrierNames, ",")
-		//TODO Maybe a better place?
-		envs["XDG_RUNTIME_DIR"] = "/run/user/1000"
 	}
 
 	if hostIP, err := helpers.GetHostIP(); err == nil {
@@ -334,7 +326,7 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 		slog.Debug("unable to set status leds", slog.String("error", err.Error()))
 	}
 
-	if err := pipewire.StopIfNotNeeded(ctx, *cfg.DataDir(), os.Geteuid()); err != nil {
+	if err := pipewire.StopIfNotNeeded(ctx, cfg); err != nil {
 		slog.Debug("unable to disable audio service linger", slog.String("error", err.Error()))
 	}
 

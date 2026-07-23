@@ -25,6 +25,7 @@ type AvailableDevices struct {
 	HasSoundDevice        bool
 	HasGPUDevice          bool
 	HasCSICameraDevice    bool
+	HasCarrierSoundDevice bool
 }
 
 type DeviceClass string
@@ -175,7 +176,7 @@ func HasVirtualDevice(deviceClass DeviceClass, devices []string) bool {
 }
 
 func HasCarrierDevices(carriers []linuxconfig.Carrier, devices AvailableDevices) AvailableDevices {
-	//TODO: maybe we want to check wich profile of pipewire are available.
+
 	for _, c := range carriers {
 		if c.CarrierName == "media-carrier" {
 			devices.HasSoundDevice = true

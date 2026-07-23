@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/docker/cli/cli/command"
@@ -49,7 +48,7 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 			}
 			if app == nil {
 				slog.Debug("app is not set")
-				if err := pipewire.DisableLinger(cmd.Context(), *cfg.DataDir(), os.Geteuid()); err != nil {
+				if err := pipewire.StopIfNotNeeded(cmd.Context(), cfg); err != nil {
 					slog.Warn("Failed to reconcile leftover audio service linger", slog.String("error", err.Error()))
 				}
 			}
