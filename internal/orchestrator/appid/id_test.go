@@ -300,9 +300,6 @@ func TestNewExamplesLayout(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, tt.path.String(), got.ToPath().String())
 			}
-			if tt.idNotFound == false && tt.pathNotFound == false {
-				assert.Equal(t, tt.path.String(), got.ToPath().String())
-			}
 
 			/* Test id from path */
 			got, err = idProvider.IDFromPath(tt.path)
