@@ -21,10 +21,11 @@ import (
 )
 
 type AvailableDevices struct {
-	HasVideoDevice     bool
-	HasSoundDevice     bool
-	HasGPUDevice       bool
-	HasCSICameraDevice bool
+	HasVideoDevice        bool
+	HasSoundDevice        bool
+	HasGPUDevice          bool
+	HasCSICameraDevice    bool
+	HasCarrierSoundDevice bool
 }
 
 type DeviceClass string
@@ -36,7 +37,7 @@ const (
 )
 
 func Detect(ctx context.Context) (AvailableDevices, error) {
-	res := AvailableDevices{}
+	devices := AvailableDevices{}
 
 	deviceList, err := paths.New("/dev").ReadDir()
 	if err != nil {
@@ -46,26 +47,26 @@ func Detect(ctx context.Context) (AvailableDevices, error) {
 
 	for _, p := range deviceList {
 		if p.HasPrefix("dri") {
-			res.HasGPUDevice = true
+			devices.HasGPUDevice = true
 		}
 	}
 
 	// Verify if there are real video devices (cameras) in /dev/v4l/by-id
 	if camDevices := GetVideoDevices(); len(camDevices) > 0 {
-		res.HasVideoDevice = true
+		devices.HasVideoDevice = true
 	}
 	// Verify if there are real sound devices in /dev/snd/by-id
 	if sndDev := GetSoundDevices(); sndDev > 0 {
-		res.HasSoundDevice = true
+		devices.HasSoundDevice = true
 	}
 
 	carriers, err := linuxconfig.GetEnabledCarriers(ctx)
 	if err != nil {
 		slog.Warn("unable to get enabled devices from linux config", slog.String("error", err.Error()))
 	}
-	res.HasCSICameraDevice = HasCSICamera(carriers)
+	devices = HasCarrierDevices(carriers, devices)
 
-	return res, nil
+	return devices, nil
 }
 
 func GetSoundDevices() int {
@@ -174,15 +175,17 @@ func HasVirtualDevice(deviceClass DeviceClass, devices []string) bool {
 	return false
 }
 
-func HasCSICamera(carriers []linuxconfig.Carrier) bool {
+func HasCarrierDevices(carriers []linuxconfig.Carrier, devices AvailableDevices) AvailableDevices {
+
 	for _, c := range carriers {
-		if c.CarrierName != "media-carrier" {
-			continue
-		}
-		if slices.ContainsFunc(c.EnabledDevices(), func(d linuxconfig.Device) bool { return strings.Contains(d.Device, "camera") }) {
-			return true
+		if c.CarrierName == "media-carrier" {
+			devices.HasSoundDevice = true
+			if slices.ContainsFunc(c.EnabledDevices(), func(d linuxconfig.Device) bool { return strings.Contains(d.Device, "camera") }) {
+				devices.HasCSICameraDevice = true
+				return devices
+			}
 		}
 
 	}
-	return false
+	return devices
 }

@@ -333,6 +333,11 @@ func generateMainComposeFile(
 			Target:   "/run/udev",
 			ReadOnly: true,
 		},
+		{
+			Type:   "bind",
+			Source: "/run/user/1000/pipewire-0",
+			Target: "/run/user/1000/pipewire-0",
+		},
 	}
 
 	for _, p := range cfg.RequiredRuntimesPaths() {

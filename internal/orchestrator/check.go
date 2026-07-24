@@ -99,12 +99,13 @@ func checkRequiredDevices(bricksIndex *bricksindex.BricksIndex, appBricks []app.
 				if !availableDevices.HasVideoDevice && !availableDevices.HasCSICameraDevice {
 					allErrors = errors.Join(allErrors, fmt.Errorf("no camera device found"))
 				}
+			//TODO: not all profile in the media carrier have a mic.
 			case peripherals.MicrophoneClass:
-				if !availableDevices.HasSoundDevice {
+				if !availableDevices.HasSoundDevice && !availableDevices.HasCarrierSoundDevice {
 					allErrors = errors.Join(allErrors, fmt.Errorf("no microphone device found"))
 				}
 			case peripherals.SpeakerClass:
-				if !availableDevices.HasSoundDevice {
+				if !availableDevices.HasSoundDevice && !availableDevices.HasCarrierSoundDevice {
 					allErrors = errors.Join(allErrors, fmt.Errorf("no speaker device found"))
 				}
 			default:

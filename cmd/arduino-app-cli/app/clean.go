@@ -30,7 +30,7 @@ func newCacheCleanCmd(cfg config.Configuration) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return cacheCleanHandler(cmd.Context(), app, forceClean)
+			return cacheCleanHandler(cmd.Context(), app, forceClean, cfg)
 		},
 		ValidArgsFunction: completion.ApplicationNames(cfg),
 	}
@@ -39,13 +39,14 @@ func newCacheCleanCmd(cfg config.Configuration) *cobra.Command {
 	return appCmd
 }
 
-func cacheCleanHandler(ctx context.Context, app app.ArduinoApp, forceClean bool) error {
+func cacheCleanHandler(ctx context.Context, app app.ArduinoApp, forceClean bool, cfg config.Configuration) error {
 	err := orchestrator.CleanAppCache(
 		ctx,
 		servicelocator.GetDockerClient(),
 		app,
 		orchestrator.CleanAppCacheRequest{ForceClean: forceClean},
 		servicelocator.GetPlatform(),
+		cfg,
 	)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)

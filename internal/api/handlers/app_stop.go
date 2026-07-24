@@ -13,6 +13,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/render"
 
@@ -23,6 +24,7 @@ func HandleAppStop(
 	dockerClient command.Cli,
 	idProvider *appid.Provider,
 	platform platform.Platform,
+	cfg config.Configuration,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := idProvider.IDFromBase64(r.PathValue("appID"))
@@ -53,7 +55,7 @@ func HandleAppStop(
 		type log struct {
 			Message string `json:"message"`
 		}
-		err = orchestrator.StopApp(r.Context(), dockerClient, platform, app, func(item orchestrator.StreamMessage) {
+		err = orchestrator.StopApp(r.Context(), dockerClient, platform, app, cfg, func(item orchestrator.StreamMessage) {
 			switch item.GetType() {
 			case orchestrator.ProgressType:
 				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress(*item.GetProgress())})
