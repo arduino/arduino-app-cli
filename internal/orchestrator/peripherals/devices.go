@@ -179,7 +179,7 @@ func HasCarrierDevices(carriers []linuxconfig.Carrier, devices AvailableDevices)
 
 	for _, c := range carriers {
 		if c.CarrierName == "media-carrier" {
-			devices.HasSoundDevice = true
+			devices.HasCarrierSoundDevice = true
 			if slices.ContainsFunc(c.EnabledDevices(), func(d linuxconfig.Device) bool { return strings.Contains(d.Device, "camera") }) {
 				devices.HasCSICameraDevice = true
 				return devices
