@@ -182,7 +182,11 @@ func (c *Configuration) DataDir() *paths.Path {
 }
 
 func (c *Configuration) examplesDir() *paths.Path {
-	return c.dataDir.Join("examples")
+	return c.dataDir.Join("examples", "inspirational")
+}
+
+func (c *Configuration) ExamplesBaseDir() *paths.Path {
+	return c.dataDir.Join("examples/")
 }
 
 func (c *Configuration) ExamplesDirs(platform platform.Platform) paths.PathList {

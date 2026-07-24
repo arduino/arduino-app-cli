@@ -907,6 +907,22 @@ paths:
       summary: returns application configuration
       tags:
       - Application
+  /v1/examples:
+    get:
+      description: returns the example structure for rendering
+      operationId: getExamples
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExampleResponse'
+          description: Successful response
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: returns the example structure
+      tags:
+      - Application
   /v1/libraries:
     get:
       description: Search for Arduino libraries in the registry with various filters.
@@ -1659,6 +1675,16 @@ components:
             for backward compatibility.'
           type: object
       type: object
+    BrickExamples:
+      properties:
+        brick:
+          type: string
+        examples:
+          items:
+            $ref: '#/components/schemas/Example'
+          nullable: true
+          type: array
+      type: object
     BrickInstance:
       properties:
         author:
@@ -1733,6 +1759,16 @@ components:
           type: string
         name:
           type: string
+      type: object
+    CategoryExamples:
+      properties:
+        category:
+          type: string
+        examples:
+          items:
+            $ref: '#/components/schemas/Example'
+          nullable: true
+          type: array
       type: object
     CloneAppResponse:
       properties:
@@ -1819,6 +1855,30 @@ components:
           type: integer
         message:
           type: string
+      type: object
+    Example:
+      properties:
+        description:
+          type: string
+        encoded_id:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+      type: object
+    ExampleResponse:
+      properties:
+        bricks:
+          items:
+            $ref: '#/components/schemas/BrickExamples'
+          nullable: true
+          type: array
+        coreAndFoundational:
+          items:
+            $ref: '#/components/schemas/CategoryExamples'
+          nullable: true
+          type: array
       type: object
     Library:
       properties:
