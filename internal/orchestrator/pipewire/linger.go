@@ -150,6 +150,9 @@ func showLinger(ctx context.Context, username string) (bool, error) {
 
 	out, err := cmd.RunAndCaptureCombinedOutput(ctx)
 	if err != nil {
+		if strings.Contains(string(out), "is not logged in or lingering") {
+			return false, nil
+		}
 		return false, fmt.Errorf("%s: %w: %s", strings.Join(cmdArgs, " "), err, strings.TrimSpace(string(out)))
 	}
 	return strings.TrimSpace(string(out)) == "yes", nil
