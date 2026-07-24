@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/go-paths-helper"
 )
 
@@ -29,7 +30,12 @@ var pipewireUnits = []string{"pipewire.socket", "pipewire-pulse.socket", "wirepl
 // EnsurePipewireRunning waits for the current user's systemd --user manager to come
 // up — brought up by EnableLinger, which callers are expected to have called
 // first — and starts the PipeWire units on it.
-func EnsurePipewireRunning(ctx context.Context) error {
+func EnsurePipewireRunning(ctx context.Context, cfg config.Configuration) error {
+
+	if err := runEnableLingerCmd(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to enable audio service linger: %w", err)
+	}
+
 	var lastErr error
 	for i := 0; i < userManagerDialAttempts; i++ {
 		if _, err := runSystemctlUser(ctx, pipewireUnits...); err == nil {

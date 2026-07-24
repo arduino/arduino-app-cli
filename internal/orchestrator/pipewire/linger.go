@@ -59,7 +59,7 @@ func systemdLingerTimestamp(ctx context.Context, username string) (string, error
 	return strings.TrimSpace(string(out)), nil
 }
 
-func EnableLinger(ctx context.Context, cfg config.Configuration) error {
+func runEnableLingerCmd(ctx context.Context, cfg config.Configuration) error {
 	user, err := user.Current()
 	if err != nil {
 		return fmt.Errorf("get current user: %w", err)

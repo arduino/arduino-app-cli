@@ -159,7 +159,7 @@ func StartApp(
 
 	// TODO Pipewire is started if a media-carrier is present we should check also if it's required by the app.
 	if devices.HasCarrierSoundDevice {
-		if err := pipewire.EnsurePipewireRunning(ctx); err != nil {
+		if err := pipewire.EnsurePipewireRunning(ctx, cfg); err != nil {
 			return fmt.Errorf("failed to enable audio service linger: %w", err)
 		}
 	}
