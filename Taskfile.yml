@@ -8,8 +8,8 @@ vars:
   GOLANGCI_LINT_VERSION: v2.11.4
   GOIMPORTS_VERSION: v0.42.0
   DPRINT_VERSION: 0.48.0
-  EXAMPLE_VERSION: "0.11.0"
-  RUNNER_VERSION: "0.11.0"
+  EXAMPLE_VERSION: "0.12.0rc1"
+  RUNNER_VERSION: "0.12.0rc3"
   VERSION: # if version is not passed we hack the semver by encoding the commit as pre-release
     sh: echo "${VERSION:-0.0.0-$(git rev-parse --short HEAD)}"
 
@@ -144,9 +144,12 @@ tasks:
           echo "Cloning arduino/app-bricks-examples into temporary directory ${TMP_PATH}..."
           git clone --depth 1 --branch "{{ .EXAMPLE_VERSION }}" https://github.com/arduino/app-bricks-examples "${TMP_PATH}"
           rm -rf "${DEST_PATH}/examples"
-          mkdir -p "${DEST_PATH}"
-          mv "${TMP_PATH}/examples" "${DEST_PATH}"
-          rm -rf "${TMP_PATH}/examples"
+          mkdir -p "${DEST_PATH}/examples"
+          mv "${TMP_PATH}/core-and-foundational" "${DEST_PATH}/examples"
+          mv "${TMP_PATH}/inspirational" "${DEST_PATH}/examples"
+          mv "${TMP_PATH}/bricks" "${DEST_PATH}/examples"
+          mv "${TMP_PATH}/examples.json" "${DEST_PATH}/examples"
+          rm -rf "${TMP_PATH}"
           echo "Examples successfully cloned."
     silent: false
 

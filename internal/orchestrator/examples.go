@@ -14,6 +14,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
@@ -28,8 +29,9 @@ type CategoryExamples struct {
 }
 
 type BrickExamples struct {
-	Brick    string    `json:"brick"`
-	Examples []Example `json:"examples"`
+	Brick         string    `json:"brick"`
+	BrickCategory string    `json:"brick_category,omitempty"`
+	Examples      []Example `json:"examples"`
 }
 
 type Example struct {
@@ -39,7 +41,7 @@ type Example struct {
 	Description string `json:"description,omitempty"`
 }
 
-func GetExamples(cfg config.Configuration, idProvider *appid.Provider) (ExampleResponse, error) {
+func GetExamples(cfg config.Configuration, brickIndex *bricksindex.BricksIndex, idProvider *appid.Provider) (ExampleResponse, error) {
 	data, err := getExampleFile(cfg).ReadFile()
 	if err != nil {
 		return ExampleResponse{}, fmt.Errorf("error reading json: %w", err)
@@ -56,10 +58,18 @@ func GetExamples(cfg config.Configuration, idProvider *appid.Provider) (ExampleR
 	}
 
 	for i := range examples.Bricks {
+		addBrickInfo(&examples.Bricks[i], brickIndex)
 		retrieveExamplesInfo(examples.Bricks[i].Examples, idProvider)
 	}
 
 	return examples, nil
+}
+
+func addBrickInfo(brickExample *BrickExamples, brickIndex *bricksindex.BricksIndex) {
+	brickData, found := brickIndex.FindBrickByID(brickExample.Brick)
+	if found {
+		brickExample.BrickCategory = brickData.Category
+	}
 }
 
 func getExampleFile(cfg config.Configuration) *paths.Path {
