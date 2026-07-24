@@ -156,18 +156,20 @@ func (p *Provider) parseID(id string) (ID, error) {
 			for _, examplePath := range p.cfg.ExamplesDirs(p.plat) {
 				path = examplePath.Join(appPath)
 				if path.Exist() {
-					break //for
+					break // for
 				}
 			}
 			if path.Exist() {
 				break // switch
 			}
 
-			// search for core-and-foundational and bricks
+			// inspirational is reserved and must not be addressable directly
 			selector, _, found := strings.Cut(appPath, "/")
 			if found && selector == "inspirational" {
 				return ID{}, ErrInvalidID
 			}
+
+			// new roots: core-and-foundational and bricks
 			if found && (selector == "core-and-foundational" || selector == "bricks") {
 				path = p.cfg.ExamplesBaseDir().Join(appPath)
 				if path.Exist() {

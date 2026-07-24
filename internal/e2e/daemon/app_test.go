@@ -435,13 +435,15 @@ func TestDeleteApp(t *testing.T) {
 		require.Equal(t, "invalid id", actualResponseBody.Details)
 	})
 
+	// This test is trying to delete a missing example
+	// so the pre-condition should fail
 	t.Run("DeletingExampleApp_Fail", func(t *testing.T) {
 		var actualResponseBody models.ErrorResponse
 		deleteResp, err := httpClient.DeleteApp(t.Context(), "ZXhhbXBsZXM6anVzdGJsaW5f")
 		require.NoError(t, err)
 		defer deleteResp.Body.Close()
 
-		require.Equal(t, http.StatusBadRequest, deleteResp.StatusCode)
+		require.Equal(t, http.StatusPreconditionFailed, deleteResp.StatusCode)
 		body, err := io.ReadAll(deleteResp.Body)
 		require.NoError(t, err)
 		err = json.Unmarshal(body, &actualResponseBody)
