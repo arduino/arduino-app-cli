@@ -32,7 +32,8 @@ func HandleAppDetails(
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {
-			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: err.Error()})
+			slog.Warn("invalid id", slog.String("error", err.Error()))
+			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid id"})
 			return
 		}
 
