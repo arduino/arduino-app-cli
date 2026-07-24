@@ -142,54 +142,62 @@ func (p *Provider) ParseID(id string) (ID, error) {
 }
 
 func (p *Provider) parseID(id string) (ID, error) {
-	var path *paths.Path
 	prefix, appPath, found := strings.Cut(id, ":")
-	if found {
-		var isExample bool
-		switch prefix {
-		case "user":
-			path = p.cfg.AppsDir().Join(appPath)
-		case "examples":
-			isExample = true
-
-			// examples: always process examples/inspirational (legacy)
-			for _, examplePath := range p.cfg.ExamplesDirs(p.plat) {
-				path = examplePath.Join(appPath)
-				if path.Exist() {
-					break // for
-				}
-			}
-			if path.Exist() {
-				break // switch
-			}
-
-			// inspirational is reserved and must not be addressable directly
-			selector, _, found := strings.Cut(appPath, "/")
-			if found && selector == "inspirational" {
-				return ID{}, ErrInvalidID
-			}
-
-			// new roots: core-and-foundational and bricks
-			if found && (selector == "core-and-foundational" || selector == "bricks") {
-				path = p.cfg.ExamplesBaseDir().Join(appPath)
-				if path.Exist() {
-					break
-				}
-			}
-			return ID{}, ErrInvalidID
-
-		default:
-			return ID{}, ErrInvalidID
-		}
-		return ID{
-			path:                 path,
-			encodedID:            base64.RawURLEncoding.EncodeToString([]byte(id)),
-			isFromKnownLocaltion: true,
-			isExample:            isExample,
-		}, nil
+	if !found {
+		return p.buildIdFromSystemPath(id)
 	}
 
-	path = paths.New(id)
+	switch prefix {
+	case "user":
+		return p.buildIDFromKnownLocation(id, p.cfg.AppsDir().Join(appPath), false), nil
+	case "examples":
+		path, err := p.resolveExamplePath(appPath)
+		if err != nil {
+			return ID{}, err
+		}
+		return p.buildIDFromKnownLocation(id, path, true), nil
+	}
+	return ID{}, ErrInvalidID
+}
+
+// resolveExamplePath resolves the path for an "examples:" id.
+func (p *Provider) resolveExamplePath(appPath string) (*paths.Path, error) {
+	// examples: always process examples/inspirational (legacy)
+	for _, examplePath := range p.cfg.ExamplesDirs(p.plat) {
+		if path := examplePath.Join(appPath); path.Exist() {
+			return path, nil
+		}
+	}
+
+	firstPath, _, found := strings.Cut(appPath, "/")
+	// inspirational is reserved and must not be addressable directly
+	if found && firstPath == "inspirational" {
+		return nil, ErrInvalidID
+	}
+
+	// process core-and-foundational and bricks
+	if found && (firstPath == "core-and-foundational" || firstPath == "bricks") {
+		if path := p.cfg.ExamplesBaseDir().Join(appPath); path.Exist() {
+			return path, nil
+		}
+	}
+
+	return nil, ErrInvalidID
+}
+
+// builds an ID from a configuration defined path
+func (p *Provider) buildIDFromKnownLocation(id string, path *paths.Path, isExample bool) ID {
+	return ID{
+		path:                 path,
+		encodedID:            base64.RawURLEncoding.EncodeToString([]byte(id)),
+		isFromKnownLocaltion: true,
+		isExample:            isExample,
+	}
+}
+
+// builds an ID from a raw filesystem path
+func (p *Provider) buildIdFromSystemPath(id string) (ID, error) {
+	path := paths.New(id)
 	if path == nil {
 		return ID{}, ErrInvalidID
 	}
