@@ -59,7 +59,7 @@ func systemdLingerTimestamp(ctx context.Context, username string) (string, error
 	return strings.TrimSpace(string(out)), nil
 }
 
-func EnableLinger(ctx context.Context, cfg config.Configuration) error {
+func runEnableLingerCmd(ctx context.Context, cfg config.Configuration) error {
 	user, err := user.Current()
 	if err != nil {
 		return fmt.Errorf("get current user: %w", err)
@@ -150,6 +150,9 @@ func showLinger(ctx context.Context, username string) (bool, error) {
 
 	out, err := cmd.RunAndCaptureCombinedOutput(ctx)
 	if err != nil {
+		if strings.Contains(string(out), "is not logged in or lingering") {
+			return false, nil
+		}
 		return false, fmt.Errorf("%s: %w: %s", strings.Join(cmdArgs, " "), err, strings.TrimSpace(string(out)))
 	}
 	return strings.TrimSpace(string(out)) == "yes", nil
