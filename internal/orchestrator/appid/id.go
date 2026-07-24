@@ -145,6 +145,16 @@ func (p *Provider) parseID(id string) (ID, error) {
 					break
 				}
 			}
+
+			pathPrefix, _, found := strings.Cut(appPath, "/")
+			if (found && pathPrefix == "core-and-foundational") ||
+				(found && pathPrefix == "bricks") {
+				path = p.cfg.ExamplesBaseDir().Join(appPath)
+				if path.Exist() {
+					break
+				}
+			}
+
 		default:
 			return ID{}, ErrInvalidID
 		}

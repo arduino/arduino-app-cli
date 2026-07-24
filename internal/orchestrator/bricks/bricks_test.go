@@ -407,6 +407,17 @@ bricks:
 	cfg, err := config.NewFromEnv()
 	require.NoError(t, err)
 
+	// Add brick CodeExamples
+	examplesBaseDir := cfg.ExamplesBaseDir()
+	require.NoError(t, examplesBaseDir.Join("core-and-foundational").MkdirAll())
+	bricksDir := cfg.ExamplesBaseDir().Join("bricks")
+	require.NoError(t, bricksDir.Join("arduino", "one_model_brick", "01_example", "python").MkdirAll())
+	require.NoError(t, bricksDir.Join("arduino", "one_model_brick", "02_example", "python").MkdirAll())
+	require.NoError(t, bricksDir.Join("arduino", "one_model_brick", "01_example", "python", "main.py").Truncate())
+	require.NoError(t, bricksDir.Join("arduino", "one_model_brick", "02_example", "python", "main.py").Truncate())
+	require.NoError(t, bricksDir.Join("arduino", "one_model_brick", "01_example", "app.yaml").Truncate())
+	require.NoError(t, bricksDir.Join("arduino", "one_model_brick", "02_example", "app.yaml").Truncate())
+
 	for _, brick := range []string{"object_detection", "weather_forecast", "one_model_brick"} {
 		createFakeBrickAssets(t, assetsDir, brick)
 	}
@@ -471,8 +482,6 @@ bricks:
 		require.Equal(t, "default_path", res.Variables["EI_OBJ_DETECTION_MODEL"].DefaultValue)
 		require.Equal(t, "# Documentation", res.Readme)
 		require.Contains(t, res.ApiDocsPath, filepath.Join("arduino", "app_bricks", "object_detection", "API.md"))
-		require.Len(t, res.CodeExamples, 1)
-		require.Contains(t, res.CodeExamples[0].Path, "blink.ino")
 		require.Len(t, res.UsedByApps, 1)
 		require.Equal(t, "My App", res.UsedByApps[0].Name)
 		require.NotEmpty(t, res.UsedByApps[0].ID)
@@ -498,8 +507,6 @@ bricks:
 		require.Empty(t, res.Variables)
 		require.Equal(t, "# Documentation", res.Readme)
 		require.Contains(t, res.ApiDocsPath, filepath.Join("arduino", "app_bricks", "weather_forecast", "API.md"))
-		require.Len(t, res.CodeExamples, 1)
-		require.Contains(t, res.CodeExamples[0].Path, "blink.ino")
 		require.Len(t, res.UsedByApps, 1)
 		require.Equal(t, "My App", res.UsedByApps[0].Name)
 		require.NotEmpty(t, res.UsedByApps[0].ID)
@@ -520,6 +527,22 @@ bricks:
 		require.Empty(t, res.ConfigVariables)
 		require.Empty(t, res.Variables)
 	})
+
+	t.Run("Success - Brick Code example", func(t *testing.T) {
+		res, err := svc.BricksDetails("arduino:one_model_brick", idProvider, cfg, unoQPlatform)
+		require.NoError(t, err)
+
+		require.Equal(t, "arduino:one_model_brick", res.ID)
+		require.Equal(t, "one model brick", res.Name)
+		require.Len(t, res.CompatibleModels, 1)
+		require.Len(t, res.CodeExamples, 2)
+		require.Equal(t, "face-detection", res.CompatibleModels[0].ID)
+		require.Equal(t, "Lightweight-Face-Detection", res.CompatibleModels[0].Name)
+		require.Equal(t, "", res.CompatibleModels[0].Description)
+		require.Empty(t, res.ConfigVariables)
+		require.Empty(t, res.Variables)
+	})
+
 }
 
 func createFakeBrickAssets(t *testing.T, assetsDir, brick string) {

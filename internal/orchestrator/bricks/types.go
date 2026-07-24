@@ -56,8 +56,12 @@ type BrickVariable struct {
 }
 
 type CodeExample struct {
-	Path string `json:"path"`
+	Path        string `json:"path"`
+	EncodedID   string `json:"encoded_id,omitempty"`
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
 }
+
 type AppReference struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`

@@ -189,6 +189,12 @@ func (c *Configuration) ExamplesBaseDir() *paths.Path {
 	return c.dataDir.Join("examples/")
 }
 
+func (c *Configuration) ExamplesAdditionalDirs() paths.PathList {
+	return paths.PathList{
+		c.ExamplesBaseDir().Join("core-and-foundational"),
+		c.ExamplesBaseDir().Join("bricks")}
+}
+
 func (c *Configuration) ExamplesDirs(platform platform.Platform) paths.PathList {
 	boardExampleDir := c.examplesDir().Join(fmt.Sprintf("platform_%s", platform.BoardName))
 	if boardExampleDir.Exist() {
