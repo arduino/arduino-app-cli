@@ -407,16 +407,17 @@ bricks:
 	cfg, err := config.NewFromEnv()
 	require.NoError(t, err)
 
-	// Add brick CodeExamples
-	examplesBaseDir := cfg.ExamplesBaseDir()
-	require.NoError(t, examplesBaseDir.Join("core-and-foundational").MkdirAll())
-	bricksDir := cfg.ExamplesBaseDir().Join("bricks")
-	require.NoError(t, bricksDir.Join("arduino", "one_model_brick", "01_example", "python").MkdirAll())
-	require.NoError(t, bricksDir.Join("arduino", "one_model_brick", "02_example", "python").MkdirAll())
-	require.NoError(t, bricksDir.Join("arduino", "one_model_brick", "01_example", "python", "main.py").Truncate())
-	require.NoError(t, bricksDir.Join("arduino", "one_model_brick", "02_example", "python", "main.py").Truncate())
-	require.NoError(t, bricksDir.Join("arduino", "one_model_brick", "01_example", "app.yaml").Truncate())
-	require.NoError(t, bricksDir.Join("arduino", "one_model_brick", "02_example", "app.yaml").Truncate())
+	// Add two one_model_brick CodeExamples as testacase
+	brick01Dir := cfg.ExamplesBaseDir().Join("bricks").Join("arduino", "one_model_brick", "01_example")
+	require.NoError(t, brick01Dir.Join("python").MkdirAll())
+	brick02Dir := cfg.ExamplesBaseDir().Join("bricks").Join("arduino", "one_model_brick", "02_example")
+	require.NoError(t, brick02Dir.Join("python").MkdirAll())
+
+	// Create required files to load the app
+	require.NoError(t, brick01Dir.Join("python", "main.py").Truncate())
+	require.NoError(t, brick02Dir.Join("python", "main.py").Truncate())
+	require.NoError(t, brick01Dir.Join("app.yaml").Truncate())
+	require.NoError(t, brick02Dir.Join("app.yaml").Truncate())
 
 	for _, brick := range []string{"object_detection", "weather_forecast", "one_model_brick"} {
 		createFakeBrickAssets(t, assetsDir, brick)

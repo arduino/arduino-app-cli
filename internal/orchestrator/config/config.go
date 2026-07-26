@@ -161,9 +161,17 @@ func (c *Configuration) init() error {
 	if err := c.AppsDir().MkdirAll(); err != nil {
 		return err
 	}
-	if err := c.examplesDir().Join("common").MkdirAll(); err != nil {
-		return err
+
+	examplesDir := paths.PathList{
+		c.examplesDir().Join("common"),
 	}
+	examplesDir.AddAll(c.ExamplesAdditionalDirs())
+	for _, dir := range examplesDir {
+		if err := dir.MkdirAll(); err != nil {
+			return err
+		}
+	}
+
 	if err := c.AssetDir().MkdirAll(); err != nil {
 		return err
 	}
