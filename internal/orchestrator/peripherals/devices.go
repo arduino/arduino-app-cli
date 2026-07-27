@@ -24,6 +24,12 @@ import (
 
 const pwDumpTool = "pw-dump"
 
+const (
+	bluez5DeviceAPI  = "bluez5"
+	audioSinkClass   = "Audio/Sink"
+	audioSourceClass = "Audio/Source"
+)
+
 type AvailableDevices struct {
 	HasVideoDevice        bool
 	HasSoundDevice        bool
@@ -63,9 +69,12 @@ func Detect(ctx context.Context) (AvailableDevices, error) {
 	if sndDev := GetSoundDevices(); sndDev > 0 {
 		devices.HasSoundDevice = true
 	}
-	// Verify if there is a bluetooth speaker connected through PipeWire
-	if !devices.HasSoundDevice && HasBluetoothSpeaker(ctx) {
-		devices.HasSoundDevice = true
+	// Verify if there is a bluetooth speaker or microphone (headset) connected through PipeWire
+	if !devices.HasSoundDevice {
+		if nodes, ok := pwDumpNodes(ctx); ok &&
+			(hasBluetoothAudioNode(nodes, audioSinkClass) || hasBluetoothAudioNode(nodes, audioSourceClass)) {
+			devices.HasSoundDevice = true
+		}
 	}
 
 	carriers, err := linuxconfig.GetEnabledCarriers(ctx)
@@ -78,7 +87,7 @@ func Detect(ctx context.Context) (AvailableDevices, error) {
 }
 
 // pwNode represents the subset of a PipeWire object (as reported by pw-dump)
-// needed to detect bluetooth audio sinks (speakers).
+// needed to detect bluetooth audio devices (speakers and microphones).
 type pwNode struct {
 	Info struct {
 		Props struct {
@@ -89,40 +98,62 @@ type pwNode struct {
 	} `json:"info"`
 }
 
-// HasBluetoothSpeaker reports whether a bluetooth speaker (an A2DP audio sink
-// exposed by the bluez5 backend) is currently connected, by inspecting the
-// PipeWire graph via pw-dump. If pw-dump is not available it returns false.
-func HasBluetoothSpeaker(ctx context.Context) bool {
+// pwDumpNodes runs pw-dump and returns the parsed PipeWire graph. The second
+// return value is false when pw-dump is unavailable or fails, so callers can
+// safely skip bluetooth detection.
+func pwDumpNodes(ctx context.Context) ([]pwNode, bool) {
 	if _, err := exec.LookPath(pwDumpTool); err != nil {
-		slog.Debug("pw-dump tool not found in PATH, skipping bluetooth speaker detection", slog.String("error", err.Error()))
-		return false
+		slog.Debug("pw-dump tool not found in PATH, skipping bluetooth audio detection", slog.String("error", err.Error()))
+		return nil, false
 	}
 
 	cmd, err := paths.NewProcess(nil, pwDumpTool)
 	if err != nil {
 		slog.Warn("unable to create pw-dump process", slog.String("error", err.Error()))
-		return false
+		return nil, false
 	}
 
 	stdout, stderr, err := cmd.RunAndCaptureOutput(ctx)
 	if err != nil {
 		slog.Warn("unable to run pw-dump", slog.String("error", err.Error()), slog.String("stderr", string(stderr)))
-		return false
+		return nil, false
 	}
 
 	var nodes []pwNode
 	if err := json.Unmarshal(stdout, &nodes); err != nil {
 		slog.Warn("unable to parse pw-dump output", slog.String("error", err.Error()))
-		return false
+		return nil, false
 	}
+	return nodes, true
+}
 
+// hasBluetoothAudioNode reports whether nodes contains a bluez5 device with the
+// given media class (audioSinkClass for a speaker, audioSourceClass for a
+// microphone).
+func hasBluetoothAudioNode(nodes []pwNode, mediaClass string) bool {
 	for _, n := range nodes {
-		if n.Info.Props.MediaClass == "Audio/Sink" && n.Info.Props.DeviceAPI == "bluez5" {
-			slog.Debug("found bluetooth speaker", slog.String("node", n.Info.Props.NodeName))
+		if n.Info.Props.DeviceAPI == bluez5DeviceAPI && n.Info.Props.MediaClass == mediaClass {
+			slog.Debug("found bluetooth audio device", slog.String("node", n.Info.Props.NodeName), slog.String("mediaClass", mediaClass))
 			return true
 		}
 	}
 	return false
+}
+
+// HasBluetoothSpeaker reports whether a bluetooth speaker (a bluez5 Audio/Sink)
+// is currently connected, by inspecting the PipeWire graph via pw-dump. If
+// pw-dump is not available it returns false.
+func HasBluetoothSpeaker(ctx context.Context) bool {
+	nodes, ok := pwDumpNodes(ctx)
+	return ok && hasBluetoothAudioNode(nodes, audioSinkClass)
+}
+
+// HasBluetoothMicrophone reports whether a bluetooth microphone (a bluez5
+// Audio/Source, as exposed by a headset) is currently connected, by inspecting
+// the PipeWire graph via pw-dump. If pw-dump is not available it returns false.
+func HasBluetoothMicrophone(ctx context.Context) bool {
+	nodes, ok := pwDumpNodes(ctx)
+	return ok && hasBluetoothAudioNode(nodes, audioSourceClass)
 }
 
 func GetSoundDevices() int {
