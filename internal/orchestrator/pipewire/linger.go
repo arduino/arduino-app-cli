@@ -13,28 +13,33 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/arduino/go-paths-helper"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
-func setOwner(ownerPath string, lingerTimestamp string) error {
+func setOwner(ownerPath string, lingerMtime time.Time) error {
 	if err := os.MkdirAll(filepath.Dir(ownerPath), 0700); err != nil {
 		return err
 	}
-	return os.WriteFile(ownerPath, []byte(lingerTimestamp), 0600)
+	return os.WriteFile(ownerPath, []byte(lingerMtime.Format(time.RFC3339Nano)), 0600)
 }
 
-func isSetbyApp(ownerPath string) (owned bool, recordedTimestamp string, err error) {
+func isSetbyApp(ownerPath string) (owned bool, recordedMtime time.Time, err error) {
 	data, err := os.ReadFile(ownerPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return false, "", nil
+			return false, time.Time{}, nil
 		}
-		return false, "", err
+		return false, time.Time{}, err
 	}
-	return true, string(data), nil
+	t, err := time.Parse(time.RFC3339Nano, string(data))
+	if err != nil {
+		return false, time.Time{}, fmt.Errorf("parse recorded linger mtime: %w", err)
+	}
+	return true, t, nil
 }
 
 func clearOwner(ownerPath string) error {
@@ -45,18 +50,15 @@ func clearOwner(ownerPath string) error {
 	return nil
 }
 
-func systemdLingerTimestamp(ctx context.Context, username string) (string, error) {
-	cmdArgs := []string{"loginctl", "show-user", username, "-p", "TimestampMonotonic", "--value"}
-	cmd, err := paths.NewProcess(nil, cmdArgs...)
+func lingerFileMtime(username string) (time.Time, error) {
+	info, err := os.Stat(filepath.Join("/var/lib/systemd/linger", username))
 	if err != nil {
-		return "", fmt.Errorf("create process %q: %w", strings.Join(cmdArgs, " "), err)
+		if os.IsNotExist(err) {
+			return time.Time{}, nil
+		}
+		return time.Time{}, err
 	}
-
-	out, err := cmd.RunAndCaptureCombinedOutput(ctx)
-	if err != nil {
-		return "", fmt.Errorf("%s: %w: %s", strings.Join(cmdArgs, " "), err, strings.TrimSpace(string(out)))
-	}
-	return strings.TrimSpace(string(out)), nil
+	return info.ModTime(), nil
 }
 
 func runEnableLingerCmd(ctx context.Context, cfg config.Configuration) error {
@@ -76,13 +78,13 @@ func runEnableLingerCmd(ctx context.Context, cfg config.Configuration) error {
 	if err := enableLinger(ctx, user.Username); err != nil {
 		return fmt.Errorf("enable linger: %w", err)
 	}
-	timestamp, err := systemdLingerTimestamp(ctx, user.Username)
+	mtime, err := lingerFileMtime(user.Username)
 	if err != nil {
 		return fmt.Errorf("read linger state: %w", err)
 	}
 
 	ownerPath := cfg.DataDir().Join("pipewire").Join(fmt.Sprintf("linger-owner-%s", user.Username)).String()
-	return setOwner(ownerPath, timestamp)
+	return setOwner(ownerPath, mtime)
 }
 
 func StopIfNotNeeded(ctx context.Context, cfg config.Configuration) error {
@@ -93,7 +95,7 @@ func StopIfNotNeeded(ctx context.Context, cfg config.Configuration) error {
 	}
 
 	ownerPath := cfg.DataDir().Join("pipewire").Join(fmt.Sprintf("linger-owner-%s", user.Username)).String()
-	owned, recordedTimestamp, err := isSetbyApp(ownerPath)
+	owned, recordedMtime, err := isSetbyApp(ownerPath)
 	if err != nil {
 		return fmt.Errorf("check linger ownership: %w", err)
 	}
@@ -101,18 +103,23 @@ func StopIfNotNeeded(ctx context.Context, cfg config.Configuration) error {
 		return nil
 	}
 
-	currentTimestamp, err := systemdLingerTimestamp(ctx, user.Username)
+	currentMtime, err := lingerFileMtime(user.Username)
 	if err != nil {
 		return fmt.Errorf("read linger state: %w", err)
 	}
-	if currentTimestamp == recordedTimestamp {
+
+	if currentMtime.Equal(recordedMtime) {
 		if err := disableLinger(ctx, user.Username); err != nil {
 			return fmt.Errorf("disable linger: %w", err)
+		}
+		err = clearOwner(ownerPath)
+		if err != nil {
+			return fmt.Errorf("clear linger ownership: %w", err)
 		}
 		slog.Debug("linger disabled", slog.String("username", user.Username))
 	}
 
-	return clearOwner(ownerPath)
+	return nil
 }
 
 func enableLinger(ctx context.Context, username string) error {
