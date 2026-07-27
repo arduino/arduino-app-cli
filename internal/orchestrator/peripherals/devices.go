@@ -7,9 +7,11 @@ package peripherals
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -19,6 +21,8 @@ import (
 
 	linuxconfig "github.com/arduino/arduino-app-cli/internal/orchestrator/linuxConfig"
 )
+
+const pwDumpTool = "pw-dump"
 
 type AvailableDevices struct {
 	HasVideoDevice        bool
@@ -59,6 +63,10 @@ func Detect(ctx context.Context) (AvailableDevices, error) {
 	if sndDev := GetSoundDevices(); sndDev > 0 {
 		devices.HasSoundDevice = true
 	}
+	// Verify if there is a bluetooth speaker connected through PipeWire
+	if !devices.HasSoundDevice && HasBluetoothSpeaker(ctx) {
+		devices.HasSoundDevice = true
+	}
 
 	carriers, err := linuxconfig.GetEnabledCarriers(ctx)
 	if err != nil {
@@ -67,6 +75,54 @@ func Detect(ctx context.Context) (AvailableDevices, error) {
 	devices = HasCarrierDevices(carriers, devices)
 
 	return devices, nil
+}
+
+// pwNode represents the subset of a PipeWire object (as reported by pw-dump)
+// needed to detect bluetooth audio sinks (speakers).
+type pwNode struct {
+	Info struct {
+		Props struct {
+			MediaClass string `json:"media.class"`
+			DeviceAPI  string `json:"device.api"`
+			NodeName   string `json:"node.name"`
+		} `json:"props"`
+	} `json:"info"`
+}
+
+// HasBluetoothSpeaker reports whether a bluetooth speaker (an A2DP audio sink
+// exposed by the bluez5 backend) is currently connected, by inspecting the
+// PipeWire graph via pw-dump. If pw-dump is not available it returns false.
+func HasBluetoothSpeaker(ctx context.Context) bool {
+	if _, err := exec.LookPath(pwDumpTool); err != nil {
+		slog.Debug("pw-dump tool not found in PATH, skipping bluetooth speaker detection", slog.String("error", err.Error()))
+		return false
+	}
+
+	cmd, err := paths.NewProcess(nil, pwDumpTool)
+	if err != nil {
+		slog.Warn("unable to create pw-dump process", slog.String("error", err.Error()))
+		return false
+	}
+
+	stdout, stderr, err := cmd.RunAndCaptureOutput(ctx)
+	if err != nil {
+		slog.Warn("unable to run pw-dump", slog.String("error", err.Error()), slog.String("stderr", string(stderr)))
+		return false
+	}
+
+	var nodes []pwNode
+	if err := json.Unmarshal(stdout, &nodes); err != nil {
+		slog.Warn("unable to parse pw-dump output", slog.String("error", err.Error()))
+		return false
+	}
+
+	for _, n := range nodes {
+		if n.Info.Props.MediaClass == "Audio/Sink" && n.Info.Props.DeviceAPI == "bluez5" {
+			slog.Debug("found bluetooth speaker", slog.String("node", n.Info.Props.NodeName))
+			return true
+		}
+	}
+	return false
 }
 
 func GetSoundDevices() int {
