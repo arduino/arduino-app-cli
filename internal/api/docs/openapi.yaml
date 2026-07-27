@@ -1679,6 +1679,8 @@ components:
       properties:
         brick:
           type: string
+        brick_category:
+          type: string
         examples:
           items:
             $ref: '#/components/schemas/Example'
@@ -1789,6 +1791,12 @@ components:
       type: object
     CodeExample:
       properties:
+        description:
+          type: string
+        encoded_id:
+          type: string
+        name:
+          type: string
         path:
           type: string
       type: object
@@ -1874,7 +1882,7 @@ components:
             $ref: '#/components/schemas/BrickExamples'
           nullable: true
           type: array
-        coreAndFoundational:
+        core-and-foundational:
           items:
             $ref: '#/components/schemas/CategoryExamples'
           nullable: true
