@@ -163,7 +163,7 @@ func (c *Configuration) init() error {
 	}
 
 	examplesDir := paths.PathList{
-		c.examplesDir().Join("common"),
+		c.ExamplesBaseDir().Join("inspirational").Join("common"),
 	}
 	examplesDir.AddAll(c.ExamplesAdditionalDirs())
 	for _, dir := range examplesDir {
@@ -189,12 +189,8 @@ func (c *Configuration) DataDir() *paths.Path {
 	return c.dataDir
 }
 
-func (c *Configuration) examplesDir() *paths.Path {
-	return c.dataDir.Join("examples", "inspirational")
-}
-
 func (c *Configuration) ExamplesBaseDir() *paths.Path {
-	return c.dataDir.Join("examples/")
+	return c.dataDir.Join("examples")
 }
 
 func (c *Configuration) ExamplesAdditionalDirs() paths.PathList {
@@ -204,11 +200,11 @@ func (c *Configuration) ExamplesAdditionalDirs() paths.PathList {
 }
 
 func (c *Configuration) ExamplesDirs(platform platform.Platform) paths.PathList {
-	boardExampleDir := c.examplesDir().Join(fmt.Sprintf("platform_%s", platform.BoardName))
+	boardExampleDir := c.ExamplesBaseDir().Join("inspirational").Join(fmt.Sprintf("platform_%s", platform.BoardName))
 	if boardExampleDir.Exist() {
-		return paths.PathList{boardExampleDir, c.examplesDir().Join("common")}
+		return paths.PathList{boardExampleDir, c.ExamplesBaseDir().Join("inspirational").Join("common")}
 	}
-	return paths.PathList{c.examplesDir().Join("common")}
+	return paths.PathList{c.ExamplesBaseDir().Join("inspirational").Join("common")}
 }
 
 // RequiredRuntimesPaths returns the discovered host paths for configured required
