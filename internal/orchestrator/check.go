@@ -73,16 +73,13 @@ func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.Bri
 
 // requiredDeviceClasses returns the device classes required by the app bricks, skipping the
 // ones satisfied by a virtual device.
-func requiredDeviceClasses(bricksIndex *bricksindex.BricksIndex, appBricks []app.Brick) (map[peripherals.DeviceClass]bool, bool) {
+func requiredDeviceClasses(bricksIndex *bricksindex.BricksIndex, appBricks []app.Brick) (map[peripherals.DeviceClass]bool, error) {
 	required := make(map[peripherals.DeviceClass]bool)
-	complete := true
 
 	for _, brick := range appBricks {
 		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
 		if !found {
-			slog.Warn("Cannot validate required devices. Brick not found", slog.String("brick_id", brick.ID))
-			complete = false
-			continue
+			return nil, fmt.Errorf("brick %q not found", brick.ID)
 		}
 
 		// skip checks for virtual devices
@@ -94,16 +91,11 @@ func requiredDeviceClasses(bricksIndex *bricksindex.BricksIndex, appBricks []app
 		}
 	}
 
-	return required, complete
+	return required, nil
 }
 
-// needsAudioDevices reports whether the app may use audio: true when a brick requires a
-// microphone or a speaker, or when the required set is incomplete, in which case we cannot
-// tell and we conservatively assume audio is needed.
-func needsAudioDevices(requiredClasses map[peripherals.DeviceClass]bool, complete bool) bool {
-	if !complete {
-		return true
-	}
+// needsAudioDevices reports whether the app requires a microphone or a speaker.
+func needsAudioDevices(requiredClasses map[peripherals.DeviceClass]bool) bool {
 	return requiredClasses[peripherals.MicrophoneClass] || requiredClasses[peripherals.SpeakerClass]
 }
 

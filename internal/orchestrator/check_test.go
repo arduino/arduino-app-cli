@@ -319,8 +319,10 @@ func TestValidateVirtualDevice(t *testing.T) {
 		HasVideoDevice: false,
 	}
 
-	requiredClasses, _ := requiredDeviceClasses(bIndex, appDescriptor.Bricks)
-	err := checkRequiredDevices(requiredClasses, availableDevices)
+	requiredClasses, err := requiredDeviceClasses(bIndex, appDescriptor.Bricks)
+	require.NoError(t, err)
+
+	err = checkRequiredDevices(requiredClasses, availableDevices)
 	require.Equal(t, "no camera device found", err.Error())
 }
 
@@ -349,8 +351,10 @@ func TestCheckRequiredDevicesNoError(t *testing.T) {
 		HasVideoDevice: false,
 	}
 
-	requiredClasses, _ := requiredDeviceClasses(bIndex, appDescriptor.Bricks)
-	err := checkRequiredDevices(requiredClasses, availableDevices)
+	requiredClasses, err := requiredDeviceClasses(bIndex, appDescriptor.Bricks)
+	require.NoError(t, err)
+
+	err = checkRequiredDevices(requiredClasses, availableDevices)
 	require.NoError(t, err)
 }
 
@@ -464,14 +468,104 @@ func TestCheckRequiredDevice(t *testing.T) {
 				},
 			}
 
-			requiredClasses, _ := requiredDeviceClasses(bIndex, appDescriptor.Bricks)
-			err := checkRequiredDevices(requiredClasses, tc.availableDevices)
+			requiredClasses, err := requiredDeviceClasses(bIndex, appDescriptor.Bricks)
+			require.NoError(t, err)
+
+			err = checkRequiredDevices(requiredClasses, tc.availableDevices)
 			if tc.wantErr {
 				require.Error(t, err, "should have returned an error")
 				require.Equal(t, tc.errMessage, err.Error())
 			} else {
 				require.NoError(t, err, "should not have returned an error")
 			}
+		})
+	}
+}
+
+func TestRequiredDeviceClasses(t *testing.T) {
+	bIndex := &bricksindex.BricksIndex{
+		BuiltInBricks: []bricksindex.Brick{
+			{
+				ID:              "arduino:camera-brick",
+				RequiredDevices: []peripherals.DeviceClass{peripherals.CameraClass},
+			},
+			{
+				ID:              "arduino:audio-brick",
+				RequiredDevices: []peripherals.DeviceClass{peripherals.MicrophoneClass, peripherals.SpeakerClass},
+			},
+			{
+				ID: "arduino:plain-brick",
+			},
+		},
+	}
+
+	t.Run("collects the classes required by every brick", func(t *testing.T) {
+		bricks := []app.Brick{
+			{ID: "arduino:camera-brick"},
+			{ID: "arduino:audio-brick"},
+		}
+
+		required, err := requiredDeviceClasses(bIndex, bricks)
+		require.NoError(t, err)
+		require.Equal(t, map[peripherals.DeviceClass]bool{
+			peripherals.CameraClass:     true,
+			peripherals.MicrophoneClass: true,
+			peripherals.SpeakerClass:    true,
+		}, required)
+	})
+
+	t.Run("skips the classes satisfied by a virtual device", func(t *testing.T) {
+		bricks := []app.Brick{
+			{ID: "arduino:camera-brick", Devices: []string{"remote_camera_0"}},
+		}
+
+		required, err := requiredDeviceClasses(bIndex, bricks)
+		require.NoError(t, err)
+		require.Empty(t, required)
+	})
+
+	t.Run("returns an empty set when no brick requires a device", func(t *testing.T) {
+		bricks := []app.Brick{
+			{ID: "arduino:plain-brick"},
+		}
+
+		required, err := requiredDeviceClasses(bIndex, bricks)
+		require.NoError(t, err)
+		require.Empty(t, required)
+	})
+
+	t.Run("fails on a brick missing from the index", func(t *testing.T) {
+		bricks := []app.Brick{
+			{ID: "arduino:camera-brick"},
+			{ID: "arduino:unknown-brick"},
+		}
+
+		required, err := requiredDeviceClasses(bIndex, bricks)
+		require.ErrorContains(t, err, "not found")
+		require.Nil(t, required)
+	})
+}
+
+func TestNeedsAudioDevices(t *testing.T) {
+	testCases := []struct {
+		name     string
+		required []peripherals.DeviceClass
+		want     bool
+	}{
+		{name: "microphone", required: []peripherals.DeviceClass{peripherals.MicrophoneClass}, want: true},
+		{name: "speaker", required: []peripherals.DeviceClass{peripherals.SpeakerClass}, want: true},
+		{name: "camera only", required: []peripherals.DeviceClass{peripherals.CameraClass}, want: false},
+		{name: "no device", required: nil, want: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			requiredClasses := make(map[peripherals.DeviceClass]bool, len(tc.required))
+			for _, class := range tc.required {
+				requiredClasses[class] = true
+			}
+
+			require.Equal(t, tc.want, needsAudioDevices(requiredClasses))
 		})
 	}
 }

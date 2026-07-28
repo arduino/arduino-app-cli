@@ -113,16 +113,18 @@ func StartApp(
 	if err := checkBricks(ctx, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex); err != nil {
 		return err
 	}
-	requiredClasses, complete := requiredDeviceClasses(bricksIndex, appToStart.Descriptor.Bricks)
+	requiredClasses, err := requiredDeviceClasses(bricksIndex, appToStart.Descriptor.Bricks)
+	if err != nil {
+		return err
+	}
 
 	// Detect the board peripherals only when the app needs them.
 	var devices peripherals.AvailableDevices
-	if len(requiredClasses) > 0 || !complete {
-		detected, err := peripherals.Detect(ctx, platform)
+	if len(requiredClasses) > 0 {
+		devices, err = peripherals.Detect(ctx, platform)
 		if err != nil {
 			return err
 		}
-		devices = detected
 
 		if err := checkRequiredDevices(requiredClasses, devices); err != nil {
 			return err
@@ -163,7 +165,7 @@ func StartApp(
 
 	cb(StreamMessage{data: fmt.Sprintf("Starting app %q", appToStart.Name)})
 
-	if needsAudioDevices(requiredClasses, complete) && devices.HasCarrierSoundDevice {
+	if needsAudioDevices(requiredClasses) && devices.HasCarrierSoundDevice {
 		if err := pipewire.EnsurePipewireRunning(ctx, cfg); err != nil {
 			return fmt.Errorf("failed to enable audio service linger: %w", err)
 		}
