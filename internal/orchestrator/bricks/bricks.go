@@ -293,10 +293,11 @@ func getBrickConfigVariableDetails(
 	return variablesMap, variableDetails
 }
 
+// Additional core-and-foundational and brick paths are not processed here;
+// we do not want them to appear in the brick example list.
 func getUsedByApps(cfg config.Configuration, brickId string, idProvider *appid.Provider, platform platform.Platform) ([]AppReference, error) {
 	pathsToExplore := paths.NewPathList()
 	pathsToExplore.AddAll(cfg.ExamplesDirs(platform))
-	pathsToExplore.AddAll(cfg.ExamplesAdditionalDirs())
 	pathsToExplore.Add(cfg.AppsDir())
 	appPaths, err := app.FindAppsInFolders(pathsToExplore)
 	if err != nil {
