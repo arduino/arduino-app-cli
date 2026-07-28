@@ -554,7 +554,7 @@ func createApp(
 		require.NoError(t, err)
 		newID, err := idProvider.IDFromPath(newPath)
 		require.NoError(t, err)
-		assert.Empty(t, gCmp.Diff(f.Must(idProvider.ParseID("examples:"+name)), newID))
+		assert.Empty(t, gCmp.Diff(f.Must(idProvider.ParseID("examples:inspirational/"+name)), newID))
 		res.ID = newID
 	}
 
