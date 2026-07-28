@@ -71,13 +71,19 @@ func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.Bri
 	return allErrors
 }
 
-func checkRequiredDevices(bricksIndex *bricksindex.BricksIndex, appBricks []app.Brick, availableDevices peripherals.AvailableDevices) error {
-	requiredDeviceClasses := make(map[peripherals.DeviceClass]bool)
+// requiredDeviceClasses returns the device classes required by the app bricks, skipping the
+// ones satisfied by a virtual device. The second return value is false when at least one brick
+// is missing from the index: in that case the set is incomplete and callers must not assume
+// that the app needs no device.
+func requiredDeviceClasses(bricksIndex *bricksindex.BricksIndex, appBricks []app.Brick) (map[peripherals.DeviceClass]bool, bool) {
+	required := make(map[peripherals.DeviceClass]bool)
+	complete := true
 
 	for _, brick := range appBricks {
 		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
 		if !found {
 			slog.Warn("Cannot validate required devices. Brick not found", slog.String("brick_id", brick.ID))
+			complete = false
 			continue
 		}
 
@@ -86,12 +92,26 @@ func checkRequiredDevices(bricksIndex *bricksindex.BricksIndex, appBricks []app.
 			if peripherals.HasVirtualDevice(deviceClass, brick.Devices) {
 				continue
 			}
-			requiredDeviceClasses[deviceClass] = true
+			required[deviceClass] = true
 		}
 	}
 
+	return required, complete
+}
+
+// needsAudioDevices reports whether the app may use audio: true when a brick requires a
+// microphone or a speaker, or when the required set is incomplete, in which case we cannot
+// tell and we conservatively assume audio is needed.
+func needsAudioDevices(requiredClasses map[peripherals.DeviceClass]bool, complete bool) bool {
+	if !complete {
+		return true
+	}
+	return requiredClasses[peripherals.MicrophoneClass] || requiredClasses[peripherals.SpeakerClass]
+}
+
+func checkRequiredDevices(requiredClasses map[peripherals.DeviceClass]bool, availableDevices peripherals.AvailableDevices) error {
 	var allErrors error
-	devices := slices.Sorted(maps.Keys(requiredDeviceClasses))
+	devices := slices.Sorted(maps.Keys(requiredClasses))
 	if len(devices) > 0 {
 		for _, class := range devices {
 			switch class {
