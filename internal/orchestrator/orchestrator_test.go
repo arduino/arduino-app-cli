@@ -267,7 +267,7 @@ func TestListApp(t *testing.T) {
 		assert.Empty(t, res.BrokenApps)
 		assert.Empty(t, gCmp.Diff([]AppInfo{
 			{
-				ID:          f.Must(idProvider.ParseID("examples:example1")),
+				ID:          f.Must(idProvider.ParseID("examples:inspirational/example1")),
 				Name:        "example1",
 				Description: "",
 				Icon:        "😃",
@@ -336,7 +336,7 @@ func TestListApp(t *testing.T) {
 		assert.Empty(t, res.BrokenApps)
 		assert.Empty(t, gCmp.Diff([]AppInfo{
 			{
-				ID:          f.Must(idProvider.ParseID("examples:example1")),
+				ID:          f.Must(idProvider.ParseID("examples:inspirational/example1")),
 				Name:        "example1",
 				Description: "",
 				Icon:        "😃",
