@@ -75,7 +75,8 @@ func runEnableLingerCmd(ctx context.Context, cfg config.Configuration) error {
 		return nil
 	}
 
-	if err := enableLinger(ctx, user.Username); err != nil {
+	err = enableLinger(ctx, user.Username)
+	if err != nil {
 		return fmt.Errorf("enable linger: %w", err)
 	}
 	mtime, err := lingerFileMtime(user.Username)
@@ -109,7 +110,8 @@ func StopIfNotNeeded(ctx context.Context, cfg config.Configuration) error {
 	}
 
 	if currentMtime.Equal(recordedMtime) {
-		if err := disableLinger(ctx, user.Username); err != nil {
+		err := disableLinger(ctx, user.Username)
+		if err != nil {
 			return fmt.Errorf("disable linger: %w", err)
 		}
 		slog.Debug("linger disabled", slog.String("username", user.Username))
