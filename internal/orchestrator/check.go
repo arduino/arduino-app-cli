@@ -72,9 +72,7 @@ func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.Bri
 }
 
 // requiredDeviceClasses returns the device classes required by the app bricks, skipping the
-// ones satisfied by a virtual device. The second return value is false when at least one brick
-// is missing from the index: in that case the set is incomplete and callers must not assume
-// that the app needs no device.
+// ones satisfied by a virtual device.
 func requiredDeviceClasses(bricksIndex *bricksindex.BricksIndex, appBricks []app.Brick) (map[peripherals.DeviceClass]bool, bool) {
 	required := make(map[peripherals.DeviceClass]bool)
 	complete := true
