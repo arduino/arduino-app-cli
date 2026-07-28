@@ -17,6 +17,7 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 
+	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
@@ -24,7 +25,7 @@ func setOwner(ownerPath string, lingerMtime time.Time) error {
 	if err := os.MkdirAll(filepath.Dir(ownerPath), 0700); err != nil {
 		return err
 	}
-	return os.WriteFile(ownerPath, []byte(lingerMtime.Format(time.RFC3339Nano)), 0600)
+	return fatomic.WriteFile(ownerPath, []byte(lingerMtime.Format(time.RFC3339Nano)), 0600)
 }
 
 func isSetbyApp(ownerPath string) (owned bool, recordedMtime time.Time, err error) {
