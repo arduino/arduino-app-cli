@@ -112,14 +112,10 @@ func StopIfNotNeeded(ctx context.Context, cfg config.Configuration) error {
 		if err := disableLinger(ctx, user.Username); err != nil {
 			return fmt.Errorf("disable linger: %w", err)
 		}
-		err = clearOwner(ownerPath)
-		if err != nil {
-			return fmt.Errorf("clear linger ownership: %w", err)
-		}
 		slog.Debug("linger disabled", slog.String("username", user.Username))
 	}
 
-	return nil
+	return clearOwner(ownerPath)
 }
 
 func enableLinger(ctx context.Context, username string) error {
