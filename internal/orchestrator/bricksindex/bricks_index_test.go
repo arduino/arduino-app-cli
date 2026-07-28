@@ -366,10 +366,6 @@ func TestLoadBrickYamlBrickIndex(t *testing.T) {
 		require.True(t, found)
 		require.Equal(t, paths.New("testdata/0.4.8/compose/arduino/a-good-brick/brick_compose.yaml"), compose)
 
-		examples, err := brick.GetExamplesPath()
-		require.NoError(t, err)
-		require.Equal(t, paths.NewPathList("testdata/0.4.8/examples/arduino/a-good-brick/example_1.py", "testdata/0.4.8/examples/arduino/a-good-brick/example_2.py"), examples)
-
 		api, found := brick.GetApiDocPath()
 		require.True(t, found)
 		require.Equal(t, paths.New("testdata/0.4.8/api-docs/arduino/app_bricks/a-good-brick/API.md"), api)

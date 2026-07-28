@@ -594,6 +594,7 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 
 	// Get a list of example apps
 	pathsToExplore := cfg.ExamplesDirs(platform)
+	pathsToExplore.AddAll(cfg.ExamplesAdditionalDirs())
 	exampleAppsPath, err := app.FindAppsInFolders(pathsToExplore)
 	if err != nil {
 		return err

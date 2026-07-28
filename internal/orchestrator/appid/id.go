@@ -101,10 +101,22 @@ func (p *Provider) IDFromPath(path *paths.Path) (ID, error) {
 				if err != nil {
 					return ID{}, ErrInvalidID
 				}
-				id = "examples:" + rel.String()
+				id = "examples:" + "inspirational/" + rel.String()
 				isFromKnownLocation = true
 				isExample = true
 				break
+			}
+		}
+
+		for _, example := range p.cfg.ExamplesAdditionalDirs() {
+			if strings.HasPrefix(path.String(), example.String()) {
+				rel, err := path.RelFrom(p.cfg.ExamplesBaseDir())
+				if err != nil {
+					return ID{}, ErrInvalidID
+				}
+				id = "examples:" + rel.String()
+				isFromKnownLocation = true
+				isExample = true
 			}
 		}
 	}
@@ -138,13 +150,28 @@ func (p *Provider) parseID(id string) (ID, error) {
 			path = p.cfg.AppsDir().Join(appPath)
 		case "examples":
 			isExample = true
+			pathPrefix, remainingPath, found := strings.Cut(appPath, "/")
+
 			// Falls back to the last dir if none contains the example.
-			for _, examplePath := range p.cfg.ExamplesDirs(p.plat) {
-				path = examplePath.Join(appPath)
+			path = p.cfg.ExamplesBaseDir().Join(appPath)
+
+			if (found && pathPrefix == "core-and-foundational") ||
+				(found && pathPrefix == "bricks") {
+				path = p.cfg.ExamplesBaseDir().Join(appPath)
 				if path.Exist() {
 					break
 				}
 			}
+
+			if found && pathPrefix == "inspirational" {
+				for _, examplePath := range p.cfg.ExamplesDirs(p.plat) {
+					path = examplePath.Join(remainingPath)
+					if path.Exist() {
+						break
+					}
+				}
+			}
+
 		default:
 			return ID{}, ErrInvalidID
 		}
