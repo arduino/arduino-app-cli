@@ -65,11 +65,7 @@ func Detect(ctx context.Context, plat platform.Platform) (AvailableDevices, erro
 	if err != nil {
 		slog.Warn("unable to get enabled devices from linux config", slog.String("error", err.Error()))
 	}
-	devices = HasCarrierDevices(carriers, devices)
-	// A CSI camera is usable only if a CSI driver is bound AND the board exposes the
-	// interface natively or a hat with configured cameras provides it. The driver alone
-	// is not enough on hat-based boards: it gets bound as soon as the hat DTBO is loaded,
-	// even with no camera configured.
+	devices.HasCarrierSoundDevice = HasSoundDeviceOnCarrier(carriers)
 	devices.HasCSICameraDevice = HasCSICameraDriver() && (plat.HasNativeCSICameraSupport() || HasCSICameraOnCarrier(carriers))
 
 	return devices, nil
@@ -226,14 +222,9 @@ func detectCSICameraDriver(driversDir string, camxSocket string) CSICameraDriver
 	return CSICameraDriverCamx
 }
 
-// HasCarrierDevices reports carrier-provided devices that are not CSI cameras
-func HasCarrierDevices(carriers []linuxconfig.Carrier, devices AvailableDevices) AvailableDevices {
-	for _, c := range carriers {
-		if c.CarrierName == "media-carrier" {
-			devices.HasCarrierSoundDevice = true
-		}
-	}
-	return devices
+// HasSoundDeviceOnCarrier reports if an enabled media carrier provides a sound device
+func HasSoundDeviceOnCarrier(carriers []linuxconfig.Carrier) bool {
+	return slices.ContainsFunc(carriers, func(c linuxconfig.Carrier) bool { return c.CarrierName == "media-carrier" })
 }
 
 // HasCSICameraOnCarrier reports if a CSI camera is configured on an enabled media carrier
