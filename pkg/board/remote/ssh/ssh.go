@@ -160,7 +160,7 @@ func (a *SSHConnection) List(path string) ([]remote.FileInfo, error) {
 	}
 	defer session.Close()
 
-	cmd := fmt.Sprintf("ls -laQ %q", path)
+	cmd := fmt.Sprintf("ls -laQ %s", remote.ShellQuote(path))
 	output, err := session.Output(cmd)
 	if err != nil {
 		return nil, err
@@ -176,7 +176,7 @@ func (a *SSHConnection) MkDirAll(path string) error {
 	}
 	defer session.Close()
 
-	cmd := fmt.Sprintf("mkdir -p %q", path)
+	cmd := fmt.Sprintf("mkdir -p %s", remote.ShellQuote(path))
 	if err := session.Run(cmd); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
@@ -191,7 +191,7 @@ func (a *SSHConnection) WriteFile(r io.Reader, path string) error {
 	}
 	defer session.Close()
 
-	cmd := fmt.Sprintf("cat > %q", path)
+	cmd := fmt.Sprintf("cat > %s", remote.ShellQuote(path))
 	session.Stdin = r
 
 	if err := session.Run(cmd); err != nil {
@@ -207,7 +207,7 @@ func (a *SSHConnection) ReadFile(path string) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	cmd := fmt.Sprintf("cat %q", path)
+	cmd := fmt.Sprintf("cat %s", remote.ShellQuote(path))
 	output, err := session.StdoutPipe()
 	if err != nil {
 		return nil, err
@@ -230,7 +230,7 @@ func (a *SSHConnection) Remove(path string) error {
 	}
 	defer session.Close()
 
-	cmd := fmt.Sprintf("rm -rf %q", path)
+	cmd := fmt.Sprintf("rm -rf %s", remote.ShellQuote(path))
 	if err := session.Run(cmd); err != nil {
 		return fmt.Errorf("failed to remove file: %w", err)
 	}
@@ -245,7 +245,7 @@ func (a *SSHConnection) Stats(p string) (remote.FileInfo, error) {
 	}
 	defer session.Close()
 
-	cmd := fmt.Sprintf("file -L %q", p)
+	cmd := fmt.Sprintf("file -L %s", remote.ShellQuote(p))
 	output, err := session.Output(cmd)
 	if err != nil {
 		return remote.FileInfo{}, err
