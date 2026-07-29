@@ -140,22 +140,6 @@ func hasBluetoothAudioNode(nodes []pwNode, mediaClass string) bool {
 	return false
 }
 
-// HasBluetoothSpeaker reports whether a bluetooth speaker (a bluez5 Audio/Sink)
-// is currently connected, by inspecting the PipeWire graph via pw-dump. If
-// pw-dump is not available it returns false.
-func HasBluetoothSpeaker(ctx context.Context) bool {
-	nodes, ok := pwDumpNodes(ctx)
-	return ok && hasBluetoothAudioNode(nodes, audioSinkClass)
-}
-
-// HasBluetoothMicrophone reports whether a bluetooth microphone (a bluez5
-// Audio/Source, as exposed by a headset) is currently connected, by inspecting
-// the PipeWire graph via pw-dump. If pw-dump is not available it returns false.
-func HasBluetoothMicrophone(ctx context.Context) bool {
-	nodes, ok := pwDumpNodes(ctx)
-	return ok && hasBluetoothAudioNode(nodes, audioSourceClass)
-}
-
 func GetSoundDevices() int {
 	// Check and read /dev/snd. This fs contains only real sound devices
 	soundDevicePath := paths.New("/dev/snd/by-id")
