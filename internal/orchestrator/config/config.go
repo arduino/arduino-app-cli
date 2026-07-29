@@ -152,14 +152,17 @@ func NewFromEnv() (Configuration, error) {
 
 // EnsureFolders creates the folders required by arduino-app-cli.
 //
-// This must be executed as the running arduino-app-cli user (arduino, UID 1000)
-// so the created folders get the correct ownership and we avoid permission
-// issues when the application later reads from or writes to them.
+// This must not be executed as root (e.g. under ALLOW_ROOT): the folders would
+// be created root-owned and cause permission issues for the arduino user that
+// runs the application. Callers should skip it when running as root.
 func (c *Configuration) EnsureFolders() error {
 	if err := c.AppsDir().MkdirAll(); err != nil {
 		return err
 	}
 	if err := c.ModelsDir().MkdirAll(); err != nil {
+		return err
+	}
+	if err := c.AssetDir().MkdirAll(); err != nil {
 		return err
 	}
 	if err := c.CustomModelsDir().MkdirAll(); err != nil {
