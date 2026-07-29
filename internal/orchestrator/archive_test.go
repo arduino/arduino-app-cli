@@ -303,7 +303,6 @@ func TestImportAppFromZip(t *testing.T) {
 			cfg, err := config.NewFromEnv()
 			require.NoError(t, err)
 			require.NoError(t, cfg.AssetDir().MkdirAll())
-			require.NoError(t, cfg.ModelsDir().MkdirAll())
 			require.NoError(t, cfg.EnsureFolders())
 
 			idProvider := appid.NewAppProvider(cfg, unkownPlatform)

@@ -95,8 +95,13 @@ func main() {
 		feedback.Fatal("arduino-app-cli must be run as a non-root user with UID 1000. Try `su - arduino` before this command.", feedback.ErrGeneric)
 	}
 
-	if err := configuration.EnsureFolders(); err != nil {
-		feedback.FatalError(err, feedback.ErrGeneric)
+	// Only create folders when running as the arduino user (UID 1000) so we
+	// never create them as root (e.g. under ALLOW_ROOT), which would leave
+	// them root-owned and cause permission issues for the arduino user.
+	if os.Geteuid() == 1000 {
+		if err := configuration.EnsureFolders(); err != nil {
+			feedback.FatalError(err, feedback.ErrGeneric)
+		}
 	}
 
 	if err := run(configuration); err != nil {
