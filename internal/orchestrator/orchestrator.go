@@ -35,7 +35,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	linuxconfig "github.com/arduino/arduino-app-cli/internal/orchestrator/linuxConfig"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/linuxconfig"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/pipewire"

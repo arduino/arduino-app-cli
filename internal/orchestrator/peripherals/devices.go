@@ -17,7 +17,7 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 
-	linuxconfig "github.com/arduino/arduino-app-cli/internal/orchestrator/linuxConfig"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/linuxconfig"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
