@@ -735,7 +735,7 @@ func TestShellQuoteNoExpansion(t *testing.T) {
 	inputs := []string{"$$$$$$", "$HOME", "$(echo pwned)", "`echo pwned`", "a'b$c"}
 	for _, in := range inputs {
 		t.Run(in, func(t *testing.T) {
-			out, err := exec.Command("/bin/sh", "-c", "printf %s "+remote.ShellQuote(in)).Output()
+			out, err := exec.Command("/bin/sh", "-c", "printf %s "+remote.ShellQuote(in)).Output() // nolint:gosec
 			require.NoError(t, err)
 			assert.Equal(t, in, string(out))
 		})
