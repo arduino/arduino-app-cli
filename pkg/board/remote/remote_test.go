@@ -11,8 +11,10 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -62,6 +64,8 @@ func TestRemoteFS(t *testing.T) {
 		"testdir/testfile with spaces.txt",
 		"testdir with space/testfile.txt",
 		"testdir with space/testfile with spaces.txt",
+		"test$dir/test$file.txt",
+		"test$dir/file$$$$$$.txt",
 	}
 
 	dirs := func() []string {
@@ -693,6 +697,47 @@ func TestRemoteTransferBehavioralCheck(t *testing.T) {
 					}
 				})
 			}
+		})
+	}
+}
+
+func TestShellQuote(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"plain", "/tmp/file.txt", "'/tmp/file.txt'"},
+		{"empty", "", "''"},
+		{"dollars", "$$$$$$", "'$$$$$$'"},
+		{"variable", "$HOME/file", "'$HOME/file'"},
+		{"command substitution", "$(rm -rf /)", "'$(rm -rf /)'"},
+		{"backtick", "`whoami`", "'`whoami`'"},
+		{"space", "my file", "'my file'"},
+		{"single quote", "it's", `'it'\''s'`},
+		{"backslash", `a\b`, `'a\b'`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, remote.ShellQuote(tt.in))
+		})
+	}
+}
+
+// TestShellQuoteNoExpansion verifies that a POSIX shell treats the quoted value
+// as a single, literal argument, without performing any '$'/backtick expansion.
+func TestShellQuoteNoExpansion(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell not available on Windows")
+	}
+
+	inputs := []string{"$$$$$$", "$HOME", "$(echo pwned)", "`echo pwned`", "a'b$c"}
+	for _, in := range inputs {
+		t.Run(in, func(t *testing.T) {
+			out, err := exec.Command("/bin/sh", "-c", "printf %s "+remote.ShellQuote(in)).Output()
+			require.NoError(t, err)
+			assert.Equal(t, in, string(out))
 		})
 	}
 }

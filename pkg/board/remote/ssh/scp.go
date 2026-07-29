@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 
 	"golang.org/x/crypto/ssh"
+
+	remotepkg "github.com/arduino/arduino-app-cli/pkg/board/remote"
 )
 
 type ScpClient struct {
@@ -43,7 +45,7 @@ func (c *ScpClient) PushDir(ctx context.Context, fsys fs.FS, name, remote string
 	}
 	defer w.Close()
 
-	cmd := fmt.Sprintf("%s -rt %q", remoteBinary, remote)
+	cmd := fmt.Sprintf("%s -rt %s", remoteBinary, remotepkg.ShellQuote(remote))
 	if err := session.Start(cmd); err != nil {
 		return err
 	}
@@ -77,7 +79,7 @@ func (c *ScpClient) PushFile(ctx context.Context, local, remote string) error {
 	}
 	defer w.Close()
 
-	cmd := fmt.Sprintf("%s -t %q", remoteBinary, remote)
+	cmd := fmt.Sprintf("%s -t %s", remoteBinary, remotepkg.ShellQuote(remote))
 	if err := session.Start(cmd); err != nil {
 		return err
 	}
