@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package app
+package appid
 
 import (
 	"encoding/base64"
@@ -56,16 +56,16 @@ func (id ID) Equal(other ID) bool {
 		id.encodedID == other.encodedID
 }
 
-type IDProvider struct {
+type Provider struct {
 	cfg  config.Configuration
 	plat platform.Platform
 }
 
-func NewAppIDProvider(cfg config.Configuration, plat platform.Platform) *IDProvider {
-	return &IDProvider{cfg: cfg, plat: plat}
+func NewAppProvider(cfg config.Configuration, plat platform.Platform) *Provider {
+	return &Provider{cfg: cfg, plat: plat}
 }
 
-func (p *IDProvider) IDFromBase64(id string) (ID, error) {
+func (p *Provider) IDFromBase64(id string) (ID, error) {
 	decodedID, err := base64.RawURLEncoding.DecodeString(id)
 	if err != nil {
 		return ID{}, err
@@ -73,7 +73,7 @@ func (p *IDProvider) IDFromBase64(id string) (ID, error) {
 	return p.parseID(string(decodedID))
 }
 
-func (p *IDProvider) IDFromPath(path *paths.Path) (ID, error) {
+func (p *Provider) IDFromPath(path *paths.Path) (ID, error) {
 	if path == nil || !path.Exist() {
 		return ID{}, ErrInvalidID
 	}
@@ -101,10 +101,22 @@ func (p *IDProvider) IDFromPath(path *paths.Path) (ID, error) {
 				if err != nil {
 					return ID{}, ErrInvalidID
 				}
-				id = "examples:" + rel.String()
+				id = "examples:" + "inspirational/" + rel.String()
 				isFromKnownLocation = true
 				isExample = true
 				break
+			}
+		}
+
+		for _, example := range p.cfg.ExamplesAdditionalDirs() {
+			if strings.HasPrefix(path.String(), example.String()) {
+				rel, err := path.RelFrom(p.cfg.ExamplesBaseDir())
+				if err != nil {
+					return ID{}, ErrInvalidID
+				}
+				id = "examples:" + rel.String()
+				isFromKnownLocation = true
+				isExample = true
 			}
 		}
 	}
@@ -123,11 +135,11 @@ func (p *IDProvider) IDFromPath(path *paths.Path) (ID, error) {
 
 // ParseID parses a string into an ID.
 // It accepts both absolute paths and relative paths.
-func (p *IDProvider) ParseID(id string) (ID, error) {
+func (p *Provider) ParseID(id string) (ID, error) {
 	return p.parseID(id)
 }
 
-func (p *IDProvider) parseID(id string) (ID, error) {
+func (p *Provider) parseID(id string) (ID, error) {
 	var path *paths.Path
 
 	prefix, appPath, found := strings.Cut(id, ":")
@@ -138,13 +150,28 @@ func (p *IDProvider) parseID(id string) (ID, error) {
 			path = p.cfg.AppsDir().Join(appPath)
 		case "examples":
 			isExample = true
+			pathPrefix, remainingPath, found := strings.Cut(appPath, "/")
+
 			// Falls back to the last dir if none contains the example.
-			for _, examplePath := range p.cfg.ExamplesDirs(p.plat) {
-				path = examplePath.Join(appPath)
+			path = p.cfg.ExamplesBaseDir().Join(appPath)
+
+			if (found && pathPrefix == "core-and-foundational") ||
+				(found && pathPrefix == "bricks") {
+				path = p.cfg.ExamplesBaseDir().Join(appPath)
 				if path.Exist() {
 					break
 				}
 			}
+
+			if found && pathPrefix == "inspirational" {
+				for _, examplePath := range p.cfg.ExamplesDirs(p.plat) {
+					path = examplePath.Join(remainingPath)
+					if path.Exist() {
+						break
+					}
+				}
+			}
+
 		default:
 			return ID{}, ErrInvalidID
 		}

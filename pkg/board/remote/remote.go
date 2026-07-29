@@ -14,8 +14,9 @@ import (
 var ErrPortAvailable = fmt.Errorf("port is not available")
 
 type FileInfo struct {
-	Name  string
-	IsDir bool
+	Name      string
+	IsDir     bool
+	IsSymlink bool
 }
 
 type RemoteConn interface {

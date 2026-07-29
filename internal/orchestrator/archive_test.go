@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -305,7 +306,7 @@ func TestImportAppFromZip(t *testing.T) {
 			require.NoError(t, cfg.ModelsDir().MkdirAll())
 			require.NoError(t, cfg.EnsureFolders())
 
-			idProvider := app.NewAppIDProvider(cfg, unkownPlatform)
+			idProvider := appid.NewAppProvider(cfg, unkownPlatform)
 
 			if tc.preExisting {
 				// create pre-existing app folder to force conflict

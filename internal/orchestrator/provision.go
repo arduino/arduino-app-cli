@@ -30,6 +30,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -333,6 +334,11 @@ func generateMainComposeFile(
 			Target:   "/run/udev",
 			ReadOnly: true,
 		},
+		{
+			Type:   "bind",
+			Source: "/run/user/1000/pipewire-0",
+			Target: "/run/user/1000/pipewire-0",
+		},
 	}
 
 	for _, p := range cfg.RequiredRuntimesPaths() {
@@ -341,6 +347,14 @@ func generateMainComposeFile(
 			Source: p.String(),
 			Target: p.String(),
 		})
+	}
+
+	// camx CSI cameras are accessed through the cam_server socket and a host userspace library
+	if peripherals.DetectCSICameraDriver() == peripherals.CSICameraDriverCamx {
+		volumes = append(volumes,
+			volume{Type: "bind", Source: "/run/cam_server", Target: "/run/cam_server"},
+			volume{Type: "bind", Source: "/usr/lib/libcamera_metadata.so.0.1.0", Target: "/usr/lib/libcamera_metadata.so.0.1.0"},
+		)
 	}
 
 	volumes = addLedControl(platform, volumes)

@@ -22,7 +22,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/update"
@@ -264,7 +264,7 @@ func NewOpenApiGenerator(version string) *Generator {
 				return true, nil
 			}
 			// We treat the orchestrator.ID as a string in the OpenAPI spec.
-			if params.Value.Type() == reflect.TypeOf(app.ID{}) {
+			if params.Value.Type() == reflect.TypeOf(appid.ID{}) {
 				params.Schema.WithType(jsonschema.Type{
 					SimpleTypes: new(jsonschema.String),
 				})
@@ -809,6 +809,24 @@ Contains a JSON object with the details of an error.
 			},
 			Description: "returns information about current directory configuration used by the app",
 			Summary:     "returns application configuration",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "getExamples",
+			Method:      http.MethodGet,
+			Path:        "/v1/examples",
+			Request:     nil,
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: orchestrator.ExampleResponse{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "returns the example structure for rendering",
+			Summary:     "returns the example structure",
 			Tags:        []Tag{ApplicationTag},
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},

@@ -22,7 +22,7 @@ import (
 )
 
 // runnerVersion do not edit, this is generate with `task bump:runner-version`
-var RunnerVersion = "0.11.0"
+var RunnerVersion = "0.12.0rc3"
 
 type Configuration struct {
 	appsDir                          *paths.Path
@@ -181,16 +181,22 @@ func (c *Configuration) DataDir() *paths.Path {
 	return c.dataDir
 }
 
-func (c *Configuration) examplesDir() *paths.Path {
+func (c *Configuration) ExamplesBaseDir() *paths.Path {
 	return c.dataDir.Join("examples")
 }
 
+func (c *Configuration) ExamplesAdditionalDirs() paths.PathList {
+	return paths.PathList{
+		c.ExamplesBaseDir().Join("core-and-foundational"),
+		c.ExamplesBaseDir().Join("bricks")}
+}
+
 func (c *Configuration) ExamplesDirs(platform platform.Platform) paths.PathList {
-	boardExampleDir := c.examplesDir().Join(fmt.Sprintf("platform_%s", platform.BoardName))
+	boardExampleDir := c.ExamplesBaseDir().Join("inspirational").Join(fmt.Sprintf("platform_%s", platform.BoardName))
 	if boardExampleDir.Exist() {
-		return paths.PathList{boardExampleDir, c.examplesDir().Join("common")}
+		return paths.PathList{boardExampleDir, c.ExamplesBaseDir().Join("inspirational").Join("common")}
 	}
-	return paths.PathList{c.examplesDir().Join("common")}
+	return paths.PathList{c.ExamplesBaseDir().Join("inspirational").Join("common")}
 }
 
 // RequiredRuntimesPaths returns the discovered host paths for configured required

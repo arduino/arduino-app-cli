@@ -12,6 +12,7 @@ import (
 	"github.com/docker/cli/cli/command"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -29,6 +30,7 @@ func CleanAppCache(
 	app app.ArduinoApp,
 	req CleanAppCacheRequest,
 	platform platform.Platform,
+	cfg config.Configuration,
 ) error {
 	runningApp, err := getRunningApp(ctx, docker.Client())
 	if err != nil {
@@ -39,7 +41,7 @@ func CleanAppCache(
 			return ErrCleanCacheRunningApp
 		}
 		// We try to remove docker related resources at best effort
-		_ = StopAndDestroyApp(ctx, docker, platform, app, func(StreamMessage) {})
+		_ = StopAndDestroyApp(ctx, docker, platform, app, cfg, func(StreamMessage) {})
 	}
 
 	return app.ProvisioningStateDir().RemoveAll()
