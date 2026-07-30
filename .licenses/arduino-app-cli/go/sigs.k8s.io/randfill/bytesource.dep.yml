@@ -1,13 +1,13 @@
 ---
-name: sigs.k8s.io/structured-merge-diff/v4/schema
-version: v4.4.2
+name: sigs.k8s.io/randfill/bytesource
+version: v1.0.0
 type: go
-summary: Package schema defines a targeted schema language which allows one to represent
-  all the schema information necessary to perform "structured" merges and diffs.
-homepage: https://pkg.go.dev/sigs.k8s.io/structured-merge-diff/v4/schema
+summary: Package bytesource provides a rand.Source64 that is determined by a slice
+  of bytes.
+homepage: https://pkg.go.dev/sigs.k8s.io/randfill/bytesource
 license: apache-2.0
 licenses:
-- sources: v4@v4.4.2/LICENSE
+- sources: randfill@v1.0.0/LICENSE
   text: |2
                                      Apache License
                                Version 2.0, January 2004
@@ -197,7 +197,8 @@ licenses:
           same "printed page" as the copyright notice for easier
           identification within third-party archives.
 
-       Copyright {yyyy} {name of copyright owner}
+       Copyright 2014 The gofuzz Authors
+       Copyright 2025 The Kubernetes Authors
 
        Licensed under the Apache License, Version 2.0 (the "License");
        you may not use this file except in compliance with the License.

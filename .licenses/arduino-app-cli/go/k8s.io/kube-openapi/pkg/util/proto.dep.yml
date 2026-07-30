@@ -1,13 +1,13 @@
 ---
 name: k8s.io/kube-openapi/pkg/util/proto
-version: v0.0.0-20241105132330-32ad38e42d3f
+version: v0.0.0-20250710124328-f3f2b991d03b
 type: go
 summary: Package proto is a collection of libraries for parsing and indexing the type
   definitions.
 homepage: https://pkg.go.dev/k8s.io/kube-openapi/pkg/util/proto
 license: apache-2.0
 licenses:
-- sources: kube-openapi@v0.0.0-20241105132330-32ad38e42d3f/LICENSE
+- sources: kube-openapi@v0.0.0-20250710124328-f3f2b991d03b/LICENSE
   text: |2
 
                                      Apache License

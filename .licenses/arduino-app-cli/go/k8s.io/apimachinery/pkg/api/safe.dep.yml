@@ -1,12 +1,12 @@
 ---
-name: github.com/google/gofuzz
-version: v1.2.0
+name: k8s.io/apimachinery/pkg/api/safe
+version: v0.34.1
 type: go
-summary: Package fuzz is a library for populating go objects with random values.
-homepage: https://pkg.go.dev/github.com/google/gofuzz
+summary:
+homepage: https://pkg.go.dev/k8s.io/apimachinery/pkg/api/safe
 license: apache-2.0
 licenses:
-- sources: LICENSE
+- sources: apimachinery@v0.34.1/LICENSE
   text: |2
 
                                      Apache License
