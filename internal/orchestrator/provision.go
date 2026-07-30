@@ -386,7 +386,7 @@ func generateMainComposeFile(
 	mainAppCompose.Services = &mainService{
 		Main: service{
 			Image:             pythonImage,
-			Volumes:           volumes,
+			Volumes:           filterNotExistingVolume(volumes),
 			Ports:             slices.Collect(maps.Keys(ports)),
 			DeviceCgroupRules: deviceCgroupsRules,
 			Entrypoint:        "/run.sh",
@@ -436,6 +436,19 @@ func generateMainComposeFile(
 
 	// Done!
 	return nil
+}
+
+func filterNotExistingVolume(volumes []volume) []volume {
+	return slices.DeleteFunc(volumes, func(v volume) bool {
+		if v.Type != "bind" {
+			return false
+		}
+		if !paths.New(v.Source).Exist() {
+			slog.Debug("Skipping volume mount because source does not exist", slog.String("source", v.Source), slog.String("target", v.Target))
+			return true
+		}
+		return false
+	})
 }
 
 // Resolve supplementary group IDs on the host dynamically
