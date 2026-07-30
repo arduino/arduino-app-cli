@@ -17,3 +17,4 @@ fi
 
 #LOAD_HELPER
 configure_agent_profiles
+configure_mic_default_volume

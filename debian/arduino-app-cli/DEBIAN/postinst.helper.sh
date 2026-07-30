@@ -53,3 +53,35 @@ $USER_HOME/.copilot/copilot-instructions.md
   fi
 }
 
+configure_mic_default_volume() {
+  # Set the on-board microphone's default volume to 22%, once, on first
+  # install only. Pre-seeds WirePlumber's own state file directly rather than
+  # waiting for PipeWire/the mic to be probed (which may not have happened yet
+  # at install time, e.g. before the first boot) -- WirePlumber matches this
+  # by route key whenever the route is (re)created, regardless of whether it
+  # existed yet when the value was written (verified empirically).
+  MIC_DEFAULT_FLAG="/var/lib/arduino-app-cli/mic_default_configured.flag"
+  [ -f "$MIC_DEFAULT_FLAG" ] && return 0
+
+  WP_STATE_DIR="/home/arduino/.local/state/wireplumber"
+  WP_STATE_FILE="$WP_STATE_DIR/default-routes"
+  # Key/escaping and 0.22^3 cubic-scaled volume format confirmed against
+  # this board's actual wireplumber state file.
+  MIC_KEY='alsa_card.platform-sound:input:\oIn\c\sHeadset'
+  MIC_VALUE='{"mute":false, "latencyOffsetNsec":0, "channelMap":["FL", "FR"], "channelVolumes":[0.010648, 0.010648]}'
+
+  mkdir -p "$WP_STATE_DIR"
+  if [ ! -f "$WP_STATE_FILE" ]; then
+    printf '[default-routes]\n%s=%s\n' "$MIC_KEY" "$MIC_VALUE" > "$WP_STATE_FILE"
+  elif ! grep -qF "$MIC_KEY=" "$WP_STATE_FILE"; then
+    printf '%s=%s\n' "$MIC_KEY" "$MIC_VALUE" >> "$WP_STATE_FILE"
+  fi
+  chown -R arduino:arduino "$WP_STATE_DIR" 2>/dev/null || chown -R :arduino "$WP_STATE_DIR" || true
+
+  if [ -f "$WP_STATE_FILE" ] && grep -qF "$MIC_KEY=" "$WP_STATE_FILE"; then
+    touch "$MIC_DEFAULT_FLAG"
+  else
+    echo "ERROR: failed to pre-seed default microphone volume in $WP_STATE_FILE" >&2
+  fi
+}
+
