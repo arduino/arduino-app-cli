@@ -386,7 +386,7 @@ func generateMainComposeFile(
 	mainAppCompose.Services = &mainService{
 		Main: service{
 			Image:             pythonImage,
-			Volumes:           filterNotExistingVolume(volumes),
+			Volumes:           filterNotExistingVolumes(volumes),
 			Ports:             slices.Collect(maps.Keys(ports)),
 			DeviceCgroupRules: deviceCgroupsRules,
 			Entrypoint:        "/run.sh",
@@ -438,7 +438,7 @@ func generateMainComposeFile(
 	return nil
 }
 
-func filterNotExistingVolume(volumes []volume) []volume {
+func filterNotExistingVolumes(volumes []volume) []volume {
 	return slices.DeleteFunc(volumes, func(v volume) bool {
 		if v.Type != "bind" {
 			return false
