@@ -12,12 +12,15 @@ import (
 	"github.com/arduino/go-paths-helper"
 )
 
-// FindAppsInFolder scans the given paths recursively to find Arduino Apps and
-// returns the list of found app paths.
+// FindAppsInFolders scans the given paths recursively to find Arduino Apps.
+// Paths that do not exist on disk are skipped.
 func FindAppsInFolders(pathsToExplore paths.PathList) (paths.PathList, error) {
 	var result paths.PathList
 	var allErrors error
 	for _, p := range pathsToExplore {
+		if p.NotExist() {
+			continue
+		}
 		apps, err := p.ReadDirRecursiveFiltered(
 			paths.AndFilter( // Recursion filter
 				paths.FilterOutNames(".cache"),       // Do not recurse into .cache folders

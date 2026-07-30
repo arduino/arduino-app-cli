@@ -91,11 +91,6 @@ func NewFromEnv() (Configuration, error) {
 		}
 		customModelsDir = paths.New(homeDir, ".arduino-bricks/models")
 	}
-	if customModelsDir.NotExist() {
-		if err := customModelsDir.MkdirAll(); err != nil {
-			slog.Warn("failed create custom model directory", "error", err)
-		}
-	}
 
 	registryBase := getDockerRegistryBase()
 	pythonImage, usedPythonImageTag := getPythonImageAndTag(registryBase)
@@ -151,33 +146,29 @@ func NewFromEnv() (Configuration, error) {
 		EdgeImpulseAPIURL:                parsedEdgeImpulseURL,
 		ArduinoPlatformVersionConstraint: constraint,
 	}
-	if err := c.init(); err != nil {
-		return Configuration{}, err
-	}
+
 	return c, nil
 }
 
-func (c *Configuration) init() error {
+// EnsureFolders creates the folders required by arduino-app-cli.
+//
+// This must not be executed as root (e.g. under ALLOW_ROOT): the folders would
+// be created root-owned and cause permission issues for the arduino user that
+// runs the application. Callers should skip it when running as root.
+func (c *Configuration) EnsureFolders() error {
 	if err := c.AppsDir().MkdirAll(); err != nil {
-		return err
-	}
-
-	examplesDir := paths.PathList{
-		c.ExamplesBaseDir().Join("inspirational").Join("common"),
-	}
-	examplesDir.AddAll(c.ExamplesAdditionalDirs())
-	for _, dir := range examplesDir {
-		if err := dir.MkdirAll(); err != nil {
-			return err
-		}
-	}
-
-	if err := c.AssetDir().MkdirAll(); err != nil {
 		return err
 	}
 	if err := c.ModelsDir().MkdirAll(); err != nil {
 		return err
 	}
+	if err := c.AssetDir().MkdirAll(); err != nil {
+		return err
+	}
+	if err := c.CustomModelsDir().MkdirAll(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
