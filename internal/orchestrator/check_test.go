@@ -507,10 +507,10 @@ func TestRequiredDeviceClasses(t *testing.T) {
 
 		required, err := requiredDeviceClasses(bIndex, bricks)
 		require.NoError(t, err)
-		require.Equal(t, map[peripherals.DeviceClass]bool{
-			peripherals.CameraClass:     true,
-			peripherals.MicrophoneClass: true,
-			peripherals.SpeakerClass:    true,
+		require.Equal(t, []peripherals.DeviceClass{
+			peripherals.CameraClass,
+			peripherals.MicrophoneClass,
+			peripherals.SpeakerClass,
 		}, required)
 	})
 
@@ -560,12 +560,7 @@ func TestNeedsAudioDevices(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			requiredClasses := make(map[peripherals.DeviceClass]bool, len(tc.required))
-			for _, class := range tc.required {
-				requiredClasses[class] = true
-			}
-
-			require.Equal(t, tc.want, needsAudioDevices(requiredClasses))
+			require.Equal(t, tc.want, needsAudioDevices(tc.required))
 		})
 	}
 }
