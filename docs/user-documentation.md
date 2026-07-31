@@ -51,6 +51,7 @@ Examples of the `assets` and the builtin `examples` stored under the `ARDUINO_AP
 │       └── ...
 ├── bootloader_burned.flag
 ├── default.app               # Default App
+├── pipewire_linger.timestamp # PipeWire linger record
 ├── properties.msgpack        # Variable values
 ├── examples                  # Built-in App examples
 │   ├── air-quality-monitoring
