@@ -112,3 +112,46 @@ func (r *testResult) String() string {
 	}
 	return "Failure"
 }
+
+func TestResultStreamOnTextFormat(t *testing.T) {
+	reset()
+
+	myOut := &bytes.Buffer{}
+	SetOut(myOut)
+	SetFormat(Text)
+
+	printResult, err := NewResultStream()
+	require.NoError(t, err)
+
+	printResult(&testResult{Success: true})
+	printResult(&testResult{Success: false})
+
+	require.Equal(t, "Success\nFailure\n", myOut.String())
+}
+
+func TestResultStreamOnJSONLinesFormat(t *testing.T) {
+	reset()
+
+	myOut := &bytes.Buffer{}
+	SetOut(myOut)
+	SetFormat(JSONLines)
+
+	printResult, err := NewResultStream()
+	require.NoError(t, err)
+
+	printResult(&testResult{Success: true})
+	printResult(&testResult{Success: false})
+
+	// The stream is rendered as one JSON object per line.
+	require.Equal(t, "{\"success\":true}\n{\"success\":false}\n", myOut.String())
+}
+
+func TestResultStreamIsNotAvailableOnSingleDocumentFormat(t *testing.T) {
+	// A stream can't be rendered as a single JSON document.
+	reset()
+	SetOut(&bytes.Buffer{})
+	SetFormat(JSON)
+
+	_, err := NewResultStream()
+	require.Error(t, err)
+}
