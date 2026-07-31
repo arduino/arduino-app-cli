@@ -25,15 +25,12 @@ const (
 	Text OutputFormat = iota
 	// JSON is a single, indented JSON document
 	JSON
-	// MinifiedJSON is a single, compact JSON document
-	MinifiedJSON
 	// JSONLines is a stream of compact JSON documents
 	JSONLines
 )
 
 var formats = map[string]OutputFormat{
 	"json":       JSON,
-	"jsonmini":   MinifiedJSON,
 	"json-lines": JSONLines,
 	"text":       Text,
 }
@@ -194,7 +191,7 @@ func Fatal(errorMsg string, exitCode ExitCode) {
 	switch format {
 	case JSON:
 		d, _ = json.MarshalIndent(augment(res), "", "  ")
-	case MinifiedJSON, JSONLines:
+	case JSONLines:
 		d, _ = json.Marshal(augment(res))
 	default:
 		panic("unknown output format")
@@ -234,7 +231,7 @@ func PrintResult(res Result) {
 			Fatal(i18n.Tr("Error during JSON encoding of the output: %v", err), ErrGeneric)
 		}
 		data = string(d)
-	case MinifiedJSON, JSONLines:
+	case JSONLines:
 		// A single result under JSONLines is just one compact line.
 		d, err := json.Marshal(augment(res.Data()))
 		if err != nil {

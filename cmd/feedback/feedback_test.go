@@ -146,16 +146,12 @@ func TestResultStreamOnJSONLinesFormat(t *testing.T) {
 	require.Equal(t, "{\"success\":true}\n{\"success\":false}\n", myOut.String())
 }
 
-func TestResultStreamIsNotAvailableOnSingleDocumentFormats(t *testing.T) {
-	// A stream can't be rendered as a single JSON document, minified or not.
-	for _, format := range []OutputFormat{JSON, MinifiedJSON} {
-		t.Run(format.String(), func(t *testing.T) {
-			reset()
-			SetOut(&bytes.Buffer{})
-			SetFormat(format)
+func TestResultStreamIsNotAvailableOnSingleDocumentFormat(t *testing.T) {
+	// A stream can't be rendered as a single JSON document.
+	reset()
+	SetOut(&bytes.Buffer{})
+	SetFormat(JSON)
 
-			_, err := NewResultStream()
-			require.Error(t, err)
-		})
-	}
+	_, err := NewResultStream()
+	require.Error(t, err)
 }
