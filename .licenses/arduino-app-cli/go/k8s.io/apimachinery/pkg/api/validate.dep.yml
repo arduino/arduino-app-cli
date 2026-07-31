@@ -1,15 +1,15 @@
 ---
-name: sigs.k8s.io/structured-merge-diff/v4/value
-version: v4.4.2
+name: k8s.io/apimachinery/pkg/api/validate
+version: v0.34.1
 type: go
-summary: Package value defines types for an in-memory representation of yaml or json
-  objects, organized for convenient comparison with a schema (as defined by the sibling
-  schema package).
-homepage: https://pkg.go.dev/sigs.k8s.io/structured-merge-diff/v4/value
+summary: Package validate holds API validation functions which are designed for use
+  with the k8s.io/code-generator/cmd/validation-gen tool.
+homepage: https://pkg.go.dev/k8s.io/apimachinery/pkg/api/validate
 license: apache-2.0
 licenses:
-- sources: v4@v4.4.2/LICENSE
+- sources: apimachinery@v0.34.1/LICENSE
   text: |2
+
                                      Apache License
                                Version 2.0, January 2004
                             http://www.apache.org/licenses/
@@ -190,7 +190,7 @@ licenses:
        APPENDIX: How to apply the Apache License to your work.
 
           To apply the Apache License to your work, attach the following
-          boilerplate notice, with the fields enclosed by brackets "{}"
+          boilerplate notice, with the fields enclosed by brackets "[]"
           replaced with your own identifying information. (Don't include
           the brackets!)  The text should be enclosed in the appropriate
           comment syntax for the file format. We also recommend that a
@@ -198,7 +198,7 @@ licenses:
           same "printed page" as the copyright notice for easier
           identification within third-party archives.
 
-       Copyright {yyyy} {name of copyright owner}
+       Copyright [yyyy] [name of copyright owner]
 
        Licensed under the Apache License, Version 2.0 (the "License");
        you may not use this file except in compliance with the License.

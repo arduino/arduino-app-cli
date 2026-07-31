@@ -1,13 +1,13 @@
 ---
 name: k8s.io/apimachinery/pkg/runtime
-version: v0.32.3
+version: v0.34.1
 type: go
 summary: Package runtime defines conversions between generic types and structs to
   map query strings to struct objects.
 homepage: https://pkg.go.dev/k8s.io/apimachinery/pkg/runtime
 license: apache-2.0
 licenses:
-- sources: apimachinery@v0.32.3/LICENSE
+- sources: apimachinery@v0.34.1/LICENSE
   text: |2
 
                                      Apache License

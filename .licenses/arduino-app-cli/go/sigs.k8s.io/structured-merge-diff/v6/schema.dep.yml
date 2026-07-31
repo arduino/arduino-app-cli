@@ -1,12 +1,13 @@
 ---
-name: sigs.k8s.io/structured-merge-diff/v4/merge
-version: v4.4.2
+name: sigs.k8s.io/structured-merge-diff/v6/schema
+version: v6.3.0
 type: go
-summary:
-homepage: https://pkg.go.dev/sigs.k8s.io/structured-merge-diff/v4/merge
+summary: Package schema defines a targeted schema language which allows one to represent
+  all the schema information necessary to perform "structured" merges and diffs.
+homepage: https://pkg.go.dev/sigs.k8s.io/structured-merge-diff/v6/schema
 license: apache-2.0
 licenses:
-- sources: v4@v4.4.2/LICENSE
+- sources: v6@v6.3.0/LICENSE
   text: |2
                                      Apache License
                                Version 2.0, January 2004

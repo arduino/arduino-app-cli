@@ -1,13 +1,14 @@
 ---
-name: sigs.k8s.io/structured-merge-diff/v4/typed
-version: v4.4.2
+name: k8s.io/api/resource/v1
+version: v0.34.1
 type: go
-summary: Package typed contains logic for operating on values with given schemas.
-homepage: https://pkg.go.dev/sigs.k8s.io/structured-merge-diff/v4/typed
+summary: Package v1 is the v1 version of the resource API.
+homepage: https://pkg.go.dev/k8s.io/api/resource/v1
 license: apache-2.0
 licenses:
-- sources: v4@v4.4.2/LICENSE
+- sources: api@v0.34.1/LICENSE
   text: |2
+
                                      Apache License
                                Version 2.0, January 2004
                             http://www.apache.org/licenses/
@@ -188,7 +189,7 @@ licenses:
        APPENDIX: How to apply the Apache License to your work.
 
           To apply the Apache License to your work, attach the following
-          boilerplate notice, with the fields enclosed by brackets "{}"
+          boilerplate notice, with the fields enclosed by brackets "[]"
           replaced with your own identifying information. (Don't include
           the brackets!)  The text should be enclosed in the appropriate
           comment syntax for the file format. We also recommend that a
@@ -196,7 +197,7 @@ licenses:
           same "printed page" as the copyright notice for easier
           identification within third-party archives.
 
-       Copyright {yyyy} {name of copyright owner}
+       Copyright [yyyy] [name of copyright owner]
 
        Licensed under the Apache License, Version 2.0 (the "License");
        you may not use this file except in compliance with the License.

@@ -1,14 +1,13 @@
 ---
-name: k8s.io/client-go/kubernetes/typed/networking/v1alpha1
-version: v0.32.3
+name: sigs.k8s.io/randfill
+version: v1.0.0
 type: go
-summary: This package has the automatically generated typed clients.
-homepage: https://pkg.go.dev/k8s.io/client-go/kubernetes/typed/networking/v1alpha1
+summary: Package randfill is a library for populating go objects with random values.
+homepage: https://pkg.go.dev/sigs.k8s.io/randfill
 license: apache-2.0
 licenses:
-- sources: client-go@v0.32.3/LICENSE
+- sources: LICENSE
   text: |2
-
                                      Apache License
                                Version 2.0, January 2004
                             http://www.apache.org/licenses/
@@ -189,7 +188,7 @@ licenses:
        APPENDIX: How to apply the Apache License to your work.
 
           To apply the Apache License to your work, attach the following
-          boilerplate notice, with the fields enclosed by brackets "[]"
+          boilerplate notice, with the fields enclosed by brackets "{}"
           replaced with your own identifying information. (Don't include
           the brackets!)  The text should be enclosed in the appropriate
           comment syntax for the file format. We also recommend that a
@@ -197,7 +196,8 @@ licenses:
           same "printed page" as the copyright notice for easier
           identification within third-party archives.
 
-       Copyright [yyyy] [name of copyright owner]
+       Copyright 2014 The gofuzz Authors
+       Copyright 2025 The Kubernetes Authors
 
        Licensed under the Apache License, Version 2.0 (the "License");
        you may not use this file except in compliance with the License.
@@ -210,4 +210,30 @@ licenses:
        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
        See the License for the specific language governing permissions and
        limitations under the License.
-notices: []
+notices:
+- sources: NOTICE
+  text: |-
+    When donating the randfill project to the CNCF, we could not reach all the
+    gofuzz contributors to sign the CNCF CLA. As such, according to the CNCF rules
+    to donate a repository, we must add a NOTICE referencing section 7 of the CLA
+    with a list of developers who could not be reached.
+
+    `7. Should You wish to submit work that is not Your original creation, You may
+    submit it to the Foundation separately from any Contribution, identifying the
+    complete details of its source and of any license or other restriction
+    (including, but not limited to, related patents, trademarks, and license
+    agreements) of which you are personally aware, and conspicuously marking the
+    work as "Submitted on behalf of a third-party: [named here]".`
+
+    Submitted on behalf of a third-party: @dnephin (Daniel Nephin)
+    Submitted on behalf of a third-party: @AlekSi (Alexey Palazhchenko)
+    Submitted on behalf of a third-party: @bbigras (Bruno Bigras)
+    Submitted on behalf of a third-party: @samirkut (Samir)
+    Submitted on behalf of a third-party: @posener (Eyal Posener)
+    Submitted on behalf of a third-party: @Ashikpaul (Ashik Paul)
+    Submitted on behalf of a third-party: @kwongtailau (Kwongtai)
+    Submitted on behalf of a third-party: @ericcornelissen (Eric Cornelissen)
+    Submitted on behalf of a third-party: @eclipseo (Robert-André Mauchin)
+    Submitted on behalf of a third-party: @yanzhoupan (Andrew Pan)
+    Submitted on behalf of a third-party: @STRRL (Zhiqiang ZHOU)
+    Submitted on behalf of a third-party: @disconnect3d (Disconnect3d)

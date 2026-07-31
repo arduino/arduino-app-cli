@@ -1,10 +1,10 @@
 ---
 name: github.com/fxamacker/cbor/v2
-version: v2.7.0
+version: v2.9.0
 type: go
-summary: Package cbor is a modern CBOR codec (RFC 8949 & RFC 7049) with CBOR tags,
-  Go struct tags (toarray/keyasint/omitempty), Core Deterministic Encoding, CTAP2,
-  Canonical CBOR, float64->32->16, and duplicate map key detection.
+summary: Package cbor is a modern CBOR codec (RFC 8949 & RFC 8742) with CBOR tags,
+  Go struct tag options (toarray/keyasint/omitempty/omitzero), Core Deterministic
+  Encoding, CTAP2, Canonical CBOR, float64->32->16, and duplicate map key detection.
 homepage: https://pkg.go.dev/github.com/fxamacker/cbor/v2
 license: mit
 licenses:
