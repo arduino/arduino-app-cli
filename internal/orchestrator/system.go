@@ -61,9 +61,9 @@ const (
 type InitEventSource string
 
 const (
-	InitSourceDocker   InitEventSource = "docker"
-	InitSourceLibs     InitEventSource = "libs"
-	InitSourcePlatform InitEventSource = "platform"
+	InitSourceDocker  InitEventSource = "docker"
+	InitSourceArduino InitEventSource = "arduino"
+	InitSourceDeb     InitEventSource = "deb"
 )
 
 type InitEvent struct {
@@ -115,7 +115,7 @@ func SystemInit(ctx context.Context, cfg config.Configuration, platform platform
 	}
 
 	if downloadPlatformAndLibs {
-		eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceLibs, Message: "Downloading libs and platforms used in examples ..."})
+		eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceArduino, Message: "Downloading libs and platforms used in examples ..."})
 		if err := downloadLibsAndPlatformsUsedInExamples(ctx, cfg, platform, eventCB); err != nil {
 			return fmt.Errorf("failed to download libs and platforms used in examples: %w", err)
 		}
@@ -551,11 +551,11 @@ func installPlatformPackage(ctx context.Context, plat platform.Platform, eventCB
 	case "ventunoq":
 		packageName = "arduino-ventunoq"
 	default:
-		eventCB(InitEvent{Type: InitLogEvent, Source: InitSourcePlatform, Message: fmt.Sprintf("no platform-specific debian package to install for board '%s'", plat.BoardName)})
+		eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDeb, Message: fmt.Sprintf("no platform-specific debian package to install for board '%s'", plat.BoardName)})
 		return nil
 	}
 
-	eventCB(InitEvent{Type: InitLogEvent, Source: InitSourcePlatform, Message: fmt.Sprintf("Installing package '%s'", packageName)})
+	eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDeb, Message: fmt.Sprintf("Installing package '%s'", packageName)})
 
 	cmd, err := paths.NewProcess(nil, "sudo", "apt-get", "install", "-y", packageName)
 	if err != nil {
@@ -563,7 +563,7 @@ func installPlatformPackage(ctx context.Context, plat platform.Platform, eventCB
 	}
 	// Route the subprocess output through the event callback, one log event per line.
 	subprocessOut := NewCallbackWriter(func(line string) {
-		eventCB(InitEvent{Type: InitLogEvent, Source: InitSourcePlatform, Message: line})
+		eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDeb, Message: line})
 	})
 	cmd.RedirectStderrTo(subprocessOut)
 	cmd.RedirectStdoutTo(subprocessOut)
@@ -603,7 +603,7 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 		}
 		if update := curr.GetUpdate(); update != nil {
 			totalSize = update.GetTotalSize()
-			eventCB(InitEvent{Type: InitProgressEvent, Source: InitSourceLibs, Progress: InitProgress{
+			eventCB(InitEvent{Type: InitProgressEvent, Source: InitSourceArduino, Progress: InitProgress{
 				Label: currLabel,
 				Curr:  update.GetDownloaded(),
 				Total: totalSize,
