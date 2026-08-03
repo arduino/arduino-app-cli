@@ -69,5 +69,9 @@ configure_media-carrier_mic_volume() {
     printf '%s=%s\n' "$MIC_KEY" "$MIC_VALUE" >> "$WP_STATE_FILE"
   fi
   chown -R arduino:arduino "$WP_STATE_DIR" 2>/dev/null || chown -R :arduino "$WP_STATE_DIR" || true
+
+  if ! grep -qF "$MIC_KEY=" "$WP_STATE_FILE"; then
+    echo "ERROR: failed to pre-seed default microphone volume in $WP_STATE_FILE" >&2
+  fi
 }
 
