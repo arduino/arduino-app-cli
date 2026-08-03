@@ -1,6 +1,6 @@
 module github.com/arduino/arduino-app-cli
 
-go 1.26.1
+go 1.26.3
 
 // This is needed because compose introduce a regression in https://github.com/docker/compose/pull/13062
 // They changed the wait monitor ends. Because we're using the Logs() method, we are no longer able to make it
@@ -88,6 +88,7 @@ require (
 	github.com/arduino/go-serial-utils v0.1.2 // indirect
 	github.com/arduino/go-timeutils v0.0.0-20171220113728-d1dd9e313b1b // indirect
 	github.com/arduino/go-win32-utils v1.0.0 // indirect
+	github.com/arduino/licensed-notice-deduplicate v1.0.0 // indirect
 	github.com/arduino/pluggable-discovery-protocol-handler/v2 v2.2.1 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.41.5 // indirect
@@ -387,6 +388,7 @@ require (
 )
 
 tool (
+	github.com/arduino/licensed-notice-deduplicate
 	github.com/go-task/task/v3/cmd/task
 	github.com/mikefarah/yq/v4
 	github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen
