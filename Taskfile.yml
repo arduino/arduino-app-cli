@@ -178,6 +178,7 @@ tasks:
           ---
 
           EOF
+      - cat .licenses/arduino-app-cli/NOTICE >> debian/arduino-app-cli/usr/share/doc/arduino-app-cli/copyright
 
   download-runner-assets:
     desc: "Downloads the python runner assets into the given DEST directory"
