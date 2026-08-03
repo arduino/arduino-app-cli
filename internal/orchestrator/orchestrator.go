@@ -550,6 +550,7 @@ func ListApps(
 	var appPaths paths.PathList
 	if req.ShowExamples || req.ShowOnlyDefault {
 		pathsToExplore.AddAll(cfg.ExamplesDirs(platform))
+		pathsToExplore.AddAll(cfg.ExamplesAdditionalDirs())
 	}
 	if req.ShowApps || req.ShowOnlyDefault {
 		pathsToExplore.Add(cfg.AppsDir())
