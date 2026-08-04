@@ -20,7 +20,7 @@ import (
 	"github.com/arduino/arduino-app-cli/pkg/board/remote/adb"
 )
 
-func StartAdbDContainer(t *testing.T) (string, string, string) {
+func StartAdbDContainer(t testing.TB) (string, string, string) {
 	if runtime.GOOS != "linux" && os.Getenv("CI") != "" {
 		t.Skip("Skipping tests in CI that requires docker on non-Linux systems")
 	}
@@ -59,7 +59,7 @@ func StartAdbDContainer(t *testing.T) (string, string, string) {
 	}
 }
 
-func StopAdbDContainer(t *testing.T, name string) {
+func StopAdbDContainer(t testing.TB, name string) {
 	t.Helper()
 
 	out, err := exec.Command("docker", "rm", "-f", name).CombinedOutput()
@@ -68,12 +68,12 @@ func StopAdbDContainer(t *testing.T, name string) {
 	}
 }
 
-func genContainerName(t *testing.T) string {
+func genContainerName(t testing.TB) string {
 	t.Helper()
 	return fmt.Sprintf("adbd-testing-%d", time.Now().UnixNano())
 }
 
-func getRandPort(t *testing.T) string {
+func getRandPort(t testing.TB) string {
 	t.Helper()
 
 	// Random port between 1000 and 9999
@@ -81,7 +81,7 @@ func getRandPort(t *testing.T) string {
 	return strconv.Itoa(port)
 }
 
-func getBaseProjectPath(t *testing.T) string {
+func getBaseProjectPath(t testing.TB) string {
 	dir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get working dir: %v", err)

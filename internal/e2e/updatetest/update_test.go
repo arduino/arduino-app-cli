@@ -23,35 +23,37 @@ const daemonHost = "127.0.0.1:8800"
 func TestUpdatePackage(t *testing.T) {
 	fmt.Printf("***** ARCH %s ***** \n", arch)
 
-	t.Run("Stable To Current", func(t *testing.T) {
+	// Test that the upgrade works from the current version to a newer one (created on the fly).
+	t.Run("StableToCurrent", func(t *testing.T) {
 		t.Cleanup(func() { os.RemoveAll("build") })
 
 		tagAppCli := fetchDebPackageLatest(t, "build/stable", "arduino/arduino-app-cli")
 		fetchDebPackageLatest(t, "build/stable", "arduino/arduino-router")
-		fetchDebPackageLatest(t, "build/stable", "bcmi-labs/arduino-deb-packages")
 
 		majorTag := genMajorTag(t, tagAppCli)
+		t.Logf("Updating from stable version %s to unstable version %s", tagAppCli, majorTag)
 
-		fmt.Printf("Updating from stable version %s to unstable version %s \n", tagAppCli, majorTag)
-		fmt.Printf("Building local deb version %s \n", majorTag)
+		t.Logf("Building local deb version %s \n", majorTag)
 		buildDebVersion(t, "build", majorTag, arch)
 
 		const dockerImageName = "apt-test-update-image"
-		fmt.Println("**** BUILD docker image *****")
+		t.Logf("Build docker image %s", dockerImageName)
 		buildDockerImage(t, dockerFile, dockerImageName, arch)
-		//TODO: t cleanup remove docker image
+		t.Cleanup(func() { removeDockerImage(t, dockerImageName) })
 
 		t.Run("CLI Command", func(t *testing.T) {
 			const containerName = "apt-test-update"
 			t.Cleanup(func() { stopDockerContainer(t, containerName) })
 
-			fmt.Println("**** RUN docker image *****")
+			t.Logf("start container %s and wait for daemon", containerName)
 			startDockerContainer(t, containerName, dockerImageName)
 			waitForPort(t, daemonHost, 5*time.Second)
 
 			preUpdateVersion := getAppCliVersion(t, containerName)
 			require.Equal(t, "v"+preUpdateVersion, tagAppCli)
+
 			runSystemUpdate(t, containerName)
+
 			postUpdateVersion := getAppCliVersion(t, containerName)
 			require.Equal(t, "v"+postUpdateVersion, majorTag)
 		})
@@ -60,6 +62,7 @@ func TestUpdatePackage(t *testing.T) {
 			const containerName = "apt-test-update-http"
 			t.Cleanup(func() { stopDockerContainer(t, containerName) })
 
+			t.Logf("start container %s and wait for daemon", containerName)
 			startDockerContainer(t, containerName, dockerImageName)
 			waitForPort(t, daemonHost, 5*time.Second)
 
@@ -72,39 +75,39 @@ func TestUpdatePackage(t *testing.T) {
 			postUpdateVersion := getAppCliVersion(t, containerName)
 			require.Equal(t, "v"+postUpdateVersion, majorTag)
 		})
-
 	})
 
+	// Test that the upgrade works from a newer version to the current one.
 	t.Run("CurrentToStable", func(t *testing.T) {
 		t.Cleanup(func() { os.RemoveAll("build") })
 
 		tagAppCli := fetchDebPackageLatest(t, "build", "arduino/arduino-app-cli")
 		fetchDebPackageLatest(t, "build/stable", "arduino/arduino-router")
-		fetchDebPackageLatest(t, "build/stable", "bcmi-labs/arduino-deb-packages")
 
 		minorTag := genMinorTag(t, tagAppCli)
+		t.Logf("Updating from unstable version %s to stable version %s", minorTag, tagAppCli)
 
-		fmt.Printf("Updating from unstable version %s to stable version %s \n", minorTag, tagAppCli)
-		fmt.Printf("Building local deb version %s \n", minorTag)
+		t.Logf("build deb version %s", minorTag)
 		buildDebVersion(t, "build/stable", minorTag, arch)
 
-		fmt.Println("**** BUILD docker image *****")
 		const dockerImageName = "test-apt-update-unstable-image"
-
+		t.Logf("build docker image %s", dockerImageName)
 		buildDockerImage(t, dockerFile, dockerImageName, arch)
-		// TODO: t cleanup remove docker image
+		t.Cleanup(func() { removeDockerImage(t, dockerImageName) })
 
 		t.Run("CLI Command", func(t *testing.T) {
 			const containerName = "apt-test-update-unstable"
 			t.Cleanup(func() { stopDockerContainer(t, containerName) })
 
-			fmt.Println("**** RUN docker image *****")
+			t.Logf("start container %s and wait for daemon", containerName)
 			startDockerContainer(t, containerName, dockerImageName)
 			waitForPort(t, daemonHost, 5*time.Second)
 
 			preUpdateVersion := getAppCliVersion(t, containerName)
 			require.Equal(t, "v"+preUpdateVersion, minorTag)
+
 			runSystemUpdate(t, containerName)
+
 			postUpdateVersion := getAppCliVersion(t, containerName)
 			require.Equal(t, "v"+postUpdateVersion, tagAppCli)
 		})
@@ -113,6 +116,7 @@ func TestUpdatePackage(t *testing.T) {
 			const containerName = "apt-test-update--unstable-http"
 			t.Cleanup(func() { stopDockerContainer(t, containerName) })
 
+			t.Logf("start container %s and wait for daemon", containerName)
 			startDockerContainer(t, containerName, dockerImageName)
 			waitForPort(t, daemonHost, 5*time.Second)
 
@@ -125,7 +129,5 @@ func TestUpdatePackage(t *testing.T) {
 			postUpdateVersion := getAppCliVersion(t, containerName)
 			require.Equal(t, "v"+postUpdateVersion, tagAppCli)
 		})
-
 	})
-
 }

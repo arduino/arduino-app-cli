@@ -8,12 +8,11 @@ package orchestrator
 import (
 	"archive/zip"
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
+	"syscall"
 
 	"path/filepath"
 	"strings"
@@ -23,12 +22,12 @@ import (
 	yaml "github.com/goccy/go-yaml"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
 func ExportAppZip(
-	ctx context.Context,
 	bricksIndex *bricksindex.BricksIndex,
 	appTarget app.ArduinoApp,
 	includeData bool,
@@ -52,37 +51,44 @@ func zipAppToBuffer(bricksIndex *bricksindex.BricksIndex, sourcePath string, roo
 	buf := new(bytes.Buffer)
 	zipWriter := zip.NewWriter(buf)
 
-	err := filepath.WalkDir(sourcePath, func(path string, d fs.DirEntry, err error) error {
+	skipFilter := func(p *paths.Path) bool {
+		name := p.Base()
+		if name == ".cache" {
+			return false
+		}
+		if !includeData && name == "data" {
+			return false
+		}
+		return true
+	}
+
+	entries, err := paths.New(sourcePath).ReadDirRecursiveFiltered(skipFilter, skipFilter)
+	if err != nil {
+		zipWriter.Close()
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		relPath, err := filepath.Rel(sourcePath, entry.String())
 		if err != nil {
-			return err
+			zipWriter.Close()
+			return nil, err
 		}
 
-		relPath, err := filepath.Rel(sourcePath, path)
+		info, err := entry.Stat() // follows symlinks
 		if err != nil {
-			return err
-		}
-		if relPath == "." {
-			return nil
-		}
-		if d.IsDir() {
-			name := d.Name()
-			// Always skip .cache
-			if name == ".cache" {
-				return filepath.SkipDir
+			if errors.Is(err, syscall.ELOOP) {
+				// skip symlink loops
+				continue
 			}
-			// Conditionally skip data
-			if !includeData && name == "data" {
-				return filepath.SkipDir
-			}
+			zipWriter.Close()
+			return nil, err
 		}
 
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
 		header, err := zip.FileInfoHeader(info)
 		if err != nil {
-			return err
+			zipWriter.Close()
+			return nil, err
 		}
 
 		header.Name = filepath.ToSlash(filepath.Join(rootFolderName, relPath))
@@ -91,36 +97,41 @@ func zipAppToBuffer(bricksIndex *bricksindex.BricksIndex, sourcePath string, roo
 		} else {
 			header.Method = zip.Deflate
 		}
+
 		writer, err := zipWriter.CreateHeader(header)
 		if err != nil {
-			return err
+			zipWriter.Close()
+			return nil, err
 		}
 
 		if info.IsDir() {
-			return nil
+			continue
 		}
 
-		if d.Name() == "app.yaml" { // nolint:goconst
-			desc, err := app.ParseDescriptorFile(paths.New(path))
+		if entry.Base() == "app.yaml" { // nolint:goconst
+			desc, err := app.ParseDescriptorFile(entry)
 			if err != nil {
-				return err
+				zipWriter.Close()
+				return nil, err
 			}
 			redactSecrets(bricksIndex, &desc)
-			err = yaml.NewEncoder(writer).Encode(desc)
-			return err
-		} else {
-			file, err := os.Open(path) // nolint:gosec
-			if err != nil {
-				return err
+			if err := yaml.NewEncoder(writer).Encode(desc); err != nil {
+				zipWriter.Close()
+				return nil, err
 			}
-			defer file.Close()
-			_, err = io.Copy(writer, file)
-			return err
+		} else {
+			file, err := entry.Open() // nolint:gosec
+			if err != nil {
+				zipWriter.Close()
+				return nil, err
+			}
+			_, copyErr := io.Copy(writer, file)
+			file.Close()
+			if copyErr != nil {
+				zipWriter.Close()
+				return nil, copyErr
+			}
 		}
-	})
-	if err != nil {
-		zipWriter.Close()
-		return nil, err
 	}
 
 	if err := zipWriter.Close(); err != nil {
@@ -133,21 +144,21 @@ func zipAppToBuffer(bricksIndex *bricksindex.BricksIndex, sourcePath string, roo
 func ImportAppFromZip(
 	cfg config.Configuration,
 	zipPath *paths.Path,
-	idProvider *app.IDProvider,
+	idProvider *appid.Provider,
 	originalZipName string,
-) (app.ID, error) {
+) (appid.ID, error) {
 	if zipPath == nil {
-		return app.ID{}, fmt.Errorf("internal error: zipPath cannot be nil")
+		return appid.ID{}, fmt.Errorf("internal error: zipPath cannot be nil")
 	}
 	r, err := zip.OpenReader(zipPath.String())
 	if err != nil {
-		return app.ID{}, fmt.Errorf("unable to open zip archive: %w", err)
+		return appid.ID{}, fmt.Errorf("unable to open zip archive: %w", err)
 	}
 	defer r.Close()
 
 	rootPrefix, err := findZipRoot(&r.Reader)
 	if err != nil {
-		return app.ID{}, fmt.Errorf("%w: %v", ErrBadRequest, err)
+		return appid.ID{}, fmt.Errorf("%w: %v", ErrBadRequest, err)
 	}
 
 	var rawAppName string
@@ -159,11 +170,11 @@ func ImportAppFromZip(
 
 	appDescriptor, err := readAppDescriptorFromZip(&r.Reader, rootPrefix)
 	if err != nil {
-		return app.ID{}, fmt.Errorf("failed to read app.yaml: %w", err)
+		return appid.ID{}, fmt.Errorf("failed to read app.yaml: %w", err)
 	}
 
 	if strings.TrimSpace(appDescriptor.Name) == "" {
-		return app.ID{}, fmt.Errorf("%w: app name is missing", ErrBadRequest)
+		return appid.ID{}, fmt.Errorf("%w: app name is missing", ErrBadRequest)
 	}
 
 	finalDestPath, appExists := findAppPathByName(rawAppName, cfg)
@@ -175,35 +186,35 @@ func ImportAppFromZip(
 
 	tempDestDir, err := paths.MkTempDir(finalDestPath.Parent().String(), "tmp_")
 	if err != nil {
-		return app.ID{}, fmt.Errorf("unable to create temp app directory: %w", err)
+		return appid.ID{}, fmt.Errorf("unable to create temp app directory: %w", err)
 	}
 	defer func() { _ = tempDestDir.RemoveAll() }()
 
 	if err := extractZip(&r.Reader, tempDestDir.String(), rootPrefix); err != nil {
-		return app.ID{}, err
+		return appid.ID{}, err
 	}
 
 	if finalDestPath.Exist() {
-		return app.ID{}, ErrAppAlreadyExists
+		return appid.ID{}, ErrAppAlreadyExists
 	}
 	if !app.IsValidFolderName(finalDestPath.Base()) {
-		return app.ID{}, fmt.Errorf("root folder name %q is not valid: use only alphanumeric, underscores, dashes and spaces", finalDestPath.Base())
+		return appid.ID{}, fmt.Errorf("root folder name %q is not valid: use only alphanumeric, underscores, dashes and spaces", finalDestPath.Base())
 	}
 	// Validate the extracted app before moving to final destination.
 	if _, err := app.Load(tempDestDir); err != nil {
-		return app.ID{}, fmt.Errorf("invalid app: %w: %v", ErrBadRequest, err)
+		return appid.ID{}, fmt.Errorf("invalid app: %w: %v", ErrBadRequest, err)
 	}
 
 	if err := tempDestDir.Rename(finalDestPath); err != nil {
-		return app.ID{}, fmt.Errorf("failed to finalize app import (swap): %w", err)
+		return appid.ID{}, fmt.Errorf("failed to finalize app import (swap): %w", err)
 	}
 
-	id, err := idProvider.IDFromPath(finalDestPath)
+	appId, err := idProvider.IDFromPath(finalDestPath)
 	if err != nil {
-		return app.ID{}, err
+		return appid.ID{}, err
 	}
 
-	return id, nil
+	return appId, nil
 }
 
 func extractZip(r *zip.Reader, dest string, rootPrefix string) error {

@@ -36,6 +36,11 @@ var (
 			Id:          new("person-classification"),
 			Name:        new("Person classification"),
 			Description: new("Person classification model based on WakeVision dataset. This model is trained to classify images into two categories: person and not-person."),
+		},
+		{
+			Id:          new("ei:efficientnet-b4"),
+			Name:        new("General purpose object classification - EfficientNet-B4"),
+			Description: new("EfficientNetB4 is a machine learning model that can classify images from the Imagenet dataset. It can also be used as a backbone in building more complex models for specific use cases. This version of the model is optimized for NPU acceleration on supported devices, providing faster inference times while maintaining accuracy."),
 		}}
 )
 

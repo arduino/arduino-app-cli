@@ -1,4 +1,4 @@
-FROM golang:1.26.1 AS go
+FROM golang:1.26.5 AS go
 
 ARG BINARY_NAME
 RUN test -n "${BINARY_NAME}" || (echo "Error: BINARY_NAME is not set" && exit 1)
@@ -47,6 +47,8 @@ COPY --from=go /app/${BINARY_NAME} /${DEB_NAME}/usr/bin/${BINARY_NAME}
 RUN export VERSION=$(echo "${VERSION}" | sed -e "s/^v\(.*\)/\1/") && \
   sed -i "s/\$ARCH/${ARCH}/" /${DEB_NAME}/DEBIAN/control && \
   sed -i "s/\$VERSION/${VERSION}/" /${DEB_NAME}/DEBIAN/control && \
+  sed -i "/#LOAD_HELPER/r /${DEB_NAME}/DEBIAN/postinst.helper.sh" /${DEB_NAME}/DEBIAN/postinst &&\
+  sed -i "/#LOAD_HELPER/r /${DEB_NAME}/DEBIAN/postrm.helper.sh" /${DEB_NAME}/DEBIAN/postrm &&\
   dpkg-deb --build --root-owner-group /${DEB_NAME} &&\
   mv /${DEB_NAME}.deb "/${DEB_NAME}_${VERSION}-${REVISION}_${ARCH}.deb"
 

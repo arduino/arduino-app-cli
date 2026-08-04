@@ -1,6 +1,6 @@
 ---
 name: github.com/santhosh-tekuri/jsonschema/v6
-version: v6.0.1
+version: v6.0.2
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/santhosh-tekuri/jsonschema/v6

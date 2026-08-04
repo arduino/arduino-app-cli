@@ -15,11 +15,14 @@ import (
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
+
+var unoQPlatform = platform.Platform{BoardName: "unoq"}
 
 func TestBrickCreate(t *testing.T) {
 	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
@@ -238,7 +241,7 @@ func TestUpdateBrick(t *testing.T) {
 		require.Nil(t, paths.New("testdata/dummy-app-for-model").CopyDirTo(tempDummyApp))
 		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
 		require.NoError(t, err)
-		modelsIndex, err := modelsindex.Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("not_exixsting_path"))
+		modelsIndex, err := modelsindex.Load(unoQPlatform, paths.New("testdata"), paths.New("not_exixsting_path"), paths.New("not_exixsting_path"), nil, config.Configuration{})
 		require.NoError(t, err)
 		brickService := NewService(modelsIndex, bricksIndex)
 
@@ -377,7 +380,7 @@ bricks:
 - id: arduino:object_detection
   name: Object Detection
   description: Detect objects in images using a pre-trained model
-  require_model: true
+  model_name: yolox-object-detection
   mount_devices_into_container: true
   ports: ["8000"]
   category: video
@@ -404,6 +407,18 @@ bricks:
 	cfg, err := config.NewFromEnv()
 	require.NoError(t, err)
 
+	// Add two one_model_brick CodeExamples as testacase
+	brick01Dir := cfg.ExamplesBaseDir().Join("bricks").Join("arduino", "one_model_brick", "01_example")
+	require.NoError(t, brick01Dir.Join("python").MkdirAll())
+	brick02Dir := cfg.ExamplesBaseDir().Join("bricks").Join("arduino", "one_model_brick", "02_example")
+	require.NoError(t, brick02Dir.Join("python").MkdirAll())
+
+	// Create required files to load the app
+	require.NoError(t, brick01Dir.Join("python", "main.py").Truncate())
+	require.NoError(t, brick02Dir.Join("python", "main.py").Truncate())
+	require.NoError(t, brick01Dir.Join("app.yaml").Truncate())
+	require.NoError(t, brick02Dir.Join("app.yaml").Truncate())
+
 	for _, brick := range []string{"object_detection", "weather_forecast", "one_model_brick"} {
 		createFakeBrickAssets(t, assetsDir, brick)
 	}
@@ -416,10 +431,10 @@ bricks:
 		InternalModels: []modelsindex.AIModel{
 
 			{
-				ID:                "yolox-object-detection",
-				Name:              "General purpose object detection - YoloX",
-				ModuleDescription: "General purpose object detection...",
-				Bricks:            []modelsindex.BrickConfig{{ID: "arduino:object_detection"}, {ID: "arduino:video_object_detection"}},
+				ID:          "yolox-object-detection",
+				Name:        "General purpose object detection - YoloX",
+				Description: "General purpose object detection...",
+				Bricks:      []modelsindex.BrickConfig{{ID: "arduino:object_detection"}, {ID: "arduino:video_object_detection"}},
 			},
 			{
 				ID:     "face-detection",
@@ -432,10 +447,10 @@ bricks:
 		bricksIndex: bIndex,
 		modelsIndex: mIndex,
 	}
-	idProvider := app.NewAppIDProvider(cfg)
+	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
 	t.Run("Brick Not Found", func(t *testing.T) {
-		res, err := svc.BricksDetails("arduino:non_existing", idProvider, cfg)
+		res, err := svc.BricksDetails("arduino:non_existing", idProvider, cfg, unoQPlatform)
 		require.Error(t, err)
 		require.Equal(t, ErrBrickNotFound, err)
 		require.Empty(t, res.ID)
@@ -457,7 +472,7 @@ bricks:
 			},
 		}
 
-		res, err := svc.BricksDetails("arduino:object_detection", idProvider, cfg)
+		res, err := svc.BricksDetails("arduino:object_detection", idProvider, cfg, unoQPlatform)
 		require.NoError(t, err)
 
 		require.Equal(t, "arduino:object_detection", res.ID)
@@ -468,8 +483,6 @@ bricks:
 		require.Equal(t, "default_path", res.Variables["EI_OBJ_DETECTION_MODEL"].DefaultValue)
 		require.Equal(t, "# Documentation", res.Readme)
 		require.Contains(t, res.ApiDocsPath, filepath.Join("arduino", "app_bricks", "object_detection", "API.md"))
-		require.Len(t, res.CodeExamples, 1)
-		require.Contains(t, res.CodeExamples[0].Path, "blink.ino")
 		require.Len(t, res.UsedByApps, 1)
 		require.Equal(t, "My App", res.UsedByApps[0].Name)
 		require.NotEmpty(t, res.UsedByApps[0].ID)
@@ -485,7 +498,7 @@ bricks:
 	})
 
 	t.Run("Success - Full Details - no models", func(t *testing.T) {
-		res, err := svc.BricksDetails("arduino:weather_forecast", idProvider, cfg)
+		res, err := svc.BricksDetails("arduino:weather_forecast", idProvider, cfg, unoQPlatform)
 		require.NoError(t, err)
 
 		require.Equal(t, "arduino:weather_forecast", res.ID)
@@ -495,8 +508,6 @@ bricks:
 		require.Empty(t, res.Variables)
 		require.Equal(t, "# Documentation", res.Readme)
 		require.Contains(t, res.ApiDocsPath, filepath.Join("arduino", "app_bricks", "weather_forecast", "API.md"))
-		require.Len(t, res.CodeExamples, 1)
-		require.Contains(t, res.CodeExamples[0].Path, "blink.ino")
 		require.Len(t, res.UsedByApps, 1)
 		require.Equal(t, "My App", res.UsedByApps[0].Name)
 		require.NotEmpty(t, res.UsedByApps[0].ID)
@@ -505,7 +516,7 @@ bricks:
 	})
 
 	t.Run("Success - Full Details - one model", func(t *testing.T) {
-		res, err := svc.BricksDetails("arduino:one_model_brick", idProvider, cfg)
+		res, err := svc.BricksDetails("arduino:one_model_brick", idProvider, cfg, unoQPlatform)
 		require.NoError(t, err)
 
 		require.Equal(t, "arduino:one_model_brick", res.ID)
@@ -517,6 +528,22 @@ bricks:
 		require.Empty(t, res.ConfigVariables)
 		require.Empty(t, res.Variables)
 	})
+
+	t.Run("Success - Brick Code example", func(t *testing.T) {
+		res, err := svc.BricksDetails("arduino:one_model_brick", idProvider, cfg, unoQPlatform)
+		require.NoError(t, err)
+
+		require.Equal(t, "arduino:one_model_brick", res.ID)
+		require.Equal(t, "one model brick", res.Name)
+		require.Len(t, res.CompatibleModels, 1)
+		require.Len(t, res.CodeExamples, 2)
+		require.Equal(t, "face-detection", res.CompatibleModels[0].ID)
+		require.Equal(t, "Lightweight-Face-Detection", res.CompatibleModels[0].Name)
+		require.Equal(t, "", res.CompatibleModels[0].Description)
+		require.Empty(t, res.ConfigVariables)
+		require.Empty(t, res.Variables)
+	})
+
 }
 
 func createFakeBrickAssets(t *testing.T, assetsDir, brick string) {
@@ -560,7 +587,6 @@ func TestAppBrickInstanceModelsDetails(t *testing.T) {
 bricks:
 - id: arduino:object_detection
   name: Object Detection
-  require_model: true
   model_name: yolox-object-detection
   category: video
   variables:
@@ -574,7 +600,6 @@ bricks:
   name: Weather Forecast
   category:  "miscellaneous"
   model_name: ""
-  require_model: false
 `
 	tmpDir := t.TempDir()
 	brickYamlPath := filepath.Join(tmpDir, "bricks-list.yaml")
@@ -587,10 +612,10 @@ bricks:
 		InternalModels: []modelsindex.AIModel{
 
 			{
-				ID:                "yolox-object-detection",
-				Name:              "General purpose object detection - YoloX",
-				ModuleDescription: "General purpose object detection...",
-				Bricks:            []modelsindex.BrickConfig{{ID: "arduino:object_detection"}, {ID: "arduino:video_object_detection"}},
+				ID:          "yolox-object-detection",
+				Name:        "General purpose object detection - YoloX",
+				Description: "General purpose object detection...",
+				Bricks:      []modelsindex.BrickConfig{{ID: "arduino:object_detection"}, {ID: "arduino:video_object_detection"}},
 			},
 			{
 				ID:     "face-detection",
@@ -718,13 +743,11 @@ func TestAppBrickInstancesList(t *testing.T) {
 - id: arduino:weather_forecast
   name: Weather Forecast
   category: miscellaneous
-  require_model: false
   variables: []
 - id: arduino:object_detection
   name: Object Detection
   category: video
   model_name: yolox-object-detection
-  require_model: true
   variables:
   - name: CUSTOM_MODEL_PATH
     default_value: /home/arduino/.arduino-bricks/models
@@ -736,7 +759,6 @@ func TestAppBrickInstancesList(t *testing.T) {
   name: Audio Classification
   category: audio
   model_name: glass-breaking
-  require_model: true
   variables:
   - name: CUSTOM_MODEL_PATH
     default_value: /home/arduino/.arduino-bricks/models
@@ -745,7 +767,6 @@ func TestAppBrickInstancesList(t *testing.T) {
 - id: arduino:streamlit_ui
   name: WebUI - Streamlit
   category: ui
-  require_model: false
   ports:
   - "7000"
   - "8000"
@@ -760,30 +781,36 @@ func TestAppBrickInstancesList(t *testing.T) {
   - name: VISIBLE_VAR_IF_MISSING
     default_value: /i/am/visible
     hidden: false
+- id: arduino:brick-with-boards
+  supported_boards:
+  - ventunoq
+  model_name: face-detection
+  model_by_boards:
+  - platform: ventunoq
+    model: a-model-for-ventunoq
 `
 
 	tmpDir := t.TempDir()
 	brickYamlPath := filepath.Join(tmpDir, "bricks-list.yaml")
 	require.NoError(t, os.WriteFile(brickYamlPath, []byte(bricksYaml), 0600))
 
-	bIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New(tmpDir))
-	require.NoError(t, err)
-
-	svc := &Service{
-		bricksIndex: bIndex,
-		modelsIndex: &modelsindex.ModelsIndex{
-			InternalModels: []modelsindex.AIModel{
-				{
-					ID:                "yolox-object-detection",
-					Name:              "General purpose object detection - YoloX",
-					ModuleDescription: "a-model-description",
-					Bricks:            []modelsindex.BrickConfig{{ID: "arduino:object_detection"}},
-				},
-				{
-					ID:     "face-detection",
-					Name:   "Lightweight-Face-Detection",
-					Bricks: []modelsindex.BrickConfig{{ID: "arduino:object_detection"}},
-				},
+	modelsIdx := &modelsindex.ModelsIndex{
+		InternalModels: []modelsindex.AIModel{
+			{
+				ID:          "yolox-object-detection",
+				Name:        "General purpose object detection - YoloX",
+				Description: "a-model-description",
+				Bricks:      []modelsindex.BrickConfig{{ID: "arduino:object_detection"}},
+			},
+			{
+				ID:     "face-detection",
+				Name:   "Lightweight-Face-Detection",
+				Bricks: []modelsindex.BrickConfig{{ID: "arduino:object_detection"}},
+			},
+			{
+				ID:     "a-model-for-ventunoq",
+				Name:   "A model for ventunoq",
+				Bricks: []modelsindex.BrickConfig{{ID: "arduino:brick-with-boards"}},
 			},
 		},
 	}
@@ -791,6 +818,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 	tests := []struct {
 		name          string
 		app           *app.ArduinoApp
+		platform      platform.Platform
 		expectedError string
 		validate      func(*testing.T, AppBrickInstancesResult)
 	}{
@@ -908,6 +936,28 @@ func TestAppBrickInstancesList(t *testing.T) {
 			},
 		},
 		{
+			name: "Success - Brick uses board-specific model from platform",
+			app: &app.ArduinoApp{
+				Descriptor: app.AppDescriptor{
+					Bricks: []app.Brick{
+						{
+							ID: "arduino:brick-with-boards",
+						},
+					},
+				},
+			},
+			platform: platform.Platform{BoardName: "ventunoq"},
+			validate: func(t *testing.T, res AppBrickInstancesResult) {
+				require.Len(t, res.BrickInstances, 1)
+				brick := res.BrickInstances[0]
+
+				require.Equal(t, "arduino:brick-with-boards", brick.ID)
+				require.True(t, brick.RequireModel)
+				require.Equal(t, "a-model-for-ventunoq", brick.ModelID)
+				require.Equal(t, []AIModel{{ID: "a-model-for-ventunoq", Name: "A model for ventunoq"}}, brick.CompatibleModels)
+			},
+		},
+		{
 			name: "Success - Multiple Bricks",
 			app: &app.ArduinoApp{
 				Descriptor: app.AppDescriptor{
@@ -973,15 +1023,13 @@ func TestAppBrickInstancesList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := svc.AppBrickInstancesList(tt.app)
-
-			if tt.expectedError != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.expectedError)
-				return
-			}
-
+			bIndex, err := bricksindex.Load(tt.platform, paths.New(tmpDir))
 			require.NoError(t, err)
+			svc := &Service{
+				bricksIndex: bIndex,
+				modelsIndex: modelsIdx,
+			}
+			result := svc.AppBrickInstancesList(tt.app)
 			if tt.validate != nil {
 				tt.validate(t, result)
 			}

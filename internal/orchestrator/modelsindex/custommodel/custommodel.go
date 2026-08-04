@@ -98,10 +98,10 @@ func (a *AiModel) GetDescriptorPath() *paths.Path {
 }
 
 func (a *AiModel) writeDescriptorFile() error {
-	if !a.ModelDescriptor.IsValid() {
-		// TODO: provide more details about the invalidity
-		return errors.New("invalid model descriptor")
+	if err := a.ModelDescriptor.Validate(); err != nil {
+		return fmt.Errorf("invalid model descriptor: %w", err)
 	}
+
 	descriptorPath := a.GetDescriptorPath()
 	if descriptorPath == nil {
 		return errors.New("model descriptor file path is not set")
@@ -114,7 +114,7 @@ func (a *AiModel) writeDescriptorFile() error {
 
 	if err := fatomic.WriteFile(descriptorPath.String(), out, os.FileMode(0644)); err != nil {
 		_ = descriptorPath.Remove()
-		return fmt.Errorf("failed to write model descriptorfile: %w", err)
+		return fmt.Errorf("failed to write model descriptor file: %w", err)
 	}
 	return nil
 }

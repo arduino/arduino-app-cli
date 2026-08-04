@@ -11,6 +11,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 
 	"github.com/arduino/go-paths-helper"
 	"go.bug.st/f"
@@ -40,8 +41,9 @@ func (a *LocalConnection) List(path string) ([]remote.FileInfo, error) {
 
 	return f.Map(dirs, func(d fs.DirEntry) remote.FileInfo {
 		return remote.FileInfo{
-			Name:  d.Name(),
-			IsDir: d.IsDir(),
+			Name:      d.Name(),
+			IsDir:     d.IsDir(),
+			IsSymlink: d.Type()&fs.ModeSymlink != 0,
 		}
 	}), nil
 }
@@ -146,4 +148,67 @@ func (a *LocalCommand) Interactive() (io.WriteCloser, io.Reader, io.Reader, remo
 		}
 		return nil
 	}, nil
+}
+
+func (a *LocalConnection) Push(ctx context.Context, src string, dst string) error {
+	info, err := os.Stat(src)
+	if err != nil {
+		return fmt.Errorf("failed to stat source %q: %w", src, err)
+	}
+
+	if !info.IsDir() {
+		perm := info.Mode().Perm() | 0600 // Ensure files are readable and writable.
+		return copyFile(ctx, src, dst, perm)
+	}
+
+	return fs.WalkDir(os.DirFS(src), ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		target := filepath.Join(dst, path)
+
+		info, err := d.Info()
+		if err != nil {
+			return fmt.Errorf("failed to get info for file %q: %w", path, err)
+		}
+
+		if d.IsDir() {
+			perm := info.Mode().Perm() | 0700 // Ensure directories are executable.
+			if err := os.MkdirAll(target, perm); err != nil {
+				return fmt.Errorf("failed to create directory %q: %w", target, err)
+			}
+			return nil
+		}
+
+		return copyFile(ctx, filepath.Join(src, path), target, info.Mode().Perm())
+	})
+}
+
+func copyFile(ctx context.Context, src string, dst string, perm fs.FileMode) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("failed to open source file %q: %w", src, err)
+	}
+	defer in.Close()
+
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, perm)
+	if err != nil {
+		return fmt.Errorf("failed to create destination file %q: %w", dst, err)
+	}
+	defer out.Close()
+
+	stop := context.AfterFunc(ctx, func() { _ = in.Close() })
+	defer stop()
+	if _, err := io.Copy(out, in); err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("copying file %q to %q was canceled: %w", src, dst, ctx.Err())
+		}
+		return fmt.Errorf("failed to copy %q to %q: %w", src, dst, err)
+	}
+	return nil
 }

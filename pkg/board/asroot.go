@@ -15,7 +15,7 @@ import (
 func ExecAsRoot(conn remote.RemoteConn, password string, args ...string) ([]byte, error) {
 	cmd := conn.GetCmd("sudo", append([]string{"-S"}, args...)...)
 
-	stdin, stdout, stderr, closer, err := cmd.Interactive()
+	stdin, stdout, _, closer, err := cmd.Interactive()
 	if err != nil {
 		return nil, fmt.Errorf("failed to start: %w", err)
 	}
@@ -32,11 +32,6 @@ func ExecAsRoot(conn remote.RemoteConn, password string, args ...string) ([]byte
 	stdin.Close()
 
 	out, _ := io.ReadAll(stdout)
-	errOut, _ := io.ReadAll(stderr)
-
-	if err := closer(); err != nil {
-		return nil, fmt.Errorf("sudo failed: %w: %s: %s", err, string(out), string(errOut))
-	}
 
 	return out, nil
 }

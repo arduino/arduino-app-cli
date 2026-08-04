@@ -20,16 +20,10 @@ func newBricksListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List all available bricks",
 		Run: func(cmd *cobra.Command, args []string) {
-			bricksListHandler()
+			res := servicelocator.GetBrickService().List()
+			feedback.PrintResult(brickListResult{Bricks: res.Bricks})
 		},
 	}
-}
-func bricksListHandler() {
-	res, err := servicelocator.GetBrickService().List()
-	if err != nil {
-		feedback.Fatal(err.Error(), feedback.ErrGeneric)
-	}
-	feedback.PrintResult(brickListResult{Bricks: res.Bricks})
 }
 
 type brickListResult struct {

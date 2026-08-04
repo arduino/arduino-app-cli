@@ -78,7 +78,6 @@ func TestLoad(t *testing.T) {
 }
 
 func TestStore(t *testing.T) {
-
 	t.Run("it writes descriptor and model file when reader provided", func(t *testing.T) {
 		tempDir := t.TempDir()
 		modelDir := paths.New(tempDir).Join("test-model-with-blob")
@@ -114,8 +113,9 @@ func TestStore(t *testing.T) {
 		modelDir := paths.New(tempDir).Join("test-model-no-filename")
 
 		descr := ModelDescriptor{
-			ID:   "test-id",
-			Name: "test",
+			ID:     "test-id",
+			Name:   "test",
+			Runner: "brick",
 		}
 
 		blobReader := io.NopCloser(bytes.NewReader([]byte("content")))
@@ -130,8 +130,9 @@ func TestStore(t *testing.T) {
 		modelDir := paths.New(tempDir).Join("test-model-large")
 
 		descr := ModelDescriptor{
-			ID:   "test-large",
-			Name: "large model",
+			ID:     "test-large",
+			Name:   "large model",
+			Runner: "brick",
 		}
 
 		// Create 1MB blob

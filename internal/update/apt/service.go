@@ -12,9 +12,12 @@ import (
 	"io"
 	"iter"
 	"log/slog"
+	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/arduino/go-paths-helper"
 	"go.bug.st/f"
@@ -58,6 +61,8 @@ func (s *Service) ListUpgradablePackages(ctx context.Context, matcher func(updat
 	return pkgs, nil
 }
 
+const selfPackageName = "arduino-app-cli"
+
 // UpgradePackages upgrades the specified packages using the `apt-get upgrade` command.
 // It publishes events to subscribers during the upgrade process.
 // It returns an error if the upgrade is already in progress or if the upgrade command fails.
@@ -65,14 +70,25 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	// At the end of the upgrade, always try to restart the services (that need it).
-	// This makes sure key services are restarted even if an error happens in the upgrade steps (for examples container images download).
+	selfUpgrade := slices.ContainsFunc(packages, func(p update.PackageInfo) bool {
+		return p.Name == selfPackageName
+	})
+
 	defer func() {
 		eventCB(update.NewDataEvent(update.RestartEvent, "Upgrade completed. Restarting ..."))
-		err := restartServices(ctx)
-		if err != nil {
+
+		if err := restartServices(ctx); err != nil {
 			eventCB(update.NewErrorEvent(fmt.Errorf("error restarting services after upgrade: %w", err)))
-			return
+		}
+
+		if selfUpgrade {
+			// on ubuntu needrestart refuses to restart its caller's cgroup pid, so we signal
+			// ourselves to let systemd respawn us on the new binary.
+			if p, err := os.FindProcess(os.Getpid()); err == nil {
+				if err := p.Signal(syscall.SIGTERM); err != nil {
+					slog.Error("failed to send SIGTERM to self after upgrade", slog.String("error", err.Error()))
+				}
+			}
 		}
 	}()
 
@@ -293,6 +309,8 @@ func restartServices(ctx context.Context) error {
 	}
 	if out, err := needRestartCmd.RunAndCaptureCombinedOutput(ctx); err != nil {
 		return fmt.Errorf("error running needrestart command: %w: %s", err, out)
+	} else {
+		slog.Debug("needrestart output", slog.String("output", string(out)))
 	}
 	return nil
 }

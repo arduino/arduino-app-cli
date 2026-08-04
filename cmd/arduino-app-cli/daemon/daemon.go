@@ -24,6 +24,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/httprecover"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/pipewire"
 	"github.com/arduino/arduino-app-cli/internal/update"
 	"github.com/arduino/arduino-app-cli/internal/update/apt"
 	"github.com/arduino/arduino-app-cli/internal/update/arduino"
@@ -41,6 +42,17 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 				slog.Warn("Failed to stop containers", slog.String("error", err.Error()))
 			}
 
+			app, err := orchestrator.GetDefaultApp(cfg)
+			if err != nil {
+				slog.Warn("failed to get default app", slog.String("error", err.Error()))
+			}
+			if app == nil {
+				slog.Debug("app is not set")
+				if err := pipewire.StopIfNotNeeded(cmd.Context(), cfg); err != nil {
+					slog.Warn("Failed to reconcile leftover audio service linger", slog.String("error", err.Error()))
+				}
+			}
+
 			// start the default app in the background
 			go func() {
 				slog.Info("Starting default app")
@@ -53,7 +65,6 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 					servicelocator.GetServicesIndex(),
 					servicelocator.GetAppIDProvider(),
 					cfg,
-					servicelocator.GetStaticStore(),
 					servicelocator.GetPlatform(),
 				)
 				if err != nil {
@@ -107,7 +118,6 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 			arduino.NewArduinoPlatformUpdater(servicelocator.GetPlatform(), cfg.ArduinoPlatformVersionConstraint),
 		),
 		servicelocator.GetProvisioner(),
-		servicelocator.GetStaticStore(),
 		servicelocator.GetModelsIndex(),
 		servicelocator.GetBricksIndex(),
 		servicelocator.GetServicesIndex(),

@@ -14,12 +14,14 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
-	"os/user"
 	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 
+	"github.com/arduino/arduino-cli/commands"
+	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
 
 	"github.com/arduino/arduino-app-cli/pkg/board/remote"
@@ -148,7 +150,7 @@ func (a *ADBConnection) ForwardKillAll(ctx context.Context) error {
 }
 
 func (a *ADBConnection) List(path string) ([]remote.FileInfo, error) {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "ls", "-la", path)
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "ls", "-laQ", remote.ShellQuote(path))
 	if err != nil {
 		return nil, err
 	}
@@ -163,41 +165,11 @@ func (a *ADBConnection) List(path string) ([]remote.FileInfo, error) {
 	}
 	defer func() { _ = cmd.Wait() }()
 
-	r := bufio.NewReader(output)
-	_, err = r.ReadBytes('\n') // Skip the first line
-	if err != nil {
-		return nil, err
-	}
-
-	var files []remote.FileInfo
-	for {
-		line, err := r.ReadBytes('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, err
-		}
-		line = bytes.TrimSpace(line)
-		if len(line) == 0 {
-			continue
-		}
-		parts := bytes.Split(line, []byte(" "))
-		name := string(parts[len(parts)-1])
-		if name == "." || name == ".." {
-			continue
-		}
-		files = append(files, remote.FileInfo{
-			Name:  name,
-			IsDir: line[0] == 'd',
-		})
-	}
-
-	return files, nil
+	return remote.ParseLsOutput(output)
 }
 
 func (a *ADBConnection) Stats(p string) (remote.FileInfo, error) {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "file", p)
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "file", "-L", remote.ShellQuote(p))
 	if err != nil {
 		return remote.FileInfo{}, err
 	}
@@ -237,15 +209,15 @@ func (a *ADBConnection) Stats(p string) (remote.FileInfo, error) {
 }
 
 func (a *ADBConnection) ReadFile(path string) (io.ReadCloser, error) {
-	return adbReadFile(a, path)
+	return adbReadFile(a, remote.ShellQuote(path))
 }
 
 func (a *ADBConnection) WriteFile(r io.Reader, path string) error {
-	return adbWriteFile(a, r, path)
+	return adbWriteFile(a, r, remote.ShellQuote(path))
 }
 
 func (a *ADBConnection) MkDirAll(path string) error {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "install", "-o", username, "-g", username, "-m", "755", "-d", path)
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "install", "-o", username, "-g", username, "-m", "755", "-d", remote.ShellQuote(path))
 	if err != nil {
 		return err
 	}
@@ -257,7 +229,7 @@ func (a *ADBConnection) MkDirAll(path string) error {
 }
 
 func (a *ADBConnection) Remove(path string) error {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "rm", "-r", path) // nolint:gosec
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "rm", "-r", remote.ShellQuote(path))
 	if err != nil {
 		return err
 	}
@@ -343,42 +315,87 @@ func (a *ADBCommand) Interactive() (io.WriteCloser, io.Reader, io.Reader, remote
 	}, nil
 }
 
-func FindAdbPath() string {
-	var adbPath = "adb"
-
-	// Attempt to find the adb path in the Arduino15 directory
-	const arduino15adbPath = "packages/arduino/tools/adb/32.0.0/adb"
-	var path string
-	switch runtime.GOOS {
-	case "darwin":
-		user, err := user.Current()
-		if err != nil {
-			slog.Warn("Unable to get current user", "error", err)
-			break
+func (a *ADBConnection) Push(ctx context.Context, local, remotePath string) error {
+	isDirLocal := func() bool {
+		if info, err := os.Stat(local); err == nil {
+			return info.IsDir()
 		}
-		path = filepath.Join(user.HomeDir, "/Library/Arduino15/", arduino15adbPath)
-	case "linux":
-		user, err := user.Current()
-		if err != nil {
-			slog.Warn("Unable to get current user", "error", err)
-			break
-		}
-		path = filepath.Join(user.HomeDir, ".arduino15/", arduino15adbPath)
-	case "windows":
-		user, err := user.Current()
-		if err != nil {
-			slog.Warn("Unable to get current user", "error", err)
-			break
-		}
-		path = filepath.Join(user.HomeDir, "AppData/Local/Arduino15/", arduino15adbPath)
-		path += ".exe"
+		return false
 	}
-	s, err := os.Stat(path)
-	if err == nil && !s.IsDir() {
-		adbPath = path
+	isDirRemote := func() bool {
+		if info, err := a.Stats(remotePath); err == nil {
+			return info.IsDir
+		}
+		return false
+	}
+	addDotLocal := func(p string) string {
+		if p[len(p)-1] == filepath.Separator {
+			return p + "."
+		}
+		return p + string(filepath.Separator) + "."
 	}
 
-	slog.Debug("get adb path", "path", adbPath)
+	if isDirLocal() {
+		// ensure the remote directory exists before pushing, otherwise empty directory push will not work.
+		if err := a.MkDirAll(remotePath); err != nil {
+			return fmt.Errorf("failed to create remote directory %q: %w", remotePath, err)
+		}
+		// force directory override by adding a dot at the end of the local path.
+		local = addDotLocal(local)
+	} else if isDirRemote() {
+		return fmt.Errorf("cannot push file %q to directory %q", local, remotePath)
+	}
 
-	return adbPath
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "push", local, remotePath)
+	if err != nil {
+		return err
+	}
+	stdout, err := cmd.RunAndCaptureCombinedOutput(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to push file from %q to %q: %w: %s", local, remotePath, err, string(stdout))
+	}
+
+	if cmd, err = paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "chmod", "-R", "u+wr", remote.ShellQuote(remotePath)); err == nil {
+		if stdout, err = cmd.RunAndCaptureCombinedOutput(ctx); err != nil {
+			slog.Warn("failed to set permissions for remote path", "path", remotePath, "error", err, "output", string(stdout))
+		}
+	}
+
+	return nil
 }
+
+var FindAdbPath = sync.OnceValue(func() string {
+	getAdbFromCli := func() (string, error) {
+		// Attempt to find the adb path in the Arduino15 directory
+		srv := commands.NewArduinoCoreServer()
+		conf, err := srv.ConfigurationGet(context.Background(), &rpc.ConfigurationGetRequest{})
+		if err != nil {
+			return "", err
+		}
+		dataDir := conf.GetConfiguration().GetDirectories().GetData()
+		if dataDir == "" {
+			return "", fmt.Errorf("data directory is not set in arduino-cli configuration")
+		}
+
+		adbGlob := "packages/arduino/tools/adb/*/adb"
+		if runtime.GOOS == "windows" {
+			adbGlob += ".exe"
+		}
+		matches, err := filepath.Glob(filepath.Join(dataDir, adbGlob))
+		if err != nil {
+			return "", fmt.Errorf("failed to search for adb in Arduino15 directory: %w", err)
+		}
+		if len(matches) == 0 {
+			return "", fmt.Errorf("adb not found in Arduino15 directory")
+		}
+		return matches[len(matches)-1], nil
+	}
+
+	if path, err := getAdbFromCli(); err != nil {
+		slog.Warn("Unable to find adb path from arduino-cli configuration", "error", err)
+		return "adb"
+	} else {
+		slog.Debug("get adb path", "path", path)
+		return path
+	}
+})

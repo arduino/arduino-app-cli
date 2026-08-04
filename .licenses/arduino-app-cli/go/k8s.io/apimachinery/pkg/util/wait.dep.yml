@@ -1,12 +1,12 @@
 ---
 name: k8s.io/apimachinery/pkg/util/wait
-version: v0.32.3
+version: v0.34.1
 type: go
 summary: Package wait provides tools for polling or listening for changes to a condition.
 homepage: https://pkg.go.dev/k8s.io/apimachinery/pkg/util/wait
 license: apache-2.0
 licenses:
-- sources: apimachinery@v0.32.3/LICENSE
+- sources: apimachinery@v0.34.1/LICENSE
   text: |2
 
                                      Apache License

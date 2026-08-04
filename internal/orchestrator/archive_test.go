@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -34,6 +35,7 @@ func TestExportAppZip(t *testing.T) {
 		name             string
 		appName          string
 		files            []string
+		symlinks         map[string]string // link name -> target
 		nonExistent      bool
 		includeData      bool
 		wantFiles        []string
@@ -78,6 +80,39 @@ func TestExportAppZip(t *testing.T) {
 			nonExistent: true,
 			wantErr:     true,
 		},
+		{
+			name:         "Symlink to file is included in zip",
+			appName:      "Symlink File App",
+			files:        []string{"app.yaml", "bricks-list.yaml"},
+			symlinks:     map[string]string{"bricks-copy.yaml": "bricks-list.yaml"},
+			includeData:  false,
+			wantErr:      false,
+			wantFilename: "symlink-file-app.zip",
+			wantFiles:    []string{"app.yaml", "bricks-list.yaml", "bricks-copy.yaml"},
+		},
+		{
+			name:         "Symlink to directory is included in zip",
+			appName:      "Symlink Dir App",
+			files:        []string{"app.yaml", "data/foo.txt"},
+			symlinks:     map[string]string{"data2": "data"},
+			includeData:  true,
+			wantErr:      false,
+			wantFilename: "symlink-dir-app.zip",
+			wantFiles:    []string{"app.yaml", "data/foo.txt", "data2/foo.txt"},
+		},
+		{
+			name:    "Circular symlink does not loop",
+			appName: "Circular App",
+			files:   []string{"app.yaml"},
+			symlinks: map[string]string{
+				"link-a": "link-b",
+				"link-b": "link-a",
+			},
+			includeData:  false,
+			wantErr:      false,
+			wantFilename: "circular-app.zip",
+			wantFiles:    []string{"app.yaml"},
+		},
 	}
 
 	for _, tc := range tests {
@@ -85,6 +120,7 @@ func TestExportAppZip(t *testing.T) {
 			tmpDir := t.TempDir()
 
 			writeFiles(t, tmpDir, tc.files)
+			writeSymlinks(t, tmpDir, tc.symlinks)
 
 			appPath := tmpDir
 			if tc.nonExistent {
@@ -95,7 +131,7 @@ func TestExportAppZip(t *testing.T) {
 				Name:     tc.appName,
 				FullPath: paths.New(appPath),
 			}
-			zipData, filename, err := ExportAppZip(t.Context(), bricksIndex, app, tc.includeData)
+			zipData, filename, err := ExportAppZip(bricksIndex, app, tc.includeData)
 
 			if tc.wantErr {
 				require.Error(t, err)
@@ -266,8 +302,10 @@ func TestImportAppFromZip(t *testing.T) {
 			t.Setenv("ARDUINO_APP_CLI__DATA_DIR", filepath.Join(tmpRoot, "Data"))
 			cfg, err := config.NewFromEnv()
 			require.NoError(t, err)
+			require.NoError(t, cfg.AssetDir().MkdirAll())
+			require.NoError(t, cfg.EnsureFolders())
 
-			idProvider := app.NewAppIDProvider(cfg)
+			idProvider := appid.NewAppProvider(cfg, unkownPlatform)
 
 			if tc.preExisting {
 				// create pre-existing app folder to force conflict
@@ -334,6 +372,16 @@ func writeFiles(t *testing.T, tmpPath string, files []string) {
 		dstPath := filepath.Join(tmpPath, path)
 		require.NoError(t, os.MkdirAll(filepath.Dir(dstPath), 0755))
 		require.NoError(t, os.WriteFile(dstPath, content, 0600))
+	}
+}
+
+func writeSymlinks(t *testing.T, tmpPath string, symlinks map[string]string) {
+	t.Helper()
+
+	for linkName, target := range symlinks {
+		linkPath := filepath.Join(tmpPath, linkName)
+		require.NoError(t, os.MkdirAll(filepath.Dir(linkPath), 0755))
+		require.NoError(t, os.Symlink(target, linkPath))
 	}
 }
 

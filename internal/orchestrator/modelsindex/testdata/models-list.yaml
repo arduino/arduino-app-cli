@@ -39,4 +39,14 @@ models:
     description: "A small and accurate model"
     supported_boards:
       - foo-board
-
+ - a-builtin-model:
+    deployment:
+      pre-loaded: true
+ - a-builtin-model-with-handler:
+    deployment:
+      handler: "my-handler"
+      pre-loaded: true
+ - a-model-not-preloaded-with-handler:
+    deployment:
+      handler: "my-handler"
+      pre-loaded: false

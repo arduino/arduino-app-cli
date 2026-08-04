@@ -22,8 +22,9 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/update"
 )
 
@@ -48,7 +49,7 @@ func NewOpenApiGenerator(version string) *Generator {
 	reflector := openapi3.NewReflector()
 	reflector.Spec.Info.WithTitle("Arduino-App-Cli").WithVersion(version)
 	reflector.Spec.Servers = append(reflector.Spec.Servers, openapi3.Server{
-		URL:         "http://localhost:6060",
+		URL:         "http://localhost:8800",
 		Description: new("local server"),
 	})
 
@@ -75,6 +76,18 @@ func NewOpenApiGenerator(version string) *Generator {
 				Type:        new(openapi3.SchemaTypeString),
 				Description: new("Package type"),
 				ReflectType: reflect.TypeOf(update.PackageType("")),
+			},
+		},
+	)
+	reflector.Spec.Components.Schemas.WithMapOfSchemaOrRefValuesItem(
+		"ModelStatus",
+		openapi3.SchemaOrRef{
+			Schema: &openapi3.Schema{
+				UniqueItems: new(true),
+				Enum:        f.Map(modelsindex.ModelStatus("").AllowedStatuses(), func(v modelsindex.ModelStatus) any { return v }),
+				Type:        new(openapi3.SchemaTypeString),
+				Description: new("Model status"),
+				ReflectType: reflect.TypeOf(modelsindex.ModelStatus("")),
 			},
 		},
 	)
@@ -251,7 +264,7 @@ func NewOpenApiGenerator(version string) *Generator {
 				return true, nil
 			}
 			// We treat the orchestrator.ID as a string in the OpenAPI spec.
-			if params.Value.Type() == reflect.TypeOf(app.ID{}) {
+			if params.Value.Type() == reflect.TypeOf(appid.ID{}) {
 				params.Schema.WithType(jsonschema.Type{
 					SimpleTypes: new(jsonschema.String),
 				})
@@ -259,6 +272,10 @@ func NewOpenApiGenerator(version string) *Generator {
 
 			if params.Value.Type() == reflect.TypeOf(update.PackageType("")) {
 				params.Schema.WithRef("#/components/schemas/PackageType")
+				return true, nil
+			}
+			if params.Value.Type() == reflect.TypeOf(modelsindex.ModelStatus("")) {
+				params.Schema.WithRef("#/components/schemas/ModelStatus")
 				return true, nil
 			}
 			return false, nil
@@ -792,6 +809,24 @@ Contains a JSON object with the details of an error.
 			},
 			Description: "returns information about current directory configuration used by the app",
 			Summary:     "returns application configuration",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "getExamples",
+			Method:      http.MethodGet,
+			Path:        "/v1/examples",
+			Request:     nil,
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: orchestrator.ExampleResponse{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "returns the example structure for rendering",
+			Summary:     "returns the example structure",
 			Tags:        []Tag{ApplicationTag},
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},

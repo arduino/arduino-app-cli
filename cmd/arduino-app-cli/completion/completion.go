@@ -75,6 +75,7 @@ func ApplicationNamesWithFilterFunc(cfg config.Configuration, filter func(apps o
 			servicelocator.GetAppIDProvider(),
 			servicelocator.GetBricksIndex(),
 			cfg,
+			servicelocator.GetPlatform(),
 		)
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveError
@@ -96,10 +97,7 @@ func BrickIDs() cobra.CompletionFunc {
 
 func BrickIDsWithFilterFunc(filter func(apps bricks.BrickListItem) bool) cobra.CompletionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		brickList, err := servicelocator.GetBrickService().List()
-		if err != nil {
-			return nil, cobra.ShellCompDirectiveError
-		}
+		brickList := servicelocator.GetBrickService().List()
 
 		var res []string
 		for _, brick := range brickList.Bricks {

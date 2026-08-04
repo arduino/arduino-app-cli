@@ -50,10 +50,25 @@ func newDownloadImageCmd(cfg config.Configuration) *cobra.Command {
 		Args:   cobra.ExactArgs(0),
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return orchestrator.SystemInit(cmd.Context(), cfg, servicelocator.GetPlatform(), servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), servicelocator.GetDockerClient(), orchestrator.SystemInitOptions{
-				OnlyDockerImages:    onlyImages,
-				OnlyPlatformAndLibs: onlyPlatformAndLibraries,
-			})
+			printEvent, err := feedback.NewResultStream()
+			if err != nil {
+				return err
+			}
+
+			return orchestrator.SystemInit(
+				cmd.Context(),
+				cfg,
+				servicelocator.GetPlatform(),
+				servicelocator.GetBricksIndex(),
+				servicelocator.GetServicesIndex(),
+				servicelocator.GetDockerClient(),
+				servicelocator.GetModelsIndex(),
+				orchestrator.SystemInitOptions{
+					OnlyDockerImages:    onlyImages,
+					OnlyPlatformAndLibs: onlyPlatformAndLibraries,
+				},
+				newInitEventCallback(printEvent),
+			)
 		},
 	}
 
@@ -155,7 +170,7 @@ func newCleanUpCmd(cfg config.Configuration, docker command.Cli) *cobra.Command 
 		Args:  cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			feedback.Printf("Running cleanup...")
-			result, err := orchestrator.SystemCleanup(cmd.Context(), cfg, servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), docker, servicelocator.GetPlatform())
+			result, err := orchestrator.SystemCleanup(cmd.Context(), cfg, servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), servicelocator.GetModelsIndex(), docker, servicelocator.GetPlatform())
 			if err != nil {
 				return err
 			}
@@ -191,7 +206,7 @@ func newNetworkModeCmd() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("failed to read password: %w", err)
 				}
-				if err := board.EnableNetworkMode(cmd.Context(), &local.LocalConnection{}, pass); err != nil {
+				if err := board.EnableNetworkMode(&local.LocalConnection{}, pass); err != nil {
 					return fmt.Errorf("failed to enable network mode: %w", err)
 				}
 
@@ -202,7 +217,7 @@ func newNetworkModeCmd() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("failed to read password: %w", err)
 				}
-				if err := board.DisableNetworkMode(cmd.Context(), &local.LocalConnection{}, pass); err != nil {
+				if err := board.DisableNetworkMode(&local.LocalConnection{}, pass); err != nil {
 					return fmt.Errorf("failed to disable network mode: %w", err)
 				}
 				feedback.Printf("network mode disabled and stopped")

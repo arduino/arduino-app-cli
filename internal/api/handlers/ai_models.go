@@ -19,7 +19,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
@@ -39,7 +39,7 @@ func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 		if brick := params.Get("bricks"); brick != "" {
 			brickFilter = strings.Split(strings.TrimSpace(brick), ",")
 		}
-		res := orchestrator.AIModelsList(orchestrator.AIModelsListRequest{
+		res := orchestrator.AIModelsList(r.Context(), orchestrator.AIModelsListRequest{
 			FilterByBrickID: brickFilter,
 		}, modelsIndex)
 		render.EncodeResponse(w, http.StatusOK, res)
@@ -53,7 +53,11 @@ func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "id must be set"})
 			return
 		}
-		res, found := orchestrator.AIModelDetails(modelsIndex, id)
+		res, found, err := orchestrator.AIModelDetails(r.Context(), modelsIndex, id)
+		if err != nil {
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: err.Error()})
+			return
+		}
 		if !found {
 			details := fmt.Sprintf("models with id %q not found", id)
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})
@@ -63,7 +67,7 @@ func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	}
 }
 
-func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, idProvider *app.IDProvider, platform platform.Platform) http.HandlerFunc {
+func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, idProvider *appid.Provider, platform platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := strings.TrimSpace(r.PathValue("modelID"))
 		if id == "" {
@@ -95,7 +99,7 @@ func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, 
 	}
 }
 
-func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli) http.HandlerFunc {
+func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, platform platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		projectID, err := strconv.Atoi(r.PathValue("projectID"))
 		if err != nil {
@@ -127,7 +131,7 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 			return
 		}
 
-		eiModel, err := orchestrator.InstallEIModel(r.Context(), bricksIndex, modelsIndex, dockerClient, eiClient, cfg.CustomModelsDir(), projectID, *req.ImpulseID)
+		eiModel, err := orchestrator.InstallEIModel(r.Context(), bricksIndex, modelsIndex, dockerClient, eiClient, cfg.CustomModelsDir(), platform, projectID, *req.ImpulseID)
 		if err != nil {
 			switch {
 			case errors.Is(err, edgeimpulse.ErrUnauthorized):
@@ -163,4 +167,80 @@ func (r InstallEIModelRequest) Validate() error {
 		return fmt.Errorf("impulse_id must be an integer greater than 0")
 	}
 	return nil
+}
+
+func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := strings.TrimSpace(r.PathValue("modelID"))
+		if id == "" {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "model ID must be set"})
+			return
+		}
+
+		model, err := modelsIndex.GetModelByID(r.Context(), id)
+		if err != nil {
+			slog.Error("unable to get model by ID", slog.String("error", err.Error()))
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to get model by ID"})
+			return
+		}
+		if model == nil {
+			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: fmt.Sprintf("model %q not found", id)})
+			return
+		}
+		if model.Status == modelsindex.InstalledStatus {
+			render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: fmt.Sprintf("model %q already installed", id)})
+			return
+		}
+
+		sseStream, err := render.NewSSEStream(r.Context(), w)
+		if err != nil {
+			slog.Error("unable to create SSE stream", slog.String("error", err.Error()))
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to create SSE stream"})
+			return
+		}
+		defer sseStream.Close()
+
+		type progress struct {
+			Name     string  `json:"name"`
+			Total    int64   `json:"total"`
+			Current  int64   `json:"current"`
+			Progress float32 `json:"progress"`
+		}
+		type log struct {
+			Message string `json:"message"`
+		}
+
+		installResponse := func(e modelsindex.StreamMessage) {
+			switch e.GetType() {
+			case modelsindex.InfoType:
+				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: e.GetData()}})
+			case modelsindex.ProgressType:
+				var progressValue float32
+				if e.GetProgress().Total > 0 {
+					progressValue = float32(e.GetProgress().Current) / float32(e.GetProgress().Total) * 100
+				}
+				sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: model.ID, Current: e.GetProgress().Current, Total: e.GetProgress().Total, Progress: progressValue}})
+
+			case modelsindex.ErrorType:
+				sseStream.Send(render.SSEEvent{Type: "error", Data: e.GetError()})
+			case modelsindex.DoneType:
+				sseStream.Send(render.SSEEvent{Type: "done", Data: e.GetDone()})
+			}
+		}
+
+		err = modelsIndex.Download(r.Context(), dockerClient.Client(), *model, plat, installResponse)
+		if err != nil {
+			if errors.Is(err, modelsindex.ErrInsufficientStorage) {
+				sseStream.SendError(render.SSEErrorData{
+					Code:    "insufficient_storage",
+					Message: "insufficient disk space to install model",
+				})
+				return
+			}
+			sseStream.SendError(render.SSEErrorData{
+				Code:    render.InternalServiceErr,
+				Message: err.Error(),
+			})
+		}
+	}
 }

@@ -6,6 +6,8 @@
 package peripherals
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -63,6 +65,61 @@ func TestExtractIndexFromVideoDeviceName(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDetectCSICameraDriver(t *testing.T) {
+	tests := []struct {
+		name       string
+		drivers    []string
+		camxSocket bool
+		want       CSICameraDriver
+	}{
+		{
+			name:    "camss driver present",
+			drivers: []string{"qcom-camss"},
+			want:    CSICameraDriverCamss,
+		},
+		{
+			name:       "camx drivers with socket",
+			drivers:    []string{"cam_sync", "cam_smmu", "other-driver"},
+			camxSocket: true,
+			want:       CSICameraDriverCamx,
+		},
+		{
+			name:       "camx drivers without socket",
+			drivers:    []string{"cam_sync", "cam_smmu"},
+			camxSocket: false,
+			want:       CSICameraDriverNone,
+		},
+		{
+			name:       "socket without camx drivers",
+			drivers:    []string{"other-driver"},
+			camxSocket: true,
+			want:       CSICameraDriverNone,
+		},
+		{
+			name: "no drivers",
+			want: CSICameraDriverNone,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			driversDir := t.TempDir()
+			for _, d := range tt.drivers {
+				require.NoError(t, os.Mkdir(filepath.Join(driversDir, d), 0o755))
+			}
+			socketPath := filepath.Join(t.TempDir(), "le_cam_socket")
+			if tt.camxSocket {
+				require.NoError(t, os.WriteFile(socketPath, nil, 0o600))
+			}
+			assert.Equal(t, tt.want, detectCSICameraDriver(driversDir, socketPath))
+		})
+	}
+}
+
+func TestDetectCSICameraDriverMissingDriversDir(t *testing.T) {
+	assert.Equal(t, CSICameraDriverNone, detectCSICameraDriver(filepath.Join(t.TempDir(), "missing"), filepath.Join(t.TempDir(), "le_cam_socket")))
 }
 
 func TestContainsVirtualDevice(t *testing.T) {

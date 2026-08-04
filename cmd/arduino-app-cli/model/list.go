@@ -6,6 +6,8 @@
 package model
 
 import (
+	"context"
+
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 
@@ -21,7 +23,7 @@ func newModelListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List all models",
 		Run: func(cmd *cobra.Command, args []string) {
-			modelListHandler(excludeBuiltin)
+			modelListHandler(cmd.Context(), excludeBuiltin)
 		},
 	}
 
@@ -30,11 +32,11 @@ func newModelListCmd() *cobra.Command {
 	return cmd
 }
 
-func modelListHandler(excludeBuiltin bool) {
-	models := servicelocator.GetModelsIndex().GetModels()
+func modelListHandler(ctx context.Context, excludeBuiltin bool) {
+	models := servicelocator.GetModelsIndex().GetModels(ctx)
 	result := make([]modelsindex.AIModel, 0)
 	for _, m := range models {
-		if excludeBuiltin && m.IsInternal {
+		if excludeBuiltin && m.IsBuiltIn {
 			continue
 		}
 		result = append(result, m)
@@ -53,7 +55,7 @@ func (r modelListResult) String() string {
 
 	for _, model := range r.Models {
 		checkmark := ""
-		if model.IsInternal {
+		if model.IsBuiltIn {
 			checkmark = "✓"
 		}
 		t.AppendRow(table.Row{

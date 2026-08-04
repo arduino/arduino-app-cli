@@ -7,12 +7,11 @@ package updatetest
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"iter"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -39,16 +38,16 @@ func fetchDebPackageLatest(t *testing.T, path, repo string) string {
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Fatalf("command failed: %v\nOutput: %s", err, output)
+		t.Fatalf("command failed: %v\nOutput: %s", err, output)
 	}
 
 	fields := strings.Fields(string(output))
 	if len(fields) == 0 {
-		log.Fatal("could not parse tag from gh release list output")
+		t.Fatal("could not parse tag from gh release list output")
 	}
 	tag := fields[0]
 
-	fmt.Println("Repo:", repo, "Detected tag:", tag)
+	t.Logf("Repo: %s Detected tag: %s", repo, tag)
 	cmd2 := exec.Command(
 		"gh", "release", "download",
 		tag,
@@ -59,7 +58,7 @@ func fetchDebPackageLatest(t *testing.T, path, repo string) string {
 
 	out, err := cmd2.CombinedOutput()
 	if err != nil {
-		log.Fatalf("download failed: %v\nOutput: %s", err, out)
+		t.Fatalf("download failed: %v\nOutput: %s", err, out)
 	}
 
 	return tag
@@ -86,7 +85,7 @@ func buildDebVersion(t *testing.T, storePath, tagVersion, arch string) {
 	)
 
 	if err := cmd.Run(); err != nil {
-		log.Fatalf("failed to run build command: %v", err)
+		t.Fatalf("failed to run build command: %v", err)
 	}
 }
 
@@ -118,7 +117,7 @@ func genMinorTag(t *testing.T, tag string) string {
 
 	parts := strings.Split(tag, ".")
 	if len(parts) != 3 {
-		log.Fatalf("invalid tag format: %s", tag)
+		t.Fatalf("invalid tag format: %s", tag)
 	}
 	majorPart := parts[0]
 	minorPart := parts[1]
@@ -145,21 +144,13 @@ func buildDockerImage(t *testing.T, dockerfile, name, arch string) {
 	arch = fmt.Sprintf("ARCH=%s", arch)
 
 	cmd := exec.Command("docker", "build", "--build-arg", arch, "-t", name, "-f", dockerfile, ".")
-	// Capture both stdout and stderr
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
 
-	err := cmd.Run()
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Printf("❌ Docker build failed: %v\n", err)
-		fmt.Printf("---- STDERR ----\n%s\n", stderr.String())
-		fmt.Printf("---- STDOUT ----\n%s\n", out.String())
-		return
+		t.Fatalf("Docker build failed: %v\n%s", err, out)
 	}
 
-	fmt.Println("✅ Docker build succeeded!")
+	t.Log("Docker build succeeded!")
 }
 
 func startDockerContainer(t *testing.T, containerName string, containerImageName string) {
@@ -195,7 +186,7 @@ func getAppCliVersion(t *testing.T, containerName string) string {
 	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Fatalf("command failed: %v\nOutput: %s", err, output)
+		t.Fatalf("command failed: %v\nOutput: %s", err, output)
 	}
 
 	var version struct {
@@ -224,7 +215,27 @@ func runSystemUpdate(t *testing.T, containerName string) {
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	err := cmd.Run()
-	require.NoError(t, err, "system update failed")
+	if err != nil {
+		// The apt service SIGTERMs the current process after upgrading the
+		// arduino-app-cli package itself, so exit status 143 (128 + SIGTERM)
+		// is an expected successful outcome for the CLI path.
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 143 {
+			t.Logf("system update exited with SIGTERM (143), treating as success")
+			return
+		}
+		require.NoError(t, err, "system update failed")
+	}
+}
+
+func removeDockerImage(t *testing.T, imageName string) {
+	t.Helper()
+
+	cmd := exec.Command("docker", "rmi", "-f", imageName)
+	t.Log("Removing Docker image " + imageName)
+	if err := cmd.Run(); err != nil {
+		t.Logf("Warning: could not remove image: %v\n", err)
+	}
 }
 
 func stopDockerContainer(t *testing.T, containerName string) {
@@ -232,11 +243,10 @@ func stopDockerContainer(t *testing.T, containerName string) {
 
 	cleanupCmd := exec.Command("docker", "rm", "-f", containerName)
 
-	fmt.Println("🧹 Removing Docker container " + containerName)
+	t.Log("Removing Docker container " + containerName)
 	if err := cleanupCmd.Run(); err != nil {
-		fmt.Printf("⚠️  Warning: could not remove container (might not exist): %v\n", err)
+		t.Logf("Warning: could not remove container: %v\n", err)
 	}
-
 }
 
 func putUpdateRequest(t *testing.T, host string) {
@@ -247,7 +257,7 @@ func putUpdateRequest(t *testing.T, host string) {
 
 	req, err := http.NewRequest(http.MethodPut, url, nil)
 	if err != nil {
-		log.Fatalf("Error creating request: %v", err)
+		t.Fatalf("Error creating request: %v", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -255,7 +265,7 @@ func putUpdateRequest(t *testing.T, host string) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatalf("Error sending request: %v", err)
+		t.Fatalf("Error sending request: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -263,7 +273,7 @@ func putUpdateRequest(t *testing.T, host string) {
 
 }
 
-func NewSSEClient(ctx context.Context, method, url string) iter.Seq2[Event, error] {
+func NewSSEClient(ctx context.Context, url string) iter.Seq2[Event, error] {
 	return func(yield func(Event, error) bool) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
@@ -338,7 +348,7 @@ func waitForUpgrade(t *testing.T, host string) {
 
 	url := fmt.Sprintf("http://%s/v1/system/update/events", host)
 
-	itr := NewSSEClient(t.Context(), "GET", url)
+	itr := NewSSEClient(t.Context(), url)
 	for event, err := range itr {
 		require.NoError(t, err)
 		t.Logf("Received event: ID=%s, Event=%s, Data=%s\n", event.ID, event.Event, string(event.Data))

@@ -96,14 +96,16 @@ func TestAIModelDetails(t *testing.T) {
 
 		require.NotNil(t, modelDetails.Runner, "Response model's Runner should not be nil")
 		require.Equal(t, *expectedModel.Runner, *modelDetails.Runner, "Runner should match")
-		require.Nil(t, modelDetails.DiskUsage, "Response model's DiskUsage should be nil")
+		require.NotNil(t, modelDetails.Size, "Response model's Size should not	 be nil")
+		require.Equal(t, *expectedModel.Size, *modelDetails.Size, "Size should match")
 
 	})
 
 	t.Run("should return full details for a valid custom model ID", func(t *testing.T) {
 		_, err := custommodel.Store(customModelDir.Join("my-model"), custommodel.ModelDescriptor{
 			ID:          "custom-classification-model-eim",
-			Name:        "this the name of the model",
+			Name:        "this is the name of the model",
+			Runner:      "brick",
 			Description: "this is the description of the model",
 			Bricks: []custommodel.BrickConfig{
 				{ID: "arduino:audio_classification"},
@@ -119,12 +121,13 @@ func TestAIModelDetails(t *testing.T) {
 		got := response.JSON200
 		require.Equal(t, &client.AIModelItem{
 			Id:          new("custom-classification-model-eim"),
-			Name:        new("this the name of the model"),
+			Name:        new("this is the name of the model"),
 			IsBuiltin:   new(false),
 			Runner:      new(""),
 			Description: new("this is the description of the model"),
 			BrickIds:    &[]string{"arduino:audio_classification"},
-			DiskUsage:   new(222),
+			Status:      new(client.ModelStatus("installed")),
+			Size:        new(1),
 		}, got, "The returned model details should match the expected values")
 
 		// TODO test metadata and model configuration contents and runner
@@ -193,10 +196,10 @@ func TestAIModelDelete(t *testing.T) {
 		require.Equal(t, expectedDetails, actualBody.Details)
 	})
 
-	t.Run("conflict error on internal model deletion", func(t *testing.T) {
+	t.Run("conflict error on built-in model deletion", func(t *testing.T) {
 		modelId := "face-detection"
 		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
-		expectedDetails := "cannot remove an internal model"
+		expectedDetails := "cannot remove a built-in model"
 		var actualBody models.ErrorResponse
 
 		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), modelId, &client.DeleteAIModelParams{Force: new(false)}, requestEditor)
@@ -216,6 +219,7 @@ func TestAIModelDelete(t *testing.T) {
 
 		_, err := custommodel.Store(customModelDir.Join("my-custom-model"), custommodel.ModelDescriptor{
 			ID:     modelId,
+			Name:   "this the name of the model",
 			Runner: "brick",
 			Bricks: []custommodel.BrickConfig{
 				{ID: "arduino:audio_classification"},

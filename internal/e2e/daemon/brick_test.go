@@ -20,7 +20,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
-	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
 func setupTestBrick(t *testing.T) (*client.CreateAppResp, *client.ClientWithResponses) {
@@ -59,8 +58,7 @@ func TestBricksList(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, response.JSON200.Bricks)
 
-	staticStore := store.NewStaticStore(paths.New("testdata", "assets", config.RunnerVersion).String())
-	brickIndex, err := bricksindex.Load(platform.GetPlatform(nil), staticStore.GetAssetsFolder())
+	brickIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata", "assets", config.RunnerVersion))
 	require.NoError(t, err)
 
 	// Compare the response with the bricks index
@@ -114,6 +112,11 @@ func TestBricksDetails(t *testing.T) {
 				Id:          new("person-classification"),
 				Name:        new("Person classification"),
 				Description: new("Person classification model based on WakeVision dataset. This model is trained to classify images into two categories: person and not-person."),
+			},
+			{
+				Id:          new("ei:efficientnet-b4"),
+				Name:        new("General purpose object classification - EfficientNet-B4"),
+				Description: new("EfficientNetB4 is a machine learning model that can classify images from the Imagenet dataset. It can also be used as a backbone in building more complex models for specific use cases. This version of the model is optimized for NPU acceleration on supported devices, providing faster inference times while maintaining accuracy."),
 			}}
 
 		response, err := httpClient.GetBrickDetailsWithResponse(t.Context(), validBrickID, func(ctx context.Context, req *http.Request) error { return nil })

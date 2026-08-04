@@ -15,7 +15,8 @@
     "**/testdata/**",
     "examples/**",
     "**/assets/**",
-    "**/docs/openapi.yaml"
+    "**/docs/openapi.yaml",
+    "debian/arduino-app-cli/etc/arduino-app-cli/AGENTS.md"
   ],
   "plugins": [
     "https://plugins.dprint.dev/json-0.19.4.wasm",

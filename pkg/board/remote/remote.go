@@ -9,19 +9,22 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 )
 
 var ErrPortAvailable = fmt.Errorf("port is not available")
 
 type FileInfo struct {
-	Name  string
-	IsDir bool
+	Name      string
+	IsDir     bool
+	IsSymlink bool
 }
 
 type RemoteConn interface {
 	FS
 	RemoteShell // TODO: should be removed after refactoring.
 	Forwarder
+	RemoteTransfer
 }
 
 type FS interface {
@@ -50,6 +53,15 @@ type Cmder interface {
 	Interactive() (io.WriteCloser, io.Reader, io.Reader, Closer, error)
 }
 
+type RemoteTransfer interface {
+	// Push copies a file or directory from the local path to the remote path.
+	// The remote path should always specify the final destination path, and not
+	// the parent directory, even if it exist.
+	// The remote path could instead be different from the local path, and that will
+	// rename while copying.
+	Push(ctx context.Context, local, remote string) error
+}
+
 // WithCloser is a helper to create an io.ReadCloser from an io.Reader
 // and a close function.
 type WithCloser struct {
@@ -62,4 +74,12 @@ func (w WithCloser) Close() error {
 		return w.CloseFun()
 	}
 	return nil
+}
+
+// ShellQuote quotes s so it can be safely used as a single argument in a POSIX
+// shell command. It wraps the value in single quotes, which prevents the shell
+// from interpreting special characters such as '$', backticks or backslashes.
+// Any embedded single quote is escaped using the standard '\” idiom.
+func ShellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }

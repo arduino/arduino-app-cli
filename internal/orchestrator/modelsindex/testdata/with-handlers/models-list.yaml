@@ -1,0 +1,33 @@
+models:
+  - piper-tts-en:
+      name: "Piper TTS (English)"
+      description: "Piper is a high-quality multi-lingual text-to-speech library - English version."
+      supported_boards: ["ventunoq"]
+      bricks:
+        - id: "arduino:tts"
+      deployment:
+        handler: "ai-hub-handler"
+        pre-loaded: true
+      metadata:
+        model_size_mb: 46
+        source: "qualcomm-ai-hub"
+  - "ei:efficientnet-b4":
+      name: "General purpose object classification - EfficientNet-B4"
+      description: "EfficientNetB4 is a machine learning model that can classify images."
+      supported_boards: ["ventunoq"]
+      deployment:
+        handler: "ei-handler"
+        platforms:
+          - ventunoq:
+              variables:
+                ei_project_id: 948887
+                ei_impulse_id: 4
+                models_repository: "edge-impulse"
+                model_name: efficientnet-b4-qnn.eim
+      metadata:
+        model_size_mb: 89
+        source: "edgeimpulse"
+      bricks:
+        - id: "arduino:image_classification"
+          model_configuration:
+            "EI_IMAGE_CLASSIFICATION_MODEL": "models/${models_repository}/efficientnet-b4-qnn.eim"

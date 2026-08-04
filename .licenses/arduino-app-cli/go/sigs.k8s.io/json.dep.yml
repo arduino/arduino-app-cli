@@ -1,6 +1,6 @@
 ---
 name: sigs.k8s.io/json
-version: v0.0.0-20241010143419-9aa6b5e7a4b3
+version: v0.0.0-20241014173422-cfa47c3a1cc8
 type: go
 summary:
 homepage: https://pkg.go.dev/sigs.k8s.io/json

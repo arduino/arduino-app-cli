@@ -6,6 +6,7 @@
 package custommodel
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/arduino/go-paths-helper"
@@ -40,10 +41,46 @@ func ParseModelDescriptorFile(file *paths.Path) (ModelDescriptor, error) {
 	return descriptor, nil
 }
 
-func (a *ModelDescriptor) IsValid() bool {
-	/*  TODO: check
-	1) brick list are present into the brick-list
-	2) metadata are coherent with the source
-	*/
-	return true
+func (a *ModelDescriptor) Validate() error {
+	var err error
+	if a.ID == "" {
+		err = errors.Join(err, fmt.Errorf("invalid model descriptor: id is empty"))
+	}
+	if a.Name == "" {
+		err = errors.Join(err, fmt.Errorf("invalid model descriptor: name is empty"))
+	}
+	source, ok := a.Metadata["source"]
+	if ok {
+		switch source {
+		case "edgeimpulse":
+			err = errors.Join(err, validateEdgeImpulseMetadata(a.Metadata))
+		default:
+			err = errors.Join(err, fmt.Errorf("invalid model descriptor: unsupported source '%s'", source))
+		}
+	}
+	return err
+}
+
+// validateEdgeImpulseMetadata checks that all metadata fields required by App Lab are present and valid.
+func validateEdgeImpulseMetadata(metadata map[string]string) error {
+	requiredFields := []string{
+		"ei-project-id",
+		"ei-impulse-id",
+		"ei-impulse-name",
+		"ei-deployment-version",
+	}
+
+	var err error
+	for _, field := range requiredFields {
+		if val, ok := metadata[field]; !ok || val == "" {
+			err = errors.Join(err, fmt.Errorf("invalid Edge Impulse metadata: missing required field '%s'", field))
+		}
+	}
+	if metadata["ei-model-type"] != "float32" {
+		err = errors.Join(err, fmt.Errorf("invalid Edge Impulse metadata: unsupported model type"))
+	}
+	if metadata["ei-engine"] != "tflite" {
+		err = errors.Join(err, fmt.Errorf("invalid Edge Impulse metadata: unsupported engine"))
+	}
+	return err
 }

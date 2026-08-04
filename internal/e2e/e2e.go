@@ -28,7 +28,6 @@ type ArduinoAppCLI struct {
 	DaemonAddr   string
 	path         *paths.Path
 	appDir       *paths.Path
-	configDir    *paths.Path
 	envVars      map[string]string
 	proc         *paths.Process
 	stdIn        io.WriteCloser
@@ -47,28 +46,43 @@ func WithCustomModelDir(dir *paths.Path) ArduinoAppCLIOption {
 	}
 }
 
+// WithModelDir sets a custom model directory in envVars
+func WithModelsDir(dir *paths.Path) ArduinoAppCLIOption {
+	return func(cli *ArduinoAppCLI) {
+		if dir != nil {
+			cli.envVars["MODELS_PATH"] = dir.String()
+		}
+	}
+}
+
+func WithBoardName(name string) ArduinoAppCLIOption {
+	return func(cli *ArduinoAppCLI) {
+		content := fmt.Sprintf(`{"board_name":%q}`, name)
+		dataDir := paths.New(cli.envVars["ARDUINO_APP_CLI__DATA_DIR"])
+		cli.t.NoError(dataDir.Join("platform.json").WriteFile([]byte(content)))
+	}
+}
+
 func NewArduinoAppCLI(t *testing.T, opts ...ArduinoAppCLIOption) *ArduinoAppCLI {
 	rootDir, err := paths.MkTempDir("", "app-cli")
 	require.NoError(t, err)
 	appDir := rootDir.Join("ArduinoApps")
 	dataDir := rootDir.Join("data")
-	configDir := rootDir.Join("config")
 	originalTestDataDir := FindRepositoryRootPath(t).Join("internal", "e2e", "daemon", "testdata")
 	if originalTestDataDir.Exist() {
 		require.NoError(t, os.CopyFS(dataDir.String(), os.DirFS(originalTestDataDir.String())))
 		require.NoError(t, err, "failed to copy testdata to temp dir")
 	}
+	require.NoError(t, dataDir.Join("models").MkdirAll())
 
 	cli := &ArduinoAppCLI{
 		t:          require.New(t),
 		DaemonAddr: "",
 		path:       FindArduinoAppCLIPath(t),
 		appDir:     appDir,
-		configDir:  configDir,
 		envVars: map[string]string{
-			"ARDUINO_APP_CLI__APPS_DIR":   appDir.String(),
-			"ARDUINO_APP_CLI__CONFIG_DIR": configDir.String(),
-			"ARDUINO_APP_CLI__DATA_DIR":   dataDir.String(),
+			"ARDUINO_APP_CLI__APPS_DIR": appDir.String(),
+			"ARDUINO_APP_CLI__DATA_DIR": dataDir.String(),
 			// allow ci to run cli with whatever user it wants.
 			"ARDUINO_APP_CLI__ALLOW_ROOT": "true",
 		},
@@ -101,12 +115,12 @@ func FindArduinoAppCLIPath(t *testing.T) *paths.Path {
 // The Environment must be disposed by calling the CleanUp method via defer.
 func CreateEnvForDaemon(t *testing.T, opts ...ArduinoAppCLIOption) *ArduinoAppCLI {
 	cli := NewArduinoAppCLI(t, opts...)
-	_ = cli.StartDaemon(false)
+	_ = cli.StartDaemon()
 	return cli
 }
 
-func (cli *ArduinoAppCLI) StartDaemon(verbose bool) string {
-	args := []string{"daemon"}
+func (cli *ArduinoAppCLI) StartDaemon() string {
+	args := []string{"daemon", "--port", "6789"}
 	cliProc, err := paths.NewProcessFromPath(cli.convertEnvForExecutils(cli.envVars), cli.path, args...)
 	cli.t.NoError(err)
 	stdout, err := cliProc.StdoutPipe()
@@ -119,7 +133,7 @@ func (cli *ArduinoAppCLI) StartDaemon(verbose bool) string {
 	cli.t.NoError(cliProc.Start())
 	cli.stdIn = stdIn
 	cli.proc = cliProc
-	cli.DaemonAddr = "http://127.0.0.1:8080"
+	cli.DaemonAddr = "http://127.0.0.1:6789"
 
 	_copy := func(dst io.Writer, src io.Reader) {
 		buff := make([]byte, 1024)

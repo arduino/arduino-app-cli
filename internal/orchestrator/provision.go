@@ -6,6 +6,7 @@
 package orchestrator
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -13,12 +14,13 @@ import (
 	"maps"
 	"os"
 	"os/user"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/compose-spec/compose-go/v2/loader"
+	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/containerd/errdefs"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/docker/api/types/container"
@@ -28,6 +30,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -68,10 +71,6 @@ type Provision struct {
 	pythonImage string
 }
 
-func isDevelopmentMode(cfg config.Configuration) bool {
-	return cfg.RunnerVersion != cfg.UsedPythonImageTag
-}
-
 func NewProvision(
 	docker command.Cli,
 	cfg config.Configuration,
@@ -81,10 +80,10 @@ func NewProvision(
 		pythonImage: cfg.PythonImage,
 	}
 
-	dynamicProvisionDir := cfg.AssetsDir().Join(cfg.UsedPythonImageTag)
+	dynamicProvisionDir := cfg.AssetDir()
 
 	// In development mode we want to make sure everything is fresh.
-	if isDevelopmentMode(cfg) {
+	if cfg.IsDevelopmentMode() {
 		_ = dynamicProvisionDir.RemoveAll()
 	}
 
@@ -92,7 +91,7 @@ func NewProvision(
 		return provision, nil
 	}
 
-	tmpProvisionDir, err := cfg.AssetsDir().MkTempDir("dynamic-provisioning")
+	tmpProvisionDir, err := cfg.MkTempAssetDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform creation of dynamic provisioning dir: %w", err)
 	}
@@ -107,7 +106,6 @@ func NewProvision(
 }
 
 func (p *Provision) App(
-	ctx context.Context,
 	bricksIndex *bricksindex.BricksIndex,
 	servicesIndex *servicesindex.ServicesIndex,
 	arduinoApp *app.ArduinoApp,
@@ -234,13 +232,19 @@ func generateMainComposeFile(
 		}
 
 		// 2. Retrieve the required singleton services
-		for _, id := range idxBrick.RequiresServices {
-			idxService, found := servicesIndex.FindServiceByID(id)
+		matchingServices, err := idxBrick.GetMatchingService(bricksindex.BrickInstance{
+			Model: cmp.Or(brick.Model, idxBrick.ModelName),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to get required services for brick %s: %w", brick.ID, err)
+		}
+		for _, id := range matchingServices {
+			service, found := servicesIndex.FindServiceByID(id)
 			if !found {
-				slog.Error("service required by brick not found in services index", slog.String("service_id", id), slog.String("brick_id", brick.ID))
+				slog.Debug("service required by brick not found or not available for current board", slog.String("service_id", id), slog.String("brick_id", brick.ID))
 				continue
 			}
-			brickServices[id] = *idxService
+			brickServices[id] = *service
 		}
 
 		// 3. Retrieve the brick_compose.yaml file.
@@ -330,14 +334,27 @@ func generateMainComposeFile(
 			Target:   "/run/udev",
 			ReadOnly: true,
 		},
+		{
+			Type:   "bind",
+			Source: "/run/user/1000/pipewire-0",
+			Target: "/run/user/1000/pipewire-0",
+		},
 	}
-	slog.Debug("Adding UNIX socket", slog.Any("sock", cfg.RouterSocketPath().String()), slog.Bool("exists", cfg.RouterSocketPath().Exist()))
-	if cfg.RouterSocketPath().Exist() {
+
+	for _, p := range cfg.RequiredRuntimesPaths() {
 		volumes = append(volumes, volume{
 			Type:   "bind",
-			Source: cfg.RouterSocketPath().String(),
-			Target: "/var/run/arduino-router.sock",
+			Source: p.String(),
+			Target: p.String(),
 		})
+	}
+
+	// camx CSI cameras are accessed through the cam_server socket and a host userspace library
+	if peripherals.DetectCSICameraDriver() == peripherals.CSICameraDriverCamx {
+		volumes = append(volumes,
+			volume{Type: "bind", Source: "/run/cam_server", Target: "/run/cam_server"},
+			volume{Type: "bind", Source: "/usr/lib/libcamera_metadata.so.0.1.0", Target: "/usr/lib/libcamera_metadata.so.0.1.0"},
+		)
 	}
 
 	volumes = addLedControl(platform, volumes)
@@ -363,13 +380,13 @@ func generateMainComposeFile(
 		}
 	}
 
-	cgroupDrivers := []string{"drm", "dma_heap", "media", "video4linux", "alsa"}
+	cgroupDrivers := []string{"drm", "dma_heap", "media", "video4linux", "alsa", "ttyUSB", "ttyACM"}
 	deviceCgroupsRules := buildCgroupRules(cgroupDrivers)
 
 	mainAppCompose.Services = &mainService{
 		Main: service{
 			Image:             pythonImage,
-			Volumes:           volumes,
+			Volumes:           filterNotExistingVolumes(volumes),
 			Ports:             slices.Collect(maps.Keys(ports)),
 			DeviceCgroupRules: deviceCgroupsRules,
 			Entrypoint:        "/run.sh",
@@ -414,17 +431,24 @@ func generateMainComposeFile(
 	for _, additionalComposeFile := range composeFiles {
 		composeFilePath := additionalComposeFile.String()
 		slog.Debug("Pre-provisioning volumes from compose file", slog.String("compose_file", composeFilePath))
-
-		volumes, err := extractVolumesFromComposeFile(composeFilePath)
-		if err != nil {
-			slog.Warn("Failed to extract volumes from compose file", slog.String("compose_file", composeFilePath), slog.Any("error", err))
-			continue
-		}
-		provisionComposeVolumes(composeFilePath, volumes, app, envs)
+		provisionComposeVolumes(composeFilePath, app, envs)
 	}
 
 	// Done!
 	return nil
+}
+
+func filterNotExistingVolumes(volumes []volume) []volume {
+	return slices.DeleteFunc(volumes, func(v volume) bool {
+		if v.Type != "bind" {
+			return false
+		}
+		if !paths.New(v.Source).Exist() {
+			slog.Debug("Skipping volume mount because source does not exist", slog.String("source", v.Source), slog.String("target", v.Target))
+			return true
+		}
+		return false
+	})
 }
 
 // Resolve supplementary group IDs on the host dynamically
@@ -457,32 +481,36 @@ type serviceInfo struct {
 }
 
 func extractServicesFromComposeFile(composeFile *paths.Path) ([]serviceInfo, error) {
-	content, err := os.ReadFile(composeFile.String())
+	content, err := composeFile.ReadFile()
 	if err != nil {
 		return nil, err
 	}
 
-	type serviceMin struct {
-		Image       string  `yaml:"image"`
-		User        *string `yaml:"user,omitempty"`
-		Healthcheck struct {
-			Test []string `yaml:"test"`
-		} `yaml:"healthcheck,omitempty"`
-	}
-	type composeServices struct {
-		Services map[string]serviceMin `yaml:"services"`
-	}
-	var index composeServices
-	if err := yaml.Unmarshal(content, &index); err != nil {
+	prj, err := loader.LoadWithContext(
+		context.Background(),
+		types.ConfigDetails{
+			ConfigFiles: []types.ConfigFile{{Filename: composeFile.String(), Content: content}},
+			WorkingDir:  composeFile.Parent().String(),
+			Environment: types.NewMapping(os.Environ()),
+		},
+		func(o *loader.Options) { o.SetProjectName("default", false); o.SkipConsistencyCheck = true },
+		loader.WithSkipValidation,
+	)
+	if err != nil {
 		return nil, err
 	}
-	services := make([]serviceInfo, 0, len(index.Services))
-	for svc, svcDef := range index.Services {
-		hasHealthcheck := len(svcDef.Healthcheck.Test) > 0
+
+	services := make([]serviceInfo, 0, len(prj.Services))
+	for name, svc := range prj.Services {
+		hasHealthcheck := svc.HealthCheck != nil && len(svc.HealthCheck.Test) > 0
+		var userPtr *string
+		if svc.User != "" {
+			userPtr = new(svc.User)
+		}
 		services = append(services, serviceInfo{
-			name:           svc,
+			name:           name,
 			hasHealthcheck: hasHealthcheck,
-			user:           svcDef.User,
+			user:           userPtr,
 		})
 	}
 	return services, nil
@@ -550,113 +578,53 @@ func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []service
 	return nil
 }
 
-var (
-	// Regular expression to split on the first colon that is not followed by a hyphen
-	volumeColonSplitRE     = regexp.MustCompile(`:[^-]`)
-	volumeAppHomeReplaceRE = regexp.MustCompile(`\$\{APP_HOME(:-\.)?\}`)
-	volumePathReplaceRE    = regexp.MustCompile(`\$\{([A-Z_-]+)(:-)?((?:\$\{[A-Z_-]+\}|[\/a-zA-Z0-9._-])*)?\}`)
-)
-
-// provisionComposeVolumes ensure we create the parent folder with the correct owner.
+// provisionComposeVolumes ensures we create the parent folder with the correct owner.
 // By default docker if it doesn't find the folder, it will create it as root.
 // We do not want that, to make sure to have it as `arduino:arduino` we have
 // to manually parse the volumes, and make sure to create the target dirs ourself.
-func provisionComposeVolumes(additionalComposeFile string, volumes []string, app *app.ArduinoApp, mapped_env map[string]string) {
-	if len(volumes) == 0 {
-		slog.Debug("No volumes to provision from compose file", slog.String("compose_file", additionalComposeFile))
+func provisionComposeVolumes(composeFilePath string, arduinoApp *app.ArduinoApp, mappedEnv map[string]string) {
+	content, err := os.ReadFile(composeFilePath)
+	if err != nil {
+		slog.Warn("Failed to read compose file", slog.String("compose_file", composeFilePath), slog.Any("error", err))
 		return
 	}
 
-	slog.Debug("Extracted volumes from compose file", slog.String("compose_file", additionalComposeFile), slog.Any("volumes", volumes))
-	for _, volume := range volumes {
-		volume = replaceDockerMacros(volume, app, mapped_env, additionalComposeFile)
-		hostDirectory := paths.New(volume)
-		if strings.Contains(volume, ":") {
-			volumes := volumeColonSplitRE.Split(volume, -1)
-			hostDirectory = paths.New(volumes[0])
-		}
-		if !hostDirectory.Exist() {
-			if err := hostDirectory.MkdirAll(); err != nil {
-				slog.Warn("Failed to create host directory for compose file", slog.String("compose_file", additionalComposeFile), slog.String("host_directory", hostDirectory.String()), slog.Any("error", err))
-			} else {
-				slog.Debug("Pre-provisioning host directory for compose file", slog.String("compose_file", additionalComposeFile), slog.String("host_directory", hostDirectory.String()))
-			}
-		}
+	env := types.NewMapping(os.Environ())
+	env["APP_HOME"] = arduinoApp.FullPath.String()
+	for k, v := range mappedEnv {
+		env[k] = v
 	}
-}
 
-func replaceDockerMacros(volume string, app *app.ArduinoApp, mapped_env map[string]string, additionalComposeFile string) string {
-	// Replace ${APP_HOME} with the actual app path
-	volume = volumeAppHomeReplaceRE.ReplaceAllString(volume, app.FullPath.String())
-	// Replace host volume directory with the actual path
-	if volumePathReplaceRE.MatchString(volume) {
-		groups := volumePathReplaceRE.FindStringSubmatch(volume)
-		// idx 0 is the full match, idx 1 is the variable name, idx 2 is the optional `:-` and idx 3 is the default value
-		switch len(groups) {
-		case 2:
-			// Check if the environment variable is set
-			if value, ok := mapped_env[groups[1]]; ok {
-				volume = volumePathReplaceRE.ReplaceAllString(volume, value)
-			} else {
-				slog.Warn("Environment variable not found for volume replacement", slog.String("variable", groups[1]), slog.String("compose_file", additionalComposeFile))
-			}
-		case 4:
-			// If the variable is not set, use the default value
-			if value, ok := mapped_env[groups[1]]; ok {
-				volume = volumePathReplaceRE.ReplaceAllString(volume, value)
-			} else {
-				// Try to resolve with mapped environent variables as well
-				resolved := os.Expand(groups[3], func(key string) string {
-					if value, ok := mapped_env[key]; ok {
-						return value
-					}
-					return os.Getenv(key)
-				})
-				volume = volumePathReplaceRE.ReplaceAllString(volume, resolved)
-			}
-		default:
-			slog.Warn("Unexpected format for volume replacement", slog.String("volume", volume), slog.String("compose_file", additionalComposeFile))
-		}
-	}
-	return volume
-}
-
-func extractVolumesFromComposeFile(additionalComposeFile string) ([]string, error) {
-	content, err := os.ReadFile(additionalComposeFile)
+	prj, err := loader.LoadWithContext(
+		context.Background(),
+		types.ConfigDetails{
+			ConfigFiles: []types.ConfigFile{{Filename: composeFilePath, Content: content}},
+			WorkingDir:  paths.New(composeFilePath).Parent().String(),
+			Environment: env,
+		},
+		func(o *loader.Options) { o.SetProjectName("default", false); o.SkipConsistencyCheck = true },
+		loader.WithSkipValidation,
+	)
 	if err != nil {
-		slog.Error("Failed to read compose file", slog.String("compose_file", additionalComposeFile), slog.Any("error", err))
-		return nil, err
+		slog.Warn("Failed to parse compose file for volume provisioning", slog.String("compose_file", composeFilePath), slog.Any("error", err))
+		return
 	}
-	// Try with string syntax first
-	type composeServices[T any] struct {
-		Services map[string]struct {
-			Volumes []T `yaml:"volumes"`
-		} `yaml:"services"`
-	}
-	var index composeServices[string]
-	if err := yaml.Unmarshal(content, &index); err != nil {
-		var index composeServices[volume]
-		if err := yaml.Unmarshal(content, &index); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal compose file %s: %w", additionalComposeFile, err)
-		}
-		volumes := make([]string, 0, len(index.Services))
-		for _, svc := range index.Services {
-			for _, v := range svc.Volumes {
-				if v.Type == "bind" {
-					volumes = append(volumes, v.Source)
+
+	for _, svc := range prj.Services {
+		for _, v := range svc.Volumes {
+			if v.Type != types.VolumeTypeBind {
+				continue
+			}
+			hostDirectory := paths.New(v.Source)
+			if !hostDirectory.Exist() {
+				if err := hostDirectory.MkdirAll(); err != nil {
+					slog.Warn("Failed to create host directory for compose file", slog.String("compose_file", composeFilePath), slog.String("host_directory", hostDirectory.String()), slog.Any("error", err))
 				} else {
-					volumes = append(volumes, v.Target)
+					slog.Debug("Pre-provisioning host directory for compose file", slog.String("compose_file", composeFilePath), slog.String("host_directory", hostDirectory.String()))
 				}
 			}
 		}
-		return volumes, nil
 	}
-
-	volumes := make([]string, 0, len(index.Services))
-	for _, svc := range index.Services {
-		volumes = append(volumes, svc.Volumes...)
-	}
-	return volumes, nil
 }
 
 func buildCgroupRules(drivers []string) []string {

@@ -7,6 +7,7 @@ package platform
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 
 	"github.com/arduino/go-paths-helper"
@@ -33,6 +34,13 @@ type Platform struct {
 	} `json:"-"`
 }
 
+// HasNativeCSICameraSupport reports if the board has built-in MIPI-CSI interfaces,
+// available without any additional carrier/hat.
+// Derived from BoardName so it stays consistent with platform.json overrides.
+func (p Platform) HasNativeCSICameraSupport() bool {
+	return p.BoardName == "ventunoq"
+}
+
 func GetPlatform(dir *paths.Path) Platform {
 	compatible := devicetree.LoadCompatible()
 	slog.Debug("detected platform", "compatible", compatible)
@@ -57,8 +65,7 @@ func GetPlatform(dir *paths.Path) Platform {
 			PlatformID: "arduino:zephyr",
 			BoardName:  "ventunoq",
 			Linux: struct{ BoardLeds paths.PathList }{
-				// TODO: add leds paths
-				BoardLeds: paths.NewPathList(),
+				BoardLeds: GetVentunoQBoardLeds(),
 			},
 			CompileJobs: 0, // unlimited
 			Micro: struct{ ResetPin GpioPin }{
@@ -96,6 +103,23 @@ func (p Platform) SupportFlashToRam() bool {
 	return p.FQBN == "arduino:zephyr:unoq"
 }
 
+type EIDeploymentParams struct {
+	ModelType  string
+	Engine     string
+	DeviceType string
+}
+
+func (p Platform) EIDeploymentParams() (EIDeploymentParams, error) {
+	switch p.BoardName {
+	case "unoq":
+		return EIDeploymentParams{ModelType: "float32", Engine: "tflite", DeviceType: "runner-linux-aarch64"}, nil
+	case "ventunoq":
+		return EIDeploymentParams{ModelType: "float32", Engine: "tflite", DeviceType: "runner-linux-aarch64-qnn"}, nil
+	default:
+		return EIDeploymentParams{}, fmt.Errorf("unsupported platform %q for Edge Impulse deployment", p.BoardName)
+	}
+}
+
 func GetUnoQBoardLeds() paths.PathList {
 	// new leds paths
 	newPaths := paths.NewPathList(
@@ -125,4 +149,25 @@ func GetUnoQBoardLeds() paths.PathList {
 		return newPaths
 	}
 	return legacyPaths
+}
+
+func GetVentunoQBoardLeds() paths.PathList {
+	return paths.NewPathList(
+		// LED 1
+		"/dev/leds/builtin/led1_b",
+		"/dev/leds/builtin/led1_g",
+		"/dev/leds/builtin/led1_r",
+		// LED 2
+		"/dev/leds/builtin/led2_b",
+		"/dev/leds/builtin/led2_g",
+		"/dev/leds/builtin/led2_r",
+		// LED 3
+		"/dev/leds/builtin/led3_b",
+		"/dev/leds/builtin/led3_g",
+		"/dev/leds/builtin/led3_r",
+		// LED 4
+		"/dev/leds/builtin/led4_b",
+		"/dev/leds/builtin/led4_g",
+		"/dev/leds/builtin/led4_r",
+	)
 }

@@ -1,12 +1,12 @@
 ---
 name: github.com/google/gnostic-models/extensions
-version: v0.6.8
+version: v0.7.0
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/google/gnostic-models/extensions
 license: apache-2.0
 licenses:
-- sources: gnostic-models@v0.6.8/LICENSE
+- sources: gnostic-models@v0.7.0/LICENSE
   text: |2+
 
                                      Apache License

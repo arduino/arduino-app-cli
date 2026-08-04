@@ -7,6 +7,7 @@ package remote
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"strings"
@@ -29,4 +30,50 @@ func ParseChage(r io.Reader) (bool, error) {
 		return false, err
 	}
 	return false, fmt.Errorf("unexpected output from chage command")
+}
+
+// ParseLsOutput parses the output of the `ls -laQ` command and returns a slice of FileInfo.
+func ParseLsOutput(out io.Reader) ([]FileInfo, error) {
+	// skip the first line which contains the total size
+	r := bufio.NewReader(out)
+	if _, err := r.ReadBytes('\n'); err != nil {
+		return nil, err
+	}
+
+	var files []FileInfo
+	for {
+		line, err := r.ReadBytes('\n')
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, err
+		}
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 {
+			continue
+		}
+
+		// Each entry looks like: `<type><perms> ... "<name>"` (or, for
+		// symlinks, `... "<name>" -> "<target>"`). Extract the name from
+		// between the first pair of double quotes.
+		_, after, ok := strings.Cut(string(line), `"`)
+		if !ok {
+			continue
+		}
+		name, _, ok := strings.Cut(after, `"`)
+		if !ok {
+			continue
+		}
+		if name == "." || name == ".." {
+			continue
+		}
+		files = append(files, FileInfo{
+			Name:      name,
+			IsDir:     line[0] == 'd',
+			IsSymlink: line[0] == 'l',
+		})
+	}
+
+	return files, nil
 }

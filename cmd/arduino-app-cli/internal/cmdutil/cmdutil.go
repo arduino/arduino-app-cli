@@ -13,12 +13,12 @@ import (
 	"golang.org/x/term"
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 )
 
 // IDToAlias returns the string representation of an app ID in a readable and short way.
 // Either with the id itself or a relative path if possible.
-func IDToAlias(id app.ID) string {
+func IDToAlias(id appid.ID) string {
 	v := id.String()
 	res, err := base64.RawURLEncoding.DecodeString(v)
 	if err != nil {

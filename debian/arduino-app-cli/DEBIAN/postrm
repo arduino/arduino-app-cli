@@ -1,5 +1,10 @@
-#!/bin/sh
+#!/bin/bash
 
 if [ -d /run/systemd/system ]; then
   systemctl daemon-reload
+fi
+
+#LOAD_HELPER
+if [ "$1" = "purge" ]; then
+    cleanup_agent_profiles
 fi

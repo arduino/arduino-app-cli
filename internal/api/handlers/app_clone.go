@@ -15,10 +15,9 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/render"
-
-	"github.com/docker/cli/cli/command"
 )
 
 type CloneRequest struct {
@@ -27,8 +26,7 @@ type CloneRequest struct {
 }
 
 func HandleAppClone(
-	dockerClient command.Cli,
-	idProvider *app.IDProvider,
+	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -55,7 +53,7 @@ func HandleAppClone(
 			}
 		}
 
-		res, err := orchestrator.CloneApp(r.Context(), orchestrator.CloneAppRequest{
+		res, err := orchestrator.CloneApp(orchestrator.CloneAppRequest{
 			FromID: id,
 			Name:   req.Name,
 			Icon:   req.Icon,

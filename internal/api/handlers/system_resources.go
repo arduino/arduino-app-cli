@@ -10,8 +10,8 @@ import (
 	"net/http"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/resources"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
@@ -26,7 +26,7 @@ func HandleSystemResources(cfg config.Configuration) http.HandlerFunc {
 		}
 		defer sseStream.Close()
 
-		resources, err := orchestrator.SystemResources(ctx, cfg, nil)
+		resourcesIt, err := resources.SystemResources(ctx, cfg, nil)
 		if err != nil {
 			sseStream.SendError(render.SSEErrorData{
 				Code:    render.InternalServiceErr,
@@ -34,13 +34,15 @@ func HandleSystemResources(cfg config.Configuration) http.HandlerFunc {
 			})
 			return
 		}
-		for resource := range resources {
+		for resource := range resourcesIt {
 			switch res := resource.(type) {
-			case *orchestrator.SystemDiskResource:
+			case *resources.SystemDiskResource:
 				sseStream.Send(render.SSEEvent{Type: "disk", Data: res})
-			case *orchestrator.SystemCPUResource:
+			case *resources.SystemCPUResource:
 				sseStream.Send(render.SSEEvent{Type: "cpu", Data: res})
-			case *orchestrator.SystemMemoryResource:
+			case *resources.SystemNPUResource:
+				sseStream.Send(render.SSEEvent{Type: "npu", Data: res})
+			case *resources.SystemMemoryResource:
 				sseStream.Send(render.SSEEvent{Type: "mem", Data: res})
 			}
 		}

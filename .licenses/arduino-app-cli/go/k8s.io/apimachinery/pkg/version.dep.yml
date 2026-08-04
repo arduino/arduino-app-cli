@@ -1,13 +1,12 @@
 ---
 name: k8s.io/apimachinery/pkg/version
-version: v0.32.3
+version: v0.34.1
 type: go
-summary: Package version supplies the type for version information collected at build
-  time.
+summary: Package version supplies the type for version information.
 homepage: https://pkg.go.dev/k8s.io/apimachinery/pkg/version
 license: apache-2.0
 licenses:
-- sources: apimachinery@v0.32.3/LICENSE
+- sources: apimachinery@v0.34.1/LICENSE
   text: |2
 
                                      Apache License

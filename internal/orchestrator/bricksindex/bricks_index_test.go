@@ -40,11 +40,13 @@ bricks:
     description: description for the first variable
   - name: SECOND_VARIABLE
     description: description for the second variable
-- id: arduino:model_required
-  require_model: true
-- id: arduino:model_required_false
-  require_model: false
-- id: arduino:missing-model-require
+- id: arduino:with-model-name
+  model_name: mobilenet-image-classification
+- id: arduino:with-model-by-boards
+  model_by_boards:
+  - platform: ventunoq
+    model: mobilenet-image-classification
+- id: arduino:missing-model
 - id: arduino:with-hidden-variables
   variables:
     - name: HIDDEN_VARIABLE
@@ -65,7 +67,7 @@ bricks:
 	err := assetDir.Join("bricks-list.yaml").WriteFile([]byte(yamlContent))
 	require.NoError(t, err)
 
-	index, err := Load(platform.GetPlatform(nil), assetDir)
+	index, err := Load(platform.Platform{BoardName: "ventunoq"}, assetDir)
 	require.NoError(t, err)
 
 	brickBasi, found := index.FindBrickByID("arduino:basic")
@@ -94,17 +96,25 @@ bricks:
 	require.Equal(t, "description for the second variable", bWithVariables.Variables[1].Description)
 	require.True(t, bWithVariables.Variables[1].IsRequired())
 
-	bRequireModel, found := index.FindBrickByID("arduino:model_required")
+	bRequireModel, found := index.FindBrickByID("arduino:with-model-name")
 	require.True(t, found)
 	require.True(t, bRequireModel.RequireModel)
 
-	bDb, found := index.FindBrickByID("arduino:model_required_false")
-	require.True(t, found)
-	require.False(t, bDb.RequireModel)
-
-	bNoRequireModel, found := index.FindBrickByID("arduino:missing-model-require")
+	bNoRequireModel, found := index.FindBrickByID("arduino:missing-model")
 	require.True(t, found)
 	require.False(t, bNoRequireModel.RequireModel)
+
+	indexVentuno, err := Load(platform.Platform{BoardName: "ventunoq"}, assetDir)
+	require.NoError(t, err)
+	brickVentuno, found := indexVentuno.FindBrickByID("arduino:with-model-by-boards")
+	require.True(t, found)
+	require.True(t, brickVentuno.RequireModel)
+
+	indexUnoQ, err := Load(platform.Platform{BoardName: "unoq"}, assetDir)
+	require.NoError(t, err)
+	brickUno, found := indexUnoQ.FindBrickByID("arduino:with-model-by-boards")
+	require.True(t, found)
+	require.False(t, brickUno.RequireModel)
 
 	withHidden, found := index.FindBrickByID("arduino:with-hidden-variables")
 	require.True(t, found)
@@ -186,7 +196,6 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 					Category:                  "",
 					RequiresDisplay:           "",
 					RequireContainer:          false,
-					RequireModel:              false,
 					RequiredDevices:           nil,
 					Variables:                 nil,
 					Ports:                     nil,
@@ -202,7 +211,6 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
   name: Complex Brick
   description: A complex test brick
   category: storage
-  require_model: true
   mount_devices_into_container: true
   model_name: a-complex-model
   required_devices:
@@ -244,6 +252,81 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "requires_services as plain string list",
+			yamlContent: `bricks:
+- id: arduino:simple_brick
+  name: Test Brick
+  description: A test brick
+  requires_services:
+  - arduino:genie_audio
+  - arduino:other_service
+`,
+			expectedBricks: []Brick{
+				{
+					ID:          "arduino:simple_brick",
+					Name:        "Test Brick",
+					Description: "A test brick",
+					RequiresServices: []RequiresService{
+						{ID: "arduino:genie_audio"},
+						{ID: "arduino:other_service"},
+					},
+				},
+			},
+		},
+		{
+			name: "requires_services as struct list with when condition",
+			yamlContent: `bricks:
+- id: arduino:simple_brick
+  name: Test Brick
+  description: A test brick
+  requires_services:
+  - id: arduino:genie
+    when:
+      model: genie:*
+  - id: arduino:llamacpp_npu
+    when:
+      model: llamacpp:*
+`,
+			expectedBricks: []Brick{
+				{
+					ID:          "arduino:simple_brick",
+					Name:        "Test Brick",
+					Description: "A test brick",
+					RequiresServices: []RequiresService{
+						{ID: "arduino:genie", When: &RequiresServiceMatch{Model: new("genie:*")}},
+						{ID: "arduino:llamacpp_npu", When: &RequiresServiceMatch{Model: new("llamacpp:*")}},
+					},
+				},
+			},
+		},
+		{
+			name: "model_by_boards with platform and model fields",
+			yamlContent: `bricks:
+- id: arduino:brick_with_model_by_boards
+  name: Brick With Model By Boards
+  description: A brick with model_by_boards
+  model_name: default-model
+  model_by_boards:
+  - platform: ventunoq
+    model: ventunoq-model
+  - platform: portenta
+    model: portenta-model
+`,
+			expectedBricks: []Brick{
+				{
+					ID:           "arduino:brick_with_model_by_boards",
+					Name:         "Brick With Model By Boards",
+					Description:  "A brick with model_by_boards",
+					ModelName:    "default-model",
+					RequireModel: true,
+					ModelByBoard: []ModelsBoard{
+						{Platform: "ventunoq", Model: "ventunoq-model"},
+						{Platform: "portenta", Model: "portenta-model"},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -282,10 +365,6 @@ func TestLoadBrickYamlBrickIndex(t *testing.T) {
 		compose, found := brick.GetComposeFile()
 		require.True(t, found)
 		require.Equal(t, paths.New("testdata/0.4.8/compose/arduino/a-good-brick/brick_compose.yaml"), compose)
-
-		examples, err := brick.GetExamplesPath()
-		require.NoError(t, err)
-		require.Equal(t, paths.NewPathList("testdata/0.4.8/examples/arduino/a-good-brick/example_1.py", "testdata/0.4.8/examples/arduino/a-good-brick/example_2.py"), examples)
 
 		api, found := brick.GetApiDocPath()
 		require.True(t, found)
@@ -485,6 +564,251 @@ services
 				slices.Sort(got)
 				assert.Equal(t, tc.want, got)
 			}
+		})
+	}
+}
+
+func TestGetMatchingService(t *testing.T) {
+	tests := []struct {
+		name             string
+		requiresServices []RequiresService
+		brickInstance    BrickInstance
+		wantServices     []string
+		wantErr          bool
+	}{
+		{
+			name:             "no requires_services returns empty slice",
+			requiresServices: nil,
+			brickInstance:    BrickInstance{Model: "some-model"},
+			wantServices:     []string{},
+		},
+		{
+			name: "service with no when condition matches unconditionally",
+			requiresServices: []RequiresService{
+				{ID: "service-a", When: nil},
+			},
+			brickInstance: BrickInstance{Model: "any-model"},
+			wantServices:  []string{"service-a"},
+		},
+		{
+			name: "service with when but no model field matches unconditionally",
+			requiresServices: []RequiresService{
+				{ID: "service-b", When: &RequiresServiceMatch{Model: nil}},
+			},
+			brickInstance: BrickInstance{Model: "any-model"},
+			wantServices:  []string{"service-b"},
+		},
+		{
+			name: "service with matching model pattern returns service ID",
+			requiresServices: []RequiresService{
+				{ID: "service-c", When: &RequiresServiceMatch{Model: new("mobilenet-*")}},
+			},
+			brickInstance: BrickInstance{Model: "mobilenet-image-classification"},
+			wantServices:  []string{"service-c"},
+		},
+		{
+			name: "service with non-matching model pattern returns empty slice",
+			requiresServices: []RequiresService{
+				{ID: "service-d", When: &RequiresServiceMatch{Model: new("mobilenet-*")}},
+			},
+			brickInstance: BrickInstance{Model: "yolo-object-detection"},
+			wantServices:  []string{},
+		},
+		{
+			name: "only second service matches",
+			requiresServices: []RequiresService{
+				{ID: "service-e", When: &RequiresServiceMatch{Model: new("mobilenet-*")}},
+				{ID: "service-f", When: &RequiresServiceMatch{Model: new("yolo-*")}},
+			},
+			brickInstance: BrickInstance{Model: "yolo-object-detection"},
+			wantServices:  []string{"service-f"},
+		},
+		{
+			name: "multiple services match and all are returned",
+			requiresServices: []RequiresService{
+				{ID: "service-g", When: &RequiresServiceMatch{Model: new("mobilenet-*")}},
+				{ID: "service-h", When: nil},
+			},
+			brickInstance: BrickInstance{Model: "mobilenet-image-classification"},
+			wantServices:  []string{"service-g", "service-h"},
+		},
+		{
+			name: "no service matches returns empty slice",
+			requiresServices: []RequiresService{
+				{ID: "service-i", When: &RequiresServiceMatch{Model: new("mobilenet-*")}},
+				{ID: "service-j", When: &RequiresServiceMatch{Model: new("yolo-*")}},
+			},
+			brickInstance: BrickInstance{Model: "resnet-classification"},
+			wantServices:  []string{},
+		},
+		{
+			name: "invalid pattern returns error",
+			requiresServices: []RequiresService{
+				{ID: "service-k", When: &RequiresServiceMatch{Model: new("[invalid")}},
+			},
+			brickInstance: BrickInstance{Model: "any-model"},
+			wantErr:       true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			brick := Brick{RequiresServices: tt.requiresServices}
+			got, err := brick.GetMatchingService(tt.brickInstance)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantServices, got)
+			}
+		})
+	}
+}
+
+func TestRequiresServicesUnmarshalYAML(t *testing.T) {
+	tests := []struct {
+		name        string
+		yaml        string
+		want        RequiresServices
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name: "list of plain strings",
+			yaml: `
+- arduino:genie_audio
+- arduino:other_service
+`,
+			want: RequiresServices{
+				{ID: "arduino:genie_audio"},
+				{ID: "arduino:other_service"},
+			},
+		},
+		{
+			name: "list of structs with when condition",
+			yaml: `
+- id: arduino:genie
+  when:
+    model: genie:*
+- id: arduino:llamacpp_npu
+  when:
+    model: llamacpp:*
+`,
+			want: RequiresServices{
+				{ID: "arduino:genie", When: &RequiresServiceMatch{Model: new("genie:*")}},
+				{ID: "arduino:llamacpp_npu", When: &RequiresServiceMatch{Model: new("llamacpp:*")}},
+			},
+		},
+		{
+			name: "mixed plain strings and structs",
+			yaml: `
+- arduino:genie_audio
+- id: arduino:genie
+  when:
+    model: genie:*
+`,
+			want: RequiresServices{
+				{ID: "arduino:genie_audio"},
+				{ID: "arduino:genie", When: &RequiresServiceMatch{Model: new("genie:*")}},
+			},
+		},
+		{
+			name: "struct with no when condition",
+			yaml: `
+- id: arduino:genie
+`,
+			want: RequiresServices{
+				{ID: "arduino:genie"},
+			},
+		},
+		{
+			name:        "not a sequence",
+			yaml:        `arduino:genie_audio`,
+			wantErr:     true,
+			errContains: "requires_services: expected a sequence",
+		},
+		{
+			name: "unexpected node type in sequence",
+			yaml: `
+- - nested
+`,
+			wantErr:     true,
+			errContains: "requires_services: unexpected node type",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got RequiresServices
+			err := yaml.Unmarshal([]byte(tt.yaml), &got)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
+}
+
+func TestLoadResolvesModelNameByBoard(t *testing.T) {
+	yamlContent := `bricks:
+- id: arduino:brick-a
+  name: Brick A
+  model_name: default-model
+  model_by_boards:
+  - platform: ventunoq
+    model: ventunoq-model
+  - platform: portenta
+    model: portenta-model
+- id: arduino:brick-b
+  name: Brick B
+  model_name: only-default
+`
+
+	tests := []struct {
+		name            string
+		boardName       string
+		wantBrickAModel string
+		wantBrickBModel string
+	}{
+		{
+			name:            "matching platform overrides default",
+			boardName:       "ventunoq",
+			wantBrickAModel: "ventunoq-model",
+			wantBrickBModel: "only-default",
+		},
+		{
+			name:            "board not in list keeps default",
+			boardName:       "opta",
+			wantBrickAModel: "default-model",
+			wantBrickBModel: "only-default",
+		},
+		{
+			name:            "empty board keeps default",
+			boardName:       "",
+			wantBrickAModel: "default-model",
+			wantBrickBModel: "only-default",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+			brickIndex := paths.New(tempDir, "bricks-list.yaml")
+			require.NoError(t, os.WriteFile(brickIndex.String(), []byte(yamlContent), 0600))
+
+			index, err := Load(platform.Platform{BoardName: tt.boardName}, paths.New(tempDir))
+			require.NoError(t, err)
+
+			brickA, found := index.FindBrickByID("arduino:brick-a")
+			require.True(t, found)
+			assert.Equal(t, tt.wantBrickAModel, brickA.ModelName)
+
+			brickB, found := index.FindBrickByID("arduino:brick-b")
+			require.True(t, found)
+			assert.Equal(t, tt.wantBrickBModel, brickB.ModelName)
 		})
 	}
 }

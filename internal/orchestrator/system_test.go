@@ -16,6 +16,9 @@ import (
 	dockerClient "github.com/docker/docker/client"
 	"github.com/stretchr/testify/require"
 	"go.bug.st/f"
+
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 )
 
 func TestListImagesAlreadyPulled(t *testing.T) {
@@ -115,6 +118,68 @@ func TestExtractImagesFromCompose(t *testing.T) {
 				require.NoError(t, err)
 				require.ElementsMatch(t, tt.expectedImages, got)
 			}
+		})
+	}
+}
+
+func TestGetAllSupportedBrickImages(t *testing.T) {
+	genieComposePath := paths.New("testdata", "composes", "service_compose_genie.yaml")
+	brickComposePath := paths.New("testdata", "composes", "service_compose_valid.yaml")
+
+	services := &servicesindex.ServicesIndex{
+		Services: []servicesindex.Service{
+			{ServiceID: "arduino:genie", ComposeFile: genieComposePath},
+		},
+	}
+
+	tests := []struct {
+		name           string
+		builtIn        []bricksindex.Brick
+		expectedImages []string
+	}{
+		{
+			name: "brick without compose but with requires_services pulls service image",
+			builtIn: []bricksindex.Brick{
+				{
+					ID:               "arduino:vlm",
+					RequiresServices: bricksindex.RequiresServices{{ID: "arduino:genie"}},
+				},
+			},
+			expectedImages: []string{"ghcr.io/arduino/app-bricks/genie-service:1.0.0"},
+		},
+		{
+			name: "brick with compose and no requires_services",
+			builtIn: []bricksindex.Brick{
+				{ID: "arduino:runner", ComposeFile: brickComposePath},
+			},
+			expectedImages: []string{"ghcr.io/arduino/app-bricks/ollama-models-runner:dev-next"},
+		},
+		{
+			name: "brick with compose and requires_services returns both images deduped",
+			builtIn: []bricksindex.Brick{
+				{
+					ID:               "arduino:runner",
+					ComposeFile:      brickComposePath,
+					RequiresServices: bricksindex.RequiresServices{{ID: "arduino:genie"}},
+				},
+				{
+					ID:               "arduino:vlm",
+					RequiresServices: bricksindex.RequiresServices{{ID: "arduino:genie"}},
+				},
+			},
+			expectedImages: []string{
+				"ghcr.io/arduino/app-bricks/ollama-models-runner:dev-next",
+				"ghcr.io/arduino/app-bricks/genie-service:1.0.0",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bIndex := &bricksindex.BricksIndex{BuiltInBricks: tt.builtIn}
+			got, err := getAllSupportedBrickImages(bIndex, services)
+			require.NoError(t, err)
+			require.ElementsMatch(t, tt.expectedImages, got)
 		})
 	}
 }

@@ -8,13 +8,10 @@ package orchestrator
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
@@ -31,85 +28,70 @@ func TestBuildBrickConfigForEIModel(t *testing.T) {
 	var yamlContent = `
 bricks:
 - id: arduino:image_classification
+  model_configuration_variables:
+    - EI_CLASSIFICATION_MODEL
   variables:
   - name: CUSTOM_MODEL_PATH
     default_value: /opt/models/ei/
     description: path to the custom model directory
-  - name: EI_CLASSIFICATION_MODEL
-    default_value: /models/ootb/ei/mobilenet-v2-224px.eim
-    description: path to the model file
 - id: arduino:object_detection
+  model_configuration_variables:
+    - EI_OBJ_DETECTION_MODEL
   variables:
   - name: CUSTOM_MODEL_PATH
     default_value: /opt/models/ei/
     description: path to the custom model directory
-  - name: EI_OBJ_DETECTION_MODEL
-    default_value: /models/ootb/ei/yolo-x-nano.eim
-    description: path to the model file
 - id: arduino:video_object_detection
+  model_configuration_variables:
+    - EI_V_OBJ_DETECTION_MODEL
   variables:
-  - name: EI_OBJ_DETECTION_MODEL
-    default_value: /models/ootb/ei/yolo-x-nano.eim
-    description: Path to the model file
-    hidden: true
   - name: CUSTOM_MODEL_PATH
     default_value: /home/arduino/.arduino-bricks/ei-models
     description: Path to the custom model directory
     hidden: true
 - id: arduino:visual_anomaly_detection
+  model_configuration_variables:
+    - EI_V_ANOMALY_DETECTION_MODEL
   variables:
   - name: CUSTOM_MODEL_PATH
     default_value: /opt/models/ei/
     description: path to the custom model directory
-  - name: EI_V_ANOMALY_DETECTION_MODEL
-    default_value: /models/ootb/ei/concrete-crack-anomaly-detection.eim
-    description: path to the model file
 - id: arduino:keyword_spotting
+  model_configuration_variables:
+    - EI_KEYWORD_SPOTTING_MODEL
   variables:
-  - name: EI_KEYWORD_SPOTTING_MODEL
-    default_value: /models/ootb/ei/keyword-spotting-hey-arduino.eim
-    description: Path to the model file
-    hidden: true
   - name: CUSTOM_MODEL_PATH
     default_value: /home/arduino/.arduino-bricks/ei-models
     description: Path to the custom model directory
     hidden: true
 - id: arduino:audio_classification
+  model_configuration_variables:
+    - EI_AUDIO_CLASSIFICATION_MODEL
   variables:
-  - name: EI_AUDIO_CLASSIFICATION_MODEL
-    default_value: /models/ootb/ei/glass-breaking.eim
-    description: Path to the model file
-    hidden: true
   - name: CUSTOM_MODEL_PATH
     default_value: /home/arduino/.arduino-bricks/ei-models
     description: Path to the custom model directory
     hidden: true
 - id: arduino:motion_detection
+  model_configuration_variables:
+    - EI_MOTION_DETECTION_MODEL
   variables:
-  - name: EI_MOTION_DETECTION_MODEL
-    default_value: /models/ootb/ei/updown-wave-motion-detection.eim
-    description: Path to the model file
-    hidden: true
   - name: CUSTOM_MODEL_PATH
     default_value: /home/arduino/.arduino-bricks/ei-models
     description: Path to the custom model directory
     hidden: true
 - id: arduino:vibration_anomaly_detection
+  model_configuration_variables:
+    - EI_VIBRATION_ANOMALY_DETECTION_MODEL
   variables:
-  - name: EI_VIBRATION_ANOMALY_DETECTION_MODEL
-    default_value: /models/ootb/ei/fan-anomaly-detection.eim
-    description: Path to the model file
-    hidden: true
   - name: CUSTOM_MODEL_PATH
     default_value: /home/arduino/.arduino-bricks/ei-models
     description: Path to the custom model directory
     hidden: true
 - id: arduino:video_image_classification
+  model_configuration_variables:
+    - EI_V_CLASSIFICATION_MODEL
   variables:
-  - name: EI_V_CLASSIFICATION_MODEL
-    default_value: /models/ootb/ei/mobilenet-v2-224px.eim
-    description: Path to the model file
-    hidden: true
   - name: CUSTOM_MODEL_PATH
     default_value: /home/arduino/.arduino-bricks/ei-models
     description: Path to the custom model directory
@@ -148,8 +130,8 @@ bricks:
 					"EI_OBJ_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
 				},
 				{
-					"CUSTOM_MODEL_PATH":      "/models/custom-ei/ei-xxxx-yyyy",
-					"EI_OBJ_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
+					"CUSTOM_MODEL_PATH":        "/models/custom-ei/ei-xxxx-yyyy",
+					"EI_V_OBJ_DETECTION_MODEL": "/models/custom-ei/ei-xxxx-yyyy",
 				},
 			},
 		},
@@ -257,106 +239,16 @@ bricks:
 	}
 }
 
-func createFileWithSize(t *testing.T, dir, name string, size int) {
-	t.Helper()
-
-	path := filepath.Join(dir, name)
-
-	f, err := os.Create(path)
-	require.NoError(t, err)
-	defer f.Close()
-
-	_, err = io.CopyN(f, rand.Reader, int64(size))
-	require.NoError(t, err)
-}
-
-func TestGetModelSize(t *testing.T) {
-	tests := []struct {
-		name         string
-		files        map[string]int
-		expectedSize uint64
-		expectError  bool
-		setupExtra   func(t *testing.T, baseDir string)
-	}{
-		{
-			name:         "empty directory",
-			files:        map[string]int{},
-			expectedSize: 0,
-			expectError:  false,
-		},
-		{
-			name: "single small file",
-			files: map[string]int{
-				"file1.bin": 1024 * 1024, // 1 MB
-			},
-			expectedSize: 1024 * 1024,
-			expectError:  false,
-		},
-		{
-			name: "multiple files",
-			files: map[string]int{
-				"file1.bin": 1024 * 1024, // 1 MB
-				"file2.bin": 512 * 1024,  // 0.5 MB
-			},
-			expectedSize: 1024*1024 + 512*1024,
-			expectError:  false,
-		},
-		{
-			name:         "non existing directory",
-			files:        nil,
-			expectedSize: 0,
-			expectError:  true,
-		},
-		{
-			name: "permission denied on subdirectory",
-			files: map[string]int{
-				"allowed.bin": 1024,
-			},
-			expectError: true,
-			setupExtra: func(t *testing.T, baseDir string) {
-				restrictedDir := filepath.Join(baseDir, "private")
-				err := os.Mkdir(restrictedDir, 0000)
-				require.NoError(t, err)
-				t.Cleanup(func() {
-					_ = os.Chmod(restrictedDir, 0600)
-				})
-			},
-		},
+const impulseInfoJSON = `{
+	"success": true,
+	"impulse": {
+		"id": 1,
+		"name": "My Impulse",
+		"created": true,
+		"configured": true,
+		"complete": true
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var dir string
-
-			if !tt.expectError {
-				tmpDir := t.TempDir()
-				dir = tmpDir
-
-				for name, size := range tt.files {
-					createFileWithSize(t, tmpDir, name, size)
-				}
-
-				if tt.setupExtra != nil {
-					tt.setupExtra(t, tmpDir)
-				}
-			} else {
-				dir = "/path/that/does/not/exist"
-			}
-
-			dirPath := paths.New(dir)
-
-			sizeMB, err := getModelSize(dirPath)
-
-			if tt.expectError {
-				require.Error(t, err)
-				return
-			}
-
-			require.NoError(t, err)
-			require.Equal(t, tt.expectedSize, sizeMB)
-		})
-	}
-}
+}`
 
 type mockResponse struct {
 	status int
@@ -419,18 +311,6 @@ func TestInstallEIModel_WhenModelIsNotBuilt_ThanTriggerTheBuild(t *testing.T) {
 		}
 	}`
 
-	// GetImpulseInfo
-	impulseInfoJSON := `{
-		"success": true,
-		"impulse": {
-			"id": 1,
-			"name": "My Impulse",
-			"created": true,
-			"configured": true,
-			"complete": true
-		}
-	}`
-
 	responses := map[string]mockResponse{
 		"/api/100":                               {status: http.StatusOK, body: projectInfoJSON},
 		"/api/100/deployment/history":            {status: http.StatusOK, body: `{"success": true, "deployments": []}`},
@@ -451,7 +331,7 @@ func TestInstallEIModel_WhenModelIsNotBuilt_ThanTriggerTheBuild(t *testing.T) {
 	projectId := 100
 	impulseId := 1
 	tempDir := t.TempDir()
-	result, err := InstallEIModel(context.Background(), nil, &modelsindex.ModelsIndex{}, nil, client, paths.New(tempDir), projectId, impulseId)
+	result, err := InstallEIModel(context.Background(), nil, &modelsindex.ModelsIndex{}, nil, client, paths.New(tempDir), platform.Platform{BoardName: "unoq"}, projectId, impulseId)
 
 	// assert
 	require.NoError(t, err)
@@ -500,7 +380,7 @@ func TestInstallEIModel_WhenModelIsNotFullyTrained_ThanRaiseError(t *testing.T) 
 	projectId := 100
 	impulseId := 1
 	tempDir := t.TempDir()
-	_, err = InstallEIModel(context.Background(), nil, &modelsindex.ModelsIndex{}, nil, client, paths.New(tempDir), projectId, impulseId)
+	_, err = InstallEIModel(context.Background(), nil, &modelsindex.ModelsIndex{}, nil, client, paths.New(tempDir), platform.Platform{BoardName: "unoq"}, projectId, impulseId)
 
 	// assert
 	require.Equal(t, "impulse not ready for deployment for project 100 impulse 1", err.Error())
@@ -552,18 +432,6 @@ func TestInstallEIModel_WhenModelIsBuilt_DoNotTriggerTheBuild_and_StoreSucceeded
     ]
 	}`
 
-	// GetImpulseInfo
-	impulseInfoJSON := `{
-		"success": true,
-		"impulse": {
-			"id": 1,
-			"name": "My Impulse",
-			"created": true,
-			"configured": true,
-			"complete": true
-		}
-	}`
-
 	responses := map[string]mockResponse{
 		"/api/100":                               {status: http.StatusOK, body: projectInfoJSON},
 		"/api/100/deployment/history":            {status: http.StatusOK, body: deploymentHistoryJson},
@@ -582,7 +450,7 @@ func TestInstallEIModel_WhenModelIsBuilt_DoNotTriggerTheBuild_and_StoreSucceeded
 	projectId := 100
 	impulseId := 1
 	tempDir := t.TempDir()
-	result, err := InstallEIModel(context.Background(), nil, &modelsindex.ModelsIndex{}, nil, client, paths.New(tempDir), projectId, impulseId)
+	result, err := InstallEIModel(context.Background(), nil, &modelsindex.ModelsIndex{}, nil, client, paths.New(tempDir), platform.Platform{BoardName: "unoq"}, projectId, impulseId)
 
 	// assert
 	require.NoError(t, err)
@@ -600,6 +468,76 @@ func TestInstallEIModel_WhenModelIsBuilt_DoNotTriggerTheBuild_and_StoreSucceeded
 		"/api/100/deployment/history",
 		"/api/100/deployment/history/5/download",
 		"/api/100/impulse",
+	}
+	assertServerCalls(trackActualServercalls, expectedCalls, t)
+}
+
+func TestInstallEIModel_VentunoQ_UsesQNNDeviceType(t *testing.T) {
+	trackActualServercalls := []string{}
+
+	projectInfoJSON := `{
+		"success": true,
+		"project": {
+			"id": 200,
+			"name": "VentunoQ-Model",
+			"description": "QNN model for ventunoq",
+			"category": "missing-category",
+			"lastModified": "2026-02-05T12:00:00Z"
+		},
+		"impulse": {
+			"created": true,
+			"configured": true,
+			"complete": true
+		}
+	}`
+
+	buildOnDeviceJSON := `{
+		"success": true,
+		"id": 77701,
+		"deploymentVersion": 1,
+		"error": null
+	}`
+
+	waitForbuildCompletionJSON := `{
+		"success": true,
+		"job": {
+			"id": 77701,
+			"finished": "2026-02-05T18:00:00Z",
+			"finishedSuccessful": true,
+			"jobType": "build-on-device"
+		}
+	}`
+
+	responses := map[string]mockResponse{
+		"/api/200":                               {status: http.StatusOK, body: projectInfoJSON},
+		"/api/200/deployment/history":            {status: http.StatusOK, body: `{"success": true, "deployments": []}`},
+		"/api/200/jobs/build-ondevice-model":     {status: http.StatusOK, body: buildOnDeviceJSON},
+		"/api/200/jobs/77701/status":             {status: http.StatusOK, body: waitForbuildCompletionJSON},
+		"/api/200/deployment/history/1/download": {status: http.StatusOK, body: `fake-binary-data`},
+		"/api/200/impulse":                       {status: http.StatusOK, body: impulseInfoJSON},
+	}
+	server := setupMockEIServer(t, responses, &trackActualServercalls)
+	defer server.Close()
+
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	client, _ := edgeimpulse.NewEIClient("fake-key", *serverURL)
+
+	projectId := 200
+	impulseId := 1
+	tempDir := t.TempDir()
+	result, err := InstallEIModel(context.Background(), nil, &modelsindex.ModelsIndex{}, nil, client, paths.New(tempDir), platform.Platform{BoardName: "ventunoq"}, projectId, impulseId)
+
+	require.NoError(t, err)
+	require.Equal(t, "VentunoQ-Model", result.Name)
+
+	expectedCalls := []string{
+		"/api/200",
+		"/api/200/deployment/history",
+		"/api/200/jobs/build-ondevice-model",
+		"/api/200/jobs/77701/status",
+		"/api/200/deployment/history/1/download",
+		"/api/200/impulse",
 	}
 	assertServerCalls(trackActualServercalls, expectedCalls, t)
 }

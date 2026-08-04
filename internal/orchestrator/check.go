@@ -6,6 +6,8 @@
 package orchestrator
 
 import (
+	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -18,29 +20,33 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 )
 
-// CheckBricks checks that all bricks referenced in the given AppDescriptor exist in the provided BricksIndex,
-// It collects and returns all validation errors as a single joined error, allowing the caller to see all issues at once rather than stopping at the first error.
-func checkBricks(a app.AppDescriptor, index *bricksindex.BricksIndex, modelIndex *modelsindex.ModelsIndex) error {
-	if index == nil {
-		return fmt.Errorf("bricks index cannot be nil")
-	}
-	if modelIndex == nil {
-		return fmt.Errorf("model index cannot be nil")
-	}
-
+// checkBricks validates that each app brick exists in the index, that its selected model (when
+// required) is installed, and that all required brick variables are set.
+// Errors are joined so every issue is reported at once.
+func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.BricksIndex, modelIndex *modelsindex.ModelsIndex) error {
 	var allErrors error
-
-	for _, appBrick := range a.Bricks {
+	for _, appBrick := range bricks {
 		indexBrick, found := index.FindBrickByID(appBrick.ID)
 		if !found {
 			allErrors = errors.Join(allErrors, fmt.Errorf("brick %q not found", appBrick.ID))
 			continue // Skip further validation for this brick since it doesn't exist
 		}
 
-		if len(appBrick.Model) != 0 {
-			_, modelFound := modelIndex.GetModelByID(appBrick.Model)
-			if !modelFound {
-				allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q not found", appBrick.Model, appBrick.ID))
+		if indexBrick.RequireModel {
+			selectedModel := cmp.Or(appBrick.Model, indexBrick.ModelName)
+			model, err := modelIndex.GetModelByID(ctx, selectedModel)
+			switch {
+			case err != nil:
+				allErrors = errors.Join(allErrors, fmt.Errorf("retrieving model %q for brick %q: %w", selectedModel, appBrick.ID, err))
+			case model == nil:
+				allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q not found", selectedModel, appBrick.ID))
+			default:
+				if model.Status != modelsindex.InstalledStatus {
+					allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q is not installed", selectedModel, appBrick.ID))
+				}
+				if !modelIndex.IsModelSupportedByBrick(selectedModel, appBrick.ID) {
+					allErrors = errors.Join(allErrors, fmt.Errorf("model %q is not compatible with brick %q", selectedModel, appBrick.ID))
+				}
 			}
 		}
 
@@ -61,17 +67,19 @@ func checkBricks(a app.AppDescriptor, index *bricksindex.BricksIndex, modelIndex
 			}
 		}
 	}
+
 	return allErrors
 }
 
-func checkRequiredDevices(bricksIndex *bricksindex.BricksIndex, appBricks []app.Brick, availableDevices peripherals.AvailableDevices) error {
-	requiredDeviceClasses := make(map[peripherals.DeviceClass]bool)
+// requiredDeviceClasses returns the sorted device classes required by the app bricks, skipping the
+// ones satisfied by a virtual device.
+func requiredDeviceClasses(bricksIndex *bricksindex.BricksIndex, appBricks []app.Brick) ([]peripherals.DeviceClass, error) {
+	required := make(map[peripherals.DeviceClass]bool)
 
 	for _, brick := range appBricks {
 		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
 		if !found {
-			slog.Warn("Cannot validate required devices. Brick not found", slog.String("brick_id", brick.ID))
-			continue
+			return nil, fmt.Errorf("brick %q not found", brick.ID)
 		}
 
 		// skip checks for virtual devices
@@ -79,30 +87,38 @@ func checkRequiredDevices(bricksIndex *bricksindex.BricksIndex, appBricks []app.
 			if peripherals.HasVirtualDevice(deviceClass, brick.Devices) {
 				continue
 			}
-			requiredDeviceClasses[deviceClass] = true
+			required[deviceClass] = true
 		}
 	}
 
+	return slices.Sorted(maps.Keys(required)), nil
+}
+
+// needsAudioDevices reports whether the app requires a microphone or a speaker.
+func needsAudioDevices(requiredClasses []peripherals.DeviceClass) bool {
+	return slices.Contains(requiredClasses, peripherals.MicrophoneClass) ||
+		slices.Contains(requiredClasses, peripherals.SpeakerClass)
+}
+
+func checkRequiredDevices(requiredClasses []peripherals.DeviceClass, availableDevices peripherals.AvailableDevices) error {
 	var allErrors error
-	devices := slices.Sorted(maps.Keys(requiredDeviceClasses))
-	if len(devices) > 0 {
-		for _, class := range devices {
-			switch class {
-			case peripherals.CameraClass:
-				if !availableDevices.HasVideoDevice && !availableDevices.HasCSICameraDevice {
-					allErrors = errors.Join(allErrors, fmt.Errorf("no camera device found"))
-				}
-			case peripherals.MicrophoneClass:
-				if !availableDevices.HasSoundDevice {
-					allErrors = errors.Join(allErrors, fmt.Errorf("no microphone device found"))
-				}
-			case peripherals.SpeakerClass:
-				if !availableDevices.HasSoundDevice {
-					allErrors = errors.Join(allErrors, fmt.Errorf("no speaker device found"))
-				}
-			default:
-				slog.Debug("not handled device class - no action", slog.String("class", string(class)))
+	for _, class := range requiredClasses {
+		switch class {
+		case peripherals.CameraClass:
+			if !availableDevices.HasVideoDevice && !availableDevices.HasCSICameraDevice {
+				allErrors = errors.Join(allErrors, fmt.Errorf("no camera device found"))
 			}
+		//TODO: not all profile in the media carrier have a mic.
+		case peripherals.MicrophoneClass:
+			if !availableDevices.HasSoundDevice && !availableDevices.HasCarrierSoundDevice {
+				allErrors = errors.Join(allErrors, fmt.Errorf("no microphone device found"))
+			}
+		case peripherals.SpeakerClass:
+			if !availableDevices.HasSoundDevice && !availableDevices.HasCarrierSoundDevice {
+				allErrors = errors.Join(allErrors, fmt.Errorf("no speaker device found"))
+			}
+		default:
+			slog.Debug("not handled device class - no action", slog.String("class", string(class)))
 		}
 	}
 

@@ -32,14 +32,15 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	appgenerator "github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	linuxconfig "github.com/arduino/arduino-app-cli/internal/orchestrator/linuxConfig"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/linuxconfig"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/pipewire"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
-	"github.com/arduino/arduino-app-cli/internal/store"
 )
 
 var (
@@ -99,32 +100,75 @@ func StartApp(
 	servicesIndex *servicesindex.ServicesIndex,
 	appToStart app.ArduinoApp,
 	cfg config.Configuration,
-	staticStore *store.StaticStore,
 	platform platform.Platform,
 	verbose bool,
 	cb func(StreamMessage),
 ) error {
-	bricksIndex = bricksIndex.WithAppBricks(appToStart.LocalBricks)
-
-	if err := checkBricks(appToStart.Descriptor, bricksIndex, modelsIndex); err != nil {
-		return err
+	if cb == nil {
+		cb = func(StreamMessage) {}
 	}
 
-	devices, err := peripherals.Detect(ctx)
+	bricksIndex = bricksIndex.WithAppBricks(appToStart.LocalBricks)
+
+	if err := checkBricks(ctx, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex); err != nil {
+		return err
+	}
+	requiredClasses, err := requiredDeviceClasses(bricksIndex, appToStart.Descriptor.Bricks)
 	if err != nil {
 		return err
 	}
 
-	if err := checkRequiredDevices(bricksIndex, appToStart.Descriptor.Bricks, devices); err != nil {
-		return err
+	// Detect the board peripherals only when the app needs them.
+	var devices peripherals.AvailableDevices
+	if len(requiredClasses) > 0 {
+		devices, err = peripherals.Detect(ctx, platform)
+		if err != nil {
+			return err
+		}
+
+		if err := checkRequiredDevices(requiredClasses, devices); err != nil {
+			return err
+		}
 	}
 
-	if running, err := getRunningApp(ctx, docker.Client()); err != nil {
-		return err
-	} else if running != nil {
-		return fmt.Errorf("app %q is running", running.Name)
-	} else {
-		cb(StreamMessage{data: fmt.Sprintf("Starting app %q", appToStart.Name)})
+	appsStatus, err := getAppsStatus(ctx, docker.Client())
+	if err != nil {
+		return fmt.Errorf("failed to list apps status: %w", err)
+	}
+
+	// Reject if another app is running/starting; otherwise stop any *other*
+	// failed app so its sibling services release resources (ports, volumes)
+	// that could conflict with the app we're starting.
+	for _, s := range appsStatus {
+		switch s.Status {
+		case StatusRunning, StatusStarting:
+			runningApp, err := app.Load(s.AppPath)
+			if err != nil {
+				return fmt.Errorf("failed to load running app: %w", err)
+			}
+			return fmt.Errorf("app %q is running", runningApp.Name)
+		case StatusFailed:
+			if s.AppPath.EqualsTo(appToStart.FullPath) {
+				continue
+			}
+			failedApp, err := app.Load(s.AppPath)
+			if err != nil {
+				slog.Warn("skipping failed app: cannot load", slog.String("path", s.AppPath.String()), slog.String("error", err.Error()))
+				continue
+			}
+			slog.Debug("stopping failed app before starting a new one", slog.String("name", failedApp.Name))
+			if err := StopApp(ctx, docker, platform, failedApp, cfg, nil); err != nil {
+				slog.Warn("failed to stop failed app", slog.String("name", failedApp.Name), slog.String("error", err.Error()))
+			}
+		}
+	}
+
+	cb(StreamMessage{data: fmt.Sprintf("Starting app %q", appToStart.Name)})
+
+	if needsAudioDevices(requiredClasses) && devices.HasCarrierSoundDevice {
+		if err := pipewire.EnsurePipewireRunning(ctx, cfg); err != nil {
+			return fmt.Errorf("failed to enable audio service linger: %w", err)
+		}
 	}
 
 	if err := setLedsToUserControlledMode(platform); err != nil {
@@ -154,7 +198,7 @@ func StartApp(
 	}
 
 	if appToStart.MainPythonFile != nil {
-		envs := getAppEnvironmentVariables(ctx, appToStart, bricksIndex, modelsIndex)
+		envs := getAppEnvironmentVariables(ctx, appToStart, bricksIndex, modelsIndex, platform, cfg)
 
 		cb(StreamMessage{data: "python provisioning"})
 		provisionStartProgress := float32(0.0)
@@ -164,7 +208,7 @@ func StartApp(
 
 		cb(StreamMessage{progress: &Progress{Name: "python provisioning", Progress: provisionStartProgress}})
 
-		if err := provisioner.App(ctx, bricksIndex, servicesIndex, &appToStart, cfg, envs, platform); err != nil {
+		if err := provisioner.App(bricksIndex, servicesIndex, &appToStart, cfg, envs, platform); err != nil {
 			return err
 		}
 
@@ -219,7 +263,7 @@ func StartApp(
 // - model configuration variables (variables defined in the model configuration)
 // - brick instance variables (variables defined in the app.yaml for the brick instance)
 // In addition, it adds some useful environment variables like APP_HOME and HOST_IP.
-func getAppEnvironmentVariables(ctx context.Context, app app.ArduinoApp, brickIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex) helpers.EnvVars {
+func getAppEnvironmentVariables(ctx context.Context, app app.ArduinoApp, brickIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform, cfg config.Configuration) helpers.EnvVars {
 	envs := make(helpers.EnvVars)
 
 	for _, brick := range app.Descriptor.Bricks {
@@ -227,7 +271,9 @@ func getAppEnvironmentVariables(ctx context.Context, app app.ArduinoApp, brickIn
 			maps.Insert(envs, brickDef.GetDefaultVariables())
 		}
 
-		if m, found := modelsIndex.GetModelByID(brick.Model); found {
+		if m, err := modelsIndex.GetModelByID(ctx, brick.Model); err != nil {
+			slog.Warn("unable to get model for brick", slog.String("brickID", brick.ID), slog.String("modelID", brick.Model), slog.String("error", err.Error()))
+		} else if m != nil {
 			for _, b := range m.Bricks {
 				maps.Insert(envs, maps.All(b.ModelConfiguration))
 			}
@@ -237,8 +283,11 @@ func getAppEnvironmentVariables(ctx context.Context, app app.ArduinoApp, brickIn
 		maps.Insert(envs, maps.All(brick.Variables))
 	}
 
-	// Add the APP_HOME directory to the environment variables
 	envs["APP_HOME"] = app.FullPath.String()
+	envs["BOARD_NAME"] = plat.BoardName
+	// Directory where AI models are installed, shared with the containerized runners.
+	envs["MODELS_PATH"] = cfg.ModelsDir().String()
+	envs["XDG_RUNTIME_DIR"] = "/run/user/1000"
 
 	// Pre-select default camera device if available. This can be overridden by the app environment variables (or in future by applab)
 	// This is required because there are some video devices for HW acceleration that are auto registered in /dev but are not real cameras.
@@ -268,7 +317,11 @@ func getAppEnvironmentVariables(ctx context.Context, app app.ArduinoApp, brickIn
 	return envs
 }
 
-func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.Platform, app app.ArduinoApp, cmd string, cb func(StreamMessage)) error {
+func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration, cmd string, cb func(StreamMessage)) error {
+	if cb == nil {
+		cb = func(StreamMessage) {}
+	}
+
 	switch cmd {
 	case "stop":
 		cb(StreamMessage{data: fmt.Sprintf("Stopping app %q", app.Name)})
@@ -278,6 +331,10 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 
 	if err := restoreLedsState(platform); err != nil {
 		slog.Debug("unable to set status leds", slog.String("error", err.Error()))
+	}
+
+	if err := pipewire.StopIfNotNeeded(ctx, cfg); err != nil {
+		slog.Debug("unable to disable audio service linger", slog.String("error", err.Error()))
 	}
 
 	callbackWriter := NewCallbackWriter(func(line string) {
@@ -292,10 +349,13 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 		}
 		if running != nil && running.FullPath.String() == app.FullPath.String() {
 			cb(StreamMessage{data: "Stopping microcontroller..."})
-			if err := platform.GetMicro().Disable(); err != nil {
-				return err
-				// XXX: if we fail to stop the sketch, do we want to continue to stop the app anyway?
-				//      maybe we can just log the error and continue
+			// Reset() triggers a reset of the microcontroller.
+			// Note: If the sketch was compiled with 'Wait for App', the microcontroller
+			// will stop and wait for the wait-for-app signal before restarting the sketch.
+			// In all other boot modes (e.g., 'Wait for Linux' or 'Immediate'), the
+			// sketch will simply restart.
+			if err := platform.GetMicro().Reset(); err != nil {
+				slog.Warn("failed to reset microcontroller", slog.String("error", err.Error()))
 			}
 		}
 	}
@@ -331,12 +391,12 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 	return nil
 }
 
-func StopApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp, cb func(StreamMessage)) error {
-	return stopAppWithCmd(ctx, dockerClient, platform, app, "stop", cb)
+func StopApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration, cb func(StreamMessage)) error {
+	return stopAppWithCmd(ctx, dockerClient, platform, app, cfg, "stop", cb)
 }
 
-func StopAndDestroyApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp, cb func(StreamMessage)) error {
-	if err := stopAppWithCmd(ctx, dockerClient, platform, app, "down", cb); err != nil {
+func StopAndDestroyApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration, cb func(StreamMessage)) error {
+	if err := stopAppWithCmd(ctx, dockerClient, platform, app, cfg, "down", cb); err != nil {
 		return err
 	}
 	if err := cleanAppCacheFiles(app, cb); err != nil {
@@ -346,6 +406,10 @@ func StopAndDestroyApp(ctx context.Context, dockerClient command.Cli, platform p
 }
 
 func cleanAppCacheFiles(app app.ArduinoApp, cb func(StreamMessage)) error {
+	if cb == nil {
+		cb = func(StreamMessage) {}
+	}
+
 	cachePath := app.FullPath.Join(".cache")
 
 	if exists, _ := cachePath.ExistCheck(); !exists {
@@ -370,7 +434,6 @@ func RestartApp(
 	servicesIndex *servicesindex.ServicesIndex,
 	appToStart app.ArduinoApp,
 	cfg config.Configuration,
-	staticStore *store.StaticStore,
 	platform platform.Platform,
 	verbose bool,
 	cb func(StreamMessage),
@@ -385,12 +448,12 @@ func RestartApp(
 			return fmt.Errorf("another app %q is running", runningApp.Name)
 		}
 
-		if err := StopApp(ctx, docker, platform, *runningApp, cb); err != nil {
+		if err := StopApp(ctx, docker, platform, *runningApp, cfg, cb); err != nil {
 			return err
 		}
 	}
 
-	return StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, staticStore, platform, verbose, cb)
+	return StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, platform, verbose, cb)
 }
 
 func StartDefaultApp(
@@ -400,9 +463,8 @@ func StartDefaultApp(
 	modelsIndex *modelsindex.ModelsIndex,
 	bricksIndex *bricksindex.BricksIndex,
 	servicesIndex *servicesindex.ServicesIndex,
-	idProvider *app.IDProvider,
+	idProvider *appid.Provider,
 	cfg config.Configuration,
-	staticStore *store.StaticStore,
 	platform platform.Platform,
 ) error {
 	app, err := GetDefaultApp(cfg)
@@ -423,7 +485,7 @@ func StartDefaultApp(
 	}
 
 	// TODO: we need to stop all other running app before starting the default app.
-	if err := StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, *app, cfg, staticStore, platform, false, func(sm StreamMessage) {}); err != nil {
+	if err := StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, *app, cfg, platform, false, func(sm StreamMessage) {}); err != nil {
 		return fmt.Errorf("failed to start app: %w", err)
 	}
 
@@ -436,13 +498,13 @@ type ListAppResult struct {
 }
 
 type AppInfo struct {
-	ID          app.ID `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Icon        string `json:"icon"`
-	Status      Status `json:"status,omitempty"`
-	Example     bool   `json:"example"`
-	Default     bool   `json:"default"`
+	ID          appid.ID `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Icon        string   `json:"icon"`
+	Status      Status   `json:"status,omitempty"`
+	Example     bool     `json:"example"`
+	Default     bool     `json:"default"`
 }
 
 type BrokenAppInfo struct {
@@ -466,9 +528,10 @@ func ListApps(
 	ctx context.Context,
 	docker command.Cli,
 	req ListAppRequest,
-	idProvider *app.IDProvider,
+	idProvider *appid.Provider,
 	bricksIndex *bricksindex.BricksIndex,
 	cfg config.Configuration,
+	platform platform.Platform,
 ) (ListAppResult, error) {
 	// Get the default app to mark it in the list
 	defaultApp, err := GetDefaultApp(cfg)
@@ -486,7 +549,8 @@ func ListApps(
 	var pathsToExplore paths.PathList
 	var appPaths paths.PathList
 	if req.ShowExamples || req.ShowOnlyDefault {
-		pathsToExplore.Add(cfg.ExamplesDir())
+		pathsToExplore.AddAll(cfg.ExamplesDirs(platform))
+		pathsToExplore.AddAll(cfg.ExamplesAdditionalDirs())
 	}
 	if req.ShowApps || req.ShowOnlyDefault {
 		pathsToExplore.Add(cfg.AppsDir())
@@ -497,14 +561,13 @@ func ListApps(
 			}
 		}
 	}
-	for _, p := range pathsToExplore {
-		res, err := app.FindAppsInFolder(p)
-		if err != nil {
-			slog.Error("unable to list apps", slog.String("error", err.Error()))
-			return ListAppResult{}, err
-		}
-		appPaths.AddAllMissing(res)
+
+	appPathsTmp, err := app.FindAppsInFolders(pathsToExplore)
+	if err != nil {
+		slog.Error("unable to list apps", slog.String("error", err.Error()))
+		return ListAppResult{}, err
 	}
+	appPaths.AddAllMissing(appPathsTmp)
 
 	// Compose the result
 	result := ListAppResult{Apps: []AppInfo{}, BrokenApps: []BrokenAppInfo{}}
@@ -584,7 +647,7 @@ func exampleCompatibleWithBricksIndex(a app.ArduinoApp, idx *bricksindex.BricksI
 }
 
 type AppDetailedInfo struct {
-	ID          app.ID             `json:"id" required:"true" `
+	ID          appid.ID           `json:"id" required:"true" `
 	Name        string             `json:"name" required:"true"`
 	Path        string             `json:"path"`
 	Description string             `json:"description"`
@@ -607,7 +670,7 @@ func AppDetails(
 	docker command.Cli,
 	userApp app.ArduinoApp,
 	bricksIndex *bricksindex.BricksIndex,
-	idProvider *app.IDProvider,
+	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) (AppDetailedInfo, error) {
 	bricksIndex = bricksIndex.WithAppBricks(userApp.LocalBricks)
@@ -677,13 +740,12 @@ type CreateAppRequest struct {
 }
 
 type CreateAppResponse struct {
-	ID app.ID `json:"id"`
+	ID appid.ID `json:"id"`
 }
 
 func CreateApp(
-	ctx context.Context,
 	req CreateAppRequest,
-	idProvider *app.IDProvider,
+	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) (CreateAppResponse, error) {
 	if req.Name == "" {
@@ -716,20 +778,19 @@ func CreateApp(
 }
 
 type CloneAppRequest struct {
-	FromID app.ID
+	FromID appid.ID
 
 	Name *string
 	Icon *string
 }
 
 type CloneAppResponse struct {
-	ID app.ID `json:"id"`
+	ID appid.ID `json:"id"`
 }
 
 func CloneApp(
-	ctx context.Context,
 	req CloneAppRequest,
-	idProvider *app.IDProvider,
+	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) (response CloneAppResponse, cloneErr error) {
 	originPath := req.FromID.ToPath()
@@ -818,9 +879,9 @@ func CloneApp(
 	return CloneAppResponse{ID: id}, nil
 }
 
-func DeleteApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp) error {
+func DeleteApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration) error {
 	// We try to remove docker related resources at best effort
-	_ = StopAndDestroyApp(ctx, dockerClient, platform, app, func(StreamMessage) {})
+	_ = StopAndDestroyApp(ctx, dockerClient, platform, app, cfg, func(StreamMessage) {})
 	// TODO: Shall we report stop error?
 
 	return app.FullPath.RemoveAll()
@@ -1204,7 +1265,8 @@ func migrateRemoveRouterBridgeIfNeeded(ctx context.Context, platform platform.Pl
 }
 
 type ConfigResponse struct {
-	Directories ConfigDirectories `json:"directories"`
+	Directories  ConfigDirectories `json:"directories"`
+	PythonRunner string            `json:"python_runner"`
 }
 
 type ConfigDirectories struct {
@@ -1216,9 +1278,11 @@ type ConfigDirectories struct {
 func GetOrchestratorConfig(cfg config.Configuration) ConfigResponse {
 	return ConfigResponse{
 		Directories: ConfigDirectories{
-			Data:     cfg.DataDir().String(),
-			Apps:     cfg.AppsDir().String(),
-			Examples: cfg.ExamplesDir().String(),
+			Data: cfg.DataDir().String(),
+			Apps: cfg.AppsDir().String(),
+			// FIXME: ExamplesDir() is not the right directory, we should return the examples by board directory.
+			// Examples: cfg.ExamplesDir().String(),
 		},
+		PythonRunner: cfg.RunnerVersion,
 	}
 }

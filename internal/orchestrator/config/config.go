@@ -17,18 +17,23 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	semver "go.bug.st/relaxed-semver"
+
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
-// runnerVersion do not edit, this is generate with `task generate:assets`
-var RunnerVersion = "0.10.0rc2"
+// runnerVersion do not edit, this is generate with `task bump:runner-version`
+var RunnerVersion = "0.12.0rc7"
 
 type Configuration struct {
 	appsDir                          *paths.Path
 	dataDir                          *paths.Path
-	routerSocketPath                 *paths.Path
+	requiredRuntimes                 []string
 	customModelsDir                  *paths.Path
+	modelsDir                        *paths.Path
+	assetDir                         *paths.Path
+	dockerRegistryBase               string
+	usedPythonImageTag               string
 	PythonImage                      string
-	UsedPythonImageTag               string
 	RunnerVersion                    string
 	AllowRoot                        bool
 	LibrariesAPIURL                  *url.URL
@@ -59,9 +64,22 @@ func NewFromEnv() (Configuration, error) {
 		dataDir = paths.New("/var/lib/arduino-app-cli")
 	}
 
-	routerSocket := paths.New(os.Getenv("ARDUINO_ROUTER_SOCKET"))
-	if routerSocket == nil || routerSocket.NotExist() {
-		routerSocket = paths.New("/var/run/arduino-router.sock")
+	// Required host units bind-mounted as /run/<unit> into app containers.
+	requiredRuntimesEnv, ok := os.LookupEnv("ARDUINO_APP_CLI__REQUIRED_RUNTIMES")
+	if !ok {
+		requiredRuntimesEnv = "arduino-router,arduino-cloud-connector"
+	}
+	var requiredRuntimes []string
+	for u := range strings.SplitSeq(requiredRuntimesEnv, ",") {
+		if u = strings.TrimSpace(u); u != "" {
+			requiredRuntimes = append(requiredRuntimes, u)
+		}
+	}
+
+	// Directory where all AI models are installed.
+	modelsDir := paths.New(os.Getenv("MODELS_PATH"))
+	if modelsDir == nil {
+		modelsDir = dataDir.Join("models")
 	}
 
 	// Ensure the custom modules directory exists
@@ -73,14 +91,12 @@ func NewFromEnv() (Configuration, error) {
 		}
 		customModelsDir = paths.New(homeDir, ".arduino-bricks/models")
 	}
-	if customModelsDir.NotExist() {
-		if err := customModelsDir.MkdirAll(); err != nil {
-			slog.Warn("failed create custom model directory", "error", err)
-		}
-	}
 
-	pythonImage, usedPythonImageTag := getPythonImageAndTag()
+	registryBase := getDockerRegistryBase()
+	pythonImage, usedPythonImageTag := getPythonImageAndTag(registryBase)
 	slog.Debug("Using pythonImage", slog.String("image", pythonImage))
+
+	assetsDir := dataDir.Join("assets").Join(usedPythonImageTag)
 
 	allowRoot, err := strconv.ParseBool(os.Getenv("ARDUINO_APP_CLI__ALLOW_ROOT"))
 	if err != nil {
@@ -117,32 +133,42 @@ func NewFromEnv() (Configuration, error) {
 	c := Configuration{
 		appsDir:                          appsDir,
 		dataDir:                          dataDir,
-		routerSocketPath:                 routerSocket,
+		requiredRuntimes:                 requiredRuntimes,
 		customModelsDir:                  customModelsDir,
+		modelsDir:                        modelsDir,
+		assetDir:                         assetsDir,
+		dockerRegistryBase:               registryBase,
 		PythonImage:                      pythonImage,
-		UsedPythonImageTag:               usedPythonImageTag,
+		usedPythonImageTag:               usedPythonImageTag,
 		RunnerVersion:                    RunnerVersion,
 		AllowRoot:                        allowRoot,
 		LibrariesAPIURL:                  parsedLibrariesURL,
 		EdgeImpulseAPIURL:                parsedEdgeImpulseURL,
 		ArduinoPlatformVersionConstraint: constraint,
 	}
-	if err := c.init(); err != nil {
-		return Configuration{}, err
-	}
+
 	return c, nil
 }
 
-func (c *Configuration) init() error {
+// EnsureFolders creates the folders required by arduino-app-cli.
+//
+// This must not be executed as root (e.g. under ALLOW_ROOT): the folders would
+// be created root-owned and cause permission issues for the arduino user that
+// runs the application. Callers should skip it when running as root.
+func (c *Configuration) EnsureFolders() error {
 	if err := c.AppsDir().MkdirAll(); err != nil {
 		return err
 	}
-	if err := c.ExamplesDir().MkdirAll(); err != nil {
+	if err := c.ModelsDir().MkdirAll(); err != nil {
 		return err
 	}
-	if err := c.AssetsDir().MkdirAll(); err != nil {
+	if err := c.AssetDir().MkdirAll(); err != nil {
 		return err
 	}
+	if err := c.CustomModelsDir().MkdirAll(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -154,28 +180,84 @@ func (c *Configuration) DataDir() *paths.Path {
 	return c.dataDir
 }
 
-func (c *Configuration) ExamplesDir() *paths.Path {
+func (c *Configuration) ExamplesBaseDir() *paths.Path {
 	return c.dataDir.Join("examples")
 }
 
-func (c *Configuration) RouterSocketPath() *paths.Path {
-	return c.routerSocketPath
+func (c *Configuration) ExamplesAdditionalDirs() paths.PathList {
+	return paths.PathList{
+		c.ExamplesBaseDir().Join("core-and-foundational"),
+		c.ExamplesBaseDir().Join("bricks")}
 }
 
-func (c *Configuration) AssetsDir() *paths.Path {
-	return c.dataDir.Join("assets")
+func (c *Configuration) ExamplesDirs(platform platform.Platform) paths.PathList {
+	boardExampleDir := c.ExamplesBaseDir().Join("inspirational").Join(fmt.Sprintf("platform_%s", platform.BoardName))
+	if boardExampleDir.Exist() {
+		return paths.PathList{boardExampleDir, c.ExamplesBaseDir().Join("inspirational").Join("common")}
+	}
+	return paths.PathList{c.ExamplesBaseDir().Join("inspirational").Join("common")}
+}
+
+// RequiredRuntimesPaths returns the discovered host paths for configured required
+// units, searching in order: /run/<unit>, /var/run/<unit>, /run/<unit>.sock,
+// /var/run/<unit>.sock. The first existing entry per unit is returned.
+func (c *Configuration) RequiredRuntimesPaths() paths.PathList {
+	var result paths.PathList
+	for _, runtime := range c.requiredRuntimes {
+		candidates := []*paths.Path{
+			paths.New("/run", runtime),
+			paths.New("/var/run", runtime),
+			paths.New("/run", runtime+".sock"),
+			paths.New("/var/run", runtime+".sock"),
+		}
+		found := false
+		for _, p := range candidates {
+			if p.Exist() {
+				result.AddIfMissing(p)
+				found = true
+				break
+			}
+		}
+		if !found {
+			slog.Debug("required runtime not found on host", "runtime", runtime)
+		}
+	}
+	return result
+}
+
+func (c *Configuration) AssetDir() *paths.Path {
+	return c.assetDir
+}
+
+func (c *Configuration) MkTempAssetDir() (*paths.Path, error) {
+	return c.assetDir.Parent().MkTempDir("dynamic-provisioning")
 }
 
 func (c *Configuration) CustomModelsDir() *paths.Path {
 	return c.customModelsDir
 }
 
-func getPythonImageAndTag() (string, string) {
+func (c *Configuration) ModelsDir() *paths.Path {
+	return c.modelsDir
+}
+
+func (c *Configuration) DockerRegistryBase() string {
+	return c.dockerRegistryBase
+}
+
+func (c *Configuration) IsDevelopmentMode() bool {
+	return c.RunnerVersion != c.usedPythonImageTag
+}
+
+func getDockerRegistryBase() string {
 	registryBase := os.Getenv("DOCKER_REGISTRY_BASE")
 	if registryBase == "" {
 		registryBase = "ghcr.io/arduino/"
 	}
+	return registryBase
+}
 
+func getPythonImageAndTag(registryBase string) (string, string) {
 	// Python image: image name (repository) and optionally a tag.
 	pythonImageAndTag := os.Getenv("DOCKER_PYTHON_BASE_IMAGE")
 	if pythonImageAndTag == "" {

@@ -46,6 +46,7 @@ func listHandler(ctx context.Context, cfg config.Configuration, showBrokenApps b
 		servicelocator.GetAppIDProvider(),
 		servicelocator.GetBricksIndex(),
 		cfg,
+		servicelocator.GetPlatform(),
 	)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)

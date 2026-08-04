@@ -1,0 +1,3 @@
+services:
+  genie:
+    image: ghcr.io/arduino/app-bricks/genie-service:1.0.0

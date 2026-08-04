@@ -33,6 +33,7 @@ type AppDescriptor struct {
 	RequiredDevices []string `yaml:"required_devices,omitempty"`
 }
 
+//nolint:unparam // yaml.Marshaler pattern requires an error return even when this implementation cannot fail.
 func (d AppDescriptor) MarshalYAML() (any, error) {
 	type raw struct {
 		Name        string             `yaml:"name"`

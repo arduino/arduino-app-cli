@@ -17,10 +17,11 @@ import (
 	"github.com/docker/docker/api/types/filters"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
-func AppStatusEvents(ctx context.Context, cfg config.Configuration, docker command.Cli, idProvider *app.IDProvider) iter.Seq2[AppInfo, error] {
+func AppStatusEvents(ctx context.Context, cfg config.Configuration, docker command.Cli, idProvider *appid.Provider) iter.Seq2[AppInfo, error] {
 	chanMsg, chanError := docker.Client().Events(ctx, events.ListOptions{
 		Filters: filters.NewArgs(
 			filters.Arg("label", DockerAppLabel+"=true"),
@@ -69,7 +70,7 @@ func AppStatusEvents(ctx context.Context, cfg config.Configuration, docker comma
 	}
 }
 
-func parseDockerStatusEvent(ctx context.Context, cfg config.Configuration, docker command.Cli, idProvider *app.IDProvider, event events.Message) (AppInfo, error) {
+func parseDockerStatusEvent(ctx context.Context, cfg config.Configuration, docker command.Cli, idProvider *appid.Provider, event events.Message) (AppInfo, error) {
 
 	if pathLabel, ok := event.Actor.Attributes[DockerAppPathLabel]; ok {
 		app, err := app.Load(paths.New(pathLabel))

@@ -67,3 +67,146 @@ metadata:
 	}, descr)
 
 }
+
+func TestModelDescriptorValidate(t *testing.T) {
+	validEdgeImpulseMetadata := map[string]string{
+		"source":                "edgeimpulse",
+		"ei-project-id":         "123",
+		"ei-impulse-id":         "456",
+		"ei-impulse-name":       "my-impulse",
+		"ei-deployment-version": "1",
+		"ei-model-type":         "float32",
+		"ei-engine":             "tflite",
+	}
+
+	tests := []struct {
+		name        string
+		descriptor  ModelDescriptor
+		expectError bool
+		errorMsgs   []string
+	}{
+		{
+			name: "valid descriptor without source",
+			descriptor: ModelDescriptor{
+				ID:   "my-id",
+				Name: "my-name",
+			},
+			expectError: false,
+		},
+		{
+			name: "valid descriptor with edgeimpulse source",
+			descriptor: ModelDescriptor{
+				ID:       "my-id",
+				Name:     "my-name",
+				Metadata: validEdgeImpulseMetadata,
+			},
+			expectError: false,
+		},
+		{
+			name: "missing id",
+			descriptor: ModelDescriptor{
+				Name: "my-name",
+			},
+			expectError: true,
+			errorMsgs:   []string{"invalid model descriptor: id is empty"},
+		},
+		{
+			name: "missing name",
+			descriptor: ModelDescriptor{
+				ID: "my-id",
+			},
+			expectError: true,
+			errorMsgs:   []string{"invalid model descriptor: name is empty"},
+		},
+		{
+			name:        "missing id and name",
+			descriptor:  ModelDescriptor{},
+			expectError: true,
+			errorMsgs: []string{
+				"invalid model descriptor: id is empty",
+				"invalid model descriptor: name is empty",
+			},
+		},
+		{
+			name: "unsupported source",
+			descriptor: ModelDescriptor{
+				ID:   "my-id",
+				Name: "my-name",
+				Metadata: map[string]string{
+					"source": "unknown-source",
+				},
+			},
+			expectError: true,
+			errorMsgs:   []string{"invalid model descriptor: unsupported source 'unknown-source'"},
+		},
+		{
+			name: "edgeimpulse missing required fields",
+			descriptor: ModelDescriptor{
+				ID:   "my-id",
+				Name: "my-name",
+				Metadata: map[string]string{
+					"source":        "edgeimpulse",
+					"ei-model-type": "float32",
+					"ei-engine":     "tflite",
+				},
+			},
+			expectError: true,
+			errorMsgs: []string{
+				"invalid Edge Impulse metadata: missing required field 'ei-project-id'",
+				"invalid Edge Impulse metadata: missing required field 'ei-impulse-id'",
+				"invalid Edge Impulse metadata: missing required field 'ei-impulse-name'",
+				"invalid Edge Impulse metadata: missing required field 'ei-deployment-version'",
+			},
+		},
+		{
+			name: "edgeimpulse unsupported model type",
+			descriptor: ModelDescriptor{
+				ID:   "my-id",
+				Name: "my-name",
+				Metadata: map[string]string{
+					"source":                "edgeimpulse",
+					"ei-project-id":         "123",
+					"ei-impulse-id":         "456",
+					"ei-impulse-name":       "my-impulse",
+					"ei-deployment-version": "1",
+					"ei-model-type":         "int8",
+					"ei-engine":             "tflite",
+				},
+			},
+			expectError: true,
+			errorMsgs:   []string{"invalid Edge Impulse metadata: unsupported model type"},
+		},
+		{
+			name: "edgeimpulse unsupported engine",
+			descriptor: ModelDescriptor{
+				ID:   "my-id",
+				Name: "my-name",
+				Metadata: map[string]string{
+					"source":                "edgeimpulse",
+					"ei-project-id":         "123",
+					"ei-impulse-id":         "456",
+					"ei-impulse-name":       "my-impulse",
+					"ei-deployment-version": "1",
+					"ei-model-type":         "float32",
+					"ei-engine":             "onnx",
+				},
+			},
+			expectError: true,
+			errorMsgs:   []string{"invalid Edge Impulse metadata: unsupported engine"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.descriptor.Validate()
+			if tt.expectError {
+				require.Error(t, err)
+				for _, msg := range tt.errorMsgs {
+					require.ErrorContains(t, err, msg)
+				}
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

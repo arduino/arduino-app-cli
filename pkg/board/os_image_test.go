@@ -6,7 +6,6 @@
 package board
 
 import (
-	"context"
 	"io"
 	"strings"
 	"testing"
@@ -41,16 +40,8 @@ func (m *MockRemoteConn) Stats(path string) (remote.FileInfo, error) {
 func (m *MockRemoteConn) WriteFile(data io.Reader, path string) error {
 	return nil
 }
-func (m *MockRemoteConn) GetCmd(cmd string, args ...string) remote.Cmder {
-	return nil
-}
-func (m *MockRemoteConn) Forward(ctx context.Context, localPort int, remotePort int) error {
-	return nil
-}
-func (m *MockRemoteConn) ForwardKillAll(ctx context.Context) error {
-	return nil
-}
-func createBuildInfoConnection(imageVersion string) remote.RemoteConn {
+
+func createBuildInfoConnection(imageVersion string) remote.FS {
 	mockConn := MockRemoteConn{
 		ReadFileFunc: func(path string) (io.ReadCloser, error) {
 			return io.NopCloser(strings.NewReader(imageVersion)), nil

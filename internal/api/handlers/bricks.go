@@ -15,27 +15,22 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
 func HandleBrickList(brickService *bricks.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		res, err := brickService.List()
-		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to retrieve brick list"})
-
-			return
-		}
-		render.EncodeResponse(w, http.StatusOK, res)
+		render.EncodeResponse(w, http.StatusOK, brickService.List())
 	}
 }
 
 func HandleAppBrickInstancesList(
 	brickService *bricks.Service,
-	idProvider *app.IDProvider,
+	idProvider *appid.Provider,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		appId, err := idProvider.IDFromBase64(r.PathValue("appID"))
@@ -52,20 +47,14 @@ func HandleAppBrickInstancesList(
 			return
 		}
 
-		res, err := brickService.AppBrickInstancesList(&app)
-		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
-			details := fmt.Sprintf("unable to find brick list for app %q", appId)
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: details})
-			return
-		}
+		res := brickService.AppBrickInstancesList(&app)
 		render.EncodeResponse(w, http.StatusOK, res)
 	}
 }
 
 func HandleAppBrickInstanceDetails(
 	brickService *bricks.Service,
-	idProvider *app.IDProvider,
+	idProvider *appid.Provider,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		appId, err := idProvider.IDFromBase64(r.PathValue("appID"))
@@ -100,7 +89,7 @@ func HandleAppBrickInstanceDetails(
 
 func HandleBrickCreate(
 	brickService *bricks.Service,
-	idProvider *app.IDProvider,
+	idProvider *appid.Provider,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		appId, err := idProvider.IDFromBase64(r.PathValue("appID"))
@@ -144,15 +133,15 @@ func HandleBrickCreate(
 	}
 }
 
-func HandleBrickDetails(brickService *bricks.Service, idProvider *app.IDProvider,
-	cfg config.Configuration) http.HandlerFunc {
+func HandleBrickDetails(brickService *bricks.Service, idProvider *appid.Provider,
+	cfg config.Configuration, platform platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("brickID")
 		if id == "" {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "id must be set"})
 			return
 		}
-		res, err := brickService.BricksDetails(id, idProvider, cfg)
+		res, err := brickService.BricksDetails(id, idProvider, cfg, platform)
 		if err != nil {
 			if errors.Is(err, bricks.ErrBrickNotFound) {
 				details := fmt.Sprintf("brick with id %q not found", id)
@@ -170,7 +159,7 @@ func HandleBrickDetails(brickService *bricks.Service, idProvider *app.IDProvider
 
 func HandleBrickUpdates(
 	brickService *bricks.Service,
-	idProvider *app.IDProvider,
+	idProvider *appid.Provider,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		appId, err := idProvider.IDFromBase64(r.PathValue("appID"))
@@ -216,7 +205,7 @@ func HandleBrickUpdates(
 
 func HandleBrickDelete(
 	brickService *bricks.Service,
-	idProvider *app.IDProvider,
+	idProvider *appid.Provider,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		appId, err := idProvider.IDFromBase64(r.PathValue("appID"))

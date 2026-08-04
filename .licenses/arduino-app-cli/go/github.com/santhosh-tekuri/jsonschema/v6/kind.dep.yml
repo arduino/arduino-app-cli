@@ -1,12 +1,12 @@
 ---
 name: github.com/santhosh-tekuri/jsonschema/v6/kind
-version: v6.0.1
+version: v6.0.2
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/santhosh-tekuri/jsonschema/v6/kind
 license: apache-2.0
 licenses:
-- sources: v6@v6.0.1/LICENSE
+- sources: v6@v6.0.2/LICENSE
   text: |2-
 
                                      Apache License

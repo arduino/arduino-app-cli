@@ -106,7 +106,8 @@ func (a RemoteFile) Stat() (fs.FileInfo, error) {
 type RemoteFileInfo struct {
 	name string
 
-	isDir bool
+	isDir     bool
+	isSymlink bool
 }
 
 func (a RemoteFileInfo) Name() string {
@@ -119,10 +120,14 @@ func (a RemoteFileInfo) Size() int64 {
 }
 
 func (a RemoteFileInfo) Mode() fs.FileMode {
+	var mode fs.FileMode
 	if a.isDir {
-		return fs.ModeDir
+		mode |= fs.ModeDir
 	}
-	return 0
+	if a.isSymlink {
+		mode |= fs.ModeSymlink
+	}
+	return mode
 }
 
 func (a RemoteFileInfo) ModTime() time.Time {
@@ -169,8 +174,9 @@ func (a *RemoteDir) ReadDir(n int) ([]fs.DirEntry, error) {
 
 	return f.Map(files, func(file remote.FileInfo) fs.DirEntry {
 		return RemoteDirEntry{
-			name:  file.Name,
-			isDir: file.IsDir,
+			name:      file.Name,
+			isDir:     file.IsDir,
+			isSymlink: file.IsSymlink,
 		}
 	}), nil
 }
@@ -192,7 +198,8 @@ func (a RemoteDir) Read(p []byte) (n int, err error) {
 type RemoteDirEntry struct {
 	name string
 
-	isDir bool
+	isDir     bool
+	isSymlink bool
 }
 
 func (a RemoteDirEntry) Name() string {
@@ -202,12 +209,16 @@ func (a RemoteDirEntry) IsDir() bool {
 	return a.isDir
 }
 func (a RemoteDirEntry) Type() fs.FileMode {
+	var mode fs.FileMode
 	if a.isDir {
-		return fs.ModeDir
+		mode |= fs.ModeDir
 	}
-	return 0
+	if a.isSymlink {
+		mode |= fs.ModeSymlink
+	}
+	return mode
 }
 
 func (a RemoteDirEntry) Info() (fs.FileInfo, error) {
-	return &RemoteFileInfo{name: a.name, isDir: a.isDir}, nil
+	return &RemoteFileInfo{name: a.name, isDir: a.isDir, isSymlink: a.isSymlink}, nil
 }

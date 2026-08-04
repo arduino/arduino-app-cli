@@ -33,7 +33,7 @@ func newBricksDetailsCmd(cfg config.Configuration) *cobra.Command {
 
 func bricksDetailsHandler(id string, cfg config.Configuration) {
 	res, err := servicelocator.GetBrickService().BricksDetails(id, servicelocator.GetAppIDProvider(),
-		cfg)
+		cfg, servicelocator.GetPlatform())
 	if err != nil {
 		if errors.Is(err, bricks.ErrBrickNotFound) {
 			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
