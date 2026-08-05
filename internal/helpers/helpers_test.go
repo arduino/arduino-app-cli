@@ -162,6 +162,21 @@ func TestArduinoCLITaskProgressToString(t *testing.T) {
 			},
 			expected: "Install: completed",
 		},
+		{
+			name: "Task Without Percentage",
+			input: &rpc.TaskProgress{
+				Name: "Installing platform",
+			},
+			expected: "Installing platform",
+		},
+		{
+			name: "Task Without Percentage With Message",
+			input: &rpc.TaskProgress{
+				Name:    "Installing platform",
+				Message: "arduino:zephyr@0.56.0",
+			},
+			expected: "Installing platform (arduino:zephyr@0.56.0)",
+		},
 	}
 
 	for _, tt := range tests {

@@ -1046,7 +1046,7 @@ Contains a string with the message that a step of the upgrade process is startin
 Contains a JSON object with the overall completion percentage of the update process,
 from 0 to 100, and the step it is currently executing.
 'event: progress'
-'data: {"step":"platform download","progress":12.5}'
+'data: {"step":"docker images download","progress":44}'
 
 **Event 'restarting'**:
 Contains a string with the message that the upgrade is completed and the system is restarting.

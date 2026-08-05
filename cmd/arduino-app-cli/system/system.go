@@ -137,7 +137,7 @@ func newUpdateCmd(cfg config.Configuration) *cobra.Command {
 					feedback.Printf("Error: %s [%s]", err.Error(), update.GetUpdateErrorCode(err))
 				case update.ProgressEvent:
 					progress := event.GetProgress()
-					feedback.Printf("[%s] %s %.2f", event.Type.String(), progress.Step, progress.Progress)
+					feedback.Printf("[%s] %s %.0f%%", event.Type.String(), progress.Step, progress.Progress)
 				default:
 					feedback.Printf("[%s] %s", event.Type.String(), event.GetData())
 				}

@@ -265,7 +265,7 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 	if err != nil {
 		return fmt.Errorf("error burning bootloader: %w", err)
 	}
-	eventCB(update.NewProgressEvent("upgrade completed", completedProgress))
+	eventCB(update.NewProgressEvent("platform upgrade completed", completedProgress))
 
 	return nil
 }

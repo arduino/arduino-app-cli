@@ -41,6 +41,11 @@ func ArduinoCLITaskProgressToString(progress *rpc.TaskProgress) string {
 	if progress.GetCompleted() {
 		return fmt.Sprintf("%s: completed", name)
 	}
+	// Not every task reports a percentage: a platform install, for one, never sets
+	// it. Printing a bare 0% for the whole task would be misleading.
+	if progress.GetPercent() == 0 {
+		return name
+	}
 	return fmt.Sprintf("%s: %.0f%%", name, progress.GetPercent())
 }
 
