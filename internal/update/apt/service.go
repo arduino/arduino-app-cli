@@ -8,6 +8,7 @@ package apt
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"iter"
@@ -63,6 +64,17 @@ func (s *Service) ListUpgradablePackages(ctx context.Context, matcher func(updat
 
 const selfPackageName = "arduino-app-cli"
 
+// Progress milestones on a local 0-100 scale: the Manager rescales them to the
+// slice of the whole update process this updater is responsible for. Most of the
+// scale is reserved to the docker images download, by far the longest step.
+const (
+	aptUpgradeProgress       float32 = 0.0
+	aptCacheCleanProgress    float32 = 25.0
+	imagesDownloadProgress   float32 = 30.0
+	imagesCleanupProgress    float32 = 90.0
+	upgradeCompletedProgress float32 = 100.0
+)
+
 // UpgradePackages upgrades the specified packages using the `apt-get upgrade` command.
 // It publishes events to subscribers during the upgrade process.
 // It returns an error if the upgrade is already in progress or if the upgrade command fails.
@@ -92,17 +104,6 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 		}
 	}()
 
-	// Progress milestones on a local 0-100 scale: the Manager rescales them to the
-	// slice of the whole update process this updater is responsible for. Most of
-	// the scale is reserved to the docker images download, by far the longest step.
-	const (
-		aptUpgradeProgress       float32 = 0.0
-		aptCacheCleanProgress    float32 = 25.0
-		imagesDownloadProgress   float32 = 30.0
-		imagesCleanupProgress    float32 = 90.0
-		upgradeCompletedProgress float32 = 100.0
-	)
-
 	names := f.Map(packages, func(pkg update.PackageInfo) string {
 		return pkg.Name
 	})
@@ -125,7 +126,26 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 	}
 	eventCB(update.NewProgressEvent("docker images download", imagesDownloadProgress))
-	for line, err := range runSystemInit(ctx) {
+
+	// Of the two sources reporting a progress, only docker can be trusted: it is
+	// the fraction of the bytes of every image, and the total is known before the
+	// download starts. The arduino one is per file, out of an unknown number of
+	// them, so it is only logged.
+	//
+	// The last value is kept because the whole command is run again when it fails:
+	// the second run restarts from zero, and the progress must not follow it back.
+	lastImagesProgress := imagesDownloadProgress
+	handleInitResult := func(result orchestrator.InitResult) {
+		if result.Type == orchestrator.InitResultProgress && result.Source == string(orchestrator.InitSourceDocker) {
+			if value := imagesDownloadBand(result.Percent); value > lastImagesProgress {
+				lastImagesProgress = value
+				eventCB(update.NewProgressEvent("docker images download", value))
+			}
+		}
+		eventCB(update.NewDataEvent(update.UpgradeLineEvent, result.String()))
+	}
+
+	for result, err := range runSystemInit(ctx) {
 		if err != nil {
 			// In case of errors, including "out of disk space" erros, do a cleanup and then retry once.
 
@@ -141,14 +161,14 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 
 			// Try again to pull the docker containers.
 			eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Pulling the latest docker images (again) ..."))
-			for line, err := range runSystemInit(ctx) {
+			for result, err := range runSystemInit(ctx) {
 				if err != nil {
 					return fmt.Errorf("error pulling docker images: %w", err)
 				}
-				eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+				handleInitResult(result)
 			}
 		} else {
-			eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+			handleInitResult(result)
 		}
 	}
 	eventCB(update.NewProgressEvent("docker images cleanup", imagesCleanupProgress))
@@ -257,16 +277,19 @@ func runAptCleanCommand(ctx context.Context) iter.Seq2[string, error] {
 	}
 }
 
-func runSystemInit(ctx context.Context) iter.Seq2[string, error] {
-	return func(yield func(string, error) bool) {
-		cmd, err := paths.NewProcess(nil, "arduino-app-cli", "system", "init")
+func runSystemInit(ctx context.Context) iter.Seq2[orchestrator.InitResult, error] {
+	return func(yield func(orchestrator.InitResult, error) bool) {
+		// The json-lines format is what makes the progress of the images download
+		// readable from here. The binary being invoked is the one apt has just
+		// upgraded, so it is never older than this code.
+		cmd, err := paths.NewProcess(nil, "arduino-app-cli", "system", "init", "--format", "json-lines")
 		if err != nil {
-			_ = yield("", err)
+			_ = yield(orchestrator.InitResult{}, err)
 			return
 		}
 
 		stdout := orchestrator.NewCallbackWriter(func(line string) {
-			if !yield(line, nil) {
+			if !yield(parseSystemInitLine(line), nil) {
 				if err := cmd.Kill(); err != nil {
 					slog.Error("Failed to kill 'arduino-app-cli system init' command", slog.String("error", err.Error()))
 				}
@@ -276,10 +299,30 @@ func runSystemInit(ctx context.Context) iter.Seq2[string, error] {
 		cmd.RedirectStdoutTo(stdout)
 
 		if err = cmd.RunWithinContext(ctx); err != nil {
-			_ = yield("", err)
+			_ = yield(orchestrator.InitResult{}, err)
 			return
 		}
 	}
+}
+
+// parseSystemInitLine turns a line written by `system init` into an event.
+// Standard error is redirected to the same stream and is not structured, so
+// anything that does not parse as an event is reported as a log line, to make
+// sure nothing the command has to say gets dropped.
+func parseSystemInitLine(line string) orchestrator.InitResult {
+	var result orchestrator.InitResult
+	if err := json.Unmarshal([]byte(line), &result); err != nil || result.Type == "" {
+		return orchestrator.InitResult{Type: orchestrator.InitResultLog, Message: line}
+	}
+	return result
+}
+
+// imagesDownloadBand maps the 0-100 percentage reported by `system init` onto the
+// band of the local scale reserved to the images download. The percentage comes
+// from another process, so it is clamped rather than trusted.
+func imagesDownloadBand(percentage int) float32 {
+	percentage = min(max(percentage, 0), 100)
+	return imagesDownloadProgress + float32(percentage)/100.0*(imagesCleanupProgress-imagesDownloadProgress)
 }
 
 // Remove all stopped containers
