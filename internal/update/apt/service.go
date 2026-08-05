@@ -92,11 +92,22 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 		}
 	}()
 
+	// Progress milestones on a local 0-100 scale: the Manager rescales them to the
+	// slice of the whole update process this updater is responsible for. Most of
+	// the scale is reserved to the docker images download, by far the longest step.
+	const (
+		aptUpgradeProgress       float32 = 0.0
+		aptCacheCleanProgress    float32 = 25.0
+		imagesDownloadProgress   float32 = 30.0
+		imagesCleanupProgress    float32 = 90.0
+		upgradeCompletedProgress float32 = 100.0
+	)
+
 	names := f.Map(packages, func(pkg update.PackageInfo) string {
 		return pkg.Name
 	})
 	eventCB(update.NewDataEvent(update.StartEvent, "Upgrade is starting"))
-	eventCB(update.NewProgressEvent("apt upgrade", 65.0))
+	eventCB(update.NewProgressEvent("apt upgrade", aptUpgradeProgress))
 	stream := runUpgradeCommand(ctx, names)
 	for line, err := range stream {
 		if err != nil {
@@ -106,16 +117,14 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 	}
 
 	eventCB(update.NewDataEvent(update.StartEvent, "apt cleaning cache is starting"))
-	eventCB(update.NewProgressEvent("apt cleanup", 68.0))
-
+	eventCB(update.NewProgressEvent("apt cache cleanup", aptCacheCleanProgress))
 	for line, err := range runAptCleanCommand(ctx) {
 		if err != nil {
 			return fmt.Errorf("error running apt clean command: %w", err)
 		}
 		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 	}
-	eventCB(update.NewProgressEvent("system init", 70.0))
-
+	eventCB(update.NewProgressEvent("docker images download", imagesDownloadProgress))
 	for line, err := range runSystemInit(ctx) {
 		if err != nil {
 			// In case of errors, including "out of disk space" erros, do a cleanup and then retry once.
@@ -131,7 +140,6 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 			}
 
 			// Try again to pull the docker containers.
-
 			eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Pulling the latest docker images (again) ..."))
 			for line, err := range runSystemInit(ctx) {
 				if err != nil {
@@ -143,7 +151,7 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 			eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 		}
 	}
-	eventCB(update.NewProgressEvent("cleanup images", 90.0))
+	eventCB(update.NewProgressEvent("docker images cleanup", imagesCleanupProgress))
 	// After pulling new images is completed, remove old images to free up space.
 	eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Cleanup docker containers and images, to remove old unused images"))
 	streamCleanup := cleanupDockerContainers(ctx)
@@ -154,7 +162,11 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 			eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 		}
 	}
-	eventCB(update.NewProgressEvent("cleanup images", 98.0))
+	// The 100% milestone is emitted here, and not left to the Manager, because the
+	// deferred restart of the services runs before this function returns: needrestart
+	// restarts the daemon itself, so anything broadcast after it would never reach
+	// the subscribers.
+	eventCB(update.NewProgressEvent("upgrade completed", upgradeCompletedProgress))
 	return nil
 }
 
