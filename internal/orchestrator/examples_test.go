@@ -6,7 +6,6 @@
 package orchestrator
 
 import (
-	"path/filepath"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
@@ -72,9 +71,10 @@ bricks:
 	if err != nil {
 		t.Fatalf("failed to load bricks index: %v", err)
 	}
-	t.Setenv("ARDUINO_APP_CLI__DATA_DIR", filepath.Join(assetDir.String()))
+	t.Setenv("ARDUINO_APP_CLI__DATA_DIR", assetDir.String())
 
 	cfg, err := config.NewFromEnv()
+	require.NoError(t, err)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
 	testCases := []struct {
