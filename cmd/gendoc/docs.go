@@ -1037,6 +1037,17 @@ Contains a log message of the apt upgrade command.
 'event: log'
 'data: "updating package: 0.25"'
 
+**Event 'starting'**:
+Contains a string with the message that a step of the upgrade process is starting.
+'event: starting'
+'data: Upgrade is starting'
+
+**Event 'progress'**:
+Contains a JSON object with the overall completion percentage of the update process,
+from 0 to 100, and the step it is currently executing.
+'event: progress'
+'data: {"step":"platform download","progress":12.5}'
+
 **Event 'restarting'**:
 Contains a string with the message that the upgrade is completed and the system is restarting.
 'event: restarting'
