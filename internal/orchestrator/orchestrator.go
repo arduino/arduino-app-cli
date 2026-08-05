@@ -165,10 +165,9 @@ func StartApp(
 
 	cb(StreamMessage{data: fmt.Sprintf("Starting app %q", appToStart.Name)})
 
-	if needsAudioDevices(requiredClasses) && devices.HasCarrierSoundDevice {
-		if err := pipewire.EnsurePipewireRunning(ctx, cfg); err != nil {
-			return fmt.Errorf("failed to enable audio service linger: %w", err)
-		}
+	// We start PW for any platform or addon in order to be consistend with Network and SBC mode.
+	if err := pipewire.EnsurePipewireRunning(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to enable audio service linger: %w", err)
 	}
 
 	if err := setLedsToUserControlledMode(platform); err != nil {
