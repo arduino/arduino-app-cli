@@ -136,7 +136,8 @@ func newUpdateCmd(cfg config.Configuration) *cobra.Command {
 					err := event.GetError()
 					feedback.Printf("Error: %s [%s]", err.Error(), update.GetUpdateErrorCode(err))
 				case update.ProgressEvent:
-					feedback.Printf("[%s] %s %.2f", event.Type.String(), event.GetProgress().Name, event.GetProgress().Progress)
+					progress := event.GetProgress()
+					feedback.Printf("[%s] %s %.2f", event.Type.String(), progress.Step, progress.Progress)
 				default:
 					feedback.Printf("[%s] %s", event.Type.String(), event.GetData())
 				}
@@ -144,7 +145,6 @@ func newUpdateCmd(cfg config.Configuration) *cobra.Command {
 				if event.Type == update.DoneEvent {
 					break
 				}
-
 			}
 			return nil
 		},

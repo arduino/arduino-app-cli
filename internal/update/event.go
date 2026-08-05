@@ -27,9 +27,11 @@ type Event struct {
 	err      error // error field for error events
 }
 
+// ProgressInfo carries the completion percentage of the update process, together
+// with the step currently being executed.
 type ProgressInfo struct {
-	Name     string
-	Progress float32
+	Step     string  `json:"step"`
+	Progress float32 `json:"progress"`
 }
 
 func (t EventType) String() string {
@@ -58,11 +60,11 @@ func NewDataEvent(t EventType, data string) Event {
 	}
 }
 
-func NewProgressEvent(name string, progress float32) Event {
+func NewProgressEvent(step string, progress float32) Event {
 	return Event{
 		Type: ProgressEvent,
 		progress: &ProgressInfo{
-			Name:     name,
+			Step:     step,
 			Progress: progress,
 		},
 	}
