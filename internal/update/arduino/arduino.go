@@ -181,10 +181,13 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 		return fmt.Errorf("target version is empty for package '%s'", pkg.Name)
 	}
 
+	// Progress is reported on a local 0-100 scale: the Manager rescales it to the
+	// slice of the whole update process this updater is responsible for. The bands
+	// are contiguous and their weights must add up to 100.
 	const indexBase float32 = 0.0
 	const indexWeight float32 = 30.0
-	const upgradeBase float32 = 30.0
-	const upgradeWeight float32 = 60.0
+	const upgradeBase float32 = indexBase + indexWeight
+	const upgradeWeight float32 = 100.0 - upgradeBase
 
 	makeDownloadProgressCallback := func(name string, basePercentage, phaseWeight float32) func(*rpc.DownloadProgress) {
 		return func(curr *rpc.DownloadProgress) {
