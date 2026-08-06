@@ -22,7 +22,7 @@ import (
 )
 
 // runnerVersion do not edit, this is generate with `task bump:runner-version`
-var RunnerVersion = "0.12.0rc3"
+var RunnerVersion = "0.12.0"
 
 type Configuration struct {
 	appsDir                          *paths.Path
@@ -91,11 +91,6 @@ func NewFromEnv() (Configuration, error) {
 		}
 		customModelsDir = paths.New(homeDir, ".arduino-bricks/models")
 	}
-	if customModelsDir.NotExist() {
-		if err := customModelsDir.MkdirAll(); err != nil {
-			slog.Warn("failed create custom model directory", "error", err)
-		}
-	}
 
 	registryBase := getDockerRegistryBase()
 	pythonImage, usedPythonImageTag := getPythonImageAndTag(registryBase)
@@ -151,25 +146,29 @@ func NewFromEnv() (Configuration, error) {
 		EdgeImpulseAPIURL:                parsedEdgeImpulseURL,
 		ArduinoPlatformVersionConstraint: constraint,
 	}
-	if err := c.init(); err != nil {
-		return Configuration{}, err
-	}
+
 	return c, nil
 }
 
-func (c *Configuration) init() error {
+// EnsureFolders creates the folders required by arduino-app-cli.
+//
+// This must not be executed as root (e.g. under ALLOW_ROOT): the folders would
+// be created root-owned and cause permission issues for the arduino user that
+// runs the application. Callers should skip it when running as root.
+func (c *Configuration) EnsureFolders() error {
 	if err := c.AppsDir().MkdirAll(); err != nil {
-		return err
-	}
-	if err := c.examplesDir().Join("common").MkdirAll(); err != nil {
-		return err
-	}
-	if err := c.AssetDir().MkdirAll(); err != nil {
 		return err
 	}
 	if err := c.ModelsDir().MkdirAll(); err != nil {
 		return err
 	}
+	if err := c.AssetDir().MkdirAll(); err != nil {
+		return err
+	}
+	if err := c.CustomModelsDir().MkdirAll(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -181,20 +180,22 @@ func (c *Configuration) DataDir() *paths.Path {
 	return c.dataDir
 }
 
-func (c *Configuration) examplesDir() *paths.Path {
-	return c.dataDir.Join("examples", "inspirational")
+func (c *Configuration) ExamplesBaseDir() *paths.Path {
+	return c.dataDir.Join("examples")
 }
 
-func (c *Configuration) ExamplesBaseDir() *paths.Path {
-	return c.dataDir.Join("examples/")
+func (c *Configuration) ExamplesAdditionalDirs() paths.PathList {
+	return paths.PathList{
+		c.ExamplesBaseDir().Join("core-and-foundational"),
+		c.ExamplesBaseDir().Join("bricks")}
 }
 
 func (c *Configuration) ExamplesDirs(platform platform.Platform) paths.PathList {
-	boardExampleDir := c.examplesDir().Join(fmt.Sprintf("platform_%s", platform.BoardName))
+	boardExampleDir := c.ExamplesBaseDir().Join("inspirational").Join(fmt.Sprintf("platform_%s", platform.BoardName))
 	if boardExampleDir.Exist() {
-		return paths.PathList{boardExampleDir, c.examplesDir().Join("common")}
+		return paths.PathList{boardExampleDir, c.ExamplesBaseDir().Join("inspirational").Join("common")}
 	}
-	return paths.PathList{c.examplesDir().Join("common")}
+	return paths.PathList{c.ExamplesBaseDir().Join("inspirational").Join("common")}
 }
 
 // RequiredRuntimesPaths returns the discovered host paths for configured required

@@ -170,20 +170,6 @@ func (b Brick) GetReadmeFile() (string, error) {
 	return string(content), nil
 }
 
-func (b Brick) GetExamplesPath() (paths.PathList, error) {
-	if b.ExamplesPath == nil || b.ExamplesPath.NotExist() {
-		return nil, fmt.Errorf("examples not found for brick %s", b.ID)
-	}
-	dirEntries, err := b.ExamplesPath.ReadDir()
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("examples not found for brick %s", b.ID)
-		}
-		return nil, fmt.Errorf("cannot read examples directory %q: %w", b.ExamplesPath, err)
-	}
-	return dirEntries, nil
-}
-
 func (b Brick) GetApiDocPath() (*paths.Path, bool) {
 	if b.DocsAPIPath == nil || b.DocsAPIPath.NotExist() {
 		return nil, false
@@ -271,7 +257,7 @@ func Load(platform platform.Platform, path *paths.Path) (*BricksIndex, error) {
 	}
 
 	for i := range yamlIndex.Bricks {
-		namespace, brickName, err := parseBrickID(yamlIndex.Bricks[i].ID)
+		namespace, brickName, err := ParseBrickID(yamlIndex.Bricks[i].ID)
 		if err != nil {
 			return nil, err
 		}
@@ -328,7 +314,7 @@ func Load(platform platform.Platform, path *paths.Path) (*BricksIndex, error) {
 	}, nil
 }
 
-func parseBrickID(brickID string) (namespace, name string, err error) {
+func ParseBrickID(brickID string) (namespace, name string, err error) {
 	namespace, brickName, ok := strings.Cut(brickID, ":")
 	if !ok {
 		return "", "", errors.New("invalid ID")

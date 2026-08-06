@@ -50,10 +50,25 @@ func newDownloadImageCmd(cfg config.Configuration) *cobra.Command {
 		Args:   cobra.ExactArgs(0),
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return orchestrator.SystemInit(cmd.Context(), cfg, servicelocator.GetPlatform(), servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), servicelocator.GetModelsIndex(), servicelocator.GetDockerClient(), orchestrator.SystemInitOptions{
-				OnlyDockerImages:    onlyImages,
-				OnlyPlatformAndLibs: onlyPlatformAndLibraries,
-			})
+			printEvent, err := feedback.NewResultStream()
+			if err != nil {
+				return err
+			}
+
+			return orchestrator.SystemInit(
+				cmd.Context(),
+				cfg,
+				servicelocator.GetPlatform(),
+				servicelocator.GetBricksIndex(),
+				servicelocator.GetServicesIndex(),
+				servicelocator.GetDockerClient(),
+				servicelocator.GetModelsIndex(),
+				orchestrator.SystemInitOptions{
+					OnlyDockerImages:    onlyImages,
+					OnlyPlatformAndLibs: onlyPlatformAndLibraries,
+				},
+				newInitEventCallback(printEvent),
+			)
 		},
 	}
 

@@ -38,6 +38,7 @@ build/
 /debian/arduino-app-cli/home/arduino/.local/share/arduino-app-cli/examples
 /debian/arduino-app-cli/var/lib/arduino-app-cli/examples
 /debian/arduino-app-cli/var/lib/arduino-app-cli/assets
+/debian/arduino-app-cli/usr/share/doc/arduino-app-cli/copyright
 
 # e2e testdata downloaded on demand
 /internal/e2e/daemon/testdata/assets

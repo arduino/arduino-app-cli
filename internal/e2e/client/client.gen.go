@@ -254,8 +254,9 @@ type BrickDetailsResult struct {
 
 // BrickExamples defines model for BrickExamples.
 type BrickExamples struct {
-	Brick    *string    `json:"brick,omitempty"`
-	Examples *[]Example `json:"examples,omitempty"`
+	Brick         *string    `json:"brick,omitempty"`
+	BrickCategory *string    `json:"brick_category,omitempty"`
+	Examples      *[]Example `json:"examples,omitempty"`
 }
 
 // BrickInstance defines model for BrickInstance.
@@ -326,7 +327,10 @@ type CloneRequest struct {
 
 // CodeExample defines model for CodeExample.
 type CodeExample struct {
-	Path *string `json:"path,omitempty"`
+	Description *string `json:"description,omitempty"`
+	EncodedId   *string `json:"encoded_id,omitempty"`
+	Name        *string `json:"name,omitempty"`
+	Path        *string `json:"path,omitempty"`
 }
 
 // ConfigDirectories defines model for ConfigDirectories.
@@ -390,7 +394,7 @@ type Example struct {
 // ExampleResponse defines model for ExampleResponse.
 type ExampleResponse struct {
 	Bricks              *[]BrickExamples    `json:"bricks,omitempty"`
-	CoreAndFoundational *[]CategoryExamples `json:"coreAndFoundational,omitempty"`
+	CoreAndFoundational *[]CategoryExamples `json:"core-and-foundational,omitempty"`
 }
 
 // Library defines model for Library.

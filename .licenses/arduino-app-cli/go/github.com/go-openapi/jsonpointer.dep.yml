@@ -1,6 +1,6 @@
 ---
 name: github.com/go-openapi/jsonpointer
-version: v0.22.4
+version: v0.22.5
 type: go
 summary: Package jsonpointer provides a golang implementation for json pointers.
 homepage: https://pkg.go.dev/github.com/go-openapi/jsonpointer

@@ -57,19 +57,18 @@ func GetExamples(cfg config.Configuration, brickIndex *bricksindex.BricksIndex, 
 		retrieveExamplesInfo(examples.CoreAndFoundational[i].Examples, idProvider)
 	}
 
-	for i := range examples.Bricks {
-		addBrickInfo(&examples.Bricks[i], brickIndex)
-		retrieveExamplesInfo(examples.Bricks[i].Examples, idProvider)
+	rawBricks := examples.Bricks
+	examples.Bricks = make([]BrickExamples, 0, len(rawBricks))
+	for i := range rawBricks {
+		brickData, found := brickIndex.FindBrickByID(rawBricks[i].Brick)
+		if found {
+			rawBricks[i].BrickCategory = brickData.Category
+			retrieveExamplesInfo(rawBricks[i].Examples, idProvider)
+			examples.Bricks = append(examples.Bricks, rawBricks[i])
+		}
 	}
 
 	return examples, nil
-}
-
-func addBrickInfo(brickExample *BrickExamples, brickIndex *bricksindex.BricksIndex) {
-	brickData, found := brickIndex.FindBrickByID(brickExample.Brick)
-	if found {
-		brickExample.BrickCategory = brickData.Category
-	}
 }
 
 func getExampleFile(cfg config.Configuration) *paths.Path {

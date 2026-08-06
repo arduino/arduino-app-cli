@@ -35,7 +35,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	linuxconfig "github.com/arduino/arduino-app-cli/internal/orchestrator/linuxConfig"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/linuxconfig"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/pipewire"
@@ -113,14 +113,22 @@ func StartApp(
 	if err := checkBricks(ctx, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex); err != nil {
 		return err
 	}
-
-	devices, err := peripherals.Detect(ctx)
+	requiredClasses, err := requiredDeviceClasses(bricksIndex, appToStart.Descriptor.Bricks)
 	if err != nil {
 		return err
 	}
 
-	if err := checkRequiredDevices(bricksIndex, appToStart.Descriptor.Bricks, devices); err != nil {
-		return err
+	// Detect the board peripherals only when the app needs them.
+	var devices peripherals.AvailableDevices
+	if len(requiredClasses) > 0 {
+		devices, err = peripherals.Detect(ctx, platform)
+		if err != nil {
+			return err
+		}
+
+		if err := checkRequiredDevices(requiredClasses, devices); err != nil {
+			return err
+		}
 	}
 
 	appsStatus, err := getAppsStatus(ctx, docker.Client())
@@ -157,8 +165,7 @@ func StartApp(
 
 	cb(StreamMessage{data: fmt.Sprintf("Starting app %q", appToStart.Name)})
 
-	// TODO Pipewire is started if a media-carrier is present we should check also if it's required by the app.
-	if devices.HasCarrierSoundDevice {
+	if needsAudioDevices(requiredClasses) && devices.HasCarrierSoundDevice {
 		if err := pipewire.EnsurePipewireRunning(ctx, cfg); err != nil {
 			return fmt.Errorf("failed to enable audio service linger: %w", err)
 		}
@@ -543,6 +550,7 @@ func ListApps(
 	var appPaths paths.PathList
 	if req.ShowExamples || req.ShowOnlyDefault {
 		pathsToExplore.AddAll(cfg.ExamplesDirs(platform))
+		pathsToExplore.AddAll(cfg.ExamplesAdditionalDirs())
 	}
 	if req.ShowApps || req.ShowOnlyDefault {
 		pathsToExplore.Add(cfg.AppsDir())

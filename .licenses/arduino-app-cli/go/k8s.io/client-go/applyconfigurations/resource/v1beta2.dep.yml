@@ -1,12 +1,12 @@
 ---
-name: k8s.io/utils/clock/testing
-version: v0.0.0-20241104100929-3ea5e8cea738
+name: k8s.io/client-go/applyconfigurations/resource/v1beta2
+version: v0.34.1
 type: go
 summary:
-homepage: https://pkg.go.dev/k8s.io/utils/clock/testing
+homepage: https://pkg.go.dev/k8s.io/client-go/applyconfigurations/resource/v1beta2
 license: apache-2.0
 licenses:
-- sources: utils@v0.0.0-20241104100929-3ea5e8cea738/LICENSE
+- sources: client-go@v0.34.1/LICENSE
   text: |2
 
                                      Apache License

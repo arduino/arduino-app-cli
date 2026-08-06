@@ -8,8 +8,8 @@ vars:
   GOLANGCI_LINT_VERSION: v2.11.4
   GOIMPORTS_VERSION: v0.42.0
   DPRINT_VERSION: 0.48.0
-  EXAMPLE_VERSION: "0.12.0rc1"
-  RUNNER_VERSION: "0.12.0rc3"
+  EXAMPLE_VERSION: "0.12.0"
+  RUNNER_VERSION: "0.12.0"
   VERSION: # if version is not passed we hack the semver by encoding the commit as pre-release
     sh: echo "${VERSION:-0.0.0-$(git rev-parse --short HEAD)}"
 
@@ -124,6 +124,7 @@ tasks:
     desc: Build debian package
     deps:
       - build-deb:clone-examples
+      - build-deb:copyright
       - task: download-runner-assets
         vars:
           DEST: debian/arduino-app-cli/var/lib/arduino-app-cli/assets
@@ -152,6 +153,32 @@ tasks:
           rm -rf "${TMP_PATH}"
           echo "Examples successfully cloned."
     silent: false
+
+  build-deb:copyright:
+    desc: Add dependency licenses to debian copyright file
+    cmds:
+      - mkdir -p debian/arduino-app-cli/usr/share/doc/arduino-app-cli
+      - |
+          cat > debian/arduino-app-cli/usr/share/doc/arduino-app-cli/copyright <<EOF
+          Copyright Arduino s.r.l. and/or its affiliated companies
+
+          This program is free software: you can redistribute it and/or modify
+          it under the terms of the GNU General Public License as published by
+          the Free Software Foundation, either version 3 of the License, or
+          (at your option) any later version.
+
+          This program is distributed in the hope that it will be useful,
+          but WITHOUT ANY WARRANTY; without even the implied warranty of
+          MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+          GNU General Public License for more details.
+
+          You should have received a copy of the GNU General Public License
+          along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+          ---
+
+          EOF
+      - cat .licenses/arduino-app-cli/NOTICE >> debian/arduino-app-cli/usr/share/doc/arduino-app-cli/copyright
 
   download-runner-assets:
     desc: "Downloads the python runner assets into the given DEST directory"
@@ -266,6 +293,7 @@ tasks:
           fi
       - licensed cache
       - licensed notices
+      - go tool licensed-notice-deduplicate .licenses/arduino-app-cli/NOTICE
 
   # Source: https://github.com/arduino/tooling-project-assets/blob/main/workflow-templates/assets/check-dependencies-task/Taskfile.yml
   general:check-dep-licenses:

@@ -73,6 +73,7 @@ func NewArduinoAppCLI(t *testing.T, opts ...ArduinoAppCLIOption) *ArduinoAppCLI 
 		require.NoError(t, os.CopyFS(dataDir.String(), os.DirFS(originalTestDataDir.String())))
 		require.NoError(t, err, "failed to copy testdata to temp dir")
 	}
+	require.NoError(t, dataDir.Join("models").MkdirAll())
 
 	cli := &ArduinoAppCLI{
 		t:          require.New(t),

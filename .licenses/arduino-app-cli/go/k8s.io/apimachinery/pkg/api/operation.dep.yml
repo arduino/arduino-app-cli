@@ -1,12 +1,12 @@
 ---
-name: k8s.io/apimachinery/pkg/apis/meta/internalversion
-version: v0.32.3
+name: k8s.io/apimachinery/pkg/api/operation
+version: v0.34.1
 type: go
 summary:
-homepage: https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/internalversion
+homepage: https://pkg.go.dev/k8s.io/apimachinery/pkg/api/operation
 license: apache-2.0
 licenses:
-- sources: apimachinery@v0.32.3/LICENSE
+- sources: apimachinery@v0.34.1/LICENSE
   text: |2
 
                                      Apache License

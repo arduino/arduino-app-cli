@@ -1,6 +1,6 @@
 ---
 name: github.com/go-openapi/swag/jsonname
-version: v0.25.4
+version: v0.25.5
 type: go
 summary: Package jsonname is a provider of json property names from go properties.
 homepage: https://pkg.go.dev/github.com/go-openapi/swag/jsonname

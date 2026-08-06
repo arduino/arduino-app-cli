@@ -13,59 +13,22 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/arduino/go-paths-helper"
 
+	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
-func setOwner(ownerPath string, lingerTimestamp string) error {
-	if err := os.MkdirAll(filepath.Dir(ownerPath), 0700); err != nil {
-		return err
-	}
-	return os.WriteFile(ownerPath, []byte(lingerTimestamp), 0600)
-}
-
-func isSetbyApp(ownerPath string) (owned bool, recordedTimestamp string, err error) {
-	data, err := os.ReadFile(ownerPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return false, "", nil
-		}
-		return false, "", err
-	}
-	return true, string(data), nil
-}
-
-func clearOwner(ownerPath string) error {
-	err := os.Remove(ownerPath)
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	return nil
-}
-
-func systemdLingerTimestamp(ctx context.Context, username string) (string, error) {
-	cmdArgs := []string{"loginctl", "show-user", username, "-p", "TimestampMonotonic", "--value"}
-	cmd, err := paths.NewProcess(nil, cmdArgs...)
-	if err != nil {
-		return "", fmt.Errorf("create process %q: %w", strings.Join(cmdArgs, " "), err)
-	}
-
-	out, err := cmd.RunAndCaptureCombinedOutput(ctx)
-	if err != nil {
-		return "", fmt.Errorf("%s: %w: %s", strings.Join(cmdArgs, " "), err, strings.TrimSpace(string(out)))
-	}
-	return strings.TrimSpace(string(out)), nil
-}
-
-func runEnableLingerCmd(ctx context.Context, cfg config.Configuration) error {
+// enableLingering enables lingering for the current user if not already enabled, and saves the mtime of the linger file to the configuration directory.
+func enableLingering(ctx context.Context, cfg config.Configuration) error {
 	user, err := user.Current()
 	if err != nil {
 		return fmt.Errorf("get current user: %w", err)
 	}
 
-	alreadyOn, err := showLinger(ctx, user.Username)
+	alreadyOn, err := runShowLingerCommand(ctx, user.Username)
 	if err != nil {
 		return fmt.Errorf("check linger: %w", err)
 	}
@@ -73,27 +36,20 @@ func runEnableLingerCmd(ctx context.Context, cfg config.Configuration) error {
 		return nil
 	}
 
-	if err := enableLinger(ctx, user.Username); err != nil {
+	err = runEnableLingerCommand(ctx, user.Username)
+	if err != nil {
 		return fmt.Errorf("enable linger: %w", err)
 	}
-	timestamp, err := systemdLingerTimestamp(ctx, user.Username)
+	mtime, err := getLingerFileMtime(user.Username)
 	if err != nil {
 		return fmt.Errorf("read linger state: %w", err)
 	}
 
-	ownerPath := cfg.DataDir().Join("pipewire").Join(fmt.Sprintf("linger-owner-%s", user.Username)).String()
-	return setOwner(ownerPath, timestamp)
+	return saveLingerRecord(cfg, mtime)
 }
 
-func StopIfNotNeeded(ctx context.Context, cfg config.Configuration) error {
-
-	user, err := user.Current()
-	if err != nil {
-		return fmt.Errorf("get current user: %w", err)
-	}
-
-	ownerPath := cfg.DataDir().Join("pipewire").Join(fmt.Sprintf("linger-owner-%s", user.Username)).String()
-	owned, recordedTimestamp, err := isSetbyApp(ownerPath)
+func stopLingering(ctx context.Context, cfg config.Configuration) error {
+	owned, recordedMtime, err := readLingerRecord(cfg)
 	if err != nil {
 		return fmt.Errorf("check linger ownership: %w", err)
 	}
@@ -101,21 +57,76 @@ func StopIfNotNeeded(ctx context.Context, cfg config.Configuration) error {
 		return nil
 	}
 
-	currentTimestamp, err := systemdLingerTimestamp(ctx, user.Username)
+	user, err := user.Current()
+	if err != nil {
+		return fmt.Errorf("get current user: %w", err)
+	}
+
+	currentMtime, err := getLingerFileMtime(user.Username)
 	if err != nil {
 		return fmt.Errorf("read linger state: %w", err)
 	}
-	if currentTimestamp == recordedTimestamp {
-		if err := disableLinger(ctx, user.Username); err != nil {
+
+	if currentMtime.Equal(recordedMtime) {
+		err := runDisableLingerCommand(ctx, user.Username)
+		if err != nil {
 			return fmt.Errorf("disable linger: %w", err)
 		}
 		slog.Debug("linger disabled", slog.String("username", user.Username))
 	}
 
-	return clearOwner(ownerPath)
+	return clearLingerRecord(cfg)
 }
 
-func enableLinger(ctx context.Context, username string) error {
+func lingerRecordPath(cfg config.Configuration) *paths.Path {
+	return cfg.DataDir().Join("pipewire_linger.timestamp")
+}
+
+func saveLingerRecord(cfg config.Configuration, lingerMtime time.Time) error {
+	p := lingerRecordPath(cfg)
+	if err := p.Parent().MkdirAll(); err != nil {
+		return err
+	}
+	return fatomic.WriteFile(p.String(), []byte(lingerMtime.Format(time.RFC3339Nano)), 0600)
+}
+
+func readLingerRecord(cfg config.Configuration) (bool, time.Time, error) {
+	data, err := lingerRecordPath(cfg).ReadFile()
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, time.Time{}, nil
+		}
+		return false, time.Time{}, err
+	}
+
+	if t, err := time.Parse(time.RFC3339Nano, string(data)); err != nil {
+		return false, time.Time{}, fmt.Errorf("parse recorded linger mtime: %w", err)
+	} else {
+		return true, t, nil
+	}
+}
+
+func clearLingerRecord(cfg config.Configuration) error {
+	err := lingerRecordPath(cfg).Remove()
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
+// getLingerFileMtime returns the mtime of the linger file for the given username, or zero time if the file does not exist.
+func getLingerFileMtime(username string) (time.Time, error) {
+	info, err := os.Stat(filepath.Join("/var/lib/systemd/linger", username))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return time.Time{}, nil
+		}
+		return time.Time{}, err
+	}
+	return info.ModTime(), nil
+}
+
+func runEnableLingerCommand(ctx context.Context, username string) error {
 	cmdArgs := []string{"loginctl", "enable-linger", username}
 	cmd, err := paths.NewProcess(nil, cmdArgs...)
 	if err != nil {
@@ -128,7 +139,7 @@ func enableLinger(ctx context.Context, username string) error {
 	return nil
 }
 
-func disableLinger(ctx context.Context, username string) error {
+func runDisableLingerCommand(ctx context.Context, username string) error {
 	cmdArgs := []string{"loginctl", "disable-linger", username}
 	cmd, err := paths.NewProcess(nil, cmdArgs...)
 	if err != nil {
@@ -141,7 +152,7 @@ func disableLinger(ctx context.Context, username string) error {
 	return nil
 }
 
-func showLinger(ctx context.Context, username string) (bool, error) {
+func runShowLingerCommand(ctx context.Context, username string) (bool, error) {
 	cmdArgs := []string{"loginctl", "show-user", username, "-p", "Linger", "--value"}
 	cmd, err := paths.NewProcess(nil, cmdArgs...)
 	if err != nil {
