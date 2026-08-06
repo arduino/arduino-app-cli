@@ -356,6 +356,12 @@ func generateMainComposeFile(
 			volume{Type: "bind", Source: "/usr/lib/libcamera_metadata.so.0.1.0", Target: "/usr/lib/libcamera_metadata.so.0.1.0"},
 		)
 	}
+	// Mount D-Bus socket if it exists, to allow access to system services like bluetooth
+	if _, err := os.Stat("/run/dbus/system_bus_socket"); err == nil {
+		volumes = append(volumes,
+			volume{Type: "bind", Source: "/run/dbus/system_bus_socket", Target: "/run/dbus/system_bus_socket"},
+		)
+	}
 
 	volumes = addLedControl(platform, volumes)
 	groups := lookupGroups("video", "audio", "render", "dialout")
@@ -363,6 +369,8 @@ func generateMainComposeFile(
 	groups = append(groups, lookupGroups("fastrpc", "dmaheap")...)
 	// Support GPIO access
 	groups = append(groups, lookupGroups("gpiod")...)
+	// Support bluetooth access
+	groups = append(groups, lookupGroups("bluetooth")...)
 
 	// Define depends_on conditions
 	// Services with healthcheck will be started only when healthy
