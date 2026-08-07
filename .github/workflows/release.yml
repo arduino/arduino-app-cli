@@ -7,6 +7,8 @@ on:
 
 jobs:
   build:
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -53,6 +55,8 @@ jobs:
           retention-days: 1
 
   release:
+    permissions:
+      contents: write
     needs: build
     if: ${{ needs.build.result == 'success' }}
 
