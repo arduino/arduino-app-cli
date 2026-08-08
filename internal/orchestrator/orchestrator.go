@@ -735,6 +735,7 @@ type CreateAppRequest struct {
 	Name        string
 	Icon        string
 	Description string
+	Bricks      []string
 	SkipSketch  bool
 }
 
@@ -760,7 +761,10 @@ func CreateApp(
 		Name:        appName,
 		Description: req.Description,
 		Ports:       []int{},
-		Icon:        req.Icon, // TODO: not sure if icon will exists for bricks
+		Bricks: f.Map(req.Bricks, func(id string) app.Brick {
+			return app.Brick{ID: id}
+		}),
+		Icon: req.Icon, // TODO: not sure if icon will exists for bricks
 	}
 	if err := newApp.IsValid(); err != nil {
 		return CreateAppResponse{}, fmt.Errorf("%w: %v", app.ErrInvalidApp, err)

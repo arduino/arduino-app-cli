@@ -32,7 +32,7 @@ func newCreateCmd(cfg config.Configuration) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cobra.MinimumNArgs(1)
 			name := args[0]
-			return createHandler(cfg, name, icon, description, noSketch, fromApp)
+			return createHandler(cfg, name, icon, description, bricks, noSketch, fromApp)
 		},
 	}
 
@@ -45,7 +45,15 @@ func newCreateCmd(cfg config.Configuration) *cobra.Command {
 	return cmd
 }
 
-func createHandler(cfg config.Configuration, name string, icon string, description string, noSketch bool, fromApp string) error {
+func createHandler(
+	cfg config.Configuration,
+	name string,
+	icon string,
+	description string,
+	bricks []string,
+	noSketch bool,
+	fromApp string,
+) error {
 	if fromApp != "" {
 		id, err := servicelocator.GetAppIDProvider().ParseID(fromApp)
 		if err != nil {
@@ -74,6 +82,7 @@ func createHandler(cfg config.Configuration, name string, icon string, descripti
 			Name:        name,
 			Icon:        icon,
 			Description: description,
+			Bricks:      bricks,
 			SkipSketch:  noSketch,
 		}, servicelocator.GetAppIDProvider(), cfg)
 		if err != nil {
