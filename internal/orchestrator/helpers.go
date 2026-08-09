@@ -77,7 +77,7 @@ func parseAppStatus(containers []container.Summary) []AppStatusInfo {
 		}
 
 		// ...else we have multiple different status we calculate the status
-		// among the possible left: {failed, stopping, starting}
+		// among the possible left: {failed, stopping, starting, stopped}
 		if slices.ContainsFunc(s, func(v Status) bool { return v == StatusFailed }) {
 			appendResult(appPath, StatusFailed)
 			continue
@@ -88,6 +88,10 @@ func parseAppStatus(containers []container.Summary) []AppStatusInfo {
 		}
 		if slices.ContainsFunc(s, func(v Status) bool { return v == StatusStarting }) {
 			appendResult(appPath, StatusStarting)
+			continue
+		}
+		if slices.ContainsFunc(s, func(v Status) bool { return v == StatusStopped }) {
+			appendResult(appPath, StatusFailed)
 			continue
 		}
 	}
