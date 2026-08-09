@@ -6,9 +6,13 @@
 package platform
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
+	"os"
+	"strings"
 
 	"github.com/arduino/go-paths-helper"
 
@@ -21,6 +25,16 @@ type GpioPin struct {
 	Number int
 }
 
+// Distro represents the Linux distribution type.
+type Distro string
+
+const (
+	DistroDebian  Distro = "debian"
+	DistroUbuntu  Distro = "ubuntu"
+	DistroQLI     Distro = "qli"
+	DistroUnknown Distro = "unknown"
+)
+
 type Platform struct {
 	BoardName   string `json:"board_name"`
 	FQBN        string `json:"fqbn"`
@@ -28,6 +42,7 @@ type Platform struct {
 	CompileJobs int32  `json:"-"`
 	Linux       struct {
 		BoardLeds paths.PathList
+		Distro    Distro
 	} `json:"-"`
 	Micro struct {
 		ResetPin GpioPin
@@ -51,8 +66,12 @@ func GetPlatform(dir *paths.Path) Platform {
 			FQBN:       "arduino:zephyr:unoq",
 			PlatformID: "arduino:zephyr",
 			BoardName:  "unoq",
-			Linux: struct{ BoardLeds paths.PathList }{
+			Linux: struct {
+				BoardLeds paths.PathList
+				Distro    Distro
+			}{
 				BoardLeds: GetUnoQBoardLeds(),
+				Distro:    GetLinuxDistro(),
 			},
 			CompileJobs: 2,
 			Micro: struct{ ResetPin GpioPin }{
@@ -64,8 +83,12 @@ func GetPlatform(dir *paths.Path) Platform {
 			FQBN:       "arduino:zephyr:ventunoq",
 			PlatformID: "arduino:zephyr",
 			BoardName:  "ventunoq",
-			Linux: struct{ BoardLeds paths.PathList }{
+			Linux: struct {
+				BoardLeds paths.PathList
+				Distro    Distro
+			}{
 				BoardLeds: GetVentunoQBoardLeds(),
+				Distro:    GetLinuxDistro(),
 			},
 			CompileJobs: 0, // unlimited
 			Micro: struct{ ResetPin GpioPin }{
@@ -170,4 +193,61 @@ func GetVentunoQBoardLeds() paths.PathList {
 		"/dev/leds/builtin/led4_g",
 		"/dev/leds/builtin/led4_r",
 	)
+}
+
+func GetLinuxDistro() Distro {
+	return classifyDistro(osReleaseName())
+}
+
+func classifyDistro(osReleaseName string) Distro {
+	name := strings.ToLower(osReleaseName)
+	switch {
+	case strings.Contains(name, "ubuntu"):
+		return DistroUbuntu
+	case strings.Contains(name, "qualcomm"):
+		return DistroQLI
+	case strings.Contains(name, "debian"):
+		return DistroDebian
+	}
+	return DistroUnknown
+}
+
+// osReleaseName reads the NAME field from /etc/os-release.
+func osReleaseName() string {
+	f, err := os.Open("/etc/os-release")
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	return parseOSReleaseName(f)
+}
+
+// parseOSReleaseName extracts the NAME field value from an os-release stream.
+func parseOSReleaseName(r io.Reader) string {
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "NAME=") {
+			return strings.Trim(strings.TrimPrefix(line, "NAME="), "\"")
+		}
+	}
+	return ""
+}
+
+// GetLinuxDistroConfig returns the distro-specific environment variables that
+// should be injected into the Docker Compose environment for the given Distro.
+// Distros without any specific configuration return an empty map.
+func GetLinuxDistroConfig(distro Distro) map[string]string {
+	switch distro {
+	case DistroDebian:
+		const dspPath = "/usr/share/hexagon-dsp"
+		if paths.New(dspPath).Exist() {
+			return map[string]string{
+				"HOST_DSP_INSTALLATION_PATH": dspPath,
+			}
+		}
+		return map[string]string{}
+	default:
+		return map[string]string{}
+	}
 }
