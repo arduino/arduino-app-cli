@@ -131,9 +131,6 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 	// the fraction of the bytes of every image, and the total is known before the
 	// download starts. The arduino one is per file, out of an unknown number of
 	// them, so it is only logged.
-	//
-	// The last value is kept because the whole command is run again when it fails:
-	// the second run restarts from zero, and the progress must not follow it back.
 	lastImagesProgress := imagesDownloadProgress
 	handleInitResult := func(result orchestrator.InitResult) {
 		if result.Type == orchestrator.InitResultProgress && result.Source == string(orchestrator.InitSourceDocker) {
@@ -279,9 +276,6 @@ func runAptCleanCommand(ctx context.Context) iter.Seq2[string, error] {
 
 func runSystemInit(ctx context.Context) iter.Seq2[orchestrator.InitResult, error] {
 	return func(yield func(orchestrator.InitResult, error) bool) {
-		// The json-lines format is what makes the progress of the images download
-		// readable from here. The binary being invoked is the one apt has just
-		// upgraded, so it is never older than this code.
 		cmd, err := paths.NewProcess(nil, "arduino-app-cli", "system", "init", "--format", "json-lines")
 		if err != nil {
 			_ = yield(orchestrator.InitResult{}, err)
@@ -305,10 +299,6 @@ func runSystemInit(ctx context.Context) iter.Seq2[orchestrator.InitResult, error
 	}
 }
 
-// parseSystemInitLine turns a line written by `system init` into an event.
-// Standard error is redirected to the same stream and is not structured, so
-// anything that does not parse as an event is reported as a log line, to make
-// sure nothing the command has to say gets dropped.
 func parseSystemInitLine(line string) orchestrator.InitResult {
 	var result orchestrator.InitResult
 	if err := json.Unmarshal([]byte(line), &result); err != nil || result.Type == "" {
