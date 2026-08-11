@@ -113,14 +113,12 @@ func (r *RequiresServices) UnmarshalYAML(node ast.Node) error {
 }
 
 type Brick struct {
-	ID              string   `yaml:"id"`
-	Name            string   `yaml:"name"`
-	Description     string   `yaml:"description"`
-	SupportedBoards []string `yaml:"supported_boards,omitempty"`
-	Category        string   `yaml:"category,omitempty"`
-	RequiresDisplay string   `yaml:"requires_display,omitempty"`
-	// Deprecated : the field `require_container` is deprecated, you can remove it from the brick config. It will be ignored if present.
-	RequireContainer            bool                      `yaml:"require_container"` // Deprecated
+	ID                          string                    `yaml:"id"`
+	Name                        string                    `yaml:"name"`
+	Description                 string                    `yaml:"description"`
+	SupportedBoards             []string                  `yaml:"supported_boards,omitempty"`
+	Category                    string                    `yaml:"category,omitempty"`
+	RequiresDisplay             string                    `yaml:"requires_display,omitempty"`
 	Variables                   []BrickVariable           `yaml:"variables,omitempty"`
 	Ports                       []string                  `yaml:"ports,omitempty"`
 	ModelName                   string                    `yaml:"model_name,omitempty"`
@@ -260,9 +258,6 @@ func Load(platform platform.Platform, path *paths.Path) (*BricksIndex, error) {
 		namespace, brickName, err := ParseBrickID(yamlIndex.Bricks[i].ID)
 		if err != nil {
 			return nil, err
-		}
-		if yamlIndex.Bricks[i].RequireContainer {
-			slog.Warn("the field `require_container` is deprecated. You can remove it from the brick config", "brick_id", yamlIndex.Bricks[i].ID)
 		}
 		yamlIndex.Bricks[i].Source = "Arduino"
 		yamlIndex.Bricks[i].FullPath = path
