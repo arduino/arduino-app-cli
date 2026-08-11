@@ -13,14 +13,6 @@ const (
 	InitResultProgress = "progress"
 )
 
-// InitResult is the serializable form of an InitEvent: it is what the
-// `system init` command writes, one JSON object per line, when asked for the
-// json-lines output format.
-//
-// It is a contract, not just a rendering: the update process runs `system init`
-// as a subprocess and reads these lines back to follow the progress of the
-// docker images download, so the field names are part of an interface between
-// the two.
 type InitResult struct {
 	Type    string `json:"type"`
 	Source  string `json:"source,omitempty"`
