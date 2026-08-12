@@ -3,6 +3,7 @@ import time
 
 logger = Logger("GreeterBrick")
 
+
 @brick
 class Greeter:
     def __init__(self, name="World"):
