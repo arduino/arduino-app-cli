@@ -131,21 +131,42 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 		defer m.lock.Unlock()
 		defer m.isUpgrading.Store(false)
 
+		const arduinoWeight float32 = 20.0
+		const aptWeight float32 = 80.0
+
 		// We are launching on purpose the update sequentially. The reason is that
 		// the deb pkgs restart the orchestrator, and if we run in parallel the
 		// update of the cores we will end up with inconsistent state, or
 		// we need to re run the upgrade because the orchestrator interrupted
 		// in the middle the upgrade of the cores.
-		if err := m.arduinoPlatformUpdateService.UpgradePackages(ctx, arduinoPlatform, m.broadcast); err != nil {
+		if err := m.arduinoPlatformUpdateService.UpgradePackages(ctx, arduinoPlatform, func(e Event) {
+			if e.Type == ProgressEvent {
+				progress := e.GetProgress()
+				globalProgress := (progress.Progress / 100.0) * arduinoWeight
+				m.broadcast(NewProgressEvent(progress.Step, globalProgress))
+			} else {
+				m.broadcast(e)
+			}
+		}); err != nil {
 			m.broadcast(NewErrorEvent(fmt.Errorf("failed to upgrade Arduino packages: %w", err)))
 
 			// continue with deb packages upgrade.
 		}
 
-		if err := m.debUpdateService.UpgradePackages(ctx, debPkgs, m.broadcast); err != nil {
+		if err := m.debUpdateService.UpgradePackages(ctx, debPkgs, func(e Event) {
+			if e.Type == ProgressEvent {
+				progress := e.GetProgress()
+				globalProgress := arduinoWeight + (progress.Progress/100.0)*aptWeight
+				m.broadcast(NewProgressEvent(progress.Step, globalProgress))
+			} else {
+				m.broadcast(e)
+			}
+		}); err != nil {
 			m.broadcast(NewErrorEvent(fmt.Errorf("failed to upgrade APT packages: %w", err)))
 			return
 		}
+
+		m.broadcast(NewProgressEvent("upgrade", 100.0))
 
 		m.broadcast(NewDataEvent(DoneEvent, "Update completed"))
 	}()
