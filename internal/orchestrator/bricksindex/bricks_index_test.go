@@ -195,7 +195,6 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 					Description:               "A test brick",
 					Category:                  "",
 					RequiresDisplay:           "",
-					RequireContainer:          false,
 					RequiredDevices:           nil,
 					Variables:                 nil,
 					Ports:                     nil,
