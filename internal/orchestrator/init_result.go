@@ -17,11 +17,11 @@ const (
 type InitResult struct {
 	Type    InitResultType  `json:"type"`
 	Source  InitEventSource `json:"source,omitempty"`
-	Message string         `json:"message,omitempty"`
-	Label   string         `json:"label,omitempty"`
-	Current int64          `json:"current,omitempty"`
-	Total   int64          `json:"total,omitempty"`
-	Percent int            `json:"percent,omitempty"`
+	Message string          `json:"message,omitempty"`
+	Label   string          `json:"label,omitempty"`
+	Current int64           `json:"current,omitempty"`
+	Total   int64           `json:"total,omitempty"`
+	Percent int             `json:"percent,omitempty"`
 }
 
 // Data implements feedback.Result.
