@@ -114,14 +114,12 @@ func (r *RequiresServices) UnmarshalYAML(node ast.Node) error {
 }
 
 type Brick struct {
-	ID              string   `yaml:"id"`
-	Name            string   `yaml:"name"`
-	Description     string   `yaml:"description"`
-	SupportedBoards []string `yaml:"supported_boards,omitempty"`
-	Category        string   `yaml:"category,omitempty"`
-	RequiresDisplay string   `yaml:"requires_display,omitempty"`
-	// Deprecated : the field `require_container` is deprecated, you can remove it from the brick config. It will be ignored if present.
-	RequireContainer            bool                      `yaml:"require_container"` // Deprecated
+	ID                          string                    `yaml:"id"`
+	Name                        string                    `yaml:"name"`
+	Description                 string                    `yaml:"description"`
+	SupportedBoards             []string                  `yaml:"supported_boards,omitempty"`
+	Category                    string                    `yaml:"category,omitempty"`
+	RequiresDisplay             string                    `yaml:"requires_display,omitempty"`
 	Variables                   []BrickVariable           `yaml:"variables,omitempty"`
 	Ports                       []string                  `yaml:"ports,omitempty"`
 	ModelName                   string                    `yaml:"model_name,omitempty"`
@@ -169,20 +167,6 @@ func (b Brick) GetReadmeFile() (string, error) {
 		return "", fmt.Errorf("cannot read README.md for brick %s: %w", b.ID, err)
 	}
 	return string(content), nil
-}
-
-func (b Brick) GetExamplesPath() (paths.PathList, error) {
-	if b.ExamplesPath == nil || b.ExamplesPath.NotExist() {
-		return nil, fmt.Errorf("examples not found for brick %s", b.ID)
-	}
-	dirEntries, err := b.ExamplesPath.ReadDir()
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("examples not found for brick %s", b.ID)
-		}
-		return nil, fmt.Errorf("cannot read examples directory %q: %w", b.ExamplesPath, err)
-	}
-	return dirEntries, nil
 }
 
 func (b Brick) GetApiDocPath() (*paths.Path, bool) {
@@ -270,12 +254,9 @@ func Load(platform platform.Platform, path *paths.Path) (*BricksIndex, error) {
 	}
 
 	for i := range yamlIndex.Bricks {
-		namespace, brickName, err := parseBrickID(yamlIndex.Bricks[i].ID)
+		namespace, brickName, err := ParseBrickID(yamlIndex.Bricks[i].ID)
 		if err != nil {
 			return nil, err
-		}
-		if yamlIndex.Bricks[i].RequireContainer {
-			slog.Warn("the field `require_container` is deprecated. You can remove it from the brick config", "brick_id", yamlIndex.Bricks[i].ID)
 		}
 		yamlIndex.Bricks[i].Source = "Arduino"
 		yamlIndex.Bricks[i].FullPath = path
@@ -327,7 +308,7 @@ func Load(platform platform.Platform, path *paths.Path) (*BricksIndex, error) {
 	}, nil
 }
 
-func parseBrickID(brickID string) (namespace, name string, err error) {
+func ParseBrickID(brickID string) (namespace, name string, err error) {
 	namespace, brickName, ok := strings.Cut(brickID, ":")
 	if !ok {
 		return "", "", errors.New("invalid ID")

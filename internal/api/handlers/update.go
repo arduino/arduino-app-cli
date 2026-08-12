@@ -142,7 +142,8 @@ func HandleUpdateEvents(updater *update.Manager) http.HandlerFunc {
 					slog.Info("APT event channel closed, stopping SSE stream")
 					return
 				}
-				if event.Type == update.ErrorEvent {
+				switch event.Type {
+				case update.ErrorEvent:
 					err := event.GetError()
 					code := render.InternalServiceErr
 					if c := update.GetUpdateErrorCode(err); c != update.UnknownErrorCode {
@@ -152,7 +153,12 @@ func HandleUpdateEvents(updater *update.Manager) http.HandlerFunc {
 						Code:    code,
 						Message: err.Error(),
 					})
-				} else {
+				case update.ProgressEvent:
+					sseStream.Send(render.SSEEvent{
+						Type: event.Type.String(),
+						Data: event.GetProgress(),
+					})
+				default:
 					sseStream.Send(render.SSEEvent{
 						Type: event.Type.String(),
 						Data: event.GetData(),

@@ -252,6 +252,13 @@ type BrickDetailsResult struct {
 	Variables *map[string]BrickVariable `json:"variables,omitempty"`
 }
 
+// BrickExamples defines model for BrickExamples.
+type BrickExamples struct {
+	Brick         *string    `json:"brick,omitempty"`
+	BrickCategory *string    `json:"brick_category,omitempty"`
+	Examples      *[]Example `json:"examples,omitempty"`
+}
+
 // BrickInstance defines model for BrickInstance.
 type BrickInstance struct {
 	Author           *string                `json:"author,omitempty"`
@@ -298,6 +305,12 @@ type BrokenAppInfo struct {
 	Name  *string `json:"name,omitempty"`
 }
 
+// CategoryExamples defines model for CategoryExamples.
+type CategoryExamples struct {
+	Category *string    `json:"category,omitempty"`
+	Examples *[]Example `json:"examples,omitempty"`
+}
+
 // CloneAppResponse defines model for CloneAppResponse.
 type CloneAppResponse struct {
 	Id *string `json:"id,omitempty"`
@@ -314,7 +327,10 @@ type CloneRequest struct {
 
 // CodeExample defines model for CodeExample.
 type CodeExample struct {
-	Path *string `json:"path,omitempty"`
+	Description *string `json:"description,omitempty"`
+	EncodedId   *string `json:"encoded_id,omitempty"`
+	Name        *string `json:"name,omitempty"`
+	Path        *string `json:"path,omitempty"`
 }
 
 // ConfigDirectories defines model for ConfigDirectories.
@@ -365,6 +381,20 @@ type EditRequest struct {
 type ErrorResponse struct {
 	Code    *int    `json:"code,omitempty"`
 	Message *string `json:"message,omitempty"`
+}
+
+// Example defines model for Example.
+type Example struct {
+	Description *string `json:"description,omitempty"`
+	EncodedId   *string `json:"encoded_id,omitempty"`
+	Id          *string `json:"id,omitempty"`
+	Name        *string `json:"name,omitempty"`
+}
+
+// ExampleResponse defines model for ExampleResponse.
+type ExampleResponse struct {
+	Bricks              *[]BrickExamples    `json:"bricks,omitempty"`
+	CoreAndFoundational *[]CategoryExamples `json:"core-and-foundational,omitempty"`
 }
 
 // Library defines model for Library.
@@ -836,6 +866,9 @@ type ClientInterface interface {
 	// GetConfig request
 	GetConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetExamples request
+	GetExamples(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListLibraries request
 	ListLibraries(ctx context.Context, params *ListLibrariesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1293,6 +1326,18 @@ func (c *Client) GetBrickDetails(ctx context.Context, id string, reqEditors ...R
 
 func (c *Client) GetConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetConfigRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetExamples(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetExamplesRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -2776,6 +2821,33 @@ func NewGetConfigRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewGetExamplesRequest generates requests for GetExamples
+func NewGetExamplesRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/examples")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListLibrariesRequest generates requests for ListLibraries
 func NewListLibrariesRequest(server string, params *ListLibrariesParams) (*http.Request, error) {
 	var err error
@@ -3569,6 +3641,9 @@ type ClientWithResponsesInterface interface {
 
 	// GetConfigWithResponse request
 	GetConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetConfigResp, error)
+
+	// GetExamplesWithResponse request
+	GetExamplesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetExamplesResp, error)
 
 	// ListLibrariesWithResponse request
 	ListLibrariesWithResponse(ctx context.Context, params *ListLibrariesParams, reqEditors ...RequestEditorFn) (*ListLibrariesResp, error)
@@ -4491,6 +4566,37 @@ func (r GetConfigResp) ContentType() string {
 	return ""
 }
 
+type GetExamplesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ExampleResponse
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetExamplesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetExamplesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetExamplesResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ListLibrariesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -5242,6 +5348,15 @@ func (c *ClientWithResponses) GetConfigWithResponse(ctx context.Context, reqEdit
 		return nil, err
 	}
 	return ParseGetConfigResp(rsp)
+}
+
+// GetExamplesWithResponse request returning *GetExamplesResp
+func (c *ClientWithResponses) GetExamplesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetExamplesResp, error) {
+	rsp, err := c.GetExamples(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetExamplesResp(rsp)
 }
 
 // ListLibrariesWithResponse request returning *ListLibrariesResp
@@ -6501,6 +6616,39 @@ func ParseGetConfigResp(rsp *http.Response) (*GetConfigResp, error) {
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest ConfigResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetExamplesResp parses an HTTP response from a GetExamplesWithResponse call
+func ParseGetExamplesResp(rsp *http.Response) (*GetExamplesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetExamplesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ExampleResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

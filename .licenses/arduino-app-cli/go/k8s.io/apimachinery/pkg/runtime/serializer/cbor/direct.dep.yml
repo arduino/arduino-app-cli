@@ -1,6 +1,6 @@
 ---
 name: k8s.io/apimachinery/pkg/runtime/serializer/cbor/direct
-version: v0.32.3
+version: v0.34.1
 type: go
 summary: Package direct provides functions for marshaling and unmarshaling between
   arbitrary Go values and CBOR data, with behavior that is compatible with that of
@@ -8,7 +8,7 @@ summary: Package direct provides functions for marshaling and unmarshaling betwe
 homepage: https://pkg.go.dev/k8s.io/apimachinery/pkg/runtime/serializer/cbor/direct
 license: apache-2.0
 licenses:
-- sources: apimachinery@v0.32.3/LICENSE
+- sources: apimachinery@v0.34.1/LICENSE
   text: |2
 
                                      Apache License

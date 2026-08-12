@@ -26,16 +26,19 @@ func TestNewIDFromPath(t *testing.T) {
 
 	orchestratorConfig, err := config.NewFromEnv()
 	require.NoError(t, err)
-	examplesBoardDir := orchestratorConfig.DataDir().Join("examples", "platform_unoq")
-	examplesCommonDir := orchestratorConfig.DataDir().Join("examples", "common")
+	examplesUnoQDir := orchestratorConfig.DataDir().Join("examples", "inspirational", "platform_unoq")
+	examplesCommonDir := orchestratorConfig.DataDir().Join("examples", "inspirational", "common")
+	examplesBaseDir := orchestratorConfig.DataDir().Join("examples")
 	require.NoError(t, orchestratorConfig.AppsDir().Join("user-app").MkdirAll())
 	require.NoError(t, examplesCommonDir.Join("example-app").MkdirAll())
-	require.NoError(t, examplesBoardDir.Join("special-example-app").MkdirAll())
+	require.NoError(t, examplesUnoQDir.Join("special-example-app").MkdirAll())
 	require.NoError(t, examplesCommonDir.Join("duplicated-example-app").MkdirAll())
-	require.NoError(t, examplesBoardDir.Join("duplicated-example-app").MkdirAll())
+	require.NoError(t, examplesUnoQDir.Join("duplicated-example-app").MkdirAll())
 	require.NoError(t, examplesCommonDir.Join("nested", "deep", "example-app").MkdirAll())
-	require.NoError(t, examplesBoardDir.Join("nested", "platform-example").MkdirAll())
-	require.NoError(t, tmp.Join("other-app").MkdirAll())
+	require.NoError(t, examplesUnoQDir.Join("nested", "platform-example").MkdirAll())
+	require.NoError(t, examplesBaseDir.Join("core-and-foundational", "nested1", "nested2").MkdirAll())
+	require.NoError(t, examplesBaseDir.Join("bricks", "nested1").MkdirAll())
+	require.NoError(t, tmp.Join("other-location-app").MkdirAll())
 
 	idProvider := NewAppProvider(orchestratorConfig, unoQPlatform)
 
@@ -51,35 +54,44 @@ func TestNewIDFromPath(t *testing.T) {
 			want: f.Must(idProvider.ParseID("user:user-app")),
 		},
 		{
-			name: "valid example id",
+			name: "valid example id, legacy, in common",
 			in:   examplesCommonDir.Join("example-app"),
-			want: f.Must(idProvider.ParseID("examples:example-app")),
+			want: f.Must(idProvider.ParseID("examples:inspirational/example-app")),
 		},
 		{
 			name: "duplicated example id, the platform specific wins",
-			in:   examplesBoardDir.Join("duplicated-example-app"),
-			want: f.Must(idProvider.ParseID("examples:duplicated-example-app")),
+			in:   examplesUnoQDir.Join("duplicated-example-app"),
+			want: f.Must(idProvider.ParseID("examples:inspirational/duplicated-example-app")),
 		},
 		{
 			name: "platform specific valid example id",
-			in:   examplesBoardDir.Join("special-example-app"),
-			want: f.Must(idProvider.ParseID("examples:special-example-app")),
+			in:   examplesUnoQDir.Join("special-example-app"),
+			want: f.Must(idProvider.ParseID("examples:inspirational/special-example-app")),
 		},
 		{
 			name: "nested common example id",
 			in:   examplesCommonDir.Join("nested", "deep", "example-app"),
-			want: f.Must(idProvider.ParseID("examples:nested/deep/example-app")),
+			want: f.Must(idProvider.ParseID("examples:inspirational/nested/deep/example-app")),
 		},
 		{
 			name: "nested platform example id",
-			in:   examplesBoardDir.Join("nested", "platform-example"),
-			want: f.Must(idProvider.ParseID("examples:nested/platform-example")),
+			in:   examplesUnoQDir.Join("nested", "platform-example"),
+			want: f.Must(idProvider.ParseID("examples:inspirational/nested/platform-example")),
 		},
-
 		{
 			name: "valid absolute path",
-			in:   tmp.Join("other-app"),
-			want: f.Must(idProvider.IDFromPath(tmp.Join("other-app"))),
+			in:   tmp.Join("other-location-app"),
+			want: f.Must(idProvider.ParseID(tmp.Join("other-location-app").String())),
+		},
+		{
+			name: "inspirational path",
+			in:   examplesBaseDir.Join("core-and-foundational", "nested1", "nested2"),
+			want: f.Must(idProvider.ParseID("examples:core-and-foundational/nested1/nested2")),
+		},
+		{
+			name: "bricks",
+			in:   examplesBaseDir.Join("bricks", "nested1"),
+			want: f.Must(idProvider.ParseID("examples:bricks/nested1")),
 		},
 	}
 
@@ -104,11 +116,13 @@ func TestParseID(t *testing.T) {
 	orchestratorConfig, err := config.NewFromEnv()
 	require.NoError(t, err)
 	require.NoError(t, tmp.Join("other-app").MkdirAll())
-	examplesBoardDir := orchestratorConfig.DataDir().Join("examples", "platform_unoq")
-	examplesCommonDir := orchestratorConfig.DataDir().Join("examples", "common")
+	examplesUnoQDir := orchestratorConfig.DataDir().Join("examples", "inspirational", "platform_unoq")
+	examplesCommonDir := orchestratorConfig.DataDir().Join("examples", "inspirational", "common")
+	examplesBaseDir := orchestratorConfig.DataDir().Join("examples")
 	require.NoError(t, examplesCommonDir.Join("example-app").MkdirAll())
+	require.NoError(t, examplesCommonDir.Join("common-example").MkdirAll())
 	require.NoError(t, examplesCommonDir.Join("nested", "deep", "example-app").MkdirAll())
-	require.NoError(t, examplesBoardDir.Join("nested", "platform-example").MkdirAll())
+	require.NoError(t, examplesUnoQDir.Join("nested", "platform-example").MkdirAll())
 
 	idProvider := NewAppProvider(orchestratorConfig, unoQPlatform)
 
@@ -124,19 +138,19 @@ func TestParseID(t *testing.T) {
 			wantPath: orchestratorConfig.AppsDir().Join("user-app"),
 		},
 		{
-			name:     "valid example id",
-			in:       "examples:example-app",
+			name:     "valid example id, should check in common",
+			in:       "examples:inspirational/example-app",
 			wantPath: examplesCommonDir.Join("example-app"),
 		},
 		{
 			name:     "nested common example id",
-			in:       "examples:nested/deep/example-app",
+			in:       "examples:inspirational/nested/deep/example-app",
 			wantPath: examplesCommonDir.Join("nested", "deep", "example-app"),
 		},
 		{
 			name:     "nested platform example id wins over common",
-			in:       "examples:nested/platform-example",
-			wantPath: examplesBoardDir.Join("nested", "platform-example"),
+			in:       "examples:inspirational/nested/platform-example",
+			wantPath: examplesUnoQDir.Join("nested", "platform-example"),
 		},
 		{
 			name:     "absolute path to app",
@@ -154,9 +168,39 @@ func TestParseID(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "not existing path",
+			name:    "not existing system path raise an error",
 			in:      "/non/existing/path",
 			wantErr: true,
+		},
+		{
+			name:     "not existing known location path DO NOT raise an error",
+			in:       "examples:inspirational/missing",
+			wantPath: examplesCommonDir.Join("missing"),
+		},
+		{
+			name:     "core-and-foundational should be processed",
+			in:       "examples:core-and-foundational/example-app",
+			wantPath: examplesBaseDir.Join("core-and-foundational", "example-app"),
+		},
+		{
+			name:     "bricks should be processed",
+			in:       "examples:bricks/example-app",
+			wantPath: examplesBaseDir.Join("bricks", "example-app"),
+		},
+		{
+			name:     "others_dir existing: is resolved starting from examples",
+			in:       "examples:others_dir/example-app",
+			wantPath: examplesBaseDir.Join("others_dir", "example-app"),
+		},
+		{
+			name:     "others_dir missing: is resolved starting from examples",
+			in:       "examples:others_dir/missing",
+			wantPath: examplesBaseDir.Join("others_dir", "missing"),
+		},
+		{
+			name:     "common examples should start from inspirational, no common is required",
+			in:       "examples:inspirational/common-example",
+			wantPath: examplesCommonDir.Join("common-example"),
 		},
 	}
 

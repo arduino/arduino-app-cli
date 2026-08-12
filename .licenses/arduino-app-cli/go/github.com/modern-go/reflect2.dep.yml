@@ -1,6 +1,6 @@
 ---
 name: github.com/modern-go/reflect2
-version: v1.0.2
+version: v1.0.3-0.20250322232337-35a7c28c31ee
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/modern-go/reflect2

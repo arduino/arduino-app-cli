@@ -815,6 +815,24 @@ Contains a JSON object with the details of an error.
 			},
 		},
 		{
+			OperationId: "getExamples",
+			Method:      http.MethodGet,
+			Path:        "/v1/examples",
+			Request:     nil,
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: orchestrator.ExampleResponse{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "returns the example structure for rendering",
+			Summary:     "returns the example structure",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
 			OperationId: "getVersions",
 			Method:      http.MethodGet,
 			Path:        "/v1/version",
@@ -1018,6 +1036,17 @@ The client will receive events formatted as follows:
 Contains a log message of the apt upgrade command.
 'event: log'
 'data: "updating package: 0.25"'
+
+**Event 'starting'**:
+Contains a string with the message that a step of the upgrade process is starting.
+'event: starting'
+'data: Upgrade is starting'
+
+**Event 'progress'**:
+Contains a JSON object with the overall completion percentage of the update process,
+from 0 to 100, and the step it is currently executing.
+'event: progress'
+'data: {"step":"docker images download","progress":44}'
 
 **Event 'restarting'**:
 Contains a string with the message that the upgrade is completed and the system is restarting.

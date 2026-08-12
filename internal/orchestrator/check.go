@@ -71,14 +71,15 @@ func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.Bri
 	return allErrors
 }
 
-func checkRequiredDevices(bricksIndex *bricksindex.BricksIndex, appBricks []app.Brick, availableDevices peripherals.AvailableDevices) error {
-	requiredDeviceClasses := make(map[peripherals.DeviceClass]bool)
+// requiredDeviceClasses returns the sorted device classes required by the app bricks, skipping the
+// ones satisfied by a virtual device.
+func requiredDeviceClasses(bricksIndex *bricksindex.BricksIndex, appBricks []app.Brick) ([]peripherals.DeviceClass, error) {
+	required := make(map[peripherals.DeviceClass]bool)
 
 	for _, brick := range appBricks {
 		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
 		if !found {
-			slog.Warn("Cannot validate required devices. Brick not found", slog.String("brick_id", brick.ID))
-			continue
+			return nil, fmt.Errorf("brick %q not found", brick.ID)
 		}
 
 		// skip checks for virtual devices
@@ -86,30 +87,38 @@ func checkRequiredDevices(bricksIndex *bricksindex.BricksIndex, appBricks []app.
 			if peripherals.HasVirtualDevice(deviceClass, brick.Devices) {
 				continue
 			}
-			requiredDeviceClasses[deviceClass] = true
+			required[deviceClass] = true
 		}
 	}
 
+	return slices.Sorted(maps.Keys(required)), nil
+}
+
+// needsAudioDevices reports whether the app requires a microphone or a speaker.
+func needsAudioDevices(requiredClasses []peripherals.DeviceClass) bool {
+	return slices.Contains(requiredClasses, peripherals.MicrophoneClass) ||
+		slices.Contains(requiredClasses, peripherals.SpeakerClass)
+}
+
+func checkRequiredDevices(requiredClasses []peripherals.DeviceClass, availableDevices peripherals.AvailableDevices) error {
 	var allErrors error
-	devices := slices.Sorted(maps.Keys(requiredDeviceClasses))
-	if len(devices) > 0 {
-		for _, class := range devices {
-			switch class {
-			case peripherals.CameraClass:
-				if !availableDevices.HasVideoDevice && !availableDevices.HasCSICameraDevice {
-					allErrors = errors.Join(allErrors, fmt.Errorf("no camera device found"))
-				}
-			case peripherals.MicrophoneClass:
-				if !availableDevices.HasSoundDevice {
-					allErrors = errors.Join(allErrors, fmt.Errorf("no microphone device found"))
-				}
-			case peripherals.SpeakerClass:
-				if !availableDevices.HasSoundDevice {
-					allErrors = errors.Join(allErrors, fmt.Errorf("no speaker device found"))
-				}
-			default:
-				slog.Debug("not handled device class - no action", slog.String("class", string(class)))
+	for _, class := range requiredClasses {
+		switch class {
+		case peripherals.CameraClass:
+			if !availableDevices.HasVideoDevice && !availableDevices.HasCSICameraDevice {
+				allErrors = errors.Join(allErrors, fmt.Errorf("no camera device found"))
 			}
+		//TODO: not all profile in the media carrier have a mic.
+		case peripherals.MicrophoneClass:
+			if !availableDevices.HasSoundDevice && !availableDevices.HasCarrierSoundDevice {
+				allErrors = errors.Join(allErrors, fmt.Errorf("no microphone device found"))
+			}
+		case peripherals.SpeakerClass:
+			if !availableDevices.HasSoundDevice && !availableDevices.HasCarrierSoundDevice {
+				allErrors = errors.Join(allErrors, fmt.Errorf("no speaker device found"))
+			}
+		default:
+			slog.Debug("not handled device class - no action", slog.String("class", string(class)))
 		}
 	}
 
