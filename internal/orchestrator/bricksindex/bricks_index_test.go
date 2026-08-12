@@ -578,7 +578,7 @@ func TestGetMatchingService(t *testing.T) {
 		{
 			name:             "no requires_services returns empty slice",
 			requiresServices: nil,
-			model:    "some-model",
+			model:            "some-model",
 			wantServices:     []string{},
 		},
 		{
@@ -586,32 +586,32 @@ func TestGetMatchingService(t *testing.T) {
 			requiresServices: []RequiresService{
 				{ID: "service-a", When: nil},
 			},
-			model: "any-model",
-			wantServices:  []string{"service-a"},
+			model:        "any-model",
+			wantServices: []string{"service-a"},
 		},
 		{
 			name: "service with when but no model field matches unconditionally",
 			requiresServices: []RequiresService{
 				{ID: "service-b", When: &RequiresServiceMatch{Model: nil}},
 			},
-			model: "any-model",
-			wantServices:  []string{"service-b"},
+			model:        "any-model",
+			wantServices: []string{"service-b"},
 		},
 		{
 			name: "service with matching model pattern returns service ID",
 			requiresServices: []RequiresService{
 				{ID: "service-c", When: &RequiresServiceMatch{Model: new("mobilenet-*")}},
 			},
-			model: "mobilenet-image-classification",
-			wantServices:  []string{"service-c"},
+			model:        "mobilenet-image-classification",
+			wantServices: []string{"service-c"},
 		},
 		{
 			name: "service with non-matching model pattern returns empty slice",
 			requiresServices: []RequiresService{
 				{ID: "service-d", When: &RequiresServiceMatch{Model: new("mobilenet-*")}},
 			},
-			model: "yolo-object-detection",
-			wantServices:  []string{},
+			model:        "yolo-object-detection",
+			wantServices: []string{},
 		},
 		{
 			name: "only second service matches",
@@ -619,8 +619,8 @@ func TestGetMatchingService(t *testing.T) {
 				{ID: "service-e", When: &RequiresServiceMatch{Model: new("mobilenet-*")}},
 				{ID: "service-f", When: &RequiresServiceMatch{Model: new("yolo-*")}},
 			},
-			model: "yolo-object-detection",
-			wantServices:  []string{"service-f"},
+			model:        "yolo-object-detection",
+			wantServices: []string{"service-f"},
 		},
 		{
 			name: "multiple services match and all are returned",
@@ -628,8 +628,8 @@ func TestGetMatchingService(t *testing.T) {
 				{ID: "service-g", When: &RequiresServiceMatch{Model: new("mobilenet-*")}},
 				{ID: "service-h", When: nil},
 			},
-			model: "mobilenet-image-classification",
-			wantServices:  []string{"service-g", "service-h"},
+			model:        "mobilenet-image-classification",
+			wantServices: []string{"service-g", "service-h"},
 		},
 		{
 			name: "no service matches returns empty slice",
@@ -637,16 +637,16 @@ func TestGetMatchingService(t *testing.T) {
 				{ID: "service-i", When: &RequiresServiceMatch{Model: new("mobilenet-*")}},
 				{ID: "service-j", When: &RequiresServiceMatch{Model: new("yolo-*")}},
 			},
-			model: "resnet-classification",
-			wantServices:  []string{},
+			model:        "resnet-classification",
+			wantServices: []string{},
 		},
 		{
 			name: "invalid pattern returns error",
 			requiresServices: []RequiresService{
 				{ID: "service-k", When: &RequiresServiceMatch{Model: new("[invalid")}},
 			},
-			model: "any-model",
-			wantErr:       true,
+			model:   "any-model",
+			wantErr: true,
 		},
 	}
 
