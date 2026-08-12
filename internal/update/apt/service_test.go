@@ -118,7 +118,7 @@ func TestParseSystemInitLine(t *testing.T) {
 			input: `{"type":"progress","source":"docker","label":"arduino/app:1.0","current":50,"total":100,"percent":50}`,
 			expected: orchestrator.InitResult{
 				Type:    orchestrator.InitResultProgress,
-				Source:  "docker",
+				Source:  orchestrator.InitSourceDocker,
 				Label:   "arduino/app:1.0",
 				Current: 50,
 				Total:   100,
@@ -130,7 +130,7 @@ func TestParseSystemInitLine(t *testing.T) {
 			input: `{"type":"log","source":"docker","message":"pulling images"}`,
 			expected: orchestrator.InitResult{
 				Type:    orchestrator.InitResultLog,
-				Source:  "docker",
+				Source:  orchestrator.InitSourceDocker,
 				Message: "pulling images",
 			},
 		},

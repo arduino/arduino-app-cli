@@ -133,7 +133,7 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 	// them, so it is only logged.
 	lastImagesProgress := imagesDownloadProgress
 	handleInitResult := func(result orchestrator.InitResult) {
-		if result.Type == orchestrator.InitResultProgress && result.Source == string(orchestrator.InitSourceDocker) {
+		if result.Type == orchestrator.InitResultProgress && result.Source == orchestrator.InitSourceDocker {
 			if value := imagesDownloadBand(result.Percent); value > lastImagesProgress {
 				lastImagesProgress = value
 				eventCB(update.NewProgressEvent("docker images download", value))

@@ -15,8 +15,8 @@ const (
 )
 
 type InitResult struct {
-	Type    InitResultType `json:"type"`
-	Source  string         `json:"source,omitempty"`
+	Type    InitResultType  `json:"type"`
+	Source  InitEventSource `json:"source,omitempty"`
 	Message string         `json:"message,omitempty"`
 	Label   string         `json:"label,omitempty"`
 	Current int64          `json:"current,omitempty"`
@@ -44,14 +44,14 @@ func NewInitResult(e InitEvent) *InitResult {
 	case InitLogEvent:
 		return &InitResult{
 			Type:    InitResultLog,
-			Source:  string(e.Source),
+			Source:  e.Source,
 			Message: e.Message,
 		}
 	case InitProgressEvent:
 		p := e.Progress
 		return &InitResult{
 			Type:    InitResultProgress,
-			Source:  string(e.Source),
+			Source:  e.Source,
 			Label:   p.Label,
 			Current: p.Curr,
 			Total:   p.Total,
