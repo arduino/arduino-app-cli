@@ -195,7 +195,9 @@ func (b *Manager) broadcast(event Event) {
 	defer b.mu.RUnlock()
 
 	if event.Type == ErrorEvent {
-		slog.Error("An error occurred", slog.Any("event", event))
+		// Log the error itself: Event's fields are unexported, so logging the
+		// struct prints the error as a bare pointer address.
+		slog.Error("An error occurred", slog.Any("error", event.GetError()))
 	}
 	for ch := range b.subs {
 		select {

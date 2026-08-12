@@ -51,6 +51,11 @@ type SSEStream struct {
 	messageCh         chan SSEEvent
 	isClosing         atomic.Bool
 
+	// drainingCh is closed as soon as loop() stops reading messageCh. Senders
+	// select on it so that a Send issued after the client disconnected is
+	// dropped instead of blocking forever on the unbuffered channel.
+	drainingCh chan struct{}
+
 	shutdownFn context.CancelFunc
 	stoppedCh  chan struct{}
 	ctx        context.Context
@@ -81,6 +86,7 @@ func NewSSEStream(ctx context.Context, w http.ResponseWriter) (*SSEStream, error
 		heartbeatInterval: 30 * time.Second,
 		messageCh:         make(chan SSEEvent),
 		isClosing:         atomic.Bool{},
+		drainingCh:        make(chan struct{}),
 		shutdownFn:        cancel,
 		stoppedCh:         make(chan struct{}),
 		ctx:               ctx,
@@ -93,6 +99,10 @@ func NewSSEStream(ctx context.Context, w http.ResponseWriter) (*SSEStream, error
 
 func (s *SSEStream) loop() {
 	defer func() {
+		// Stop accepting events before anything else: from here on nothing
+		// reads messageCh, so a concurrent Send must not be allowed to block.
+		close(s.drainingCh)
+
 		// This is kept for backward compatibility. We should remove this in the future.
 		_ = s.send(SSEEvent{Type: "error", Data: SSEErrorData{Code: "SERVER_CLOSED"}})
 
@@ -129,7 +139,11 @@ func (s *SSEStream) Send(event SSEEvent) {
 		slog.Debug("SSE stream is closing, ignoring event", slog.String("event", event.Type))
 		return
 	}
-	s.messageCh <- event
+	select {
+	case s.messageCh <- event:
+	case <-s.drainingCh:
+		slog.Debug("SSE stream is no longer draining, dropping event", slog.String("event", event.Type))
+	}
 }
 
 func (s *SSEStream) SendError(event SSEErrorData) {
@@ -137,7 +151,11 @@ func (s *SSEStream) SendError(event SSEErrorData) {
 		slog.Debug("SSE stream is closing, ignoring event", slog.String("event", "error"))
 		return
 	}
-	s.messageCh <- SSEEvent{Type: "error", Data: event}
+	select {
+	case s.messageCh <- SSEEvent{Type: "error", Data: event}:
+	case <-s.drainingCh:
+		slog.Debug("SSE stream is no longer draining, dropping event", slog.String("event", "error"))
+	}
 }
 
 func (s *SSEStream) Close() {
