@@ -179,8 +179,10 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 
 		model, err := modelsIndex.GetModelByID(r.Context(), id)
 		if err != nil {
+			// Forward the reason, as HandlerModelByID does: it names the model
+			// and the path that could not be used, which the caller needs.
 			slog.Error("unable to get model by ID", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to get model by ID"})
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: err.Error()})
 			return
 		}
 		if model == nil {
