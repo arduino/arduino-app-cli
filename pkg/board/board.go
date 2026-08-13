@@ -322,6 +322,20 @@ func GetCustomName(conn remote.RemoteConn) (string, error) {
 	return string(bytes.TrimSpace(out)), nil
 }
 
+func GetBoardID() (string, error) {
+	compatible := devicetree.LoadCompatible()
+	slog.Debug("detected platform", "compatible", compatible)
+	switch {
+	case compatible.IsCompatibleWith("arduino,imola"):
+		return "unoq", nil
+	case compatible.IsCompatibleWith("arduino,monza"):
+		return "ventunoq", nil
+	default:
+		slog.Warn("not supported platform", "compatible", compatible)
+	}
+	return "", fmt.Errorf("failed to identify board id")
+}
+
 func IsUserPasswordSet(conn remote.RemoteShell) (bool, error) {
 	// TODO: remove hardcoded arduino username
 	cmd := conn.GetCmd("chage", "-l", "arduino")
