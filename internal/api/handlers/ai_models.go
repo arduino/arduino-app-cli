@@ -230,6 +230,10 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 
 		err = modelsIndex.Download(r.Context(), dockerClient.Client(), *model, plat, installResponse)
 		if err != nil {
+			// Also log it: the SSE event only reaches a client that is still
+			// listening, and the container is gone by now, so without this the
+			// reason cannot be recovered after the fact.
+			slog.Error("model download failed", slog.String("model", model.ID), slog.String("error", err.Error()))
 			if errors.Is(err, modelsindex.ErrInsufficientStorage) {
 				sseStream.SendError(render.SSEErrorData{
 					Code:    "insufficient_storage",
