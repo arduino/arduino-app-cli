@@ -16,6 +16,7 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"sync"
 	"syscall"
 
 	"github.com/docker/cli/cli/command"
@@ -120,6 +121,53 @@ type ModelsIndex struct {
 	Handlers        *HandlersIndex
 	cli             client.APIClient
 	plat            platform.Platform
+
+	mu          sync.Mutex
+	downloading map[string]struct{}
+}
+
+// AcquireDownload reserves the directory a model downloads into, returning a
+// release function and true, or false if a download into it is already running.
+//
+// The handler script cannot tell a live download from an interrupted one: it
+// treats the ".download" marker as stale, removes the directory and starts
+// over. A second run therefore deletes the first run's partial files while it
+// is still reading them, and both fail with ENOENT. Overlapping runs have to be
+// prevented here because the container cannot detect them itself.
+func (m *ModelsIndex) AcquireDownload(model AIModel, plat platform.Platform) (release func(), ok bool) {
+	key := downloadKey(model, plat)
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, busy := m.downloading[key]; busy {
+		return nil, false
+	}
+	if m.downloading == nil {
+		m.downloading = make(map[string]struct{})
+	}
+	m.downloading[key] = struct{}{}
+
+	return func() {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		delete(m.downloading, key)
+	}, true
+}
+
+// downloadKey identifies the directory a model's download writes into. Models
+// sharing a repository share that directory - every quantization of one Hugging
+// Face repo lands in the same folder - so the directory, not the model ID, is
+// what must not be written to twice at once.
+func downloadKey(model AIModel, plat platform.Platform) string {
+	if model.Deployment == nil {
+		return model.ID
+	}
+	vars := model.Deployment.VariablesForPlatform(plat.BoardName)
+	repo, dir := vars["models_repository"], vars["model_directory"]
+	if repo == "" && dir == "" {
+		return model.ID
+	}
+	return repo + "/" + dir
 }
 
 func (m *ModelsIndex) GetModels(ctx context.Context) []AIModel {
