@@ -194,6 +194,15 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 			return
 		}
 
+		// Claimed before the stream is opened so a duplicate request gets a
+		// plain 409 rather than an error inside an SSE body.
+		release, acquired := modelsIndex.AcquireDownload(*model, plat)
+		if !acquired {
+			render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: fmt.Sprintf("model %q is already being downloaded", id)})
+			return
+		}
+		defer release()
+
 		sseStream, err := render.NewSSEStream(r.Context(), w)
 		if err != nil {
 			slog.Error("unable to create SSE stream", slog.String("error", err.Error()))
