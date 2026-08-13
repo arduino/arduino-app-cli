@@ -93,7 +93,11 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 
 	slog.Debug("creating container", "id", resp.ID, "image", opts.Image, "cmd", opts.Cmd, "env", opts.Env, "binds", opts.Binds)
 
-	statusCh, errCh := cli.ContainerWait(ctx, resp.ID, container.WaitConditionNotRunning)
+	// NextExit, not NotRunning: the container has been created but not started
+	// yet, and a created container already satisfies "not running", so
+	// NotRunning returns immediately with StatusCode 0 and every failing
+	// container looks like a success.
+	statusCh, errCh := cli.ContainerWait(ctx, resp.ID, container.WaitConditionNextExit)
 
 	attachResp, err := cli.ContainerAttach(ctx, resp.ID, container.AttachOptions{
 		Stream: true,
