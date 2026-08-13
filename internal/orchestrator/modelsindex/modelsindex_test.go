@@ -162,7 +162,7 @@ func TestModelsIndex(t *testing.T) {
 			cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
 				return "{\"event\":\"info\",\"downloading\":false}\n", 0
 			})
-			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, cli, config.Configuration{})
+			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New(t.TempDir()), nil, cli, config.Configuration{})
 			require.NoError(t, err)
 
 			model, err := modelsIndex.GetModelByID(t.Context(), "a-model-not-preloaded-with-handler")
@@ -183,7 +183,7 @@ func TestModelsIndex(t *testing.T) {
 			cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
 				return "{\"event\":\"info\",\"downloading\":true}\n", 0
 			})
-			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, cli, config.Configuration{})
+			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New(t.TempDir()), nil, cli, config.Configuration{})
 			require.NoError(t, err)
 
 			model, err := modelsIndex.GetModelByID(t.Context(), "a-model-not-preloaded-with-handler")
@@ -204,7 +204,7 @@ func TestModelsIndex(t *testing.T) {
 			cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
 				return "{\"event\":\"error\",\"description\":\"model not found\"}\n", 1
 			})
-			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, cli, config.Configuration{})
+			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New(t.TempDir()), nil, cli, config.Configuration{})
 			require.NoError(t, err)
 
 			model, err := modelsIndex.GetModelByID(t.Context(), "a-model-not-preloaded-with-handler")

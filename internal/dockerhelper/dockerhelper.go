@@ -16,8 +16,11 @@ import (
 	"log/slog"
 	"os"
 	"os/user"
+	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/docker/docker/api/types/container"
@@ -54,12 +57,8 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 	stderrTail := &tailBuffer{}
 	stderr := io.MultiWriter(opts.Stderr, stderrTail)
 
-	for _, bind := range opts.Binds {
-		hostPath, _, _ := strings.Cut(bind, ":")
-		if err := os.MkdirAll(hostPath, 0775); err != nil {
-			slog.Warn("cannot pre-create bind mount directory", "path", hostPath, "err", err)
-			continue
-		}
+	if err := ensureBindDirs(opts.Binds); err != nil {
+		return err
 	}
 
 	launchStart := time.Now()
@@ -225,6 +224,64 @@ func ensureImage(ctx context.Context, cli client.APIClient, img string) error {
 		return fmt.Errorf("image pull read: %w", err)
 	}
 	return nil
+}
+
+// ensureBindDirs makes sure every host bind path exists and is writable by the
+// user the container runs as, which getCurrentUser reports.
+//
+// Docker creates a missing bind path itself, as root. The container runs as the
+// invoking user, so it is then handed a mount it cannot write to and fails deep
+// inside the handler script. Reporting that here, against the path that is
+// actually wrong, beats letting it surface as a traceback from the container.
+func ensureBindDirs(binds []string) error {
+	for _, bind := range binds {
+		hostPath, mountSpec, found := strings.Cut(bind, ":")
+		if !found || hostPath == "" {
+			return fmt.Errorf("malformed bind mount %q", bind)
+		}
+
+		if err := os.MkdirAll(hostPath, 0775); err != nil {
+			return fmt.Errorf("cannot create bind mount directory %q (%s): %w",
+				hostPath, describePath(filepath.Dir(hostPath)), err)
+		}
+
+		// A read-only mount only has to be readable.
+		if isReadOnlyBind(mountSpec) {
+			continue
+		}
+
+		if err := syscall.Access(hostPath, wOK); err != nil {
+			return fmt.Errorf("bind mount directory %q is not writable by the container user %s (%s): %w",
+				hostPath, getCurrentUser(), describePath(hostPath), err)
+		}
+	}
+	return nil
+}
+
+// wOK is access(2)'s write-permission bit.
+const wOK = 0x2
+
+// isReadOnlyBind reports whether a bind's "container[:options]" half marks it
+// read-only.
+func isReadOnlyBind(mountSpec string) bool {
+	_, options, found := strings.Cut(mountSpec, ":")
+	if !found {
+		return false
+	}
+	return slices.Contains(strings.Split(options, ","), "ro")
+}
+
+// describePath renders a path's ownership and mode for an error message, which
+// is what tells the reader whether a stray root-owned directory is the problem.
+func describePath(path string) string {
+	info, err := os.Stat(path)
+	if err != nil {
+		return "cannot stat"
+	}
+	if st, ok := info.Sys().(*syscall.Stat_t); ok {
+		return fmt.Sprintf("owned by %d:%d, mode %04o", st.Uid, st.Gid, info.Mode().Perm())
+	}
+	return fmt.Sprintf("mode %04o", info.Mode().Perm())
 }
 
 func getCurrentUser() string {
