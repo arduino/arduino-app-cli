@@ -10,13 +10,10 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
 
-	"github.com/compose-spec/compose-go/v2/loader"
-	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
 	commands "github.com/docker/compose/v2/cmd/compose"
 	"github.com/docker/compose/v2/pkg/api"
@@ -52,11 +49,6 @@ func AppLogs(
 		return helpers.EmptyIter[LogMessage](), nil
 	}
 
-	mainCompose := app.AppComposeFilePath()
-	if mainCompose.NotExist() {
-		return helpers.EmptyIter[LogMessage](), nil
-	}
-
 	bricksIndex = bricksIndex.WithAppBricks(app.LocalBricks)
 
 	// Obtain mapping compose service name <-> brick name
@@ -86,15 +78,7 @@ func AppLogs(
 		}
 	}
 
-	prj, err := loader.LoadWithContext(
-		ctx,
-		types.ConfigDetails{
-			ConfigFiles: []types.ConfigFile{{Filename: mainCompose.String()}},
-			WorkingDir:  app.ProvisioningStateDir().String(),
-			Environment: types.NewMapping(os.Environ()),
-		},
-		loader.WithSkipValidation, //TODO: check if there is a bug on docker compose upstream
-	)
+	prj, err := appComposeProject(ctx, &app)
 	if err != nil {
 		return nil, err
 	}

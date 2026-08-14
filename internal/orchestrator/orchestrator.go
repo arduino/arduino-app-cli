@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"maps"
 	"os"
 	"os/user"
 	"slices"
@@ -35,7 +34,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/linuxconfig"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/pipewire"
@@ -202,7 +200,7 @@ func StartApp(
 	}
 
 	if appToStart.MainPythonFile != nil {
-		envs := getAppEnvironmentVariables(ctx, appToStart, bricksIndex, modelsIndex, platform, cfg)
+		env := AppEnvironment(ctx, appToStart, bricksIndex, modelsIndex, platform, cfg)
 
 		cb(StreamMessage{data: "python provisioning"})
 		provisionStartProgress := float32(0.0)
@@ -212,7 +210,13 @@ func StartApp(
 
 		cb(StreamMessage{progress: &Progress{Name: "python provisioning", Progress: provisionStartProgress}})
 
-		if err := provisioner.App(bricksIndex, servicesIndex, &appToStart, cfg, envs, platform); err != nil {
+		// An app is provisioned every time it is started: it is editable, so its
+		// bricks, model or ports may have changed since the last run.
+		if err := provisioner.Build(appToStart.ProvisioningStateDir(), bricksIndex, servicesIndex, &appToStart, cfg, env, platform); err != nil {
+			return err
+		}
+
+		if err := provisioner.Runtime(ctx, bricksIndex, servicesIndex, &appToStart, cfg, env, platform); err != nil {
 			return err
 		}
 
@@ -220,9 +224,9 @@ func StartApp(
 
 		// Launch the docker compose command to start the app
 		commands := []string{}
-		commands = append(commands, "docker", "compose", "-f", appToStart.AppComposeFilePath().String())
-		if overrideComposeFile := appToStart.AppComposeOverrideFilePath(); overrideComposeFile.Exist() {
-			commands = append(commands, "-f", overrideComposeFile.String())
+		commands = append(commands, "docker", "compose", "--env-file", appToStart.RuntimeEnvFilePath().String())
+		for _, composeFile := range appToStart.AppComposeFiles() {
+			commands = append(commands, "-f", composeFile.String())
 		}
 		commands = append(commands, "up", "-d", "--remove-orphans", "--pull", "missing")
 
@@ -243,8 +247,8 @@ func StartApp(
 			cb(StreamMessage{data: line})
 		})
 
-		slog.Debug("starting app", slog.String("command", strings.Join(commands, " ")), slog.Any("envs", envs))
-		process, err := paths.NewProcess(envs.AsList(), commands...)
+		slog.Debug("starting app", slog.String("command", strings.Join(commands, " ")))
+		process, err := paths.NewProcess(nil, commands...)
 		if err != nil {
 			return err
 		}
@@ -260,65 +264,6 @@ func StartApp(
 	}
 	cb(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
 	return nil
-}
-
-// getAppEnvironmentVariables returns the environment variables for the app by merging variables and config in the following order:
-// - brick default variables (variables defined in the brick definition)
-// - model configuration variables (variables defined in the model configuration)
-// - brick instance variables (variables defined in the app.yaml for the brick instance)
-// In addition, it adds some useful environment variables like APP_HOME and HOST_IP.
-func getAppEnvironmentVariables(ctx context.Context, app app.ArduinoApp, brickIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform, cfg config.Configuration) helpers.EnvVars {
-	envs := make(helpers.EnvVars)
-
-	for _, brick := range app.Descriptor.Bricks {
-		if brickDef, found := brickIndex.WithAppBricks(app.LocalBricks).FindBrickByID(brick.ID); found {
-			maps.Insert(envs, brickDef.GetDefaultVariables())
-		}
-
-		if m, err := modelsIndex.GetModelByID(ctx, brick.Model); err != nil {
-			slog.Warn("unable to get model for brick", slog.String("brickID", brick.ID), slog.String("modelID", brick.Model), slog.String("error", err.Error()))
-		} else if m != nil {
-			for _, b := range m.Bricks {
-				maps.Insert(envs, maps.All(b.ModelConfiguration))
-			}
-		}
-
-		slog.Debug("adding Brick", slog.String("brickID", brick.ID), slog.String("model", brick.Model), slog.Any("variables", brick.Variables))
-		maps.Insert(envs, maps.All(brick.Variables))
-	}
-
-	envs["APP_HOME"] = app.FullPath.String()
-	envs["BOARD_NAME"] = plat.BoardName
-	// Directory where AI models are installed, shared with the containerized runners.
-	envs["MODELS_PATH"] = cfg.ModelsDir().String()
-	envs["XDG_RUNTIME_DIR"] = "/run/user/1000"
-
-	// Pre-select default camera device if available. This can be overridden by the app environment variables (or in future by applab)
-	// This is required because there are some video devices for HW acceleration that are auto registered in /dev but are not real cameras.
-	if videoDevices := peripherals.GetVideoDevices(); len(videoDevices) > 0 {
-		// VIDEO_DEVICE will be the first device in /dev/v4l/by-id
-		envs["VIDEO_DEVICE"] = videoDevices[0]
-	}
-
-	mediaCarriers, err := linuxconfig.GetEnabledCarriers(ctx)
-	if err != nil {
-		slog.Warn("unable to get configured carriers", slog.String("error", err.Error()))
-	} else if len(mediaCarriers) > 0 {
-		carrierNames := f.Map(mediaCarriers, func(c linuxconfig.Carrier) string {
-			return c.CarrierName
-		})
-		envs["CONFIGURED_CARRIERS"] = strings.Join(carrierNames, ",")
-	}
-
-	if hostIP, err := helpers.GetHostIP(); err == nil {
-		envs["HOST_IP"] = hostIP
-	} else {
-		slog.Warn("unable to get host IP", slog.String("error", err.Error()))
-	}
-
-	slog.Debug("Current environment variables", slog.Any("envs", envs))
-
-	return envs
 }
 
 func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration, cmd string, cb func(StreamMessage)) error {
@@ -371,10 +316,18 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 			args := []string{
 				"docker",
 				"compose",
+			}
+			// The compose files reference the app environment as ${VAR}, so give
+			// docker compose the env file the app was started with. It is missing
+			// only for an app started by a CLI older than the env file itself.
+			if envFile := app.RuntimeEnvFilePath(); envFile.Exist() {
+				args = append(args, "--env-file", envFile.String())
+			}
+			args = append(args,
 				"-f", mainCompose.String(),
 				cmd,
 				fmt.Sprintf("--timeout=%d", DefaultDockerStopTimeoutSeconds),
-			}
+			)
 			if cmd == "down" {
 				args = append(args, "--volumes", "--remove-orphans")
 			}

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/compose-spec/compose-go/v2/types"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
@@ -104,17 +105,17 @@ bricks:
 	require.Equal(t, "Object Detection", br.Name, "Brick name should match")
 
 	// Run the provision function to generate the main compose file
-	env := map[string]string{
+	env := types.Mapping{
 		"FOO": "bar",
 	}
 
-	err = generateMainComposeFile(&app, bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform)
+	err = generateMainComposeFile(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, AppEnv{buildTime: env}, unkownPlatform)
 
 	// Validate that the main compose file and overrides are created
 	require.NoError(t, err, "Failed to generate main compose file")
-	composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
+	composeFilePath := app.AppComposeFilePath()
 	require.True(t, composeFilePath.Exist(), "Main compose file should exist")
-	overridesFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose-overrides.yaml")
+	overridesFilePath := app.AppComposeOverrideFilePath()
 	require.True(t, overridesFilePath.Exist(), "Override compose file should exist")
 
 	// Open override file and check for the expected override
@@ -129,6 +130,17 @@ bricks:
 	require.Nil(t, err, "Failed to unmarshal overrides content")
 	require.NotNil(t, content.Services["ei-video-obj-detection-runner"], "Override for ei-video-obj-detection-runner should exist")
 	require.Equal(t, "bar", content.Services["ei-video-obj-detection-runner"]["environment"].(map[string]any)["FOO"])
+}
+
+// testAppIncluding is an app whose generated compose file includes the given one,
+// which is how provisionComposeVolumes reaches the brick and service volumes.
+func testAppIncluding(t *testing.T, appPath *paths.Path, composeFile *paths.Path) *app.ArduinoApp {
+	t.Helper()
+
+	testApp := &app.ArduinoApp{Name: "TestApp", FullPath: appPath}
+	require.NoError(t, testApp.ProvisioningStateDir().MkdirAll())
+	require.NoError(t, testApp.AppComposeFilePath().WriteFile([]byte("include:\n- "+composeFile.String()+"\n")))
+	return testApp
 }
 
 func TestVolumeParser(t *testing.T) {
@@ -156,11 +168,9 @@ services:
 			Name:     "TestApp",
 			FullPath: paths.New(tempDirectory),
 		}
-		env := map[string]string{
-			"CUSTOM_PATH": tempDirectory,
-		}
+		t.Setenv("CUSTOM_PATH", tempDirectory)
 
-		provisionComposeVolumes(volumesFromFile.String(), app, env)
+		provisionComposeVolumes(t.Context(), testAppIncluding(t, paths.New(tempDirectory), volumesFromFile))
 		require.True(t, app.FullPath.Join("data").Join("influx-data").Exist(), "Volume directory should exist")
 	})
 
@@ -190,9 +200,7 @@ services:
 			FullPath: paths.New(tempDirectory),
 		}
 		// No env, use macro default value
-		env := map[string]string{}
-
-		provisionComposeVolumes(volumesFromFile.String(), app, env)
+		provisionComposeVolumes(t.Context(), testAppIncluding(t, paths.New(tempDirectory), volumesFromFile))
 		require.True(t, app.FullPath.Join("customized").Join("data").Join("influx-data").Exist(), "Volume directory should exist")
 	})
 
@@ -220,11 +228,9 @@ services:
 			FullPath: paths.New(tempDirectory),
 		}
 		// Use env for nested default value
-		os.Setenv("DEFVALUE", tempDirectory)
+		t.Setenv("DEFVALUE", tempDirectory)
 
-		env := map[string]string{}
-
-		provisionComposeVolumes(volumesFromFile.String(), app, env)
+		provisionComposeVolumes(t.Context(), testAppIncluding(t, paths.New(tempDirectory), volumesFromFile))
 		require.True(t, app.FullPath.Join("customized").Join("data").Join("influx-data").Exist(), "Volume directory should exist")
 	})
 
@@ -253,9 +259,7 @@ services:
 			Name:     "TestApp",
 			FullPath: paths.New(tempDirectory),
 		}
-		env := map[string]string{}
-
-		provisionComposeVolumes(volumesFromFile.String(), app, env)
+		provisionComposeVolumes(t.Context(), testAppIncluding(t, paths.New(tempDirectory), volumesFromFile))
 		require.True(t, app.FullPath.Join("data").Join("influx-data").Exist(), "Volume directory should exist")
 	})
 
@@ -282,9 +286,7 @@ services:
 			Name:     "TestApp",
 			FullPath: paths.New(tempDirectory),
 		}
-		env := map[string]string{}
-
-		provisionComposeVolumes(volumesFromFile.String(), app, env)
+		provisionComposeVolumes(t.Context(), testAppIncluding(t, paths.New(tempDirectory), volumesFromFile))
 		require.True(t, app.FullPath.Join("data").Join("influx-data").Exist(), "Volume directory should exist")
 	})
 
@@ -293,7 +295,7 @@ services:
 func TestProvisionAppWithDependsOn(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	tempDirectory := t.TempDir()
-	var env = map[string]string{}
+	var env = types.Mapping{}
 	type services struct {
 		Services map[string]struct {
 			Image     string `yaml:"image"`
@@ -364,9 +366,9 @@ services:
 		require.NoError(t, err)
 
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform)
+		err = generateMainComposeFile(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, AppEnv{buildTime: env}, unkownPlatform)
 		require.NoError(t, err, "Failed to generate main compose file")
-		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
+		composeFilePath := app.AppComposeFilePath()
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
 
 		// Open main compose file and check for the expected depends_on with service_healthy
@@ -418,9 +420,9 @@ services:
 		require.NoError(t, err)
 
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform)
+		err = generateMainComposeFile(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, AppEnv{buildTime: env}, unkownPlatform)
 		require.NoError(t, err, "Failed to generate main compose file")
-		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
+		composeFilePath := app.AppComposeFilePath()
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
 
 		// Open main compose file and check for the expected depends_on with service_started
@@ -455,7 +457,7 @@ services:
 func TestProvisionAppComposeOverridesFile(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	tempDirectory := t.TempDir()
-	var env = map[string]string{}
+	var env = types.Mapping{}
 	type services struct {
 		Services map[string]struct {
 			User      *string `yaml:"user"`
@@ -535,9 +537,9 @@ services:
 		require.NoError(t, err)
 
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform)
+		err = generateMainComposeFile(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, AppEnv{buildTime: env}, unkownPlatform)
 		require.NoError(t, err, "Failed to generate main compose file")
-		composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
+		composeFilePath := app.AppComposeFilePath()
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
 
 		// Extract services from the compose file to prepare override generation
@@ -549,8 +551,8 @@ services:
 		groups := []uint32{20} // dialout group ID
 
 		// Generate overrides file
-		overrideComposeFile := paths.New(tempDirectory).Join(".cache").Join("app-compose-overrides.yaml")
-		err = generateServicesOverrideFile(&app, svcInfo, user, groups, overrideComposeFile, env, nil)
+		overrideComposeFile := app.AppComposeOverrideFilePath()
+		err = generateServicesOverrideFile(svcInfo, user, groups, overrideComposeFile, AppEnv{buildTime: env}, nil)
 		require.NoError(t, err)
 
 		// load and validate override file content
@@ -643,17 +645,17 @@ bricks:
 	require.Equal(t, videoObjectDetectionPath.Join("service_compose.yaml").String(), compose.String())
 
 	// Run the provision function to generate the main compose file
-	env := map[string]string{
+	env := types.Mapping{
 		"FOO": "bar",
 	}
 
-	err = generateMainComposeFile(&app, bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform)
+	err = generateMainComposeFile(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, AppEnv{buildTime: env}, unkownPlatform)
 
 	// Validate that the main compose file and overrides are created
 	require.NoError(t, err, "Failed to generate main compose file")
-	composeFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose.yaml")
+	composeFilePath := app.AppComposeFilePath()
 	require.True(t, composeFilePath.Exist(), "Main compose file should exist")
-	overridesFilePath := paths.New(tempDirectory).Join(".cache").Join("app-compose-overrides.yaml")
+	overridesFilePath := app.AppComposeOverrideFilePath()
 	require.True(t, overridesFilePath.Exist(), "Override compose file should exist")
 
 	// Open override file and check for the expected override

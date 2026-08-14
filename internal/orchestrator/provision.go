@@ -6,6 +6,7 @@
 package orchestrator
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"errors"
@@ -26,7 +27,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	yaml "github.com/goccy/go-yaml"
 
-	"github.com/arduino/arduino-app-cli/internal/helpers"
+	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -105,27 +106,56 @@ func NewProvision(
 	return provision, nil
 }
 
-func (p *Provision) App(
+// App runs the build-time half of provisioning: it resolves the app bricks and
+// services into the compose files the app is started with. Everything it writes
+// is derived from the app and the target board, never from the state of the host
+// at this very moment (see AppEnv).
+func (p *Provision) Build(
+	genPath *paths.Path,
 	bricksIndex *bricksindex.BricksIndex,
 	servicesIndex *servicesindex.ServicesIndex,
 	arduinoApp *app.ArduinoApp,
 	cfg config.Configuration,
-	mapped_env map[string]string,
+	env AppEnv,
 	platform platform.Platform,
 ) error {
 	if arduinoApp == nil {
 		return fmt.Errorf("provisioning failed: arduinoApp is nil")
 	}
 
-	if arduinoApp.ProvisioningStateDir().NotExist() {
-		if err := arduinoApp.ProvisioningStateDir().MkdirAll(); err != nil {
-			return fmt.Errorf("provisioning failed: unable to create .cache")
+	// genPath is the .cache of the app, or the prebuild dir of a release.
+	if genPath.NotExist() {
+		if err := genPath.MkdirAll(); err != nil {
+			return fmt.Errorf("provisioning failed: unable to create %s: %w", genPath, err)
 		}
 	}
 
 	bricksIndex = bricksIndex.WithAppBricks(arduinoApp.LocalBricks)
 
-	return generateMainComposeFile(arduinoApp, bricksIndex, servicesIndex, p.pythonImage, cfg, mapped_env, platform)
+	return generateMainComposeFile(arduinoApp, genPath, bricksIndex, servicesIndex, p.pythonImage, cfg, env, platform)
+}
+
+func (p *Provision) Runtime(
+	ctx context.Context,
+	bricksIndex *bricksindex.BricksIndex,
+	servicesIndex *servicesindex.ServicesIndex,
+	arduinoApp *app.ArduinoApp,
+	cfg config.Configuration,
+	env AppEnv,
+	platform platform.Platform,
+) error {
+	if arduinoApp == nil {
+		return fmt.Errorf("provisioning failed: arduinoApp is nil")
+	}
+
+	// TODO: check that the build was executed
+
+	if err := generateRuntimeEnvFile(arduinoApp, env); err != nil {
+		return fmt.Errorf("provisioning failed to generate runtime env file: %w", err)
+	}
+
+	provisionComposeVolumes(ctx, arduinoApp)
+	return nil
 }
 
 func (p *Provision) init(
@@ -201,25 +231,26 @@ const (
 )
 
 func generateMainComposeFile(
-	app *app.ArduinoApp,
+	arduinoApp *app.ArduinoApp,
+	genPath *paths.Path,
 	bricksIndex *bricksindex.BricksIndex,
 	servicesIndex *servicesindex.ServicesIndex,
 	pythonImage string,
 	cfg config.Configuration,
-	envs helpers.EnvVars,
+	envs AppEnv,
 	platform platform.Platform,
 ) error {
 	slog.Debug("Generating main compose file for the App")
 
-	ports := make(map[string]struct{}, len(app.Descriptor.Ports))
-	for _, p := range app.Descriptor.Ports {
+	ports := make(map[string]struct{}, len(arduinoApp.Descriptor.Ports))
+	for _, p := range arduinoApp.Descriptor.Ports {
 		ports[fmt.Sprintf("%d:%d", p, p)] = struct{}{}
 	}
 
 	brickServices := make(map[string]servicesindex.Service)
 	var composeFiles paths.PathList
-	services := make([]serviceInfo, 0, len(app.Descriptor.Bricks))
-	for _, brick := range app.Descriptor.Bricks {
+	services := make([]serviceInfo, 0, len(arduinoApp.Descriptor.Bricks))
+	for _, brick := range arduinoApp.Descriptor.Bricks {
 		idxBrick, found := bricksIndex.FindBrickByID(brick.ID)
 		slog.Debug("Processing brick", slog.String("brick_id", brick.ID), slog.Bool("found", found))
 		if !found {
@@ -276,7 +307,7 @@ func generateMainComposeFile(
 		services = append(services, svcs...)
 	}
 
-	if len(app.Descriptor.RequiredDevices) > 0 { // nolint:staticcheck
+	if len(arduinoApp.Descriptor.RequiredDevices) > 0 { // nolint:staticcheck
 		slog.Warn("The 'required_devices' field is deprecated. Please move requirements to the specific 'bricks' section.")
 	}
 
@@ -297,9 +328,9 @@ func generateMainComposeFile(
 	}
 
 	// Create a single docker-mainCompose that includes all the required services
-	mainComposeFile := app.AppComposeFilePath()
+	mainComposeFile := genPath.Join(app.MainComposeFileName)
 	// If required, create an override compose file for devices
-	overrideComposeFile := app.AppComposeOverrideFilePath()
+	overrideComposeFile := genPath.Join(app.OverrideComposeFileName)
 
 	type mainService struct {
 		Main service `yaml:"main"`
@@ -310,7 +341,7 @@ func generateMainComposeFile(
 		Services *mainService `yaml:"services,omitempty"`
 	}
 	// Merge compose
-	composeProjectName, err := getAppComposeProjectNameFromApp(*app, cfg)
+	composeProjectName, err := getAppComposeProjectNameFromApp(*arduinoApp, cfg)
 	if err != nil {
 		return err
 	}
@@ -320,7 +351,7 @@ func generateMainComposeFile(
 	volumes := []volume{
 		{
 			Type:   "bind",
-			Source: app.FullPath.String(),
+			Source: appHomeRef,
 			Target: "/app",
 		},
 		{
@@ -389,6 +420,9 @@ func generateMainComposeFile(
 	}
 
 	cgroupDrivers := []string{"drm", "dma_heap", "media", "video4linux", "alsa", "ttyUSB", "ttyACM"}
+	// TODO: these majors and the GIDs above are read from this host, so a release
+	// carries the ones of the board that built it. Resolving them at start needs a
+	// unique placeholder per missing driver: docker refuses two identical rules.
 	deviceCgroupsRules := buildCgroupRules(cgroupDrivers)
 
 	mainAppCompose.Services = &mainService{
@@ -405,9 +439,9 @@ func generateMainComposeFile(
 			Labels: map[string]string{
 				DockerAppLabel:     "true",
 				DockerAppMainLabel: "true",
-				DockerAppPathLabel: app.FullPath.String(),
+				DockerAppPathLabel: appHomeRef,
 			},
-			Environment: envs,
+			Environment: envs.BuildTime(),
 			Logging: &logging{
 				Driver: "json-file",
 				Options: map[string]string{
@@ -429,26 +463,26 @@ func generateMainComposeFile(
 
 	// If there are services that require devices, we need to generate an override compose file
 	// Write additional file to override devices section in included compose files
-	if err := generateServicesOverrideFile(app, services, getCurrentUser(), groups, overrideComposeFile, envs, deviceCgroupsRules); err != nil {
+	if err := generateServicesOverrideFile(services, getCurrentUser(), groups, overrideComposeFile, envs, deviceCgroupsRules); err != nil {
 		return err
-	}
-
-	// Pre-provision containers required paths, if they do not exist.
-	// This is required to preserve the host directory access rights for arduino user.
-	// Otherwise, paths created by the container will have root:root ownership
-	for _, additionalComposeFile := range composeFiles {
-		composeFilePath := additionalComposeFile.String()
-		slog.Debug("Pre-provisioning volumes from compose file", slog.String("compose_file", composeFilePath))
-		provisionComposeVolumes(composeFilePath, app, envs)
 	}
 
 	// Done!
 	return nil
 }
 
+func atRuntimeStuff() {
+
+}
+
 func filterNotExistingVolumes(volumes []volume) []volume {
 	return slices.DeleteFunc(volumes, func(v volume) bool {
 		if v.Type != "bind" {
+			return false
+		}
+		if strings.Contains(v.Source, "$") {
+			// The source is resolved by docker compose at start time, there is
+			// nothing to check here.
 			return false
 		}
 		if !paths.New(v.Source).Exist() {
@@ -488,6 +522,10 @@ type serviceInfo struct {
 	requireDevices bool
 }
 
+// extractServicesFromComposeFile reads the shape of a brick or service compose
+// file: which services it declares, whether they have a healthcheck and whether
+// they set a user. It is a file from the assets and none of that depends on the
+// app, so it is loaded on its own.
 func extractServicesFromComposeFile(composeFile *paths.Path) ([]serviceInfo, error) {
 	content, err := composeFile.ReadFile()
 	if err != nil {
@@ -524,7 +562,7 @@ func extractServicesFromComposeFile(composeFile *paths.Path) ([]serviceInfo, err
 	return services, nil
 }
 
-func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []serviceInfo, user string, groups []uint32, overrideComposeFile *paths.Path, envs helpers.EnvVars, deviceCgroupsRules []string) error {
+func generateServicesOverrideFile(services []serviceInfo, user string, groups []uint32, overrideComposeFile *paths.Path, envs AppEnv, deviceCgroupsRules []string) error {
 	if overrideComposeFile.Exist() {
 		if err := overrideComposeFile.Remove(); err != nil {
 			return fmt.Errorf("failed to remove existing override compose file: %w", err)
@@ -542,7 +580,7 @@ func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []service
 		DeviceCgroupRules *[]string         `yaml:"device_cgroup_rules,omitempty"`
 		GroupAdd          *[]uint32         `yaml:"group_add,omitempty"`
 		Labels            map[string]string `yaml:"labels,omitempty"`
-		Environment       map[string]string `yaml:"environment,omitempty"`
+		Environment       types.Mapping     `yaml:"environment,omitempty"`
 	}
 	var overrideCompose struct {
 		Services map[string]serviceOverride `yaml:"services,omitempty"`
@@ -552,7 +590,7 @@ func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []service
 		override := serviceOverride{
 			Labels: map[string]string{
 				DockerAppLabel:     "true",
-				DockerAppPathLabel: arduinoApp.FullPath.String(),
+				DockerAppPathLabel: appHomeRef,
 			},
 			GroupAdd: &groups,
 		}
@@ -567,7 +605,7 @@ func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []service
 			}
 			override.Volumes = &devVolumes
 		}
-		override.Environment = envs
+		override.Environment = envs.BuildTime()
 		overrideCompose.Services[svc.name] = override
 	}
 	writeOverrideCompose := func() error {
@@ -586,39 +624,38 @@ func generateServicesOverrideFile(arduinoApp *app.ArduinoApp, services []service
 	return nil
 }
 
+func generateRuntimeEnvFile(arduinoApp *app.ArduinoApp, envs AppEnv) error {
+	var out bytes.Buffer
+	for _, v := range envs.runtime.Values() {
+		// TODO: use a proper env file writer to escape values with newlines or quotes
+		out.WriteString(v)
+		out.WriteString("\n")
+	}
+
+	envFile := arduinoApp.RuntimeEnvFilePath()
+	if err := fatomic.WriteFile(envFile.String(), out.Bytes(), 0644); err != nil {
+		return fmt.Errorf("failed to write the app environment file: %w", err)
+	}
+	slog.Debug("wrote app environment file", slog.String("path", envFile.String()))
+
+	return nil
+}
+
 // provisionComposeVolumes ensures we create the parent folder with the correct owner.
 // By default docker if it doesn't find the folder, it will create it as root.
 // We do not want that, to make sure to have it as `arduino:arduino` we have
 // to manually parse the volumes, and make sure to create the target dirs ourself.
-func provisionComposeVolumes(composeFilePath string, arduinoApp *app.ArduinoApp, mappedEnv map[string]string) {
-	content, err := os.ReadFile(composeFilePath)
+func provisionComposeVolumes(ctx context.Context, arduinoApp *app.ArduinoApp) {
+	prj, err := appComposeProject(context.Background(), arduinoApp)
 	if err != nil {
-		slog.Warn("Failed to read compose file", slog.String("compose_file", composeFilePath), slog.Any("error", err))
+		slog.Warn("Failed to load the app compose project for volume provisioning", slog.String("app", arduinoApp.FullPath.String()), slog.Any("error", err))
 		return
 	}
 
-	env := types.NewMapping(os.Environ())
-	env["APP_HOME"] = arduinoApp.FullPath.String()
-	for k, v := range mappedEnv {
-		env[k] = v
-	}
-
-	prj, err := loader.LoadWithContext(
-		context.Background(),
-		types.ConfigDetails{
-			ConfigFiles: []types.ConfigFile{{Filename: composeFilePath, Content: content}},
-			WorkingDir:  paths.New(composeFilePath).Parent().String(),
-			Environment: env,
-		},
-		func(o *loader.Options) { o.SetProjectName("default", false); o.SkipConsistencyCheck = true },
-		loader.WithSkipValidation,
-	)
-	if err != nil {
-		slog.Warn("Failed to parse compose file for volume provisioning", slog.String("compose_file", composeFilePath), slog.Any("error", err))
-		return
-	}
-
-	for _, svc := range prj.Services {
+	for name, svc := range prj.Services {
+		if name == "main" {
+			continue
+		}
 		for _, v := range svc.Volumes {
 			if v.Type != types.VolumeTypeBind {
 				continue
@@ -626,9 +663,9 @@ func provisionComposeVolumes(composeFilePath string, arduinoApp *app.ArduinoApp,
 			hostDirectory := paths.New(v.Source)
 			if !hostDirectory.Exist() {
 				if err := hostDirectory.MkdirAll(); err != nil {
-					slog.Warn("Failed to create host directory for compose file", slog.String("compose_file", composeFilePath), slog.String("host_directory", hostDirectory.String()), slog.Any("error", err))
+					slog.Warn("Failed to create host directory for compose file", slog.String("service", name), slog.String("host_directory", hostDirectory.String()), slog.Any("error", err))
 				} else {
-					slog.Debug("Pre-provisioning host directory for compose file", slog.String("compose_file", composeFilePath), slog.String("host_directory", hostDirectory.String()))
+					slog.Debug("Pre-provisioning host directory for compose file", slog.String("service", name), slog.String("host_directory", hostDirectory.String()))
 				}
 			}
 		}

@@ -15,6 +15,9 @@ import (
 
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
+	"github.com/compose-spec/compose-go/v2/dotenv"
+	"github.com/compose-spec/compose-go/v2/loader"
+	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	dockerClient "github.com/docker/docker/client"
@@ -264,4 +267,44 @@ func SetArduinoCliConfig(ctx context.Context, cli rpc.ArduinoCoreServiceServer) 
 	}
 
 	return nil
+}
+
+// appComposeProject is the docker compose project of an app, the same one the
+// docker compose command line ends up with: the generated compose files, merged in
+// the order they are passed with -f, plus the brick and service ones their
+// include: brings in, resolved with the app env file.
+func appComposeProject(ctx context.Context, arduinoApp *app.ArduinoApp) (*types.Project, error) {
+	composeFiles := arduinoApp.AppComposeFiles()
+	envFile := arduinoApp.RuntimeEnvFilePath()
+
+	// The environment of the process is part of it, like for docker compose, and
+	// takes precedence over the env file for the same reason.
+	envs := types.NewMapping(os.Environ())
+	if envFile.Exist() {
+		fromEnvFile, err := dotenv.GetEnvFromFile(envs, []string{envFile.String()})
+		if err != nil {
+			return nil, fmt.Errorf("cannot read the app environment file: %w", err)
+		}
+		envs = envs.Merge(fromEnvFile)
+	}
+
+	configFiles := make([]types.ConfigFile, 0, len(composeFiles))
+	for _, composeFile := range composeFiles {
+		content, err := composeFile.ReadFile()
+		if err != nil {
+			return nil, fmt.Errorf("cannot read compose file %s: %w", composeFile, err)
+		}
+		configFiles = append(configFiles, types.ConfigFile{Filename: composeFile.String(), Content: content})
+	}
+
+	return loader.LoadWithContext(ctx,
+		types.ConfigDetails{
+			ConfigFiles: configFiles,
+			// docker compose takes the directory of the first file as the project
+			// directory, and resolves the relative include: paths from there.
+			WorkingDir:  composeFiles[0].Parent().String(),
+			Environment: envs,
+		},
+		func(options *loader.Options) { options.SkipNormalization = true },
+	)
 }
