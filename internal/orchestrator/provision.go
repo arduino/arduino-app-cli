@@ -137,12 +137,8 @@ func (p *Provision) Build(
 
 func (p *Provision) Runtime(
 	ctx context.Context,
-	bricksIndex *bricksindex.BricksIndex,
-	servicesIndex *servicesindex.ServicesIndex,
 	arduinoApp *app.ArduinoApp,
-	cfg config.Configuration,
 	env AppEnv,
-	platform platform.Platform,
 ) error {
 	if arduinoApp == nil {
 		return fmt.Errorf("provisioning failed: arduinoApp is nil")
@@ -471,10 +467,6 @@ func generateMainComposeFile(
 	return nil
 }
 
-func atRuntimeStuff() {
-
-}
-
 func filterNotExistingVolumes(volumes []volume) []volume {
 	return slices.DeleteFunc(volumes, func(v volume) bool {
 		if v.Type != "bind" {
@@ -646,7 +638,7 @@ func generateRuntimeEnvFile(arduinoApp *app.ArduinoApp, envs AppEnv) error {
 // We do not want that, to make sure to have it as `arduino:arduino` we have
 // to manually parse the volumes, and make sure to create the target dirs ourself.
 func provisionComposeVolumes(ctx context.Context, arduinoApp *app.ArduinoApp) {
-	prj, err := appComposeProject(context.Background(), arduinoApp)
+	prj, err := appComposeProject(ctx, arduinoApp)
 	if err != nil {
 		slog.Warn("Failed to load the app compose project for volume provisioning", slog.String("app", arduinoApp.FullPath.String()), slog.Any("error", err))
 		return
