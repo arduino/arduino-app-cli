@@ -80,7 +80,7 @@ func NewFromEnv() (Configuration, error) {
 	}
 	var requiredRuntimes []RequiredRuntime
 	for entry := range strings.SplitSeq(requiredRuntimesEnv, ",") {
-		unit, group, _ := strings.Cut(strings.TrimSpace(entry), ":")
+		unit, group, _ := strings.Cut(entry, ":")
 		if unit = strings.TrimSpace(unit); unit != "" {
 			requiredRuntimes = append(requiredRuntimes, RequiredRuntime{
 				Unit:  unit,
