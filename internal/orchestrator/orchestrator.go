@@ -216,7 +216,7 @@ func StartApp(
 			return err
 		}
 
-		if err := provisioner.Runtime(ctx, bricksIndex, servicesIndex, &appToStart, cfg, env, platform); err != nil {
+		if err := provisioner.Runtime(ctx, &appToStart, env); err != nil {
 			return err
 		}
 
