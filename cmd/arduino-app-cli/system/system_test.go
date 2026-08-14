@@ -25,8 +25,8 @@ func TestThrottleProgress(t *testing.T) {
 		return orchestrator.InitEvent{Type: orchestrator.InitLogEvent, Message: msg}
 	}
 
-	var got []initResult
-	cb := throttleProgress(func(e *initResult) {
+	var got []orchestrator.InitResult
+	cb := throttleProgress(func(e *orchestrator.InitResult) {
 		got = append(got, *e)
 	})
 
@@ -41,13 +41,13 @@ func TestThrottleProgress(t *testing.T) {
 	cb(progress("other", 5, 100)) // 5%  -> forwarded (different label tracked separately)
 	cb(logEvt("done"))            //     -> forwarded
 
-	want := []initResult{
-		*fromInitEvent(progress("img", 0, 100)),
-		*fromInitEvent(progress("img", 4, 100)),
-		*fromInitEvent(logEvt("hello")),
-		*fromInitEvent(progress("img", 5, 100)),
-		*fromInitEvent(progress("other", 5, 100)),
-		*fromInitEvent(logEvt("done")),
+	want := []orchestrator.InitResult{
+		*orchestrator.NewInitResult(progress("img", 0, 100)),
+		*orchestrator.NewInitResult(progress("img", 4, 100)),
+		*orchestrator.NewInitResult(logEvt("hello")),
+		*orchestrator.NewInitResult(progress("img", 5, 100)),
+		*orchestrator.NewInitResult(progress("other", 5, 100)),
+		*orchestrator.NewInitResult(logEvt("done")),
 	}
 
 	if len(got) != len(want) {
@@ -114,7 +114,7 @@ func TestInitEventJSON(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Each event must serialize to a single line, so that the JSON output
 			// is a stream of JSON lines, one object per event.
-			d, err := json.Marshal(fromInitEvent(tt.event).Data())
+			d, err := json.Marshal(orchestrator.NewInitResult(tt.event).Data())
 			if err != nil {
 				t.Fatalf("Marshal() error = %v", err)
 			}
@@ -150,7 +150,7 @@ func TestInitEventString(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := fromInitEvent(tt.event).String(); got != tt.want {
+			if got := orchestrator.NewInitResult(tt.event).String(); got != tt.want {
 				t.Errorf("String() = %q, want %q", got, tt.want)
 			}
 		})
