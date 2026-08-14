@@ -49,12 +49,3 @@ if [ "$1" = "upgrade" ]; then
     # remove it to cleanup stale files
     rm -rf /home/arduino/.local/share/arduino-app-cli/examples
 fi
-
-# Add the system user to the arduino-router group.
-# If the group does not exist, create it first.
-if ! getent group arduino-router >/dev/null; then
-    groupadd --system arduino-router || true
-fi
-if id -u "$username" >/dev/null 2>&1; then
-    usermod -a -G arduino-router "$username" || true
-fi
