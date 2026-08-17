@@ -564,3 +564,64 @@ func TestNeedsAudioDevices(t *testing.T) {
 		})
 	}
 }
+
+func TestDetectPortCollisions(t *testing.T) {
+	bIndex := &bricksindex.BricksIndex{
+		BuiltInBricks: []bricksindex.Brick{
+			{ID: "arduino:web_ui", Ports: []string{"7000"}},
+			{ID: "arduino:streamlit_ui", Ports: []string{"7000"}},
+			{ID: "arduino:data_logger", Ports: []string{"8080", "8080"}},
+			{ID: "arduino:object_detection"},
+		},
+	}
+
+	testCases := []struct {
+		name     string
+		appPorts []int
+		bricks   []app.Brick
+		want     []portCollision
+	}{
+		{
+			name:   "no collision",
+			bricks: []app.Brick{{ID: "arduino:web_ui"}, {ID: "arduino:object_detection"}},
+			want:   nil,
+		},
+		{
+			name:   "two bricks on the same port",
+			bricks: []app.Brick{{ID: "arduino:web_ui"}, {ID: "arduino:streamlit_ui"}},
+			want:   []portCollision{{Port: "7000", Sources: []string{"arduino:web_ui", "arduino:streamlit_ui"}}},
+		},
+		{
+			name:     "app.yaml colliding with a brick",
+			appPorts: []int{7000},
+			bricks:   []app.Brick{{ID: "arduino:web_ui"}},
+			want:     []portCollision{{Port: "7000", Sources: []string{appPortsSource, "arduino:web_ui"}}},
+		},
+		{
+			name:     "duplicated ports within a single source are not a collision",
+			appPorts: []int{9000, 9000},
+			bricks:   []app.Brick{{ID: "arduino:data_logger"}},
+			want:     nil,
+		},
+		{
+			name:   "bricks missing from the index are skipped",
+			bricks: []app.Brick{{ID: "arduino:web_ui"}, {ID: "arduino:unknown-brick"}},
+			want:   nil,
+		},
+		{
+			name:     "multiple collisions are sorted by port",
+			appPorts: []int{7000, 8080},
+			bricks:   []app.Brick{{ID: "arduino:web_ui"}, {ID: "arduino:data_logger"}},
+			want: []portCollision{
+				{Port: "7000", Sources: []string{appPortsSource, "arduino:web_ui"}},
+				{Port: "8080", Sources: []string{appPortsSource, "arduino:data_logger"}},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, detectPortCollisions(tc.appPorts, tc.bricks, bIndex))
+		})
+	}
+}

@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"maps"
 	"slices"
+	"strconv"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
@@ -69,6 +70,48 @@ func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.Bri
 	}
 
 	return allErrors
+}
+
+// appPortsSource is the collision source name used for the ports declared in the app.yaml file.
+const appPortsSource = "app.yaml"
+
+// portCollision is a port declared by more than one source.
+type portCollision struct {
+	Port    string
+	Sources []string
+}
+
+func detectPortCollisions(appPorts []int, bricks []app.Brick, index *bricksindex.BricksIndex) []portCollision {
+	sourcesByPort := make(map[string][]string)
+	addSource := func(port, source string) {
+		if !slices.Contains(sourcesByPort[port], source) {
+			sourcesByPort[port] = append(sourcesByPort[port], source)
+		}
+	}
+
+	for _, p := range appPorts {
+		addSource(strconv.Itoa(p), appPortsSource)
+	}
+
+	for _, appBrick := range bricks {
+		indexBrick, found := index.FindBrickByID(appBrick.ID)
+		if !found {
+			continue
+		}
+
+		for _, p := range indexBrick.GetPorts() {
+			addSource(p, appBrick.ID)
+		}
+	}
+
+	var collisions []portCollision
+	for _, p := range slices.Sorted(maps.Keys(sourcesByPort)) {
+		if len(sourcesByPort[p]) > 1 {
+			collisions = append(collisions, portCollision{Port: p, Sources: sourcesByPort[p]})
+		}
+	}
+
+	return collisions
 }
 
 // requiredDeviceClasses returns the sorted device classes required by the app bricks, skipping the
