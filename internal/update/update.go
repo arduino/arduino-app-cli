@@ -163,7 +163,9 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 			}
 		}); err != nil {
 			m.broadcast(NewErrorEvent(fmt.Errorf("failed to upgrade APT packages: %w", err)))
-			return
+
+			// continue: errors are reported to the subscribers but do not end the
+			// operation, DoneEvent is always broadcast as the only terminal event.
 		}
 
 		m.broadcast(NewProgressEvent("upgrade", 100.0))
