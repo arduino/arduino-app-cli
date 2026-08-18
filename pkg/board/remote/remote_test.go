@@ -208,6 +208,29 @@ func TestRemoteShell(t *testing.T) {
 
 				require.NoError(t, closer())
 			})
+
+			t.Run("VerbatimArgs", func(t *testing.T) {
+				// Each arg must reach the remote program literally, with no shell expansion.
+				for _, arg := range []string{
+					"$HOME and `whoami`",
+					"it's",
+					"a\nb",
+					"a && b; c",
+				} {
+					cmd := cmder("echo", arg)
+					output, err := cmd.Output(t.Context())
+					require.NoError(t, err)
+					got := strings.ReplaceAll(string(output), "\r\n", "\n") // adb pty rewrites \n as \r\n
+					assert.True(t, strings.HasPrefix(got, arg+"\n"), "expected %q to start with %q", got, arg)
+				}
+			})
+
+			t.Run("ShellScriptArg", func(t *testing.T) {
+				cmd := cmder("sh", "-c", "cd /tmp && pwd")
+				output, err := cmd.Output(t.Context())
+				require.NoError(t, err)
+				assert.Equal(t, "/tmp", strings.TrimSpace(string(output)))
+			})
 		}
 	}
 
