@@ -184,6 +184,7 @@ type handlerModelEntry struct {
 	ModelType   string   `json:"model_type"`
 	Path        string   `json:"path"`
 	Installed   bool     `json:"installed"`
+	Downloading bool     `json:"downloading"`   // a download is in progress or was interrupted
 	ModelSizeMB *float64 `json:"model_size_mb"` // from yaml metadata
 	DiskSizeMB  *float64 `json:"disk_size_mb"`  // actual on-disk size, only when installed
 }
@@ -214,6 +215,7 @@ func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient,
 		} else {
 			modelsInfo[i].Status = NotInstalledStatus
 		}
+		modelsInfo[i].Downloading = entry.Downloading
 		if entry.Installed && entry.DiskSizeMB != nil && *entry.DiskSizeMB > 0 {
 			modelsInfo[i].Size = uint64(*entry.DiskSizeMB * 1024 * 1024)
 		} else if entry.ModelSizeMB != nil && *entry.ModelSizeMB > 0 {
