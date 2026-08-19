@@ -176,6 +176,12 @@ type handlerModelListOutput struct {
 	Models []handlerModelEntry `json:"models"`
 }
 
+type entryMetadata struct {
+	ModelID string            `json:"model_id"`
+	Handler string            `json:"handler"` // a handler id, e.g. "hf-handler"
+	Inputs  map[string]string `json:"inputs"`
+}
+
 type handlerModelEntry struct {
 	ID          string   `json:"id"`
 	Name        string   `json:"name"`
@@ -187,6 +193,58 @@ type handlerModelEntry struct {
 	Downloading bool     `json:"downloading"`   // a download is in progress or was interrupted
 	ModelSizeMB *float64 `json:"model_size_mb"` // from yaml metadata
 	DiskSizeMB  *float64 `json:"disk_size_mb"`  // actual on-disk size, only when installed
+	// "builtin" for a model models-list.yaml declares, "user_configured" for one
+	ModelOrigin string         `json:"model_origin"`
+	Metadata    *entryMetadata `json:"download_metadata"`
+}
+
+func (e handlerModelEntry) applyStat(m *AIModel) {
+	if e.Installed {
+		m.Status = InstalledStatus
+	} else {
+		m.Status = NotInstalledStatus
+	}
+	m.Downloading = e.Downloading
+	if e.Installed && e.DiskSizeMB != nil && *e.DiskSizeMB > 0 {
+		m.Size = uint64(*e.DiskSizeMB * 1024 * 1024)
+	} else if e.ModelSizeMB != nil && *e.ModelSizeMB > 0 {
+		m.Size = uint64(*e.ModelSizeMB * 1024 * 1024)
+	}
+}
+
+func (h *HandlersIndex) userDownloadModel(entry handlerModelEntry) (AIModel, bool) {
+	if entry.ModelOrigin != "user_configured" {
+		return AIModel{}, false
+	}
+	md := entry.Metadata
+	if md == nil || md.Handler == "" || len(md.Inputs) == 0 {
+		slog.Warn("skipping model with no download record", "model", entry.ID)
+		return AIModel{}, false
+	}
+	if md.ModelID != entry.ID {
+		// One record per repository directory, and a repository can hold several
+		// quantizations: the record describes whichever downloaded last. Its variables
+		// would send a re-download or a delete at the wrong file.
+		slog.Warn("skipping model whose download record names another model",
+			"model", entry.ID, "record", md.ModelID)
+		return AIModel{}, false
+	}
+	if _, ok := h.GetHandlerByID(md.Handler); !ok {
+		slog.Warn("skipping model with unknown handler", "model", entry.ID, "handler", md.Handler)
+		return AIModel{}, false
+	}
+	return AIModel{
+		ID:        entry.ID,
+		Name:      entry.Name,
+		IsBuiltIn: false,
+		Bricks:    []BrickConfig{{ID: "arduino:llm"}},
+		Deployment: &ModelDeployment{
+			Handler: md.Handler,
+			Variables: []map[string]PlatformDeploymentConfig{
+				{h.configEnv["BOARD_NAME"]: {Variables: md.Inputs}},
+			},
+		},
+	}, true
 }
 
 func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient, models []AIModel) ([]AIModel, error) {
@@ -205,22 +263,16 @@ func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient,
 		dryIndex[m.ID] = i
 	}
 	for _, entry := range entries {
-		i, ok := dryIndex[entry.ID]
+		if i, ok := dryIndex[entry.ID]; ok {
+			entry.applyStat(&modelsInfo[i])
+			continue
+		}
+		model, ok := h.userDownloadModel(entry)
 		if !ok {
 			continue
 		}
-
-		if entry.Installed {
-			modelsInfo[i].Status = InstalledStatus
-		} else {
-			modelsInfo[i].Status = NotInstalledStatus
-		}
-		modelsInfo[i].Downloading = entry.Downloading
-		if entry.Installed && entry.DiskSizeMB != nil && *entry.DiskSizeMB > 0 {
-			modelsInfo[i].Size = uint64(*entry.DiskSizeMB * 1024 * 1024)
-		} else if entry.ModelSizeMB != nil && *entry.ModelSizeMB > 0 {
-			modelsInfo[i].Size = uint64(*entry.ModelSizeMB * 1024 * 1024)
-		}
+		entry.applyStat(&model)
+		modelsInfo = append(modelsInfo, model)
 	}
 	return modelsInfo, nil
 }
