@@ -1368,8 +1368,10 @@ paths:
             'data: {"code":"internal_service_err","message":"An error occurred during operation"}'
 
             **Event 'done'**:
-            Contains a string with the message that the update process is complete. It is always emitted
-            last, whether or not 'error' events were received.
+            Contains a string with the message that the update process is complete. It is emitted last,
+            also when 'error' events were received. Note that if the upgrade restarts arduino-app-cli
+            itself, the stream can end before 'done' is delivered: clients should treat the stream
+            closing as an end condition too.
             'event: done'
             'data: Update completed'
         "500":
