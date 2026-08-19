@@ -86,10 +86,13 @@ type AIModel struct {
 	SupportedBoards []string          `yaml:"supported_boards,omitempty"`
 	Deployment      *ModelDeployment  `yaml:"deployment,omitempty"`
 
-	IsBuiltIn   bool        `yaml:"-"` // a model is considered built-in if it is in the models-list.yaml and the "pre-loaded" flag is true
-	Status      ModelStatus `yaml:"-"`
-	Size        uint64      `yaml:"-"`
-	Downloading bool        `yaml:"-"`
+	IsBuiltIn bool        `yaml:"-"` // a model is considered built-in if it is in the models-list.yaml and the "pre-loaded" flag is true
+	Status    ModelStatus `yaml:"-"`
+	Size      uint64      `yaml:"-"`
+	// Downloading comes from the handler's on-disk ".download" marker, so it covers an
+	// interrupted download too. TODO(#585): reconcile with AcquireDownload, which guards
+	// concurrent runs into one directory but holds no state across a restart.
+	Downloading bool `yaml:"-"`
 }
 
 type ModelStatus string
@@ -145,7 +148,7 @@ func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, er
 	model := models[idx]
 	if model.Deployment != nil && model.Deployment.Handler != "" && !model.Deployment.PreLoaded { // non-preloaded internal models: determine actual install status
 		// TODO we should have a single method that do the check and get the info
-		installed, err := m.modelInstalled(ctx, model, m.cli)
+		installed, downloading, err := m.modelState(ctx, model, m.cli)
 		if err != nil {
 			return nil, fmt.Errorf("cannot determine install status for model %q: %w", id, err)
 		}
@@ -156,6 +159,7 @@ func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, er
 		} else {
 			model.Status = NotInstalledStatus
 		}
+		model.Downloading = downloading
 	}
 
 	return &model, nil
@@ -249,13 +253,13 @@ func (m *ModelsIndex) modelSize(ctx context.Context, model AIModel) uint64 {
 	return size
 }
 
-func (m *ModelsIndex) modelInstalled(ctx context.Context, model AIModel, cli client.APIClient) (bool, error) {
+func (m *ModelsIndex) modelState(ctx context.Context, model AIModel, cli client.APIClient) (bool, bool, error) {
 	if model.Deployment == nil || model.Deployment.Handler == "" {
-		return false, fmt.Errorf("model %q has no deployment handler", model.ID)
+		return false, false, fmt.Errorf("model %q has no deployment handler", model.ID)
 	}
 	handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)
 	if !ok {
-		return false, fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
+		return false, false, fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
 	}
 
 	envVars := model.Deployment.VariablesForPlatform(m.plat.BoardName)
@@ -270,7 +274,7 @@ func (m *ModelsIndex) modelInstalled(ctx context.Context, model AIModel, cli cli
 		Stdout: &buf,
 	})
 	if err != nil && !dockerhelper.IsExitError(err) {
-		return false, fmt.Errorf("model check failed for %q: %w", model.ID, err)
+		return false, false, fmt.Errorf("model check failed for %q: %w", model.ID, err)
 	}
 
 	slog.Debug("model check output", "model", model.ID, "output", buf.String())
@@ -280,16 +284,16 @@ func (m *ModelsIndex) modelInstalled(ctx context.Context, model AIModel, cli cli
 		Downloading bool   `json:"downloading"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
-		return false, fmt.Errorf("model check returned invalid JSON for %q: %w", model.ID, err)
+		return false, false, fmt.Errorf("model check returned invalid JSON for %q: %w", model.ID, err)
 	}
 
 	switch out.Event {
 	case "error":
-		return false, nil
+		return false, false, nil
 	case "info":
-		return !out.Downloading, nil
+		return !out.Downloading, out.Downloading, nil
 	default:
-		return false, fmt.Errorf("model check returned unexpected event %q for %q", out.Event, model.ID)
+		return false, false, fmt.Errorf("model check returned unexpected event %q for %q", out.Event, model.ID)
 	}
 }
 
