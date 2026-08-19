@@ -187,3 +187,114 @@ handlers:
 	slices.Sort(images)
 	assert.Equal(t, []string{"test-registry/models-downloader:ai-hub", "test-registry/models-downloader:ei", "test-registry/models-downloader:hf", "test-registry/models-downloader:listing"}, images)
 }
+
+func testHandlersIndex() *HandlersIndex {
+	return &HandlersIndex{
+		handlers:  map[string]ModelHandler{"hf-handler": {ID: "hf-handler"}},
+		configEnv: map[string]string{"BOARD_NAME": "unoq"},
+	}
+}
+
+func TestUserConfiguredModel(t *testing.T) {
+	inputs := map[string]string{
+		"models_repository": "llamacpp",
+		"model_directory":   "unsloth/Qwen3.5-0.8B-GGUF",
+		"model_url":         "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/blob/f4db1b3/Qwen3.5-0.8B-Q4_0.gguf",
+	}
+	entry := func(mutate func(*handlerModelEntry)) handlerModelEntry {
+		e := handlerModelEntry{
+			ID:          "llamacpp:Qwen3.5-0.8B-Q4_0",
+			Name:        "Qwen3.5-0.8B-Q4_0",
+			Handler:     "llamacpp",
+			ModelOrigin: "user_configured",
+			Metadata: &entryMetadata{
+				ModelID: "llamacpp:Qwen3.5-0.8B-Q4_0",
+				Handler: "hf-handler",
+				Inputs:  inputs,
+			},
+		}
+		if mutate != nil {
+			mutate(&e)
+		}
+		return e
+	}
+
+	t.Run("appends a model no models-list.yaml entry declares", func(t *testing.T) {
+		model, ok := testHandlersIndex().userDownloadModel(entry(nil))
+		require.True(t, ok)
+		assert.Equal(t, "llamacpp:Qwen3.5-0.8B-Q4_0", model.ID)
+		assert.Equal(t, "Qwen3.5-0.8B-Q4_0", model.Name)
+		assert.False(t, model.IsBuiltIn, "a built-in model cannot be deleted")
+		assert.Nil(t, model.ModelFolderPath, "the listing's path is a container path")
+		require.NotNil(t, model.Deployment)
+		// The handler id comes from the record: entry.Handler is a namespace.
+		assert.Equal(t, "hf-handler", model.Deployment.Handler)
+		assert.Equal(t, inputs, model.Deployment.VariablesForPlatform("unoq"))
+		assert.Equal(t, []BrickConfig{{ID: "arduino:llm"}}, model.Bricks)
+	})
+
+	// models-downloader <= 0.12.0 writes neither field, so on an older image every
+	// undeclared entry falls into one of these two cases and nothing is appended.
+	t.Run("skips an entry the handler marks builtin", func(t *testing.T) {
+		_, ok := testHandlersIndex().userDownloadModel(entry(func(e *handlerModelEntry) {
+			e.ModelOrigin = "builtin"
+		}))
+		assert.False(t, ok)
+	})
+
+	t.Run("skips an entry with no download record", func(t *testing.T) {
+		_, ok := testHandlersIndex().userDownloadModel(entry(func(e *handlerModelEntry) {
+			e.Metadata = nil
+		}))
+		assert.False(t, ok)
+	})
+
+	t.Run("skips an entry whose record carries no inputs", func(t *testing.T) {
+		_, ok := testHandlersIndex().userDownloadModel(entry(func(e *handlerModelEntry) {
+			e.Metadata.Inputs = nil
+		}))
+		assert.False(t, ok)
+	})
+
+	// Two quantizations of one repository share a record naming the last downloaded.
+	t.Run("skips an entry whose record names another model", func(t *testing.T) {
+		_, ok := testHandlersIndex().userDownloadModel(entry(func(e *handlerModelEntry) {
+			e.Metadata.ModelID = "llamacpp:Qwen3.5-0.8B-Q8_0"
+		}))
+		assert.False(t, ok)
+	})
+
+	t.Run("skips an entry naming a handler the index does not know", func(t *testing.T) {
+		_, ok := testHandlersIndex().userDownloadModel(entry(func(e *handlerModelEntry) {
+			e.Metadata.Handler = "not-a-handler"
+		}))
+		assert.False(t, ok)
+	})
+}
+
+func TestApplyStatusTo(t *testing.T) {
+	diskSize, yamlSize := 507.0, 480.0
+
+	t.Run("installed prefers the on-disk size", func(t *testing.T) {
+		var model AIModel
+		handlerModelEntry{Installed: true, DiskSizeMB: &diskSize, ModelSizeMB: &yamlSize}.applyStat(&model)
+		assert.Equal(t, InstalledStatus, model.Status)
+		assert.False(t, model.Downloading)
+		assert.Equal(t, uint64(507*1024*1024), model.Size)
+	})
+
+	t.Run("not installed falls back to the declared size", func(t *testing.T) {
+		var model AIModel
+		handlerModelEntry{Installed: false, DiskSizeMB: &diskSize, ModelSizeMB: &yamlSize}.applyStat(&model)
+		assert.Equal(t, NotInstalledStatus, model.Status)
+		assert.Equal(t, uint64(480*1024*1024), model.Size)
+	})
+
+	t.Run("downloading is not installed", func(t *testing.T) {
+		var model AIModel
+		handlerModelEntry{Installed: false, Downloading: true}.applyStat(&model)
+		assert.Equal(t, NotInstalledStatus, model.Status)
+		assert.True(t, model.Downloading)
+		assert.Zero(t, model.Size)
+	})
+}
