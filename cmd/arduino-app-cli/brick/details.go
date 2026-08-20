@@ -6,6 +6,7 @@
 package brick
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -25,14 +26,14 @@ func newBricksDetailsCmd(cfg config.Configuration) *cobra.Command {
 		Short: "Details of a specific brick",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			bricksDetailsHandler(args[0], cfg)
+			bricksDetailsHandler(cmd.Context(), args[0], cfg)
 		},
 		ValidArgsFunction: completion.BrickIDs(),
 	}
 }
 
-func bricksDetailsHandler(id string, cfg config.Configuration) {
-	res, err := servicelocator.GetBrickService().BricksDetails(id, servicelocator.GetAppIDProvider(),
+func bricksDetailsHandler(ctx context.Context, id string, cfg config.Configuration) {
+	res, err := servicelocator.GetBrickService().BricksDetails(ctx, id, servicelocator.GetAppIDProvider(),
 		cfg, servicelocator.GetPlatform())
 	if err != nil {
 		if errors.Is(err, bricks.ErrBrickNotFound) {

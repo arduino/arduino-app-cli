@@ -183,17 +183,16 @@ type entryMetadata struct {
 }
 
 type handlerModelEntry struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Handler     string   `json:"handler"`
-	Platform    string   `json:"platform"`
-	ModelType   string   `json:"model_type"`
-	Path        string   `json:"path"`
-	Installed   bool     `json:"installed"`
-	Downloading bool     `json:"downloading"`   // a download is in progress or was interrupted
-	ModelSizeMB *float64 `json:"model_size_mb"` // from yaml metadata
-	DiskSizeMB  *float64 `json:"disk_size_mb"`  // actual on-disk size, only when installed
-	// "builtin" for a model models-list.yaml declares, "user_configured" for one
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	Handler     string         `json:"handler"`
+	Platform    string         `json:"platform"`
+	ModelType   string         `json:"model_type"`
+	Path        string         `json:"path"`
+	Installed   bool           `json:"installed"`
+	Downloading bool           `json:"downloading"`   // a download is in progress or was interrupted
+	ModelSizeMB *float64       `json:"model_size_mb"` // from yaml metadata
+	DiskSizeMB  *float64       `json:"disk_size_mb"`  // actual on-disk size, only when installed
 	ModelOrigin string         `json:"model_origin"`
 	Metadata    *entryMetadata `json:"download_metadata"`
 }
@@ -275,32 +274,6 @@ func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient,
 		modelsInfo = append(modelsInfo, model)
 	}
 	return modelsInfo, nil
-}
-
-func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandler, model AIModel, plat platform.Platform, configEnv map[string]string) (uint64, error) {
-	envVars := model.Deployment.VariablesForPlatform(plat.BoardName)
-	maps.Insert(envVars, maps.All(configEnv))
-
-	var size uint64
-	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
-		Image: ResolveVars(handler.Image, envVars),
-		Cmd:   handler.Actions.Info,
-		Binds: ResolveVarsSlice(handler.Volumes, envVars),
-		Env:   envVars,
-		Stdout: f.NewCallbackWriter(func(line string) {
-			var out struct {
-				Event  string  `json:"event"`
-				SizeMB float64 `json:"size_mb"`
-			}
-			if jsonErr := json.Unmarshal([]byte(line), &out); jsonErr == nil && out.Event == "stat" && out.SizeMB > 0 {
-				size = uint64(out.SizeMB * 1024 * 1024)
-			}
-		}),
-	})
-	if err != nil {
-		return 0, fmt.Errorf("info action: %w", err)
-	}
-	return size, nil
 }
 
 func runListAction(ctx context.Context, cli client.APIClient, listing *ListingConfig, configEnv map[string]string) ([]handlerModelEntry, error) {
