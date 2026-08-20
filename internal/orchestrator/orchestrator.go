@@ -114,7 +114,7 @@ func StartApp(
 		return err
 	}
 
-	if err := checkPortCollisions(appToStart.Descriptor.Ports, appToStart.Descriptor.Bricks, bricksIndex); err != nil {
+	if err := checkPortCollisions(appToStart.Descriptor.Ports, appToStart.Descriptor.Bricks, bricksIndex, servicesIndex); err != nil {
 		return err
 	}
 

@@ -19,6 +19,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 )
 
 func TestValidateAppDescriptorBricks(t *testing.T) {
@@ -576,10 +577,11 @@ func TestDetectPortCollisions(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name     string
-		appPorts []int
-		bricks   []app.Brick
-		want     []portCollision
+		name         string
+		appPorts     []int
+		bricks       []app.Brick
+		servicePorts map[string][]string
+		want         []portCollision
 	}{
 		{
 			name:   "no collision",
@@ -617,11 +619,34 @@ func TestDetectPortCollisions(t *testing.T) {
 				{Port: "8080", Sources: []string{appPortsSource, "arduino:data_logger"}},
 			},
 		},
+		{
+			name:         "a service colliding with a brick",
+			bricks:       []app.Brick{{ID: "arduino:web_ui"}},
+			servicePorts: map[string][]string{"arduino:proxy": {"7000"}},
+			want:         []portCollision{{Port: "7000", Sources: []string{"arduino:web_ui", "arduino:proxy"}}},
+		},
+		{
+			name:         "a service colliding with app.yaml",
+			appPorts:     []int{8086},
+			servicePorts: map[string][]string{"arduino:tsstore": {"8086"}},
+			want:         []portCollision{{Port: "8086", Sources: []string{appPortsSource, "arduino:tsstore"}}},
+		},
+		{
+			name:         "two services on the same port are reported in a stable order",
+			servicePorts: map[string][]string{"arduino:b-service": {"9000"}, "arduino:a-service": {"9000"}},
+			want:         []portCollision{{Port: "9000", Sources: []string{"arduino:a-service", "arduino:b-service"}}},
+		},
+		{
+			name:         "services not sharing a port are not a collision",
+			bricks:       []app.Brick{{ID: "arduino:web_ui"}},
+			servicePorts: map[string][]string{"arduino:tsstore": {"8086"}},
+			want:         nil,
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.want, detectPortCollisions(tc.appPorts, tc.bricks, bIndex))
+			require.Equal(t, tc.want, detectPortCollisions(tc.appPorts, tc.bricks, bIndex, tc.servicePorts))
 		})
 	}
 }
@@ -664,7 +689,7 @@ func TestCheckPortCollisions(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := checkPortCollisions(tc.appPorts, tc.bricks, bIndex)
+			err := checkPortCollisions(tc.appPorts, tc.bricks, bIndex, &servicesindex.ServicesIndex{})
 			if len(tc.wantErrors) == 0 {
 				require.NoError(t, err)
 				return
