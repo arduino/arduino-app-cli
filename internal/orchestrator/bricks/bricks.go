@@ -7,6 +7,7 @@ package bricks
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -64,8 +65,10 @@ func (s *Service) List() BrickListResult {
 	return res
 }
 
-func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) AppBrickInstancesResult {
+func (s *Service) AppBrickInstancesList(ctx context.Context, a *app.ArduinoApp) AppBrickInstancesResult {
 	res := AppBrickInstancesResult{BrickInstances: make([]BrickInstance, len(a.Descriptor.Bricks))}
+	// One lookup for every brick instance, rather than a listing each.
+	models := s.modelsIndex.NewLookup()
 	for i, brickInstance := range a.Descriptor.Bricks {
 		brick, found := s.bricksIndex.WithAppBricks(a.LocalBricks).FindBrickByID(brickInstance.ID)
 		if !found {
@@ -89,7 +92,7 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) AppBrickInstancesResu
 			ModelID:         cmp.Or(brickInstance.Model, brick.ModelName),
 			Variables:       variablesMap,
 			ConfigVariables: configVariables,
-			CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModelLite) AIModel {
+			CompatibleModels: f.Map(compatibleModels(ctx, models, brick.ID), func(m modelsindex.AIModelLite) AIModel {
 				return AIModel{
 					ID:          m.ID,
 					Name:        m.Name,
@@ -102,7 +105,15 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) AppBrickInstancesResu
 	return res
 }
 
-func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (BrickInstance, error) {
+func compatibleModels(ctx context.Context, models *modelsindex.Lookup, brickID string) []modelsindex.AIModelLite {
+	matches, err := models.ByBrick(ctx, brickID)
+	if err != nil {
+		slog.Warn("cannot get models info, brick compatibility list may be incomplete", "brick", brickID, "err", err)
+	}
+	return matches
+}
+
+func (s *Service) AppBrickInstanceDetails(ctx context.Context, a *app.ArduinoApp, brickID string) (BrickInstance, error) {
 	bricksindex := s.bricksIndex.WithAppBricks(a.LocalBricks)
 	brick, found := bricksindex.FindBrickByID(brickID)
 	if !found {
@@ -133,7 +144,7 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 		Variables:       variables,
 		ConfigVariables: configVariables,
 		ModelID:         cmp.Or(a.Descriptor.Bricks[brickIndex].Model, brick.ModelName),
-		CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModelLite) AIModel {
+		CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(ctx, brick.ID), func(m modelsindex.AIModelLite) AIModel {
 			return AIModel{
 				ID:   m.ID,
 				Name: m.Name,
@@ -174,7 +185,7 @@ func getInstanceBrickConfigVariableDetails(
 	return variablesMap, variableDetails
 }
 
-func (s *Service) BricksDetails(id string, idProvider *appid.Provider,
+func (s *Service) BricksDetails(ctx context.Context, id string, idProvider *appid.Provider,
 	cfg config.Configuration, platform platform.Platform) (BrickDetailsResult, error) {
 	brick, found := s.bricksIndex.FindBrickByID(id)
 	if !found {
@@ -219,7 +230,7 @@ func (s *Service) BricksDetails(id string, idProvider *appid.Provider,
 		ApiDocsPath:  apiDocsPath,
 		CodeExamples: codeExamples,
 		UsedByApps:   usedByApps,
-		CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModelLite) AIModel {
+		CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(ctx, brick.ID), func(m modelsindex.AIModelLite) AIModel {
 			return AIModel{
 				ID:          m.ID,
 				Name:        m.Name,
@@ -339,6 +350,7 @@ type BrickCreateUpdateRequest struct {
 }
 
 func (s *Service) BrickCreate(
+	ctx context.Context,
 	req BrickCreateUpdateRequest,
 	appCurrent app.ArduinoApp,
 ) error {
@@ -379,7 +391,11 @@ func (s *Service) BrickCreate(
 	brickInstance.ID = req.ID
 
 	if req.Model != nil {
-		if !s.modelsIndex.IsModelSupportedByBrick(*req.Model, req.ID) {
+		supported, err := s.modelsIndex.IsModelSupportedByBrick(ctx, *req.Model, req.ID)
+		if err != nil {
+			return fmt.Errorf("checking model %s: %w", *req.Model, err)
+		}
+		if !supported {
 			return fmt.Errorf("model %s does not exsist", *req.Model)
 		}
 		brickInstance.Model = *req.Model
@@ -400,6 +416,7 @@ func (s *Service) BrickCreate(
 }
 
 func (s *Service) BrickUpdate(
+	ctx context.Context,
 	req BrickCreateUpdateRequest,
 	appCurrent app.ArduinoApp,
 ) error {
@@ -420,7 +437,11 @@ func (s *Service) BrickUpdate(
 	brickModel := appCurrent.Descriptor.Bricks[brickPosition].Model
 
 	if req.Model != nil && *req.Model != brickModel {
-		if !s.modelsIndex.IsModelSupportedByBrick(*req.Model, req.ID) {
+		supported, err := s.modelsIndex.IsModelSupportedByBrick(ctx, *req.Model, req.ID)
+		if err != nil {
+			return fmt.Errorf("checking model %s: %w", *req.Model, err)
+		}
+		if !supported {
 			return fmt.Errorf("model %s is not supported by brick %q", *req.Model, req.ID)
 		}
 		brickModel = *req.Model

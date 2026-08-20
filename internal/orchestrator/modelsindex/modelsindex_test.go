@@ -157,10 +157,10 @@ func TestModelsIndex(t *testing.T) {
 		assert.Equal(t, InstalledStatus, model.Status)
 	})
 
-	t.Run("it read the status of the model using the check handler", func(t *testing.T) {
-		t.Run("installed: info event with downloading=false", func(t *testing.T) {
+	t.Run("it read the status of the model from the handler listing", func(t *testing.T) {
+		t.Run("installed", func(t *testing.T) {
 			cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
-				return "{\"event\":\"info\",\"downloading\":false}\n", 0
+				return listingWith(`{"id":"a-model-not-preloaded-with-handler","installed":true}`), 0
 			})
 			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, cli, config.Configuration{})
 			require.NoError(t, err)
@@ -179,9 +179,9 @@ func TestModelsIndex(t *testing.T) {
 			}, model)
 		})
 
-		t.Run("not installed: info event with downloading=true", func(t *testing.T) {
+		t.Run("not installed: a download is in flight", func(t *testing.T) {
 			cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
-				return "{\"event\":\"info\",\"downloading\":true}\n", 0
+				return listingWith(`{"id":"a-model-not-preloaded-with-handler","installed":false,"downloading":true}`), 0
 			})
 			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, cli, config.Configuration{})
 			require.NoError(t, err)
@@ -201,9 +201,9 @@ func TestModelsIndex(t *testing.T) {
 			}, model)
 		})
 
-		t.Run("not installed: error event", func(t *testing.T) {
+		t.Run("not installed: absent from disk", func(t *testing.T) {
 			cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
-				return "{\"event\":\"error\",\"description\":\"model not found\"}\n", 1
+				return listingWith(`{"id":"a-model-not-preloaded-with-handler","installed":false}`), 0
 			})
 			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, cli, config.Configuration{})
 			require.NoError(t, err)
@@ -250,10 +250,10 @@ func TestModelsIndex(t *testing.T) {
 		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("path-not-existing"), paths.New("testdata/custom-models"), nil, config.Configuration{})
 		require.NoError(t, err)
 
-		model := modelsIndex.GetModelsByBrick("not-existing-brick")
+		model := modelsIndex.GetModelsByBrick(t.Context(), "not-existing-brick")
 		assert.Empty(t, model)
 
-		model = modelsIndex.GetModelsByBrick("arduino:object_detection")
+		model = modelsIndex.GetModelsByBrick(t.Context(), "arduino:object_detection")
 		assert.Len(t, model, 1)
 		assert.Equal(t, "face-detection", model[0].ID)
 	})
