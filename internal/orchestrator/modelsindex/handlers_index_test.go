@@ -49,6 +49,15 @@ func TestParseDownloadHandlerLine(t *testing.T) {
 			},
 		},
 		{
+			name:        "info event carries the files the handler wrote",
+			line:        `{"event":"info","description":"Downloaded to: /models/repo","artifacts":["/models/repo/m.gguf"]}`,
+			expectEvent: 1,
+			expected: StreamMessage{
+				data:      "Downloaded to: /models/repo",
+				artifacts: []string{"/models/repo/m.gguf"},
+			},
+		},
+		{
 			name:        "error event",
 			line:        `{"event":"error","description":"network failure"}`,
 			expectEvent: 1,
@@ -297,4 +306,39 @@ func TestApplyStatusTo(t *testing.T) {
 		assert.True(t, model.Downloading)
 		assert.Zero(t, model.Size)
 	})
+}
+
+func TestModelIDFromArtifacts(t *testing.T) {
+	tests := []struct {
+		name      string
+		artifacts []string
+		want      string
+	}{
+		{
+			name:      "the gguf names the model",
+			artifacts: []string{"/models/llamacpp/unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M.gguf"},
+			want:      "llamacpp:SmolLM2-135M-Instruct-Q4_K_M",
+		},
+		{
+			name:      "an mmproj file never names the model",
+			artifacts: []string{"/models/llamacpp/org/repo/mmproj-model-f16.gguf", "/models/llamacpp/org/repo/model-Q4_0.gguf"},
+			want:      "llamacpp:model-Q4_0",
+		},
+		{
+			name:      "non-gguf artifacts are ignored",
+			artifacts: []string{"/models/llamacpp/org/repo/models.ini"},
+			want:      "",
+		},
+		{
+			name:      "nothing reported",
+			artifacts: nil,
+			want:      "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, ModelIDFromArtifacts(tt.artifacts))
+		})
+	}
 }
