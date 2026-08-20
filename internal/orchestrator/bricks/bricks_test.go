@@ -30,7 +30,7 @@ func TestBrickCreate(t *testing.T) {
 	brickService := NewService(nil, bricksIndex)
 
 	t.Run("fails if brick id does not exist", func(t *testing.T) {
-		err = brickService.BrickCreate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err = brickService.BrickCreate(t.Context(), BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "brick \"not-existing-id\" not found", err.Error())
 	})
@@ -39,7 +39,7 @@ func TestBrickCreate(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"NON_EXISTING_VARIABLE": "some-value",
 		}}
-		err = brickService.BrickCreate(req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err = brickService.BrickCreate(t.Context(), req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "variable \"NON_EXISTING_VARIABLE\" does not exist on brick \"arduino:arduino_cloud\"", err.Error())
 	})
@@ -49,7 +49,7 @@ func TestBrickCreate(t *testing.T) {
 			"ARDUINO_DEVICE_ID": "",
 			"ARDUINO_SECRET":    "a-secret-a",
 		}}
-		err = brickService.BrickCreate(req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err = brickService.BrickCreate(t.Context(), req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "required variable \"ARDUINO_DEVICE_ID\" cannot be empty", err.Error())
 	})
@@ -63,7 +63,7 @@ func TestBrickCreate(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"ARDUINO_SECRET": "a-secret-a",
 		}}
-		err = brickService.BrickCreate(req, f.Must(app.Load(tempDummyApp)))
+		err = brickService.BrickCreate(t.Context(), req, f.Must(app.Load(tempDummyApp)))
 		require.NoError(t, err)
 
 		after, err := app.Load(tempDummyApp)
@@ -81,7 +81,7 @@ func TestBrickCreate(t *testing.T) {
 		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
 
 		req := BrickCreateUpdateRequest{ID: "arduino:dbstorage_sqlstore"}
-		err = brickService.BrickCreate(req, f.Must(app.Load(tempDummyApp)))
+		err = brickService.BrickCreate(t.Context(), req, f.Must(app.Load(tempDummyApp)))
 		require.Nil(t, err)
 		after, err := app.Load(tempDummyApp)
 		require.Nil(t, err)
@@ -109,7 +109,7 @@ func TestBrickCreate(t *testing.T) {
 			},
 		}
 
-		err = brickService.BrickCreate(req, f.Must(app.Load(tempDummyApp)))
+		err = brickService.BrickCreate(t.Context(), req, f.Must(app.Load(tempDummyApp)))
 		require.Nil(t, err)
 
 		after, err := app.Load(tempDummyApp)
@@ -127,13 +127,13 @@ func TestUpdateBrick(t *testing.T) {
 	brickService := NewService(nil, bricksIndex)
 
 	t.Run("fails if brick id does not exist into brick index", func(t *testing.T) {
-		err = brickService.BrickUpdate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err = brickService.BrickUpdate(t.Context(), BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "brick \"not-existing-id\" not found into the brick index", err.Error())
 	})
 
 	t.Run("fails if brick is present into the index but not in the app ", func(t *testing.T) {
-		err = brickService.BrickUpdate(BrickCreateUpdateRequest{ID: "arduino:dbstorage_sqlstore"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err = brickService.BrickUpdate(t.Context(), BrickCreateUpdateRequest{ID: "arduino:dbstorage_sqlstore"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "brick \"arduino:dbstorage_sqlstore\" not found into the bricks of the app", err.Error())
 	})
@@ -142,7 +142,7 @@ func TestUpdateBrick(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"NON_EXISTING_VARIABLE": "some-value",
 		}}
-		err = brickService.BrickUpdate(req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err = brickService.BrickUpdate(t.Context(), req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "variable \"NON_EXISTING_VARIABLE\" does not exist on brick \"arduino:arduino_cloud\"", err.Error())
 	})
@@ -153,7 +153,7 @@ func TestUpdateBrick(t *testing.T) {
 			"ARDUINO_DEVICE_ID": "",
 			"ARDUINO_SECRET":    "a-secret-a",
 		}}
-		err = brickService.BrickUpdate(req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err = brickService.BrickUpdate(t.Context(), req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "required variable \"ARDUINO_DEVICE_ID\" cannot be empty", err.Error())
 	})
@@ -167,7 +167,7 @@ func TestUpdateBrick(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"ARDUINO_SECRET": "a-secret-a",
 		}}
-		err = brickService.BrickUpdate(req, f.Must(app.Load(tempDummyApp)))
+		err = brickService.BrickUpdate(t.Context(), req, f.Must(app.Load(tempDummyApp)))
 		require.NoError(t, err)
 
 		after, err := app.Load(tempDummyApp)
@@ -196,7 +196,7 @@ func TestUpdateBrick(t *testing.T) {
 			},
 		}
 
-		err = brickService.BrickUpdate(req, f.Must(app.Load(tempDummyApp)))
+		err = brickService.BrickUpdate(t.Context(), req, f.Must(app.Load(tempDummyApp)))
 		require.Nil(t, err)
 
 		after, err := app.Load(tempDummyApp)
@@ -224,7 +224,7 @@ func TestUpdateBrick(t *testing.T) {
 			},
 		}
 
-		err = brickService.BrickUpdate(req, f.Must(app.Load(tempDummyApp)))
+		err = brickService.BrickUpdate(t.Context(), req, f.Must(app.Load(tempDummyApp)))
 		require.Nil(t, err)
 
 		after, err := app.Load(tempDummyApp)
@@ -257,7 +257,7 @@ func TestUpdateBrick(t *testing.T) {
 			},
 		}
 
-		err = brickService.BrickUpdate(req, f.Must(app.Load(tempDummyApp)))
+		err = brickService.BrickUpdate(t.Context(), req, f.Must(app.Load(tempDummyApp)))
 		require.Nil(t, err)
 
 		after, err := app.Load(tempDummyApp)
@@ -450,7 +450,7 @@ bricks:
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
 	t.Run("Brick Not Found", func(t *testing.T) {
-		res, err := svc.BricksDetails("arduino:non_existing", idProvider, cfg, unoQPlatform)
+		res, err := svc.BricksDetails(t.Context(), "arduino:non_existing", idProvider, cfg, unoQPlatform)
 		require.Error(t, err)
 		require.Equal(t, ErrBrickNotFound, err)
 		require.Empty(t, res.ID)
@@ -472,7 +472,7 @@ bricks:
 			},
 		}
 
-		res, err := svc.BricksDetails("arduino:object_detection", idProvider, cfg, unoQPlatform)
+		res, err := svc.BricksDetails(t.Context(), "arduino:object_detection", idProvider, cfg, unoQPlatform)
 		require.NoError(t, err)
 
 		require.Equal(t, "arduino:object_detection", res.ID)
@@ -498,7 +498,7 @@ bricks:
 	})
 
 	t.Run("Success - Full Details - no models", func(t *testing.T) {
-		res, err := svc.BricksDetails("arduino:weather_forecast", idProvider, cfg, unoQPlatform)
+		res, err := svc.BricksDetails(t.Context(), "arduino:weather_forecast", idProvider, cfg, unoQPlatform)
 		require.NoError(t, err)
 
 		require.Equal(t, "arduino:weather_forecast", res.ID)
@@ -516,7 +516,7 @@ bricks:
 	})
 
 	t.Run("Success - Full Details - one model", func(t *testing.T) {
-		res, err := svc.BricksDetails("arduino:one_model_brick", idProvider, cfg, unoQPlatform)
+		res, err := svc.BricksDetails(t.Context(), "arduino:one_model_brick", idProvider, cfg, unoQPlatform)
 		require.NoError(t, err)
 
 		require.Equal(t, "arduino:one_model_brick", res.ID)
@@ -530,7 +530,7 @@ bricks:
 	})
 
 	t.Run("Success - Brick Code example", func(t *testing.T) {
-		res, err := svc.BricksDetails("arduino:one_model_brick", idProvider, cfg, unoQPlatform)
+		res, err := svc.BricksDetails(t.Context(), "arduino:one_model_brick", idProvider, cfg, unoQPlatform)
 		require.NoError(t, err)
 
 		require.Equal(t, "arduino:one_model_brick", res.ID)
@@ -722,7 +722,7 @@ bricks:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := svc.AppBrickInstanceDetails(tt.app, tt.brickID)
+			result, err := svc.AppBrickInstanceDetails(t.Context(), tt.app, tt.brickID)
 
 			if tt.expectedError != "" {
 				require.Error(t, err)
@@ -1029,7 +1029,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 				bricksIndex: bIndex,
 				modelsIndex: modelsIdx,
 			}
-			result := svc.AppBrickInstancesList(tt.app)
+			result := svc.AppBrickInstancesList(t.Context(), tt.app)
 			if tt.validate != nil {
 				tt.validate(t, result)
 			}

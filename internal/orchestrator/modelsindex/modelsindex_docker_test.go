@@ -13,6 +13,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	dockertypes "github.com/docker/docker/api/types"
@@ -118,6 +119,11 @@ func (f *fakeDockerClient) ImageInspect(ctx context.Context, _ string, _ ...clie
 	return image.InspectResponse{}, nil
 }
 
+// listingWith wraps model entries in the envelope /app/list_models.sh prints.
+func listingWith(entries ...string) string {
+	return `{"event":"info","models":[` + strings.Join(entries, ",") + `]}`
+}
+
 func TestGetModelByID_WithDockerMock(t *testing.T) {
 	loadHandlersTestIndex := func(t *testing.T, dockerCli client.APIClient) *ModelsIndex {
 		t.Helper()
@@ -154,10 +160,9 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		assert.Equal(t, uint64(46*1024*1024), model.Size)
 	})
 
-	t.Run("ei:efficientnet-b4 not installed: check exits 1 with error event", func(t *testing.T) {
+	t.Run("ei:efficientnet-b4 not installed: the listing reports it absent", func(t *testing.T) {
 		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
-			// check action → model not present (script signals this via error event + exit 0)
-			return "{\"event\":\"error\",\"description\":\"model not installed\"}\n", 0
+			return listingWith(`{"id":"ei:efficientnet-b4","installed":false,"model_size_mb":89}`), 0
 		})
 		idx := loadHandlersTestIndex(t, cli)
 
@@ -168,10 +173,9 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		assert.Equal(t, uint64(89*1024*1024), model.Size)
 	})
 
-	t.Run("ei:efficientnet-b4 installed: check exits 0, size from metadata", func(t *testing.T) {
+	t.Run("ei:efficientnet-b4 installed: size falls back to the declared one", func(t *testing.T) {
 		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
-			// check action → model is present (script signals this via info event + exit 0)
-			return "{\"event\":\"info\"}\n", 0
+			return listingWith(`{"id":"ei:efficientnet-b4","installed":true,"model_size_mb":89}`), 0
 		})
 		idx := loadHandlersTestIndex(t, cli)
 
@@ -182,9 +186,8 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		assert.Equal(t, uint64(89*1024*1024), model.Size)
 	})
 
-	t.Run("ei:efficientnet-b4 check script crashes: returns error", func(t *testing.T) {
+	t.Run("listing fails: returns an error rather than a declared status", func(t *testing.T) {
 		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
-			// no info event → treated as unexpected failure
 			return "", 1
 		})
 		idx := loadHandlersTestIndex(t, cli)
@@ -247,4 +250,67 @@ func TestGetModelsReportsDownloading(t *testing.T) {
 	installed := byID("piper-tts-en")
 	assert.False(t, installed.Downloading)
 	assert.Equal(t, InstalledStatus, installed.Status)
+}
+
+// TestLookupRunsOneListing pins the reason Lookup exists: callers that query per brick
+// would otherwise pay a container start each, which on a board is seconds per brick.
+func TestLookupRunsOneListing(t *testing.T) {
+	var listings atomic.Int64
+	newIndex := func(t *testing.T) *ModelsIndex {
+		t.Helper()
+		cli := newFakeDockerClient(func(_ string, cmd []string) (string, int) {
+			if len(cmd) > 0 && cmd[0] == "/app/list_models.sh" {
+				listings.Add(1)
+			}
+			return listingWith(`{"id":"ei:efficientnet-b4","installed":true,"model_size_mb":89}`), 0
+		})
+		dir := paths.New("testdata/with-handlers")
+		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+		require.NoError(t, err)
+		return idx
+	}
+
+	t.Run("three queries share one listing", func(t *testing.T) {
+		listings.Store(0)
+		lookup := newIndex(t).NewLookup()
+
+		model, err := lookup.ByID(t.Context(), "ei:efficientnet-b4")
+		require.NoError(t, err)
+		require.NotNil(t, model)
+
+		_, err = lookup.ByBrick(t.Context(), "arduino:image_classification")
+		require.NoError(t, err)
+
+		supported, err := lookup.SupportedByBrick(t.Context(), "ei:efficientnet-b4", "arduino:image_classification")
+		require.NoError(t, err)
+		assert.True(t, supported)
+
+		assert.Equal(t, int64(1), listings.Load())
+	})
+
+	t.Run("a declared model needs no listing at all", func(t *testing.T) {
+		listings.Store(0)
+		lookup := newIndex(t).NewLookup()
+
+		model, err := lookup.ByID(t.Context(), "piper-tts-en")
+		require.NoError(t, err)
+		require.NotNil(t, model)
+
+		supported, err := lookup.SupportedByBrick(t.Context(), "piper-tts-en", "arduino:tts")
+		require.NoError(t, err)
+		assert.True(t, supported)
+
+		assert.Zero(t, listings.Load())
+	})
+
+	t.Run("each ModelsIndex call takes its own listing", func(t *testing.T) {
+		listings.Store(0)
+		idx := newIndex(t)
+
+		_, err := idx.GetModelByID(t.Context(), "ei:efficientnet-b4")
+		require.NoError(t, err)
+		idx.GetModelsByBrick(t.Context(), "arduino:image_classification")
+
+		assert.Equal(t, int64(2), listings.Load())
+	})
 }

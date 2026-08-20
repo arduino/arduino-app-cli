@@ -144,6 +144,7 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 		}
 	}
 
+	// TODO: skip the delete action when res.Status is already not-installed.
 	err = modelsIndex.Delete(ctx, dockerClient, platform, *res)
 	if err != nil {
 		return fmt.Errorf("error deleting model %q: %w", id, err)

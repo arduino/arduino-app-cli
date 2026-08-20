@@ -6,9 +6,7 @@
 package modelsindex
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -126,51 +124,50 @@ type ModelsIndex struct {
 	plat            platform.Platform
 }
 
-func (m *ModelsIndex) GetModels(ctx context.Context) []AIModel {
-	models := m.loadDryModels()
-	if m.Handlers != nil {
-		models, err := m.Handlers.getModelsInfo(ctx, m.cli, models)
-		if err != nil {
-			slog.Warn("cannot get models info", "err", err)
-		}
-		return models
-	}
-	return models
+// Lookup answers several model queries against at most one listing run. Callers that
+// query per brick in a loop should hold one instead of calling the ModelsIndex methods,
+// which take a fresh listing each time. Not safe for concurrent use.
+type Lookup struct {
+	idx    *ModelsIndex
+	models []AIModel
+	err    error
+	loaded bool
 }
 
-// GetModelByID returns the model with the given ID and populates its Installed and Size fields.
-func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, error) {
-	models := m.loadDryModels()
-	idx := slices.IndexFunc(models, func(v AIModel) bool { return v.ID == id })
+func (m *ModelsIndex) NewLookup() *Lookup {
+	return &Lookup{idx: m}
+}
+
+// listing runs the listing on first use only, so a caller whose models are all
+// pre-loaded or custom pays no container start at all. A failure is remembered too:
+// retrying it per query would mean a container start per question.
+func (l *Lookup) listing(ctx context.Context) error {
+	if l.loaded {
+		return l.err
+	}
+	l.models, l.err = l.idx.listModels(ctx)
+	l.loaded = true
+	return l.err
+}
+
+func (l *Lookup) ByID(ctx context.Context, id string) (*AIModel, error) {
+	if model, ok := l.idx.declaredModel(id); ok {
+		return model, nil
+	}
+	if err := l.listing(ctx); err != nil {
+		return nil, fmt.Errorf("cannot determine install status for model %q: %w", id, err)
+	}
+	idx := slices.IndexFunc(l.models, func(v AIModel) bool { return v.ID == id })
 	if idx == -1 {
 		return nil, nil
 	}
-	model := models[idx]
-	if model.Deployment != nil && model.Deployment.Handler != "" && !model.Deployment.PreLoaded { // non-preloaded internal models: determine actual install status
-		// TODO we should have a single method that do the check and get the info
-		installed, downloading, err := m.modelState(ctx, model, m.cli)
-		if err != nil {
-			return nil, fmt.Errorf("cannot determine install status for model %q: %w", id, err)
-		}
-		if installed {
-			model.Status = InstalledStatus
-			// TODO : we should return an error if the size cannot be determined
-			model.Size = m.modelSize(ctx, model)
-		} else {
-			model.Status = NotInstalledStatus
-		}
-		model.Downloading = downloading
-	}
-
-	return &model, nil
+	return &l.models[idx], nil
 }
 
-// GetModelsByBrick returns the models that are associated with the given brick name.
-func (m *ModelsIndex) GetModelsByBrick(brickID string) []AIModelLite {
-	models := m.loadDryModels()
-	matches := make([]AIModelLite, 0, len(models))
-
-	for _, model := range models {
+func (l *Lookup) ByBrick(ctx context.Context, brickID string) ([]AIModelLite, error) {
+	err := l.listing(ctx)
+	matches := make([]AIModelLite, 0, len(l.models))
+	for _, model := range l.models {
 		if slices.ContainsFunc(model.Bricks, func(b BrickConfig) bool { return b.ID == brickID }) {
 			matches = append(matches, AIModelLite{
 				ID:          model.ID,
@@ -179,15 +176,67 @@ func (m *ModelsIndex) GetModelsByBrick(brickID string) []AIModelLite {
 			})
 		}
 	}
+	return matches, err
+}
 
+func (l *Lookup) SupportedByBrick(ctx context.Context, modelID, brickID string) (bool, error) {
+	// A declared model needs no listing to answer: its bricks come from models-list.yaml.
+	if model, ok := l.idx.declaredModel(modelID); ok {
+		return slices.ContainsFunc(model.Bricks, func(b BrickConfig) bool { return b.ID == brickID }), nil
+	}
+	model, err := l.ByID(ctx, modelID)
+	if err != nil || model == nil {
+		return false, err
+	}
+	return slices.ContainsFunc(model.Bricks, func(b BrickConfig) bool { return b.ID == brickID }), nil
+}
+
+// declaredModel returns a model whose state comes from its declaration rather than from
+// disk - pre-loaded, or a custom model - so no handler run can add anything.
+func (m *ModelsIndex) declaredModel(id string) (*AIModel, bool) {
+	for _, model := range m.loadDryModels() {
+		if model.ID == id && (model.Deployment == nil || model.Deployment.PreLoaded) {
+			return &model, true
+		}
+	}
+	return nil, false
+}
+
+func (m *ModelsIndex) listModels(ctx context.Context) ([]AIModel, error) {
+	dryModels := m.loadDryModels()
+	if m.Handlers == nil || m.cli == nil {
+		return dryModels, nil
+	}
+	models, err := m.Handlers.getModelsInfo(ctx, m.cli, dryModels)
+	if err != nil {
+		return dryModels, err
+	}
+	return models, nil
+}
+
+func (m *ModelsIndex) GetModels(ctx context.Context) []AIModel {
+	models, err := m.listModels(ctx)
+	if err != nil {
+		slog.Warn("cannot get models info, falling back to declared models", "err", err)
+	}
+	return models
+}
+
+func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, error) {
+	return m.NewLookup().ByID(ctx, id)
+}
+
+// GetModelsByBrick returns the models that are associated with the given brick name.
+func (m *ModelsIndex) GetModelsByBrick(ctx context.Context, brickID string) []AIModelLite {
+	matches, err := m.NewLookup().ByBrick(ctx, brickID)
+	if err != nil {
+		slog.Warn("cannot get models info, brick compatibility list may be incomplete", "brick", brickID, "err", err)
+	}
 	return matches
 }
 
-func (m *ModelsIndex) IsModelSupportedByBrick(modelID, brickID string) bool {
-	models := m.GetModelsByBrick(brickID)
-	return slices.ContainsFunc(models, func(model AIModelLite) bool {
-		return model.ID == modelID
-	})
+func (m *ModelsIndex) IsModelSupportedByBrick(ctx context.Context, modelID, brickID string) (bool, error) {
+	return m.NewLookup().SupportedByBrick(ctx, modelID, brickID)
 }
 
 func (m *ModelsIndex) loadDryModels() []AIModel {
@@ -230,71 +279,6 @@ func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, custom
 		cli:             cli,
 		plat:            plat,
 	}, nil
-}
-
-func (m *ModelsIndex) modelSize(ctx context.Context, model AIModel) uint64 {
-	if sizeMBStr, ok := model.Metadata["model_size_mb"]; ok {
-		if sizeMB, err := strconv.ParseFloat(sizeMBStr, 64); err == nil && sizeMB > 0 {
-			return uint64(sizeMB * 1024 * 1024)
-		}
-	}
-	if model.Deployment == nil || model.Deployment.Handler == "" {
-		return 0
-	}
-	handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)
-	if !ok || len(handler.Actions.Info) == 0 {
-		return 0
-	}
-	size, err := runInfoAction(ctx, m.cli, handler, model, m.plat, m.Handlers.configEnv)
-	if err != nil {
-		slog.Warn("cannot get model size", "model", model.ID, "err", err)
-		return 0
-	}
-	return size
-}
-
-func (m *ModelsIndex) modelState(ctx context.Context, model AIModel, cli client.APIClient) (bool, bool, error) {
-	if model.Deployment == nil || model.Deployment.Handler == "" {
-		return false, false, fmt.Errorf("model %q has no deployment handler", model.ID)
-	}
-	handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)
-	if !ok {
-		return false, false, fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
-	}
-
-	envVars := model.Deployment.VariablesForPlatform(m.plat.BoardName)
-	maps.Insert(envVars, maps.All(m.Handlers.configEnv))
-
-	var buf bytes.Buffer
-	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
-		Image:  ResolveVars(handler.Image, envVars),
-		Cmd:    handler.Actions.Check,
-		Binds:  ResolveVarsSlice(handler.Volumes, envVars),
-		Env:    envVars,
-		Stdout: &buf,
-	})
-	if err != nil && !dockerhelper.IsExitError(err) {
-		return false, false, fmt.Errorf("model check failed for %q: %w", model.ID, err)
-	}
-
-	slog.Debug("model check output", "model", model.ID, "output", buf.String())
-	var out struct {
-		Event       string `json:"event"`
-		Description string `json:"description"`
-		Downloading bool   `json:"downloading"`
-	}
-	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
-		return false, false, fmt.Errorf("model check returned invalid JSON for %q: %w", model.ID, err)
-	}
-
-	switch out.Event {
-	case "error":
-		return false, false, nil
-	case "info":
-		return !out.Downloading, out.Downloading, nil
-	default:
-		return false, false, fmt.Errorf("model check returned unexpected event %q for %q", out.Event, model.ID)
-	}
 }
 
 func loadInternalModels(dir *paths.Path, handlers *HandlersIndex) ([]AIModel, error) {
