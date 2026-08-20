@@ -12,8 +12,10 @@ import (
 	"io"
 	"log/slog"
 	"maps"
+	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/docker/cli/cli/command"
@@ -114,6 +116,13 @@ type BrickConfig struct {
 	ID                 string            `yaml:"id"`
 	ModelConfiguration map[string]string `yaml:"model_configuration"`
 }
+
+// llamacppRepository is the models_repository GGUF models live under, and the only
+// directory the handler listing scans for models the catalog does not declare.
+const (
+	llamacppRepository = "llamacpp"
+	hfHandlerID        = "hf-handler"
+)
 
 type ModelsIndex struct {
 	InternalModels  []AIModel
@@ -387,6 +396,68 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 	}
 
 	return models, nil
+}
+
+// DownloadByURL fetches a model no models-list.yaml entry declares, named by a Hugging
+// Face file URL or by the downloader's compact "[type:]repo:quantization" key.
+//
+// The id is not an input: the downloader derives it from the file that arrives, using the
+// same rule the listing does, and reports the paths it wrote as the stream's artifacts.
+// Disk space is not pre-checked either, because the size is only known once the URL has
+// been resolved against the Hub.
+func (m *ModelsIndex) DownloadByURL(ctx context.Context, cli client.APIClient, modelURL, mmprojURL string, plat platform.Platform, publish func(e StreamMessage)) error {
+	variables := map[string]string{
+		"model_url": modelURL,
+		// Fixed rather than taken from the caller: it is the only directory the listing
+		// scans for undeclared models, so any other value downloads a model that can
+		// never be listed.
+		"models_repository": llamacppRepository,
+	}
+	if mmprojURL != "" {
+		variables["model_mmproj_url"] = mmprojURL
+	}
+
+	return m.Download(ctx, cli, AIModel{
+		Deployment: &ModelDeployment{
+			Handler: hfHandlerID,
+			Variables: []map[string]PlatformDeploymentConfig{
+				{plat.BoardName: {Variables: variables}},
+			},
+		},
+	}, plat, publish)
+}
+
+// ModelByURL returns the installed model that was downloaded from modelURL, matching the
+// variables the record left on its deployment. Needed when the downloader reports the
+// model as already present and so writes - and reports - no file.
+func (m *ModelsIndex) ModelByURL(ctx context.Context, modelURL string) (*AIModel, error) {
+	models, err := m.listModels(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range models {
+		if models[i].Deployment == nil {
+			continue
+		}
+		if models[i].Deployment.VariablesForPlatform(m.plat.BoardName)["model_url"] == modelURL {
+			return &models[i], nil
+		}
+	}
+	return nil, nil
+}
+
+// ModelIDFromArtifacts returns the id the downloader gave the model it just wrote, from
+// the artifact paths it reported. An mmproj file belongs to the main GGUF and never names
+// the model.
+func ModelIDFromArtifacts(artifacts []string) string {
+	for _, artifact := range artifacts {
+		name := filepath.Base(artifact)
+		if filepath.Ext(name) != ".gguf" || strings.Contains(name, "mmproj") {
+			continue
+		}
+		return llamacppRepository + ":" + strings.TrimSuffix(name, ".gguf")
+	}
+	return ""
 }
 
 func (m *ModelsIndex) Download(ctx context.Context, cli client.APIClient, model AIModel, plat platform.Platform, publish func(e StreamMessage)) error {

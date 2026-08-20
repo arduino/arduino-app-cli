@@ -61,25 +61,28 @@ func AIModelsList(ctx context.Context, req AIModelsListRequest, modelsIndex *mod
 		})
 	}
 
-	items := f.Map(collection, func(model modelsindex.AIModel) AIModelItem {
-		return AIModelItem{
-			ID:          model.ID,
-			Name:        model.Name,
-			Description: model.Description,
-			Runner:      model.Runner,
-			Bricks:      f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
-			Metadata:    model.Metadata,
-			IsBuiltIn:   model.IsBuiltIn,
-			Status:      model.Status,
-			Size: func() *uint64 {
-				if model.Size > 0 {
-					return &model.Size
-				}
-				return nil
-			}(),
-		}
-	})
-	return AIModelsListResult{Models: items}
+	return AIModelsListResult{Models: f.Map(collection, NewAIModelItem)}
+}
+
+// NewAIModelItem maps an index model onto the API shape. Size is omitted when unknown
+// rather than reported as zero.
+func NewAIModelItem(model modelsindex.AIModel) AIModelItem {
+	return AIModelItem{
+		ID:          model.ID,
+		Name:        model.Name,
+		Description: model.Description,
+		Runner:      model.Runner,
+		Bricks:      f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
+		Metadata:    model.Metadata,
+		IsBuiltIn:   model.IsBuiltIn,
+		Status:      model.Status,
+		Size: func() *uint64 {
+			if model.Size > 0 {
+				return &model.Size
+			}
+			return nil
+		}(),
+	}
 }
 
 func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, id string) (AIModelItem, bool, error) {

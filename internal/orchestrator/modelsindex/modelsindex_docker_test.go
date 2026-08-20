@@ -38,6 +38,9 @@ type fakeDockerClient struct {
 	client.APIClient
 
 	runFunc func(image string, cmd []string) (stdout string, exitCode int)
+	// runFuncEnv, when set, is called instead of runFunc and also receives the
+	// container's environment.
+	runFuncEnv func(image string, cmd, env []string) (stdout string, exitCode int)
 
 	mu        sync.Mutex
 	idCounter int
@@ -47,6 +50,7 @@ type fakeDockerClient struct {
 type pendingContainer struct {
 	image      string
 	cmd        []string
+	env        []string
 	attachConn net.Conn
 	statusCh   chan container.WaitResponse
 	errCh      chan error
@@ -59,12 +63,19 @@ func newFakeDockerClient(runFunc func(image string, cmd []string) (stdout string
 	}
 }
 
+func newFakeDockerClientWithEnv(runFunc func(image string, cmd, env []string) (stdout string, exitCode int)) *fakeDockerClient {
+	return &fakeDockerClient{
+		runFuncEnv: runFunc,
+		pending:    make(map[string]*pendingContainer),
+	}
+}
+
 func (f *fakeDockerClient) ContainerCreate(_ context.Context, cfg *container.Config, _ *container.HostConfig, _ *network.NetworkingConfig, _ *specs.Platform, _ string) (container.CreateResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.idCounter++
 	id := fmt.Sprintf("fake-%d", f.idCounter)
-	f.pending[id] = &pendingContainer{image: cfg.Image, cmd: cfg.Cmd}
+	f.pending[id] = &pendingContainer{image: cfg.Image, cmd: cfg.Cmd, env: cfg.Env}
 	return container.CreateResponse{ID: id}, nil
 }
 
@@ -96,7 +107,13 @@ func (f *fakeDockerClient) ContainerStart(_ context.Context, id string, _ contai
 	f.mu.Unlock()
 
 	go func() {
-		stdout, exitCode := f.runFunc(p.image, p.cmd)
+		var stdout string
+		var exitCode int
+		if f.runFuncEnv != nil {
+			stdout, exitCode = f.runFuncEnv(p.image, p.cmd, p.env)
+		} else {
+			stdout, exitCode = f.runFunc(p.image, p.cmd)
+		}
 		if stdout != "" {
 			w := stdcopy.NewStdWriter(p.attachConn, stdcopy.Stdout)
 			fmt.Fprint(w, stdout)
@@ -313,4 +330,37 @@ func TestLookupRunsOneListing(t *testing.T) {
 
 		assert.Equal(t, int64(2), listings.Load())
 	})
+}
+
+// TestDownloadByURL pins what reaches the container for a model the catalog does not
+// declare: the hf-handler's download script, the caller's URL, and models_repository
+// fixed to llamacpp - any other value downloads a model the listing cannot see.
+func TestDownloadByURL(t *testing.T) {
+	var gotCmd []string
+	var gotEnv []string
+	cli := newFakeDockerClientWithEnv(func(_ string, cmd, env []string) (string, int) {
+		if len(cmd) > 0 && strings.Contains(cmd[0], "hf_model_downloader.sh") {
+			gotCmd, gotEnv = cmd, env
+		}
+		return `{"event":"info","description":"Downloaded to: /models/org/repo","artifacts":["/models/org/repo/m-Q4_0.gguf"]}` + "\n", 0
+	})
+	dir := paths.New("testdata/with-handlers")
+	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+	require.NoError(t, err)
+
+	var artifacts []string
+	err = idx.DownloadByURL(t.Context(), cli, "llamacpp:org/repo:Q4_0", "", platform.Platform{BoardName: "ventunoq"}, func(e StreamMessage) {
+		if a := e.GetArtifacts(); len(a) > 0 {
+			artifacts = a
+		}
+	})
+	require.NoError(t, err)
+
+	require.NotEmpty(t, gotCmd, "the hf-handler download action must run")
+	assert.Contains(t, gotEnv, "model_url=llamacpp:org/repo:Q4_0")
+	assert.Contains(t, gotEnv, "models_repository=llamacpp")
+	assert.NotContains(t, strings.Join(gotEnv, " "), "model_mmproj_url", "an empty mmproj url must not be passed")
+
+	// The stream carries the file back, so the caller can name the model it just created.
+	assert.Equal(t, "llamacpp:m-Q4_0", ModelIDFromArtifacts(artifacts))
 }
