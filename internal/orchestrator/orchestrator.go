@@ -114,13 +114,8 @@ func StartApp(
 		return err
 	}
 
-	for _, collision := range detectPortCollisions(appToStart.Descriptor.Ports, appToStart.Descriptor.Bricks, bricksIndex) {
-		slog.Warn("port collision detected", slog.String("port", collision.Port), slog.Any("sources", collision.Sources))
-		// TODO convert this eventn in warning type after https://github.com/arduino/arduino-app-cli/issues/382 is approved and handled by App Lab
-		cb(StreamMessage{data: fmt.Sprintf(
-			"[WARNING] port %s is declared by more than one source (%s): only one of them will be reachable",
-			collision.Port, strings.Join(collision.Sources, ", "),
-		)})
+	if err := checkPortCollisions(appToStart.Descriptor.Ports, appToStart.Descriptor.Bricks, bricksIndex); err != nil {
+		return err
 	}
 
 	requiredClasses, err := requiredDeviceClasses(bricksIndex, appToStart.Descriptor.Bricks)

@@ -625,3 +625,54 @@ func TestDetectPortCollisions(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckPortCollisions(t *testing.T) {
+	bIndex := &bricksindex.BricksIndex{
+		BuiltInBricks: []bricksindex.Brick{
+			{ID: "arduino:web_ui", Ports: []string{"7000"}},
+			{ID: "arduino:streamlit_ui", Ports: []string{"7000"}},
+			{ID: "arduino:data_logger", Ports: []string{"8080"}},
+			{ID: "arduino:object_detection"},
+		},
+	}
+
+	testCases := []struct {
+		name       string
+		appPorts   []int
+		bricks     []app.Brick
+		wantErrors []string
+	}{
+		{
+			name:   "no collision returns no error",
+			bricks: []app.Brick{{ID: "arduino:web_ui"}, {ID: "arduino:object_detection"}},
+		},
+		{
+			name:       "two bricks on the same port",
+			bricks:     []app.Brick{{ID: "arduino:web_ui"}, {ID: "arduino:streamlit_ui"}},
+			wantErrors: []string{`port 7000 is declared by more than one source (arduino:web_ui, arduino:streamlit_ui)`},
+		},
+		{
+			name:     "every collision is reported",
+			appPorts: []int{7000, 8080},
+			bricks:   []app.Brick{{ID: "arduino:web_ui"}, {ID: "arduino:data_logger"}},
+			wantErrors: []string{
+				`port 7000 is declared by more than one source (app.yaml, arduino:web_ui)`,
+				`port 8080 is declared by more than one source (app.yaml, arduino:data_logger)`,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := checkPortCollisions(tc.appPorts, tc.bricks, bIndex)
+			if len(tc.wantErrors) == 0 {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			for _, want := range tc.wantErrors {
+				assert.Contains(t, err.Error(), want)
+			}
+		})
+	}
+}

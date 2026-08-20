@@ -14,6 +14,7 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
@@ -112,6 +113,20 @@ func detectPortCollisions(appPorts []int, bricks []app.Brick, index *bricksindex
 	}
 
 	return collisions
+}
+
+// checkPortCollisions validates that no port is declared by more than one source of the app.
+// Errors are joined so every collision is reported at once.
+func checkPortCollisions(appPorts []int, bricks []app.Brick, index *bricksindex.BricksIndex) error {
+	var allErrors error
+	for _, collision := range detectPortCollisions(appPorts, bricks, index) {
+		slog.Error("port collision detected", slog.String("port", collision.Port), slog.Any("sources", collision.Sources))
+		allErrors = errors.Join(allErrors, fmt.Errorf(
+			"port %s is declared by more than one source (%s)", collision.Port, strings.Join(collision.Sources, ", "),
+		))
+	}
+
+	return allErrors
 }
 
 // requiredDeviceClasses returns the sorted device classes required by the app bricks, skipping the
