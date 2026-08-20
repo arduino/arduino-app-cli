@@ -312,10 +312,11 @@ const (
 )
 
 type StreamMessage struct {
-	err      string
-	data     string
-	progress *Progress
-	done     string
+	err       string
+	data      string
+	progress  *Progress
+	done      string
+	artifacts []string
 }
 
 type Progress struct {
@@ -333,6 +334,7 @@ func (p *StreamMessage) GetData() string        { return p.data }
 func (p *StreamMessage) GetError() string       { return p.err }
 func (p *StreamMessage) GetProgress() *Progress { return p.progress }
 func (p *StreamMessage) GetDone() string        { return p.done }
+func (p *StreamMessage) GetArtifacts() []string { return p.artifacts }
 func (p *StreamMessage) GetType() MessageType {
 	if p.IsData() {
 		return InfoType
@@ -381,6 +383,13 @@ func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
 	case "complete":
 		publish(StreamMessage{
 			done: "download complete",
+		})
+	case "info":
+		// The files the handler wrote: without this the artifacts are dropped and a
+		// caller cannot tell which model arrived.
+		publish(StreamMessage{
+			data:      raw.Description,
+			artifacts: raw.Artifacts,
 		})
 	case "error":
 		publish(StreamMessage{

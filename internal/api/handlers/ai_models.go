@@ -244,3 +244,99 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 		}
 	}
 }
+
+type InstallHFModelRequest struct {
+	ModelURL  string `json:"model_url" description:"Hugging Face file URL, or the compact \"[type:]repo:quantization\" key" example:"llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF:Q4_K_M" required:"true"`
+	MmprojURL string `json:"model_mmproj_url" description:"multimodal projection file, for a vision model"`
+}
+
+func HandleInstallHFModel(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req InstallHFModelRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "unable to decode install model request"})
+			return
+		}
+		req.ModelURL = strings.TrimSpace(req.ModelURL)
+		if req.ModelURL == "" {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "model_url must be set"})
+			return
+		}
+
+		sseStream, err := render.NewSSEStream(r.Context(), w)
+		if err != nil {
+			slog.Error("unable to create SSE stream", slog.String("error", err.Error()))
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to create SSE stream"})
+			return
+		}
+		defer sseStream.Close()
+
+		type progress struct {
+			Name     string  `json:"name"`
+			Total    int64   `json:"total"`
+			Current  int64   `json:"current"`
+			Progress float32 `json:"progress"`
+		}
+		type log struct {
+			Message string `json:"message"`
+		}
+
+		var artifacts []string
+		var handlerFailed bool
+		installResponse := func(e modelsindex.StreamMessage) {
+			if a := e.GetArtifacts(); len(a) > 0 {
+				artifacts = a
+			}
+			if e.GetType() == modelsindex.ErrorType {
+				handlerFailed = true
+			}
+			switch e.GetType() {
+			case modelsindex.InfoType:
+				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: e.GetData()}})
+			case modelsindex.ProgressType:
+				var progressValue float32
+				if e.GetProgress().Total > 0 {
+					progressValue = float32(e.GetProgress().Current) / float32(e.GetProgress().Total) * 100
+				}
+				sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: e.GetProgress().Name, Current: e.GetProgress().Current, Total: e.GetProgress().Total, Progress: progressValue}})
+			case modelsindex.ErrorType:
+				sseStream.Send(render.SSEEvent{Type: "error", Data: e.GetError()})
+			case modelsindex.DoneType:
+				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: e.GetDone()}})
+			}
+		}
+
+		if err := modelsIndex.DownloadByURL(r.Context(), dockerClient.Client(), req.ModelURL, req.MmprojURL, plat, installResponse); err != nil {
+			if errors.Is(err, modelsindex.ErrInsufficientStorage) {
+				sseStream.SendError(render.SSEErrorData{Code: "insufficient_storage", Message: "insufficient disk space to install model"})
+				return
+			}
+			sseStream.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: err.Error()})
+			return
+		}
+
+		if handlerFailed {
+			return
+		}
+
+		// No file reported means the downloader found the model already installed, so
+		// name it from the URL it was downloaded with instead.
+		id := modelsindex.ModelIDFromArtifacts(artifacts)
+		if id == "" {
+			model, err := modelsIndex.ModelByURL(r.Context(), req.ModelURL)
+			if err != nil || model == nil {
+				sseStream.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: "download reported no model file"})
+				return
+			}
+			sseStream.Send(render.SSEEvent{Type: "done", Data: orchestrator.NewAIModelItem(*model)})
+			return
+		}
+		model, err := modelsIndex.GetModelByID(r.Context(), id)
+		if err != nil || model == nil {
+			slog.Warn("downloaded model not found in the index", "model", id, "err", err)
+			sseStream.Send(render.SSEEvent{Type: "done", Data: log{Message: id}})
+			return
+		}
+		sseStream.Send(render.SSEEvent{Type: "done", Data: orchestrator.NewAIModelItem(*model)})
+	}
+}

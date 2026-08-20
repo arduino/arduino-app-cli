@@ -939,6 +939,52 @@ Contains a JSON object with the details of an error.
 			},
 		},
 		{
+			OperationId: "installHFModel",
+			Method:      http.MethodPost,
+			Path:        "/v1/models/hf",
+			Request: (*struct {
+				ModelURL  string `json:"model_url" description:"Hugging Face file URL, or the compact \"[type:]repo:quantization\" key" example:"llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF:Q4_K_M" required:"true"`
+				MmprojURL string `json:"model_mmproj_url" description:"Multimodal projection file, for a vision model" example:"llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF:mmproj-F16"`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "text/event-stream",
+				DataStructure: "",
+				Description: `A stream of Server-Sent Events (SSE) reporting the download.
+
+**Event 'message'**:
+A line of progress information from the handler.
+'event: message'
+'data: {"message":"Downloading to: /models/llamacpp/unsloth/SmolLM2-135M-Instruct-GGUF"}'
+
+**Event 'progress'**:
+Bytes transferred for the file being downloaded.
+'event: progress'
+'data: {"name":"SmolLM2-135M-Instruct-Q4_K_M.gguf","current":75876627,"total":105454144,"progress":71.95}'
+
+**Event 'done'**:
+The installed model. Its id is derived from the file that was downloaded, so it is not
+known to the caller before this event.
+'event: done'
+'data: {"id":"llamacpp:SmolLM2-135M-Instruct-Q4_K_M","name":"SmolLM2-135M-Instruct-Q4_K_M","status":"installed"}'
+
+**Event 'error'**:
+Contains a JSON object with the details of an error.
+'event: error'
+'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+`,
+			},
+			Description: `Download and install a model that no entry of the internal model list declares, named by a Hugging Face link.
+
+The model identifier is assigned by the downloader from the file that arrives, which is why this is a POST on the collection rather than a PUT on an identifier. Requires a models-downloader image newer than 0.12.0.`,
+			Summary: "Download and install a model from a Hugging Face link",
+			Tags:    []Tag{AIModelsTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+				{StatusCode: http.StatusInsufficientStorage, Reference: "#/components/responses/InsufficientStorage"},
+			},
+		},
+		{
 			OperationId: "getSystemResources",
 			Method:      http.MethodGet,
 			Path:        "/v1/system/resources",
