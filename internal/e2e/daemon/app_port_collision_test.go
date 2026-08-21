@@ -27,7 +27,7 @@ func TestAppStartPortCollision(t *testing.T) {
 		message := startAppAndExpectError(t, httpClient, daemonAddr, "python-runner-collision",
 			"arduino:web_ui", "arduino:streamlit_ui")
 
-		require.Contains(t, message, "port 7000 is declared by more than one source")
+		require.Contains(t, message, "port 7000 is declared by multiple sources")
 		require.Contains(t, message, "arduino:web_ui")
 		require.Contains(t, message, "arduino:streamlit_ui")
 	})
@@ -38,7 +38,7 @@ func TestAppStartPortCollision(t *testing.T) {
 		message := startAppAndExpectError(t, httpClient, daemonAddr, "collision-between-containers",
 			"arduino:video_image_classification", "arduino:video_object_detection")
 
-		require.Contains(t, message, "port 4912 is declared by more than one source")
+		require.Contains(t, message, "port 4912 is declared by multiple sources")
 		require.Contains(t, message, "arduino:video_image_classification")
 		require.Contains(t, message, "arduino:video_object_detection")
 	})

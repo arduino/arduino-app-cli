@@ -7,7 +7,9 @@ package orchestrator
 
 import (
 	"errors"
+	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,6 +22,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 func TestValidateAppDescriptorBricks(t *testing.T) {
@@ -566,98 +569,42 @@ func TestNeedsAudioDevices(t *testing.T) {
 	}
 }
 
-func TestDetectPortCollisions(t *testing.T) {
+// writeServicesIndex builds a services index from compose files written on the fly, so that the
+// services have real ports: the field holding them is not exported.
+func writeServicesIndex(t *testing.T, composeByServiceID map[string]string) *servicesindex.ServicesIndex {
+	t.Helper()
+	root := paths.New(t.TempDir())
+	for id, compose := range composeByServiceID {
+		_, name, ok := strings.Cut(id, ":")
+		require.True(t, ok, "service id must be namespaced")
+		dir := root.Join("arduino", name)
+		require.NoError(t, dir.MkdirAll())
+		config := fmt.Sprintf("service_id: %s\nname: %s service\ncategory: test\n", id, name)
+		require.NoError(t, dir.Join("service_config.yaml").WriteFile([]byte(config)))
+		require.NoError(t, dir.Join("service_compose.yaml").WriteFile([]byte(compose)))
+	}
+	index, err := servicesindex.Load(platform.GetPlatform(nil), root)
+	require.NoError(t, err)
+	return index
+}
+
+func TestCheckPortCollisions(t *testing.T) {
+	servicesIndex := writeServicesIndex(t, map[string]string{
+		"arduino:audio": "services:\n  audio:\n    image: busybox\n    ports: [\"8085:8085\"]\n",
+		"arduino:db":    "services:\n  db:\n    image: busybox\n    ports: [\"9999:9999\"]\n",
+	})
+
 	bIndex := &bricksindex.BricksIndex{
 		BuiltInBricks: []bricksindex.Brick{
 			{ID: "arduino:web_ui", Ports: []string{"7000"}},
 			{ID: "arduino:streamlit_ui", Ports: []string{"7000"}},
 			{ID: "arduino:data_logger", Ports: []string{"8080", "8080"}},
 			{ID: "arduino:object_detection"},
-		},
-	}
-
-	testCases := []struct {
-		name         string
-		appPorts     []int
-		bricks       []app.Brick
-		servicePorts map[string][]string
-		want         []portCollision
-	}{
-		{
-			name:   "no collision",
-			bricks: []app.Brick{{ID: "arduino:web_ui"}, {ID: "arduino:object_detection"}},
-			want:   nil,
-		},
-		{
-			name:   "two bricks on the same port",
-			bricks: []app.Brick{{ID: "arduino:web_ui"}, {ID: "arduino:streamlit_ui"}},
-			want:   []portCollision{{Port: "7000", Sources: []string{"arduino:web_ui", "arduino:streamlit_ui"}}},
-		},
-		{
-			name:     "app.yaml colliding with a brick",
-			appPorts: []int{7000},
-			bricks:   []app.Brick{{ID: "arduino:web_ui"}},
-			want:     []portCollision{{Port: "7000", Sources: []string{appPortsSource, "arduino:web_ui"}}},
-		},
-		{
-			name:     "duplicated ports within a single source are not a collision",
-			appPorts: []int{9000, 9000},
-			bricks:   []app.Brick{{ID: "arduino:data_logger"}},
-			want:     nil,
-		},
-		{
-			name:   "bricks missing from the index are skipped",
-			bricks: []app.Brick{{ID: "arduino:web_ui"}, {ID: "arduino:unknown-brick"}},
-			want:   nil,
-		},
-		{
-			name:     "multiple collisions are sorted by port",
-			appPorts: []int{7000, 8080},
-			bricks:   []app.Brick{{ID: "arduino:web_ui"}, {ID: "arduino:data_logger"}},
-			want: []portCollision{
-				{Port: "7000", Sources: []string{appPortsSource, "arduino:web_ui"}},
-				{Port: "8080", Sources: []string{appPortsSource, "arduino:data_logger"}},
-			},
-		},
-		{
-			name:         "a service colliding with a brick",
-			bricks:       []app.Brick{{ID: "arduino:web_ui"}},
-			servicePorts: map[string][]string{"arduino:proxy": {"7000"}},
-			want:         []portCollision{{Port: "7000", Sources: []string{"arduino:web_ui", "arduino:proxy"}}},
-		},
-		{
-			name:         "a service colliding with app.yaml",
-			appPorts:     []int{8086},
-			servicePorts: map[string][]string{"arduino:tsstore": {"8086"}},
-			want:         []portCollision{{Port: "8086", Sources: []string{appPortsSource, "arduino:tsstore"}}},
-		},
-		{
-			name:         "two services on the same port are reported in a stable order",
-			servicePorts: map[string][]string{"arduino:b-service": {"9000"}, "arduino:a-service": {"9000"}},
-			want:         []portCollision{{Port: "9000", Sources: []string{"arduino:a-service", "arduino:b-service"}}},
-		},
-		{
-			name:         "services not sharing a port are not a collision",
-			bricks:       []app.Brick{{ID: "arduino:web_ui"}},
-			servicePorts: map[string][]string{"arduino:tsstore": {"8086"}},
-			want:         nil,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.want, detectPortCollisions(tc.appPorts, tc.bricks, bIndex, tc.servicePorts))
-		})
-	}
-}
-
-func TestCheckPortCollisions(t *testing.T) {
-	bIndex := &bricksindex.BricksIndex{
-		BuiltInBricks: []bricksindex.Brick{
-			{ID: "arduino:web_ui", Ports: []string{"7000"}},
-			{ID: "arduino:streamlit_ui", Ports: []string{"7000"}},
-			{ID: "arduino:data_logger", Ports: []string{"8080"}},
-			{ID: "arduino:object_detection"},
+			// Both speech bricks require the same service, like arduino:asr and arduino:tts do.
+			{ID: "arduino:asr", RequiresServices: bricksindex.RequiresServices{{ID: "arduino:audio"}}},
+			{ID: "arduino:tts", RequiresServices: bricksindex.RequiresServices{{ID: "arduino:audio"}}},
+			{ID: "arduino:storage", RequiresServices: bricksindex.RequiresServices{{ID: "arduino:db"}}},
+			{ID: "arduino:needs_missing", RequiresServices: bricksindex.RequiresServices{{ID: "arduino:missing"}}},
 		},
 	}
 
@@ -668,28 +615,62 @@ func TestCheckPortCollisions(t *testing.T) {
 		wantErrors []string
 	}{
 		{
-			name:   "no collision returns no error",
+			name:   "no collision",
 			bricks: []app.Brick{{ID: "arduino:web_ui"}, {ID: "arduino:object_detection"}},
 		},
 		{
 			name:       "two bricks on the same port",
 			bricks:     []app.Brick{{ID: "arduino:web_ui"}, {ID: "arduino:streamlit_ui"}},
-			wantErrors: []string{`port 7000 is declared by more than one source (arduino:web_ui, arduino:streamlit_ui)`},
+			wantErrors: []string{"port 7000 is declared by multiple sources: arduino:web_ui, arduino:streamlit_ui"},
+		},
+		{
+			name:       "app.yaml colliding with a brick",
+			appPorts:   []int{7000},
+			bricks:     []app.Brick{{ID: "arduino:web_ui"}},
+			wantErrors: []string{"port 7000 is declared by multiple sources: arduino:web_ui, app.yaml"},
+		},
+		{
+			name:     "duplicated ports within a single source are not a collision",
+			appPorts: []int{9000, 9000},
+			bricks:   []app.Brick{{ID: "arduino:data_logger"}},
+		},
+		{
+			name:   "bricks missing from the index are skipped",
+			bricks: []app.Brick{{ID: "arduino:web_ui"}, {ID: "arduino:unknown-brick"}},
 		},
 		{
 			name:     "every collision is reported",
 			appPorts: []int{7000, 8080},
 			bricks:   []app.Brick{{ID: "arduino:web_ui"}, {ID: "arduino:data_logger"}},
 			wantErrors: []string{
-				`port 7000 is declared by more than one source (app.yaml, arduino:web_ui)`,
-				`port 8080 is declared by more than one source (app.yaml, arduino:data_logger)`,
+				"port 7000 is declared by multiple sources: arduino:web_ui, app.yaml",
+				"port 8080 is declared by multiple sources: arduino:data_logger, app.yaml",
 			},
+		},
+		{
+			name:       "a service port is reported against the brick that required it",
+			appPorts:   []int{8085},
+			bricks:     []app.Brick{{ID: "arduino:asr"}},
+			wantErrors: []string{"port 8085 is declared by multiple sources: arduino:asr (service audio service), app.yaml"},
+		},
+		{
+			name:   "a service required by two bricks is a single source",
+			bricks: []app.Brick{{ID: "arduino:asr"}, {ID: "arduino:tts"}},
+		},
+		{
+			name:   "services publishing different ports are not a collision",
+			bricks: []app.Brick{{ID: "arduino:asr"}, {ID: "arduino:storage"}},
+		},
+		{
+			name:   "services missing from the index are skipped",
+			bricks: []app.Brick{{ID: "arduino:needs_missing"}},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := checkPortCollisions(tc.appPorts, tc.bricks, bIndex, &servicesindex.ServicesIndex{})
+			descriptor := app.AppDescriptor{Ports: tc.appPorts, Bricks: tc.bricks}
+			err := checkPortCollisions(descriptor, bIndex, servicesIndex)
 			if len(tc.wantErrors) == 0 {
 				require.NoError(t, err)
 				return
