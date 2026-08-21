@@ -6,15 +6,11 @@
 package daemon
 
 import (
-	"bufio"
 	"cmp"
 	"context"
-	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 
@@ -97,57 +93,6 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 		require.NotNil(t, resp.JSON200)
 		require.Equal(t, "not-installed", *resp.JSON200.Status, "model should not be installed after delete")
 	})
-}
-
-func newSSEClient(req *http.Request, lastEventID int64) (events chan Event, err error) {
-
-	if lastEventID > 0 {
-		req.Header.Set("Last-Event-ID", fmt.Sprintf("%d", lastEventID))
-	}
-	resp, err := http.DefaultClient.Do(req) //nolint
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("got response status code %d", resp.StatusCode)
-	}
-	events = make(chan Event)
-	go loop(resp.Body, events)
-	return events, nil
-}
-
-type Event struct {
-	ID    string
-	Event string
-	Data  []byte // json
-}
-
-func loop(r io.ReadCloser, events chan Event) {
-	defer r.Close()
-	reader := bufio.NewReader(r)
-
-	evt := Event{}
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			close(events)
-			return
-		}
-		switch {
-		case strings.HasPrefix(line, "data:"):
-			evt.Data = []byte(strings.TrimSpace(strings.TrimPrefix(line, "data:")))
-		case strings.HasPrefix(line, "event:"):
-			evt.Event = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
-		case strings.HasPrefix(line, "id:"):
-			evt.ID = strings.TrimSpace(strings.TrimPrefix(line, "id:"))
-		case strings.HasPrefix(line, "\n"):
-			events <- evt
-		default:
-			fmt.Fprintf(os.Stderr, "Unknown line: '%s'", line)
-			close(events)
-		}
-	}
 }
 
 // getModelWithRetry retries GetAIModelDetailsWithResponse up to 5 times with a 1s
