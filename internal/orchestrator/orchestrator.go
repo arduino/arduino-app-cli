@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	"github.com/arduino/arduino-cli/commands"
+	"github.com/arduino/arduino-cli/pkg/fqbn"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
@@ -1108,17 +1109,22 @@ func compileUploadSketch(
 		return err
 	}
 
-	menuOptions, err := GetPlatformMenuOptions(ctx, platform)
+	compileFqbn := fqbn.MustParse(platform.FQBN)
+	if f, err := fqbn.Parse(sketch.GetDefaultProfile().GetFqbn()); err == nil {
+		compileFqbn = f
+	} else {
+		slog.Warn("failed to parse FQBN from sketch profile, using platform FQBN for compilation", slog.String("error", err.Error()))
+	}
+
+	menuOptions, err := GetPlatformMenuOptions(ctx, compileFqbn.String())
 	if err != nil {
 		slog.Warn("failed to get platform menu options", slog.String("error", err.Error()))
 	}
-
-	fqbn := platform.FQBN
 	if menuOptions.Has(WaitForApp) {
-		fqbn += ":" + WaitForApp.String()
+		compileFqbn.Configs.Set(WaitForApp.name, WaitForApp.value)
 	}
 
-	slog.Debug("compile and upload sketch", slog.String("fqbn", fqbn), slog.Any("menuOptions", menuOptions))
+	slog.Debug("compile and upload sketch", slog.String("fqbn", compileFqbn.String()), slog.Any("menuOptions", menuOptions))
 
 	// build the sketch
 	buildPath := arduinoApp.SketchBuildPath()
@@ -1131,7 +1137,7 @@ func compileUploadSketch(
 	server, getCompileResult := commands.CompilerServerToStreams(ctx, w, w, nil)
 	compileReq := rpc.CompileRequest{
 		Instance:   inst,
-		Fqbn:       fqbn,
+		Fqbn:       compileFqbn.String(),
 		SketchPath: sketchPath.String(),
 		BuildPath:  buildPath.String(),
 		Jobs:       platform.CompileJobs,
