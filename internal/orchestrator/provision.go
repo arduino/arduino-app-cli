@@ -6,6 +6,7 @@
 package orchestrator
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -215,11 +216,7 @@ func generateMainComposeFile(
 		ports[fmt.Sprintf("%d:%d", p, p)] = struct{}{}
 	}
 
-	brickServices, err := requiredServices(bricksIndex, servicesIndex, app.Descriptor.Bricks)
-	if err != nil {
-		return err
-	}
-
+	brickServices := make(map[string]servicesindex.Service)
 	var composeFiles paths.PathList
 	services := make([]serviceInfo, 0, len(app.Descriptor.Bricks))
 	for _, brick := range app.Descriptor.Bricks {
@@ -234,13 +231,29 @@ func generateMainComposeFile(
 			ports[fmt.Sprintf("%s:%s", p, p)] = struct{}{}
 		}
 
-		// 2. Retrieve the brick_compose.yaml file.
+		// 2. Retrieve the required singleton services
+		matchingServices, err := idxBrick.GetMatchingService(bricksindex.BrickInstance{
+			Model: cmp.Or(brick.Model, idxBrick.ModelName),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to get required services for brick %s: %w", brick.ID, err)
+		}
+		for _, id := range matchingServices {
+			service, found := servicesIndex.FindServiceByID(id)
+			if !found {
+				slog.Debug("service required by brick not found or not available for current board", slog.String("service_id", id), slog.String("brick_id", brick.ID))
+				continue
+			}
+			brickServices[id] = *service
+		}
+
+		// 3. Retrieve the brick_compose.yaml file.
 		composeFilePath, ok := idxBrick.GetComposeFile()
 		if !ok {
 			continue
 		}
 
-		// 3. Retrieve the compose services names.
+		// 4. Retrieve the compose services names.
 		svcs, err := extractServicesFromComposeFile(composeFilePath)
 		if err != nil {
 			slog.Warn("loading brick_compose", slog.String("brick_id", brick.ID), slog.String("path", composeFilePath.String()), slog.Any("error", err))
@@ -251,7 +264,7 @@ func generateMainComposeFile(
 			continue
 		}
 
-		// 4. Retrieve the required devices that we have to mount
+		// 5. Retrieve the required devices that we have to mount
 		slog.Debug("Brick config", slog.Bool("mount_devices_into_container", idxBrick.MountDevicesIntoContainer), slog.Any("ports", ports), slog.Any("required_devices", idxBrick.RequiredDevices))
 		if idxBrick.MountDevicesIntoContainer {
 			for i := range svcs {
