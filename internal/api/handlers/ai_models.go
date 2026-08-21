@@ -222,14 +222,32 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 				sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: model.ID, Current: e.GetProgress().Current, Total: e.GetProgress().Total, Progress: progressValue}})
 
 			case modelsindex.ErrorType:
-				sseStream.Send(render.SSEEvent{Type: "error", Data: e.GetError()})
+				// Same payload shape as every other error on this stream: a bare
+				// string here reads as an empty code and message to a client
+				// decoding SSEErrorData, i.e. an error banner with no text.
+				slog.Error("model download handler reported an error",
+					slog.String("model", model.ID), slog.String("error", e.GetError()))
+				sseStream.SendError(render.SSEErrorData{
+					Code:    render.InternalServiceErr,
+					Message: e.GetError(),
+				})
 			case modelsindex.DoneType:
 				sseStream.Send(render.SSEEvent{Type: "done", Data: e.GetDone()})
+			default:
+				// A message with no populated field, e.g. an error event whose
+				// description was empty. Dropping it silently is what made a
+				// failed download look like nothing at all.
+				slog.Warn("unhandled message from model download handler",
+					slog.String("model", model.ID))
 			}
 		}
 
 		err = modelsIndex.Download(r.Context(), dockerClient.Client(), *model, plat, installResponse)
 		if err != nil {
+			// Also log it: the SSE event only reaches a client that is still
+			// listening, and the container is gone by now, so without this the
+			// reason cannot be recovered after the fact.
+			slog.Error("model download failed", slog.String("model", model.ID), slog.String("error", err.Error()))
 			if errors.Is(err, modelsindex.ErrInsufficientStorage) {
 				sseStream.SendError(render.SSEErrorData{
 					Code:    "insufficient_storage",

@@ -284,6 +284,10 @@ func (m *ModelsIndex) modelInstalled(ctx context.Context, model AIModel, cli cli
 
 	switch out.Event {
 	case "error":
+		// Not an error for the caller: the handler reports "error" both when the
+		// model is genuinely absent and when it could not look. Keep the reason
+		// so the two are distinguishable in the logs.
+		slog.Debug("model check reported an error", "model", model.ID, "description", out.Description)
 		return false, nil
 	case "info":
 		return !out.Downloading, nil

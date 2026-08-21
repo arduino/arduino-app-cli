@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/user"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/docker/docker/api/types/container"
@@ -45,6 +46,13 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 	if opts.Stderr == nil {
 		opts.Stderr = io.Discard
 	}
+
+	// Always keep the tail of stderr, whatever the caller does with it: it is
+	// the only place where a handler script reports *why* it failed, and the
+	// container is removed on exit (AutoRemove) with logging disabled, so it
+	// cannot be recovered afterwards.
+	stderrTail := &tailBuffer{}
+	stderr := io.MultiWriter(opts.Stderr, stderrTail)
 
 	for _, bind := range opts.Binds {
 		hostPath, _, _ := strings.Cut(bind, ":")
@@ -85,7 +93,11 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 
 	slog.Debug("creating container", "id", resp.ID, "image", opts.Image, "cmd", opts.Cmd, "env", opts.Env, "binds", opts.Binds)
 
-	statusCh, errCh := cli.ContainerWait(ctx, resp.ID, container.WaitConditionNotRunning)
+	// NextExit, not NotRunning: the container has been created but not started
+	// yet, and a created container already satisfies "not running", so
+	// NotRunning returns immediately with StatusCode 0 and every failing
+	// container looks like a success.
+	statusCh, errCh := cli.ContainerWait(ctx, resp.ID, container.WaitConditionNextExit)
 
 	attachResp, err := cli.ContainerAttach(ctx, resp.ID, container.AttachOptions{
 		Stream: true,
@@ -119,7 +131,7 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 	// Read output in a goroutine so it doesn't block waiting for the container.
 	g, _ := errgroup.WithContext(ctx)
 	g.Go(func() error {
-		_, err := stdcopy.StdCopy(opts.Stdout, opts.Stderr, attachResp.Reader)
+		_, err := stdcopy.StdCopy(opts.Stdout, stderr, attachResp.Reader)
 		return err
 	})
 
@@ -140,6 +152,12 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 	// Wait for StdCopy to finish draining output.
 	_ = g.Wait()
 
+	// Attach the container's own diagnostics to the error, now that stderr has
+	// been fully drained.
+	if exitErr, ok := errors.AsType[*ExitError](runErr); ok {
+		exitErr.Stderr = stderrTail.String()
+	}
+
 	return cmp.Or(ctx.Err(), runErr)
 }
 
@@ -148,16 +166,48 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 // a simple boolean check.
 type ExitError struct {
 	Code int64
+	// Stderr holds the tail of what the container wrote to stderr, which is
+	// usually the only description of what actually went wrong.
+	Stderr string
 }
 
 func (e *ExitError) Error() string {
-	return fmt.Sprintf("container exited with status %d", e.Code)
+	if e.Stderr == "" {
+		return fmt.Sprintf("container exited with status %d", e.Code)
+	}
+	return fmt.Sprintf("container exited with status %d: %s", e.Code, e.Stderr)
 }
 
 // IsExitError reports whether err (or any error wrapped by it) is an *ExitError.
 func IsExitError(err error) bool {
 	_, ok := errors.AsType[*ExitError](err)
 	return ok
+}
+
+// maxStderrTail caps how much of a container's stderr is kept for the error
+// message. Errors travel to the UI over SSE, so this stays small.
+const maxStderrTail = 2048
+
+// tailBuffer is an io.Writer retaining only the last maxStderrTail bytes.
+type tailBuffer struct {
+	mu  sync.Mutex
+	buf []byte
+}
+
+func (t *tailBuffer) Write(p []byte) (int, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.buf = append(t.buf, p...)
+	if len(t.buf) > maxStderrTail {
+		t.buf = t.buf[len(t.buf)-maxStderrTail:]
+	}
+	return len(p), nil
+}
+
+func (t *tailBuffer) String() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return strings.TrimSpace(string(t.buf))
 }
 
 func ensureImage(ctx context.Context, cli client.APIClient, img string) error {
