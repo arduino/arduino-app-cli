@@ -85,7 +85,19 @@ func GetSoundDevices() int {
 	return len(sndDeviceList)
 }
 
-func GetVideoDevices() map[int]string {
+// VideoDevice holds both identifiers of a camera:
+//   - StablePath is the /dev/v4l/by-id symlink, built by udev from the device
+//     attributes, so it survives a reboot or a change of USB port.
+//   - DevPath is the /dev/videoN node it points to, whose number depends on the
+//     enumeration order and can change at every boot.
+type VideoDevice struct {
+	StablePath string
+	DevPath    string
+}
+
+// GetVideoDeviceList returns the cameras found in /dev/v4l/by-id, in stable order,
+// keeping both identifiers.
+func GetVideoDeviceList() []VideoDevice {
 	// Check and read /dev/v4l/by-id. This fs contains only real video devices (cameras), filtering out devices for HW acceleration (like Qualcomm Venus)
 	videoDevicePath := paths.New("/dev/v4l/by-id")
 	if _, err := videoDevicePath.Stat(); err != nil {
@@ -102,23 +114,28 @@ func GetVideoDevices() map[int]string {
 	}
 	sortV4lByIndexDevices(sortedDevices)
 
-	camDevices := []string{}
+	camDevices := []VideoDevice{}
 	for _, v4d := range sortedDevices {
 		if linked, err := os.Readlink(v4d); err == nil {
 			split := strings.Split(linked, "/")
 			realVideoDev := filepath.Join("/dev", split[len(split)-1])
 			slog.Debug("found v4l device", slog.String("device", v4d), slog.String("linked", linked), slog.String("realDevice", realVideoDev))
-			camDevices = append(camDevices, realVideoDev)
+			camDevices = append(camDevices, VideoDevice{StablePath: v4d, DevPath: realVideoDev})
 		} else {
 			slog.Warn("unable to readlink v4l device", slog.String("device", v4d), slog.String("error", err.Error()))
 		}
 	}
+	return camDevices
+}
+
+func GetVideoDevices() map[int]string {
+	camDevices := GetVideoDeviceList()
 	// VIDEO_DEVICE will be the first device in /dev/v4l/by-id
 	slog.Debug("sorted camera devices", slog.Any("devices", camDevices))
 	deviceMap := map[int]string{}
 	for i, cam := range camDevices {
-		slog.Debug("found camera device", slog.Int("index", i), slog.String("device", cam))
-		deviceMap[i] = cam
+		slog.Debug("found camera device", slog.Int("index", i), slog.String("device", cam.DevPath))
+		deviceMap[i] = cam.DevPath
 	}
 	return deviceMap
 }
