@@ -1030,6 +1030,9 @@ Contains a JSON object with the details of an error.
 				ContentType:   "text/event-stream",
 				DataStructure: "",
 				Description: `A stream of Server-Sent Events (SSE) that notifies the progress of the update process.
+The 'done' and 'restarting' events are the only terminal event: an 'error' reports a step that failed but does
+not end the operation, so the client should collect the errors received during the stream and
+present a final summary once 'done' arrives.
 The client will receive events formatted as follows:
 
 **Event 'log'**:
@@ -1054,9 +1057,16 @@ Contains a string with the message that the upgrade is completed and the system 
 'data: Upgrade completed. Restarting'
 
 **Event 'error'**:
-Contains a JSON object with the details of an error.
+Contains a JSON object with the details of a step that failed. It does not end the operation:
+the upgrade continues and 'done' is emitted anyway.
 'event: error'
 'data: {"code":"internal_service_err","message":"An error occurred during operation"}'
+
+**Event 'done'**:
+Contains a string with the message that the update process is complete. It is emitted last,
+also when 'error' events were received. 
+'event: done'
+'data: Update completed'
 `,
 			},
 			PossibleErrors: []ErrorResponse{
