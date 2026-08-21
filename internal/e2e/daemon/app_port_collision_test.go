@@ -17,22 +17,47 @@ import (
 )
 
 // TestAppStartPortCollision checks that an app declaring the same port from more than one
-// source is refused before the start does any real work. Both arduino:web_ui and
-// arduino:streamlit_ui declare port 7000, so an app using both cannot expose them all.
-//
-// The collision is detected before any Docker call, so this test never needs a running
-// Docker daemon nor any image.
+// source is refused, and that the error names every source involved.
+
 func TestAppStartPortCollision(t *testing.T) {
 	httpClient, daemonAddr := GetHttpclientAndAddr(t)
+
+	// arduino:web_ui and arduino:streamlit_ui both declare port 7000 in the brick index.
+	t.Run("bricks running inside python runner", func(t *testing.T) {
+		message := startAppAndExpectError(t, httpClient, daemonAddr, "python-runner-collision",
+			"arduino:web_ui", "arduino:streamlit_ui")
+
+		require.Contains(t, message, "port 7000 is declared by more than one source")
+		require.Contains(t, message, "arduino:web_ui")
+		require.Contains(t, message, "arduino:streamlit_ui")
+	})
+
+	// arduino:video_image_classification and arduino:video_object_detection publish host port
+	// 4912 from their own brick_compose.yaml.
+	t.Run("bricks running in their own containers", func(t *testing.T) {
+		message := startAppAndExpectError(t, httpClient, daemonAddr, "collision-between-containers",
+			"arduino:video_image_classification", "arduino:video_object_detection")
+
+		require.Contains(t, message, "port 4912 is declared by more than one source")
+		require.Contains(t, message, "arduino:video_image_classification")
+		require.Contains(t, message, "arduino:video_object_detection")
+	})
+}
+
+func startAppAndExpectError(
+	t *testing.T,
+	httpClient *client.ClientWithResponses,
+	daemonAddr string,
+	appName string,
+	brickIDs ...string,
+) string {
+	t.Helper()
 	noEditor := func(ctx context.Context, req *http.Request) error { return nil }
 
 	createResp, err := httpClient.CreateAppWithResponse(
 		t.Context(),
 		&client.CreateAppParams{SkipSketch: new(true)},
-		client.CreateAppRequest{
-			Icon: new("💻"),
-			Name: "port-collision-app",
-		},
+		client.CreateAppRequest{Icon: new("💻"), Name: appName},
 		noEditor,
 	)
 	require.NoError(t, err)
@@ -40,7 +65,7 @@ func TestAppStartPortCollision(t *testing.T) {
 	require.NotNil(t, createResp.JSON201)
 	appID := *createResp.JSON201.Id
 
-	for _, brickID := range []string{"arduino:web_ui", "arduino:streamlit_ui"} {
+	for _, brickID := range brickIDs {
 		respBrick, err := httpClient.UpsertAppBrickInstanceWithResponse(
 			t.Context(), appID, brickID, client.BrickCreateUpdateRequest{}, noEditor,
 		)
@@ -72,7 +97,5 @@ func TestAppStartPortCollision(t *testing.T) {
 	}
 
 	require.Len(t, errorMessages, 1, "expected the start to fail with a single error")
-	require.Contains(t, errorMessages[0], "port 7000 is declared by more than one source")
-	require.Contains(t, errorMessages[0], "arduino:web_ui")
-	require.Contains(t, errorMessages[0], "arduino:streamlit_ui")
+	return errorMessages[0]
 }
