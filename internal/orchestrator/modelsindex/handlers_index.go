@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	composetmpl "github.com/compose-spec/compose-go/v2/template"
@@ -211,6 +212,37 @@ func (e handlerModelEntry) applyStat(m *AIModel) {
 	}
 }
 
+const llmBrickID = "arduino:llm"
+
+func UserConfiguredModel(m DownloadedModel) AIModel {
+	return AIModel{
+		ID:     m.ID,
+		Name:   modelNameFromID(m.ID),
+		Status: InstalledStatus,
+		Size:   m.Size,
+		Bricks: []BrickConfig{{ID: llmBrickID}},
+	}
+}
+
+func modelNameFromID(id string) string {
+	if _, name, ok := strings.Cut(id, ":"); ok {
+		return name
+	}
+	return id
+}
+
+func (m *ModelsIndex) InstalledModel(downloaded DownloadedModel) AIModel {
+	model, declared := m.DeclaredByID(downloaded.ID)
+	if !declared {
+		return UserConfiguredModel(downloaded)
+	}
+	model.Status = InstalledStatus
+	if downloaded.Size > 0 {
+		model.Size = downloaded.Size
+	}
+	return *model
+}
+
 func (h *HandlersIndex) userDownloadModel(entry handlerModelEntry) (AIModel, bool) {
 	if entry.ModelOrigin != "user_configured" {
 		return AIModel{}, false
@@ -236,7 +268,7 @@ func (h *HandlersIndex) userDownloadModel(entry handlerModelEntry) (AIModel, boo
 		ID:        entry.ID,
 		Name:      entry.Name,
 		IsBuiltIn: false,
-		Bricks:    []BrickConfig{{ID: "arduino:llm"}},
+		Bricks:    []BrickConfig{{ID: llmBrickID}},
 		Deployment: &ModelDeployment{
 			Handler: md.Handler,
 			Variables: []map[string]PlatformDeploymentConfig{
@@ -317,6 +349,12 @@ type StreamMessage struct {
 	progress  *Progress
 	done      string
 	artifacts []string
+	model     *DownloadedModel
+}
+
+type DownloadedModel struct {
+	ID   string
+	Size uint64
 }
 
 type Progress struct {
@@ -335,6 +373,10 @@ func (p *StreamMessage) GetError() string       { return p.err }
 func (p *StreamMessage) GetProgress() *Progress { return p.progress }
 func (p *StreamMessage) GetDone() string        { return p.done }
 func (p *StreamMessage) GetArtifacts() []string { return p.artifacts }
+
+// GetModel is nil until the handler names what it wrote, and stays nil for a handler too
+// old to report it.
+func (p *StreamMessage) GetModel() *DownloadedModel { return p.model }
 func (p *StreamMessage) GetType() MessageType {
 	if p.IsData() {
 		return InfoType
@@ -360,6 +402,7 @@ func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
 		SizeMB      float64  `json:"size_mb"`
 		Unit        string   `json:"unit"`
 		Artifacts   []string `json:"artifacts"`
+		ModelID     string   `json:"model_id"`
 	}
 	if err := json.Unmarshal([]byte(line), &raw); err != nil {
 		slog.Debug("non-JSON stdout from handler", "line", line)
@@ -385,12 +428,18 @@ func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
 			done: "download complete",
 		})
 	case "info":
-		// The files the handler wrote: without this the artifacts are dropped and a
-		// caller cannot tell which model arrived.
-		publish(StreamMessage{
+		// The files the handler wrote, and the model it made of them: without these the
+		// artifacts are dropped and a caller cannot tell which model arrived.
+		msg := StreamMessage{
 			data:      raw.Description,
 			artifacts: raw.Artifacts,
-		})
+		}
+		if raw.ModelID != "" {
+			// Reported only once the handler has recorded the model, so an id here means
+			// a later listing can resolve it too.
+			msg.model = &DownloadedModel{ID: raw.ModelID, Size: uint64(raw.SizeMB * 1024 * 1024)}
+		}
+		publish(msg)
 	case "error":
 		publish(StreamMessage{
 			err: raw.Description,

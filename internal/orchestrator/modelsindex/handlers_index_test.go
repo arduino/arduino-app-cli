@@ -308,37 +308,89 @@ func TestApplyStatusTo(t *testing.T) {
 	})
 }
 
-func TestModelIDFromArtifacts(t *testing.T) {
-	tests := []struct {
-		name      string
-		artifacts []string
-		want      string
-	}{
-		{
-			name:      "the gguf names the model",
-			artifacts: []string{"/models/llamacpp/unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M.gguf"},
-			want:      "llamacpp:SmolLM2-135M-Instruct-Q4_K_M",
-		},
-		{
-			name:      "an mmproj file never names the model",
-			artifacts: []string{"/models/llamacpp/org/repo/mmproj-model-f16.gguf", "/models/llamacpp/org/repo/model-Q4_0.gguf"},
-			want:      "llamacpp:model-Q4_0",
-		},
-		{
-			name:      "non-gguf artifacts are ignored",
-			artifacts: []string{"/models/llamacpp/org/repo/models.ini"},
-			want:      "",
-		},
-		{
-			name:      "nothing reported",
-			artifacts: nil,
-			want:      "",
+func TestParseDownloadHandlerLineNamesTheModel(t *testing.T) {
+	t.Run("an info event carrying an id names the model", func(t *testing.T) {
+		var got []StreamMessage
+		parseDownloadHandlerLine(`{"event":"info","description":"Downloaded to: /models/org/repo","artifacts":["/models/org/repo/m-Q4_0.gguf"],"model_id":"llamacpp:m-Q4_0","size_mb":2048}`, func(e StreamMessage) {
+			got = append(got, e)
+		})
+
+		require.Len(t, got, 1)
+		require.NotNil(t, got[0].GetModel())
+		assert.Equal(t, "llamacpp:m-Q4_0", got[0].GetModel().ID)
+		assert.Equal(t, uint64(2048*1024*1024), got[0].GetModel().Size)
+	})
+
+	t.Run("an info event without an id names nothing", func(t *testing.T) {
+		// A handler too old to report the id, or one whose record could not be written:
+		// either way there is no model to answer with.
+		var got []StreamMessage
+		parseDownloadHandlerLine(`{"event":"info","description":"Downloading","artifacts":["/models/org/repo/m-Q4_0.gguf"]}`, func(e StreamMessage) {
+			got = append(got, e)
+		})
+
+		require.Len(t, got, 1)
+		assert.Nil(t, got[0].GetModel())
+		assert.Equal(t, []string{"/models/org/repo/m-Q4_0.gguf"}, got[0].GetArtifacts())
+	})
+}
+
+func TestUserConfiguredModelFromDownloadEvent(t *testing.T) {
+	model := UserConfiguredModel(DownloadedModel{ID: "llamacpp:SmolLM2-135M-Instruct-Q4_K_M", Size: 1024})
+
+	assert.Equal(t, "llamacpp:SmolLM2-135M-Instruct-Q4_K_M", model.ID)
+	assert.Equal(t, "SmolLM2-135M-Instruct-Q4_K_M", model.Name, "the name is the id without its repository namespace")
+	assert.Equal(t, InstalledStatus, model.Status)
+	assert.Equal(t, uint64(1024), model.Size)
+	assert.Equal(t, []BrickConfig{{ID: "arduino:llm"}}, model.Bricks)
+	assert.False(t, model.IsBuiltIn)
+}
+
+func TestUserConfiguredModelMatchesTheListing(t *testing.T) {
+	// The same files, described once from a download event and once from a listing entry,
+	// must not come out differently named.
+	entry := handlerModelEntry{
+		ID:          "llamacpp:m-Q4_0",
+		Name:        "m-Q4_0",
+		ModelOrigin: "user_configured",
+		Installed:   true,
+		Metadata:    &entryMetadata{ModelID: "llamacpp:m-Q4_0", Handler: "hf-handler", Inputs: map[string]string{"model_url": "llamacpp:org/repo:Q4_0"}},
+	}
+	listed, ok := testHandlersIndex().userDownloadModel(entry)
+	require.True(t, ok)
+
+	fromEvent := UserConfiguredModel(DownloadedModel{ID: entry.ID})
+	assert.Equal(t, listed.ID, fromEvent.ID)
+	assert.Equal(t, listed.Name, fromEvent.Name)
+	assert.Equal(t, listed.Bricks, fromEvent.Bricks)
+}
+
+func TestModelNameFromID(t *testing.T) {
+	assert.Equal(t, "m-Q4_0", modelNameFromID("llamacpp:m-Q4_0"))
+	assert.Equal(t, "bare", modelNameFromID("bare"), "an id with no namespace is its own name")
+}
+
+func TestDeclaredByIDNeedsNoHandler(t *testing.T) {
+	// The install route asks this before deciding whether an id names a declared model or
+	// a download source, so it must answer from models-list.yaml alone - a nil handlers
+	// index and a nil docker client stand in for "no container available".
+	idx := &ModelsIndex{
+		InternalModels: []AIModel{
+			{ID: "llamacpp:Declared-Q4_0", Name: "Declared"},
+			// A key holding a slash: nothing forbids one, and it must still be found here
+			// rather than being taken for a Hugging Face repository.
+			{ID: "vendor/slashed-id", Name: "Slashed"},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, ModelIDFromArtifacts(tt.artifacts))
-		})
-	}
+	model, ok := idx.DeclaredByID("llamacpp:Declared-Q4_0")
+	require.True(t, ok)
+	assert.Equal(t, "Declared", model.Name)
+
+	model, ok = idx.DeclaredByID("vendor/slashed-id")
+	require.True(t, ok)
+	assert.Equal(t, "Slashed", model.Name)
+
+	_, ok = idx.DeclaredByID("unsloth/SmolLM2-135M-Instruct-GGUF")
+	assert.False(t, ok, "a repository the catalog does not declare is not a declared model")
 }

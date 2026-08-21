@@ -342,16 +342,16 @@ func TestDownloadByURL(t *testing.T) {
 		if len(cmd) > 0 && strings.Contains(cmd[0], "hf_model_downloader.sh") {
 			gotCmd, gotEnv = cmd, env
 		}
-		return `{"event":"info","description":"Downloaded to: /models/org/repo","artifacts":["/models/org/repo/m-Q4_0.gguf"]}` + "\n", 0
+		return `{"event":"info","description":"Downloaded to: /models/org/repo","artifacts":["/models/org/repo/m-Q4_0.gguf"],"model_id":"llamacpp:m-Q4_0","size_mb":1}` + "\n", 0
 	})
 	dir := paths.New("testdata/with-handlers")
 	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
 	require.NoError(t, err)
 
-	var artifacts []string
+	var downloaded *DownloadedModel
 	err = idx.DownloadByURL(t.Context(), cli, "llamacpp:org/repo:Q4_0", "", platform.Platform{BoardName: "ventunoq"}, func(e StreamMessage) {
-		if a := e.GetArtifacts(); len(a) > 0 {
-			artifacts = a
+		if m := e.GetModel(); m != nil {
+			downloaded = m
 		}
 	})
 	require.NoError(t, err)
@@ -361,6 +361,9 @@ func TestDownloadByURL(t *testing.T) {
 	assert.Contains(t, gotEnv, "models_repository=llamacpp")
 	assert.NotContains(t, strings.Join(gotEnv, " "), "model_mmproj_url", "an empty mmproj url must not be passed")
 
-	// The stream carries the file back, so the caller can name the model it just created.
-	assert.Equal(t, "llamacpp:m-Q4_0", ModelIDFromArtifacts(artifacts))
+	// The stream carries the model back, so the caller can report what it just created
+	// without reading it in again.
+	require.NotNil(t, downloaded)
+	assert.Equal(t, "llamacpp:m-Q4_0", downloaded.ID)
+	assert.Equal(t, uint64(1024*1024), downloaded.Size)
 }

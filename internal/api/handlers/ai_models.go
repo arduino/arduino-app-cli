@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -169,6 +170,21 @@ func (r InstallEIModelRequest) Validate() error {
 	return nil
 }
 
+type sseProgress struct {
+	Name     string  `json:"name"`
+	Total    int64   `json:"total"`
+	Current  int64   `json:"current"`
+	Progress float32 `json:"progress"`
+}
+
+type sseLog struct {
+	Message string `json:"message"`
+}
+
+type InstallModelRequest struct {
+	MmprojURL string `json:"model_mmproj_url" description:"multimodal projection file for a vision model, when the source is a file URL; a compact key names it inline instead"`
+}
+
 func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := strings.TrimSpace(r.PathValue("modelID"))
@@ -177,90 +193,33 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 			return
 		}
 
-		model, err := modelsIndex.GetModelByID(r.Context(), id)
-		if err != nil {
-			slog.Error("unable to get model by ID", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to get model by ID"})
-			return
-		}
-		if model == nil {
-			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: fmt.Sprintf("model %q not found", id)})
-			return
-		}
-		if model.Status == modelsindex.InstalledStatus {
-			render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: fmt.Sprintf("model %q already installed", id)})
-			return
-		}
-
-		sseStream, err := render.NewSSEStream(r.Context(), w)
-		if err != nil {
-			slog.Error("unable to create SSE stream", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to create SSE stream"})
-			return
-		}
-		defer sseStream.Close()
-
-		type progress struct {
-			Name     string  `json:"name"`
-			Total    int64   `json:"total"`
-			Current  int64   `json:"current"`
-			Progress float32 `json:"progress"`
-		}
-		type log struct {
-			Message string `json:"message"`
-		}
-
-		installResponse := func(e modelsindex.StreamMessage) {
-			switch e.GetType() {
-			case modelsindex.InfoType:
-				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: e.GetData()}})
-			case modelsindex.ProgressType:
-				var progressValue float32
-				if e.GetProgress().Total > 0 {
-					progressValue = float32(e.GetProgress().Current) / float32(e.GetProgress().Total) * 100
-				}
-				sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: model.ID, Current: e.GetProgress().Current, Total: e.GetProgress().Total, Progress: progressValue}})
-
-			case modelsindex.ErrorType:
-				sseStream.Send(render.SSEEvent{Type: "error", Data: e.GetError()})
-			case modelsindex.DoneType:
-				sseStream.Send(render.SSEEvent{Type: "done", Data: e.GetDone()})
-			}
-		}
-
-		err = modelsIndex.Download(r.Context(), dockerClient.Client(), *model, plat, installResponse)
-		if err != nil {
-			if errors.Is(err, modelsindex.ErrInsufficientStorage) {
-				sseStream.SendError(render.SSEErrorData{
-					Code:    "insufficient_storage",
-					Message: "insufficient disk space to install model",
-				})
-				return
-			}
-			sseStream.SendError(render.SSEErrorData{
-				Code:    render.InternalServiceErr,
-				Message: err.Error(),
-			})
-		}
-	}
-}
-
-type InstallHFModelRequest struct {
-	ModelURL  string `json:"model_url" description:"Hugging Face file URL, or the compact \"[type:]repo:quantization\" key" example:"llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF:Q4_K_M" required:"true"`
-	MmprojURL string `json:"model_mmproj_url" description:"multimodal projection file, for a vision model"`
-}
-
-func HandleInstallHFModel(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req InstallHFModelRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		// Only the mmproj file still needs a body, and only when the source is a file URL.
+		// An absent body is the normal case, so EOF is not an error here.
+		var req InstallModelRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "unable to decode install model request"})
 			return
 		}
-		req.ModelURL = strings.TrimSpace(req.ModelURL)
-		if req.ModelURL == "" {
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "model_url must be set"})
-			return
+
+		// The strategy is curated model list first, then user-configured models.
+		var declared *modelsindex.AIModel
+		if _, inCatalog := modelsIndex.DeclaredByID(id); inCatalog {
+			// Re-read through the index for the install status the catalog cannot give.
+			model, err := modelsIndex.GetModelByID(r.Context(), id)
+			if err != nil {
+				slog.Error("unable to get model by ID", slog.String("error", err.Error()))
+				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to get model by ID"})
+				return
+			}
+			if model == nil {
+				render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: fmt.Sprintf("model %q not found", id)})
+				return
+			}
+			if model.Status == modelsindex.InstalledStatus {
+				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: fmt.Sprintf("model %q already installed", id)})
+				return
+			}
+			declared = model
 		}
 
 		sseStream, err := render.NewSSEStream(r.Context(), w)
@@ -271,42 +230,41 @@ func HandleInstallHFModel(dockerClient command.Cli, modelsIndex *modelsindex.Mod
 		}
 		defer sseStream.Close()
 
-		type progress struct {
-			Name     string  `json:"name"`
-			Total    int64   `json:"total"`
-			Current  int64   `json:"current"`
-			Progress float32 `json:"progress"`
-		}
-		type log struct {
-			Message string `json:"message"`
-		}
-
-		var artifacts []string
+		var downloaded *modelsindex.DownloadedModel
 		var handlerFailed bool
-		installResponse := func(e modelsindex.StreamMessage) {
-			if a := e.GetArtifacts(); len(a) > 0 {
-				artifacts = a
-			}
-			if e.GetType() == modelsindex.ErrorType {
-				handlerFailed = true
+
+		publish := func(e modelsindex.StreamMessage) {
+			if m := e.GetModel(); m != nil {
+				downloaded = m
 			}
 			switch e.GetType() {
 			case modelsindex.InfoType:
-				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: e.GetData()}})
+				sseStream.Send(render.SSEEvent{Type: "message", Data: sseLog{Message: e.GetData()}})
 			case modelsindex.ProgressType:
-				var progressValue float32
-				if e.GetProgress().Total > 0 {
-					progressValue = float32(e.GetProgress().Current) / float32(e.GetProgress().Total) * 100
+				p := e.GetProgress()
+				var progress float32
+				if p.Total > 0 {
+					progress = float32(p.Current) / float32(p.Total) * 100
 				}
-				sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: e.GetProgress().Name, Current: e.GetProgress().Current, Total: e.GetProgress().Total, Progress: progressValue}})
+				name := p.Name
+				if declared != nil {
+					name = declared.ID
+				}
+				sseStream.Send(render.SSEEvent{Type: "progress", Data: sseProgress{Name: name, Current: p.Current, Total: p.Total, Progress: progress}})
 			case modelsindex.ErrorType:
+				handlerFailed = true
 				sseStream.Send(render.SSEEvent{Type: "error", Data: e.GetError()})
 			case modelsindex.DoneType:
-				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: e.GetDone()}})
+				sseStream.Send(render.SSEEvent{Type: "message", Data: sseLog{Message: e.GetDone()}})
 			}
 		}
 
-		if err := modelsIndex.DownloadByURL(r.Context(), dockerClient.Client(), req.ModelURL, req.MmprojURL, plat, installResponse); err != nil {
+		if declared != nil {
+			err = modelsIndex.Download(r.Context(), dockerClient.Client(), *declared, plat, publish)
+		} else {
+			err = modelsIndex.DownloadByURL(r.Context(), dockerClient.Client(), id, req.MmprojURL, plat, publish)
+		}
+		if err != nil {
 			if errors.Is(err, modelsindex.ErrInsufficientStorage) {
 				sseStream.SendError(render.SSEErrorData{Code: "insufficient_storage", Message: "insufficient disk space to install model"})
 				return
@@ -314,29 +272,35 @@ func HandleInstallHFModel(dockerClient command.Cli, modelsIndex *modelsindex.Mod
 			sseStream.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: err.Error()})
 			return
 		}
-
 		if handlerFailed {
 			return
 		}
 
-		// No file reported means the downloader found the model already installed, so
-		// name it from the URL it was downloaded with instead.
-		id := modelsindex.ModelIDFromArtifacts(artifacts)
-		if id == "" {
-			model, err := modelsIndex.ModelByURL(r.Context(), req.ModelURL)
-			if err != nil || model == nil {
-				sseStream.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: "download reported no model file"})
-				return
-			}
-			sseStream.Send(render.SSEEvent{Type: "done", Data: orchestrator.NewAIModelItem(*model)})
+		//TODO do we want to return the installed model here? It is not strictly necessary, but it might be useful for the client to know what was installed.
+		installed, ok := installedModel(modelsIndex, declared, downloaded)
+		if !ok {
+			slog.Error("download named no model", "source", id)
+			sseStream.SendError(render.SSEErrorData{
+				Code:    render.InternalServiceErr,
+				Message: "download named no model: a newer models-downloader image is required",
+			})
 			return
 		}
-		model, err := modelsIndex.GetModelByID(r.Context(), id)
-		if err != nil || model == nil {
-			slog.Warn("downloaded model not found in the index", "model", id, "err", err)
-			sseStream.Send(render.SSEEvent{Type: "done", Data: log{Message: id}})
-			return
-		}
-		sseStream.Send(render.SSEEvent{Type: "done", Data: orchestrator.NewAIModelItem(*model)})
+		sseStream.Send(render.SSEEvent{Type: "done", Data: orchestrator.NewAIModelItem(installed)})
 	}
+}
+
+func installedModel(modelsIndex *modelsindex.ModelsIndex, declared *modelsindex.AIModel, downloaded *modelsindex.DownloadedModel) (modelsindex.AIModel, bool) {
+	if declared == nil {
+		if downloaded == nil {
+			return modelsindex.AIModel{}, false
+		}
+		return modelsIndex.InstalledModel(*downloaded), true
+	}
+	installed := *declared
+	installed.Status = modelsindex.InstalledStatus
+	if downloaded != nil && downloaded.Size > 0 {
+		installed.Size = downloaded.Size
+	}
+	return installed, true
 }
