@@ -939,12 +939,17 @@ Contains a JSON object with the details of an error.
 			},
 		},
 		{
-			OperationId: "installHFModel",
-			Method:      http.MethodPost,
-			Path:        "/v1/models/hf",
+			OperationId: "installModel",
+			Method:      http.MethodPut,
+			// Documented as {id} like the GET and DELETE on the same path: OpenAPI treats
+			// two templated paths of the same hierarchy with different names as identical,
+			// so {modelID} here would collide with them.
+			Path: "/v1/models/{id}",
+			Parameters: (*struct {
+				ModelID string `path:"id" description:"A model id the internal model list declares, or a Hugging Face source to fetch one from: a file URL, or the compact \"[type:]repo:quantization[:mmproj_quantization]\" key. Percent-encode the slashes." example:"llamacpp:unsloth%2FSmolLM2-135M-Instruct-GGUF:Q4_K_M"`
+			})(nil),
 			Request: (*struct {
-				ModelURL  string `json:"model_url" description:"Hugging Face file URL, or the compact \"[type:]repo:quantization\" key" example:"llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF:Q4_K_M" required:"true"`
-				MmprojURL string `json:"model_mmproj_url" description:"Multimodal projection file, for a vision model" example:"llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF:mmproj-F16"`
+				MmprojURL string `json:"model_mmproj_url" description:"Multimodal projection file for a vision model, when the source is a file URL. A compact key names it inline instead, and a declared model needs no body at all." example:"https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/blob/main/mmproj-F16.gguf"`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "text/event-stream",
@@ -962,8 +967,9 @@ Bytes transferred for the file being downloaded.
 'data: {"name":"SmolLM2-135M-Instruct-Q4_K_M.gguf","current":75876627,"total":105454144,"progress":71.95}'
 
 **Event 'done'**:
-The installed model. Its id is derived from the file that was downloaded, so it is not
-known to the caller before this event.
+The installed model. For a declared model it is described by its own entry; for a Hugging
+Face source the downloader assigns the id from the file that arrives, so it is not known
+to the caller before this event.
 'event: done'
 'data: {"id":"llamacpp:SmolLM2-135M-Instruct-Q4_K_M","name":"SmolLM2-135M-Instruct-Q4_K_M","status":"installed"}'
 
@@ -973,13 +979,21 @@ Contains a JSON object with the details of an error.
 'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
 `,
 			},
-			Description: `Download and install a model that no entry of the internal model list declares, named by a Hugging Face link.
+			Description: `Download and install an AI model, streaming the progress as Server-Sent Events.
 
-The model identifier is assigned by the downloader from the file that arrives, which is why this is a POST on the collection rather than a PUT on an identifier. Requires a models-downloader image newer than 0.12.0.`,
-			Summary: "Download and install a model from a Hugging Face link",
+The path names either a model the internal model list declares, or a Hugging Face source to fetch one from - a file URL, or the compact "[type:]repo:quantization[:mmproj_quantization]" key. Percent-encode the slashes.
+
+The internal model list decides which it is: an id it declares is installed as a declared model, and anything else is handed to the Hugging Face downloader. A path that is neither is therefore reported by the downloader, as a stream error saying the repository does not exist, rather than as a 404. The 404 is reserved for a declared model the handler listing does not report at all.
+
+Only a declared model is checked before the download starts, and then only for being installed already, which is a 409. A Hugging Face source has no identifier until the downloader assigns one from the file that arrives, so it cannot be checked at all, and the id in the "done" event is not the one in the path.
+
+Installing from a Hugging Face source requires a models-downloader image that reports "model_id" on its download events (arduino/app-bricks-py#414). An older image installs the model but names nothing, and the request answers 500 rather than guess at an id no later request would resolve.`,
+			Summary: "Download and install an AI model",
 			Tags:    []Tag{AIModelsTag},
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusNotFound, Reference: "#/components/responses/NotFound"},
+				{StatusCode: http.StatusConflict, Reference: "#/components/responses/Conflict"},
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
 				{StatusCode: http.StatusInsufficientStorage, Reference: "#/components/responses/InsufficientStorage"},
 			},

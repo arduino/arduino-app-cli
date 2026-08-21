@@ -12,10 +12,8 @@ import (
 	"io"
 	"log/slog"
 	"maps"
-	"path/filepath"
 	"slices"
 	"strconv"
-	"strings"
 	"syscall"
 
 	"github.com/docker/cli/cli/command"
@@ -427,37 +425,17 @@ func (m *ModelsIndex) DownloadByURL(ctx context.Context, cli client.APIClient, m
 	}, plat, publish)
 }
 
-// ModelByURL returns the installed model that was downloaded from modelURL, matching the
-// variables the record left on its deployment. Needed when the downloader reports the
-// model as already present and so writes - and reports - no file.
-func (m *ModelsIndex) ModelByURL(ctx context.Context, modelURL string) (*AIModel, error) {
-	models, err := m.listModels(ctx)
-	if err != nil {
-		return nil, err
+// DeclaredByID returns the models-list.yaml entry for id, with no handler run.
+//
+// It says nothing about whether the model is installed - only what the declaration holds.
+// That is enough for a caller that has just installed the model itself and needs the
+// name, description and bricks the declaration gives it.
+func (m *ModelsIndex) DeclaredByID(id string) (*AIModel, bool) {
+	models := m.loadDryModels()
+	if i := slices.IndexFunc(models, func(v AIModel) bool { return v.ID == id }); i != -1 {
+		return &models[i], true
 	}
-	for i := range models {
-		if models[i].Deployment == nil {
-			continue
-		}
-		if models[i].Deployment.VariablesForPlatform(m.plat.BoardName)["model_url"] == modelURL {
-			return &models[i], nil
-		}
-	}
-	return nil, nil
-}
-
-// ModelIDFromArtifacts returns the id the downloader gave the model it just wrote, from
-// the artifact paths it reported. An mmproj file belongs to the main GGUF and never names
-// the model.
-func ModelIDFromArtifacts(artifacts []string) string {
-	for _, artifact := range artifacts {
-		name := filepath.Base(artifact)
-		if filepath.Ext(name) != ".gguf" || strings.Contains(name, "mmproj") {
-			continue
-		}
-		return llamacppRepository + ":" + strings.TrimSuffix(name, ".gguf")
-	}
-	return ""
+	return nil, false
 }
 
 func (m *ModelsIndex) Download(ctx context.Context, cli client.APIClient, model AIModel, plat platform.Platform, publish func(e StreamMessage)) error {
