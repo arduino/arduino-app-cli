@@ -8,6 +8,7 @@ package orchestrator
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -32,10 +33,15 @@ import (
 )
 
 type volume struct {
-	Type     string `yaml:"type"`
-	Source   string `yaml:"source"`
-	Target   string `yaml:"target"`
-	ReadOnly bool   `yaml:"read_only,omitempty"`
+	Type     string       `yaml:"type" json:"type"`
+	Source   string       `yaml:"source" json:"source"`
+	Target   string       `yaml:"target" json:"target"`
+	ReadOnly bool         `yaml:"read_only,omitempty" json:"read_only,omitempty"`
+	Bind     *bindOptions `yaml:"bind,omitempty" json:"bind,omitempty"`
+}
+
+type bindOptions struct {
+	CreateHostPath bool `yaml:"create_host_path" json:"create_host_path"`
 }
 
 type dependsOnCondition struct {
@@ -363,7 +369,11 @@ func generateMainComposeTemplate(
 		platform.Linux.BoardLeds.AsStrings(),
 	)
 	for _, mount := range optionalMounts {
-		volumes = append(volumes, mountExpr(mount))
+		expr, err := mountExpr(mount)
+		if err != nil {
+			return err
+		}
+		volumes = append(volumes, expr)
 	}
 
 	// The required runtime sockets, at whichever of their paths the board has, and
@@ -371,7 +381,11 @@ func generateMainComposeTemplate(
 	var runtimeGroupNames []string
 	for _, runtime := range cfg.RequiredRuntimeCandidates() {
 		for _, path := range runtime.Paths {
-			volumes = append(volumes, mountExpr(path))
+			expr, err := mountExpr(path)
+			if err != nil {
+				return err
+			}
+			volumes = append(volumes, expr)
 		}
 		if runtime.Group != "" && !slices.Contains(runtimeGroupNames, runtime.Group) {
 			runtimeGroupNames = append(runtimeGroupNames, runtime.Group)
@@ -590,19 +604,19 @@ func provisionComposeVolumes(ctx context.Context, arduinoApp *app.ArduinoApp) {
 
 // mountExpr binds a path where it is, `<path>:ro` read-only. It renders to nothing,
 // and so is dropped, on a board that has not the path: never created, being optional.
-func mountExpr(mount string) string {
+func mountExpr(mount string) (string, error) {
 	source, option, _ := strings.Cut(mount, ":")
 	bind, err := json.Marshal(volume{
-		Type:        "bind",
-		Source:      source,
-		Target:      source,
-		ReadOnly:    option == "ro",
-		CreateaPath: false,
+		Type:     "bind",
+		Source:   source,
+		Target:   source,
+		ReadOnly: option == "ro",
+		Bind:     &bindOptions{CreateHostPath: false},
 	})
 	if err != nil {
-		panic(err)
+		return "", err
 	}
-	return fmt.Sprintf("{{ if pathExists %s }}%s{{ end }}", strconv.Quote(source), bind)
+	return fmt.Sprintf("{{ if pathExists %s }}%s{{ end }}", strconv.Quote(source), bind), nil
 }
 
 func groupExprs(names []string) []string {
