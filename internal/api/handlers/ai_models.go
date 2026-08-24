@@ -276,7 +276,7 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 			return
 		}
 
-		//TODO do we want to return the installed model here? It is not strictly necessary, but it might be useful for the client to know what was installed.
+		// TODO do we want to return the installed model here? It is not strictly necessary, but it might be useful for the client to know what was installed.
 		installed, ok := installedModel(modelsIndex, declared, downloaded)
 		if !ok {
 			slog.Error("download named no model", "source", id)
