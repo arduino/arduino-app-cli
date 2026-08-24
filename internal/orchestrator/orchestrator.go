@@ -212,23 +212,22 @@ func StartApp(
 
 		// An app is provisioned every time it is started: it is editable, so its
 		// bricks, model or ports may have changed since the last run.
-		if err := provisioner.Build(appToStart.ProvisioningStateDir(), bricksIndex, servicesIndex, &appToStart, cfg, env, platform); err != nil {
+		if err := provisioner.Resolve(appToStart.ProvisioningStateDir(), bricksIndex, servicesIndex, &appToStart, cfg, env, platform); err != nil {
 			return err
 		}
 
-		if err := provisioner.Runtime(ctx, &appToStart, env); err != nil {
+		if err := provisioner.Render(ctx, &appToStart, env); err != nil {
 			return err
 		}
 
 		cb(StreamMessage{data: "python downloading"})
 
 		// Launch the docker compose command to start the app
-		commands := []string{}
-		commands = append(commands, "docker", "compose", "--env-file", appToStart.RuntimeEnvFilePath().String())
-		for _, composeFile := range appToStart.AppComposeFiles() {
-			commands = append(commands, "-f", composeFile.String())
+		commands := []string{
+			"docker", "compose",
+			"-f", appToStart.AppComposeFilePath().String(),
+			"up", "-d", "--remove-orphans", "--pull", "missing",
 		}
-		commands = append(commands, "up", "-d", "--remove-orphans", "--pull", "missing")
 
 		dockerParser := NewDockerProgressParser(200)
 
@@ -310,24 +309,16 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 	}
 
 	if app.MainPythonFile != nil {
-		mainCompose := app.AppComposeFilePath()
+		composeFile := app.AppComposeFilePath()
 		// In case the app was never started
-		if mainCompose.Exist() {
+		if composeFile.Exist() {
 			args := []string{
 				"docker",
 				"compose",
-			}
-			// The compose files reference the app environment as ${VAR}, so give
-			// docker compose the env file the app was started with. It is missing
-			// only for an app started by a CLI older than the env file itself.
-			if envFile := app.RuntimeEnvFilePath(); envFile.Exist() {
-				args = append(args, "--env-file", envFile.String())
-			}
-			args = append(args,
-				"-f", mainCompose.String(),
+				"-f", composeFile.String(),
 				cmd,
 				fmt.Sprintf("--timeout=%d", DefaultDockerStopTimeoutSeconds),
-			)
+			}
 			if cmd == "down" {
 				args = append(args, "--volumes", "--remove-orphans")
 			}
@@ -986,22 +977,6 @@ func getCurrentUser() string {
 	}
 
 	return uid + ":" + gid
-}
-
-// addLedControl adds bindings for led control if the paths exist.
-func addLedControl(platform platform.Platform, volumes []volume) []volume {
-	for _, led := range platform.Linux.BoardLeds {
-
-		if led.Exist() {
-			volumes = append(volumes, volume{
-				Type:   "bind",
-				Source: led.String(),
-				Target: led.String(),
-			})
-		}
-	}
-
-	return volumes
 }
 
 func compileUploadSketch(

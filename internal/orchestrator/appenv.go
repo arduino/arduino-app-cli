@@ -10,6 +10,9 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"os"
+	"os/user"
+	"strconv"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -27,6 +30,10 @@ import (
 )
 
 const appHomeRef = "${APP_HOME}"
+
+// An app runs as uid 1000, the same the cli itself requires (cmd/arduino-app-cli),
+// in the arduino group, which is required to exist but not to have a known id.
+const appUserRef = "1000:${ARDUINO_GID}"
 
 // AppEnv is the environment an app runs with, in the two halves the provisioning
 // is split in: BuildTime values are baked into the generated compose files, while
@@ -74,8 +81,8 @@ func AppEnvironment(
 	cfg config.Configuration,
 ) AppEnv {
 	return AppEnv{
-		buildTime: buildTimeAppEnv(ctx, arduinoApp, bricksIndex, modelsIndex, plat, cfg),
-		runtime:   runtimeAppEnv(ctx, arduinoApp.FullPath),
+		buildTime: buildTimeAppEnv(ctx, arduinoApp, bricksIndex, modelsIndex, plat),
+		runtime:   runtimeAppEnv(ctx, arduinoApp.FullPath, cfg),
 	}
 }
 
@@ -85,7 +92,6 @@ func buildTimeAppEnv(
 	brickIndex *bricksindex.BricksIndex,
 	modelsIndex *modelsindex.ModelsIndex,
 	plat platform.Platform,
-	cfg config.Configuration,
 ) types.Mapping {
 	envs := make(types.Mapping)
 
@@ -109,9 +115,6 @@ func buildTimeAppEnv(
 	}
 
 	envs["BOARD_NAME"] = plat.BoardName
-	// Directory where AI models are installed, shared with the containerized runners.
-	envs["MODELS_PATH"] = cfg.ModelsDir().String()
-	envs["XDG_RUNTIME_DIR"] = "/run/user/1000"
 
 	slog.Debug("Build-time environment variables", slog.Any("envs", envs))
 
@@ -122,13 +125,24 @@ func buildTimeAppEnv(
 // ${VAR}. All the keys are always set, empty when the host has nothing to offer,
 // so that the generated files and the app env file do not change shape depending
 // on what is plugged in the board.
-func runtimeAppEnv(ctx context.Context, appPath *paths.Path) types.Mapping {
-	envs := make(types.Mapping, 4)
+func runtimeAppEnv(ctx context.Context, appPath *paths.Path, cfg config.Configuration) types.Mapping {
+	envs := make(types.Mapping, 6)
 
 	envs["APP_HOME"] = appPath.String()
 	envs["VIDEO_DEVICE"] = ""
 	envs["CONFIGURED_CARRIERS"] = ""
 	envs["HOST_IP"] = ""
+	// Directory where AI models are installed, shared with the containerized runners.
+	envs["MODELS_PATH"] = cfg.ModelsDir().String()
+	envs["XDG_RUNTIME_DIR"] = "/run/user/1000"
+	// Primary group of the app, so the files it writes stay readable by the cli.
+	envs["ARDUINO_GID"] = func() string {
+		if group, err := user.LookupGroup("arduino"); err == nil {
+			return group.Gid
+		}
+		slog.Warn("arduino group not found on host; using the group of the current process")
+		return strconv.Itoa(os.Getgid())
+	}()
 
 	// Pre-select default camera device if available. This can be overridden by the app environment variables (or in future by applab)
 	// This is required because there are some video devices for HW acceleration that are auto registered in /dev but are not real cameras.

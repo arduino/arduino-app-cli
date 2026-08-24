@@ -109,13 +109,13 @@ bricks:
 		"FOO": "bar",
 	}
 
-	err = generateMainComposeFile(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, AppEnv{buildTime: env}, unkownPlatform)
+	err = generateMainComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, AppEnv{buildTime: env}, unkownPlatform)
 
 	// Validate that the main compose file and overrides are created
 	require.NoError(t, err, "Failed to generate main compose file")
-	composeFilePath := app.AppComposeFilePath()
+	composeFilePath := app.AppComposeTemplateFilePath()
 	require.True(t, composeFilePath.Exist(), "Main compose file should exist")
-	overridesFilePath := app.AppComposeOverrideFilePath()
+	overridesFilePath := app.AppComposeOverrideTemplateFilePath()
 	require.True(t, overridesFilePath.Exist(), "Override compose file should exist")
 
 	// Open override file and check for the expected override
@@ -366,9 +366,9 @@ services:
 		require.NoError(t, err)
 
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, AppEnv{buildTime: env}, unkownPlatform)
+		err = generateMainComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, AppEnv{buildTime: env}, unkownPlatform)
 		require.NoError(t, err, "Failed to generate main compose file")
-		composeFilePath := app.AppComposeFilePath()
+		composeFilePath := app.AppComposeTemplateFilePath()
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
 
 		// Open main compose file and check for the expected depends_on with service_healthy
@@ -420,9 +420,9 @@ services:
 		require.NoError(t, err)
 
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, AppEnv{buildTime: env}, unkownPlatform)
+		err = generateMainComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, AppEnv{buildTime: env}, unkownPlatform)
 		require.NoError(t, err, "Failed to generate main compose file")
-		composeFilePath := app.AppComposeFilePath()
+		composeFilePath := app.AppComposeTemplateFilePath()
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
 
 		// Open main compose file and check for the expected depends_on with service_started
@@ -537,9 +537,9 @@ services:
 		require.NoError(t, err)
 
 		// Run the provision function to generate the main compose file
-		err = generateMainComposeFile(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, AppEnv{buildTime: env}, unkownPlatform)
+		err = generateMainComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, AppEnv{buildTime: env}, unkownPlatform)
 		require.NoError(t, err, "Failed to generate main compose file")
-		composeFilePath := app.AppComposeFilePath()
+		composeFilePath := app.AppComposeTemplateFilePath()
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
 
 		// Extract services from the compose file to prepare override generation
@@ -548,11 +548,9 @@ services:
 
 		user := "1000:1000"
 
-		groups := []uint32{20} // dialout group ID
-
 		// Generate overrides file
-		overrideComposeFile := app.AppComposeOverrideFilePath()
-		err = generateServicesOverrideFile(svcInfo, user, groups, overrideComposeFile, AppEnv{buildTime: env}, nil)
+		overrideComposeFile := app.AppComposeOverrideTemplateFilePath()
+		err = generateServicesOverrideTemplate(svcInfo, user, overrideComposeFile, AppEnv{buildTime: env}, nil, []string{"dialout"})
 		require.NoError(t, err)
 
 		// load and validate override file content
@@ -649,13 +647,13 @@ bricks:
 		"FOO": "bar",
 	}
 
-	err = generateMainComposeFile(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, AppEnv{buildTime: env}, unkownPlatform)
+	err = generateMainComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, AppEnv{buildTime: env}, unkownPlatform)
 
 	// Validate that the main compose file and overrides are created
 	require.NoError(t, err, "Failed to generate main compose file")
-	composeFilePath := app.AppComposeFilePath()
+	composeFilePath := app.AppComposeTemplateFilePath()
 	require.True(t, composeFilePath.Exist(), "Main compose file should exist")
-	overridesFilePath := app.AppComposeOverrideFilePath()
+	overridesFilePath := app.AppComposeOverrideTemplateFilePath()
 	require.True(t, overridesFilePath.Exist(), "Override compose file should exist")
 
 	// Open override file and check for the expected override

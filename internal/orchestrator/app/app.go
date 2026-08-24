@@ -167,31 +167,33 @@ func (a *ArduinoApp) ProvisioningStateDir() *paths.Path {
 	return a.FullPath.Join(".cache")
 }
 
-// The compose files the provisioning generates. They are exported because the
-// provisioning also writes them outside of an app folder, when building a release.
+// The templates are exported because the resolve step also writes them outside of an
+// app folder, when building a release.
 const (
-	MainComposeFileName     = "app-compose.yaml"
-	OverrideComposeFileName = "app-compose-overrides.yaml"
+	MainTemplateFileName     = "app-compose.tmpl.yaml"
+	OverrideTemplateFileName = "app-compose-overrides.tmpl.yaml"
+	ComposeFileName          = "compose.yaml"
 )
 
-func (a *ArduinoApp) AppComposeFilePath() *paths.Path {
-	return a.ProvisioningStateDir().Join(MainComposeFileName)
+func (a *ArduinoApp) AppComposeTemplateFilePath() *paths.Path {
+	return a.ProvisioningStateDir().Join(MainTemplateFileName)
 }
 
-func (a *ArduinoApp) AppComposeOverrideFilePath() *paths.Path {
-	return a.ProvisioningStateDir().Join(OverrideComposeFileName)
+func (a *ArduinoApp) AppComposeOverrideTemplateFilePath() *paths.Path {
+	return a.ProvisioningStateDir().Join(OverrideTemplateFileName)
 }
 
-func (a *ArduinoApp) AppComposeFiles() paths.PathList {
-	files := paths.PathList{a.AppComposeFilePath()}
-	if override := a.AppComposeOverrideFilePath(); override.Exist() {
+func (a *ArduinoApp) AppComposeTemplateFiles() paths.PathList {
+	files := paths.PathList{a.AppComposeTemplateFilePath()}
+	if override := a.AppComposeOverrideTemplateFilePath(); override.Exist() {
 		files.Add(override)
 	}
 	return files
 }
 
-func (a *ArduinoApp) RuntimeEnvFilePath() *paths.Path {
-	return a.ProvisioningStateDir().Join("runtime.env")
+// AppComposeFilePath is the file docker compose is given, written at every start.
+func (a *ArduinoApp) AppComposeFilePath() *paths.Path {
+	return a.ProvisioningStateDir().Join(ComposeFileName)
 }
 
 func (a *ArduinoApp) getAppDescriptionFromReadme() (string, error) {

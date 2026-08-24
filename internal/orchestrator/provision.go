@@ -6,15 +6,12 @@
 package orchestrator
 
 import (
-	"bytes"
 	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
-	"os"
-	"os/user"
 	"slices"
 	"strconv"
 	"strings"
@@ -27,11 +24,9 @@ import (
 	"github.com/docker/docker/api/types/container"
 	yaml "github.com/goccy/go-yaml"
 
-	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -52,14 +47,15 @@ type logging struct {
 	Options map[string]string `yaml:"options,omitempty"`
 }
 
+// A field holding an expression is a string here: what it renders to is a list.
 type service struct {
 	Image             string                        `yaml:"image"`
 	DependsOn         map[string]dependsOnCondition `yaml:"depends_on,omitempty"`
-	Volumes           []volume                      `yaml:"volumes"`
-	DeviceCgroupRules []string                      `yaml:"device_cgroup_rules,omitempty"`
+	Volumes           []any                         `yaml:"volumes"`
 	Ports             []string                      `yaml:"ports"`
 	User              string                        `yaml:"user"`
-	GroupAdd          []uint32                      `yaml:"group_add"`
+	GroupAdd          []string                      `yaml:"group_add,omitempty"`
+	DeviceCgroupRules []string                      `yaml:"device_cgroup_rules,omitempty"`
 	Entrypoint        string                        `yaml:"entrypoint"`
 	ExtraHosts        []string                      `yaml:"extra_hosts,omitempty"`
 	Labels            map[string]string             `yaml:"labels,omitempty"`
@@ -106,11 +102,9 @@ func NewProvision(
 	return provision, nil
 }
 
-// App runs the build-time half of provisioning: it resolves the app bricks and
-// services into the compose files the app is started with. Everything it writes
-// is derived from the app and the target board, never from the state of the host
-// at this very moment (see AppEnv).
-func (p *Provision) Build(
+// Resolve turns the app bricks and services into the compose templates it is started
+// from, deriving them from the app and the target board and never from this host.
+func (p *Provision) Resolve(
 	genPath *paths.Path,
 	bricksIndex *bricksindex.BricksIndex,
 	servicesIndex *servicesindex.ServicesIndex,
@@ -132,10 +126,12 @@ func (p *Provision) Build(
 
 	bricksIndex = bricksIndex.WithAppBricks(arduinoApp.LocalBricks)
 
-	return generateMainComposeFile(arduinoApp, genPath, bricksIndex, servicesIndex, p.pythonImage, cfg, env, platform)
+	return generateMainComposeTemplate(arduinoApp, genPath, bricksIndex, servicesIndex, p.pythonImage, cfg, env, platform)
 }
 
-func (p *Provision) Runtime(
+// Render evaluates the templates against the board the app is being started on and
+// writes the single compose file docker is given.
+func (p *Provision) Render(
 	ctx context.Context,
 	arduinoApp *app.ArduinoApp,
 	env AppEnv,
@@ -144,10 +140,12 @@ func (p *Provision) Runtime(
 		return fmt.Errorf("provisioning failed: arduinoApp is nil")
 	}
 
-	// TODO: check that the build was executed
+	if arduinoApp.AppComposeTemplateFilePath().NotExist() {
+		return fmt.Errorf("provisioning failed: %s not found, the app was not resolved", app.MainTemplateFileName)
+	}
 
-	if err := generateRuntimeEnvFile(arduinoApp, env); err != nil {
-		return fmt.Errorf("provisioning failed to generate runtime env file: %w", err)
+	if err := renderComposeFile(ctx, arduinoApp, env); err != nil {
+		return fmt.Errorf("provisioning failed to render the app compose file: %w", err)
 	}
 
 	provisionComposeVolumes(ctx, arduinoApp)
@@ -226,7 +224,7 @@ const (
 	DockerAppPathLabel = "cc.arduino.app.path"
 )
 
-func generateMainComposeFile(
+func generateMainComposeTemplate(
 	arduinoApp *app.ArduinoApp,
 	genPath *paths.Path,
 	bricksIndex *bricksindex.BricksIndex,
@@ -324,9 +322,9 @@ func generateMainComposeFile(
 	}
 
 	// Create a single docker-mainCompose that includes all the required services
-	mainComposeFile := genPath.Join(app.MainComposeFileName)
+	mainTemplateFile := genPath.Join(app.MainTemplateFileName)
 	// If required, create an override compose file for devices
-	overrideComposeFile := genPath.Join(app.OverrideComposeFileName)
+	overrideTemplateFile := genPath.Join(app.OverrideTemplateFileName)
 
 	type mainService struct {
 		Main service `yaml:"main"`
@@ -344,60 +342,48 @@ func generateMainComposeFile(
 	mainAppCompose.Name = composeProjectName
 	mainAppCompose.Include = composeFiles.AsStrings()
 
-	volumes := []volume{
-		{
+	volumes := []any{
+		volume{
 			Type:   "bind",
 			Source: appHomeRef,
 			Target: "/app",
 		},
-		{
+		volume{
 			Type:   "bind",
 			Source: "/dev",
 			Target: "/dev",
 		},
-		{
-			Type:     "bind",
-			Source:   "/run/udev",
-			Target:   "/run/udev",
-			ReadOnly: true,
-		},
-		{
-			Type:   "bind",
-			Source: "/run/user/1000/pipewire-0",
-			Target: "/run/user/1000/pipewire-0",
-		},
 	}
 
-	// Bind-mount the required runtime sockets and collect the groups needed to
-	// access them.
+	// Mounted only where the board has them.
+	optionalMounts := slices.Concat(
+		[]string{"/run/udev:ro", "/run/user/1000/pipewire-0"},
+		// camx CSI cameras are accessed through the cam_server socket and a host userspace library
+		[]string{"/run/cam_server", "/usr/lib/libcamera_metadata.so.0.1.0"},
+		platform.Linux.BoardLeds.AsStrings(),
+	)
+	for _, mount := range optionalMounts {
+		volumes = append(volumes, mountExpr(mount))
+	}
+
+	// The required runtime sockets, at whichever of their paths the board has, and
+	// the groups needed to access them.
 	var runtimeGroupNames []string
-	for _, runtime := range cfg.RequiredRuntimes() {
-		volumes = append(volumes, volume{
-			Type:   "bind",
-			Source: runtime.Path.String(),
-			Target: runtime.Path.String(),
-		})
-		if runtime.Group != "" {
+	for _, runtime := range cfg.RequiredRuntimeCandidates() {
+		for _, path := range runtime.Paths {
+			volumes = append(volumes, mountExpr(path))
+		}
+		if runtime.Group != "" && !slices.Contains(runtimeGroupNames, runtime.Group) {
 			runtimeGroupNames = append(runtimeGroupNames, runtime.Group)
 		}
 	}
 
-	// camx CSI cameras are accessed through the cam_server socket and a host userspace library
-	if peripherals.DetectCSICameraDriver() == peripherals.CSICameraDriverCamx {
-		volumes = append(volumes,
-			volume{Type: "bind", Source: "/run/cam_server", Target: "/run/cam_server"},
-			volume{Type: "bind", Source: "/usr/lib/libcamera_metadata.so.0.1.0", Target: "/usr/lib/libcamera_metadata.so.0.1.0"},
-		)
-	}
-
-	volumes = addLedControl(platform, volumes)
-	groups := lookupGroups("video", "audio", "render", "dialout")
-	// Access to the required runtime sockets
-	groups = append(groups, lookupGroups(runtimeGroupNames...)...)
-	// Support for NPU
-	groups = append(groups, lookupGroups("fastrpc", "dmaheap")...)
-	// Support GPIO access
-	groups = append(groups, lookupGroups("gpiod")...)
+	groupNames := slices.Concat(
+		[]string{"video", "audio", "render", "dialout"},
+		runtimeGroupNames,              // access to the required runtime sockets
+		[]string{"fastrpc", "dmaheap"}, // support for NPU
+		[]string{"gpiod"},              // support GPIO access
+	)
 
 	// Define depends_on conditions
 	// Services with healthcheck will be started only when healthy
@@ -415,22 +401,18 @@ func generateMainComposeFile(
 		}
 	}
 
-	cgroupDrivers := []string{"drm", "dma_heap", "media", "video4linux", "alsa", "ttyUSB", "ttyACM"}
-	// TODO: these majors and the GIDs above are read from this host, so a release
-	// carries the ones of the board that built it. Resolving them at start needs a
-	// unique placeholder per missing driver: docker refuses two identical rules.
-	deviceCgroupsRules := buildCgroupRules(cgroupDrivers)
+	deviceDrivers := []string{"drm", "dma_heap", "media", "video4linux", "alsa", "ttyUSB", "ttyACM"}
 
 	mainAppCompose.Services = &mainService{
 		Main: service{
 			Image:             pythonImage,
-			Volumes:           filterNotExistingVolumes(volumes),
+			Volumes:           volumes,
 			Ports:             slices.Collect(maps.Keys(ports)),
-			DeviceCgroupRules: deviceCgroupsRules,
 			Entrypoint:        "/run.sh",
 			DependsOn:         dependsOn,
-			User:              getCurrentUser(),
-			GroupAdd:          groups,
+			User:              appUserRef,
+			GroupAdd:          groupExprs(groupNames),
+			DeviceCgroupRules: cgroupRuleExprs(deviceDrivers),
 			ExtraHosts:        []string{"msgpack-rpc-router:host-gateway"},
 			Labels: map[string]string{
 				DockerAppLabel:     "true",
@@ -453,58 +435,18 @@ func generateMainComposeFile(
 	if err != nil {
 		return err
 	}
-	if err := mainComposeFile.WriteFile(data); err != nil {
+	if err := mainTemplateFile.WriteFile(data); err != nil {
 		return err
 	}
 
 	// If there are services that require devices, we need to generate an override compose file
 	// Write additional file to override devices section in included compose files
-	if err := generateServicesOverrideFile(services, getCurrentUser(), groups, overrideComposeFile, envs, deviceCgroupsRules); err != nil {
+	if err := generateServicesOverrideTemplate(services, appUserRef, overrideTemplateFile, envs, deviceDrivers, groupNames); err != nil {
 		return err
 	}
 
 	// Done!
 	return nil
-}
-
-func filterNotExistingVolumes(volumes []volume) []volume {
-	return slices.DeleteFunc(volumes, func(v volume) bool {
-		if v.Type != "bind" {
-			return false
-		}
-		if strings.Contains(v.Source, "$") {
-			// The source is resolved by docker compose at start time, there is
-			// nothing to check here.
-			return false
-		}
-		if !paths.New(v.Source).Exist() {
-			slog.Debug("Skipping volume mount because source does not exist", slog.String("source", v.Source), slog.String("target", v.Target))
-			return true
-		}
-		return false
-	})
-}
-
-// Resolve supplementary group IDs on the host dynamically
-// before assigning them to the container, as numeric GIDs
-// could differ between host and container environments.
-func lookupGroups(groupNames ...string) []uint32 {
-	resolvedGids := make([]uint32, 0, len(groupNames))
-
-	for _, name := range groupNames {
-		g, err := user.LookupGroup(name)
-		if err != nil {
-			slog.Warn("group not found on host; skipping", "group", name)
-			continue
-		}
-		gid, err := strconv.ParseUint(g.Gid, 10, 32)
-		if err != nil {
-			slog.Warn("failed to parse GID; skipping", "group", name)
-			continue
-		}
-		resolvedGids = append(resolvedGids, uint32(gid))
-	}
-	return resolvedGids
 }
 
 type serviceInfo struct {
@@ -516,8 +458,7 @@ type serviceInfo struct {
 
 // extractServicesFromComposeFile reads the shape of a brick or service compose
 // file: which services it declares, whether they have a healthcheck and whether
-// they set a user. It is a file from the assets and none of that depends on the
-// app, so it is loaded on its own.
+// they set a user. No variable takes part in that, so nothing is interpolated.
 func extractServicesFromComposeFile(composeFile *paths.Path) ([]serviceInfo, error) {
 	content, err := composeFile.ReadFile()
 	if err != nil {
@@ -529,7 +470,7 @@ func extractServicesFromComposeFile(composeFile *paths.Path) ([]serviceInfo, err
 		types.ConfigDetails{
 			ConfigFiles: []types.ConfigFile{{Filename: composeFile.String(), Content: content}},
 			WorkingDir:  composeFile.Parent().String(),
-			Environment: types.NewMapping(os.Environ()),
+			Environment: types.Mapping{},
 		},
 		func(o *loader.Options) { o.SetProjectName("default", false); o.SkipConsistencyCheck = true },
 		loader.WithSkipValidation,
@@ -554,23 +495,23 @@ func extractServicesFromComposeFile(composeFile *paths.Path) ([]serviceInfo, err
 	return services, nil
 }
 
-func generateServicesOverrideFile(services []serviceInfo, user string, groups []uint32, overrideComposeFile *paths.Path, envs AppEnv, deviceCgroupsRules []string) error {
-	if overrideComposeFile.Exist() {
-		if err := overrideComposeFile.Remove(); err != nil {
-			return fmt.Errorf("failed to remove existing override compose file: %w", err)
+func generateServicesOverrideTemplate(services []serviceInfo, user string, overrideTemplateFile *paths.Path, envs AppEnv, deviceDrivers, groupNames []string) error {
+	if overrideTemplateFile.Exist() {
+		if err := overrideTemplateFile.Remove(); err != nil {
+			return fmt.Errorf("failed to remove existing override compose template: %w", err)
 		}
 	}
 
 	if len(services) == 0 {
-		slog.Debug("No services to override, skipping override compose file generation")
+		slog.Debug("No services to override, skipping override compose template generation")
 		return nil
 	}
 
 	type serviceOverride struct {
 		User              *string           `yaml:"user,omitempty"`
 		Volumes           *[]volume         `yaml:"volumes,omitempty"`
-		DeviceCgroupRules *[]string         `yaml:"device_cgroup_rules,omitempty"`
-		GroupAdd          *[]uint32         `yaml:"group_add,omitempty"`
+		GroupAdd          []string          `yaml:"group_add,omitempty"`
+		DeviceCgroupRules []string          `yaml:"device_cgroup_rules,omitempty"`
 		Labels            map[string]string `yaml:"labels,omitempty"`
 		Environment       types.Mapping     `yaml:"environment,omitempty"`
 	}
@@ -580,18 +521,18 @@ func generateServicesOverrideFile(services []serviceInfo, user string, groups []
 	overrideCompose.Services = make(map[string]serviceOverride, len(services))
 	for _, svc := range services {
 		override := serviceOverride{
+			GroupAdd: groupExprs(groupNames),
 			Labels: map[string]string{
 				DockerAppLabel:     "true",
 				DockerAppPathLabel: appHomeRef,
 			},
-			GroupAdd: &groups,
 		}
 		// If service defines a user, do not override it
 		if svc.user == nil {
 			override.User = &user
 		}
 		if svc.requireDevices {
-			override.DeviceCgroupRules = &deviceCgroupsRules
+			override.DeviceCgroupRules = cgroupRuleExprs(deviceDrivers)
 			devVolumes := []volume{
 				{Type: "bind", Source: "/dev", Target: "/dev"},
 			}
@@ -605,7 +546,7 @@ func generateServicesOverrideFile(services []serviceInfo, user string, groups []
 		if err != nil {
 			return err
 		}
-		if err := overrideComposeFile.WriteFile(data); err != nil {
+		if err := overrideTemplateFile.WriteFile(data); err != nil {
 			return err
 		}
 		return nil
@@ -613,23 +554,6 @@ func generateServicesOverrideFile(services []serviceInfo, user string, groups []
 	if e := writeOverrideCompose(); e != nil {
 		return e
 	}
-	return nil
-}
-
-func generateRuntimeEnvFile(arduinoApp *app.ArduinoApp, envs AppEnv) error {
-	var out bytes.Buffer
-	for _, v := range envs.runtime.Values() {
-		// TODO: use a proper env file writer to escape values with newlines or quotes
-		out.WriteString(v)
-		out.WriteString("\n")
-	}
-
-	envFile := arduinoApp.RuntimeEnvFilePath()
-	if err := fatomic.WriteFile(envFile.String(), out.Bytes(), 0644); err != nil {
-		return fmt.Errorf("failed to write the app environment file: %w", err)
-	}
-	slog.Debug("wrote app environment file", slog.String("path", envFile.String()))
-
 	return nil
 }
 
@@ -664,38 +588,35 @@ func provisionComposeVolumes(ctx context.Context, arduinoApp *app.ArduinoApp) {
 	}
 }
 
-func buildCgroupRules(drivers []string) []string {
-	var rules []string
-
-	for _, driver := range drivers {
-		major, err := resolveMajorNumber(driver)
-		if err != nil {
-			slog.Warn("could not resolve major number, skipping cgroup rule",
-				slog.String("driver", driver),
-				slog.Any("error", err),
-			)
-			continue
-		}
-		rules = append(rules, fmt.Sprintf("c %d:* rmw", major))
+// mountExpr binds a path where it is, `<path>:ro` read-only. It renders to nothing,
+// and so is dropped, on a board that has not the path: never created, being optional.
+func mountExpr(mount string) string {
+	source, option, _ := strings.Cut(mount, ":")
+	bind, err := json.Marshal(volume{
+		Type:        "bind",
+		Source:      source,
+		Target:      source,
+		ReadOnly:    option == "ro",
+		CreateaPath: false,
+	})
+	if err != nil {
+		panic(err)
 	}
-
-	return rules
+	return fmt.Sprintf("{{ if pathExists %s }}%s{{ end }}", strconv.Quote(source), bind)
 }
 
-func resolveMajorNumber(driverName string) (int, error) {
-	content, err := os.ReadFile("/proc/devices")
-	if err != nil {
-		return 0, fmt.Errorf("failed to read /proc/devices: %w", err)
+func groupExprs(names []string) []string {
+	exprs := make([]string, 0, len(names))
+	for _, name := range names {
+		exprs = append(exprs, fmt.Sprintf("{{ groupID %s }}", strconv.Quote(name)))
 	}
-	for _, line := range strings.Split(string(content), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) == 2 && fields[1] == driverName {
-			major, err := strconv.Atoi(fields[0])
-			if err != nil {
-				return 0, fmt.Errorf("failed to parse major for %s: %w", driverName, err)
-			}
-			return major, nil
-		}
+	return exprs
+}
+
+func cgroupRuleExprs(drivers []string) []string {
+	exprs := make([]string, 0, len(drivers))
+	for _, driver := range drivers {
+		exprs = append(exprs, fmt.Sprintf("{{ with deviceMajor %s }}c {{ . }}:* rmw{{ end }}", strconv.Quote(driver)))
 	}
-	return 0, fmt.Errorf("driver %q not found in /proc/devices", driverName)
+	return exprs
 }
