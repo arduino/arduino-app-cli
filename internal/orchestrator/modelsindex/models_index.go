@@ -162,6 +162,15 @@ func (l *Lookup) ByID(ctx context.Context, id string) (*AIModel, error) {
 		return model, nil
 	}
 	if err := l.listing(ctx); err != nil {
+		// Two different things reach here. A model models-list.yaml declares exists
+		// whether or not the listing ran, so not knowing its install status is a failure
+		// to report. Anything else could only ever be found through the listing, and a
+		// listing that did not run has not found it: that is absence, not failure, and it
+		// is what GetModels already reports for the same model.
+		if _, declared := l.idx.DeclaredByID(id); !declared {
+			slog.Warn("cannot get models info, reporting an undeclared model as absent", "model", id, "err", err)
+			return nil, nil
+		}
 		return nil, fmt.Errorf("cannot determine install status for model %q: %w", id, err)
 	}
 	idx := slices.IndexFunc(l.models, func(v AIModel) bool { return v.ID == id })

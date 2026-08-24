@@ -213,6 +213,20 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	t.Run("listing fails: an id nothing declares is absent, not an error", func(t *testing.T) {
+		// The listing is the only thing that can find a model no models-list.yaml entry
+		// declares, so a listing that did not run has not found it. Reporting that as a
+		// failure turns "no such model" into a 500 for every caller asking by id.
+		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
+			return "", 1
+		})
+		idx := loadHandlersTestIndex(t, cli)
+
+		model, err := idx.GetModelByID(t.Context(), "no-such-model-id")
+		require.NoError(t, err)
+		assert.Nil(t, model)
+	})
+
 	t.Run("ei-model-990187-1 custom model: always installed, no Docker call", func(t *testing.T) {
 		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
 			t.Fatal("unexpected Docker call for custom model")
