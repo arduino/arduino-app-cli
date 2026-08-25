@@ -30,11 +30,19 @@ import (
 // Service for apt package management operations.
 // It manages subscribers and publishes events to all of them.
 type Service struct {
-	lock sync.Mutex
+	lock     sync.Mutex
+	selfKill bool
 }
 
 func New() *Service {
 	return &Service{}
+}
+
+// The daemon is restarted after a self-upgrade either way: only it may take the
+// shortcut of killing itself, since systemd respawns it. The CLI must not.
+func (s *Service) WithSelfKill() *Service {
+	s.selfKill = true
+	return s
 }
 
 // ListUpgradablePackages lists all upgradable packages using the `apt list --upgradable` command.
@@ -87,10 +95,10 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 	})
 
 	defer func() {
-		if !selfUpgrade {
+		if !selfUpgrade || !s.selfKill {
 			return
 		}
-		eventCB(update.NewDataEvent(update.RestartEvent, "Upgrade completed. Restarting ..."))
+		eventCB(update.NewDataEvent(update.RestartEvent, fmt.Sprintf("Upgrade completed. Restarting (pid %d) ...", os.Getpid())))
 		// needrestart skips its caller's cgroup, so we signal ourselves
 		// to let systemd respawn us on the new binary.
 		if p, err := os.FindProcess(os.Getpid()); err == nil {
