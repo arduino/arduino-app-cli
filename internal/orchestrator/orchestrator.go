@@ -113,6 +113,11 @@ func StartApp(
 	if err := checkBricks(ctx, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex); err != nil {
 		return err
 	}
+
+	if err := checkPortCollisions(appToStart.Descriptor, bricksIndex, servicesIndex); err != nil {
+		return err
+	}
+
 	requiredClasses, err := requiredDeviceClasses(bricksIndex, appToStart.Descriptor.Bricks)
 	if err != nil {
 		return err

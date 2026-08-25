@@ -246,17 +246,10 @@ type ADBCommand struct {
 }
 
 func (a *ADBConnection) GetCmd(cmd string, args ...string) remote.Cmder {
-	for i, arg := range args {
-		if strings.Contains(arg, " ") {
-			args[i] = fmt.Sprintf("%q", arg)
-		}
-	}
-
-	// TODO: fix command injection vulnerability
-	var cmds []string
-	cmds = append(cmds, a.adbPath, "-s", a.host, "shell", cmd)
-	if len(args) > 0 {
-		cmds = append(cmds, args...)
+	cmds := make([]string, 0, 5+len(args))
+	cmds = append(cmds, a.adbPath, "-s", a.host, "shell", remote.ShellQuote(cmd))
+	for _, arg := range args {
+		cmds = append(cmds, remote.ShellQuote(arg))
 	}
 
 	command, err := paths.NewProcess(nil, cmds...)

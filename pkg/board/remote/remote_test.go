@@ -210,7 +210,83 @@ func TestRemoteShell(t *testing.T) {
 			})
 		}
 	}
+}
 
+// GetCmd interposes no shell of its own, so only a shell the caller asks for expands anything.
+func TestRemoteShellQuoting(t *testing.T) {
+	name, adbPort, sshPort := testtools.StartAdbDContainer(t)
+	t.Cleanup(func() { testtools.StopAdbDContainer(t, name) })
+
+	conns := []struct {
+		name string
+		conn remote.RemoteShell
+	}{{
+		"adb",
+		func() remote.RemoteShell {
+			conn, err := adb.FromHost("localhost:"+adbPort, "")
+			require.NoError(t, err)
+			return conn
+		}(),
+	}, {
+		"ssh",
+		func() remote.RemoteShell {
+			conn, err := ssh.FromHost("arduino", "arduino", "127.0.0.1:"+sshPort)
+			require.NoError(t, err)
+			return conn
+		}(),
+	}, {
+		"local",
+		func() remote.RemoteShell {
+			return &local.LocalConnection{}
+		}(),
+	},
+	}
+
+	tests := []struct {
+		cmd  string
+		args []string
+		want string
+	}{{
+		cmd:  "echo",
+		args: []string{"$HOME and `whoami`"},
+		want: "$HOME and `whoami`\n",
+	}, {
+		cmd:  "echo",
+		args: []string{"it's"},
+		want: "it's\n",
+	}, {
+		cmd:  "echo",
+		args: []string{"a\nb"},
+		want: "a\nb\n",
+	}, {
+		cmd:  "echo",
+		args: []string{"a && b; c"},
+		want: "a && b; c\n",
+	}, {
+		// shell expansion works when the caller explicitly asks for a shell.
+		cmd:  "sh",
+		args: []string{"-c", "cd /tmp && pwd"},
+		want: "/tmp\n",
+	}, {
+		// Newlines must stay inside the script arg, or each line runs as its own command.
+		cmd:  "sh",
+		args: []string{"-c", "X=multi\necho first $X\necho second $X"},
+		want: "first multi\nsecond multi\n",
+	},
+	}
+
+	for _, tc := range conns {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, tt := range tests {
+				name := fmt.Sprintf("%s %s", tt.cmd, strings.Join(tt.args, " "))
+				t.Run(name, func(t *testing.T) {
+					output, err := tc.conn.GetCmd(tt.cmd, tt.args...).Output(t.Context())
+					require.NoError(t, err)
+					assert.Equal(t, tt.want, string(output))
+				})
+			}
+		})
+	}
 }
 
 func TestRemoteForwarder(t *testing.T) {

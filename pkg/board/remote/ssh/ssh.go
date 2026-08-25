@@ -284,12 +284,15 @@ func (a *SSHConnection) GetCmd(cmd string, args ...string) remote.Cmder {
 		}
 	}
 
-	// TODO: fix for command injection vulnerability
-	cmd = fmt.Sprintf("%s %s", cmd, strings.Join(args, " "))
+	parts := make([]string, 0, 1+len(args))
+	parts = append(parts, remote.ShellQuote(cmd))
+	for _, arg := range args {
+		parts = append(parts, remote.ShellQuote(arg))
+	}
 
 	return &SSHCommand{
 		session: session,
-		cmd:     cmd,
+		cmd:     strings.Join(parts, " "),
 	}
 }
 

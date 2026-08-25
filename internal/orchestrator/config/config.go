@@ -27,7 +27,7 @@ var RunnerVersion = "0.12.0"
 type Configuration struct {
 	appsDir                          *paths.Path
 	dataDir                          *paths.Path
-	requiredRuntimes                 []string
+	requiredRuntimes                 []RequiredRuntime
 	customModelsDir                  *paths.Path
 	modelsDir                        *paths.Path
 	assetDir                         *paths.Path
@@ -39,6 +39,13 @@ type Configuration struct {
 	LibrariesAPIURL                  *url.URL
 	EdgeImpulseAPIURL                *url.URL
 	ArduinoPlatformVersionConstraint semver.Constraint
+}
+
+// RequiredRuntime is a host unit whose socket is bind-mounted into app
+// containers, together with the supplementary group needed to access it.
+type RequiredRuntime struct {
+	Unit  string
+	Group string
 }
 
 func NewFromEnv() (Configuration, error) {
@@ -65,14 +72,20 @@ func NewFromEnv() (Configuration, error) {
 	}
 
 	// Required host units bind-mounted as /run/<unit> into app containers.
+	// Each entry is `<unit>[:<group>]`, where the optional group is the host
+	// group required to access the unit socket.
 	requiredRuntimesEnv, ok := os.LookupEnv("ARDUINO_APP_CLI__REQUIRED_RUNTIMES")
 	if !ok {
-		requiredRuntimesEnv = "arduino-router,arduino-cloud-connector"
+		requiredRuntimesEnv = "arduino-router:arduino-router,arduino-cloud-connector"
 	}
-	var requiredRuntimes []string
-	for u := range strings.SplitSeq(requiredRuntimesEnv, ",") {
-		if u = strings.TrimSpace(u); u != "" {
-			requiredRuntimes = append(requiredRuntimes, u)
+	var requiredRuntimes []RequiredRuntime
+	for entry := range strings.SplitSeq(requiredRuntimesEnv, ",") {
+		unit, group, _ := strings.Cut(entry, ":")
+		if unit = strings.TrimSpace(unit); unit != "" {
+			requiredRuntimes = append(requiredRuntimes, RequiredRuntime{
+				Unit:  unit,
+				Group: strings.TrimSpace(group),
+			})
 		}
 	}
 
@@ -198,28 +211,41 @@ func (c *Configuration) ExamplesDirs(platform platform.Platform) paths.PathList 
 	return paths.PathList{c.ExamplesBaseDir().Join("inspirational").Join("common")}
 }
 
-// RequiredRuntimesPaths returns the discovered host paths for configured required
-// units, searching in order: /run/<unit>, /var/run/<unit>, /run/<unit>.sock,
+type ResolvedRequiredRuntime struct {
+	Path  *paths.Path
+	Group string
+}
+
+// RequiredRuntimes returns the configured required units that are available on
+// the host, each paired with the group needed to access its socket. The socket
+// path is searched in order: /run/<unit>, /var/run/<unit>, /run/<unit>.sock,
 // /var/run/<unit>.sock. The first existing entry per unit is returned.
-func (c *Configuration) RequiredRuntimesPaths() paths.PathList {
-	var result paths.PathList
+func (c *Configuration) RequiredRuntimes() []ResolvedRequiredRuntime {
+	var result []ResolvedRequiredRuntime
+	seen := map[string]bool{}
 	for _, runtime := range c.requiredRuntimes {
 		candidates := []*paths.Path{
-			paths.New("/run", runtime),
-			paths.New("/var/run", runtime),
-			paths.New("/run", runtime+".sock"),
-			paths.New("/var/run", runtime+".sock"),
+			paths.New("/run", runtime.Unit),
+			paths.New("/var/run", runtime.Unit),
+			paths.New("/run", runtime.Unit+".sock"),
+			paths.New("/var/run", runtime.Unit+".sock"),
 		}
 		found := false
 		for _, p := range candidates {
 			if p.Exist() {
-				result.AddIfMissing(p)
+				if !seen[p.String()] {
+					seen[p.String()] = true
+					result = append(result, ResolvedRequiredRuntime{
+						Path:  p,
+						Group: runtime.Group,
+					})
+				}
 				found = true
 				break
 			}
 		}
 		if !found {
-			slog.Debug("required runtime not found on host", "runtime", runtime)
+			slog.Debug("required runtime not found on host", "runtime", runtime.Unit)
 		}
 	}
 	return result

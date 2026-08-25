@@ -338,12 +338,18 @@ func generateMainComposeFile(
 		},
 	}
 
-	for _, p := range cfg.RequiredRuntimesPaths() {
+	// Bind-mount the required runtime sockets and collect the groups needed to
+	// access them.
+	var runtimeGroupNames []string
+	for _, runtime := range cfg.RequiredRuntimes() {
 		volumes = append(volumes, volume{
 			Type:   "bind",
-			Source: p.String(),
-			Target: p.String(),
+			Source: runtime.Path.String(),
+			Target: runtime.Path.String(),
 		})
+		if runtime.Group != "" {
+			runtimeGroupNames = append(runtimeGroupNames, runtime.Group)
+		}
 	}
 
 	// camx CSI cameras are accessed through the cam_server socket and a host userspace library
@@ -356,6 +362,8 @@ func generateMainComposeFile(
 
 	volumes = addLedControl(platform, volumes)
 	groups := lookupGroups("video", "audio", "render", "dialout")
+	// Access to the required runtime sockets
+	groups = append(groups, lookupGroups(runtimeGroupNames...)...)
 	// Support for NPU
 	groups = append(groups, lookupGroups("fastrpc", "dmaheap")...)
 	// Support GPIO access
