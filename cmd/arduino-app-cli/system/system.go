@@ -50,10 +50,25 @@ func newDownloadImageCmd(cfg config.Configuration) *cobra.Command {
 		Args:   cobra.ExactArgs(0),
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return orchestrator.SystemInit(cmd.Context(), cfg, servicelocator.GetPlatform(), servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), servicelocator.GetModelsIndex(), servicelocator.GetDockerClient(), orchestrator.SystemInitOptions{
-				OnlyDockerImages:    onlyImages,
-				OnlyPlatformAndLibs: onlyPlatformAndLibraries,
-			})
+			printEvent, err := feedback.NewResultStream()
+			if err != nil {
+				return err
+			}
+
+			return orchestrator.SystemInit(
+				cmd.Context(),
+				cfg,
+				servicelocator.GetPlatform(),
+				servicelocator.GetBricksIndex(),
+				servicelocator.GetServicesIndex(),
+				servicelocator.GetDockerClient(),
+				servicelocator.GetModelsIndex(),
+				orchestrator.SystemInitOptions{
+					OnlyDockerImages:    onlyImages,
+					OnlyPlatformAndLibs: onlyPlatformAndLibraries,
+				},
+				newInitEventCallback(printEvent),
+			)
 		},
 	}
 
@@ -115,11 +130,15 @@ func newUpdateCmd(cfg config.Configuration) *cobra.Command {
 
 			events := updater.Subscribe()
 			for event := range events {
-				if event.Type == update.ErrorEvent {
+				switch event.Type {
+				case update.ErrorEvent:
 					// TODO: add colors to error messages
 					err := event.GetError()
 					feedback.Printf("Error: %s [%s]", err.Error(), update.GetUpdateErrorCode(err))
-				} else {
+				case update.ProgressEvent:
+					progress := event.GetProgress()
+					feedback.Printf("[%s] %s %.0f%%", event.Type.String(), progress.Step, progress.Progress)
+				default:
 					feedback.Printf("[%s] %s", event.Type.String(), event.GetData())
 				}
 

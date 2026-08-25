@@ -34,6 +34,13 @@ type Platform struct {
 	} `json:"-"`
 }
 
+// HasNativeCSICameraSupport reports if the board has built-in MIPI-CSI interfaces,
+// available without any additional carrier/hat.
+// Derived from BoardName so it stays consistent with platform.json overrides.
+func (p Platform) HasNativeCSICameraSupport() bool {
+	return p.BoardName == "ventunoq"
+}
+
 func GetPlatform(dir *paths.Path) Platform {
 	compatible := devicetree.LoadCompatible()
 	slog.Debug("detected platform", "compatible", compatible)

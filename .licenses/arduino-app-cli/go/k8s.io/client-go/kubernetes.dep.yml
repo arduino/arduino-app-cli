@@ -1,13 +1,13 @@
 ---
 name: k8s.io/client-go/kubernetes
-version: v0.32.3
+version: v0.34.1
 type: go
 summary: Package kubernetes holds packages which implement a clientset for Kubernetes
   APIs.
 homepage: https://pkg.go.dev/k8s.io/client-go/kubernetes
 license: apache-2.0
 licenses:
-- sources: client-go@v0.32.3/LICENSE
+- sources: client-go@v0.34.1/LICENSE
   text: |2
 
                                      Apache License

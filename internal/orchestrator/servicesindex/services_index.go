@@ -7,12 +7,14 @@ package servicesindex
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"slices"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/goccy/go-yaml"
 
+	"github.com/arduino/arduino-app-cli/internal/composefile"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -28,6 +30,15 @@ type Service struct {
 	SupportedBoards []string `yaml:"supported_boards"`
 
 	ComposeFile *paths.Path `yaml:"-"` // brick_compose.yaml file path, optional
+
+	containerPorts []string `yaml:"-"` // Ports extracted from the compose file, optional
+}
+
+// GetPorts returns the host ports published by the service compose file, sorted and deduplicated.
+func (s Service) GetPorts() []string {
+	ports := slices.Clone(s.containerPorts)
+	slices.Sort(ports)
+	return slices.Compact(ports)
 }
 
 func Load(platform platform.Platform, dir *paths.Path) (*ServicesIndex, error) {
@@ -103,5 +114,14 @@ func load(platform platform.Platform, servicePath *paths.Path) (a Service, err e
 		}
 	}
 	service.ComposeFile = composeFile
+
+	if composeFile, ok := service.GetComposeFile(); ok {
+		if ports, err := composefile.ExtractPorts(composeFile); err == nil {
+			service.containerPorts = ports
+		} else {
+			slog.Warn("cannot extract ports from compose file, skipping", "service_id", service.ServiceID, "error", err)
+		}
+	}
+
 	return service, nil
 }

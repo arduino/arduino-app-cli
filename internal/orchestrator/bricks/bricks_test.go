@@ -15,6 +15,7 @@ import (
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
@@ -406,6 +407,18 @@ bricks:
 	cfg, err := config.NewFromEnv()
 	require.NoError(t, err)
 
+	// Add two one_model_brick CodeExamples as testacase
+	brick01Dir := cfg.ExamplesBaseDir().Join("bricks").Join("arduino", "one_model_brick", "01_example")
+	require.NoError(t, brick01Dir.Join("python").MkdirAll())
+	brick02Dir := cfg.ExamplesBaseDir().Join("bricks").Join("arduino", "one_model_brick", "02_example")
+	require.NoError(t, brick02Dir.Join("python").MkdirAll())
+
+	// Create required files to load the app
+	require.NoError(t, brick01Dir.Join("python", "main.py").Truncate())
+	require.NoError(t, brick02Dir.Join("python", "main.py").Truncate())
+	require.NoError(t, brick01Dir.Join("app.yaml").Truncate())
+	require.NoError(t, brick02Dir.Join("app.yaml").Truncate())
+
 	for _, brick := range []string{"object_detection", "weather_forecast", "one_model_brick"} {
 		createFakeBrickAssets(t, assetsDir, brick)
 	}
@@ -434,7 +447,7 @@ bricks:
 		bricksIndex: bIndex,
 		modelsIndex: mIndex,
 	}
-	idProvider := app.NewAppIDProvider(cfg, unoQPlatform)
+	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
 	t.Run("Brick Not Found", func(t *testing.T) {
 		res, err := svc.BricksDetails("arduino:non_existing", idProvider, cfg, unoQPlatform)
@@ -470,8 +483,6 @@ bricks:
 		require.Equal(t, "default_path", res.Variables["EI_OBJ_DETECTION_MODEL"].DefaultValue)
 		require.Equal(t, "# Documentation", res.Readme)
 		require.Contains(t, res.ApiDocsPath, filepath.Join("arduino", "app_bricks", "object_detection", "API.md"))
-		require.Len(t, res.CodeExamples, 1)
-		require.Contains(t, res.CodeExamples[0].Path, "blink.ino")
 		require.Len(t, res.UsedByApps, 1)
 		require.Equal(t, "My App", res.UsedByApps[0].Name)
 		require.NotEmpty(t, res.UsedByApps[0].ID)
@@ -497,8 +508,6 @@ bricks:
 		require.Empty(t, res.Variables)
 		require.Equal(t, "# Documentation", res.Readme)
 		require.Contains(t, res.ApiDocsPath, filepath.Join("arduino", "app_bricks", "weather_forecast", "API.md"))
-		require.Len(t, res.CodeExamples, 1)
-		require.Contains(t, res.CodeExamples[0].Path, "blink.ino")
 		require.Len(t, res.UsedByApps, 1)
 		require.Equal(t, "My App", res.UsedByApps[0].Name)
 		require.NotEmpty(t, res.UsedByApps[0].ID)
@@ -519,6 +528,22 @@ bricks:
 		require.Empty(t, res.ConfigVariables)
 		require.Empty(t, res.Variables)
 	})
+
+	t.Run("Success - Brick Code example", func(t *testing.T) {
+		res, err := svc.BricksDetails("arduino:one_model_brick", idProvider, cfg, unoQPlatform)
+		require.NoError(t, err)
+
+		require.Equal(t, "arduino:one_model_brick", res.ID)
+		require.Equal(t, "one model brick", res.Name)
+		require.Len(t, res.CompatibleModels, 1)
+		require.Len(t, res.CodeExamples, 2)
+		require.Equal(t, "face-detection", res.CompatibleModels[0].ID)
+		require.Equal(t, "Lightweight-Face-Detection", res.CompatibleModels[0].Name)
+		require.Equal(t, "", res.CompatibleModels[0].Description)
+		require.Empty(t, res.ConfigVariables)
+		require.Empty(t, res.Variables)
+	})
+
 }
 
 func createFakeBrickAssets(t *testing.T, assetsDir, brick string) {

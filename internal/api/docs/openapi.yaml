@@ -907,6 +907,22 @@ paths:
       summary: returns application configuration
       tags:
       - Application
+  /v1/examples:
+    get:
+      description: returns the example structure for rendering
+      operationId: getExamples
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExampleResponse'
+          description: Successful response
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: returns the example structure
+      tags:
+      - Application
   /v1/libraries:
     get:
       description: Search for Arduino libraries in the registry with various filters.
@@ -1319,6 +1335,9 @@ paths:
                 type: string
           description: |
             A stream of Server-Sent Events (SSE) that notifies the progress of the update process.
+            The 'done' event is the only terminal event: an 'error' reports a step that failed but does
+            not end the operation, so the client should collect the errors received during the stream and
+            present a final summary once 'done' arrives.
             The client will receive events formatted as follows:
 
             **Event 'log'**:
@@ -1326,15 +1345,35 @@ paths:
             'event: log'
             'data: "updating package: 0.25"'
 
+            **Event 'starting'**:
+            Contains a string with the message that a step of the upgrade process is starting.
+            'event: starting'
+            'data: Upgrade is starting'
+
+            **Event 'progress'**:
+            Contains a JSON object with the overall completion percentage of the update process,
+            from 0 to 100, and the step it is currently executing.
+            'event: progress'
+            'data: {"step":"docker images download","progress":44}'
+
             **Event 'restarting'**:
             Contains a string with the message that the upgrade is completed and the system is restarting.
             'event: restarting'
             'data: Upgrade completed. Restarting'
 
             **Event 'error'**:
-            Contains a JSON object with the details of an error.
+            Contains a JSON object with the details of a step that failed. It does not end the operation:
+            the upgrade continues and 'done' is emitted anyway.
             'event: error'
             'data: {"code":"internal_service_err","message":"An error occurred during operation"}'
+
+            **Event 'done'**:
+            Contains a string with the message that the update process is complete. It is emitted last,
+            also when 'error' events were received. Note that if the upgrade restarts arduino-app-cli
+            itself, the stream can end before 'done' is delivered: clients should treat the stream
+            closing as an end condition too.
+            'event: done'
+            'data: Update completed'
         "500":
           $ref: '#/components/responses/InternalServerError'
       summary: SSE stream of the update process
@@ -1659,6 +1698,18 @@ components:
             for backward compatibility.'
           type: object
       type: object
+    BrickExamples:
+      properties:
+        brick:
+          type: string
+        brick_category:
+          type: string
+        examples:
+          items:
+            $ref: '#/components/schemas/Example'
+          nullable: true
+          type: array
+      type: object
     BrickInstance:
       properties:
         author:
@@ -1734,6 +1785,16 @@ components:
         name:
           type: string
       type: object
+    CategoryExamples:
+      properties:
+        category:
+          type: string
+        examples:
+          items:
+            $ref: '#/components/schemas/Example'
+          nullable: true
+          type: array
+      type: object
     CloneAppResponse:
       properties:
         id:
@@ -1753,6 +1814,12 @@ components:
       type: object
     CodeExample:
       properties:
+        description:
+          type: string
+        encoded_id:
+          type: string
+        name:
+          type: string
         path:
           type: string
       type: object
@@ -1819,6 +1886,30 @@ components:
           type: integer
         message:
           type: string
+      type: object
+    Example:
+      properties:
+        description:
+          type: string
+        encoded_id:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+      type: object
+    ExampleResponse:
+      properties:
+        bricks:
+          items:
+            $ref: '#/components/schemas/BrickExamples'
+          nullable: true
+          type: array
+        core-and-foundational:
+          items:
+            $ref: '#/components/schemas/CategoryExamples'
+          nullable: true
+          type: array
       type: object
     Library:
       properties:

@@ -20,6 +20,7 @@ import (
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
@@ -30,7 +31,7 @@ var unoQPlatform = platform.Platform{BoardName: "unoq"}
 
 func TestCloneApp(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg, unoQPlatform)
+	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
 	originalAppID := f.Must(idProvider.ParseID("user:original-app"))
 	originalAppPath := originalAppID.ToPath()
@@ -150,7 +151,7 @@ func TestCloneApp(t *testing.T) {
 
 func TestEditApp(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg, unoQPlatform)
+	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
 	t.Run("with default", func(t *testing.T) {
 		_, err := CreateApp(CreateAppRequest{Name: "app-default"}, idProvider, cfg)
@@ -236,7 +237,7 @@ func TestEditApp(t *testing.T) {
 
 func TestListApp(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg, unoQPlatform)
+	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
 	docker, err := dockerClient.NewClientWithOpts(
 		dockerClient.FromEnv,
@@ -266,7 +267,7 @@ func TestListApp(t *testing.T) {
 		assert.Empty(t, res.BrokenApps)
 		assert.Empty(t, gCmp.Diff([]AppInfo{
 			{
-				ID:          f.Must(idProvider.ParseID("examples:example1")),
+				ID:          f.Must(idProvider.ParseID("examples:inspirational/example1")),
 				Name:        "example1",
 				Description: "",
 				Icon:        "😃",
@@ -335,7 +336,7 @@ func TestListApp(t *testing.T) {
 		assert.Empty(t, res.BrokenApps)
 		assert.Empty(t, gCmp.Diff([]AppInfo{
 			{
-				ID:          f.Must(idProvider.ParseID("examples:example1")),
+				ID:          f.Must(idProvider.ParseID("examples:inspirational/example1")),
 				Name:        "example1",
 				Description: "",
 				Icon:        "😃",
@@ -397,7 +398,7 @@ func TestListApp(t *testing.T) {
 
 func TestListAppsFiltersByBricksIndex(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg, unoQPlatform)
+	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
 	docker, err := dockerClient.NewClientWithOpts(
 		dockerClient.FromEnv,
@@ -440,9 +441,9 @@ bricks:
   name: Compatible Brick
   description: A brick compatible with the selected board
 `)
-	require.NoError(t, cfg.AssetsDir().MkdirAll())
-	require.NoError(t, cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent))
-	idx, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
+	require.NoError(t, cfg.AssetDir().MkdirAll())
+	require.NoError(t, cfg.AssetDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent))
+	idx, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetDir())
 	require.NoError(t, err)
 
 	t.Run("compatible example is listed", func(t *testing.T) {
@@ -476,7 +477,7 @@ bricks:
 
 func TestListAppsLocalBricksCompatibility(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg, unoQPlatform)
+	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
 	docker, err := dockerClient.NewClientWithOpts(
 		dockerClient.FromEnv,
@@ -506,9 +507,9 @@ func TestListAppsLocalBricksCompatibility(t *testing.T) {
 
 	// Build a bricks index with no built-in bricks (empty)
 	bricksIndexContent := []byte("bricks: []\n")
-	require.NoError(t, cfg.AssetsDir().MkdirAll())
-	require.NoError(t, cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent))
-	idx, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
+	require.NoError(t, cfg.AssetDir().MkdirAll())
+	require.NoError(t, cfg.AssetDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent))
+	idx, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetDir())
 	require.NoError(t, err)
 
 	t.Run("example with only local bricks is listed even when index is empty", func(t *testing.T) {
@@ -529,6 +530,12 @@ func setTestOrchestratorConfig(t *testing.T) config.Configuration {
 	cfg, err := config.NewFromEnv()
 	require.NoError(t, err)
 
+	// Simulate what the deb postinst does in production: pre-create the data
+	// dirs that would otherwise be shipped and chowned by the package
+	// (AssetDir and the common examples dir).
+	require.NoError(t, cfg.AssetDir().MkdirAll())
+	require.NoError(t, cfg.ExamplesDirs(platform.Platform{})[0].MkdirAll())
+
 	return cfg
 }
 
@@ -536,9 +543,9 @@ func createApp(
 	t *testing.T,
 	name string,
 	isExample bool,
-	idProvider *app.IDProvider,
+	idProvider *appid.Provider,
 	cfg config.Configuration,
-) app.ID {
+) appid.ID {
 	t.Helper()
 
 	res, err := CreateApp(CreateAppRequest{
@@ -553,7 +560,7 @@ func createApp(
 		require.NoError(t, err)
 		newID, err := idProvider.IDFromPath(newPath)
 		require.NoError(t, err)
-		assert.Empty(t, gCmp.Diff(f.Must(idProvider.ParseID("examples:"+name)), newID))
+		assert.Empty(t, gCmp.Diff(f.Must(idProvider.ParseID("examples:inspirational/"+name)), newID))
 		res.ID = newID
 	}
 
@@ -562,7 +569,7 @@ func createApp(
 
 func TestGetAppEnvironmentVariablesWithDefaults(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg, unoQPlatform)
+	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
 	docker, err := dockerClient.NewClientWithOpts(
 		dockerClient.FromEnv,
@@ -608,9 +615,9 @@ bricks:
     default_value: /models/ootb/ei/yolo-x-nano.eim
     description: path to the model file
 `)
-	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
+	err = cfg.AssetDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
-	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetDir())
 	assert.NoError(t, err)
 
 	modelsIndexContent := []byte(`
@@ -628,9 +635,9 @@ models:
     - id: arduino:object_detection
     - id: arduino:video_object_detection
 `)
-	err = cfg.AssetsDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
+	err = cfg.AssetDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
 	require.NoError(t, err)
-	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetsDir(), cfg.ModelsDir(), cfg.CustomModelsDir(), nil, config.Configuration{})
+	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetDir(), cfg.ModelsDir(), cfg.CustomModelsDir(), nil, config.Configuration{})
 	require.NoError(t, err)
 
 	env := getAppEnvironmentVariables(t.Context(), appDesc, bricksIndex, modelIndex, platform.Platform{}, cfg)
@@ -643,7 +650,7 @@ models:
 
 func TestGetAppEnvironmentVariablesWithCustomModelOverrides(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg, unoQPlatform)
+	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
 	docker, err := dockerClient.NewClientWithOpts(
 		dockerClient.FromEnv,
@@ -689,9 +696,9 @@ bricks:
     default_value: /models/ootb/ei/yolo-x-nano.eim
     description: path to the model file
 `)
-	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
+	err = cfg.AssetDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
-	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetDir())
 	assert.NoError(t, err)
 
 	modelsIndexContent := []byte(`
@@ -709,9 +716,9 @@ models:
     - id: arduino:object_detection
     - id: arduino:video_object_detection
 `)
-	err = cfg.AssetsDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
+	err = cfg.AssetDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
 	require.NoError(t, err)
-	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetsDir(), cfg.ModelsDir(), cfg.CustomModelsDir(), nil, config.Configuration{})
+	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetDir(), cfg.ModelsDir(), cfg.CustomModelsDir(), nil, config.Configuration{})
 	require.NoError(t, err)
 
 	env := getAppEnvironmentVariables(t.Context(), appDesc, bricksIndex, modelIndex, platform.Platform{}, cfg)
@@ -723,7 +730,7 @@ models:
 
 func TestGetAppEnvironmentVariablesUsingMultipleBricks(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
-	idProvider := app.NewAppIDProvider(cfg, unoQPlatform)
+	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
 	docker, err := dockerClient.NewClientWithOpts(
 		dockerClient.FromEnv,
@@ -776,9 +783,9 @@ bricks:
         default_value: /default/video/value
 
   `)
-	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
+	err = cfg.AssetDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
-	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetDir())
 	assert.NoError(t, err)
 
 	modelsIndexContent := []byte(`
@@ -792,9 +799,9 @@ models:
           model_configuration:
             EI_V_OBJ_DETECTION_MODEL: "/models/path/video.eim"
 `)
-	err = cfg.AssetsDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
+	err = cfg.AssetDir().Join("models-list.yaml").WriteFile(modelsIndexContent)
 	require.NoError(t, err)
-	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetsDir(), cfg.ModelsDir(), cfg.CustomModelsDir(), nil, config.Configuration{})
+	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetDir(), cfg.ModelsDir(), cfg.CustomModelsDir(), nil, config.Configuration{})
 	require.NoError(t, err)
 
 	env := getAppEnvironmentVariables(t.Context(), appDesc, bricksIndex, modelIndex, platform.Platform{}, cfg)

@@ -1,6 +1,6 @@
 ---
 name: github.com/emicklei/go-restful/v3
-version: v3.11.0
+version: v3.13.0
 type: go
 summary: Package restful , a lean package for creating REST-style WebServices without
   magic.

@@ -5,19 +5,22 @@ on:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+*"
 
-env:
-  PROJECT_NAME: "arduino-app-cli"
-  GITHUB_TOKEN: ${{ secrets.ARDUINOBOT_TOKEN }}
-  GITHUB_USERNAME: ArduinoBot
-
 jobs:
   build:
+    permissions:
+      contents: read
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-22.04]
         arch: [amd64, arm64]
 
     runs-on: ${{ matrix.os }}
+
+    env:
+      PROJECT_NAME: "arduino-app-cli"
+      GITHUB_TOKEN: ${{ secrets.ARDUINOBOT_TOKEN }}
+      GITHUB_USERNAME: ArduinoBot
 
     steps:
       - name: Set env vars
@@ -43,11 +46,46 @@ jobs:
         run: |
           go tool task build-deb VERSION=${TAG_VERSION} ARCH=${{ matrix.arch }} RELEASE="true"
 
+      - name: Upload deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-${{ matrix.arch }}
+          path: build/*.deb
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    permissions:
+      contents: write
+    needs: build
+    if: ${{ needs.build.result == 'success' }}
+
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Download deb artifacts
+        uses: actions/download-artifact@v5
+        with:
+          pattern: deb-*
+          path: dist
+          merge-multiple: true
+
+      - name: Verify artifacts
+        run: |
+          ls -la dist/
+          amd64_count=$(find dist -maxdepth 1 -name '*_amd64.deb' | wc -l)
+          arm64_count=$(find dist -maxdepth 1 -name '*_arm64.deb' | wc -l)
+          if [ "${amd64_count}" -ne 1 ] || [ "${arm64_count}" -ne 1 ]; then
+            echo "::error::expected exactly one *_amd64.deb and one *_arm64.deb in dist/, found ${amd64_count} amd64 and ${arm64_count} arm64"
+            exit 1
+          fi
+
       - name: Create Github Release and upload artifacts
         uses: ncipollo/release-action@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           draft: false
           prerelease: true
-          artifacts: build/*.deb
+          artifacts: dist/*.deb
           allowUpdates: true
+          artifactErrorsFailBuild: true

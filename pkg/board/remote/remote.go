@@ -9,13 +9,15 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 )
 
 var ErrPortAvailable = fmt.Errorf("port is not available")
 
 type FileInfo struct {
-	Name  string
-	IsDir bool
+	Name      string
+	IsDir     bool
+	IsSymlink bool
 }
 
 type RemoteConn interface {
@@ -72,4 +74,12 @@ func (w WithCloser) Close() error {
 		return w.CloseFun()
 	}
 	return nil
+}
+
+// ShellQuote quotes s so it can be safely used as a single argument in a POSIX
+// shell command. It wraps the value in single quotes, which prevents the shell
+// from interpreting special characters such as '$', backticks or backslashes.
+// Any embedded single quote is escaped using the standard '\” idiom.
+func ShellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }

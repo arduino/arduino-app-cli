@@ -49,7 +49,7 @@ func TestProvisionAppWithOverrides(t *testing.T) {
 	}
 	require.NoError(t, app.ProvisioningStateDir().MkdirAll())
 	// Add compose files for the bricks - video object detection
-	videoObjectDetectionComposePath := cfg.AssetsDir().Join("compose", "arduino", "video_object_detection")
+	videoObjectDetectionComposePath := cfg.AssetDir().Join("compose", "arduino", "video_object_detection")
 	require.NoError(t, videoObjectDetectionComposePath.MkdirAll())
 	composeForVideoObjectDetection := `
 version: '3.8'
@@ -87,15 +87,15 @@ bricks:
   - name: EI_OBJ_DETECTION_MODEL
     default_value: /models/ootb/ei/yolo-x-nano.eim
     description: path to the model file`)
-	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
+	err = cfg.AssetDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
 
-	require.NoError(t, cfg.AssetsDir().Join("services").MkdirAll())
-	servicesIndex, err := servicesindex.Load(platform.GetPlatform(nil), cfg.AssetsDir().Join("services"))
+	require.NoError(t, cfg.AssetDir().Join("services").MkdirAll())
+	servicesIndex, err := servicesindex.Load(platform.GetPlatform(nil), cfg.AssetDir().Join("services"))
 	require.NoError(t, err, "Failed to load services index")
 
 	// Override brick index with custom test content
-	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetDir())
 	require.Nil(t, err, "Failed to load bricks index with custom content")
 
 	br, ok := bricksIndex.FindBrickByID("arduino:video_object_detection")
@@ -314,14 +314,14 @@ bricks:
   variables:
   - name: APP_HOME
     default_value: .`)
-	err := cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
+	err := cfg.AssetDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
 
-	require.NoError(t, cfg.AssetsDir().Join("services").MkdirAll())
-	servicesIndex, err := servicesindex.Load(platform.GetPlatform(nil), cfg.AssetsDir().Join("services"))
+	require.NoError(t, cfg.AssetDir().Join("services").MkdirAll())
+	servicesIndex, err := servicesindex.Load(platform.GetPlatform(nil), cfg.AssetDir().Join("services"))
 	require.NoError(t, err, "Failed to load services index")
 
-	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetDir())
 	require.Nil(t, err, "Failed to load bricks index with custom content")
 	br, ok := bricksIndex.FindBrickByID("arduino:dbstorage_tsstore")
 	require.True(t, ok, "Brick arduino:dbstorage_tsstore should exist in the index")
@@ -342,7 +342,7 @@ bricks:
 	require.NoError(t, app.ProvisioningStateDir().MkdirAll())
 
 	t.Run("services with healthcheck", func(t *testing.T) {
-		fileComposePath := cfg.AssetsDir().Join("compose", "arduino", "dbstorage_tsstore")
+		fileComposePath := cfg.AssetDir().Join("compose", "arduino", "dbstorage_tsstore")
 		require.NoError(t, fileComposePath.MkdirAll())
 		dependsOnFromStrings := `
 services:
@@ -360,7 +360,7 @@ services:
 		require.NoError(t, err)
 
 		// Reload index after adding compose file.
-		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
+		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetDir())
 		require.NoError(t, err)
 
 		// Run the provision function to generate the main compose file
@@ -398,7 +398,7 @@ services:
 	})
 
 	t.Run("services without healthcheck", func(t *testing.T) {
-		fileComposePath := cfg.AssetsDir().Join("compose", "arduino", "dbstorage_tsstore")
+		fileComposePath := cfg.AssetDir().Join("compose", "arduino", "dbstorage_tsstore")
 		require.NoError(t, fileComposePath.MkdirAll())
 		dependsOnFromStrings := `
 services:
@@ -414,7 +414,7 @@ services:
 		require.NoError(t, err)
 
 		// Reload index after adding compose file.
-		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
+		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetDir())
 		require.NoError(t, err)
 
 		// Run the provision function to generate the main compose file
@@ -477,14 +477,14 @@ bricks:
   variables:
   - name: APP_HOME
     default_value: .`)
-	err := cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
+	err := cfg.AssetDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
 
-	require.NoError(t, cfg.AssetsDir().Join("services").MkdirAll())
-	servicesIndex, err := servicesindex.Load(platform.GetPlatform(nil), cfg.AssetsDir().Join("services"))
+	require.NoError(t, cfg.AssetDir().Join("services").MkdirAll())
+	servicesIndex, err := servicesindex.Load(platform.GetPlatform(nil), cfg.AssetDir().Join("services"))
 	require.NoError(t, err, "Failed to load services index")
 
-	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetDir())
 	require.Nil(t, err, "Failed to load bricks index with custom content")
 	br, ok := bricksIndex.FindBrickByID("arduino:dbstorage_tsstore")
 	require.True(t, ok, "Brick arduino:dbstorage_tsstore should exist in the index")
@@ -505,7 +505,7 @@ bricks:
 	require.NoError(t, app.ProvisioningStateDir().MkdirAll())
 
 	t.Run("services with user override", func(t *testing.T) {
-		fileComposePath := cfg.AssetsDir().Join("compose", "arduino", "dbstorage_tsstore")
+		fileComposePath := cfg.AssetDir().Join("compose", "arduino", "dbstorage_tsstore")
 		require.NoError(t, fileComposePath.MkdirAll())
 		dependsOnFromStrings := `
 services:
@@ -589,7 +589,7 @@ func TestProvisionAppWithServices(t *testing.T) {
 	}
 	require.NoError(t, app.ProvisioningStateDir().MkdirAll())
 	// Add compose files for the bricks - video object detection
-	videoObjectDetectionPath := cfg.AssetsDir().Join("services", "arduino", "video_object_detection")
+	videoObjectDetectionPath := cfg.AssetDir().Join("services", "arduino", "video_object_detection")
 	require.NoError(t, videoObjectDetectionPath.MkdirAll())
 	composeForVideoObjectDetection := `
 version: '3.8'
@@ -621,13 +621,13 @@ bricks:
   ports: []
   category: video
   requires_services: ["arduino:foo"]`)
-	err = cfg.AssetsDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
+	err = cfg.AssetDir().Join("bricks-list.yaml").WriteFile(bricksIndexContent)
 	require.NoError(t, err)
-	servicesIndex, err := servicesindex.Load(platform.GetPlatform(nil), cfg.AssetsDir().Join("services"))
+	servicesIndex, err := servicesindex.Load(platform.GetPlatform(nil), cfg.AssetDir().Join("services"))
 	require.NoError(t, err, "Failed to load services index")
 
 	// Override brick index with custom test content
-	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetsDir())
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetDir())
 	require.Nil(t, err, "Failed to load bricks index with custom content")
 
 	br, ok := bricksIndex.FindBrickByID("arduino:video_object_detection")

@@ -17,7 +17,6 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -151,7 +150,7 @@ func (a *ADBConnection) ForwardKillAll(ctx context.Context) error {
 }
 
 func (a *ADBConnection) List(path string) ([]remote.FileInfo, error) {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "ls", "-laQ", strconv.Quote(path))
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "ls", "-laQ", remote.ShellQuote(path))
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +169,7 @@ func (a *ADBConnection) List(path string) ([]remote.FileInfo, error) {
 }
 
 func (a *ADBConnection) Stats(p string) (remote.FileInfo, error) {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "file", strconv.Quote(p))
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "file", "-L", remote.ShellQuote(p))
 	if err != nil {
 		return remote.FileInfo{}, err
 	}
@@ -210,15 +209,15 @@ func (a *ADBConnection) Stats(p string) (remote.FileInfo, error) {
 }
 
 func (a *ADBConnection) ReadFile(path string) (io.ReadCloser, error) {
-	return adbReadFile(a, strconv.Quote(path))
+	return adbReadFile(a, remote.ShellQuote(path))
 }
 
 func (a *ADBConnection) WriteFile(r io.Reader, path string) error {
-	return adbWriteFile(a, r, strconv.Quote(path))
+	return adbWriteFile(a, r, remote.ShellQuote(path))
 }
 
 func (a *ADBConnection) MkDirAll(path string) error {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "install", "-o", username, "-g", username, "-m", "755", "-d", strconv.Quote(path))
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "install", "-o", username, "-g", username, "-m", "755", "-d", remote.ShellQuote(path))
 	if err != nil {
 		return err
 	}
@@ -230,7 +229,7 @@ func (a *ADBConnection) MkDirAll(path string) error {
 }
 
 func (a *ADBConnection) Remove(path string) error {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "rm", "-r", strconv.Quote(path))
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "rm", "-r", remote.ShellQuote(path))
 	if err != nil {
 		return err
 	}
@@ -247,17 +246,10 @@ type ADBCommand struct {
 }
 
 func (a *ADBConnection) GetCmd(cmd string, args ...string) remote.Cmder {
-	for i, arg := range args {
-		if strings.Contains(arg, " ") {
-			args[i] = fmt.Sprintf("%q", arg)
-		}
-	}
-
-	// TODO: fix command injection vulnerability
-	var cmds []string
-	cmds = append(cmds, a.adbPath, "-s", a.host, "shell", cmd)
-	if len(args) > 0 {
-		cmds = append(cmds, args...)
+	cmds := make([]string, 0, 5+len(args))
+	cmds = append(cmds, a.adbPath, "-s", a.host, "shell", remote.ShellQuote(cmd))
+	for _, arg := range args {
+		cmds = append(cmds, remote.ShellQuote(arg))
 	}
 
 	command, err := paths.NewProcess(nil, cmds...)
@@ -316,7 +308,7 @@ func (a *ADBCommand) Interactive() (io.WriteCloser, io.Reader, io.Reader, remote
 	}, nil
 }
 
-func (a *ADBConnection) Push(ctx context.Context, local, remote string) error {
+func (a *ADBConnection) Push(ctx context.Context, local, remotePath string) error {
 	isDirLocal := func() bool {
 		if info, err := os.Stat(local); err == nil {
 			return info.IsDir()
@@ -324,7 +316,7 @@ func (a *ADBConnection) Push(ctx context.Context, local, remote string) error {
 		return false
 	}
 	isDirRemote := func() bool {
-		if info, err := a.Stats(remote); err == nil {
+		if info, err := a.Stats(remotePath); err == nil {
 			return info.IsDir
 		}
 		return false
@@ -338,27 +330,27 @@ func (a *ADBConnection) Push(ctx context.Context, local, remote string) error {
 
 	if isDirLocal() {
 		// ensure the remote directory exists before pushing, otherwise empty directory push will not work.
-		if err := a.MkDirAll(remote); err != nil {
-			return fmt.Errorf("failed to create remote directory %q: %w", remote, err)
+		if err := a.MkDirAll(remotePath); err != nil {
+			return fmt.Errorf("failed to create remote directory %q: %w", remotePath, err)
 		}
 		// force directory override by adding a dot at the end of the local path.
 		local = addDotLocal(local)
 	} else if isDirRemote() {
-		return fmt.Errorf("cannot push file %q to directory %q", local, remote)
+		return fmt.Errorf("cannot push file %q to directory %q", local, remotePath)
 	}
 
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "push", local, remote)
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "push", local, remotePath)
 	if err != nil {
 		return err
 	}
 	stdout, err := cmd.RunAndCaptureCombinedOutput(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to push file from %q to %q: %w: %s", local, remote, err, string(stdout))
+		return fmt.Errorf("failed to push file from %q to %q: %w: %s", local, remotePath, err, string(stdout))
 	}
 
-	if cmd, err = paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "chmod", "-R", "u+wr", strconv.Quote(remote)); err == nil {
+	if cmd, err = paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "chmod", "-R", "u+wr", remote.ShellQuote(remotePath)); err == nil {
 		if stdout, err = cmd.RunAndCaptureCombinedOutput(ctx); err != nil {
-			slog.Warn("failed to set permissions for remote path", "path", remote, "error", err, "output", string(stdout))
+			slog.Warn("failed to set permissions for remote path", "path", remotePath, "error", err, "output", string(stdout))
 		}
 	}
 

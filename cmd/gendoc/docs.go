@@ -22,7 +22,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/update"
@@ -264,7 +264,7 @@ func NewOpenApiGenerator(version string) *Generator {
 				return true, nil
 			}
 			// We treat the orchestrator.ID as a string in the OpenAPI spec.
-			if params.Value.Type() == reflect.TypeOf(app.ID{}) {
+			if params.Value.Type() == reflect.TypeOf(appid.ID{}) {
 				params.Schema.WithType(jsonschema.Type{
 					SimpleTypes: new(jsonschema.String),
 				})
@@ -815,6 +815,24 @@ Contains a JSON object with the details of an error.
 			},
 		},
 		{
+			OperationId: "getExamples",
+			Method:      http.MethodGet,
+			Path:        "/v1/examples",
+			Request:     nil,
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/json",
+				DataStructure: orchestrator.ExampleResponse{},
+				Description:   "Successful response",
+				StatusCode:    http.StatusOK,
+			},
+			Description: "returns the example structure for rendering",
+			Summary:     "returns the example structure",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
 			OperationId: "getVersions",
 			Method:      http.MethodGet,
 			Path:        "/v1/version",
@@ -1012,6 +1030,9 @@ Contains a JSON object with the details of an error.
 				ContentType:   "text/event-stream",
 				DataStructure: "",
 				Description: `A stream of Server-Sent Events (SSE) that notifies the progress of the update process.
+The 'done' and 'restarting' events are the only terminal event: an 'error' reports a step that failed but does
+not end the operation, so the client should collect the errors received during the stream and
+present a final summary once 'done' arrives.
 The client will receive events formatted as follows:
 
 **Event 'log'**:
@@ -1019,15 +1040,33 @@ Contains a log message of the apt upgrade command.
 'event: log'
 'data: "updating package: 0.25"'
 
+**Event 'starting'**:
+Contains a string with the message that a step of the upgrade process is starting.
+'event: starting'
+'data: Upgrade is starting'
+
+**Event 'progress'**:
+Contains a JSON object with the overall completion percentage of the update process,
+from 0 to 100, and the step it is currently executing.
+'event: progress'
+'data: {"step":"docker images download","progress":44}'
+
 **Event 'restarting'**:
 Contains a string with the message that the upgrade is completed and the system is restarting.
 'event: restarting'
 'data: Upgrade completed. Restarting'
 
 **Event 'error'**:
-Contains a JSON object with the details of an error.
+Contains a JSON object with the details of a step that failed. It does not end the operation:
+the upgrade continues and 'done' is emitted anyway.
 'event: error'
 'data: {"code":"internal_service_err","message":"An error occurred during operation"}'
+
+**Event 'done'**:
+Contains a string with the message that the update process is complete. It is emitted last,
+also when 'error' events were received. 
+'event: done'
+'data: Update completed'
 `,
 			},
 			PossibleErrors: []ErrorResponse{
