@@ -6,6 +6,7 @@
 package e2e
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -25,6 +26,7 @@ import (
 
 type ArduinoAppCLI struct {
 	t            *require.Assertions
+	testT        *testing.T
 	DaemonAddr   string
 	path         *paths.Path
 	appDir       *paths.Path
@@ -77,6 +79,7 @@ func NewArduinoAppCLI(t *testing.T, opts ...ArduinoAppCLIOption) *ArduinoAppCLI 
 
 	cli := &ArduinoAppCLI{
 		t:          require.New(t),
+		testT:      t,
 		DaemonAddr: "",
 		path:       FindArduinoAppCLIPath(t),
 		appDir:     appDir,
@@ -120,7 +123,7 @@ func CreateEnvForDaemon(t *testing.T, opts ...ArduinoAppCLIOption) *ArduinoAppCL
 }
 
 func (cli *ArduinoAppCLI) StartDaemon() string {
-	args := []string{"daemon", "--port", "6789"}
+	args := []string{"daemon", "--port", "6789", "--log-level", "debug"}
 	cliProc, err := paths.NewProcessFromPath(cli.convertEnvForExecutils(cli.envVars), cli.path, args...)
 	cli.t.NoError(err)
 	stdout, err := cliProc.StdoutPipe()
@@ -135,18 +138,16 @@ func (cli *ArduinoAppCLI) StartDaemon() string {
 	cli.proc = cliProc
 	cli.DaemonAddr = "http://127.0.0.1:6789"
 
-	_copy := func(dst io.Writer, src io.Reader) {
-		buff := make([]byte, 1024)
-		for {
-			n, err := src.Read(buff)
-			if err != nil {
-				return
-			}
-			_, _ = dst.Write([]byte(color.YellowString(string(buff[:n]))))
+	// Forward daemon stdout/stderr to t.Log so it only surfaces on test failure (or with -v).
+	logDaemon := func(prefix string, src io.Reader) {
+		scanner := bufio.NewScanner(src)
+		scanner.Buffer(make([]byte, 64*1024), 1024*1024)
+		for scanner.Scan() {
+			cli.testT.Log(color.YellowString(prefix + scanner.Text()))
 		}
 	}
-	go _copy(os.Stdout, stdout)
-	go _copy(os.Stderr, stderr)
+	go logDaemon("daemon stdout: ", stdout)
+	go logDaemon("daemon stderr: ", stderr)
 
 	// Await the CLI daemon to be ready
 	var connErr error

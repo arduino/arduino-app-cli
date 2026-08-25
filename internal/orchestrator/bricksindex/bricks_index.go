@@ -6,6 +6,8 @@
 package bricksindex
 
 import (
+	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -200,16 +202,14 @@ func (b Brick) isAiBrick(platform platform.Platform) bool {
 	return b.ModelName != ""
 }
 
-type BrickInstance struct {
-	Model string
-}
-
-// GetMatchingService returns the list of service IDs required by the brick for the given instance.
+// GetMatchingService returns the list of service IDs required by the brick for the given model.
 // It evaluates any conditional constraints (e.g. model pattern matching) defined in each RequiresService entry.
 //
+// When model is empty, the brick's default model (resolved from model_by_boards) is used.
 // A service with no "when" condition is always included. A service with "when.model" is included
-// only when the instance model matches the pattern (e.g. "genie:*" matches "genie:mini", "genie:pro").
-func (b Brick) GetMatchingService(brick BrickInstance) ([]string, error) {
+// only when the model matches the pattern (e.g. "genie:*" matches "genie:mini", "genie:pro").
+func (b Brick) GetMatchingService(model string) ([]string, error) {
+	model = cmp.Or(model, b.ModelName)
 	services := make([]string, 0, len(b.RequiresServices))
 	for _, r := range b.RequiresServices {
 		if r.When == nil {
@@ -220,7 +220,7 @@ func (b Brick) GetMatchingService(brick BrickInstance) ([]string, error) {
 			services = append(services, r.ID)
 			continue
 		}
-		if ok, err := path.Match(*r.When.Model, brick.Model); err != nil {
+		if ok, err := path.Match(*r.When.Model, model); err != nil {
 			return services, fmt.Errorf("invalid pattern in requires_services.when.model: %w", err)
 		} else if ok {
 			services = append(services, r.ID)

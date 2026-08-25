@@ -472,6 +472,13 @@ type PropertyKeysResponse struct {
 	Keys *[]string `json:"keys,omitempty"`
 }
 
+// ResponseLogs defines model for ResponseLogs.
+type ResponseLogs struct {
+	ContainerName *string `json:"container_name,omitempty"`
+	Id            *string `json:"id,omitempty"`
+	Message       *string `json:"message,omitempty"`
+}
+
 // SketchAddLibraryResponse defines model for SketchAddLibraryResponse.
 type SketchAddLibraryResponse struct {
 	Libraries *[]string `json:"libraries,omitempty"`

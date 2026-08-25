@@ -26,6 +26,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 )
 
 type AppLogsRequest struct {
@@ -35,10 +36,18 @@ type AppLogsRequest struct {
 	Tail             *uint64
 }
 
+type LogSource string
+
+const (
+	LogSourceMain  LogSource = "main"
+	LogSourceBrick LogSource = "brick"
+)
+
 type LogMessage struct {
-	Name      string
-	BrickName string
-	Content   string
+	Source        LogSource
+	BrickID       string // empty when Source != LogSourceBrick
+	ContainerName string
+	Content       string
 }
 
 func AppLogs(
@@ -47,6 +56,7 @@ func AppLogs(
 	req AppLogsRequest,
 	dockerCli command.Cli,
 	bricksIndex *bricksindex.BricksIndex,
+	servicesIndex *servicesindex.ServicesIndex,
 ) (iter.Seq[LogMessage], error) {
 	if app.MainPythonFile == nil {
 		return helpers.EmptyIter[LogMessage](), nil
@@ -61,28 +71,50 @@ func AppLogs(
 
 	// Obtain mapping compose service name <-> brick name
 	serviceToBrickMapping := make(map[string]string, len(app.Descriptor.Bricks))
-	for _, brick := range app.Descriptor.Bricks {
-		brick, ok := bricksIndex.FindBrickByID(brick.ID)
+	for _, appBrick := range app.Descriptor.Bricks {
+		brick, ok := bricksIndex.FindBrickByID(appBrick.ID)
 		if !ok {
-			slog.Warn("brick not valid", slog.String("brick_id", brick.ID))
+			slog.Warn("brick not valid", slog.String("brick_id", appBrick.ID))
 			continue
 		}
 		composeFilePath, found := brick.GetComposeFile()
-		if !found {
-			slog.Warn("brick compose id not valid", slog.String("brick_id", brick.ID))
-			continue
-		}
-		if !composeFilePath.Exist() {
-			slog.Debug("Brick compose file not found", slog.String("module", brick.ID), slog.String("path", composeFilePath.String()))
-			continue
+		if found && composeFilePath.Exist() {
+			services, err := extractServicesFromComposeFile(composeFilePath)
+			if err != nil {
+				return helpers.EmptyIter[LogMessage](), err
+			}
+			for _, s := range services {
+				serviceToBrickMapping[s.name] = brick.ID
+			}
 		}
 
-		services, err := extractServicesFromComposeFile(composeFilePath)
+		// Also attribute containers of Arduino Services required by this brick.
+		requiredServices, err := brick.GetMatchingService(appBrick.Model)
 		if err != nil {
-			return helpers.EmptyIter[LogMessage](), err
+			slog.Warn("failed to get required services for brick", slog.String("brick_id", brick.ID), slog.Any("error", err))
+			continue
 		}
-		for _, s := range services {
-			serviceToBrickMapping[s.name] = brick.ID
+		for _, serviceID := range requiredServices {
+			slog.Debug("brick requires service", slog.String("brick_id", brick.ID), slog.String("service_id", serviceID))
+			service, found := servicesIndex.FindServiceByID(serviceID)
+			if !found {
+				continue
+			}
+			serviceCompose, ok := service.GetComposeFile()
+			if !ok {
+				continue
+			}
+			slog.Debug("loading service compose", slog.String("service_id", serviceID), slog.String("path", serviceCompose.String()))
+			services, err := extractServicesFromComposeFile(serviceCompose)
+			if err != nil {
+				slog.Warn("failed to load service compose", slog.String("service_id", serviceID), slog.Any("error", err))
+				continue
+			}
+			for _, s := range services {
+				if _, exists := serviceToBrickMapping[s.name]; !exists {
+					serviceToBrickMapping[s.name] = brick.ID
+				}
+			}
 		}
 	}
 
@@ -183,12 +215,15 @@ func (d *DockerLogConsumer) write(container, message string) {
 		// remove the suffix -1 or -2 or -4
 		serviceName = serviceName[:idx]
 	}
+
+	msg := LogMessage{Source: LogSourceMain, ContainerName: serviceName}
+	if brickID, ok := d.mapping[serviceName]; ok {
+		msg.Source = LogSourceBrick
+		msg.BrickID = brickID
+	}
 	for line := range strings.SplitSeq(message, "\n") {
-		if !d.cb(LogMessage{
-			Name:      serviceName,
-			BrickName: d.mapping[serviceName],
-			Content:   line,
-		}) {
+		msg.Content = line
+		if !d.cb(msg) {
 			d.shuttingDown.CompareAndSwap(false, true)
 			return
 		}

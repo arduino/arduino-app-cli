@@ -68,13 +68,19 @@ func logsHandler(ctx context.Context, app app.ArduinoApp, tail *uint64, follow, 
 		cfg,
 		servicelocator.GetDockerClient(),
 		servicelocator.GetBricksIndex(),
+		servicelocator.GetServicesIndex(),
 	)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 		return nil
 	}
 	for msg := range logsIter {
-		fmt.Fprintf(stdout, "[%s] %s\n", msg.Name, msg.Content)
+		switch msg.Source {
+		case orchestrator.LogSourceBrick:
+			fmt.Fprintf(stdout, "[%s (%s)] %s\n", msg.BrickID, msg.ContainerName, msg.Content)
+		default:
+			fmt.Fprintf(stdout, "[%s] %s\n", msg.ContainerName, msg.Content)
+		}
 	}
 	return nil
 }

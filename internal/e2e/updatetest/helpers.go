@@ -6,12 +6,9 @@
 package updatetest
 
 import (
-	"bufio"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"iter"
 	"net"
 	"net/http"
 	"os"
@@ -23,6 +20,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/arduino/arduino-app-cli/internal/e2e"
 )
 
 func fetchDebPackageLatest(t *testing.T, path, repo string) string {
@@ -273,61 +272,6 @@ func putUpdateRequest(t *testing.T, host string) {
 
 }
 
-func NewSSEClient(ctx context.Context, url string) iter.Seq2[Event, error] {
-	return func(yield func(Event, error) bool) {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-		if err != nil {
-			_ = yield(Event{}, err)
-			return
-		}
-
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			_ = yield(Event{}, err)
-			return
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != 200 {
-			_ = yield(Event{}, fmt.Errorf("got response status code %d", resp.StatusCode))
-			return
-		}
-
-		reader := bufio.NewReader(resp.Body)
-
-		evt := Event{}
-		for {
-			line, err := reader.ReadString('\n')
-			if err != nil {
-				_ = yield(Event{}, err)
-				return
-			}
-			switch {
-			case strings.HasPrefix(line, "data:"):
-				evt.Data = []byte(strings.TrimSpace(strings.TrimPrefix(line, "data:")))
-			case strings.HasPrefix(line, "event:"):
-				evt.Event = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
-			case strings.HasPrefix(line, "id:"):
-				evt.ID = strings.TrimSpace(strings.TrimPrefix(line, "id:"))
-			case strings.HasPrefix(line, "\n"):
-				if !yield(evt, nil) {
-					return
-				}
-				evt = Event{}
-			default:
-				_ = yield(Event{}, fmt.Errorf("unknown line: '%s'", line))
-				return
-			}
-		}
-	}
-}
-
-type Event struct {
-	ID    string
-	Event string
-	Data  []byte // json
-}
-
 func waitForPort(t *testing.T, host string, timeout time.Duration) { // nolint:unparam
 	t.Helper()
 	deadline := time.Now().Add(timeout)
@@ -348,7 +292,7 @@ func waitForUpgrade(t *testing.T, host string) {
 
 	url := fmt.Sprintf("http://%s/v1/system/update/events", host)
 
-	itr := NewSSEClient(t.Context(), url)
+	itr := e2e.NewSSEClient(t.Context(), url)
 	for event, err := range itr {
 		require.NoError(t, err)
 		t.Logf("Received event: ID=%s, Event=%s, Data=%s\n", event.ID, event.Event, string(event.Data))
