@@ -30,11 +30,19 @@ import (
 // Service for apt package management operations.
 // It manages subscribers and publishes events to all of them.
 type Service struct {
-	lock sync.Mutex
+	lock     sync.Mutex
+	selfKill bool
 }
 
 func New() *Service {
 	return &Service{}
+}
+
+// The daemon is restarted after a self-upgrade either way: only it may take the
+// shortcut of killing itself, since systemd respawns it. The CLI must not.
+func (s *Service) WithSelfKill() *Service {
+	s.selfKill = true
+	return s
 }
 
 // ListUpgradablePackages lists all upgradable packages using the `apt list --upgradable` command.
@@ -87,19 +95,15 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 	})
 
 	defer func() {
-		eventCB(update.NewDataEvent(update.RestartEvent, "Upgrade completed. Restarting ..."))
-
-		if err := restartServices(ctx); err != nil {
-			eventCB(update.NewErrorEvent(fmt.Errorf("error restarting services after upgrade: %w", err)))
+		if !selfUpgrade || !s.selfKill {
+			return
 		}
-
-		if selfUpgrade {
-			// on ubuntu needrestart refuses to restart its caller's cgroup pid, so we signal
-			// ourselves to let systemd respawn us on the new binary.
-			if p, err := os.FindProcess(os.Getpid()); err == nil {
-				if err := p.Signal(syscall.SIGTERM); err != nil {
-					slog.Error("failed to send SIGTERM to self after upgrade", slog.String("error", err.Error()))
-				}
+		eventCB(update.NewDataEvent(update.RestartEvent, fmt.Sprintf("Upgrade completed. Restarting (pid %d) ...", os.Getpid())))
+		// needrestart skips its caller's cgroup, so we signal ourselves
+		// to let systemd respawn us on the new binary.
+		if p, err := os.FindProcess(os.Getpid()); err == nil {
+			if err := p.Signal(syscall.SIGTERM); err != nil {
+				slog.Error("failed to send SIGTERM to self after upgrade", slog.String("error", err.Error()))
 			}
 		}
 	}()
@@ -212,7 +216,7 @@ func runUpdateCommand(ctx context.Context) error {
 }
 
 func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, error] {
-	env := []string{"NEEDRESTART_MODE=l"}
+	env := []string{"NEEDRESTART_MODE=a"}
 
 	aptOptions := []string{
 		"-o", "Acquire::Retries=3",
@@ -339,25 +343,6 @@ func cleanupDockerContainers(ctx context.Context) iter.Seq2[string, error] {
 			return
 		}
 	}
-}
-
-// RestartServices restarts services that need to be restarted after an upgrade.
-// It uses the `needrestart` command to determine which services need to be restarted.
-// It returns an error if the command fails to start or if it fails to wait for the command to finish.
-// It uses the '-r a' option to restart all services that need to be restarted automatically without prompting the user
-// Note: This function does not take the list of services as an argument because
-// `needrestart` automatically detects which services need to be restarted based on the system state.
-func restartServices(ctx context.Context) error {
-	needRestartCmd, err := paths.NewProcess(nil, "sudo", "needrestart", "-r", "a")
-	if err != nil {
-		return err
-	}
-	if out, err := needRestartCmd.RunAndCaptureCombinedOutput(ctx); err != nil {
-		return fmt.Errorf("error running needrestart command: %w: %s", err, out)
-	} else {
-		slog.Debug("needrestart output", slog.String("output", string(out)))
-	}
-	return nil
 }
 
 func listUpgradablePackages(ctx context.Context, matcher func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
