@@ -150,11 +150,12 @@ func (p *Provision) Render(
 		return fmt.Errorf("provisioning failed: %s not found, the app was not resolved", app.MainTemplateFileName)
 	}
 
-	if err := renderComposeFile(ctx, arduinoApp, env); err != nil {
+	prj, err := renderComposeFile(ctx, arduinoApp, env)
+	if err != nil {
 		return fmt.Errorf("provisioning failed to render the app compose file: %w", err)
 	}
 
-	provisionComposeVolumes(ctx, arduinoApp)
+	provisionComposeVolumes(prj)
 	return nil
 }
 
@@ -391,9 +392,7 @@ func generateMainComposeTemplate(
 		[]string{"gpiod"},              // support GPIO access
 	)
 
-	// Define depends_on conditions
-	// Services with healthcheck will be started only when healthy
-	// Services without healthcheck will be started as soon as the container is started
+	// A service with a healthcheck is waited for, the others only have to be started.
 	dependsOn := make(map[string]dependsOnCondition, len(services))
 	for _, s := range services {
 		if s.hasHealthcheck {
@@ -415,7 +414,7 @@ func generateMainComposeTemplate(
 		Ports:             slices.Collect(maps.Keys(ports)),
 		Entrypoint:        "/run.sh",
 		DependsOn:         dependsOn,
-		User:              appUserRef,
+		User:              appUserExpr,
 		GroupAdd:          groupExprs(groupNames),
 		DeviceCgroupRules: cgroupRuleExprs(deviceDrivers),
 		ExtraHosts:        []string{"msgpack-rpc-router:host-gateway"},
@@ -437,7 +436,7 @@ func generateMainComposeTemplate(
 
 	// The services the included composes declare are overridden here: what a file
 	// includes is merged under its own services.
-	for name, override := range servicesOverrides(services, appUserRef, envs, deviceDrivers, groupNames) {
+	for name, override := range servicesOverrides(services, appUserExpr, envs, deviceDrivers, groupNames) {
 		mainAppCompose.Services[name] = override
 	}
 
@@ -462,9 +461,8 @@ type serviceInfo struct {
 	requireDevices bool
 }
 
-// extractServicesFromComposeFile reads the shape of a brick or service compose
-// file: which services it declares, whether they have a healthcheck and whether
-// they set a user. No variable takes part in that, so nothing is interpolated.
+// extractServicesFromComposeFile reads what a brick or service compose declares: its
+// services, their healthcheck and their user. No variable takes part, none is resolved.
 func extractServicesFromComposeFile(composeFile *paths.Path) ([]serviceInfo, error) {
 	content, err := composeFile.ReadFile()
 	if err != nil {
@@ -536,17 +534,9 @@ func servicesOverrides(services []serviceInfo, user string, envs AppEnv, deviceD
 	return overrides
 }
 
-// provisionComposeVolumes ensures we create the parent folder with the correct owner.
-// By default docker if it doesn't find the folder, it will create it as root.
-// We do not want that, to make sure to have it as `arduino:arduino` we have
-// to manually parse the volumes, and make sure to create the target dirs ourself.
-func provisionComposeVolumes(ctx context.Context, arduinoApp *app.ArduinoApp) {
-	prj, err := appComposeProject(ctx, arduinoApp)
-	if err != nil {
-		slog.Warn("Failed to load the app compose project for volume provisioning", slog.String("app", arduinoApp.FullPath.String()), slog.Any("error", err))
-		return
-	}
-
+// provisionComposeVolumes creates the bind sources of the services, which docker would
+// otherwise create as root.
+func provisionComposeVolumes(prj *types.Project) {
 	for name, svc := range prj.Services {
 		if name == "main" {
 			continue

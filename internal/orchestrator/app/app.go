@@ -171,16 +171,14 @@ func (a *ArduinoApp) ProvisioningStateDir() *paths.Path {
 // app folder, when building a release.
 const (
 	MainTemplateFileName = "app-compose.tmpl.yaml"
-	ComposeFileName      = "app-compose.yaml"
 )
 
 func (a *ArduinoApp) AppComposeTemplateFilePath() *paths.Path {
 	return a.ProvisioningStateDir().Join(MainTemplateFileName)
 }
 
-// AppComposeFilePath is the file docker compose is given, written at every start.
 func (a *ArduinoApp) AppComposeFilePath() *paths.Path {
-	return a.ProvisioningStateDir().Join(ComposeFileName)
+	return a.ProvisioningStateDir().Join("app-compose.yaml")
 }
 
 func (a *ArduinoApp) getAppDescriptionFromReadme() (string, error) {

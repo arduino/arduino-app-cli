@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -129,15 +130,25 @@ bricks:
 	require.Equal(t, "bar", content.Services["ei-video-obj-detection-runner"]["environment"].(map[string]any)["FOO"])
 }
 
-// testAppIncluding is an app whose generated compose file includes the given one,
-// which is how provisionComposeVolumes reaches the brick and service volumes.
-func testAppIncluding(t *testing.T, appPath *paths.Path, composeFile *paths.Path) *app.ArduinoApp {
+// testProjectIncluding is the compose project of an app whose compose file includes
+// the given one, which is how provisionComposeVolumes reaches the brick volumes.
+func testProjectIncluding(t *testing.T, appPath *paths.Path, composeFile *paths.Path) *types.Project {
 	t.Helper()
 
 	testApp := &app.ArduinoApp{Name: "TestApp", FullPath: appPath}
 	require.NoError(t, testApp.ProvisioningStateDir().MkdirAll())
 	require.NoError(t, testApp.AppComposeFilePath().WriteFile([]byte("name: test-app\ninclude:\n- "+composeFile.String()+"\n")))
-	return testApp
+
+	prj, err := loader.LoadWithContext(t.Context(),
+		types.ConfigDetails{
+			ConfigFiles: []types.ConfigFile{{Filename: testApp.AppComposeFilePath().String()}},
+			WorkingDir:  testApp.ProvisioningStateDir().String(),
+			Environment: types.NewMapping(os.Environ()),
+		},
+		loader.WithSkipValidation,
+	)
+	require.NoError(t, err)
+	return prj
 }
 
 func TestVolumeParser(t *testing.T) {
@@ -167,7 +178,7 @@ services:
 		}
 		t.Setenv("CUSTOM_PATH", tempDirectory)
 
-		provisionComposeVolumes(t.Context(), testAppIncluding(t, paths.New(tempDirectory), volumesFromFile))
+		provisionComposeVolumes(testProjectIncluding(t, paths.New(tempDirectory), volumesFromFile))
 		require.True(t, app.FullPath.Join("data").Join("influx-data").Exist(), "Volume directory should exist")
 	})
 
@@ -197,7 +208,7 @@ services:
 			FullPath: paths.New(tempDirectory),
 		}
 		// No env, use macro default value
-		provisionComposeVolumes(t.Context(), testAppIncluding(t, paths.New(tempDirectory), volumesFromFile))
+		provisionComposeVolumes(testProjectIncluding(t, paths.New(tempDirectory), volumesFromFile))
 		require.True(t, app.FullPath.Join("customized").Join("data").Join("influx-data").Exist(), "Volume directory should exist")
 	})
 
@@ -227,7 +238,7 @@ services:
 		// Use env for nested default value
 		t.Setenv("DEFVALUE", tempDirectory)
 
-		provisionComposeVolumes(t.Context(), testAppIncluding(t, paths.New(tempDirectory), volumesFromFile))
+		provisionComposeVolumes(testProjectIncluding(t, paths.New(tempDirectory), volumesFromFile))
 		require.True(t, app.FullPath.Join("customized").Join("data").Join("influx-data").Exist(), "Volume directory should exist")
 	})
 
@@ -256,7 +267,7 @@ services:
 			Name:     "TestApp",
 			FullPath: paths.New(tempDirectory),
 		}
-		provisionComposeVolumes(t.Context(), testAppIncluding(t, paths.New(tempDirectory), volumesFromFile))
+		provisionComposeVolumes(testProjectIncluding(t, paths.New(tempDirectory), volumesFromFile))
 		require.True(t, app.FullPath.Join("data").Join("influx-data").Exist(), "Volume directory should exist")
 	})
 
@@ -283,7 +294,7 @@ services:
 			Name:     "TestApp",
 			FullPath: paths.New(tempDirectory),
 		}
-		provisionComposeVolumes(t.Context(), testAppIncluding(t, paths.New(tempDirectory), volumesFromFile))
+		provisionComposeVolumes(testProjectIncluding(t, paths.New(tempDirectory), volumesFromFile))
 		require.True(t, app.FullPath.Join("data").Join("influx-data").Exist(), "Volume directory should exist")
 	})
 
