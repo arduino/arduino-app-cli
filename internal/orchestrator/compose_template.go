@@ -297,7 +297,7 @@ func servicesOverrides(services []serviceInfo, user string, appEnv types.Mapping
 // is wired with, plus a reference to every host fact, resolved when it is rendered.
 func templateEnvironment(appEnv types.Mapping) types.Mapping {
 	env := appEnv.Clone()
-	for _, name := range hostVariables {
+	for name := range hostVariables {
 		env[name] = "${" + name + "}"
 	}
 	// A brick can declare a VIDEO_DEVICE of its own, and it has to keep applying
