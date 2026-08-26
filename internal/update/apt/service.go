@@ -13,12 +13,9 @@ import (
 	"io"
 	"iter"
 	"log/slog"
-	"os"
 	"regexp"
-	"slices"
 	"strings"
 	"sync"
-	"syscall"
 
 	"github.com/arduino/go-paths-helper"
 	"go.bug.st/f"
@@ -30,19 +27,11 @@ import (
 // Service for apt package management operations.
 // It manages subscribers and publishes events to all of them.
 type Service struct {
-	lock     sync.Mutex
-	selfKill bool
+	lock sync.Mutex
 }
 
 func New() *Service {
 	return &Service{}
-}
-
-// The daemon is restarted after a self-upgrade either way: only it may take the
-// shortcut of killing itself, since systemd respawns it. The CLI must not.
-func (s *Service) WithSelfKill() *Service {
-	s.selfKill = true
-	return s
 }
 
 // ListUpgradablePackages lists all upgradable packages using the `apt list --upgradable` command.
@@ -70,8 +59,6 @@ func (s *Service) ListUpgradablePackages(ctx context.Context, matcher func(updat
 	return pkgs, nil
 }
 
-const selfPackageName = "arduino-app-cli"
-
 // Progress milestones on a local 0-100 scale: the Manager rescales them to the
 // slice of the whole update process this updater is responsible for. Most of the
 // scale is reserved to the docker images download, by far the longest step.
@@ -89,24 +76,6 @@ const (
 func (s *Service) UpgradePackages(ctx context.Context, packages []update.PackageInfo, eventCB update.EventCallback) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-
-	selfUpgrade := slices.ContainsFunc(packages, func(p update.PackageInfo) bool {
-		return p.Name == selfPackageName
-	})
-
-	defer func() {
-		if !selfUpgrade || !s.selfKill {
-			return
-		}
-		eventCB(update.NewDataEvent(update.RestartEvent, fmt.Sprintf("Upgrade completed. Restarting (pid %d) ...", os.Getpid())))
-		// needrestart skips its caller's cgroup, so we signal ourselves
-		// to let systemd respawn us on the new binary.
-		if p, err := os.FindProcess(os.Getpid()); err == nil {
-			if err := p.Signal(syscall.SIGTERM); err != nil {
-				slog.Error("failed to send SIGTERM to self after upgrade", slog.String("error", err.Error()))
-			}
-		}
-	}()
 
 	names := f.Map(packages, func(pkg update.PackageInfo) string {
 		return pkg.Name

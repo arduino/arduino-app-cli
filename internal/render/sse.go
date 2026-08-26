@@ -75,7 +75,9 @@ func NewSSEStream(ctx context.Context, w http.ResponseWriter) (*SSEStream, error
 
 	const maxStreamTime = 24 * time.Hour
 
-	ctx, cancel := context.WithTimeout(ctx, maxStreamTime)
+	// The write loop outlives the request context on purpose: it lets the handler
+	// flush its last events when a shutdown cancels the request. Close ends it.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), maxStreamTime)
 	s := &SSEStream{
 		sseFlusher:        flusher,
 		heartbeatInterval: 30 * time.Second,
@@ -104,7 +106,7 @@ func (s *SSEStream) loop() {
 	for {
 		select {
 		case <-s.ctx.Done():
-			slog.Debug("stream SSE request context done")
+			slog.Debug("SSE stream closed")
 			return
 		case <-time.After(s.heartbeatInterval):
 			if err := s.heartbeat(); err != nil {

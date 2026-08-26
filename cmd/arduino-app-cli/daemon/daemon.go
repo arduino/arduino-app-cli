@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 
@@ -114,9 +115,9 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 		servicelocator.GetDockerClient(),
 		version,
 		update.NewManager(
-			apt.New().WithSelfKill(),
+			apt.New(),
 			arduino.NewArduinoPlatformUpdater(servicelocator.GetPlatform(), cfg.ArduinoPlatformVersionConstraint),
-		),
+		).WithSelfRestart(),
 		servicelocator.GetProvisioner(),
 		servicelocator.GetModelsIndex(),
 		servicelocator.GetBricksIndex(),
@@ -137,10 +138,14 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 
 	// Start the HTTP server
 	address := "127.0.0.1:" + daemonPort
+	// All the requests derive from srvCtx: cancelling it interrupts the long-lived
+	// SSE streams, that otherwise block the shutdown until the timeout.
+	srvCtx, cancelRequests := context.WithCancel(context.Background())
 	httpSrv := http.Server{
 		Addr:              address,
 		Handler:           httprecover.RecoverPanic(apiSrv),
 		ReadHeaderTimeout: 60 * time.Second,
+		BaseContext:       func(net.Listener) context.Context { return srvCtx },
 	}
 	go func() {
 		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -151,8 +156,10 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 	<-ctx.Done()
 	slog.Info("Shutting down HTTP server", slog.String("address", address))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	_ = httpSrv.Shutdown(ctx)
+	cancelRequests()
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	_ = httpSrv.Shutdown(shutdownCtx)
 	cancel()
 	slog.Info("HTTP server shut down", slog.String("address", address))
 }

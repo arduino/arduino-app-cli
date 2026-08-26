@@ -10,9 +10,12 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -45,11 +48,15 @@ type ServiceUpdater interface {
 	UpgradePackages(ctx context.Context, packages []PackageInfo, eventCB EventCallback) error
 }
 
+// The deb package of this very program: upgrading it needs a process restart.
+const selfPackageName = "arduino-app-cli"
+
 type Manager struct {
 	lock                         sync.Mutex
 	isUpgrading                  atomic.Bool
 	debUpdateService             ServiceUpdater
 	arduinoPlatformUpdateService ServiceUpdater
+	selfRestart                  bool
 
 	mu   sync.RWMutex
 	subs map[chan Event]struct{}
@@ -61,6 +68,13 @@ func NewManager(debUpdateService ServiceUpdater, arduinoPlatformUpdateService Se
 		arduinoPlatformUpdateService: arduinoPlatformUpdateService,
 		subs:                         make(map[chan Event]struct{}),
 	}
+}
+
+// The daemon is restarted after a self-upgrade either way: only it may take the
+// shortcut of killing itself, since systemd respawns it. The CLI must not.
+func (m *Manager) WithSelfRestart() *Manager {
+	m.selfRestart = true
+	return m
 }
 
 func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(UpgradablePackage) bool) ([]UpgradablePackage, error) {
@@ -171,6 +185,18 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 		m.broadcast(NewProgressEvent("upgrade", 100.0))
 
 		m.broadcast(NewDataEvent(DoneEvent, "Update completed"))
+
+		isSelfUpgrade := slices.ContainsFunc(debPkgs, func(p PackageInfo) bool { return p.Name == selfPackageName })
+		if m.selfRestart && isSelfUpgrade {
+			m.broadcast(NewDataEvent(RestartEvent, fmt.Sprintf("Upgrade completed. Restarting (pid %d) ...", os.Getpid())))
+			// needrestart skips its caller's cgroup, so we signal ourselves to let
+			// systemd respawn us on the new binary, after the last broadcast.
+			if p, err := os.FindProcess(os.Getpid()); err == nil {
+				if err := p.Signal(syscall.SIGTERM); err != nil {
+					slog.Error("failed to send SIGTERM to self after upgrade", slog.String("error", err.Error()))
+				}
+			}
+		}
 	}()
 	return nil
 }
