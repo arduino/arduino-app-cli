@@ -172,7 +172,9 @@ func (a *ArduinoApp) ProvisioningStateDir() *paths.Path {
 const (
 	MainTemplateFileName     = "app-compose.tmpl.yaml"
 	OverrideTemplateFileName = "app-compose-overrides.tmpl.yaml"
-	ComposeFileName          = "compose.yaml"
+	// Kept as it was before the templates: an app started by an older cli is
+	// stopped through the file it left here.
+	ComposeFileName = "app-compose.yaml"
 )
 
 func (a *ArduinoApp) AppComposeTemplateFilePath() *paths.Path {
