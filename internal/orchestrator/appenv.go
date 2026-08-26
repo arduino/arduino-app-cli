@@ -10,9 +10,6 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
-	"os"
-	"os/user"
-	"strconv"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -33,33 +30,26 @@ const appHomeRef = "${APP_HOME}"
 
 // An app runs as uid 1000, the same the cli itself requires (cmd/arduino-app-cli),
 // in the arduino group, which is required to exist but not to have a known id.
-const appUserRef = "1000:${ARDUINO_GID}"
+const appUserExpr = `{{ with groupID "arduino" }}1000:{{ . }}{{ else }}1000{{ end }}`
 
-// AppEnv is the environment an app runs with, in the two halves the provisioning
-// is split in: BuildTime values are baked into the generated compose files, while
-// Runtime values are resolved on the host at every start and only referenced
-// there as ${VAR}.
+// AppEnv is the environment an app runs with, split in what a template can state
+// and what only the board it starts on can answer.
 type AppEnv struct {
 	buildTime types.Mapping
 	runtime   types.Mapping
 }
 
-// All is the environment docker compose runs with. Both halves are needed: the
-// brick and service compose files being included interpolate build-time values
-// too. Merge only adds what is not set yet, so the runtime values win.
+// The brick and service composes interpolate build-time values too, so rendering
+// needs both halves.
 func (e AppEnv) All() types.Mapping {
 	return e.runtime.Clone().Merge(e.buildTime)
 }
 
-// ForComposeFile is the `environment:` section to write in the generated compose
-// files: the build-time values, plus the runtime keys as ${VAR} references so the
-// file declares which variables the app is wired with while their values stay in
-// the app env file.
+// BuildTime is the `environment:` section of a template: values, plus the runtime
+// keys as ${VAR} so the template says nothing about a board.
 func (e AppEnv) BuildTime() types.Mapping {
 	env := e.buildTime.Clone()
-	// Referenced, not resolved: docker compose fills these in at start time from
-	// the app env file, so the file states which variables the app is wired with
-	// without stating anything about the host it was generated on.
+	// Referenced, not resolved: the render step fills these in on the board.
 	for key := range e.runtime {
 		env[key] = "${" + key + "}"
 	}
@@ -121,10 +111,8 @@ func buildTimeAppEnv(
 	return envs
 }
 
-// runtimeAppEnv resolves the host facts the generated compose files reference as
-// ${VAR}. All the keys are always set, empty when the host has nothing to offer,
-// so that the generated files and the app env file do not change shape depending
-// on what is plugged in the board.
+// runtimeAppEnv resolves the host facts a template references as ${VAR}. Every key is
+// always set, so a template does not change shape with what is plugged in the board.
 func runtimeAppEnv(ctx context.Context, appPath *paths.Path, cfg config.Configuration) types.Mapping {
 	envs := make(types.Mapping, 6)
 
@@ -135,14 +123,6 @@ func runtimeAppEnv(ctx context.Context, appPath *paths.Path, cfg config.Configur
 	// Directory where AI models are installed, shared with the containerized runners.
 	envs["MODELS_PATH"] = cfg.ModelsDir().String()
 	envs["XDG_RUNTIME_DIR"] = "/run/user/1000"
-	// Primary group of the app, so the files it writes stay readable by the cli.
-	envs["ARDUINO_GID"] = func() string {
-		if group, err := user.LookupGroup("arduino"); err == nil {
-			return group.Gid
-		}
-		slog.Warn("arduino group not found on host; using the group of the current process")
-		return strconv.Itoa(os.Getgid())
-	}()
 
 	// Pre-select default camera device if available. This can be overridden by the app environment variables (or in future by applab)
 	// This is required because there are some video devices for HW acceleration that are auto registered in /dev but are not real cameras.

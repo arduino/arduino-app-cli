@@ -15,8 +15,6 @@ import (
 
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
-	"github.com/compose-spec/compose-go/v2/loader"
-	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	dockerClient "github.com/docker/docker/client"
@@ -266,24 +264,4 @@ func SetArduinoCliConfig(ctx context.Context, cli rpc.ArduinoCoreServiceServer) 
 	}
 
 	return nil
-}
-
-// appComposeProject is the docker compose project of an app: the compose file the
-// render step wrote, which is what the docker compose command line is given too.
-func appComposeProject(ctx context.Context, arduinoApp *app.ArduinoApp) (*types.Project, error) {
-	composeFile := arduinoApp.AppComposeFilePath()
-	content, err := composeFile.ReadFile()
-	if err != nil {
-		return nil, fmt.Errorf("cannot read compose file %s: %w", composeFile, err)
-	}
-
-	return loader.LoadWithContext(ctx,
-		types.ConfigDetails{
-			ConfigFiles: []types.ConfigFile{{Filename: composeFile.String(), Content: content}},
-			WorkingDir:  composeFile.Parent().String(),
-			// The environment of the process is part of it, like for docker compose.
-			Environment: types.NewMapping(os.Environ()),
-		},
-		func(options *loader.Options) { options.SkipNormalization = true },
-	)
 }
