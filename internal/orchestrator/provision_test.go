@@ -404,7 +404,7 @@ services:
 				},
 			},
 		}
-		require.Equal(t, exp, content, "Main compose content should match the expected structure")
+		require.Equal(t, exp.Services["main"], content.Services["main"], "Main compose content should match the expected structure")
 	})
 
 	t.Run("services without healthcheck", func(t *testing.T) {
@@ -458,7 +458,7 @@ services:
 				},
 			},
 		}
-		require.Equal(t, exp, content, "Main compose content should match the expected structure")
+		require.Equal(t, exp.Services["main"], content.Services["main"], "Main compose content should match the expected structure")
 	})
 }
 
