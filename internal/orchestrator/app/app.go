@@ -170,27 +170,12 @@ func (a *ArduinoApp) ProvisioningStateDir() *paths.Path {
 // The templates are exported because the resolve step also writes them outside of an
 // app folder, when building a release.
 const (
-	MainTemplateFileName     = "app-compose.tmpl.yaml"
-	OverrideTemplateFileName = "app-compose-overrides.tmpl.yaml"
-	// Kept as it was before the templates: an app started by an older cli is
-	// stopped through the file it left here.
-	ComposeFileName = "app-compose.yaml"
+	MainTemplateFileName = "app-compose.tmpl.yaml"
+	ComposeFileName      = "app-compose.yaml"
 )
 
 func (a *ArduinoApp) AppComposeTemplateFilePath() *paths.Path {
 	return a.ProvisioningStateDir().Join(MainTemplateFileName)
-}
-
-func (a *ArduinoApp) AppComposeOverrideTemplateFilePath() *paths.Path {
-	return a.ProvisioningStateDir().Join(OverrideTemplateFileName)
-}
-
-func (a *ArduinoApp) AppComposeTemplateFiles() paths.PathList {
-	files := paths.PathList{a.AppComposeTemplateFilePath()}
-	if override := a.AppComposeOverrideTemplateFilePath(); override.Exist() {
-		files.Add(override)
-	}
-	return files
 }
 
 // AppComposeFilePath is the file docker compose is given, written at every start.

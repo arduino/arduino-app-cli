@@ -34,18 +34,16 @@ var hostFuncs = template.FuncMap{
 // renderComposeFile writes the compose file the app is started with: the templates
 // evaluated on this board, with their layers and includes merged.
 func renderComposeFile(ctx context.Context, arduinoApp *app.ArduinoApp, envs AppEnv) error {
-	var configFiles []types.ConfigFile
-	for _, templateFile := range arduinoApp.AppComposeTemplateFiles() {
-		content, err := templateFile.ReadFile()
-		if err != nil {
-			return fmt.Errorf("cannot read %s: %w", templateFile, err)
-		}
-		rendered, err := renderComposeTemplate(content)
-		if err != nil {
-			return fmt.Errorf("cannot render %s: %w", templateFile, err)
-		}
-		configFiles = append(configFiles, types.ConfigFile{Filename: templateFile.String(), Content: rendered})
+	templateFile := arduinoApp.AppComposeTemplateFilePath()
+	content, err := templateFile.ReadFile()
+	if err != nil {
+		return fmt.Errorf("cannot read %s: %w", templateFile, err)
 	}
+	rendered, err := renderComposeTemplate(content)
+	if err != nil {
+		return fmt.Errorf("cannot render %s: %w", templateFile, err)
+	}
+	configFiles := []types.ConfigFile{{Filename: templateFile.String(), Content: rendered}}
 
 	prj, err := loader.LoadWithContext(ctx,
 		types.ConfigDetails{

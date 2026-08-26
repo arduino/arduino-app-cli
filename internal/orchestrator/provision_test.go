@@ -115,11 +115,8 @@ bricks:
 	require.NoError(t, err, "Failed to generate main compose file")
 	composeFilePath := app.AppComposeTemplateFilePath()
 	require.True(t, composeFilePath.Exist(), "Main compose file should exist")
-	overridesFilePath := app.AppComposeOverrideTemplateFilePath()
-	require.True(t, overridesFilePath.Exist(), "Override compose file should exist")
-
-	// Open override file and check for the expected override
-	overridesContent, err := overridesFilePath.ReadFile()
+	// The overrides of the included services are in the main template
+	overridesContent, err := composeFilePath.ReadFile()
 	require.NoError(t, err)
 
 	type services struct {
@@ -548,16 +545,13 @@ services:
 
 		user := "1000:1000"
 
-		// Generate overrides file
-		overrideComposeFile := app.AppComposeOverrideTemplateFilePath()
-		err = generateServicesOverrideTemplate(svcInfo, user, overrideComposeFile, AppEnv{buildTime: env}, nil, []string{"dialout"})
-		require.NoError(t, err)
-
-		// load and validate override file content
-		overrideComposeFileContent, err := overrideComposeFile.ReadFile()
+		// Generate the overrides of the included services
+		overrides, err := yaml.Marshal(map[string]any{
+			"services": servicesOverrides(svcInfo, user, AppEnv{buildTime: env}, nil, []string{"dialout"}),
+		})
 		require.NoError(t, err)
 		var content services
-		err = yaml.Unmarshal(overrideComposeFileContent, &content)
+		err = yaml.Unmarshal(overrides, &content)
 		require.NoError(t, err)
 		for svcName, svc := range content.Services {
 			if svcName != "dbstorage-influx" {
@@ -653,11 +647,8 @@ bricks:
 	require.NoError(t, err, "Failed to generate main compose file")
 	composeFilePath := app.AppComposeTemplateFilePath()
 	require.True(t, composeFilePath.Exist(), "Main compose file should exist")
-	overridesFilePath := app.AppComposeOverrideTemplateFilePath()
-	require.True(t, overridesFilePath.Exist(), "Override compose file should exist")
-
-	// Open override file and check for the expected override
-	overridesContent, err := overridesFilePath.ReadFile()
+	// The overrides of the included services are in the main template
+	overridesContent, err := composeFilePath.ReadFile()
 	require.NoError(t, err)
 
 	type services struct {
