@@ -7,7 +7,6 @@ package orchestrator
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"maps"
 	"strings"
@@ -32,51 +31,20 @@ const appHomeRef = "${APP_HOME}"
 // in the arduino group, which is required to exist but not to have a known id.
 const appUserExpr = `{{ with groupID "arduino" }}1000:{{ . }}{{ else }}1000{{ end }}`
 
-// AppEnv is the environment an app runs with, split in what a template can state
-// and what only the board it starts on can answer.
-type AppEnv struct {
-	buildTime types.Mapping
-	runtime   types.Mapping
+// hostVariables are the host facts a template references as ${VAR}: the resolve
+// step writes the references, hostEnvironment answers them.
+var hostVariables = []string{
+	"APP_HOME",
+	"VIDEO_DEVICE",
+	"CONFIGURED_CARRIERS",
+	"HOST_IP",
+	"MODELS_PATH",
+	"XDG_RUNTIME_DIR",
 }
 
-// The brick and service composes interpolate build-time values too, so rendering
-// needs both halves.
-func (e AppEnv) All() types.Mapping {
-	return e.runtime.Clone().Merge(e.buildTime)
-}
-
-// BuildTime is the `environment:` section of a template: values, plus the runtime
-// keys as ${VAR} so the template says nothing about a board.
-func (e AppEnv) BuildTime() types.Mapping {
-	env := e.buildTime.Clone()
-	// Referenced, not resolved: the render step fills these in on the board.
-	for key := range e.runtime {
-		env[key] = "${" + key + "}"
-	}
-	// A brick can declare a VIDEO_DEVICE of its own, and it has to keep applying
-	// when there is no camera to detect on the board.
-	if brickValue, ok := e.buildTime["VIDEO_DEVICE"]; ok {
-		env["VIDEO_DEVICE"] = fmt.Sprintf("${VIDEO_DEVICE:-%s}", brickValue)
-	}
-	return env
-}
-
-// AppEnvironment resolves both halves of the app environment.
-func AppEnvironment(
-	ctx context.Context,
-	arduinoApp app.ArduinoApp,
-	bricksIndex *bricksindex.BricksIndex,
-	modelsIndex *modelsindex.ModelsIndex,
-	plat platform.Platform,
-	cfg config.Configuration,
-) AppEnv {
-	return AppEnv{
-		buildTime: buildTimeAppEnv(ctx, arduinoApp, bricksIndex, modelsIndex, plat),
-		runtime:   runtimeAppEnv(ctx, arduinoApp.FullPath, cfg),
-	}
-}
-
-func buildTimeAppEnv(
+// appEnvironment is what the app is wired with, from the app and the board it is built
+// for: nothing here is read off a machine.
+func appEnvironment(
 	ctx context.Context,
 	app app.ArduinoApp,
 	brickIndex *bricksindex.BricksIndex,
@@ -111,15 +79,15 @@ func buildTimeAppEnv(
 	return envs
 }
 
-// runtimeAppEnv resolves the host facts a template references as ${VAR}. Every key is
-// always set, so a template does not change shape with what is plugged in the board.
-func runtimeAppEnv(ctx context.Context, appPath *paths.Path, cfg config.Configuration) types.Mapping {
-	envs := make(types.Mapping, 6)
+// hostEnvironment answers hostVariables on this board. Every one is always set, so
+// a template does not change shape with what is plugged in the board.
+func hostEnvironment(ctx context.Context, appPath *paths.Path, cfg config.Configuration) types.Mapping {
+	envs := make(types.Mapping, len(hostVariables))
+	for _, name := range hostVariables {
+		envs[name] = ""
+	}
 
 	envs["APP_HOME"] = appPath.String()
-	envs["VIDEO_DEVICE"] = ""
-	envs["CONFIGURED_CARRIERS"] = ""
-	envs["HOST_IP"] = ""
 	// Directory where AI models are installed, shared with the containerized runners.
 	envs["MODELS_PATH"] = cfg.ModelsDir().String()
 	envs["XDG_RUNTIME_DIR"] = "/run/user/1000"

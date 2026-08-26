@@ -200,7 +200,7 @@ func StartApp(
 	}
 
 	if appToStart.MainPythonFile != nil {
-		env := AppEnvironment(ctx, appToStart, bricksIndex, modelsIndex, platform, cfg)
+		appEnv := appEnvironment(ctx, appToStart, bricksIndex, modelsIndex, platform)
 
 		cb(StreamMessage{data: "python provisioning"})
 		provisionStartProgress := float32(0.0)
@@ -212,10 +212,13 @@ func StartApp(
 
 		// An app is provisioned every time it is started: it is editable, so its
 		// bricks, model or ports may have changed since the last run.
-		if err := provisioner.Resolve(appToStart.ProvisioningStateDir(), bricksIndex, servicesIndex, &appToStart, cfg, env, platform); err != nil {
+		if err := provisioner.Resolve(appToStart.ProvisioningStateDir(), bricksIndex, servicesIndex, &appToStart, cfg, appEnv, platform); err != nil {
 			return err
 		}
 
+		// What the template references, answered on this board: for a release the app
+		// half will come from the bundle instead of being resolved again here.
+		env := hostEnvironment(ctx, appToStart.FullPath, cfg).Merge(appEnv)
 		if err := provisioner.Render(ctx, &appToStart, env); err != nil {
 			return err
 		}
