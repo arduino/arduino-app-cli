@@ -31,15 +31,47 @@ const appHomeRef = "${APP_HOME}"
 // in the arduino group, which is required to exist but not to have a known id.
 const appUserExpr = `{{ with groupID "arduino" }}1000:{{ . }}{{ else }}1000{{ end }}`
 
-// hostVariables are the host facts a template references as ${VAR}: the resolve
-// step writes the references, hostEnvironment answers them.
-var hostVariables = []string{
-	"APP_HOME",
-	"VIDEO_DEVICE",
-	"CONFIGURED_CARRIERS",
-	"HOST_IP",
-	"MODELS_PATH",
-	"XDG_RUNTIME_DIR",
+// hostVariables are what a template references as ${VAR}: the name is the reference the
+// resolve step writes, the function is the answer the render step fills in.
+var hostVariables = map[string]func(hostFacts) string{
+	"APP_HOME":        func(facts hostFacts) string { return facts.appPath.String() },
+	"XDG_RUNTIME_DIR": func(hostFacts) string { return "/run/user/1000" },
+	// Directory where AI models are installed, shared with the containerized runners.
+	"MODELS_PATH": func(facts hostFacts) string { return facts.cfg.ModelsDir().String() },
+
+	// Some video devices in /dev are for HW acceleration and are not real cameras, so
+	// the first one in /dev/v4l/by-id is picked. A brick can override it.
+	"VIDEO_DEVICE": func(hostFacts) string {
+		if videoDevices := peripherals.GetVideoDevices(); len(videoDevices) > 0 {
+			return videoDevices[0]
+		}
+		return ""
+	},
+
+	"CONFIGURED_CARRIERS": func(facts hostFacts) string {
+		carriers, err := linuxconfig.GetEnabledCarriers(facts.ctx)
+		if err != nil {
+			slog.Warn("unable to get configured carriers", slog.String("error", err.Error()))
+			return ""
+		}
+		return strings.Join(f.Map(carriers, func(c linuxconfig.Carrier) string { return c.CarrierName }), ",")
+	},
+
+	"HOST_IP": func(hostFacts) string {
+		hostIP, err := helpers.GetHostIP()
+		if err != nil {
+			slog.Warn("unable to get host IP", slog.String("error", err.Error()))
+			return ""
+		}
+		return hostIP
+	},
+}
+
+// hostFacts is what the answers above are allowed to look at, besides the board.
+type hostFacts struct {
+	ctx     context.Context
+	appPath *paths.Path
+	cfg     config.Configuration
 }
 
 // appEnvironment is what the app is wired with, from the app and the board it is built
@@ -79,43 +111,17 @@ func appEnvironment(
 	return envs
 }
 
-// hostEnvironment answers hostVariables on this board. Every one is always set, so
-// a template does not change shape with what is plugged in the board.
+// hostEnvironment answers every hostVariable on this board. Each is always set, even
+// when empty, so a template does not change shape with what is plugged in the board.
 func hostEnvironment(ctx context.Context, appPath *paths.Path, cfg config.Configuration) types.Mapping {
+	facts := hostFacts{ctx: ctx, appPath: appPath, cfg: cfg}
+
 	envs := make(types.Mapping, len(hostVariables))
-	for _, name := range hostVariables {
-		envs[name] = ""
+	for name, answer := range hostVariables {
+		envs[name] = answer(facts)
 	}
 
-	envs["APP_HOME"] = appPath.String()
-	// Directory where AI models are installed, shared with the containerized runners.
-	envs["MODELS_PATH"] = cfg.ModelsDir().String()
-	envs["XDG_RUNTIME_DIR"] = "/run/user/1000"
-
-	// Pre-select default camera device if available. This can be overridden by the app environment variables (or in future by applab)
-	// This is required because there are some video devices for HW acceleration that are auto registered in /dev but are not real cameras.
-	if videoDevices := peripherals.GetVideoDevices(); len(videoDevices) > 0 {
-		// VIDEO_DEVICE will be the first device in /dev/v4l/by-id
-		envs["VIDEO_DEVICE"] = videoDevices[0]
-	}
-
-	mediaCarriers, err := linuxconfig.GetEnabledCarriers(ctx)
-	if err != nil {
-		slog.Warn("unable to get configured carriers", slog.String("error", err.Error()))
-	} else if len(mediaCarriers) > 0 {
-		carrierNames := f.Map(mediaCarriers, func(c linuxconfig.Carrier) string {
-			return c.CarrierName
-		})
-		envs["CONFIGURED_CARRIERS"] = strings.Join(carrierNames, ",")
-	}
-
-	if hostIP, err := helpers.GetHostIP(); err == nil {
-		envs["HOST_IP"] = hostIP
-	} else {
-		slog.Warn("unable to get host IP", slog.String("error", err.Error()))
-	}
-
-	slog.Debug("Runtime environment variables", slog.Any("envs", envs))
+	slog.Debug("Host environment variables", slog.Any("envs", envs))
 
 	return envs
 }
