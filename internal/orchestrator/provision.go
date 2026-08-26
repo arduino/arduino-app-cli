@@ -327,18 +327,10 @@ func generateMainComposeTemplate(
 		services = append(services, svcs...)
 	}
 
-	// Create a single docker-mainCompose that includes all the required services
-	mainTemplateFile := genPath.Join(app.MainTemplateFileName)
-	// If required, create an override compose file for devices
-	overrideTemplateFile := genPath.Join(app.OverrideTemplateFileName)
-
-	type mainService struct {
-		Main service `yaml:"main"`
-	}
 	var mainAppCompose struct {
-		Name     string       `yaml:"name"`
-		Include  []string     `yaml:"include,omitempty"`
-		Services *mainService `yaml:"services,omitempty"`
+		Name     string         `yaml:"name"`
+		Include  []string       `yaml:"include,omitempty"`
+		Services map[string]any `yaml:"services,omitempty"`
 	}
 	// Merge compose
 	composeProjectName, err := getAppComposeProjectNameFromApp(*arduinoApp, cfg)
@@ -417,31 +409,36 @@ func generateMainComposeTemplate(
 
 	deviceDrivers := []string{"drm", "dma_heap", "media", "video4linux", "alsa", "ttyUSB", "ttyACM"}
 
-	mainAppCompose.Services = &mainService{
-		Main: service{
-			Image:             pythonImage,
-			Volumes:           volumes,
-			Ports:             slices.Collect(maps.Keys(ports)),
-			Entrypoint:        "/run.sh",
-			DependsOn:         dependsOn,
-			User:              appUserRef,
-			GroupAdd:          groupExprs(groupNames),
-			DeviceCgroupRules: cgroupRuleExprs(deviceDrivers),
-			ExtraHosts:        []string{"msgpack-rpc-router:host-gateway"},
-			Labels: map[string]string{
-				DockerAppLabel:     "true",
-				DockerAppMainLabel: "true",
-				DockerAppPathLabel: appHomeRef,
-			},
-			Environment: envs.BuildTime(),
-			Logging: &logging{
-				Driver: "json-file",
-				Options: map[string]string{
-					"max-size": "5m",
-					"max-file": "2",
-				},
+	mainAppCompose.Services = map[string]any{"main": service{
+		Image:             pythonImage,
+		Volumes:           volumes,
+		Ports:             slices.Collect(maps.Keys(ports)),
+		Entrypoint:        "/run.sh",
+		DependsOn:         dependsOn,
+		User:              appUserRef,
+		GroupAdd:          groupExprs(groupNames),
+		DeviceCgroupRules: cgroupRuleExprs(deviceDrivers),
+		ExtraHosts:        []string{"msgpack-rpc-router:host-gateway"},
+		Labels: map[string]string{
+			DockerAppLabel:     "true",
+			DockerAppMainLabel: "true",
+			DockerAppPathLabel: appHomeRef,
+		},
+		Environment: envs.BuildTime(),
+		Logging: &logging{
+			Driver: "json-file",
+			Options: map[string]string{
+				"max-size": "5m",
+				"max-file": "2",
 			},
 		},
+	},
+	}
+
+	// The services the included composes declare are overridden here: what a file
+	// includes is merged under its own services.
+	for name, override := range servicesOverrides(services, appUserRef, envs, deviceDrivers, groupNames) {
+		mainAppCompose.Services[name] = override
 	}
 
 	// Write the main compose file
@@ -449,13 +446,8 @@ func generateMainComposeTemplate(
 	if err != nil {
 		return err
 	}
+	mainTemplateFile := genPath.Join(app.MainTemplateFileName)
 	if err := mainTemplateFile.WriteFile(data); err != nil {
-		return err
-	}
-
-	// If there are services that require devices, we need to generate an override compose file
-	// Write additional file to override devices section in included compose files
-	if err := generateServicesOverrideTemplate(services, appUserRef, overrideTemplateFile, envs, deviceDrivers, groupNames); err != nil {
 		return err
 	}
 
@@ -509,30 +501,19 @@ func extractServicesFromComposeFile(composeFile *paths.Path) ([]serviceInfo, err
 	return services, nil
 }
 
-func generateServicesOverrideTemplate(services []serviceInfo, user string, overrideTemplateFile *paths.Path, envs AppEnv, deviceDrivers, groupNames []string) error {
-	if overrideTemplateFile.Exist() {
-		if err := overrideTemplateFile.Remove(); err != nil {
-			return fmt.Errorf("failed to remove existing override compose template: %w", err)
-		}
-	}
-
-	if len(services) == 0 {
-		slog.Debug("No services to override, skipping override compose template generation")
-		return nil
-	}
-
+// servicesOverrides is what to apply to the services the brick and service composes
+// declare: they are not ours, so only these fields are stated.
+func servicesOverrides(services []serviceInfo, user string, envs AppEnv, deviceDrivers, groupNames []string) map[string]any {
 	type serviceOverride struct {
 		User              *string           `yaml:"user,omitempty"`
-		Volumes           *[]volume         `yaml:"volumes,omitempty"`
+		Volumes           []volume          `yaml:"volumes,omitempty"`
 		GroupAdd          []string          `yaml:"group_add,omitempty"`
 		DeviceCgroupRules []string          `yaml:"device_cgroup_rules,omitempty"`
 		Labels            map[string]string `yaml:"labels,omitempty"`
 		Environment       types.Mapping     `yaml:"environment,omitempty"`
 	}
-	var overrideCompose struct {
-		Services map[string]serviceOverride `yaml:"services,omitempty"`
-	}
-	overrideCompose.Services = make(map[string]serviceOverride, len(services))
+
+	overrides := make(map[string]any, len(services))
 	for _, svc := range services {
 		override := serviceOverride{
 			GroupAdd: groupExprs(groupNames),
@@ -540,6 +521,7 @@ func generateServicesOverrideTemplate(services []serviceInfo, user string, overr
 				DockerAppLabel:     "true",
 				DockerAppPathLabel: appHomeRef,
 			},
+			Environment: envs.BuildTime(),
 		}
 		// If service defines a user, do not override it
 		if svc.user == nil {
@@ -547,28 +529,11 @@ func generateServicesOverrideTemplate(services []serviceInfo, user string, overr
 		}
 		if svc.requireDevices {
 			override.DeviceCgroupRules = cgroupRuleExprs(deviceDrivers)
-			devVolumes := []volume{
-				{Type: "bind", Source: "/dev", Target: "/dev"},
-			}
-			override.Volumes = &devVolumes
+			override.Volumes = []volume{{Type: "bind", Source: "/dev", Target: "/dev"}}
 		}
-		override.Environment = envs.BuildTime()
-		overrideCompose.Services[svc.name] = override
+		overrides[svc.name] = override
 	}
-	writeOverrideCompose := func() error {
-		data, err := yaml.Marshal(overrideCompose)
-		if err != nil {
-			return err
-		}
-		if err := overrideTemplateFile.WriteFile(data); err != nil {
-			return err
-		}
-		return nil
-	}
-	if e := writeOverrideCompose(); e != nil {
-		return e
-	}
-	return nil
+	return overrides
 }
 
 // provisionComposeVolumes ensures we create the parent folder with the correct owner.
