@@ -116,7 +116,7 @@ services:
 }
 
 func TestServicesOverrides(t *testing.T) {
-	envs := AppEnv{buildTime: types.Mapping{"FOO": "bar"}}
+	appEnv := types.Mapping{"FOO": "bar"}
 	user := "1000:1000"
 	withUser := "root"
 
@@ -124,7 +124,7 @@ func TestServicesOverrides(t *testing.T) {
 		{name: "plain"},
 		{name: "with-devices", requireDevices: true},
 		{name: "with-user", user: &withUser},
-	}, user, envs, []string{"drm"}, []string{"video"})
+	}, user, appEnv, []string{"drm"}, []string{"video"})
 
 	require.Len(t, overrides, 3)
 

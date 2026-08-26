@@ -55,7 +55,7 @@ var hostFuncs = template.FuncMap{
 
 // renderComposeFile writes the compose file the app is started with: the template
 // evaluated on this board, with its includes merged in.
-func renderComposeFile(ctx context.Context, arduinoApp *app.ArduinoApp, envs AppEnv) (*types.Project, error) {
+func renderComposeFile(ctx context.Context, arduinoApp *app.ArduinoApp, env types.Mapping) (*types.Project, error) {
 	templateFile := arduinoApp.AppComposeTemplateFilePath()
 	content, err := templateFile.ReadFile()
 	if err != nil {
@@ -73,7 +73,7 @@ func renderComposeFile(ctx context.Context, arduinoApp *app.ArduinoApp, envs App
 			// The templates and the composes they include live here.
 			WorkingDir: arduinoApp.ProvisioningStateDir().String(),
 			// The environment of the process wins, as it does for docker compose.
-			Environment: types.NewMapping(os.Environ()).Merge(envs.All()),
+			Environment: types.NewMapping(os.Environ()).Merge(env),
 		},
 		// Relative paths are resolved now: the rendered file is read from elsewhere.
 		func(o *loader.Options) { o.ResolvePaths = true },
