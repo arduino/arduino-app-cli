@@ -139,7 +139,7 @@ func testAppIncluding(t *testing.T, appPath *paths.Path, composeFile *paths.Path
 
 	testApp := &app.ArduinoApp{Name: "TestApp", FullPath: appPath}
 	require.NoError(t, testApp.ProvisioningStateDir().MkdirAll())
-	require.NoError(t, testApp.AppComposeFilePath().WriteFile([]byte("include:\n- "+composeFile.String()+"\n")))
+	require.NoError(t, testApp.AppComposeFilePath().WriteFile([]byte("name: test-app\ninclude:\n- "+composeFile.String()+"\n")))
 	return testApp
 }
 
