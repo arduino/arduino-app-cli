@@ -16,6 +16,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
@@ -27,6 +28,7 @@ type CreateAppRequest struct {
 }
 
 func HandleAppCreate(
+	bricksIndex *bricksindex.BricksIndex,
 	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) http.HandlerFunc {
@@ -52,6 +54,7 @@ func HandleAppCreate(
 				Description: req.Description,
 				SkipSketch:  skipSketch,
 			},
+			bricksIndex,
 			idProvider,
 			cfg,
 		)

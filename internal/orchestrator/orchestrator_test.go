@@ -35,7 +35,7 @@ func TestCloneApp(t *testing.T) {
 
 	originalAppID := f.Must(idProvider.ParseID("user:original-app"))
 	originalAppPath := originalAppID.ToPath()
-	r, err := CreateApp(CreateAppRequest{Name: "original-app"}, idProvider, cfg)
+	r, err := CreateApp(CreateAppRequest{Name: "original-app"}, &bricksindex.BricksIndex{}, idProvider, cfg)
 	require.NoError(t, err)
 	require.Equal(t, originalAppID, r.ID)
 	require.DirExists(t, originalAppPath.String())
@@ -154,7 +154,7 @@ func TestEditApp(t *testing.T) {
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
 	t.Run("with default", func(t *testing.T) {
-		_, err := CreateApp(CreateAppRequest{Name: "app-default"}, idProvider, cfg)
+		_, err := CreateApp(CreateAppRequest{Name: "app-default"}, &bricksindex.BricksIndex{}, idProvider, cfg)
 		require.NoError(t, err)
 		appDir := cfg.AppsDir().Join("app-default")
 
@@ -192,7 +192,7 @@ func TestEditApp(t *testing.T) {
 
 	t.Run("with name", func(t *testing.T) {
 		originalAppName := "original-name"
-		_, err := CreateApp(CreateAppRequest{Name: originalAppName}, idProvider, cfg)
+		_, err := CreateApp(CreateAppRequest{Name: originalAppName}, &bricksindex.BricksIndex{}, idProvider, cfg)
 		require.NoError(t, err)
 		appDir := cfg.AppsDir().Join(originalAppName)
 		userApp := f.Must(app.Load(appDir))
@@ -207,7 +207,7 @@ func TestEditApp(t *testing.T) {
 
 		t.Run("already existing name", func(t *testing.T) {
 			existingAppName := "existing-name"
-			_, err := CreateApp(CreateAppRequest{Name: existingAppName}, idProvider, cfg)
+			_, err := CreateApp(CreateAppRequest{Name: existingAppName}, &bricksindex.BricksIndex{}, idProvider, cfg)
 			require.NoError(t, err)
 			appDir := cfg.AppsDir().Join(existingAppName)
 			existingApp := f.Must(app.Load(appDir))
@@ -219,7 +219,7 @@ func TestEditApp(t *testing.T) {
 
 	t.Run("with icon and description", func(t *testing.T) {
 		commonAppName := "common-app"
-		_, err := CreateApp(CreateAppRequest{Name: commonAppName}, idProvider, cfg)
+		_, err := CreateApp(CreateAppRequest{Name: commonAppName}, &bricksindex.BricksIndex{}, idProvider, cfg)
 		require.NoError(t, err)
 		commonAppDir := cfg.AppsDir().Join(commonAppName)
 		commonApp := f.Must(app.Load(commonAppDir))
@@ -551,7 +551,7 @@ func createApp(
 	res, err := CreateApp(CreateAppRequest{
 		Name: name,
 		Icon: "😃",
-	}, idProvider, cfg)
+	}, &bricksindex.BricksIndex{}, idProvider, cfg)
 	require.NoError(t, err)
 	require.Empty(t, gCmp.Diff(f.Must(idProvider.ParseID("user:"+name)), res.ID))
 	if isExample {
