@@ -180,7 +180,7 @@ func getAppCliVersion(t *testing.T, containerName string) string {
 
 	cmd := exec.Command(
 		"docker", "exec",
-		"--user", "arduino",
+		"--user", "1000",
 		containerName,
 		"arduino-app-cli", "version", "--format", "json",
 	)
