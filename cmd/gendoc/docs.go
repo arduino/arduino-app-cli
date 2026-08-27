@@ -974,9 +974,13 @@ caller before this event, and it is qualified by the repository the file came fr
 'data: {"id":"llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","name":"unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","status":"installed"}'
 
 **Event 'error'**:
-Contains a JSON object with the details of an error.
+Contains a JSON object with the details of an error. Everything that can go wrong after the
+stream opens is reported here rather than as an HTTP status, because the 200 and its headers
+are already sent: a download the handler could not complete, and a models directory with no
+room left, which carries the code 'insufficient_storage'.
 'event: error'
 'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+'data: {"code":"insufficient_storage","message":"insufficient disk space to install model"}'
 `,
 			},
 			Description: `Download and install an AI model, streaming the progress as Server-Sent Events.
@@ -987,16 +991,17 @@ The internal model list decides which it is: an id it declares is installed as a
 
 Nothing is checked before the download starts, and the request is idempotent. A model already on disk is not transferred again: the downloader reports the one it finds and the stream ends in "done" with its item, the same answer a fresh install gives. A declared model whose declaration names no handler, pre-loaded or custom, is installed by that declaration alone and answers "done" at once. A Hugging Face source has no identifier until the downloader assigns one from the file that arrives, so the id in the "done" event is not the one in the path.
 
-Installing from a Hugging Face source requires a models-downloader image that reports "model_id" on its download events (arduino/app-bricks-py#415 and arduino/app-bricks-py#416). An older image installs the model but names nothing, and the request answers 500 rather than guess at an id no later request would resolve.`,
+Installing from a Hugging Face source requires a models-downloader image that reports "model_id" on its download events (arduino/app-bricks-py#415 and arduino/app-bricks-py#416). An older image installs the model but names nothing, and the stream ends in an error event rather than guess at an id no later request would resolve.`,
 			Summary: "Download and install an AI model",
 			Tags:    []Tag{AIModelsTag},
-			// Neither 404 nor 409: no listing runs, so an id nothing declares cannot be
-			// told from one that is merely absent, and an installed model is answered
-			// rather than refused.
+			// Only what can be answered before the stream opens. Neither 404 nor 409: no
+			// listing runs, so an id nothing declares cannot be told from one that is
+			// merely absent, and an installed model is answered rather than refused. No
+			// 507 either: the stream is already open by the time disk space is known, so
+			// that arrives as an error event.
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
-				{StatusCode: http.StatusInsufficientStorage, Reference: "#/components/responses/InsufficientStorage"},
 			},
 		},
 		{
