@@ -84,8 +84,10 @@ func buildDebVersion(t *testing.T, storePath, tagVersion, arch string) {
 		outputDir,
 	)
 
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("failed to run build command: %v", err)
+	// Without the output a failing task only reports task's own exit code 201.
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("failed to run build command: %v\n%s", err, out)
 	}
 }
 
