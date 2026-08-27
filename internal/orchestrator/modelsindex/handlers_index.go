@@ -356,12 +356,11 @@ const (
 )
 
 type StreamMessage struct {
-	err       string
-	data      string
-	progress  *Progress
-	done      string
-	artifacts []string
-	model     *DownloadedModel
+	err      string
+	data     string
+	progress *Progress
+	done     string
+	model    *DownloadedModel
 }
 
 type DownloadedModel struct {
@@ -384,7 +383,6 @@ func (p *StreamMessage) GetData() string        { return p.data }
 func (p *StreamMessage) GetError() string       { return p.err }
 func (p *StreamMessage) GetProgress() *Progress { return p.progress }
 func (p *StreamMessage) GetDone() string        { return p.done }
-func (p *StreamMessage) GetArtifacts() []string { return p.artifacts }
 
 // GetModel is nil until the handler names what it wrote, and stays nil for a handler too
 // old to report it.
@@ -407,14 +405,13 @@ func (p *StreamMessage) GetType() MessageType {
 
 func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
 	var raw struct {
-		Event       string   `json:"event"`
-		Description string   `json:"description"`
-		Current     int64    `json:"current"`
-		Total       int64    `json:"total"`
-		SizeMB      float64  `json:"size_mb"`
-		Unit        string   `json:"unit"`
-		Artifacts   []string `json:"artifacts"`
-		ModelID     string   `json:"model_id"`
+		Event       string  `json:"event"`
+		Description string  `json:"description"`
+		Current     int64   `json:"current"`
+		Total       int64   `json:"total"`
+		SizeMB      float64 `json:"size_mb"`
+		Unit        string  `json:"unit"`
+		ModelID     string  `json:"model_id"`
 	}
 	if err := json.Unmarshal([]byte(line), &raw); err != nil {
 		slog.Debug("non-JSON stdout from handler", "line", line)
@@ -440,11 +437,11 @@ func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
 			done: "download complete",
 		})
 	case "info":
-		// The files the handler wrote, and the model it made of them: without these the
-		// artifacts are dropped and a caller cannot tell which model arrived.
+		// The model the handler made of the files it wrote. The event also lists those
+		// files, but nothing needs them: the id used to be re-derived from their names and
+		// is now reported outright, so parsing them again would only invite that back.
 		msg := StreamMessage{
-			data:      raw.Description,
-			artifacts: raw.Artifacts,
+			data: raw.Description,
 		}
 		if raw.ModelID != "" {
 			// Reported only once the handler has recorded the model, so an id here means
