@@ -1,16 +1,16 @@
 cleanup_agent_profiles() {
-  user_home="$(getent passwd 1000 | cut -d: -f6)"
-  [ -n "$user_home" ] || return 0
+  USER_HOME="$(getent passwd 1000 | cut -d: -f6)"
+  [ -n "$USER_HOME" ] || return 0
 
   MASTER_AGENT="/etc/arduino-app-cli/AGENTS.md"
   PATHS_TO_LINK="
-$user_home/.claude/CLAUDE.md
-$user_home/.gemini/GEMINI.md
-$user_home/.codex/AGENTS.md
-$user_home/.copilot/copilot-instructions.md
+$USER_HOME/.claude/CLAUDE.md
+$USER_HOME/.gemini/GEMINI.md
+$USER_HOME/.codex/AGENTS.md
+$USER_HOME/.copilot/copilot-instructions.md
 "
 
-  echo "arduino-app-cli: Cleaning up AI agent symlinks in $user_home..."
+  echo "arduino-app-cli: Cleaning up AI agent symlinks in $USER_HOME..."
 
   for TARGET_PATH in $PATHS_TO_LINK; do
     [ -z "$TARGET_PATH" ] && continue

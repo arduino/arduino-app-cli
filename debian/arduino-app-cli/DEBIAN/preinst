@@ -35,15 +35,15 @@ done
 # no longer located at /home/arduino/.local/share/arduino-app-cli
 # Move the related file to the new location
 if [ "$1" = "upgrade" ]; then
-    user_home="$(getent passwd $USER_ID | cut -d: -f6)"
-    LEGACY_DIR="${user_home}/.local/share/arduino-app-cli"
+    USER_HOME="$(getent passwd $USER_ID | cut -d: -f6)"
+    LEGACY_DIR="${USER_HOME}/.local/share/arduino-app-cli"
     mkdir -p /var/lib/arduino-app-cli
     cp "${LEGACY_DIR}/properties.msgpack" /var/lib/arduino-app-cli || true
     cp "${LEGACY_DIR}/bootloader_burned.flag" /var/lib/arduino-app-cli/default.app || true
 
     DEFAULT_APP_FILE="${LEGACY_DIR}/default.app"
     if [ -f "${DEFAULT_APP_FILE}" ]; then
-        sed -s "s|${user_home}/.local/share|/var/lib|" "${DEFAULT_APP_FILE}" > /var/lib/arduino-app-cli/default.app
+        sed -s "s|${USER_HOME}/.local/share|/var/lib|" "${DEFAULT_APP_FILE}" > /var/lib/arduino-app-cli/default.app
     fi
 
 
