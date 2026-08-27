@@ -30,6 +30,7 @@ RUN mkdir -p /etc/systemd/system/arduino-app-cli.service.d && \
 
 # `system init` pulls the docker images and the arduino libraries of whichever
 # version drives the upgrade, and the test only checks the version transition.
+# Update the PATH so that the shim is found first.
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 RUN { echo '#!/bin/sh'; \
       echo 'if [ "$1" = system ] && [ "$2" = init ]; then exit 0; fi'; \
