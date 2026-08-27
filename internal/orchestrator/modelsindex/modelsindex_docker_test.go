@@ -356,7 +356,7 @@ func TestDownloadByURL(t *testing.T) {
 		if len(cmd) > 0 && strings.Contains(cmd[0], "hf_model_downloader.sh") {
 			gotCmd, gotEnv = cmd, env
 		}
-		return `{"event":"info","description":"Downloaded to: /models/org/repo","artifacts":["/models/org/repo/m-Q4_0.gguf"],"model_id":"llamacpp:m-Q4_0","size_mb":1}` + "\n", 0
+		return `{"event":"info","description":"Downloaded to: /models/org/repo","artifacts":["/models/org/repo/m-Q4_0.gguf"],"model_id":"llamacpp:org/repo/m-Q4_0","size_mb":1}` + "\n", 0
 	})
 	dir := paths.New("testdata/with-handlers")
 	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
@@ -378,6 +378,35 @@ func TestDownloadByURL(t *testing.T) {
 	// The stream carries the model back, so the caller can report what it just created
 	// without reading it in again.
 	require.NotNil(t, downloaded)
-	assert.Equal(t, "llamacpp:m-Q4_0", downloaded.ID)
+	assert.Equal(t, "llamacpp:org/repo/m-Q4_0", downloaded.ID)
 	assert.Equal(t, uint64(1024*1024), downloaded.Size)
+}
+
+// A repository already on disk is not transferred again: the handler reports the model it
+// finds and exits, with no "complete" event and no progress. The install route answers
+// from this event alone, so the model must still come back.
+func TestDownloadByURLReportsAnInstalledModel(t *testing.T) {
+	cli := newFakeDockerClient(func(_ string, _ []string) (string, int) {
+		return `{"event":"info","description":"Model exists: org/repo (m-Q4_0.gguf)","artifacts":["/models/org/repo/m-Q4_0.gguf"],"model_id":"llamacpp:org/repo/m-Q4_0","size_mb":1}` + "\n", 0
+	})
+	dir := paths.New("testdata/with-handlers")
+	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+	require.NoError(t, err)
+
+	var downloaded *DownloadedModel
+	var messages []string
+	err = idx.DownloadByURL(t.Context(), cli, "llamacpp:org/repo:Q4_0", "", platform.Platform{BoardName: "ventunoq"}, func(e StreamMessage) {
+		if m := e.GetModel(); m != nil {
+			downloaded = m
+		}
+		if e.IsData() {
+			messages = append(messages, e.GetData())
+		}
+	})
+	require.NoError(t, err)
+
+	require.NotNil(t, downloaded)
+	assert.Equal(t, "llamacpp:org/repo/m-Q4_0", downloaded.ID)
+	assert.Equal(t, uint64(1024*1024), downloaded.Size, "the size is the one on disk, not a transfer total")
+	assert.Equal(t, []string{"Model exists: org/repo (m-Q4_0.gguf)"}, messages)
 }
