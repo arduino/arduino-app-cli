@@ -875,7 +875,7 @@ Contains a JSON object with the details of an error.
 			Method:      http.MethodDelete,
 			Path:        "/v1/models/{id}",
 			Request: (*struct {
-				ID    string `path:"id" description:"AI model identifier"`
+				ID    string `path:"id" description:"AI model identifier. An id no internal model list entry declares carries the repository path the model was downloaded from, so its slashes must be percent-encoded." example:"llamacpp:unsloth%2FSmolLM2-135M-Instruct-GGUF%2FSmolLM2-135M-Instruct-Q4_K_M"`
 				Force bool   `query:"force" description:"If true, deletes the model even if referenced by apps."`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
@@ -897,7 +897,7 @@ Contains a JSON object with the details of an error.
 			Method:      http.MethodGet,
 			Path:        "/v1/models/{id}",
 			Request: (*struct {
-				ID string `path:"id" description:"AI model identifier."`
+				ID string `path:"id" description:"AI model identifier. An id no internal model list entry declares carries the repository path the model was downloaded from, so its slashes must be percent-encoded." example:"llamacpp:unsloth%2FSmolLM2-135M-Instruct-GGUF%2FSmolLM2-135M-Instruct-Q4_K_M"`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
@@ -967,11 +967,11 @@ Bytes transferred for the file being downloaded.
 'data: {"name":"SmolLM2-135M-Instruct-Q4_K_M.gguf","current":75876627,"total":105454144,"progress":71.95}'
 
 **Event 'done'**:
-The installed model. For a declared model it is described by its own entry; for a Hugging
-Face source the downloader assigns the id from the file that arrives, so it is not known
-to the caller before this event.
+The installed model. A declared model is described by its own entry. For a Hugging Face
+source the downloader assigns the id from the file that arrives, so it is not known to the
+caller before this event, and it is qualified by the repository the file came from.
 'event: done'
-'data: {"id":"llamacpp:SmolLM2-135M-Instruct-Q4_K_M","name":"SmolLM2-135M-Instruct-Q4_K_M","status":"installed"}'
+'data: {"id":"llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","name":"unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","status":"installed"}'
 
 **Event 'error'**:
 Contains a JSON object with the details of an error.
@@ -983,17 +983,18 @@ Contains a JSON object with the details of an error.
 
 The path names either a model the internal model list declares, or a Hugging Face source to fetch one from - a file URL, or the compact "[type:]repo:quantization[:mmproj_quantization]" key. Percent-encode the slashes.
 
-The internal model list decides which it is: an id it declares is installed as a declared model, and anything else is handed to the Hugging Face downloader. A path that is neither is therefore reported by the downloader, as a stream error saying the repository does not exist, rather than as a 404. The 404 is reserved for a declared model the handler listing does not report at all.
+The internal model list decides which it is: an id it declares is installed as a declared model, and anything else is handed to the Hugging Face downloader. That decision reads the model list alone, so the request starts no container before the download. A path that is neither a declared id nor a source the Hub resolves is therefore reported by the downloader, as a stream error saying the repository does not exist, rather than as a 404.
 
-Only a declared model is checked before the download starts, and then only for being installed already, which is a 409. A Hugging Face source has no identifier until the downloader assigns one from the file that arrives, so it cannot be checked at all, and the id in the "done" event is not the one in the path.
+Nothing is checked before the download starts, and the request is idempotent. A model already on disk is not transferred again: the downloader reports the one it finds and the stream ends in "done" with its item, the same answer a fresh install gives. A declared model whose declaration names no handler, pre-loaded or custom, is installed by that declaration alone and answers "done" at once. A Hugging Face source has no identifier until the downloader assigns one from the file that arrives, so the id in the "done" event is not the one in the path.
 
-Installing from a Hugging Face source requires a models-downloader image that reports "model_id" on its download events (arduino/app-bricks-py#414). An older image installs the model but names nothing, and the request answers 500 rather than guess at an id no later request would resolve.`,
+Installing from a Hugging Face source requires a models-downloader image that reports "model_id" on its download events (arduino/app-bricks-py#415 and arduino/app-bricks-py#416). An older image installs the model but names nothing, and the request answers 500 rather than guess at an id no later request would resolve.`,
 			Summary: "Download and install an AI model",
 			Tags:    []Tag{AIModelsTag},
+			// Neither 404 nor 409: no listing runs, so an id nothing declares cannot be
+			// told from one that is merely absent, and an installed model is answered
+			// rather than refused.
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
-				{StatusCode: http.StatusNotFound, Reference: "#/components/responses/NotFound"},
-				{StatusCode: http.StatusConflict, Reference: "#/components/responses/Conflict"},
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
 				{StatusCode: http.StatusInsufficientStorage, Reference: "#/components/responses/InsufficientStorage"},
 			},
