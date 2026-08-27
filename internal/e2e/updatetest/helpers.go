@@ -207,7 +207,7 @@ func runSystemUpdate(t *testing.T, containerName string) {
 
 	cmd := exec.Command(
 		"docker", "exec",
-		"--user", "arduino",
+		"--user", "1000",
 		containerName,
 		"arduino-app-cli", "system", "update", "--only-arduino", "--yes",
 	)

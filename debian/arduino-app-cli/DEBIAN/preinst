@@ -35,17 +35,19 @@ done
 # no longer located at /home/arduino/.local/share/arduino-app-cli
 # Move the related file to the new location
 if [ "$1" = "upgrade" ]; then
+    user_home="$(getent passwd $USER_ID | cut -d: -f6)"
+    LEGACY_DIR="${user_home}/.local/share/arduino-app-cli"
     mkdir -p /var/lib/arduino-app-cli
-    cp /home/arduino/.local/share/arduino-app-cli/properties.msgpack /var/lib/arduino-app-cli || true
-    cp /home/arduino/.local/share/arduino-app-cli/bootloader_burned.flag /var/lib/arduino-app-cli/default.app || true
+    cp "${LEGACY_DIR}/properties.msgpack" /var/lib/arduino-app-cli || true
+    cp "${LEGACY_DIR}/bootloader_burned.flag" /var/lib/arduino-app-cli/default.app || true
 
-    DEFAULT_APP_FILE="/home/arduino/.local/share/arduino-app-cli/default.app"
+    DEFAULT_APP_FILE="${LEGACY_DIR}/default.app"
     if [ -f "${DEFAULT_APP_FILE}" ]; then
-        sed -s "s|/home/arduino/.local/share|/var/lib|" ${DEFAULT_APP_FILE} > /var/lib/arduino-app-cli/default.app
+        sed -s "s|${user_home}/.local/share|/var/lib|" "${DEFAULT_APP_FILE}" > /var/lib/arduino-app-cli/default.app
     fi
 
-    
+
     # the examples directory changed its structure,
     # remove it to cleanup stale files
-    rm -rf /home/arduino/.local/share/arduino-app-cli/examples
+    rm -rf "${LEGACY_DIR}/examples"
 fi

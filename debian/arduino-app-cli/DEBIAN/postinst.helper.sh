@@ -1,11 +1,13 @@
 configure_agent_profiles() {
-  USER_HOME="/home/arduino"
+  user_home="$(getent passwd 1000 | cut -d: -f6)"
+  [ -n "$user_home" ] || return 0
+
   MASTER_AGENT="/etc/arduino-app-cli/AGENTS.md"
   PATHS_TO_LINK="
-$USER_HOME/.claude/CLAUDE.md
-$USER_HOME/.gemini/GEMINI.md
-$USER_HOME/.codex/AGENTS.md
-$USER_HOME/.copilot/copilot-instructions.md
+$user_home/.claude/CLAUDE.md
+$user_home/.gemini/GEMINI.md
+$user_home/.codex/AGENTS.md
+$user_home/.copilot/copilot-instructions.md
 "
 
   INSTALLED_LINKS=""
