@@ -28,10 +28,6 @@ RUN mkdir -p /etc/systemd/system/arduino-app-cli.service.d && \
     printf '[Service]\nExecStart=\nExecStart=/usr/bin/arduino-app-cli daemon --port 8800 --log-level debug\n' \
     > /etc/systemd/system/arduino-app-cli.service.d/log-level.conf
 
-RUN usermod -s /bin/bash arduino || true
-RUN mkdir -p /home/arduino && chown -R arduino:arduino /home/arduino
-RUN usermod -aG docker arduino
-
 RUN echo "deb [trusted=yes arch=${ARCH}] file:/var/www/html/myrepo local main" \
     > /etc/apt/sources.list.d/my-mock-repo.list
 
