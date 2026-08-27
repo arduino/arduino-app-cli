@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 # A PR gets one run at a time: superseded pushes are cancelled instead of
-# stacking three jobs each.
+# stacking every leg of the matrix again.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -29,6 +29,9 @@ jobs:
           - StableToCurrent
           - CurrentToCurrent
           - DowngradeToPublishedRelease
+        distro:
+          - debian:trixie
+          - ubuntu:24.04
         # A scenario with a warn message reports it instead of blocking the PR.
         include:
           - scenario: DowngradeToPublishedRelease
@@ -36,7 +39,7 @@ jobs:
               Downgrading to the last published release is expected to fail;
               the test reports the reason in the job log.
 
-    name: ${{ matrix.scenario }}
+    name: ${{ matrix.scenario }} on ${{ matrix.distro }}
 
     steps:
       - name: Checkout
@@ -52,9 +55,10 @@ jobs:
         continue-on-error: ${{ matrix.warn != '' }}
         env:
           GH_TOKEN: ${{ secrets.ARDUINOBOT_TOKEN }}
+          TEST_BASE_IMAGE: ${{ matrix.distro }}
         run: |
           go tool task test:update -- -run 'TestUpdatePackage/${{ matrix.scenario }}'
 
       - name: Warn about the expected failure
         if: ${{ matrix.warn != '' && steps.test.outcome == 'failure' }}
-        run: echo "::warning title=${{ matrix.scenario }}::${{ matrix.warn }}"
+        run: echo "::warning title=${{ matrix.scenario }} on ${{ matrix.distro }}::${{ matrix.warn }}"

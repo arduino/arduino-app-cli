@@ -141,9 +141,14 @@ func genMinorTag(t *testing.T, tag string) string {
 func buildDockerImage(t *testing.T, dockerfile, name, arch string) {
 	t.Helper()
 
-	arch = fmt.Sprintf("ARCH=%s", arch)
+	args := []string{"build", "--build-arg", fmt.Sprintf("ARCH=%s", arch)}
+	// The distribution under test, the dockerfile default applies when it is unset.
+	if image := os.Getenv("TEST_BASE_IMAGE"); image != "" {
+		args = append(args, "--build-arg", "BASE_IMAGE="+image)
+	}
+	args = append(args, "-t", name, "-f", dockerfile, ".")
 
-	cmd := exec.Command("docker", "build", "--build-arg", arch, "-t", name, "-f", dockerfile, ".")
+	cmd := exec.Command("docker", args...)
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
