@@ -41,7 +41,7 @@ func TestParseDownloadHandlerLine(t *testing.T) {
 			},
 		},
 		{
-			name:        "complete event with artifacts",
+			name:        "complete event ignores the file list",
 			line:        `{"event":"complete","description":"download complete","artifacts":["model.eim","meta.json"]}`,
 			expectEvent: 1,
 			expected: StreamMessage{
@@ -49,12 +49,11 @@ func TestParseDownloadHandlerLine(t *testing.T) {
 			},
 		},
 		{
-			name:        "info event carries the files the handler wrote",
+			name:        "info event reports the handler's line and ignores the file list",
 			line:        `{"event":"info","description":"Downloaded to: /models/repo","artifacts":["/models/repo/m.gguf"]}`,
 			expectEvent: 1,
 			expected: StreamMessage{
-				data:      "Downloaded to: /models/repo",
-				artifacts: []string{"/models/repo/m.gguf"},
+				data: "Downloaded to: /models/repo",
 			},
 		},
 		{
@@ -333,7 +332,6 @@ func TestParseDownloadHandlerLineNamesTheModel(t *testing.T) {
 
 		require.Len(t, got, 1)
 		assert.Nil(t, got[0].GetModel())
-		assert.Equal(t, []string{"/models/org/repo/m-Q4_0.gguf"}, got[0].GetArtifacts())
 	})
 }
 
