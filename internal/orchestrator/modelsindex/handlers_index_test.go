@@ -211,13 +211,15 @@ func TestUserConfiguredModel(t *testing.T) {
 		"model_url":         "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/blob/f4db1b3/Qwen3.5-0.8B-Q4_0.gguf",
 	}
 	entry := func(mutate func(*handlerModelEntry)) handlerModelEntry {
+		// An ad-hoc id is qualified by the repository directory the file landed in, so it
+		// cannot collide with a same-named GGUF from another owner.
 		e := handlerModelEntry{
-			ID:          "llamacpp:Qwen3.5-0.8B-Q4_0",
-			Name:        "Qwen3.5-0.8B-Q4_0",
+			ID:          "llamacpp:unsloth/Qwen3.5-0.8B-GGUF/Qwen3.5-0.8B-Q4_0",
+			Name:        "unsloth/Qwen3.5-0.8B-GGUF/Qwen3.5-0.8B-Q4_0",
 			Handler:     "llamacpp",
 			ModelOrigin: "user_configured",
 			Metadata: &entryMetadata{
-				ModelID: "llamacpp:Qwen3.5-0.8B-Q4_0",
+				ModelID: "llamacpp:unsloth/Qwen3.5-0.8B-GGUF/Qwen3.5-0.8B-Q4_0",
 				Handler: "hf-handler",
 				Inputs:  inputs,
 			},
@@ -231,8 +233,8 @@ func TestUserConfiguredModel(t *testing.T) {
 	t.Run("appends a model no models-list.yaml entry declares", func(t *testing.T) {
 		model, ok := testHandlersIndex().userDownloadModel(entry(nil))
 		require.True(t, ok)
-		assert.Equal(t, "llamacpp:Qwen3.5-0.8B-Q4_0", model.ID)
-		assert.Equal(t, "Qwen3.5-0.8B-Q4_0", model.Name)
+		assert.Equal(t, "llamacpp:unsloth/Qwen3.5-0.8B-GGUF/Qwen3.5-0.8B-Q4_0", model.ID)
+		assert.Equal(t, "unsloth/Qwen3.5-0.8B-GGUF/Qwen3.5-0.8B-Q4_0", model.Name)
 		assert.False(t, model.IsBuiltIn, "a built-in model cannot be deleted")
 		assert.Nil(t, model.ModelFolderPath, "the listing's path is a container path")
 		require.NotNil(t, model.Deployment)
@@ -268,7 +270,7 @@ func TestUserConfiguredModel(t *testing.T) {
 	// Two quantizations of one repository share a record naming the last downloaded.
 	t.Run("skips an entry whose record names another model", func(t *testing.T) {
 		_, ok := testHandlersIndex().userDownloadModel(entry(func(e *handlerModelEntry) {
-			e.Metadata.ModelID = "llamacpp:Qwen3.5-0.8B-Q8_0"
+			e.Metadata.ModelID = "llamacpp:unsloth/Qwen3.5-0.8B-GGUF/Qwen3.5-0.8B-Q8_0"
 		}))
 		assert.False(t, ok)
 	})
@@ -311,13 +313,13 @@ func TestApplyStatusTo(t *testing.T) {
 func TestParseDownloadHandlerLineNamesTheModel(t *testing.T) {
 	t.Run("an info event carrying an id names the model", func(t *testing.T) {
 		var got []StreamMessage
-		parseDownloadHandlerLine(`{"event":"info","description":"Downloaded to: /models/org/repo","artifacts":["/models/org/repo/m-Q4_0.gguf"],"model_id":"llamacpp:m-Q4_0","size_mb":2048}`, func(e StreamMessage) {
+		parseDownloadHandlerLine(`{"event":"info","description":"Downloaded to: /models/org/repo","artifacts":["/models/org/repo/m-Q4_0.gguf"],"model_id":"llamacpp:org/repo/m-Q4_0","size_mb":2048}`, func(e StreamMessage) {
 			got = append(got, e)
 		})
 
 		require.Len(t, got, 1)
 		require.NotNil(t, got[0].GetModel())
-		assert.Equal(t, "llamacpp:m-Q4_0", got[0].GetModel().ID)
+		assert.Equal(t, "llamacpp:org/repo/m-Q4_0", got[0].GetModel().ID)
 		assert.Equal(t, uint64(2048*1024*1024), got[0].GetModel().Size)
 	})
 
@@ -336,10 +338,15 @@ func TestParseDownloadHandlerLineNamesTheModel(t *testing.T) {
 }
 
 func TestUserConfiguredModelFromDownloadEvent(t *testing.T) {
-	model := UserConfiguredModel(DownloadedModel{ID: "llamacpp:SmolLM2-135M-Instruct-Q4_K_M", Size: 1024})
+	id := "llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M"
+	model := UserConfiguredModel(DownloadedModel{ID: id, Size: 1024})
 
-	assert.Equal(t, "llamacpp:SmolLM2-135M-Instruct-Q4_K_M", model.ID)
-	assert.Equal(t, "SmolLM2-135M-Instruct-Q4_K_M", model.Name, "the name is the id without its repository namespace")
+	assert.Equal(t, id, model.ID)
+	// The whole path survives: it is what the listing reports for the same files, and
+	// what models.ini serves the model under, so shortening it here would name the
+	// model something no other component knows.
+	assert.Equal(t, "unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M", model.Name,
+		"the name is the id without its framework namespace")
 	assert.Equal(t, InstalledStatus, model.Status)
 	assert.Equal(t, uint64(1024), model.Size)
 	assert.Equal(t, []BrickConfig{{ID: "arduino:llm"}}, model.Bricks)
@@ -350,11 +357,11 @@ func TestUserConfiguredModelMatchesTheListing(t *testing.T) {
 	// The same files, described once from a download event and once from a listing entry,
 	// must not come out differently named.
 	entry := handlerModelEntry{
-		ID:          "llamacpp:m-Q4_0",
-		Name:        "m-Q4_0",
+		ID:          "llamacpp:org/repo/m-Q4_0",
+		Name:        "org/repo/m-Q4_0",
 		ModelOrigin: "user_configured",
 		Installed:   true,
-		Metadata:    &entryMetadata{ModelID: "llamacpp:m-Q4_0", Handler: "hf-handler", Inputs: map[string]string{"model_url": "llamacpp:org/repo:Q4_0"}},
+		Metadata:    &entryMetadata{ModelID: "llamacpp:org/repo/m-Q4_0", Handler: "hf-handler", Inputs: map[string]string{"model_url": "llamacpp:org/repo:Q4_0"}},
 	}
 	listed, ok := testHandlersIndex().userDownloadModel(entry)
 	require.True(t, ok)
@@ -368,6 +375,10 @@ func TestUserConfiguredModelMatchesTheListing(t *testing.T) {
 func TestModelNameFromID(t *testing.T) {
 	assert.Equal(t, "m-Q4_0", modelNameFromID("llamacpp:m-Q4_0"))
 	assert.Equal(t, "bare", modelNameFromID("bare"), "an id with no namespace is its own name")
+	// Only the framework namespace is cut. An ad-hoc id carries the repository path it
+	// was downloaded from, and every segment of it is part of the name.
+	assert.Equal(t, "unsloth/Qwen3-0.6B-GGUF/Qwen3-0.6B-Q4_0",
+		modelNameFromID("llamacpp:unsloth/Qwen3-0.6B-GGUF/Qwen3-0.6B-Q4_0"))
 }
 
 func TestDeclaredByIDNeedsNoHandler(t *testing.T) {
