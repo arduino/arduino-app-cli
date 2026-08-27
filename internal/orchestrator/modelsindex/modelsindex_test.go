@@ -258,3 +258,55 @@ func TestModelsIndex(t *testing.T) {
 		assert.Equal(t, "face-detection", model[0].ID)
 	})
 }
+
+// TestInstalledByDeclaration pins the one predicate a lookup and the install route share.
+// They used to test different things: the lookup asked for "pre-loaded", the install route
+// for "names no handler". Every pre-loaded entry in models-list.yaml names a handler, so
+// the install route sent all of them to the downloader with an empty variable map.
+func TestInstalledByDeclaration(t *testing.T) {
+	tests := []struct {
+		name  string
+		model AIModel
+		want  bool
+	}{
+		{
+			name:  "a custom model has no deployment at all",
+			model: AIModel{ID: "ei-model-990187-1"},
+			want:  true,
+		},
+		{
+			name:  "a pre-loaded model still names the handler that built it",
+			model: AIModel{ID: "piper-tts-en", Deployment: &ModelDeployment{Handler: "ai-hub-handler", PreLoaded: true}},
+			want:  true,
+		},
+		{
+			name:  "a downloadable model is installed by its handler, not its declaration",
+			model: AIModel{ID: "ei:efficientnet-b4", Deployment: &ModelDeployment{Handler: "ei-handler"}},
+			want:  false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.model.InstalledByDeclaration())
+		})
+	}
+
+	t.Run("every pre-loaded entry in the shipped model list is one", func(t *testing.T) {
+		// The install route runs no handler for these. A pre-loaded entry that answered
+		// false would start the ai-hub or Edge Impulse downloader with no variables, so
+		// its models_repository would resolve empty and bind the whole models directory.
+		dir := paths.New("../../../debian/arduino-app-cli/var/lib/arduino-app-cli/assets", config.RunnerVersion)
+		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), nil, nil, config.Configuration{})
+		require.NoError(t, err)
+
+		var preLoaded int
+		for _, model := range idx.InternalModels {
+			if model.Deployment == nil || !model.Deployment.PreLoaded {
+				continue
+			}
+			preLoaded++
+			assert.True(t, model.InstalledByDeclaration(), "model %q", model.ID)
+		}
+		assert.NotZero(t, preLoaded, "the model list must still declare pre-loaded models")
+	})
+}
