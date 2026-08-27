@@ -148,7 +148,7 @@ func buildDockerImage(t *testing.T, dockerfile, name, arch string) {
 	}
 	args = append(args, "-t", name, "-f", dockerfile, ".")
 
-	cmd := exec.Command("docker", args...)
+	cmd := exec.Command("docker", args...) //nolint:gosec
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
