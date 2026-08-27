@@ -1,5 +1,5 @@
 configure_agent_profiles() {
-  USER_HOME="$(getent passwd 1000 | cut -d: -f6)"
+  USER_HOME="$(getent passwd "$USER_ID" | cut -d: -f6)"
   [ -n "$USER_HOME" ] || return 0
 
   MASTER_AGENT="/etc/arduino-app-cli/AGENTS.md"
