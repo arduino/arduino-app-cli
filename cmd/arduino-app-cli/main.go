@@ -82,6 +82,12 @@ func run(configuration cfg.Configuration) error {
 		syscall.SIGTERM, // SIGTERM used by systemd in daemon mode.
 	)
 	defer stop()
+	// Restore the default action after the first signal, so that a second Ctrl+C
+	// or SIGTERM still kills a command that ignores its context.
+	go func() {
+		<-ctx.Done()
+		stop()
+	}()
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		return err
 	}
