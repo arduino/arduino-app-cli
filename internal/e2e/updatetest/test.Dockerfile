@@ -21,6 +21,12 @@ WORKDIR /var/www/html/myrepo
 RUN dpkg-scanpackages dists/trixie/main/binary-${ARCH} /dev/null | gzip -9c > dists/trixie/main/binary-${ARCH}/Packages.gz
 WORKDIR /
 
+# Debug level so the daemon's own warnings reach the journal. The drop-in is not
+# owned by the package, so it survives the upgrade under test.
+RUN mkdir -p /etc/systemd/system/arduino-app-cli.service.d && \
+    printf '[Service]\nExecStart=\nExecStart=/usr/bin/arduino-app-cli daemon --port 8800 --log-level debug\n' \
+    > /etc/systemd/system/arduino-app-cli.service.d/log-level.conf
+
 RUN usermod -s /bin/bash arduino || true
 RUN mkdir -p /home/arduino && chown -R arduino:arduino /home/arduino
 RUN usermod -aG docker arduino

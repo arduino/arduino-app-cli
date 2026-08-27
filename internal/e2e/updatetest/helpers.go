@@ -175,31 +175,38 @@ func startDockerContainer(t *testing.T, containerName string, containerImageName
 
 }
 
+// getAppCliVersion reports the running daemon's version, not the binary on disk.
 func getAppCliVersion(t *testing.T, containerName string) string {
 	t.Helper()
-
-	cmd := exec.Command(
-		"docker", "exec",
-		"--user", "1000",
-		containerName,
-		"arduino-app-cli", "version", "--format", "json",
-	)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("command failed: %v\nOutput: %s", err, output)
-	}
 
 	var version struct {
 		Version       string `json:"version"`
 		DaemonVersion string `json:"daemon_version"`
 	}
-	err = json.Unmarshal(output, &version)
-	require.NoError(t, err)
-	// TODO to enable after 0.6.7
-	// require.Equal(t, version.Version, version.DaemonVersion, "client and daemon versions should match")
-	require.NotEmpty(t, version.Version)
-	return version.Version
+	// The old daemon keeps serving until its restart completes.
+	deadline := time.Now().Add(90 * time.Second)
+	for {
+		cmd := exec.Command(
+			"docker", "exec",
+			"--user", "1000",
+			containerName,
+			"arduino-app-cli", "version", "--format", "json",
+		)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("command failed: %v\nOutput: %s", err, output)
+		}
+		require.NoError(t, json.Unmarshal(output, &version))
 
+		if version.Version != "" && version.Version == version.DaemonVersion {
+			return version.DaemonVersion
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("daemon reports version %q while the installed binary is %q",
+				version.DaemonVersion, version.Version)
+		}
+		time.Sleep(time.Second)
+	}
 }
 
 func runSystemUpdate(t *testing.T, containerName string) {
@@ -209,7 +216,7 @@ func runSystemUpdate(t *testing.T, containerName string) {
 		"docker", "exec",
 		"--user", "1000",
 		containerName,
-		"arduino-app-cli", "system", "update", "--only-arduino", "--yes",
+		"arduino-app-cli", "--log-level", "debug", "system", "update", "--only-arduino", "--yes",
 	)
 
 	cmd.Stderr = os.Stderr
@@ -226,6 +233,41 @@ func runSystemUpdate(t *testing.T, containerName string) {
 		}
 		require.NoError(t, err, "system update failed")
 	}
+}
+
+const daemonHost = "127.0.0.1:8800"
+
+// startDaemonContainer starts the container and waits for the daemon, making sure the
+// daemon's own log always ends up in the test output.
+func startDaemonContainer(t *testing.T, containerName, imageName string) {
+	t.Helper()
+
+	t.Logf("start container %s and wait for daemon", containerName)
+	startDockerContainer(t, containerName, imageName)
+	t.Cleanup(func() { stopDockerContainer(t, containerName) })
+	// Registered after the stop so LIFO reads the journal while the container lives.
+	t.Cleanup(func() { dumpDaemonJournal(t, containerName) })
+
+	waitForPort(t, daemonHost, 5*time.Second)
+}
+
+// dumpDaemonJournal prints the daemon's own log, which the SSE stream does not carry.
+func dumpDaemonJournal(t *testing.T, containerName string) {
+	t.Helper()
+
+	cmd := exec.Command(
+		"docker", "exec",
+		containerName,
+		// No tail limit: the daemon restarts right after the moment of interest, so
+		// the entries we need are not at the end.
+		"journalctl", "-u", "arduino-app-cli.service", "--no-pager", "-o", "short-precise",
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Logf("could not read the daemon journal: %v\n%s", err, output)
+		return
+	}
+	t.Logf("daemon journal of %s:\n%s", containerName, output)
 }
 
 func removeDockerImage(t *testing.T, imageName string) {
