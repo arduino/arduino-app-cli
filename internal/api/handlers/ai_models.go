@@ -201,27 +201,6 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 			return
 		}
 
-		// The strategy is curated model list first, then user-configured models.
-		var declared *modelsindex.AIModel
-		if _, inCatalog := modelsIndex.DeclaredByID(id); inCatalog {
-			// Re-read through the index for the install status the catalog cannot give.
-			model, err := modelsIndex.GetModelByID(r.Context(), id)
-			if err != nil {
-				slog.Error("unable to get model by ID", slog.String("error", err.Error()))
-				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to get model by ID"})
-				return
-			}
-			if model == nil {
-				render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: fmt.Sprintf("model %q not found", id)})
-				return
-			}
-			if model.Status == modelsindex.InstalledStatus {
-				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: fmt.Sprintf("model %q already installed", id)})
-				return
-			}
-			declared = model
-		}
-
 		sseStream, err := render.NewSSEStream(r.Context(), w)
 		if err != nil {
 			slog.Error("unable to create SSE stream", slog.String("error", err.Error()))
@@ -229,6 +208,17 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 			return
 		}
 		defer sseStream.Close()
+
+		// models-list.yaml decides what the path names, from the declaration alone: no
+		// handler runs, so the install path takes no listing container at all. An id it
+		// declares is that model, anything else is a Hugging Face source.
+		declared, _ := modelsIndex.DeclaredByID(id)
+		if declared != nil && (declared.Deployment == nil || declared.Deployment.Handler == "") {
+			// Pre-loaded, built-in or custom: installed by its declaration, with no
+			// handler to run. Answer the item an installed download answers with.
+			sseStream.Send(render.SSEEvent{Type: "done", Data: orchestrator.NewAIModelItem(*declared)})
+			return
+		}
 
 		var downloaded *modelsindex.DownloadedModel
 		var handlerFailed bool
