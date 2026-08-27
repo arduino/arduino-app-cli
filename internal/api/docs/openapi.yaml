@@ -2110,6 +2110,8 @@ components:
       type: object
     VersionResponse:
       properties:
+        bricks_version:
+          type: string
         version:
           type: string
       type: object
