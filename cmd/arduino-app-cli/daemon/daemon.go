@@ -138,7 +138,7 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 
 	// Start the HTTP server
 	address := "127.0.0.1:" + daemonPort
-	// All the requests derive from srvCtx: cancelling it interrupts the long-lived
+	// All the requests derive from srvCtx: canceling it interrupts the long-lived
 	// SSE streams, that otherwise block the shutdown until the timeout.
 	srvCtx, cancelRequests := context.WithCancel(context.Background())
 	httpSrv := http.Server{
