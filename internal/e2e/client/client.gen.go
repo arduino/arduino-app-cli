@@ -644,6 +644,12 @@ type DeleteAIModelParams struct {
 	Force *bool `form:"force,omitempty" json:"force,omitempty"`
 }
 
+// InstallModelJSONBody defines parameters for InstallModel.
+type InstallModelJSONBody struct {
+	// ModelMmprojUrl Multimodal projection file for a vision model, when the source is a file URL. A compact key names it inline instead, and a declared model needs no body at all.
+	ModelMmprojUrl *string `json:"model_mmproj_url,omitempty"`
+}
+
 // UpdatePropertyJSONBody defines parameters for UpdateProperty.
 type UpdatePropertyJSONBody = string
 
@@ -685,6 +691,9 @@ type CloneAppJSONRequestBody = CloneRequest
 
 // InstallEIModelJSONRequestBody defines body for InstallEIModel for application/json ContentType.
 type InstallEIModelJSONRequestBody InstallEIModelJSONBody
+
+// InstallModelJSONRequestBody defines body for InstallModel for application/json ContentType.
+type InstallModelJSONRequestBody InstallModelJSONBody
 
 // UpdatePropertyJSONRequestBody defines body for UpdateProperty for application/json ContentType.
 type UpdatePropertyJSONRequestBody = UpdatePropertyJSONBody
@@ -878,6 +887,11 @@ type ClientInterface interface {
 
 	// GetAIModelDetails request
 	GetAIModelDetails(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// InstallModelWithBody request with any body
+	InstallModelWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	InstallModel(ctx context.Context, id string, body InstallModelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetPropertyKeys request
 	GetPropertyKeys(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1403,6 +1417,30 @@ func (c *Client) DeleteAIModel(ctx context.Context, id string, params *DeleteAIM
 
 func (c *Client) GetAIModelDetails(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAIModelDetailsRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) InstallModelWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewInstallModelRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) InstallModel(ctx context.Context, id string, body InstallModelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewInstallModelRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3164,6 +3202,53 @@ func NewGetAIModelDetailsRequest(server string, id string) (*http.Request, error
 	return req, nil
 }
 
+// NewInstallModelRequest calls the generic InstallModel builder with application/json body
+func NewInstallModelRequest(server string, id string, body InstallModelJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewInstallModelRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewInstallModelRequestWithBody generates requests for InstallModel with any type of body
+func NewInstallModelRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/models/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetPropertyKeysRequest generates requests for GetPropertyKeys
 func NewGetPropertyKeysRequest(server string) (*http.Request, error) {
 	var err error
@@ -3654,6 +3739,11 @@ type ClientWithResponsesInterface interface {
 
 	// GetAIModelDetailsWithResponse request
 	GetAIModelDetailsWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetAIModelDetailsResp, error)
+
+	// InstallModelWithBodyWithResponse request with any body
+	InstallModelWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InstallModelResp, error)
+
+	InstallModelWithResponse(ctx context.Context, id string, body InstallModelJSONRequestBody, reqEditors ...RequestEditorFn) (*InstallModelResp, error)
 
 	// GetPropertyKeysWithResponse request
 	GetPropertyKeysWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetPropertyKeysResp, error)
@@ -4752,6 +4842,37 @@ func (r GetAIModelDetailsResp) ContentType() string {
 	return ""
 }
 
+type InstallModelResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r InstallModelResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r InstallModelResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r InstallModelResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetPropertyKeysResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -5403,6 +5524,23 @@ func (c *ClientWithResponses) GetAIModelDetailsWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseGetAIModelDetailsResp(rsp)
+}
+
+// InstallModelWithBodyWithResponse request with arbitrary body returning *InstallModelResp
+func (c *ClientWithResponses) InstallModelWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InstallModelResp, error) {
+	rsp, err := c.InstallModelWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseInstallModelResp(rsp)
+}
+
+func (c *ClientWithResponses) InstallModelWithResponse(ctx context.Context, id string, body InstallModelJSONRequestBody, reqEditors ...RequestEditorFn) (*InstallModelResp, error) {
+	rsp, err := c.InstallModel(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseInstallModelResp(rsp)
 }
 
 // GetPropertyKeysWithResponse request returning *GetPropertyKeysResp
@@ -6860,6 +6998,39 @@ func ParseGetAIModelDetailsResp(rsp *http.Response) (*GetAIModelDetailsResp, err
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseInstallModelResp parses an HTTP response from a InstallModelWithResponse call
+func ParseInstallModelResp(rsp *http.Response) (*InstallModelResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &InstallModelResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
