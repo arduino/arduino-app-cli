@@ -182,15 +182,18 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 			// operation, DoneEvent is always broadcast as the only terminal event.
 		}
 
+		restartSelf := m.selfRestart && slices.ContainsFunc(debPkgs, func(p PackageInfo) bool { return p.Name == selfPackageName })
+		if restartSelf {
+			m.broadcast(NewDataEvent(RestartEvent, fmt.Sprintf("Upgrade completed. Restarting (pid %d) ...", os.Getpid())))
+		}
+
 		m.broadcast(NewProgressEvent("upgrade", 100.0))
 
 		m.broadcast(NewDataEvent(DoneEvent, "Update completed"))
 
-		isSelfUpgrade := slices.ContainsFunc(debPkgs, func(p PackageInfo) bool { return p.Name == selfPackageName })
-		if m.selfRestart && isSelfUpgrade {
-			m.broadcast(NewDataEvent(RestartEvent, fmt.Sprintf("Upgrade completed. Restarting (pid %d) ...", os.Getpid())))
+		if restartSelf {
 			// needrestart skips its caller's cgroup, so we signal ourselves to let
-			// systemd respawn us on the new binary, after the last broadcast.
+			// systemd respawn us on the new binary. DoneEvent stays the last event.
 			if p, err := os.FindProcess(os.Getpid()); err == nil {
 				if err := p.Signal(syscall.SIGTERM); err != nil {
 					slog.Error("failed to send SIGTERM to self after upgrade", slog.String("error", err.Error()))
