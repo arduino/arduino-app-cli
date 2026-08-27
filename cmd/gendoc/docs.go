@@ -897,7 +897,7 @@ Contains a JSON object with the details of an error.
 			Method:      http.MethodGet,
 			Path:        "/v1/models/{id}",
 			Request: (*struct {
-				ID string `path:"id" description:"AI model identifier. An id no internal model list entry declares carries the repository path the model was downloaded from, so its slashes must be percent-encoded." example:"llamacpp:unsloth%2FSmolLM2-135M-Instruct-GGUF%2FSmolLM2-135M-Instruct-Q4_K_M"`
+				ID string `path:"id" description:"AI model identifier."`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
