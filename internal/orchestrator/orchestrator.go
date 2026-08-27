@@ -264,17 +264,20 @@ func StartApp(
 // In addition, it adds some useful environment variables like APP_HOME and HOST_IP.
 func getAppEnvironmentVariables(ctx context.Context, app app.ArduinoApp, brickIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform, cfg config.Configuration) helpers.EnvVars {
 	envs := make(helpers.EnvVars)
+	models := modelsIndex.NewLookup()
 
 	for _, brick := range app.Descriptor.Bricks {
 		if brickDef, found := brickIndex.WithAppBricks(app.LocalBricks).FindBrickByID(brick.ID); found {
 			maps.Insert(envs, brickDef.GetDefaultVariables())
 		}
 
-		if m, err := modelsIndex.GetModelByID(ctx, brick.Model); err != nil {
-			slog.Warn("unable to get model for brick", slog.String("brickID", brick.ID), slog.String("modelID", brick.Model), slog.String("error", err.Error()))
-		} else if m != nil {
-			for _, b := range m.Bricks {
-				maps.Insert(envs, maps.All(b.ModelConfiguration))
+		if brick.Model != "" {
+			if m, err := models.ByID(ctx, brick.Model); err != nil {
+				slog.Warn("unable to get model for brick", slog.String("brickID", brick.ID), slog.String("modelID", brick.Model), slog.String("error", err.Error()))
+			} else if m != nil {
+				for _, b := range m.Bricks {
+					maps.Insert(envs, maps.All(b.ModelConfiguration))
+				}
 			}
 		}
 
