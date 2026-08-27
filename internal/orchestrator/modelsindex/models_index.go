@@ -207,11 +207,23 @@ func (l *Lookup) SupportedByBrick(ctx context.Context, modelID, brickID string) 
 	return slices.ContainsFunc(model.Bricks, func(b BrickConfig) bool { return b.ID == brickID }), nil
 }
 
+// InstalledByDeclaration reports whether the model is installed by its own declaration -
+// built-in, pre-loaded, or a custom model - rather than by a handler writing it to disk.
+//
+// Two callers depend on the same answer and must not drift apart. A lookup skips the
+// handler listing for such a model, because no handler run can contradict a declaration.
+// The install route answers it at once, because there is nothing to download: pre-loaded
+// entries in models-list.yaml still name a handler, so testing the handler alone would
+// send them to the downloader with none of the variables it needs.
+func (m AIModel) InstalledByDeclaration() bool {
+	return m.Deployment == nil || m.Deployment.PreLoaded || m.Deployment.Handler == ""
+}
+
 // declaredModel returns a model whose state comes from its declaration rather than from
 // disk - pre-loaded, or a custom model - so no handler run can add anything.
 func (m *ModelsIndex) declaredModel(id string) (*AIModel, bool) {
 	for _, model := range m.loadDryModels() {
-		if model.ID == id && (model.Deployment == nil || model.Deployment.PreLoaded) {
+		if model.ID == id && model.InstalledByDeclaration() {
 			return &model, true
 		}
 	}
@@ -409,10 +421,10 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 // Face file URL or by the downloader's compact "[type:]repo:quantization" key.
 //
 // The id is not an input: the downloader derives it from the file that arrives, using the
-// same rule the listing does, and reports the paths it wrote as the stream's artifacts. It
-// is qualified by the repository directory the file landed in, so two owners publishing
-// the same filename stay two models. Disk space is not pre-checked either, because the
-// size is only known once the URL has been resolved against the Hub.
+// same rule the listing does, and reports it on the stream. It is qualified by the
+// repository directory the file landed in, so two owners publishing the same filename stay
+// two models. Disk space is not pre-checked either, because the size is only known once the
+// URL has been resolved against the Hub.
 func (m *ModelsIndex) DownloadByURL(ctx context.Context, cli client.APIClient, modelURL, mmprojURL string, plat platform.Platform, publish func(e StreamMessage)) error {
 	variables := map[string]string{
 		"model_url": modelURL,

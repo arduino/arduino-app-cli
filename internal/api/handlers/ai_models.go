@@ -213,7 +213,7 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 		// handler runs, so the install path takes no listing container at all. An id it
 		// declares is that model, anything else is a Hugging Face source.
 		declared, _ := modelsIndex.DeclaredByID(id)
-		if declared != nil && (declared.Deployment == nil || declared.Deployment.Handler == "") {
+		if declared != nil && declared.InstalledByDeclaration() {
 			// Pre-loaded, built-in or custom: installed by its declaration, with no
 			// handler to run. Answer the item an installed download answers with.
 			sseStream.Send(render.SSEEvent{Type: "done", Data: orchestrator.NewAIModelItem(*declared)})
