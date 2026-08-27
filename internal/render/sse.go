@@ -131,15 +131,16 @@ func (s *SSEStream) Send(event SSEEvent) {
 		slog.Debug("SSE stream is closing, ignoring event", slog.String("event", event.Type))
 		return
 	}
-	s.messageCh <- event
+	select {
+	case s.messageCh <- event:
+	case <-s.stoppedCh:
+		// The write loop is gone, a failed write above all: never block the caller.
+		slog.Debug("SSE stream is stopped, ignoring event", slog.String("event", event.Type))
+	}
 }
 
 func (s *SSEStream) SendError(event SSEErrorData) {
-	if s.isClosing.Load() {
-		slog.Debug("SSE stream is closing, ignoring event", slog.String("event", "error"))
-		return
-	}
-	s.messageCh <- SSEEvent{Type: "error", Data: event}
+	s.Send(SSEEvent{Type: "error", Data: event})
 }
 
 func (s *SSEStream) Close() {
