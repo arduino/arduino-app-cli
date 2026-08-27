@@ -3,4 +3,4 @@ Version: $VERSION
 Architecture: $ARCH
 Maintainer: arduino <support@arduino.cc>
 Description: Arduino app cli
-Depends: arduino-router, needrestart (>= 3.11)
+Depends: arduino-router, needrestart
