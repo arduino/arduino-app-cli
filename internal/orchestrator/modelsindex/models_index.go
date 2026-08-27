@@ -409,15 +409,17 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 // Face file URL or by the downloader's compact "[type:]repo:quantization" key.
 //
 // The id is not an input: the downloader derives it from the file that arrives, using the
-// same rule the listing does, and reports the paths it wrote as the stream's artifacts.
-// Disk space is not pre-checked either, because the size is only known once the URL has
-// been resolved against the Hub.
+// same rule the listing does, and reports the paths it wrote as the stream's artifacts. It
+// is qualified by the repository directory the file landed in, so two owners publishing
+// the same filename stay two models. Disk space is not pre-checked either, because the
+// size is only known once the URL has been resolved against the Hub.
 func (m *ModelsIndex) DownloadByURL(ctx context.Context, cli client.APIClient, modelURL, mmprojURL string, plat platform.Platform, publish func(e StreamMessage)) error {
 	variables := map[string]string{
 		"model_url": modelURL,
 		// Fixed rather than taken from the caller: it is the only directory the listing
 		// scans for undeclared models, so any other value downloads a model that can
-		// never be listed.
+		// never be listed. The id is derived from the artifact's path relative to it too,
+		// so it decides what the model is called as well as whether it is found.
 		"models_repository": llamacppRepository,
 	}
 	if mmprojURL != "" {
@@ -437,8 +439,10 @@ func (m *ModelsIndex) DownloadByURL(ctx context.Context, cli client.APIClient, m
 // DeclaredByID returns the models-list.yaml entry for id, with no handler run.
 //
 // It says nothing about whether the model is installed - only what the declaration holds.
-// That is enough for a caller that has just installed the model itself and needs the
-// name, description and bricks the declaration gives it.
+// That is enough for the install route, which asks nothing else: an id it declares names
+// that model, anything else is a download source, and a declaration carrying no handler is
+// a model with nothing to download. It is also enough for a caller that has just installed
+// the model itself and needs the name, description and bricks the declaration gives it.
 func (m *ModelsIndex) DeclaredByID(id string) (*AIModel, bool) {
 	models := m.loadDryModels()
 	if i := slices.IndexFunc(models, func(v AIModel) bool { return v.ID == id }); i != -1 {

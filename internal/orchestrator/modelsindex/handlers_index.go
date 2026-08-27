@@ -224,6 +224,11 @@ func UserConfiguredModel(m DownloadedModel) AIModel {
 	}
 }
 
+// modelNameFromID drops the framework namespace and keeps everything after it. An
+// undeclared model is named by the repository path it was downloaded from, and all of it
+// stays: it is the name the listing reports and the section llama-server serves the model
+// under, so trimming it here would invent a fourth name for the same file. A client
+// wanting a short title splits the last segment off itself.
 func modelNameFromID(id string) string {
 	if _, name, ok := strings.Cut(id, ":"); ok {
 		return name
@@ -249,13 +254,17 @@ func (h *HandlersIndex) userDownloadModel(entry handlerModelEntry) (AIModel, boo
 	}
 	md := entry.Metadata
 	if md == nil || md.Handler == "" || len(md.Inputs) == 0 {
+		// A legacy install: the record is what a re-download or a delete is driven by, so
+		// a current downloader fails the download rather than leave one unrecorded.
 		slog.Warn("skipping model with no download record", "model", entry.ID)
 		return AIModel{}, false
 	}
 	if md.ModelID != entry.ID {
 		// One record per repository directory, and a repository can hold several
 		// quantizations: the record describes whichever downloaded last. Its variables
-		// would send a re-download or a delete at the wrong file.
+		// would send a re-download or a delete at the wrong file. The recorded id is also
+		// a snapshot, stale once a release declares the file - harmless, because the
+		// listing then merges it into that entry and this is never reached.
 		slog.Warn("skipping model whose download record names another model",
 			"model", entry.ID, "record", md.ModelID)
 		return AIModel{}, false
@@ -265,7 +274,10 @@ func (h *HandlersIndex) userDownloadModel(entry handlerModelEntry) (AIModel, boo
 		return AIModel{}, false
 	}
 	return AIModel{
-		ID:        entry.ID,
+		ID: entry.ID,
+		// The listing's name, which is modelNameFromID of the same id: the install route
+		// answers from the download event and every later request from here, so the two
+		// must not name one model differently.
 		Name:      entry.Name,
 		IsBuiltIn: false,
 		Bricks:    []BrickConfig{{ID: llmBrickID}},
