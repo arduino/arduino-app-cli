@@ -295,7 +295,9 @@ func TestInstalledByDeclaration(t *testing.T) {
 		// The install route runs no handler for these. A pre-loaded entry that answered
 		// false would start the ai-hub or Edge Impulse downloader with no variables, so
 		// its models_repository would resolve empty and bind the whole models directory.
-		dir := paths.New("../../../debian/arduino-app-cli/var/lib/arduino-app-cli/assets", config.RunnerVersion)
+		// The copy "task test:internal" downloads, not the one the deb build writes: that
+		// one is gitignored, so on CI it is not there.
+		dir := paths.New("../../../internal/e2e/daemon/testdata/assets", config.RunnerVersion)
 		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), nil, nil, config.Configuration{})
 		require.NoError(t, err)
 

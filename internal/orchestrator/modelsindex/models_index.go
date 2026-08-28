@@ -464,6 +464,12 @@ func (m *ModelsIndex) DeclaredByID(id string) (*AIModel, bool) {
 }
 
 func (m *ModelsIndex) Download(ctx context.Context, cli client.APIClient, model AIModel, plat platform.Platform, publish func(e StreamMessage)) error {
+	if model.InstalledByDeclaration() {
+		// Not reachable through the install route, which answers such a model at once.
+		// Guarded here too because the alternative is dereferencing a nil Deployment, and
+		// a pre-loaded entry does name a handler.
+		return fmt.Errorf("model %q has nothing to download: %w", model.ID, ErrNoHandler)
+	}
 	if err := hasSufficientDiskSpace(m.modelsDir, model.Size); err != nil {
 		return fmt.Errorf("insufficient disk space to download model %q: %w", model.ID, err)
 	}
@@ -512,7 +518,10 @@ func (m *ModelsIndex) Delete(ctx context.Context, dockerClient command.Cli, plat
 	return nil
 }
 
-var ErrInsufficientStorage = errors.New("insufficient storage to install model")
+var (
+	ErrInsufficientStorage = errors.New("insufficient storage to install model")
+	ErrNoHandler           = errors.New("no handler to run")
+)
 
 func hasSufficientDiskSpace(path *paths.Path, requiredBytes uint64) error {
 	diskStats, err := disk.Usage(path.String())

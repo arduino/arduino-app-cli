@@ -410,3 +410,24 @@ func TestDownloadByURLReportsAnInstalledModel(t *testing.T) {
 	assert.Equal(t, uint64(1024*1024), downloaded.Size, "the size is the one on disk, not a transfer total")
 	assert.Equal(t, []string{"Model exists: org/repo (m-Q4_0.gguf)"}, messages)
 }
+
+// A model installed by its declaration reaches no container. The install route answers it
+// without calling Download at all, so this guards the other callers.
+func TestDownloadRefusesAModelWithNothingToDownload(t *testing.T) {
+	var started int
+	cli := newFakeDockerClient(func(_ string, _ []string) (string, int) {
+		started++
+		return "", 0
+	})
+	dir := paths.New("testdata/with-handlers")
+	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+	require.NoError(t, err)
+
+	preLoaded, ok := idx.DeclaredByID("piper-tts-en")
+	require.True(t, ok)
+
+	err = idx.Download(t.Context(), cli, *preLoaded, platform.Platform{BoardName: "ventunoq"}, func(StreamMessage) {})
+
+	require.ErrorIs(t, err, ErrNoHandler)
+	assert.Zero(t, started, "a pre-loaded model must not start the downloader")
+}
