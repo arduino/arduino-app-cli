@@ -89,8 +89,13 @@ func renderComposeFile(ctx context.Context, arduinoApp *app.ArduinoApp, env, sec
 	if err != nil {
 		return nil, err
 	}
+	// The only file that holds a resolved secret, read by docker compose as this user.
 	composeFile := arduinoApp.AppComposeFilePath()
-	if err := fatomic.WriteFile(composeFile.String(), data, 0644); err != nil {
+	if err := fatomic.WriteFile(composeFile.String(), data, 0600); err != nil {
+		return nil, err
+	}
+	// renameio keeps the mode a file already has, and older apps have it 0644.
+	if err := os.Chmod(composeFile.String(), 0600); err != nil {
 		return nil, err
 	}
 	slog.Debug("wrote the app compose file", slog.String("path", composeFile.String()))

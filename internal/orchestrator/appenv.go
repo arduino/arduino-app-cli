@@ -86,6 +86,7 @@ func appEnvironment(
 	envs := make(types.Mapping)
 
 	brickIndex = brickIndex.WithAppBricks(app.LocalBricks)
+	isSecret := secretNames(app, brickIndex)
 
 	for _, brick := range app.Descriptor.Bricks {
 		if brickDef, found := brickIndex.FindBrickByID(brick.ID); found {
@@ -100,7 +101,15 @@ func appEnvironment(
 			}
 		}
 
-		slog.Debug("adding Brick", slog.String("brickID", brick.ID), slog.String("model", brick.Model), slog.Any("variables", brick.Variables))
+		// A secret value is never logged, whether it comes from the store or is
+		// still in app.yaml.
+		logged := maps.Clone(brick.Variables)
+		for name := range logged {
+			if isSecret[name] {
+				logged[name] = "***"
+			}
+		}
+		slog.Debug("adding Brick", slog.String("brickID", brick.ID), slog.String("model", brick.Model), slog.Any("variables", logged))
 		maps.Insert(envs, maps.All(brick.Variables))
 	}
 
@@ -108,7 +117,7 @@ func appEnvironment(
 
 	// A secret is only referenced here: its value is filled in when the app is
 	// rendered, so it is never written to a template that can be shipped.
-	for name := range appSecrets(app, brickIndex) {
+	for name := range isSecret {
 		envs[name] = "${" + name + "}"
 	}
 
@@ -132,12 +141,31 @@ func hostEnvironment(ctx context.Context, appPath *paths.Path, cfg config.Config
 	return envs
 }
 
-// appSecrets is the value of every variable a brick declares secret. It is read at
-// render time, on the board the app runs on, and never written to a template.
+// secretNames are the variables the bricks of an app declare secret.
+func secretNames(arduinoApp app.ArduinoApp, brickIndex *bricksindex.BricksIndex) map[string]bool {
+	brickIndex = brickIndex.WithAppBricks(arduinoApp.LocalBricks)
+
+	names := map[string]bool{}
+	for _, brick := range arduinoApp.Descriptor.Bricks {
+		brickDef, found := brickIndex.FindBrickByID(brick.ID)
+		if !found {
+			continue
+		}
+		for _, variable := range brickDef.Variables {
+			if variable.Secret {
+				names[variable.Name] = true
+			}
+		}
+	}
+	return names
+}
+
+// appSecrets is the value of every variable a brick declares secret, read on the board
+// the app runs on and never written to a template.
 //
-// app.yaml is not what the render step normally reads: a secret is only there because
-// that is the storage there is for now. A real secret store replaces this function.
-func appSecrets(arduinoApp app.ArduinoApp, brickIndex *bricksindex.BricksIndex) types.Mapping {
+// A value in app.yaml wins, because the api still writes there and secrets.Adopt has
+// copied it into the store already. A release has none, so the store answers for it.
+func appSecrets(arduinoApp app.ArduinoApp, brickIndex *bricksindex.BricksIndex, stored map[string]string) types.Mapping {
 	brickIndex = brickIndex.WithAppBricks(arduinoApp.LocalBricks)
 
 	secrets := make(types.Mapping)
@@ -151,7 +179,10 @@ func appSecrets(arduinoApp app.ArduinoApp, brickIndex *bricksindex.BricksIndex) 
 				continue
 			}
 			secrets[variable.Name] = variable.DefaultValue
-			if value, set := brick.Variables[variable.Name]; set {
+			if value := stored[variable.Name]; value != "" {
+				secrets[variable.Name] = value
+			}
+			if value, set := brick.Variables[variable.Name]; set && value != "" {
 				secrets[variable.Name] = value
 			}
 		}
