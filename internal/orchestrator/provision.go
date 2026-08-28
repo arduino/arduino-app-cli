@@ -97,13 +97,12 @@ func NewProvision(
 	return provision, nil
 }
 
-// BuildOptions tunes the generation for a release build. The zero value is the
-// normal provisioning of an app.
+// BuildOptions is what the generation cannot derive from the app: the caller states it.
 type BuildOptions struct {
-	// ProjectName is baked in when it cannot be derived from where the app sits.
+	// ProjectName is the docker compose project the app runs as.
 	ProjectName string
-	// ComposesDir is where the brick and service composes are copied to, to be
-	// included by a relative path instead of the asset dir of this host.
+	// ComposesDir is where the brick and service composes are copied to, to be included
+	// by a relative path. Nil includes them from the asset dir of this host.
 	ComposesDir *paths.Path
 	// Labels are added to the main service.
 	Labels map[string]string
@@ -112,10 +111,10 @@ type BuildOptions struct {
 // Resolve turns the app bricks and services into the compose templates it is started
 // from, deriving them from the app and the target board and never from this host.
 func (p *Provision) Resolve(
+	arduinoApp *app.ArduinoApp,
 	genPath *paths.Path,
 	bricksIndex *bricksindex.BricksIndex,
 	servicesIndex *servicesindex.ServicesIndex,
-	arduinoApp *app.ArduinoApp,
 	cfg config.Configuration,
 	appEnv types.Mapping,
 	platform platform.Platform,

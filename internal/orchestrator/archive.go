@@ -47,20 +47,25 @@ func ExportAppZip(
 	return zipBytes, filename, nil
 }
 
+// appSourceFilter selects what an app is made of, dropping what is state: .cache and
+// __pycache__ are generated, and data belongs to the board the app ran on.
+func appSourceFilter(includeData bool) paths.ReadDirFilter {
+	return func(p *paths.Path) bool {
+		switch p.Base() {
+		case ".cache", "__pycache__":
+			return false
+		case "data":
+			return includeData
+		}
+		return true
+	}
+}
+
 func zipAppToBuffer(bricksIndex *bricksindex.BricksIndex, sourcePath string, rootFolderName string, includeData bool) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	zipWriter := zip.NewWriter(buf)
 
-	skipFilter := func(p *paths.Path) bool {
-		name := p.Base()
-		if name == ".cache" {
-			return false
-		}
-		if !includeData && name == "data" {
-			return false
-		}
-		return true
-	}
+	skipFilter := appSourceFilter(includeData)
 
 	entries, err := paths.New(sourcePath).ReadDirRecursiveFiltered(skipFilter, skipFilter)
 	if err != nil {

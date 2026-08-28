@@ -9,11 +9,13 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/arduino/go-paths-helper"
@@ -31,23 +33,6 @@ import (
 
 // A release is an app frozen with all its dependencies: <name>-<version>-<target>/
 // holds NOTES.md, src/ as authored and prebuild/, which becomes .cache/ on install.
-const (
-	// A gzipped tar and not a zip: the venv needs symlinks and exec bits preserved.
-	ReleaseArchiveExt = ".arduinoapp"
-
-	releaseSrcDirName      = "src"
-	releasePrebuildDirName = "prebuild"
-	releaseNotesFileName   = "NOTES.md"
-
-	// The release facts, stamped on the main service of the frozen compose: there is
-	// no manifest, the rest is in app.yaml and in the compose file.
-	ReleaseVersionLabel = "cc.arduino.release.version"
-	ReleaseTargetLabel  = "cc.arduino.release.target"
-
-	// TODO: dev image, to be replaced by cfg.PythonImage once prepare is released.
-	prepareImage   = "ghcr.io/lucarin91/app-bricks/python-apps-base:dev-add-prepare-command"
-	prepareCommand = "prepare"
-)
 
 type BuildReleaseRequest struct {
 	// Target defaults to the board running the build.
@@ -67,6 +52,13 @@ type BuildReleaseResult struct {
 	Target  string `json:"target"`
 	Archive string `json:"archive"`
 }
+
+// The release facts, stamped on the main service of the frozen compose: there is no
+// manifest, the rest is in app.yaml and in the compose file.
+const (
+	ReleaseVersionLabel = "cc.arduino.release.version"
+	ReleaseTargetLabel  = "cc.arduino.release.target"
+)
 
 // BuildRelease provisions an app for the target board and builds its python
 // environment into a release archive, without touching the app folder.
@@ -92,9 +84,12 @@ func BuildRelease(
 		return BuildReleaseResult{}, err
 	}
 
-	// TODO: add the other checks a start does, but failing instead of skipping: a
-	// brick or service missing for the target is missing from the archive for good.
-	// Not the device ones, those belong to the target.
+	if err := checkPortCollisions(appToBuild.Descriptor, bricksIndex, servicesIndex); err != nil {
+		return BuildReleaseResult{}, err
+	}
+
+	// TODO: fail when a service a brick requires is missing for the target. The
+	// generator skips it, so it would be missing from the archive for good.
 
 	version := req.Version
 	if version == "" {
@@ -123,8 +118,8 @@ func BuildRelease(
 	}()
 
 	releaseDir := stagingDir.Join(releaseName)
-	srcDir := releaseDir.Join(releaseSrcDirName)
-	prebuildDir := releaseDir.Join(releasePrebuildDirName)
+	srcDir := releaseDir.Join("src")
+	prebuildDir := releaseDir.Join("prebuild")
 
 	cb(StreamMessage{progress: &Progress{Name: "copying the app", Progress: 0.0}})
 	if err := stageReleaseSrc(appToBuild, srcDir); err != nil {
@@ -132,7 +127,7 @@ func BuildRelease(
 	}
 
 	if req.Notes != nil {
-		if err := req.Notes.CopyTo(releaseDir.Join(releaseNotesFileName)); err != nil {
+		if err := req.Notes.CopyTo(releaseDir.Join("NOTES.md")); err != nil {
 			return BuildReleaseResult{}, fmt.Errorf("failed to copy the release notes: %w", err)
 		}
 	}
@@ -155,12 +150,12 @@ func BuildRelease(
 			ReleaseTargetLabel:  plat.BoardName,
 		},
 	}
-	if err := provisioner.Resolve(prebuildDir, bricksIndex, servicesIndex, &stagedApp, cfg, appEnv, plat, buildOpts); err != nil {
+	if err := provisioner.Resolve(&stagedApp, prebuildDir, bricksIndex, servicesIndex, cfg, appEnv, plat, buildOpts); err != nil {
 		return BuildReleaseResult{}, fmt.Errorf("failed to freeze the compose files: %w", err)
 	}
 
 	cb(StreamMessage{data: "building the python environment", progress: &Progress{Name: "python environment", Progress: 20.0}})
-	if err := prepareVenv(ctx, docker, srcDir, prebuildDir, cb); err != nil {
+	if err := buildPythonEnv(ctx, docker, srcDir, prebuildDir, cb); err != nil {
 		return BuildReleaseResult{}, err
 	}
 
@@ -177,6 +172,9 @@ func BuildRelease(
 		Archive: archivePath.String(),
 	}, nil
 }
+
+// A gzipped tar and not a zip: the venv needs symlinks and exec bits preserved.
+const ReleaseArchiveExt = ".arduinoapp"
 
 // releaseArchivePath resolves where the archive goes, without creating it.
 func releaseArchivePath(releaseName string, req BuildReleaseRequest) (*paths.Path, error) {
@@ -207,38 +205,61 @@ func stageReleaseSrc(appToBuild app.ArduinoApp, srcDir *paths.Path) error {
 		return fmt.Errorf("failed to create the release src dir: %w", err)
 	}
 
-	entries, err := appToBuild.FullPath.ReadDir(paths.FilterOutNames(".cache", "data"))
+	skipFilter := appSourceFilter(false)
+	entries, err := appToBuild.FullPath.ReadDirRecursiveFiltered(skipFilter, skipFilter)
 	if err != nil {
 		return fmt.Errorf("failed to read the app folder: %w", err)
 	}
 	for _, entry := range entries {
-		dst := srcDir.Join(entry.Base())
-		if entry.IsDir() {
-			if err := entry.CopyDirTo(dst); err != nil {
-				return fmt.Errorf("failed to copy %s: %w", entry.Base(), err)
+		relPath, err := entry.RelFrom(appToBuild.FullPath)
+		if err != nil {
+			return err
+		}
+		dst := srcDir.JoinPath(relPath)
+
+		// Stat and CopyTo follow the link, as the export does: a release carries what
+		// the link points at, which may well be outside the app folder.
+		info, err := entry.Stat()
+		if err != nil {
+			if errors.Is(err, syscall.ELOOP) {
+				continue
+			}
+			return fmt.Errorf("failed to read %s: %w", relPath, err)
+		}
+
+		if info.IsDir() {
+			if err := dst.MkdirAll(); err != nil {
+				return fmt.Errorf("failed to create %s: %w", relPath, err)
 			}
 			continue
 		}
+		if err := dst.Parent().MkdirAll(); err != nil {
+			return fmt.Errorf("failed to create %s: %w", relPath.Parent(), err)
+		}
 		if err := entry.CopyTo(dst); err != nil {
-			return fmt.Errorf("failed to copy %s: %w", entry.Base(), err)
+			return fmt.Errorf("failed to copy %s: %w", relPath, err)
 		}
 	}
+
 	return nil
 }
 
-// prepareVenv builds the python environment in the runner image, as run.sh would do
+// buildPythonEnv builds the python environment in the runner image, as run.sh would do
 // at the first start, and leaves it in the prebuild dir.
-func prepareVenv(ctx context.Context, docker command.Cli, srcDir *paths.Path, prebuildDir *paths.Path, cb func(StreamMessage)) error {
+func buildPythonEnv(ctx context.Context, docker command.Cli, srcDir *paths.Path, prebuildDir *paths.Path, cb func(StreamMessage)) error {
 	if err := prebuildDir.MkdirAll(); err != nil {
 		return fmt.Errorf("failed to create the prebuild dir: %w", err)
 	}
+
+	// TODO: dev image, to be replaced by cfg.PythonImage once prepare is released.
+	const prepareImage = "ghcr.io/lucarin91/app-bricks/python-apps-base:dev-add-prepare-command"
 
 	output := NewCallbackWriter(func(line string) {
 		cb(StreamMessage{data: line})
 	})
 	err := dockerhelper.Run(ctx, docker.Client(), dockerhelper.RunOptions{
 		Image: prepareImage,
-		Cmd:   []string{prepareCommand},
+		Cmd:   []string{"prepare"},
 		Binds: []string{
 			srcDir.String() + ":/app",
 			prebuildDir.String() + ":/app/.cache",
@@ -250,16 +271,6 @@ func prepareVenv(ctx context.Context, docker command.Cli, srcDir *paths.Path, pr
 		return fmt.Errorf("failed to build the python environment: %w", err)
 	}
 	return nil
-}
-
-// skipFromArchive drops the __pycache__ folders, and the .cache docker recreates in
-// the staged app when it mounts the prebuild dir as /app/.cache.
-func skipFromArchive(dir string) bool {
-	name := filepath.Base(dir)
-	if name == "__pycache__" {
-		return true
-	}
-	return name == ".cache" && filepath.Base(filepath.Dir(dir)) == releaseSrcDirName
 }
 
 // writeReleaseArchive writes releaseDir as a gzipped tar rooted at its own name.
@@ -276,58 +287,77 @@ func writeReleaseArchive(releaseDir *paths.Path, archivePath *paths.Path) error 
 	tarWriter := tar.NewWriter(gzipWriter)
 	defer tarWriter.Close()
 
-	root := releaseDir.String()
+	stagingDir := releaseDir.Parent()
 	// The files are read through the staging dir, so that a symlink cannot make the
 	// archive pick up something from outside of it.
-	stagingRoot, err := os.OpenRoot(filepath.Dir(root))
+	stagingRoot, err := os.OpenRoot(stagingDir.String())
 	if err != nil {
 		return fmt.Errorf("failed to open the staging dir: %w", err)
 	}
 	defer stagingRoot.Close()
 
-	err = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
+	err = func() error {
+		// The same rule the staging used, except that the venv is shipped whole: a
+		// package of it may well have a data folder.
+		keep := appSourceFilter(true)
+		// A symlink is archived as it is, so it is never walked into.
+		notSymlink := func(p *paths.Path) bool {
+			info, err := p.Lstat()
+			return err == nil && info.Mode()&os.ModeSymlink == 0
 		}
-		if info.IsDir() && skipFromArchive(path) {
-			return filepath.SkipDir
-		}
-		relPath, err := filepath.Rel(filepath.Dir(root), path)
+
+		entries, err := releaseDir.ReadDirRecursiveFiltered(paths.AndFilter(keep, notSymlink), keep)
 		if err != nil {
 			return err
 		}
 
-		var linkTarget string
-		if info.Mode()&os.ModeSymlink != 0 {
-			if linkTarget, err = os.Readlink(path); err != nil {
+		// The archive is rooted at the release folder, so that is the first entry.
+		for _, entry := range append(paths.PathList{releaseDir}, entries...) {
+			info, err := entry.Lstat()
+			if err != nil {
+				return err
+			}
+			relPath, err := entry.RelFrom(stagingDir)
+			if err != nil {
+				return err
+			}
+
+			var linkTarget string
+			if info.Mode()&os.ModeSymlink != 0 {
+				if linkTarget, err = os.Readlink(entry.String()); err != nil {
+					return err
+				}
+			}
+
+			header, err := tar.FileInfoHeader(info, linkTarget)
+			if err != nil {
+				return err
+			}
+			// A tar name is always slash separated.
+			header.Name = filepath.ToSlash(relPath.String())
+			// The install decides who owns the files.
+			header.Uid, header.Gid = 0, 0
+			header.Uname, header.Gname = "", ""
+
+			if err := tarWriter.WriteHeader(header); err != nil {
+				return err
+			}
+			if !info.Mode().IsRegular() {
+				continue
+			}
+
+			content, err := stagingRoot.Open(relPath.String())
+			if err != nil {
+				return err
+			}
+			_, err = io.Copy(tarWriter, content)
+			content.Close()
+			if err != nil {
 				return err
 			}
 		}
-
-		header, err := tar.FileInfoHeader(info, linkTarget)
-		if err != nil {
-			return err
-		}
-		header.Name = filepath.ToSlash(relPath)
-		// The install decides who owns the files.
-		header.Uid, header.Gid = 0, 0
-		header.Uname, header.Gname = "", ""
-
-		if err := tarWriter.WriteHeader(header); err != nil {
-			return err
-		}
-		if !info.Mode().IsRegular() {
-			return nil
-		}
-
-		content, err := stagingRoot.Open(relPath)
-		if err != nil {
-			return err
-		}
-		defer content.Close()
-		_, err = io.Copy(tarWriter, content)
-		return err
-	})
+		return nil
+	}()
 	if err != nil {
 		// Do not leave a half written archive behind.
 		_ = archivePath.Remove()

@@ -110,7 +110,7 @@ bricks:
 		"FOO": "bar",
 	}
 
-	err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, BuildOptions{})
+	err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, BuildOptions{ProjectName: "test-app"})
 
 	// Validate that the main compose file and overrides are created
 	require.NoError(t, err, "Failed to generate main compose file")
@@ -374,7 +374,7 @@ services:
 		require.NoError(t, err)
 
 		// Run the provision function to generate the main compose file
-		err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, BuildOptions{})
+		err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, BuildOptions{ProjectName: "test-app"})
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := app.AppComposeTemplateFilePath()
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -428,7 +428,7 @@ services:
 		require.NoError(t, err)
 
 		// Run the provision function to generate the main compose file
-		err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, BuildOptions{})
+		err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, BuildOptions{ProjectName: "test-app"})
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := app.AppComposeTemplateFilePath()
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -545,7 +545,7 @@ services:
 		require.NoError(t, err)
 
 		// Run the provision function to generate the main compose file
-		err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, BuildOptions{})
+		err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, BuildOptions{ProjectName: "test-app"})
 		require.NoError(t, err, "Failed to generate main compose file")
 		composeFilePath := app.AppComposeTemplateFilePath()
 		require.True(t, composeFilePath.Exist(), "Main compose file should exist")
@@ -652,7 +652,7 @@ bricks:
 		"FOO": "bar",
 	}
 
-	err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, BuildOptions{})
+	err = generateComposeTemplate(&app, app.ProvisioningStateDir(), bricksIndex, servicesIndex, "app-bricks:python-apps-base:dev-latest", cfg, env, unkownPlatform, BuildOptions{ProjectName: "test-app"})
 
 	// Validate that the main compose file and overrides are created
 	require.NoError(t, err, "Failed to generate main compose file")
