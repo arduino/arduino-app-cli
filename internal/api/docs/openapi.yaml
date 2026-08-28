@@ -2472,11 +2472,13 @@ components:
           example: "80"
           type: string
         serviceName:
-          description: name of the service if the port is exposed by a brick
-          example: Web Interface
+          description: 'what the consumer should do with the port: webview to open
+            it in a browser, user to forward it, internal to ignore it'
+          example: webview
           type: string
         source:
-          description: source of the port, e.g. app or brick:data-storage
+          description: 'source of the port: app.yaml, a brick ID or the ID of a service
+            required by a brick'
           example: brick:data-storage
           type: string
       type: object
