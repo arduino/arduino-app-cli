@@ -809,6 +809,7 @@ func TestAppPorts(t *testing.T) {
 		require.Len(t, ports, 1)
 		require.Equal(t, "7000", *ports[0].Port)
 		require.Equal(t, "arduino:streamlit_ui", *ports[0].Source)
+		require.Equal(t, "webview", *ports[0].Intent)
 		require.Equal(t, "webview", *ports[0].ServiceName)
 
 	})
@@ -860,7 +861,8 @@ func TestAppPorts(t *testing.T) {
 		require.Len(t, ports, 1)
 		require.Equal(t, "8085", *ports[0].Port)
 		require.Equal(t, "arduino:genie_audio", *ports[0].Source)
-		require.Equal(t, "internal", *ports[0].ServiceName)
+		require.Equal(t, "internal", *ports[0].Intent)
+		require.Nil(t, ports[0].ServiceName, "a service port has no requires_display to report")
 
 	})
 

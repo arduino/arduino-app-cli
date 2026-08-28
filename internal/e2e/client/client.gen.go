@@ -457,13 +457,10 @@ type Pagination struct {
 
 // Port defines model for Port.
 type Port struct {
-	// Port exposed port	of the app
-	Port *string `json:"port,omitempty"`
-
-	// ServiceName what the consumer should do with the port: webview to open it in a browser, user to forward it, internal to ignore it
+	Intent      *string `json:"intent,omitempty"`
+	Port        *string `json:"port,omitempty"`
 	ServiceName *string `json:"serviceName,omitempty"`
 
-	// Source source of the port: app.yaml, a brick ID or the ID of a service required by a brick
 	Source *string `json:"source,omitempty"`
 }
 

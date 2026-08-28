@@ -2008,13 +2008,19 @@ components:
       type: object
     Port:
       properties:
+        intent:
+          description: 'what the port is published for: webview to be opened in a
+            browser, user to be reached from outside the board, internal for an implementation
+            detail of the app'
+          example: webview
+          type: string
         port:
           description: "exposed port\tof the app"
           example: "80"
           type: string
         serviceName:
-          description: 'what the consumer should do with the port: webview to open
-            it in a browser, user to forward it, internal to ignore it'
+          description: 'deprecated: use intent instead. Value of the requires_display
+            field of the brick exposing the port'
           example: webview
           type: string
         source:
