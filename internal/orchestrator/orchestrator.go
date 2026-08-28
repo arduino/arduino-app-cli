@@ -219,7 +219,7 @@ func StartApp(
 		// What the template references, answered on this board: for a release the app
 		// half will come from the bundle instead of being resolved again here.
 		env := hostEnvironment(ctx, appToStart.FullPath, cfg).Merge(appEnv)
-		if err := provisioner.Render(ctx, &appToStart, env); err != nil {
+		if err := provisioner.Render(ctx, &appToStart, env, appSecrets(appToStart, bricksIndex)); err != nil {
 			return err
 		}
 

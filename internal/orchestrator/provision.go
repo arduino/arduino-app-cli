@@ -130,6 +130,7 @@ func (p *Provision) Render(
 	ctx context.Context,
 	arduinoApp *app.ArduinoApp,
 	env types.Mapping,
+	secrets types.Mapping,
 ) error {
 	if arduinoApp == nil {
 		return fmt.Errorf("provisioning failed: arduinoApp is nil")
@@ -139,7 +140,7 @@ func (p *Provision) Render(
 		return fmt.Errorf("provisioning failed: %s not found, the app was not resolved", app.MainTemplateFileName)
 	}
 
-	prj, err := renderComposeFile(ctx, arduinoApp, env)
+	prj, err := renderComposeFile(ctx, arduinoApp, env, secrets)
 	if err != nil {
 		return fmt.Errorf("provisioning failed to render the app compose file: %w", err)
 	}
