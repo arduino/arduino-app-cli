@@ -2110,7 +2110,7 @@ components:
       type: object
     VersionResponse:
       properties:
-        bricks_version:
+        python_runner_version:
           type: string
         version:
           type: string

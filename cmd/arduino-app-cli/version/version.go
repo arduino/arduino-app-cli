@@ -26,9 +26,9 @@ const (
 	ProgramName     = "Arduino App CLI"
 )
 
-// NewVersionCmd creates the version command. bricksVersion is the Python runner
+// NewVersionCmd creates the version command. pythonRunnerVersion is the Python runner
 // image resolved from the CLI environment.
-func NewVersionCmd(clientVersion string, bricksVersion string) *cobra.Command {
+func NewVersionCmd(clientVersion string, pythonRunnerVersion string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print the version number of Arduino App CLI",
@@ -41,11 +41,11 @@ func NewVersionCmd(clientVersion string, bricksVersion string) *cobra.Command {
 			}
 
 			result := versionResult{
-				Name:                ProgramName,
-				Version:             clientVersion,
-				BricksVersion:       bricksVersion,
-				DaemonVersion:       daemon.Version,
-				DaemonBricksVersion: daemon.BricksVersion,
+				Name:                      ProgramName,
+				Version:                   clientVersion,
+				PythonRunnerVersion:       pythonRunnerVersion,
+				DaemonVersion:             daemon.Version,
+				DaemonPythonRunnerVersion: daemon.PythonRunnerVersion,
 			}
 
 			feedback.PrintResult(result)
@@ -57,8 +57,8 @@ func NewVersionCmd(clientVersion string, bricksVersion string) *cobra.Command {
 
 // daemonVersion mirrors the daemon /v1/version response.
 type daemonVersion struct {
-	Version       string `json:"version"`
-	BricksVersion string `json:"bricks_version"`
+	Version             string `json:"version"`
+	PythonRunnerVersion string `json:"python_runner_version"`
 }
 
 func getDaemonVersion(httpClient http.Client, port string) (daemonVersion, error) {
@@ -90,23 +90,23 @@ func getDaemonVersion(httpClient http.Client, port string) (daemonVersion, error
 }
 
 type versionResult struct {
-	Name                string `json:"name"`
-	Version             string `json:"version"`
-	BricksVersion       string `json:"bricks_version"`
-	DaemonVersion       string `json:"daemon_version,omitempty"`
-	DaemonBricksVersion string `json:"daemon_bricks_version,omitempty"`
+	Name                      string `json:"name"`
+	Version                   string `json:"version"`
+	PythonRunnerVersion       string `json:"python_runner_version"`
+	DaemonVersion             string `json:"daemon_version,omitempty"`
+	DaemonPythonRunnerVersion string `json:"daemon_python_runner_version,omitempty"`
 }
 
 func (r versionResult) String() string {
-	resultMessage := fmt.Sprintf("%s version %s\nbricks version: %s", ProgramName, r.Version, r.BricksVersion)
+	resultMessage := fmt.Sprintf("%s version %s\npython runner version: %s", ProgramName, r.Version, r.PythonRunnerVersion)
 
 	if r.DaemonVersion != "" {
 		resultMessage = fmt.Sprintf("%s\ndaemon version: %s",
 			resultMessage, r.DaemonVersion)
 	}
-	if r.DaemonBricksVersion != "" {
-		resultMessage = fmt.Sprintf("%s\ndaemon bricks version: %s",
-			resultMessage, r.DaemonBricksVersion)
+	if r.DaemonPythonRunnerVersion != "" {
+		resultMessage = fmt.Sprintf("%s\ndaemon python runner version: %s",
+			resultMessage, r.DaemonPythonRunnerVersion)
 	}
 	return resultMessage
 }

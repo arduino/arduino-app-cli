@@ -27,7 +27,7 @@ func TestDaemonVersion(t *testing.T) {
 			name:                 "return the server version when the server is up",
 			serverStub:           successServer,
 			port:                 "8800",
-			expectedResult:       daemonVersion{Version: "3.0-server", BricksVersion: "ghcr.io/arduino/app-bricks/python-apps-base:0.12.0"},
+			expectedResult:       daemonVersion{Version: "3.0-server", PythonRunnerVersion: "ghcr.io/arduino/app-bricks/python-apps-base:0.12.0"},
 			expectedErrorMessage: "",
 		},
 		{
@@ -88,7 +88,7 @@ func (t Tripper) RoundTrip(request *http.Request) (*http.Response, error) {
 }
 
 var successServer = Tripper(func(*http.Request) (*http.Response, error) {
-	body := io.NopCloser(strings.NewReader(`{"version":"3.0-server","bricks_version":"ghcr.io/arduino/app-bricks/python-apps-base:0.12.0"}`))
+	body := io.NopCloser(strings.NewReader(`{"version":"3.0-server","python_runner_version":"ghcr.io/arduino/app-bricks/python-apps-base:0.12.0"}`))
 	return &http.Response{
 		StatusCode: http.StatusOK,
 		Body:       body,
