@@ -228,7 +228,7 @@ func StartApp(
 
 		// An app is provisioned every time it is started: it is editable, so its
 		// bricks, model or ports may have changed since the last run.
-		if err := provisioner.Resolve(appToStart.ProvisioningStateDir(), bricksIndex, servicesIndex, &appToStart, cfg, appEnv, platform); err != nil {
+		if err := provisioner.Resolve(appToStart.ProvisioningStateDir(), bricksIndex, servicesIndex, &appToStart, cfg, appEnv, platform, BuildOptions{}); err != nil {
 			return err
 		}
 
