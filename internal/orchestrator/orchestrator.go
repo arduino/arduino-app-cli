@@ -37,6 +37,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/pipewire"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/secrets"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -107,6 +108,21 @@ func StartApp(
 	}
 
 	bricksIndex = bricksIndex.WithAppBricks(appToStart.LocalBricks)
+
+	// The secrets of the app, by the id its folder has on this board. What the api
+	// wrote in app.yaml is moved into the store here, and app.yaml is blanked.
+	appToStartID, err := appid.NewAppProvider(cfg, platform).IDFromPath(appToStart.FullPath)
+	if err != nil {
+		return fmt.Errorf("cannot identify the app to start: %w", err)
+	}
+	secretsStore := secrets.NewStore(cfg)
+	if err := secrets.Adopt(secretsStore, appToStartID, &appToStart, bricksIndex); err != nil {
+		return fmt.Errorf("cannot store the secrets of the app: %w", err)
+	}
+	storedSecrets, err := secretsStore.Get(appToStartID)
+	if err != nil {
+		return fmt.Errorf("cannot read the secrets of the app: %w", err)
+	}
 
 	if err := checkBricks(ctx, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex); err != nil {
 		return err
@@ -219,7 +235,7 @@ func StartApp(
 		// What the template references, answered on this board: for a release the app
 		// half will come from the bundle instead of being resolved again here.
 		env := hostEnvironment(ctx, appToStart.FullPath, cfg).Merge(appEnv)
-		if err := provisioner.Render(ctx, &appToStart, env, appSecrets(appToStart, bricksIndex)); err != nil {
+		if err := provisioner.Render(ctx, &appToStart, env, appSecrets(appToStart, bricksIndex, storedSecrets)); err != nil {
 			return err
 		}
 
