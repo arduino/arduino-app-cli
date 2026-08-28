@@ -1333,47 +1333,27 @@ paths:
             text/event-stream:
               schema:
                 type: string
-          description: |
-            A stream of Server-Sent Events (SSE) that notifies the progress of the update process.
-            The 'done' event is the only terminal event: an 'error' reports a step that failed but does
-            not end the operation, so the client should collect the errors received during the stream and
-            present a final summary once 'done' arrives.
-            The client will receive events formatted as follows:
-
-            **Event 'log'**:
-            Contains a log message of the apt upgrade command.
-            'event: log'
-            'data: "updating package: 0.25"'
-
-            **Event 'starting'**:
-            Contains a string with the message that a step of the upgrade process is starting.
-            'event: starting'
-            'data: Upgrade is starting'
-
-            **Event 'progress'**:
-            Contains a JSON object with the overall completion percentage of the update process,
-            from 0 to 100, and the step it is currently executing.
-            'event: progress'
-            'data: {"step":"docker images download","progress":44}'
-
-            **Event 'restarting'**:
-            Contains a string with the message that the upgrade is completed and the system is restarting.
-            'event: restarting'
-            'data: Upgrade completed. Restarting'
-
-            **Event 'error'**:
-            Contains a JSON object with the details of a step that failed. It does not end the operation:
-            the upgrade continues and 'done' is emitted anyway.
-            'event: error'
-            'data: {"code":"internal_service_err","message":"An error occurred during operation"}'
-
-            **Event 'done'**:
-            Contains a string with the message that the update process is complete. It is emitted last,
-            also when 'error' events were received. Note that if the upgrade restarts arduino-app-cli
-            itself, the stream can end before 'done' is delivered: clients should treat the stream
-            closing as an end condition too.
-            'event: done'
-            'data: Update completed'
+          description: "A stream of Server-Sent Events (SSE) that notifies the progress
+            of the update process.\nThe 'done' and 'restarting' events are the only
+            terminal event: an 'error' reports a step that failed but does\nnot end
+            the operation, so the client should collect the errors received during
+            the stream and\npresent a final summary once 'done' arrives.\nThe client
+            will receive events formatted as follows:\n\n**Event 'log'**:\nContains
+            a log message of the apt upgrade command.\n'event: log'\n'data: \"updating
+            package: 0.25\"'\n\n**Event 'starting'**:\nContains a string with the
+            message that a step of the upgrade process is starting.\n'event: starting'\n'data:
+            Upgrade is starting'\n\n**Event 'progress'**:\nContains a JSON object
+            with the overall completion percentage of the update process,\nfrom 0
+            to 100, and the step it is currently executing.\n'event: progress'\n'data:
+            {\"step\":\"docker images download\",\"progress\":44}'\n\n**Event 'restarting'**:\nContains
+            a string with the message that the upgrade is completed and the system
+            is restarting.\n'event: restarting'\n'data: Upgrade completed. Restarting'\n\n**Event
+            'error'**:\nContains a JSON object with the details of a step that failed.
+            It does not end the operation:\nthe upgrade continues and 'done' is emitted
+            anyway.\n'event: error'\n'data: {\"code\":\"internal_service_err\",\"message\":\"An
+            error occurred during operation\"}'\n\n**Event 'done'**:\nContains a string
+            with the message that the update process is complete. It is emitted last,\nalso
+            when 'error' events were received. \n'event: done'\n'data: Update completed'\n"
         "500":
           $ref: '#/components/responses/InternalServerError'
       summary: SSE stream of the update process
@@ -2033,11 +2013,13 @@ components:
           example: "80"
           type: string
         serviceName:
-          description: name of the service if the port is exposed by a brick
-          example: Web Interface
+          description: 'what the consumer should do with the port: webview to open
+            it in a browser, user to forward it, internal to ignore it'
+          example: webview
           type: string
         source:
-          description: source of the port, e.g. app or brick:data-storage
+          description: 'source of the port: app.yaml, a brick ID or the ID of a service
+            required by a brick'
           example: brick:data-storage
           type: string
       type: object

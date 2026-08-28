@@ -460,10 +460,10 @@ type Port struct {
 	// Port exposed port	of the app
 	Port *string `json:"port,omitempty"`
 
-	// ServiceName name of the service if the port is exposed by a brick
+	// ServiceName what the consumer should do with the port: webview to open it in a browser, user to forward it, internal to ignore it
 	ServiceName *string `json:"serviceName,omitempty"`
 
-	// Source source of the port, e.g. app or brick:data-storage
+	// Source source of the port: app.yaml, a brick ID or the ID of a service required by a brick
 	Source *string `json:"source,omitempty"`
 }
 
