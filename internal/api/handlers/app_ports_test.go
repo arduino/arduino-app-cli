@@ -30,23 +30,23 @@ func TestBuildAppPortResponse(t *testing.T) {
 		{
 			name: "a webview port keeps reporting requires_display",
 			ports: []orchestrator.PortInfo{
-				{Port: "7000", Source: "arduino:web_ui", Intent: orchestrator.WebviewIntent, RequiresDisplay: "webview"},
+				{Port: "7000", Source: "arduino:web_ui", SourceType: orchestrator.BrickSourceType, Intent: orchestrator.WebviewIntent, RequiresDisplay: "webview"},
 			},
-			want: []port{{Port: "7000", Source: "arduino:web_ui", Intent: "webview", ServiceName: "webview"}},
+			want: []port{{Port: "7000", Source: "arduino:web_ui", SourceType: "brick", Intent: "webview", ServiceName: "webview"}},
 		},
 		{
 			name: "a port of the user has no service name",
 			ports: []orchestrator.PortInfo{
-				{Port: "7000", Source: "app.yaml", Intent: orchestrator.UserIntent},
+				{Port: "7000", Source: "app.yaml", SourceType: orchestrator.AppSourceType, Intent: orchestrator.UserIntent},
 			},
-			want: []port{{Port: "7000", Source: "app.yaml", Intent: "user"}},
+			want: []port{{Port: "7000", Source: "app.yaml", SourceType: "app", Intent: "user"}},
 		},
 		{
 			name: "an internal port has no service name",
 			ports: []orchestrator.PortInfo{
-				{Port: "8085", Source: "arduino:genie_audio", Intent: orchestrator.InternalIntent},
+				{Port: "8085", Source: "arduino:genie_audio", SourceType: orchestrator.ServiceSourceType, Intent: orchestrator.InternalIntent},
 			},
-			want: []port{{Port: "8085", Source: "arduino:genie_audio", Intent: "internal"}},
+			want: []port{{Port: "8085", Source: "arduino:genie_audio", SourceType: "service", Intent: "internal"}},
 		},
 	}
 

@@ -2028,6 +2028,11 @@ components:
             required by a brick'
           example: brick:data-storage
           type: string
+        sourceType:
+          description: 'what the source refers to: app for the app.yaml file, brick
+            for a brick ID, service for the ID of a service required by a brick'
+          example: brick
+          type: string
       type: object
     PropertyKeysResponse:
       properties:

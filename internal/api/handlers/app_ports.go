@@ -22,9 +22,10 @@ type AppPortResponse struct {
 	Ports []port `json:"ports" example:"80" description:"exposed port of the app"`
 }
 type port struct {
-	Port   string `json:"port" example:"80" description:"exposed port	of the app"`
-	Source string `json:"source" example:"brick:data-storage" description:"source of the port: app.yaml, a brick ID or the ID of a service required by a brick"`
-	Intent string `json:"intent" example:"webview" description:"what the port is published for: webview to be opened in a browser, user to be reached from outside the board, internal for an implementation detail of the app"`
+	Port       string `json:"port" example:"80" description:"exposed port	of the app"`
+	Source     string `json:"source" example:"brick:data-storage" description:"source of the port: app.yaml, a brick ID or the ID of a service required by a brick"`
+	SourceType string `json:"sourceType" example:"brick" description:"what the source refers to: app for the app.yaml file, brick for a brick ID, service for the ID of a service required by a brick"`
+	Intent     string `json:"intent" example:"webview" description:"what the port is published for: webview to be opened in a browser, user to be reached from outside the board, internal for an implementation detail of the app"`
 	// ServiceName never carried a service name: it is the requires_display field of the brick
 	// publishing the port. It is kept, unchanged, only to avoid breaking the consumers reading it.
 	ServiceName string `json:"serviceName,omitempty" example:"webview" description:"deprecated: use intent instead. Value of the requires_display field of the brick exposing the port"`
@@ -69,6 +70,7 @@ func buildAppPortResponse(ports []orchestrator.PortInfo) AppPortResponse {
 		response.Ports = append(response.Ports, port{
 			Port:        p.Port,
 			Source:      p.Source,
+			SourceType:  p.SourceType,
 			Intent:      p.Intent,
 			ServiceName: p.RequiresDisplay,
 		})
