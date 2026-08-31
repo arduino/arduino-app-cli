@@ -5,20 +5,21 @@
 
 // Package secrets stores the value of the variables a brick declares secret, outside
 // the app folder: a release is installed read-only and its app.yaml carries no value.
+// A secret is one file, the shape docker compose mounts as /run/secrets/<name>.
 package secrets
 
 import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"log/slog"
 	"maps"
 	"os"
+	"regexp"
 	"slices"
-	"sync"
 
 	"github.com/arduino/go-paths-helper"
-	yaml "github.com/goccy/go-yaml"
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -35,33 +36,15 @@ const (
 
 type Store struct {
 	dir *paths.Path
-
-	// A write is read-modify-write, and the daemon serves more than one request.
-	mux sync.Mutex
 }
 
 func NewStore(cfg config.Configuration) *Store {
 	return &Store{dir: cfg.DataDir().Join("secrets")}
 }
 
-// storeFile is one app. The id is written for whoever has to tell the files apart:
-// the name is a hash, so that an app addressed by path does not overflow the file
-// name limit, and does not put that path in a directory listing.
-type storeFile struct {
-	App     string            `yaml:"app"`
-	Version int               `yaml:"version"`
-	Values  map[string]string `yaml:"values"`
-}
-
-func (s *Store) path(id appid.ID) *paths.Path {
-	sum := sha256.Sum256([]byte(id.String()))
-	return s.dir.Join(hex.EncodeToString(sum[:]) + ".yaml")
-}
-
 // Get is the values of an app. An app with no secrets stored is not an error.
 func (s *Store) Get(id appid.ID) (map[string]string, error) {
-	file := s.path(id)
-	data, err := file.ReadFile()
+	files, err := s.appDir(id).ReadDir()
 	if os.IsNotExist(err) {
 		return map[string]string{}, nil
 	}
@@ -69,62 +52,82 @@ func (s *Store) Get(id appid.ID) (map[string]string, error) {
 		return nil, err
 	}
 
-	// The file is written 0600, but renameio keeps the mode a file already has.
-	if info, err := file.Stat(); err == nil && info.Mode().Perm() != fileMode {
-		slog.Warn("repairing the permissions of a secrets file", slog.String("path", file.String()))
-		if err := os.Chmod(file.String(), fileMode); err != nil {
+	values := map[string]string{}
+	for _, file := range files {
+		if file.IsDir() || !nameIsValid(file.Base()) {
+			slog.Warn("skipping a file that is not a secret", slog.String("path", file.String()))
+			continue
+		}
+		// The mode comes from the open file, so it is the mode of what the read returns.
+		value, err := func() ([]byte, error) {
+			f, err := file.Open()
+			if err != nil {
+				return nil, err
+			}
+			defer f.Close()
+
+			info, err := f.Stat()
+			if err != nil {
+				return nil, err
+			}
+			// A mode the store did not write means the value is exposed already.
+			if info.Mode().Perm() != fileMode {
+				slog.Warn("skipping an exposed secret",
+					slog.String("path", file.String()),
+					slog.String("mode", fmt.Sprintf("%#o", info.Mode().Perm())))
+				return nil, nil
+			}
+			return io.ReadAll(f)
+		}()
+		if err != nil {
 			return nil, err
+		}
+		if value == nil {
+			continue
+		}
+		values[file.Base()] = string(value)
+	}
+	return values, nil
+}
+
+// Set writes the updates of an app, one file each. A name set to an empty value is
+// removed, and an app left with nothing has no directory.
+func (s *Store) Set(id appid.ID, updates map[string]string) error {
+	for name := range updates {
+		if !nameIsValid(name) {
+			return fmt.Errorf("%q is not a valid secret name", name)
 		}
 	}
 
-	var stored storeFile
-	if err := yaml.Unmarshal(data, &stored); err != nil {
-		return nil, fmt.Errorf("cannot read %s: %w", file, err)
-	}
-	if stored.Values == nil {
-		stored.Values = map[string]string{}
-	}
-	return stored.Values, nil
-}
-
-// Set merges updates into what the app has. A name set to an empty value is removed,
-// and an app left with nothing has no file.
-func (s *Store) Set(id appid.ID, updates map[string]string) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-
-	values, err := s.Get(id)
-	if err != nil {
+	dir := s.appDir(id)
+	// MkdirAll of go-paths-helper is 0755, and a secret is only for this user.
+	if err := os.MkdirAll(dir.String(), dirMode); err != nil {
 		return err
 	}
 	for name, value := range updates {
+		file := dir.Join(name)
 		if value == "" {
-			delete(values, name)
+			if err := file.RemoveAll(); err != nil {
+				return err
+			}
 			continue
 		}
-		values[name] = value
+		if err := fatomic.WriteFile(file.String(), []byte(value), fileMode); err != nil {
+			return err
+		}
+		// renameio keeps the mode a file already has, so the mode is set here.
+		if err := file.Chmod(fileMode); err != nil {
+			return err
+		}
 	}
 
-	file := s.path(id)
-	if len(values) == 0 {
-		return file.RemoveAll()
-	}
-
-	data, err := yaml.Marshal(storeFile{App: id.String(), Version: 1, Values: values})
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(s.dir.String(), dirMode); err != nil {
-		return err
-	}
-	if err := fatomic.WriteFile(file.String(), data, fileMode); err != nil {
-		return err
-	}
-	return os.Chmod(file.String(), fileMode)
+	// The remove fails while the app has a secret left, which is the check we want.
+	_ = dir.Remove()
+	return nil
 }
 
 func (s *Store) Delete(id appid.ID) error {
-	return s.path(id).RemoveAll()
+	return s.appDir(id).RemoveAll()
 }
 
 // Move carries the values of an app to another id, as a rename or an upgrade does.
@@ -182,4 +185,19 @@ func Adopt(store *Store, id appid.ID, arduinoApp *app.ArduinoApp, brickIndex *br
 			slog.String("error", err.Error()))
 	}
 	return nil
+}
+
+// appDir is the directory of an app. The name is a hash, so that an app addressed by
+// path does not overflow the file name limit, and is not in a directory listing.
+func (s *Store) appDir(id appid.ID) *paths.Path {
+	sum := sha256.Sum256([]byte(id.String()))
+	return s.dir.Join(hex.EncodeToString(sum[:]))
+}
+
+var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// nameIsValid is the shape of an environment variable name, the only thing a brick
+// declares. The name is a file name here, so nothing else is written or read.
+func nameIsValid(name string) bool {
+	return envName.MatchString(name)
 }
