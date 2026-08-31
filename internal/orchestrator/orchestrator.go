@@ -113,6 +113,11 @@ func StartApp(
 	if err := checkBricks(ctx, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex); err != nil {
 		return err
 	}
+
+	if err := checkPortCollisions(appToStart.Descriptor, bricksIndex, servicesIndex); err != nil {
+		return err
+	}
+
 	requiredClasses, err := requiredDeviceClasses(bricksIndex, appToStart.Descriptor.Bricks)
 	if err != nil {
 		return err
@@ -165,10 +170,9 @@ func StartApp(
 
 	cb(StreamMessage{data: fmt.Sprintf("Starting app %q", appToStart.Name)})
 
-	if needsAudioDevices(requiredClasses) && devices.HasCarrierSoundDevice {
-		if err := pipewire.EnsurePipewireRunning(ctx, cfg); err != nil {
-			return fmt.Errorf("failed to enable audio service linger: %w", err)
-		}
+	// We start PW for any platform or addon in order to be consistend with Network and SBC mode.
+	if err := pipewire.EnsurePipewireRunning(ctx, cfg); err != nil {
+		slog.Warn("failed to enable audio service linger", slog.String("error", err.Error()))
 	}
 
 	if err := setLedsToUserControlledMode(platform); err != nil {
@@ -736,6 +740,7 @@ type CreateAppRequest struct {
 	Name        string
 	Icon        string
 	Description string
+	Bricks      []string
 	SkipSketch  bool
 }
 
@@ -745,11 +750,20 @@ type CreateAppResponse struct {
 
 func CreateApp(
 	req CreateAppRequest,
+	bricksIndex *bricksindex.BricksIndex,
 	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) (CreateAppResponse, error) {
 	if req.Name == "" {
 		return CreateAppResponse{}, fmt.Errorf("app name cannot be empty")
+	}
+
+	appBricks := make([]app.Brick, 0, len(req.Bricks))
+	for _, id := range req.Bricks {
+		if _, found := bricksIndex.FindBrickByID(id); !found {
+			return CreateAppResponse{}, fmt.Errorf("%w: brick %q not found", ErrBadRequest, id)
+		}
+		appBricks = append(appBricks, app.Brick{ID: id})
 	}
 
 	basePath, appExists := findAppPathByName(req.Name, cfg)
@@ -761,7 +775,8 @@ func CreateApp(
 		Name:        appName,
 		Description: req.Description,
 		Ports:       []int{},
-		Icon:        req.Icon, // TODO: not sure if icon will exists for bricks
+		Bricks:      appBricks,
+		Icon:        req.Icon,
 	}
 	if err := newApp.IsValid(); err != nil {
 		return CreateAppResponse{}, fmt.Errorf("%w: %v", app.ErrInvalidApp, err)

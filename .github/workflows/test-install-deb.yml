@@ -1,0 +1,159 @@
+name: Run Deb Install Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Build the deb
+        env:
+          GH_TOKEN: ${{ secrets.ARDUINOBOT_TOKEN }}
+        run: |
+          go tool task build-deb ARCH=amd64 OUTPUT=$PWD/build
+
+      - name: Upload the deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-amd64
+          path: build/*.deb
+          if-no-files-found: error
+          retention-days: 1
+
+  # The steps run in the distribution itself, so the install is the real one.
+  # Only the artifact name and the smoke test are specific to this repository.
+  install:
+    needs: build
+    runs-on: ubuntu-22.04
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every distribution the package is installed on.
+        distro:
+          - debian:trixie
+          - ubuntu:24.04
+
+    name: Install on ${{ matrix.distro }}
+
+    container: ${{ matrix.distro }}
+
+    env:
+      DEBIAN_FRONTEND: noninteractive
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Download the deb
+        uses: actions/download-artifact@v4
+        with:
+          name: deb-amd64
+          path: debs
+
+      - name: Set up the arduino repository
+        run: |
+          apt-get update
+          apt-get install -y ca-certificates
+          install -d -m 755 /etc/apt/keyrings
+          # The signing key, from the arduino/arduino-deb-packages readme.
+          cat > /etc/apt/keyrings/arduino.asc <<'KEY'
+          -----BEGIN PGP PUBLIC KEY BLOCK-----
+
+          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
+          =vBKp
+          -----END PGP PUBLIC KEY BLOCK-----
+          KEY
+          echo "deb [signed-by=/etc/apt/keyrings/arduino.asc] https://apt-repo.arduino.cc stable main" \
+            > /etc/apt/sources.list.d/arduino.list
+          apt-get update
+
+      - name: Install the deb
+        run: |
+          apt-get install -y systemd systemd-sysv dbus adduser
+          apt-get install -y ./debs/arduino-app-cli_*.deb
+
+      - name: Run the installed binary
+        # The postinst hides a binary that cannot start, so run it once here.
+        run: |
+          ARDUINO_APP_CLI__ALLOW_ROOT=true arduino-app-cli version

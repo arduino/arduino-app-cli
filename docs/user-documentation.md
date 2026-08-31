@@ -10,15 +10,16 @@ During the .deb installation, the package will check if an user with uid `1000` 
 
 The following environment variables are used to configure Arduino App CLI:
 
-| Environment Variable                   | Default Value                                    | Description                                                                        |
-| -------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| `ARDUINO_APP_CLI__APPS_DIR`            | `/home/arduino/ArduinoApps`                      | Path to the directory where Arduino Apps created by the user are stored            |
-| `ARDUINO_APP_CLI__DATA_DIR`            | `/var/lib/arduino-app-cli`                       | Path to the directory where internal data is stored (examples, assets, properties) |
-| `ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR` | `$HOME/.arduino-bricks/models`                   | Path to the directory where custom AI models are stored                            |
-| `ARDUINO_APP_CLI__ALLOW_ROOT`          | `false`                                          | Allow running `arduino-app-cli` as root (**Not recommended to set to true**)       |
-| `LIBRARIES_API_URL`                    | `https://api2.arduino.cc/libraries/v1/libraries` | URL of the external service used to search Arduino libraries                       |
-| `DOCKER_REGISTRY_BASE`                 | `ghcr.io/arduino/`                               | Docker registry used to pull docker images                                         |
-| `DOCKER_PYTHON_BASE_IMAGE`             | `app-bricks/python-apps-base:<RUNNER_VERSION>`   | Tag of the Docker image for the Python runner                                      |
+| Environment Variable                   | Default Value                                           | Description                                                                                                                                                                                          |
+| -------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ARDUINO_APP_CLI__APPS_DIR`            | `/home/arduino/ArduinoApps`                             | Path to the directory where Arduino Apps created by the user are stored                                                                                                                              |
+| `ARDUINO_APP_CLI__DATA_DIR`            | `/var/lib/arduino-app-cli`                              | Path to the directory where internal data is stored (examples, assets, properties)                                                                                                                   |
+| `ARDUINO_APP_BRICKS__CUSTOM_MODEL_DIR` | `$HOME/.arduino-bricks/models`                          | Path to the directory where custom AI models are stored                                                                                                                                              |
+| `ARDUINO_APP_CLI__ALLOW_ROOT`          | `false`                                                 | Allow running `arduino-app-cli` as root (**Not recommended to set to true**)                                                                                                                         |
+| `ARDUINO_APP_CLI__REQUIRED_RUNTIMES`   | `arduino-router:arduino-router,arduino-cloud-connector` | Comma separated list of host units whose socket is bind-mounted into the App containers, each in the form `<unit>[:<group>]` where the optional group is added to the container to access the socket |
+| `LIBRARIES_API_URL`                    | `https://api2.arduino.cc/libraries/v1/libraries`        | URL of the external service used to search Arduino libraries                                                                                                                                         |
+| `DOCKER_REGISTRY_BASE`                 | `ghcr.io/arduino/`                                      | Docker registry used to pull docker images                                                                                                                                                           |
+| `DOCKER_PYTHON_BASE_IMAGE`             | `app-bricks/python-apps-base:<RUNNER_VERSION>`          | Tag of the Docker image for the Python runner                                                                                                                                                        |
 
 ## Directory Structures
 

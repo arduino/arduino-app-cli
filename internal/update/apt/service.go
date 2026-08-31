@@ -8,6 +8,7 @@ package apt
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"iter"
@@ -29,11 +30,19 @@ import (
 // Service for apt package management operations.
 // It manages subscribers and publishes events to all of them.
 type Service struct {
-	lock sync.Mutex
+	lock     sync.Mutex
+	selfKill bool
 }
 
 func New() *Service {
 	return &Service{}
+}
+
+// The daemon is restarted after a self-upgrade either way: only it may take the
+// shortcut of killing itself, since systemd respawns it. The CLI must not.
+func (s *Service) WithSelfKill() *Service {
+	s.selfKill = true
+	return s
 }
 
 // ListUpgradablePackages lists all upgradable packages using the `apt list --upgradable` command.
@@ -63,6 +72,17 @@ func (s *Service) ListUpgradablePackages(ctx context.Context, matcher func(updat
 
 const selfPackageName = "arduino-app-cli"
 
+// Progress milestones on a local 0-100 scale: the Manager rescales them to the
+// slice of the whole update process this updater is responsible for. Most of the
+// scale is reserved to the docker images download, by far the longest step.
+const (
+	aptUpgradeProgress       float32 = 0.0
+	aptCacheCleanProgress    float32 = 25.0
+	imagesDownloadProgress   float32 = 30.0
+	imagesCleanupProgress    float32 = 90.0
+	upgradeCompletedProgress float32 = 100.0
+)
+
 // UpgradePackages upgrades the specified packages using the `apt-get upgrade` command.
 // It publishes events to subscribers during the upgrade process.
 // It returns an error if the upgrade is already in progress or if the upgrade command fails.
@@ -75,19 +95,15 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 	})
 
 	defer func() {
-		eventCB(update.NewDataEvent(update.RestartEvent, "Upgrade completed. Restarting ..."))
-
-		if err := restartServices(ctx); err != nil {
-			eventCB(update.NewErrorEvent(fmt.Errorf("error restarting services after upgrade: %w", err)))
+		if !selfUpgrade || !s.selfKill {
+			return
 		}
-
-		if selfUpgrade {
-			// on ubuntu needrestart refuses to restart its caller's cgroup pid, so we signal
-			// ourselves to let systemd respawn us on the new binary.
-			if p, err := os.FindProcess(os.Getpid()); err == nil {
-				if err := p.Signal(syscall.SIGTERM); err != nil {
-					slog.Error("failed to send SIGTERM to self after upgrade", slog.String("error", err.Error()))
-				}
+		eventCB(update.NewDataEvent(update.RestartEvent, fmt.Sprintf("Upgrade completed. Restarting (pid %d) ...", os.Getpid())))
+		// needrestart skips its caller's cgroup, so we signal ourselves
+		// to let systemd respawn us on the new binary.
+		if p, err := os.FindProcess(os.Getpid()); err == nil {
+			if err := p.Signal(syscall.SIGTERM); err != nil {
+				slog.Error("failed to send SIGTERM to self after upgrade", slog.String("error", err.Error()))
 			}
 		}
 	}()
@@ -96,6 +112,7 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 		return pkg.Name
 	})
 	eventCB(update.NewDataEvent(update.StartEvent, "Upgrade is starting"))
+	eventCB(update.NewProgressEvent("apt upgrade", aptUpgradeProgress))
 	stream := runUpgradeCommand(ctx, names)
 	for line, err := range stream {
 		if err != nil {
@@ -105,14 +122,31 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 	}
 
 	eventCB(update.NewDataEvent(update.StartEvent, "apt cleaning cache is starting"))
+	eventCB(update.NewProgressEvent("apt cache cleanup", aptCacheCleanProgress))
 	for line, err := range runAptCleanCommand(ctx) {
 		if err != nil {
 			return fmt.Errorf("error running apt clean command: %w", err)
 		}
 		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 	}
+	eventCB(update.NewProgressEvent("docker images download", imagesDownloadProgress))
 
-	for line, err := range runSystemInit(ctx) {
+	// Of the two sources reporting a progress, only docker can be trusted: it is
+	// the fraction of the bytes of every image, and the total is known before the
+	// download starts. The arduino one is per file, out of an unknown number of
+	// them, so it is only logged.
+	lastImagesProgress := imagesDownloadProgress
+	handleInitResult := func(result orchestrator.InitResult) {
+		if result.Type == orchestrator.InitResultProgress && result.Source == orchestrator.InitSourceDocker {
+			if value := imagesDownloadBand(result.Percent); value > lastImagesProgress {
+				lastImagesProgress = value
+				eventCB(update.NewProgressEvent("docker images download", value))
+			}
+		}
+		eventCB(update.NewDataEvent(update.UpgradeLineEvent, result.String()))
+	}
+
+	for result, err := range runSystemInit(ctx) {
 		if err != nil {
 			// In case of errors, including "out of disk space" erros, do a cleanup and then retry once.
 
@@ -128,17 +162,17 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 
 			// Try again to pull the docker containers.
 			eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Pulling the latest docker images (again) ..."))
-			for line, err := range runSystemInit(ctx) {
+			for result, err := range runSystemInit(ctx) {
 				if err != nil {
 					return fmt.Errorf("error pulling docker images: %w", err)
 				}
-				eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+				handleInitResult(result)
 			}
 		} else {
-			eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
+			handleInitResult(result)
 		}
 	}
-
+	eventCB(update.NewProgressEvent("docker images cleanup", imagesCleanupProgress))
 	// After pulling new images is completed, remove old images to free up space.
 	eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Cleanup docker containers and images, to remove old unused images"))
 	streamCleanup := cleanupDockerContainers(ctx)
@@ -149,7 +183,11 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 			eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 		}
 	}
-
+	// The 100% milestone is emitted here, and not left to the Manager, because the
+	// deferred restart of the services runs before this function returns: needrestart
+	// restarts the daemon itself, so anything broadcast after it would never reach
+	// the subscribers.
+	eventCB(update.NewProgressEvent("upgrade completed", upgradeCompletedProgress))
 	return nil
 }
 
@@ -178,7 +216,7 @@ func runUpdateCommand(ctx context.Context) error {
 }
 
 func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, error] {
-	env := []string{"NEEDRESTART_MODE=l"}
+	env := []string{"NEEDRESTART_MODE=a"}
 
 	aptOptions := []string{
 		"-o", "Acquire::Retries=3",
@@ -240,16 +278,16 @@ func runAptCleanCommand(ctx context.Context) iter.Seq2[string, error] {
 	}
 }
 
-func runSystemInit(ctx context.Context) iter.Seq2[string, error] {
-	return func(yield func(string, error) bool) {
-		cmd, err := paths.NewProcess(nil, "arduino-app-cli", "system", "init")
+func runSystemInit(ctx context.Context) iter.Seq2[orchestrator.InitResult, error] {
+	return func(yield func(orchestrator.InitResult, error) bool) {
+		cmd, err := paths.NewProcess(nil, "arduino-app-cli", "system", "init", "--format", "json-lines")
 		if err != nil {
-			_ = yield("", err)
+			_ = yield(orchestrator.InitResult{}, err)
 			return
 		}
 
 		stdout := orchestrator.NewCallbackWriter(func(line string) {
-			if !yield(line, nil) {
+			if !yield(parseSystemInitLine(line), nil) {
 				if err := cmd.Kill(); err != nil {
 					slog.Error("Failed to kill 'arduino-app-cli system init' command", slog.String("error", err.Error()))
 				}
@@ -259,10 +297,26 @@ func runSystemInit(ctx context.Context) iter.Seq2[string, error] {
 		cmd.RedirectStdoutTo(stdout)
 
 		if err = cmd.RunWithinContext(ctx); err != nil {
-			_ = yield("", err)
+			_ = yield(orchestrator.InitResult{}, err)
 			return
 		}
 	}
+}
+
+func parseSystemInitLine(line string) orchestrator.InitResult {
+	var result orchestrator.InitResult
+	if err := json.Unmarshal([]byte(line), &result); err != nil || result.Type == "" {
+		return orchestrator.InitResult{Type: orchestrator.InitResultLog, Message: line}
+	}
+	return result
+}
+
+// imagesDownloadBand maps the 0-100 percentage reported by `system init` onto the
+// band of the local scale reserved to the images download. The percentage comes
+// from another process, so it is clamped rather than trusted.
+func imagesDownloadBand(percentage int) float32 {
+	percentage = min(max(percentage, 0), 100)
+	return imagesDownloadProgress + float32(percentage)/100.0*(imagesCleanupProgress-imagesDownloadProgress)
 }
 
 // Remove all stopped containers
@@ -289,25 +343,6 @@ func cleanupDockerContainers(ctx context.Context) iter.Seq2[string, error] {
 			return
 		}
 	}
-}
-
-// RestartServices restarts services that need to be restarted after an upgrade.
-// It uses the `needrestart` command to determine which services need to be restarted.
-// It returns an error if the command fails to start or if it fails to wait for the command to finish.
-// It uses the '-r a' option to restart all services that need to be restarted automatically without prompting the user
-// Note: This function does not take the list of services as an argument because
-// `needrestart` automatically detects which services need to be restarted based on the system state.
-func restartServices(ctx context.Context) error {
-	needRestartCmd, err := paths.NewProcess(nil, "sudo", "needrestart", "-r", "a")
-	if err != nil {
-		return err
-	}
-	if out, err := needRestartCmd.RunAndCaptureCombinedOutput(ctx); err != nil {
-		return fmt.Errorf("error running needrestart command: %w: %s", err, out)
-	} else {
-		slog.Debug("needrestart output", slog.String("output", string(out)))
-	}
-	return nil
 }
 
 func listUpgradablePackages(ctx context.Context, matcher func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {

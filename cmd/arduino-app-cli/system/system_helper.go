@@ -6,88 +6,28 @@
 package system
 
 import (
-	"fmt"
-
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 )
 
-const (
-	initLogEventType      = "log"
-	initProgressEventType = "progress"
-)
-
-var _ feedback.Result = (*initResult)(nil)
-
-type initResult struct {
-	Type    string `json:"type"`
-	Source  string `json:"source,omitempty"`
-	Message string `json:"message,omitempty"`
-	Label   string `json:"label,omitempty"`
-	Current int64  `json:"current,omitempty"`
-	Total   int64  `json:"total,omitempty"`
-	Percent int    `json:"percent,omitempty"`
-}
-
-// Data implements feedback.Result.
-func (e *initResult) Data() any {
-	return e
-}
-
-// String implements feedback.Result.
-func (e *initResult) String() string {
-	if e.Type == initProgressEventType {
-		return fmt.Sprintf("%s: %d%%", e.Label, e.Percent)
-	}
-	return e.Message
-}
-
-func fromInitEvent(e orchestrator.InitEvent) *initResult {
-	switch e.Type {
-	case orchestrator.InitLogEvent:
-		return &initResult{
-			Type:    initLogEventType,
-			Source:  string(e.Source),
-			Message: e.Message,
-		}
-	case orchestrator.InitProgressEvent:
-		p := e.Progress
-		return &initResult{
-			Type:    initProgressEventType,
-			Source:  string(e.Source),
-			Label:   p.Label,
-			Current: p.Curr,
-			Total:   p.Total,
-			Percent: percent(p.Curr, p.Total),
-		}
-	default:
-		return nil
-	}
-}
-
-func percent(curr, total int64) int {
-	if total <= 0 {
-		return 0
-	}
-	return int(float64(curr) / float64(total) * 100)
-}
+var _ feedback.Result = (*orchestrator.InitResult)(nil)
 
 func newInitEventCallback(printEvent func(feedback.Result)) orchestrator.InitEventCallback {
-	return throttleProgress(func(e *initResult) {
+	return throttleProgress(func(e *orchestrator.InitResult) {
 		printEvent(e)
 	})
 }
 
 // throttleProgress drops the progress events that would render the same
 // percentage twice in a row for a given label.
-func throttleProgress(next func(*initResult)) orchestrator.InitEventCallback {
+func throttleProgress(next func(*orchestrator.InitResult)) orchestrator.InitEventCallback {
 	lastPct := map[string]int{}
 	return func(event orchestrator.InitEvent) {
-		e := fromInitEvent(event)
+		e := orchestrator.NewInitResult(event)
 		if e == nil {
 			return
 		}
-		if e.Type == initProgressEventType {
+		if e.Type == orchestrator.InitResultProgress {
 			if e.Total <= 0 {
 				return
 			}
