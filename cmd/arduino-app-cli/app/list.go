@@ -21,26 +21,36 @@ import (
 )
 
 func newListCmd(cfg config.Configuration) *cobra.Command {
+	var showExamples bool
+	var showAll bool
 	var showBrokenApps bool
 
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List the Arduino apps",
+		Short: "List the Arduino apps catalog",
+		Long: "List the Arduino apps catalog.\n" +
+			"By default only user apps are shown. Use --examples to list the example apps, " +
+			"or --all to list both.\n" +
+			"To see the live status of the apps on the board, use 'app ps' instead.",
 		Run: func(cmd *cobra.Command, args []string) {
-			listHandler(cmd.Context(), cfg, showBrokenApps)
+			listHandler(cmd.Context(), cfg, showExamples, showAll, showBrokenApps)
 		},
 	}
 
+	cmd.Flags().BoolVar(&showExamples, "examples", false, "Only list the example apps")
+	cmd.Flags().BoolVarP(&showAll, "all", "a", false, "List both user apps and example apps")
 	cmd.Flags().BoolVarP(&showBrokenApps, "show-broken-apps", "", false, "Output a list of broken apps")
 	return cmd
 }
 
-func listHandler(ctx context.Context, cfg config.Configuration, showBrokenApps bool) {
+func listHandler(ctx context.Context, cfg config.Configuration, showExamples, showAll, showBrokenApps bool) {
 	res, err := orchestrator.ListApps(ctx,
 		servicelocator.GetDockerClient(),
 		orchestrator.ListAppRequest{
-			ShowExamples:                   true,
-			ShowApps:                       true,
+			// By default we only show user apps. --examples restricts the view to examples only,
+			// and --all shows both.
+			ShowApps:                       showAll || !showExamples,
+			ShowExamples:                   showAll || showExamples,
 			IncludeNonStandardLocationApps: true,
 		},
 		servicelocator.GetAppIDProvider(),
@@ -68,15 +78,13 @@ type appListResult struct {
 func (r appListResult) String() string {
 	t := table.NewWriter()
 	t.SetStyle(tablestyle.CustomCleanStyle)
-	t.AppendHeader(table.Row{"ID", "NAME", "ICON", "STATUS", "EXAMPLE"})
+	t.AppendHeader(table.Row{"ID", "NAME", "DESCRIPTION"})
 
 	for _, app := range r.Apps {
 		t.AppendRow(table.Row{
 			cmdutil.IDToAlias(app.ID),
 			app.Name,
-			app.Icon,
-			app.Status,
-			app.Example,
+			app.Description,
 		})
 	}
 	if r.showBrokenApps && len(r.BrokenApps) > 0 {
