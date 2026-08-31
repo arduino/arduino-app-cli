@@ -14,8 +14,8 @@ import (
 )
 
 // TestBuildAppPortResponse checks the mapping of the ports of an app to the response of the API,
-// and in particular that the deprecated serviceName field keeps reporting requires_display: the
-// consumers reading it compare it to the "webview" literal.
+// and in particular that the serviceName field keeps reporting requires_display: the consumers
+// reading it compare it to the "webview" literal.
 func TestBuildAppPortResponse(t *testing.T) {
 	testCases := []struct {
 		name  string
@@ -30,23 +30,23 @@ func TestBuildAppPortResponse(t *testing.T) {
 		{
 			name: "a webview port keeps reporting requires_display",
 			ports: []orchestrator.PortInfo{
-				{Port: "7000", Source: "arduino:web_ui", SourceType: orchestrator.BrickSourceType, Intent: orchestrator.WebviewIntent, RequiresDisplay: "webview"},
+				{Port: "7000", Source: "arduino:web_ui", RequiresDisplay: "webview"},
 			},
-			want: []port{{Port: "7000", Source: "arduino:web_ui", SourceType: "brick", Intent: "webview", ServiceName: "webview"}},
+			want: []port{{Port: "7000", Source: "arduino:web_ui", ServiceName: "webview"}},
 		},
 		{
-			name: "a port of the user has no service name",
+			name: "a port declared by the app.yaml has no service name",
 			ports: []orchestrator.PortInfo{
-				{Port: "7000", Source: "app.yaml", SourceType: orchestrator.AppSourceType, Intent: orchestrator.UserIntent},
+				{Port: "7000", Source: "app.yaml"},
 			},
-			want: []port{{Port: "7000", Source: "app.yaml", SourceType: "app", Intent: "user"}},
+			want: []port{{Port: "7000", Source: "app.yaml"}},
 		},
 		{
-			name: "an internal port has no service name",
+			name: "a port of a required service has no service name",
 			ports: []orchestrator.PortInfo{
-				{Port: "8085", Source: "arduino:genie_audio", SourceType: orchestrator.ServiceSourceType, Intent: orchestrator.InternalIntent},
+				{Port: "8085", Source: "arduino:genie_audio"},
 			},
-			want: []port{{Port: "8085", Source: "arduino:genie_audio", SourceType: "service", Intent: "internal"}},
+			want: []port{{Port: "8085", Source: "arduino:genie_audio"}},
 		},
 	}
 

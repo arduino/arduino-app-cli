@@ -14,26 +14,9 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 )
 
-// The intent of a port tells what the port is published for.
-const (
-	WebviewIntent  = "webview"
-	UserIntent     = "user"
-	InternalIntent = "internal"
-)
-
-// The source type of a port tells what its source refers to: brick IDs and service IDs have the
-// same shape, so the source alone does not say which one it is.
-const (
-	AppSourceType     = "app"
-	BrickSourceType   = "brick"
-	ServiceSourceType = "service"
-)
-
 type PortInfo struct {
 	Port            string `json:"port"`
 	Source          string `json:"source"`
-	SourceType      string `json:"sourceType"`
-	Intent          string `json:"intent"`
 	RequiresDisplay string `json:"-"`
 }
 
@@ -51,10 +34,8 @@ func AppPorts(
 
 	for _, p := range a.Descriptor.Ports {
 		ports = append(ports, PortInfo{
-			Port:       strconv.Itoa(p),
-			Source:     appPortsSource,
-			SourceType: AppSourceType,
-			Intent:     UserIntent,
+			Port:   strconv.Itoa(p),
+			Source: appPortsSource,
 		})
 	}
 
@@ -67,8 +48,6 @@ func AppPorts(
 			ports = append(ports, PortInfo{
 				Port:            p,
 				Source:          appBrick.ID,
-				SourceType:      BrickSourceType,
-				Intent:          brickIntent(indexBrick.RequiresDisplay),
 				RequiresDisplay: indexBrick.RequiresDisplay,
 			})
 		}
@@ -81,22 +60,11 @@ func AppPorts(
 	for _, service := range services {
 		for _, p := range service.Ports {
 			ports = append(ports, PortInfo{
-				Port:       p,
-				Source:     service.ID,
-				SourceType: ServiceSourceType,
-				Intent:     InternalIntent,
+				Port:   p,
+				Source: service.ID,
 			})
 		}
 	}
 
 	return ports, nil
-}
-
-// brickIntent derives the intent of the ports of a brick from its requires_display field. The brick
-// index declares the display at brick level, so every port of a webview brick is a webview one.
-func brickIntent(requiresDisplay string) string {
-	if requiresDisplay == WebviewIntent {
-		return WebviewIntent
-	}
-	return UserIntent
 }

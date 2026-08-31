@@ -2467,30 +2467,17 @@ components:
       type: object
     Port:
       properties:
-        intent:
-          description: 'what the port is published for: webview to be opened in a
-            browser, user to be reached from outside the board, internal for an implementation
-            detail of the app'
-          example: webview
-          type: string
         port:
           description: "exposed port\tof the app"
           example: "80"
           type: string
         serviceName:
-          description: 'deprecated: use intent instead. Value of the requires_display
-            field of the brick exposing the port'
-          example: webview
+          description: name of the service if the port is exposed by a brick
+          example: Web Interface
           type: string
         source:
-          description: 'source of the port: app.yaml, a brick ID or the ID of a service
-            required by a brick'
+          description: source of the port, e.g. app or brick:data-storage
           example: brick:data-storage
-          type: string
-        sourceType:
-          description: 'what the source refers to: app for the app.yaml file, brick
-            for a brick ID, service for the ID of a service required by a brick'
-          example: brick
           type: string
       type: object
     PropertyKeysResponse:
