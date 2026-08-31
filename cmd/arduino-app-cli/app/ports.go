@@ -60,10 +60,10 @@ func (r appPortsResult) String() string {
 
 	t := table.NewWriter()
 	t.SetStyle(tablestyle.CustomCleanStyle)
-	t.AppendHeader(table.Row{"PORT", "SOURCE", "TYPE", "INTENT"})
+	t.AppendHeader(table.Row{"PORT", "SOURCE"})
 
 	for _, port := range r.Ports {
-		t.AppendRow(table.Row{port.Port, port.Source, port.SourceType, port.Intent})
+		t.AppendRow(table.Row{port.Port, port.Source})
 	}
 
 	return t.Render()

@@ -457,12 +457,14 @@ type Pagination struct {
 
 // Port defines model for Port.
 type Port struct {
-	Intent *string `json:"intent,omitempty"`
-	Port   *string `json:"port,omitempty"`
-	// ServiceName deprecated: use intent instead. Value of the requires_display field of the brick exposing the port
+	// Port exposed port	of the app
+	Port *string `json:"port,omitempty"`
+
+	// ServiceName name of the service if the port is exposed by a brick
 	ServiceName *string `json:"serviceName,omitempty"`
-	Source      *string `json:"source,omitempty"`
-	SourceType  *string `json:"sourceType,omitempty"`
+
+	// Source source of the port, e.g. app or brick:data-storage
+	Source *string `json:"source,omitempty"`
 }
 
 // PropertyKeysResponse defines model for PropertyKeysResponse.
