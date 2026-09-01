@@ -1565,6 +1565,8 @@ components:
           type: object
         name:
           type: string
+        origin:
+          $ref: '#/components/schemas/ModelOrigin'
         runner:
           type: string
         size:
@@ -2063,6 +2065,17 @@ components:
         id:
           type: string
       type: object
+    ModelOrigin:
+      description: 'Where the model came from: "curated" is declared by the internal
+        model list and installs from its id alone, "user" was downloaded from a source
+        the caller supplied and needs that source again, "edge-impulse" was deployed
+        from an Edge Impulse project.'
+      enum:
+      - curated
+      - user
+      - edge-impulse
+      type: string
+      uniqueItems: true
     ModelStatus:
       description: Model status
       enum:

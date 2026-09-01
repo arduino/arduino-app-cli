@@ -119,6 +119,7 @@ func TestModelsIndex(t *testing.T) {
 			ModelLabels: []string{"face"},
 			Runner:      "brick",
 			IsBuiltIn:   true,
+			Origin:      CuratedOrigin,
 			Status:      InstalledStatus,
 		}, model)
 
@@ -138,6 +139,7 @@ func TestModelsIndex(t *testing.T) {
 				PreLoaded: true,
 			},
 			IsBuiltIn: true,
+			Origin:    CuratedOrigin,
 			Status:    InstalledStatus,
 		}, model)
 		assert.Equal(t, InstalledStatus, model.Status)
@@ -152,6 +154,7 @@ func TestModelsIndex(t *testing.T) {
 				PreLoaded: true,
 			},
 			IsBuiltIn: true,
+			Origin:    CuratedOrigin,
 			Status:    InstalledStatus,
 		}, model)
 		assert.Equal(t, InstalledStatus, model.Status)
@@ -175,6 +178,7 @@ func TestModelsIndex(t *testing.T) {
 					PreLoaded: false,
 				},
 				IsBuiltIn: false,
+				Origin:    CuratedOrigin,
 				Status:    InstalledStatus,
 			}, model)
 		})
@@ -196,6 +200,7 @@ func TestModelsIndex(t *testing.T) {
 					PreLoaded: false,
 				},
 				IsBuiltIn:   false,
+				Origin:      CuratedOrigin,
 				Status:      NotInstalledStatus,
 				Downloading: true,
 			}, model)
@@ -236,6 +241,7 @@ func TestModelsIndex(t *testing.T) {
 			ModelFolderPath: paths.New(f.Must(filepath.Abs("testdata/custom-models/my-custom-model"))),
 			Status:          InstalledStatus,
 			IsBuiltIn:       false, // a custom model is never built-in
+			Origin:          EdgeImpulseOrigin,
 		}, eimodel)
 	})
 
