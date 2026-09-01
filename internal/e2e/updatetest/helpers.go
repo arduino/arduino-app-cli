@@ -148,6 +148,10 @@ func buildDockerImage(t *testing.T, dockerfile, name, arch string) {
 	if image := os.Getenv("TEST_BASE_IMAGE"); image != "" {
 		args = append(args, "--build-arg", "BASE_IMAGE="+image)
 	}
+	// Set to 0 to run the real `system init` instead of the shim that skips it.
+	if skip := os.Getenv("TEST_SKIP_SYSTEM_INIT"); skip != "" {
+		args = append(args, "--build-arg", "SKIP_SYSTEM_INIT="+skip)
+	}
 	args = append(args, "-t", name, "-f", dockerfile, ".")
 
 	cmd := exec.Command("docker", args...) //nolint:gosec

@@ -30,15 +30,19 @@ RUN mkdir -p /etc/systemd/system/arduino-app-cli.service.d && \
 
 # `system init` pulls the docker images and the arduino libraries of whichever
 # version drives the upgrade, and the test only checks the version transition.
+# One CI leg builds with SKIP_SYSTEM_INIT=0 to run the real command.
+ARG SKIP_SYSTEM_INIT=1
 # Update the PATH so that the shim is found first.
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-RUN { echo '#!/bin/sh'; \
-      echo 'if [ "$1" = system ] && [ "$2" = init ]; then exit 0; fi'; \
-      echo 'exec /usr/bin/arduino-app-cli "$@"'; \
-    } > /usr/local/bin/arduino-app-cli \
-    && chmod +x /usr/local/bin/arduino-app-cli \
-    && printf '[Service]\nEnvironment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n' \
-       > /etc/systemd/system/arduino-app-cli.service.d/skip-system-init.conf
+RUN if [ "${SKIP_SYSTEM_INIT}" = 1 ]; then \
+      { echo '#!/bin/sh'; \
+        echo 'if [ "$1" = system ] && [ "$2" = init ]; then exit 0; fi'; \
+        echo 'exec /usr/bin/arduino-app-cli "$@"'; \
+      } > /usr/local/bin/arduino-app-cli \
+      && chmod +x /usr/local/bin/arduino-app-cli \
+      && printf '[Service]\nEnvironment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n' \
+         > /etc/systemd/system/arduino-app-cli.service.d/skip-system-init.conf; \
+    fi
 
 RUN echo "deb [trusted=yes arch=${ARCH}] file:/var/www/html/myrepo local main" \
     > /etc/apt/sources.list.d/my-mock-repo.list

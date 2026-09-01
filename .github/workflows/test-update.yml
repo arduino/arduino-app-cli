@@ -32,12 +32,17 @@ jobs:
         distro:
           - debian:trixie
           - ubuntu:24.04
-        # A scenario with a warn message reports it instead of blocking the PR.
         include:
+          # A scenario with a warn message reports it instead of blocking the PR.
           - scenario: DowngradeToPublishedRelease
             warn: >-
               Downgrading to the last published release is expected to fail;
               the test reports the reason in the job log.
+          # The other legs shim `system init` away to save time. This one runs
+          # it, so the upgrade path is tested with the real command once.
+          - scenario: StableToCurrent
+            distro: debian:trixie
+            skip_system_init: "0"
 
     name: ${{ matrix.scenario }} on ${{ matrix.distro }}
 
@@ -56,6 +61,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.ARDUINOBOT_TOKEN }}
           TEST_BASE_IMAGE: ${{ matrix.distro }}
+          TEST_SKIP_SYSTEM_INIT: ${{ matrix.skip_system_init }}
         run: |
           go tool task test:update -- -run 'TestUpdatePackage/${{ matrix.scenario }}'
 
