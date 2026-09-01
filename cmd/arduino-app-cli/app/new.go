@@ -7,12 +7,15 @@ package app
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/spf13/cobra"
 
+	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/completion"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
@@ -20,7 +23,7 @@ func newCreateCmd(cfg config.Configuration) *cobra.Command {
 	var (
 		icon        string
 		description string
-		bricks      []string
+		brickIDs    []string
 		noSketch    bool
 		fromApp     string
 	)
@@ -32,15 +35,19 @@ func newCreateCmd(cfg config.Configuration) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cobra.MinimumNArgs(1)
 			name := args[0]
-			return createHandler(cfg, name, icon, description, bricks, noSketch, fromApp)
+			return createHandler(cfg, name, icon, description, brickIDs, noSketch, fromApp)
 		},
 	}
 
 	cmd.Flags().StringVarP(&icon, "icon", "i", "", "Icon for the app")
 	cmd.Flags().StringVarP(&description, "description", "d", "", "Description for the app")
 	cmd.Flags().StringVarP(&fromApp, "from-app", "", "", "Create the new app from the path of an existing app")
-	cmd.Flags().StringArrayVarP(&bricks, "bricks", "b", []string{}, "List of bricks to include in the app")
+	cmd.Flags().StringArrayVarP(&brickIDs, "bricks", "b", []string{}, "List of bricks to include in the app")
 	cmd.Flags().BoolVarP(&noSketch, "no-sketch", "", false, "Do not include Sketch files")
+
+	_ = cmd.RegisterFlagCompletionFunc("bricks", completion.BrickIDsWithFilterFunc(func(b bricks.BrickListItem) bool {
+		return !slices.Contains(brickIDs, b.ID)
+	}))
 
 	return cmd
 }
