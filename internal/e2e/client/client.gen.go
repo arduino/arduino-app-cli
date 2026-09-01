@@ -16,6 +16,27 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// Defines values for ModelOrigin.
+const (
+	Curated     ModelOrigin = "curated"
+	EdgeImpulse ModelOrigin = "edge-impulse"
+	User        ModelOrigin = "user"
+)
+
+// Valid indicates whether the value is a known member of the ModelOrigin enum.
+func (e ModelOrigin) Valid() bool {
+	switch e {
+	case Curated:
+		return true
+	case EdgeImpulse:
+		return true
+	case User:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ModelStatus.
 const (
 	Installed    ModelStatus = "installed"
@@ -128,8 +149,11 @@ type AIModelItem struct {
 	IsBuiltin   *bool              `json:"is_builtin,omitempty"`
 	Metadata    *map[string]string `json:"metadata,omitempty"`
 	Name        *string            `json:"name,omitempty"`
-	Runner      *string            `json:"runner,omitempty"`
-	Size        *int               `json:"size,omitempty"`
+
+	// Origin Where the model came from: "curated" is declared by the internal model list and installs from its id alone, "user" was downloaded from a source the caller supplied and needs that source again, "edge-impulse" was deployed from an Edge Impulse project.
+	Origin *ModelOrigin `json:"origin,omitempty"`
+	Runner *string      `json:"runner,omitempty"`
+	Size   *int         `json:"size,omitempty"`
 
 	// Status Model status
 	Status *ModelStatus `json:"status,omitempty"`
@@ -438,6 +462,9 @@ type LibraryListResponse struct {
 type LocalBrickRenameResult struct {
 	Id *string `json:"id,omitempty"`
 }
+
+// ModelOrigin Where the model came from: "curated" is declared by the internal model list and installs from its id alone, "user" was downloaded from a source the caller supplied and needs that source again, "edge-impulse" was deployed from an Edge Impulse project.
+type ModelOrigin string
 
 // ModelStatus Model status
 type ModelStatus string
