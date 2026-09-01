@@ -1,5 +1,7 @@
 #!/bin/bash
 
+USER_ID=1000
+
 if [ -d /run/systemd/system ]; then
   systemctl daemon-reload
 fi
