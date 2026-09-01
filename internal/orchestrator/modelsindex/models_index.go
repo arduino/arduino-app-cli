@@ -85,6 +85,7 @@ type AIModel struct {
 	Deployment      *ModelDeployment  `yaml:"deployment,omitempty"`
 
 	IsBuiltIn bool        `yaml:"-"` // a model is considered built-in if it is in the models-list.yaml and the "pre-loaded" flag is true
+	Origin    ModelOrigin `yaml:"-"`
 	Status    ModelStatus `yaml:"-"`
 	Size      uint64      `yaml:"-"`
 	// Downloading comes from the handler's on-disk ".download" marker, so it covers an
@@ -102,6 +103,29 @@ const (
 
 func (s ModelStatus) AllowedStatuses() []ModelStatus {
 	return []ModelStatus{InstalledStatus, NotInstalledStatus}
+}
+
+// ModelOrigin says where a model came from. It is what decides whether the id alone is
+// enough to install the model again: only a curated one carries a declaration to install
+// from. It is derived here rather than read from the handler's "model_origin", whose
+// "builtin" means "declared in models-list.yaml" and would read as this package's
+// IsBuiltIn, which means pre-loaded.
+type ModelOrigin string
+
+const (
+	// CuratedOrigin: declared by models-list.yaml, so the id is the whole install request.
+	CuratedOrigin ModelOrigin = "curated"
+	// UserOrigin: downloaded from a source the caller supplied. The id exists only because
+	// a file landed, and does not name the source, so installing it again needs that
+	// source again.
+	UserOrigin ModelOrigin = "user"
+	// EdgeImpulseOrigin: deployed from an Edge Impulse project, which has its own install
+	// route and its own project and impulse identifiers.
+	EdgeImpulseOrigin ModelOrigin = "edge-impulse"
+)
+
+func (o ModelOrigin) AllowedOrigins() []ModelOrigin {
+	return []ModelOrigin{CuratedOrigin, UserOrigin, EdgeImpulseOrigin}
 }
 
 type AIModelLite struct {
@@ -329,6 +353,7 @@ func loadInternalModels(dir *paths.Path, handlers *HandlersIndex) ([]AIModel, er
 	for i, modelMap := range list.Models {
 		for id, model := range modelMap {
 			model.ID = id
+			model.Origin = CuratedOrigin
 			model.Status = NotInstalledStatus
 
 			if sizeMBStr, ok := model.Metadata["model_size_mb"]; ok {
@@ -409,6 +434,7 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 			Metadata:        m.ModelDescriptor.Metadata,
 			ModelFolderPath: m.FullPath,
 			IsBuiltIn:       false,
+			Origin:          EdgeImpulseOrigin,
 			Status:          InstalledStatus,
 			Size:            modelSizeMB,
 		})

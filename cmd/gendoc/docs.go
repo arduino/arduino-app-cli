@@ -92,6 +92,19 @@ func NewOpenApiGenerator(version string) *Generator {
 		},
 	)
 
+	reflector.Spec.Components.Schemas.WithMapOfSchemaOrRefValuesItem(
+		"ModelOrigin",
+		openapi3.SchemaOrRef{
+			Schema: &openapi3.Schema{
+				UniqueItems: new(true),
+				Enum:        f.Map(modelsindex.ModelOrigin("").AllowedOrigins(), func(v modelsindex.ModelOrigin) any { return v }),
+				Type:        new(openapi3.SchemaTypeString),
+				Description: new("Where the model came from: \"curated\" is declared by the internal model list and installs from its id alone, \"user\" was downloaded from a source the caller supplied and needs that source again, \"edge-impulse\" was deployed from an Edge Impulse project."),
+				ReflectType: reflect.TypeOf(modelsindex.ModelOrigin("")),
+			},
+		},
+	)
+
 	ErrorResponseSchema := "#/components/schemas/ErrorResponse"
 
 	reflector.Spec.Components.WithResponses(
@@ -276,6 +289,10 @@ func NewOpenApiGenerator(version string) *Generator {
 			}
 			if params.Value.Type() == reflect.TypeOf(modelsindex.ModelStatus("")) {
 				params.Schema.WithRef("#/components/schemas/ModelStatus")
+				return true, nil
+			}
+			if params.Value.Type() == reflect.TypeOf(modelsindex.ModelOrigin("")) {
+				params.Schema.WithRef("#/components/schemas/ModelOrigin")
 				return true, nil
 			}
 			return false, nil

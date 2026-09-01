@@ -43,6 +43,7 @@ type AIModelItem struct {
 	Bricks      []string                `json:"brick_ids"`
 	Metadata    map[string]string       `json:"metadata,omitempty"`
 	IsBuiltIn   bool                    `json:"is_builtin"`
+	Origin      modelsindex.ModelOrigin `json:"origin"`
 	Size        *uint64                 `json:"size,omitempty"`
 	Status      modelsindex.ModelStatus `json:"status"`
 }
@@ -75,6 +76,7 @@ func NewAIModelItem(model modelsindex.AIModel) AIModelItem {
 		Bricks:      f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
 		Metadata:    model.Metadata,
 		IsBuiltIn:   model.IsBuiltIn,
+		Origin:      model.Origin,
 		Status:      model.Status,
 		Size: func() *uint64 {
 			if model.Size > 0 {
@@ -103,6 +105,7 @@ func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, i
 		Bricks:      f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
 		Metadata:    model.Metadata,
 		IsBuiltIn:   model.IsBuiltIn,
+		Origin:      model.Origin,
 		Size:        &model.Size,
 		Status:      model.Status,
 	}, true, nil
@@ -328,6 +331,7 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 			return b.ID
 		}),
 		Metadata: aimodel.ModelDescriptor.Metadata,
+		Origin:   modelsindex.EdgeImpulseOrigin,
 		Status:   modelsindex.InstalledStatus,
 	}, nil
 }

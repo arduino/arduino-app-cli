@@ -218,6 +218,7 @@ func UserConfiguredModel(m DownloadedModel) AIModel {
 	return AIModel{
 		ID:     m.ID,
 		Name:   modelNameFromID(m.ID),
+		Origin: UserOrigin,
 		Status: InstalledStatus,
 		Size:   m.Size,
 		Bricks: []BrickConfig{{ID: llmBrickID}},
@@ -280,6 +281,7 @@ func (h *HandlersIndex) userDownloadModel(entry handlerModelEntry) (AIModel, boo
 		// must not name one model differently.
 		Name:      entry.Name,
 		IsBuiltIn: false,
+		Origin:    UserOrigin,
 		Bricks:    []BrickConfig{{ID: llmBrickID}},
 		Deployment: &ModelDeployment{
 			Handler: md.Handler,
