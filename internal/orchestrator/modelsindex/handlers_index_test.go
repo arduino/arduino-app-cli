@@ -216,7 +216,7 @@ func TestUserConfiguredModel(t *testing.T) {
 			ID:          "llamacpp:unsloth/Qwen3.5-0.8B-GGUF/Qwen3.5-0.8B-Q4_0",
 			Name:        "unsloth/Qwen3.5-0.8B-GGUF/Qwen3.5-0.8B-Q4_0",
 			Handler:     "llamacpp",
-			ModelOrigin: "user_configured",
+			ModelOrigin: "user",
 			Metadata: &entryMetadata{
 				ModelID: "llamacpp:unsloth/Qwen3.5-0.8B-GGUF/Qwen3.5-0.8B-Q4_0",
 				Handler: "hf-handler",
@@ -357,7 +357,7 @@ func TestUserConfiguredModelMatchesTheListing(t *testing.T) {
 	entry := handlerModelEntry{
 		ID:          "llamacpp:org/repo/m-Q4_0",
 		Name:        "org/repo/m-Q4_0",
-		ModelOrigin: "user_configured",
+		ModelOrigin: "user",
 		Installed:   true,
 		Metadata:    &entryMetadata{ModelID: "llamacpp:org/repo/m-Q4_0", Handler: "hf-handler", Inputs: map[string]string{"model_url": "llamacpp:org/repo:Q4_0"}},
 	}

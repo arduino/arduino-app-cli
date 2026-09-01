@@ -249,8 +249,13 @@ func (m *ModelsIndex) InstalledModel(downloaded DownloadedModel) AIModel {
 	return *model
 }
 
+// The handler's own word for a model no models-list.yaml entry declares. It is the
+// container's ORIGIN_USER, and the only value here that matters: everything else the
+// listing reports is declared, and the declaration is what describes it.
+const handlerUserOrigin = "user"
+
 func (h *HandlersIndex) userDownloadModel(entry handlerModelEntry) (AIModel, bool) {
-	if entry.ModelOrigin != "user_configured" {
+	if entry.ModelOrigin != handlerUserOrigin {
 		return AIModel{}, false
 	}
 	md := entry.Metadata
