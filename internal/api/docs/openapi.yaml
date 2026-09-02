@@ -1138,14 +1138,12 @@ paths:
         The request is idempotent: the handler does not transfer a model that is on disk again. A declaration with no handler installs the model itself, and the stream sends "done" immediately.
       operationId: installModel
       parameters:
-      - description: The id of a model in the internal model list. Percent-encode
-          the slashes.
+      - description: The id of a model in the internal model list.
         in: path
         name: id
         required: true
         schema:
-          description: The id of a model in the internal model list. Percent-encode
-            the slashes.
+          description: The id of a model in the internal model list.
           example: llamacpp:gemma-3-1b-it-Q4_0
           type: string
       responses:
