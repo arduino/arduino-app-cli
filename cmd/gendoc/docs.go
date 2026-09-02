@@ -963,7 +963,7 @@ Contains a JSON object with the details of an error.
 			// so {modelID} here would collide with them.
 			Path: "/v1/models/{id}",
 			Parameters: (*struct {
-				ModelID string `path:"id" description:"The id of a model in the internal model list. Percent-encode the slashes." example:"llamacpp:gemma-3-1b-it-Q4_0"`
+				ModelID string `path:"id" description:"The id of a model in the internal model list." example:"llamacpp:gemma-3-1b-it-Q4_0"`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "text/event-stream",
