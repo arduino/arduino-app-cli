@@ -892,7 +892,7 @@ Contains a JSON object with the details of an error.
 			Method:      http.MethodDelete,
 			Path:        "/v1/models/{id}",
 			Request: (*struct {
-				ID    string `path:"id" description:"AI model identifier. An id that holds slashes - a model no internal model list entry declares carries the repository it came from - is sent base64url encoded, unpadded; percent-encoding it is refused. Responses always name the model plainly." example:"bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N"`
+				ID    string `path:"id" description:"AI model identifier. Send back either form a response reports: \"id\", which is base64url encoded and unpadded, or \"id_decoded\", which is plain - both name the same model. An id holding slashes has to be the encoded form, since percent-encoding it is refused." example:"bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N"`
 				Force bool   `query:"force" description:"If true, deletes the model even if referenced by apps."`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
@@ -914,7 +914,7 @@ Contains a JSON object with the details of an error.
 			Method:      http.MethodGet,
 			Path:        "/v1/models/{id}",
 			Request: (*struct {
-				ID string `path:"id" description:"AI model identifier. An id that holds slashes - a model no internal model list entry declares carries the repository it came from - is sent base64url encoded, unpadded; percent-encoding it is refused. Responses always name the model plainly." example:"bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N"`
+				ID string `path:"id" description:"AI model identifier. Send back either form a response reports: \"id\", which is base64url encoded and unpadded, or \"id_decoded\", which is plain - both name the same model. An id holding slashes has to be the encoded form, since percent-encoding it is refused." example:"bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N"`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
@@ -963,7 +963,7 @@ Contains a JSON object with the details of an error.
 			// so {modelID} here would collide with them.
 			Path: "/v1/models/{id}",
 			Parameters: (*struct {
-				ModelID string `path:"id" description:"The id of a model in the internal model list. A declared id is a bare name, so it is sent as it is; base64url encoding it, as an undeclared id must be, also works." example:"llamacpp:gemma-3-1b-it-Q4_0"`
+				ModelID string `path:"id" description:"The id of a model in the internal model list, as either form a response reports: the base64url encoded \"id\" or the plain \"id_decoded\"." example:"bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w"`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "text/event-stream",

@@ -46,43 +46,42 @@ func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	}
 }
 
-// modelIDsFromPath reads the id a models path names, as the ids it could be.
+// modelIDFromPath reads the id a models path names, and passes it on as it stands.
 //
-// An id the internal model list declares is a bare name and travels as it is. A model no
-// entry declares is named by the repository the file came from, so its id holds slashes,
-// and it travels base64url encoded, unpadded - the encoding app ids already use, see
-// appid.Provider.IDFromBase64. A percent-encoded id is refused: it makes the request
-// depend on nothing in the path normalising %2F, which this API cannot promise.
+// Nothing is decoded or guessed at here. A client sends back the id it was given, and the
+// model list is what says which model that names: it recognizes a model by its plain id
+// or by the base64url encoding of it, so a client holding either form is right and this
+// handler needs to know nothing about which. Older clients kept the plain id; a response
+// now reports the encoded one as "id".
 //
-// Both forms come back because nothing here can tell them apart - an id and its encoding
-// are both plain text - so the caller resolves them in order and the model list decides.
-// A response reports both: "id" encoded, ready to paste into a path, and "id_decoded"
-// plain, which is the form to display and to store in an app.yaml.
-func modelIDsFromPath(r *http.Request) ([]string, error) {
+// A percent-encoded id is the one form refused. The router turns %2F into a real slash
+// before the handler runs, so accepting it would make the request depend on nothing in
+// the path normalizing it, which this API cannot promise.
+func modelIDFromPath(r *http.Request) (string, error) {
 	segment := strings.TrimSpace(r.PathValue("modelID"))
 	if segment == "" {
-		return nil, errors.New("model id must be set")
+		return "", errors.New("model id must be set")
 	}
 	if strings.Contains(segment, "/") {
-		return nil, errors.New("a model id holding slashes travels base64url encoded, not percent-encoded")
+		return "", errors.New("a model id holding slashes travels base64url encoded, not percent-encoded")
 	}
-	return modelsindex.IDCandidates(segment), nil
+	return segment, nil
 }
 
 func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ids, err := modelIDsFromPath(r)
+		id, err := modelIDFromPath(r)
 		if err != nil {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
 			return
 		}
-		res, found, err := orchestrator.AIModelDetails(r.Context(), modelsIndex, ids...)
+		res, found, err := orchestrator.AIModelDetails(r.Context(), modelsIndex, id)
 		if err != nil {
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: err.Error()})
 			return
 		}
 		if !found {
-			details := fmt.Sprintf("models with id %q not found", ids[len(ids)-1])
+			details := fmt.Sprintf("models with id %q not found", id)
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})
 			return
 		}
@@ -92,7 +91,7 @@ func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 
 func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, idProvider *appid.Provider, platform platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ids, err := modelIDsFromPath(r)
+		id, err := modelIDFromPath(r)
 		if err != nil {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
 			return
@@ -103,7 +102,7 @@ func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, 
 			force = false
 		}
 
-		err = orchestrator.AIModelDelete(r.Context(), dockerClient, cfg, modelsIndex, bricksIndex, platform, ids, idProvider, force)
+		err = orchestrator.AIModelDelete(r.Context(), dockerClient, cfg, modelsIndex, bricksIndex, platform, id, idProvider, force)
 		if err != nil {
 			switch {
 			case errors.Is(err, orchestrator.ErrNotFound):
@@ -207,22 +206,16 @@ type sseLog struct {
 // downloads a model that no entry declares.
 func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ids, err := modelIDsFromPath(r)
+		id, err := modelIDFromPath(r)
 		if err != nil {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
 			return
 		}
 
 		// The declaration alone answers this, so no listing container runs.
-		var declared *modelsindex.AIModel
-		for _, id := range ids {
-			if model, found := modelsIndex.DeclaredByID(id); found {
-				declared = model
-				break
-			}
-		}
-		if declared == nil {
-			details := fmt.Sprintf("no model with id %q is declared; download a Hugging Face model with POST /v1/models", ids[len(ids)-1])
+		declared, found := modelsIndex.DeclaredByID(id)
+		if !found {
+			details := fmt.Sprintf("no model with id %q is declared; download a Hugging Face model with POST /v1/models", id)
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})
 			return
 		}
