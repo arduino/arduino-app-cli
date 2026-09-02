@@ -410,6 +410,25 @@ func (p *StreamMessage) GetType() MessageType {
 	return UnknownType
 }
 
+// The events a download handler reports. StreamMessage keeps its fields unexported so a
+// message always carries exactly one kind of payload; these are the four kinds, for the
+// parser below and for anything that has to stand in for it.
+func NewInfoMessage(description string, model *DownloadedModel) StreamMessage {
+	return StreamMessage{data: description, model: model}
+}
+
+func NewProgressMessage(p Progress) StreamMessage {
+	return StreamMessage{progress: &p}
+}
+
+func NewErrorMessage(description string) StreamMessage {
+	return StreamMessage{err: description}
+}
+
+func NewDoneMessage(description string) StreamMessage {
+	return StreamMessage{done: description}
+}
+
 func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
 	var raw struct {
 		Event       string  `json:"event"`
@@ -427,39 +446,29 @@ func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
 
 	switch raw.Event {
 	case "start":
-		publish(StreamMessage{
-			data: raw.Description,
-		})
+		publish(NewInfoMessage(raw.Description, nil))
 	case "update":
-		publish(StreamMessage{
-			progress: &Progress{
-				Name:     raw.Description,
-				Current:  raw.Current,
-				Total:    raw.Total,
-				Progress: float32(raw.Current) / float32(raw.Total) * 100,
-			},
-		})
+		publish(NewProgressMessage(Progress{
+			Name:     raw.Description,
+			Current:  raw.Current,
+			Total:    raw.Total,
+			Progress: float32(raw.Current) / float32(raw.Total) * 100,
+		}))
 	case "complete":
-		publish(StreamMessage{
-			done: "download complete",
-		})
+		publish(NewDoneMessage("download complete"))
 	case "info":
 		// The model the handler made of the files it wrote. The event also lists those
 		// files, but nothing needs them: the id used to be re-derived from their names and
 		// is now reported outright, so parsing them again would only invite that back.
-		msg := StreamMessage{
-			data: raw.Description,
-		}
+		var model *DownloadedModel
 		if raw.ModelID != "" {
 			// Reported only once the handler has recorded the model, so an id here means
 			// a later listing can resolve it too.
-			msg.model = &DownloadedModel{ID: raw.ModelID, Size: uint64(raw.SizeMB * 1024 * 1024)}
+			model = &DownloadedModel{ID: raw.ModelID, Size: uint64(raw.SizeMB * 1024 * 1024)}
 		}
-		publish(msg)
+		publish(NewInfoMessage(raw.Description, model))
 	case "error":
-		publish(StreamMessage{
-			err: raw.Description,
-		})
+		publish(NewErrorMessage(raw.Description))
 	default:
 		slog.Warn("unknown event from handler", "event", raw.Event, "line", line)
 	}

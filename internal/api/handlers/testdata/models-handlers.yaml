@@ -1,0 +1,20 @@
+listing:
+  image: test-registry/models-downloader:test
+  volumes:
+    - ${MODELS_PATH}:/models
+  command: ["/app/list_models.sh"]
+handlers:
+  - test-handler:
+      description: "Handler the fixture's declared model names"
+      image: test-registry/models-downloader:test
+      volumes:
+        - ${MODELS_PATH}/${models_repository}:/models
+      actions:
+        - download:
+            command: ["/app/download.sh"]
+        - delete:
+            command: ["/app/delete.sh"]
+        - check:
+            command: ["/app/check.sh"]
+        - info:
+            command: ["/app/info.sh"]

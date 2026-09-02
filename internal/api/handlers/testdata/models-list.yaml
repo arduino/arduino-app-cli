@@ -1,0 +1,20 @@
+# Fixture for the models endpoints. Two entries are enough: one a declaration installs by
+# itself, and one that would need its handler to run.
+models:
+ - a-preloaded-model:
+    name: "A pre-loaded model"
+    description: "Ships with the image, so its declaration installs it."
+    deployment:
+      pre-loaded: true
+ - llamacpp:a-downloadable-model:
+    name: "A downloadable model"
+    description: "Declared, but the handler has to fetch it."
+    bricks:
+      - id: arduino:llm
+    deployment:
+      handler: "test-handler"
+      pre-loaded: false
+      variables:
+        - unoq:
+            variables:
+              model_url: "https://huggingface.co/owner/repo/resolve/main/a-downloadable-model.gguf"
