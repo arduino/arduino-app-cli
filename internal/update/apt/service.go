@@ -198,8 +198,10 @@ func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, er
 		"-o", "Dpkg::Options::=--force-confdef",
 		"-o", "Dpkg::Options::=--force-confold",
 	}
-	args := make([]string, 0, 5+len(aptOptions)+len(names))
-	args = append(args, "sudo", "apt-get", "install", "--only-upgrade", "-y")
+	args := make([]string, 0, 7+len(aptOptions)+len(names))
+	// We allow downgrades because sometimes we need to force a specific patched version of a package.
+	// Nothing is ever removed: every listed package installs on its own, so a removal means the plan changed.
+	args = append(args, "sudo", "apt-get", "install", "--only-upgrade", "-y", "--allow-downgrades", "--no-remove")
 	args = append(args, aptOptions...)
 	args = append(args, names...)
 
@@ -320,12 +322,11 @@ func cleanupDockerContainers(ctx context.Context) iter.Seq2[string, error] {
 	}
 }
 
-// The simulated upgrade is the source of the list, and not `apt list --upgradable`:
-// the latter reports also the packages apt holds back because they are not
-// installable, and naming those in `apt-get install --only-upgrade` makes them
-// mandatory and fails the whole update.
+// listUpgradablePackages returns the packages a dry-run upgrade would install:
+// packages apt holds back as not installable are left out, an upgrade that needs a
+// new dependency is kept in, and nothing is ever removed.
 func listUpgradablePackages(ctx context.Context, matcher func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
-	simulateUpgrade, err := paths.NewProcess(nil, "apt-get", "-s", "upgrade")
+	simulateUpgrade, err := paths.NewProcess(nil, "apt-get", "-s", "upgrade", "--with-new-pkgs")
 	if err != nil {
 		return nil, err
 	}
