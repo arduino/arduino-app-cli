@@ -6,6 +6,7 @@
 package handlers
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/http"
@@ -239,8 +240,8 @@ func TestHandleInstallModel(t *testing.T) {
 		// The failure has to arrive as a status: once the stream opens the 200 is sent and
 		// a client can no longer tell a bad request from a broken download.
 		rec := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPut, "/v1/models/llamacpp:owner%2Frepo:Q4_0", nil)
-		req.SetPathValue("modelID", "llamacpp:owner/repo:Q4_0")
+		req := httptest.NewRequest(http.MethodPut, "/v1/models/llamacpp:no-such-model", nil)
+		req.SetPathValue("modelID", "llamacpp:no-such-model")
 
 		HandleInstallModel(nil, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
 
@@ -264,6 +265,31 @@ func TestHandleInstallModel(t *testing.T) {
 		assert.Contains(t, body, `"id":"a-preloaded-model"`)
 		assert.Contains(t, body, `"status":"installed"`)
 		assert.NotContains(t, body, "event: progress")
+	})
+
+	t.Run("a declared id sent base64url encoded resolves to the same model", func(t *testing.T) {
+		rec := sseRecorder{httptest.NewRecorder()}
+		req := httptest.NewRequest(http.MethodPut, "/v1/models/"+encodeModelID("a-preloaded-model"), nil)
+		req.SetPathValue("modelID", encodeModelID("a-preloaded-model"))
+
+		HandleInstallModel(nil, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
+
+		body := rec.Body.String()
+		assert.Contains(t, body, "event: done")
+		assert.Contains(t, body, `"id":"a-preloaded-model"`, "the answer names the model plainly")
+	})
+
+	t.Run("an id sent percent-encoded is refused", func(t *testing.T) {
+		// The router has already turned %2F into a slash by the time the handler sees it.
+		// Refusing it here is what keeps the encoding one thing rather than two.
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPut, "/v1/models/llamacpp:owner%2Frepo", nil)
+		req.SetPathValue("modelID", "llamacpp:owner/repo")
+
+		HandleInstallModel(nil, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
+
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+		assert.Contains(t, rec.Body.String(), "base64url")
 	})
 
 	t.Run("no id at all is a bad request", func(t *testing.T) {
@@ -299,4 +325,54 @@ func TestHandleDownloadModel(t *testing.T) {
 			assert.NotContains(t, rec.Header().Get("Content-Type"), "text/event-stream")
 		})
 	}
+}
+
+// encodeModelID is what a client does to put an id in a path: base64url, unpadded.
+func encodeModelID(id string) string {
+	return base64.RawURLEncoding.EncodeToString([]byte(id))
+}
+
+// TestHandlerModelByID covers the id encoding on the read path. Only a model installed by
+// its declaration is used, because that is the one answer no listing container is needed
+// for.
+func TestHandlerModelByID(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		segment string
+	}{
+		{"a plain id", "a-preloaded-model"},
+		{"the same id base64url encoded", encodeModelID("a-preloaded-model")},
+	} {
+		t.Run(tc.name+" answers the model, named plainly", func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/v1/models/"+tc.segment, nil)
+			req.SetPathValue("modelID", tc.segment)
+
+			HandlerModelByID(testModelsIndex(t))(rec, req)
+
+			require.Equal(t, http.StatusOK, rec.Code)
+			assert.Contains(t, rec.Body.String(), `"id":"a-preloaded-model"`)
+		})
+	}
+
+	t.Run("an id sent percent-encoded is refused", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/v1/models/llamacpp:owner%2Frepo", nil)
+		req.SetPathValue("modelID", "llamacpp:owner/repo")
+
+		HandlerModelByID(testModelsIndex(t))(rec, req)
+
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+		assert.Contains(t, rec.Body.String(), "base64url")
+	})
+
+	t.Run("an id nothing declares is not found", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/v1/models/no-such-model", nil)
+		req.SetPathValue("modelID", "no-such-model")
+
+		HandlerModelByID(testModelsIndex(t))(rec, req)
+
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+	})
 }
