@@ -87,9 +87,10 @@ func NewAIModelItem(model modelsindex.AIModel) AIModelItem {
 	}
 }
 
-func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, id string) (AIModelItem, bool, error) {
-
-	model, err := modelsIndex.GetModelByID(ctx, id)
+// AIModelDetails describes the model named by any one of ids - the models path carries an
+// id either plainly or base64url encoded, and only a lookup tells which.
+func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, ids ...string) (AIModelItem, bool, error) {
+	model, err := modelsIndex.GetModelByAnyID(ctx, ids...)
 	if err != nil {
 		return AIModelItem{}, false, err
 	}
@@ -119,14 +120,17 @@ var (
 	ErrIncompleteImpulse   = errors.New("impulse not ready for deployment")
 )
 
-func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, platform platform.Platform, id string, idProvider *appid.Provider, force bool) (err error) {
-	res, err := modelsIndex.GetModelByID(ctx, id)
+func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, platform platform.Platform, ids []string, idProvider *appid.Provider, force bool) (err error) {
+	res, err := modelsIndex.GetModelByAnyID(ctx, ids...)
 	if err != nil {
 		return err
 	}
 	if res == nil {
-		return fmt.Errorf("%q: %w", id, ErrNotFound)
+		return fmt.Errorf("%q: %w", ids[len(ids)-1], ErrNotFound)
 	}
+	// Whatever the path carried, an app references the model by the id the model itself
+	// holds, so everything below asks with that one.
+	id := res.ID
 
 	if res.IsBuiltIn {
 		return ErrCannotRemoveModel
