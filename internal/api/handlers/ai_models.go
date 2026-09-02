@@ -57,10 +57,15 @@ func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 // A percent-encoded id is the one form refused. The router turns %2F into a real slash
 // before the handler runs, so accepting it would make the request depend on nothing in
 // the path normalizing it, which this API cannot promise.
+// errEmptyModelID is its own error because the routes answer it with different statuses,
+// and did so before this parsing was shared: delete reports 412, as every other route
+// that takes an id in a path does, and the rest report 400.
+var errEmptyModelID = errors.New("id must be set")
+
 func modelIDFromPath(r *http.Request) (string, error) {
 	segment := strings.TrimSpace(r.PathValue("modelID"))
 	if segment == "" {
-		return "", errors.New("model id must be set")
+		return "", errEmptyModelID
 	}
 	if strings.Contains(segment, "/") {
 		return "", errors.New("a model id holding slashes travels base64url encoded, not percent-encoded")
@@ -93,7 +98,11 @@ func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, 
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := modelIDFromPath(r)
 		if err != nil {
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
+			status := http.StatusBadRequest
+			if errors.Is(err, errEmptyModelID) {
+				status = http.StatusPreconditionFailed
+			}
+			render.EncodeResponse(w, status, models.ErrorResponse{Details: err.Error()})
 			return
 		}
 		forceRaw := r.URL.Query().Get("force")
