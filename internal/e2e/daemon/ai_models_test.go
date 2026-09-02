@@ -20,6 +20,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
 )
 
@@ -120,14 +121,18 @@ func TestAIModelDetails(t *testing.T) {
 
 		got := response.JSON200
 		require.Equal(t, &client.AIModelItem{
-			Id:          new("custom-classification-model-eim"),
+			// The id is reported twice: encoded, ready to paste into a path, and plain.
+			Id:          new(modelsindex.EncodeID("custom-classification-model-eim")),
+			IdDecoded:   new("custom-classification-model-eim"),
 			Name:        new("this is the name of the model"),
 			IsBuiltin:   new(false),
 			Runner:      new(""),
 			Description: new("this is the description of the model"),
 			BrickIds:    &[]string{"arduino:audio_classification"},
-			Status:      new(client.ModelStatus("installed")),
-			Size:        new(1),
+			// A model under the custom models directory is an Edge Impulse deployment.
+			Origin: new(client.ModelOrigin("edge-impulse")),
+			Status: new(client.ModelStatus("installed")),
+			Size:   new(1),
 		}, got, "The returned model details should match the expected values")
 
 		// TODO test metadata and model configuration contents and runner
