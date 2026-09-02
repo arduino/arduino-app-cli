@@ -1625,6 +1625,8 @@ components:
           type: string
         id:
           type: string
+        id_decoded:
+          type: string
         is_builtin:
           type: boolean
         metadata:
