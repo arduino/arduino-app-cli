@@ -6,7 +6,6 @@
 package handlers
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,7 +13,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/docker/cli/cli/command"
 
@@ -58,7 +56,8 @@ func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 //
 // Both forms come back because nothing here can tell them apart - an id and its encoding
 // are both plain text - so the caller resolves them in order and the model list decides.
-// Responses always carry the plain id; a client encodes only to build a URL.
+// A response reports both: "id" encoded, ready to paste into a path, and "id_decoded"
+// plain, which is the form to display and to store in an app.yaml.
 func modelIDsFromPath(r *http.Request) ([]string, error) {
 	segment := strings.TrimSpace(r.PathValue("modelID"))
 	if segment == "" {
@@ -67,13 +66,7 @@ func modelIDsFromPath(r *http.Request) ([]string, error) {
 	if strings.Contains(segment, "/") {
 		return nil, errors.New("a model id holding slashes travels base64url encoded, not percent-encoded")
 	}
-	ids := []string{segment}
-	if decoded, err := base64.RawURLEncoding.DecodeString(segment); err == nil && utf8.Valid(decoded) {
-		if id := strings.TrimSpace(string(decoded)); id != "" && id != segment {
-			ids = append(ids, id)
-		}
-	}
-	return ids, nil
+	return modelsindex.IDCandidates(segment), nil
 }
 
 func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {

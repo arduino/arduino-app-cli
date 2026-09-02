@@ -7,6 +7,7 @@ package modelsindex
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -14,7 +15,9 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"strings"
 	"syscall"
+	"unicode/utf8"
 
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/docker/client"
@@ -197,6 +200,31 @@ func (l *Lookup) listing(ctx context.Context) error {
 	return l.err
 }
 
+// EncodeID renders an id as one URL path segment: base64url, unpadded, the encoding app
+// ids already use. Every id survives it, including the bare ones that need no encoding,
+// so a caller can hold a single code path.
+func EncodeID(id string) string {
+	return base64.RawURLEncoding.EncodeToString([]byte(id))
+}
+
+// IDCandidates returns the ids a caller-supplied string could name: the string itself,
+// and what it decodes to when it is base64url. Nothing here can tell the two apart, since
+// an id and its encoding are both plain text, so both come back and the model list
+// decides - see ByAnyID. A decoding that is not valid UTF-8, is empty, or equals the
+// input adds nothing and is dropped.
+//
+// It is what lets one identity travel in two forms without either side guessing: a path
+// segment, and a model id inside a request body.
+func IDCandidates(id string) []string {
+	ids := []string{id}
+	if decoded, err := base64.RawURLEncoding.DecodeString(id); err == nil && utf8.Valid(decoded) {
+		if plain := strings.TrimSpace(string(decoded)); plain != "" && plain != id {
+			ids = append(ids, plain)
+		}
+	}
+	return ids
+}
+
 // ByAnyID resolves the first id that names a model, running the listing at most once for
 // all of them. It exists for the models path, which carries an id either plainly or
 // base64url encoded and cannot tell which without asking: an id the model list declares
@@ -249,16 +277,35 @@ func (l *Lookup) ByBrick(ctx context.Context, brickID string) ([]AIModelLite, er
 	return matches, err
 }
 
-func (l *Lookup) SupportedByBrick(ctx context.Context, modelID, brickID string) (bool, error) {
-	// A declared model needs no listing to answer: its bricks come from models-list.yaml.
-	if model, ok := l.idx.declaredModel(modelID); ok {
-		return slices.ContainsFunc(model.Bricks, func(b BrickConfig) bool { return b.ID == brickID }), nil
+// ModelForBrick resolves a model the brick can use, named either plainly or base64url
+// encoded, and returns nil when no such model exists or the brick cannot use it.
+//
+// It answers with the model rather than a bool so a caller that writes the choice down
+// can store the model's own id instead of the string it was handed. An app.yaml is
+// authored by hand and has no encoding rule, so one form has to win there, and it is the
+// plain one - see the brick service, which stores model.ID.
+func (l *Lookup) ModelForBrick(ctx context.Context, modelID, brickID string) (*AIModel, error) {
+	supports := func(m *AIModel) *AIModel {
+		if slices.ContainsFunc(m.Bricks, func(b BrickConfig) bool { return b.ID == brickID }) {
+			return m
+		}
+		return nil
 	}
-	model, err := l.ByID(ctx, modelID)
-	if err != nil || model == nil {
-		return false, err
+	for _, id := range IDCandidates(modelID) {
+		// A declared model needs no listing to answer: its bricks come from
+		// models-list.yaml.
+		if model, ok := l.idx.declaredModel(id); ok {
+			return supports(model), nil
+		}
+		model, err := l.ByID(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if model != nil {
+			return supports(model), nil
+		}
 	}
-	return slices.ContainsFunc(model.Bricks, func(b BrickConfig) bool { return b.ID == brickID }), nil
+	return nil, nil
 }
 
 // InstalledByDeclaration reports whether the model is installed by its own declaration -
@@ -322,8 +369,8 @@ func (m *ModelsIndex) GetModelsByBrick(ctx context.Context, brickID string) []AI
 	return matches
 }
 
-func (m *ModelsIndex) IsModelSupportedByBrick(ctx context.Context, modelID, brickID string) (bool, error) {
-	return m.NewLookup().SupportedByBrick(ctx, modelID, brickID)
+func (m *ModelsIndex) ModelForBrick(ctx context.Context, modelID, brickID string) (*AIModel, error) {
+	return m.NewLookup().ModelForBrick(ctx, modelID, brickID)
 }
 
 func (m *ModelsIndex) loadDryModels() []AIModel {

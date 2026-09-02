@@ -318,3 +318,33 @@ func TestInstalledByDeclaration(t *testing.T) {
 		assert.NotZero(t, preLoaded, "the model list must still declare pre-loaded models")
 	})
 }
+
+// TestIDCandidates pins the rule that lets one identity travel in two forms. The two
+// callers are the models path and a brick's "model" field, and neither can tell an id
+// from its encoding by looking at it.
+func TestIDCandidates(t *testing.T) {
+	t.Run("an encoded id offers the plain one as a second guess", func(t *testing.T) {
+		id := "llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M"
+		assert.Equal(t, []string{EncodeID(id), id}, IDCandidates(EncodeID(id)))
+	})
+
+	t.Run("a declared id stands alone", func(t *testing.T) {
+		// "llamacpp:Qwen3.5-0.8B-Q4_0" holds a colon and a dot, so it is not base64 at
+		// all. "face-detection" is spelled entirely in base64url characters and does
+		// decode, but into bytes that are not text, which the UTF-8 check drops.
+		assert.Equal(t, []string{"llamacpp:Qwen3.5-0.8B-Q4_0"}, IDCandidates("llamacpp:Qwen3.5-0.8B-Q4_0"))
+		assert.Equal(t, []string{"face-detection"}, IDCandidates("face-detection"))
+	})
+
+	t.Run("every id survives a round trip", func(t *testing.T) {
+		for _, id := range []string{
+			"face-detection",
+			"llamacpp:Qwen3.5-0.8B-Q4_0",
+			"ei-model-901144-1",
+			"vendor/slashed-id",
+			"llamacpp:ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0",
+		} {
+			assert.Contains(t, IDCandidates(EncodeID(id)), id, "id %q", id)
+		}
+	})
+}

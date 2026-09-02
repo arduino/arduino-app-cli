@@ -48,10 +48,10 @@ func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.Bri
 				if model.Status != modelsindex.InstalledStatus {
 					allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q is not installed", selectedModel, appBrick.ID))
 				}
-				switch supported, err := models.SupportedByBrick(ctx, selectedModel, appBrick.ID); {
+				switch supported, err := models.ModelForBrick(ctx, selectedModel, appBrick.ID); {
 				case err != nil:
 					allErrors = errors.Join(allErrors, fmt.Errorf("checking model %q for brick %q: %w", selectedModel, appBrick.ID, err))
-				case !supported:
+				case supported == nil:
 					allErrors = errors.Join(allErrors, fmt.Errorf("model %q is not compatible with brick %q", selectedModel, appBrick.ID))
 				}
 			}

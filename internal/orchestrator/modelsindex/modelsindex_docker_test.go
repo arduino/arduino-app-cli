@@ -347,6 +347,31 @@ func TestGetModelsReportsTheRecordedSource(t *testing.T) {
 	assert.Nil(t, byID("ei:efficientnet-b4").Source)
 }
 
+// TestModelForBrickTakesAnEncodedID covers the write path's normalisation: a client that
+// read the models endpoint holds a base64url id, and what it names has to be the same
+// model, reported under its plain id so the caller can store that instead.
+func TestModelForBrickTakesAnEncodedID(t *testing.T) {
+	cli := newFakeDockerClient(func(_ string, cmd []string) (string, int) {
+		if len(cmd) > 0 && cmd[0] == listModelsCmd {
+			return listingWith(`{"id":"ei:efficientnet-b4","installed":true,"model_size_mb":89}`), 0
+		}
+		return "", 0
+	})
+	dir := paths.New("testdata/with-handlers")
+	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+	require.NoError(t, err)
+
+	model, err := idx.ModelForBrick(t.Context(), EncodeID("ei:efficientnet-b4"), "arduino:image_classification")
+	require.NoError(t, err)
+	require.NotNil(t, model)
+	assert.Equal(t, "ei:efficientnet-b4", model.ID, "the answer carries the plain id, whatever the question carried")
+
+	// A brick the model does not serve is not a lookup failure, it is simply no match.
+	other, err := idx.ModelForBrick(t.Context(), EncodeID("ei:efficientnet-b4"), "arduino:tts")
+	require.NoError(t, err)
+	assert.Nil(t, other)
+}
+
 // TestLookupRunsOneListing pins the reason Lookup exists: callers that query per brick
 // would otherwise pay a container start each, which on a board is seconds per brick.
 func TestLookupRunsOneListing(t *testing.T) {
@@ -376,9 +401,9 @@ func TestLookupRunsOneListing(t *testing.T) {
 		_, err = lookup.ByBrick(t.Context(), "arduino:image_classification")
 		require.NoError(t, err)
 
-		supported, err := lookup.SupportedByBrick(t.Context(), "ei:efficientnet-b4", "arduino:image_classification")
+		supported, err := lookup.ModelForBrick(t.Context(), "ei:efficientnet-b4", "arduino:image_classification")
 		require.NoError(t, err)
-		assert.True(t, supported)
+		assert.NotNil(t, supported)
 
 		assert.Equal(t, int64(1), listings.Load())
 	})
@@ -391,9 +416,9 @@ func TestLookupRunsOneListing(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, model)
 
-		supported, err := lookup.SupportedByBrick(t.Context(), "piper-tts-en", "arduino:tts")
+		supported, err := lookup.ModelForBrick(t.Context(), "piper-tts-en", "arduino:tts")
 		require.NoError(t, err)
-		assert.True(t, supported)
+		assert.NotNil(t, supported)
 
 		assert.Zero(t, listings.Load())
 	})

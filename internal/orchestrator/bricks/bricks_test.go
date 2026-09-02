@@ -269,6 +269,36 @@ func TestUpdateBrick(t *testing.T) {
 		require.Equal(t, modelPath, after.Descriptor.Bricks[0].Variables["CUSTOM_MODEL_PATH"])
 	})
 
+	// A client reading the models endpoint gets the id base64url encoded, and may send it
+	// back as it stands. app.yaml is authored by hand and has no encoding rule, so the
+	// plain id is what has to land there whichever form arrived.
+	t.Run("store the plain id when the request carries an encoded one", func(t *testing.T) {
+		tempDummyApp := paths.New("testdata/dummy-app-for-model-temp")
+		require.Nil(t, tempDummyApp.RemoveAll())
+		require.Nil(t, paths.New("testdata/dummy-app-for-model").CopyDirTo(tempDummyApp))
+		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
+		require.NoError(t, err)
+		modelsIndex, err := modelsindex.Load(unoQPlatform, paths.New("testdata"), paths.New("not_exixsting_path"), paths.New("not_exixsting_path"), nil, config.Configuration{})
+		require.NoError(t, err)
+		brickService := NewService(modelsIndex, bricksIndex)
+
+		modelID := "ei-model-123-1"
+		encoded := modelsindex.EncodeID(modelID)
+		require.NotEqual(t, modelID, encoded)
+		req := BrickCreateUpdateRequest{
+			ID:    "arduino:brick-with-custom-model",
+			Model: new(encoded),
+		}
+
+		err = brickService.BrickUpdate(t.Context(), req, f.Must(app.Load(tempDummyApp)))
+		require.Nil(t, err)
+
+		after, err := app.Load(tempDummyApp)
+		require.Nil(t, err)
+		require.Len(t, after.Descriptor.Bricks, 1)
+		require.Equal(t, modelID, after.Descriptor.Bricks[0].Model, "app.yaml must never hold an encoded id")
+	})
+
 }
 
 func TestGetBrickInstanceVariableDetails(t *testing.T) {
