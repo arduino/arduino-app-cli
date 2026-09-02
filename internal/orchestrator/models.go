@@ -36,7 +36,13 @@ type AIModelsListResult struct {
 }
 
 type AIModelItem struct {
+	// ID is base64url encoded, so it is one path segment whatever it holds: an id no
+	// models-list.yaml entry declares is named after the repository the file came from
+	// and carries slashes. IDDecoded is the same identity in plain text - the form to
+	// show a person, to compare against a brick's "model", and to write into an app.yaml,
+	// which is authored by hand and has no encoding rule.
 	ID          string                   `json:"id"`
+	IDDecoded   string                   `json:"id_decoded"`
 	Name        string                   `json:"name"`
 	Description string                   `json:"description"`
 	Runner      string                   `json:"runner"`
@@ -70,7 +76,8 @@ func AIModelsList(ctx context.Context, req AIModelsListRequest, modelsIndex *mod
 // rather than reported as zero.
 func NewAIModelItem(model modelsindex.AIModel) AIModelItem {
 	return AIModelItem{
-		ID:          model.ID,
+		ID:          modelsindex.EncodeID(model.ID),
+		IDDecoded:   model.ID,
 		Name:        model.Name,
 		Description: model.Description,
 		Runner:      model.Runner,
@@ -318,7 +325,8 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 	}
 
 	return AIModelItem{
-		ID:          aimodel.ModelDescriptor.ID,
+		ID:          modelsindex.EncodeID(aimodel.ModelDescriptor.ID),
+		IDDecoded:   aimodel.ModelDescriptor.ID,
 		Name:        aimodel.ModelDescriptor.Name,
 		Description: aimodel.ModelDescriptor.Description,
 		Runner:      aimodel.ModelDescriptor.Runner,

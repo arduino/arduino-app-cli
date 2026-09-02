@@ -456,9 +456,13 @@ func TestInstallEIModel_WhenModelIsBuilt_DoNotTriggerTheBuild_and_StoreSucceeded
 	require.NoError(t, err)
 	require.Equal(t, "Imola-Model", result.Name)
 	require.Equal(t, "edgeimpulse", result.Metadata["source"])
+	// The id is reported encoded, ready for a URL path, and plainly beside it. The plain
+	// one is what names the directory on disk and what an app.yaml would hold.
+	require.Equal(t, "ei-model-100-1", result.IDDecoded)
+	require.Equal(t, modelsindex.EncodeID("ei-model-100-1"), result.ID)
 
 	// assert write on disk
-	basePath := paths.New(tempDir).Join("custom-ei").Join(result.ID)
+	basePath := paths.New(tempDir).Join("custom-ei").Join(result.IDDecoded)
 	assertModelFileContent(t, basePath.Join("model.eim").String())
 	assertAppYamlContent(t, basePath.Join("model.yaml").String())
 

@@ -391,14 +391,16 @@ func (s *Service) BrickCreate(
 	brickInstance.ID = req.ID
 
 	if req.Model != nil {
-		supported, err := s.modelsIndex.IsModelSupportedByBrick(ctx, *req.Model, req.ID)
+		model, err := s.modelsIndex.ModelForBrick(ctx, *req.Model, req.ID)
 		if err != nil {
 			return fmt.Errorf("checking model %s: %w", *req.Model, err)
 		}
-		if !supported {
+		if model == nil {
 			return fmt.Errorf("model %s does not exsist", *req.Model)
 		}
-		brickInstance.Model = *req.Model
+		// The model's own id, not the string the request carried: a model id travels
+		// either plainly or base64url encoded, and app.yaml keeps only the plain form.
+		brickInstance.Model = model.ID
 	}
 	brickInstance.Variables = req.Variables
 
@@ -437,14 +439,16 @@ func (s *Service) BrickUpdate(
 	brickModel := appCurrent.Descriptor.Bricks[brickPosition].Model
 
 	if req.Model != nil && *req.Model != brickModel {
-		supported, err := s.modelsIndex.IsModelSupportedByBrick(ctx, *req.Model, req.ID)
+		model, err := s.modelsIndex.ModelForBrick(ctx, *req.Model, req.ID)
 		if err != nil {
 			return fmt.Errorf("checking model %s: %w", *req.Model, err)
 		}
-		if !supported {
+		if model == nil {
 			return fmt.Errorf("model %s is not supported by brick %q", *req.Model, req.ID)
 		}
-		brickModel = *req.Model
+		// See AddBrick: the stored id is the model's, so an encoded request and a plain
+		// one leave the same app.yaml behind.
+		brickModel = model.ID
 	}
 
 	for name, updateValue := range req.Variables {

@@ -6,7 +6,6 @@
 package handlers
 
 import (
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/http"
@@ -262,21 +261,22 @@ func TestHandleInstallModel(t *testing.T) {
 		assert.Contains(t, rec.Header().Get("Content-Type"), "text/event-stream")
 		body := rec.Body.String()
 		assert.Contains(t, body, "event: done")
-		assert.Contains(t, body, `"id":"a-preloaded-model"`)
+		assert.Contains(t, body, `"id":"`+modelsindex.EncodeID("a-preloaded-model")+`"`)
+		assert.Contains(t, body, `"id_decoded":"a-preloaded-model"`)
 		assert.Contains(t, body, `"status":"installed"`)
 		assert.NotContains(t, body, "event: progress")
 	})
 
 	t.Run("a declared id sent base64url encoded resolves to the same model", func(t *testing.T) {
 		rec := sseRecorder{httptest.NewRecorder()}
-		req := httptest.NewRequest(http.MethodPut, "/v1/models/"+encodeModelID("a-preloaded-model"), nil)
-		req.SetPathValue("modelID", encodeModelID("a-preloaded-model"))
+		req := httptest.NewRequest(http.MethodPut, "/v1/models/"+modelsindex.EncodeID("a-preloaded-model"), nil)
+		req.SetPathValue("modelID", modelsindex.EncodeID("a-preloaded-model"))
 
 		HandleInstallModel(nil, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
 
 		body := rec.Body.String()
 		assert.Contains(t, body, "event: done")
-		assert.Contains(t, body, `"id":"a-preloaded-model"`, "the answer names the model plainly")
+		assert.Contains(t, body, `"id_decoded":"a-preloaded-model"`, "the same model, whatever form was asked for")
 	})
 
 	t.Run("an id sent percent-encoded is refused", func(t *testing.T) {
@@ -328,10 +328,6 @@ func TestHandleDownloadModel(t *testing.T) {
 }
 
 // encodeModelID is what a client does to put an id in a path: base64url, unpadded.
-func encodeModelID(id string) string {
-	return base64.RawURLEncoding.EncodeToString([]byte(id))
-}
-
 // TestHandlerModelByID covers the id encoding on the read path. Only a model installed by
 // its declaration is used, because that is the one answer no listing container is needed
 // for.
@@ -341,9 +337,9 @@ func TestHandlerModelByID(t *testing.T) {
 		segment string
 	}{
 		{"a plain id", "a-preloaded-model"},
-		{"the same id base64url encoded", encodeModelID("a-preloaded-model")},
+		{"the same id base64url encoded", modelsindex.EncodeID("a-preloaded-model")},
 	} {
-		t.Run(tc.name+" answers the model, named plainly", func(t *testing.T) {
+		t.Run(tc.name+" answers the model, named both ways", func(t *testing.T) {
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/v1/models/"+tc.segment, nil)
 			req.SetPathValue("modelID", tc.segment)
@@ -351,7 +347,10 @@ func TestHandlerModelByID(t *testing.T) {
 			HandlerModelByID(testModelsIndex(t))(rec, req)
 
 			require.Equal(t, http.StatusOK, rec.Code)
-			assert.Contains(t, rec.Body.String(), `"id":"a-preloaded-model"`)
+			// Whichever form was asked for, the answer reports the id encoded, ready to
+			// paste into a path, and plainly beside it.
+			assert.Contains(t, rec.Body.String(), `"id":"`+modelsindex.EncodeID("a-preloaded-model")+`"`)
+			assert.Contains(t, rec.Body.String(), `"id_decoded":"a-preloaded-model"`)
 		})
 	}
 
