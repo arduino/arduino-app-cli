@@ -36,16 +36,17 @@ type AIModelsListResult struct {
 }
 
 type AIModelItem struct {
-	ID          string                  `json:"id"`
-	Name        string                  `json:"name"`
-	Description string                  `json:"description"`
-	Runner      string                  `json:"runner"`
-	Bricks      []string                `json:"brick_ids"`
-	Metadata    map[string]string       `json:"metadata,omitempty"`
-	IsBuiltIn   bool                    `json:"is_builtin"`
-	Origin      modelsindex.ModelOrigin `json:"origin"`
-	Size        *uint64                 `json:"size,omitempty"`
-	Status      modelsindex.ModelStatus `json:"status"`
+	ID          string                   `json:"id"`
+	Name        string                   `json:"name"`
+	Description string                   `json:"description"`
+	Runner      string                   `json:"runner"`
+	Bricks      []string                 `json:"brick_ids"`
+	Metadata    map[string]string        `json:"metadata,omitempty"`
+	IsBuiltIn   bool                     `json:"is_builtin"`
+	Origin      modelsindex.ModelOrigin  `json:"origin"`
+	Source      *modelsindex.ModelSource `json:"source,omitempty"`
+	Size        *uint64                  `json:"size,omitempty"`
+	Status      modelsindex.ModelStatus  `json:"status"`
 }
 
 type AIModelsListRequest struct {
@@ -77,6 +78,7 @@ func NewAIModelItem(model modelsindex.AIModel) AIModelItem {
 		Metadata:    model.Metadata,
 		IsBuiltIn:   model.IsBuiltIn,
 		Origin:      model.Origin,
+		Source:      model.Source,
 		Status:      model.Status,
 		Size: func() *uint64 {
 			if model.Size > 0 {
@@ -98,18 +100,7 @@ func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, i
 		return AIModelItem{}, false, nil
 	}
 
-	return AIModelItem{
-		ID:          model.ID,
-		Name:        model.Name,
-		Description: model.Description,
-		Runner:      model.Runner,
-		Bricks:      f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
-		Metadata:    model.Metadata,
-		IsBuiltIn:   model.IsBuiltIn,
-		Origin:      model.Origin,
-		Size:        &model.Size,
-		Status:      model.Status,
-	}, true, nil
+	return NewAIModelItem(*model), true, nil
 }
 
 var (

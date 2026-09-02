@@ -1641,6 +1641,8 @@ components:
           minimum: 0
           nullable: true
           type: integer
+        source:
+          $ref: '#/components/schemas/ModelSource'
         status:
           $ref: '#/components/schemas/ModelStatus'
       type: object
@@ -2158,6 +2160,15 @@ components:
       - edge-impulse
       type: string
       uniqueItems: true
+    ModelSource:
+      properties:
+        downloaded_at:
+          type: string
+        model_mmproj_url:
+          type: string
+        model_url:
+          type: string
+      type: object
     ModelStatus:
       description: Model status
       enum:

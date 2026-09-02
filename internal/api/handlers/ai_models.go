@@ -302,6 +302,12 @@ func HandleDownloadModel(dockerClient command.Cli, modelsIndex *modelsindex.Mode
 		}
 
 		installed, ok := installedModel(modelsIndex, nil, stream.downloaded)
+		if ok && installed.Source == nil {
+			// The links the caller asked for, so the model this event describes carries
+			// the same source the listing will report for it. The recorded timestamp is
+			// not on the stream, and inventing one here would disagree with the record.
+			installed.Source = &modelsindex.ModelSource{ModelURL: modelURL, MmprojURL: strings.TrimSpace(req.MmprojURL)}
+		}
 		if !ok {
 			slog.Error("download named no model", "model_url", modelURL)
 			sseStream.SendError(render.SSEErrorData{

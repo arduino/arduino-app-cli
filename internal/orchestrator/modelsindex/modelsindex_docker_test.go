@@ -136,7 +136,10 @@ func (f *fakeDockerClient) ImageInspect(ctx context.Context, _ string, _ ...clie
 	return image.InspectResponse{}, nil
 }
 
-// listingWith wraps model entries in the envelope /app/list_models.sh prints.
+// listModelsCmd is the listing container's command, as testdata/with-handlers declares it.
+const listModelsCmd = "/app/list_models.sh"
+
+// listingWith wraps model entries in the envelope the listing command prints.
 func listingWith(entries ...string) string {
 	return `{"event":"info","models":[` + strings.Join(entries, ",") + `]}`
 }
@@ -251,7 +254,7 @@ func TestGetModelsReportsDownloading(t *testing.T) {
 	]}`
 
 	cli := newFakeDockerClient(func(_ string, cmd []string) (string, int) {
-		if len(cmd) > 0 && cmd[0] == "/app/list_models.sh" {
+		if len(cmd) > 0 && cmd[0] == listModelsCmd {
 			return listingOutput, 0
 		}
 		return "", 0
@@ -283,6 +286,67 @@ func TestGetModelsReportsDownloading(t *testing.T) {
 	assert.Equal(t, InstalledStatus, installed.Status)
 }
 
+// TestGetModelsReportsTheRecordedSource covers the link a model was downloaded from,
+// which nothing else in the listing carries: an ad-hoc id names the repository directory
+// and the file, and says nothing about the request that produced them.
+func TestGetModelsReportsTheRecordedSource(t *testing.T) {
+	const listingOutput = `{"event":"info","models":[
+		{"id":"llamacpp:ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0",
+		 "name":"ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0",
+		 "handler":"llamacpp","model_origin":"user","installed":true,
+		 "download_metadata":{
+			"downloaded_at":"2026-09-02T09:04:32Z",
+			"handler":"hf-handler",
+			"model_id":"llamacpp:ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0",
+			"model_origin":"user",
+			"inputs":{
+				"models_repository":"llamacpp",
+				"model_directory":"ggml-org/SmolVLM-256M-Instruct-GGUF",
+				"model_url":"https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/SmolVLM-256M-Instruct-Q8_0.gguf",
+				"model_mmproj_url":"https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-256M-Instruct-Q8_0.gguf"}}},
+		{"id":"ei:efficientnet-b4","name":"EfficientNet-B4","handler":"ei-handler","installed":true,
+		 "download_metadata":{
+			"downloaded_at":"2026-08-30T11:02:00Z",
+			"handler":"ei-handler",
+			"model_id":"ei:efficientnet-b4",
+			"model_origin":"builtin",
+			"inputs":{"ei_project_id":"948887","ei_impulse_id":"4"}}}
+	]}`
+
+	cli := newFakeDockerClient(func(_ string, cmd []string) (string, int) {
+		if len(cmd) > 0 && cmd[0] == listModelsCmd {
+			return listingOutput, 0
+		}
+		return "", 0
+	})
+
+	dir := paths.New("testdata/with-handlers")
+	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+	require.NoError(t, err)
+
+	models := idx.GetModels(t.Context())
+	byID := func(id string) *AIModel {
+		t.Helper()
+		for i := range models {
+			if models[i].ID == id {
+				return &models[i]
+			}
+		}
+		t.Fatalf("model %q missing from the index", id)
+		return nil
+	}
+
+	vision := byID("llamacpp:ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0")
+	require.NotNil(t, vision.Source)
+	assert.Equal(t, "https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/SmolVLM-256M-Instruct-Q8_0.gguf", vision.Source.ModelURL)
+	assert.Equal(t, "https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-256M-Instruct-Q8_0.gguf", vision.Source.MmprojURL)
+	assert.Equal(t, "2026-09-02T09:04:32Z", vision.Source.DownloadedAt)
+
+	// A declared model's record names project and impulse numbers, not a link, so there
+	// is no source to report: models-list.yaml is what describes where it comes from.
+	assert.Nil(t, byID("ei:efficientnet-b4").Source)
+}
+
 // TestLookupRunsOneListing pins the reason Lookup exists: callers that query per brick
 // would otherwise pay a container start each, which on a board is seconds per brick.
 func TestLookupRunsOneListing(t *testing.T) {
@@ -290,7 +354,7 @@ func TestLookupRunsOneListing(t *testing.T) {
 	newIndex := func(t *testing.T) *ModelsIndex {
 		t.Helper()
 		cli := newFakeDockerClient(func(_ string, cmd []string) (string, int) {
-			if len(cmd) > 0 && cmd[0] == "/app/list_models.sh" {
+			if len(cmd) > 0 && cmd[0] == listModelsCmd {
 				listings.Add(1)
 			}
 			return listingWith(`{"id":"ei:efficientnet-b4","installed":true,"model_size_mb":89}`), 0
