@@ -15,9 +15,7 @@ import (
 	"maps"
 	"slices"
 	"strconv"
-	"strings"
 	"syscall"
-	"unicode/utf8"
 
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/docker/client"
@@ -207,36 +205,16 @@ func EncodeID(id string) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(id))
 }
 
-// IDCandidates returns the ids a caller-supplied string could name: the string itself,
-// and what it decodes to when it is base64url. Nothing here can tell the two apart, since
-// an id and its encoding are both plain text, so both come back and the model list
-// decides - see ByAnyID. A decoding that is not valid UTF-8, is empty, or equals the
-// input adds nothing and is dropped.
+// matchesID reports whether name refers to this model, spelled either as the plain id or
+// as EncodeID of it.
 //
-// It is what lets one identity travel in two forms without either side guessing: a path
-// segment, and a model id inside a request body.
-func IDCandidates(id string) []string {
-	ids := []string{id}
-	if decoded, err := base64.RawURLEncoding.DecodeString(id); err == nil && utf8.Valid(decoded) {
-		if plain := strings.TrimSpace(string(decoded)); plain != "" && plain != id {
-			ids = append(ids, plain)
-		}
-	}
-	return ids
-}
-
-// ByAnyID resolves the first id that names a model, running the listing at most once for
-// all of them. It exists for the models path, which carries an id either plainly or
-// base64url encoded and cannot tell which without asking: an id the model list declares
-// answers on the first try, and an encoded one answers on the second.
-func (l *Lookup) ByAnyID(ctx context.Context, ids ...string) (*AIModel, error) {
-	for _, id := range ids {
-		model, err := l.ByID(ctx, id)
-		if model != nil || err != nil {
-			return model, err
-		}
-	}
-	return nil, nil
+// The comparison happens here rather than at the edge because only a model can say what
+// its own id encodes to. Nothing decodes what a caller sent: an id and its encoding are
+// both plain text, so decoding would be a guess about the input, while this is a fact
+// about the model. It costs the encode of each candidate over one listing already in
+// memory, and it means a client holding either form is right.
+func matchesID(model AIModel, name string) bool {
+	return model.ID == name || EncodeID(model.ID) == name
 }
 
 func (l *Lookup) ByID(ctx context.Context, id string) (*AIModel, error) {
@@ -255,7 +233,7 @@ func (l *Lookup) ByID(ctx context.Context, id string) (*AIModel, error) {
 		}
 		return nil, fmt.Errorf("cannot determine install status for model %q: %w", id, err)
 	}
-	idx := slices.IndexFunc(l.models, func(v AIModel) bool { return v.ID == id })
+	idx := slices.IndexFunc(l.models, func(v AIModel) bool { return matchesID(v, id) })
 	if idx == -1 {
 		return nil, nil
 	}
@@ -285,27 +263,14 @@ func (l *Lookup) ByBrick(ctx context.Context, brickID string) ([]AIModelLite, er
 // authored by hand and has no encoding rule, so one form has to win there, and it is the
 // plain one - see the brick service, which stores model.ID.
 func (l *Lookup) ModelForBrick(ctx context.Context, modelID, brickID string) (*AIModel, error) {
-	supports := func(m *AIModel) *AIModel {
-		if slices.ContainsFunc(m.Bricks, func(b BrickConfig) bool { return b.ID == brickID }) {
-			return m
-		}
-		return nil
+	model, err := l.ByID(ctx, modelID)
+	if err != nil || model == nil {
+		return nil, err
 	}
-	for _, id := range IDCandidates(modelID) {
-		// A declared model needs no listing to answer: its bricks come from
-		// models-list.yaml.
-		if model, ok := l.idx.declaredModel(id); ok {
-			return supports(model), nil
-		}
-		model, err := l.ByID(ctx, id)
-		if err != nil {
-			return nil, err
-		}
-		if model != nil {
-			return supports(model), nil
-		}
+	if !slices.ContainsFunc(model.Bricks, func(b BrickConfig) bool { return b.ID == brickID }) {
+		return nil, nil
 	}
-	return nil, nil
+	return model, nil
 }
 
 // InstalledByDeclaration reports whether the model is installed by its own declaration -
@@ -324,7 +289,7 @@ func (m AIModel) InstalledByDeclaration() bool {
 // disk - pre-loaded, or a custom model - so no handler run can add anything.
 func (m *ModelsIndex) declaredModel(id string) (*AIModel, bool) {
 	for _, model := range m.loadDryModels() {
-		if model.ID == id && model.InstalledByDeclaration() {
+		if matchesID(model, id) && model.InstalledByDeclaration() {
 			return &model, true
 		}
 	}
@@ -353,11 +318,6 @@ func (m *ModelsIndex) GetModels(ctx context.Context) []AIModel {
 
 func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, error) {
 	return m.NewLookup().ByID(ctx, id)
-}
-
-// GetModelByAnyID resolves a model named by any one of ids, with a single listing.
-func (m *ModelsIndex) GetModelByAnyID(ctx context.Context, ids ...string) (*AIModel, error) {
-	return m.NewLookup().ByAnyID(ctx, ids...)
 }
 
 // GetModelsByBrick returns the models that are associated with the given brick name.
@@ -564,7 +524,7 @@ func (m *ModelsIndex) DownloadByURL(ctx context.Context, cli client.APIClient, m
 // the model itself and needs the name, description and bricks the declaration gives it.
 func (m *ModelsIndex) DeclaredByID(id string) (*AIModel, bool) {
 	models := m.loadDryModels()
-	if i := slices.IndexFunc(models, func(v AIModel) bool { return v.ID == id }); i != -1 {
+	if i := slices.IndexFunc(models, func(v AIModel) bool { return matchesID(v, id) }); i != -1 {
 		return &models[i], true
 	}
 	return nil, false

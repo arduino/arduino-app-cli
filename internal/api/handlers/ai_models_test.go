@@ -239,8 +239,9 @@ func TestHandleInstallModel(t *testing.T) {
 		// The failure has to arrive as a status: once the stream opens the 200 is sent and
 		// a client can no longer tell a bad request from a broken download.
 		rec := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPut, "/v1/models/llamacpp:no-such-model", nil)
-		req.SetPathValue("modelID", "llamacpp:no-such-model")
+		unknown := modelsindex.EncodeID("llamacpp:no-such-model")
+		req := httptest.NewRequest(http.MethodPut, "/v1/models/"+unknown, nil)
+		req.SetPathValue("modelID", unknown)
 
 		HandleInstallModel(nil, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
 
@@ -253,8 +254,8 @@ func TestHandleInstallModel(t *testing.T) {
 	t.Run("a declaration that installs the model answers done at once", func(t *testing.T) {
 		// Pre-loaded: there is no handler to run, and no progress to report.
 		rec := sseRecorder{httptest.NewRecorder()}
-		req := httptest.NewRequest(http.MethodPut, "/v1/models/a-preloaded-model", nil)
-		req.SetPathValue("modelID", "a-preloaded-model")
+		req := httptest.NewRequest(http.MethodPut, "/v1/models/"+modelsindex.EncodeID("a-preloaded-model"), nil)
+		req.SetPathValue("modelID", modelsindex.EncodeID("a-preloaded-model"))
 
 		HandleInstallModel(nil, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
 
@@ -332,27 +333,34 @@ func TestHandleDownloadModel(t *testing.T) {
 // its declaration is used, because that is the one answer no listing container is needed
 // for.
 func TestHandlerModelByID(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
-		segment string
-	}{
-		{"a plain id", "a-preloaded-model"},
-		{"the same id base64url encoded", modelsindex.EncodeID("a-preloaded-model")},
-	} {
-		t.Run(tc.name+" answers the model, named both ways", func(t *testing.T) {
-			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/v1/models/"+tc.segment, nil)
-			req.SetPathValue("modelID", tc.segment)
+	t.Run("an encoded id answers the model, named both ways", func(t *testing.T) {
+		segment := modelsindex.EncodeID("a-preloaded-model")
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/v1/models/"+segment, nil)
+		req.SetPathValue("modelID", segment)
 
-			HandlerModelByID(testModelsIndex(t))(rec, req)
+		HandlerModelByID(testModelsIndex(t))(rec, req)
 
-			require.Equal(t, http.StatusOK, rec.Code)
-			// Whichever form was asked for, the answer reports the id encoded, ready to
-			// paste into a path, and plainly beside it.
-			assert.Contains(t, rec.Body.String(), `"id":"`+modelsindex.EncodeID("a-preloaded-model")+`"`)
-			assert.Contains(t, rec.Body.String(), `"id_decoded":"a-preloaded-model"`)
-		})
-	}
+		require.Equal(t, http.StatusOK, rec.Code)
+		// The answer reports the id encoded, ready to paste back into a path, and plainly
+		// beside it for a person to read and for an app.yaml to hold.
+		assert.Contains(t, rec.Body.String(), `"id":"`+segment+`"`)
+		assert.Contains(t, rec.Body.String(), `"id_decoded":"a-preloaded-model"`)
+	})
+
+	// The segment is passed on as it stands, and the model list recognizes a model by
+	// either spelling of its id. A client that kept the plain id from an older release is
+	// as right as one that sends back the encoded "id" it was just given.
+	t.Run("a plain id resolves too", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/v1/models/a-preloaded-model", nil)
+		req.SetPathValue("modelID", "a-preloaded-model")
+
+		HandlerModelByID(testModelsIndex(t))(rec, req)
+
+		require.Equal(t, http.StatusOK, rec.Code)
+		assert.Contains(t, rec.Body.String(), `"id_decoded":"a-preloaded-model"`)
+	})
 
 	t.Run("an id sent percent-encoded is refused", func(t *testing.T) {
 		rec := httptest.NewRecorder()
@@ -367,8 +375,9 @@ func TestHandlerModelByID(t *testing.T) {
 
 	t.Run("an id nothing declares is not found", func(t *testing.T) {
 		rec := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/v1/models/no-such-model", nil)
-		req.SetPathValue("modelID", "no-such-model")
+		unknown := modelsindex.EncodeID("no-such-model")
+		req := httptest.NewRequest(http.MethodGet, "/v1/models/"+unknown, nil)
+		req.SetPathValue("modelID", unknown)
 
 		HandlerModelByID(testModelsIndex(t))(rec, req)
 

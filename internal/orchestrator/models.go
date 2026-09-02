@@ -96,10 +96,10 @@ func NewAIModelItem(model modelsindex.AIModel) AIModelItem {
 	}
 }
 
-// AIModelDetails describes the model named by any one of ids - the models path carries an
-// id either plainly or base64url encoded, and only a lookup tells which.
-func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, ids ...string) (AIModelItem, bool, error) {
-	model, err := modelsIndex.GetModelByAnyID(ctx, ids...)
+// AIModelDetails describes the model id names. The id is plain: the API decodes the path
+// before calling in, so nothing below the handler deals in encodings.
+func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, id string) (AIModelItem, bool, error) {
+	model, err := modelsIndex.GetModelByID(ctx, id)
 	if err != nil {
 		return AIModelItem{}, false, err
 	}
@@ -118,16 +118,16 @@ var (
 	ErrIncompleteImpulse   = errors.New("impulse not ready for deployment")
 )
 
-func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, platform platform.Platform, ids []string, idProvider *appid.Provider, force bool) (err error) {
-	res, err := modelsIndex.GetModelByAnyID(ctx, ids...)
+func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, platform platform.Platform, modelID string, idProvider *appid.Provider, force bool) (err error) {
+	res, err := modelsIndex.GetModelByID(ctx, modelID)
 	if err != nil {
 		return err
 	}
 	if res == nil {
-		return fmt.Errorf("%q: %w", ids[len(ids)-1], ErrNotFound)
+		return fmt.Errorf("%q: %w", modelID, ErrNotFound)
 	}
-	// Whatever the path carried, an app references the model by the id the model itself
-	// holds, so everything below asks with that one.
+	// An app references the model by the id the model itself holds, so everything below
+	// asks with that one rather than with what the caller passed.
 	id := res.ID
 
 	if res.IsBuiltIn {
