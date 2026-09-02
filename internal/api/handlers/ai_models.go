@@ -6,7 +6,6 @@
 package handlers
 
 import (
-	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -213,8 +212,7 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 			return
 		}
 
-		// Report the progress with the id that the caller sent, not the handler's file name.
-		stream := &downloadStream{sse: sseStream, progressName: declared.ID}
+		stream := &downloadStream{sse: sseStream}
 		if err := modelsIndex.Download(r.Context(), dockerClient.Client(), *declared, plat, stream.publish); err != nil {
 			stream.sendError(err)
 			return
@@ -230,8 +228,8 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 }
 
 type DownloadModelRequest struct {
-	ModelURL  string `json:"model_url" description:"URL of the model file on Hugging Face" example:"https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf" required:"true"`
-	MmprojURL string `json:"model_mmproj_url" description:"URL of the multimodal projection file on Hugging Face, for a vision model" example:"https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/resolve/main/mmproj-F16.gguf"`
+	ModelURL  string `json:"model_url" description:"URL of the GGUF model file on Hugging Face" example:"https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf" required:"true"`
+	MmprojURL string `json:"model_mmproj_url" description:"URL of the GGUF multimodal projection file on Hugging Face, for a vision model" example:"https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/resolve/main/mmproj-F16.gguf"`
 }
 
 // HandleDownloadModel downloads a model that no models-list.yaml entry declares. The id is
@@ -283,11 +281,9 @@ func HandleDownloadModel(dockerClient command.Cli, modelsIndex *modelsindex.Mode
 // downloadStream sends a handler's download events as SSE, and keeps the model that the
 // handler names. After the stream opens, a failure is an event, not an HTTP status.
 type downloadStream struct {
-	sse *render.SSEStream
-	// progressName replaces the handler's file name. Only a declared install has one.
-	progressName string
-	downloaded   *modelsindex.DownloadedModel
-	failed       bool
+	sse        *render.SSEStream
+	downloaded *modelsindex.DownloadedModel
+	failed     bool
 }
 
 func (d *downloadStream) publish(e modelsindex.StreamMessage) {
@@ -304,7 +300,7 @@ func (d *downloadStream) publish(e modelsindex.StreamMessage) {
 			progress = float32(p.Current) / float32(p.Total) * 100
 		}
 		d.sse.Send(render.SSEEvent{Type: "progress", Data: sseProgress{
-			Name: cmp.Or(d.progressName, p.Name), Current: p.Current, Total: p.Total, Progress: progress,
+			Name: p.Name, Current: p.Current, Total: p.Total, Progress: progress,
 		}})
 	case modelsindex.ErrorType:
 		d.failed = true

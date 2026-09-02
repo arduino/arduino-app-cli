@@ -1019,7 +1019,7 @@ paths:
       description: |-
         Download an AI model from Hugging Face. The progress is a stream of Server-Sent Events.
 
-        "model_url" is the URL of the model file on Hugging Face. It selects one file at one commit. For a vision model, "model_mmproj_url" is the URL of the projection file.
+        "model_url" is the URL of the model file on Hugging Face. It selects one file at one commit. For a vision model, "model_mmproj_url" is the URL of the projection file. Only llama.cpp models are supported: the file must be a GGUF file, and it goes in the llamacpp models directory.
 
         The request has no model id. The downloader makes the id from the file that it writes, and reports it in the "done" event. If the internal model list declares that file, the answer is the declared model.
 
@@ -1069,7 +1069,7 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "500":
           $ref: '#/components/responses/InternalServerError'
-      summary: Download an AI model from Hugging Face
+      summary: Download a llama.cpp model from Hugging Face
       tags:
       - AIModels
   /v1/models/{id}:
@@ -1980,12 +1980,12 @@ components:
     DownloadModelRequest:
       properties:
         model_mmproj_url:
-          description: URL of the multimodal projection file on Hugging Face, for
-            a vision model
+          description: URL of the GGUF multimodal projection file on Hugging Face,
+            for a vision model
           example: https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/resolve/main/mmproj-F16.gguf
           type: string
         model_url:
-          description: URL of the model file on Hugging Face
+          description: URL of the GGUF model file on Hugging Face
           example: https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf
           type: string
       required:

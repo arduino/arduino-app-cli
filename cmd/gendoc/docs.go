@@ -976,7 +976,8 @@ A line of progress information from the handler.
 'data: {"message":"Downloading to: /models/llamacpp/unsloth/SmolLM2-135M-Instruct-GGUF"}'
 
 **Event 'progress'**:
-The bytes transferred for the file in download.
+The bytes transferred for the file in download. "name" is the file name, not the model id. A
+vision model reports the model file and the projection file under their own names.
 'event: progress'
 'data: {"name":"SmolLM2-135M-Instruct-Q4_K_M.gguf","current":75876627,"total":105454144,"progress":71.95}'
 
@@ -1025,7 +1026,8 @@ A line of progress information from the handler.
 'data: {"message":"Downloading to: /models/llamacpp/unsloth/SmolLM2-135M-Instruct-GGUF"}'
 
 **Event 'progress'**:
-The bytes transferred for the file in download.
+The bytes transferred for the file in download. "name" is the file name, not the model id. A
+vision model reports the model file and the projection file under their own names.
 'event: progress'
 'data: {"name":"SmolLM2-135M-Instruct-Q4_K_M.gguf","current":75876627,"total":105454144,"progress":71.95}'
 
@@ -1047,14 +1049,14 @@ every later failure is an error event. A models directory with no free space has
 			},
 			Description: `Download an AI model from Hugging Face. The progress is a stream of Server-Sent Events.
 
-"model_url" is the URL of the model file on Hugging Face. It selects one file at one commit. For a vision model, "model_mmproj_url" is the URL of the projection file.
+"model_url" is the URL of the model file on Hugging Face. It selects one file at one commit. For a vision model, "model_mmproj_url" is the URL of the projection file. Only llama.cpp models are supported: the file must be a GGUF file, and it goes in the llamacpp models directory.
 
 The request has no model id. The downloader makes the id from the file that it writes, and reports it in the "done" event. If the internal model list declares that file, the answer is the declared model.
 
 Hugging Face reads the URL at the download only, so a bad URL is an error event. The request is idempotent: the handler does not transfer a file that is on disk again.
 
 The models-downloader image must contain arduino/app-bricks-py#415 and arduino/app-bricks-py#416, with the llamacpp-runner images from the same release. An older image installs the model, but reports no id, and the stream sends an error event.`,
-			Summary: "Download an AI model from Hugging Face",
+			Summary: "Download a llama.cpp model from Hugging Face",
 			Tags:    []Tag{AIModelsTag},
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
