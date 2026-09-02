@@ -64,8 +64,8 @@ func NewHTTPRouter(
 	mux.Handle("GET /v1/models", handlers.HandleModelsList(modelsIndex))
 	mux.Handle("GET /v1/models/{modelID}", handlers.HandlerModelByID(modelsIndex))
 	mux.Handle("PUT /v1/models/ei/projects/{projectID}", handlers.HandleInstallEIModel(cfg, bricksIndex, modelsIndex, dockerClient, platform))
-	// modelID is either a declared model id or a Hugging Face source to fetch one from.
 	mux.Handle("PUT /v1/models/{modelID}", handlers.HandleInstallModel(dockerClient, modelsIndex, platform))
+	mux.Handle("POST /v1/models", handlers.HandleDownloadModel(dockerClient, modelsIndex, platform))
 	mux.Handle("DELETE /v1/models/{modelID}", handlers.HandlerDeleteModelByID(dockerClient, cfg, modelsIndex, bricksIndex, idProvider, platform))
 
 	mux.Handle("GET /v1/apps", handlers.HandleAppList(dockerClient, idProvider, bricksIndex, cfg, platform))
