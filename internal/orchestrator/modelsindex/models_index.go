@@ -444,13 +444,12 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 }
 
 // DownloadByURL fetches a model no models-list.yaml entry declares, named by a Hugging
-// Face file URL or by the downloader's compact "[type:]repo:quantization" key.
+// Face file URL.
 //
-// The id is not an input: the downloader derives it from the file that arrives, using the
-// same rule the listing does, and reports it on the stream. It is qualified by the
-// repository directory the file landed in, so two owners publishing the same filename stay
-// two models. Disk space is not pre-checked either, because the size is only known once the
-// URL has been resolved against the Hub.
+// The id is not an input: the downloader makes it from the file that arrives, with the same
+// rule as the listing, and reports it on the stream. The id contains the repository
+// directory, so two owners with the same file name stay two models. There is no disk space
+// check, because the size is known only after Hugging Face resolves the URL.
 func (m *ModelsIndex) DownloadByURL(ctx context.Context, cli client.APIClient, modelURL, mmprojURL string, plat platform.Platform, publish func(e StreamMessage)) error {
 	variables := map[string]string{
 		"model_url": modelURL,

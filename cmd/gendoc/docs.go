@@ -963,10 +963,7 @@ Contains a JSON object with the details of an error.
 			// so {modelID} here would collide with them.
 			Path: "/v1/models/{id}",
 			Parameters: (*struct {
-				ModelID string `path:"id" description:"A model id the internal model list declares, or a Hugging Face source to fetch one from: a file URL, or the compact \"[type:]repo:quantization[:mmproj_quantization]\" key. Percent-encode the slashes." example:"llamacpp:unsloth%2FSmolLM2-135M-Instruct-GGUF:Q4_K_M"`
-			})(nil),
-			Request: (*struct {
-				MmprojURL string `json:"model_mmproj_url" description:"Multimodal projection file for a vision model, when the source is a file URL. A compact key names it inline instead, and a declared model needs no body at all." example:"https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/blob/main/mmproj-F16.gguf"`
+				ModelID string `path:"id" description:"The id of a model in the internal model list. Percent-encode the slashes." example:"llamacpp:gemma-3-1b-it-Q4_0"`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "text/event-stream",
@@ -979,43 +976,86 @@ A line of progress information from the handler.
 'data: {"message":"Downloading to: /models/llamacpp/unsloth/SmolLM2-135M-Instruct-GGUF"}'
 
 **Event 'progress'**:
-Bytes transferred for the file being downloaded.
+The bytes transferred for the file in download.
 'event: progress'
 'data: {"name":"SmolLM2-135M-Instruct-Q4_K_M.gguf","current":75876627,"total":105454144,"progress":71.95}'
 
 **Event 'done'**:
-The installed model. A declared model is described by its own entry. For a Hugging Face
-source the downloader assigns the id from the file that arrives, so it is not known to the
-caller before this event, and it is qualified by the repository the file came from.
+The installed model, with the values from its entry in the internal model list.
 'event: done'
 'data: {"id":"llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","name":"unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","status":"installed"}'
 
 **Event 'error'**:
-Contains a JSON object with the details of an error. Everything that can go wrong after the
-stream opens is reported here rather than as an HTTP status, because the 200 and its headers
-are already sent: a download the handler could not complete, and a models directory with no
-room left, which carries the code 'insufficient_storage'.
+Contains a JSON object with the details of an error. The 200 status is sent with the stream, so
+every later failure is an error event. A models directory with no free space has the code
+'insufficient_storage'.
 'event: error'
 'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
 'data: {"code":"insufficient_storage","message":"insufficient disk space to install model"}'
 `,
 			},
-			Description: `Download and install an AI model, streaming the progress as Server-Sent Events.
+			Description: `Install an AI model from the internal model list. The progress is a stream of Server-Sent Events.
 
-The path names either a model the internal model list declares, or a Hugging Face source to fetch one from - a file URL, or the compact "[type:]repo:quantization[:mmproj_quantization]" key. Percent-encode the slashes.
+The path takes a model id, not a download source. An id that no entry declares gives a 404: to download a Hugging Face model, use POST /v1/models. No container starts before the download, because the check reads the model list only.
 
-The internal model list decides which it is: an id it declares is installed as a declared model, and anything else is handed to the Hugging Face downloader. That decision reads the model list alone, so the request starts no container before the download. A path that is neither a declared id nor a source the Hub resolves is therefore reported by the downloader, as a stream error saying the repository does not exist, rather than as a 404.
-
-Nothing is checked before the download starts, and the request is idempotent. A model already on disk is not transferred again: the downloader reports the one it finds and the stream ends in "done" with its item, the same answer a fresh install gives. A declared model whose declaration names no handler, pre-loaded or custom, is installed by that declaration alone and answers "done" at once. A Hugging Face source has no identifier until the downloader assigns one from the file that arrives, so the id in the "done" event is not the one in the path.
-
-Installing from a Hugging Face source requires a models-downloader image that reports "model_id" on its download events (arduino/app-bricks-py#415 and arduino/app-bricks-py#416). An older image installs the model but names nothing, and the stream ends in an error event rather than guess at an id no later request would resolve.`,
-			Summary: "Download and install an AI model",
+The request is idempotent: the handler does not transfer a model that is on disk again. A declaration with no handler installs the model itself, and the stream sends "done" immediately.`,
+			Summary: "Install an AI model from the internal model list",
 			Tags:    []Tag{AIModelsTag},
-			// Only what can be answered before the stream opens. Neither 404 nor 409: no
-			// listing runs, so an id nothing declares cannot be told from one that is
-			// merely absent, and an installed model is answered rather than refused. No
-			// 507 either: the stream is already open by the time disk space is known, so
-			// that arrives as an error event.
+			// Only the failures that come before the stream opens. No 507: the handler
+			// knows the disk space later, so that failure is an event.
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusNotFound, Reference: "#/components/responses/NotFound"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "downloadModel",
+			Method:      http.MethodPost,
+			Path:        "/v1/models",
+			Request:     (*handlers.DownloadModelRequest)(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "text/event-stream",
+				DataStructure: "",
+				Description: `A stream of Server-Sent Events (SSE) reporting the download.
+
+**Event 'message'**:
+A line of progress information from the handler.
+'event: message'
+'data: {"message":"Downloading to: /models/llamacpp/unsloth/SmolLM2-135M-Instruct-GGUF"}'
+
+**Event 'progress'**:
+The bytes transferred for the file in download.
+'event: progress'
+'data: {"name":"SmolLM2-135M-Instruct-Q4_K_M.gguf","current":75876627,"total":105454144,"progress":71.95}'
+
+**Event 'done'**:
+The installed model. A declared model has the values from its own entry. For a download, the
+downloader makes the id from the file that arrives, and adds the repository name. The caller
+does not know that id before this event.
+'event: done'
+'data: {"id":"llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","name":"unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","status":"installed"}'
+
+**Event 'error'**:
+Contains a JSON object with the details of an error. The 200 status is sent with the stream, so
+every later failure is an error event. A models directory with no free space has the code
+'insufficient_storage'.
+'event: error'
+'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+'data: {"code":"insufficient_storage","message":"insufficient disk space to install model"}'
+`,
+			},
+			Description: `Download an AI model from Hugging Face. The progress is a stream of Server-Sent Events.
+
+"model_url" is the URL of the model file on Hugging Face. It selects one file at one commit. For a vision model, "model_mmproj_url" is the URL of the projection file.
+
+The request has no model id. The downloader makes the id from the file that it writes, and reports it in the "done" event. If the internal model list declares that file, the answer is the declared model.
+
+Hugging Face reads the URL at the download only, so a bad URL is an error event. The request is idempotent: the handler does not transfer a file that is on disk again.
+
+The models-downloader image must contain arduino/app-bricks-py#415 and arduino/app-bricks-py#416, with the llamacpp-runner images from the same release. An older image installs the model, but reports no id, and the stream sends an error event.`,
+			Summary: "Download an AI model from Hugging Face",
+			Tags:    []Tag{AIModelsTag},
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
