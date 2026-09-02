@@ -387,6 +387,15 @@ type CreateAppResponse struct {
 	Id *string `json:"id,omitempty"`
 }
 
+// DownloadModelRequest defines model for DownloadModelRequest.
+type DownloadModelRequest struct {
+	// ModelMmprojUrl URL of the multimodal projection file on Hugging Face, for a vision model
+	ModelMmprojUrl *string `json:"model_mmproj_url,omitempty"`
+
+	// ModelUrl URL of the model file on Hugging Face
+	ModelUrl string `json:"model_url"`
+}
+
 // EditRequest defines model for EditRequest.
 type EditRequest struct {
 	Default *bool `json:"default,omitempty"`
@@ -671,12 +680,6 @@ type DeleteAIModelParams struct {
 	Force *bool `form:"force,omitempty" json:"force,omitempty"`
 }
 
-// InstallModelJSONBody defines parameters for InstallModel.
-type InstallModelJSONBody struct {
-	// ModelMmprojUrl Multimodal projection file for a vision model, when the source is a file URL. A compact key names it inline instead, and a declared model needs no body at all.
-	ModelMmprojUrl *string `json:"model_mmproj_url,omitempty"`
-}
-
 // UpdatePropertyJSONBody defines parameters for UpdateProperty.
 type UpdatePropertyJSONBody = string
 
@@ -716,11 +719,11 @@ type EditAppJSONRequestBody = EditRequest
 // CloneAppJSONRequestBody defines body for CloneApp for application/json ContentType.
 type CloneAppJSONRequestBody = CloneRequest
 
+// DownloadModelJSONRequestBody defines body for DownloadModel for application/json ContentType.
+type DownloadModelJSONRequestBody = DownloadModelRequest
+
 // InstallEIModelJSONRequestBody defines body for InstallEIModel for application/json ContentType.
 type InstallEIModelJSONRequestBody InstallEIModelJSONBody
-
-// InstallModelJSONRequestBody defines body for InstallModel for application/json ContentType.
-type InstallModelJSONRequestBody InstallModelJSONBody
 
 // UpdatePropertyJSONRequestBody defines body for UpdateProperty for application/json ContentType.
 type UpdatePropertyJSONRequestBody = UpdatePropertyJSONBody
@@ -904,6 +907,11 @@ type ClientInterface interface {
 	// GetAIModels request
 	GetAIModels(ctx context.Context, params *GetAIModelsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DownloadModelWithBody request with any body
+	DownloadModelWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	DownloadModel(ctx context.Context, body DownloadModelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// InstallEIModelWithBody request with any body
 	InstallEIModelWithBody(ctx context.Context, projectID int, params *InstallEIModelParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -915,10 +923,8 @@ type ClientInterface interface {
 	// GetAIModelDetails request
 	GetAIModelDetails(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// InstallModelWithBody request with any body
-	InstallModelWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	InstallModel(ctx context.Context, id string, body InstallModelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// InstallModel request
+	InstallModel(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetPropertyKeys request
 	GetPropertyKeys(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1406,6 +1412,30 @@ func (c *Client) GetAIModels(ctx context.Context, params *GetAIModelsParams, req
 	return c.Client.Do(req)
 }
 
+func (c *Client) DownloadModelWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDownloadModelRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DownloadModel(ctx context.Context, body DownloadModelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDownloadModelRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) InstallEIModelWithBody(ctx context.Context, projectID int, params *InstallEIModelParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewInstallEIModelRequestWithBody(c.Server, projectID, params, contentType, body)
 	if err != nil {
@@ -1454,20 +1484,8 @@ func (c *Client) GetAIModelDetails(ctx context.Context, id string, reqEditors ..
 	return c.Client.Do(req)
 }
 
-func (c *Client) InstallModelWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewInstallModelRequestWithBody(c.Server, id, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) InstallModel(ctx context.Context, id string, body InstallModelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewInstallModelRequest(c.Server, id, body)
+func (c *Client) InstallModel(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewInstallModelRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -3074,6 +3092,46 @@ func NewGetAIModelsRequest(server string, params *GetAIModelsParams) (*http.Requ
 	return req, nil
 }
 
+// NewDownloadModelRequest calls the generic DownloadModel builder with application/json body
+func NewDownloadModelRequest(server string, body DownloadModelJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewDownloadModelRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewDownloadModelRequestWithBody generates requests for DownloadModel with any type of body
+func NewDownloadModelRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/models")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewInstallEIModelRequest calls the generic InstallEIModel builder with application/json body
 func NewInstallEIModelRequest(server string, projectID int, params *InstallEIModelParams, body InstallEIModelJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -3229,19 +3287,8 @@ func NewGetAIModelDetailsRequest(server string, id string) (*http.Request, error
 	return req, nil
 }
 
-// NewInstallModelRequest calls the generic InstallModel builder with application/json body
-func NewInstallModelRequest(server string, id string, body InstallModelJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewInstallModelRequestWithBody(server, id, "application/json", bodyReader)
-}
-
-// NewInstallModelRequestWithBody generates requests for InstallModel with any type of body
-func NewInstallModelRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
+// NewInstallModelRequest generates requests for InstallModel
+func NewInstallModelRequest(server string, id string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -3266,12 +3313,10 @@ func NewInstallModelRequestWithBody(server string, id string, contentType string
 		return nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
-
-	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -3756,6 +3801,11 @@ type ClientWithResponsesInterface interface {
 	// GetAIModelsWithResponse request
 	GetAIModelsWithResponse(ctx context.Context, params *GetAIModelsParams, reqEditors ...RequestEditorFn) (*GetAIModelsResp, error)
 
+	// DownloadModelWithBodyWithResponse request with any body
+	DownloadModelWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DownloadModelResp, error)
+
+	DownloadModelWithResponse(ctx context.Context, body DownloadModelJSONRequestBody, reqEditors ...RequestEditorFn) (*DownloadModelResp, error)
+
 	// InstallEIModelWithBodyWithResponse request with any body
 	InstallEIModelWithBodyWithResponse(ctx context.Context, projectID int, params *InstallEIModelParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InstallEIModelResp, error)
 
@@ -3767,10 +3817,8 @@ type ClientWithResponsesInterface interface {
 	// GetAIModelDetailsWithResponse request
 	GetAIModelDetailsWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetAIModelDetailsResp, error)
 
-	// InstallModelWithBodyWithResponse request with any body
-	InstallModelWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InstallModelResp, error)
-
-	InstallModelWithResponse(ctx context.Context, id string, body InstallModelJSONRequestBody, reqEditors ...RequestEditorFn) (*InstallModelResp, error)
+	// InstallModelWithResponse request
+	InstallModelWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*InstallModelResp, error)
 
 	// GetPropertyKeysWithResponse request
 	GetPropertyKeysWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetPropertyKeysResp, error)
@@ -4770,6 +4818,37 @@ func (r GetAIModelsResp) ContentType() string {
 	return ""
 }
 
+type DownloadModelResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r DownloadModelResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DownloadModelResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DownloadModelResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type InstallEIModelResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4873,6 +4952,7 @@ type InstallModelResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON400      *BadRequest
+	JSON404      *NotFound
 	JSON500      *InternalServerError
 }
 
@@ -5518,6 +5598,23 @@ func (c *ClientWithResponses) GetAIModelsWithResponse(ctx context.Context, param
 	return ParseGetAIModelsResp(rsp)
 }
 
+// DownloadModelWithBodyWithResponse request with arbitrary body returning *DownloadModelResp
+func (c *ClientWithResponses) DownloadModelWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DownloadModelResp, error) {
+	rsp, err := c.DownloadModelWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDownloadModelResp(rsp)
+}
+
+func (c *ClientWithResponses) DownloadModelWithResponse(ctx context.Context, body DownloadModelJSONRequestBody, reqEditors ...RequestEditorFn) (*DownloadModelResp, error) {
+	rsp, err := c.DownloadModel(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDownloadModelResp(rsp)
+}
+
 // InstallEIModelWithBodyWithResponse request with arbitrary body returning *InstallEIModelResp
 func (c *ClientWithResponses) InstallEIModelWithBodyWithResponse(ctx context.Context, projectID int, params *InstallEIModelParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InstallEIModelResp, error) {
 	rsp, err := c.InstallEIModelWithBody(ctx, projectID, params, contentType, body, reqEditors...)
@@ -5553,17 +5650,9 @@ func (c *ClientWithResponses) GetAIModelDetailsWithResponse(ctx context.Context,
 	return ParseGetAIModelDetailsResp(rsp)
 }
 
-// InstallModelWithBodyWithResponse request with arbitrary body returning *InstallModelResp
-func (c *ClientWithResponses) InstallModelWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InstallModelResp, error) {
-	rsp, err := c.InstallModelWithBody(ctx, id, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseInstallModelResp(rsp)
-}
-
-func (c *ClientWithResponses) InstallModelWithResponse(ctx context.Context, id string, body InstallModelJSONRequestBody, reqEditors ...RequestEditorFn) (*InstallModelResp, error) {
-	rsp, err := c.InstallModel(ctx, id, body, reqEditors...)
+// InstallModelWithResponse request returning *InstallModelResp
+func (c *ClientWithResponses) InstallModelWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*InstallModelResp, error) {
+	rsp, err := c.InstallModel(ctx, id, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -6897,6 +6986,39 @@ func ParseGetAIModelsResp(rsp *http.Response) (*GetAIModelsResp, error) {
 	return response, nil
 }
 
+// ParseDownloadModelResp parses an HTTP response from a DownloadModelWithResponse call
+func ParseDownloadModelResp(rsp *http.Response) (*DownloadModelResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DownloadModelResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseInstallEIModelResp parses an HTTP response from a InstallEIModelWithResponse call
 func ParseInstallEIModelResp(rsp *http.Response) (*InstallEIModelResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -7058,6 +7180,13 @@ func ParseInstallModelResp(rsp *http.Response) (*InstallModelResp, error) {
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
