@@ -278,10 +278,17 @@ func HandleDownloadModel(dockerClient command.Cli, modelsIndex *modelsindex.Mode
 	}
 }
 
+// sseSender is the part of render.SSEStream a download needs. An interface so a test can
+// read the events back without an http.ResponseWriter and the stream's goroutine.
+type sseSender interface {
+	Send(event render.SSEEvent)
+	SendError(event render.SSEErrorData)
+}
+
 // downloadStream sends a handler's download events as SSE, and keeps the model that the
 // handler names. After the stream opens, a failure is an event, not an HTTP status.
 type downloadStream struct {
-	sse        *render.SSEStream
+	sse        sseSender
 	downloaded *modelsindex.DownloadedModel
 	failed     bool
 }

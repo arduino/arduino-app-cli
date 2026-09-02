@@ -6,12 +6,23 @@
 package handlers
 
 import (
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/arduino/go-paths-helper"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/platform"
+	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
 // TestInstalledModel covers the install route's last step: describing what the handler
@@ -79,4 +90,213 @@ func TestInstalledModel(t *testing.T) {
 		assert.Equal(t, modelsindex.InstalledStatus, model.Status)
 		assert.Equal(t, uint64(1000), model.Size)
 	})
+}
+
+// fakeSSE records what a download published, in order.
+type fakeSSE struct {
+	events []render.SSEEvent
+	errors []render.SSEErrorData
+}
+
+func (f *fakeSSE) Send(event render.SSEEvent)          { f.events = append(f.events, event) }
+func (f *fakeSSE) SendError(event render.SSEErrorData) { f.errors = append(f.errors, event) }
+
+func (f *fakeSSE) types() []string {
+	types := make([]string, 0, len(f.events))
+	for _, e := range f.events {
+		types = append(types, e.Type)
+	}
+	return types
+}
+
+// TestDownloadStream covers the translation from a handler's events to SSE, which both
+// install routes share. The "done" event is not built here: the route owns it, because
+// only the route knows whether a declaration describes the model.
+func TestDownloadStream(t *testing.T) {
+	t.Run("an info line becomes a message", func(t *testing.T) {
+		sse := &fakeSSE{}
+		stream := &downloadStream{sse: sse}
+
+		stream.publish(modelsindex.NewInfoMessage("Downloading to: /models/llamacpp", nil))
+
+		require.Equal(t, []string{"message"}, sse.types())
+		assert.Equal(t, sseLog{Message: "Downloading to: /models/llamacpp"}, sse.events[0].Data)
+		assert.False(t, stream.failed)
+		assert.Nil(t, stream.downloaded)
+	})
+
+	t.Run("a progress line reports the file name and a percentage", func(t *testing.T) {
+		sse := &fakeSSE{}
+		stream := &downloadStream{sse: sse}
+
+		stream.publish(modelsindex.NewProgressMessage(modelsindex.Progress{
+			Name: "a-model-Q4_0.gguf", Current: 50, Total: 200,
+		}))
+
+		require.Equal(t, []string{"progress"}, sse.types())
+		assert.Equal(t, sseProgress{
+			Name: "a-model-Q4_0.gguf", Current: 50, Total: 200, Progress: 25,
+		}, sse.events[0].Data)
+	})
+
+	t.Run("a progress line with no total reports no progress", func(t *testing.T) {
+		// A handler that has not resolved the size yet sends total 0. Dividing by it would
+		// put +Inf or NaN in the stream, which is not valid JSON.
+		sse := &fakeSSE{}
+		stream := &downloadStream{sse: sse}
+
+		stream.publish(modelsindex.NewProgressMessage(modelsindex.Progress{
+			Name: "a-model-Q4_0.gguf", Current: 50, Total: 0,
+		}))
+
+		require.Equal(t, []string{"progress"}, sse.types())
+		assert.Equal(t, float32(0), sse.events[0].Data.(sseProgress).Progress)
+	})
+
+	t.Run("an error line is sent and marks the download failed", func(t *testing.T) {
+		// The route reads failed to stop before "done": the 200 is already sent, so the
+		// only way to report the failure is the event.
+		sse := &fakeSSE{}
+		stream := &downloadStream{sse: sse}
+
+		stream.publish(modelsindex.NewErrorMessage("repository does not exist"))
+
+		require.Equal(t, []string{"error"}, sse.types())
+		assert.Equal(t, "repository does not exist", sse.events[0].Data)
+		assert.True(t, stream.failed)
+	})
+
+	t.Run("the handler's own done line is a message, not the route's done", func(t *testing.T) {
+		sse := &fakeSSE{}
+		stream := &downloadStream{sse: sse}
+
+		stream.publish(modelsindex.NewDoneMessage("download complete"))
+
+		require.Equal(t, []string{"message"}, sse.types())
+		assert.Equal(t, sseLog{Message: "download complete"}, sse.events[0].Data)
+	})
+
+	t.Run("the model the handler names is kept, and a later line does not clear it", func(t *testing.T) {
+		// The id of an undeclared model exists only in this event, so losing it costs the
+		// route its answer.
+		sse := &fakeSSE{}
+		stream := &downloadStream{sse: sse}
+		named := &modelsindex.DownloadedModel{ID: "llamacpp:owner/repo/a-model-Q4_0", Size: 1024}
+
+		stream.publish(modelsindex.NewInfoMessage("Downloaded to: /models/llamacpp/owner/repo", named))
+		stream.publish(modelsindex.NewInfoMessage("Generated models.ini with 2 model(s)", nil))
+
+		require.NotNil(t, stream.downloaded)
+		assert.Equal(t, "llamacpp:owner/repo/a-model-Q4_0", stream.downloaded.ID)
+		assert.Equal(t, uint64(1024), stream.downloaded.Size)
+	})
+}
+
+func TestDownloadStreamSendError(t *testing.T) {
+	t.Run("a full models directory carries its own code", func(t *testing.T) {
+		// Wrapped, as Download reports it: the client shows a different message for a
+		// disk that is full than for a download that broke.
+		sse := &fakeSSE{}
+		stream := &downloadStream{sse: sse}
+
+		stream.sendError(fmt.Errorf("cannot download: %w", modelsindex.ErrInsufficientStorage))
+
+		require.Len(t, sse.errors, 1)
+		assert.Equal(t, render.SSEErrCode("insufficient_storage"), sse.errors[0].Code)
+	})
+
+	t.Run("anything else is an internal error carrying the reason", func(t *testing.T) {
+		sse := &fakeSSE{}
+		stream := &downloadStream{sse: sse}
+
+		stream.sendError(errors.New("handler exited with status 1"))
+
+		require.Len(t, sse.errors, 1)
+		assert.Equal(t, render.InternalServiceErr, sse.errors[0].Code)
+		assert.Equal(t, "handler exited with status 1", sse.errors[0].Message)
+	})
+}
+
+// sseRecorder is a ResponseRecorder that render.NewSSEStream accepts: it wants a writer
+// it can set a write deadline on, which the recorder alone does not provide.
+type sseRecorder struct{ *httptest.ResponseRecorder }
+
+func (sseRecorder) SetWriteDeadline(time.Time) error { return nil }
+
+func testModelsIndex(t *testing.T) *modelsindex.ModelsIndex {
+	t.Helper()
+	idx, err := modelsindex.Load(platform.GetPlatform(nil), paths.New("testdata"),
+		paths.New(t.TempDir()), nil, nil, config.Configuration{})
+	require.NoError(t, err)
+	return idx
+}
+
+// TestHandleInstallModel covers what the install route answers before its stream opens.
+// Everything here is decided by the declaration alone, so no container runs and the
+// docker client is never touched.
+func TestHandleInstallModel(t *testing.T) {
+	t.Run("an id the model list does not declare is a 404, not a stream", func(t *testing.T) {
+		// The failure has to arrive as a status: once the stream opens the 200 is sent and
+		// a client can no longer tell a bad request from a broken download.
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPut, "/v1/models/llamacpp:owner%2Frepo:Q4_0", nil)
+		req.SetPathValue("modelID", "llamacpp:owner/repo:Q4_0")
+
+		HandleInstallModel(nil, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
+
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+		assert.NotContains(t, rec.Header().Get("Content-Type"), "text/event-stream")
+		assert.Contains(t, rec.Body.String(), "POST /v1/models",
+			"the answer names the route that does download an undeclared model")
+	})
+
+	t.Run("a declaration that installs the model answers done at once", func(t *testing.T) {
+		// Pre-loaded: there is no handler to run, and no progress to report.
+		rec := sseRecorder{httptest.NewRecorder()}
+		req := httptest.NewRequest(http.MethodPut, "/v1/models/a-preloaded-model", nil)
+		req.SetPathValue("modelID", "a-preloaded-model")
+
+		HandleInstallModel(nil, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
+
+		assert.Contains(t, rec.Header().Get("Content-Type"), "text/event-stream")
+		body := rec.Body.String()
+		assert.Contains(t, body, "event: done")
+		assert.Contains(t, body, `"id":"a-preloaded-model"`)
+		assert.Contains(t, body, `"status":"installed"`)
+		assert.NotContains(t, body, "event: progress")
+	})
+
+	t.Run("no id at all is a bad request", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPut, "/v1/models/", nil)
+
+		HandleInstallModel(nil, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
+
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+}
+
+// TestHandleDownloadModel covers the body checks. A well-formed url is not tested here:
+// it starts the downloader container, which is a hardware test.
+func TestHandleDownloadModel(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body string
+	}{
+		{"an absent body", ""},
+		{"a body that is not json", "not json"},
+		{"a body naming no url", `{}`},
+		{"an empty url", `{"model_url":""}`},
+		{"a url of nothing but spaces", `{"model_url":"   "}`},
+	} {
+		t.Run(tc.name+" is a bad request", func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/v1/models", strings.NewReader(tc.body))
+
+			HandleDownloadModel(nil, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
+
+			assert.Equal(t, http.StatusBadRequest, rec.Code)
+			assert.NotContains(t, rec.Header().Get("Content-Type"), "text/event-stream")
+		})
+	}
 }
