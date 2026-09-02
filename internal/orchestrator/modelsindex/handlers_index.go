@@ -178,9 +178,32 @@ type handlerModelListOutput struct {
 }
 
 type entryMetadata struct {
-	ModelID string            `json:"model_id"`
-	Handler string            `json:"handler"` // a handler id, e.g. "hf-handler"
-	Inputs  map[string]string `json:"inputs"`
+	ModelID      string            `json:"model_id"`
+	Handler      string            `json:"handler"` // a handler id, e.g. "hf-handler"
+	DownloadedAt string            `json:"downloaded_at"`
+	Inputs       map[string]string `json:"inputs"`
+}
+
+// source reads the record as the model's origin story: the links asked for, and when they
+// were fetched. The other inputs stay out of it. models_repository is fixed by
+// DownloadByURL rather than chosen, and model_directory is the URL's own repository path,
+// so neither tells a client anything the URL does not.
+//
+// Nil for a record that names no URL, which is every handler but Hugging Face: an AI Hub
+// or Edge Impulse model is identified by project and version numbers, not by a link.
+func (md *entryMetadata) source() *ModelSource {
+	if md == nil {
+		return nil
+	}
+	modelURL := md.Inputs["model_url"]
+	if modelURL == "" {
+		return nil
+	}
+	return &ModelSource{
+		ModelURL:     modelURL,
+		MmprojURL:    md.Inputs["model_mmproj_url"],
+		DownloadedAt: md.DownloadedAt,
+	}
 }
 
 type handlerModelEntry struct {
@@ -205,6 +228,9 @@ func (e handlerModelEntry) applyStat(m *AIModel) {
 		m.Status = NotInstalledStatus
 	}
 	m.Downloading = e.Downloading
+	if source := e.Metadata.source(); source != nil {
+		m.Source = source
+	}
 	if e.Installed && e.DiskSizeMB != nil && *e.DiskSizeMB > 0 {
 		m.Size = uint64(*e.DiskSizeMB * 1024 * 1024)
 	} else if e.ModelSizeMB != nil && *e.ModelSizeMB > 0 {
@@ -287,6 +313,7 @@ func (h *HandlersIndex) userDownloadModel(entry handlerModelEntry) (AIModel, boo
 		Name:      entry.Name,
 		IsBuiltIn: false,
 		Origin:    UserOrigin,
+		Source:    md.source(),
 		Bricks:    []BrickConfig{{ID: llmBrickID}},
 		Deployment: &ModelDeployment{
 			Handler: md.Handler,

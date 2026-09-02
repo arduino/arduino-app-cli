@@ -84,14 +84,30 @@ type AIModel struct {
 	SupportedBoards []string          `yaml:"supported_boards,omitempty"`
 	Deployment      *ModelDeployment  `yaml:"deployment,omitempty"`
 
-	IsBuiltIn bool        `yaml:"-"` // a model is considered built-in if it is in the models-list.yaml and the "pre-loaded" flag is true
-	Origin    ModelOrigin `yaml:"-"`
-	Status    ModelStatus `yaml:"-"`
-	Size      uint64      `yaml:"-"`
+	IsBuiltIn bool         `yaml:"-"` // a model is considered built-in if it is in the models-list.yaml and the "pre-loaded" flag is true
+	Origin    ModelOrigin  `yaml:"-"`
+	Source    *ModelSource `yaml:"-"`
+	Status    ModelStatus  `yaml:"-"`
+	Size      uint64       `yaml:"-"`
 	// Downloading comes from the handler's on-disk ".download" marker, so it covers an
 	// interrupted download too. TODO(#585): reconcile with AcquireDownload, which guards
 	// concurrent runs into one directory but holds no state across a restart.
 	Downloading bool `yaml:"-"`
+}
+
+// ModelSource is where an installed model came from, as the downloader recorded it when
+// the files landed. It answers "which link is this model", which no other field can: the
+// id names the repository directory and the file, and says nothing about the request that
+// produced them.
+//
+// Only a model downloaded from a URL carries one that is worth reading. A curated model's
+// source is its models-list.yaml entry, which is the thing to read for it instead. It is
+// nil whenever the record is missing - an install older than the record, or a listing that
+// did not run - so absent never means "up to date".
+type ModelSource struct {
+	ModelURL     string `json:"model_url"`
+	MmprojURL    string `json:"model_mmproj_url,omitempty"`
+	DownloadedAt string `json:"downloaded_at,omitempty"`
 }
 
 type ModelStatus string
