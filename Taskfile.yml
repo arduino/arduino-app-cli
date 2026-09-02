@@ -260,6 +260,68 @@ tasks:
       - adb push ./build/arduino-app-cli_*_arm64.deb /tmp/
       - ./scripts/run-remote-sudo.sh "dpkg -i /tmp/arduino-app-cli*_arm64.deb && needrestart -r a"
 
+  # Publishes the working tree on the board as the update that `system update`
+  # will offer, by turning a locally built package into an apt repository the
+  # board follows. The package must come from the working tree and not from a
+  # release, because the update path depends on files shipped by the package
+  # itself: both ends of the upgrade have to carry the code under test.
+  #
+  # The board is reached over adb by default; set BOARD (e.g.
+  # BOARD=arduino@my-board.local, also via `.env.local`) to use ssh instead, and
+  # BOARD_PASSWORD to skip the password prompts.
+  board:publish-update:
+    desc: Build the working tree as a .deb and publish it on the board as the available update
+    interactive: true
+    vars:
+      REPO_DIR: ./build/local-apt-repo
+      STAGING_DIR: /tmp/arduino-app-cli-local-repo
+      BOARD_REPO_DIR: /opt/arduino-app-cli-local-repo
+      SOURCE_LIST: /etc/apt/sources.list.d/arduino-app-cli-local.list
+      # A version that outranks whatever the official repository offers, so apt
+      # picks the local build as the candidate.
+      LOCAL_VERSION:
+        sh: echo "${LOCAL_VERSION:-99.0.0+$(git rev-parse --short HEAD)}"
+    cmds:
+      - rm -rf {{ .REPO_DIR }}
+      - task: build-deb
+        vars:
+          VERSION: "{{ .LOCAL_VERSION }}"
+          OUTPUT: "{{ .REPO_DIR }}"
+      - ./scripts/build-apt-repo.sh {{ .REPO_DIR }}
+      - ./scripts/board-push.sh {{ .REPO_DIR }} {{ .STAGING_DIR }}
+      - |
+          ./scripts/board-sudo.sh "$(cat <<'EOS'
+          set -e
+          rm -rf {{ .BOARD_REPO_DIR }}
+          mkdir -p {{ .BOARD_REPO_DIR }}
+          cp -r {{ .STAGING_DIR }}/. {{ .BOARD_REPO_DIR }}/
+          rm -rf {{ .STAGING_DIR }}
+          chown -R root:root {{ .BOARD_REPO_DIR }}
+          chmod -R a+rX {{ .BOARD_REPO_DIR }}
+          printf 'deb [trusted=yes] file:%s ./\n' {{ .BOARD_REPO_DIR }} > {{ .SOURCE_LIST }}
+          apt-get update
+          apt-cache policy arduino-app-cli
+          EOS
+          )"
+      - echo "Version {{ .LOCAL_VERSION }} published, 'system update' on the board now offers it."
+
+  board:publish-update:clean:
+    desc: Remove the locally published update from the board, restoring the official repository
+    interactive: true
+    vars:
+      BOARD_REPO_DIR: /opt/arduino-app-cli-local-repo
+      SOURCE_LIST: /etc/apt/sources.list.d/arduino-app-cli-local.list
+    cmds:
+      - |
+          ./scripts/board-sudo.sh "$(cat <<'EOS'
+          set -e
+          rm -f {{ .SOURCE_LIST }}
+          rm -rf {{ .BOARD_REPO_DIR }}
+          apt-get update
+          apt-cache policy arduino-app-cli
+          EOS
+          )"
+
   bump:runner-version:
     desc: Update the RunnerVersion constant in config.go to match RUNNER_VERSION.
     vars:
