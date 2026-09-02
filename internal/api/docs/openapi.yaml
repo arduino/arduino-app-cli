@@ -1047,7 +1047,8 @@ paths:
             'data: {"message":"Downloading to: /models/llamacpp/unsloth/SmolLM2-135M-Instruct-GGUF"}'
 
             **Event 'progress'**:
-            The bytes transferred for the file in download.
+            The bytes transferred for the file in download. "name" is the file name, not the model id. A
+            vision model reports the model file and the projection file under their own names.
             'event: progress'
             'data: {"name":"SmolLM2-135M-Instruct-Q4_K_M.gguf","current":75876627,"total":105454144,"progress":71.95}'
 
@@ -1162,7 +1163,8 @@ paths:
             'data: {"message":"Downloading to: /models/llamacpp/unsloth/SmolLM2-135M-Instruct-GGUF"}'
 
             **Event 'progress'**:
-            The bytes transferred for the file in download.
+            The bytes transferred for the file in download. "name" is the file name, not the model id. A
+            vision model reports the model file and the projection file under their own names.
             'event: progress'
             'data: {"name":"SmolLM2-135M-Instruct-Q4_K_M.gguf","current":75876627,"total":105454144,"progress":71.95}'
 
