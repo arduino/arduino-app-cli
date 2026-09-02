@@ -181,6 +181,20 @@ func (l *Lookup) listing(ctx context.Context) error {
 	return l.err
 }
 
+// ByAnyID resolves the first id that names a model, running the listing at most once for
+// all of them. It exists for the models path, which carries an id either plainly or
+// base64url encoded and cannot tell which without asking: an id the model list declares
+// answers on the first try, and an encoded one answers on the second.
+func (l *Lookup) ByAnyID(ctx context.Context, ids ...string) (*AIModel, error) {
+	for _, id := range ids {
+		model, err := l.ByID(ctx, id)
+		if model != nil || err != nil {
+			return model, err
+		}
+	}
+	return nil, nil
+}
+
 func (l *Lookup) ByID(ctx context.Context, id string) (*AIModel, error) {
 	if model, ok := l.idx.declaredModel(id); ok {
 		return model, nil
@@ -276,6 +290,11 @@ func (m *ModelsIndex) GetModels(ctx context.Context) []AIModel {
 
 func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, error) {
 	return m.NewLookup().ByID(ctx, id)
+}
+
+// GetModelByAnyID resolves a model named by any one of ids, with a single listing.
+func (m *ModelsIndex) GetModelByAnyID(ctx context.Context, ids ...string) (*AIModel, error) {
+	return m.NewLookup().ByAnyID(ctx, ids...)
 }
 
 // GetModelsByBrick returns the models that are associated with the given brick name.

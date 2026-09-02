@@ -6,6 +6,7 @@
 package handlers
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/docker/cli/cli/command"
 
@@ -46,20 +48,48 @@ func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	}
 }
 
+// modelIDsFromPath reads the id a models path names, as the ids it could be.
+//
+// An id the internal model list declares is a bare name and travels as it is. A model no
+// entry declares is named by the repository the file came from, so its id holds slashes,
+// and it travels base64url encoded, unpadded - the encoding app ids already use, see
+// appid.Provider.IDFromBase64. A percent-encoded id is refused: it makes the request
+// depend on nothing in the path normalising %2F, which this API cannot promise.
+//
+// Both forms come back because nothing here can tell them apart - an id and its encoding
+// are both plain text - so the caller resolves them in order and the model list decides.
+// Responses always carry the plain id; a client encodes only to build a URL.
+func modelIDsFromPath(r *http.Request) ([]string, error) {
+	segment := strings.TrimSpace(r.PathValue("modelID"))
+	if segment == "" {
+		return nil, errors.New("model id must be set")
+	}
+	if strings.Contains(segment, "/") {
+		return nil, errors.New("a model id holding slashes travels base64url encoded, not percent-encoded")
+	}
+	ids := []string{segment}
+	if decoded, err := base64.RawURLEncoding.DecodeString(segment); err == nil && utf8.Valid(decoded) {
+		if id := strings.TrimSpace(string(decoded)); id != "" && id != segment {
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
+}
+
 func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("modelID")
-		if id == "" {
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "id must be set"})
+		ids, err := modelIDsFromPath(r)
+		if err != nil {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
 			return
 		}
-		res, found, err := orchestrator.AIModelDetails(r.Context(), modelsIndex, id)
+		res, found, err := orchestrator.AIModelDetails(r.Context(), modelsIndex, ids...)
 		if err != nil {
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: err.Error()})
 			return
 		}
 		if !found {
-			details := fmt.Sprintf("models with id %q not found", id)
+			details := fmt.Sprintf("models with id %q not found", ids[len(ids)-1])
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})
 			return
 		}
@@ -69,9 +99,9 @@ func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 
 func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, idProvider *appid.Provider, platform platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := strings.TrimSpace(r.PathValue("modelID"))
-		if id == "" {
-			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "id must be set"})
+		ids, err := modelIDsFromPath(r)
+		if err != nil {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
 			return
 		}
 		forceRaw := r.URL.Query().Get("force")
@@ -80,7 +110,7 @@ func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, 
 			force = false
 		}
 
-		err = orchestrator.AIModelDelete(r.Context(), dockerClient, cfg, modelsIndex, bricksIndex, platform, id, idProvider, force)
+		err = orchestrator.AIModelDelete(r.Context(), dockerClient, cfg, modelsIndex, bricksIndex, platform, ids, idProvider, force)
 		if err != nil {
 			switch {
 			case errors.Is(err, orchestrator.ErrNotFound):
@@ -184,16 +214,22 @@ type sseLog struct {
 // downloads a model that no entry declares.
 func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := strings.TrimSpace(r.PathValue("modelID"))
-		if id == "" {
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "model ID must be set"})
+		ids, err := modelIDsFromPath(r)
+		if err != nil {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
 			return
 		}
 
 		// The declaration alone answers this, so no listing container runs.
-		declared, found := modelsIndex.DeclaredByID(id)
-		if !found {
-			details := fmt.Sprintf("no model with id %q is declared; download a Hugging Face model with POST /v1/models", id)
+		var declared *modelsindex.AIModel
+		for _, id := range ids {
+			if model, found := modelsIndex.DeclaredByID(id); found {
+				declared = model
+				break
+			}
+		}
+		if declared == nil {
+			details := fmt.Sprintf("no model with id %q is declared; download a Hugging Face model with POST /v1/models", ids[len(ids)-1])
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})
 			return
 		}
