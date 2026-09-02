@@ -265,14 +265,10 @@ tasks:
     vars:
       DLV_LOCAL: ./build/dlv-arm64
       DLV_BOARD_PATH: /home/arduino/go/bin/dlv
-    status:
-      - adb shell test -x {{.DLV_BOARD_PATH}}
+    env:
+      GOTOOLCHAIN: local
     cmds:
-      # delve is not a module dependency, so `go build <pkg>` cannot resolve it,
-      # and `go install` refuses an explicit GOBIN when cross-compiling: the
-      # binary lands in GOPATH/bin/<goos>_<goarch> instead.
-      - CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go install github.com/go-delve/delve/cmd/dlv@latest
-      - cp "$(go env GOPATH)/bin/linux_arm64/dlv" {{.DLV_LOCAL}}
+      - CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o {{.DLV_LOCAL}} github.com/go-delve/delve/cmd/dlv
       - adb shell mkdir -p /home/arduino/go/bin
       - adb push {{.DLV_LOCAL}} {{.DLV_BOARD_PATH}}
       - adb shell chmod +x {{.DLV_BOARD_PATH}}
@@ -286,13 +282,15 @@ tasks:
       BOARD_PATH: /home/arduino/arduino-app-cli-debug
       DLV_PORT: '{{.DLV_PORT | default "2345"}}'
       APP_PORT: '{{.APP_PORT | default "8801"}}'
+    env:
+      GOTOOLCHAIN: local
     cmds:
       - CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -gcflags="all=-N -l" -o {{.DEBUG_BINARY}} ./cmd/arduino-app-cli
       - adb push {{.DEBUG_BINARY}} {{.BOARD_PATH}}
       - adb shell chmod +x {{.BOARD_PATH}}
       - adb forward tcp:{{.DLV_PORT}} tcp:{{.DLV_PORT}}
       - adb forward tcp:{{.APP_PORT}} tcp:{{.APP_PORT}}
-      - adb shell "/home/arduino/go/bin/dlv --listen=:{{.DLV_PORT}} --headless --api-version=2 --accept-multiclient exec {{.BOARD_PATH}} -- daemon --port {{.APP_PORT}} --log-level debug"
+      - adb shell "/home/arduino/go/bin/dlv --listen=:{{.DLV_PORT}} --headless --api-version=2 exec {{.BOARD_PATH}} -- daemon --port {{.APP_PORT}} --log-level debug"
 
   board:debug-cli:
     desc: 'Build a debug binary, deploy to board and start dlv headless for a one-shot CLI command. Invoke as: CLI_ARGS="app start ..." task board:debug-cli'
@@ -302,12 +300,14 @@ tasks:
       DEBUG_BINARY: ./build/arduino-app-cli-debug
       BOARD_PATH: /home/arduino/arduino-app-cli-debug
       DLV_PORT: '{{.DLV_PORT | default "2345"}}'
+    env:
+      GOTOOLCHAIN: local
     cmds:
       - CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -gcflags="all=-N -l" -o {{.DEBUG_BINARY}} ./cmd/arduino-app-cli
       - adb push {{.DEBUG_BINARY}} {{.BOARD_PATH}}
       - adb shell chmod +x {{.BOARD_PATH}}
       - adb forward tcp:{{.DLV_PORT}} tcp:{{.DLV_PORT}}
-      - adb shell "DOCKER_REGISTRY_BASE=${DOCKER_REGISTRY_BASE:-ghcr.io/arduino/} /home/arduino/go/bin/dlv --listen=:{{.DLV_PORT}} --headless --api-version=2 --accept-multiclient exec {{.BOARD_PATH}} -- ${CLI_ARGS:-app list}"
+      - adb shell "DOCKER_REGISTRY_BASE=${DOCKER_REGISTRY_BASE:-ghcr.io/arduino/} /home/arduino/go/bin/dlv --listen=:{{.DLV_PORT}} --headless --api-version=2 exec {{.BOARD_PATH}} -- ${CLI_ARGS:-app list}"
 
   bump:runner-version:
     desc: Update the RunnerVersion constant in config.go to match RUNNER_VERSION.
