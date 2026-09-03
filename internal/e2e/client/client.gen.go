@@ -391,8 +391,8 @@ type CreateAppResponse struct {
 
 // DownloadModelRequest defines model for DownloadModelRequest.
 type DownloadModelRequest struct {
-	// ModelMmprojUrl URL of the GGUF multimodal projection file on Hugging Face, for a vision model
-	ModelMmprojUrl *string `json:"model_mmproj_url,omitempty"`
+	// MmprojUrl URL of the GGUF multimodal projection file on Hugging Face, for a vision model
+	MmprojUrl *string `json:"mmproj_url,omitempty"`
 
 	// ModelUrl URL of the GGUF model file on Hugging Face
 	ModelUrl string `json:"model_url"`
