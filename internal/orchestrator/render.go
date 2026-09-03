@@ -56,16 +56,25 @@ var hostFuncs = template.FuncMap{
 // renderComposeFile writes the compose file the app is started with: the template
 // evaluated on this board, with its includes merged in.
 func renderComposeFile(ctx context.Context, arduinoApp *app.ArduinoApp, env, secrets types.Mapping) (*types.Project, error) {
-	templateFile := arduinoApp.AppComposeTemplateFilePath()
-	content, err := templateFile.ReadFile()
-	if err != nil {
-		return nil, fmt.Errorf("cannot read %s: %w", templateFile, err)
+	// The overrides are a second compose file, merged over the main one. It is absent
+	// when no included compose declares a service.
+	templateFiles := paths.PathList{arduinoApp.AppComposeTemplateFilePath()}
+	if override := arduinoApp.AppComposeOverrideTemplateFilePath(); override.Exist() {
+		templateFiles.Add(override)
 	}
-	rendered, err := renderComposeTemplate(content)
-	if err != nil {
-		return nil, fmt.Errorf("cannot render %s: %w", templateFile, err)
+
+	configFiles := make([]types.ConfigFile, 0, len(templateFiles))
+	for _, templateFile := range templateFiles {
+		content, err := templateFile.ReadFile()
+		if err != nil {
+			return nil, fmt.Errorf("cannot read %s: %w", templateFile, err)
+		}
+		rendered, err := renderComposeTemplate(content)
+		if err != nil {
+			return nil, fmt.Errorf("cannot render %s: %w", templateFile, err)
+		}
+		configFiles = append(configFiles, types.ConfigFile{Filename: templateFile.String(), Content: rendered})
 	}
-	configFiles := []types.ConfigFile{{Filename: templateFile.String(), Content: rendered}}
 
 	prj, err := loader.LoadWithContext(ctx,
 		types.ConfigDetails{

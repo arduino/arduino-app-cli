@@ -116,8 +116,9 @@ bricks:
 	require.NoError(t, err, "Failed to generate main compose file")
 	composeFilePath := app.AppComposeTemplateFilePath()
 	require.True(t, composeFilePath.Exist(), "Main compose file should exist")
-	// The overrides of the included services are in the main template
-	overridesContent, err := composeFilePath.ReadFile()
+	overridesFilePath := app.AppComposeOverrideTemplateFilePath()
+	require.True(t, overridesFilePath.Exist(), "Override compose template should exist")
+	overridesContent, err := overridesFilePath.ReadFile()
 	require.NoError(t, err)
 
 	type services struct {
@@ -658,8 +659,9 @@ bricks:
 	require.NoError(t, err, "Failed to generate main compose file")
 	composeFilePath := app.AppComposeTemplateFilePath()
 	require.True(t, composeFilePath.Exist(), "Main compose file should exist")
-	// The overrides of the included services are in the main template
-	overridesContent, err := composeFilePath.ReadFile()
+	overridesFilePath := app.AppComposeOverrideTemplateFilePath()
+	require.True(t, overridesFilePath.Exist(), "Override compose template should exist")
+	overridesContent, err := overridesFilePath.ReadFile()
 	require.NoError(t, err)
 
 	type services struct {

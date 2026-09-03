@@ -236,10 +236,10 @@ func generateComposeTemplate(
 	},
 	}
 
-	// The services the included composes declare are overridden here: what a file
-	// includes is merged under its own services.
-	for name, override := range servicesOverrides(services, appUserExpr, appEnv, deviceDrivers, groupNames) {
-		mainAppCompose.Services[name] = override
+	// A compose file cannot declare a service it also includes, so the overrides of the
+	// included services go in a template of their own.
+	if err := writeOverrideTemplate(genPath, services, appEnv, deviceDrivers, groupNames); err != nil {
+		return err
 	}
 
 	// Write the main compose file
@@ -256,8 +256,29 @@ func generateComposeTemplate(
 	return nil
 }
 
-// provisionComposeVolumes creates the bind sources of the services, which docker would
-// otherwise create as root.
+func writeOverrideTemplate(genPath *paths.Path, services []serviceInfo, appEnv types.Mapping, deviceDrivers, groupNames []string) error {
+	overrideTemplateFile := genPath.Join(app.OverrideTemplateFileName)
+
+	// A leftover from a previous resolve would keep overriding services the app no longer has.
+	if len(services) == 0 {
+		slog.Debug("No services to override, skipping override compose template generation")
+		if overrideTemplateFile.Exist() {
+			if err := overrideTemplateFile.Remove(); err != nil {
+				return fmt.Errorf("failed to remove existing override compose template: %w", err)
+			}
+		}
+		return nil
+	}
+
+	data, err := yaml.Marshal(map[string]any{
+		"services": servicesOverrides(services, appUserExpr, appEnv, deviceDrivers, groupNames),
+	})
+	if err != nil {
+		return err
+	}
+	return overrideTemplateFile.WriteFile(data)
+}
+
 // servicesOverrides is what to apply to the services the brick and service composes
 // declare: they are not ours, so only these fields are stated.
 func servicesOverrides(services []serviceInfo, user string, appEnv types.Mapping, deviceDrivers, groupNames []string) map[string]any {

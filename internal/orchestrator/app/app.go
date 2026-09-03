@@ -170,11 +170,16 @@ func (a *ArduinoApp) ProvisioningStateDir() *paths.Path {
 // The templates are exported because the resolve step also writes them outside of an
 // app folder, when building a release.
 const (
-	MainTemplateFileName = "app-compose.tmpl.yaml"
+	MainTemplateFileName     = "app-compose.tmpl.yaml"
+	OverrideTemplateFileName = "app-compose-overrides.tmpl.yaml"
 )
 
 func (a *ArduinoApp) AppComposeTemplateFilePath() *paths.Path {
 	return a.ProvisioningStateDir().Join(MainTemplateFileName)
+}
+
+func (a *ArduinoApp) AppComposeOverrideTemplateFilePath() *paths.Path {
+	return a.ProvisioningStateDir().Join(OverrideTemplateFileName)
 }
 
 func (a *ArduinoApp) AppComposeFilePath() *paths.Path {

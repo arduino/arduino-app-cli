@@ -8,9 +8,15 @@ package orchestrator
 import (
 	"testing"
 
+	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/types"
 	yaml "github.com/goccy/go-yaml"
 	"github.com/stretchr/testify/require"
+
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 // render is what the resolve step would write, rendered and read back.
@@ -148,4 +154,59 @@ func TestServicesOverrides(t *testing.T) {
 	require.Equal(t, []any{`{{ with deviceMajor "drm" }}c {{ . }}:* rmw{{ end }}`},
 		document.Services["with-devices"]["device_cgroup_rules"])
 	require.NotEmpty(t, document.Services["with-devices"]["volumes"], "/dev is mounted")
+}
+
+// TestRenderComposeFileWithIncludedBrick renders an app whose brick ships a compose: its
+// services are included by the main template and overridden by the second one.
+func TestRenderComposeFileWithIncludedBrick(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+
+	arduinoApp := app.ArduinoApp{
+		Name: "TestApp",
+		Descriptor: app.AppDescriptor{
+			Bricks: []app.Brick{{ID: "arduino:video_object_detection"}},
+		},
+		FullPath: paths.New(t.TempDir()),
+	}
+	require.NoError(t, arduinoApp.ProvisioningStateDir().MkdirAll())
+
+	brickPath := cfg.AssetDir().Join("compose", "arduino", "video_object_detection")
+	require.NoError(t, brickPath.MkdirAll())
+	require.NoError(t, brickPath.Join("brick_compose.yaml").WriteFile([]byte(`
+services:
+  ei-video-obj-detection-runner:
+    image: arduino/video-object-detection:latest
+`)))
+	require.NoError(t, cfg.AssetDir().Join("bricks-list.yaml").WriteFile([]byte(`
+bricks:
+- id: arduino:video_object_detection
+  name: Object Detection
+  category: video
+`)))
+	require.NoError(t, cfg.AssetDir().Join("services").MkdirAll())
+	servicesIndex, err := servicesindex.Load(platform.GetPlatform(nil), cfg.AssetDir().Join("services"))
+	require.NoError(t, err)
+	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetDir())
+	require.NoError(t, err)
+
+	appEnv := types.Mapping{"FOO": "bar"}
+	require.NoError(t, generateComposeTemplate(&arduinoApp, arduinoApp.ProvisioningStateDir(), bricksIndex,
+		servicesIndex, "python-apps-base:latest", cfg, appEnv, unkownPlatform))
+
+	env := hostEnvironment(t.Context(), arduinoApp.FullPath, cfg).Merge(appEnv)
+	prj, err := renderComposeFile(t.Context(), &arduinoApp, env, types.Mapping{})
+	require.NoError(t, err)
+	require.True(t, arduinoApp.AppComposeFilePath().Exist(), "the compose file docker is given should exist")
+
+	runner, err := prj.GetService("ei-video-obj-detection-runner")
+	require.NoError(t, err, "the service the brick declares should be included")
+	require.Equal(t, "arduino/video-object-detection:latest", runner.Image, "what the brick declares is kept")
+	require.Equal(t, "true", runner.Labels[DockerAppLabel], "the override is applied over it")
+	require.Equal(t, "bar", *runner.Environment["FOO"])
+	require.Equal(t, arduinoApp.FullPath.String(), *runner.Environment["APP_HOME"], "a host fact is answered")
+
+	main, err := prj.GetService("main")
+	require.NoError(t, err)
+	require.Equal(t, "python-apps-base:latest", main.Image)
+	require.Contains(t, main.DependsOn, "ei-video-obj-detection-runner")
 }
