@@ -914,7 +914,7 @@ Contains a JSON object with the details of an error.
 			Method:      http.MethodGet,
 			Path:        "/v1/models/{id}",
 			Request: (*struct {
-				ID string `path:"id" description:"AI model identifier. Send back either form a response reports: \"id\", which is base64url encoded and unpadded, or \"id_decoded\", which is plain - both name the same model. An id holding slashes has to be the encoded form, since percent-encoding it is refused." example:"bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N"`
+				ID string `path:"id" description:"AI model identifier.`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
