@@ -53,9 +53,6 @@ func modelIDFromPath(r *http.Request) (string, error) {
 	if segment == "" {
 		return "", errEmptyModelID
 	}
-	if strings.Contains(segment, "/") {
-		return "", errors.New("a model id holding slashes travels base64url encoded, not percent-encoded")
-	}
 	return segment, nil
 }
 
