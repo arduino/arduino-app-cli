@@ -326,7 +326,7 @@ func TestUpdateAppBrickInstance(t *testing.T) {
 			*createResp.JSON201.Id,
 			ImageClassifactionBrickID,
 			client.BrickCreateUpdateRequest{
-				Model:     new("person-classification"),
+				Model:     new(modelsindex.EncodeID("person-classification")),
 				Variables: &map[string]string{"CUSTOM_MODEL_PATH": "overidden"},
 			},
 			func(ctx context.Context, req *http.Request) error { return nil },
