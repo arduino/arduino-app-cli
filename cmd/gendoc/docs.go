@@ -994,7 +994,7 @@ every later failure is an error event. A models directory with no free space has
 			},
 			Description: `Install an AI model from the internal model list. The progress is a stream of Server-Sent Events.
 
-The path takes a model id, not a download source. An id that no entry declares gives a 404: to download a Hugging Face model, use POST /v1/models. No container starts before the download, because the check reads the model list only.
+The path takes a model ID from the internal model list. An invalid model ID returns 404.
 
 The request is idempotent: the handler does not transfer a model that is on disk again. A declaration with no handler installs the model itself, and the stream sends "done" immediately.`,
 			Summary: "Install an AI model from the internal model list",
