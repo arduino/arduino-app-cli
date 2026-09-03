@@ -72,7 +72,7 @@ func run(configuration cfg.Configuration) error {
 		properties.NewPropertiesCmd(configuration),
 		config.NewConfigCmd(configuration),
 		system.NewSystemCmd(configuration),
-		version.NewVersionCmd(Version),
+		version.NewVersionCmd(Version, configuration.PythonImage),
 		monitor.NewMonitorCmd(),
 		model.NewModelCmd(configuration),
 	)

@@ -20,35 +20,35 @@ func TestDaemonVersion(t *testing.T) {
 		name                 string
 		serverStub           Tripper
 		port                 string
-		expectedResult       string
+		expectedResult       daemonVersion
 		expectedErrorMessage string
 	}{
 		{
 			name:                 "return the server version when the server is up",
 			serverStub:           successServer,
 			port:                 "8800",
-			expectedResult:       "3.0-server",
+			expectedResult:       daemonVersion{Version: "3.0-server", PythonRunnerVersion: "ghcr.io/arduino/app-bricks/python-apps-base:0.12.0"},
 			expectedErrorMessage: "",
 		},
 		{
 			name:                 "return error if default server is not listening on default port",
 			serverStub:           failureServer,
 			port:                 "8800",
-			expectedResult:       "",
+			expectedResult:       daemonVersion{},
 			expectedErrorMessage: `Get "http://localhost:8800/v1/version": connection refused`,
 		},
 		{
 			name:                 "return error if provided server is not listening on provided port",
 			serverStub:           failureServer,
 			port:                 "1234",
-			expectedResult:       "",
+			expectedResult:       daemonVersion{},
 			expectedErrorMessage: `Get "http://localhost:1234/v1/version": connection refused`,
 		},
 		{
 			name:                 "return error for server response 500 Internal Server Error",
 			serverStub:           failureInternalServerError,
 			port:                 "0",
-			expectedResult:       "",
+			expectedResult:       daemonVersion{},
 			expectedErrorMessage: "unexpected status code received",
 		},
 
@@ -56,7 +56,7 @@ func TestDaemonVersion(t *testing.T) {
 			name:                 "return error for server up and wrong json response",
 			serverStub:           successServerWrongJson,
 			port:                 "8800",
-			expectedResult:       "",
+			expectedResult:       daemonVersion{},
 			expectedErrorMessage: "invalid character '<' looking for beginning of value",
 		},
 	}
@@ -88,7 +88,7 @@ func (t Tripper) RoundTrip(request *http.Request) (*http.Response, error) {
 }
 
 var successServer = Tripper(func(*http.Request) (*http.Response, error) {
-	body := io.NopCloser(strings.NewReader(`{"version":"3.0-server"}`))
+	body := io.NopCloser(strings.NewReader(`{"version":"3.0-server","python_runner_version":"ghcr.io/arduino/app-bricks/python-apps-base:0.12.0"}`))
 	return &http.Response{
 		StatusCode: http.StatusOK,
 		Body:       body,

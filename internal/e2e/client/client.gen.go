@@ -508,7 +508,8 @@ type UpgradablePackage struct {
 
 // VersionResponse defines model for VersionResponse.
 type VersionResponse struct {
-	Version *string `json:"version,omitempty"`
+	PythonRunnerVersion *string `json:"python_runner_version,omitempty"`
+	Version             *string `json:"version,omitempty"`
 }
 
 // BadRequest defines model for BadRequest.
