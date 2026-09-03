@@ -226,9 +226,15 @@ func StartApp(
 
 		cb(StreamMessage{progress: &Progress{Name: "python provisioning", Progress: provisionStartProgress}})
 
+		composeProjectName, err := getAppComposeProjectNameFromApp(appToStart, cfg)
+		if err != nil {
+			return err
+		}
+
 		// An app is provisioned every time it is started: it is editable, so its
 		// bricks, model or ports may have changed since the last run.
-		if err := provisioner.Resolve(appToStart.ProvisioningStateDir(), bricksIndex, servicesIndex, &appToStart, cfg, appEnv, platform); err != nil {
+		buildOpts := BuildOptions{ProjectName: composeProjectName}
+		if err := provisioner.Resolve(&appToStart, appToStart.ProvisioningStateDir(), bricksIndex, servicesIndex, cfg, appEnv, platform, buildOpts); err != nil {
 			return err
 		}
 

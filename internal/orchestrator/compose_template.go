@@ -42,6 +42,7 @@ func generateComposeTemplate(
 	cfg config.Configuration,
 	appEnv types.Mapping,
 	platform platform.Platform,
+	opts BuildOptions,
 ) error {
 	slog.Debug("Generating main compose file for the App")
 
@@ -136,12 +137,13 @@ func generateComposeTemplate(
 		Services map[string]any `yaml:"services,omitempty"`
 	}
 	// Merge compose
-	composeProjectName, err := getAppComposeProjectNameFromApp(*arduinoApp, cfg)
+	mainAppCompose.Name = opts.ProjectName
+
+	includes, err := composeIncludes(composeFiles, genPath, cfg, opts)
 	if err != nil {
 		return err
 	}
-	mainAppCompose.Name = composeProjectName
-	mainAppCompose.Include = composeFiles.AsStrings()
+	mainAppCompose.Include = includes
 
 	volumes := []any{
 		volume{
@@ -254,6 +256,43 @@ func generateComposeTemplate(
 
 	// Done!
 	return nil
+}
+
+// composeIncludes is the include: list of the generated template. It points at the
+// asset dir, unless a dir is given to copy the brick and service composes to, which
+// is what makes a release carry its own compose set.
+func composeIncludes(composeFiles paths.PathList, genPath *paths.Path, cfg config.Configuration, opts BuildOptions) ([]string, error) {
+	if opts.ComposesDir == nil {
+		return composeFiles.AsStrings(), nil
+	}
+
+	includes := make([]string, 0, len(composeFiles))
+	for _, composeFile := range composeFiles {
+		// Keep the layout of the asset dir, which is what makes the copied names
+		// unique: every brick has its own brick_compose.yaml.
+		relPath, err := composeFile.RelFrom(cfg.AssetDir())
+		if err != nil {
+			// A brick shipped by the app itself: keep the folder holding it.
+			relPath = paths.New(composeFile.Parent().Base(), composeFile.Base())
+		}
+
+		dst := opts.ComposesDir.JoinPath(relPath)
+		if err := dst.Parent().MkdirAll(); err != nil {
+			return nil, fmt.Errorf("failed to create the compose dir %s: %w", dst.Parent(), err)
+		}
+		if err := composeFile.CopyTo(dst); err != nil {
+			return nil, fmt.Errorf("failed to copy the compose file %s: %w", composeFile, err)
+		}
+
+		// docker compose resolves a relative include from the project directory,
+		// which is the one holding the generated file.
+		include, err := dst.RelFrom(genPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve the include path of %s: %w", dst, err)
+		}
+		includes = append(includes, include.String())
+	}
+	return includes, nil
 }
 
 // provisionComposeVolumes creates the bind sources of the services, which docker would
