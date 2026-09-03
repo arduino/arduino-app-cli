@@ -238,16 +238,41 @@ func (e handlerModelEntry) applyStat(m *AIModel) {
 	}
 }
 
-const llmBrickID = "arduino:llm"
+const (
+	llmBrickID = "arduino:llm"
+	vlmBrickID = "arduino:vlm"
+)
 
-func UserConfiguredModel(m DownloadedModel) AIModel {
+// bricksForSource says which brick can run a model nothing declares, from what was
+// downloaded for it. A projection file is what makes a GGUF multimodal, so a download
+// that fetched one is a vision model and belongs to the vlm brick; everything else is a
+// text model for the llm brick.
+//
+// A curated model states its bricks in models-list.yaml. An ad-hoc one has no
+// declaration to read, and the downloader reports no compatibility of its own, so this
+// is derived rather than told. With no source at all - a legacy install, or a listing
+// whose record is missing - it reads as a text model, which is what every ad-hoc
+// download was before vision models arrived.
+func bricksForSource(source *ModelSource) []BrickConfig {
+	if source != nil && source.MmprojURL != "" {
+		return []BrickConfig{{ID: vlmBrickID}}
+	}
+	return []BrickConfig{{ID: llmBrickID}}
+}
+
+// UserConfiguredModel describes a model no models-list.yaml entry declares, from the
+// download that just wrote it. source is what the caller asked for, and decides which
+// brick can run the result. It is not reported here: the event says only what it can say
+// without inventing the timestamp the record holds, and the listing reports the source
+// from that record instead.
+func UserConfiguredModel(m DownloadedModel, source *ModelSource) AIModel {
 	return AIModel{
 		ID:     m.ID,
 		Name:   modelNameFromID(m.ID),
 		Origin: UserOrigin,
 		Status: InstalledStatus,
 		Size:   m.Size,
-		Bricks: []BrickConfig{{ID: llmBrickID}},
+		Bricks: bricksForSource(source),
 	}
 }
 
@@ -263,10 +288,12 @@ func modelNameFromID(id string) string {
 	return id
 }
 
-func (m *ModelsIndex) InstalledModel(downloaded DownloadedModel) AIModel {
+// InstalledModel describes what a download just wrote. source is what the caller asked
+// for, and is nil when it asked by id: a declared model describes itself, bricks included.
+func (m *ModelsIndex) InstalledModel(downloaded DownloadedModel, source *ModelSource) AIModel {
 	model, declared := m.DeclaredByID(downloaded.ID)
 	if !declared {
-		return UserConfiguredModel(downloaded)
+		return UserConfiguredModel(downloaded, source)
 	}
 	model.Status = InstalledStatus
 	if downloaded.Size > 0 {
@@ -305,6 +332,7 @@ func (h *HandlersIndex) userDownloadModel(entry handlerModelEntry) (AIModel, boo
 		slog.Warn("skipping model with unknown handler", "model", entry.ID, "handler", md.Handler)
 		return AIModel{}, false
 	}
+	source := md.source()
 	return AIModel{
 		ID: entry.ID,
 		// The listing's name, which is modelNameFromID of the same id: the install route
@@ -313,8 +341,8 @@ func (h *HandlersIndex) userDownloadModel(entry handlerModelEntry) (AIModel, boo
 		Name:      entry.Name,
 		IsBuiltIn: false,
 		Origin:    UserOrigin,
-		Source:    md.source(),
-		Bricks:    []BrickConfig{{ID: llmBrickID}},
+		Source:    source,
+		Bricks:    bricksForSource(source),
 		Deployment: &ModelDeployment{
 			Handler: md.Handler,
 			Variables: []map[string]PlatformDeploymentConfig{

@@ -344,7 +344,7 @@ func TestParseDownloadHandlerLineNamesTheModel(t *testing.T) {
 
 func TestUserConfiguredModelFromDownloadEvent(t *testing.T) {
 	id := "llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M"
-	model := UserConfiguredModel(DownloadedModel{ID: id, Size: 1024})
+	model := UserConfiguredModel(DownloadedModel{ID: id, Size: 1024}, nil)
 
 	assert.Equal(t, id, model.ID)
 	// The whole path survives: it is what the listing reports for the same files, and
@@ -371,7 +371,7 @@ func TestUserConfiguredModelMatchesTheListing(t *testing.T) {
 	listed, ok := testHandlersIndex().userDownloadModel(entry)
 	require.True(t, ok)
 
-	fromEvent := UserConfiguredModel(DownloadedModel{ID: entry.ID})
+	fromEvent := UserConfiguredModel(DownloadedModel{ID: entry.ID}, nil)
 	assert.Equal(t, listed.ID, fromEvent.ID)
 	assert.Equal(t, listed.Name, fromEvent.Name)
 	assert.Equal(t, listed.Bricks, fromEvent.Bricks)

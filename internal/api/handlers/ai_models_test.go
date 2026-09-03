@@ -34,7 +34,8 @@ func TestInstalledModel(t *testing.T) {
 	t.Run("a source the model list does not declare becomes a user-configured model", func(t *testing.T) {
 		idx := &modelsindex.ModelsIndex{}
 
-		model, ok := installedModel(idx, nil, &modelsindex.DownloadedModel{ID: adHocID, Size: 1024})
+		model, ok := installedModel(idx, nil, &modelsindex.DownloadedModel{ID: adHocID, Size: 1024},
+			&modelsindex.ModelSource{ModelURL: "https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf"})
 
 		require.True(t, ok)
 		assert.Equal(t, adHocID, model.ID)
@@ -42,6 +43,22 @@ func TestInstalledModel(t *testing.T) {
 		assert.Equal(t, modelsindex.InstalledStatus, model.Status)
 		assert.Equal(t, uint64(1024), model.Size)
 		assert.False(t, model.IsBuiltIn, "a model the user installed must stay deletable")
+		assert.Equal(t, []modelsindex.BrickConfig{{ID: "arduino:llm"}}, model.Bricks,
+			"no projection file was fetched, so it is a text model")
+	})
+
+	t.Run("a download that fetched a projection file is a vision model", func(t *testing.T) {
+		const visionID = "llamacpp:ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0"
+
+		model, ok := installedModel(&modelsindex.ModelsIndex{}, nil, &modelsindex.DownloadedModel{ID: visionID},
+			&modelsindex.ModelSource{
+				ModelURL:  "https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/SmolVLM-256M-Instruct-Q8_0.gguf",
+				MmprojURL: "https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-256M-Instruct-Q8_0.gguf",
+			})
+
+		require.True(t, ok)
+		assert.Equal(t, []modelsindex.BrickConfig{{ID: "arduino:vlm"}}, model.Bricks,
+			"the vlm brick is the one that can run it")
 	})
 
 	t.Run("a file landing where the model list declares it is that declared model", func(t *testing.T) {
@@ -52,7 +69,7 @@ func TestInstalledModel(t *testing.T) {
 			{ID: "llamacpp:gemma-3-1b-it-Q4_0", Name: "Gemma 3 1B", Description: "An efficient AI model."},
 		}}
 
-		model, ok := installedModel(idx, nil, &modelsindex.DownloadedModel{ID: "llamacpp:gemma-3-1b-it-Q4_0", Size: 2048})
+		model, ok := installedModel(idx, nil, &modelsindex.DownloadedModel{ID: "llamacpp:gemma-3-1b-it-Q4_0", Size: 2048}, nil)
 
 		require.True(t, ok)
 		assert.Equal(t, "Gemma 3 1B", model.Name)
@@ -64,7 +81,7 @@ func TestInstalledModel(t *testing.T) {
 	t.Run("a download naming nothing cannot be described", func(t *testing.T) {
 		// A models-downloader too old to report model_id: the model installed, but naming
 		// it here would promise an id no later request resolves.
-		_, ok := installedModel(&modelsindex.ModelsIndex{}, nil, nil)
+		_, ok := installedModel(&modelsindex.ModelsIndex{}, nil, nil, nil)
 
 		assert.False(t, ok)
 	})
@@ -72,7 +89,7 @@ func TestInstalledModel(t *testing.T) {
 	t.Run("a declared model takes the size the event reports", func(t *testing.T) {
 		declared := &modelsindex.AIModel{ID: "llamacpp:gemma-3-1b-it-Q4_0", Name: "Gemma 3 1B", Size: 1000}
 
-		model, ok := installedModel(&modelsindex.ModelsIndex{}, declared, &modelsindex.DownloadedModel{ID: declared.ID, Size: 2000})
+		model, ok := installedModel(&modelsindex.ModelsIndex{}, declared, &modelsindex.DownloadedModel{ID: declared.ID, Size: 2000}, nil)
 
 		require.True(t, ok)
 		assert.Equal(t, modelsindex.InstalledStatus, model.Status)
@@ -84,7 +101,7 @@ func TestInstalledModel(t *testing.T) {
 		// model_size_mb, and reporting zero would read as an empty install.
 		declared := &modelsindex.AIModel{ID: "llamacpp:gemma-3-1b-it-Q4_0", Name: "Gemma 3 1B", Size: 1000}
 
-		model, ok := installedModel(&modelsindex.ModelsIndex{}, declared, &modelsindex.DownloadedModel{ID: declared.ID})
+		model, ok := installedModel(&modelsindex.ModelsIndex{}, declared, &modelsindex.DownloadedModel{ID: declared.ID}, nil)
 
 		require.True(t, ok)
 		assert.Equal(t, modelsindex.InstalledStatus, model.Status)

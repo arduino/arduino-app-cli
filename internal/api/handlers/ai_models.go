@@ -253,7 +253,7 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 		}
 
 		// The second result is false only when the declaration is nil.
-		installed, _ := installedModel(modelsIndex, declared, stream.downloaded)
+		installed, _ := installedModel(modelsIndex, declared, stream.downloaded, nil)
 		sseStream.Send(render.SSEEvent{Type: "done", Data: orchestrator.NewAIModelItem(installed)})
 	}
 }
@@ -296,7 +296,10 @@ func HandleDownloadModel(dockerClient command.Cli, modelsIndex *modelsindex.Mode
 			return
 		}
 
-		installed, ok := installedModel(modelsIndex, nil, stream.downloaded)
+		// The links the caller asked for, so this event names the same brick the listing
+		// will: a download that fetched a projection file is a vision model.
+		source := &modelsindex.ModelSource{ModelURL: modelURL, MmprojURL: strings.TrimSpace(req.MmprojURL)}
+		installed, ok := installedModel(modelsIndex, nil, stream.downloaded, source)
 		if !ok {
 			sseStream.SendError(render.SSEErrorData{
 				Code:    render.InternalServiceErr,
@@ -355,12 +358,15 @@ func (d *downloadStream) sendError(err error) {
 	d.sse.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: err.Error()})
 }
 
-func installedModel(modelsIndex *modelsindex.ModelsIndex, declared *modelsindex.AIModel, downloaded *modelsindex.DownloadedModel) (modelsindex.AIModel, bool) {
+// installedModel describes the model a download wrote. source is the links the caller
+// asked for, and is nil on the install route, where the caller named a declared model and
+// models-list.yaml is what describes it.
+func installedModel(modelsIndex *modelsindex.ModelsIndex, declared *modelsindex.AIModel, downloaded *modelsindex.DownloadedModel, source *modelsindex.ModelSource) (modelsindex.AIModel, bool) {
 	if declared == nil {
 		if downloaded == nil {
 			return modelsindex.AIModel{}, false
 		}
-		return modelsIndex.InstalledModel(*downloaded), true
+		return modelsIndex.InstalledModel(*downloaded, source), true
 	}
 	installed := *declared
 	installed.Status = modelsindex.InstalledStatus
