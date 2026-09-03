@@ -260,7 +260,7 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 
 type DownloadModelRequest struct {
 	ModelURL  string `json:"model_url" description:"URL of the GGUF model file on Hugging Face" example:"https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf" required:"true"`
-	MmprojURL string `json:"model_mmproj_url" description:"URL of the GGUF multimodal projection file on Hugging Face, for a vision model" example:"https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/resolve/main/mmproj-F16.gguf"`
+	MmprojURL string `json:"mmproj_url" description:"URL of the GGUF multimodal projection file on Hugging Face, for a vision model" example:"https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/resolve/main/mmproj-F16.gguf"`
 }
 
 // HandleDownloadModel downloads a model that no models-list.yaml entry declares. The id is
