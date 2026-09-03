@@ -139,9 +139,12 @@ const (
 	// a file landed, and does not name the source, so installing it again needs that
 	// source again.
 	UserOrigin ModelOrigin = "user"
-	// EdgeImpulseOrigin: deployed from an Edge Impulse project, which has its own install
-	// route and its own project and impulse identifiers.
-	EdgeImpulseOrigin ModelOrigin = "edge-impulse"
+	// EdgeImpulseOrigin: deployed from the caller's own Edge Impulse project, which has
+	// its own install route and its own project and impulse identifiers. The value names
+	// the project rather than the vendor on purpose: several curated models are trained
+	// on Edge Impulse and say so in their metadata, and those are curated, because their
+	// declaration is what installs them.
+	EdgeImpulseOrigin ModelOrigin = "edge-impulse-user-project"
 )
 
 func (o ModelOrigin) AllowedOrigins() []ModelOrigin {

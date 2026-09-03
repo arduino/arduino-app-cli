@@ -18,9 +18,9 @@ import (
 
 // Defines values for ModelOrigin.
 const (
-	Curated     ModelOrigin = "curated"
-	EdgeImpulse ModelOrigin = "edge-impulse"
-	User        ModelOrigin = "user"
+	Curated                ModelOrigin = "curated"
+	EdgeImpulseUserProject ModelOrigin = "edge-impulse-user-project"
+	User                   ModelOrigin = "user"
 )
 
 // Valid indicates whether the value is a known member of the ModelOrigin enum.
@@ -28,7 +28,7 @@ func (e ModelOrigin) Valid() bool {
 	switch e {
 	case Curated:
 		return true
-	case EdgeImpulse:
+	case EdgeImpulseUserProject:
 		return true
 	case User:
 		return true

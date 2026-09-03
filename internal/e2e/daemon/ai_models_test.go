@@ -126,8 +126,9 @@ func TestAIModelDetails(t *testing.T) {
 			Runner:      "",
 			Description: "this is the description of the model",
 			BrickIds:    &[]string{"arduino:audio_classification"},
-			// A model under the custom models directory is an Edge Impulse deployment.
-			Origin: client.ModelOrigin("edge-impulse"),
+			// A model under the custom models directory is a deployment of the caller's
+			// own Edge Impulse project, not a catalog entry that happens to be EI-trained.
+			Origin: client.ModelOrigin("edge-impulse-user-project"),
 			Status: client.ModelStatus("installed"),
 			Size:   new(1),
 		}, got, "The returned model details should match the expected values")
