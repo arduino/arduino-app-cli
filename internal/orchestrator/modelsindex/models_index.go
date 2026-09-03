@@ -106,7 +106,10 @@ type AIModel struct {
 // nil whenever the record is missing - an install older than the record, or a listing that
 // did not run - so absent never means "up to date".
 type ModelSource struct {
-	ModelURL     string `json:"model_url"`
+	// A source exists only when the record names a url, so that one is always there. The
+	// projection url belongs to a vision model alone, and the timestamp is the record's,
+	// which the install stream cannot know.
+	ModelURL     string `json:"model_url" required:"true"`
 	MmprojURL    string `json:"model_mmproj_url,omitempty"`
 	DownloadedAt string `json:"downloaded_at,omitempty"`
 }

@@ -41,18 +41,22 @@ type AIModelItem struct {
 	// and carries slashes. IDDecoded is the same identity in plain text - the form to
 	// show a person, to compare against a brick's "model", and to write into an app.yaml,
 	// which is authored by hand and has no encoding rule.
-	ID          string                   `json:"id"`
-	IDDecoded   string                   `json:"id_decoded"`
-	Name        string                   `json:"name"`
-	Description string                   `json:"description"`
-	Runner      string                   `json:"runner"`
-	Bricks      []string                 `json:"brick_ids"`
+	// Every field without omitempty is required: a client can count on the key being
+	// there. The three optional ones each mean something by their absence - no
+	// declaration to read metadata from, no download record to describe a source, and a
+	// size nobody knows, which is why it is not reported as zero.
+	ID          string                   `json:"id" required:"true"`
+	IDDecoded   string                   `json:"id_decoded" required:"true"`
+	Name        string                   `json:"name" required:"true"`
+	Description string                   `json:"description" required:"true"`
+	Runner      string                   `json:"runner" required:"true"`
+	Bricks      []string                 `json:"brick_ids" required:"true"`
 	Metadata    map[string]string        `json:"metadata,omitempty"`
-	IsBuiltIn   bool                     `json:"is_builtin"`
-	Origin      modelsindex.ModelOrigin  `json:"origin"`
+	IsBuiltIn   bool                     `json:"is_builtin" required:"true"`
+	Origin      modelsindex.ModelOrigin  `json:"origin" required:"true"`
 	Source      *modelsindex.ModelSource `json:"source,omitempty"`
 	Size        *uint64                  `json:"size,omitempty"`
-	Status      modelsindex.ModelStatus  `json:"status"`
+	Status      modelsindex.ModelStatus  `json:"status" required:"true"`
 }
 
 type AIModelsListRequest struct {
