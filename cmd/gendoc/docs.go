@@ -960,7 +960,7 @@ Contains a JSON object with the details of an error.
 			Method:      http.MethodPut,
 			Path: "/v1/models/{id}",
 			Parameters: (*struct {
-				ModelID string `path:"id" description:"The id of a model in the internal model list, as either form a response reports: the base64url encoded \"id\" or the plain \"id_decoded\"." example:"bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w"`
+				ModelID string `path:"id" description:"The id of a model in the internal model list.`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "text/event-stream",
