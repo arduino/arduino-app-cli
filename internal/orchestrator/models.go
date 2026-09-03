@@ -44,6 +44,10 @@ type AIModelItem struct {
 	//
 	// IDDecoded is the same identity in plain text, for showing a person and for the
 	// app.yaml written by hand, which has no encoding rule. It travels out, never back.
+	//
+	// The brick endpoints are the exception: their "compatible_models" and a brick's own
+	// "model" carry the plain id, because they report what an app.yaml holds rather than
+	// address a model. An id read from there is encoded before it comes back here.
 	// Every field without omitempty is required: a client can count on the key being
 	// there. The three optional ones each mean something by their absence - no
 	// declaration to read metadata from, no download record to describe a source, and a

@@ -1586,6 +1586,8 @@ components:
           description: 'Deprecated: This field is kept for backward compatibility.'
           type: string
         id:
+          description: The model's plain id, not base64url encoded. Encode it before
+            sending it back on a models path or in a brick request's "model".
           type: string
         name:
           type: string
@@ -1854,6 +1856,9 @@ components:
         id:
           type: string
         model:
+          description: The model this brick instance uses, as the plain id app.yaml
+            holds. Unlike "id" on the models endpoints, it is not base64url encoded;
+            encode it before naming a model in a path.
           type: string
         name:
           type: string
