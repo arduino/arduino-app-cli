@@ -198,7 +198,6 @@ tasks:
       - |
           set -e
           echo "Runner version set as: {{ .RUNNER_VERSION }}"
-          # Tagged "bricks/<version>" since 0.13.0rc1; earlier releases used "release/<version>".
           gh release download -R arduino/app-bricks-py "bricks/{{.SEMVER_TAG}}" -p '*.whl' -D "{{.TMPDIR}}" --clobber
           unzip -o "{{.TMPDIR}}/arduino_app_bricks-{{.SEMVER_TAG}}-py3-none-any.whl" -d "{{.TMPDIR}}/extract"
           # Wipe any previous versions so the destination contains exactly one.
