@@ -321,10 +321,10 @@ func TestInstalledByDeclaration(t *testing.T) {
 	})
 }
 
-// TestMatchesID pins the rule that lets one identity travel in two forms. The model is
-// what recognizes its own id, so nothing along the way has to decode a caller's string
-// and guess what it meant.
-func TestMatchesID(t *testing.T) {
+// TestEncodeDecodeID pins the one spelling an id has on the wire. EncodeID is what a
+// response reports as "id"; DecodeID is the only way back in, so an id is plain text
+// everywhere below the handlers.
+func TestEncodeDecodeID(t *testing.T) {
 	for _, id := range []string{
 		"face-detection",
 		"llamacpp:Qwen3.5-0.8B-Q4_0",
@@ -332,14 +332,21 @@ func TestMatchesID(t *testing.T) {
 		"vendor/slashed-id",
 		"llamacpp:ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0",
 	} {
-		model := AIModel{ID: id}
-		assert.True(t, matchesID(model, id), "the plain id names the model: %q", id)
-		assert.True(t, matchesID(model, EncodeID(id)), "so does its encoding: %q", id)
+		encoded := EncodeID(id)
+		assert.NotContains(t, encoded, "/", "an encoded id is one path segment: %q", id)
+
+		got, err := DecodeID(encoded)
+		require.NoError(t, err)
+		assert.Equal(t, id, got)
 	}
 
-	// Neither a different model nor a wrongly padded encoding is a match.
-	model := AIModel{ID: "face-detection"}
-	assert.False(t, matchesID(model, "person-classification"))
-	assert.False(t, matchesID(model, EncodeID("face-detection")+"="))
-	assert.False(t, matchesID(model, ""))
+	// A padded encoding is not the form EncodeID produces, so it is refused.
+	_, err := DecodeID(EncodeID("face-detection") + "=")
+	assert.Error(t, err)
+
+	// An id carrying ":" is not valid base64url, so a client still sending the plain form
+	// is told so. One with no ":" decodes to bytes that name no model, and takes the
+	// ordinary not-found answer instead - see the handler tests.
+	_, err = DecodeID("llamacpp:Qwen3.5-0.8B-Q4_0")
+	assert.Error(t, err)
 }

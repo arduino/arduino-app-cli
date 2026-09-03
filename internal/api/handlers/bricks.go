@@ -18,6 +18,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
@@ -87,6 +88,22 @@ func HandleAppBrickInstanceDetails(
 	}
 }
 
+// decodeRequestModel turns the brick request's model id from its wire form into the plain
+// one. A client sends back the "id" a models response gave it, which is base64url, and
+// app.yaml holds the plain form, so the conversion belongs here rather than in the
+// service. A request naming no model is left alone.
+func decodeRequestModel(req *bricks.BrickCreateUpdateRequest) error {
+	if req.Model == nil || *req.Model == "" {
+		return nil
+	}
+	id, err := modelsindex.DecodeID(*req.Model)
+	if err != nil {
+		return err
+	}
+	req.Model = &id
+	return nil
+}
+
 func HandleBrickCreate(
 	brickService *bricks.Service,
 	idProvider *appid.Provider,
@@ -121,6 +138,10 @@ func HandleBrickCreate(
 		}
 
 		req.ID = id
+		if err := decodeRequestModel(&req); err != nil {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
+			return
+		}
 
 		err = brickService.BrickCreate(r.Context(), req, app)
 		if err != nil {
@@ -190,6 +211,10 @@ func HandleBrickUpdates(
 		}
 
 		req.ID = id
+		if err := decodeRequestModel(&req); err != nil {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
+			return
+		}
 		err = brickService.BrickUpdate(r.Context(), req, app)
 		if err != nil {
 			slog.Error("Unable to update the brick", slog.String("error", err.Error()))

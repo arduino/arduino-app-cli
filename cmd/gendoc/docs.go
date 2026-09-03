@@ -892,7 +892,7 @@ Contains a JSON object with the details of an error.
 			Method:      http.MethodDelete,
 			Path:        "/v1/models/{id}",
 			Request: (*struct {
-				ID    string `path:"id" description:"AI model identifier, as a models response reports it: either the base64url encoded, unpadded \"id\" or the plain \"id_decoded\" - both name the same model. An id holding slashes has to be the encoded form, since percent-encoding it is refused." example:"bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N"`
+				ID    string `path:"id" description:"AI model identifier: the base64url encoded, unpadded \"id\" a models response reports. That is the only form accepted here; \"id_decoded\" is the plain text to show a person, not to send back." example:"bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N"`
 				Force bool   `query:"force" description:"If true, deletes the model even if referenced by apps."`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
@@ -914,7 +914,7 @@ Contains a JSON object with the details of an error.
 			Method:      http.MethodGet,
 			Path:        "/v1/models/{id}",
 			Request: (*struct {
-				ID string `path:"id" description:"AI model identifier, as a models response reports it: either the base64url encoded, unpadded \"id\" or the plain \"id_decoded\" - both name the same model. An id holding slashes has to be the encoded form, since percent-encoding it is refused." example:"bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N"`
+				ID string `path:"id" description:"AI model identifier: the base64url encoded, unpadded \"id\" a models response reports. That is the only form accepted here; \"id_decoded\" is the plain text to show a person, not to send back." example:"bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N"`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
@@ -960,7 +960,7 @@ Contains a JSON object with the details of an error.
 			Method:      http.MethodPut,
 			Path:        "/v1/models/{id}",
 			Parameters: (*struct {
-				ModelID string `path:"id" description:"The id of a model in the internal model list, as a models response reports it: either the base64url encoded \"id\" or the plain \"id_decoded\"." example:"bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w"`
+				ModelID string `path:"id" description:"The id of a model in the internal model list: the base64url encoded, unpadded \"id\" a models response reports. \"id_decoded\" is for display and is not accepted here." example:"bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w"`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "text/event-stream",

@@ -38,9 +38,12 @@ type AIModelsListResult struct {
 type AIModelItem struct {
 	// ID is base64url encoded, so it is one path segment whatever it holds: an id no
 	// models-list.yaml entry declares is named after the repository the file came from
-	// and carries slashes. IDDecoded is the same identity in plain text - the form to
-	// show a person, to compare against a brick's "model", and to write into an app.yaml,
-	// which is authored by hand and has no encoding rule.
+	// and carries slashes. It is the only form this API takes back, in a path or in a
+	// brick request's "model": the handlers decode it, so an id is plain text everywhere
+	// below them.
+	//
+	// IDDecoded is the same identity in plain text, for showing a person and for the
+	// app.yaml written by hand, which has no encoding rule. It travels out, never back.
 	// Every field without omitempty is required: a client can count on the key being
 	// there. The three optional ones each mean something by their absence - no
 	// declaration to read metadata from, no download record to describe a source, and a
