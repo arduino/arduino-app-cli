@@ -8,8 +8,8 @@ vars:
   GOLANGCI_LINT_VERSION: v2.11.4
   GOIMPORTS_VERSION: v0.42.0
   DPRINT_VERSION: 0.48.0
-  EXAMPLE_VERSION: "0.12.1"
-  RUNNER_VERSION: "0.12.0"
+  EXAMPLE_VERSION: "0.13.0rc1"
+  RUNNER_VERSION: "0.13.0rc1"
   VERSION: # if version is not passed we hack the semver by encoding the commit as pre-release
     sh: echo "${VERSION:-0.0.0-$(git rev-parse --short HEAD)}"
 
@@ -198,7 +198,7 @@ tasks:
       - |
           set -e
           echo "Runner version set as: {{ .RUNNER_VERSION }}"
-          gh release download -R arduino/app-bricks-py "release/{{.SEMVER_TAG}}" -p '*.whl' -D "{{.TMPDIR}}" --clobber
+          gh release download -R arduino/app-bricks-py "bricks/{{.SEMVER_TAG}}" -p '*.whl' -D "{{.TMPDIR}}" --clobber
           unzip -o "{{.TMPDIR}}/arduino_app_bricks-{{.SEMVER_TAG}}-py3-none-any.whl" -d "{{.TMPDIR}}/extract"
           # Wipe any previous versions so the destination contains exactly one.
           rm -rf "{{.DEST}}" && mkdir -p "{{.DEST}}"
