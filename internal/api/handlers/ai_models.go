@@ -181,7 +181,7 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 		// The declaration alone answers this, so no listing container runs.
 		declared, found := modelsIndex.DeclaredByID(id)
 		if !found {
-			details := fmt.Sprintf("no model with id %q is declared; download a Hugging Face model with POST /v1/models", id)
+			details := fmt.Sprintf("no model with id %q is declared", id)
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})
 			return
 		}
