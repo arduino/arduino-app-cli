@@ -9,7 +9,7 @@ vars:
   GOIMPORTS_VERSION: v0.42.0
   DPRINT_VERSION: 0.48.0
   EXAMPLE_VERSION: "0.12.1"
-  RUNNER_VERSION: "0.12.0"
+  RUNNER_VERSION: "0.13.0rc1"
   VERSION: # if version is not passed we hack the semver by encoding the commit as pre-release
     sh: echo "${VERSION:-0.0.0-$(git rev-parse --short HEAD)}"
 
@@ -198,7 +198,8 @@ tasks:
       - |
           set -e
           echo "Runner version set as: {{ .RUNNER_VERSION }}"
-          gh release download -R arduino/app-bricks-py "release/{{.SEMVER_TAG}}" -p '*.whl' -D "{{.TMPDIR}}" --clobber
+          # Tagged "bricks/<version>" since 0.13.0rc1; earlier releases used "release/<version>".
+          gh release download -R arduino/app-bricks-py "bricks/{{.SEMVER_TAG}}" -p '*.whl' -D "{{.TMPDIR}}" --clobber
           unzip -o "{{.TMPDIR}}/arduino_app_bricks-{{.SEMVER_TAG}}-py3-none-any.whl" -d "{{.TMPDIR}}/extract"
           # Wipe any previous versions so the destination contains exactly one.
           rm -rf "{{.DEST}}" && mkdir -p "{{.DEST}}"
@@ -290,7 +291,7 @@ tasks:
       - adb shell chmod +x {{.BOARD_PATH}}
       - adb forward tcp:{{.DLV_PORT}} tcp:{{.DLV_PORT}}
       - adb forward tcp:{{.APP_PORT}} tcp:{{.APP_PORT}}
-      - adb shell "/home/arduino/go/bin/dlv --listen=:{{.DLV_PORT}} --headless --api-version=2 exec {{.BOARD_PATH}} -- daemon --port {{.APP_PORT}} --log-level debug"
+      - adb shell "/home/arduino/go/bin/dlv --listen=:{{.DLV_PORT}} --headless --api-version=2 --accept-multiclient exec {{.BOARD_PATH}} -- daemon --port {{.APP_PORT}} --log-level debug"
 
   board:debug-cli:
     desc: 'Build a debug binary, deploy to board and start dlv headless for a one-shot CLI command. Invoke as: CLI_ARGS="app start ..." task board:debug-cli'
@@ -307,7 +308,7 @@ tasks:
       - adb push {{.DEBUG_BINARY}} {{.BOARD_PATH}}
       - adb shell chmod +x {{.BOARD_PATH}}
       - adb forward tcp:{{.DLV_PORT}} tcp:{{.DLV_PORT}}
-      - adb shell "DOCKER_REGISTRY_BASE=${DOCKER_REGISTRY_BASE:-ghcr.io/arduino/} /home/arduino/go/bin/dlv --listen=:{{.DLV_PORT}} --headless --api-version=2 exec {{.BOARD_PATH}} -- ${CLI_ARGS:-app list}"
+      - adb shell "DOCKER_REGISTRY_BASE=${DOCKER_REGISTRY_BASE:-ghcr.io/arduino/} /home/arduino/go/bin/dlv --listen=:{{.DLV_PORT}} --headless --api-version=2 --accept-multiclient exec {{.BOARD_PATH}} -- ${CLI_ARGS:-app list}"
 
   bump:runner-version:
     desc: Update the RunnerVersion constant in config.go to match RUNNER_VERSION.

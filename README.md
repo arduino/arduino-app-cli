@@ -13,13 +13,20 @@ For guidance on installation and development, see the [User documentation].
 `arduino-app-cli` drives model downloads through the `models-downloader` container from
 [app-bricks-py], declared per handler in `models-handlers.yaml`, which ships in the
 app-bricks wheel the `RUNNER_VERSION` in `Taskfile.yml` pins. The Go side reads what that
-container prints, so some features need a minimum image:
+container prints and the runners serve models under names the Go side derives itself, so
+the two move together: a model downloaded ad hoc needs a `models-downloader` and a
+`llamacpp-runner` from the same release.
 
-| Feature                                                      | Needs                                                                                   | Why                                                                                                                                                                                                               |
-| ------------------------------------------------------------ | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /v1/models`, which downloads a model no entry declares | a `models-downloader` reporting `model_id` on its download events ([app-bricks-py#416]) | The downloader names the model after the file that arrives. Without that field the model installs, but the endpoint cannot say which one it is, so the stream ends with an error event instead of the model.      |
-| Listing a model no `models-list.yaml` entry declares         | a `models-downloader` reporting `model_origin` and `download_metadata` in its listing   | An undeclared model is reconstructed from its on-disk record. An older image reports neither, so nothing is appended and only declared models are listed.                                                         |
-| Running an undeclared model, once installed                  | `llamacpp-runner` and `llamacpp-npu-runner` from the same release ([app-bricks-py#415]) | The runners regenerate `models.ini` at startup. An older one sections an undeclared model by its bare filename while its id carries the repository path, so `arduino:llm` cannot find it among the served models. |
+`RUNNER_VERSION` is `0.13.0rc1`, the first release that carries both halves:
+
+| Needs                                                                        | Since                | Why                                                                                                                                                                                                                 |
+| ---------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `models-downloader` reporting `model_id` on its download events              | [app-bricks-py#416]  | The downloader names the model after the file that arrives. Without that field the model installs, but `POST /v1/models` cannot say which one it is, so the stream ends with an error event instead of the model.   |
+| `models-downloader` reporting `model_origin` and `download_metadata` listing | [app-bricks-py#416]  | A model no `models-list.yaml` entry declares is reconstructed from its on-disk record. An older image reports neither, so only declared models are listed.                                                          |
+| `llamacpp-runner` and `llamacpp-npu-runner` naming by download record        | [app-bricks-py#415]  | The runners regenerate `models.ini` at startup. An older one sections a model by its bare filename while its id carries the repository path, so `arduino:llm` cannot find it among the served models.               |
+
+Releases are tagged `bricks/<version>`; up to and including 0.12.0 they were tagged
+`release/<version>`.
 
 ## Quickstart
 
