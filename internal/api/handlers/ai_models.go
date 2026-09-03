@@ -46,11 +46,18 @@ func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	}
 }
 
+// modelIDFromPath reads the model id a path names. The wire form is base64url, the form
+// every models response reports as "id", so the plain id exists only below this line.
+// "id_decoded" is for display, and is not accepted back.
+func modelIDFromPath(r *http.Request) (string, error) {
+	return modelsindex.DecodeID(r.PathValue("modelID"))
+}
+
 func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("modelID")
-		if id == "" {
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "id must be set"})
+		id, err := modelIDFromPath(r)
+		if err != nil {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
 			return
 		}
 		res, found, err := orchestrator.AIModelDetails(r.Context(), modelsIndex, id)
@@ -69,9 +76,9 @@ func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 
 func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, idProvider *appid.Provider, platform platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := strings.TrimSpace(r.PathValue("modelID"))
-		if id == "" {
-			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "id must be set"})
+		id, err := modelIDFromPath(r)
+		if err != nil {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
 			return
 		}
 		forceRaw := r.URL.Query().Get("force")
@@ -169,26 +176,32 @@ func (r InstallEIModelRequest) Validate() error {
 	return nil
 }
 
+type sseProgress struct {
+	Name     string  `json:"name"`
+	Total    int64   `json:"total"`
+	Current  int64   `json:"current"`
+	Progress float32 `json:"progress"`
+}
+
+type sseLog struct {
+	Message string `json:"message"`
+}
+
+// HandleInstallModel installs a model from the internal model list. HandleDownloadModel
+// downloads a model that no entry declares.
 func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := strings.TrimSpace(r.PathValue("modelID"))
-		if id == "" {
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "model ID must be set"})
+		id, err := modelIDFromPath(r)
+		if err != nil {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
 			return
 		}
 
-		model, err := modelsIndex.GetModelByID(r.Context(), id)
-		if err != nil {
-			slog.Error("unable to get model by ID", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to get model by ID"})
-			return
-		}
-		if model == nil {
-			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: fmt.Sprintf("model %q not found", id)})
-			return
-		}
-		if model.Status == modelsindex.InstalledStatus {
-			render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: fmt.Sprintf("model %q already installed", id)})
+		// The declaration alone answers this, so no listing container runs.
+		declared, found := modelsIndex.DeclaredByID(id)
+		if !found {
+			details := fmt.Sprintf("no model with id %q is declared", id)
+			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})
 			return
 		}
 
@@ -200,47 +213,141 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 		}
 		defer sseStream.Close()
 
-		type progress struct {
-			Name     string  `json:"name"`
-			Total    int64   `json:"total"`
-			Current  int64   `json:"current"`
-			Progress float32 `json:"progress"`
-		}
-		type log struct {
-			Message string `json:"message"`
+		if declared.InstalledByDeclaration() {
+			// Installed by its declaration, with no handler to run.
+			sseStream.Send(render.SSEEvent{Type: "done", Data: orchestrator.NewAIModelItem(*declared)})
+			return
 		}
 
-		installResponse := func(e modelsindex.StreamMessage) {
-			switch e.GetType() {
-			case modelsindex.InfoType:
-				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: e.GetData()}})
-			case modelsindex.ProgressType:
-				var progressValue float32
-				if e.GetProgress().Total > 0 {
-					progressValue = float32(e.GetProgress().Current) / float32(e.GetProgress().Total) * 100
-				}
-				sseStream.Send(render.SSEEvent{Type: "progress", Data: &progress{Name: model.ID, Current: e.GetProgress().Current, Total: e.GetProgress().Total, Progress: progressValue}})
-
-			case modelsindex.ErrorType:
-				sseStream.Send(render.SSEEvent{Type: "error", Data: e.GetError()})
-			case modelsindex.DoneType:
-				sseStream.Send(render.SSEEvent{Type: "done", Data: e.GetDone()})
-			}
+		stream := &downloadStream{sse: sseStream}
+		if err := modelsIndex.Download(r.Context(), dockerClient.Client(), *declared, plat, stream.publish); err != nil {
+			stream.sendError(err)
+			return
+		}
+		if stream.failed {
+			return
 		}
 
-		err = modelsIndex.Download(r.Context(), dockerClient.Client(), *model, plat, installResponse)
+		// The second result is false only when the declaration is nil.
+		installed, _ := installedModel(modelsIndex, declared, stream.downloaded, nil)
+		sseStream.Send(render.SSEEvent{Type: "done", Data: orchestrator.NewAIModelItem(installed)})
+	}
+}
+
+type DownloadModelRequest struct {
+	ModelURL  string `json:"model_url" description:"URL of the GGUF model file on Hugging Face" example:"https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf" required:"true"`
+	MmprojURL string `json:"mmproj_url" description:"URL of the GGUF multimodal projection file on Hugging Face, for a vision model" example:"https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/resolve/main/mmproj-F16.gguf"`
+}
+
+// HandleDownloadModel downloads a model that no models-list.yaml entry declares. The id is
+// not an input: the downloader makes it from the file that arrives, and reports it.
+func HandleDownloadModel(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req DownloadModelRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "unable to decode download model request"})
+			return
+		}
+		modelURL := strings.TrimSpace(req.ModelURL)
+		if modelURL == "" {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "model_url must be set"})
+			return
+		}
+
+		sseStream, err := render.NewSSEStream(r.Context(), w)
 		if err != nil {
-			if errors.Is(err, modelsindex.ErrInsufficientStorage) {
-				sseStream.SendError(render.SSEErrorData{
-					Code:    "insufficient_storage",
-					Message: "insufficient disk space to install model",
-				})
-				return
-			}
+			slog.Error("unable to create SSE stream", slog.String("error", err.Error()))
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to create SSE stream"})
+			return
+		}
+		defer sseStream.Close()
+
+		stream := &downloadStream{sse: sseStream}
+		err = modelsIndex.DownloadByURL(r.Context(), dockerClient.Client(), modelURL, strings.TrimSpace(req.MmprojURL), plat, stream.publish)
+		if err != nil {
+			stream.sendError(err)
+			return
+		}
+		if stream.failed {
+			return
+		}
+
+		// The links the caller asked for, so this event names the same brick the listing
+		// will: a download that fetched a projection file is a vision model.
+		source := &modelsindex.ModelSource{ModelURL: modelURL, MmprojURL: strings.TrimSpace(req.MmprojURL)}
+		installed, ok := installedModel(modelsIndex, nil, stream.downloaded, source)
+		if !ok {
 			sseStream.SendError(render.SSEErrorData{
 				Code:    render.InternalServiceErr,
-				Message: err.Error(),
+				Message: "download named no model: a newer models-downloader image is required",
 			})
+			return
 		}
+		sseStream.Send(render.SSEEvent{Type: "done", Data: orchestrator.NewAIModelItem(installed)})
 	}
+}
+
+// sseSender is the part of render.SSEStream a download needs. An interface so a test can
+// read the events back without an http.ResponseWriter and the stream's goroutine.
+type sseSender interface {
+	Send(event render.SSEEvent)
+	SendError(event render.SSEErrorData)
+}
+
+// downloadStream sends a handler's download events as SSE, and keeps the model that the
+// handler names. After the stream opens, a failure is an event, not an HTTP status.
+type downloadStream struct {
+	sse        sseSender
+	downloaded *modelsindex.DownloadedModel
+	failed     bool
+}
+
+func (d *downloadStream) publish(e modelsindex.StreamMessage) {
+	if m := e.GetModel(); m != nil {
+		d.downloaded = m
+	}
+	switch e.GetType() {
+	case modelsindex.InfoType:
+		d.sse.Send(render.SSEEvent{Type: "message", Data: sseLog{Message: e.GetData()}})
+	case modelsindex.ProgressType:
+		p := e.GetProgress()
+		var progress float32
+		if p.Total > 0 {
+			progress = float32(p.Current) / float32(p.Total) * 100
+		}
+		d.sse.Send(render.SSEEvent{Type: "progress", Data: sseProgress{
+			Name: p.Name, Current: p.Current, Total: p.Total, Progress: progress,
+		}})
+	case modelsindex.ErrorType:
+		d.failed = true
+		d.sse.Send(render.SSEEvent{Type: "error", Data: e.GetError()})
+	case modelsindex.DoneType:
+		d.sse.Send(render.SSEEvent{Type: "message", Data: sseLog{Message: e.GetDone()}})
+	}
+}
+
+func (d *downloadStream) sendError(err error) {
+	if errors.Is(err, modelsindex.ErrInsufficientStorage) {
+		d.sse.SendError(render.SSEErrorData{Code: "insufficient_storage", Message: "insufficient disk space to install model"})
+		return
+	}
+	d.sse.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: err.Error()})
+}
+
+// installedModel describes the model a download wrote. source is the links the caller
+// asked for, and is nil on the install route, where the caller named a declared model and
+// models-list.yaml is what describes it.
+func installedModel(modelsIndex *modelsindex.ModelsIndex, declared *modelsindex.AIModel, downloaded *modelsindex.DownloadedModel, source *modelsindex.ModelSource) (modelsindex.AIModel, bool) {
+	if declared == nil {
+		if downloaded == nil {
+			return modelsindex.AIModel{}, false
+		}
+		return modelsIndex.InstalledModel(*downloaded, source), true
+	}
+	installed := *declared
+	installed.Status = modelsindex.InstalledStatus
+	if downloaded != nil && downloaded.Size > 0 {
+		installed.Size = downloaded.Size
+	}
+	return installed, true
 }

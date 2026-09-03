@@ -36,15 +36,34 @@ type AIModelsListResult struct {
 }
 
 type AIModelItem struct {
-	ID          string                  `json:"id"`
-	Name        string                  `json:"name"`
-	Description string                  `json:"description"`
-	Runner      string                  `json:"runner"`
-	Bricks      []string                `json:"brick_ids"`
-	Metadata    map[string]string       `json:"metadata,omitempty"`
-	IsBuiltIn   bool                    `json:"is_builtin"`
-	Size        *uint64                 `json:"size,omitempty"`
-	Status      modelsindex.ModelStatus `json:"status"`
+	// ID is base64url encoded, so it is one path segment whatever it holds: an id no
+	// models-list.yaml entry declares is named after the repository the file came from
+	// and carries slashes. It is the only form this API takes back, in a path or in a
+	// brick request's "model": the handlers decode it, so an id is plain text everywhere
+	// below them.
+	//
+	// IDDecoded is the same identity in plain text, for showing a person and for the
+	// app.yaml written by hand, which has no encoding rule. It travels out, never back.
+	//
+	// The brick endpoints are the exception: their "compatible_models" and a brick's own
+	// "model" carry the plain id, because they report what an app.yaml holds rather than
+	// address a model. An id read from there is encoded before it comes back here.
+	// Every field without omitempty is required: a client can count on the key being
+	// there. The three optional ones each mean something by their absence - no
+	// declaration to read metadata from, no download record to describe a source, and a
+	// size nobody knows, which is why it is not reported as zero.
+	ID          string                   `json:"id" required:"true"`
+	IDDecoded   string                   `json:"id_decoded" required:"true"`
+	Name        string                   `json:"name" required:"true"`
+	Description string                   `json:"description" required:"true"`
+	Runner      string                   `json:"runner" required:"true"`
+	Bricks      []string                 `json:"brick_ids" required:"true"`
+	Metadata    map[string]string        `json:"metadata,omitempty"`
+	IsBuiltIn   bool                     `json:"is_builtin" required:"true"`
+	Origin      modelsindex.ModelOrigin  `json:"origin" required:"true"`
+	Source      *modelsindex.ModelSource `json:"source,omitempty"`
+	Size        *uint64                  `json:"size,omitempty"`
+	Status      modelsindex.ModelStatus  `json:"status" required:"true"`
 }
 
 type AIModelsListRequest struct {
@@ -61,30 +80,37 @@ func AIModelsList(ctx context.Context, req AIModelsListRequest, modelsIndex *mod
 		})
 	}
 
-	items := f.Map(collection, func(model modelsindex.AIModel) AIModelItem {
-		return AIModelItem{
-			ID:          model.ID,
-			Name:        model.Name,
-			Description: model.Description,
-			Runner:      model.Runner,
-			Bricks:      f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
-			Metadata:    model.Metadata,
-			IsBuiltIn:   model.IsBuiltIn,
-			Status:      model.Status,
-			Size: func() *uint64 {
-				if model.Size > 0 {
-					return &model.Size
-				}
-				return nil
-			}(),
-		}
-	})
-	return AIModelsListResult{Models: items}
+	return AIModelsListResult{Models: f.Map(collection, NewAIModelItem)}
 }
 
-func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, id string) (AIModelItem, bool, error) {
+// NewAIModelItem maps an index model onto the API shape. Size is omitted when unknown
+// rather than reported as zero.
+func NewAIModelItem(model modelsindex.AIModel) AIModelItem {
+	return AIModelItem{
+		ID:          modelsindex.EncodeID(model.ID),
+		IDDecoded:   model.ID,
+		Name:        model.Name,
+		Description: model.Description,
+		Runner:      model.Runner,
+		Bricks:      f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
+		Metadata:    model.Metadata,
+		IsBuiltIn:   model.IsBuiltIn,
+		Origin:      model.Origin,
+		Source:      model.Source,
+		Status:      model.Status,
+		Size: func() *uint64 {
+			if model.Size > 0 {
+				return &model.Size
+			}
+			return nil
+		}(),
+	}
+}
 
-	model, err := modelsIndex.GetModelByID(ctx, id)
+// AIModelDetails describes the model id names. The id is plain: the API decodes the path
+// before calling in, so nothing below the handler deals in encodings.
+func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, id string) (AIModelItem, bool, error) {
+	model, err := modelsIndex.NewLookup().ByID(ctx, id)
 	if err != nil {
 		return AIModelItem{}, false, err
 	}
@@ -92,17 +118,7 @@ func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, i
 		return AIModelItem{}, false, nil
 	}
 
-	return AIModelItem{
-		ID:          model.ID,
-		Name:        model.Name,
-		Description: model.Description,
-		Runner:      model.Runner,
-		Bricks:      f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
-		Metadata:    model.Metadata,
-		IsBuiltIn:   model.IsBuiltIn,
-		Size:        &model.Size,
-		Status:      model.Status,
-	}, true, nil
+	return NewAIModelItem(*model), true, nil
 }
 
 var (
@@ -113,14 +129,17 @@ var (
 	ErrIncompleteImpulse   = errors.New("impulse not ready for deployment")
 )
 
-func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, platform platform.Platform, id string, idProvider *appid.Provider, force bool) (err error) {
-	res, err := modelsIndex.GetModelByID(ctx, id)
+func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, platform platform.Platform, modelID string, idProvider *appid.Provider, force bool) (err error) {
+	res, err := modelsIndex.NewLookup().ByID(ctx, modelID)
 	if err != nil {
 		return err
 	}
 	if res == nil {
-		return fmt.Errorf("%q: %w", id, ErrNotFound)
+		return fmt.Errorf("%q: %w", modelID, ErrNotFound)
 	}
+	// An app references the model by the id the model itself holds, so everything below
+	// asks with that one rather than with what the caller passed.
+	id := res.ID
 
 	if res.IsBuiltIn {
 		return ErrCannotRemoveModel
@@ -144,6 +163,7 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 		}
 	}
 
+	// TODO: skip the delete action when res.Status is already not-installed.
 	err = modelsIndex.Delete(ctx, dockerClient, platform, *res)
 	if err != nil {
 		return fmt.Errorf("error deleting model %q: %w", id, err)
@@ -205,7 +225,7 @@ func checkForModelReferences(ctx context.Context, dockerClient command.Cli,
 }
 
 func isModelInUse(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, modelId string) error {
-	model, err := modelsIndex.GetModelByID(ctx, modelId)
+	model, err := modelsIndex.NewLookup().ByID(ctx, modelId)
 	if err != nil {
 		return fmt.Errorf("error retrieving model %q: %w", modelId, err)
 	}
@@ -316,7 +336,8 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 	}
 
 	return AIModelItem{
-		ID:          aimodel.ModelDescriptor.ID,
+		ID:          modelsindex.EncodeID(aimodel.ModelDescriptor.ID),
+		IDDecoded:   aimodel.ModelDescriptor.ID,
 		Name:        aimodel.ModelDescriptor.Name,
 		Description: aimodel.ModelDescriptor.Description,
 		Runner:      aimodel.ModelDescriptor.Runner,
@@ -324,6 +345,7 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 			return b.ID
 		}),
 		Metadata: aimodel.ModelDescriptor.Metadata,
+		Origin:   modelsindex.EdgeImpulseOrigin,
 		Status:   modelsindex.InstalledStatus,
 	}, nil
 }

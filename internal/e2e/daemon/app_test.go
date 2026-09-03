@@ -28,6 +28,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
 func TestApps(t *testing.T) {
@@ -732,7 +733,7 @@ func TestAppDetails(t *testing.T) {
 		t.Context(),
 		*createResp.JSON201.Id,
 		ImageClassifactionBrickID,
-		client.BrickCreateUpdateRequest{Model: new("mobilenet-image-classification")},
+		client.BrickCreateUpdateRequest{Model: new(modelsindex.EncodeID("mobilenet-image-classification"))},
 		func(ctx context.Context, req *http.Request) error { return nil },
 	)
 	require.NoError(t, err)

@@ -1015,6 +1015,64 @@ paths:
       summary: Get a list of available AI models
       tags:
       - AIModels
+    post:
+      description: |-
+        Download an AI model from Hugging Face. The progress is a stream of Server-Sent Events.
+
+        "model_url" is the URL of the model file on Hugging Face. It selects one file at one commit. For a vision model, "model_mmproj_url" is the URL of the projection file. Only llama.cpp models are supported: the file must be a GGUF file, and it goes in the llamacpp models directory.
+
+        The request has no model id. The downloader makes the id from the file that it writes, and reports it in the "done" event. If the internal model list declares that file, the answer is the declared model.
+
+        Hugging Face reads the URL at the download only, so a bad URL is an error event. The request is idempotent: the handler does not transfer a file that is on disk again.
+
+        The models-downloader image must contain arduino/app-bricks-py#415 and arduino/app-bricks-py#416, with the llamacpp-runner images from the same release. An older image installs the model, but reports no id, and the stream sends an error event.
+      operationId: downloadModel
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DownloadModelRequest'
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                type: string
+          description: |
+            A stream of Server-Sent Events (SSE) reporting the download.
+
+            **Event 'message'**:
+            A line of progress information from the handler.
+            'event: message'
+            'data: {"message":"Downloading to: /models/llamacpp/unsloth/SmolLM2-135M-Instruct-GGUF"}'
+
+            **Event 'progress'**:
+            The bytes transferred for the file in download. "name" is the file name, not the model id. A
+            vision model reports the model file and the projection file under their own names.
+            'event: progress'
+            'data: {"name":"SmolLM2-135M-Instruct-Q4_K_M.gguf","current":75876627,"total":105454144,"progress":71.95}'
+
+            **Event 'done'**:
+            The installed model. A declared model has the values from its own entry. For a download, the
+            downloader makes the id from the file that arrives, and adds the repository name. The caller
+            does not know that id before this event.
+            'event: done'
+            'data: {"id":"llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","name":"unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","status":"installed"}'
+
+            **Event 'error'**:
+            Contains a JSON object with the details of an error. The 200 status is sent with the stream, so
+            every later failure is an error event. A models directory with no free space has the code
+            'insufficient_storage'.
+            'event: error'
+            'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+            'data: {"code":"insufficient_storage","message":"insufficient disk space to install model"}'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Download a llama.cpp model from Hugging Face
+      tags:
+      - AIModels
   /v1/models/{id}:
     delete:
       description: Deletes a specific AI model. By default, fails if referenced by
@@ -1027,12 +1085,17 @@ paths:
         schema:
           description: If true, deletes the model even if referenced by apps.
           type: boolean
-      - description: AI model identifier
+      - description: 'AI model identifier: the base64url encoded, unpadded "id" a
+          models response reports. That is the only form accepted here; "id_decoded"
+          is the plain text to show a person, not to send back.'
         in: path
         name: id
         required: true
         schema:
-          description: AI model identifier
+          description: 'AI model identifier: the base64url encoded, unpadded "id"
+            a models response reports. That is the only form accepted here; "id_decoded"
+            is the plain text to show a person, not to send back.'
+          example: bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N
           type: string
       responses:
         "204":
@@ -1052,12 +1115,17 @@ paths:
       description: Returns the details of a specific AI model.
       operationId: getAIModelDetails
       parameters:
-      - description: AI model identifier.
+      - description: 'AI model identifier: the base64url encoded, unpadded "id" a
+          models response reports. That is the only form accepted here; "id_decoded"
+          is the plain text to show a person, not to send back.'
         in: path
         name: id
         required: true
         schema:
-          description: AI model identifier.
+          description: 'AI model identifier: the base64url encoded, unpadded "id"
+            a models response reports. That is the only form accepted here; "id_decoded"
+            is the plain text to show a person, not to send back.'
+          example: bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N
           type: string
       responses:
         "200":
@@ -1069,6 +1137,68 @@ paths:
         "500":
           $ref: '#/components/responses/InternalServerError'
       summary: Get AI model details
+      tags:
+      - AIModels
+    put:
+      description: |-
+        Install an AI model from the internal model list. The progress is a stream of Server-Sent Events.
+
+        The path takes a model ID from the internal model list. An invalid model ID returns 404.
+
+        The request is idempotent: the handler does not transfer a model that is on disk again. A declaration with no handler installs the model itself, and the stream sends "done" immediately.
+      operationId: installModel
+      parameters:
+      - description: 'The id of a model in the internal model list: the base64url
+          encoded, unpadded "id" a models response reports. "id_decoded" is for display
+          and is not accepted here.'
+        in: path
+        name: id
+        required: true
+        schema:
+          description: 'The id of a model in the internal model list: the base64url
+            encoded, unpadded "id" a models response reports. "id_decoded" is for
+            display and is not accepted here.'
+          example: bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w
+          type: string
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                type: string
+          description: |
+            A stream of Server-Sent Events (SSE) reporting the download.
+
+            **Event 'message'**:
+            A line of progress information from the handler.
+            'event: message'
+            'data: {"message":"Downloading to: /models/llamacpp/unsloth/SmolLM2-135M-Instruct-GGUF"}'
+
+            **Event 'progress'**:
+            The bytes transferred for the file in download. "name" is the file name, not the model id. A
+            vision model reports the model file and the projection file under their own names.
+            'event: progress'
+            'data: {"name":"SmolLM2-135M-Instruct-Q4_K_M.gguf","current":75876627,"total":105454144,"progress":71.95}'
+
+            **Event 'done'**:
+            The installed model, with the values from its entry in the internal model list.
+            'event: done'
+            'data: {"id":"llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","name":"unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","status":"installed"}'
+
+            **Event 'error'**:
+            Contains a JSON object with the details of an error. The 200 status is sent with the stream, so
+            every later failure is an error event. A models directory with no free space has the code
+            'insufficient_storage'.
+            'event: error'
+            'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+            'data: {"code":"insufficient_storage","message":"insufficient disk space to install model"}'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Install an AI model from the internal model list
       tags:
       - AIModels
   /v1/models/ei/projects/{projectID}:
@@ -1333,47 +1463,27 @@ paths:
             text/event-stream:
               schema:
                 type: string
-          description: |
-            A stream of Server-Sent Events (SSE) that notifies the progress of the update process.
-            The 'done' event is the only terminal event: an 'error' reports a step that failed but does
-            not end the operation, so the client should collect the errors received during the stream and
-            present a final summary once 'done' arrives.
-            The client will receive events formatted as follows:
-
-            **Event 'log'**:
-            Contains a log message of the apt upgrade command.
-            'event: log'
-            'data: "updating package: 0.25"'
-
-            **Event 'starting'**:
-            Contains a string with the message that a step of the upgrade process is starting.
-            'event: starting'
-            'data: Upgrade is starting'
-
-            **Event 'progress'**:
-            Contains a JSON object with the overall completion percentage of the update process,
-            from 0 to 100, and the step it is currently executing.
-            'event: progress'
-            'data: {"step":"docker images download","progress":44}'
-
-            **Event 'restarting'**:
-            Contains a string with the message that the upgrade is completed and the system is restarting.
-            'event: restarting'
-            'data: Upgrade completed. Restarting'
-
-            **Event 'error'**:
-            Contains a JSON object with the details of a step that failed. It does not end the operation:
-            the upgrade continues and 'done' is emitted anyway.
-            'event: error'
-            'data: {"code":"internal_service_err","message":"An error occurred during operation"}'
-
-            **Event 'done'**:
-            Contains a string with the message that the update process is complete. It is emitted last,
-            also when 'error' events were received. Note that if the upgrade restarts arduino-app-cli
-            itself, the stream can end before 'done' is delivered: clients should treat the stream
-            closing as an end condition too.
-            'event: done'
-            'data: Update completed'
+          description: "A stream of Server-Sent Events (SSE) that notifies the progress
+            of the update process.\nThe 'done' and 'restarting' events are the only
+            terminal event: an 'error' reports a step that failed but does\nnot end
+            the operation, so the client should collect the errors received during
+            the stream and\npresent a final summary once 'done' arrives.\nThe client
+            will receive events formatted as follows:\n\n**Event 'log'**:\nContains
+            a log message of the apt upgrade command.\n'event: log'\n'data: \"updating
+            package: 0.25\"'\n\n**Event 'starting'**:\nContains a string with the
+            message that a step of the upgrade process is starting.\n'event: starting'\n'data:
+            Upgrade is starting'\n\n**Event 'progress'**:\nContains a JSON object
+            with the overall completion percentage of the update process,\nfrom 0
+            to 100, and the step it is currently executing.\n'event: progress'\n'data:
+            {\"step\":\"docker images download\",\"progress\":44}'\n\n**Event 'restarting'**:\nContains
+            a string with the message that the upgrade is completed and the system
+            is restarting.\n'event: restarting'\n'data: Upgrade completed. Restarting'\n\n**Event
+            'error'**:\nContains a JSON object with the details of a step that failed.
+            It does not end the operation:\nthe upgrade continues and 'done' is emitted
+            anyway.\n'event: error'\n'data: {\"code\":\"internal_service_err\",\"message\":\"An
+            error occurred during operation\"}'\n\n**Event 'done'**:\nContains a string
+            with the message that the update process is complete. It is emitted last,\nalso
+            when 'error' events were received. \n'event: done'\n'data: Update completed'\n"
         "500":
           $ref: '#/components/responses/InternalServerError'
       summary: SSE stream of the update process
@@ -1476,6 +1586,8 @@ components:
           description: 'Deprecated: This field is kept for backward compatibility.'
           type: string
         id:
+          description: The model's plain id, not base64url encoded. Encode it before
+            sending it back on a models path or in a brick request's "model".
           type: string
         name:
           type: string
@@ -1491,6 +1603,8 @@ components:
           type: string
         id:
           type: string
+        id_decoded:
+          type: string
         is_builtin:
           type: boolean
         metadata:
@@ -1499,14 +1613,28 @@ components:
           type: object
         name:
           type: string
+        origin:
+          $ref: '#/components/schemas/ModelOrigin'
         runner:
           type: string
         size:
           minimum: 0
           nullable: true
           type: integer
+        source:
+          $ref: '#/components/schemas/ModelSource'
         status:
           $ref: '#/components/schemas/ModelStatus'
+      required:
+      - id
+      - id_decoded
+      - name
+      - description
+      - runner
+      - brick_ids
+      - is_builtin
+      - origin
+      - status
       type: object
     AIModelsListResult:
       properties:
@@ -1728,6 +1856,9 @@ components:
         id:
           type: string
         model:
+          description: The model this brick instance uses, as the plain id app.yaml
+            holds. Unlike "id" on the models endpoints, it is not base64url encoded;
+            encode it before naming a model in a path.
           type: string
         name:
           type: string
@@ -1858,6 +1989,20 @@ components:
       properties:
         id:
           type: string
+      type: object
+    DownloadModelRequest:
+      properties:
+        mmproj_url:
+          description: URL of the GGUF multimodal projection file on Hugging Face,
+            for a vision model
+          example: https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/resolve/main/mmproj-F16.gguf
+          type: string
+        model_url:
+          description: URL of the GGUF model file on Hugging Face
+          example: https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf
+          type: string
+      required:
+      - model_url
       type: object
     EditRequest:
       properties:
@@ -1996,6 +2141,28 @@ components:
       properties:
         id:
           type: string
+      type: object
+    ModelOrigin:
+      description: 'Where the model came from: "curated" is declared by the internal
+        model list and installs from its id alone, "user" was downloaded from a source
+        the caller supplied and needs that source again, "edge-impulse" was deployed
+        from an Edge Impulse project.'
+      enum:
+      - curated
+      - user
+      - edge-impulse-user-project
+      type: string
+      uniqueItems: true
+    ModelSource:
+      properties:
+        downloaded_at:
+          type: string
+        model_mmproj_url:
+          type: string
+        model_url:
+          type: string
+      required:
+      - model_url
       type: object
     ModelStatus:
       description: Model status

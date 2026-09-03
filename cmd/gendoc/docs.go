@@ -92,6 +92,19 @@ func NewOpenApiGenerator(version string) *Generator {
 		},
 	)
 
+	reflector.Spec.Components.Schemas.WithMapOfSchemaOrRefValuesItem(
+		"ModelOrigin",
+		openapi3.SchemaOrRef{
+			Schema: &openapi3.Schema{
+				UniqueItems: new(true),
+				Enum:        f.Map(modelsindex.ModelOrigin("").AllowedOrigins(), func(v modelsindex.ModelOrigin) any { return v }),
+				Type:        new(openapi3.SchemaTypeString),
+				Description: new("Where the model came from: \"curated\" is declared by the internal model list and installs from its id alone, \"user\" was downloaded from a source the caller supplied and needs that source again, \"edge-impulse\" was deployed from an Edge Impulse project."),
+				ReflectType: reflect.TypeOf(modelsindex.ModelOrigin("")),
+			},
+		},
+	)
+
 	ErrorResponseSchema := "#/components/schemas/ErrorResponse"
 
 	reflector.Spec.Components.WithResponses(
@@ -276,6 +289,10 @@ func NewOpenApiGenerator(version string) *Generator {
 			}
 			if params.Value.Type() == reflect.TypeOf(modelsindex.ModelStatus("")) {
 				params.Schema.WithRef("#/components/schemas/ModelStatus")
+				return true, nil
+			}
+			if params.Value.Type() == reflect.TypeOf(modelsindex.ModelOrigin("")) {
+				params.Schema.WithRef("#/components/schemas/ModelOrigin")
 				return true, nil
 			}
 			return false, nil
@@ -875,7 +892,7 @@ Contains a JSON object with the details of an error.
 			Method:      http.MethodDelete,
 			Path:        "/v1/models/{id}",
 			Request: (*struct {
-				ID    string `path:"id" description:"AI model identifier"`
+				ID    string `path:"id" description:"AI model identifier: the base64url encoded, unpadded \"id\" a models response reports. That is the only form accepted here; \"id_decoded\" is the plain text to show a person, not to send back." example:"bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N"`
 				Force bool   `query:"force" description:"If true, deletes the model even if referenced by apps."`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
@@ -897,7 +914,7 @@ Contains a JSON object with the details of an error.
 			Method:      http.MethodGet,
 			Path:        "/v1/models/{id}",
 			Request: (*struct {
-				ID string `path:"id" description:"AI model identifier."`
+				ID string `path:"id" description:"AI model identifier: the base64url encoded, unpadded \"id\" a models response reports. That is the only form accepted here; \"id_decoded\" is the plain text to show a person, not to send back." example:"bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N"`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
@@ -936,6 +953,111 @@ Contains a JSON object with the details of an error.
 				{StatusCode: http.StatusForbidden, Reference: "#/components/responses/Forbidden"},
 				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
 				{StatusCode: http.StatusInsufficientStorage, Reference: "#/components/responses/InsufficientStorage"},
+			},
+		},
+		{
+			OperationId: "installModel",
+			Method:      http.MethodPut,
+			Path:        "/v1/models/{id}",
+			Parameters: (*struct {
+				ModelID string `path:"id" description:"The id of a model in the internal model list: the base64url encoded, unpadded \"id\" a models response reports. \"id_decoded\" is for display and is not accepted here." example:"bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w"`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "text/event-stream",
+				DataStructure: "",
+				Description: `A stream of Server-Sent Events (SSE) reporting the download.
+
+**Event 'message'**:
+A line of progress information from the handler.
+'event: message'
+'data: {"message":"Downloading to: /models/llamacpp/unsloth/SmolLM2-135M-Instruct-GGUF"}'
+
+**Event 'progress'**:
+The bytes transferred for the file in download. "name" is the file name, not the model id. A
+vision model reports the model file and the projection file under their own names.
+'event: progress'
+'data: {"name":"SmolLM2-135M-Instruct-Q4_K_M.gguf","current":75876627,"total":105454144,"progress":71.95}'
+
+**Event 'done'**:
+The installed model, with the values from its entry in the internal model list.
+'event: done'
+'data: {"id":"llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","name":"unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","status":"installed"}'
+
+**Event 'error'**:
+Contains a JSON object with the details of an error. The 200 status is sent with the stream, so
+every later failure is an error event. A models directory with no free space has the code
+'insufficient_storage'.
+'event: error'
+'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+'data: {"code":"insufficient_storage","message":"insufficient disk space to install model"}'
+`,
+			},
+			Description: `Install an AI model from the internal model list. The progress is a stream of Server-Sent Events.
+
+The path takes a model ID from the internal model list. An invalid model ID returns 404.
+
+The request is idempotent: the handler does not transfer a model that is on disk again. A declaration with no handler installs the model itself, and the stream sends "done" immediately.`,
+			Summary: "Install an AI model from the internal model list",
+			Tags:    []Tag{AIModelsTag},
+			// Only the failures that come before the stream opens. No 507: the handler
+			// knows the disk space later, so that failure is an event.
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusNotFound, Reference: "#/components/responses/NotFound"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "downloadModel",
+			Method:      http.MethodPost,
+			Path:        "/v1/models",
+			Request:     (*handlers.DownloadModelRequest)(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "text/event-stream",
+				DataStructure: "",
+				Description: `A stream of Server-Sent Events (SSE) reporting the download.
+
+**Event 'message'**:
+A line of progress information from the handler.
+'event: message'
+'data: {"message":"Downloading to: /models/llamacpp/unsloth/SmolLM2-135M-Instruct-GGUF"}'
+
+**Event 'progress'**:
+The bytes transferred for the file in download. "name" is the file name, not the model id. A
+vision model reports the model file and the projection file under their own names.
+'event: progress'
+'data: {"name":"SmolLM2-135M-Instruct-Q4_K_M.gguf","current":75876627,"total":105454144,"progress":71.95}'
+
+**Event 'done'**:
+The installed model. A declared model has the values from its own entry. For a download, the
+downloader makes the id from the file that arrives, and adds the repository name. The caller
+does not know that id before this event.
+'event: done'
+'data: {"id":"llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","name":"unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","status":"installed"}'
+
+**Event 'error'**:
+Contains a JSON object with the details of an error. The 200 status is sent with the stream, so
+every later failure is an error event. A models directory with no free space has the code
+'insufficient_storage'.
+'event: error'
+'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+'data: {"code":"insufficient_storage","message":"insufficient disk space to install model"}'
+`,
+			},
+			Description: `Download an AI model from Hugging Face. The progress is a stream of Server-Sent Events.
+
+"model_url" is the URL of the model file on Hugging Face. It selects one file at one commit. For a vision model, "model_mmproj_url" is the URL of the projection file. Only llama.cpp models are supported: the file must be a GGUF file, and it goes in the llamacpp models directory.
+
+The request has no model id. The downloader makes the id from the file that it writes, and reports it in the "done" event. If the internal model list declares that file, the answer is the declared model.
+
+Hugging Face reads the URL at the download only, so a bad URL is an error event. The request is idempotent: the handler does not transfer a file that is on disk again.
+
+The models-downloader image must contain arduino/app-bricks-py#415 and arduino/app-bricks-py#416, with the llamacpp-runner images from the same release. An older image installs the model, but reports no id, and the stream sends an error event.`,
+			Summary: "Download a llama.cpp model from Hugging Face",
+			Tags:    []Tag{AIModelsTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
 			},
 		},
 		{

@@ -41,11 +41,19 @@ func TestParseDownloadHandlerLine(t *testing.T) {
 			},
 		},
 		{
-			name:        "complete event with artifacts",
+			name:        "complete event ignores the file list",
 			line:        `{"event":"complete","description":"download complete","artifacts":["model.eim","meta.json"]}`,
 			expectEvent: 1,
 			expected: StreamMessage{
 				done: "download complete",
+			},
+		},
+		{
+			name:        "info event reports the handler's line and ignores the file list",
+			line:        `{"event":"info","description":"Downloaded to: /models/repo","artifacts":["/models/repo/m.gguf"]}`,
+			expectEvent: 1,
+			expected: StreamMessage{
+				data: "Downloaded to: /models/repo",
 			},
 		},
 		{
@@ -186,4 +194,251 @@ handlers:
 	images := handlersIndex.GetDockerImages()
 	slices.Sort(images)
 	assert.Equal(t, []string{"test-registry/models-downloader:ai-hub", "test-registry/models-downloader:ei", "test-registry/models-downloader:hf", "test-registry/models-downloader:listing"}, images)
+}
+
+func testHandlersIndex() *HandlersIndex {
+	return &HandlersIndex{
+		handlers:  map[string]ModelHandler{"hf-handler": {ID: "hf-handler"}},
+		configEnv: map[string]string{"BOARD_NAME": "unoq"},
+	}
+}
+
+func TestUserConfiguredModel(t *testing.T) {
+	inputs := map[string]string{
+		"models_repository": "llamacpp",
+		"model_directory":   "unsloth/Qwen3.5-0.8B-GGUF",
+		"model_url":         "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/blob/f4db1b3/Qwen3.5-0.8B-Q4_0.gguf",
+	}
+	entry := func(mutate func(*handlerModelEntry)) handlerModelEntry {
+		// An ad-hoc id is qualified by the repository directory the file landed in, so it
+		// cannot collide with a same-named GGUF from another owner.
+		e := handlerModelEntry{
+			ID:          "llamacpp:unsloth/Qwen3.5-0.8B-GGUF/Qwen3.5-0.8B-Q4_0",
+			Name:        "unsloth/Qwen3.5-0.8B-GGUF/Qwen3.5-0.8B-Q4_0",
+			Handler:     "llamacpp",
+			ModelOrigin: "user",
+			Metadata: &entryMetadata{
+				ModelID:      "llamacpp:unsloth/Qwen3.5-0.8B-GGUF/Qwen3.5-0.8B-Q4_0",
+				Handler:      "hf-handler",
+				DownloadedAt: "2026-09-02T13:33:10Z",
+				Inputs:       inputs,
+			},
+		}
+		if mutate != nil {
+			mutate(&e)
+		}
+		return e
+	}
+
+	t.Run("appends a model no models-list.yaml entry declares", func(t *testing.T) {
+		model, ok := testHandlersIndex().userDownloadModel(entry(nil))
+		require.True(t, ok)
+		assert.Equal(t, "llamacpp:unsloth/Qwen3.5-0.8B-GGUF/Qwen3.5-0.8B-Q4_0", model.ID)
+		assert.Equal(t, "unsloth/Qwen3.5-0.8B-GGUF/Qwen3.5-0.8B-Q4_0", model.Name)
+		assert.False(t, model.IsBuiltIn, "a built-in model cannot be deleted")
+		assert.Nil(t, model.ModelFolderPath, "the listing's path is a container path")
+		require.NotNil(t, model.Deployment)
+		// The handler id comes from the record: entry.Handler is a namespace.
+		assert.Equal(t, "hf-handler", model.Deployment.Handler)
+		assert.Equal(t, inputs, model.Deployment.VariablesForPlatform("unoq"))
+		assert.Equal(t, []BrickConfig{{ID: "arduino:llm"}}, model.Bricks)
+		// The link is the only thing that says which model this is: the id names the
+		// files, not the request that fetched them.
+		require.NotNil(t, model.Source)
+		assert.Equal(t, inputs["model_url"], model.Source.ModelURL)
+		assert.Equal(t, "2026-09-02T13:33:10Z", model.Source.DownloadedAt)
+		assert.Empty(t, model.Source.MmprojURL, "not a vision model")
+	})
+
+	// models-downloader <= 0.12.0 writes neither field, so on an older image every
+	// undeclared entry falls into one of these two cases and nothing is appended.
+	t.Run("skips an entry the handler marks builtin", func(t *testing.T) {
+		_, ok := testHandlersIndex().userDownloadModel(entry(func(e *handlerModelEntry) {
+			e.ModelOrigin = "builtin"
+		}))
+		assert.False(t, ok)
+	})
+
+	t.Run("skips an entry with no download record", func(t *testing.T) {
+		_, ok := testHandlersIndex().userDownloadModel(entry(func(e *handlerModelEntry) {
+			e.Metadata = nil
+		}))
+		assert.False(t, ok)
+	})
+
+	t.Run("skips an entry whose record carries no inputs", func(t *testing.T) {
+		_, ok := testHandlersIndex().userDownloadModel(entry(func(e *handlerModelEntry) {
+			e.Metadata.Inputs = nil
+		}))
+		assert.False(t, ok)
+	})
+
+	// Two quantizations of one repository share a record naming the last downloaded.
+	t.Run("skips an entry whose record names another model", func(t *testing.T) {
+		_, ok := testHandlersIndex().userDownloadModel(entry(func(e *handlerModelEntry) {
+			e.Metadata.ModelID = "llamacpp:unsloth/Qwen3.5-0.8B-GGUF/Qwen3.5-0.8B-Q8_0"
+		}))
+		assert.False(t, ok)
+	})
+
+	t.Run("skips an entry naming a handler the index does not know", func(t *testing.T) {
+		_, ok := testHandlersIndex().userDownloadModel(entry(func(e *handlerModelEntry) {
+			e.Metadata.Handler = "not-a-handler"
+		}))
+		assert.False(t, ok)
+	})
+}
+
+func TestApplyStatusTo(t *testing.T) {
+	diskSize, yamlSize := 507.0, 480.0
+
+	t.Run("installed prefers the on-disk size", func(t *testing.T) {
+		var model AIModel
+		handlerModelEntry{Installed: true, DiskSizeMB: &diskSize, ModelSizeMB: &yamlSize}.applyStat(&model)
+		assert.Equal(t, InstalledStatus, model.Status)
+		assert.False(t, model.Downloading)
+		assert.Equal(t, uint64(507*1024*1024), model.Size)
+	})
+
+	t.Run("not installed falls back to the declared size", func(t *testing.T) {
+		var model AIModel
+		handlerModelEntry{Installed: false, DiskSizeMB: &diskSize, ModelSizeMB: &yamlSize}.applyStat(&model)
+		assert.Equal(t, NotInstalledStatus, model.Status)
+		assert.Equal(t, uint64(480*1024*1024), model.Size)
+	})
+
+	t.Run("downloading is not installed", func(t *testing.T) {
+		var model AIModel
+		handlerModelEntry{Installed: false, Downloading: true}.applyStat(&model)
+		assert.Equal(t, NotInstalledStatus, model.Status)
+		assert.True(t, model.Downloading)
+		assert.Zero(t, model.Size)
+	})
+}
+
+func TestParseDownloadHandlerLineNamesTheModel(t *testing.T) {
+	t.Run("an info event carrying an id names the model", func(t *testing.T) {
+		var got []StreamMessage
+		parseDownloadHandlerLine(`{"event":"info","description":"Downloaded to: /models/org/repo","artifacts":["/models/org/repo/m-Q4_0.gguf"],"model_id":"llamacpp:org/repo/m-Q4_0","size_mb":2048}`, func(e StreamMessage) {
+			got = append(got, e)
+		})
+
+		require.Len(t, got, 1)
+		require.NotNil(t, got[0].GetModel())
+		assert.Equal(t, "llamacpp:org/repo/m-Q4_0", got[0].GetModel().ID)
+		assert.Equal(t, uint64(2048*1024*1024), got[0].GetModel().Size)
+	})
+
+	t.Run("an info event without an id names nothing", func(t *testing.T) {
+		// A handler too old to report the id, or one whose record could not be written:
+		// either way there is no model to answer with.
+		var got []StreamMessage
+		parseDownloadHandlerLine(`{"event":"info","description":"Downloading","artifacts":["/models/org/repo/m-Q4_0.gguf"]}`, func(e StreamMessage) {
+			got = append(got, e)
+		})
+
+		require.Len(t, got, 1)
+		assert.Nil(t, got[0].GetModel())
+	})
+}
+
+func TestUserConfiguredModelFromDownloadEvent(t *testing.T) {
+	id := "llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M"
+	model := UserConfiguredModel(DownloadedModel{ID: id, Size: 1024}, nil)
+
+	assert.Equal(t, id, model.ID)
+	// The whole path survives: it is what the listing reports for the same files, and
+	// what models.ini serves the model under, so shortening it here would name the
+	// model something no other component knows.
+	assert.Equal(t, "unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M", model.Name,
+		"the name is the id without its framework namespace")
+	assert.Equal(t, InstalledStatus, model.Status)
+	assert.Equal(t, uint64(1024), model.Size)
+	assert.Equal(t, []BrickConfig{{ID: "arduino:llm"}}, model.Bricks)
+	assert.False(t, model.IsBuiltIn)
+}
+
+func TestUserConfiguredModelMatchesTheListing(t *testing.T) {
+	// The same files, described once from a download event and once from a listing entry,
+	// must not come out differently named.
+	entry := handlerModelEntry{
+		ID:          "llamacpp:org/repo/m-Q4_0",
+		Name:        "org/repo/m-Q4_0",
+		ModelOrigin: "user",
+		Installed:   true,
+		Metadata:    &entryMetadata{ModelID: "llamacpp:org/repo/m-Q4_0", Handler: "hf-handler", Inputs: map[string]string{"model_url": "llamacpp:org/repo:Q4_0"}},
+	}
+	listed, ok := testHandlersIndex().userDownloadModel(entry)
+	require.True(t, ok)
+
+	fromEvent := UserConfiguredModel(DownloadedModel{ID: entry.ID}, nil)
+	assert.Equal(t, listed.ID, fromEvent.ID)
+	assert.Equal(t, listed.Name, fromEvent.Name)
+	assert.Equal(t, listed.Bricks, fromEvent.Bricks)
+}
+
+func TestEntryMetadataSource(t *testing.T) {
+	t.Run("no record at all", func(t *testing.T) {
+		var md *entryMetadata
+		assert.Nil(t, md.source(), "a legacy install records nothing, and absent is not up-to-date")
+	})
+
+	t.Run("a record naming no link", func(t *testing.T) {
+		// Every handler but Hugging Face identifies a model by numbers, not by a URL.
+		md := &entryMetadata{Handler: "ei-handler", Inputs: map[string]string{
+			"ei_project_id": "901144", "ei_impulse_id": "1",
+		}}
+		assert.Nil(t, md.source())
+	})
+
+	t.Run("a vision model, both links", func(t *testing.T) {
+		md := &entryMetadata{
+			DownloadedAt: "2026-09-02T09:04:32Z",
+			Inputs: map[string]string{
+				"models_repository": "llamacpp",
+				"model_directory":   "ggml-org/SmolVLM-256M-Instruct-GGUF",
+				"model_url":         "https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/SmolVLM-256M-Instruct-Q8_0.gguf",
+				"model_mmproj_url":  "https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-256M-Instruct-Q8_0.gguf",
+			},
+		}
+		source := md.source()
+		require.NotNil(t, source)
+		assert.Equal(t, md.Inputs["model_url"], source.ModelURL)
+		assert.Equal(t, md.Inputs["model_mmproj_url"], source.MmprojURL)
+		assert.Equal(t, "2026-09-02T09:04:32Z", source.DownloadedAt)
+	})
+}
+
+func TestModelNameFromID(t *testing.T) {
+	assert.Equal(t, "m-Q4_0", modelNameFromID("llamacpp:m-Q4_0"))
+	assert.Equal(t, "bare", modelNameFromID("bare"), "an id with no namespace is its own name")
+	// Only the framework namespace is cut. An ad-hoc id carries the repository path it
+	// was downloaded from, and every segment of it is part of the name.
+	assert.Equal(t, "unsloth/Qwen3-0.6B-GGUF/Qwen3-0.6B-Q4_0",
+		modelNameFromID("llamacpp:unsloth/Qwen3-0.6B-GGUF/Qwen3-0.6B-Q4_0"))
+}
+
+func TestDeclaredByIDNeedsNoHandler(t *testing.T) {
+	// The install route asks this before deciding whether an id names a declared model or
+	// a download source, so it must answer from models-list.yaml alone - a nil handlers
+	// index and a nil docker client stand in for "no container available".
+	idx := &ModelsIndex{
+		InternalModels: []AIModel{
+			{ID: "llamacpp:Declared-Q4_0", Name: "Declared"},
+			// A key holding a slash: nothing forbids one, and it must still be found here
+			// rather than being taken for a Hugging Face repository.
+			{ID: "vendor/slashed-id", Name: "Slashed"},
+		},
+	}
+
+	model, ok := idx.DeclaredByID("llamacpp:Declared-Q4_0")
+	require.True(t, ok)
+	assert.Equal(t, "Declared", model.Name)
+
+	model, ok = idx.DeclaredByID("vendor/slashed-id")
+	require.True(t, ok)
+	assert.Equal(t, "Slashed", model.Name)
+
+	_, ok = idx.DeclaredByID("unsloth/SmolLM2-135M-Instruct-GGUF")
+	assert.False(t, ok, "a repository the catalog does not declare is not a declared model")
 }
