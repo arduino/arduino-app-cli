@@ -18,6 +18,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
 const (
@@ -64,7 +65,7 @@ func setupTestApp(t *testing.T) (*client.CreateAppResp, *client.ClientWithRespon
 		t.Context(),
 		*createResp.JSON201.Id,
 		ImageClassifactionBrickID,
-		client.BrickCreateUpdateRequest{Model: new("mobilenet-image-classification")},
+		client.BrickCreateUpdateRequest{Model: new(modelsindex.EncodeID("mobilenet-image-classification"))},
 		func(ctx context.Context, req *http.Request) error { return nil },
 	)
 	require.NoError(t, err)
@@ -201,7 +202,7 @@ func TestUpsertAppBrickInstance(t *testing.T) {
 			t.Context(),
 			*createResp.JSON201.Id,
 			ImageClassifactionBrickID,
-			client.BrickCreateUpdateRequest{Model: new("mobilenet-image-classification")},
+			client.BrickCreateUpdateRequest{Model: new(modelsindex.EncodeID("mobilenet-image-classification"))},
 			func(ctx context.Context, req *http.Request) error { return nil },
 		)
 		require.NoError(t, err)
@@ -225,7 +226,7 @@ func TestUpsertAppBrickInstance(t *testing.T) {
 			t.Context(),
 			*createResp.JSON201.Id,
 			ImageClassifactionBrickID,
-			client.BrickCreateUpdateRequest{Model: new("non-existent-model")},
+			client.BrickCreateUpdateRequest{Model: new(modelsindex.EncodeID("non-existent-model"))},
 		)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
@@ -350,7 +351,7 @@ func TestUpdateAppBrickInstance(t *testing.T) {
 			t.Context(),
 			*createResp.JSON201.Id,
 			ImageClassifactionBrickID,
-			client.BrickCreateUpdateRequest{Model: new("mobilenet-image-classification")},
+			client.BrickCreateUpdateRequest{Model: new(modelsindex.EncodeID("mobilenet-image-classification"))},
 			func(ctx context.Context, req *http.Request) error { return nil },
 		)
 		require.NoError(t, err)
@@ -373,7 +374,7 @@ func TestUpdateAppBrickInstance(t *testing.T) {
 			t.Context(),
 			*createResp.JSON201.Id,
 			ImageClassifactionBrickID,
-			client.BrickCreateUpdateRequest{Model: new("non-existent-model")},
+			client.BrickCreateUpdateRequest{Model: new(modelsindex.EncodeID("non-existent-model"))},
 		)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusInternalServerError, resp.StatusCode)

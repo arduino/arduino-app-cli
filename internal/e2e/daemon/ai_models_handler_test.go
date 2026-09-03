@@ -19,6 +19,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
 func TestModelHandlerDownloadFlow(t *testing.T) {
@@ -26,6 +27,8 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
 	}
 	modelID := cmp.Or(os.Getenv("E2E_MODEL_ID"), "melo-tts-es")
+	// The API takes the encoded form; modelID stays plain for the messages below.
+	encodedID := modelsindex.EncodeID(modelID)
 
 	modelsDir := e2e.FindRepositoryRootPath(t).Join("models")
 	t.Cleanup(func() { _ = modelsDir.RemoveAll() })
@@ -35,7 +38,7 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	t.Run("model is not installed before download", func(t *testing.T) {
-		resp, err := getModelWithRetry(t, httpClient, modelID, requestEditor)
+		resp, err := getModelWithRetry(t, httpClient, encodedID, requestEditor)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode(), "model %q not found in index", modelID)
 		require.NotNil(t, resp.JSON200)
@@ -44,7 +47,7 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 
 	t.Run("install emits progress events", func(t *testing.T) {
 
-		req, err := http.NewRequest(http.MethodPut, daemonAddr+"/v1/models/"+modelID, nil) //nolint:gosec
+		req, err := http.NewRequest(http.MethodPut, daemonAddr+"/v1/models/"+encodedID, nil) //nolint:gosec
 		assert.NoError(t, err, "failed to create request for model install")
 		events, err := newSSEClient(req, 0)
 		require.NoError(t, err)
@@ -66,7 +69,7 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 	})
 
 	t.Run("model is installed after download", func(t *testing.T) {
-		resp, err := getModelWithRetry(t, httpClient, modelID, requestEditor)
+		resp, err := getModelWithRetry(t, httpClient, encodedID, requestEditor)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode())
 		require.NotNil(t, resp.JSON200)
@@ -76,7 +79,7 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 	t.Run("model can be deleted", func(t *testing.T) {
 		force := false
 		resp, err := httpClient.DeleteAIModelWithResponse(
-			t.Context(), modelID,
+			t.Context(), encodedID,
 			&client.DeleteAIModelParams{Force: &force},
 			requestEditor,
 		)
@@ -86,7 +89,7 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 	})
 
 	t.Run("model is not installed after delete", func(t *testing.T) {
-		resp, err := getModelWithRetry(t, httpClient, modelID, requestEditor)
+		resp, err := getModelWithRetry(t, httpClient, encodedID, requestEditor)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode())
 		require.NotNil(t, resp.JSON200)
