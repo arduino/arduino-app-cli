@@ -813,6 +813,57 @@ func TestAppPorts(t *testing.T) {
 
 	})
 
+	// arduino:asr and arduino:tts declare no port of their own: the only port of the app is the one
+	// published by arduino:genie_audio, the service both of them require. The service is started
+	// once, so it must be reported once.
+	t.Run("GetAppPortsOfRequiredService_Success", func(t *testing.T) {
+
+		createResp, err := httpClient.CreateAppWithResponse(
+			t.Context(),
+			&client.CreateAppParams{SkipSketch: new(true)},
+			client.CreateAppRequest{
+				Icon:        new("💻"),
+				Name:        "test-app-required-service",
+				Description: new("My app description"),
+			},
+			func(ctx context.Context, req *http.Request) error { return nil },
+		)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusCreated, createResp.StatusCode())
+		require.NotNil(t, createResp.JSON201)
+
+		for _, brickID := range []string{"arduino:asr", "arduino:tts"} {
+			respBrick, err := httpClient.UpsertAppBrickInstanceWithResponse(
+				t.Context(),
+				*createResp.JSON201.Id,
+				brickID,
+				client.BrickCreateUpdateRequest{},
+				func(ctx context.Context, req *http.Request) error { return nil },
+			)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, respBrick.StatusCode(), "failed to add brick %s", brickID)
+		}
+
+		resp, err := httpClient.GetAppPorts(
+			t.Context(),
+			*createResp.JSON201.Id,
+			func(ctx context.Context, req *http.Request) error { return nil },
+		)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		var portsResponse client.AppPortResponse
+		err = json.NewDecoder(resp.Body).Decode(&portsResponse)
+		require.NoError(t, err)
+		require.NotEmpty(t, portsResponse.Ports)
+		ports := *portsResponse.Ports
+		require.Len(t, ports, 1)
+		require.Equal(t, "8085", *ports[0].Port)
+		require.Equal(t, "arduino:genie_audio", *ports[0].Source)
+		require.Nil(t, ports[0].ServiceName, "a service port has no requires_display to report")
+
+	})
+
 	t.Run("GetAppPortsEmpty_Success", func(t *testing.T) {
 
 		createResp, err := httpClient.CreateAppWithResponse(
