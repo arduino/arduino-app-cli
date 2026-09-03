@@ -174,7 +174,7 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		})
 		idx := loadHandlersTestIndex(t, cli)
 
-		model, err := idx.GetModelByID(t.Context(), "piper-tts-en")
+		model, err := idx.NewLookup().ByID(t.Context(), "piper-tts-en")
 		require.NoError(t, err)
 		require.NotNil(t, model)
 		assert.Equal(t, uint64(46*1024*1024), model.Size)
@@ -186,7 +186,7 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		})
 		idx := loadHandlersTestIndex(t, cli)
 
-		model, err := idx.GetModelByID(t.Context(), "ei:efficientnet-b4")
+		model, err := idx.NewLookup().ByID(t.Context(), "ei:efficientnet-b4")
 		require.NoError(t, err)
 		require.NotNil(t, model)
 		assert.Equal(t, NotInstalledStatus, model.Status)
@@ -199,7 +199,7 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		})
 		idx := loadHandlersTestIndex(t, cli)
 
-		model, err := idx.GetModelByID(t.Context(), "ei:efficientnet-b4")
+		model, err := idx.NewLookup().ByID(t.Context(), "ei:efficientnet-b4")
 		require.NoError(t, err)
 		require.NotNil(t, model)
 		assert.Equal(t, InstalledStatus, model.Status)
@@ -212,7 +212,7 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		})
 		idx := loadHandlersTestIndex(t, cli)
 
-		_, err := idx.GetModelByID(t.Context(), "ei:efficientnet-b4")
+		_, err := idx.NewLookup().ByID(t.Context(), "ei:efficientnet-b4")
 		require.Error(t, err)
 	})
 
@@ -225,7 +225,7 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		})
 		idx := loadHandlersTestIndex(t, cli)
 
-		model, err := idx.GetModelByID(t.Context(), "no-such-model-id")
+		model, err := idx.NewLookup().ByID(t.Context(), "no-such-model-id")
 		require.NoError(t, err)
 		assert.Nil(t, model)
 	})
@@ -237,7 +237,7 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		})
 		idx := loadHandlersTestIndex(t, cli)
 
-		model, err := idx.GetModelByID(t.Context(), "ei-model-990187-1")
+		model, err := idx.NewLookup().ByID(t.Context(), "ei-model-990187-1")
 		require.NoError(t, err)
 		require.NotNil(t, model)
 		assert.Equal(t, InstalledStatus, model.Status)
@@ -364,13 +364,13 @@ func TestModelForBrickTakesAnEncodedID(t *testing.T) {
 	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
 	require.NoError(t, err)
 
-	model, err := idx.ModelForBrick(t.Context(), EncodeID("ei:efficientnet-b4"), "arduino:image_classification")
+	model, err := idx.NewLookup().ModelForBrick(t.Context(), EncodeID("ei:efficientnet-b4"), "arduino:image_classification")
 	require.NoError(t, err)
 	require.NotNil(t, model)
 	assert.Equal(t, "ei:efficientnet-b4", model.ID, "the answer carries the plain id, whatever the question carried")
 
 	// A brick the model does not serve is not a lookup failure, it is simply no match.
-	other, err := idx.ModelForBrick(t.Context(), EncodeID("ei:efficientnet-b4"), "arduino:tts")
+	other, err := idx.NewLookup().ModelForBrick(t.Context(), EncodeID("ei:efficientnet-b4"), "arduino:tts")
 	require.NoError(t, err)
 	assert.Nil(t, other)
 }
@@ -426,13 +426,14 @@ func TestLookupRunsOneListing(t *testing.T) {
 		assert.Zero(t, listings.Load())
 	})
 
-	t.Run("each ModelsIndex call takes its own listing", func(t *testing.T) {
+	t.Run("each new Lookup takes its own listing", func(t *testing.T) {
 		listings.Store(0)
 		idx := newIndex(t)
 
-		_, err := idx.GetModelByID(t.Context(), "ei:efficientnet-b4")
+		_, err := idx.NewLookup().ByID(t.Context(), "ei:efficientnet-b4")
 		require.NoError(t, err)
-		idx.GetModelsByBrick(t.Context(), "arduino:image_classification")
+		_, err = idx.NewLookup().ByBrick(t.Context(), "arduino:image_classification")
+		require.NoError(t, err)
 
 		assert.Equal(t, int64(2), listings.Load())
 	})

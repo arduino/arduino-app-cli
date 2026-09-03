@@ -144,7 +144,7 @@ func (s *Service) AppBrickInstanceDetails(ctx context.Context, a *app.ArduinoApp
 		Variables:       variables,
 		ConfigVariables: configVariables,
 		ModelID:         cmp.Or(a.Descriptor.Bricks[brickIndex].Model, brick.ModelName),
-		CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(ctx, brick.ID), func(m modelsindex.AIModelLite) AIModel {
+		CompatibleModels: f.Map(compatibleModels(ctx, s.modelsIndex.NewLookup(), brick.ID), func(m modelsindex.AIModelLite) AIModel {
 			return AIModel{
 				ID:   m.ID,
 				Name: m.Name,
@@ -230,7 +230,7 @@ func (s *Service) BricksDetails(ctx context.Context, id string, idProvider *appi
 		ApiDocsPath:  apiDocsPath,
 		CodeExamples: codeExamples,
 		UsedByApps:   usedByApps,
-		CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(ctx, brick.ID), func(m modelsindex.AIModelLite) AIModel {
+		CompatibleModels: f.Map(compatibleModels(ctx, s.modelsIndex.NewLookup(), brick.ID), func(m modelsindex.AIModelLite) AIModel {
 			return AIModel{
 				ID:          m.ID,
 				Name:        m.Name,
@@ -391,7 +391,7 @@ func (s *Service) BrickCreate(
 	brickInstance.ID = req.ID
 
 	if req.Model != nil {
-		model, err := s.modelsIndex.ModelForBrick(ctx, *req.Model, req.ID)
+		model, err := s.modelsIndex.NewLookup().ModelForBrick(ctx, *req.Model, req.ID)
 		if err != nil {
 			return fmt.Errorf("checking model %s: %w", *req.Model, err)
 		}
@@ -437,7 +437,7 @@ func (s *Service) BrickUpdate(
 	brickModel := appCurrent.Descriptor.Bricks[brickPosition].Model
 
 	if req.Model != nil && *req.Model != brickModel {
-		model, err := s.modelsIndex.ModelForBrick(ctx, *req.Model, req.ID)
+		model, err := s.modelsIndex.NewLookup().ModelForBrick(ctx, *req.Model, req.ID)
 		if err != nil {
 			return fmt.Errorf("checking model %s: %w", *req.Model, err)
 		}

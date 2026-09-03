@@ -95,11 +95,11 @@ func TestModelsIndex(t *testing.T) {
 	t.Run("it gets a preloaded model by ID", func(t *testing.T) {
 		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/custom-models"), nil, nil, config.Configuration{})
 		require.NoError(t, err)
-		model, err := modelsIndex.GetModelByID(t.Context(), "not-existing-model")
+		model, err := modelsIndex.NewLookup().ByID(t.Context(), "not-existing-model")
 		require.NoError(t, err)
 		assert.Nil(t, model)
 
-		model, err = modelsIndex.GetModelByID(t.Context(), "face-detection")
+		model, err = modelsIndex.NewLookup().ByID(t.Context(), "face-detection")
 		require.NoError(t, err)
 		require.NotNil(t, model)
 		assert.Equal(t, &AIModel{
@@ -129,7 +129,7 @@ func TestModelsIndex(t *testing.T) {
 		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, nil, config.Configuration{})
 		require.NoError(t, err)
 
-		model, err := modelsIndex.GetModelByID(t.Context(), "a-builtin-model")
+		model, err := modelsIndex.NewLookup().ByID(t.Context(), "a-builtin-model")
 		require.NoError(t, err)
 		require.NotNil(t, model)
 		assert.Equal(t, &AIModel{
@@ -144,7 +144,7 @@ func TestModelsIndex(t *testing.T) {
 		}, model)
 		assert.Equal(t, InstalledStatus, model.Status)
 
-		model, err = modelsIndex.GetModelByID(t.Context(), "a-builtin-model-with-handler")
+		model, err = modelsIndex.NewLookup().ByID(t.Context(), "a-builtin-model-with-handler")
 		require.NoError(t, err)
 		require.NotNil(t, model)
 		assert.Equal(t, &AIModel{
@@ -168,7 +168,7 @@ func TestModelsIndex(t *testing.T) {
 			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, cli, config.Configuration{})
 			require.NoError(t, err)
 
-			model, err := modelsIndex.GetModelByID(t.Context(), "a-model-not-preloaded-with-handler")
+			model, err := modelsIndex.NewLookup().ByID(t.Context(), "a-model-not-preloaded-with-handler")
 			require.NoError(t, err)
 			require.NotNil(t, model)
 			assert.Equal(t, &AIModel{
@@ -190,7 +190,7 @@ func TestModelsIndex(t *testing.T) {
 			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, cli, config.Configuration{})
 			require.NoError(t, err)
 
-			model, err := modelsIndex.GetModelByID(t.Context(), "a-model-not-preloaded-with-handler")
+			model, err := modelsIndex.NewLookup().ByID(t.Context(), "a-model-not-preloaded-with-handler")
 			require.NoError(t, err)
 			require.NotNil(t, model)
 			assert.Equal(t, &AIModel{
@@ -213,7 +213,7 @@ func TestModelsIndex(t *testing.T) {
 			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, cli, config.Configuration{})
 			require.NoError(t, err)
 
-			model, err := modelsIndex.GetModelByID(t.Context(), "a-model-not-preloaded-with-handler")
+			model, err := modelsIndex.NewLookup().ByID(t.Context(), "a-model-not-preloaded-with-handler")
 			require.NoError(t, err)
 			require.NotNil(t, model)
 			assert.Equal(t, NotInstalledStatus, model.Status)
@@ -224,7 +224,7 @@ func TestModelsIndex(t *testing.T) {
 		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("not-existing-path"), paths.New("testdata/custom-models"), nil, config.Configuration{})
 		require.NoError(t, err)
 
-		eimodel, err := modelsIndex.GetModelByID(t.Context(), "my-model-id")
+		eimodel, err := modelsIndex.NewLookup().ByID(t.Context(), "my-model-id")
 		require.NoError(t, err)
 		require.NotNil(t, eimodel)
 
@@ -256,10 +256,12 @@ func TestModelsIndex(t *testing.T) {
 		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("path-not-existing"), paths.New("testdata/custom-models"), nil, config.Configuration{})
 		require.NoError(t, err)
 
-		model := modelsIndex.GetModelsByBrick(t.Context(), "not-existing-brick")
+		model, err := modelsIndex.NewLookup().ByBrick(t.Context(), "not-existing-brick")
+		require.NoError(t, err)
 		assert.Empty(t, model)
 
-		model = modelsIndex.GetModelsByBrick(t.Context(), "arduino:object_detection")
+		model, err = modelsIndex.NewLookup().ByBrick(t.Context(), "arduino:object_detection")
+		require.NoError(t, err)
 		assert.Len(t, model, 1)
 		assert.Equal(t, "face-detection", model[0].ID)
 	})
