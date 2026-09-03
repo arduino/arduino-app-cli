@@ -958,9 +958,6 @@ Contains a JSON object with the details of an error.
 		{
 			OperationId: "installModel",
 			Method:      http.MethodPut,
-			// Documented as {id} like the GET and DELETE on the same path: OpenAPI treats
-			// two templated paths of the same hierarchy with different names as identical,
-			// so {modelID} here would collide with them.
 			Path: "/v1/models/{id}",
 			Parameters: (*struct {
 				ModelID string `path:"id" description:"The id of a model in the internal model list, as either form a response reports: the base64url encoded \"id\" or the plain \"id_decoded\"." example:"bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w"`
