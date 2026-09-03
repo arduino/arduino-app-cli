@@ -322,23 +322,6 @@ func (m *ModelsIndex) GetModels(ctx context.Context) []AIModel {
 	return models
 }
 
-func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, error) {
-	return m.NewLookup().ByID(ctx, id)
-}
-
-// GetModelsByBrick returns the models that are associated with the given brick name.
-func (m *ModelsIndex) GetModelsByBrick(ctx context.Context, brickID string) []AIModelLite {
-	matches, err := m.NewLookup().ByBrick(ctx, brickID)
-	if err != nil {
-		slog.Warn("cannot get models info, brick compatibility list may be incomplete", "brick", brickID, "err", err)
-	}
-	return matches
-}
-
-func (m *ModelsIndex) ModelForBrick(ctx context.Context, modelID, brickID string) (*AIModel, error) {
-	return m.NewLookup().ModelForBrick(ctx, modelID, brickID)
-}
-
 func (m *ModelsIndex) loadDryModels() []AIModel {
 	eiModels, err := loadCustomModels(m.customModelsDir)
 	if err != nil {

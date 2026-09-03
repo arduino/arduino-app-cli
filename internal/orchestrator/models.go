@@ -103,7 +103,7 @@ func NewAIModelItem(model modelsindex.AIModel) AIModelItem {
 // AIModelDetails describes the model id names. The id is plain: the API decodes the path
 // before calling in, so nothing below the handler deals in encodings.
 func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, id string) (AIModelItem, bool, error) {
-	model, err := modelsIndex.GetModelByID(ctx, id)
+	model, err := modelsIndex.NewLookup().ByID(ctx, id)
 	if err != nil {
 		return AIModelItem{}, false, err
 	}
@@ -123,7 +123,7 @@ var (
 )
 
 func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, platform platform.Platform, modelID string, idProvider *appid.Provider, force bool) (err error) {
-	res, err := modelsIndex.GetModelByID(ctx, modelID)
+	res, err := modelsIndex.NewLookup().ByID(ctx, modelID)
 	if err != nil {
 		return err
 	}
@@ -218,7 +218,7 @@ func checkForModelReferences(ctx context.Context, dockerClient command.Cli,
 }
 
 func isModelInUse(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, modelId string) error {
-	model, err := modelsIndex.GetModelByID(ctx, modelId)
+	model, err := modelsIndex.NewLookup().ByID(ctx, modelId)
 	if err != nil {
 		return fmt.Errorf("error retrieving model %q: %w", modelId, err)
 	}

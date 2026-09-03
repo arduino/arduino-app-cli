@@ -297,26 +297,25 @@ func TestHandleInstallModel(t *testing.T) {
 		assert.Contains(t, body, `"id_decoded":"a-preloaded-model"`, "the same model, whatever form was asked for")
 	})
 
-	t.Run("an id sent percent-encoded is refused", func(t *testing.T) {
-		// The router has already turned %2F into a slash by the time the handler sees it.
-		// Refusing it here is what keeps the encoding one thing rather than two.
-		rec := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPut, "/v1/models/llamacpp:owner%2Frepo", nil)
-		req.SetPathValue("modelID", "llamacpp:owner/repo")
+	t.Run("an id no declaration names is not found, however it was spelled", func(t *testing.T) {
+		// The router turns %2F into a slash before the handler runs, so this arrives as a
+		// plain id that no entry declares. It takes the ordinary not-found answer rather
+		// than a separate rejection: one id that names nothing, one status.
+		for name, id := range map[string]string{
+			"percent-encoded": "llamacpp:owner/repo",
+			"blank":           " ",
+			"absent":          "",
+		} {
+			t.Run(name, func(t *testing.T) {
+				rec := httptest.NewRecorder()
+				req := httptest.NewRequest(http.MethodPut, "/v1/models/x", nil)
+				req.SetPathValue("modelID", id)
 
-		HandleInstallModel(nil, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
+				HandleInstallModel(nil, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
 
-		assert.Equal(t, http.StatusBadRequest, rec.Code)
-		assert.Contains(t, rec.Body.String(), "base64url")
-	})
-
-	t.Run("no id at all is a bad request", func(t *testing.T) {
-		rec := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPut, "/v1/models/", nil)
-
-		HandleInstallModel(nil, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
-
-		assert.Equal(t, http.StatusBadRequest, rec.Code)
+				assert.Equal(t, http.StatusNotFound, rec.Code)
+			})
+		}
 	})
 }
 
@@ -379,15 +378,14 @@ func TestHandlerModelByID(t *testing.T) {
 		assert.Contains(t, rec.Body.String(), `"id_decoded":"a-preloaded-model"`)
 	})
 
-	t.Run("an id sent percent-encoded is refused", func(t *testing.T) {
+	t.Run("an id sent percent-encoded is not found", func(t *testing.T) {
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/v1/models/llamacpp:owner%2Frepo", nil)
 		req.SetPathValue("modelID", "llamacpp:owner/repo")
 
 		HandlerModelByID(testModelsIndex(t))(rec, req)
 
-		assert.Equal(t, http.StatusBadRequest, rec.Code)
-		assert.Contains(t, rec.Body.String(), "base64url")
+		assert.Equal(t, http.StatusNotFound, rec.Code)
 	})
 
 	t.Run("an id nothing declares is not found", func(t *testing.T) {
