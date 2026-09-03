@@ -15,11 +15,13 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"syscall"
 	"time"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
+	yaml "github.com/goccy/go-yaml"
 	"github.com/gosimple/slug"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
@@ -53,12 +55,20 @@ type BuildReleaseResult struct {
 	Archive string `json:"archive"`
 }
 
-// The release facts, stamped on the main service of the frozen compose: there is no
-// manifest, the rest is in app.yaml and in the compose file.
-const (
-	ReleaseVersionLabel = "cc.arduino.release.version"
-	ReleaseTargetLabel  = "cc.arduino.release.target"
-)
+// ReleaseManifestFileName is the manifest at the root of the archive. It holds the
+// release level facts only: the app is described by app.yaml and by the compose files.
+const ReleaseManifestFileName = "release.yaml"
+
+// ReleaseManifestSchema is the layout of the archive, not the version of the app: an
+// older release must stay readable by a newer cli.
+const ReleaseManifestSchema = 1
+
+type ReleaseManifest struct {
+	Schema  int    `yaml:"schema"`
+	Version string `yaml:"version"`
+	// Target is the board the release is built for, gated on at install and start.
+	Target string `yaml:"target"`
+}
 
 // BuildRelease provisions an app for the target board and builds its python
 // environment into a release archive, without touching the app folder.
@@ -126,6 +136,10 @@ func BuildRelease(
 		return BuildReleaseResult{}, err
 	}
 
+	if err := writeReleaseManifest(releaseDir, ReleaseManifest{Schema: ReleaseManifestSchema, Version: version, Target: plat.BoardName}); err != nil {
+		return BuildReleaseResult{}, err
+	}
+
 	if req.Notes != nil {
 		if err := req.Notes.CopyTo(releaseDir.Join("NOTES.md")); err != nil {
 			return BuildReleaseResult{}, fmt.Errorf("failed to copy the release notes: %w", err)
@@ -145,10 +159,6 @@ func BuildRelease(
 	buildOpts := BuildOptions{
 		ProjectName: slug.Make(releaseName),
 		ComposesDir: prebuildDir.Join("composes"),
-		Labels: map[string]string{
-			ReleaseVersionLabel: version,
-			ReleaseTargetLabel:  plat.BoardName,
-		},
 	}
 	if err := provisioner.Resolve(&stagedApp, prebuildDir, bricksIndex, servicesIndex, cfg, appEnv, plat, buildOpts); err != nil {
 		return BuildReleaseResult{}, fmt.Errorf("failed to freeze the compose files: %w", err)
@@ -171,6 +181,17 @@ func BuildRelease(
 		Target:  plat.BoardName,
 		Archive: archivePath.String(),
 	}, nil
+}
+
+func writeReleaseManifest(releaseDir *paths.Path, manifest ReleaseManifest) error {
+	data, err := yaml.Marshal(manifest)
+	if err != nil {
+		return fmt.Errorf("failed to write the release manifest: %w", err)
+	}
+	if err := releaseDir.Join(ReleaseManifestFileName).WriteFile(data); err != nil {
+		return fmt.Errorf("failed to write the release manifest: %w", err)
+	}
+	return nil
 }
 
 // A gzipped tar and not a zip: the venv needs symlinks and exec bits preserved.
@@ -311,8 +332,12 @@ func writeReleaseArchive(releaseDir *paths.Path, archivePath *paths.Path) error 
 			return err
 		}
 
-		// The archive is rooted at the release folder, so that is the first entry.
-		for _, entry := range append(paths.PathList{releaseDir}, entries...) {
+		// The manifest goes right after the release folder the archive is rooted at, so
+		// that a reader gets the release facts from the first block.
+		manifest := releaseDir.Join(ReleaseManifestFileName)
+		entries = slices.DeleteFunc(entries, func(p *paths.Path) bool { return p.EqualsTo(manifest) })
+
+		for _, entry := range append(paths.PathList{releaseDir, manifest}, entries...) {
 			info, err := entry.Lstat()
 			if err != nil {
 				return err

@@ -104,8 +104,6 @@ type BuildOptions struct {
 	// ComposesDir is where the brick and service composes are copied to, to be included
 	// by a relative path. Nil includes them from the asset dir of this host.
 	ComposesDir *paths.Path
-	// Labels are added to the main service.
-	Labels map[string]string
 }
 
 // Resolve turns the app bricks and services into the compose templates it is started

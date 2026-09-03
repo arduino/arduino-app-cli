@@ -222,8 +222,12 @@ func generateComposeTemplate(
 		GroupAdd:          groupExprs(groupNames),
 		DeviceCgroupRules: cgroupRuleExprs(deviceDrivers),
 		ExtraHosts:        []string{"msgpack-rpc-router:host-gateway"},
-		Labels:            mainServiceLabels(opts),
-		Environment:       templateEnvironment(appEnv),
+		Labels: map[string]string{
+			DockerAppLabel:     "true",
+			DockerAppMainLabel: "true",
+			DockerAppPathLabel: appHomeRef,
+		},
+		Environment: templateEnvironment(appEnv),
 		Logging: &logging{
 			Driver: "json-file",
 			Options: map[string]string{
@@ -252,16 +256,6 @@ func generateComposeTemplate(
 
 	// Done!
 	return nil
-}
-
-func mainServiceLabels(opts BuildOptions) map[string]string {
-	labels := map[string]string{
-		DockerAppLabel:     "true",
-		DockerAppMainLabel: "true",
-		DockerAppPathLabel: appHomeRef,
-	}
-	maps.Insert(labels, maps.All(opts.Labels))
-	return labels
 }
 
 // composeIncludes is the include: list of the generated template. It points at the
