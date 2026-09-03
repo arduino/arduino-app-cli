@@ -446,8 +446,6 @@ func (s *Service) BrickUpdate(
 		if model == nil {
 			return fmt.Errorf("model %s is not supported by brick %q", *req.Model, req.ID)
 		}
-		// See AddBrick: the stored id is the model's, so an encoded request and a plain
-		// one leave the same app.yaml behind.
 		brickModel = model.ID
 	}
 
