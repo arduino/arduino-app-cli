@@ -46,20 +46,6 @@ func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	}
 }
 
-// modelIDFromPath reads the id a models path names, and passes it on as it stands.
-//
-// Nothing is decoded or guessed at here. A client sends back the id it was given, and the
-// model list is what says which model that names: it recognizes a model by its plain id
-// or by the base64url encoding of it, so a client holding either form is right and this
-// handler needs to know nothing about which. Older clients kept the plain id; a response
-// now reports the encoded one as "id".
-//
-// A percent-encoded id is the one form refused. The router turns %2F into a real slash
-// before the handler runs, so accepting it would make the request depend on nothing in
-// the path normalizing it, which this API cannot promise.
-// errEmptyModelID is its own error because the routes answer it with different statuses,
-// and did so before this parsing was shared: delete reports 412, as every other route
-// that takes an id in a path does, and the rest report 400.
 var errEmptyModelID = errors.New("id must be set")
 
 func modelIDFromPath(r *http.Request) (string, error) {
