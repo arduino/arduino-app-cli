@@ -1085,18 +1085,16 @@ paths:
         schema:
           description: If true, deletes the model even if referenced by apps.
           type: boolean
-      - description: 'AI model identifier, as a models response reports it: either
-          the base64url encoded, unpadded "id" or the plain "id_decoded" - both name
-          the same model. An id holding slashes has to be the encoded form, since
-          percent-encoding it is refused.'
+      - description: 'AI model identifier: the base64url encoded, unpadded "id" a
+          models response reports. That is the only form accepted here; "id_decoded"
+          is the plain text to show a person, not to send back.'
         in: path
         name: id
         required: true
         schema:
-          description: 'AI model identifier, as a models response reports it: either
-            the base64url encoded, unpadded "id" or the plain "id_decoded" - both
-            name the same model. An id holding slashes has to be the encoded form,
-            since percent-encoding it is refused.'
+          description: 'AI model identifier: the base64url encoded, unpadded "id"
+            a models response reports. That is the only form accepted here; "id_decoded"
+            is the plain text to show a person, not to send back.'
           example: bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N
           type: string
       responses:
@@ -1117,18 +1115,16 @@ paths:
       description: Returns the details of a specific AI model.
       operationId: getAIModelDetails
       parameters:
-      - description: 'AI model identifier, as a models response reports it: either
-          the base64url encoded, unpadded "id" or the plain "id_decoded" - both name
-          the same model. An id holding slashes has to be the encoded form, since
-          percent-encoding it is refused.'
+      - description: 'AI model identifier: the base64url encoded, unpadded "id" a
+          models response reports. That is the only form accepted here; "id_decoded"
+          is the plain text to show a person, not to send back.'
         in: path
         name: id
         required: true
         schema:
-          description: 'AI model identifier, as a models response reports it: either
-            the base64url encoded, unpadded "id" or the plain "id_decoded" - both
-            name the same model. An id holding slashes has to be the encoded form,
-            since percent-encoding it is refused.'
+          description: 'AI model identifier: the base64url encoded, unpadded "id"
+            a models response reports. That is the only form accepted here; "id_decoded"
+            is the plain text to show a person, not to send back.'
           example: bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N
           type: string
       responses:
@@ -1152,14 +1148,16 @@ paths:
         The request is idempotent: the handler does not transfer a model that is on disk again. A declaration with no handler installs the model itself, and the stream sends "done" immediately.
       operationId: installModel
       parameters:
-      - description: 'The id of a model in the internal model list, as a models response
-          reports it: either the base64url encoded "id" or the plain "id_decoded".'
+      - description: 'The id of a model in the internal model list: the base64url
+          encoded, unpadded "id" a models response reports. "id_decoded" is for display
+          and is not accepted here.'
         in: path
         name: id
         required: true
         schema:
-          description: 'The id of a model in the internal model list, as a models
-            response reports it: either the base64url encoded "id" or the plain "id_decoded".'
+          description: 'The id of a model in the internal model list: the base64url
+            encoded, unpadded "id" a models response reports. "id_decoded" is for
+            display and is not accepted here.'
           example: bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w
           type: string
       responses:

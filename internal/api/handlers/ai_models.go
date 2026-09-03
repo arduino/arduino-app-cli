@@ -46,9 +46,20 @@ func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	}
 }
 
+// modelIDFromPath reads the model id a path names. The wire form is base64url, the form
+// every models response reports as "id", so the plain id exists only below this line.
+// "id_decoded" is for display, and is not accepted back.
+func modelIDFromPath(r *http.Request) (string, error) {
+	return modelsindex.DecodeID(r.PathValue("modelID"))
+}
+
 func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("modelID")
+		id, err := modelIDFromPath(r)
+		if err != nil {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
+			return
+		}
 		res, found, err := orchestrator.AIModelDetails(r.Context(), modelsIndex, id)
 		if err != nil {
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: err.Error()})
@@ -65,7 +76,11 @@ func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 
 func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, idProvider *appid.Provider, platform platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("modelID")
+		id, err := modelIDFromPath(r)
+		if err != nil {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
+			return
+		}
 		forceRaw := r.URL.Query().Get("force")
 		force, err := strconv.ParseBool(forceRaw)
 		if err != nil {
@@ -176,7 +191,11 @@ type sseLog struct {
 // downloads a model that no entry declares.
 func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("modelID")
+		id, err := modelIDFromPath(r)
+		if err != nil {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
+			return
+		}
 
 		// The declaration alone answers this, so no listing container runs.
 		declared, found := modelsIndex.DeclaredByID(id)

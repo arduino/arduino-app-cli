@@ -350,10 +350,10 @@ func TestGetModelsReportsTheRecordedSource(t *testing.T) {
 	assert.Nil(t, byID("ei:efficientnet-b4").Source)
 }
 
-// TestModelForBrickTakesAnEncodedID covers the write path's normalisation: a client that
-// read the models endpoint holds a base64url id, and what it names has to be the same
-// model, reported under its plain id so the caller can store that instead.
-func TestModelForBrickTakesAnEncodedID(t *testing.T) {
+// TestModelForBrick covers the write path: the lookup answers on plain ids, since the
+// handlers decode the wire form before calling in, and reports the model under its own id
+// so the caller stores that rather than the string it was handed.
+func TestModelForBrick(t *testing.T) {
 	cli := newFakeDockerClient(func(_ string, cmd []string) (string, int) {
 		if len(cmd) > 0 && cmd[0] == listModelsCmd {
 			return listingWith(`{"id":"ei:efficientnet-b4","installed":true,"model_size_mb":89}`), 0
@@ -364,13 +364,13 @@ func TestModelForBrickTakesAnEncodedID(t *testing.T) {
 	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
 	require.NoError(t, err)
 
-	model, err := idx.NewLookup().ModelForBrick(t.Context(), EncodeID("ei:efficientnet-b4"), "arduino:image_classification")
+	model, err := idx.NewLookup().ModelForBrick(t.Context(), "ei:efficientnet-b4", "arduino:image_classification")
 	require.NoError(t, err)
 	require.NotNil(t, model)
-	assert.Equal(t, "ei:efficientnet-b4", model.ID, "the answer carries the plain id, whatever the question carried")
+	assert.Equal(t, "ei:efficientnet-b4", model.ID)
 
 	// A brick the model does not serve is not a lookup failure, it is simply no match.
-	other, err := idx.NewLookup().ModelForBrick(t.Context(), EncodeID("ei:efficientnet-b4"), "arduino:tts")
+	other, err := idx.NewLookup().ModelForBrick(t.Context(), "ei:efficientnet-b4", "arduino:tts")
 	require.NoError(t, err)
 	assert.Nil(t, other)
 }

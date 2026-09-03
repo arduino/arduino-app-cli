@@ -211,16 +211,20 @@ func EncodeID(id string) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(id))
 }
 
-// matchesID reports whether name refers to this model, spelled either as the plain id or
-// as EncodeID of it.
+// DecodeID reads back what EncodeID wrote. It is the one place an id crosses from the
+// wire into this package, so an id is plain text everywhere below it.
 //
-// The comparison happens here rather than at the edge because only a model can say what
-// its own id encodes to. Nothing decodes what a caller sent: an id and its encoding are
-// both plain text, so decoding would be a guess about the input, while this is a fact
-// about the model. It costs the encode of each candidate over one listing already in
-// memory, and it means a client holding either form is right.
-func matchesID(model AIModel, name string) bool {
-	return model.ID == name || EncodeID(model.ID) == name
+// An id that is not base64url is refused rather than passed through. That refusal is what
+// keeps one spelling on the wire: accepting the plain form too would give every model two
+// names and leave nothing to say which is canonical. Note that a plain id carrying no ":"
+// - "face-detection" - is itself valid base64url and decodes to bytes that name no model,
+// so a caller still sending the old form gets a 404 rather than this error.
+func DecodeID(encoded string) (string, error) {
+	id, err := base64.RawURLEncoding.DecodeString(encoded)
+	if err != nil {
+		return "", fmt.Errorf("%w: model id must be base64url encoded, unpadded", err)
+	}
+	return string(id), nil
 }
 
 func (l *Lookup) ByID(ctx context.Context, id string) (*AIModel, error) {
@@ -239,7 +243,7 @@ func (l *Lookup) ByID(ctx context.Context, id string) (*AIModel, error) {
 		}
 		return nil, fmt.Errorf("cannot determine install status for model %q: %w", id, err)
 	}
-	idx := slices.IndexFunc(l.models, func(v AIModel) bool { return matchesID(v, id) })
+	idx := slices.IndexFunc(l.models, func(v AIModel) bool { return v.ID == id })
 	if idx == -1 {
 		return nil, nil
 	}
@@ -295,7 +299,7 @@ func (m AIModel) InstalledByDeclaration() bool {
 // disk - pre-loaded, or a custom model - so no handler run can add anything.
 func (m *ModelsIndex) declaredModel(id string) (*AIModel, bool) {
 	for _, model := range m.loadDryModels() {
-		if matchesID(model, id) && model.InstalledByDeclaration() {
+		if model.ID == id && model.InstalledByDeclaration() {
 			return &model, true
 		}
 	}
@@ -513,7 +517,7 @@ func (m *ModelsIndex) DownloadByURL(ctx context.Context, cli client.APIClient, m
 // the model itself and needs the name, description and bricks the declaration gives it.
 func (m *ModelsIndex) DeclaredByID(id string) (*AIModel, bool) {
 	models := m.loadDryModels()
-	if i := slices.IndexFunc(models, func(v AIModel) bool { return matchesID(v, id) }); i != -1 {
+	if i := slices.IndexFunc(models, func(v AIModel) bool { return v.ID == id }); i != -1 {
 		return &models[i], true
 	}
 	return nil, false
