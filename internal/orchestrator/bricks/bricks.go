@@ -398,8 +398,6 @@ func (s *Service) BrickCreate(
 		if model == nil {
 			return fmt.Errorf("model %s does not exsist", *req.Model)
 		}
-		// The model's own id, not the string the request carried: a model id travels
-		// either plainly or base64url encoded, and app.yaml keeps only the plain form.
 		brickInstance.Model = model.ID
 	}
 	brickInstance.Variables = req.Variables
