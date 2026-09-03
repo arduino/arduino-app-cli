@@ -143,22 +143,22 @@ type AIModel struct {
 
 // AIModelItem defines model for AIModelItem.
 type AIModelItem struct {
-	BrickIds    *[]string          `json:"brick_ids,omitempty"`
-	Description *string            `json:"description,omitempty"`
-	Id          *string            `json:"id,omitempty"`
-	IdDecoded   *string            `json:"id_decoded,omitempty"`
-	IsBuiltin   *bool              `json:"is_builtin,omitempty"`
+	BrickIds    *[]string          `json:"brick_ids"`
+	Description string             `json:"description"`
+	Id          string             `json:"id"`
+	IdDecoded   string             `json:"id_decoded"`
+	IsBuiltin   bool               `json:"is_builtin"`
 	Metadata    *map[string]string `json:"metadata,omitempty"`
-	Name        *string            `json:"name,omitempty"`
+	Name        string             `json:"name"`
 
 	// Origin Where the model came from: "curated" is declared by the internal model list and installs from its id alone, "user" was downloaded from a source the caller supplied and needs that source again, "edge-impulse" was deployed from an Edge Impulse project.
-	Origin *ModelOrigin `json:"origin,omitempty"`
-	Runner *string      `json:"runner,omitempty"`
+	Origin ModelOrigin  `json:"origin"`
+	Runner string       `json:"runner"`
 	Size   *int         `json:"size,omitempty"`
 	Source *ModelSource `json:"source,omitempty"`
 
 	// Status Model status
-	Status *ModelStatus `json:"status,omitempty"`
+	Status ModelStatus `json:"status"`
 }
 
 // AIModelsListResult defines model for AIModelsListResult.
@@ -481,7 +481,7 @@ type ModelOrigin string
 type ModelSource struct {
 	DownloadedAt   *string `json:"downloaded_at,omitempty"`
 	ModelMmprojUrl *string `json:"model_mmproj_url,omitempty"`
-	ModelUrl       *string `json:"model_url,omitempty"`
+	ModelUrl       string  `json:"model_url"`
 }
 
 // ModelStatus Model status
