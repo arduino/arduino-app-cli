@@ -297,7 +297,6 @@ func HandleDownloadModel(dockerClient command.Cli, modelsIndex *modelsindex.Mode
 		}
 
 		installed, ok := installedModel(modelsIndex, nil, stream.downloaded)
-		}
 		if !ok {
 			sseStream.SendError(render.SSEErrorData{
 				Code:    render.InternalServiceErr,
