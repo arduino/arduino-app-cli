@@ -304,7 +304,6 @@ func HandleDownloadModel(dockerClient command.Cli, modelsIndex *modelsindex.Mode
 			installed.Source = &modelsindex.ModelSource{ModelURL: modelURL, MmprojURL: strings.TrimSpace(req.MmprojURL)}
 		}
 		if !ok {
-			slog.Error("download named no model", "model_url", modelURL)
 			sseStream.SendError(render.SSEErrorData{
 				Code:    render.InternalServiceErr,
 				Message: "download named no model: a newer models-downloader image is required",
