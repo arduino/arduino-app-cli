@@ -2147,7 +2147,7 @@ components:
       enum:
       - curated
       - user
-      - edge-impulse
+      - edge-impulse-user-project
       type: string
       uniqueItems: true
     ModelSource:
