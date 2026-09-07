@@ -273,6 +273,7 @@ func UserConfiguredModel(m DownloadedModel, source *ModelSource) AIModel {
 		Status: InstalledStatus,
 		Size:   m.Size,
 		Bricks: bricksForSource(source),
+		Source: source,
 	}
 }
 
