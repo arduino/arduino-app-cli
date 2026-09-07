@@ -261,10 +261,12 @@ func bricksForSource(source *ModelSource) []BrickConfig {
 }
 
 // UserConfiguredModel describes a model no models-list.yaml entry declares, from the
-// download that just wrote it. source is what the caller asked for, and decides which
-// brick can run the result. It is not reported here: the event says only what it can say
-// without inventing the timestamp the record holds, and the listing reports the source
-// from that record instead.
+// download that just wrote it. source is what the caller asked for: it decides which
+// brick can run the result, and is reported as the model's own source, so the event this
+// answers and the later listing describe one model the same way.
+//
+// No downloaded_at comes with it. That timestamp lives in the record the downloader
+// wrote, which only the listing reads; inventing one here would disagree with it.
 func UserConfiguredModel(m DownloadedModel, source *ModelSource) AIModel {
 	return AIModel{
 		ID:     m.ID,
