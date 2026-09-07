@@ -145,7 +145,7 @@ func renderComposeNode(node any) (any, error) {
 		rendered := map[string]bool{}
 		for _, child := range value {
 			expression, isExpression := child.(string)
-			isExpression = isExpression && strings.Contains(expression, "{{")
+			isExpression = isExpression && strings.HasPrefix(expression, exprPrefix)
 
 			item, err := renderComposeNode(child)
 			if err != nil {
@@ -173,12 +173,16 @@ func renderComposeNode(node any) (any, error) {
 	}
 }
 
+// renderComposeValue evaluates a value the resolve step marked as an expression. Any
+// other value is what it says, {{ }} and all: an app is free to carry a template of its
+// own in a brick variable, and it is none of our business.
 func renderComposeValue(value string) (any, error) {
-	if !strings.Contains(value, "{{") {
+	expression, marked := strings.CutPrefix(value, exprPrefix)
+	if !marked {
 		return value, nil
 	}
 	// An unknown function is an error here, before anything is started.
-	parsed, err := template.New("compose").Funcs(hostFuncs).Parse(value)
+	parsed, err := template.New("compose").Funcs(hostFuncs).Parse(expression)
 	if err != nil {
 		return nil, err
 	}

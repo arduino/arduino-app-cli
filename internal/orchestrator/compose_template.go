@@ -29,6 +29,11 @@ import (
 // A compose template is what Provision.Resolve writes: it states what the app needs of
 // a board by name, as {{ }} expressions, and of its environment as ${VAR}.
 
+// exprPrefix marks a value the render step has to evaluate. Only what the resolve step
+// writes carries it, so a value the app brings along — a brick variable holding a prompt
+// template, an app name, a path — is left alone even when it contains {{ }}.
+const exprPrefix = "x-arduino-expr:"
+
 type bindOptions struct {
 	CreateHostPath bool `yaml:"create_host_path" json:"create_host_path"`
 }
@@ -343,13 +348,13 @@ func mountExpr(mount string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("{{ if pathExists %s }}%s{{ end }}", strconv.Quote(source), bind), nil
+	return exprPrefix + fmt.Sprintf("{{ if pathExists %s }}%s{{ end }}", strconv.Quote(source), bind), nil
 }
 
 func groupExprs(names []string) []string {
 	exprs := make([]string, 0, len(names))
 	for _, name := range names {
-		exprs = append(exprs, fmt.Sprintf("{{ groupID %s }}", strconv.Quote(name)))
+		exprs = append(exprs, exprPrefix+fmt.Sprintf("{{ groupID %s }}", strconv.Quote(name)))
 	}
 	return exprs
 }
@@ -357,7 +362,7 @@ func groupExprs(names []string) []string {
 func cgroupRuleExprs(drivers []string) []string {
 	exprs := make([]string, 0, len(drivers))
 	for _, driver := range drivers {
-		exprs = append(exprs, fmt.Sprintf("{{ with deviceMajor %s }}c {{ . }}:* rmw{{ end }}", strconv.Quote(driver)))
+		exprs = append(exprs, exprPrefix+fmt.Sprintf("{{ with deviceMajor %s }}c {{ . }}:* rmw{{ end }}", strconv.Quote(driver)))
 	}
 	return exprs
 }

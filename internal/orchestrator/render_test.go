@@ -39,7 +39,7 @@ func TestRenderComposeTemplate(t *testing.T) {
 services:
   main:
     image: busybox
-    working_dir: '{{ if pathExists "`+existing+`" }}/here{{ end }}'
+    working_dir: '`+exprPrefix+`{{ if pathExists "`+existing+`" }}/here{{ end }}'
 `)
 		main := document["services"].(map[string]any)["main"].(map[string]any)
 		require.Equal(t, "/here", main["working_dir"])
@@ -50,7 +50,7 @@ services:
 		document := render(t, `
 services:
   main:
-    working_dir: '{{ if pathExists "`+existing+`/missing" }}/here{{ end }}'
+    working_dir: '`+exprPrefix+`{{ if pathExists "`+existing+`/missing" }}/here{{ end }}'
 `)
 		main := document["services"].(map[string]any)["main"].(map[string]any)
 		require.NotContains(t, main, "working_dir")
@@ -61,8 +61,8 @@ services:
 services:
   main:
     group_add:
-      - '{{ if pathExists "`+existing+`" }}44{{ end }}'
-      - '{{ if pathExists "`+existing+`/missing" }}29{{ end }}'
+      - '`+exprPrefix+`{{ if pathExists "`+existing+`" }}44{{ end }}'
+      - '`+exprPrefix+`{{ if pathExists "`+existing+`/missing" }}29{{ end }}'
       - "1000"
 `)
 		main := document["services"].(map[string]any)["main"].(map[string]any)
@@ -74,8 +74,8 @@ services:
 services:
   main:
     device_cgroup_rules:
-      - '{{ if pathExists "`+existing+`" }}c 226:* rmw{{ end }}'
-      - '{{ if pathExists "`+existing+`" }}c 226:* rmw{{ end }}'
+      - '`+exprPrefix+`{{ if pathExists "`+existing+`" }}c 226:* rmw{{ end }}'
+      - '`+exprPrefix+`{{ if pathExists "`+existing+`" }}c 226:* rmw{{ end }}'
 `)
 		main := document["services"].(map[string]any)["main"].(map[string]any)
 		require.Equal(t, []any{"c 226:* rmw"}, main["device_cgroup_rules"])
@@ -115,8 +115,27 @@ services:
 		require.Empty(t, main["volumes"])
 	})
 
+	t.Run("a value the app brings along is left alone", func(t *testing.T) {
+		document := render(t, `
+name: '{{ my-app }}'
+services:
+  main:
+    environment:
+      PROMPT: "Hello {{ name }}, reply in {{ .Language }}"
+      TOPIC: "{{ if x }}a{{ end }}"
+    working_dir: '`+exprPrefix+`{{ if pathExists "`+existing+`" }}/here{{ end }}'
+`)
+		main := document["services"].(map[string]any)["main"].(map[string]any)
+		env := main["environment"].(map[string]any)
+		require.Equal(t, "Hello {{ name }}, reply in {{ .Language }}", env["PROMPT"],
+			"a brick variable holding a template of its own is not ours to evaluate")
+		require.Equal(t, "{{ if x }}a{{ end }}", env["TOPIC"])
+		require.Equal(t, "{{ my-app }}", document["name"], "nor is anything else the app names")
+		require.Equal(t, "/here", main["working_dir"], "what the resolve step marked still renders")
+	})
+
 	t.Run("an unknown function is an error", func(t *testing.T) {
-		_, err := renderComposeTemplate([]byte("services:\n  main:\n    image: '{{ notAFunction \"x\" }}'\n"))
+		_, err := renderComposeTemplate([]byte("services:\n  main:\n    image: '" + exprPrefix + "{{ notAFunction \"x\" }}'\n"))
 		require.ErrorContains(t, err, `function "notAFunction" not defined`)
 	})
 }
@@ -144,14 +163,14 @@ func TestServicesOverrides(t *testing.T) {
 	for name, override := range document.Services {
 		require.Equal(t, "true", override["labels"].(map[string]any)[DockerAppLabel], name)
 		require.Equal(t, "bar", override["environment"].(map[string]any)["FOO"], name)
-		require.Equal(t, []any{`{{ groupID "video" }}`}, override["group_add"], name)
+		require.Equal(t, []any{exprPrefix + `{{ groupID "video" }}`}, override["group_add"], name)
 	}
 
 	require.Equal(t, user, document.Services["plain"]["user"], "the user is set when the service declares none")
 	require.NotContains(t, document.Services["with-user"], "user", "a service declaring a user keeps it")
 
 	require.NotContains(t, document.Services["plain"], "device_cgroup_rules")
-	require.Equal(t, []any{`{{ with deviceMajor "drm" }}c {{ . }}:* rmw{{ end }}`},
+	require.Equal(t, []any{exprPrefix + `{{ with deviceMajor "drm" }}c {{ . }}:* rmw{{ end }}`},
 		document.Services["with-devices"]["device_cgroup_rules"])
 	require.NotEmpty(t, document.Services["with-devices"]["volumes"], "/dev is mounted")
 }
@@ -189,7 +208,8 @@ bricks:
 	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), cfg.AssetDir())
 	require.NoError(t, err)
 
-	appEnv := types.Mapping{"FOO": "bar"}
+	// A brick is free to declare a variable holding a template of its own.
+	appEnv := types.Mapping{"FOO": "bar", "PROMPT": "Hello {{ name }}, reply"}
 	require.NoError(t, generateComposeTemplate(&arduinoApp, arduinoApp.ProvisioningStateDir(), bricksIndex,
 		servicesIndex, "python-apps-base:latest", cfg, appEnv, unkownPlatform))
 
@@ -203,10 +223,12 @@ bricks:
 	require.Equal(t, "arduino/video-object-detection:latest", runner.Image, "what the brick declares is kept")
 	require.Equal(t, "true", runner.Labels[DockerAppLabel], "the override is applied over it")
 	require.Equal(t, "bar", *runner.Environment["FOO"])
+	require.Equal(t, "Hello {{ name }}, reply", *runner.Environment["PROMPT"], "a value of the app is passed through")
 	require.Equal(t, arduinoApp.FullPath.String(), *runner.Environment["APP_HOME"], "a host fact is answered")
 
 	main, err := prj.GetService("main")
 	require.NoError(t, err)
 	require.Equal(t, "python-apps-base:latest", main.Image)
+	require.Equal(t, "Hello {{ name }}, reply", *main.Environment["PROMPT"])
 	require.Contains(t, main.DependsOn, "ei-video-obj-detection-runner")
 }
