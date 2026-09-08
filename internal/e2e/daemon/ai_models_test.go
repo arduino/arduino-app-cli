@@ -26,7 +26,7 @@ import (
 func TestAIModelList(t *testing.T) {
 	skipWithoutModelsImage(t)
 
-	httpClient := GetHttpclient(t, e2e.WithBoardName("ventunoq"))
+	httpClient := GetHttpclient(t, e2e.WithBoardName("unoq"))
 	var allAIModelsLen int
 
 	t.Run("should return all models when no filter is applied", func(t *testing.T) {
@@ -62,7 +62,7 @@ func TestAIModelDetails(t *testing.T) {
 	customModelDir, err := paths.MkTempDir("", "custom-models")
 	require.NoError(t, err)
 
-	httpClient := GetHttpclient(t, e2e.WithCustomModelDir(customModelDir), e2e.WithBoardName("ventunoq"))
+	httpClient := GetHttpclient(t, e2e.WithCustomModelDir(customModelDir), e2e.WithBoardName("unoq"))
 
 	aiModelsList, err := httpClient.GetAIModelsWithResponse(t.Context(), nil)
 	require.NoError(t, err, "The HTTP client should not return an error for a 200 response")
@@ -174,7 +174,7 @@ func TestAIModelDelete(t *testing.T) {
 	customModelDir, err := paths.MkTempDir("", "custom-models")
 	require.NoError(t, err)
 
-	httpClient := GetHttpclient(t, e2e.WithCustomModelDir(customModelDir), e2e.WithBoardName("ventunoq"))
+	httpClient := GetHttpclient(t, e2e.WithCustomModelDir(customModelDir), e2e.WithBoardName("unoq"))
 
 	t.Run("not found error on model not found", func(t *testing.T) {
 		modelId := "invalid_model_id"

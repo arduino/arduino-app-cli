@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -27,12 +28,12 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 	// The API takes the encoded form; modelID stays plain for the messages below.
 	encodedID := models.EncodeModelID(modelID)
 
-	modelsDir := e2e.FindRepositoryRootPath(t).Join("models")
+	modelsDir, err := paths.MkTempDir("", "models")
+	require.NoError(t, err)
 	t.Cleanup(func() { _ = modelsDir.RemoveAll() })
 
 	httpClient, daemonAddr := GetHttpclientAndAddr(t, e2e.WithModelsDir(modelsDir), e2e.WithBoardName("ventunoq"))
 	requestEditor := func(_ context.Context, _ *http.Request) error { return nil }
-	time.Sleep(2 * time.Second)
 
 	t.Run("model is not installed before download", func(t *testing.T) {
 		resp, err := getModelWithRetry(t, httpClient, encodedID, requestEditor)
@@ -50,19 +51,23 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 		events, err := newSSEClient(req, 0)
 		require.NoError(t, err)
 		hasProgress := false
-		hasComplete := false
+		hasDone := false
 		for e := range events {
 			t.Log("Received SSE event", "id", e.ID, "event", e.Event, "data", string(e.Data))
-			if e.Event == "progress" {
+			switch e.Event {
+			case "progress":
 				hasProgress = true
-			}
-			if e.Event == "done" {
-				hasComplete = true
+			case "done":
+				hasDone = true
+			case "error":
+				// After the stream opens a failure arrives as an event, so a test that
+				// reads only progress and done passes on a failed download.
+				require.Fail(t, "the install reported an error", string(e.Data))
 			}
 		}
 
 		require.True(t, hasProgress, "expected at least one 'progress' SSE event")
-		require.True(t, hasComplete, "expected at least one 'complete' SSE event")
+		require.True(t, hasDone, "expected the 'done' SSE event")
 
 	})
 
