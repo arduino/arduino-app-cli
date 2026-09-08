@@ -7,7 +7,6 @@ package model
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
@@ -37,8 +36,9 @@ func modelListHandler(ctx context.Context, excludeBuiltin bool) {
 	// One listing run, in a container, so the cost is at this line and not hidden.
 	models, err := servicelocator.GetModelsIndex().NewLookup().All(ctx)
 	if err != nil {
-		// What the index knows is still a list, and the only one available.
-		slog.Warn("cannot get models info, listing what the index knows", "err", err)
+		// Without the listing every model reads not-installed, so there is no list to
+		// print, only a wrong one.
+		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}
 	result := make([]modelsindex.AIModel, 0)
 	for _, m := range models {

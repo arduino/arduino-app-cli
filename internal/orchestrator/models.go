@@ -55,9 +55,13 @@ type AIModelsListRequest struct {
 }
 
 // AIModelsList answers every model, filtered by brick when the request names one. It runs
-// one listing container; an error leaves the declared models, and says so.
+// one listing container, and fails when that fails: the install status of every model
+// comes from there, so a list without it states the declaration's guess as fact.
 func AIModelsList(ctx context.Context, req AIModelsListRequest, modelsIndex *modelsindex.ModelsIndex) (AIModelsListResult, error) {
 	collection, err := modelsIndex.NewLookup().All(ctx)
+	if err != nil {
+		return AIModelsListResult{}, err
+	}
 	if len(req.FilterByBrickID) != 0 {
 		collection = slices.DeleteFunc(collection, func(model modelsindex.AIModel) bool {
 			return !slices.ContainsFunc(model.Bricks, func(brick modelsindex.BrickConfig) bool {
@@ -65,7 +69,7 @@ func AIModelsList(ctx context.Context, req AIModelsListRequest, modelsIndex *mod
 			})
 		})
 	}
-	return AIModelsListResult{Models: f.Map(collection, NewAIModelItem)}, err
+	return AIModelsListResult{Models: f.Map(collection, NewAIModelItem)}, nil
 }
 
 // NewAIModelItem maps an index model onto the API shape. Size is omitted when unknown

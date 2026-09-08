@@ -41,8 +41,13 @@ func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 			FilterByBrickID: brickFilter,
 		}, modelsIndex)
 		if err != nil {
-			// The models the index knows are still an answer, and the only one available.
-			slog.Warn("cannot get models info, listing what the index knows", "err", err)
+			// Without the listing, every model would report the status its declaration
+			// carries - not-installed - so a partial answer would be a wrong one.
+			slog.Error("cannot get models info", "err", err)
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{
+				Details: "cannot determine which models are installed: " + err.Error(),
+			})
+			return
 		}
 		render.EncodeResponse(w, http.StatusOK, res)
 	}
