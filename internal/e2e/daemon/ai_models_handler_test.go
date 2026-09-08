@@ -8,6 +8,7 @@ package daemon
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"net/http"
 	"os"
 	"testing"
@@ -20,6 +21,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
+	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
 func TestModelHandlerDownloadFlow(t *testing.T) {
@@ -60,9 +62,13 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 			case "done":
 				hasDone = true
 			case "error":
-				// After the stream opens a failure arrives as an event, so a test that
-				// reads only progress and done passes on a failed download.
-				require.Fail(t, "the install reported an error", string(e.Data))
+				// A failed install arrives as an event. "SERVER_CLOSED" is the stream
+				// closing, not a failure.
+				var reported render.SSEErrorData
+				require.NoError(t, json.Unmarshal(e.Data, &reported))
+				if reported.Code != "SERVER_CLOSED" {
+					require.Fail(t, "the install reported an error", string(e.Data))
+				}
 			}
 		}
 
