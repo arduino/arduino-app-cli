@@ -198,12 +198,17 @@ type handlerModelEntry struct {
 }
 
 func (e handlerModelEntry) applyStat(m *AIModel) {
-	if e.Installed {
+	// The listing computes the two flags from one marker, and never reports both: a
+	// transfer in flight, or interrupted, is neither installed nor plain absent.
+	// TODO(#585): nothing clears the marker, so an abandoned download reads as in flight.
+	switch {
+	case e.Downloading:
+		m.Status = DownloadingStatus
+	case e.Installed:
 		m.Status = InstalledStatus
-	} else {
+	default:
 		m.Status = NotInstalledStatus
 	}
-	m.Downloading = e.Downloading
 	if e.Metadata != nil {
 		m.setSourceURL(e.Metadata.Inputs["model_url"])
 	}

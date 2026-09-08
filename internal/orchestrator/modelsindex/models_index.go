@@ -89,9 +89,6 @@ type AIModel struct {
 	Origin    ModelOrigin `yaml:"-"`
 	Status    ModelStatus `yaml:"-"`
 	Size      uint64      `yaml:"-"`
-	// Comes from the handler's ".download" marker, so an interrupted download counts too.
-	// TODO(#585): reconcile with AcquireDownload, which holds no state across a restart.
-	Downloading bool `yaml:"-"`
 }
 
 type ModelStatus string
@@ -99,10 +96,13 @@ type ModelStatus string
 const (
 	InstalledStatus    ModelStatus = "installed"
 	NotInstalledStatus ModelStatus = "not-installed"
+	// DownloadingStatus is a transfer in progress, or one interrupted before it
+	// finished: the handler's ".download" marker is still there.
+	DownloadingStatus ModelStatus = "downloading"
 )
 
 func (s ModelStatus) AllowedStatuses() []ModelStatus {
-	return []ModelStatus{InstalledStatus, NotInstalledStatus}
+	return []ModelStatus{InstalledStatus, NotInstalledStatus, DownloadingStatus}
 }
 
 // ModelOrigin says where a model came from, and so whether the id alone installs it
@@ -156,6 +156,7 @@ type ModelsIndex struct {
 type Lookup struct {
 	idx    *ModelsIndex
 	models []AIModel
+	dry    []AIModel
 	err    error
 	loaded bool
 }
@@ -192,13 +193,14 @@ func DecodeID(encoded string) (string, error) {
 }
 
 func (l *Lookup) ByID(ctx context.Context, id string) (*AIModel, error) {
-	if model, ok := l.idx.installedByDeclaration(id); ok {
+	if model, ok := l.declared(id); ok && model.InstalledByDeclaration() {
+		// Its declaration is its state: no handler run can contradict it.
 		return model, nil
 	}
 	if err := l.listing(ctx); err != nil {
 		// A declared model exists whether or not the listing ran, so an unknown install
 		// status is a failure. Anything else is absent, not failed.
-		if _, declared := l.idx.declared(id); !declared {
+		if _, declared := l.declared(id); !declared {
 			slog.Warn("cannot get models info, reporting an undeclared model as absent", "model", id, "err", err)
 			return nil, nil
 		}
@@ -209,6 +211,18 @@ func (l *Lookup) ByID(ctx context.Context, id string) (*AIModel, error) {
 		return nil, nil
 	}
 	return &l.models[idx], nil
+}
+
+// declared reads the declarations once per lookup: they come off disk, custom models
+// included, so a caller asking about several models walks the directory once.
+func (l *Lookup) declared(id string) (*AIModel, bool) {
+	if l.dry == nil {
+		l.dry = l.idx.loadDryModels()
+	}
+	if i := slices.IndexFunc(l.dry, func(v AIModel) bool { return v.ID == id }); i != -1 {
+		return &l.dry[i], true
+	}
+	return nil, false
 }
 
 // All answers every model the index knows. A listing that failed leaves the declared ones,
@@ -250,17 +264,6 @@ func (l *Lookup) ModelForBrick(ctx context.Context, modelID, brickID string) (*A
 // built-in, pre-loaded, or custom - rather than by a handler writing it to disk.
 func (m AIModel) InstalledByDeclaration() bool {
 	return m.Deployment == nil || m.Deployment.PreLoaded || m.Deployment.Handler == ""
-}
-
-// installedByDeclaration returns a model whose state comes from its declaration rather
-// than from disk - pre-loaded, or a custom model - so no handler run can add anything.
-func (m *ModelsIndex) installedByDeclaration(id string) (*AIModel, bool) {
-	for _, model := range m.loadDryModels() {
-		if model.ID == id && model.InstalledByDeclaration() {
-			return &model, true
-		}
-	}
-	return nil, false
 }
 
 func (m *ModelsIndex) listModels(ctx context.Context) ([]AIModel, error) {
@@ -550,11 +553,13 @@ func (m *ModelsIndex) runDownload(ctx context.Context, cli client.APIClient, mod
 		}),
 		Stderr: io.Discard,
 	})
-	if err != nil {
-		return nil, err
-	}
+	// The reported event comes first: a handler that prints one usually exits non-zero
+	// too, and the caller has already seen it.
 	if reported {
 		return nil, ErrDownloadReported
+	}
+	if err != nil {
+		return nil, err
 	}
 	return downloaded, nil
 }

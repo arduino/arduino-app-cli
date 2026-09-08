@@ -90,8 +90,11 @@ func TestDownloadStream(t *testing.T) {
 
 		stream.publish(modelsindex.NewErrorMessage("repository does not exist"))
 
-		require.Equal(t, []string{"error"}, sse.types())
-		assert.Equal(t, "repository does not exist", sse.events[0].Data)
+		assert.Empty(t, sse.events)
+		require.Len(t, sse.errors, 1)
+		assert.Equal(t, render.SSEErrorData{
+			Code: render.InternalServiceErr, Message: "repository does not exist",
+		}, sse.errors[0])
 	})
 
 	t.Run("the handler's own done line is a message, not the route's done", func(t *testing.T) {

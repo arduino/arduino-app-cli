@@ -39,6 +39,7 @@ func (e ModelOrigin) Valid() bool {
 
 // Defines values for ModelStatus.
 const (
+	Downloading  ModelStatus = "downloading"
 	Installed    ModelStatus = "installed"
 	NotInstalled ModelStatus = "not-installed"
 )
@@ -46,6 +47,8 @@ const (
 // Valid indicates whether the value is a known member of the ModelStatus enum.
 func (e ModelStatus) Valid() bool {
 	switch e {
+	case Downloading:
+		return true
 	case Installed:
 		return true
 	case NotInstalled:
@@ -159,7 +162,7 @@ type AIModelItem struct {
 	Metadata *map[string]string `json:"metadata,omitempty"`
 	Name     *string            `json:"name,omitempty"`
 
-	// Origin Where the model came from: "curated" is declared by the internal model list and installs from its id alone, "user" was downloaded from a source the caller supplied and needs that source again, "edge-impulse" was deployed from an Edge Impulse project.
+	// Origin Where the model came from: "curated" is declared by the internal model list and installs from its id alone, "user" was downloaded from a source the caller supplied and needs that source again, "edge-impulse-user-project" was deployed from the caller's own Edge Impulse project.
 	Origin *ModelOrigin `json:"origin,omitempty"`
 	Runner *string      `json:"runner,omitempty"`
 	Size   *int         `json:"size,omitempty"`
@@ -484,7 +487,7 @@ type LocalBrickRenameResult struct {
 	Id *string `json:"id,omitempty"`
 }
 
-// ModelOrigin Where the model came from: "curated" is declared by the internal model list and installs from its id alone, "user" was downloaded from a source the caller supplied and needs that source again, "edge-impulse" was deployed from an Edge Impulse project.
+// ModelOrigin Where the model came from: "curated" is declared by the internal model list and installs from its id alone, "user" was downloaded from a source the caller supplied and needs that source again, "edge-impulse-user-project" was deployed from the caller's own Edge Impulse project.
 type ModelOrigin string
 
 // ModelStatus Model status

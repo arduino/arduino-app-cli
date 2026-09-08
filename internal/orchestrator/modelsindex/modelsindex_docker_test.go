@@ -276,12 +276,10 @@ func TestGetModelsReportsDownloading(t *testing.T) {
 	}
 
 	downloading := byID("ei:efficientnet-b4")
-	assert.True(t, downloading.Downloading, "downloading must be carried from the listing")
-	assert.Equal(t, NotInstalledStatus, downloading.Status, "a download in flight is not installed yet")
+	assert.Equal(t, DownloadingStatus, downloading.Status, "a transfer in flight is its own status")
 
-	// The field is absent for this entry: it must read as false, not inherit the neighbor.
+	// The field is absent for this entry: it must not inherit the neighbor's.
 	installed := byID("piper-tts-en")
-	assert.False(t, installed.Downloading)
 	assert.Equal(t, InstalledStatus, installed.Status)
 }
 

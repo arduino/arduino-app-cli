@@ -99,7 +99,7 @@ func NewOpenApiGenerator(version string) *Generator {
 				UniqueItems: new(true),
 				Enum:        f.Map(modelsindex.ModelOrigin("").AllowedOrigins(), func(v modelsindex.ModelOrigin) any { return v }),
 				Type:        new(openapi3.SchemaTypeString),
-				Description: new("Where the model came from: \"curated\" is declared by the internal model list and installs from its id alone, \"user\" was downloaded from a source the caller supplied and needs that source again, \"edge-impulse\" was deployed from an Edge Impulse project."),
+				Description: new("Where the model came from: \"curated\" is declared by the internal model list and installs from its id alone, \"user\" was downloaded from a source the caller supplied and needs that source again, \"edge-impulse-user-project\" was deployed from the caller's own Edge Impulse project."),
 				ReflectType: reflect.TypeOf(modelsindex.ModelOrigin("")),
 			},
 		},
@@ -1046,7 +1046,7 @@ every later failure is an error event. A models directory with no free space has
 			},
 			Description: `Download an AI model from Hugging Face. The progress is a stream of Server-Sent Events.
 
-"model_url" is the URL of the model file on Hugging Face. It selects one file at one commit. For a vision model, "model_mmproj_url" is the URL of the projection file. Only llama.cpp models are supported: the file must be a GGUF file, and it goes in the llamacpp models directory.
+"model_url" is the URL of the model file on Hugging Face. It selects one file at one commit. For a vision model, "mmproj_url" is the URL of the projection file. Only llama.cpp models are supported: the file must be a GGUF file, and it goes in the llamacpp models directory.
 
 The request has no model id. The downloader makes the id from the file that it writes, and reports it in the "done" event. If the internal model list declares that file, the answer is the declared model.
 

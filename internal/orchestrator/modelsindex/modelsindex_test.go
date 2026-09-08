@@ -199,10 +199,9 @@ func TestModelsIndex(t *testing.T) {
 					Handler:   "my-handler",
 					PreLoaded: false,
 				},
-				IsBuiltIn:   false,
-				Origin:      CuratedOrigin,
-				Status:      NotInstalledStatus,
-				Downloading: true,
+				IsBuiltIn: false,
+				Origin:    CuratedOrigin,
+				Status:    DownloadingStatus,
 			}, model)
 		})
 

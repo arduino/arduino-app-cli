@@ -291,7 +291,6 @@ func TestApplyStatusTo(t *testing.T) {
 		var model AIModel
 		handlerModelEntry{Installed: true, DiskSizeMB: &diskSize, ModelSizeMB: &yamlSize}.applyStat(&model)
 		assert.Equal(t, InstalledStatus, model.Status)
-		assert.False(t, model.Downloading)
 		assert.Equal(t, uint64(507*1024*1024), model.Size)
 	})
 
@@ -302,11 +301,10 @@ func TestApplyStatusTo(t *testing.T) {
 		assert.Equal(t, uint64(480*1024*1024), model.Size)
 	})
 
-	t.Run("downloading is not installed", func(t *testing.T) {
+	t.Run("a transfer in flight is its own status", func(t *testing.T) {
 		var model AIModel
 		handlerModelEntry{Installed: false, Downloading: true}.applyStat(&model)
-		assert.Equal(t, NotInstalledStatus, model.Status)
-		assert.True(t, model.Downloading)
+		assert.Equal(t, DownloadingStatus, model.Status)
 		assert.Zero(t, model.Size)
 	})
 }

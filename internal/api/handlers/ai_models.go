@@ -288,7 +288,7 @@ func (d *downloadStream) publish(e modelsindex.StreamMessage) {
 			Name: p.Name, Current: p.Current, Total: p.Total, Progress: progress,
 		}})
 	case modelsindex.ErrorType:
-		d.sse.Send(render.SSEEvent{Type: "error", Data: e.GetError()})
+		d.sse.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: e.GetError()})
 	case modelsindex.DoneType:
 		d.sse.Send(render.SSEEvent{Type: "message", Data: sseLog{Message: e.GetDone()}})
 	}
