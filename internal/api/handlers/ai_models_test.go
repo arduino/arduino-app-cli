@@ -163,8 +163,8 @@ func TestHandleInstallModel(t *testing.T) {
 
 		assert.Equal(t, http.StatusNotFound, rec.Code)
 		assert.NotContains(t, rec.Header().Get("Content-Type"), "text/event-stream")
-		assert.Contains(t, rec.Body.String(), "is declared",
-			"the answer says the model list does not declare it")
+		assert.Contains(t, rec.Body.String(), "no model with id",
+			"the answer says the index does not know it")
 	})
 
 	t.Run("a declaration that installs the model answers done at once", func(t *testing.T) {
