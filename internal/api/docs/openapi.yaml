@@ -1057,7 +1057,7 @@ paths:
             downloader makes the id from the file that arrives, and adds the repository name. The caller
             does not know that id before this event.
             'event: done'
-            'data: {"id":"llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","name":"unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","status":"installed"}'
+            'data: {"id":"bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N","id_decoded":"llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","name":"unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","status":"installed"}'
 
             **Event 'error'**:
             Contains a JSON object with the details of an error. The 200 status is sent with the stream, so
@@ -1183,7 +1183,7 @@ paths:
             **Event 'done'**:
             The installed model, with the values from its entry in the internal model list.
             'event: done'
-            'data: {"id":"llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","name":"unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","status":"installed"}'
+            'data: {"id":"bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N","id_decoded":"llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","name":"unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","status":"installed"}'
 
             **Event 'error'**:
             Contains a JSON object with the details of an error. The 200 status is sent with the stream, so
@@ -1586,8 +1586,8 @@ components:
           description: 'Deprecated: This field is kept for backward compatibility.'
           type: string
         id:
-          description: The model's plain id, not base64url encoded. Encode it before
-            sending it back on a models path or in a brick request's "model".
+          description: The model id, base64url encoded and unpadded, ready to send
+            back on a models path or in a brick request's "model".
           type: string
         name:
           type: string
@@ -1602,8 +1602,14 @@ components:
         description:
           type: string
         id:
+          description: The model id, base64url encoded and unpadded. The only form
+            this API takes back.
+          example: bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w
           type: string
         id_decoded:
+          description: The same id in plain text, to show a person. It travels out
+            only.
+          example: llamacpp:gemma-3-1b-it-Q4_0
           type: string
         is_builtin:
           type: boolean
@@ -1772,6 +1778,9 @@ components:
     BrickCreateUpdateRequest:
       properties:
         model:
+          description: 'The model this brick uses: the base64url encoded, unpadded
+            "id" a models or brick response reports.'
+          example: bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w
           nullable: true
           type: string
         variables:
@@ -1856,9 +1865,8 @@ components:
         id:
           type: string
         model:
-          description: The model this brick instance uses, as the plain id app.yaml
-            holds. Unlike "id" on the models endpoints, it is not base64url encoded;
-            encode it before naming a model in a path.
+          description: The model this brick instance uses, base64url encoded and unpadded.
+            The same "id" the models endpoints report.
           type: string
         name:
           type: string

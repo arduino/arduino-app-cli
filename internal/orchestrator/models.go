@@ -36,24 +36,9 @@ type AIModelsListResult struct {
 }
 
 type AIModelItem struct {
-	// ID is base64url encoded, so it is one path segment whatever it holds: an id no
-	// models-list.yaml entry declares is named after the repository the file came from
-	// and carries slashes. It is the only form this API takes back, in a path or in a
-	// brick request's "model": the handlers decode it, so an id is plain text everywhere
-	// below them.
-	//
-	// IDDecoded is the same identity in plain text, for showing a person and for the
-	// app.yaml written by hand, which has no encoding rule. It travels out, never back.
-	//
-	// The brick endpoints are the exception: their "compatible_models" and a brick's own
-	// "model" carry the plain id, because they report what an app.yaml holds rather than
-	// address a model. An id read from there is encoded before it comes back here.
-	// Every field without omitempty is required: a client can count on the key being
-	// there. The three optional ones each mean something by their absence - no
-	// declaration to read metadata from, no download record to describe a source, and a
-	// size nobody knows, which is why it is not reported as zero.
-	ID          string                   `json:"id" required:"true"`
-	IDDecoded   string                   `json:"id_decoded" required:"true"`
+	// Every id the API reports is encoded, and no other form comes back.
+	ID          string                   `json:"id" required:"true" description:"The model id, base64url encoded and unpadded. The only form this API takes back." example:"bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w"`
+	IDDecoded   string                   `json:"id_decoded" required:"true" description:"The same id in plain text, to show a person. It travels out only." example:"llamacpp:gemma-3-1b-it-Q4_0"`
 	Name        string                   `json:"name" required:"true"`
 	Description string                   `json:"description" required:"true"`
 	Runner      string                   `json:"runner" required:"true"`

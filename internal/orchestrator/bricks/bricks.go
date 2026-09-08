@@ -83,34 +83,36 @@ func (s *Service) AppBrickInstancesList(ctx context.Context, a *app.ArduinoApp) 
 		variablesMap, configVariables := getInstanceBrickConfigVariableDetails(brick, brickInstance.Variables)
 
 		res.BrickInstances[i] = BrickInstance{
-			ID:              brick.ID,
-			Name:            brick.Name,
-			Author:          brick.Source,
-			Category:        brick.Category,
-			Status:          "installed",
-			RequireModel:    brick.RequireModel,
-			ModelID:         cmp.Or(brickInstance.Model, brick.ModelName),
-			Variables:       variablesMap,
-			ConfigVariables: configVariables,
-			CompatibleModels: f.Map(compatibleModels(ctx, models, brick.ID), func(m modelsindex.AIModelLite) AIModel {
-				return AIModel{
-					ID:          m.ID,
-					Name:        m.Name,
-					Description: m.Description,
-				}
-			}),
+			ID:               brick.ID,
+			Name:             brick.Name,
+			Author:           brick.Source,
+			Category:         brick.Category,
+			Status:           "installed",
+			RequireModel:     brick.RequireModel,
+			ModelID:          modelsindex.EncodeID(cmp.Or(brickInstance.Model, brick.ModelName)),
+			Variables:        variablesMap,
+			ConfigVariables:  configVariables,
+			CompatibleModels: compatibleModels(ctx, models, brick.ID),
 		}
 
 	}
 	return res
 }
 
-func compatibleModels(ctx context.Context, models *modelsindex.Lookup, brickID string) []modelsindex.AIModelLite {
+// compatibleModels lists the models the brick can use, with the ids encoded.
+func compatibleModels(ctx context.Context, models *modelsindex.Lookup, brickID string) []AIModel {
 	matches, err := models.ByBrick(ctx, brickID)
 	if err != nil {
 		slog.Warn("cannot get models info, brick compatibility list may be incomplete", "brick", brickID, "err", err)
 	}
-	return matches
+	return f.Map(matches, func(m modelsindex.AIModelLite) AIModel {
+		return AIModel{
+			ID:   modelsindex.EncodeID(m.ID),
+			Name: m.Name,
+			// TODO: deprecated field, remove in future versions
+			Description: m.Description,
+		}
+	})
 }
 
 func (s *Service) AppBrickInstanceDetails(ctx context.Context, a *app.ArduinoApp, brickID string) (BrickInstance, error) {
@@ -135,24 +137,17 @@ func (s *Service) AppBrickInstanceDetails(ctx context.Context, a *app.ArduinoApp
 	}
 
 	return BrickInstance{
-		ID:              brickID,
-		Name:            brick.Name,
-		Author:          brick.Source,
-		Category:        brick.Category,
-		Status:          "installed", // For now every Arduino brick are installed
-		RequireModel:    brick.RequireModel,
-		Variables:       variables,
-		ConfigVariables: configVariables,
-		ModelID:         cmp.Or(a.Descriptor.Bricks[brickIndex].Model, brick.ModelName),
-		CompatibleModels: f.Map(compatibleModels(ctx, s.modelsIndex.NewLookup(), brick.ID), func(m modelsindex.AIModelLite) AIModel {
-			return AIModel{
-				ID:   m.ID,
-				Name: m.Name,
-				// TODO: deprecated field, remove in future versions
-				Description: m.Description,
-			}
-		}),
-		Readme: readme,
+		ID:               brickID,
+		Name:             brick.Name,
+		Author:           brick.Source,
+		Category:         brick.Category,
+		Status:           "installed", // For now every Arduino brick are installed
+		RequireModel:     brick.RequireModel,
+		Variables:        variables,
+		ConfigVariables:  configVariables,
+		ModelID:          modelsindex.EncodeID(cmp.Or(a.Descriptor.Bricks[brickIndex].Model, brick.ModelName)),
+		CompatibleModels: compatibleModels(ctx, s.modelsIndex.NewLookup(), brick.ID),
+		Readme:           readme,
 	}, nil
 }
 
@@ -218,26 +213,20 @@ func (s *Service) BricksDetails(ctx context.Context, id string, idProvider *appi
 	variables, configVariables := getBrickConfigVariableDetails(brick)
 
 	return BrickDetailsResult{
-		ID:           id,
-		Name:         brick.Name,
-		Author:       brick.Source,
-		Description:  brick.Description,
-		Category:     brick.Category,
-		RequireModel: brick.RequireModel,
-		Status:       "installed", // For now every Arduino brick are installed
-		Variables:    variables,
-		Readme:       readme,
-		ApiDocsPath:  apiDocsPath,
-		CodeExamples: codeExamples,
-		UsedByApps:   usedByApps,
-		CompatibleModels: f.Map(compatibleModels(ctx, s.modelsIndex.NewLookup(), brick.ID), func(m modelsindex.AIModelLite) AIModel {
-			return AIModel{
-				ID:          m.ID,
-				Name:        m.Name,
-				Description: m.Description,
-			}
-		}),
-		ConfigVariables: configVariables,
+		ID:               id,
+		Name:             brick.Name,
+		Author:           brick.Source,
+		Description:      brick.Description,
+		Category:         brick.Category,
+		RequireModel:     brick.RequireModel,
+		Status:           "installed", // For now every Arduino brick are installed
+		Variables:        variables,
+		Readme:           readme,
+		ApiDocsPath:      apiDocsPath,
+		CodeExamples:     codeExamples,
+		UsedByApps:       usedByApps,
+		CompatibleModels: compatibleModels(ctx, s.modelsIndex.NewLookup(), brick.ID),
+		ConfigVariables:  configVariables,
 	}, nil
 }
 
@@ -345,7 +334,7 @@ func getUsedByApps(cfg config.Configuration, brickId string, idProvider *appid.P
 
 type BrickCreateUpdateRequest struct {
 	ID        string            `json:"-"`
-	Model     *string           `json:"model"`
+	Model     *string           `json:"model" description:"The model this brick uses: the base64url encoded, unpadded \"id\" a models or brick response reports." example:"bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w"`
 	Variables map[string]string `json:"variables,omitempty"`
 }
 

@@ -46,9 +46,8 @@ func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	}
 }
 
-// modelIDFromPath reads the model id a path names. The wire form is base64url, the form
-// every models response reports as "id", so the plain id exists only below this line.
-// "id_decoded" is for display, and is not accepted back.
+// modelIDFromPath reads the model id a path names, so the plain id exists only below
+// this line.
 func modelIDFromPath(r *http.Request) (string, error) {
 	return modelsindex.DecodeID(r.PathValue("modelID"))
 }

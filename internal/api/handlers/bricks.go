@@ -88,10 +88,8 @@ func HandleAppBrickInstanceDetails(
 	}
 }
 
-// decodeRequestModel turns the brick request's model id from its wire form into the plain
-// one. A client sends back the "id" a models response gave it, which is base64url, and
-// app.yaml holds the plain form, so the conversion belongs here rather than in the
-// service. A request naming no model is left alone.
+// decodeRequestModel turns the brick request's model id into the plain form app.yaml
+// holds. A request naming no model is left alone.
 func decodeRequestModel(req *bricks.BrickCreateUpdateRequest) error {
 	if req.Model == nil || *req.Model == "" {
 		return nil

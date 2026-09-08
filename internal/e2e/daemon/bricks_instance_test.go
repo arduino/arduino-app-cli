@@ -29,17 +29,17 @@ const (
 var (
 	expectedModelInfo = []client.AIModel{
 		{
-			Id:          new("mobilenet-image-classification"),
+			Id:          new(modelsindex.EncodeID("mobilenet-image-classification")),
 			Name:        new("General purpose image classification"),
 			Description: new("General purpose image classification model based on MobileNetV2. This model is trained on the ImageNet dataset and can classify images into 1000 categories."),
 		},
 		{
-			Id:          new("person-classification"),
+			Id:          new(modelsindex.EncodeID("person-classification")),
 			Name:        new("Person classification"),
 			Description: new("Person classification model based on WakeVision dataset. This model is trained to classify images into two categories: person and not-person."),
 		},
 		{
-			Id:          new("ei:efficientnet-b4"),
+			Id:          new(modelsindex.EncodeID("ei:efficientnet-b4")),
 			Name:        new("General purpose object classification - EfficientNet-B4"),
 			Description: new("EfficientNetB4 is a machine learning model that can classify images from the Imagenet dataset. It can also be used as a backbone in building more complex models for specific use cases. This version of the model is optimized for NPU acceleration on supported devices, providing faster inference times while maintaining accuracy."),
 		}}
@@ -195,7 +195,7 @@ func TestUpsertAppBrickInstance(t *testing.T) {
 	require.NotEmpty(t, brickInstance.JSON200)
 	require.Equal(t, ImageClassifactionBrickID, *brickInstance.JSON200.Id)
 	require.Nil(t, brickInstance.JSON200.Variables)
-	require.Equal(t, "mobilenet-image-classification", *brickInstance.JSON200.Model)
+	require.Equal(t, modelsindex.EncodeID("mobilenet-image-classification"), *brickInstance.JSON200.Model)
 
 	t.Run("OverrideBrickInstance", func(t *testing.T) {
 		resp, err := httpClient.UpsertAppBrickInstanceWithResponse(
@@ -218,7 +218,7 @@ func TestUpsertAppBrickInstance(t *testing.T) {
 		require.NotEmpty(t, brickInstance.JSON200)
 		require.Equal(t, ImageClassifactionBrickID, *brickInstance.JSON200.Id)
 		require.Nil(t, brickInstance.JSON200.Variables)
-		require.Equal(t, "mobilenet-image-classification", *brickInstance.JSON200.Model)
+		require.Equal(t, modelsindex.EncodeID("mobilenet-image-classification"), *brickInstance.JSON200.Model)
 	})
 
 	t.Run("WrongModelFails", func(t *testing.T) {
@@ -344,7 +344,7 @@ func TestUpdateAppBrickInstance(t *testing.T) {
 		require.NotEmpty(t, brickInstance.JSON200)
 		require.Equal(t, ImageClassifactionBrickID, *brickInstance.JSON200.Id)
 		require.Nil(t, brickInstance.JSON200.Variables)
-		require.Equal(t, "person-classification", *brickInstance.JSON200.Model)
+		require.Equal(t, modelsindex.EncodeID("person-classification"), *brickInstance.JSON200.Model)
 	})
 	t.Run("UpdateOnlyModel", func(t *testing.T) {
 		resp, err := httpClient.UpdateAppBrickInstanceWithResponse(
@@ -366,7 +366,7 @@ func TestUpdateAppBrickInstance(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, brickInstance.JSON200)
 		require.Equal(t, ImageClassifactionBrickID, *brickInstance.JSON200.Id)
-		require.Equal(t, "mobilenet-image-classification", *brickInstance.JSON200.Model)
+		require.Equal(t, modelsindex.EncodeID("mobilenet-image-classification"), *brickInstance.JSON200.Model)
 	})
 
 	t.Run("UpdateWithWrongModelFails", func(t *testing.T) {
