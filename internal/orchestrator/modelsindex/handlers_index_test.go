@@ -218,10 +218,9 @@ func TestUserDownloadModel(t *testing.T) {
 			Handler:     "llamacpp",
 			ModelOrigin: "user",
 			Metadata: &entryMetadata{
-				ModelID:      "llamacpp:unsloth/Qwen3.5-0.8B-GGUF/Qwen3.5-0.8B-Q4_0",
-				Handler:      "hf-handler",
-				DownloadedAt: "2026-09-02T13:33:10Z",
-				Inputs:       inputs,
+				ModelID: "llamacpp:unsloth/Qwen3.5-0.8B-GGUF/Qwen3.5-0.8B-Q4_0",
+				Handler: "hf-handler",
+				Inputs:  inputs,
 			},
 		}
 		if mutate != nil {

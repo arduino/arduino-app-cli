@@ -177,10 +177,9 @@ type handlerModelListOutput struct {
 }
 
 type entryMetadata struct {
-	ModelID      string            `json:"model_id"`
-	Handler      string            `json:"handler"` // a handler id, e.g. "hf-handler"
-	DownloadedAt string            `json:"downloaded_at"`
-	Inputs       map[string]string `json:"inputs"`
+	ModelID string            `json:"model_id"`
+	Handler string            `json:"handler"` // a handler id, e.g. "hf-handler"
+	Inputs  map[string]string `json:"inputs"`
 }
 
 type handlerModelEntry struct {
