@@ -70,7 +70,7 @@ func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, i
 // AIModelInstall downloads a model the internal model list declares and describes what
 // landed. publish reports the handler's own events as they arrive.
 func AIModelInstall(ctx context.Context, dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform, id string, publish func(modelsindex.StreamMessage)) (modelsindex.AIModel, error) {
-	return modelsIndex.Install(ctx, dockerClient.Client(), id, plat, publish)
+	return modelsIndex.Install(ctx, dockerClient, id, plat, publish)
 }
 
 // AIModelDownload downloads a model no entry declares, from the links the caller supplies,

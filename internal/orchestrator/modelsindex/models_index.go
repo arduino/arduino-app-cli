@@ -477,16 +477,18 @@ func (m *ModelsIndex) known(id string) (*AIModel, bool) {
 // installed. The declaration describes it; only the size comes from what landed.
 //
 // A model installed by its declaration is returned as it is: there is nothing to fetch.
-func (m *ModelsIndex) Install(ctx context.Context, cli client.APIClient, id string, plat platform.Platform, publish func(e StreamMessage)) (AIModel, error) {
+func (m *ModelsIndex) Install(ctx context.Context, dockerClient command.Cli, id string, plat platform.Platform, publish func(e StreamMessage)) (AIModel, error) {
 	model, found := m.known(id)
 	if !found {
 		return AIModel{}, fmt.Errorf("no model with id %q: %w", id, ErrUnknownModel)
 	}
 	if model.NeedsNoDownload() {
+		// It is there already, so the docker client is not read: a caller with nothing to
+		// download passes none.
 		return *model, nil
 	}
 
-	downloaded, err := m.runDownload(ctx, cli, *model, plat, publish)
+	downloaded, err := m.runDownload(ctx, dockerClient.Client(), *model, plat, publish)
 	if err != nil {
 		return AIModel{}, err
 	}
