@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	apimodels "github.com/arduino/arduino-app-cli/internal/api/models"
 	"log/slog"
 	"os"
 	"slices"
@@ -19,6 +18,7 @@ import (
 	yaml "github.com/goccy/go-yaml"
 	"go.bug.st/f"
 
+	apimodels "github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"

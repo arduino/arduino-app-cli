@@ -8,8 +8,6 @@ package handlers
 import (
 	"errors"
 	"fmt"
-	"github.com/arduino/arduino-app-cli/internal/api/models"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,11 +15,12 @@ import (
 	"time"
 
 	"github.com/arduino/go-paths-helper"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )

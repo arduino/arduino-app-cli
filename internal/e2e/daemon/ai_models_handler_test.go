@@ -8,7 +8,6 @@ package daemon
 import (
 	"cmp"
 	"context"
-	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"net/http"
 	"os"
 	"runtime"
@@ -18,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
 )

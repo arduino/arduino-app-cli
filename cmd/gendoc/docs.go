@@ -21,7 +21,6 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
 	"github.com/arduino/arduino-app-cli/internal/api/models"
-	apimodels "github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
@@ -877,7 +876,7 @@ Contains a JSON object with the details of an error.
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: apimodels.AIModelsListResult{},
+				DataStructure: models.AIModelsListResult{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},
@@ -919,7 +918,7 @@ Contains a JSON object with the details of an error.
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: apimodels.AIModelItem{},
+				DataStructure: models.AIModelItem{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},
@@ -941,7 +940,7 @@ Contains a JSON object with the details of an error.
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: apimodels.AIModelItem{},
+				DataStructure: models.AIModelItem{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},

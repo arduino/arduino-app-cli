@@ -6,12 +6,12 @@
 package handlers
 
 import (
-	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 )
 
