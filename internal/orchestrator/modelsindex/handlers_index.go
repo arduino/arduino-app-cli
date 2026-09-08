@@ -233,10 +233,11 @@ func bricksForVision(mmprojURL string) []BrickConfig {
 	return []BrickConfig{{ID: llmBrickID}}
 }
 
-// setSourceURL records the link a model was downloaded from. Into a copy: a listed model
-// shares its metadata map with the index entry it was cloned from.
+// setSourceURL records the link a model was downloaded from. The declaration wins: a
+// curated entry names its own source, and that reads the same before and after an install.
+// Into a copy, because a listed model shares its metadata map with its index entry.
 func (m *AIModel) setSourceURL(url string) {
-	if url == "" {
+	if _, declared := m.Metadata["source-model-url"]; url == "" || declared {
 		return
 	}
 	metadata := make(map[string]string, len(m.Metadata)+1)
