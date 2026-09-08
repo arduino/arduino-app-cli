@@ -37,18 +37,18 @@ type AIModelsListResult struct {
 
 type AIModelItem struct {
 	// Every id the API reports is encoded, and no other form comes back.
-	ID          string                   `json:"id" required:"true" description:"The model id, base64url encoded and unpadded. The only form this API takes back." example:"bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w"`
-	IDDecoded   string                   `json:"id_decoded" required:"true" description:"The same id in plain text, to show a person. It travels out only." example:"llamacpp:gemma-3-1b-it-Q4_0"`
-	Name        string                   `json:"name" required:"true"`
-	Description string                   `json:"description" required:"true"`
-	Runner      string                   `json:"runner" required:"true"`
-	Bricks      []string                 `json:"brick_ids" required:"true"`
+	ID          string                   `json:"id" description:"The model id, base64url encoded and unpadded. The only form this API takes back." example:"bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w"`
+	IDDecoded   string                   `json:"id_decoded" description:"The same id in plain text, to show a person. It travels out only." example:"llamacpp:gemma-3-1b-it-Q4_0"`
+	Name        string                   `json:"name"`
+	Description string                   `json:"description"`
+	Runner      string                   `json:"runner"`
+	Bricks      []string                 `json:"brick_ids"`
 	Metadata    map[string]string        `json:"metadata,omitempty"`
-	IsBuiltIn   bool                     `json:"is_builtin" required:"true"`
-	Origin      modelsindex.ModelOrigin  `json:"origin" required:"true"`
+	IsBuiltIn   bool                     `json:"is_builtin"`
+	Origin      modelsindex.ModelOrigin  `json:"origin"`
 	Source      *modelsindex.ModelSource `json:"source,omitempty"`
 	Size        *uint64                  `json:"size,omitempty"`
-	Status      modelsindex.ModelStatus  `json:"status" required:"true"`
+	Status      modelsindex.ModelStatus  `json:"status"`
 }
 
 type AIModelsListRequest struct {

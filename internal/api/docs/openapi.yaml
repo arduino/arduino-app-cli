@@ -1631,16 +1631,6 @@ components:
           $ref: '#/components/schemas/ModelSource'
         status:
           $ref: '#/components/schemas/ModelStatus'
-      required:
-      - id
-      - id_decoded
-      - name
-      - description
-      - runner
-      - brick_ids
-      - is_builtin
-      - origin
-      - status
       type: object
     AIModelsListResult:
       properties:

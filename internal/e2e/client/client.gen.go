@@ -137,28 +137,34 @@ func (e ListLibrariesParamsSort) Valid() bool {
 type AIModel struct {
 	// Description Deprecated: This field is kept for backward compatibility.
 	Description *string `json:"description,omitempty"`
-	Id          *string `json:"id,omitempty"`
-	Name        *string `json:"name,omitempty"`
+
+	// Id The model id, base64url encoded and unpadded, ready to send back on a models path or in a brick request's "model".
+	Id   *string `json:"id,omitempty"`
+	Name *string `json:"name,omitempty"`
 }
 
 // AIModelItem defines model for AIModelItem.
 type AIModelItem struct {
-	BrickIds    *[]string          `json:"brick_ids"`
-	Description string             `json:"description"`
-	Id          string             `json:"id"`
-	IdDecoded   string             `json:"id_decoded"`
-	IsBuiltin   bool               `json:"is_builtin"`
-	Metadata    *map[string]string `json:"metadata,omitempty"`
-	Name        string             `json:"name"`
+	BrickIds    *[]string `json:"brick_ids,omitempty"`
+	Description *string   `json:"description,omitempty"`
+
+	// Id The model id, base64url encoded and unpadded. The only form this API takes back.
+	Id *string `json:"id,omitempty"`
+
+	// IdDecoded The same id in plain text, to show a person. It travels out only.
+	IdDecoded *string            `json:"id_decoded,omitempty"`
+	IsBuiltin *bool              `json:"is_builtin,omitempty"`
+	Metadata  *map[string]string `json:"metadata,omitempty"`
+	Name      *string            `json:"name,omitempty"`
 
 	// Origin Where the model came from: "curated" is declared by the internal model list and installs from its id alone, "user" was downloaded from a source the caller supplied and needs that source again, "edge-impulse" was deployed from an Edge Impulse project.
-	Origin ModelOrigin  `json:"origin"`
-	Runner string       `json:"runner"`
+	Origin *ModelOrigin `json:"origin,omitempty"`
+	Runner *string      `json:"runner,omitempty"`
 	Size   *int         `json:"size,omitempty"`
 	Source *ModelSource `json:"source,omitempty"`
 
 	// Status Model status
-	Status ModelStatus `json:"status"`
+	Status *ModelStatus `json:"status,omitempty"`
 }
 
 // AIModelsListResult defines model for AIModelsListResult.
@@ -254,6 +260,7 @@ type BrickConfigVariable struct {
 
 // BrickCreateUpdateRequest defines model for BrickCreateUpdateRequest.
 type BrickCreateUpdateRequest struct {
+	// Model The model this brick uses: the base64url encoded, unpadded "id" a models or brick response reports.
 	Model     *string            `json:"model,omitempty"`
 	Variables *map[string]string `json:"variables,omitempty"`
 }
@@ -292,11 +299,13 @@ type BrickInstance struct {
 	CompatibleModels *[]AIModel             `json:"compatible_models,omitempty"`
 	ConfigVariables  *[]BrickConfigVariable `json:"config_variables,omitempty"`
 	Id               *string                `json:"id,omitempty"`
-	Model            *string                `json:"model,omitempty"`
-	Name             *string                `json:"name,omitempty"`
-	Readme           *string                `json:"readme,omitempty"`
-	RequireModel     *bool                  `json:"require_model,omitempty"`
-	Status           *string                `json:"status,omitempty"`
+
+	// Model The model this brick instance uses, base64url encoded and unpadded. The same "id" the models endpoints report.
+	Model        *string `json:"model,omitempty"`
+	Name         *string `json:"name,omitempty"`
+	Readme       *string `json:"readme,omitempty"`
+	RequireModel *bool   `json:"require_model,omitempty"`
+	Status       *string `json:"status,omitempty"`
 
 	// Variables Deprecated: use config_variables instead. This field is kept for backward compatibility.
 	Variables *map[string]string `json:"variables,omitempty"`

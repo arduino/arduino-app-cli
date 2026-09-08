@@ -66,16 +66,15 @@ func TestAIModelDetails(t *testing.T) {
 	require.NotEmpty(t, aiModelsList.JSON200.Models)
 
 	expectedModel := (*aiModelsList.JSON200.Models)[0]
-	// id, brick_ids, name, description and runner are required by the schema, so they
-	// arrive as values. Only metadata and size are optional, and this model declares both.
-	require.NotEmpty(t, expectedModel.Id, "Setup model's ID should not be empty")
+	// No field is required by the schema, so every one arrives as a pointer.
+	require.NotNil(t, expectedModel.Id, "Setup model's ID should not be nil")
 	require.NotNil(t, expectedModel.BrickIds, "Setup model's BrickId should not be nil")
 	require.NotEmpty(t, expectedModel.Name, "Setup model's Name should not be empty")
 	require.NotNil(t, expectedModel.Metadata, "Setup model's Metadata should not be nil")
 
 	t.Run("should return full details for a valid model ID", func(t *testing.T) {
 		// We have to add an empty editor because there is a bug that make the function panic if we pass nil
-		response, err := httpClient.GetAIModelDetailsWithResponse(t.Context(), expectedModel.Id, func(ctx context.Context, req *http.Request) error { return nil })
+		response, err := httpClient.GetAIModelDetailsWithResponse(t.Context(), *expectedModel.Id, func(ctx context.Context, req *http.Request) error { return nil })
 		require.NoError(t, err, "The HTTP client should not return an error for a 200 response")
 
 		modelDetails := response.JSON200
@@ -119,17 +118,17 @@ func TestAIModelDetails(t *testing.T) {
 		got := response.JSON200
 		require.Equal(t, &client.AIModelItem{
 			// The id is reported twice: encoded, ready to paste into a path, and plain.
-			Id:          modelsindex.EncodeID("custom-classification-model-eim"),
-			IdDecoded:   "custom-classification-model-eim",
-			Name:        "this is the name of the model",
-			IsBuiltin:   false,
-			Runner:      "",
-			Description: "this is the description of the model",
+			Id:          new(modelsindex.EncodeID("custom-classification-model-eim")),
+			IdDecoded:   new("custom-classification-model-eim"),
+			Name:        new("this is the name of the model"),
+			IsBuiltin:   new(false),
+			Runner:      new(""),
+			Description: new("this is the description of the model"),
 			BrickIds:    &[]string{"arduino:audio_classification"},
 			// A model under the custom models directory is a deployment of the caller's
 			// own Edge Impulse project, not a catalog entry that happens to be EI-trained.
-			Origin: client.ModelOrigin("edge-impulse-user-project"),
-			Status: client.ModelStatus("installed"),
+			Origin: new(client.ModelOrigin("edge-impulse-user-project")),
+			Status: new(client.ModelStatus("installed")),
 			Size:   new(1),
 		}, got, "The returned model details should match the expected values")
 
