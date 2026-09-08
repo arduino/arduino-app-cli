@@ -336,18 +336,18 @@ func TestGetModelsReportsTheRecordedSource(t *testing.T) {
 		return nil
 	}
 
-	vision := byID("llamacpp:ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0")
-	require.NotNil(t, vision.Source)
-	assert.Equal(t, "https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/SmolVLM-256M-Instruct-Q8_0.gguf", vision.Source.ModelURL)
-	assert.Equal(t, "https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-256M-Instruct-Q8_0.gguf", vision.Source.MmprojURL)
-	assert.Equal(t, "2026-09-02T09:04:32Z", vision.Source.DownloadedAt)
 	// The record names a projection file, so the vlm brick is the one that can run it.
 	// Nothing declares this model, so its bricks are derived from what was downloaded.
+	vision := byID("llamacpp:ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0")
 	assert.Equal(t, []BrickConfig{{ID: vlmBrickID}}, vision.Bricks)
+	assert.Equal(t, map[string]string{
+		"source-model-url": "https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/SmolVLM-256M-Instruct-Q8_0.gguf",
+	}, vision.Metadata, "the link comes from the record the listing carries")
 
-	// A declared model's record names project and impulse numbers, not a link, so there
-	// is no source to report: models-list.yaml is what describes where it comes from.
-	assert.Nil(t, byID("ei:efficientnet-b4").Source)
+	// This record names project and impulse numbers, not a link, so the entry's own
+	// metadata is all there is to report.
+	assert.Equal(t, map[string]string{"model_size_mb": "89", "source": "edgeimpulse"},
+		byID("ei:efficientnet-b4").Metadata)
 }
 
 // TestModelForBrick covers the write path: the lookup answers on plain ids, since the

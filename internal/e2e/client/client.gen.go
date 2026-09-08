@@ -152,16 +152,17 @@ type AIModelItem struct {
 	Id *string `json:"id,omitempty"`
 
 	// IdDecoded The same id in plain text, to show a person. It travels out only.
-	IdDecoded *string            `json:"id_decoded,omitempty"`
-	IsBuiltin *bool              `json:"is_builtin,omitempty"`
-	Metadata  *map[string]string `json:"metadata,omitempty"`
-	Name      *string            `json:"name,omitempty"`
+	IdDecoded *string `json:"id_decoded,omitempty"`
+	IsBuiltin *bool   `json:"is_builtin,omitempty"`
+
+	// Metadata Extra facts about the model: what the internal model list declares, plus "source-model-url" for a model the listing reports a download link for.
+	Metadata *map[string]string `json:"metadata,omitempty"`
+	Name     *string            `json:"name,omitempty"`
 
 	// Origin Where the model came from: "curated" is declared by the internal model list and installs from its id alone, "user" was downloaded from a source the caller supplied and needs that source again, "edge-impulse" was deployed from an Edge Impulse project.
 	Origin *ModelOrigin `json:"origin,omitempty"`
 	Runner *string      `json:"runner,omitempty"`
 	Size   *int         `json:"size,omitempty"`
-	Source *ModelSource `json:"source,omitempty"`
 
 	// Status Model status
 	Status *ModelStatus `json:"status,omitempty"`
@@ -485,13 +486,6 @@ type LocalBrickRenameResult struct {
 
 // ModelOrigin Where the model came from: "curated" is declared by the internal model list and installs from its id alone, "user" was downloaded from a source the caller supplied and needs that source again, "edge-impulse" was deployed from an Edge Impulse project.
 type ModelOrigin string
-
-// ModelSource defines model for ModelSource.
-type ModelSource struct {
-	DownloadedAt   *string `json:"downloaded_at,omitempty"`
-	ModelMmprojUrl *string `json:"model_mmproj_url,omitempty"`
-	ModelUrl       string  `json:"model_url"`
-}
 
 // ModelStatus Model status
 type ModelStatus string

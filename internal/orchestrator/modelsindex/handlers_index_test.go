@@ -242,12 +242,8 @@ func TestUserConfiguredModel(t *testing.T) {
 		assert.Equal(t, "hf-handler", model.Deployment.Handler)
 		assert.Equal(t, inputs, model.Deployment.VariablesForPlatform("unoq"))
 		assert.Equal(t, []BrickConfig{{ID: "arduino:llm"}}, model.Bricks)
-		// The link is the only thing that says which model this is: the id names the
-		// files, not the request that fetched them.
-		require.NotNil(t, model.Source)
-		assert.Equal(t, inputs["model_url"], model.Source.ModelURL)
-		assert.Equal(t, "2026-09-02T13:33:10Z", model.Source.DownloadedAt)
-		assert.Empty(t, model.Source.MmprojURL, "not a vision model")
+		// Nothing declares this model, and the listing reports no metadata for it.
+		assert.Nil(t, model.Metadata)
 	})
 
 	// models-downloader <= 0.12.0 writes neither field, so on an older image every
@@ -344,7 +340,7 @@ func TestParseDownloadHandlerLineNamesTheModel(t *testing.T) {
 
 func TestUserConfiguredModelFromDownloadEvent(t *testing.T) {
 	id := "llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M"
-	model := UserConfiguredModel(DownloadedModel{ID: id, Size: 1024}, nil)
+	model := UserConfiguredModel(DownloadedModel{ID: id, Size: 1024}, "")
 
 	assert.Equal(t, id, model.ID)
 	// The whole path survives: it is what the listing reports for the same files, and
@@ -371,42 +367,10 @@ func TestUserConfiguredModelMatchesTheListing(t *testing.T) {
 	listed, ok := testHandlersIndex().userDownloadModel(entry)
 	require.True(t, ok)
 
-	fromEvent := UserConfiguredModel(DownloadedModel{ID: entry.ID}, nil)
+	fromEvent := UserConfiguredModel(DownloadedModel{ID: entry.ID}, "")
 	assert.Equal(t, listed.ID, fromEvent.ID)
 	assert.Equal(t, listed.Name, fromEvent.Name)
 	assert.Equal(t, listed.Bricks, fromEvent.Bricks)
-}
-
-func TestEntryMetadataSource(t *testing.T) {
-	t.Run("no record at all", func(t *testing.T) {
-		var md *entryMetadata
-		assert.Nil(t, md.source(), "a legacy install records nothing, and absent is not up-to-date")
-	})
-
-	t.Run("a record naming no link", func(t *testing.T) {
-		// Every handler but Hugging Face identifies a model by numbers, not by a URL.
-		md := &entryMetadata{Handler: "ei-handler", Inputs: map[string]string{
-			"ei_project_id": "901144", "ei_impulse_id": "1",
-		}}
-		assert.Nil(t, md.source())
-	})
-
-	t.Run("a vision model, both links", func(t *testing.T) {
-		md := &entryMetadata{
-			DownloadedAt: "2026-09-02T09:04:32Z",
-			Inputs: map[string]string{
-				"models_repository": "llamacpp",
-				"model_directory":   "ggml-org/SmolVLM-256M-Instruct-GGUF",
-				"model_url":         "https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/SmolVLM-256M-Instruct-Q8_0.gguf",
-				"model_mmproj_url":  "https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-256M-Instruct-Q8_0.gguf",
-			},
-		}
-		source := md.source()
-		require.NotNil(t, source)
-		assert.Equal(t, md.Inputs["model_url"], source.ModelURL)
-		assert.Equal(t, md.Inputs["model_mmproj_url"], source.MmprojURL)
-		assert.Equal(t, "2026-09-02T09:04:32Z", source.DownloadedAt)
-	})
 }
 
 func TestModelNameFromID(t *testing.T) {

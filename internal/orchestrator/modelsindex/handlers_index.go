@@ -184,26 +184,13 @@ type entryMetadata struct {
 	Inputs       map[string]string `json:"inputs"`
 }
 
-// source reads the record as the model's origin story: the links asked for, and when they
-// were fetched. The other inputs stay out of it. models_repository is fixed by
-// DownloadByURL rather than chosen, and model_directory is the URL's own repository path,
-// so neither tells a client anything the URL does not.
-//
-// Nil for a record that names no URL, which is every handler but Hugging Face: an AI Hub
-// or Edge Impulse model is identified by project and version numbers, not by a link.
-func (md *entryMetadata) source() *ModelSource {
+// inputs are the variables the model was downloaded with. Nil for a legacy install,
+// which recorded nothing.
+func (md *entryMetadata) inputs() map[string]string {
 	if md == nil {
 		return nil
 	}
-	modelURL := md.Inputs["model_url"]
-	if modelURL == "" {
-		return nil
-	}
-	return &ModelSource{
-		ModelURL:     modelURL,
-		MmprojURL:    md.Inputs["model_mmproj_url"],
-		DownloadedAt: md.DownloadedAt,
-	}
+	return md.Inputs
 }
 
 type handlerModelEntry struct {
@@ -228,8 +215,14 @@ func (e handlerModelEntry) applyStat(m *AIModel) {
 		m.Status = NotInstalledStatus
 	}
 	m.Downloading = e.Downloading
-	if source := e.Metadata.source(); source != nil {
-		m.Source = source
+	// The link the container downloaded from, which describes a declared model and an
+	// ad-hoc one the same way. Written into a copy: the caller's model shares its
+	// metadata map with the index entry it was cloned from.
+	if url := e.Metadata.inputs()["model_url"]; url != "" {
+		metadata := make(map[string]string, len(m.Metadata)+1)
+		maps.Copy(metadata, m.Metadata)
+		metadata["source-model-url"] = url
+		m.Metadata = metadata
 	}
 	if e.Installed && e.DiskSizeMB != nil && *e.DiskSizeMB > 0 {
 		m.Size = uint64(*e.DiskSizeMB * 1024 * 1024)
@@ -243,39 +236,29 @@ const (
 	vlmBrickID = "arduino:vlm"
 )
 
-// bricksForSource says which brick can run a model nothing declares, from what was
-// downloaded for it. A projection file is what makes a GGUF multimodal, so a download
-// that fetched one is a vision model and belongs to the vlm brick; everything else is a
-// text model for the llm brick.
-//
-// A curated model states its bricks in models-list.yaml. An ad-hoc one has no
-// declaration to read, and the downloader reports no compatibility of its own, so this
-// is derived rather than told. With no source at all - a legacy install, or a listing
-// whose record is missing - it reads as a text model, which is what every ad-hoc
-// download was before vision models arrived.
-func bricksForSource(source *ModelSource) []BrickConfig {
-	if source != nil && source.MmprojURL != "" {
+// bricksForVision says which brick can run a model nothing declares. A projection file is
+// what makes a GGUF multimodal, so a download that fetched one is a vision model.
+func bricksForVision(mmprojURL string) []BrickConfig {
+	if mmprojURL != "" {
 		return []BrickConfig{{ID: vlmBrickID}}
 	}
 	return []BrickConfig{{ID: llmBrickID}}
 }
 
 // UserConfiguredModel describes a model no models-list.yaml entry declares, from the
-// download that just wrote it. source is what the caller asked for: it decides which
-// brick can run the result, and is reported as the model's own source, so the event this
-// answers and the later listing describe one model the same way.
+// download that just wrote it. mmprojURL is what the caller asked for, so this event and
+// the later listing name the same brick.
 //
-// No downloaded_at comes with it. That timestamp lives in the record the downloader
-// wrote, which only the listing reads; inventing one here would disagree with it.
-func UserConfiguredModel(m DownloadedModel, source *ModelSource) AIModel {
+// It reports no metadata: the links belong to the download record, which only the listing
+// reads.
+func UserConfiguredModel(m DownloadedModel, mmprojURL string) AIModel {
 	return AIModel{
 		ID:     m.ID,
 		Name:   modelNameFromID(m.ID),
 		Origin: UserOrigin,
 		Status: InstalledStatus,
 		Size:   m.Size,
-		Bricks: bricksForSource(source),
-		Source: source,
+		Bricks: bricksForVision(mmprojURL),
 	}
 }
 
@@ -291,12 +274,13 @@ func modelNameFromID(id string) string {
 	return id
 }
 
-// InstalledModel describes what a download just wrote. source is what the caller asked
-// for, and is nil when it asked by id: a declared model describes itself, bricks included.
-func (m *ModelsIndex) InstalledModel(downloaded DownloadedModel, source *ModelSource) AIModel {
+// InstalledModel describes what a download just wrote. mmprojURL is what the caller asked
+// for, and is empty when it asked by id: a declared model describes itself, bricks
+// included.
+func (m *ModelsIndex) InstalledModel(downloaded DownloadedModel, mmprojURL string) AIModel {
 	model, declared := m.DeclaredByID(downloaded.ID)
 	if !declared {
-		return UserConfiguredModel(downloaded, source)
+		return UserConfiguredModel(downloaded, mmprojURL)
 	}
 	model.Status = InstalledStatus
 	if downloaded.Size > 0 {
@@ -335,7 +319,6 @@ func (h *HandlersIndex) userDownloadModel(entry handlerModelEntry) (AIModel, boo
 		slog.Warn("skipping model with unknown handler", "model", entry.ID, "handler", md.Handler)
 		return AIModel{}, false
 	}
-	source := md.source()
 	return AIModel{
 		ID: entry.ID,
 		// The listing's name, which is modelNameFromID of the same id: the install route
@@ -344,8 +327,7 @@ func (h *HandlersIndex) userDownloadModel(entry handlerModelEntry) (AIModel, boo
 		Name:      entry.Name,
 		IsBuiltIn: false,
 		Origin:    UserOrigin,
-		Source:    source,
-		Bricks:    bricksForSource(source),
+		Bricks:    bricksForVision(md.Inputs["model_mmproj_url"]),
 		Deployment: &ModelDeployment{
 			Handler: md.Handler,
 			Variables: []map[string]PlatformDeploymentConfig{
@@ -364,7 +346,7 @@ func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient,
 	if err != nil {
 		return models, fmt.Errorf("cannot list models: %w", err)
 	}
-	// Cloning! this works because we are updating only the Installed and Size fields.
+	// A shallow clone: applyStat replaces the maps it writes rather than editing them.
 	modelsInfo := slices.Clone(models)
 	dryIndex := make(map[string]int, len(models))
 	for i, m := range models {
