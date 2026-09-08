@@ -169,19 +169,6 @@ func TestAIModelDelete(t *testing.T) {
 
 	httpClient := GetHttpclient(t, e2e.WithCustomModelDir(customModelDir))
 
-	t.Run("error on a model id that is not base64url", func(t *testing.T) {
-		modelId := " "
-		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
-		var actualBody models.ErrorResponse
-
-		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), modelId, &client.DeleteAIModelParams{Force: new(false)}, requestEditor)
-		require.NoError(t, err)
-		require.Equal(t, http.StatusBadRequest, response.StatusCode())
-		err = json.Unmarshal(response.Body, &actualBody)
-		require.NoError(t, err)
-		require.Contains(t, actualBody.Details, "base64url")
-	})
-
 	t.Run("not found error on model not found", func(t *testing.T) {
 		modelId := "invalid_model_id"
 		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }

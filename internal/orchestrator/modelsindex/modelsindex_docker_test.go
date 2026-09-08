@@ -243,108 +243,108 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 	})
 }
 
-// TestGetModelsReportsDownloading covers the listing's "downloading" field: a transfer in
-// flight and a model never fetched both report installed=false.
-func TestGetModelsReportsDownloading(t *testing.T) {
-	const listingOutput = `{"event":"info","models":[
-		{"id":"ei:efficientnet-b4","name":"EfficientNet-B4","handler":"ei-handler","installed":false,"downloading":true,"model_size_mb":89},
-		{"id":"piper-tts-en","name":"Piper TTS","handler":"ai-hub-handler","installed":true,"model_size_mb":46}
-	]}`
+// TestGetModelsMergesTheListing covers what the listing adds to a model the index knows:
+// the transfer in flight, and the link the record kept.
+func TestGetModelsMergesTheListing(t *testing.T) {
+	t.Run("a transfer in flight is its own status", func(t *testing.T) {
+		const listingOutput = `{"event":"info","models":[
+			{"id":"ei:efficientnet-b4","name":"EfficientNet-B4","handler":"ei-handler","installed":false,"downloading":true,"model_size_mb":89},
+			{"id":"piper-tts-en","name":"Piper TTS","handler":"ai-hub-handler","installed":true,"model_size_mb":46}
+		]}`
 
-	cli := newFakeDockerClient(func(_ string, cmd []string) (string, int) {
-		if len(cmd) > 0 && cmd[0] == listModelsCmd {
-			return listingOutput, 0
+		cli := newFakeDockerClient(func(_ string, cmd []string) (string, int) {
+			if len(cmd) > 0 && cmd[0] == listModelsCmd {
+				return listingOutput, 0
+			}
+			return "", 0
+		})
+
+		dir := paths.New("testdata/with-handlers")
+		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+		require.NoError(t, err)
+
+		models, err := idx.NewLookup().All(t.Context())
+		require.NoError(t, err)
+		byID := func(id string) *AIModel {
+			t.Helper()
+			for i := range models {
+				if models[i].ID == id {
+					return &models[i]
+				}
+			}
+			t.Fatalf("model %q missing from the index", id)
+			return nil
 		}
-		return "", 0
+
+		downloading := byID("ei:efficientnet-b4")
+		assert.Equal(t, DownloadingStatus, downloading.Status, "a transfer in flight is its own status")
+
+		// The field is absent for this entry: it must not inherit the neighbor's.
+		installed := byID("piper-tts-en")
+		assert.Equal(t, InstalledStatus, installed.Status)
 	})
 
-	dir := paths.New("testdata/with-handlers")
-	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
-	require.NoError(t, err)
+	t.Run("the record carries the link a model was downloaded from", func(t *testing.T) {
+		const listingOutput = `{"event":"info","models":[
+			{"id":"llamacpp:ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0",
+			 "name":"ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0",
+			 "handler":"llamacpp","model_origin":"user","installed":true,
+			 "download_metadata":{
+				"downloaded_at":"2026-09-02T09:04:32Z",
+				"handler":"hf-handler",
+				"model_id":"llamacpp:ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0",
+				"model_origin":"user",
+				"inputs":{
+					"models_repository":"llamacpp",
+					"model_directory":"ggml-org/SmolVLM-256M-Instruct-GGUF",
+					"model_url":"https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/SmolVLM-256M-Instruct-Q8_0.gguf",
+					"model_mmproj_url":"https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-256M-Instruct-Q8_0.gguf"}}},
+			{"id":"ei:efficientnet-b4","name":"EfficientNet-B4","handler":"ei-handler","installed":true,
+			 "download_metadata":{
+				"downloaded_at":"2026-08-30T11:02:00Z",
+				"handler":"ei-handler",
+				"model_id":"ei:efficientnet-b4",
+				"model_origin":"builtin",
+				"inputs":{"ei_project_id":"948887","ei_impulse_id":"4"}}}
+		]}`
 
-	models, err := idx.NewLookup().All(t.Context())
-	require.NoError(t, err)
-	byID := func(id string) *AIModel {
-		t.Helper()
-		for i := range models {
-			if models[i].ID == id {
-				return &models[i]
+		cli := newFakeDockerClient(func(_ string, cmd []string) (string, int) {
+			if len(cmd) > 0 && cmd[0] == listModelsCmd {
+				return listingOutput, 0
 			}
+			return "", 0
+		})
+
+		dir := paths.New("testdata/with-handlers")
+		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+		require.NoError(t, err)
+
+		models, err := idx.NewLookup().All(t.Context())
+		require.NoError(t, err)
+		byID := func(id string) *AIModel {
+			t.Helper()
+			for i := range models {
+				if models[i].ID == id {
+					return &models[i]
+				}
+			}
+			t.Fatalf("model %q missing from the index", id)
+			return nil
 		}
-		t.Fatalf("model %q missing from the index", id)
-		return nil
-	}
 
-	downloading := byID("ei:efficientnet-b4")
-	assert.Equal(t, DownloadingStatus, downloading.Status, "a transfer in flight is its own status")
+		// The record names a projection file, so the vlm brick is the one that can run it.
+		// Nothing declares this model, so its bricks are derived from what was downloaded.
+		vision := byID("llamacpp:ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0")
+		assert.Equal(t, []BrickConfig{{ID: vlmBrickID}}, vision.Bricks)
+		assert.Equal(t, map[string]string{
+			"source-model-url": "https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/SmolVLM-256M-Instruct-Q8_0.gguf",
+		}, vision.Metadata, "the link comes from the record the listing carries")
 
-	// The field is absent for this entry: it must not inherit the neighbor's.
-	installed := byID("piper-tts-en")
-	assert.Equal(t, InstalledStatus, installed.Status)
-}
-
-// TestGetModelsReportsTheRecordedSource covers the link a model was downloaded from,
-// which only the record carries: an ad-hoc id names the files, not the request.
-func TestGetModelsReportsTheRecordedSource(t *testing.T) {
-	const listingOutput = `{"event":"info","models":[
-		{"id":"llamacpp:ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0",
-		 "name":"ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0",
-		 "handler":"llamacpp","model_origin":"user","installed":true,
-		 "download_metadata":{
-			"downloaded_at":"2026-09-02T09:04:32Z",
-			"handler":"hf-handler",
-			"model_id":"llamacpp:ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0",
-			"model_origin":"user",
-			"inputs":{
-				"models_repository":"llamacpp",
-				"model_directory":"ggml-org/SmolVLM-256M-Instruct-GGUF",
-				"model_url":"https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/SmolVLM-256M-Instruct-Q8_0.gguf",
-				"model_mmproj_url":"https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-256M-Instruct-Q8_0.gguf"}}},
-		{"id":"ei:efficientnet-b4","name":"EfficientNet-B4","handler":"ei-handler","installed":true,
-		 "download_metadata":{
-			"downloaded_at":"2026-08-30T11:02:00Z",
-			"handler":"ei-handler",
-			"model_id":"ei:efficientnet-b4",
-			"model_origin":"builtin",
-			"inputs":{"ei_project_id":"948887","ei_impulse_id":"4"}}}
-	]}`
-
-	cli := newFakeDockerClient(func(_ string, cmd []string) (string, int) {
-		if len(cmd) > 0 && cmd[0] == listModelsCmd {
-			return listingOutput, 0
-		}
-		return "", 0
+		// This record names project and impulse numbers, not a link, so the entry's own
+		// metadata is all there is to report.
+		assert.Equal(t, map[string]string{"model_size_mb": "89", "source": "edgeimpulse"},
+			byID("ei:efficientnet-b4").Metadata)
 	})
-
-	dir := paths.New("testdata/with-handlers")
-	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
-	require.NoError(t, err)
-
-	models, err := idx.NewLookup().All(t.Context())
-	require.NoError(t, err)
-	byID := func(id string) *AIModel {
-		t.Helper()
-		for i := range models {
-			if models[i].ID == id {
-				return &models[i]
-			}
-		}
-		t.Fatalf("model %q missing from the index", id)
-		return nil
-	}
-
-	// The record names a projection file, so the vlm brick is the one that can run it.
-	// Nothing declares this model, so its bricks are derived from what was downloaded.
-	vision := byID("llamacpp:ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0")
-	assert.Equal(t, []BrickConfig{{ID: vlmBrickID}}, vision.Bricks)
-	assert.Equal(t, map[string]string{
-		"source-model-url": "https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/SmolVLM-256M-Instruct-Q8_0.gguf",
-	}, vision.Metadata, "the link comes from the record the listing carries")
-
-	// This record names project and impulse numbers, not a link, so the entry's own
-	// metadata is all there is to report.
-	assert.Equal(t, map[string]string{"model_size_mb": "89", "source": "edgeimpulse"},
-		byID("ei:efficientnet-b4").Metadata)
 }
 
 // TestModelForBrick covers the write path: the lookup answers on plain ids, and reports

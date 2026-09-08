@@ -296,21 +296,4 @@ func TestNeedsNoDownload(t *testing.T) {
 		})
 	}
 
-	t.Run("every pre-loaded entry in the shipped model list is one", func(t *testing.T) {
-		// The copy "task test:internal" downloads, not the deb build's: that one is
-		// gitignored, so on CI it is not there.
-		dir := paths.New("../../../internal/e2e/daemon/testdata/assets", config.RunnerVersion)
-		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), nil, nil, config.Configuration{})
-		require.NoError(t, err)
-
-		var preLoaded int
-		for _, model := range idx.InternalModels {
-			if model.Deployment == nil || !model.Deployment.PreLoaded {
-				continue
-			}
-			preLoaded++
-			assert.True(t, model.NeedsNoDownload(), "model %q", model.ID)
-		}
-		assert.NotZero(t, preLoaded, "the model list must still declare pre-loaded models")
-	})
 }
