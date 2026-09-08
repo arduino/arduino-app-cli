@@ -217,9 +217,8 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 	})
 
 	t.Run("listing fails: an id nothing declares is absent, not an error", func(t *testing.T) {
-		// The listing is the only thing that can find a model no models-list.yaml entry
-		// declares, so a listing that did not run has not found it. Reporting that as a
-		// failure turns "no such model" into a 500 for every caller asking by id.
+		// Only the listing can find an undeclared model, so a listing that did not run has
+		// not found it. A failure here would turn "no such model" into a 500.
 		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
 			return "", 1
 		})
@@ -244,9 +243,8 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 	})
 }
 
-// TestGetModelsReportsDownloading covers the listing's "downloading" field. A transfer in
-// flight and a model that was never fetched both report installed=false, so without this
-// field the two are indistinguishable to every caller.
+// TestGetModelsReportsDownloading covers the listing's "downloading" field: a transfer in
+// flight and a model never fetched both report installed=false.
 func TestGetModelsReportsDownloading(t *testing.T) {
 	const listingOutput = `{"event":"info","models":[
 		{"id":"ei:efficientnet-b4","name":"EfficientNet-B4","handler":"ei-handler","installed":false,"downloading":true,"model_size_mb":89},
@@ -287,8 +285,7 @@ func TestGetModelsReportsDownloading(t *testing.T) {
 }
 
 // TestGetModelsReportsTheRecordedSource covers the link a model was downloaded from,
-// which nothing else in the listing carries: an ad-hoc id names the repository directory
-// and the file, and says nothing about the request that produced them.
+// which only the record carries: an ad-hoc id names the files, not the request.
 func TestGetModelsReportsTheRecordedSource(t *testing.T) {
 	const listingOutput = `{"event":"info","models":[
 		{"id":"llamacpp:ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0",
@@ -350,9 +347,8 @@ func TestGetModelsReportsTheRecordedSource(t *testing.T) {
 		byID("ei:efficientnet-b4").Metadata)
 }
 
-// TestModelForBrick covers the write path: the lookup answers on plain ids, since the
-// handlers decode the wire form before calling in, and reports the model under its own id
-// so the caller stores that rather than the string it was handed.
+// TestModelForBrick covers the write path: the lookup answers on plain ids, and reports
+// the model under its own id so the caller stores that.
 func TestModelForBrick(t *testing.T) {
 	cli := newFakeDockerClient(func(_ string, cmd []string) (string, int) {
 		if len(cmd) > 0 && cmd[0] == listModelsCmd {
@@ -439,9 +435,8 @@ func TestLookupRunsOneListing(t *testing.T) {
 	})
 }
 
-// TestDownloadByURL pins what reaches the container for a model the catalog does not
-// declare: the hf-handler's download script, the caller's URL, and models_repository
-// fixed to llamacpp - any other value downloads a model the listing cannot see.
+// TestDownloadByURL pins what reaches the container for an undeclared model: the
+// hf-handler's script, the caller's URL, and models_repository fixed to llamacpp.
 func TestDownloadByURL(t *testing.T) {
 	var gotCmd []string
 	var gotEnv []string
@@ -476,8 +471,7 @@ func TestDownloadByURL(t *testing.T) {
 }
 
 // A repository already on disk is not transferred again: the handler reports the model it
-// finds and exits, with no "complete" event and no progress. The install route answers
-// from this event alone, so the model must still come back.
+// finds, with no "complete" event, and the route answers from that event alone.
 func TestDownloadByURLReportsAnInstalledModel(t *testing.T) {
 	cli := newFakeDockerClient(func(_ string, _ []string) (string, int) {
 		return `{"event":"info","description":"Model exists: org/repo (m-Q4_0.gguf)","artifacts":["/models/org/repo/m-Q4_0.gguf"],"model_id":"llamacpp:org/repo/m-Q4_0","size_mb":1}` + "\n", 0

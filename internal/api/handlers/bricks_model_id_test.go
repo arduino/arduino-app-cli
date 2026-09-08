@@ -15,9 +15,8 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
-// TestDecodeRequestModel covers the other door a model id comes in by. The path is not the
-// only one: a brick request names a model in its body, and that id is on the wire too, so
-// it arrives in the same base64url form and is turned into the plain one here.
+// TestDecodeRequestModel covers the other door a model id comes in by: a brick request
+// names one in its body, in the same base64url form the path takes.
 func TestDecodeRequestModel(t *testing.T) {
 	t.Run("an encoded id becomes the plain one", func(t *testing.T) {
 		encoded := modelsindex.EncodeID("llamacpp:owner/repo/file")

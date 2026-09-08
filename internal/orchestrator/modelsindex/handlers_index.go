@@ -184,15 +184,6 @@ type entryMetadata struct {
 	Inputs       map[string]string `json:"inputs"`
 }
 
-// inputs are the variables the model was downloaded with. Nil for a legacy install,
-// which recorded nothing.
-func (md *entryMetadata) inputs() map[string]string {
-	if md == nil {
-		return nil
-	}
-	return md.Inputs
-}
-
 type handlerModelEntry struct {
 	ID          string         `json:"id"`
 	Name        string         `json:"name"`
@@ -215,13 +206,12 @@ func (e handlerModelEntry) applyStat(m *AIModel) {
 		m.Status = NotInstalledStatus
 	}
 	m.Downloading = e.Downloading
-	// The link the container downloaded from, which describes a declared model and an
-	// ad-hoc one the same way. Written into a copy: the caller's model shares its
-	// metadata map with the index entry it was cloned from.
-	if url := e.Metadata.inputs()["model_url"]; url != "" {
+	// The link the container downloaded from. Written into a copy: the caller's model
+	// shares its metadata map with the index entry it was cloned from.
+	if e.Metadata != nil && e.Metadata.Inputs["model_url"] != "" {
 		metadata := make(map[string]string, len(m.Metadata)+1)
 		maps.Copy(metadata, m.Metadata)
-		metadata["source-model-url"] = url
+		metadata["source-model-url"] = e.Metadata.Inputs["model_url"]
 		m.Metadata = metadata
 	}
 	if e.Installed && e.DiskSizeMB != nil && *e.DiskSizeMB > 0 {
@@ -246,11 +236,7 @@ func bricksForVision(mmprojURL string) []BrickConfig {
 }
 
 // UserConfiguredModel describes a model no models-list.yaml entry declares, from the
-// download that just wrote it. mmprojURL is what the caller asked for, so this event and
-// the later listing name the same brick.
-//
-// It reports no metadata: the links belong to the download record, which only the listing
-// reads.
+// download that just wrote it. It reports no metadata: that is the listing's to report.
 func UserConfiguredModel(m DownloadedModel, mmprojURL string) AIModel {
 	return AIModel{
 		ID:     m.ID,
@@ -262,11 +248,8 @@ func UserConfiguredModel(m DownloadedModel, mmprojURL string) AIModel {
 	}
 }
 
-// modelNameFromID drops the framework namespace and keeps everything after it. An
-// undeclared model is named by the repository path it was downloaded from, and all of it
-// stays: it is the name the listing reports and the section llama-server serves the model
-// under, so trimming it here would invent a fourth name for the same file. A client
-// wanting a short title splits the last segment off itself.
+// modelNameFromID drops the framework namespace and keeps the repository path whole: it
+// is the name both the listing and llama-server use for the same file.
 func modelNameFromID(id string) string {
 	if _, name, ok := strings.Cut(id, ":"); ok {
 		return name
@@ -274,9 +257,8 @@ func modelNameFromID(id string) string {
 	return id
 }
 
-// InstalledModel describes what a download just wrote. mmprojURL is what the caller asked
-// for, and is empty when it asked by id: a declared model describes itself, bricks
-// included.
+// InstalledModel describes what a download just wrote. mmprojURL is empty when the caller
+// asked by id: a declared model describes itself, bricks included.
 func (m *ModelsIndex) InstalledModel(downloaded DownloadedModel, mmprojURL string) AIModel {
 	model, declared := m.DeclaredByID(downloaded.ID)
 	if !declared {
@@ -289,9 +271,8 @@ func (m *ModelsIndex) InstalledModel(downloaded DownloadedModel, mmprojURL strin
 	return *model
 }
 
-// The handler's own word for a model no models-list.yaml entry declares. It is the
-// container's ORIGIN_USER, and the only value here that matters: everything else the
-// listing reports is declared, and the declaration is what describes it.
+// The handler's own word for a model no models-list.yaml entry declares: the container's
+// ORIGIN_USER, and the only value here that matters.
 const handlerUserOrigin = "user"
 
 func (h *HandlersIndex) userDownloadModel(entry handlerModelEntry) (AIModel, bool) {
@@ -306,11 +287,8 @@ func (h *HandlersIndex) userDownloadModel(entry handlerModelEntry) (AIModel, boo
 		return AIModel{}, false
 	}
 	if md.ModelID != entry.ID {
-		// One record per repository directory, and a repository can hold several
-		// quantizations: the record describes whichever downloaded last. Its variables
-		// would send a re-download or a delete at the wrong file. The recorded id is also
-		// a snapshot, stale once a release declares the file - harmless, because the
-		// listing then merges it into that entry and this is never reached.
+		// One record per repository directory, and it describes whichever quantization
+		// downloaded last: its variables would send a re-download at the wrong file.
 		slog.Warn("skipping model whose download record names another model",
 			"model", entry.ID, "record", md.ModelID)
 		return AIModel{}, false
@@ -321,9 +299,8 @@ func (h *HandlersIndex) userDownloadModel(entry handlerModelEntry) (AIModel, boo
 	}
 	return AIModel{
 		ID: entry.ID,
-		// The listing's name, which is modelNameFromID of the same id: the install route
-		// answers from the download event and every later request from here, so the two
-		// must not name one model differently.
+		// The listing's name, which is modelNameFromID of the same id: the download event
+		// and every later request must not name one model differently.
 		Name:      entry.Name,
 		IsBuiltIn: false,
 		Origin:    UserOrigin,
@@ -450,9 +427,8 @@ func (p *StreamMessage) GetType() MessageType {
 	return UnknownType
 }
 
-// The events a download handler reports. StreamMessage keeps its fields unexported so a
-// message always carries exactly one kind of payload; these are the four kinds, for the
-// parser below and for anything that has to stand in for it.
+// The events a download handler reports. StreamMessage keeps its fields unexported, so a
+// message always carries exactly one kind of payload.
 func NewInfoMessage(description string, model *DownloadedModel) StreamMessage {
 	return StreamMessage{data: description, model: model}
 }
@@ -497,9 +473,8 @@ func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
 	case "complete":
 		publish(NewDoneMessage("download complete"))
 	case "info":
-		// The model the handler made of the files it wrote. The event also lists those
-		// files, but nothing needs them: the id used to be re-derived from their names and
-		// is now reported outright, so parsing them again would only invite that back.
+		// The model the handler made of the files it wrote. The event lists the files too,
+		// but the id is reported outright now, so nothing parses them.
 		var model *DownloadedModel
 		if raw.ModelID != "" {
 			// Reported only once the handler has recorded the model, so an id here means

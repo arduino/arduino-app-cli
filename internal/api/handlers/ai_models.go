@@ -332,9 +332,8 @@ func (d *downloadStream) sendError(err error) {
 	d.sse.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: err.Error()})
 }
 
-// installedModel describes the model a download wrote. mmprojURL is the projection file
-// the caller asked for, and is empty on the install route, where the caller named a
-// declared model and models-list.yaml is what describes it.
+// installedModel describes the model a download wrote. mmprojURL is empty on the install
+// route, where the caller named a declared model and models-list.yaml describes it.
 func installedModel(modelsIndex *modelsindex.ModelsIndex, declared *modelsindex.AIModel, downloaded *modelsindex.DownloadedModel, mmprojURL string) (modelsindex.AIModel, bool) {
 	if declared == nil {
 		if downloaded == nil {

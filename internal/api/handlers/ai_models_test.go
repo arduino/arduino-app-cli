@@ -26,8 +26,7 @@ import (
 )
 
 // TestInstalledModel covers the install route's last step: describing what the handler
-// just wrote, from the download event and the declaration alone. No listing runs, so
-// whatever cannot be answered here cannot be answered at all.
+// wrote, from the download event and the declaration alone. No listing runs.
 func TestInstalledModel(t *testing.T) {
 	const adHocID = "llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M"
 
@@ -59,9 +58,8 @@ func TestInstalledModel(t *testing.T) {
 	})
 
 	t.Run("a file landing where the model list declares it is that declared model", func(t *testing.T) {
-		// The path named a Hugging Face source, so nothing was declared up front, but the
-		// handler resolved the id against the catalog and named a declared model. Its
-		// entry describes it, rather than the bare id the event carried.
+		// The handler resolved the id against the catalog, so the entry describes the
+		// model rather than the bare id the event carried.
 		idx := &modelsindex.ModelsIndex{InternalModels: []modelsindex.AIModel{
 			{ID: "llamacpp:gemma-3-1b-it-Q4_0", Name: "Gemma 3 1B", Description: "An efficient AI model."},
 		}}
@@ -124,8 +122,7 @@ func (f *fakeSSE) types() []string {
 }
 
 // TestDownloadStream covers the translation from a handler's events to SSE, which both
-// install routes share. The "done" event is not built here: the route owns it, because
-// only the route knows whether a declaration describes the model.
+// install routes share. The "done" event is the route's, not this translation's.
 func TestDownloadStream(t *testing.T) {
 	t.Run("an info line becomes a message", func(t *testing.T) {
 		sse := &fakeSSE{}
@@ -246,8 +243,7 @@ func testModelsIndex(t *testing.T) *modelsindex.ModelsIndex {
 }
 
 // TestHandleInstallModel covers what the install route answers before its stream opens.
-// Everything here is decided by the declaration alone, so no container runs and the
-// docker client is never touched.
+// The declaration decides all of it, so no container runs.
 func TestHandleInstallModel(t *testing.T) {
 	t.Run("an id the model list does not declare is a 404, not a stream", func(t *testing.T) {
 		// The failure has to arrive as a status: once the stream opens the 200 is sent and
@@ -343,10 +339,8 @@ func TestHandleDownloadModel(t *testing.T) {
 	}
 }
 
-// encodeModelID is what a client does to put an id in a path: base64url, unpadded.
-// TestHandlerModelByID covers the id encoding on the read path. Only a model installed by
-// its declaration is used, because that is the one answer no listing container is needed
-// for.
+// TestHandlerModelByID covers the id encoding on the read path, with a model installed by
+// its declaration: the one answer that needs no listing container.
 func TestHandlerModelByID(t *testing.T) {
 	t.Run("an encoded id answers the model, named both ways", func(t *testing.T) {
 		segment := modelsindex.EncodeID("a-preloaded-model")
@@ -364,11 +358,8 @@ func TestHandlerModelByID(t *testing.T) {
 	})
 
 	t.Run("a plain id is no longer accepted", func(t *testing.T) {
-		// Superseded contract: a client sends back the encoded "id" a response gave it.
-		// Which failure a leftover plain id gets depends on the id itself - this one is
-		// not valid base64url and is refused outright, while one that happens to be
-		// decodes to bytes naming no model and gets a 404. Both are failures, which is
-		// the point; see TestEncodeDecodeID for the split.
+		// A leftover plain id fails either way: this one is not valid base64url, while one
+		// that happens to be decodes to bytes naming no model and gets a 404.
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/v1/models/a-preloaded-model", nil)
 		req.SetPathValue("modelID", "a-preloaded-model")

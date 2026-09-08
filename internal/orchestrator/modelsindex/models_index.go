@@ -89,9 +89,8 @@ type AIModel struct {
 	Origin    ModelOrigin `yaml:"-"`
 	Status    ModelStatus `yaml:"-"`
 	Size      uint64      `yaml:"-"`
-	// Downloading comes from the handler's on-disk ".download" marker, so it covers an
-	// interrupted download too. TODO(#585): reconcile with AcquireDownload, which guards
-	// concurrent runs into one directory but holds no state across a restart.
+	// Comes from the handler's ".download" marker, so an interrupted download counts too.
+	// TODO(#585): reconcile with AcquireDownload, which holds no state across a restart.
 	Downloading bool `yaml:"-"`
 }
 
@@ -106,25 +105,18 @@ func (s ModelStatus) AllowedStatuses() []ModelStatus {
 	return []ModelStatus{InstalledStatus, NotInstalledStatus}
 }
 
-// ModelOrigin says where a model came from. It is what decides whether the id alone is
-// enough to install the model again: only a curated one carries a declaration to install
-// from. It is derived here rather than read from the handler's "model_origin", whose
-// "builtin" means "declared in models-list.yaml" and would read as this package's
-// IsBuiltIn, which means pre-loaded.
+// ModelOrigin says where a model came from, and so whether the id alone installs it
+// again. Derived here, not read from the handler's "model_origin".
 type ModelOrigin string
 
 const (
 	// CuratedOrigin: declared by models-list.yaml, so the id is the whole install request.
 	CuratedOrigin ModelOrigin = "curated"
-	// UserOrigin: downloaded from a source the caller supplied. The id exists only because
-	// a file landed, and does not name the source, so installing it again needs that
-	// source again.
+	// UserOrigin: downloaded from a source the caller supplied, and installing it again
+	// needs that source again.
 	UserOrigin ModelOrigin = "user"
-	// EdgeImpulseOrigin: deployed from the caller's own Edge Impulse project, which has
-	// its own install route and its own project and impulse identifiers. The value names
-	// the project rather than the vendor on purpose: several curated models are trained
-	// on Edge Impulse and say so in their metadata, and those are curated, because their
-	// declaration is what installs them.
+	// EdgeImpulseOrigin: deployed from the caller's own project. A curated model trained
+	// on Edge Impulse stays curated: its declaration is what installs it.
 	EdgeImpulseOrigin ModelOrigin = "edge-impulse-user-project"
 )
 
@@ -159,9 +151,8 @@ type ModelsIndex struct {
 	plat            platform.Platform
 }
 
-// Lookup answers several model queries against at most one listing run. Callers that
-// query per brick in a loop should hold one instead of calling the ModelsIndex methods,
-// which take a fresh listing each time. Not safe for concurrent use.
+// Lookup answers several model queries against at most one listing run. Not safe for
+// concurrent use.
 type Lookup struct {
 	idx    *ModelsIndex
 	models []AIModel
@@ -173,9 +164,8 @@ func (m *ModelsIndex) NewLookup() *Lookup {
 	return &Lookup{idx: m}
 }
 
-// listing runs the listing on first use only, so a caller whose models are all
-// pre-loaded or custom pays no container start at all. A failure is remembered too:
-// retrying it per query would mean a container start per question.
+// listing runs on first use only, and remembers a failure: retrying it per query would
+// mean a container start per question.
 func (l *Lookup) listing(ctx context.Context) error {
 	if l.loaded {
 		return l.err
@@ -186,20 +176,13 @@ func (l *Lookup) listing(ctx context.Context) error {
 }
 
 // EncodeID renders an id as one URL path segment: base64url, unpadded, the encoding app
-// ids already use. Every id survives it, including the bare ones that need no encoding,
-// so a caller can hold a single code path.
+// ids already use. Every id survives it, including the bare ones.
 func EncodeID(id string) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(id))
 }
 
-// DecodeID reads back what EncodeID wrote. It is the one place an id crosses from the
-// wire into this package, so an id is plain text everywhere below it.
-//
-// An id that is not base64url is refused rather than passed through. That refusal is what
-// keeps one spelling on the wire: accepting the plain form too would give every model two
-// names and leave nothing to say which is canonical. Note that a plain id carrying no ":"
-// - "face-detection" - is itself valid base64url and decodes to bytes that name no model,
-// so a caller still sending the old form gets a 404 rather than this error.
+// DecodeID reads back what EncodeID wrote, so an id is plain text below this line. An id
+// that is not base64url is refused rather than passed through, keeping one spelling.
 func DecodeID(encoded string) (string, error) {
 	id, err := base64.RawURLEncoding.DecodeString(encoded)
 	if err != nil {
@@ -213,11 +196,8 @@ func (l *Lookup) ByID(ctx context.Context, id string) (*AIModel, error) {
 		return model, nil
 	}
 	if err := l.listing(ctx); err != nil {
-		// Two different things reach here. A model models-list.yaml declares exists
-		// whether or not the listing ran, so not knowing its install status is a failure
-		// to report. Anything else could only ever be found through the listing, and a
-		// listing that did not run has not found it: that is absence, not failure, and it
-		// is what GetModels already reports for the same model.
+		// A declared model exists whether or not the listing ran, so an unknown install
+		// status is a failure. Anything else is absent, not failed.
 		if _, declared := l.idx.DeclaredByID(id); !declared {
 			slog.Warn("cannot get models info, reporting an undeclared model as absent", "model", id, "err", err)
 			return nil, nil
@@ -246,13 +226,8 @@ func (l *Lookup) ByBrick(ctx context.Context, brickID string) ([]AIModelLite, er
 	return matches, err
 }
 
-// ModelForBrick resolves a model the brick can use, named either plainly or base64url
-// encoded, and returns nil when no such model exists or the brick cannot use it.
-//
-// It answers with the model rather than a bool so a caller that writes the choice down
-// can store the model's own id instead of the string it was handed. An app.yaml is
-// authored by hand and has no encoding rule, so one form has to win there, and it is the
-// plain one - see the brick service, which stores model.ID.
+// ModelForBrick resolves a model the brick can use, by its plain id. Nil when no such
+// model exists or the brick cannot use it; the model, so a caller stores model.ID.
 func (l *Lookup) ModelForBrick(ctx context.Context, modelID, brickID string) (*AIModel, error) {
 	model, err := l.ByID(ctx, modelID)
 	if err != nil || model == nil {
@@ -265,13 +240,7 @@ func (l *Lookup) ModelForBrick(ctx context.Context, modelID, brickID string) (*A
 }
 
 // InstalledByDeclaration reports whether the model is installed by its own declaration -
-// built-in, pre-loaded, or a custom model - rather than by a handler writing it to disk.
-//
-// Two callers depend on the same answer and must not drift apart. A lookup skips the
-// handler listing for such a model, because no handler run can contradict a declaration.
-// The install route answers it at once, because there is nothing to download: pre-loaded
-// entries in models-list.yaml still name a handler, so testing the handler alone would
-// send them to the downloader with none of the variables it needs.
+// built-in, pre-loaded, or custom - rather than by a handler writing it to disk.
 func (m AIModel) InstalledByDeclaration() bool {
 	return m.Deployment == nil || m.Deployment.PreLoaded || m.Deployment.Handler == ""
 }
@@ -469,10 +438,8 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 func (m *ModelsIndex) DownloadByURL(ctx context.Context, cli client.APIClient, modelURL, mmprojURL string, plat platform.Platform, publish func(e StreamMessage)) error {
 	variables := map[string]string{
 		"model_url": modelURL,
-		// Fixed rather than taken from the caller: it is the only directory the listing
-		// scans for undeclared models, so any other value downloads a model that can
-		// never be listed. The id is derived from the artifact's path relative to it too,
-		// so it decides what the model is called as well as whether it is found.
+		// Fixed, not taken from the caller: it is the only directory the listing scans for
+		// undeclared models, and the id is derived from a path relative to it.
 		"models_repository": llamacppRepository,
 	}
 	if mmprojURL != "" {
@@ -489,13 +456,8 @@ func (m *ModelsIndex) DownloadByURL(ctx context.Context, cli client.APIClient, m
 	}, plat, publish)
 }
 
-// DeclaredByID returns the models-list.yaml entry for id, with no handler run.
-//
-// It says nothing about whether the model is installed - only what the declaration holds.
-// That is enough for the install route, which asks nothing else: an id it declares names
-// that model, anything else is a download source, and a declaration carrying no handler is
-// a model with nothing to download. It is also enough for a caller that has just installed
-// the model itself and needs the name, description and bricks the declaration gives it.
+// DeclaredByID returns the models-list.yaml entry for id, with no handler run. It says
+// nothing about whether the model is installed, only what the declaration holds.
 func (m *ModelsIndex) DeclaredByID(id string) (*AIModel, bool) {
 	models := m.loadDryModels()
 	if i := slices.IndexFunc(models, func(v AIModel) bool { return v.ID == id }); i != -1 {
@@ -506,9 +468,7 @@ func (m *ModelsIndex) DeclaredByID(id string) (*AIModel, bool) {
 
 func (m *ModelsIndex) Download(ctx context.Context, cli client.APIClient, model AIModel, plat platform.Platform, publish func(e StreamMessage)) error {
 	if model.InstalledByDeclaration() {
-		// Not reachable through the install route, which answers such a model at once.
-		// Guarded here too because the alternative is dereferencing a nil Deployment, and
-		// a pre-loaded entry does name a handler.
+		// Guarded here too: the alternative is dereferencing a nil Deployment.
 		return fmt.Errorf("model %q has nothing to download: %w", model.ID, ErrNoHandler)
 	}
 	if err := hasSufficientDiskSpace(m.modelsDir, model.Size); err != nil {

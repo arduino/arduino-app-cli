@@ -343,9 +343,8 @@ func TestUserConfiguredModelFromDownloadEvent(t *testing.T) {
 	model := UserConfiguredModel(DownloadedModel{ID: id, Size: 1024}, "")
 
 	assert.Equal(t, id, model.ID)
-	// The whole path survives: it is what the listing reports for the same files, and
-	// what models.ini serves the model under, so shortening it here would name the
-	// model something no other component knows.
+	// The whole path survives: it is what the listing reports and what models.ini serves
+	// the model under.
 	assert.Equal(t, "unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M", model.Name,
 		"the name is the id without its framework namespace")
 	assert.Equal(t, InstalledStatus, model.Status)
@@ -383,9 +382,8 @@ func TestModelNameFromID(t *testing.T) {
 }
 
 func TestDeclaredByIDNeedsNoHandler(t *testing.T) {
-	// The install route asks this before deciding whether an id names a declared model or
-	// a download source, so it must answer from models-list.yaml alone - a nil handlers
-	// index and a nil docker client stand in for "no container available".
+	// The install route asks this first, so it must answer from models-list.yaml alone: a
+	// nil handlers index and docker client stand in for "no container available".
 	idx := &ModelsIndex{
 		InternalModels: []AIModel{
 			{ID: "llamacpp:Declared-Q4_0", Name: "Declared"},

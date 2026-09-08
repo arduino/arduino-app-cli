@@ -268,9 +268,7 @@ func TestModelsIndex(t *testing.T) {
 }
 
 // TestInstalledByDeclaration pins the one predicate a lookup and the install route share.
-// They used to test different things: the lookup asked for "pre-loaded", the install route
-// for "names no handler". Every pre-loaded entry in models-list.yaml names a handler, so
-// the install route sent all of them to the downloader with an empty variable map.
+// Every pre-loaded entry in models-list.yaml names a handler, so the two must agree.
 func TestInstalledByDeclaration(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -300,11 +298,8 @@ func TestInstalledByDeclaration(t *testing.T) {
 	}
 
 	t.Run("every pre-loaded entry in the shipped model list is one", func(t *testing.T) {
-		// The install route runs no handler for these. A pre-loaded entry that answered
-		// false would start the ai-hub or Edge Impulse downloader with no variables, so
-		// its models_repository would resolve empty and bind the whole models directory.
-		// The copy "task test:internal" downloads, not the one the deb build writes: that
-		// one is gitignored, so on CI it is not there.
+		// The copy "task test:internal" downloads, not the deb build's: that one is
+		// gitignored, so on CI it is not there.
 		dir := paths.New("../../../internal/e2e/daemon/testdata/assets", config.RunnerVersion)
 		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), nil, nil, config.Configuration{})
 		require.NoError(t, err)
@@ -321,9 +316,8 @@ func TestInstalledByDeclaration(t *testing.T) {
 	})
 }
 
-// TestEncodeDecodeID pins the one spelling an id has on the wire. EncodeID is what a
-// response reports as "id"; DecodeID is the only way back in, so an id is plain text
-// everywhere below the handlers.
+// TestEncodeDecodeID pins the one spelling an id has on the wire: EncodeID is what a
+// response reports as "id", and DecodeID is the only way back in.
 func TestEncodeDecodeID(t *testing.T) {
 	for _, id := range []string{
 		"face-detection",
@@ -344,9 +338,8 @@ func TestEncodeDecodeID(t *testing.T) {
 	_, err := DecodeID(EncodeID("face-detection") + "=")
 	assert.Error(t, err)
 
-	// An id carrying ":" is not valid base64url, so a client still sending the plain form
-	// is told so. One with no ":" decodes to bytes that name no model, and takes the
-	// ordinary not-found answer instead - see the handler tests.
+	// An id carrying ":" is not valid base64url, so the plain form is refused. One without
+	// it decodes to no model and takes the not-found answer instead.
 	_, err = DecodeID("llamacpp:Qwen3.5-0.8B-Q4_0")
 	assert.Error(t, err)
 }
