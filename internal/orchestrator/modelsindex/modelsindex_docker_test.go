@@ -513,7 +513,8 @@ func TestDownloadRefusesAModelWithNothingToDownload(t *testing.T) {
 	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
 	require.NoError(t, err)
 
-	installed, err := idx.Install(t.Context(), cli, "piper-tts-en", platform.Platform{BoardName: "ventunoq"}, func(StreamMessage) {})
+	// A nil docker client: a model that needs no download must not read it.
+	installed, err := idx.Install(t.Context(), nil, "piper-tts-en", platform.Platform{BoardName: "ventunoq"}, func(StreamMessage) {})
 
 	require.NoError(t, err)
 	assert.Equal(t, InstalledStatus, installed.Status, "a pre-loaded model is installed already")
