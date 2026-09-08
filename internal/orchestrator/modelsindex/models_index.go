@@ -435,7 +435,7 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 // rule as the listing, and reports it on the stream. The id contains the repository
 // directory, so two owners with the same file name stay two models. There is no disk space
 // check, because the size is known only after Hugging Face resolves the URL.
-func (m *ModelsIndex) DownloadByURL(ctx context.Context, cli client.APIClient, modelURL, mmprojURL string, plat platform.Platform, publish func(e StreamMessage)) error {
+func (m *ModelsIndex) DownloadByURL(ctx context.Context, cli client.APIClient, modelURL, mmprojURL string, plat platform.Platform, publish func(e StreamMessage)) (AIModel, error) {
 	variables := map[string]string{
 		"model_url": modelURL,
 		// Fixed, not taken from the caller: it is the only directory the listing scans for
@@ -446,7 +446,7 @@ func (m *ModelsIndex) DownloadByURL(ctx context.Context, cli client.APIClient, m
 		variables["model_mmproj_url"] = mmprojURL
 	}
 
-	return m.Download(ctx, cli, AIModel{
+	downloaded, err := m.runDownload(ctx, cli, AIModel{
 		Deployment: &ModelDeployment{
 			Handler: hfHandlerID,
 			Variables: []map[string]PlatformDeploymentConfig{
@@ -454,6 +454,20 @@ func (m *ModelsIndex) DownloadByURL(ctx context.Context, cli client.APIClient, m
 			},
 		},
 	}, plat, publish)
+	if err != nil {
+		return AIModel{}, err
+	}
+	if downloaded == nil {
+		return AIModel{}, ErrNoModelReported
+	}
+
+	// The files have landed, so the listing describes them: it reads the record the
+	// handler wrote, and answers as a later GetModels answers.
+	installed, err := m.NewLookup().ByID(ctx, downloaded.ID)
+	if err != nil || installed == nil {
+		return AIModel{}, fmt.Errorf("model %q was downloaded but is not listed: %w", downloaded.ID, errors.Join(err, ErrNotListed))
+	}
+	return *installed, nil
 }
 
 // DeclaredByID returns the models-list.yaml entry for id, with no handler run. It says
@@ -466,34 +480,65 @@ func (m *ModelsIndex) DeclaredByID(id string) (*AIModel, bool) {
 	return nil, false
 }
 
-func (m *ModelsIndex) Download(ctx context.Context, cli client.APIClient, model AIModel, plat platform.Platform, publish func(e StreamMessage)) error {
+// Download fetches a model the internal model list declares and answers with it as
+// installed. The declaration describes it; only the size comes from what landed.
+func (m *ModelsIndex) Download(ctx context.Context, cli client.APIClient, model AIModel, plat platform.Platform, publish func(e StreamMessage)) (AIModel, error) {
+	downloaded, err := m.runDownload(ctx, cli, model, plat, publish)
+	if err != nil {
+		return AIModel{}, err
+	}
+	model.Status = InstalledStatus
+	if downloaded != nil && downloaded.Size > 0 {
+		model.Size = downloaded.Size
+	}
+	return model, nil
+}
+
+// runDownload runs one handler's download action and keeps the model its stream names. An
+// error event ends the run as ErrDownloadReported: publish has already carried it out.
+func (m *ModelsIndex) runDownload(ctx context.Context, cli client.APIClient, model AIModel, plat platform.Platform, publish func(e StreamMessage)) (*DownloadedModel, error) {
 	if model.InstalledByDeclaration() {
 		// Guarded here too: the alternative is dereferencing a nil Deployment.
-		return fmt.Errorf("model %q has nothing to download: %w", model.ID, ErrNoHandler)
+		return nil, fmt.Errorf("model %q has nothing to download: %w", model.ID, ErrNoHandler)
 	}
 	if err := hasSufficientDiskSpace(m.modelsDir, model.Size); err != nil {
-		return fmt.Errorf("insufficient disk space to download model %q: %w", model.ID, err)
+		return nil, fmt.Errorf("insufficient disk space to download model %q: %w", model.ID, err)
 	}
 
 	handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)
 	if !ok {
-		return fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
+		return nil, fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
 	}
 
 	envVars := model.Deployment.VariablesForPlatform(plat.BoardName)
 	maps.Insert(envVars, maps.All(m.Handlers.configEnv))
 
-	return dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
+	var downloaded *DownloadedModel
+	var reported bool
+	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
 		Image: ResolveVars(handler.Image, envVars),
 		Cmd:   handler.Actions.Download,
 		Binds: ResolveVarsSlice(handler.Volumes, envVars),
 		Env:   envVars,
 		Stdout: f.NewCallbackWriter(func(line string) {
 			slog.Debug("download line", "model", model.ID, "line", line)
-			parseDownloadHandlerLine(line, publish)
+			parseDownloadHandlerLine(line, func(e StreamMessage) {
+				if named := e.GetModel(); named != nil {
+					downloaded = named
+				}
+				reported = reported || e.GetType() == ErrorType
+				publish(e)
+			})
 		}),
 		Stderr: io.Discard,
 	})
+	if err != nil {
+		return nil, err
+	}
+	if reported {
+		return nil, ErrDownloadReported
+	}
+	return downloaded, nil
 }
 
 func (m *ModelsIndex) Delete(ctx context.Context, dockerClient command.Cli, platform platform.Platform, model AIModel) error {
@@ -522,6 +567,11 @@ func (m *ModelsIndex) Delete(ctx context.Context, dockerClient command.Cli, plat
 var (
 	ErrInsufficientStorage = errors.New("insufficient storage to install model")
 	ErrNoHandler           = errors.New("no handler to run")
+	ErrNoModelReported     = errors.New("download named no model: a newer models-downloader image is required")
+	ErrNotListed           = errors.New("model not listed")
+	// ErrDownloadReported ends a download whose handler reported an error event, which
+	// publish has already carried to the caller.
+	ErrDownloadReported = errors.New("the download reported an error")
 )
 
 func hasSufficientDiskSpace(path *paths.Path, requiredBytes uint64) error {

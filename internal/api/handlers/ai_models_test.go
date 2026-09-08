@@ -25,85 +25,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
-// TestInstalledModel covers the install route's last step: describing what the handler
-// wrote, from the download event and the declaration alone. No listing runs.
-func TestInstalledModel(t *testing.T) {
-	const adHocID = "llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M"
-
-	t.Run("a source the model list does not declare becomes a user-configured model", func(t *testing.T) {
-		idx := &modelsindex.ModelsIndex{}
-
-		model, ok := installedModel(idx, nil, &modelsindex.DownloadedModel{ID: adHocID, Size: 1024}, "")
-
-		require.True(t, ok)
-		assert.Equal(t, adHocID, model.ID)
-		assert.Equal(t, "unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M", model.Name)
-		assert.Equal(t, modelsindex.InstalledStatus, model.Status)
-		assert.Equal(t, uint64(1024), model.Size)
-		assert.False(t, model.IsBuiltIn, "a model the user installed must stay deletable")
-		assert.Equal(t, []modelsindex.BrickConfig{{ID: "arduino:llm"}}, model.Bricks,
-			"no projection file was fetched, so it is a text model")
-		assert.Empty(t, model.Metadata, "the link belongs to the record the listing reads")
-	})
-
-	t.Run("a download that fetched a projection file is a vision model", func(t *testing.T) {
-		const visionID = "llamacpp:ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0"
-
-		model, ok := installedModel(&modelsindex.ModelsIndex{}, nil, &modelsindex.DownloadedModel{ID: visionID},
-			"https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-256M-Instruct-Q8_0.gguf")
-
-		require.True(t, ok)
-		assert.Equal(t, []modelsindex.BrickConfig{{ID: "arduino:vlm"}}, model.Bricks,
-			"the vlm brick is the one that can run it")
-	})
-
-	t.Run("a file landing where the model list declares it is that declared model", func(t *testing.T) {
-		// The handler resolved the id against the catalog, so the entry describes the
-		// model rather than the bare id the event carried.
-		idx := &modelsindex.ModelsIndex{InternalModels: []modelsindex.AIModel{
-			{ID: "llamacpp:gemma-3-1b-it-Q4_0", Name: "Gemma 3 1B", Description: "An efficient AI model."},
-		}}
-
-		model, ok := installedModel(idx, nil, &modelsindex.DownloadedModel{ID: "llamacpp:gemma-3-1b-it-Q4_0", Size: 2048}, "")
-
-		require.True(t, ok)
-		assert.Equal(t, "Gemma 3 1B", model.Name)
-		assert.Equal(t, "An efficient AI model.", model.Description)
-		assert.Equal(t, modelsindex.InstalledStatus, model.Status)
-		assert.Equal(t, uint64(2048), model.Size)
-	})
-
-	t.Run("a download naming nothing cannot be described", func(t *testing.T) {
-		// A models-downloader too old to report model_id: the model installed, but naming
-		// it here would promise an id no later request resolves.
-		_, ok := installedModel(&modelsindex.ModelsIndex{}, nil, nil, "")
-
-		assert.False(t, ok)
-	})
-
-	t.Run("a declared model takes the size the event reports", func(t *testing.T) {
-		declared := &modelsindex.AIModel{ID: "llamacpp:gemma-3-1b-it-Q4_0", Name: "Gemma 3 1B", Size: 1000}
-
-		model, ok := installedModel(&modelsindex.ModelsIndex{}, declared, &modelsindex.DownloadedModel{ID: declared.ID, Size: 2000}, "")
-
-		require.True(t, ok)
-		assert.Equal(t, modelsindex.InstalledStatus, model.Status)
-		assert.Equal(t, uint64(2000), model.Size, "the on-disk size is closer than the declared one")
-	})
-
-	t.Run("a declared model keeps its declared size when the event carries none", func(t *testing.T) {
-		// size_mb is omitted when a file cannot be stat'd. The declaration still holds a
-		// model_size_mb, and reporting zero would read as an empty install.
-		declared := &modelsindex.AIModel{ID: "llamacpp:gemma-3-1b-it-Q4_0", Name: "Gemma 3 1B", Size: 1000}
-
-		model, ok := installedModel(&modelsindex.ModelsIndex{}, declared, &modelsindex.DownloadedModel{ID: declared.ID}, "")
-
-		require.True(t, ok)
-		assert.Equal(t, modelsindex.InstalledStatus, model.Status)
-		assert.Equal(t, uint64(1000), model.Size)
-	})
-}
-
 // fakeSSE records what a download published, in order.
 type fakeSSE struct {
 	events []render.SSEEvent
@@ -132,8 +53,6 @@ func TestDownloadStream(t *testing.T) {
 
 		require.Equal(t, []string{"message"}, sse.types())
 		assert.Equal(t, sseLog{Message: "Downloading to: /models/llamacpp"}, sse.events[0].Data)
-		assert.False(t, stream.failed)
-		assert.Nil(t, stream.downloaded)
 	})
 
 	t.Run("a progress line reports the file name and a percentage", func(t *testing.T) {
@@ -164,9 +83,8 @@ func TestDownloadStream(t *testing.T) {
 		assert.Equal(t, float32(0), sse.events[0].Data.(sseProgress).Progress)
 	})
 
-	t.Run("an error line is sent and marks the download failed", func(t *testing.T) {
-		// The route reads failed to stop before "done": the 200 is already sent, so the
-		// only way to report the failure is the event.
+	t.Run("an error line is sent as an event", func(t *testing.T) {
+		// The 200 is already sent, so the only way to report a failure is the event.
 		sse := &fakeSSE{}
 		stream := &downloadStream{sse: sse}
 
@@ -174,7 +92,6 @@ func TestDownloadStream(t *testing.T) {
 
 		require.Equal(t, []string{"error"}, sse.types())
 		assert.Equal(t, "repository does not exist", sse.events[0].Data)
-		assert.True(t, stream.failed)
 	})
 
 	t.Run("the handler's own done line is a message, not the route's done", func(t *testing.T) {
@@ -187,20 +104,6 @@ func TestDownloadStream(t *testing.T) {
 		assert.Equal(t, sseLog{Message: "download complete"}, sse.events[0].Data)
 	})
 
-	t.Run("the model the handler names is kept, and a later line does not clear it", func(t *testing.T) {
-		// The id of an undeclared model exists only in this event, so losing it costs the
-		// route its answer.
-		sse := &fakeSSE{}
-		stream := &downloadStream{sse: sse}
-		named := &modelsindex.DownloadedModel{ID: "llamacpp:owner/repo/a-model-Q4_0", Size: 1024}
-
-		stream.publish(modelsindex.NewInfoMessage("Downloaded to: /models/llamacpp/owner/repo", named))
-		stream.publish(modelsindex.NewInfoMessage("Generated models.ini with 2 model(s)", nil))
-
-		require.NotNil(t, stream.downloaded)
-		assert.Equal(t, "llamacpp:owner/repo/a-model-Q4_0", stream.downloaded.ID)
-		assert.Equal(t, uint64(1024), stream.downloaded.Size)
-	})
 }
 
 func TestDownloadStreamSendError(t *testing.T) {

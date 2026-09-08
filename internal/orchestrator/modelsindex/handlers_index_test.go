@@ -203,7 +203,7 @@ func testHandlersIndex() *HandlersIndex {
 	}
 }
 
-func TestUserConfiguredModel(t *testing.T) {
+func TestUserDownloadModel(t *testing.T) {
 	inputs := map[string]string{
 		"models_repository": "llamacpp",
 		"model_directory":   "unsloth/Qwen3.5-0.8B-GGUF",
@@ -336,49 +336,6 @@ func TestParseDownloadHandlerLineNamesTheModel(t *testing.T) {
 		require.Len(t, got, 1)
 		assert.Nil(t, got[0].GetModel())
 	})
-}
-
-func TestUserConfiguredModelFromDownloadEvent(t *testing.T) {
-	id := "llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M"
-	model := UserConfiguredModel(DownloadedModel{ID: id, Size: 1024}, "")
-
-	assert.Equal(t, id, model.ID)
-	// The whole path survives: it is what the listing reports and what models.ini serves
-	// the model under.
-	assert.Equal(t, "unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M", model.Name,
-		"the name is the id without its framework namespace")
-	assert.Equal(t, InstalledStatus, model.Status)
-	assert.Equal(t, uint64(1024), model.Size)
-	assert.Equal(t, []BrickConfig{{ID: "arduino:llm"}}, model.Bricks)
-	assert.False(t, model.IsBuiltIn)
-}
-
-func TestUserConfiguredModelMatchesTheListing(t *testing.T) {
-	// The same files, described once from a download event and once from a listing entry,
-	// must not come out differently named.
-	entry := handlerModelEntry{
-		ID:          "llamacpp:org/repo/m-Q4_0",
-		Name:        "org/repo/m-Q4_0",
-		ModelOrigin: "user",
-		Installed:   true,
-		Metadata:    &entryMetadata{ModelID: "llamacpp:org/repo/m-Q4_0", Handler: "hf-handler", Inputs: map[string]string{"model_url": "llamacpp:org/repo:Q4_0"}},
-	}
-	listed, ok := testHandlersIndex().userDownloadModel(entry)
-	require.True(t, ok)
-
-	fromEvent := UserConfiguredModel(DownloadedModel{ID: entry.ID}, "")
-	assert.Equal(t, listed.ID, fromEvent.ID)
-	assert.Equal(t, listed.Name, fromEvent.Name)
-	assert.Equal(t, listed.Bricks, fromEvent.Bricks)
-}
-
-func TestModelNameFromID(t *testing.T) {
-	assert.Equal(t, "m-Q4_0", modelNameFromID("llamacpp:m-Q4_0"))
-	assert.Equal(t, "bare", modelNameFromID("bare"), "an id with no namespace is its own name")
-	// Only the framework namespace is cut. An ad-hoc id carries the repository path it
-	// was downloaded from, and every segment of it is part of the name.
-	assert.Equal(t, "unsloth/Qwen3-0.6B-GGUF/Qwen3-0.6B-Q4_0",
-		modelNameFromID("llamacpp:unsloth/Qwen3-0.6B-GGUF/Qwen3-0.6B-Q4_0"))
 }
 
 func TestDeclaredByIDNeedsNoHandler(t *testing.T) {

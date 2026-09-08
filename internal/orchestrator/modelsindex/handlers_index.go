@@ -14,7 +14,6 @@ import (
 	"log/slog"
 	"maps"
 	"slices"
-	"strings"
 	"time"
 
 	composetmpl "github.com/compose-spec/compose-go/v2/template"
@@ -206,13 +205,8 @@ func (e handlerModelEntry) applyStat(m *AIModel) {
 		m.Status = NotInstalledStatus
 	}
 	m.Downloading = e.Downloading
-	// The link the container downloaded from. Written into a copy: the caller's model
-	// shares its metadata map with the index entry it was cloned from.
-	if e.Metadata != nil && e.Metadata.Inputs["model_url"] != "" {
-		metadata := make(map[string]string, len(m.Metadata)+1)
-		maps.Copy(metadata, m.Metadata)
-		metadata["source-model-url"] = e.Metadata.Inputs["model_url"]
-		m.Metadata = metadata
+	if e.Metadata != nil {
+		m.setSourceURL(e.Metadata.Inputs["model_url"])
 	}
 	if e.Installed && e.DiskSizeMB != nil && *e.DiskSizeMB > 0 {
 		m.Size = uint64(*e.DiskSizeMB * 1024 * 1024)
@@ -235,40 +229,16 @@ func bricksForVision(mmprojURL string) []BrickConfig {
 	return []BrickConfig{{ID: llmBrickID}}
 }
 
-// UserConfiguredModel describes a model no models-list.yaml entry declares, from the
-// download that just wrote it. It reports no metadata: that is the listing's to report.
-func UserConfiguredModel(m DownloadedModel, mmprojURL string) AIModel {
-	return AIModel{
-		ID:     m.ID,
-		Name:   modelNameFromID(m.ID),
-		Origin: UserOrigin,
-		Status: InstalledStatus,
-		Size:   m.Size,
-		Bricks: bricksForVision(mmprojURL),
+// setSourceURL records the link a model was downloaded from. Into a copy: a listed model
+// shares its metadata map with the index entry it was cloned from.
+func (m *AIModel) setSourceURL(url string) {
+	if url == "" {
+		return
 	}
-}
-
-// modelNameFromID drops the framework namespace and keeps the repository path whole: it
-// is the name both the listing and llama-server use for the same file.
-func modelNameFromID(id string) string {
-	if _, name, ok := strings.Cut(id, ":"); ok {
-		return name
-	}
-	return id
-}
-
-// InstalledModel describes what a download just wrote. mmprojURL is empty when the caller
-// asked by id: a declared model describes itself, bricks included.
-func (m *ModelsIndex) InstalledModel(downloaded DownloadedModel, mmprojURL string) AIModel {
-	model, declared := m.DeclaredByID(downloaded.ID)
-	if !declared {
-		return UserConfiguredModel(downloaded, mmprojURL)
-	}
-	model.Status = InstalledStatus
-	if downloaded.Size > 0 {
-		model.Size = downloaded.Size
-	}
-	return *model
+	metadata := make(map[string]string, len(m.Metadata)+1)
+	maps.Copy(metadata, m.Metadata)
+	metadata["source-model-url"] = url
+	m.Metadata = metadata
 }
 
 // The handler's own word for a model no models-list.yaml entry declares: the container's
@@ -298,9 +268,7 @@ func (h *HandlersIndex) userDownloadModel(entry handlerModelEntry) (AIModel, boo
 		return AIModel{}, false
 	}
 	return AIModel{
-		ID: entry.ID,
-		// The listing's name, which is modelNameFromID of the same id: the download event
-		// and every later request must not name one model differently.
+		ID:        entry.ID,
 		Name:      entry.Name,
 		IsBuiltIn: false,
 		Origin:    UserOrigin,

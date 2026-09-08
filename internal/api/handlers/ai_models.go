@@ -196,9 +196,8 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 			return
 		}
 
-		// The declaration alone answers this, so no listing container runs.
-		declared, found := modelsIndex.DeclaredByID(id)
-		if !found {
+		// A 404 has to be a status, so this one question is asked before the stream opens.
+		if _, found := modelsIndex.DeclaredByID(id); !found {
 			details := fmt.Sprintf("no model with id %q is declared", id)
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})
 			return
@@ -212,24 +211,13 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 		}
 		defer sseStream.Close()
 
-		if declared.InstalledByDeclaration() {
-			// Installed by its declaration, with no handler to run.
-			sseStream.Send(render.SSEEvent{Type: "done", Data: orchestrator.NewAIModelItem(*declared)})
-			return
-		}
-
 		stream := &downloadStream{sse: sseStream}
-		if err := modelsIndex.Download(r.Context(), dockerClient.Client(), *declared, plat, stream.publish); err != nil {
+		installed, err := orchestrator.AIModelInstall(r.Context(), dockerClient, modelsIndex, plat, id, stream.publish)
+		if err != nil {
 			stream.sendError(err)
 			return
 		}
-		if stream.failed {
-			return
-		}
-
-		// The second result is false only when the declaration is nil.
-		installed, _ := installedModel(modelsIndex, declared, stream.downloaded, "")
-		sseStream.Send(render.SSEEvent{Type: "done", Data: orchestrator.NewAIModelItem(installed)})
+		sseStream.Send(render.SSEEvent{Type: "done", Data: installed})
 	}
 }
 
@@ -262,26 +250,12 @@ func HandleDownloadModel(dockerClient command.Cli, modelsIndex *modelsindex.Mode
 		defer sseStream.Close()
 
 		stream := &downloadStream{sse: sseStream}
-		err = modelsIndex.DownloadByURL(r.Context(), dockerClient.Client(), modelURL, strings.TrimSpace(req.MmprojURL), plat, stream.publish)
+		installed, err := orchestrator.AIModelDownload(r.Context(), dockerClient, modelsIndex, plat, modelURL, strings.TrimSpace(req.MmprojURL), stream.publish)
 		if err != nil {
 			stream.sendError(err)
 			return
 		}
-		if stream.failed {
-			return
-		}
-
-		// The projection file the caller asked for, so this event names the same brick the
-		// listing will: a download that fetched one is a vision model.
-		installed, ok := installedModel(modelsIndex, nil, stream.downloaded, strings.TrimSpace(req.MmprojURL))
-		if !ok {
-			sseStream.SendError(render.SSEErrorData{
-				Code:    render.InternalServiceErr,
-				Message: "download named no model: a newer models-downloader image is required",
-			})
-			return
-		}
-		sseStream.Send(render.SSEEvent{Type: "done", Data: orchestrator.NewAIModelItem(installed)})
+		sseStream.Send(render.SSEEvent{Type: "done", Data: installed})
 	}
 }
 
@@ -292,18 +266,13 @@ type sseSender interface {
 	SendError(event render.SSEErrorData)
 }
 
-// downloadStream sends a handler's download events as SSE, and keeps the model that the
-// handler names. After the stream opens, a failure is an event, not an HTTP status.
+// downloadStream sends a handler's download events as SSE. After the stream opens, a
+// failure is an event, not an HTTP status.
 type downloadStream struct {
-	sse        sseSender
-	downloaded *modelsindex.DownloadedModel
-	failed     bool
+	sse sseSender
 }
 
 func (d *downloadStream) publish(e modelsindex.StreamMessage) {
-	if m := e.GetModel(); m != nil {
-		d.downloaded = m
-	}
 	switch e.GetType() {
 	case modelsindex.InfoType:
 		d.sse.Send(render.SSEEvent{Type: "message", Data: sseLog{Message: e.GetData()}})
@@ -317,7 +286,6 @@ func (d *downloadStream) publish(e modelsindex.StreamMessage) {
 			Name: p.Name, Current: p.Current, Total: p.Total, Progress: progress,
 		}})
 	case modelsindex.ErrorType:
-		d.failed = true
 		d.sse.Send(render.SSEEvent{Type: "error", Data: e.GetError()})
 	case modelsindex.DoneType:
 		d.sse.Send(render.SSEEvent{Type: "message", Data: sseLog{Message: e.GetDone()}})
@@ -325,26 +293,13 @@ func (d *downloadStream) publish(e modelsindex.StreamMessage) {
 }
 
 func (d *downloadStream) sendError(err error) {
+	if errors.Is(err, modelsindex.ErrDownloadReported) {
+		// The handler's own error event went out through publish.
+		return
+	}
 	if errors.Is(err, modelsindex.ErrInsufficientStorage) {
 		d.sse.SendError(render.SSEErrorData{Code: "insufficient_storage", Message: "insufficient disk space to install model"})
 		return
 	}
 	d.sse.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: err.Error()})
-}
-
-// installedModel describes the model a download wrote. mmprojURL is empty on the install
-// route, where the caller named a declared model and models-list.yaml describes it.
-func installedModel(modelsIndex *modelsindex.ModelsIndex, declared *modelsindex.AIModel, downloaded *modelsindex.DownloadedModel, mmprojURL string) (modelsindex.AIModel, bool) {
-	if declared == nil {
-		if downloaded == nil {
-			return modelsindex.AIModel{}, false
-		}
-		return modelsIndex.InstalledModel(*downloaded, mmprojURL), true
-	}
-	installed := *declared
-	installed.Status = modelsindex.InstalledStatus
-	if downloaded != nil && downloaded.Size > 0 {
-		installed.Size = downloaded.Size
-	}
-	return installed, true
 }

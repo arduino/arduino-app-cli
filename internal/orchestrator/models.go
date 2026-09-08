@@ -104,6 +104,37 @@ func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, i
 	return NewAIModelItem(*model), true, nil
 }
 
+// AIModelInstall downloads a model the internal model list declares and describes what
+// landed. publish reports the handler's own events as they arrive.
+func AIModelInstall(ctx context.Context, dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform, id string, publish func(modelsindex.StreamMessage)) (AIModelItem, error) {
+	// The declaration alone answers this, so no listing container runs.
+	declared, found := modelsIndex.DeclaredByID(id)
+	if !found {
+		return AIModelItem{}, fmt.Errorf("no model with id %q is declared: %w", id, ErrNotFound)
+	}
+	if declared.InstalledByDeclaration() {
+		// Installed by its declaration, with no handler to run.
+		return NewAIModelItem(*declared), nil
+	}
+
+	installed, err := modelsIndex.Download(ctx, dockerClient.Client(), *declared, plat, publish)
+	if err != nil {
+		return AIModelItem{}, err
+	}
+	return NewAIModelItem(installed), nil
+}
+
+// AIModelDownload downloads a model no entry declares, from the links the caller supplies,
+// and describes it from the listing: the record the handler wrote is what says where the
+// files came from. The id is not an input, the downloader reports it.
+func AIModelDownload(ctx context.Context, dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform, modelURL, mmprojURL string, publish func(modelsindex.StreamMessage)) (AIModelItem, error) {
+	installed, err := modelsIndex.DownloadByURL(ctx, dockerClient.Client(), modelURL, mmprojURL, plat, publish)
+	if err != nil {
+		return AIModelItem{}, err
+	}
+	return NewAIModelItem(installed), nil
+}
+
 var (
 	ErrNotFound            = errors.New("model not found")
 	ErrConflict            = errors.New("can't delete the model")

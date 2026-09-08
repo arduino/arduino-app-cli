@@ -437,10 +437,20 @@ func TestLookupRunsOneListing(t *testing.T) {
 
 // TestDownloadByURL pins what reaches the container for an undeclared model: the
 // hf-handler's script, the caller's URL, and models_repository fixed to llamacpp.
+// downloadedEntry is what the listing reports for the model these downloads write: the
+// record names the link, so the reconcile step can describe it.
+const downloadedEntry = `{"id":"llamacpp:org/repo/m-Q4_0","name":"org/repo/m-Q4_0","handler":"llamacpp",
+	"model_origin":"user","installed":true,"disk_size_mb":1,
+	"download_metadata":{"handler":"hf-handler","model_id":"llamacpp:org/repo/m-Q4_0",
+		"inputs":{"models_repository":"llamacpp","model_url":"llamacpp:org/repo:Q4_0"}}}`
+
 func TestDownloadByURL(t *testing.T) {
 	var gotCmd []string
 	var gotEnv []string
 	cli := newFakeDockerClientWithEnv(func(_ string, cmd, env []string) (string, int) {
+		if len(cmd) > 0 && cmd[0] == listModelsCmd {
+			return listingWith(downloadedEntry), 0
+		}
 		if len(cmd) > 0 && strings.Contains(cmd[0], "hf_model_downloader.sh") {
 			gotCmd, gotEnv = cmd, env
 		}
@@ -450,12 +460,7 @@ func TestDownloadByURL(t *testing.T) {
 	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
 	require.NoError(t, err)
 
-	var downloaded *DownloadedModel
-	err = idx.DownloadByURL(t.Context(), cli, "llamacpp:org/repo:Q4_0", "", platform.Platform{BoardName: "ventunoq"}, func(e StreamMessage) {
-		if m := e.GetModel(); m != nil {
-			downloaded = m
-		}
-	})
+	installed, err := idx.DownloadByURL(t.Context(), cli, "llamacpp:org/repo:Q4_0", "", platform.Platform{BoardName: "ventunoq"}, func(StreamMessage) {})
 	require.NoError(t, err)
 
 	require.NotEmpty(t, gotCmd, "the hf-handler download action must run")
@@ -463,38 +468,36 @@ func TestDownloadByURL(t *testing.T) {
 	assert.Contains(t, gotEnv, "models_repository=llamacpp")
 	assert.NotContains(t, strings.Join(gotEnv, " "), "model_mmproj_url", "an empty mmproj url must not be passed")
 
-	// The stream carries the model back, so the caller can report what it just created
-	// without reading it in again.
-	require.NotNil(t, downloaded)
-	assert.Equal(t, "llamacpp:org/repo/m-Q4_0", downloaded.ID)
-	assert.Equal(t, uint64(1024*1024), downloaded.Size)
+	// The answer is the listed model, so the caller reports what a later GetModels reports.
+	assert.Equal(t, "llamacpp:org/repo/m-Q4_0", installed.ID)
+	assert.Equal(t, InstalledStatus, installed.Status)
+	assert.Equal(t, uint64(1024*1024), installed.Size)
+	assert.Equal(t, map[string]string{"source-model-url": "llamacpp:org/repo:Q4_0"}, installed.Metadata)
 }
 
 // A repository already on disk is not transferred again: the handler reports the model it
 // finds, with no "complete" event, and the route answers from that event alone.
 func TestDownloadByURLReportsAnInstalledModel(t *testing.T) {
-	cli := newFakeDockerClient(func(_ string, _ []string) (string, int) {
+	cli := newFakeDockerClient(func(_ string, cmd []string) (string, int) {
+		if len(cmd) > 0 && cmd[0] == listModelsCmd {
+			return listingWith(downloadedEntry), 0
+		}
 		return `{"event":"info","description":"Model exists: org/repo (m-Q4_0.gguf)","artifacts":["/models/org/repo/m-Q4_0.gguf"],"model_id":"llamacpp:org/repo/m-Q4_0","size_mb":1}` + "\n", 0
 	})
 	dir := paths.New("testdata/with-handlers")
 	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
 	require.NoError(t, err)
 
-	var downloaded *DownloadedModel
 	var messages []string
-	err = idx.DownloadByURL(t.Context(), cli, "llamacpp:org/repo:Q4_0", "", platform.Platform{BoardName: "ventunoq"}, func(e StreamMessage) {
-		if m := e.GetModel(); m != nil {
-			downloaded = m
-		}
+	installed, err := idx.DownloadByURL(t.Context(), cli, "llamacpp:org/repo:Q4_0", "", platform.Platform{BoardName: "ventunoq"}, func(e StreamMessage) {
 		if e.IsData() {
 			messages = append(messages, e.GetData())
 		}
 	})
 	require.NoError(t, err)
 
-	require.NotNil(t, downloaded)
-	assert.Equal(t, "llamacpp:org/repo/m-Q4_0", downloaded.ID)
-	assert.Equal(t, uint64(1024*1024), downloaded.Size, "the size is the one on disk, not a transfer total")
+	assert.Equal(t, "llamacpp:org/repo/m-Q4_0", installed.ID)
+	assert.Equal(t, uint64(1024*1024), installed.Size, "the size is the one on disk, not a transfer total")
 	assert.Equal(t, []string{"Model exists: org/repo (m-Q4_0.gguf)"}, messages)
 }
 
@@ -513,7 +516,7 @@ func TestDownloadRefusesAModelWithNothingToDownload(t *testing.T) {
 	preLoaded, ok := idx.DeclaredByID("piper-tts-en")
 	require.True(t, ok)
 
-	err = idx.Download(t.Context(), cli, *preLoaded, platform.Platform{BoardName: "ventunoq"}, func(StreamMessage) {})
+	_, err = idx.Download(t.Context(), cli, *preLoaded, platform.Platform{BoardName: "ventunoq"}, func(StreamMessage) {})
 
 	require.ErrorIs(t, err, ErrNoHandler)
 	assert.Zero(t, started, "a pre-loaded model must not start the downloader")
