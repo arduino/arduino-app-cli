@@ -1094,12 +1094,12 @@ paths:
       responses:
         "204":
           description: AI model successfully deleted
+        "400":
+          $ref: '#/components/responses/BadRequest'
         "404":
           $ref: '#/components/responses/NotFound'
         "409":
           $ref: '#/components/responses/Conflict'
-        "412":
-          $ref: '#/components/responses/PreconditionFailed'
         "500":
           $ref: '#/components/responses/InternalServerError'
       summary: Delete an AI model
@@ -1124,6 +1124,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/AIModelItem'
           description: Successful response
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalServerError'
       summary: Get AI model details

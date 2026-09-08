@@ -177,7 +177,9 @@ func (l *Lookup) listing(ctx context.Context) error {
 
 func (l *Lookup) ByID(ctx context.Context, id string) (*AIModel, error) {
 	if model, ok := l.known(id); ok && model.NeedsNoDownload() {
-		// It is there already: no handler run can contradict its state.
+		// It is there already, so its declaration is its state and no container runs. A
+		// pre-loaded model whose files are missing reads installed here, and the listing
+		// says otherwise: the image is broken in that case.
 		return model, nil
 	}
 	if err := l.listing(ctx); err != nil {
@@ -511,6 +513,9 @@ func (m *ModelsIndex) runDownload(ctx context.Context, cli client.APIClient, mod
 		return nil, fmt.Errorf("insufficient disk space to download model %q: %w", model.ID, err)
 	}
 
+	if m.Handlers == nil {
+		return nil, fmt.Errorf("no handlers are configured: %w", ErrNoHandler)
+	}
 	handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)
 	if !ok {
 		return nil, fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
@@ -539,8 +544,11 @@ func (m *ModelsIndex) runDownload(ctx context.Context, cli client.APIClient, mod
 		Stderr: io.Discard,
 	})
 	// The reported event comes first: a handler that prints one usually exits non-zero
-	// too, and the caller has already seen it.
+	// too, and the caller has already seen it. The exit is kept for the log.
 	if reported {
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrDownloadReported, err)
+		}
 		return nil, ErrDownloadReported
 	}
 	if err != nil {

@@ -903,7 +903,7 @@ Contains a JSON object with the details of an error.
 			Summary:     "Delete an AI model",
 			Tags:        []Tag{AIModelsTag},
 			PossibleErrors: []ErrorResponse{
-				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
 				{StatusCode: http.StatusNotFound, Reference: "#/components/responses/NotFound"},
 				{StatusCode: http.StatusConflict, Reference: "#/components/responses/Conflict"},
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
@@ -926,6 +926,8 @@ Contains a JSON object with the details of an error.
 			Summary:     "Get AI model details",
 			Tags:        []Tag{AIModelsTag},
 			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusNotFound, Reference: "#/components/responses/NotFound"},
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
 			},
 		},

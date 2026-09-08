@@ -305,6 +305,7 @@ func (d *downloadStream) publish(e modelsindex.StreamMessage) {
 func (d *downloadStream) sendError(err error) {
 	if errors.Is(err, modelsindex.ErrDownloadReported) {
 		// The handler's own error event went out through publish.
+		slog.Error("download reported an error", "err", err)
 		return
 	}
 	if errors.Is(err, modelsindex.ErrInsufficientStorage) {
