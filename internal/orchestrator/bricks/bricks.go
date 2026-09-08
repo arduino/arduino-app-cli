@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	apimodels "github.com/arduino/arduino-app-cli/internal/api/models"
 	"log/slog"
 	"os"
 	"slices"
@@ -89,7 +90,7 @@ func (s *Service) AppBrickInstancesList(ctx context.Context, a *app.ArduinoApp) 
 			Category:         brick.Category,
 			Status:           "installed",
 			RequireModel:     brick.RequireModel,
-			ModelID:          modelsindex.EncodeID(cmp.Or(brickInstance.Model, brick.ModelName)),
+			ModelID:          apimodels.EncodeModelID(cmp.Or(brickInstance.Model, brick.ModelName)),
 			Variables:        variablesMap,
 			ConfigVariables:  configVariables,
 			CompatibleModels: compatibleModels(ctx, models, brick.ID),
@@ -107,7 +108,7 @@ func compatibleModels(ctx context.Context, models *modelsindex.Lookup, brickID s
 	}
 	return f.Map(matches, func(m modelsindex.AIModelLite) AIModel {
 		return AIModel{
-			ID:   modelsindex.EncodeID(m.ID),
+			ID:   apimodels.EncodeModelID(m.ID),
 			Name: m.Name,
 			// TODO: deprecated field, remove in future versions
 			Description: m.Description,
@@ -145,7 +146,7 @@ func (s *Service) AppBrickInstanceDetails(ctx context.Context, a *app.ArduinoApp
 		RequireModel:     brick.RequireModel,
 		Variables:        variables,
 		ConfigVariables:  configVariables,
-		ModelID:          modelsindex.EncodeID(cmp.Or(a.Descriptor.Bricks[brickIndex].Model, brick.ModelName)),
+		ModelID:          apimodels.EncodeModelID(cmp.Or(a.Descriptor.Bricks[brickIndex].Model, brick.ModelName)),
 		CompatibleModels: compatibleModels(ctx, s.modelsIndex.NewLookup(), brick.ID),
 		Readme:           readme,
 	}, nil
@@ -334,7 +335,7 @@ func getUsedByApps(cfg config.Configuration, brickId string, idProvider *appid.P
 
 type BrickCreateUpdateRequest struct {
 	ID        string            `json:"-"`
-	Model     *string           `json:"model" description:"The model this brick uses: the base64url encoded, unpadded \"id\" a models or brick response reports." example:"bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w"`
+	Model     *string           `json:"model" example:"bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w"`
 	Variables map[string]string `json:"variables,omitempty"`
 }
 

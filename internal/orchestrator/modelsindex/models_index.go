@@ -7,7 +7,6 @@ package modelsindex
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -174,22 +173,6 @@ func (l *Lookup) listing(ctx context.Context) error {
 	l.models, l.err = l.idx.listModels(ctx)
 	l.loaded = true
 	return l.err
-}
-
-// EncodeID renders an id as one URL path segment: base64url, unpadded, the encoding app
-// ids already use. Every id survives it, including the bare ones.
-func EncodeID(id string) string {
-	return base64.RawURLEncoding.EncodeToString([]byte(id))
-}
-
-// DecodeID reads back what EncodeID wrote, so an id is plain text below this line. An id
-// that is not base64url is refused rather than passed through, keeping one spelling.
-func DecodeID(encoded string) (string, error) {
-	id, err := base64.RawURLEncoding.DecodeString(encoded)
-	if err != nil {
-		return "", fmt.Errorf("%w: model id must be base64url encoded, unpadded", err)
-	}
-	return string(id), nil
 }
 
 func (l *Lookup) ByID(ctx context.Context, id string) (*AIModel, error) {

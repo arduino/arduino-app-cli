@@ -6,20 +6,20 @@
 package handlers
 
 import (
+	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
 // TestDecodeRequestModel covers the other door a model id comes in by: a brick request
 // names one in its body, in the same base64url form the path takes.
 func TestDecodeRequestModel(t *testing.T) {
 	t.Run("an encoded id becomes the plain one", func(t *testing.T) {
-		encoded := modelsindex.EncodeID("llamacpp:owner/repo/file")
+		encoded := models.EncodeModelID("llamacpp:owner/repo/file")
 		req := bricks.BrickCreateUpdateRequest{Model: &encoded}
 
 		require.NoError(t, decodeRequestModel(&req))

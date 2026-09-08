@@ -32,14 +32,14 @@ type BrickInstance struct {
 	Variables        map[string]string     `json:"variables,omitempty" description:"Deprecated: use config_variables instead. This field is kept for backward compatibility."`
 	ConfigVariables  []BrickConfigVariable `json:"config_variables,omitempty"`
 	RequireModel     bool                  `json:"require_model"`
-	ModelID          string                `json:"model,omitempty" description:"The model this brick instance uses, base64url encoded and unpadded. The same \"id\" the models endpoints report."`
+	ModelID          string                `json:"model,omitempty"`
 	CompatibleModels []AIModel             `json:"compatible_models"`
 	Readme           string                `json:"readme"`
 }
 
 // AIModel names a model a brick can use. The plain id stays in app.yaml.
 type AIModel struct {
-	ID          string `json:"id" description:"The model id, base64url encoded and unpadded, ready to send back on a models path or in a brick request's \"model\"."`
+	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description" description:"Deprecated: This field is kept for backward compatibility."`
 }

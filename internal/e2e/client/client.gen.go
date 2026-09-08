@@ -140,27 +140,19 @@ func (e ListLibrariesParamsSort) Valid() bool {
 type AIModel struct {
 	// Description Deprecated: This field is kept for backward compatibility.
 	Description *string `json:"description,omitempty"`
-
-	// Id The model id, base64url encoded and unpadded, ready to send back on a models path or in a brick request's "model".
-	Id   *string `json:"id,omitempty"`
-	Name *string `json:"name,omitempty"`
+	Id          *string `json:"id,omitempty"`
+	Name        *string `json:"name,omitempty"`
 }
 
 // AIModelItem defines model for AIModelItem.
 type AIModelItem struct {
-	BrickIds    *[]string `json:"brick_ids,omitempty"`
-	Description *string   `json:"description,omitempty"`
-
-	// Id The model id, base64url encoded and unpadded. The only form this API takes back.
-	Id *string `json:"id,omitempty"`
-
-	// IdDecoded The same id in plain text, to show a person. It travels out only.
-	IdDecoded *string `json:"id_decoded,omitempty"`
-	IsBuiltin *bool   `json:"is_builtin,omitempty"`
-
-	// Metadata Extra facts about the model: what the internal model list declares, plus "source-model-url" for a model the listing reports a download link for.
-	Metadata *map[string]string `json:"metadata,omitempty"`
-	Name     *string            `json:"name,omitempty"`
+	BrickIds    *[]string          `json:"brick_ids,omitempty"`
+	Description *string            `json:"description,omitempty"`
+	Id          *string            `json:"id,omitempty"`
+	IdDecoded   *string            `json:"id_decoded,omitempty"`
+	IsBuiltin   *bool              `json:"is_builtin,omitempty"`
+	Metadata    *map[string]string `json:"metadata,omitempty"`
+	Name        *string            `json:"name,omitempty"`
 
 	// Origin Where the model came from: "curated" is declared by the internal model list and installs from its id alone, "user" was downloaded from a source the caller supplied and needs that source again, "edge-impulse-user-project" was deployed from the caller's own Edge Impulse project.
 	Origin *ModelOrigin `json:"origin,omitempty"`
@@ -264,7 +256,6 @@ type BrickConfigVariable struct {
 
 // BrickCreateUpdateRequest defines model for BrickCreateUpdateRequest.
 type BrickCreateUpdateRequest struct {
-	// Model The model this brick uses: the base64url encoded, unpadded "id" a models or brick response reports.
 	Model     *string            `json:"model,omitempty"`
 	Variables *map[string]string `json:"variables,omitempty"`
 }
@@ -303,13 +294,11 @@ type BrickInstance struct {
 	CompatibleModels *[]AIModel             `json:"compatible_models,omitempty"`
 	ConfigVariables  *[]BrickConfigVariable `json:"config_variables,omitempty"`
 	Id               *string                `json:"id,omitempty"`
-
-	// Model The model this brick instance uses, base64url encoded and unpadded. The same "id" the models endpoints report.
-	Model        *string `json:"model,omitempty"`
-	Name         *string `json:"name,omitempty"`
-	Readme       *string `json:"readme,omitempty"`
-	RequireModel *bool   `json:"require_model,omitempty"`
-	Status       *string `json:"status,omitempty"`
+	Model            *string                `json:"model,omitempty"`
+	Name             *string                `json:"name,omitempty"`
+	Readme           *string                `json:"readme,omitempty"`
+	RequireModel     *bool                  `json:"require_model,omitempty"`
+	Status           *string                `json:"status,omitempty"`
 
 	// Variables Deprecated: use config_variables instead. This field is kept for backward compatibility.
 	Variables *map[string]string `json:"variables,omitempty"`
@@ -404,11 +393,8 @@ type CreateAppResponse struct {
 
 // DownloadModelRequest defines model for DownloadModelRequest.
 type DownloadModelRequest struct {
-	// MmprojUrl URL of the GGUF multimodal projection file on Hugging Face, for a vision model
 	MmprojUrl *string `json:"mmproj_url,omitempty"`
-
-	// ModelUrl URL of the GGUF model file on Hugging Face
-	ModelUrl string `json:"model_url"`
+	ModelUrl  string  `json:"model_url"`
 }
 
 // EditRequest defines model for EditRequest.

@@ -18,7 +18,6 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
 const (
@@ -29,17 +28,17 @@ const (
 var (
 	expectedModelInfo = []client.AIModel{
 		{
-			Id:          new(modelsindex.EncodeID("mobilenet-image-classification")),
+			Id:          new(models.EncodeModelID("mobilenet-image-classification")),
 			Name:        new("General purpose image classification"),
 			Description: new("General purpose image classification model based on MobileNetV2. This model is trained on the ImageNet dataset and can classify images into 1000 categories."),
 		},
 		{
-			Id:          new(modelsindex.EncodeID("person-classification")),
+			Id:          new(models.EncodeModelID("person-classification")),
 			Name:        new("Person classification"),
 			Description: new("Person classification model based on WakeVision dataset. This model is trained to classify images into two categories: person and not-person."),
 		},
 		{
-			Id:          new(modelsindex.EncodeID("ei:efficientnet-b4")),
+			Id:          new(models.EncodeModelID("ei:efficientnet-b4")),
 			Name:        new("General purpose object classification - EfficientNet-B4"),
 			Description: new("EfficientNetB4 is a machine learning model that can classify images from the Imagenet dataset. It can also be used as a backbone in building more complex models for specific use cases. This version of the model is optimized for NPU acceleration on supported devices, providing faster inference times while maintaining accuracy."),
 		}}
@@ -65,7 +64,7 @@ func setupTestApp(t *testing.T) (*client.CreateAppResp, *client.ClientWithRespon
 		t.Context(),
 		*createResp.JSON201.Id,
 		ImageClassifactionBrickID,
-		client.BrickCreateUpdateRequest{Model: new(modelsindex.EncodeID("mobilenet-image-classification"))},
+		client.BrickCreateUpdateRequest{Model: new(models.EncodeModelID("mobilenet-image-classification"))},
 		func(ctx context.Context, req *http.Request) error { return nil },
 	)
 	require.NoError(t, err)
@@ -195,14 +194,14 @@ func TestUpsertAppBrickInstance(t *testing.T) {
 	require.NotEmpty(t, brickInstance.JSON200)
 	require.Equal(t, ImageClassifactionBrickID, *brickInstance.JSON200.Id)
 	require.Nil(t, brickInstance.JSON200.Variables)
-	require.Equal(t, modelsindex.EncodeID("mobilenet-image-classification"), *brickInstance.JSON200.Model)
+	require.Equal(t, models.EncodeModelID("mobilenet-image-classification"), *brickInstance.JSON200.Model)
 
 	t.Run("OverrideBrickInstance", func(t *testing.T) {
 		resp, err := httpClient.UpsertAppBrickInstanceWithResponse(
 			t.Context(),
 			*createResp.JSON201.Id,
 			ImageClassifactionBrickID,
-			client.BrickCreateUpdateRequest{Model: new(modelsindex.EncodeID("mobilenet-image-classification"))},
+			client.BrickCreateUpdateRequest{Model: new(models.EncodeModelID("mobilenet-image-classification"))},
 			func(ctx context.Context, req *http.Request) error { return nil },
 		)
 		require.NoError(t, err)
@@ -218,7 +217,7 @@ func TestUpsertAppBrickInstance(t *testing.T) {
 		require.NotEmpty(t, brickInstance.JSON200)
 		require.Equal(t, ImageClassifactionBrickID, *brickInstance.JSON200.Id)
 		require.Nil(t, brickInstance.JSON200.Variables)
-		require.Equal(t, modelsindex.EncodeID("mobilenet-image-classification"), *brickInstance.JSON200.Model)
+		require.Equal(t, models.EncodeModelID("mobilenet-image-classification"), *brickInstance.JSON200.Model)
 	})
 
 	t.Run("WrongModelFails", func(t *testing.T) {
@@ -226,7 +225,7 @@ func TestUpsertAppBrickInstance(t *testing.T) {
 			t.Context(),
 			*createResp.JSON201.Id,
 			ImageClassifactionBrickID,
-			client.BrickCreateUpdateRequest{Model: new(modelsindex.EncodeID("non-existent-model"))},
+			client.BrickCreateUpdateRequest{Model: new(models.EncodeModelID("non-existent-model"))},
 		)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
@@ -326,7 +325,7 @@ func TestUpdateAppBrickInstance(t *testing.T) {
 			*createResp.JSON201.Id,
 			ImageClassifactionBrickID,
 			client.BrickCreateUpdateRequest{
-				Model:     new(modelsindex.EncodeID("person-classification")),
+				Model:     new(models.EncodeModelID("person-classification")),
 				Variables: &map[string]string{"CUSTOM_MODEL_PATH": "overidden"},
 			},
 			func(ctx context.Context, req *http.Request) error { return nil },
@@ -344,14 +343,14 @@ func TestUpdateAppBrickInstance(t *testing.T) {
 		require.NotEmpty(t, brickInstance.JSON200)
 		require.Equal(t, ImageClassifactionBrickID, *brickInstance.JSON200.Id)
 		require.Nil(t, brickInstance.JSON200.Variables)
-		require.Equal(t, modelsindex.EncodeID("person-classification"), *brickInstance.JSON200.Model)
+		require.Equal(t, models.EncodeModelID("person-classification"), *brickInstance.JSON200.Model)
 	})
 	t.Run("UpdateOnlyModel", func(t *testing.T) {
 		resp, err := httpClient.UpdateAppBrickInstanceWithResponse(
 			t.Context(),
 			*createResp.JSON201.Id,
 			ImageClassifactionBrickID,
-			client.BrickCreateUpdateRequest{Model: new(modelsindex.EncodeID("mobilenet-image-classification"))},
+			client.BrickCreateUpdateRequest{Model: new(models.EncodeModelID("mobilenet-image-classification"))},
 			func(ctx context.Context, req *http.Request) error { return nil },
 		)
 		require.NoError(t, err)
@@ -366,7 +365,7 @@ func TestUpdateAppBrickInstance(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, brickInstance.JSON200)
 		require.Equal(t, ImageClassifactionBrickID, *brickInstance.JSON200.Id)
-		require.Equal(t, modelsindex.EncodeID("mobilenet-image-classification"), *brickInstance.JSON200.Model)
+		require.Equal(t, models.EncodeModelID("mobilenet-image-classification"), *brickInstance.JSON200.Model)
 	})
 
 	t.Run("UpdateWithWrongModelFails", func(t *testing.T) {
@@ -374,7 +373,7 @@ func TestUpdateAppBrickInstance(t *testing.T) {
 			t.Context(),
 			*createResp.JSON201.Id,
 			ImageClassifactionBrickID,
-			client.BrickCreateUpdateRequest{Model: new(modelsindex.EncodeID("non-existent-model"))},
+			client.BrickCreateUpdateRequest{Model: new(models.EncodeModelID("non-existent-model"))},
 		)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusInternalServerError, resp.StatusCode)

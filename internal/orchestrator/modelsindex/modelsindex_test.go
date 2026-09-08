@@ -314,31 +314,3 @@ func TestNeedsNoDownload(t *testing.T) {
 		assert.NotZero(t, preLoaded, "the model list must still declare pre-loaded models")
 	})
 }
-
-// TestEncodeDecodeID pins the one spelling an id has on the wire: EncodeID is what a
-// response reports as "id", and DecodeID is the only way back in.
-func TestEncodeDecodeID(t *testing.T) {
-	for _, id := range []string{
-		"face-detection",
-		"llamacpp:Qwen3.5-0.8B-Q4_0",
-		"ei-model-901144-1",
-		"vendor/slashed-id",
-		"llamacpp:ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0",
-	} {
-		encoded := EncodeID(id)
-		assert.NotContains(t, encoded, "/", "an encoded id is one path segment: %q", id)
-
-		got, err := DecodeID(encoded)
-		require.NoError(t, err)
-		assert.Equal(t, id, got)
-	}
-
-	// A padded encoding is not the form EncodeID produces, so it is refused.
-	_, err := DecodeID(EncodeID("face-detection") + "=")
-	assert.Error(t, err)
-
-	// An id carrying ":" is not valid base64url, so the plain form is refused. One without
-	// it decodes to no model and takes the not-found answer instead.
-	_, err = DecodeID("llamacpp:Qwen3.5-0.8B-Q4_0")
-	assert.Error(t, err)
-}

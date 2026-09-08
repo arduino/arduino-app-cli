@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/docker/cli/cli/command"
+	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/api/models"
@@ -37,7 +38,7 @@ func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 		if bricks := strings.TrimSpace(r.URL.Query().Get("bricks")); bricks != "" {
 			brickFilter = strings.Split(bricks, ",")
 		}
-		res, err := orchestrator.AIModelsList(r.Context(), orchestrator.AIModelsListRequest{
+		list, err := orchestrator.AIModelsList(r.Context(), orchestrator.AIModelsListRequest{
 			FilterByBrickID: brickFilter,
 		}, modelsIndex)
 		if err != nil {
@@ -49,14 +50,16 @@ func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 			})
 			return
 		}
-		render.EncodeResponse(w, http.StatusOK, res)
+		render.EncodeResponse(w, http.StatusOK, models.AIModelsListResult{
+			Models: f.Map(list, models.NewAIModelItem),
+		})
 	}
 }
 
 // modelIDFromPath reads the model id a path names, so the plain id exists only below
 // this line.
 func modelIDFromPath(r *http.Request) (string, error) {
-	return modelsindex.DecodeID(r.PathValue("modelID"))
+	return models.DecodeModelID(r.PathValue("modelID"))
 }
 
 func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
@@ -66,7 +69,7 @@ func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
 			return
 		}
-		res, found, err := orchestrator.AIModelDetails(r.Context(), modelsIndex, id)
+		model, found, err := orchestrator.AIModelDetails(r.Context(), modelsIndex, id)
 		if err != nil {
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: err.Error()})
 			return
@@ -76,7 +79,7 @@ func HandlerModelByID(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})
 			return
 		}
-		render.EncodeResponse(w, http.StatusOK, res)
+		render.EncodeResponse(w, http.StatusOK, models.NewAIModelItem(model))
 	}
 }
 
@@ -171,7 +174,7 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 		}
 
 		// FIXME: read the installed model using the modelindex.getModelByID
-		render.EncodeResponse(w, http.StatusOK, eiModel)
+		render.EncodeResponse(w, http.StatusOK, models.NewAIModelItem(eiModel))
 	}
 }
 
@@ -224,13 +227,13 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 			stream.sendError(err)
 			return
 		}
-		sseStream.Send(render.SSEEvent{Type: "done", Data: installed})
+		sseStream.Send(render.SSEEvent{Type: "done", Data: models.NewAIModelItem(installed)})
 	}
 }
 
 type DownloadModelRequest struct {
-	ModelURL  string `json:"model_url" description:"URL of the GGUF model file on Hugging Face" example:"https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf" required:"true"`
-	MmprojURL string `json:"mmproj_url" description:"URL of the GGUF multimodal projection file on Hugging Face, for a vision model" example:"https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/resolve/main/mmproj-F16.gguf"`
+	ModelURL  string `json:"model_url" example:"https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf" required:"true"`
+	MmprojURL string `json:"mmproj_url" example:"https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/resolve/main/mmproj-F16.gguf"`
 }
 
 // HandleDownloadModel downloads a model that no models-list.yaml entry declares. The id is
@@ -262,7 +265,7 @@ func HandleDownloadModel(dockerClient command.Cli, modelsIndex *modelsindex.Mode
 			stream.sendError(err)
 			return
 		}
-		sseStream.Send(render.SSEEvent{Type: "done", Data: installed})
+		sseStream.Send(render.SSEEvent{Type: "done", Data: models.NewAIModelItem(installed)})
 	}
 }
 

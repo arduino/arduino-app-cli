@@ -6,6 +6,8 @@
 package bricks
 
 import (
+	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,7 +20,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -514,10 +515,10 @@ bricks:
 		require.Equal(t, "My App", res.UsedByApps[0].Name)
 		require.NotEmpty(t, res.UsedByApps[0].ID)
 		require.Len(t, res.CompatibleModels, 2)
-		require.Equal(t, modelsindex.EncodeID("yolox-object-detection"), res.CompatibleModels[0].ID)
+		require.Equal(t, models.EncodeModelID("yolox-object-detection"), res.CompatibleModels[0].ID)
 		require.Equal(t, "General purpose object detection - YoloX", res.CompatibleModels[0].Name)
 		require.Equal(t, "General purpose object detection...", res.CompatibleModels[0].Description)
-		require.Equal(t, modelsindex.EncodeID("face-detection"), res.CompatibleModels[1].ID)
+		require.Equal(t, models.EncodeModelID("face-detection"), res.CompatibleModels[1].ID)
 		require.Equal(t, "Lightweight-Face-Detection", res.CompatibleModels[1].Name)
 		require.Equal(t, "", res.CompatibleModels[1].Description)
 		require.Len(t, res.ConfigVariables, 2)
@@ -549,7 +550,7 @@ bricks:
 		require.Equal(t, "arduino:one_model_brick", res.ID)
 		require.Equal(t, "one model brick", res.Name)
 		require.Len(t, res.CompatibleModels, 1)
-		require.Equal(t, modelsindex.EncodeID("face-detection"), res.CompatibleModels[0].ID)
+		require.Equal(t, models.EncodeModelID("face-detection"), res.CompatibleModels[0].ID)
 		require.Equal(t, "Lightweight-Face-Detection", res.CompatibleModels[0].Name)
 		require.Equal(t, "", res.CompatibleModels[0].Description)
 		require.Empty(t, res.ConfigVariables)
@@ -564,7 +565,7 @@ bricks:
 		require.Equal(t, "one model brick", res.Name)
 		require.Len(t, res.CompatibleModels, 1)
 		require.Len(t, res.CodeExamples, 2)
-		require.Equal(t, modelsindex.EncodeID("face-detection"), res.CompatibleModels[0].ID)
+		require.Equal(t, models.EncodeModelID("face-detection"), res.CompatibleModels[0].ID)
 		require.Equal(t, "Lightweight-Face-Detection", res.CompatibleModels[0].Name)
 		require.Equal(t, "", res.CompatibleModels[0].Description)
 		require.Empty(t, res.ConfigVariables)
@@ -716,10 +717,10 @@ bricks:
 			},
 			validate: func(t *testing.T, res BrickInstance) {
 				require.Equal(t, "arduino:object_detection", res.ID)
-				require.Equal(t, modelsindex.EncodeID("yolox-object-detection"), res.ModelID)
+				require.Equal(t, models.EncodeModelID("yolox-object-detection"), res.ModelID)
 				require.Len(t, res.CompatibleModels, 2)
-				require.Equal(t, modelsindex.EncodeID("yolox-object-detection"), res.CompatibleModels[0].ID)
-				require.Equal(t, modelsindex.EncodeID("face-detection"), res.CompatibleModels[1].ID)
+				require.Equal(t, models.EncodeModelID("yolox-object-detection"), res.CompatibleModels[0].ID)
+				require.Equal(t, models.EncodeModelID("face-detection"), res.CompatibleModels[1].ID)
 				require.True(t, res.RequireModel)
 			},
 		},
@@ -738,10 +739,10 @@ bricks:
 			},
 			validate: func(t *testing.T, res BrickInstance) {
 				require.Equal(t, "arduino:object_detection", res.ID)
-				require.Equal(t, modelsindex.EncodeID("face-detection"), res.ModelID)
+				require.Equal(t, models.EncodeModelID("face-detection"), res.ModelID)
 				require.Len(t, res.CompatibleModels, 2)
-				require.Equal(t, modelsindex.EncodeID("yolox-object-detection"), res.CompatibleModels[0].ID)
-				require.Equal(t, modelsindex.EncodeID("face-detection"), res.CompatibleModels[1].ID)
+				require.Equal(t, models.EncodeModelID("yolox-object-detection"), res.CompatibleModels[0].ID)
+				require.Equal(t, models.EncodeModelID("face-detection"), res.CompatibleModels[1].ID)
 				require.True(t, res.RequireModel)
 			},
 		},
@@ -922,10 +923,10 @@ func TestAppBrickInstancesList(t *testing.T) {
 				require.Equal(t, "arduino:object_detection", brick.ID)
 				require.Equal(t, "video", brick.Category)
 				require.True(t, brick.RequireModel)
-				require.Equal(t, modelsindex.EncodeID("face-detection"), brick.ModelID)
+				require.Equal(t, models.EncodeModelID("face-detection"), brick.ModelID)
 				require.Equal(t, []AIModel{
-					{ID: modelsindex.EncodeID("yolox-object-detection"), Name: "General purpose object detection - YoloX", Description: "a-model-description"},
-					{ID: modelsindex.EncodeID("face-detection"), Name: "Lightweight-Face-Detection", Description: ""},
+					{ID: models.EncodeModelID("yolox-object-detection"), Name: "General purpose object detection - YoloX", Description: "a-model-description"},
+					{ID: models.EncodeModelID("face-detection"), Name: "Lightweight-Face-Detection", Description: ""},
 				}, brick.CompatibleModels)
 
 				foundCustom := false
@@ -955,10 +956,10 @@ func TestAppBrickInstancesList(t *testing.T) {
 
 				require.Equal(t, "arduino:object_detection", brick.ID)
 				require.True(t, brick.RequireModel)
-				require.Equal(t, modelsindex.EncodeID("yolox-object-detection"), brick.ModelID)
+				require.Equal(t, models.EncodeModelID("yolox-object-detection"), brick.ModelID)
 				require.Equal(t, []AIModel{
-					{ID: modelsindex.EncodeID("yolox-object-detection"), Name: "General purpose object detection - YoloX", Description: "a-model-description"},
-					{ID: modelsindex.EncodeID("face-detection"), Name: "Lightweight-Face-Detection", Description: ""},
+					{ID: models.EncodeModelID("yolox-object-detection"), Name: "General purpose object detection - YoloX", Description: "a-model-description"},
+					{ID: models.EncodeModelID("face-detection"), Name: "Lightweight-Face-Detection", Description: ""},
 				}, brick.CompatibleModels)
 			},
 		},
@@ -980,8 +981,8 @@ func TestAppBrickInstancesList(t *testing.T) {
 
 				require.Equal(t, "arduino:brick-with-boards", brick.ID)
 				require.True(t, brick.RequireModel)
-				require.Equal(t, modelsindex.EncodeID("a-model-for-ventunoq"), brick.ModelID)
-				require.Equal(t, []AIModel{{ID: modelsindex.EncodeID("a-model-for-ventunoq"), Name: "A model for ventunoq"}}, brick.CompatibleModels)
+				require.Equal(t, models.EncodeModelID("a-model-for-ventunoq"), brick.ModelID)
+				require.Equal(t, []AIModel{{ID: models.EncodeModelID("a-model-for-ventunoq"), Name: "A model for ventunoq"}}, brick.CompatibleModels)
 			},
 		},
 		{
@@ -1014,7 +1015,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 				require.Equal(t, "arduino:audio_classification", b2.ID)
 				require.Equal(t, "audio", b2.Category)
 				require.True(t, b2.RequireModel)
-				require.Equal(t, modelsindex.EncodeID("glass-breaking"), b2.ModelID)
+				require.Equal(t, models.EncodeModelID("glass-breaking"), b2.ModelID)
 				require.Equal(t, 2, len(b2.ConfigVariables))
 				require.Equal(t, "/home/arduino/.arduino-bricks/models", b2.ConfigVariables[0].Value)
 				require.Equal(t, "/models/ootb/ei/glass-breaking.eim", b2.ConfigVariables[1].Value)

@@ -1085,16 +1085,12 @@ paths:
         schema:
           description: If true, deletes the model even if referenced by apps.
           type: boolean
-      - description: 'AI model identifier: the base64url encoded, unpadded "id" a
-          models response reports. That is the only form accepted here; "id_decoded"
-          is the plain text to show a person, not to send back.'
+      - description: The model id, base64url encoded and unpadded.
         in: path
         name: id
         required: true
         schema:
-          description: 'AI model identifier: the base64url encoded, unpadded "id"
-            a models response reports. That is the only form accepted here; "id_decoded"
-            is the plain text to show a person, not to send back.'
+          description: The model id, base64url encoded and unpadded.
           example: bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N
           type: string
       responses:
@@ -1115,16 +1111,12 @@ paths:
       description: Returns the details of a specific AI model.
       operationId: getAIModelDetails
       parameters:
-      - description: 'AI model identifier: the base64url encoded, unpadded "id" a
-          models response reports. That is the only form accepted here; "id_decoded"
-          is the plain text to show a person, not to send back.'
+      - description: The model id, base64url encoded and unpadded.
         in: path
         name: id
         required: true
         schema:
-          description: 'AI model identifier: the base64url encoded, unpadded "id"
-            a models response reports. That is the only form accepted here; "id_decoded"
-            is the plain text to show a person, not to send back.'
+          description: The model id, base64url encoded and unpadded.
           example: bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N
           type: string
       responses:
@@ -1148,16 +1140,12 @@ paths:
         The request is idempotent: the handler does not transfer a model that is on disk again. A declaration with no handler installs the model itself, and the stream sends "done" immediately.
       operationId: installModel
       parameters:
-      - description: 'The id of a model in the internal model list: the base64url
-          encoded, unpadded "id" a models response reports. "id_decoded" is for display
-          and is not accepted here.'
+      - description: The model id, base64url encoded and unpadded.
         in: path
         name: id
         required: true
         schema:
-          description: 'The id of a model in the internal model list: the base64url
-            encoded, unpadded "id" a models response reports. "id_decoded" is for
-            display and is not accepted here.'
+          description: The model id, base64url encoded and unpadded.
           example: bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w
           type: string
       responses:
@@ -1586,8 +1574,6 @@ components:
           description: 'Deprecated: This field is kept for backward compatibility.'
           type: string
         id:
-          description: The model id, base64url encoded and unpadded, ready to send
-            back on a models path or in a brick request's "model".
           type: string
         name:
           type: string
@@ -1602,13 +1588,9 @@ components:
         description:
           type: string
         id:
-          description: The model id, base64url encoded and unpadded. The only form
-            this API takes back.
           example: bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w
           type: string
         id_decoded:
-          description: The same id in plain text, to show a person. It travels out
-            only.
           example: llamacpp:gemma-3-1b-it-Q4_0
           type: string
         is_builtin:
@@ -1616,9 +1598,6 @@ components:
         metadata:
           additionalProperties:
             type: string
-          description: 'Extra facts about the model: what the internal model list
-            declares, plus "source-model-url" for a model the listing reports a download
-            link for.'
           type: object
         name:
           type: string
@@ -1769,8 +1748,6 @@ components:
     BrickCreateUpdateRequest:
       properties:
         model:
-          description: 'The model this brick uses: the base64url encoded, unpadded
-            "id" a models or brick response reports.'
           example: bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w
           nullable: true
           type: string
@@ -1856,8 +1833,6 @@ components:
         id:
           type: string
         model:
-          description: The model this brick instance uses, base64url encoded and unpadded.
-            The same "id" the models endpoints report.
           type: string
         name:
           type: string
@@ -1992,12 +1967,9 @@ components:
     DownloadModelRequest:
       properties:
         mmproj_url:
-          description: URL of the GGUF multimodal projection file on Hugging Face,
-            for a vision model
           example: https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/resolve/main/mmproj-F16.gguf
           type: string
         model_url:
-          description: URL of the GGUF model file on Hugging Face
           example: https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf
           type: string
       required:

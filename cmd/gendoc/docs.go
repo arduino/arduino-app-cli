@@ -21,6 +21,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	apimodels "github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
@@ -876,7 +877,7 @@ Contains a JSON object with the details of an error.
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: orchestrator.AIModelsListResult{},
+				DataStructure: apimodels.AIModelsListResult{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},
@@ -892,7 +893,7 @@ Contains a JSON object with the details of an error.
 			Method:      http.MethodDelete,
 			Path:        "/v1/models/{id}",
 			Request: (*struct {
-				ID    string `path:"id" description:"AI model identifier: the base64url encoded, unpadded \"id\" a models response reports. That is the only form accepted here; \"id_decoded\" is the plain text to show a person, not to send back." example:"bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N"`
+				ID    string `path:"id" description:"The model id, base64url encoded and unpadded." example:"bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N"`
 				Force bool   `query:"force" description:"If true, deletes the model even if referenced by apps."`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
@@ -914,11 +915,11 @@ Contains a JSON object with the details of an error.
 			Method:      http.MethodGet,
 			Path:        "/v1/models/{id}",
 			Request: (*struct {
-				ID string `path:"id" description:"AI model identifier: the base64url encoded, unpadded \"id\" a models response reports. That is the only form accepted here; \"id_decoded\" is the plain text to show a person, not to send back." example:"bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N"`
+				ID string `path:"id" description:"The model id, base64url encoded and unpadded." example:"bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N"`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: orchestrator.AIModelItem{},
+				DataStructure: apimodels.AIModelItem{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},
@@ -940,7 +941,7 @@ Contains a JSON object with the details of an error.
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: orchestrator.AIModelItem{},
+				DataStructure: apimodels.AIModelItem{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},
@@ -960,7 +961,7 @@ Contains a JSON object with the details of an error.
 			Method:      http.MethodPut,
 			Path:        "/v1/models/{id}",
 			Parameters: (*struct {
-				ModelID string `path:"id" description:"The id of a model in the internal model list: the base64url encoded, unpadded \"id\" a models response reports. \"id_decoded\" is for display and is not accepted here." example:"bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w"`
+				ModelID string `path:"id" description:"The model id, base64url encoded and unpadded." example:"bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w"`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "text/event-stream",

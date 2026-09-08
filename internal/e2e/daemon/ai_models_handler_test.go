@@ -8,6 +8,7 @@ package daemon
 import (
 	"cmp"
 	"context"
+	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"net/http"
 	"os"
 	"runtime"
@@ -19,7 +20,6 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
 func TestModelHandlerDownloadFlow(t *testing.T) {
@@ -28,7 +28,7 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 	}
 	modelID := cmp.Or(os.Getenv("E2E_MODEL_ID"), "melo-tts-es")
 	// The API takes the encoded form; modelID stays plain for the messages below.
-	encodedID := modelsindex.EncodeID(modelID)
+	encodedID := models.EncodeModelID(modelID)
 
 	modelsDir := e2e.FindRepositoryRootPath(t).Join("models")
 	t.Cleanup(func() { _ = modelsDir.RemoveAll() })

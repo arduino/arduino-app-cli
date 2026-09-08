@@ -20,7 +20,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
 )
 
@@ -111,14 +110,14 @@ func TestAIModelDetails(t *testing.T) {
 		require.NoError(t, err)
 
 		// We have to add an empty editor because there is a bug that make the function panic if we pass nil
-		response, err := httpClient.GetAIModelDetailsWithResponse(t.Context(), modelsindex.EncodeID("custom-classification-model-eim"), func(ctx context.Context, req *http.Request) error { return nil })
+		response, err := httpClient.GetAIModelDetailsWithResponse(t.Context(), models.EncodeModelID("custom-classification-model-eim"), func(ctx context.Context, req *http.Request) error { return nil })
 		require.NoError(t, err)
 		require.NotNil(t, response.JSON200)
 
 		got := response.JSON200
 		require.Equal(t, &client.AIModelItem{
 			// The id is reported twice: encoded, ready to paste into a path, and plain.
-			Id:          new(modelsindex.EncodeID("custom-classification-model-eim")),
+			Id:          new(models.EncodeModelID("custom-classification-model-eim")),
 			IdDecoded:   new("custom-classification-model-eim"),
 			Name:        new("this is the name of the model"),
 			IsBuiltin:   new(false),
@@ -151,7 +150,7 @@ func TestAIModelDetails(t *testing.T) {
 		expectedDetails := fmt.Sprintf("models with id %q not found", unknownModelId)
 		var actualBody models.ErrorResponse
 
-		response, err := httpClient.GetAIModelDetailsWithResponse(context.Background(), modelsindex.EncodeID(unknownModelId), requestEditor)
+		response, err := httpClient.GetAIModelDetailsWithResponse(context.Background(), models.EncodeModelID(unknownModelId), requestEditor)
 
 		require.NoError(t, err, "The HTTP client should not return an error for a 404 response")
 		require.Equal(t, http.StatusNotFound, response.StatusCode(), "Status code should be 404 Not Found")
@@ -189,7 +188,7 @@ func TestAIModelDelete(t *testing.T) {
 		expectedDetails := fmt.Sprintf("%q: model not found", modelId)
 		var actualBody models.ErrorResponse
 
-		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), modelsindex.EncodeID(modelId), &client.DeleteAIModelParams{Force: new(false)}, requestEditor)
+		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), models.EncodeModelID(modelId), &client.DeleteAIModelParams{Force: new(false)}, requestEditor)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusNotFound, response.StatusCode())
 		err = json.Unmarshal(response.Body, &actualBody)
@@ -203,7 +202,7 @@ func TestAIModelDelete(t *testing.T) {
 		expectedDetails := "cannot remove a built-in model"
 		var actualBody models.ErrorResponse
 
-		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), modelsindex.EncodeID(modelId), &client.DeleteAIModelParams{Force: new(false)}, requestEditor)
+		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), models.EncodeModelID(modelId), &client.DeleteAIModelParams{Force: new(false)}, requestEditor)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusConflict, response.StatusCode())
 		err = json.Unmarshal(response.Body, &actualBody)
@@ -256,14 +255,14 @@ func TestAIModelDelete(t *testing.T) {
 			t.Context(),
 			*appID,
 			"arduino:audio_classification",
-			client.BrickCreateUpdateRequest{Model: new(modelsindex.EncodeID(modelId))},
+			client.BrickCreateUpdateRequest{Model: new(models.EncodeModelID(modelId))},
 			func(ctx context.Context, req *http.Request) error { return nil },
 		)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, appUpdate.StatusCode())
 
 		/* Delete the model, not forced */
-		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), modelsindex.EncodeID(modelId), &client.DeleteAIModelParams{Force: new(false)}, requestEditor)
+		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), models.EncodeModelID(modelId), &client.DeleteAIModelParams{Force: new(false)}, requestEditor)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusConflict, response.StatusCode())
 		err = json.Unmarshal(response.Body, &actualBody)
@@ -271,7 +270,7 @@ func TestAIModelDelete(t *testing.T) {
 		require.Equal(t, expectedDetails, actualBody.Details)
 
 		/* Delete the model, forced */
-		response, err = httpClient.DeleteAIModelWithResponse(t.Context(), modelsindex.EncodeID(modelId), &client.DeleteAIModelParams{Force: new(true)}, requestEditor)
+		response, err = httpClient.DeleteAIModelWithResponse(t.Context(), models.EncodeModelID(modelId), &client.DeleteAIModelParams{Force: new(true)}, requestEditor)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusNoContent, response.StatusCode())
 		require.NoError(t, err)

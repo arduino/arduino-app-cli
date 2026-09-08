@@ -8,6 +8,8 @@ package handlers
 import (
 	"errors"
 	"fmt"
+	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,7 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
@@ -155,7 +156,7 @@ func TestHandleInstallModel(t *testing.T) {
 		// The failure has to arrive as a status: once the stream opens the 200 is sent and
 		// a client can no longer tell a bad request from a broken download.
 		rec := httptest.NewRecorder()
-		unknown := modelsindex.EncodeID("llamacpp:no-such-model")
+		unknown := models.EncodeModelID("llamacpp:no-such-model")
 		req := httptest.NewRequest(http.MethodPut, "/v1/models/"+unknown, nil)
 		req.SetPathValue("modelID", unknown)
 
@@ -170,15 +171,15 @@ func TestHandleInstallModel(t *testing.T) {
 	t.Run("a declaration that installs the model answers done at once", func(t *testing.T) {
 		// Pre-loaded: there is no handler to run, and no progress to report.
 		rec := sseRecorder{httptest.NewRecorder()}
-		req := httptest.NewRequest(http.MethodPut, "/v1/models/"+modelsindex.EncodeID("a-preloaded-model"), nil)
-		req.SetPathValue("modelID", modelsindex.EncodeID("a-preloaded-model"))
+		req := httptest.NewRequest(http.MethodPut, "/v1/models/"+models.EncodeModelID("a-preloaded-model"), nil)
+		req.SetPathValue("modelID", models.EncodeModelID("a-preloaded-model"))
 
 		HandleInstallModel(nil, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
 
 		assert.Contains(t, rec.Header().Get("Content-Type"), "text/event-stream")
 		body := rec.Body.String()
 		assert.Contains(t, body, "event: done")
-		assert.Contains(t, body, `"id":"`+modelsindex.EncodeID("a-preloaded-model")+`"`)
+		assert.Contains(t, body, `"id":"`+models.EncodeModelID("a-preloaded-model")+`"`)
 		assert.Contains(t, body, `"id_decoded":"a-preloaded-model"`)
 		assert.Contains(t, body, `"status":"installed"`)
 		assert.NotContains(t, body, "event: progress")
@@ -186,8 +187,8 @@ func TestHandleInstallModel(t *testing.T) {
 
 	t.Run("a declared id sent base64url encoded resolves to the same model", func(t *testing.T) {
 		rec := sseRecorder{httptest.NewRecorder()}
-		req := httptest.NewRequest(http.MethodPut, "/v1/models/"+modelsindex.EncodeID("a-preloaded-model"), nil)
-		req.SetPathValue("modelID", modelsindex.EncodeID("a-preloaded-model"))
+		req := httptest.NewRequest(http.MethodPut, "/v1/models/"+models.EncodeModelID("a-preloaded-model"), nil)
+		req.SetPathValue("modelID", models.EncodeModelID("a-preloaded-model"))
 
 		HandleInstallModel(nil, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
 
@@ -212,7 +213,7 @@ func TestHandleInstallModel(t *testing.T) {
 	t.Run("a well-formed id naming no declaration is not found", func(t *testing.T) {
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPut, "/v1/models/x", nil)
-		req.SetPathValue("modelID", modelsindex.EncodeID("no-such-model"))
+		req.SetPathValue("modelID", models.EncodeModelID("no-such-model"))
 
 		HandleInstallModel(nil, testModelsIndex(t), platform.GetPlatform(nil))(rec, req)
 
@@ -249,7 +250,7 @@ func TestHandleDownloadModel(t *testing.T) {
 // its declaration: the one answer that needs no listing container.
 func TestHandlerModelByID(t *testing.T) {
 	t.Run("an encoded id answers the model, named both ways", func(t *testing.T) {
-		segment := modelsindex.EncodeID("a-preloaded-model")
+		segment := models.EncodeModelID("a-preloaded-model")
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/v1/models/"+segment, nil)
 		req.SetPathValue("modelID", segment)
@@ -288,7 +289,7 @@ func TestHandlerModelByID(t *testing.T) {
 
 	t.Run("an id nothing declares is not found", func(t *testing.T) {
 		rec := httptest.NewRecorder()
-		unknown := modelsindex.EncodeID("no-such-model")
+		unknown := models.EncodeModelID("no-such-model")
 		req := httptest.NewRequest(http.MethodGet, "/v1/models/"+unknown, nil)
 		req.SetPathValue("modelID", unknown)
 

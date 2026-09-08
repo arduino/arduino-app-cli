@@ -18,7 +18,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
@@ -94,7 +93,7 @@ func decodeRequestModel(req *bricks.BrickCreateUpdateRequest) error {
 	if req.Model == nil || *req.Model == "" {
 		return nil
 	}
-	id, err := modelsindex.DecodeID(*req.Model)
+	id, err := models.DecodeModelID(*req.Model)
 	if err != nil {
 		return err
 	}
