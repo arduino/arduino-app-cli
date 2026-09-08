@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -85,5 +86,14 @@ func loop(r io.ReadCloser, events chan Event) {
 			fmt.Fprintf(os.Stderr, "Unknown line: '%s'", line)
 			close(events)
 		}
+	}
+}
+
+// skipWithoutModelsImage skips a test that reads what the models-downloader container
+// reports. That image is arm64 only.
+func skipWithoutModelsImage(t *testing.T) {
+	t.Helper()
+	if runtime.GOARCH != "arm64" {
+		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
 	}
 }

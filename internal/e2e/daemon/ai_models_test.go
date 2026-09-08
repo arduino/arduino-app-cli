@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"runtime"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
@@ -25,11 +24,7 @@ import (
 )
 
 func TestAIModelList(t *testing.T) {
-	if runtime.GOARCH != "arm64" {
-		// The listing runs in the models-downloader container, which is arm64 only. The
-		// route now fails when that listing fails, so there is no list to assert here.
-		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
-	}
+	skipWithoutModelsImage(t)
 
 	httpClient := GetHttpclient(t)
 	var allAIModelsLen int
@@ -60,6 +55,8 @@ func TestAIModelList(t *testing.T) {
 }
 
 func TestAIModelDetails(t *testing.T) {
+	skipWithoutModelsImage(t)
+
 	customModelDir, err := paths.MkTempDir("", "custom-models")
 	require.NoError(t, err)
 
@@ -170,6 +167,8 @@ func TestAIModelDetails(t *testing.T) {
 }
 
 func TestAIModelDelete(t *testing.T) {
+	skipWithoutModelsImage(t)
+
 	customModelDir, err := paths.MkTempDir("", "custom-models")
 	require.NoError(t, err)
 
