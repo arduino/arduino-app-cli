@@ -320,7 +320,7 @@ func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient,
 func runListAction(ctx context.Context, cli client.APIClient, listing *ListingConfig, configEnv map[string]string) ([]handlerModelEntry, error) {
 	slog.Debug("running list action", "image", listing.Image)
 
-	var buf bytes.Buffer
+	var buf, stderr bytes.Buffer
 	start := time.Now()
 	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
 		Image:  ResolveVars(listing.Image, configEnv),
@@ -328,15 +328,18 @@ func runListAction(ctx context.Context, cli client.APIClient, listing *ListingCo
 		Binds:  ResolveVarsSlice(listing.Volumes, configEnv),
 		Env:    configEnv,
 		Stdout: &buf,
+		Stderr: &stderr,
 	})
 	slog.Debug("list action finished", "duration_s", time.Since(start).Seconds())
 	if err != nil {
-		return nil, fmt.Errorf("list action: %w", err)
+		return nil, fmt.Errorf("list action: %w: %s", err, stderr.String())
 	}
 
 	var output handlerModelListOutput
 	if err := json.Unmarshal(buf.Bytes(), &output); err != nil {
-		return nil, fmt.Errorf("parsing list output: %w", err)
+		// The container's own words: without them a listing that prints nothing gives no
+		// reason at all.
+		return nil, fmt.Errorf("parsing list output: %w: %s", err, stderr.String())
 	}
 
 	return output.Models, nil

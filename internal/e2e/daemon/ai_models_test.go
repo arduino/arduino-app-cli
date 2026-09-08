@@ -26,13 +26,14 @@ import (
 func TestAIModelList(t *testing.T) {
 	skipWithoutModelsImage(t)
 
-	httpClient := GetHttpclient(t)
+	httpClient := GetHttpclient(t, e2e.WithBoardName("ventunoq"))
 	var allAIModelsLen int
 
 	t.Run("should return all models when no filter is applied", func(t *testing.T) {
 		response, err := httpClient.GetAIModelsWithResponse(t.Context(), nil)
 
 		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, response.StatusCode(), "body: %s", response.Body)
 		require.NotEmpty(t, response.JSON200.Models)
 		allAIModelsLen = len(*response.JSON200.Models)
 	})
@@ -40,6 +41,7 @@ func TestAIModelList(t *testing.T) {
 	t.Run("should return a smaller,filtered list of models when brick filter is applied", func(t *testing.T) {
 		AllModelsResponse, err := httpClient.GetAIModelsWithResponse(t.Context(), nil)
 		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, AllModelsResponse.StatusCode(), "body: %s", AllModelsResponse.Body)
 		require.NotNil(t, AllModelsResponse.JSON200)
 		allAIModelsLen = len(*AllModelsResponse.JSON200.Models)
 
@@ -60,7 +62,7 @@ func TestAIModelDetails(t *testing.T) {
 	customModelDir, err := paths.MkTempDir("", "custom-models")
 	require.NoError(t, err)
 
-	httpClient := GetHttpclient(t, e2e.WithCustomModelDir(customModelDir))
+	httpClient := GetHttpclient(t, e2e.WithCustomModelDir(customModelDir), e2e.WithBoardName("ventunoq"))
 
 	aiModelsList, err := httpClient.GetAIModelsWithResponse(t.Context(), nil)
 	require.NoError(t, err, "The HTTP client should not return an error for a 200 response")
@@ -172,7 +174,7 @@ func TestAIModelDelete(t *testing.T) {
 	customModelDir, err := paths.MkTempDir("", "custom-models")
 	require.NoError(t, err)
 
-	httpClient := GetHttpclient(t, e2e.WithCustomModelDir(customModelDir))
+	httpClient := GetHttpclient(t, e2e.WithCustomModelDir(customModelDir), e2e.WithBoardName("ventunoq"))
 
 	t.Run("not found error on model not found", func(t *testing.T) {
 		modelId := "invalid_model_id"
