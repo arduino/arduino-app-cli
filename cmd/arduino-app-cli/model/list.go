@@ -33,7 +33,11 @@ func newModelListCmd() *cobra.Command {
 }
 
 func modelListHandler(ctx context.Context, excludeBuiltin bool) {
-	models := servicelocator.GetModelsIndex().GetModels(ctx)
+	// One listing run, in a container, so the cost is at this line and not hidden.
+	models, err := servicelocator.GetModelsIndex().NewLookup().All(ctx)
+	if err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrGeneric)
+	}
 	result := make([]modelsindex.AIModel, 0)
 	for _, m := range models {
 		if excludeBuiltin && m.IsBuiltIn {

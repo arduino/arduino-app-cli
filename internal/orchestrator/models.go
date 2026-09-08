@@ -54,8 +54,10 @@ type AIModelsListRequest struct {
 	FilterByBrickID []string
 }
 
-func AIModelsList(ctx context.Context, req AIModelsListRequest, modelsIndex *modelsindex.ModelsIndex) AIModelsListResult {
-	collection := modelsIndex.GetModels(ctx)
+// AIModelsList answers every model, filtered by brick when the request names one. It runs
+// one listing container; an error leaves the declared models, and says so.
+func AIModelsList(ctx context.Context, req AIModelsListRequest, modelsIndex *modelsindex.ModelsIndex) (AIModelsListResult, error) {
+	collection, err := modelsIndex.NewLookup().All(ctx)
 	if len(req.FilterByBrickID) != 0 {
 		collection = slices.DeleteFunc(collection, func(model modelsindex.AIModel) bool {
 			return !slices.ContainsFunc(model.Bricks, func(brick modelsindex.BrickConfig) bool {
@@ -63,8 +65,7 @@ func AIModelsList(ctx context.Context, req AIModelsListRequest, modelsIndex *mod
 			})
 		})
 	}
-
-	return AIModelsListResult{Models: f.Map(collection, NewAIModelItem)}
+	return AIModelsListResult{Models: f.Map(collection, NewAIModelItem)}, err
 }
 
 // NewAIModelItem maps an index model onto the API shape. Size is omitted when unknown
@@ -90,8 +91,9 @@ func NewAIModelItem(model modelsindex.AIModel) AIModelItem {
 	}
 }
 
-// AIModelDetails describes the model id names. The id is plain: the API decodes the path
-// before calling in, so nothing below the handler deals in encodings.
+// AIModelDetails describes the model id names. It runs the listing container unless the
+// model is installed by its declaration. The id is plain: the API decodes the path before
+// calling in.
 func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, id string) (AIModelItem, bool, error) {
 	model, err := modelsIndex.NewLookup().ByID(ctx, id)
 	if err != nil {
@@ -107,17 +109,7 @@ func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, i
 // AIModelInstall downloads a model the internal model list declares and describes what
 // landed. publish reports the handler's own events as they arrive.
 func AIModelInstall(ctx context.Context, dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform, id string, publish func(modelsindex.StreamMessage)) (AIModelItem, error) {
-	// The declaration alone answers this, so no listing container runs.
-	declared, found := modelsIndex.DeclaredByID(id)
-	if !found {
-		return AIModelItem{}, fmt.Errorf("no model with id %q is declared: %w", id, ErrNotFound)
-	}
-	if declared.InstalledByDeclaration() {
-		// Installed by its declaration, with no handler to run.
-		return NewAIModelItem(*declared), nil
-	}
-
-	installed, err := modelsIndex.Download(ctx, dockerClient.Client(), *declared, plat, publish)
+	installed, err := modelsIndex.Install(ctx, dockerClient.Client(), id, plat, publish)
 	if err != nil {
 		return AIModelItem{}, err
 	}

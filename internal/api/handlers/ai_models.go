@@ -33,15 +33,17 @@ type InstallEIModelRequest struct {
 
 func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		params := r.URL.Query()
-
 		var brickFilter []string
-		if brick := params.Get("bricks"); brick != "" {
-			brickFilter = strings.Split(strings.TrimSpace(brick), ",")
+		if bricks := strings.TrimSpace(r.URL.Query().Get("bricks")); bricks != "" {
+			brickFilter = strings.Split(bricks, ",")
 		}
-		res := orchestrator.AIModelsList(r.Context(), orchestrator.AIModelsListRequest{
+		res, err := orchestrator.AIModelsList(r.Context(), orchestrator.AIModelsListRequest{
 			FilterByBrickID: brickFilter,
 		}, modelsIndex)
+		if err != nil {
+			// The declared models are still an answer, and the only one available.
+			slog.Warn("cannot get models info, listing the declared models", "err", err)
+		}
 		render.EncodeResponse(w, http.StatusOK, res)
 	}
 }
@@ -197,7 +199,7 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 		}
 
 		// A 404 has to be a status, so this one question is asked before the stream opens.
-		if _, found := modelsIndex.DeclaredByID(id); !found {
+		if !modelsIndex.IsDeclared(id) {
 			details := fmt.Sprintf("no model with id %q is declared", id)
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})
 			return

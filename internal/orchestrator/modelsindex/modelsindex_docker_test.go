@@ -262,7 +262,8 @@ func TestGetModelsReportsDownloading(t *testing.T) {
 	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
 	require.NoError(t, err)
 
-	models := idx.GetModels(t.Context())
+	models, err := idx.NewLookup().All(t.Context())
+	require.NoError(t, err)
 	byID := func(id string) *AIModel {
 		t.Helper()
 		for i := range models {
@@ -321,7 +322,8 @@ func TestGetModelsReportsTheRecordedSource(t *testing.T) {
 	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
 	require.NoError(t, err)
 
-	models := idx.GetModels(t.Context())
+	models, err := idx.NewLookup().All(t.Context())
+	require.NoError(t, err)
 	byID := func(id string) *AIModel {
 		t.Helper()
 		for i := range models {
@@ -513,11 +515,15 @@ func TestDownloadRefusesAModelWithNothingToDownload(t *testing.T) {
 	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
 	require.NoError(t, err)
 
-	preLoaded, ok := idx.DeclaredByID("piper-tts-en")
-	require.True(t, ok)
+	installed, err := idx.Install(t.Context(), cli, "piper-tts-en", platform.Platform{BoardName: "ventunoq"}, func(StreamMessage) {})
 
-	_, err = idx.Download(t.Context(), cli, *preLoaded, platform.Platform{BoardName: "ventunoq"}, func(StreamMessage) {})
-
-	require.ErrorIs(t, err, ErrNoHandler)
+	require.NoError(t, err)
+	assert.Equal(t, InstalledStatus, installed.Status, "a pre-loaded model is installed already")
 	assert.Zero(t, started, "a pre-loaded model must not start the downloader")
+
+	// The guard stays on the runner, for a caller that reaches it with such a model.
+	preLoaded, ok := idx.declared("piper-tts-en")
+	require.True(t, ok)
+	_, err = idx.runDownload(t.Context(), cli, *preLoaded, platform.Platform{BoardName: "ventunoq"}, func(StreamMessage) {})
+	require.ErrorIs(t, err, ErrNoHandler)
 }
