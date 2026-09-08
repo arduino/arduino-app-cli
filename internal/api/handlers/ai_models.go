@@ -41,8 +41,8 @@ func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 			FilterByBrickID: brickFilter,
 		}, modelsIndex)
 		if err != nil {
-			// The declared models are still an answer, and the only one available.
-			slog.Warn("cannot get models info, listing the declared models", "err", err)
+			// The models the index knows are still an answer, and the only one available.
+			slog.Warn("cannot get models info, listing what the index knows", "err", err)
 		}
 		render.EncodeResponse(w, http.StatusOK, res)
 	}
@@ -199,8 +199,8 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 		}
 
 		// A 404 has to be a status, so this one question is asked before the stream opens.
-		if !modelsIndex.IsDeclared(id) {
-			details := fmt.Sprintf("no model with id %q is declared", id)
+		if !modelsIndex.IsKnown(id) {
+			details := fmt.Sprintf("no model with id %q", id)
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})
 			return
 		}

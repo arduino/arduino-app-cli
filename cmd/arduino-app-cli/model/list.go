@@ -37,8 +37,8 @@ func modelListHandler(ctx context.Context, excludeBuiltin bool) {
 	// One listing run, in a container, so the cost is at this line and not hidden.
 	models, err := servicelocator.GetModelsIndex().NewLookup().All(ctx)
 	if err != nil {
-		// The declared models are still a list, and the only one available.
-		slog.Warn("cannot get models info, listing the declared models", "err", err)
+		// What the index knows is still a list, and the only one available.
+		slog.Warn("cannot get models info, listing what the index knows", "err", err)
 	}
 	result := make([]modelsindex.AIModel, 0)
 	for _, m := range models {

@@ -193,14 +193,14 @@ func DecodeID(encoded string) (string, error) {
 }
 
 func (l *Lookup) ByID(ctx context.Context, id string) (*AIModel, error) {
-	if model, ok := l.declared(id); ok && model.InstalledByDeclaration() {
-		// Its declaration is its state: no handler run can contradict it.
+	if model, ok := l.known(id); ok && model.NeedsNoDownload() {
+		// It is there already: no handler run can contradict its state.
 		return model, nil
 	}
 	if err := l.listing(ctx); err != nil {
-		// A declared model exists whether or not the listing ran, so an unknown install
-		// status is a failure. Anything else is absent, not failed.
-		if _, declared := l.declared(id); !declared {
+		// A model the index knows exists whether or not the listing ran, so an unknown
+		// install status is a failure. Anything else is absent, not failed.
+		if _, declared := l.known(id); !declared {
 			slog.Warn("cannot get models info, reporting an undeclared model as absent", "model", id, "err", err)
 			return nil, nil
 		}
@@ -213,9 +213,9 @@ func (l *Lookup) ByID(ctx context.Context, id string) (*AIModel, error) {
 	return &l.models[idx], nil
 }
 
-// declared reads the declarations once per lookup: they come off disk, custom models
-// included, so a caller asking about several models walks the directory once.
-func (l *Lookup) declared(id string) (*AIModel, bool) {
+// known reads the index's own files once per lookup: models-list.yaml and the custom
+// models come off disk, so asking about several models walks the directory once.
+func (l *Lookup) known(id string) (*AIModel, bool) {
 	if l.dry == nil {
 		l.dry = l.idx.loadDryModels()
 	}
@@ -260,20 +260,20 @@ func (l *Lookup) ModelForBrick(ctx context.Context, modelID, brickID string) (*A
 	return model, nil
 }
 
-// InstalledByDeclaration reports whether the model is installed by its own declaration -
-// built-in, pre-loaded, or custom - rather than by a handler writing it to disk.
-func (m AIModel) InstalledByDeclaration() bool {
+// NeedsNoDownload reports whether the model is there already - built-in, pre-loaded, or
+// custom - rather than something a handler has to write to disk.
+func (m AIModel) NeedsNoDownload() bool {
 	return m.Deployment == nil || m.Deployment.PreLoaded || m.Deployment.Handler == ""
 }
 
 func (m *ModelsIndex) listModels(ctx context.Context) ([]AIModel, error) {
-	dryModels := m.loadDryModels()
+	known := m.loadDryModels()
 	if m.Handlers == nil || m.cli == nil {
-		return dryModels, nil
+		return known, nil
 	}
-	models, err := m.Handlers.getModelsInfo(ctx, m.cli, dryModels)
+	models, err := m.Handlers.getModelsInfo(ctx, m.cli, known)
 	if err != nil {
-		return dryModels, err
+		return known, err
 	}
 	return models, nil
 }
@@ -472,17 +472,17 @@ func (m *ModelsIndex) DownloadByURL(ctx context.Context, cli client.APIClient, m
 	return *installed, nil
 }
 
-// IsDeclared reports whether models-list.yaml declares id, with no handler run. It is the
-// question the install route answers before its stream opens.
-func (m *ModelsIndex) IsDeclared(id string) bool {
-	_, found := m.declared(id)
+// IsKnown reports whether the index holds id in its own files, with no handler run. It is
+// the question the install route answers before its stream opens.
+func (m *ModelsIndex) IsKnown(id string) bool {
+	_, found := m.known(id)
 	return found
 }
 
-// declared returns the models-list.yaml entry for id, with no handler run. The entry is a
-// declaration, not a state: the listing owns the install status, the size on disk and the
-// record's metadata, so it stays inside this package.
-func (m *ModelsIndex) declared(id string) (*AIModel, bool) {
+// known returns what the index's own files say about id, with no handler run: a
+// models-list.yaml entry, or a custom model. It is not a state - the listing owns the
+// install status, the size on disk and the record's metadata - so it stays in this package.
+func (m *ModelsIndex) known(id string) (*AIModel, bool) {
 	models := m.loadDryModels()
 	if i := slices.IndexFunc(models, func(v AIModel) bool { return v.ID == id }); i != -1 {
 		return &models[i], true
@@ -495,19 +495,19 @@ func (m *ModelsIndex) declared(id string) (*AIModel, bool) {
 //
 // A model installed by its declaration is returned as it is: there is nothing to fetch.
 func (m *ModelsIndex) Install(ctx context.Context, cli client.APIClient, id string, plat platform.Platform, publish func(e StreamMessage)) (AIModel, error) {
-	declared, found := m.declared(id)
+	model, found := m.known(id)
 	if !found {
-		return AIModel{}, fmt.Errorf("no model with id %q: %w", id, ErrNotDeclared)
+		return AIModel{}, fmt.Errorf("no model with id %q: %w", id, ErrUnknownModel)
 	}
-	if declared.InstalledByDeclaration() {
-		return *declared, nil
+	if model.NeedsNoDownload() {
+		return *model, nil
 	}
 
-	downloaded, err := m.runDownload(ctx, cli, *declared, plat, publish)
+	downloaded, err := m.runDownload(ctx, cli, *model, plat, publish)
 	if err != nil {
 		return AIModel{}, err
 	}
-	installed := *declared
+	installed := *model
 	installed.Status = InstalledStatus
 	if downloaded != nil && downloaded.Size > 0 {
 		installed.Size = downloaded.Size
@@ -518,7 +518,7 @@ func (m *ModelsIndex) Install(ctx context.Context, cli client.APIClient, id stri
 // runDownload runs one handler's download action and keeps the model its stream names. An
 // error event ends the run as ErrDownloadReported: publish has already carried it out.
 func (m *ModelsIndex) runDownload(ctx context.Context, cli client.APIClient, model AIModel, plat platform.Platform, publish func(e StreamMessage)) (*DownloadedModel, error) {
-	if model.InstalledByDeclaration() {
+	if model.NeedsNoDownload() {
 		// Guarded here too: the alternative is dereferencing a nil Deployment.
 		return nil, fmt.Errorf("model %q has nothing to download: %w", model.ID, ErrNoHandler)
 	}
@@ -590,7 +590,7 @@ func (m *ModelsIndex) Delete(ctx context.Context, dockerClient command.Cli, plat
 var (
 	ErrInsufficientStorage = errors.New("insufficient storage to install model")
 	ErrNoHandler           = errors.New("no handler to run")
-	ErrNotDeclared         = errors.New("model not declared by the internal model list")
+	ErrUnknownModel        = errors.New("model not in the internal model list")
 	ErrNoModelReported     = errors.New("download named no model: a newer models-downloader image is required")
 	ErrNotListed           = errors.New("model not listed")
 	// ErrDownloadReported ends a download whose handler reported an error event, which

@@ -335,7 +335,7 @@ func TestParseDownloadHandlerLineNamesTheModel(t *testing.T) {
 	})
 }
 
-func TestDeclaredNeedsNoHandler(t *testing.T) {
+func TestKnownNeedsNoHandler(t *testing.T) {
 	// The install route asks this first, so it must answer from models-list.yaml alone: a
 	// nil handlers index and docker client stand in for "no container available".
 	idx := &ModelsIndex{
@@ -347,14 +347,14 @@ func TestDeclaredNeedsNoHandler(t *testing.T) {
 		},
 	}
 
-	model, ok := idx.declared("llamacpp:Declared-Q4_0")
+	model, ok := idx.known("llamacpp:Declared-Q4_0")
 	require.True(t, ok)
 	assert.Equal(t, "Declared", model.Name)
 
-	model, ok = idx.declared("vendor/slashed-id")
+	model, ok = idx.known("vendor/slashed-id")
 	require.True(t, ok)
 	assert.Equal(t, "Slashed", model.Name)
 
-	_, ok = idx.declared("unsloth/SmolLM2-135M-Instruct-GGUF")
+	_, ok = idx.known("unsloth/SmolLM2-135M-Instruct-GGUF")
 	assert.False(t, ok, "a repository the catalog does not declare is not a declared model")
 }

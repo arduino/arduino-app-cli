@@ -520,7 +520,7 @@ func TestDownloadRefusesAModelWithNothingToDownload(t *testing.T) {
 	assert.Zero(t, started, "a pre-loaded model must not start the downloader")
 
 	// The guard stays on the runner, for a caller that reaches it with such a model.
-	preLoaded, ok := idx.declared("piper-tts-en")
+	preLoaded, ok := idx.known("piper-tts-en")
 	require.True(t, ok)
 	_, err = idx.runDownload(t.Context(), cli, *preLoaded, platform.Platform{BoardName: "ventunoq"}, func(StreamMessage) {})
 	require.ErrorIs(t, err, ErrNoHandler)

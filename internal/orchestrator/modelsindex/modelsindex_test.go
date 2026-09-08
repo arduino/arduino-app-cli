@@ -266,9 +266,9 @@ func TestModelsIndex(t *testing.T) {
 	})
 }
 
-// TestInstalledByDeclaration pins the one predicate a lookup and the install route share.
+// TestNeedsNoDownload pins the one predicate a lookup and the install route share.
 // Every pre-loaded entry in models-list.yaml names a handler, so the two must agree.
-func TestInstalledByDeclaration(t *testing.T) {
+func TestNeedsNoDownload(t *testing.T) {
 	tests := []struct {
 		name  string
 		model AIModel
@@ -292,7 +292,7 @@ func TestInstalledByDeclaration(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, tt.model.InstalledByDeclaration())
+			assert.Equal(t, tt.want, tt.model.NeedsNoDownload())
 		})
 	}
 
@@ -309,7 +309,7 @@ func TestInstalledByDeclaration(t *testing.T) {
 				continue
 			}
 			preLoaded++
-			assert.True(t, model.InstalledByDeclaration(), "model %q", model.ID)
+			assert.True(t, model.NeedsNoDownload(), "model %q", model.ID)
 		}
 		assert.NotZero(t, preLoaded, "the model list must still declare pre-loaded models")
 	})
