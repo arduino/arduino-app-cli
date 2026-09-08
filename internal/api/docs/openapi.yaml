@@ -1016,16 +1016,14 @@ paths:
       tags:
       - AIModels
     post:
-      description: |-
-        Download an AI model from Hugging Face. The progress is a stream of Server-Sent Events.
+      description: |
+        Download an LLamaCPP AI model from a Hugging Face link. The progress is a stream of Server-Sent Events.
 
         "model_url" is the URL of the model file on Hugging Face. It selects one file at one commit. For a vision model, "mmproj_url" is the URL of the projection file. Only llama.cpp models are supported: the file must be a GGUF file, and it goes in the llamacpp models directory.
 
-        The request has no model id. The downloader makes the id from the file that it writes, and reports it in the "done" event. If the internal model list declares that file, the answer is the declared model.
+        The downloader makes the id from the file that it writes, and reports it in the "done" event. If the internal model list declares that file, the answer is the declared model.
 
         Hugging Face reads the URL at the download only, so a bad URL is an error event. The request is idempotent: the handler does not transfer a file that is on disk again.
-
-        The models-downloader image must contain arduino/app-bricks-py#415 and arduino/app-bricks-py#416, with the llamacpp-runner images from the same release. An older image installs the model, but reports no id, and the stream sends an error event.
       operationId: downloadModel
       requestBody:
         content:
@@ -1070,7 +1068,7 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "500":
           $ref: '#/components/responses/InternalServerError'
-      summary: Download a llama.cpp model from Hugging Face
+      summary: Download a LLamaCPP model from Hugging Face
       tags:
       - AIModels
   /v1/models/{id}:
@@ -1085,12 +1083,12 @@ paths:
         schema:
           description: If true, deletes the model even if referenced by apps.
           type: boolean
-      - description: The model id, base64url encoded and unpadded.
+      - description: AI model identifier.
         in: path
         name: id
         required: true
         schema:
-          description: The model id, base64url encoded and unpadded.
+          description: AI model identifier.
           example: bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N
           type: string
       responses:
@@ -1111,12 +1109,12 @@ paths:
       description: Returns the details of a specific AI model.
       operationId: getAIModelDetails
       parameters:
-      - description: The model id, base64url encoded and unpadded.
+      - description: AI model identifier.
         in: path
         name: id
         required: true
         schema:
-          description: The model id, base64url encoded and unpadded.
+          description: AI model identifier.
           example: bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N
           type: string
       responses:
@@ -1140,12 +1138,12 @@ paths:
         The request is idempotent: the handler does not transfer a model that is on disk again. A declaration with no handler installs the model itself, and the stream sends "done" immediately.
       operationId: installModel
       parameters:
-      - description: The model id, base64url encoded and unpadded.
+      - description: The id of a model in the internal model list.
         in: path
         name: id
         required: true
         schema:
-          description: The model id, base64url encoded and unpadded.
+          description: The id of a model in the internal model list.
           example: bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w
           type: string
       responses:

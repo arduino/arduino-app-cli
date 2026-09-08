@@ -208,7 +208,7 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 
 		// A 404 has to be a status, so this one question is asked before the stream opens.
 		if !modelsIndex.IsKnown(id) {
-			details := fmt.Sprintf("no model with id %q", id)
+			details := fmt.Sprintf("no model with id %q is declared", id)
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})
 			return
 		}
