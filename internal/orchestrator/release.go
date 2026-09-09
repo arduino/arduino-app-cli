@@ -197,7 +197,7 @@ func BuildRelease(
 	}
 
 	cb(StreamMessage{data: "building the python environment", progress: &Progress{Name: "python environment", Progress: 20.0}})
-	if err := buildPythonEnv(ctx, docker, srcDir, prebuildDir, cb); err != nil {
+	if err := buildPythonEnv(ctx, docker, cfg.PythonImage, srcDir, prebuildDir, cb); err != nil {
 		return BuildReleaseResult{}, err
 	}
 
@@ -433,19 +433,16 @@ func stageReleaseSrc(appToBuild app.ArduinoApp, srcDir *paths.Path, bricksIndex 
 
 // buildPythonEnv builds the python environment in the runner image, as run.sh would do
 // at the first start, and leaves it in the prebuild dir.
-func buildPythonEnv(ctx context.Context, docker command.Cli, srcDir *paths.Path, prebuildDir *paths.Path, cb func(StreamMessage)) error {
+func buildPythonEnv(ctx context.Context, docker command.Cli, pythonImage string, srcDir *paths.Path, prebuildDir *paths.Path, cb func(StreamMessage)) error {
 	if err := prebuildDir.MkdirAll(); err != nil {
 		return fmt.Errorf("failed to create the prebuild dir: %w", err)
 	}
-
-	// TODO: dev image, to be replaced by cfg.PythonImage once prepare is released.
-	const prepareImage = "ghcr.io/lucarin91/app-bricks/python-apps-base:dev-add-prepare-command"
 
 	output := NewCallbackWriter(func(line string) {
 		cb(StreamMessage{data: line})
 	})
 	err := dockerhelper.Run(ctx, docker.Client(), dockerhelper.RunOptions{
-		Image: prepareImage,
+		Image: pythonImage,
 		Cmd:   []string{"prepare"},
 		Binds: []string{
 			srcDir.String() + ":/app",
