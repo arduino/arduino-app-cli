@@ -6,6 +6,7 @@
 package orchestrator
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
@@ -92,12 +93,13 @@ func renderComposeFile(ctx context.Context, arduinoApp *app.ArduinoApp, env, sec
 		return nil, err
 	}
 
-	// Marshaled by compose-go, which escapes every $ it writes, so reading the
-	// file back gives the values resolved here.
 	data, err := prj.MarshalYAML()
 	if err != nil {
 		return nil, err
 	}
+	// docker compose interpolates the file it is given, and compose-go escapes nothing
+	// it writes: a value holding a $ would be substituted a second time.
+	data = bytes.ReplaceAll(data, []byte("$"), []byte("$$"))
 	composeFile := arduinoApp.AppComposeFilePath()
 	if err := fatomic.WriteFile(composeFile.String(), data, 0644); err != nil {
 		return nil, err

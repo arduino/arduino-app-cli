@@ -337,12 +337,13 @@ func templateEnvironment(appEnv types.Mapping) types.Mapping {
 // mountExpr binds a path where it is, `<path>:ro` read-only. It renders to nothing,
 // and so is dropped, on a board that has not the path: never created, being optional.
 func mountExpr(mount string) (string, error) {
-	source, option, _ := strings.Cut(mount, ":")
+	// Cut only the suffix: a led path is /sys/class/leds/blue:user.
+	source, readOnly := strings.CutSuffix(mount, ":ro")
 	bind, err := json.Marshal(volume{
 		Type:     "bind",
 		Source:   source,
 		Target:   source,
-		ReadOnly: option == "ro",
+		ReadOnly: readOnly,
 		Bind:     &bindOptions{CreateHostPath: false},
 	})
 	if err != nil {
