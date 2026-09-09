@@ -82,8 +82,8 @@ func renderComposeFile(ctx context.Context, arduinoApp *app.ArduinoApp, env, sec
 			ConfigFiles: configFiles,
 			// The templates and the composes they include live here.
 			WorkingDir: arduinoApp.ProvisioningStateDir().String(),
-			// Only what we answer: a template references the host facts and the
-			// secrets, so the environment of the cli has nothing to say here.
+			// Only what we answer: every other variable of every compose file was
+			// substituted when the app was resolved.
 			Environment: secrets.Clone().Merge(env),
 		},
 		// Relative paths are resolved now: the rendered file is read from elsewhere.

@@ -11,11 +11,13 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/compose-spec/compose-go/v2/interpolation"
 	"github.com/compose-spec/compose-go/v2/types"
 	yaml "github.com/goccy/go-yaml"
 
@@ -28,6 +30,11 @@ import (
 
 // A compose template is what Provision.Resolve writes: it states what the app needs of
 // a board by name, as {{ }} expressions, and of its environment as ${VAR}.
+//
+// The same rule holds for every compose file of an app, the ones written here and the
+// brick and service composes copied next to them: a ${VAR} is substituted now, with what
+// the app is wired with, unless VAR is a hostVariable, which stays a reference for the
+// render step to answer on the board it runs on.
 
 // exprPrefix marks a value the render step has to evaluate. Only what the resolve step
 // writes carries it, so a value the app brings along — a brick variable holding a prompt
@@ -146,7 +153,12 @@ func generateComposeTemplate(
 		return err
 	}
 	mainAppCompose.Name = composeProjectName
-	mainAppCompose.Include = composeFiles.AsStrings()
+
+	includes, err := frozenComposeIncludes(composeFiles, genPath, cfg, appEnv)
+	if err != nil {
+		return err
+	}
+	mainAppCompose.Include = includes
 
 	volumes := []any{
 		volume{
@@ -259,6 +271,91 @@ func generateComposeTemplate(
 
 	// Done!
 	return nil
+}
+
+// frozenComposeIncludes copies every brick and service compose next to the template it is
+// included by, substituted, and is the include: list of that template. What a copy states
+// no longer depends on the asset dir it came from, nor on the environment of whoever
+// starts the app: only the host facts are left for the render step to answer.
+func frozenComposeIncludes(composeFiles paths.PathList, genPath *paths.Path, cfg config.Configuration, appEnv types.Mapping) ([]string, error) {
+	composesDir := genPath.Join("compose")
+	// A leftover copy from a previous resolve would be included again if a brick that
+	// was removed is added back with a compose of its own.
+	if err := composesDir.RemoveAll(); err != nil {
+		return nil, fmt.Errorf("failed to remove %s: %w", composesDir, err)
+	}
+
+	// A copy is interpolated a second time, by the render step, so a value goes in with
+	// its $ escaped while a host fact goes in as the live reference render answers.
+	// A `$$` the compose file itself holds is not kept escaped, which no brick uses.
+	lookup := func(name string) (string, bool) {
+		if _, isHostFact := hostVariables[name]; isHostFact {
+			return "${" + name + "}", true
+		}
+		if value, set := appEnv[name]; set {
+			return strings.ReplaceAll(value, "$", "$$"), true
+		}
+		// A variable no brick declares, LOG_LEVEL or DOCKER_REGISTRY_BASE: answered by
+		// whoever resolves the app, which is what docker used to do when it started it.
+		value, set := os.LookupEnv(name)
+		return strings.ReplaceAll(value, "$", "$$"), set
+	}
+
+	includes := make([]string, 0, len(composeFiles))
+	for _, composeFile := range composeFiles {
+		// Keep the layout of the asset dir, which is what makes the copied names unique:
+		// every brick has its own brick_compose.yaml.
+		relPath, err := composeFile.RelFrom(cfg.AssetDir())
+		if err != nil {
+			// A brick the app brings along: keep the folder holding it.
+			relPath = paths.New(composeFile.Parent().Base(), composeFile.Base())
+		}
+
+		frozen, err := frozenCompose(composeFile, lookup)
+		if err != nil {
+			return nil, err
+		}
+
+		dst := composesDir.JoinPath(relPath)
+		if err := dst.Parent().MkdirAll(); err != nil {
+			return nil, fmt.Errorf("failed to create %s: %w", dst.Parent(), err)
+		}
+		if err := dst.WriteFile(frozen); err != nil {
+			return nil, fmt.Errorf("failed to write %s: %w", dst, err)
+		}
+
+		// Relative: docker compose resolves an include from the project directory, the
+		// one holding the template, so the app folder can be moved or shipped.
+		include, err := dst.RelFrom(genPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve the include path of %s: %w", dst, err)
+		}
+		includes = append(includes, include.String())
+	}
+	return includes, nil
+}
+
+func frozenCompose(composeFile *paths.Path, lookup func(string) (string, bool)) ([]byte, error) {
+	content, err := composeFile.ReadFile()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read %s: %w", composeFile, err)
+	}
+
+	var document map[string]any
+	if err := yaml.Unmarshal(content, &document); err != nil {
+		return nil, fmt.Errorf("failed to parse %s: %w", composeFile, err)
+	}
+
+	substituted, err := interpolation.Interpolate(document, interpolation.Options{LookupValue: lookup})
+	if err != nil {
+		return nil, fmt.Errorf("failed to substitute the variables of %s: %w", composeFile, err)
+	}
+
+	data, err := yaml.Marshal(substituted)
+	if err != nil {
+		return nil, fmt.Errorf("failed to write back %s: %w", composeFile, err)
+	}
+	return data, nil
 }
 
 func writeOverrideTemplate(genPath *paths.Path, services []serviceInfo, appEnv types.Mapping, deviceDrivers, groupNames []string) error {
