@@ -183,32 +183,38 @@ const (
 	// PrebuildDirName is what a release ships beside the app it is built from: the
 	// compose files and the python env, which the install copies as the .cache.
 	PrebuildDirName = "prebuild"
-	// ReleaseFileName marks an app installed from a release: what a start would
-	// generate is already in .cache, and nothing may generate it again.
-	ReleaseFileName = ".release"
+	// ReleaseManifestFileName is the manifest a release is built with, at the root of
+	// the archive and of the app installed from it: an app that holds it runs what a
+	// build froze, and what a start would generate is already in .cache.
+	ReleaseManifestFileName = "release.yaml"
 )
 
-// Release is what the marker of an installed app says of the release it comes from.
+// ReleaseManifestSchema is the layout of the manifest, not the version of the app: an
+// older release must stay readable by a newer cli.
+const ReleaseManifestSchema = 1
+
+// Release is what the manifest says of the release an app comes from.
 type Release struct {
-	// ID is the release the app is installed from, name, version and target.
-	ID      string `yaml:"id"`
+	Schema  int    `yaml:"schema"`
 	Version string `yaml:"version"`
-	Target  string `yaml:"target"`
-	// Source is where the release it was installed from is kept.
-	Source string `yaml:"source,omitempty"`
+	// Target is the board the release is built for, gated on at install and at start.
+	Target string `yaml:"target"`
+	// ID is the release folder name, so it is read from the path and never written.
+	ID string `yaml:"-"`
 }
 
-// GetRelease reads the marker: an app that has it runs what a release froze.
+// GetRelease reads the manifest: an app that holds one runs what a release froze.
 func (a *ArduinoApp) GetRelease() (Release, bool) {
-	marker := a.FullPath.Join(ReleaseFileName)
-	content, err := marker.ReadFile()
+	manifest := a.FullPath.Join(ReleaseManifestFileName)
+	content, err := manifest.ReadFile()
 	if err != nil {
 		return Release{}, false
 	}
 	var release Release
 	if err := yaml.Unmarshal(content, &release); err != nil {
-		slog.Warn("cannot read the release marker of the app", "path", marker, "error", err)
+		slog.Warn("cannot read the release manifest of the app", "path", manifest, "error", err)
 	}
+	release.ID = a.FullPath.Base()
 	return release, true
 }
 

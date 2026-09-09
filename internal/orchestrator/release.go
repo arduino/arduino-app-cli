@@ -61,15 +61,9 @@ type BuildReleaseResult struct {
 	Archive string `json:"archive"`
 }
 
-// ReleaseManifestFileName is the manifest at the root of the archive. It holds what a
-// board needs to list a release and to gate its install, so nothing here requires
-// opening the app it ships.
-const ReleaseManifestFileName = "release.yaml"
-
-// ReleaseManifestSchema is the layout of the archive, not the version of the app: an
-// older release must stay readable by a newer cli.
-const ReleaseManifestSchema = 1
-
+// ReleaseManifest is what the archive states of itself: what a board needs to list a
+// release and to gate its install, so nothing here requires opening the app it ships.
+// app.Release reads the same file, and only the part an installed app is marked by.
 type ReleaseManifest struct {
 	Schema  int    `yaml:"schema"`
 	Name    string `yaml:"name"`
@@ -168,7 +162,7 @@ func BuildRelease(
 	}
 
 	manifest := ReleaseManifest{
-		Schema:    ReleaseManifestSchema,
+		Schema:    app.ReleaseManifestSchema,
 		Name:      appToBuild.Name,
 		Version:   version,
 		Target:    plat.BoardName,
@@ -226,6 +220,8 @@ func BuildRelease(
 	}, nil
 }
 
+// writeReleaseManifest writes the file the install keeps as it is: it is the manifest
+// of the archive and the marker of the app installed from it.
 func writeReleaseManifest(releaseDir *paths.Path, manifest ReleaseManifest) error {
 	// The note is markdown and is read by people as well: a block keeps its line breaks
 	// where an escaped string would bury them.
@@ -233,7 +229,7 @@ func writeReleaseManifest(releaseDir *paths.Path, manifest ReleaseManifest) erro
 	if err != nil {
 		return fmt.Errorf("failed to write the release manifest: %w", err)
 	}
-	if err := releaseDir.Join(ReleaseManifestFileName).WriteFile(data); err != nil {
+	if err := releaseDir.Join(app.ReleaseManifestFileName).WriteFile(data); err != nil {
 		return fmt.Errorf("failed to write the release manifest: %w", err)
 	}
 	return nil
@@ -558,7 +554,7 @@ func writeReleaseArchive(releaseDir *paths.Path, archivePath *paths.Path) error 
 
 		// The manifest goes right after the release folder the archive is rooted at, so
 		// that a reader gets the release facts from the first block.
-		manifest := releaseDir.Join(ReleaseManifestFileName)
+		manifest := releaseDir.Join(app.ReleaseManifestFileName)
 		entries = slices.DeleteFunc(entries, func(p *paths.Path) bool { return p.EqualsTo(manifest) })
 
 		for _, entry := range append(paths.PathList{releaseDir, manifest}, entries...) {

@@ -823,8 +823,8 @@ func CloneApp(
 		}
 	}()
 
-	// The marker stays behind: a copy of a release is an app, and is edited.
-	list, err := originPath.ReadDir(paths.FilterOutNames(".cache", "data", app.ReleaseFileName))
+	// The manifest stays behind: a copy of a release is an app, and is edited.
+	list, err := originPath.ReadDir(paths.FilterOutNames(".cache", "data", app.ReleaseManifestFileName))
 	if err != nil {
 		return CloneAppResponse{}, fmt.Errorf("failed to read app directory: %w", err)
 	}
