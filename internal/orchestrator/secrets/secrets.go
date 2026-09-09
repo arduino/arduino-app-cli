@@ -130,8 +130,8 @@ func (s *Store) Delete(id appid.ID) error {
 	return s.appDir(id).RemoveAll()
 }
 
-// Move carries the values of an app to another id, as a rename or an upgrade does.
-func (s *Store) Move(from, to appid.ID) error {
+// Copy repeats the values of an app under another id, as a clone does.
+func (s *Store) Copy(from, to appid.ID) error {
 	values, err := s.Get(from)
 	if err != nil {
 		return err
@@ -139,7 +139,12 @@ func (s *Store) Move(from, to appid.ID) error {
 	if len(values) == 0 {
 		return nil
 	}
-	if err := s.Set(to, values); err != nil {
+	return s.Set(to, values)
+}
+
+// Move carries the values of an app to another id, as a rename or an upgrade does.
+func (s *Store) Move(from, to appid.ID) error {
+	if err := s.Copy(from, to); err != nil {
 		return err
 	}
 	return s.Delete(from)

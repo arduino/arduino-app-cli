@@ -24,6 +24,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/secrets"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -165,7 +166,7 @@ func TestEditApp(t *testing.T) {
 			require.NoError(t, err)
 			require.Nil(t, previousDefaultApp)
 
-			err = EditApp(AppEditRequest{Default: new(true)}, &app, cfg)
+			err = EditApp(AppEditRequest{Default: new(true)}, &app, idProvider, cfg)
 			require.NoError(t, err)
 
 			currentDefaultApp, err := GetDefaultApp(cfg)
@@ -181,7 +182,7 @@ func TestEditApp(t *testing.T) {
 			require.NoError(t, err)
 			require.True(t, appDir.EquivalentTo(previousDefaultApp.FullPath))
 
-			err = EditApp(AppEditRequest{Default: new(false)}, &app, cfg)
+			err = EditApp(AppEditRequest{Default: new(false)}, &app, idProvider, cfg)
 			require.NoError(t, err)
 
 			currentDefaultApp, err := GetDefaultApp(cfg)
@@ -198,7 +199,7 @@ func TestEditApp(t *testing.T) {
 		userApp := f.Must(app.Load(appDir))
 		originalPath := userApp.FullPath
 
-		err = EditApp(AppEditRequest{Name: new("new-name")}, &userApp, cfg)
+		err = EditApp(AppEditRequest{Name: new("new-name")}, &userApp, idProvider, cfg)
 		require.NoError(t, err)
 		editedApp, err := app.Load(cfg.AppsDir().Join("new-name"))
 		require.NoError(t, err)
@@ -212,7 +213,7 @@ func TestEditApp(t *testing.T) {
 			appDir := cfg.AppsDir().Join(existingAppName)
 			existingApp := f.Must(app.Load(appDir))
 
-			err = EditApp(AppEditRequest{Name: new(existingAppName)}, &existingApp, cfg)
+			err = EditApp(AppEditRequest{Name: new(existingAppName)}, &existingApp, idProvider, cfg)
 			require.ErrorIs(t, err, ErrAppAlreadyExists)
 		})
 	})
@@ -227,12 +228,79 @@ func TestEditApp(t *testing.T) {
 		err = EditApp(AppEditRequest{
 			Icon:        new("💻"),
 			Description: new("new desc"),
-		}, &commonApp, cfg)
+		}, &commonApp, idProvider, cfg)
 		require.NoError(t, err)
 		editedApp := f.Must(app.Load(commonAppDir))
 		require.Equal(t, "new desc", editedApp.Descriptor.Description)
 		require.Equal(t, "💻", editedApp.Descriptor.Icon)
 	})
+}
+
+// The secrets of an app live outside its folder, keyed by the id the folder has: an
+// operation that changes the folder has to carry them, or they are lost or inherited.
+func TestAppSecretsFollowTheApp(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
+	store := secrets.NewStore(cfg)
+
+	t.Run("a rename moves them", func(t *testing.T) {
+		_, err := CreateApp(CreateAppRequest{Name: "app-to-rename"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+		require.NoError(t, err)
+		userApp := f.Must(app.Load(cfg.AppsDir().Join("app-to-rename")))
+		oldID := f.Must(idProvider.ParseID("user:app-to-rename"))
+		require.NoError(t, store.Set(oldID, map[string]string{"API_KEY": "secret"}))
+
+		require.NoError(t, EditApp(AppEditRequest{Name: new("app-renamed")}, &userApp, idProvider, cfg))
+
+		newID := f.Must(idProvider.ParseID("user:app-renamed"))
+		require.Equal(t, map[string]string{"API_KEY": "secret"}, f.Must(store.Get(newID)))
+		require.Empty(t, f.Must(store.Get(oldID)))
+	})
+
+	t.Run("a clone copies them", func(t *testing.T) {
+		_, err := CreateApp(CreateAppRequest{Name: "app-to-clone"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+		require.NoError(t, err)
+		originID := f.Must(idProvider.ParseID("user:app-to-clone"))
+		require.NoError(t, store.Set(originID, map[string]string{"API_KEY": "secret"}))
+
+		resp, err := CloneApp(CloneAppRequest{FromID: originID, Name: new("app-cloned")}, idProvider, cfg)
+		require.NoError(t, err)
+
+		require.Equal(t, map[string]string{"API_KEY": "secret"}, f.Must(store.Get(resp.ID)))
+		require.Equal(t, map[string]string{"API_KEY": "secret"}, f.Must(store.Get(originID)))
+	})
+
+	t.Run("a new app does not inherit the ones of a deleted app", func(t *testing.T) {
+		_, err := CreateApp(CreateAppRequest{Name: "app-to-delete"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+		require.NoError(t, err)
+		appDir := cfg.AppsDir().Join("app-to-delete")
+		id := f.Must(idProvider.ParseID("user:app-to-delete"))
+		require.NoError(t, store.Set(id, map[string]string{"API_KEY": "secret"}))
+
+		require.NoError(t, DeleteApp(t.Context(), newTestDockerCli(t), unoQPlatform, f.Must(app.Load(appDir)), idProvider, cfg))
+		require.True(t, appDir.NotExist())
+
+		_, err = CreateApp(CreateAppRequest{Name: "app-to-delete"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+		require.NoError(t, err)
+		require.Empty(t, f.Must(store.Get(id)))
+	})
+}
+
+func newTestDockerCli(t *testing.T) command.Cli {
+	t.Helper()
+
+	docker, err := dockerClient.NewClientWithOpts(
+		dockerClient.FromEnv,
+		dockerClient.WithAPIVersionNegotiation(),
+	)
+	require.NoError(t, err)
+	dockerCli, err := command.NewDockerCli(
+		command.WithAPIClient(docker),
+		command.WithBaseContext(t.Context()),
+	)
+	require.NoError(t, err)
+	require.NoError(t, dockerCli.Initialize(&flags.ClientOptions{}))
+	return dockerCli
 }
 
 func TestListApp(t *testing.T) {
