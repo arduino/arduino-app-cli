@@ -6,10 +6,12 @@
 package modelsindex
 
 import (
+	"bytes"
 	"slices"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/goccy/go-yaml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -357,4 +359,45 @@ func TestKnownNeedsNoHandler(t *testing.T) {
 
 	_, ok = idx.known("unsloth/SmolLM2-135M-Instruct-GGUF")
 	assert.False(t, ok, "a repository the catalog does not declare is not a declared model")
+}
+
+func TestWriteHandlers(t *testing.T) {
+	assetDir := paths.New(t.TempDir())
+	yamlContent := `listing:
+  image: ${DOCKER_REGISTRY_BASE}models-downloader:listing
+  volumes:
+    - ${MODELS_PATH}:/models
+handlers:
+  - hf-handler:
+      description: "Handler for models from Hugging Face"
+      image: ${DOCKER_REGISTRY_BASE}models-downloader:hf
+      volumes:
+        - ${MODELS_PATH}/${models_repository}:/models
+  - ei-handler:
+      description: "Handler for models from Edge Impulse"
+      image: ${DOCKER_REGISTRY_BASE}models-downloader:ei
+      volumes:
+        - ${MODELS_PATH}/${models_repository}:/models
+`
+	require.NoError(t, assetDir.Join("models-handlers.yaml").WriteFile([]byte(yamlContent)))
+
+	dir := paths.New(t.TempDir())
+	err := WriteHandlers(assetDir, dir, []string{"hf-handler"}, func(data []byte) ([]byte, error) {
+		return bytes.ReplaceAll(data, []byte("${DOCKER_REGISTRY_BASE}"), []byte("build.example/")), nil
+	})
+	require.NoError(t, err)
+
+	content, err := dir.Join("models-handlers.yaml").ReadFile()
+	require.NoError(t, err)
+	var written rawHandlersList
+	require.NoError(t, yaml.Unmarshal(content, &written))
+
+	require.Len(t, written.Handlers, 1)
+	entry, declares := written.Handlers[0]["hf-handler"]
+	require.True(t, declares)
+	assert.Equal(t, "build.example/models-downloader:hf", entry.Image)
+	// The listing is not cropped: it is not a handler of a model.
+	assert.Equal(t, "build.example/models-downloader:listing", written.Listing.Image)
+	// What the freeze does not answer stays a reference for whoever reads the file.
+	assert.Equal(t, []string{"${MODELS_PATH}/${models_repository}:/models"}, entry.Volumes)
 }
