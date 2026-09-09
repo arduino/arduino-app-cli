@@ -273,8 +273,19 @@ func unmarshalBricksIndex(content io.Reader) (*YamlBricksIndex, error) {
 	return &index, nil
 }
 
+const bricksListFileName = "bricks-list.yaml"
+
+// WriteBricksList writes the bricks into dir as the index Load reads back.
+func WriteBricksList(dir *paths.Path, bricks []Brick) error {
+	data, err := yaml.Marshal(YamlBricksIndex{Bricks: bricks})
+	if err != nil {
+		return err
+	}
+	return dir.Join(bricksListFileName).WriteFile(data)
+}
+
 func Load(platform platform.Platform, path *paths.Path) (*BricksIndex, error) {
-	content, err := path.Join("bricks-list.yaml").Open()
+	content, err := path.Join(bricksListFileName).Open()
 	if err != nil {
 		return nil, err
 	}

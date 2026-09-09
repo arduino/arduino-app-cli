@@ -55,6 +55,8 @@ type ModelHandler struct {
 	Actions HandlerActions
 }
 
+const handlersFileName = "models-handlers.yaml"
+
 func loadHandlers(dir *paths.Path, modelsDir *paths.Path, cfg config.Configuration, plat platform.Platform) (*HandlersIndex, error) {
 	// TODO : we should add a method on config to return env variables
 	configEnv := map[string]string{
@@ -63,7 +65,7 @@ func loadHandlers(dir *paths.Path, modelsDir *paths.Path, cfg config.Configurati
 		"MODELS_PATH":          modelsDir.String(),
 	}
 
-	handlersFile := dir.Join("models-handlers.yaml")
+	handlersFile := dir.Join(handlersFileName)
 	if handlersFile.NotExist() {
 		return nil, nil
 	}
@@ -127,6 +129,32 @@ func loadHandlers(dir *paths.Path, modelsDir *paths.Path, cfg config.Configurati
 	}
 
 	return &HandlersIndex{handlers: handlers, listing: listing, configEnv: configEnv}, nil
+}
+
+// WriteHandlers writes into dir a models-handlers.yaml holding only the handlers named,
+// as the assets file states them. freeze answers their ${VAR} before the file lands.
+func WriteHandlers(assetDir *paths.Path, dir *paths.Path, ids []string, freeze func([]byte) ([]byte, error)) error {
+	content, err := assetDir.Join(handlersFileName).ReadFile()
+	if err != nil {
+		return err
+	}
+
+	var raw rawHandlersList
+	if err := yaml.Unmarshal(content, &raw); err != nil {
+		return fmt.Errorf("%s: %w", handlersFileName, err)
+	}
+
+	raw.Handlers = slices.DeleteFunc(raw.Handlers, func(entry map[string]rawHandlerEntry) bool {
+		return !slices.ContainsFunc(ids, func(id string) bool { _, declares := entry[id]; return declares })
+	})
+	data, err := yaml.Marshal(raw)
+	if err != nil {
+		return err
+	}
+	if data, err = freeze(data); err != nil {
+		return fmt.Errorf("%s: %w", handlersFileName, err)
+	}
+	return dir.Join(handlersFileName).WriteFile(data)
 }
 
 // resolveVars substitutes compose-style ${VAR} and ${VAR:-default} placeholders

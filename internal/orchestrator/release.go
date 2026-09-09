@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
 	yaml "github.com/goccy/go-yaml"
 	"github.com/gosimple/slug"
@@ -191,6 +192,10 @@ func BuildRelease(
 		return BuildReleaseResult{}, fmt.Errorf("failed to freeze the compose files: %w", err)
 	}
 
+	if err := stageReleaseIndexes(ctx, prebuildDir, appToBuild, bricksIndex, modelsIndex, cfg, appEnv); err != nil {
+		return BuildReleaseResult{}, fmt.Errorf("failed to freeze the brick and model indexes: %w", err)
+	}
+
 	cb(StreamMessage{data: "building the python environment", progress: &Progress{Name: "python environment", Progress: 20.0}})
 	if err := buildPythonEnv(ctx, docker, srcDir, prebuildDir, cb); err != nil {
 		return BuildReleaseResult{}, err
@@ -221,6 +226,77 @@ func writeReleaseManifest(releaseDir *paths.Path, manifest ReleaseManifest) erro
 		return fmt.Errorf("failed to write the release manifest: %w", err)
 	}
 	return nil
+}
+
+// stageReleaseIndexes writes the bricks and the models the app uses where their indexes
+// are read from.
+func stageReleaseIndexes(
+	ctx context.Context,
+	prebuildDir *paths.Path,
+	appToBuild app.ArduinoApp,
+	bricksIndex *bricksindex.BricksIndex,
+	modelsIndex *modelsindex.ModelsIndex,
+	cfg config.Configuration,
+	appEnv types.Mapping,
+) error {
+	// A brick the app brings along ships in src, so the board reads that one.
+	bricks := make([]bricksindex.Brick, 0, len(appToBuild.Descriptor.Bricks))
+	for _, brick := range appToBuild.Descriptor.Bricks {
+		if slices.ContainsFunc(appToBuild.LocalBricks, func(local bricksindex.Brick) bool { return local.ID == brick.ID }) {
+			continue
+		}
+		definition, found := bricksIndex.FindBrickByID(brick.ID)
+		if !found {
+			return fmt.Errorf("brick %q is not in the index", brick.ID)
+		}
+		bricks = append(bricks, *definition)
+	}
+	if err := bricksindex.WriteBricksList(prebuildDir, bricks); err != nil {
+		return err
+	}
+
+	// The models the app is wired with and the handlers they name. A built-in model is
+	// left out: it ships with the board image.
+	lookup := modelsIndex.NewLookup()
+	var models []modelsindex.AIModel
+	var handlers []string
+	for _, brick := range appToBuild.Descriptor.Bricks {
+		if brick.Model == "" || slices.ContainsFunc(models, func(m modelsindex.AIModel) bool { return m.ID == brick.Model }) {
+			continue
+		}
+		model, err := lookup.ByID(ctx, brick.Model)
+		if err != nil {
+			return err
+		}
+		if model == nil {
+			return fmt.Errorf("model %q is not in the index", brick.Model)
+		}
+		if model.IsBuiltIn {
+			continue
+		}
+		models = append(models, *model)
+		if model.Deployment != nil && !slices.Contains(handlers, model.Deployment.Handler) {
+			handlers = append(handlers, model.Deployment.Handler)
+		}
+	}
+	if err := modelsindex.WriteModelsList(prebuildDir, models); err != nil {
+		return err
+	}
+	// The index reads a missing handlers file as none, unlike the two lists above.
+	if len(handlers) == 0 {
+		return nil
+	}
+
+	// Frozen as the compose files are: what no one answers here stays a reference.
+	resolve := frozenLookup(cfg, appEnv)
+	return modelsindex.WriteHandlers(cfg.AssetDir(), prebuildDir, handlers, func(data []byte) ([]byte, error) {
+		return frozenYAML(data, func(name string) (string, bool) {
+			if value, answered := resolve(name); answered {
+				return value, true
+			}
+			return "${" + name + "}", true
+		})
+	})
 }
 
 // releaseBricks is the bricks of the app and the model each is wired with.
