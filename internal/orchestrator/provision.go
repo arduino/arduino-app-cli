@@ -99,8 +99,6 @@ func NewProvision(
 type BuildOptions struct {
 	// ProjectName is the docker compose project the app runs as.
 	ProjectName string
-	// Labels are added to the main service.
-	Labels map[string]string
 }
 
 // Resolve turns the app bricks and services into the compose templates it is started
