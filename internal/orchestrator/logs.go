@@ -10,13 +10,10 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
 
-	"github.com/compose-spec/compose-go/v2/loader"
-	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
 	commands "github.com/docker/compose/v2/cmd/compose"
 	"github.com/docker/compose/v2/pkg/api"
@@ -26,6 +23,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
 type AppLogsRequest struct {
@@ -47,13 +45,23 @@ func AppLogs(
 	req AppLogsRequest,
 	dockerCli command.Cli,
 	bricksIndex *bricksindex.BricksIndex,
+	cfg config.Configuration,
 ) (iter.Seq[LogMessage], error) {
 	if app.MainPythonFile == nil {
 		return helpers.EmptyIter[LogMessage](), nil
 	}
 
-	mainCompose := app.AppComposeFilePath()
-	if mainCompose.NotExist() {
+	projectName, err := getAppComposeProjectNameFromApp(app, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	// In case the app was never started
+	services, err := getAppComposeServices(ctx, dockerCli.Client(), app)
+	if err != nil {
+		return nil, err
+	}
+	if len(services) == 0 {
 		return helpers.EmptyIter[LogMessage](), nil
 	}
 
@@ -77,29 +85,16 @@ func AppLogs(
 			continue
 		}
 
-		services, err := extractServicesFromComposeFile(composeFilePath)
+		brickServices, err := extractServicesFromComposeFile(composeFilePath)
 		if err != nil {
 			return helpers.EmptyIter[LogMessage](), err
 		}
-		for _, s := range services {
+		for _, s := range brickServices {
 			serviceToBrickMapping[s.name] = brick.ID
 		}
 	}
 
-	prj, err := loader.LoadWithContext(
-		ctx,
-		types.ConfigDetails{
-			ConfigFiles: []types.ConfigFile{{Filename: mainCompose.String()}},
-			WorkingDir:  app.ProvisioningStateDir().String(),
-			Environment: types.NewMapping(os.Environ()),
-		},
-		loader.WithSkipValidation, //TODO: check if there is a bug on docker compose upstream
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	filteredServices := prj.ServiceNames()
+	filteredServices := services
 	if req.ShowAppLogs && !req.ShowServicesLogs {
 		filteredServices = []string{"main"}
 	} else if req.ShowServicesLogs && !req.ShowAppLogs {
@@ -109,7 +104,6 @@ func AppLogs(
 	backend := compose.NewComposeService(dockerCli).(commands.Backend)
 	return func(yield func(LogMessage) bool) {
 		opts := api.LogOptions{
-			Project:    prj,
 			Follow:     req.Follow,
 			Services:   filteredServices,
 			Timestamps: false,
@@ -119,7 +113,7 @@ func AppLogs(
 		}
 		err = backend.Logs(
 			ctx,
-			prj.Name,
+			projectName,
 			NewDockerLogConsumer(ctx, yield, serviceToBrickMapping),
 			opts,
 		)

@@ -368,30 +368,34 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 	}
 
 	if app.MainPythonFile != nil {
-		mainCompose := app.AppComposeFilePath()
-		// In case the app was never started
-		if mainCompose.Exist() {
-			args := []string{
-				"docker",
-				"compose",
-				"-f", mainCompose.String(),
-				cmd,
-				fmt.Sprintf("--timeout=%d", DefaultDockerStopTimeoutSeconds),
-			}
-			if cmd == "down" {
-				args = append(args, "--volumes", "--remove-orphans")
-			}
+		// Stopped by project name, never by the compose file: the file the app was
+		// started from includes the asset dir of its version, which an update removes.
+		// Compose works from the container labels here, and exits 0 when the project
+		// has no container, which is the case when the app was never started.
+		projectName, err := getAppComposeProjectNameFromApp(app, cfg)
+		if err != nil {
+			return err
+		}
+		args := []string{
+			"docker",
+			"compose",
+			"--project-name", projectName,
+			cmd,
+			fmt.Sprintf("--timeout=%d", DefaultDockerStopTimeoutSeconds),
+		}
+		if cmd == "down" {
+			args = append(args, "--volumes", "--remove-orphans")
+		}
 
-			process, err := paths.NewProcess(nil, args...)
-			if err != nil {
-				return err
-			}
+		process, err := paths.NewProcess(nil, args...)
+		if err != nil {
+			return err
+		}
 
-			process.RedirectStderrTo(callbackWriter)
-			process.RedirectStdoutTo(callbackWriter)
-			if err := process.RunWithinContext(ctx); err != nil {
-				return err
-			}
+		process.RedirectStderrTo(callbackWriter)
+		process.RedirectStdoutTo(callbackWriter)
+		if err := process.RunWithinContext(ctx); err != nil {
+			return err
 		}
 	}
 	cb(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
