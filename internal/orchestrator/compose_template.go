@@ -282,27 +282,7 @@ func frozenComposeIncludes(composeFiles paths.PathList, genPath *paths.Path, cfg
 		return nil, fmt.Errorf("failed to remove %s: %w", composesDir, err)
 	}
 
-	// A copy is interpolated a second time, by the render step, so a value goes in with
-	// its $ escaped while a host fact goes in as the live reference render answers.
-	// A `$$` the compose file itself holds is not kept escaped, which no brick uses.
-	lookup := func(name string) (string, bool) {
-		reference := "${" + name + "}"
-		if _, isHostFact := hostVariables[name]; isHostFact {
-			return reference, true
-		}
-		if value, set := appEnv[name]; set {
-			// A secret is in appEnv as a reference to itself: it is read from app.yaml
-			// by the render step only, so it must stay a reference here.
-			if value == reference {
-				return reference, true
-			}
-			return strings.ReplaceAll(value, "$", "$$"), true
-		}
-		// A variable no brick declares, LOG_LEVEL or DOCKER_REGISTRY_BASE: answered by
-		// whoever resolves the app, which is what docker used to do when it started it.
-		value, set := os.LookupEnv(name)
-		return strings.ReplaceAll(value, "$", "$$"), set
-	}
+	lookup := frozenLookup(cfg, appEnv)
 
 	includes := make([]string, 0, len(composeFiles))
 	for _, composeFile := range composeFiles {
@@ -343,20 +323,55 @@ func frozenCompose(composeFile *paths.Path, lookup func(string) (string, bool)) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to read %s: %w", composeFile, err)
 	}
+	data, err := frozenYAML(content, lookup)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", composeFile, err)
+	}
+	return data, nil
+}
 
+// frozenLookup answers a ${VAR} of a file the resolve step freezes. A value goes in with
+// its $ escaped, a host fact stays the reference the render step answers.
+func frozenLookup(cfg config.Configuration, appEnv types.Mapping) func(string) (string, bool) {
+	return func(name string) (string, bool) {
+		reference := "${" + name + "}"
+		if _, isHostFact := hostVariables[name]; isHostFact {
+			return reference, true
+		}
+		if value, set := appEnv[name]; set {
+			// A secret is in appEnv as a reference to itself: it is read from app.yaml
+			// by the render step only, so it must stay a reference here.
+			if value == reference {
+				return reference, true
+			}
+			return strings.ReplaceAll(value, "$", "$$"), true
+		}
+		// The registry is a fact of the cli: only the configuration reads its environment.
+		if name == "DOCKER_REGISTRY_BASE" {
+			return cfg.DockerRegistryBase(), true
+		}
+		// A variable no brick declares, LOG_LEVEL: answered by whoever resolves the app.
+		value, set := os.LookupEnv(name)
+		return strings.ReplaceAll(value, "$", "$$"), set
+	}
+}
+
+// frozenYAML substitutes the ${VAR} expressions of a yaml document: lookup says which
+// ones are baked in now and which stay a reference.
+func frozenYAML(content []byte, lookup func(string) (string, bool)) ([]byte, error) {
 	var document map[string]any
 	if err := yaml.Unmarshal(content, &document); err != nil {
-		return nil, fmt.Errorf("failed to parse %s: %w", composeFile, err)
+		return nil, fmt.Errorf("failed to parse: %w", err)
 	}
 
 	substituted, err := interpolation.Interpolate(document, interpolation.Options{LookupValue: lookup})
 	if err != nil {
-		return nil, fmt.Errorf("failed to substitute the variables of %s: %w", composeFile, err)
+		return nil, fmt.Errorf("failed to substitute the variables: %w", err)
 	}
 
 	data, err := yaml.Marshal(substituted)
 	if err != nil {
-		return nil, fmt.Errorf("failed to write back %s: %w", composeFile, err)
+		return nil, fmt.Errorf("failed to write back: %w", err)
 	}
 	return data, nil
 }
