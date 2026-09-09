@@ -132,7 +132,7 @@ func BuildRelease(
 	prebuildDir := releaseDir.Join("prebuild")
 
 	cb(StreamMessage{progress: &Progress{Name: "copying the app", Progress: 0.0}})
-	if err := stageReleaseSrc(appToBuild, srcDir); err != nil {
+	if err := stageReleaseSrc(appToBuild, srcDir, bricksIndex); err != nil {
 		return BuildReleaseResult{}, err
 	}
 
@@ -220,7 +220,7 @@ func releaseArchivePath(releaseName string, req BuildReleaseRequest) (*paths.Pat
 
 // stageReleaseSrc copies the app folder as authored: .cache is resolved anew by the
 // build and data is created empty on install.
-func stageReleaseSrc(appToBuild app.ArduinoApp, srcDir *paths.Path) error {
+func stageReleaseSrc(appToBuild app.ArduinoApp, srcDir *paths.Path, bricksIndex *bricksindex.BricksIndex) error {
 	if err := srcDir.MkdirAll(); err != nil {
 		return fmt.Errorf("failed to create the release src dir: %w", err)
 	}
@@ -256,6 +256,25 @@ func stageReleaseSrc(appToBuild app.ArduinoApp, srcDir *paths.Path) error {
 		if err := dst.Parent().MkdirAll(); err != nil {
 			return fmt.Errorf("failed to create %s: %w", relPath.Parent(), err)
 		}
+
+		// app.yaml is written back and not copied: it is where a secret is stored, and
+		// a release is shipped, so it goes out redacted as an export does.
+		if relPath.String() == "app.yaml" { // nolint:goconst
+			desc, err := app.ParseDescriptorFile(entry)
+			if err != nil {
+				return fmt.Errorf("failed to read %s: %w", relPath, err)
+			}
+			redactSecrets(bricksIndex, &desc)
+			data, err := yaml.Marshal(desc)
+			if err != nil {
+				return fmt.Errorf("failed to write %s: %w", relPath, err)
+			}
+			if err := dst.WriteFile(data); err != nil {
+				return fmt.Errorf("failed to write %s: %w", relPath, err)
+			}
+			continue
+		}
+
 		if err := entry.CopyTo(dst); err != nil {
 			return fmt.Errorf("failed to copy %s: %w", relPath, err)
 		}

@@ -286,10 +286,16 @@ func frozenComposeIncludes(composeFiles paths.PathList, genPath *paths.Path, cfg
 	// its $ escaped while a host fact goes in as the live reference render answers.
 	// A `$$` the compose file itself holds is not kept escaped, which no brick uses.
 	lookup := func(name string) (string, bool) {
+		reference := "${" + name + "}"
 		if _, isHostFact := hostVariables[name]; isHostFact {
-			return "${" + name + "}", true
+			return reference, true
 		}
 		if value, set := appEnv[name]; set {
+			// A secret is in appEnv as a reference to itself: it is read from app.yaml
+			// by the render step only, so it must stay a reference here.
+			if value == reference {
+				return reference, true
+			}
 			return strings.ReplaceAll(value, "$", "$$"), true
 		}
 		// A variable no brick declares, LOG_LEVEL or DOCKER_REGISTRY_BASE: answered by
