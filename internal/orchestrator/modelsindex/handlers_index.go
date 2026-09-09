@@ -176,16 +176,115 @@ type handlerModelListOutput struct {
 	Models []handlerModelEntry `json:"models"`
 }
 
+type entryMetadata struct {
+	ModelID string            `json:"model_id"`
+	Handler string            `json:"handler"` // a handler id, e.g. "hf-handler"
+	Inputs  map[string]string `json:"inputs"`
+}
+
 type handlerModelEntry struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Handler     string   `json:"handler"`
-	Platform    string   `json:"platform"`
-	ModelType   string   `json:"model_type"`
-	Path        string   `json:"path"`
-	Installed   bool     `json:"installed"`
-	ModelSizeMB *float64 `json:"model_size_mb"` // from yaml metadata
-	DiskSizeMB  *float64 `json:"disk_size_mb"`  // actual on-disk size, only when installed
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	Handler     string         `json:"handler"`
+	Platform    string         `json:"platform"`
+	ModelType   string         `json:"model_type"`
+	Path        string         `json:"path"`
+	Installed   bool           `json:"installed"`
+	Downloading bool           `json:"downloading"`   // a download is in progress or was interrupted
+	ModelSizeMB *float64       `json:"model_size_mb"` // from yaml metadata
+	DiskSizeMB  *float64       `json:"disk_size_mb"`  // actual on-disk size, only when installed
+	ModelOrigin string         `json:"model_origin"`
+	Metadata    *entryMetadata `json:"download_metadata"`
+}
+
+func (e handlerModelEntry) applyStat(m *AIModel) {
+	// The listing computes the two flags from one marker, and never reports both: a
+	// transfer in flight, or interrupted, is neither installed nor plain absent.
+	// TODO(#585): nothing clears the marker, so an abandoned download reads as in flight.
+	switch {
+	case e.Downloading:
+		m.Status = DownloadingStatus
+	case e.Installed:
+		m.Status = InstalledStatus
+	default:
+		m.Status = NotInstalledStatus
+	}
+	if e.Metadata != nil {
+		m.setSourceURL(e.Metadata.Inputs["model_url"])
+	}
+	if e.Installed && e.DiskSizeMB != nil && *e.DiskSizeMB > 0 {
+		m.Size = uint64(*e.DiskSizeMB * 1024 * 1024)
+	} else if e.ModelSizeMB != nil && *e.ModelSizeMB > 0 {
+		m.Size = uint64(*e.ModelSizeMB * 1024 * 1024)
+	}
+}
+
+const (
+	llmBrickID = "arduino:llm"
+	vlmBrickID = "arduino:vlm"
+)
+
+// bricksForVision says which brick can run a model nothing declares. A projection file is
+// what makes a GGUF multimodal, so a download that fetched one is a vision model.
+func bricksForVision(mmprojURL string) []BrickConfig {
+	if mmprojURL != "" {
+		return []BrickConfig{{ID: vlmBrickID}}
+	}
+	return []BrickConfig{{ID: llmBrickID}}
+}
+
+// setSourceURL records the link a model was downloaded from. The declaration wins: a
+// curated entry names its own source, and that reads the same before and after an install.
+// Into a copy, because a listed model shares its metadata map with its index entry.
+func (m *AIModel) setSourceURL(url string) {
+	if _, declared := m.Metadata["source-model-url"]; url == "" || declared {
+		return
+	}
+	metadata := make(map[string]string, len(m.Metadata)+1)
+	maps.Copy(metadata, m.Metadata)
+	metadata["source-model-url"] = url
+	m.Metadata = metadata
+}
+
+// The handler's own word for a model no models-list.yaml entry declares: the container's
+// ORIGIN_USER, and the only value here that matters.
+const handlerUserOrigin = "user"
+
+func (h *HandlersIndex) userDownloadModel(entry handlerModelEntry) (AIModel, bool) {
+	if entry.ModelOrigin != handlerUserOrigin {
+		return AIModel{}, false
+	}
+	md := entry.Metadata
+	if md == nil || md.Handler == "" || len(md.Inputs) == 0 {
+		// A legacy install: the record is what a re-download or a delete is driven by, so
+		// a current downloader fails the download rather than leave one unrecorded.
+		slog.Warn("skipping model with no download record", "model", entry.ID)
+		return AIModel{}, false
+	}
+	if md.ModelID != entry.ID {
+		// One record per repository directory, and it describes whichever quantization
+		// downloaded last: its variables would send a re-download at the wrong file.
+		slog.Warn("skipping model whose download record names another model",
+			"model", entry.ID, "record", md.ModelID)
+		return AIModel{}, false
+	}
+	if _, ok := h.GetHandlerByID(md.Handler); !ok {
+		slog.Warn("skipping model with unknown handler", "model", entry.ID, "handler", md.Handler)
+		return AIModel{}, false
+	}
+	return AIModel{
+		ID:        entry.ID,
+		Name:      entry.Name,
+		IsBuiltIn: false,
+		Origin:    UserOrigin,
+		Bricks:    bricksForVision(md.Inputs["model_mmproj_url"]),
+		Deployment: &ModelDeployment{
+			Handler: md.Handler,
+			Variables: []map[string]PlatformDeploymentConfig{
+				{h.configEnv["BOARD_NAME"]: {Variables: md.Inputs}},
+			},
+		},
+	}, true
 }
 
 func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient, models []AIModel) ([]AIModel, error) {
@@ -197,62 +296,31 @@ func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient,
 	if err != nil {
 		return models, fmt.Errorf("cannot list models: %w", err)
 	}
-	// Cloning! this works because we are updating only the Installed and Size fields.
+	// A shallow clone: applyStat replaces the maps it writes rather than editing them.
 	modelsInfo := slices.Clone(models)
 	dryIndex := make(map[string]int, len(models))
 	for i, m := range models {
 		dryIndex[m.ID] = i
 	}
 	for _, entry := range entries {
-		i, ok := dryIndex[entry.ID]
+		if i, ok := dryIndex[entry.ID]; ok {
+			entry.applyStat(&modelsInfo[i])
+			continue
+		}
+		model, ok := h.userDownloadModel(entry)
 		if !ok {
 			continue
 		}
-
-		if entry.Installed {
-			modelsInfo[i].Status = InstalledStatus
-		} else {
-			modelsInfo[i].Status = NotInstalledStatus
-		}
-		if entry.Installed && entry.DiskSizeMB != nil && *entry.DiskSizeMB > 0 {
-			modelsInfo[i].Size = uint64(*entry.DiskSizeMB * 1024 * 1024)
-		} else if entry.ModelSizeMB != nil && *entry.ModelSizeMB > 0 {
-			modelsInfo[i].Size = uint64(*entry.ModelSizeMB * 1024 * 1024)
-		}
+		entry.applyStat(&model)
+		modelsInfo = append(modelsInfo, model)
 	}
 	return modelsInfo, nil
-}
-
-func runInfoAction(ctx context.Context, cli client.APIClient, handler ModelHandler, model AIModel, plat platform.Platform, configEnv map[string]string) (uint64, error) {
-	envVars := model.Deployment.VariablesForPlatform(plat.BoardName)
-	maps.Insert(envVars, maps.All(configEnv))
-
-	var size uint64
-	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
-		Image: ResolveVars(handler.Image, envVars),
-		Cmd:   handler.Actions.Info,
-		Binds: ResolveVarsSlice(handler.Volumes, envVars),
-		Env:   envVars,
-		Stdout: f.NewCallbackWriter(func(line string) {
-			var out struct {
-				Event  string  `json:"event"`
-				SizeMB float64 `json:"size_mb"`
-			}
-			if jsonErr := json.Unmarshal([]byte(line), &out); jsonErr == nil && out.Event == "stat" && out.SizeMB > 0 {
-				size = uint64(out.SizeMB * 1024 * 1024)
-			}
-		}),
-	})
-	if err != nil {
-		return 0, fmt.Errorf("info action: %w", err)
-	}
-	return size, nil
 }
 
 func runListAction(ctx context.Context, cli client.APIClient, listing *ListingConfig, configEnv map[string]string) ([]handlerModelEntry, error) {
 	slog.Debug("running list action", "image", listing.Image)
 
-	var buf bytes.Buffer
+	var buf, stderr bytes.Buffer
 	start := time.Now()
 	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
 		Image:  ResolveVars(listing.Image, configEnv),
@@ -260,15 +328,18 @@ func runListAction(ctx context.Context, cli client.APIClient, listing *ListingCo
 		Binds:  ResolveVarsSlice(listing.Volumes, configEnv),
 		Env:    configEnv,
 		Stdout: &buf,
+		Stderr: &stderr,
 	})
 	slog.Debug("list action finished", "duration_s", time.Since(start).Seconds())
 	if err != nil {
-		return nil, fmt.Errorf("list action: %w", err)
+		return nil, fmt.Errorf("list action: %w: %s", err, stderr.String())
 	}
 
 	var output handlerModelListOutput
 	if err := json.Unmarshal(buf.Bytes(), &output); err != nil {
-		return nil, fmt.Errorf("parsing list output: %w", err)
+		// The container's own words: without them a listing that prints nothing gives no
+		// reason at all.
+		return nil, fmt.Errorf("parsing list output: %w: %s", err, stderr.String())
 	}
 
 	return output.Models, nil
@@ -289,6 +360,12 @@ type StreamMessage struct {
 	data     string
 	progress *Progress
 	done     string
+	model    *DownloadedModel
+}
+
+type DownloadedModel struct {
+	ID   string
+	Size uint64
 }
 
 type Progress struct {
@@ -306,6 +383,10 @@ func (p *StreamMessage) GetData() string        { return p.data }
 func (p *StreamMessage) GetError() string       { return p.err }
 func (p *StreamMessage) GetProgress() *Progress { return p.progress }
 func (p *StreamMessage) GetDone() string        { return p.done }
+
+// GetModel is nil until the handler names what it wrote, and stays nil for a handler too
+// old to report it.
+func (p *StreamMessage) GetModel() *DownloadedModel { return p.model }
 func (p *StreamMessage) GetType() MessageType {
 	if p.IsData() {
 		return InfoType
@@ -322,15 +403,33 @@ func (p *StreamMessage) GetType() MessageType {
 	return UnknownType
 }
 
+// The events a download handler reports. StreamMessage keeps its fields unexported, so a
+// message always carries exactly one kind of payload.
+func NewInfoMessage(description string, model *DownloadedModel) StreamMessage {
+	return StreamMessage{data: description, model: model}
+}
+
+func NewProgressMessage(p Progress) StreamMessage {
+	return StreamMessage{progress: &p}
+}
+
+func NewErrorMessage(description string) StreamMessage {
+	return StreamMessage{err: description}
+}
+
+func NewDoneMessage(description string) StreamMessage {
+	return StreamMessage{done: description}
+}
+
 func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
 	var raw struct {
-		Event       string   `json:"event"`
-		Description string   `json:"description"`
-		Current     int64    `json:"current"`
-		Total       int64    `json:"total"`
-		SizeMB      float64  `json:"size_mb"`
-		Unit        string   `json:"unit"`
-		Artifacts   []string `json:"artifacts"`
+		Event       string  `json:"event"`
+		Description string  `json:"description"`
+		Current     int64   `json:"current"`
+		Total       int64   `json:"total"`
+		SizeMB      float64 `json:"size_mb"`
+		Unit        string  `json:"unit"`
+		ModelID     string  `json:"model_id"`
 	}
 	if err := json.Unmarshal([]byte(line), &raw); err != nil {
 		slog.Debug("non-JSON stdout from handler", "line", line)
@@ -339,26 +438,28 @@ func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
 
 	switch raw.Event {
 	case "start":
-		publish(StreamMessage{
-			data: raw.Description,
-		})
+		publish(NewInfoMessage(raw.Description, nil))
 	case "update":
-		publish(StreamMessage{
-			progress: &Progress{
-				Name:     raw.Description,
-				Current:  raw.Current,
-				Total:    raw.Total,
-				Progress: float32(raw.Current) / float32(raw.Total) * 100,
-			},
-		})
+		publish(NewProgressMessage(Progress{
+			Name:     raw.Description,
+			Current:  raw.Current,
+			Total:    raw.Total,
+			Progress: float32(raw.Current) / float32(raw.Total) * 100,
+		}))
 	case "complete":
-		publish(StreamMessage{
-			done: "download complete",
-		})
+		publish(NewDoneMessage("download complete"))
+	case "info":
+		// The model the handler made of the files it wrote. The event lists the files too,
+		// but the id is reported outright now, so nothing parses them.
+		var model *DownloadedModel
+		if raw.ModelID != "" {
+			// Reported only once the handler has recorded the model, so an id here means
+			// a later listing can resolve it too.
+			model = &DownloadedModel{ID: raw.ModelID, Size: uint64(raw.SizeMB * 1024 * 1024)}
+		}
+		publish(NewInfoMessage(raw.Description, model))
 	case "error":
-		publish(StreamMessage{
-			err: raw.Description,
-		})
+		publish(NewErrorMessage(raw.Description))
 	default:
 		slog.Warn("unknown event from handler", "event", raw.Event, "line", line)
 	}

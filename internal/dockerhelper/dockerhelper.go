@@ -60,9 +60,14 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 		return err
 	}
 
-	env := make([]string, 0, len(opts.Env))
+	env := make([]string, 0, len(opts.Env)+1)
 	for k, v := range opts.Env {
 		env = append(env, k+"="+v)
+	}
+	if _, set := opts.Env["HOME"]; !set {
+		// The image's own HOME belongs to its user, and the container runs as the host's
+		// user instead. A writable HOME lets python write its caches whatever the id is.
+		env = append(env, "HOME=/tmp")
 	}
 
 	resp, err := cli.ContainerCreate(ctx,
