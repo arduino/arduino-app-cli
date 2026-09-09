@@ -83,7 +83,7 @@ func TestWriteReleaseArchive(t *testing.T) {
 
 	sketchRunner := byName["my-app-1.0.0-unoq/src/python/run.sh"]
 	require.NotNil(t, sketchRunner)
-	assert.Equal(t, os.FileMode(0o755), os.FileMode(sketchRunner.Mode).Perm())
+	assert.Equal(t, int64(0o755), sketchRunner.Mode&0o777)
 
 	link := byName["my-app-1.0.0-unoq/prebuild/.venv/bin/python"]
 	require.NotNil(t, link)

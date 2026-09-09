@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -92,7 +91,7 @@ to the one running the build.`,
 // standard input when the flag is -, so a note can be piped in as it is written.
 func readReleaseNotes(notes string) string {
 	if notes == "-" {
-		data, err := io.ReadAll(os.Stdin)
+		data, err := io.ReadAll(feedback.GetStdin())
 		if err != nil {
 			feedback.Fatal("Cannot read the release notes from the standard input: "+err.Error(), feedback.ErrBadArgument)
 		}
