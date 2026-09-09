@@ -37,6 +37,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/pipewire"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/secrets"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -200,6 +201,23 @@ func StartApp(
 	}
 
 	if appToStart.MainPythonFile != nil {
+		// The secrets of the app, by the id its folder has on this board. What the api
+		// wrote in app.yaml is moved into the store here, and app.yaml is blanked. It
+		// happens once the app is known to be startable, and only where it is read:
+		// nothing else in a start needs a secret.
+		appToStartID, err := appid.NewAppProvider(cfg, platform).IDFromPath(appToStart.FullPath)
+		if err != nil {
+			return fmt.Errorf("cannot identify the app to start: %w", err)
+		}
+		secretsStore := secrets.NewStore(cfg)
+		if err := secrets.Adopt(secretsStore, appToStartID, &appToStart, bricksIndex); err != nil {
+			return fmt.Errorf("cannot store the secrets of the app: %w", err)
+		}
+		storedSecrets, err := secretsStore.Get(appToStartID)
+		if err != nil {
+			return fmt.Errorf("cannot read the secrets of the app: %w", err)
+		}
+
 		appEnv := appEnvironment(ctx, appToStart, bricksIndex, modelsIndex, platform)
 
 		cb(StreamMessage{data: "python provisioning"})
@@ -219,7 +237,7 @@ func StartApp(
 		// What the template references, answered on this board: for a release the app
 		// half will come from the bundle instead of being resolved again here.
 		env := hostEnvironment(ctx, appToStart.FullPath, cfg).Merge(appEnv)
-		if err := provisioner.Render(ctx, &appToStart, env, appSecrets(appToStart, bricksIndex)); err != nil {
+		if err := provisioner.Render(ctx, &appToStart, env, appSecrets(appToStart, bricksIndex, storedSecrets)); err != nil {
 			return err
 		}
 
@@ -838,13 +856,29 @@ func CloneApp(
 	if err != nil {
 		return CloneAppResponse{}, fmt.Errorf("failed to get app id: %w", err)
 	}
+
+	// The secrets are not in the copied files: the clone gets its own copy of them,
+	// so it starts with the same values the origin runs with.
+	if err := secrets.NewStore(cfg).Copy(req.FromID, id); err != nil {
+		return CloneAppResponse{}, fmt.Errorf("failed to copy the secrets of the app: %w", err)
+	}
+
 	return CloneAppResponse{ID: id}, nil
 }
 
-func DeleteApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration) error {
+func DeleteApp(ctx context.Context, dockerClient command.Cli, platform platform.Platform, app app.ArduinoApp, idProvider *appid.Provider, cfg config.Configuration) error {
 	// We try to remove docker related resources at best effort
 	_ = StopAndDestroyApp(ctx, dockerClient, platform, app, cfg, func(StreamMessage) {})
 	// TODO: Shall we report stop error?
+
+	// Remove the secrets stored for the app that is being deleted.
+	id, err := idProvider.IDFromPath(app.FullPath)
+	if err != nil {
+		return fmt.Errorf("cannot identify the app to delete: %w", err)
+	}
+	if err := secrets.NewStore(cfg).Delete(id); err != nil {
+		return fmt.Errorf("cannot delete the secrets of the app: %w", err)
+	}
 
 	return app.FullPath.RemoveAll()
 }
@@ -905,6 +939,7 @@ type AppEditRequest struct {
 func EditApp(
 	req AppEditRequest,
 	editApp *app.ArduinoApp,
+	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) (editErr error) {
 	if req.Default != nil {
@@ -932,11 +967,25 @@ func EditApp(
 		if newPath.Exist() {
 			return ErrAppAlreadyExists
 		}
+		// The id of an app is its folder, so a rename is a new id: the old id is read
+		// while the folder is still there, and the secrets follow it.
+		oldID, err := idProvider.IDFromPath(editApp.FullPath)
+		if err != nil {
+			return fmt.Errorf("cannot identify the app to edit: %w", err)
+		}
 		if err := editApp.FullPath.Rename(newPath); err != nil {
 			return fmt.Errorf("failed to rename app path: %w", err)
 		}
 		editApp.FullPath = newPath
 		editApp.Name = editApp.Descriptor.Name
+
+		newID, err := idProvider.IDFromPath(newPath)
+		if err != nil {
+			return fmt.Errorf("cannot identify the renamed app: %w", err)
+		}
+		if err := secrets.NewStore(cfg).Move(oldID, newID); err != nil {
+			return fmt.Errorf("failed to move the secrets of the app: %w", err)
+		}
 	}
 
 	return editApp.Save()

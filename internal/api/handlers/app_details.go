@@ -103,7 +103,7 @@ func HandleAppDetailsEdits(
 				Description: editRequest.Description,
 			}
 		}
-		err = orchestrator.EditApp(appEditRequest, &appToEdit, cfg)
+		err = orchestrator.EditApp(appEditRequest, &appToEdit, idProvider, cfg)
 		if err != nil {
 			switch {
 			case errors.Is(err, app.ErrInvalidApp):

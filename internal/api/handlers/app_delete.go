@@ -44,7 +44,7 @@ func HandleAppDelete(
 			return
 		}
 
-		err = orchestrator.DeleteApp(r.Context(), dockerClient, platform, app, cfg)
+		err = orchestrator.DeleteApp(r.Context(), dockerClient, platform, app, idProvider, cfg)
 		if err != nil {
 			slog.Error("Unable to delete the app", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to delete the app"})

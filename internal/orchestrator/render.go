@@ -100,8 +100,13 @@ func renderComposeFile(ctx context.Context, arduinoApp *app.ArduinoApp, env, sec
 	// docker compose interpolates the file it is given, and compose-go escapes nothing
 	// it writes: a value holding a $ would be substituted a second time.
 	data = bytes.ReplaceAll(data, []byte("$"), []byte("$$"))
+	// The only file that holds a resolved secret, read by docker compose as this user.
 	composeFile := arduinoApp.AppComposeFilePath()
-	if err := fatomic.WriteFile(composeFile.String(), data, 0644); err != nil {
+	if err := fatomic.WriteFile(composeFile.String(), data, 0600); err != nil {
+		return nil, err
+	}
+	// renameio keeps the mode a file already has, and older apps have it 0644.
+	if err := os.Chmod(composeFile.String(), 0600); err != nil {
 		return nil, err
 	}
 	slog.Debug("wrote the app compose file", slog.String("path", composeFile.String()))
