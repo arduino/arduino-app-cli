@@ -54,6 +54,7 @@ func generateComposeTemplate(
 	cfg config.Configuration,
 	appEnv types.Mapping,
 	platform platform.Platform,
+	opts BuildOptions,
 ) error {
 	slog.Debug("Generating main compose file for the App")
 
@@ -148,9 +149,13 @@ func generateComposeTemplate(
 		Services map[string]any `yaml:"services,omitempty"`
 	}
 	// Merge compose
-	composeProjectName, err := getAppComposeProjectNameFromApp(*arduinoApp, cfg)
-	if err != nil {
-		return err
+	composeProjectName := opts.ProjectName
+	if composeProjectName == "" {
+		name, err := getAppComposeProjectNameFromApp(*arduinoApp, cfg)
+		if err != nil {
+			return err
+		}
+		composeProjectName = name
 	}
 	mainAppCompose.Name = composeProjectName
 
@@ -237,12 +242,8 @@ func generateComposeTemplate(
 		GroupAdd:          groupExprs(groupNames),
 		DeviceCgroupRules: cgroupRuleExprs(deviceDrivers),
 		ExtraHosts:        []string{"msgpack-rpc-router:host-gateway"},
-		Labels: map[string]string{
-			DockerAppLabel:     "true",
-			DockerAppMainLabel: "true",
-			DockerAppPathLabel: appHomeRef,
-		},
-		Environment: templateEnvironment(appEnv),
+		Labels:            mainServiceLabels(opts),
+		Environment:       templateEnvironment(appEnv),
 		Logging: &logging{
 			Driver: "json-file",
 			Options: map[string]string{
@@ -379,6 +380,16 @@ func writeOverrideTemplate(genPath *paths.Path, services []serviceInfo, appEnv t
 		return err
 	}
 	return overrideTemplateFile.WriteFile(data)
+}
+
+func mainServiceLabels(opts BuildOptions) map[string]string {
+	labels := map[string]string{
+		DockerAppLabel:     "true",
+		DockerAppMainLabel: "true",
+		DockerAppPathLabel: appHomeRef,
+	}
+	maps.Insert(labels, maps.All(opts.Labels))
+	return labels
 }
 
 // servicesOverrides is what to apply to the services the brick and service composes

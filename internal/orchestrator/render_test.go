@@ -211,7 +211,7 @@ bricks:
 	// A brick is free to declare a variable holding a template of its own.
 	appEnv := types.Mapping{"FOO": "bar", "PROMPT": "Hello {{ name }}, reply"}
 	require.NoError(t, generateComposeTemplate(&arduinoApp, arduinoApp.ProvisioningStateDir(), bricksIndex,
-		servicesIndex, "python-apps-base:latest", cfg, appEnv, unkownPlatform))
+		servicesIndex, "python-apps-base:latest", cfg, appEnv, unkownPlatform, BuildOptions{ProjectName: "test-app"}))
 
 	env := hostEnvironment(t.Context(), arduinoApp.FullPath, cfg).Merge(appEnv)
 	prj, err := renderComposeFile(t.Context(), &arduinoApp, env, types.Mapping{})
