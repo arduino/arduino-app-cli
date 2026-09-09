@@ -234,8 +234,12 @@ func generateComposeTemplate(
 		GroupAdd:          groupExprs(groupNames),
 		DeviceCgroupRules: cgroupRuleExprs(deviceDrivers),
 		ExtraHosts:        []string{"msgpack-rpc-router:host-gateway"},
-		Labels:            mainServiceLabels(opts),
-		Environment:       templateEnvironment(appEnv),
+		Labels: map[string]string{
+			DockerAppLabel:     "true",
+			DockerAppMainLabel: "true",
+			DockerAppPathLabel: appHomeRef,
+		},
+		Environment: templateEnvironment(appEnv),
 		Logging: &logging{
 			Driver: "json-file",
 			Options: map[string]string{
@@ -372,16 +376,6 @@ func writeOverrideTemplate(genPath *paths.Path, services []serviceInfo, appEnv t
 		return err
 	}
 	return overrideTemplateFile.WriteFile(data)
-}
-
-func mainServiceLabels(opts BuildOptions) map[string]string {
-	labels := map[string]string{
-		DockerAppLabel:     "true",
-		DockerAppMainLabel: "true",
-		DockerAppPathLabel: appHomeRef,
-	}
-	maps.Insert(labels, maps.All(opts.Labels))
-	return labels
 }
 
 // servicesOverrides is what to apply to the services the brick and service composes
