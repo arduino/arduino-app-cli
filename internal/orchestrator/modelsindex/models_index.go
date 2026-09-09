@@ -305,13 +305,28 @@ func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, custom
 	}, nil
 }
 
+// WriteModelsList writes the models into dir as models-list.yaml states them.
+func WriteModelsList(dir *paths.Path, models []AIModel) error {
+	list := assetsModelList{Models: make([]map[string]AIModel, 0, len(models))}
+	for _, model := range models {
+		list.Models = append(list.Models, map[string]AIModel{model.ID: model})
+	}
+	data, err := yaml.Marshal(list)
+	if err != nil {
+		return err
+	}
+	return dir.Join(modelsListFileName).WriteFile(data)
+}
+
+const modelsListFileName = "models-list.yaml"
+
 func loadInternalModels(dir *paths.Path, handlers *HandlersIndex) ([]AIModel, error) {
 	if dir == nil {
 		// skip loading internal models
 		return []AIModel{}, nil
 	}
 
-	content, err := dir.Join("models-list.yaml").ReadFile()
+	content, err := dir.Join(modelsListFileName).ReadFile()
 	if err != nil {
 		return nil, err
 	}
