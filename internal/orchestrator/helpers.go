@@ -160,10 +160,9 @@ func getRunningApp(
 	return &app, nil
 }
 
-// getAppComposeServices are the compose services docker has for the app. Read from the
-// container labels, never from the compose file: an update replaces the assets that the
-// file the app was started from includes.
-func getAppComposeServices(ctx context.Context, docker dockerClient.APIClient, app app.ArduinoApp) ([]string, error) {
+// getAppServicesFromContainers returns the app compose services from the container labels.
+// The compose file is not a source: an update removes the brick files that it includes.
+func getAppServicesFromContainers(ctx context.Context, docker dockerClient.APIClient, app app.ArduinoApp) ([]string, error) {
 	containers, err := docker.ContainerList(ctx, container.ListOptions{
 		All:     true,
 		Filters: filters.NewArgs(filters.Arg("label", DockerAppPathLabel+"="+app.FullPath.String())),

@@ -368,10 +368,8 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 	}
 
 	if app.MainPythonFile != nil {
-		// Stopped by project name, never by the compose file: the file the app was
-		// started from includes the asset dir of its version, which an update removes.
-		// Compose works from the container labels here, and exits 0 when the project
-		// has no container, which is the case when the app was never started.
+		// The project name stops the compose project without its compose file, which
+		// an update can remove or change.
 		projectName, err := getAppComposeProjectNameFromApp(app, cfg)
 		if err != nil {
 			return err

@@ -51,18 +51,18 @@ func AppLogs(
 		return helpers.EmptyIter[LogMessage](), nil
 	}
 
+	services, err := getAppServicesFromContainers(ctx, dockerCli.Client(), app)
+	if err != nil {
+		return nil, err
+	}
+	// No container, so the app was never started
+	if len(services) == 0 {
+		return helpers.EmptyIter[LogMessage](), nil
+	}
+
 	projectName, err := getAppComposeProjectNameFromApp(app, cfg)
 	if err != nil {
 		return nil, err
-	}
-
-	// In case the app was never started
-	services, err := getAppComposeServices(ctx, dockerCli.Client(), app)
-	if err != nil {
-		return nil, err
-	}
-	if len(services) == 0 {
-		return helpers.EmptyIter[LogMessage](), nil
 	}
 
 	bricksIndex = bricksIndex.WithAppBricks(app.LocalBricks)
@@ -94,24 +94,27 @@ func AppLogs(
 		}
 	}
 
-	filteredServices := services
 	if req.ShowAppLogs && !req.ShowServicesLogs {
-		filteredServices = []string{"main"}
+		services = []string{"main"}
 	} else if req.ShowServicesLogs && !req.ShowAppLogs {
-		filteredServices = f.Filter(filteredServices, f.NotEquals("main"))
+		services = f.Filter(services, f.NotEquals("main"))
+	}
+	// An empty service list makes docker compose show all the containers of the project
+	if len(services) == 0 {
+		return helpers.EmptyIter[LogMessage](), nil
 	}
 
 	backend := compose.NewComposeService(dockerCli).(commands.Backend)
 	return func(yield func(LogMessage) bool) {
 		opts := api.LogOptions{
 			Follow:     req.Follow,
-			Services:   filteredServices,
+			Services:   services,
 			Timestamps: false,
 		}
 		if req.Tail != nil {
 			opts.Tail = fmt.Sprintf("%d", *req.Tail)
 		}
-		err = backend.Logs(
+		err := backend.Logs(
 			ctx,
 			projectName,
 			NewDockerLogConsumer(ctx, yield, serviceToBrickMapping),
