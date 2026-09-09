@@ -97,6 +97,15 @@ func NewProvision(
 	return provision, nil
 }
 
+// BuildOptions tunes the generation for a release build. The zero value is the
+// normal provisioning of an app.
+type BuildOptions struct {
+	// ProjectName is baked in when it cannot be derived from where the app sits.
+	ProjectName string
+	// Labels are added to the main service.
+	Labels map[string]string
+}
+
 // Resolve turns the app bricks and services into the compose templates it is started
 // from, deriving them from the app and the target board and never from this host.
 func (p *Provision) Resolve(
@@ -107,6 +116,7 @@ func (p *Provision) Resolve(
 	cfg config.Configuration,
 	appEnv types.Mapping,
 	platform platform.Platform,
+	opts BuildOptions,
 ) error {
 	if arduinoApp == nil {
 		return fmt.Errorf("provisioning failed: arduinoApp is nil")
@@ -121,7 +131,7 @@ func (p *Provision) Resolve(
 
 	bricksIndex = bricksIndex.WithAppBricks(arduinoApp.LocalBricks)
 
-	return generateComposeTemplate(arduinoApp, genPath, bricksIndex, servicesIndex, p.pythonImage, cfg, appEnv, platform)
+	return generateComposeTemplate(arduinoApp, genPath, bricksIndex, servicesIndex, p.pythonImage, cfg, appEnv, platform, opts)
 }
 
 // Render evaluates the templates against the board the app is being started on and
