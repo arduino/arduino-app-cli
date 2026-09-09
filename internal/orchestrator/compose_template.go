@@ -149,15 +149,7 @@ func generateComposeTemplate(
 		Services map[string]any `yaml:"services,omitempty"`
 	}
 	// Merge compose
-	composeProjectName := opts.ProjectName
-	if composeProjectName == "" {
-		name, err := getAppComposeProjectNameFromApp(*arduinoApp, cfg)
-		if err != nil {
-			return err
-		}
-		composeProjectName = name
-	}
-	mainAppCompose.Name = composeProjectName
+	mainAppCompose.Name = opts.ProjectName
 
 	includes, err := frozenComposeIncludes(composeFiles, genPath, cfg, appEnv)
 	if err != nil {
