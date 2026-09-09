@@ -8,6 +8,8 @@ package app
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -59,10 +61,7 @@ to the one running the build.`,
 				Overwrite: overwrite,
 			}
 			if notes != "" {
-				req.Notes = paths.New(notes)
-				if req.Notes.NotExist() {
-					feedback.Fatal(fmt.Sprintf("Notes file %q not found", notes), feedback.ErrBadArgument)
-				}
+				req.Notes = readReleaseNotes(notes)
 			}
 			if output != "" {
 				req.Output = paths.New(output)
@@ -82,11 +81,29 @@ to the one running the build.`,
 
 	cmd.Flags().StringVar(&target, "target", "", fmt.Sprintf("Board the release is built for (%s). Defaults to the board running the build", strings.Join(platform.SupportedBoards(), ", ")))
 	cmd.Flags().StringVar(&version, "version", "", "Release version. Defaults to a UTC timestamp")
-	cmd.Flags().StringVar(&notes, "notes", "", "File with the release notes")
+	cmd.Flags().StringVar(&notes, "notes", "", "File with the release notes, or - to read them from the standard input")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output archive, or the directory to write it in")
 	cmd.Flags().BoolVar(&overwrite, "overwrite", false, "Overwrite the output archive if it exists")
 
 	return cmd
+}
+
+// readReleaseNotes is the note the release ships in its manifest: a file, or the
+// standard input when the flag is -, so a note can be piped in as it is written.
+func readReleaseNotes(notes string) string {
+	if notes == "-" {
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			feedback.Fatal("Cannot read the release notes from the standard input: "+err.Error(), feedback.ErrBadArgument)
+		}
+		return string(data)
+	}
+
+	data, err := paths.New(notes).ReadFile()
+	if err != nil {
+		feedback.Fatal(fmt.Sprintf("Cannot read the notes file %q: %v", notes, err), feedback.ErrBadArgument)
+	}
+	return string(data)
 }
 
 func buildHandler(ctx context.Context, cfg config.Configuration, appToBuild app.ArduinoApp, req orchestrator.BuildReleaseRequest) error {

@@ -23,6 +23,7 @@ import (
 	"github.com/docker/cli/cli/command"
 	yaml "github.com/goccy/go-yaml"
 	"github.com/gosimple/slug"
+	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -34,15 +35,15 @@ import (
 )
 
 // A release is an app frozen with all its dependencies: <name>-<version>-<target>/
-// holds NOTES.md, src/ as authored and prebuild/, which becomes .cache/ on install.
+// holds release.yaml, src/ as authored and prebuild/, which becomes .cache/ on install.
 
 type BuildReleaseRequest struct {
 	// Target defaults to the board running the build.
 	Target string
 	// Version defaults to a UTC timestamp, which keeps the releases of an app ordered.
 	Version string
-	// Notes ships as NOTES.md.
-	Notes *paths.Path
+	// Notes is the release note, markdown, and goes in the manifest as it is given.
+	Notes string
 	// Output is the archive, or the directory to write it in. Defaults to the cwd.
 	Output    *paths.Path
 	Overwrite bool
@@ -55,8 +56,9 @@ type BuildReleaseResult struct {
 	Archive string `json:"archive"`
 }
 
-// ReleaseManifestFileName is the manifest at the root of the archive. It holds the
-// release level facts only: the app is described by app.yaml and by the compose files.
+// ReleaseManifestFileName is the manifest at the root of the archive. It holds what a
+// board needs to list a release and to gate its install, so nothing here requires
+// opening the app it ships.
 const ReleaseManifestFileName = "release.yaml"
 
 // ReleaseManifestSchema is the layout of the archive, not the version of the app: an
@@ -65,9 +67,31 @@ const ReleaseManifestSchema = 1
 
 type ReleaseManifest struct {
 	Schema  int    `yaml:"schema"`
+	Name    string `yaml:"name"`
 	Version string `yaml:"version"`
 	// Target is the board the release is built for, gated on at install and start.
 	Target string `yaml:"target"`
+	// Notes is the release note as it was authored, markdown, and is absent when none
+	// was given. It is held here and not in a file of its own: a reader must get every
+	// release fact without extracting anything else from the archive.
+	Notes     string         `yaml:"notes,omitempty"`
+	Bricks    []ReleaseBrick `yaml:"bricks,omitempty"`
+	Models    []ReleaseModel `yaml:"models,omitempty"`
+	Libraries []string       `yaml:"libraries,omitempty"`
+}
+
+// ReleaseBrick is a brick of the app as the build wired it: the model is part of what a
+// release freezes, so it is stated here and not derived again on the board.
+type ReleaseBrick struct {
+	ID    string `yaml:"id"`
+	Model string `yaml:"model,omitempty"`
+}
+
+// ReleaseModel is an AI model the app is built with. The id holds the runner and the
+// variant, which is as close to a version as a model gets.
+type ReleaseModel struct {
+	ID   string `yaml:"id"`
+	Name string `yaml:"name,omitempty"`
 }
 
 // BuildRelease provisions an app for the target board and builds its python
@@ -136,14 +160,18 @@ func BuildRelease(
 		return BuildReleaseResult{}, err
 	}
 
-	if err := writeReleaseManifest(releaseDir, ReleaseManifest{Schema: ReleaseManifestSchema, Version: version, Target: plat.BoardName}); err != nil {
-		return BuildReleaseResult{}, err
+	manifest := ReleaseManifest{
+		Schema:    ReleaseManifestSchema,
+		Name:      appToBuild.Name,
+		Version:   version,
+		Target:    plat.BoardName,
+		Notes:     req.Notes,
+		Bricks:    releaseBricks(appToBuild.Descriptor),
+		Models:    releaseModels(ctx, appToBuild.Descriptor, modelsIndex),
+		Libraries: releaseLibraries(ctx, appToBuild),
 	}
-
-	if req.Notes != nil {
-		if err := req.Notes.CopyTo(releaseDir.Join("NOTES.md")); err != nil {
-			return BuildReleaseResult{}, fmt.Errorf("failed to copy the release notes: %w", err)
-		}
+	if err := writeReleaseManifest(releaseDir, manifest); err != nil {
+		return BuildReleaseResult{}, err
 	}
 
 	// Loaded back from the staging dir: the provisioning must read the copy that ships.
@@ -183,7 +211,9 @@ func BuildRelease(
 }
 
 func writeReleaseManifest(releaseDir *paths.Path, manifest ReleaseManifest) error {
-	data, err := yaml.Marshal(manifest)
+	// The note is markdown and is read by people as well: a block keeps its line breaks
+	// where an escaped string would bury them.
+	data, err := yaml.MarshalWithOptions(manifest, yaml.UseLiteralStyleIfMultiline(true))
 	if err != nil {
 		return fmt.Errorf("failed to write the release manifest: %w", err)
 	}
@@ -191,6 +221,48 @@ func writeReleaseManifest(releaseDir *paths.Path, manifest ReleaseManifest) erro
 		return fmt.Errorf("failed to write the release manifest: %w", err)
 	}
 	return nil
+}
+
+// releaseBricks is the bricks of the app and the model each is wired with.
+func releaseBricks(descriptor app.AppDescriptor) []ReleaseBrick {
+	return f.Map(descriptor.Bricks, func(brick app.Brick) ReleaseBrick {
+		return ReleaseBrick{ID: brick.ID, Model: brick.Model}
+	})
+}
+
+// releaseModels is the AI models the bricks of the app are wired with, each stated once.
+func releaseModels(ctx context.Context, descriptor app.AppDescriptor, modelsIndex *modelsindex.ModelsIndex) []ReleaseModel {
+	lookup := modelsIndex.NewLookup()
+
+	models := make([]ReleaseModel, 0, len(descriptor.Bricks))
+	for _, brick := range descriptor.Bricks {
+		if brick.Model == "" || slices.ContainsFunc(models, func(m ReleaseModel) bool { return m.ID == brick.Model }) {
+			continue
+		}
+		model := ReleaseModel{ID: brick.Model}
+		if found, err := lookup.ByID(ctx, brick.Model); err != nil {
+			slog.Warn("cannot name the model of a brick in the release manifest", slog.String("model_id", brick.Model), slog.String("error", err.Error()))
+		} else if found != nil {
+			model.Name = found.Name
+		}
+		models = append(models, model)
+	}
+	return models
+}
+
+// releaseLibraries is the sketch libraries the app is built with, as name@version. An
+// app without a sketch has none, and a listing that fails leaves the manifest without
+// them: it is what a release is described by, never what it is built from.
+func releaseLibraries(ctx context.Context, arduinoApp app.ArduinoApp) []string {
+	if _, hasSketch := arduinoApp.GetSketchPath(); !hasSketch {
+		return nil
+	}
+	libraries, err := ListSketchLibraries(ctx, arduinoApp)
+	if err != nil {
+		slog.Warn("cannot list the sketch libraries for the release manifest", slog.String("error", err.Error()))
+		return nil
+	}
+	return f.Map(libraries, LibraryReleaseID.String)
 }
 
 // A gzipped tar and not a zip: the venv needs symlinks and exec bits preserved.
