@@ -189,10 +189,7 @@ func HandleBrickUpdates(
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
 			return
 		}
-		if appId.IsRelease() {
-			render.EncodeResponse(w, http.StatusForbidden, models.ErrorResponse{Details: "cannot alter a release"})
-			return
-		}
+		// A release takes one change, its secrets, which the service is what gates.
 		appPath := appId.ToPath()
 
 		app, err := app.Load(appPath)
@@ -223,6 +220,10 @@ func HandleBrickUpdates(
 		err = brickService.BrickUpdate(r.Context(), req, app)
 		if err != nil {
 			slog.Error("Unable to update the brick", slog.String("error", err.Error()))
+			if errors.Is(err, bricks.ErrReleaseSecretsOnly) {
+				render.EncodeResponse(w, http.StatusForbidden, models.ErrorResponse{Details: err.Error()})
+				return
+			}
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to update the brick"})
 
 			return
