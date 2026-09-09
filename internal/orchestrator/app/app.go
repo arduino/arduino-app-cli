@@ -167,12 +167,31 @@ func (a *ArduinoApp) ProvisioningStateDir() *paths.Path {
 	return a.FullPath.Join(".cache")
 }
 
+// The compose files the provisioning generates. They are exported because the
+// provisioning also writes them outside of an app folder, when building a release.
+const (
+	MainComposeFileName     = "app-compose.yaml"
+	OverrideComposeFileName = "app-compose-overrides.yaml"
+)
+
 func (a *ArduinoApp) AppComposeFilePath() *paths.Path {
-	return a.ProvisioningStateDir().Join("app-compose.yaml")
+	return a.ProvisioningStateDir().Join(MainComposeFileName)
 }
 
 func (a *ArduinoApp) AppComposeOverrideFilePath() *paths.Path {
-	return a.ProvisioningStateDir().Join("app-compose-overrides.yaml")
+	return a.ProvisioningStateDir().Join(OverrideComposeFileName)
+}
+
+func (a *ArduinoApp) AppComposeFiles() paths.PathList {
+	files := paths.PathList{a.AppComposeFilePath()}
+	if override := a.AppComposeOverrideFilePath(); override.Exist() {
+		files.Add(override)
+	}
+	return files
+}
+
+func (a *ArduinoApp) RuntimeEnvFilePath() *paths.Path {
+	return a.ProvisioningStateDir().Join("runtime.env")
 }
 
 func (a *ArduinoApp) getAppDescriptionFromReadme() (string, error) {
