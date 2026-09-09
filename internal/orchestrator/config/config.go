@@ -211,44 +211,27 @@ func (c *Configuration) ExamplesDirs(platform platform.Platform) paths.PathList 
 	return paths.PathList{c.ExamplesBaseDir().Join("inspirational").Join("common")}
 }
 
-type ResolvedRequiredRuntime struct {
-	Path  *paths.Path
+type RequiredRuntimeCandidate struct {
+	Paths []string
 	Group string
 }
 
-// RequiredRuntimes returns the configured required units that are available on
-// the host, each paired with the group needed to access its socket. The socket
-// path is searched in order: /run/<unit>, /var/run/<unit>, /run/<unit>.sock,
-// /var/run/<unit>.sock. The first existing entry per unit is returned.
-func (c *Configuration) RequiredRuntimes() []ResolvedRequiredRuntime {
-	var result []ResolvedRequiredRuntime
-	seen := map[string]bool{}
+// RequiredRuntimeCandidates returns the socket paths every configured unit can have,
+// with the group needed to access it. Which path the board has is decided at start.
+func (c *Configuration) RequiredRuntimeCandidates() []RequiredRuntimeCandidate {
+	candidates := make([]RequiredRuntimeCandidate, 0, len(c.requiredRuntimes))
 	for _, runtime := range c.requiredRuntimes {
-		candidates := []*paths.Path{
-			paths.New("/run", runtime.Unit),
-			paths.New("/var/run", runtime.Unit),
-			paths.New("/run", runtime.Unit+".sock"),
-			paths.New("/var/run", runtime.Unit+".sock"),
-		}
-		found := false
-		for _, p := range candidates {
-			if p.Exist() {
-				if !seen[p.String()] {
-					seen[p.String()] = true
-					result = append(result, ResolvedRequiredRuntime{
-						Path:  p,
-						Group: runtime.Group,
-					})
-				}
-				found = true
-				break
-			}
-		}
-		if !found {
-			slog.Debug("required runtime not found on host", "runtime", runtime.Unit)
-		}
+		candidates = append(candidates, RequiredRuntimeCandidate{
+			Paths: []string{
+				paths.New("/run", runtime.Unit).String(),
+				paths.New("/var/run", runtime.Unit).String(),
+				paths.New("/run", runtime.Unit+".sock").String(),
+				paths.New("/var/run", runtime.Unit+".sock").String(),
+			},
+			Group: runtime.Group,
+		})
 	}
-	return result
+	return candidates
 }
 
 func (c *Configuration) AssetDir() *paths.Path {
