@@ -8,6 +8,7 @@ package orchestrator
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -18,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/docker/cli/cli/command"
 	yaml "github.com/goccy/go-yaml"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -36,12 +38,23 @@ type InstallReleaseResult struct {
 // InstallRelease unpacks a release archive into the releases dir, as the app it is
 // run as: src is the app folder and prebuild is the .cache a start would otherwise
 // generate. It is an app like the others, except that it is never written.
+//
+// It then renders the compose file, and with prepare it downloads what the release
+// needs to run. Both are what a start does anyway, so the wait moves here.
 func InstallRelease(
+	ctx context.Context,
+	docker command.Cli,
+	provisioner *Provision,
 	archive *paths.Path,
 	idProvider *appid.Provider,
 	cfg config.Configuration,
 	plat platform.Platform,
+	prepare bool,
+	cb func(StreamMessage),
 ) (InstallReleaseResult, error) {
+	if cb == nil {
+		cb = func(StreamMessage) {}
+	}
 	if archive == nil || archive.NotExist() {
 		return InstallReleaseResult{}, fmt.Errorf("%w: %s not found", ErrBadRequest, archive)
 	}
@@ -94,6 +107,24 @@ func InstallRelease(
 	if err != nil {
 		return InstallReleaseResult{}, err
 	}
+
+	// Loaded from where it is installed: the render resolves absolute paths, so the
+	// staging dir must not be the one they point at.
+	installedApp, err := app.Load(releasePath)
+	if err != nil {
+		return InstallReleaseResult{}, fmt.Errorf("failed to load the installed release: %w", err)
+	}
+	if err := renderRelease(ctx, docker, provisioner, installedApp, cfg, plat); err != nil {
+		return InstallReleaseResult{}, err
+	}
+	if prepare {
+		// The release is installed either way: what failed is a download a start does
+		// again, so it is worth saying which of the two the caller is looking at.
+		if err := PrepareRelease(ctx, docker, installedApp, cfg, plat, cb); err != nil {
+			return InstallReleaseResult{}, fmt.Errorf("%s is installed, but %w", releaseName, err)
+		}
+	}
+
 	return InstallReleaseResult{
 		AppID: appID,
 		// What GetRelease will read back off the folder the app was just installed in.

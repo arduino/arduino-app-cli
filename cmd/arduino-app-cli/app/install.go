@@ -6,6 +6,7 @@
 package app
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -21,6 +22,7 @@ import (
 )
 
 func newInstallCmd(cfg config.Configuration) *cobra.Command {
+	var noPrepare bool
 	cmd := &cobra.Command{
 		Use:   "install release_path",
 		Short: "Install an Arduino App release archive",
@@ -29,13 +31,17 @@ func newInstallCmd(cfg config.Configuration) *cobra.Command {
 A release is installed in the releases dir, apart from the apps, and it is read
 only: the python environment and the compose files the build froze are its cache,
 so that starting it generates nothing and nothing may change it. It must be built
-for this board, and it is named after the release, version included.`,
+for this board, and it is named after the release, version included.
+
+The install then downloads what the release needs to run, its containers and its
+models, which a start would otherwise wait for. Pass --no-prepare to install the
+release alone.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()
 			}
-			installHandler(cfg, paths.New(args[0]))
+			installHandler(cmd.Context(), cfg, paths.New(args[0]), !noPrepare)
 			return nil
 		},
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -46,11 +52,32 @@ for this board, and it is named after the release, version included.`,
 		},
 	}
 
+	cmd.Flags().BoolVar(&noPrepare, "no-prepare", false, "Install the release alone, without downloading its containers and its models")
+
 	return cmd
 }
 
-func installHandler(cfg config.Configuration, archive *paths.Path) {
-	result, err := orchestrator.InstallRelease(archive, servicelocator.GetAppIDProvider(), cfg, servicelocator.GetPlatform())
+func installHandler(ctx context.Context, cfg config.Configuration, archive *paths.Path, prepare bool) {
+	out, _, getResult := feedback.OutputStreams()
+
+	result, err := orchestrator.InstallRelease(
+		ctx,
+		servicelocator.GetDockerClient(),
+		servicelocator.GetProvisioner(),
+		archive,
+		servicelocator.GetAppIDProvider(),
+		cfg,
+		servicelocator.GetPlatform(),
+		prepare,
+		func(message orchestrator.StreamMessage) {
+			switch message.GetType() {
+			case orchestrator.ProgressType:
+				fmt.Fprintf(out, "Progress[%s]: %.0f%%\n", message.GetProgress().Name, message.GetProgress().Progress)
+			case orchestrator.InfoType:
+				fmt.Fprintln(out, "[INFO]", message.GetData())
+			}
+		},
+	)
 	switch {
 	case errors.Is(err, orchestrator.ErrAppAlreadyExists):
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
@@ -66,15 +93,17 @@ func installHandler(cfg config.Configuration, archive *paths.Path) {
 		Target:  result.Release.Target,
 		AppID:   result.AppID.String(),
 		Path:    result.Path.String(),
+		Output:  getResult(),
 	})
 }
 
 type installAppResult struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-	Target  string `json:"target"`
-	AppID   string `json:"app_id"`
-	Path    string `json:"path"`
+	Name    string                        `json:"name"`
+	Version string                        `json:"version"`
+	Target  string                        `json:"target"`
+	AppID   string                        `json:"app_id"`
+	Path    string                        `json:"path"`
+	Output  *feedback.OutputStreamsResult `json:"output,omitempty"`
 }
 
 func (r installAppResult) String() string {
