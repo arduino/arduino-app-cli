@@ -20,6 +20,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 const maxDescriptionLength = 150
@@ -146,6 +147,16 @@ func (a *ArduinoApp) Save() error {
 	return nil
 }
 
+// SaveSecrets writes the descriptor back when only a secret changed. It is the one
+// change an app installed from a release takes: its frozen template references the
+// secrets, so the board that runs the app is where the values are set.
+func (a *ArduinoApp) SaveSecrets() error {
+	if err := a.Descriptor.IsValid(); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidApp, err)
+	}
+	return a.writeApp()
+}
+
 func (a *ArduinoApp) writeApp() error {
 	descriptorPath := a.GetDescriptorPath()
 	if descriptorPath == nil {
@@ -216,6 +227,14 @@ func (a *ArduinoApp) GetRelease() (Release, bool) {
 	}
 	release.ID = a.FullPath.Base()
 	return release, true
+}
+
+// ReleaseBricks is the brick definitions a release ships in its .cache, which are the
+// ones the app was built with. The index of the board is not the one that built the
+// release, so it may hold neither the brick nor the same definition of it. Only the
+// config of a brick is read from here, so no board fact is resolved.
+func (a *ArduinoApp) ReleaseBricks() (*bricksindex.BricksIndex, error) {
+	return bricksindex.Load(platform.Platform{}, a.ProvisioningStateDir())
 }
 
 func (a *ArduinoApp) AppComposeTemplateFilePath() *paths.Path {

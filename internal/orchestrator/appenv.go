@@ -141,6 +141,16 @@ func hostEnvironment(ctx context.Context, appPath *paths.Path, cfg config.Config
 // app.yaml is not what the render step normally reads: a secret is only there because
 // that is the storage there is for now. A real secret store replaces this function.
 func appSecrets(arduinoApp app.ArduinoApp, brickIndex *bricksindex.BricksIndex) types.Mapping {
+	// A release states its own bricks: the index of this board is not the one that
+	// built it, so it cannot be asked which variable is a secret.
+	if _, isRelease := arduinoApp.GetRelease(); isRelease {
+		frozen, err := arduinoApp.ReleaseBricks()
+		if err != nil {
+			slog.Warn("cannot read the bricks the release ships", slog.String("app", arduinoApp.Name), slog.String("error", err.Error()))
+		} else {
+			brickIndex = frozen
+		}
+	}
 	brickIndex = brickIndex.WithAppBricks(arduinoApp.LocalBricks)
 
 	secrets := make(types.Mapping)
