@@ -242,6 +242,22 @@ func (c *Configuration) MkTempAssetDir() (*paths.Path, error) {
 	return c.assetDir.Parent().MkTempDir("dynamic-provisioning")
 }
 
+// MkTempBuildDir is where a release is staged while it is built. Not the system temp
+// dir: it holds the python environment of the app, and /tmp is in RAM on a board.
+func (c *Configuration) MkTempBuildDir() (*paths.Path, error) {
+	buildsDir := c.dataDir.Join("builds")
+	if cacheDir, err := os.UserCacheDir(); err == nil {
+		buildsDir = paths.New(cacheDir, "arduino-app-cli", "builds")
+	} else {
+		slog.Debug("no user cache dir, staging the release build in the data dir", slog.String("error", err.Error()))
+	}
+
+	if err := buildsDir.MkdirAll(); err != nil {
+		return nil, err
+	}
+	return buildsDir.MkTempDir("release")
+}
+
 func (c *Configuration) CustomModelsDir() *paths.Path {
 	return c.customModelsDir
 }
