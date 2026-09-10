@@ -68,7 +68,7 @@ type appListResult struct {
 func (r appListResult) String() string {
 	t := table.NewWriter()
 	t.SetStyle(tablestyle.CustomCleanStyle)
-	t.AppendHeader(table.Row{"ID", "NAME", "ICON", "STATUS", "EXAMPLE"})
+	t.AppendHeader(table.Row{"ID", "NAME", "ICON", "STATUS", "EXAMPLE", "RELEASE"})
 
 	for _, app := range r.Apps {
 		t.AppendRow(table.Row{
@@ -77,6 +77,7 @@ func (r appListResult) String() string {
 			app.Icon,
 			app.Status,
 			app.Example,
+			app.Release,
 		})
 	}
 	if r.showBrokenApps && len(r.BrokenApps) > 0 {

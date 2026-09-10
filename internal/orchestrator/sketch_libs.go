@@ -20,8 +20,12 @@ import (
 
 const indexUpdateInterval = 10 * time.Minute
 
-func AddSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef LibraryReleaseID, addDeps bool) ([]LibraryReleaseID, error) {
-	sketchPath, ok := app.GetSketchPath()
+func AddSketchLibrary(ctx context.Context, arduinoApp app.ArduinoApp, libRef LibraryReleaseID, addDeps bool) ([]LibraryReleaseID, error) {
+	if _, isRelease := arduinoApp.GetRelease(); isRelease {
+		return nil, app.ErrReleaseReadOnly
+	}
+
+	sketchPath, ok := arduinoApp.GetSketchPath()
 	if !ok {
 		return nil, errors.New("cannot add a library. Missing sketch folder")
 	}
@@ -76,8 +80,12 @@ func AddSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef LibraryRel
 	return f.Map(resp.GetAddedLibraries(), rpcProfileLibReferenceToLibReleaseID), nil
 }
 
-func RemoveSketchLibrary(ctx context.Context, app app.ArduinoApp, libRef LibraryReleaseID, removeDeps bool) ([]LibraryReleaseID, error) {
-	sketchPath, ok := app.GetSketchPath()
+func RemoveSketchLibrary(ctx context.Context, arduinoApp app.ArduinoApp, libRef LibraryReleaseID, removeDeps bool) ([]LibraryReleaseID, error) {
+	if _, isRelease := arduinoApp.GetRelease(); isRelease {
+		return nil, app.ErrReleaseReadOnly
+	}
+
+	sketchPath, ok := arduinoApp.GetSketchPath()
 	if !ok {
 		return nil, errors.New("cannot remove a library. Missing sketch folder")
 	}

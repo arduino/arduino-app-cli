@@ -20,7 +20,10 @@ type CleanAppCacheRequest struct {
 	ForceClean bool
 }
 
-var ErrCleanCacheRunningApp = errors.New("cannot remove cache of a running app")
+var (
+	ErrCleanCacheRunningApp = errors.New("cannot remove cache of a running app")
+	ErrCleanCacheReleaseApp = errors.New("cannot remove the cache of an app installed from a release: it is what the release froze")
+)
 
 // CleanAppCache removes the `.cache` folder. If it detects that the app is running
 // it tries to stop it first.
@@ -32,6 +35,10 @@ func CleanAppCache(
 	platform platform.Platform,
 	cfg config.Configuration,
 ) error {
+	if _, isRelease := app.GetRelease(); isRelease {
+		return ErrCleanCacheReleaseApp
+	}
+
 	runningApp, err := getRunningApp(ctx, docker.Client())
 	if err != nil {
 		return err

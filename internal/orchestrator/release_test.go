@@ -37,7 +37,7 @@ func TestWriteReleaseArchive(t *testing.T) {
 		require.NoError(t, file.WriteFile([]byte(content)))
 		require.NoError(t, os.Chmod(file.String(), mode))
 	}
-	write(0o644, "schema: 1\n", ReleaseManifestFileName)
+	write(0o644, "schema: 1\n", app.ReleaseManifestFileName)
 	write(0o644, "name: my-app\n", "src", "app.yaml")
 	write(0o755, "#!/bin/sh\n", "src", "python", "run.sh")
 	write(0o644, "junk", "src", "__pycache__", "app.pyc")

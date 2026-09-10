@@ -20,6 +20,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 const maxDescriptionLength = 150
@@ -126,9 +127,17 @@ func (a *ArduinoApp) GetDescriptorPath() *paths.Path {
 	return descriptorFile
 }
 
-var ErrInvalidApp = fmt.Errorf("invalid app")
+var (
+	ErrInvalidApp = fmt.Errorf("invalid app")
+	// ErrReleaseReadOnly is what every change of an installed release gets: it runs
+	// what a build froze, and changing it would make it something else.
+	ErrReleaseReadOnly = errors.New("the app is installed from a release and cannot be changed")
+)
 
 func (a *ArduinoApp) Save() error {
+	if _, isRelease := a.GetRelease(); isRelease {
+		return ErrReleaseReadOnly
+	}
 	if err := a.Descriptor.IsValid(); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidApp, err)
 	}
@@ -136,6 +145,16 @@ func (a *ArduinoApp) Save() error {
 		return err
 	}
 	return nil
+}
+
+// SaveSecrets writes the descriptor back when only a secret changed. It is the one
+// change an app installed from a release takes: its frozen template references the
+// secrets, so the board that runs the app is where the values are set.
+func (a *ArduinoApp) SaveSecrets() error {
+	if err := a.Descriptor.IsValid(); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidApp, err)
+	}
+	return a.writeApp()
 }
 
 func (a *ArduinoApp) writeApp() error {
@@ -172,7 +191,51 @@ func (a *ArduinoApp) ProvisioningStateDir() *paths.Path {
 const (
 	MainTemplateFileName     = "app-compose.tmpl.yaml"
 	OverrideTemplateFileName = "app-compose-overrides.tmpl.yaml"
+	// PrebuildDirName is what a release ships beside the app it is built from: the
+	// compose files and the python env, which the install copies as the .cache.
+	PrebuildDirName = "prebuild"
+	// ReleaseManifestFileName is the manifest a release is built with, at the root of
+	// the archive and of the app installed from it: an app that holds it runs what a
+	// build froze, and what a start would generate is already in .cache.
+	ReleaseManifestFileName = "release.yaml"
 )
+
+// ReleaseManifestSchema is the layout of the manifest, not the version of the app: an
+// older release must stay readable by a newer cli.
+const ReleaseManifestSchema = 1
+
+// Release is what the manifest says of the release an app comes from.
+type Release struct {
+	Schema  int    `yaml:"schema"`
+	Version string `yaml:"version"`
+	// Target is the board the release is built for, gated on at install and at start.
+	Target string `yaml:"target"`
+	// ID is the release folder name, so it is read from the path and never written.
+	ID string `yaml:"-"`
+}
+
+// GetRelease reads the manifest: an app that holds one runs what a release froze.
+func (a *ArduinoApp) GetRelease() (Release, bool) {
+	manifest := a.FullPath.Join(ReleaseManifestFileName)
+	content, err := manifest.ReadFile()
+	if err != nil {
+		return Release{}, false
+	}
+	var release Release
+	if err := yaml.Unmarshal(content, &release); err != nil {
+		slog.Warn("cannot read the release manifest of the app", "path", manifest, "error", err)
+	}
+	release.ID = a.FullPath.Base()
+	return release, true
+}
+
+// ReleaseBricks is the brick definitions a release ships in its .cache, which are the
+// ones the app was built with. The index of the board is not the one that built the
+// release, so it may hold neither the brick nor the same definition of it. Only the
+// config of a brick is read from here, so no board fact is resolved.
+func (a *ArduinoApp) ReleaseBricks() (*bricksindex.BricksIndex, error) {
+	return bricksindex.Load(platform.Platform{}, a.ProvisioningStateDir())
+}
 
 func (a *ArduinoApp) AppComposeTemplateFilePath() *paths.Path {
 	return a.ProvisioningStateDir().Join(MainTemplateFileName)

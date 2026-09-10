@@ -23,10 +23,16 @@ type ID struct {
 	encodedID            string
 	isFromKnownLocaltion bool
 	isExample            bool
+	isRelease            bool
 }
 
 func (id ID) IsExample() bool {
 	return id.isExample
+}
+
+// IsRelease tells an app installed from a release, which is read-only, from an app.
+func (id ID) IsRelease() bool {
+	return id.isRelease
 }
 
 func (id ID) IsApp() bool {
@@ -53,6 +59,7 @@ func (id ID) Equal(other ID) bool {
 	return id.path.EqualsTo(other.path) &&
 		id.isFromKnownLocaltion == other.isFromKnownLocaltion &&
 		id.isExample == other.isExample &&
+		id.isRelease == other.isRelease &&
 		id.encodedID == other.encodedID
 }
 
@@ -86,15 +93,25 @@ func (p *Provider) IDFromPath(path *paths.Path) (ID, error) {
 		id                  string
 		isFromKnownLocation bool
 		isExample           bool
+		isRelease           bool
 	)
-	if strings.HasPrefix(path.String(), p.cfg.AppsDir().String()) {
+	switch {
+	case strings.HasPrefix(path.String(), p.cfg.ReleasesDir().String()):
+		rel, err := path.RelFrom(p.cfg.ReleasesDir())
+		if err != nil {
+			return ID{}, ErrInvalidID
+		}
+		id = "release:" + rel.String()
+		isFromKnownLocation = true
+		isRelease = true
+	case strings.HasPrefix(path.String(), p.cfg.AppsDir().String()):
 		rel, err := path.RelFrom(p.cfg.AppsDir())
 		if err != nil {
 			return ID{}, ErrInvalidID
 		}
 		id = "user:" + rel.String()
 		isFromKnownLocation = true
-	} else {
+	default:
 		for _, example := range p.cfg.ExamplesDirs(p.plat) {
 			if strings.HasPrefix(path.String(), example.String()) {
 				rel, err := path.RelFrom(example)
@@ -130,6 +147,7 @@ func (p *Provider) IDFromPath(path *paths.Path) (ID, error) {
 		encodedID:            base64.RawURLEncoding.EncodeToString([]byte(id)),
 		isFromKnownLocaltion: isFromKnownLocation,
 		isExample:            isExample,
+		isRelease:            isRelease,
 	}, nil
 }
 
@@ -144,10 +162,13 @@ func (p *Provider) parseID(id string) (ID, error) {
 
 	prefix, appPath, found := strings.Cut(id, ":")
 	if found {
-		var isExample bool
+		var isExample, isRelease bool
 		switch prefix {
 		case "user":
 			path = p.cfg.AppsDir().Join(appPath)
+		case "release":
+			isRelease = true
+			path = p.cfg.ReleasesDir().Join(appPath)
 		case "examples":
 			isExample = true
 			pathPrefix, remainingPath, found := strings.Cut(appPath, "/")
@@ -181,6 +202,7 @@ func (p *Provider) parseID(id string) (ID, error) {
 			encodedID:            base64.RawURLEncoding.EncodeToString([]byte(id)),
 			isFromKnownLocaltion: true,
 			isExample:            isExample,
+			isRelease:            isRelease,
 		}, nil
 	}
 
