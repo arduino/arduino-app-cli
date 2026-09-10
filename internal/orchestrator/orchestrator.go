@@ -1099,19 +1099,22 @@ func initializeArduinoCli(ctx context.Context, sketchPath *paths.Path, w io.Writ
 		}
 	}()
 
-	sketchResp, err := srv.LoadSketch(ctx, &rpc.LoadSketchRequest{SketchPath: sketchPath.String()})
-	if err != nil {
-		return nil, nil, err
-	}
-	sketch := sketchResp.GetSketch()
-	profile := sketch.GetDefaultProfile().GetName()
-	if profile == "" {
-		return nil, nil, fmt.Errorf("sketch %q has no default profile", sketchPath)
-	}
 	initReq := &rpc.InitRequest{
-		Instance:   inst,
-		SketchPath: sketchPath.String(),
-		Profile:    profile,
+		Instance: inst,
+	}
+	if sketchPath != nil {
+		sketchResp, err := srv.LoadSketch(ctx, &rpc.LoadSketchRequest{SketchPath: sketchPath.String()})
+		if err != nil {
+			return nil, nil, err
+		}
+		sketch := sketchResp.GetSketch()
+		profile := sketch.GetDefaultProfile().GetName()
+		if profile == "" {
+			return nil, nil, fmt.Errorf("sketch %q has no default profile", sketchPath)
+		}
+
+		initReq.Profile = profile
+		initReq.SketchPath = sketchPath.String()
 	}
 
 	if err := srv.Init(
