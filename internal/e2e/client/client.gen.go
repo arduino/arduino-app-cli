@@ -262,20 +262,19 @@ type BrickCreateUpdateRequest struct {
 
 // BrickDetailsResult defines model for BrickDetailsResult.
 type BrickDetailsResult struct {
-	AiFrameworksCompatibility *[]string              `json:"ai_frameworks_compatibility,omitempty"`
-	ApiDocsPath               *string                `json:"api_docs_path,omitempty"`
-	Author                    *string                `json:"author,omitempty"`
-	Category                  *string                `json:"category,omitempty"`
-	CodeExamples              *[]CodeExample         `json:"code_examples,omitempty"`
-	CompatibleModels          *[]AIModel             `json:"compatible_models,omitempty"`
-	ConfigVariables           *[]BrickConfigVariable `json:"config_variables,omitempty"`
-	Description               *string                `json:"description,omitempty"`
-	Id                        *string                `json:"id,omitempty"`
-	Name                      *string                `json:"name,omitempty"`
-	Readme                    *string                `json:"readme,omitempty"`
-	RequireModel              *bool                  `json:"require_model,omitempty"`
-	Status                    *string                `json:"status,omitempty"`
-	UsedByApps                *[]AppReference        `json:"used_by_apps,omitempty"`
+	ApiDocsPath      *string                `json:"api_docs_path,omitempty"`
+	Author           *string                `json:"author,omitempty"`
+	Category         *string                `json:"category,omitempty"`
+	CodeExamples     *[]CodeExample         `json:"code_examples,omitempty"`
+	CompatibleModels *[]AIModel             `json:"compatible_models,omitempty"`
+	ConfigVariables  *[]BrickConfigVariable `json:"config_variables,omitempty"`
+	Description      *string                `json:"description,omitempty"`
+	Id               *string                `json:"id,omitempty"`
+	Name             *string                `json:"name,omitempty"`
+	Readme           *string                `json:"readme,omitempty"`
+	RequireModel     *bool                  `json:"require_model,omitempty"`
+	Status           *string                `json:"status,omitempty"`
+	UsedByApps       *[]AppReference        `json:"used_by_apps,omitempty"`
 
 	// Variables Deprecated: use config_variables instead. This field is kept for backward compatibility.
 	Variables *map[string]BrickVariable `json:"variables,omitempty"`
@@ -307,14 +306,13 @@ type BrickInstance struct {
 
 // BrickListItem defines model for BrickListItem.
 type BrickListItem struct {
-	AiFrameworksCompatibility *[]string `json:"ai_frameworks_compatibility,omitempty"`
-	Author                    *string   `json:"author,omitempty"`
-	Category                  *string   `json:"category,omitempty"`
-	Description               *string   `json:"description,omitempty"`
-	Id                        *string   `json:"id,omitempty"`
-	Name                      *string   `json:"name,omitempty"`
-	RequireModel              *bool     `json:"require_model,omitempty"`
-	Status                    *string   `json:"status,omitempty"`
+	Author       *string `json:"author,omitempty"`
+	Category     *string `json:"category,omitempty"`
+	Description  *string `json:"description,omitempty"`
+	Id           *string `json:"id,omitempty"`
+	Name         *string `json:"name,omitempty"`
+	RequireModel *bool   `json:"require_model,omitempty"`
+	Status       *string `json:"status,omitempty"`
 }
 
 // BrickListResult defines model for BrickListResult.

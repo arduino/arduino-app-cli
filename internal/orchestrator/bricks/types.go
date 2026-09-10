@@ -10,14 +10,13 @@ type BrickListResult struct {
 }
 
 type BrickListItem struct {
-	ID                       string   `json:"id"`
-	Name                     string   `json:"name"`
-	Author                   string   `json:"author"`
-	Description              string   `json:"description"`
-	Category                 string   `json:"category"`
-	Status                   string   `json:"status"`
-	RequireModel             bool     `json:"require_model"`
-	AIrameworksCompatibility []string `json:"ai_frameworks_compatibility,omitempty"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Author       string `json:"author"`
+	Description  string `json:"description"`
+	Category     string `json:"category"`
+	Status       string `json:"status"`
+	RequireModel bool   `json:"require_model"`
 }
 
 type AppBrickInstancesResult struct {
@@ -89,5 +88,5 @@ type BrickDetailsResult struct {
 	UsedByApps                []AppReference           `json:"used_by_apps"`
 	CompatibleModels          []AIModel                `json:"compatible_models"`
 	ConfigVariables           []BrickConfigVariable    `json:"config_variables"`
-	AIFrameworksCompatibility []string                 `yaml:"ai_frameworks_compatibility,omitempty"`
+	AIFrameworksCompatibility []string                 `json:"ai_frameworks_compatibility,omitempty"`
 }
