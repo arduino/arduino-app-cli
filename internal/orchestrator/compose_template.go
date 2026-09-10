@@ -178,6 +178,8 @@ func generateComposeTemplate(
 		[]string{"/run/udev:ro", "/run/user/1000/pipewire-0"},
 		// camx CSI cameras are accessed through the cam_server socket and a host userspace library
 		[]string{"/run/cam_server", "/usr/lib/libcamera_metadata.so.0.1.0"},
+		// DSP binaries
+		[]string{"/usr/share/qcom"},
 		platform.Linux.BoardLeds.AsStrings(),
 	)
 	for _, mount := range optionalMounts {
