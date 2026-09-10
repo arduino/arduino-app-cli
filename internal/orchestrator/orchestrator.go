@@ -190,16 +190,26 @@ func StartApp(
 
 	cb(StreamMessage{progress: &Progress{Name: "preparing", Progress: 0.0}})
 
-	if _, ok := appToStart.GetSketchPath(); ok {
-		cb(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}})
+	if isRelease {
+		if _, ok := appToStart.GetSketchPath(); ok {
+			cb(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}})
 
-		if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, appToStart); err != nil {
-			cb(StreamMessage{data: "Failed to apply app migration for platform arduino:zephyr >0.54.1. Error: " + err.Error()})
-		} else if ok {
-			cb(StreamMessage{data: "Applied app migration for platform arduino:zephyr >0.54.1. Arduino_RouterBridge is now part of the platform and shouldn't be explicitly specified"})
+			if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, appToStart); err != nil {
+				cb(StreamMessage{data: "Failed to apply app migration for platform arduino:zephyr >0.54.1. Error: " + err.Error()})
+			} else if ok {
+				cb(StreamMessage{data: "Applied app migration for platform arduino:zephyr >0.54.1. Arduino_RouterBridge is now part of the platform and shouldn't be explicitly specified"})
+			}
+
+			if err := compileUploadSketch(ctx, verbose, platform, appToStart, sketchCallbackWriter); err != nil {
+				return err
+			}
+
+			cb(StreamMessage{progress: &Progress{Name: "sketch updated", Progress: 10.0}})
 		}
+	} else {
+		cb(StreamMessage{progress: &Progress{Name: "uploading sketch", Progress: 0.0}})
 
-		if err := compileUploadSketch(ctx, verbose, platform, appToStart, sketchCallbackWriter); err != nil {
+		if err := uploadFirmwareFile(ctx, verbose, appToStart.ProvisioningStateDir().Join("sketch.fw"), sketchCallbackWriter); err != nil {
 			return err
 		}
 
@@ -1080,6 +1090,32 @@ func compileUploadSketch(
 	return nil
 }
 
+func uploadFirmwareFile(
+	ctx context.Context,
+	verbose bool,
+	fwFile *paths.Path,
+	w io.Writer,
+) error {
+	srv, inst, err := initializeArduinoCli(ctx, nil, w)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
+	}()
+
+	// Upload the sketch
+	uploadServ, _ := commands.UploadFirmwareFileToServerStreams(ctx, w, w)
+	if err := srv.UploadFirmwareFile(&rpc.UploadFirmwareFileRequest{
+		Instance:     inst,
+		FirmwareFile: fwFile.String(),
+		Verbose:      verbose,
+	}, uploadServ); err != nil {
+		return err
+	}
+	return nil
+}
+
 func initializeArduinoCli(ctx context.Context, sketchPath *paths.Path, w io.Writer) (_ rpc.ArduinoCoreServiceServer, _ *rpc.Instance, _err error) {
 	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 	srv := commands.NewArduinoCoreServer()
@@ -1099,19 +1135,22 @@ func initializeArduinoCli(ctx context.Context, sketchPath *paths.Path, w io.Writ
 		}
 	}()
 
-	sketchResp, err := srv.LoadSketch(ctx, &rpc.LoadSketchRequest{SketchPath: sketchPath.String()})
-	if err != nil {
-		return nil, nil, err
-	}
-	sketch := sketchResp.GetSketch()
-	profile := sketch.GetDefaultProfile().GetName()
-	if profile == "" {
-		return nil, nil, fmt.Errorf("sketch %q has no default profile", sketchPath)
-	}
 	initReq := &rpc.InitRequest{
-		Instance:   inst,
-		SketchPath: sketchPath.String(),
-		Profile:    profile,
+		Instance: inst,
+	}
+	if sketchPath != nil {
+		sketchResp, err := srv.LoadSketch(ctx, &rpc.LoadSketchRequest{SketchPath: sketchPath.String()})
+		if err != nil {
+			return nil, nil, err
+		}
+		sketch := sketchResp.GetSketch()
+		profile := sketch.GetDefaultProfile().GetName()
+		if profile == "" {
+			return nil, nil, fmt.Errorf("sketch %q has no default profile", sketchPath)
+		}
+
+		initReq.Profile = profile
+		initReq.SketchPath = sketchPath.String()
 	}
 
 	if err := srv.Init(
