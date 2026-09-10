@@ -93,6 +93,20 @@ func NewArduinoAppCLI(t *testing.T, opts ...ArduinoAppCLIOption) *ArduinoAppCLI 
 	return cli
 }
 
+// Run runs a one-shot command, as a user would from a shell: the daemon is not started,
+// the cli does the work itself.
+func (cli *ArduinoAppCLI) Run(ctx context.Context, args ...string) (string, string, error) {
+	proc, err := paths.NewProcessFromPath(cli.convertEnvForExecutils(cli.envVars), cli.path, args...)
+	cli.t.NoError(err)
+	stdout, stderr, err := proc.RunAndCaptureOutput(ctx)
+	return string(stdout), string(stderr), err
+}
+
+// AppsDir is where the apps of the test environment live.
+func (cli *ArduinoAppCLI) AppsDir() *paths.Path {
+	return cli.appDir
+}
+
 // FindRepositoryRootPath returns the repository root path
 func FindRepositoryRootPath(t *testing.T) *paths.Path {
 	repoRootPath, err := paths.Getwd()
