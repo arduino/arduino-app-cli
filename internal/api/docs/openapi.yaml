@@ -1760,6 +1760,10 @@ components:
       type: object
     BrickDetailsResult:
       properties:
+        ai_frameworks_compatibility:
+          items:
+            type: string
+          type: array
         api_docs_path:
           type: string
         author:
