@@ -117,11 +117,25 @@ handlers:
       image: ${DOCKER_REGISTRY_BASE}models-downloader:ai-hub
       volumes:
         - ${MODELS_PATH}:/models
+      actions:
+        - download:
+            command: ["/app/ai_hub/download.sh"]
+        - delete:
+            command: ["/app/ai_hub/delete.sh"]
+        - check:
+            command: ["/app/ai_hub/check.sh"]
   - ei-handler:
       description: "Handler for models from Edge Impulse"
       image: ${DOCKER_REGISTRY_BASE}models-downloader:ei
       volumes:
         - ${MODELS_PATH}/${models_repository}:/models
+      actions:
+        - download:
+            command: ["/app/edge_impulse/download.sh"]
+        - delete:
+            command: ["/app/edge_impulse/delete.sh"]
+        - check:
+            command: ["/app/edge_impulse/check.sh"]
 `)))
 
 	// No docker client: the listing does not run, so every model is the declared one.
