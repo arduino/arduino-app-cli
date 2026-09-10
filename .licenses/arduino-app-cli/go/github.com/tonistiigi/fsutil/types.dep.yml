@@ -1,12 +1,12 @@
 ---
 name: github.com/tonistiigi/fsutil/types
-version: v0.0.0-20250605211040-586307ad452f
+version: v0.0.0-20260819142231-83cac42c1c52
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/tonistiigi/fsutil/types
 license: mit
 licenses:
-- sources: fsutil@v0.0.0-20250605211040-586307ad452f/LICENSE
+- sources: fsutil@v0.0.0-20260819142231-83cac42c1c52/LICENSE
   text: |-
     MIT
 

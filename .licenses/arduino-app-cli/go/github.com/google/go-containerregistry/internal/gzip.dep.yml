@@ -1,12 +1,12 @@
 ---
 name: github.com/google/go-containerregistry/internal/gzip
-version: v0.20.7
+version: v0.22.1
 type: go
 summary: Package gzip provides helper functions for interacting with gzipped streams.
 homepage: https://pkg.go.dev/github.com/google/go-containerregistry/internal/gzip
 license: apache-2.0
 licenses:
-- sources: go-containerregistry@v0.20.7/LICENSE
+- sources: go-containerregistry@v0.22.1/LICENSE
   text: |2-
 
                                      Apache License

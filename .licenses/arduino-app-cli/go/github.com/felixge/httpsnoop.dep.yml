@@ -1,6 +1,6 @@
 ---
 name: github.com/felixge/httpsnoop
-version: v1.0.4
+version: v1.1.0
 type: go
 summary: Package httpsnoop provides an easy way to capture http related metrics (i.e.
 homepage: https://pkg.go.dev/github.com/felixge/httpsnoop

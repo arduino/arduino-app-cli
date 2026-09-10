@@ -1,12 +1,12 @@
 ---
 name: github.com/secure-systems-lab/go-securesystemslib/cjson
-version: v0.6.0
+version: v0.11.0
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/secure-systems-lab/go-securesystemslib/cjson
 license: mit
 licenses:
-- sources: go-securesystemslib@v0.6.0/LICENSE
+- sources: go-securesystemslib@v0.11.0/LICENSE
   text: |
     The MIT License (MIT)
 
@@ -29,4 +29,6 @@ licenses:
     LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
+- sources: go-securesystemslib@v0.11.0/README.md
+  text: See [LICENSE](/LICENSE).
 notices: []

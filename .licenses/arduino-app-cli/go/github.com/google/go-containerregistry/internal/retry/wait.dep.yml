@@ -1,13 +1,13 @@
 ---
 name: github.com/google/go-containerregistry/internal/retry/wait
-version: v0.20.7
+version: v0.22.1
 type: go
 summary: Package wait is a subset of k8s.io/apimachinery to avoid conflicts in dependencies
   (specifically, logging).
 homepage: https://pkg.go.dev/github.com/google/go-containerregistry/internal/retry/wait
 license: apache-2.0
 licenses:
-- sources: go-containerregistry@v0.20.7/LICENSE
+- sources: go-containerregistry@v0.22.1/LICENSE
   text: |2-
 
                                      Apache License

@@ -1,12 +1,12 @@
 ---
 name: github.com/moby/go-archive/compression
-version: v0.1.0
+version: v0.3.3
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/moby/go-archive/compression
 license: apache-2.0
 licenses:
-- sources: go-archive@v0.1.0/LICENSE
+- sources: go-archive@v0.3.3/LICENSE
   text: |2
 
                                      Apache License
