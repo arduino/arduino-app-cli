@@ -40,6 +40,8 @@ import (
 // A release is an app frozen with all its dependencies: <name>-<version>-<target>/
 // holds release.yaml, src/ as authored and prebuild/, which becomes .cache/ on install.
 
+const releaseSrcDir = "src"
+
 type BuildReleaseRequest struct {
 	// Target defaults to the board running the build.
 	Target string
@@ -157,8 +159,8 @@ func BuildRelease(
 	}()
 
 	releaseDir := stagingDir.Join(releaseName)
-	srcDir := releaseDir.Join("src")
-	prebuildDir := releaseDir.Join("prebuild")
+	srcDir := releaseDir.Join(releaseSrcDir)
+	prebuildDir := releaseDir.Join(app.PrebuildDirName)
 
 	cb(StreamMessage{progress: &Progress{Name: "copying the app", Progress: 0.0}})
 	if err := stageReleaseSrc(appToBuild, srcDir, bricksIndex); err != nil {

@@ -126,9 +126,17 @@ func (a *ArduinoApp) GetDescriptorPath() *paths.Path {
 	return descriptorFile
 }
 
-var ErrInvalidApp = fmt.Errorf("invalid app")
+var (
+	ErrInvalidApp = fmt.Errorf("invalid app")
+	// ErrReleaseReadOnly is what every change of an installed release gets: it runs
+	// what a build froze, and changing it would make it something else.
+	ErrReleaseReadOnly = errors.New("the app is installed from a release and cannot be changed")
+)
 
 func (a *ArduinoApp) Save() error {
+	if _, isRelease := a.GetRelease(); isRelease {
+		return ErrReleaseReadOnly
+	}
 	if err := a.Descriptor.IsValid(); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidApp, err)
 	}
@@ -172,7 +180,37 @@ func (a *ArduinoApp) ProvisioningStateDir() *paths.Path {
 const (
 	MainTemplateFileName     = "app-compose.tmpl.yaml"
 	OverrideTemplateFileName = "app-compose-overrides.tmpl.yaml"
+	// PrebuildDirName is what a release ships beside the app it is built from: the
+	// compose files and the python env, which the install copies as the .cache.
+	PrebuildDirName = "prebuild"
+	// ReleaseFileName marks an app installed from a release: what a start would
+	// generate is already in .cache, and nothing may generate it again.
+	ReleaseFileName = ".release"
 )
+
+// Release is what the marker of an installed app says of the release it comes from.
+type Release struct {
+	// ID is the release the app is installed from, name, version and target.
+	ID      string `yaml:"id"`
+	Version string `yaml:"version"`
+	Target  string `yaml:"target"`
+	// Source is where the release it was installed from is kept.
+	Source string `yaml:"source,omitempty"`
+}
+
+// GetRelease reads the marker: an app that has it runs what a release froze.
+func (a *ArduinoApp) GetRelease() (Release, bool) {
+	marker := a.FullPath.Join(ReleaseFileName)
+	content, err := marker.ReadFile()
+	if err != nil {
+		return Release{}, false
+	}
+	var release Release
+	if err := yaml.Unmarshal(content, &release); err != nil {
+		slog.Warn("cannot read the release marker of the app", "path", marker, "error", err)
+	}
+	return release, true
+}
 
 func (a *ArduinoApp) AppComposeTemplateFilePath() *paths.Path {
 	return a.ProvisioningStateDir().Join(MainTemplateFileName)

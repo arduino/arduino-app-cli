@@ -344,6 +344,10 @@ func (s *Service) BrickCreate(
 	req BrickCreateUpdateRequest,
 	appCurrent app.ArduinoApp,
 ) error {
+	if _, isRelease := appCurrent.GetRelease(); isRelease {
+		return app.ErrReleaseReadOnly
+	}
+
 	brick, present := s.bricksIndex.WithAppBricks(appCurrent.LocalBricks).FindBrickByID(req.ID)
 	if !present {
 		return fmt.Errorf("brick %q not found", req.ID)
@@ -410,6 +414,10 @@ func (s *Service) BrickUpdate(
 	req BrickCreateUpdateRequest,
 	appCurrent app.ArduinoApp,
 ) error {
+	if _, isRelease := appCurrent.GetRelease(); isRelease {
+		return app.ErrReleaseReadOnly
+	}
+
 	brickFromIndex, present := s.bricksIndex.WithAppBricks(appCurrent.LocalBricks).FindBrickByID(req.ID)
 	if !present {
 		return fmt.Errorf("brick %q not found into the brick index", req.ID)
@@ -473,6 +481,10 @@ func (s *Service) BrickDelete(
 	appCurrent *app.ArduinoApp,
 	id string,
 ) error {
+	if _, isRelease := appCurrent.GetRelease(); isRelease {
+		return app.ErrReleaseReadOnly
+	}
+
 	if !slices.ContainsFunc(appCurrent.Descriptor.Bricks, func(b app.Brick) bool { return b.ID == id }) {
 		return ErrBrickNotFound
 	}
@@ -490,6 +502,10 @@ func (s *Service) BrickDelete(
 // LocalBrickRename renames a local brick by changing its ID, folder name, and display name.
 // The newID is derived from the newName by the caller (handler layer).
 func (s *Service) LocalBrickRename(appCurrent *app.ArduinoApp, oldID, newID, newName string) (_ LocalBrickRenameResult, _err error) {
+	if _, isRelease := appCurrent.GetRelease(); isRelease {
+		return LocalBrickRenameResult{}, app.ErrReleaseReadOnly
+	}
+
 	if oldID == newID {
 		return LocalBrickRenameResult{}, fmt.Errorf("new brick id %q is the same as the current one", newID)
 	}
