@@ -24,7 +24,7 @@ func legacyUploadSketchInRam(ctx context.Context,
 	w io.Writer,
 	srv rpc.ArduinoCoreServiceServer,
 	inst *rpc.Instance,
-	platform platform.Platform,
+	fqbn string,
 	sketchPath string,
 	buildPath string,
 ) error {
@@ -32,7 +32,7 @@ func legacyUploadSketchInRam(ctx context.Context,
 		stream, _ := commands.UploadToServerStreams(ctx, w, w)
 		if err := srv.Upload(&rpc.UploadRequest{
 			Instance:   inst,
-			Fqbn:       platform.FQBN + ":flash_mode=ram",
+			Fqbn:       fqbn + ":flash_mode=ram",
 			SketchPath: sketchPath,
 			ImportDir:  buildPath,
 		}, stream); err != nil {
@@ -42,7 +42,7 @@ func legacyUploadSketchInRam(ctx context.Context,
 	}
 	if err := upload(); err != nil {
 		slog.Warn("failed to upload in ram mode, trying to configure the board in ram mode, and retry", slog.String("error", err.Error()))
-		if err := configureMicroInRamMode(ctx, w, srv, inst, platform); err != nil {
+		if err := configureMicroInRamMode(ctx, w, srv, inst, fqbn); err != nil {
 			return err
 		}
 	}
@@ -56,7 +56,7 @@ func configureMicroInRamMode(
 	w io.Writer,
 	srv rpc.ArduinoCoreServiceServer,
 	inst *rpc.Instance,
-	platform platform.Platform,
+	fqbn string,
 ) error {
 	emptyBinDir := paths.New("/tmp/empty")
 	_ = emptyBinDir.MkdirAll()
@@ -80,7 +80,7 @@ func configureMicroInRamMode(
 	stream, _ := commands.UploadToServerStreams(ctx, w, w)
 	return srv.Upload(&rpc.UploadRequest{
 		Instance:  inst,
-		Fqbn:      platform.FQBN + ":flash_mode=flash",
+		Fqbn:      fqbn + ":flash_mode=flash",
 		ImportDir: emptyBinDir.String(),
 	}, stream)
 }
