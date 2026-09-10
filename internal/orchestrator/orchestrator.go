@@ -995,34 +995,84 @@ func compileUploadSketch(
 	arduinoApp app.ArduinoApp,
 	w io.Writer,
 ) error {
-	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
-	srv := commands.NewArduinoCoreServer()
-	if err := SetArduinoCliConfig(ctx, srv); err != nil {
-		return err
+	sketchPath, ok := arduinoApp.GetSketchPath()
+	if !ok {
+		return fmt.Errorf("no sketch path found in the Arduino app")
+	}
+	// Make the cache dir for the compiled sketch
+	buildPath := arduinoApp.SketchBuildPath()
+	if err := buildPath.MkdirAll(); err != nil {
+		return fmt.Errorf("failed to create build directory: %w", err)
 	}
 
-	var inst *rpc.Instance
-	if resp, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
+	srv, inst, err := initializeArduinoCli(ctx, sketchPath, w)
+	if err != nil {
 		return err
-	} else {
-		inst = resp.GetInstance()
 	}
 	defer func() {
 		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
 	}()
 
-	sketchPath, ok := arduinoApp.GetSketchPath()
-	if !ok {
-		return fmt.Errorf("no sketch path found in the Arduino app")
+	menuOptions, err := GetPlatformMenuOptions(ctx, platform)
+	if err != nil {
+		slog.Warn("failed to get platform menu options", slog.String("error", err.Error()))
 	}
+	fqbn := platform.FQBN
+	if menuOptions.Has(WaitForApp) {
+		fqbn += ":" + WaitForApp.String()
+	}
+	useLegacyFlashToRam := !menuOptions.Has(WaitForApp) && platform.SupportFlashToRam()
+
+	// Compile the sketch
+	if err := compileSketch(
+		ctx, srv, inst,
+		sketchPath, buildPath,
+		platform, fqbn,
+		verbose, w,
+	); err != nil {
+		return err
+	}
+
+	// Upload the sketch
+	if err := uploadSketch(
+		ctx, srv, inst,
+		sketchPath, buildPath,
+		useLegacyFlashToRam,
+		fqbn, w,
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func initializeArduinoCli(ctx context.Context, sketchPath *paths.Path, w io.Writer) (_ rpc.ArduinoCoreServiceServer, _ *rpc.Instance, _err error) {
+	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
+	srv := commands.NewArduinoCoreServer()
+	if err := SetArduinoCliConfig(ctx, srv); err != nil {
+		return nil, nil, err
+	}
+
+	var inst *rpc.Instance
+	if resp, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
+		return nil, nil, err
+	} else {
+		inst = resp.GetInstance()
+	}
+	defer func() {
+		if _err != nil {
+			_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
+		}
+	}()
+
 	sketchResp, err := srv.LoadSketch(ctx, &rpc.LoadSketchRequest{SketchPath: sketchPath.String()})
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	sketch := sketchResp.GetSketch()
 	profile := sketch.GetDefaultProfile().GetName()
 	if profile == "" {
-		return fmt.Errorf("sketch %q has no default profile", sketchPath)
+		return nil, nil, fmt.Errorf("sketch %q has no default profile", sketchPath)
 	}
 	initReq := &rpc.InitRequest{
 		Instance:   inst,
@@ -1058,28 +1108,23 @@ func compileUploadSketch(
 			return nil
 		}),
 	); err != nil {
-		return err
+		return nil, nil, err
 	}
+	return srv, inst, nil
+}
 
-	menuOptions, err := GetPlatformMenuOptions(ctx, platform)
-	if err != nil {
-		slog.Warn("failed to get platform menu options", slog.String("error", err.Error()))
-	}
-
-	fqbn := platform.FQBN
-	if menuOptions.Has(WaitForApp) {
-		fqbn += ":" + WaitForApp.String()
-	}
-
-	slog.Debug("compile and upload sketch", slog.String("fqbn", fqbn), slog.Any("menuOptions", menuOptions))
-
+func compileSketch(
+	ctx context.Context,
+	srv rpc.ArduinoCoreServiceServer,
+	inst *rpc.Instance,
+	sketchPath, buildPath *paths.Path,
+	platform platform.Platform,
+	fqbn string,
+	verbose bool,
+	w io.Writer,
+) error {
 	// build the sketch
-	buildPath := arduinoApp.SketchBuildPath()
-	if buildPath.NotExist() {
-		if err := buildPath.MkdirAll(); err != nil {
-			return fmt.Errorf("failed to create build directory: %w", err)
-		}
-	}
+	slog.Debug("compile and upload sketch", slog.String("fqbn", fqbn))
 
 	server, getCompileResult := commands.CompilerServerToStreams(ctx, w, w, nil)
 	compileReq := rpc.CompileRequest{
@@ -1090,8 +1135,7 @@ func compileUploadSketch(
 		Jobs:       platform.CompileJobs,
 		Verbose:    verbose,
 	}
-	err = srv.Compile(&compileReq, server)
-	if err != nil {
+	if err := srv.Compile(&compileReq, server); err != nil {
 		return err
 	}
 
@@ -1111,15 +1155,26 @@ func compileUploadSketch(
 	for _, lib := range result.GetUsedLibraries() {
 		_, _ = w.Write([]byte("Used library " + lib.GetName() + " (" + lib.GetVersion() + ") in " + lib.GetInstallDir() + "\n"))
 	}
+	return nil
+}
 
+func uploadSketch(
+	ctx context.Context,
+	srv rpc.ArduinoCoreServiceServer,
+	inst *rpc.Instance,
+	sketchPath, buildPath *paths.Path,
+	supportsFlashToRam bool,
+	fqbn string,
+	w io.Writer,
+) error {
 	// Support the legacy ram upload option if there isn't the new wait_linux_boot option.
-	if !menuOptions.Has(WaitForApp) && platform.SupportFlashToRam() {
-		if err := legacyUploadSketchInRam(ctx, w, srv, inst, platform, sketchPath.String(), buildPath.String()); err != nil {
+	if supportsFlashToRam {
+		if err := legacyUploadSketchInRam(ctx, w, srv, inst, fqbn, sketchPath.String(), buildPath.String()); err != nil {
 			slog.Warn("failed to upload in ram mode, trying to configure the board in ram mode, and retry", slog.String("error", err.Error()))
-			if err := configureMicroInRamMode(ctx, w, srv, inst, platform); err != nil {
+			if err := configureMicroInRamMode(ctx, w, srv, inst, fqbn); err != nil {
 				return err
 			}
-			return legacyUploadSketchInRam(ctx, w, srv, inst, platform, sketchPath.String(), buildPath.String())
+			return legacyUploadSketchInRam(ctx, w, srv, inst, fqbn, sketchPath.String(), buildPath.String())
 		}
 		return nil
 	}
@@ -1127,7 +1182,7 @@ func compileUploadSketch(
 	stream, _ := commands.UploadToServerStreams(ctx, w, w)
 	return srv.Upload(&rpc.UploadRequest{
 		Instance:   inst,
-		Fqbn:       platform.FQBN,
+		Fqbn:       fqbn,
 		SketchPath: sketchPath.String(),
 		ImportDir:  buildPath.String(),
 	}, stream)
