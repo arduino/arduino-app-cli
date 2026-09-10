@@ -10,13 +10,14 @@ type BrickListResult struct {
 }
 
 type BrickListItem struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Author       string `json:"author"`
-	Description  string `json:"description"`
-	Category     string `json:"category"`
-	Status       string `json:"status"`
-	RequireModel bool   `json:"require_model"`
+	ID                       string   `json:"id"`
+	Name                     string   `json:"name"`
+	Author                   string   `json:"author"`
+	Description              string   `json:"description"`
+	Category                 string   `json:"category"`
+	Status                   string   `json:"status"`
+	RequireModel             bool     `json:"require_model"`
+	AIrameworksCompatibility []string `json:"ai_frameworks_compatibility,omitempty"`
 }
 
 type AppBrickInstancesResult struct {
@@ -74,18 +75,19 @@ type LocalBrickRenameResult struct {
 }
 
 type BrickDetailsResult struct {
-	ID               string                   `json:"id"`
-	Name             string                   `json:"name"`
-	Author           string                   `json:"author"`
-	Description      string                   `json:"description"`
-	Category         string                   `json:"category"`
-	Status           string                   `json:"status"`
-	RequireModel     bool                     `json:"require_model"`
-	Variables        map[string]BrickVariable `json:"variables,omitempty" description:"Deprecated: use config_variables instead. This field is kept for backward compatibility."`
-	Readme           string                   `json:"readme"`
-	ApiDocsPath      string                   `json:"api_docs_path"`
-	CodeExamples     []CodeExample            `json:"code_examples"`
-	UsedByApps       []AppReference           `json:"used_by_apps"`
-	CompatibleModels []AIModel                `json:"compatible_models"`
-	ConfigVariables  []BrickConfigVariable    `json:"config_variables"`
+	ID                        string                   `json:"id"`
+	Name                      string                   `json:"name"`
+	Author                    string                   `json:"author"`
+	Description               string                   `json:"description"`
+	Category                  string                   `json:"category"`
+	Status                    string                   `json:"status"`
+	RequireModel              bool                     `json:"require_model"`
+	Variables                 map[string]BrickVariable `json:"variables,omitempty" description:"Deprecated: use config_variables instead. This field is kept for backward compatibility."`
+	Readme                    string                   `json:"readme"`
+	ApiDocsPath               string                   `json:"api_docs_path"`
+	CodeExamples              []CodeExample            `json:"code_examples"`
+	UsedByApps                []AppReference           `json:"used_by_apps"`
+	CompatibleModels          []AIModel                `json:"compatible_models"`
+	ConfigVariables           []BrickConfigVariable    `json:"config_variables"`
+	AIFrameworksCompatibility []string                 `yaml:"ai_frameworks_compatibility,omitempty"`
 }

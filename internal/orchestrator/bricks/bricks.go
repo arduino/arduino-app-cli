@@ -54,13 +54,14 @@ func (s *Service) List() BrickListResult {
 	res := BrickListResult{Bricks: make([]BrickListItem, len(s.bricksIndex.ListBricks()))}
 	for i, brick := range s.bricksIndex.ListBricks() {
 		res.Bricks[i] = BrickListItem{
-			ID:           brick.ID,
-			Name:         brick.Name,
-			Author:       brick.Source,
-			Description:  brick.Description,
-			Category:     brick.Category,
-			Status:       "installed",
-			RequireModel: brick.RequireModel,
+			ID:                       brick.ID,
+			Name:                     brick.Name,
+			Author:                   brick.Source,
+			Description:              brick.Description,
+			Category:                 brick.Category,
+			Status:                   "installed",
+			RequireModel:             brick.RequireModel,
+			AIrameworksCompatibility: brick.AIFrameworksCompatibility,
 		}
 	}
 	return res
@@ -114,6 +115,13 @@ func compatibleModels(ctx context.Context, models *modelsindex.Lookup, brickID s
 			Description: m.Description,
 		}
 	})
+}
+
+func aiFrameworks(frameworks []string) []string {
+	if frameworks == nil {
+		return []string{}
+	}
+	return frameworks
 }
 
 func (s *Service) AppBrickInstanceDetails(ctx context.Context, a *app.ArduinoApp, brickID string) (BrickInstance, error) {
@@ -214,20 +222,21 @@ func (s *Service) BricksDetails(ctx context.Context, id string, idProvider *appi
 	variables, configVariables := getBrickConfigVariableDetails(brick)
 
 	return BrickDetailsResult{
-		ID:               id,
-		Name:             brick.Name,
-		Author:           brick.Source,
-		Description:      brick.Description,
-		Category:         brick.Category,
-		RequireModel:     brick.RequireModel,
-		Status:           "installed", // For now every Arduino brick are installed
-		Variables:        variables,
-		Readme:           readme,
-		ApiDocsPath:      apiDocsPath,
-		CodeExamples:     codeExamples,
-		UsedByApps:       usedByApps,
-		CompatibleModels: compatibleModels(ctx, s.modelsIndex.NewLookup(), brick.ID),
-		ConfigVariables:  configVariables,
+		ID:                        id,
+		Name:                      brick.Name,
+		Author:                    brick.Source,
+		Description:               brick.Description,
+		Category:                  brick.Category,
+		RequireModel:              brick.RequireModel,
+		Status:                    "installed", // For now every Arduino brick are installed
+		Variables:                 variables,
+		Readme:                    readme,
+		ApiDocsPath:               apiDocsPath,
+		CodeExamples:              codeExamples,
+		UsedByApps:                usedByApps,
+		CompatibleModels:          compatibleModels(ctx, s.modelsIndex.NewLookup(), brick.ID),
+		ConfigVariables:           configVariables,
+		AIFrameworksCompatibility: aiFrameworks(brick.AIFrameworksCompatibility),
 	}, nil
 }
 

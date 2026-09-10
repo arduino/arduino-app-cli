@@ -299,6 +299,25 @@ func TestBricksIndexYAMLFormats(t *testing.T) {
 			},
 		},
 		{
+			name: "ai_frameworks_compatibility as a list",
+			yamlContent: `bricks:
+- id: arduino:brick_with_frameworks
+  name: Brick With Frameworks
+  description: A brick compatible with more than one framework
+  ai_frameworks_compatibility:
+  - genie
+  - llamacpp
+`,
+			expectedBricks: []Brick{
+				{
+					ID:                        "arduino:brick_with_frameworks",
+					Name:                      "Brick With Frameworks",
+					Description:               "A brick compatible with more than one framework",
+					AIFrameworksCompatibility: []string{"genie", "llamacpp"},
+				},
+			},
+		},
+		{
 			name: "model_by_boards with platform and model fields",
 			yamlContent: `bricks:
 - id: arduino:brick_with_model_by_boards

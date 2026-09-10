@@ -1760,6 +1760,11 @@ components:
       type: object
     BrickDetailsResult:
       properties:
+        ai_frameworks_compatibility:
+          items:
+            type: string
+          nullable: true
+          type: array
         api_docs_path:
           type: string
         author:
@@ -1853,6 +1858,11 @@ components:
       type: object
     BrickListItem:
       properties:
+        ai_frameworks_compatibility:
+          items:
+            type: string
+          nullable: true
+          type: array
         author:
           type: string
         category:
