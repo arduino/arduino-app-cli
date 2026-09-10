@@ -299,24 +299,21 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 	}
 
 	if app.MainPythonFile != nil {
-		// In case the app was never started
-		if app.AppComposeFilePath().Exist() {
-			projectName, err := getAppComposeProjectNameFromApp(app, cfg)
-			if err != nil {
-				return err
-			}
-			// The containers of the app are found by the project they carry, so an app
-			// an older cli started is stopped the same way.
-			line := func(line string) { cb(StreamMessage{data: line}) }
-			switch cmd {
-			case "down":
-				err = dockerhelper.ComposeDown(ctx, docker, projectName, line)
-			default:
-				err = dockerhelper.ComposeStop(ctx, docker, projectName, line)
-			}
-			if err != nil {
-				return err
-			}
+		// The project name stops the app without its compose file, which an update
+		// can remove, and finds what an older cli started just the same.
+		projectName, err := getAppComposeProjectNameFromApp(app, cfg)
+		if err != nil {
+			return err
+		}
+		line := func(line string) { cb(StreamMessage{data: line}) }
+		switch cmd {
+		case "down":
+			err = dockerhelper.ComposeDown(ctx, docker, projectName, line)
+		default:
+			err = dockerhelper.ComposeStop(ctx, docker, projectName, line)
+		}
+		if err != nil {
+			return err
 		}
 	}
 	cb(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})

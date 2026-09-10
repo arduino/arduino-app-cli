@@ -157,6 +157,27 @@ func getRunningApp(
 	return &app, nil
 }
 
+// getAppServicesFromContainers reads the services of an app from its containers. The
+// compose file is not a source: an update removes the brick files that it includes.
+func getAppServicesFromContainers(ctx context.Context, docker dockerClient.APIClient, app app.ArduinoApp) ([]string, error) {
+	containers, err := docker.ContainerList(ctx, dockerClient.ContainerListOptions{
+		All:     true,
+		Filters: make(dockerClient.Filters).Add("label", DockerAppPathLabel+"="+app.FullPath.String()),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list containers: %w", err)
+	}
+
+	const dockerComposeServiceLabel = "com.docker.compose.service"
+	services := make([]string, 0, len(containers.Items))
+	for _, info := range containers.Items {
+		if name := info.Labels[dockerComposeServiceLabel]; name != "" && !slices.Contains(services, name) {
+			services = append(services, name)
+		}
+	}
+	return services, nil
+}
+
 func getAppComposeProjectNameFromApp(app app.ArduinoApp, cfg config.Configuration) (string, error) {
 	composeProjectName, err := app.FullPath.RelFrom(cfg.AppsDir())
 	if err != nil {
