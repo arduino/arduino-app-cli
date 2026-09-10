@@ -13,8 +13,8 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/flags"
-	dockerClient "github.com/docker/docker/client"
 	gCmp "github.com/google/go-cmp/cmp"
+	dockerClient "github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.bug.st/f"
@@ -239,10 +239,7 @@ func TestListApp(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
-	docker, err := dockerClient.NewClientWithOpts(
-		dockerClient.FromEnv,
-		dockerClient.WithAPIVersionNegotiation(),
-	)
+	docker, err := dockerClient.New(dockerClient.FromEnv)
 	require.NoError(t, err)
 	dockerCli, err := command.NewDockerCli(
 		command.WithAPIClient(docker),
@@ -400,10 +397,7 @@ func TestListAppsFiltersByBricksIndex(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
-	docker, err := dockerClient.NewClientWithOpts(
-		dockerClient.FromEnv,
-		dockerClient.WithAPIVersionNegotiation(),
-	)
+	docker, err := dockerClient.New(dockerClient.FromEnv)
 	require.NoError(t, err)
 	dockerCli, err := command.NewDockerCli(
 		command.WithAPIClient(docker),
@@ -479,10 +473,7 @@ func TestListAppsLocalBricksCompatibility(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
-	docker, err := dockerClient.NewClientWithOpts(
-		dockerClient.FromEnv,
-		dockerClient.WithAPIVersionNegotiation(),
-	)
+	docker, err := dockerClient.New(dockerClient.FromEnv)
 	require.NoError(t, err)
 	dockerCli, err := command.NewDockerCli(
 		command.WithAPIClient(docker),
@@ -571,10 +562,7 @@ func TestGetAppEnvironmentVariablesWithDefaults(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
-	docker, err := dockerClient.NewClientWithOpts(
-		dockerClient.FromEnv,
-		dockerClient.WithAPIVersionNegotiation(),
-	)
+	docker, err := dockerClient.New(dockerClient.FromEnv)
 	require.NoError(t, err)
 	dockerCli, err := command.NewDockerCli(
 		command.WithAPIClient(docker),
@@ -652,10 +640,7 @@ func TestGetAppEnvironmentVariablesWithCustomModelOverrides(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
-	docker, err := dockerClient.NewClientWithOpts(
-		dockerClient.FromEnv,
-		dockerClient.WithAPIVersionNegotiation(),
-	)
+	docker, err := dockerClient.New(dockerClient.FromEnv)
 	require.NoError(t, err)
 	dockerCli, err := command.NewDockerCli(
 		command.WithAPIClient(docker),
@@ -732,10 +717,7 @@ func TestGetAppEnvironmentVariablesUsingMultipleBricks(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
-	docker, err := dockerClient.NewClientWithOpts(
-		dockerClient.FromEnv,
-		dockerClient.WithAPIVersionNegotiation(),
-	)
+	docker, err := dockerClient.New(dockerClient.FromEnv)
 	require.NoError(t, err)
 	dockerCli, err := command.NewDockerCli(
 		command.WithAPIClient(docker),

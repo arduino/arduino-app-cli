@@ -18,9 +18,8 @@ import (
 	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
-	commands "github.com/docker/compose/v2/cmd/compose"
-	"github.com/docker/compose/v2/pkg/api"
-	"github.com/docker/compose/v2/pkg/compose"
+	"github.com/docker/compose/v5/pkg/api"
+	"github.com/docker/compose/v5/pkg/compose"
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/helpers"
@@ -106,7 +105,10 @@ func AppLogs(
 		filteredServices = f.Filter(filteredServices, f.NotEquals("main"))
 	}
 
-	backend := compose.NewComposeService(dockerCli).(commands.Backend)
+	backend, err := compose.NewComposeService(dockerCli)
+	if err != nil {
+		return nil, err
+	}
 	return func(yield func(LogMessage) bool) {
 		opts := api.LogOptions{
 			Project:    prj,

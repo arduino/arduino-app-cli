@@ -12,8 +12,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 	dockerCommand "github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/flags"
-	"github.com/docker/docker/api/types/image"
-	dockerClient "github.com/docker/docker/client"
+	dockerClient "github.com/moby/moby/client"
 	"github.com/stretchr/testify/require"
 	"go.bug.st/f"
 
@@ -24,7 +23,7 @@ import (
 func TestListImagesAlreadyPulled(t *testing.T) {
 	docker := getDockerClient(t)
 
-	r, err := docker.ImagePull(t.Context(), "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8", image.PullOptions{})
+	r, err := docker.ImagePull(t.Context(), "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8", dockerClient.ImagePullOptions{})
 	require.NoError(t, err)
 	_, _ = io.Copy(io.Discard, r)
 	r.Close()
@@ -37,7 +36,7 @@ func TestListImagesAlreadyPulled(t *testing.T) {
 func TestRemoveImage(t *testing.T) {
 	docker := getDockerClient(t)
 
-	r, err := docker.ImagePull(t.Context(), "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8", image.PullOptions{})
+	r, err := docker.ImagePull(t.Context(), "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8", dockerClient.ImagePullOptions{})
 	require.NoError(t, err)
 	_, _ = io.Copy(io.Discard, r)
 	r.Close()
@@ -51,10 +50,7 @@ func getDockerClient(t *testing.T) dockerClient.APIClient {
 	t.Helper()
 	d, err := dockerCommand.NewDockerCli(
 		dockerCommand.WithAPIClient(
-			f.Must(dockerClient.NewClientWithOpts(
-				dockerClient.FromEnv,
-				dockerClient.WithAPIVersionNegotiation(),
-			)),
+			f.Must(dockerClient.New(dockerClient.FromEnv)),
 		),
 	)
 	require.NoError(t, err)

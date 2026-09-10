@@ -17,7 +17,7 @@ import (
 	"syscall"
 
 	"github.com/docker/cli/cli/command"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
 	"github.com/shirou/gopsutil/v4/disk"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"

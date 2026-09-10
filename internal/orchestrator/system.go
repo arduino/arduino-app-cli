@@ -24,11 +24,7 @@ import (
 	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/api/types/network"
-	dockerClient "github.com/docker/docker/client"
+	dockerClient "github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
 
@@ -223,7 +219,7 @@ func pullImage(ctx context.Context, docker dockerClient.APIClient, imageName str
 	var allErr error
 	var lastErr error
 	for range 10 { // 1s, 2s, 4s, 8s, 10s, 10s, 10s, 10s, 10s, 10s
-		out, lastErr = docker.ImagePull(ctx, imageName, image.PullOptions{})
+		out, lastErr = docker.ImagePull(ctx, imageName, dockerClient.ImagePullOptions{})
 		if lastErr == nil {
 			break // Success
 		}
@@ -305,13 +301,13 @@ var imagePrefixes = []string{
 // Lists all the local docker images that could have been, or are downloaded by Arduino.
 // This is used both to avoid pulling already existing images and cleaning up unused old Arduino images.
 func listImagesAlreadyPulled(ctx context.Context, docker dockerClient.APIClient) ([]string, error) {
-	images, err := docker.ImageList(ctx, image.ListOptions{})
+	images, err := docker.ImageList(ctx, dockerClient.ImageListOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]string, 0, len(images))
-	for _, image := range images {
+	result := make([]string, 0, len(images.Items))
+	for _, image := range images.Items {
 		for _, tag := range image.RepoTags {
 			if slices.ContainsFunc(imagePrefixes, func(p string) bool {
 				return strings.HasPrefix(tag, p)
@@ -468,7 +464,7 @@ func removeImage(ctx context.Context, docker dockerClient.APIClient, imageName s
 		size = info.Size
 	}
 
-	if _, err := docker.ImageRemove(ctx, imageName, image.RemoveOptions{
+	if _, err := docker.ImageRemove(ctx, imageName, dockerClient.ImageRemoveOptions{
 		Force:         true,
 		PruneChildren: true,
 	}); err != nil {
@@ -496,17 +492,17 @@ func getRequiredImages(cfg config.Configuration, bricksindex *bricksindex.Bricks
 }
 
 func removeDanglingContainers(ctx context.Context, docker dockerClient.APIClient) (int, error) {
-	containers, err := docker.ContainerList(ctx, container.ListOptions{
+	containers, err := docker.ContainerList(ctx, dockerClient.ContainerListOptions{
 		All:     true,
-		Filters: filters.NewArgs(filters.Arg("label", DockerAppLabel+"=true")),
+		Filters: make(dockerClient.Filters).Add("label", DockerAppLabel+"=true"),
 	})
 	if err != nil {
 		return 0, fmt.Errorf("failed to list containers: %w", err)
 	}
 
 	var counter int
-	for _, info := range containers {
-		if err := docker.ContainerRemove(ctx, info.ID, container.RemoveOptions{
+	for _, info := range containers.Items {
+		if _, err := docker.ContainerRemove(ctx, info.ID, dockerClient.ContainerRemoveOptions{
 			Force:         true,
 			RemoveVolumes: true,
 		}); err != nil {
@@ -521,19 +517,19 @@ func removeDanglingContainers(ctx context.Context, docker dockerClient.APIClient
 func removeDanglingNetworks(ctx context.Context, docker dockerClient.APIClient) (int, error) {
 	const dockerComposeProjectLabel = "com.docker.compose.project"
 
-	networks, err := docker.NetworkList(ctx, network.ListOptions{
-		Filters: filters.NewArgs(filters.Arg("label", dockerComposeProjectLabel)),
+	networks, err := docker.NetworkList(ctx, dockerClient.NetworkListOptions{
+		Filters: make(dockerClient.Filters).Add("label", dockerComposeProjectLabel),
 	})
 	if err != nil {
 		return 0, fmt.Errorf("failed to list networks: %w", err)
 	}
 
 	var counter int
-	for _, info := range networks {
+	for _, info := range networks.Items {
 		if !strings.Contains(info.Labels[dockerComposeProjectLabel], "arduino-app-cli") {
 			continue
 		}
-		if err := docker.NetworkRemove(ctx, info.ID); err != nil {
+		if _, err := docker.NetworkRemove(ctx, info.ID, dockerClient.NetworkRemoveOptions{}); err != nil {
 			return 0, fmt.Errorf("failed to remove network %s: %w", info.ID, err)
 		}
 		counter++
@@ -716,5 +712,47 @@ func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, platf
 		return fmt.Errorf("could not initialize sketch %s: %w", sketchPath.String(), err)
 	}
 
+	return nil
+}
+
+// PullAppImages downloads what an app needs before it is started, the way the system
+// init does: the size is read from the registry, so the percentage is over what is left.
+func PullAppImages(ctx context.Context, docker command.Cli, images []string, eventCB InitEventCallback) error {
+	pulledImages, err := listImagesAlreadyPulled(ctx, docker.Client())
+	if err != nil {
+		return err
+	}
+	imagesToPull := slices.DeleteFunc(slices.Clone(images), func(image string) bool {
+		return slices.Contains(pulledImages, image)
+	})
+	if len(imagesToPull) == 0 {
+		return nil
+	}
+
+	var allLayers []dockerImageLayer
+	for _, image := range imagesToPull {
+		layers, err := missingLayers(GetHighestVersion(image, pulledImages), image)
+		if err != nil {
+			slog.Warn("Unable to get the new image layers size", "image", image, "error", err)
+		}
+		allLayers = append(allLayers, layers...)
+	}
+	totalBytes := sumUniqueLayers(allLayers)
+
+	freeSpace, err := GetDockerFreeSpace()
+	if err != nil {
+		return err
+	}
+	if uint64(float64(totalBytes)*2.5) > freeSpace {
+		return ErrDockerOutOfSpace
+	}
+
+	layerProgress := map[string]int64{}
+	for i, image := range imagesToPull {
+		label := fmt.Sprintf("Pulling image %d/%d (%s)", i+1, len(imagesToPull), imageName(image))
+		if err := pullImage(ctx, docker.Client(), image, layerProgress, totalBytes, label, eventCB); err != nil {
+			return fmt.Errorf("failed to pull image %s: %w", image, err)
+		}
+	}
 	return nil
 }

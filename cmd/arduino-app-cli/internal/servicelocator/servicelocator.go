@@ -12,7 +12,7 @@ import (
 
 	dockerCommand "github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/flags"
-	dockerClient "github.com/docker/docker/client"
+	dockerClient "github.com/moby/moby/client"
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
@@ -56,10 +56,7 @@ var (
 	GetDockerClient = sync.OnceValue(func() *dockerCommand.DockerCli {
 		docker = f.Must(dockerCommand.NewDockerCli(
 			dockerCommand.WithAPIClient(
-				f.Must(dockerClient.NewClientWithOpts(
-					dockerClient.FromEnv,
-					dockerClient.WithAPIVersionNegotiation(),
-				)),
+				f.Must(dockerClient.New(dockerClient.FromEnv)),
 			),
 		))
 		if err := docker.Initialize(flags.NewClientOptions()); err != nil {

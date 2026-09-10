@@ -104,6 +104,8 @@ func renderComposeFile(ctx context.Context, arduinoApp *app.ArduinoApp, env, sec
 	if err := fatomic.WriteFile(composeFile.String(), data, 0644); err != nil {
 		return nil, err
 	}
+	// What the containers state they were started from: `docker compose ls` reads it.
+	prj.ComposeFiles = []string{composeFile.String()}
 	slog.Debug("wrote the app compose file", slog.String("path", composeFile.String()))
 
 	return prj, nil

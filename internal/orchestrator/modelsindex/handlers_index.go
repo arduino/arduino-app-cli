@@ -17,8 +17,8 @@ import (
 	"time"
 
 	composetmpl "github.com/compose-spec/compose-go/v2/template"
-	"github.com/docker/docker/client"
 	"github.com/goccy/go-yaml"
+	"github.com/moby/moby/client"
 	"go.bug.st/f"
 
 	"github.com/arduino/go-paths-helper"
