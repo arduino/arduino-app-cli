@@ -136,10 +136,17 @@ tasks:
 
   build-deb:clone-examples:
     desc: "Clones the examples repo directly into the debian structure"
+    vars:
+      # Written by this task, read by its status: the clone itself records no version.
+      # Outside the packaged tree, so the deb does not carry it.
+      STAMP: "build/examples-version"
+    status:
+      - test -d "debian/arduino-app-cli/var/lib/arduino-app-cli/examples"
+      - test "$(cat {{.STAMP}} 2>/dev/null)" = "{{.EXAMPLE_VERSION}}"
     cmds:
       - |
           set -e
-          echo "Runner version set as: {{ .EXAMPLE_VERSION }}"
+          echo "Examples version set as: {{ .EXAMPLE_VERSION }}"
           TMP_PATH="$(mktemp -d)"
           DEST_PATH="debian/arduino-app-cli/var/lib/arduino-app-cli/"
           echo "Cloning arduino/app-bricks-examples into temporary directory ${TMP_PATH}..."
@@ -151,6 +158,8 @@ tasks:
           mv "${TMP_PATH}/bricks" "${DEST_PATH}/examples"
           mv "${TMP_PATH}/examples.json" "${DEST_PATH}/examples"
           rm -rf "${TMP_PATH}"
+          mkdir -p "$(dirname "{{.STAMP}}")"
+          echo "{{ .EXAMPLE_VERSION }}" > "{{.STAMP}}"
           echo "Examples successfully cloned."
     silent: false
 
