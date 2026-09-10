@@ -14,7 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.bug.st/f"
 
+	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
@@ -29,7 +31,7 @@ func TestBrickCreate(t *testing.T) {
 	brickService := NewService(nil, bricksIndex)
 
 	t.Run("fails if brick id does not exist", func(t *testing.T) {
-		err = brickService.BrickCreate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err = brickService.BrickCreate(t.Context(), BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "brick \"not-existing-id\" not found", err.Error())
 	})
@@ -38,7 +40,7 @@ func TestBrickCreate(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"NON_EXISTING_VARIABLE": "some-value",
 		}}
-		err = brickService.BrickCreate(req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err = brickService.BrickCreate(t.Context(), req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "variable \"NON_EXISTING_VARIABLE\" does not exist on brick \"arduino:arduino_cloud\"", err.Error())
 	})
@@ -48,7 +50,7 @@ func TestBrickCreate(t *testing.T) {
 			"ARDUINO_DEVICE_ID": "",
 			"ARDUINO_SECRET":    "a-secret-a",
 		}}
-		err = brickService.BrickCreate(req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err = brickService.BrickCreate(t.Context(), req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "required variable \"ARDUINO_DEVICE_ID\" cannot be empty", err.Error())
 	})
@@ -62,7 +64,7 @@ func TestBrickCreate(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"ARDUINO_SECRET": "a-secret-a",
 		}}
-		err = brickService.BrickCreate(req, f.Must(app.Load(tempDummyApp)))
+		err = brickService.BrickCreate(t.Context(), req, f.Must(app.Load(tempDummyApp)))
 		require.NoError(t, err)
 
 		after, err := app.Load(tempDummyApp)
@@ -80,7 +82,7 @@ func TestBrickCreate(t *testing.T) {
 		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
 
 		req := BrickCreateUpdateRequest{ID: "arduino:dbstorage_sqlstore"}
-		err = brickService.BrickCreate(req, f.Must(app.Load(tempDummyApp)))
+		err = brickService.BrickCreate(t.Context(), req, f.Must(app.Load(tempDummyApp)))
 		require.Nil(t, err)
 		after, err := app.Load(tempDummyApp)
 		require.Nil(t, err)
@@ -108,7 +110,7 @@ func TestBrickCreate(t *testing.T) {
 			},
 		}
 
-		err = brickService.BrickCreate(req, f.Must(app.Load(tempDummyApp)))
+		err = brickService.BrickCreate(t.Context(), req, f.Must(app.Load(tempDummyApp)))
 		require.Nil(t, err)
 
 		after, err := app.Load(tempDummyApp)
@@ -126,13 +128,13 @@ func TestUpdateBrick(t *testing.T) {
 	brickService := NewService(nil, bricksIndex)
 
 	t.Run("fails if brick id does not exist into brick index", func(t *testing.T) {
-		err = brickService.BrickUpdate(BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err = brickService.BrickUpdate(t.Context(), BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "brick \"not-existing-id\" not found into the brick index", err.Error())
 	})
 
 	t.Run("fails if brick is present into the index but not in the app ", func(t *testing.T) {
-		err = brickService.BrickUpdate(BrickCreateUpdateRequest{ID: "arduino:dbstorage_sqlstore"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err = brickService.BrickUpdate(t.Context(), BrickCreateUpdateRequest{ID: "arduino:dbstorage_sqlstore"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "brick \"arduino:dbstorage_sqlstore\" not found into the bricks of the app", err.Error())
 	})
@@ -141,7 +143,7 @@ func TestUpdateBrick(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"NON_EXISTING_VARIABLE": "some-value",
 		}}
-		err = brickService.BrickUpdate(req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err = brickService.BrickUpdate(t.Context(), req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "variable \"NON_EXISTING_VARIABLE\" does not exist on brick \"arduino:arduino_cloud\"", err.Error())
 	})
@@ -152,7 +154,7 @@ func TestUpdateBrick(t *testing.T) {
 			"ARDUINO_DEVICE_ID": "",
 			"ARDUINO_SECRET":    "a-secret-a",
 		}}
-		err = brickService.BrickUpdate(req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err = brickService.BrickUpdate(t.Context(), req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
 		require.Error(t, err)
 		require.Equal(t, "required variable \"ARDUINO_DEVICE_ID\" cannot be empty", err.Error())
 	})
@@ -166,7 +168,7 @@ func TestUpdateBrick(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"ARDUINO_SECRET": "a-secret-a",
 		}}
-		err = brickService.BrickUpdate(req, f.Must(app.Load(tempDummyApp)))
+		err = brickService.BrickUpdate(t.Context(), req, f.Must(app.Load(tempDummyApp)))
 		require.NoError(t, err)
 
 		after, err := app.Load(tempDummyApp)
@@ -195,7 +197,7 @@ func TestUpdateBrick(t *testing.T) {
 			},
 		}
 
-		err = brickService.BrickUpdate(req, f.Must(app.Load(tempDummyApp)))
+		err = brickService.BrickUpdate(t.Context(), req, f.Must(app.Load(tempDummyApp)))
 		require.Nil(t, err)
 
 		after, err := app.Load(tempDummyApp)
@@ -223,7 +225,7 @@ func TestUpdateBrick(t *testing.T) {
 			},
 		}
 
-		err = brickService.BrickUpdate(req, f.Must(app.Load(tempDummyApp)))
+		err = brickService.BrickUpdate(t.Context(), req, f.Must(app.Load(tempDummyApp)))
 		require.Nil(t, err)
 
 		after, err := app.Load(tempDummyApp)
@@ -256,7 +258,7 @@ func TestUpdateBrick(t *testing.T) {
 			},
 		}
 
-		err = brickService.BrickUpdate(req, f.Must(app.Load(tempDummyApp)))
+		err = brickService.BrickUpdate(t.Context(), req, f.Must(app.Load(tempDummyApp)))
 		require.Nil(t, err)
 
 		after, err := app.Load(tempDummyApp)
@@ -266,6 +268,33 @@ func TestUpdateBrick(t *testing.T) {
 		require.Equal(t, modelId, after.Descriptor.Bricks[0].Model)
 		require.Equal(t, modelId, after.Descriptor.Bricks[0].Variables["EI_OBJ_DETECTION_MODEL"])
 		require.Equal(t, modelPath, after.Descriptor.Bricks[0].Variables["CUSTOM_MODEL_PATH"])
+	})
+
+	// The handlers decode the wire form, so the service is handed a plain id. app.yaml is
+	// authored by hand and has no encoding rule, so that is what has to land there.
+	t.Run("store the model's own id", func(t *testing.T) {
+		tempDummyApp := paths.New("testdata/dummy-app-for-model-temp")
+		require.Nil(t, tempDummyApp.RemoveAll())
+		require.Nil(t, paths.New("testdata/dummy-app-for-model").CopyDirTo(tempDummyApp))
+		bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
+		require.NoError(t, err)
+		modelsIndex, err := modelsindex.Load(unoQPlatform, paths.New("testdata"), paths.New("not_exixsting_path"), paths.New("not_exixsting_path"), nil, config.Configuration{})
+		require.NoError(t, err)
+		brickService := NewService(modelsIndex, bricksIndex)
+
+		modelID := "ei-model-123-1"
+		req := BrickCreateUpdateRequest{
+			ID:    "arduino:brick-with-custom-model",
+			Model: new(modelID),
+		}
+
+		err = brickService.BrickUpdate(t.Context(), req, f.Must(app.Load(tempDummyApp)))
+		require.Nil(t, err)
+
+		after, err := app.Load(tempDummyApp)
+		require.Nil(t, err)
+		require.Len(t, after.Descriptor.Bricks, 1)
+		require.Equal(t, modelID, after.Descriptor.Bricks[0].Model, "app.yaml must never hold an encoded id")
 	})
 
 }
@@ -406,6 +435,18 @@ bricks:
 	cfg, err := config.NewFromEnv()
 	require.NoError(t, err)
 
+	// Add two one_model_brick CodeExamples as testacase
+	brick01Dir := cfg.ExamplesBaseDir().Join("bricks").Join("arduino", "one_model_brick", "01_example")
+	require.NoError(t, brick01Dir.Join("python").MkdirAll())
+	brick02Dir := cfg.ExamplesBaseDir().Join("bricks").Join("arduino", "one_model_brick", "02_example")
+	require.NoError(t, brick02Dir.Join("python").MkdirAll())
+
+	// Create required files to load the app
+	require.NoError(t, brick01Dir.Join("python", "main.py").Truncate())
+	require.NoError(t, brick02Dir.Join("python", "main.py").Truncate())
+	require.NoError(t, brick01Dir.Join("app.yaml").Truncate())
+	require.NoError(t, brick02Dir.Join("app.yaml").Truncate())
+
 	for _, brick := range []string{"object_detection", "weather_forecast", "one_model_brick"} {
 		createFakeBrickAssets(t, assetsDir, brick)
 	}
@@ -434,10 +475,10 @@ bricks:
 		bricksIndex: bIndex,
 		modelsIndex: mIndex,
 	}
-	idProvider := app.NewAppIDProvider(cfg, unoQPlatform)
+	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
 	t.Run("Brick Not Found", func(t *testing.T) {
-		res, err := svc.BricksDetails("arduino:non_existing", idProvider, cfg, unoQPlatform)
+		res, err := svc.BricksDetails(t.Context(), "arduino:non_existing", idProvider, cfg, unoQPlatform)
 		require.Error(t, err)
 		require.Equal(t, ErrBrickNotFound, err)
 		require.Empty(t, res.ID)
@@ -459,7 +500,7 @@ bricks:
 			},
 		}
 
-		res, err := svc.BricksDetails("arduino:object_detection", idProvider, cfg, unoQPlatform)
+		res, err := svc.BricksDetails(t.Context(), "arduino:object_detection", idProvider, cfg, unoQPlatform)
 		require.NoError(t, err)
 
 		require.Equal(t, "arduino:object_detection", res.ID)
@@ -470,16 +511,14 @@ bricks:
 		require.Equal(t, "default_path", res.Variables["EI_OBJ_DETECTION_MODEL"].DefaultValue)
 		require.Equal(t, "# Documentation", res.Readme)
 		require.Contains(t, res.ApiDocsPath, filepath.Join("arduino", "app_bricks", "object_detection", "API.md"))
-		require.Len(t, res.CodeExamples, 1)
-		require.Contains(t, res.CodeExamples[0].Path, "blink.ino")
 		require.Len(t, res.UsedByApps, 1)
 		require.Equal(t, "My App", res.UsedByApps[0].Name)
 		require.NotEmpty(t, res.UsedByApps[0].ID)
 		require.Len(t, res.CompatibleModels, 2)
-		require.Equal(t, "yolox-object-detection", res.CompatibleModels[0].ID)
+		require.Equal(t, models.EncodeModelID("yolox-object-detection"), res.CompatibleModels[0].ID)
 		require.Equal(t, "General purpose object detection - YoloX", res.CompatibleModels[0].Name)
 		require.Equal(t, "General purpose object detection...", res.CompatibleModels[0].Description)
-		require.Equal(t, "face-detection", res.CompatibleModels[1].ID)
+		require.Equal(t, models.EncodeModelID("face-detection"), res.CompatibleModels[1].ID)
 		require.Equal(t, "Lightweight-Face-Detection", res.CompatibleModels[1].Name)
 		require.Equal(t, "", res.CompatibleModels[1].Description)
 		require.Len(t, res.ConfigVariables, 2)
@@ -487,7 +526,7 @@ bricks:
 	})
 
 	t.Run("Success - Full Details - no models", func(t *testing.T) {
-		res, err := svc.BricksDetails("arduino:weather_forecast", idProvider, cfg, unoQPlatform)
+		res, err := svc.BricksDetails(t.Context(), "arduino:weather_forecast", idProvider, cfg, unoQPlatform)
 		require.NoError(t, err)
 
 		require.Equal(t, "arduino:weather_forecast", res.ID)
@@ -497,8 +536,6 @@ bricks:
 		require.Empty(t, res.Variables)
 		require.Equal(t, "# Documentation", res.Readme)
 		require.Contains(t, res.ApiDocsPath, filepath.Join("arduino", "app_bricks", "weather_forecast", "API.md"))
-		require.Len(t, res.CodeExamples, 1)
-		require.Contains(t, res.CodeExamples[0].Path, "blink.ino")
 		require.Len(t, res.UsedByApps, 1)
 		require.Equal(t, "My App", res.UsedByApps[0].Name)
 		require.NotEmpty(t, res.UsedByApps[0].ID)
@@ -507,18 +544,34 @@ bricks:
 	})
 
 	t.Run("Success - Full Details - one model", func(t *testing.T) {
-		res, err := svc.BricksDetails("arduino:one_model_brick", idProvider, cfg, unoQPlatform)
+		res, err := svc.BricksDetails(t.Context(), "arduino:one_model_brick", idProvider, cfg, unoQPlatform)
 		require.NoError(t, err)
 
 		require.Equal(t, "arduino:one_model_brick", res.ID)
 		require.Equal(t, "one model brick", res.Name)
 		require.Len(t, res.CompatibleModels, 1)
-		require.Equal(t, "face-detection", res.CompatibleModels[0].ID)
+		require.Equal(t, models.EncodeModelID("face-detection"), res.CompatibleModels[0].ID)
 		require.Equal(t, "Lightweight-Face-Detection", res.CompatibleModels[0].Name)
 		require.Equal(t, "", res.CompatibleModels[0].Description)
 		require.Empty(t, res.ConfigVariables)
 		require.Empty(t, res.Variables)
 	})
+
+	t.Run("Success - Brick Code example", func(t *testing.T) {
+		res, err := svc.BricksDetails(t.Context(), "arduino:one_model_brick", idProvider, cfg, unoQPlatform)
+		require.NoError(t, err)
+
+		require.Equal(t, "arduino:one_model_brick", res.ID)
+		require.Equal(t, "one model brick", res.Name)
+		require.Len(t, res.CompatibleModels, 1)
+		require.Len(t, res.CodeExamples, 2)
+		require.Equal(t, models.EncodeModelID("face-detection"), res.CompatibleModels[0].ID)
+		require.Equal(t, "Lightweight-Face-Detection", res.CompatibleModels[0].Name)
+		require.Equal(t, "", res.CompatibleModels[0].Description)
+		require.Empty(t, res.ConfigVariables)
+		require.Empty(t, res.Variables)
+	})
+
 }
 
 func createFakeBrickAssets(t *testing.T, assetsDir, brick string) {
@@ -664,10 +717,10 @@ bricks:
 			},
 			validate: func(t *testing.T, res BrickInstance) {
 				require.Equal(t, "arduino:object_detection", res.ID)
-				require.Equal(t, "yolox-object-detection", res.ModelID)
+				require.Equal(t, models.EncodeModelID("yolox-object-detection"), res.ModelID)
 				require.Len(t, res.CompatibleModels, 2)
-				require.Equal(t, "yolox-object-detection", res.CompatibleModels[0].ID)
-				require.Equal(t, "face-detection", res.CompatibleModels[1].ID)
+				require.Equal(t, models.EncodeModelID("yolox-object-detection"), res.CompatibleModels[0].ID)
+				require.Equal(t, models.EncodeModelID("face-detection"), res.CompatibleModels[1].ID)
 				require.True(t, res.RequireModel)
 			},
 		},
@@ -686,10 +739,10 @@ bricks:
 			},
 			validate: func(t *testing.T, res BrickInstance) {
 				require.Equal(t, "arduino:object_detection", res.ID)
-				require.Equal(t, "face-detection", res.ModelID)
+				require.Equal(t, models.EncodeModelID("face-detection"), res.ModelID)
 				require.Len(t, res.CompatibleModels, 2)
-				require.Equal(t, "yolox-object-detection", res.CompatibleModels[0].ID)
-				require.Equal(t, "face-detection", res.CompatibleModels[1].ID)
+				require.Equal(t, models.EncodeModelID("yolox-object-detection"), res.CompatibleModels[0].ID)
+				require.Equal(t, models.EncodeModelID("face-detection"), res.CompatibleModels[1].ID)
 				require.True(t, res.RequireModel)
 			},
 		},
@@ -697,7 +750,7 @@ bricks:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := svc.AppBrickInstanceDetails(tt.app, tt.brickID)
+			result, err := svc.AppBrickInstanceDetails(t.Context(), tt.app, tt.brickID)
 
 			if tt.expectedError != "" {
 				require.Error(t, err)
@@ -870,10 +923,10 @@ func TestAppBrickInstancesList(t *testing.T) {
 				require.Equal(t, "arduino:object_detection", brick.ID)
 				require.Equal(t, "video", brick.Category)
 				require.True(t, brick.RequireModel)
-				require.Equal(t, "face-detection", brick.ModelID)
+				require.Equal(t, models.EncodeModelID("face-detection"), brick.ModelID)
 				require.Equal(t, []AIModel{
-					{ID: "yolox-object-detection", Name: "General purpose object detection - YoloX", Description: "a-model-description"},
-					{ID: "face-detection", Name: "Lightweight-Face-Detection", Description: ""},
+					{ID: models.EncodeModelID("yolox-object-detection"), Name: "General purpose object detection - YoloX", Description: "a-model-description"},
+					{ID: models.EncodeModelID("face-detection"), Name: "Lightweight-Face-Detection", Description: ""},
 				}, brick.CompatibleModels)
 
 				foundCustom := false
@@ -903,10 +956,10 @@ func TestAppBrickInstancesList(t *testing.T) {
 
 				require.Equal(t, "arduino:object_detection", brick.ID)
 				require.True(t, brick.RequireModel)
-				require.Equal(t, "yolox-object-detection", brick.ModelID)
+				require.Equal(t, models.EncodeModelID("yolox-object-detection"), brick.ModelID)
 				require.Equal(t, []AIModel{
-					{ID: "yolox-object-detection", Name: "General purpose object detection - YoloX", Description: "a-model-description"},
-					{ID: "face-detection", Name: "Lightweight-Face-Detection", Description: ""},
+					{ID: models.EncodeModelID("yolox-object-detection"), Name: "General purpose object detection - YoloX", Description: "a-model-description"},
+					{ID: models.EncodeModelID("face-detection"), Name: "Lightweight-Face-Detection", Description: ""},
 				}, brick.CompatibleModels)
 			},
 		},
@@ -928,8 +981,8 @@ func TestAppBrickInstancesList(t *testing.T) {
 
 				require.Equal(t, "arduino:brick-with-boards", brick.ID)
 				require.True(t, brick.RequireModel)
-				require.Equal(t, "a-model-for-ventunoq", brick.ModelID)
-				require.Equal(t, []AIModel{{ID: "a-model-for-ventunoq", Name: "A model for ventunoq"}}, brick.CompatibleModels)
+				require.Equal(t, models.EncodeModelID("a-model-for-ventunoq"), brick.ModelID)
+				require.Equal(t, []AIModel{{ID: models.EncodeModelID("a-model-for-ventunoq"), Name: "A model for ventunoq"}}, brick.CompatibleModels)
 			},
 		},
 		{
@@ -962,7 +1015,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 				require.Equal(t, "arduino:audio_classification", b2.ID)
 				require.Equal(t, "audio", b2.Category)
 				require.True(t, b2.RequireModel)
-				require.Equal(t, "glass-breaking", b2.ModelID)
+				require.Equal(t, models.EncodeModelID("glass-breaking"), b2.ModelID)
 				require.Equal(t, 2, len(b2.ConfigVariables))
 				require.Equal(t, "/home/arduino/.arduino-bricks/models", b2.ConfigVariables[0].Value)
 				require.Equal(t, "/models/ootb/ei/glass-breaking.eim", b2.ConfigVariables[1].Value)
@@ -1004,7 +1057,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 				bricksIndex: bIndex,
 				modelsIndex: modelsIdx,
 			}
-			result := svc.AppBrickInstancesList(tt.app)
+			result := svc.AppBrickInstancesList(t.Context(), tt.app)
 			if tt.validate != nil {
 				tt.validate(t, result)
 			}

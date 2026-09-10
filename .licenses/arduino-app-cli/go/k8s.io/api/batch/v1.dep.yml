@@ -1,13 +1,13 @@
 ---
 name: k8s.io/api/batch/v1
-version: v0.32.3
+version: v0.34.1
 type: go
 summary: "+k8s:deepcopy-gen=package +k8s:protobuf-gen=package +k8s:openapi-gen=true
   +k8s:prerelease-lifecycle-gen=true"
 homepage: https://pkg.go.dev/k8s.io/api/batch/v1
 license: apache-2.0
 licenses:
-- sources: api@v0.32.3/LICENSE
+- sources: api@v0.34.1/LICENSE
   text: |2
 
                                      Apache License

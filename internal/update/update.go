@@ -10,9 +10,12 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -45,11 +48,15 @@ type ServiceUpdater interface {
 	UpgradePackages(ctx context.Context, packages []PackageInfo, eventCB EventCallback) error
 }
 
+// The deb package of this very program: upgrading it needs a process restart.
+const selfPackageName = "arduino-app-cli"
+
 type Manager struct {
 	lock                         sync.Mutex
 	isUpgrading                  atomic.Bool
 	debUpdateService             ServiceUpdater
 	arduinoPlatformUpdateService ServiceUpdater
+	selfRestart                  bool
 
 	mu   sync.RWMutex
 	subs map[chan Event]struct{}
@@ -61,6 +68,13 @@ func NewManager(debUpdateService ServiceUpdater, arduinoPlatformUpdateService Se
 		arduinoPlatformUpdateService: arduinoPlatformUpdateService,
 		subs:                         make(map[chan Event]struct{}),
 	}
+}
+
+// The daemon is restarted after a self-upgrade either way: only it may take the
+// shortcut of killing itself, since systemd respawns it. The CLI must not.
+func (m *Manager) WithSelfRestart() *Manager {
+	m.selfRestart = true
+	return m
 }
 
 func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(UpgradablePackage) bool) ([]UpgradablePackage, error) {
@@ -131,23 +145,61 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 		defer m.lock.Unlock()
 		defer m.isUpgrading.Store(false)
 
+		const arduinoWeight float32 = 20.0
+		const aptWeight float32 = 80.0
+
 		// We are launching on purpose the update sequentially. The reason is that
 		// the deb pkgs restart the orchestrator, and if we run in parallel the
 		// update of the cores we will end up with inconsistent state, or
 		// we need to re run the upgrade because the orchestrator interrupted
 		// in the middle the upgrade of the cores.
-		if err := m.arduinoPlatformUpdateService.UpgradePackages(ctx, arduinoPlatform, m.broadcast); err != nil {
+		if err := m.arduinoPlatformUpdateService.UpgradePackages(ctx, arduinoPlatform, func(e Event) {
+			if e.Type == ProgressEvent {
+				progress := e.GetProgress()
+				globalProgress := (progress.Progress / 100.0) * arduinoWeight
+				m.broadcast(NewProgressEvent(progress.Step, globalProgress))
+			} else {
+				m.broadcast(e)
+			}
+		}); err != nil {
 			m.broadcast(NewErrorEvent(fmt.Errorf("failed to upgrade Arduino packages: %w", err)))
 
 			// continue with deb packages upgrade.
 		}
 
-		if err := m.debUpdateService.UpgradePackages(ctx, debPkgs, m.broadcast); err != nil {
+		if err := m.debUpdateService.UpgradePackages(ctx, debPkgs, func(e Event) {
+			if e.Type == ProgressEvent {
+				progress := e.GetProgress()
+				globalProgress := arduinoWeight + (progress.Progress/100.0)*aptWeight
+				m.broadcast(NewProgressEvent(progress.Step, globalProgress))
+			} else {
+				m.broadcast(e)
+			}
+		}); err != nil {
 			m.broadcast(NewErrorEvent(fmt.Errorf("failed to upgrade APT packages: %w", err)))
-			return
+
+			// continue: errors are reported to the subscribers but do not end the
+			// operation, DoneEvent is always broadcast as the only terminal event.
 		}
 
+		restartSelf := m.selfRestart && slices.ContainsFunc(debPkgs, func(p PackageInfo) bool { return p.Name == selfPackageName })
+		if restartSelf {
+			m.broadcast(NewDataEvent(RestartEvent, fmt.Sprintf("Upgrade completed. Restarting (pid %d) ...", os.Getpid())))
+		}
+
+		m.broadcast(NewProgressEvent("upgrade", 100.0))
+
 		m.broadcast(NewDataEvent(DoneEvent, "Update completed"))
+
+		if restartSelf {
+			// needrestart skips its caller's cgroup, so we signal ourselves to let
+			// systemd respawn us on the new binary. DoneEvent stays the last event.
+			if p, err := os.FindProcess(os.Getpid()); err == nil {
+				if err := p.Signal(syscall.SIGTERM); err != nil {
+					slog.Error("failed to send SIGTERM to self after upgrade", slog.String("error", err.Error()))
+				}
+			}
+		}
 	}()
 	return nil
 }

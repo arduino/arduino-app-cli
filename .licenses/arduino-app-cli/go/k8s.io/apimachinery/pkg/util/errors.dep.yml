@@ -1,12 +1,12 @@
 ---
 name: k8s.io/apimachinery/pkg/util/errors
-version: v0.32.3
+version: v0.34.1
 type: go
 summary: Package errors implements various utility functions and types around errors.
 homepage: https://pkg.go.dev/k8s.io/apimachinery/pkg/util/errors
 license: apache-2.0
 licenses:
-- sources: apimachinery@v0.32.3/LICENSE
+- sources: apimachinery@v0.34.1/LICENSE
   text: |2
 
                                      Apache License

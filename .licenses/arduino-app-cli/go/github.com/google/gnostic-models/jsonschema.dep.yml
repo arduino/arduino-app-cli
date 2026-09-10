@@ -1,13 +1,13 @@
 ---
 name: github.com/google/gnostic-models/jsonschema
-version: v0.6.8
+version: v0.7.0
 type: go
 summary: Package jsonschema supports the reading, writing, and manipulation of JSON
   Schemas.
 homepage: https://pkg.go.dev/github.com/google/gnostic-models/jsonschema
 license: apache-2.0
 licenses:
-- sources: gnostic-models@v0.6.8/LICENSE
+- sources: gnostic-models@v0.7.0/LICENSE
   text: |2+
 
                                      Apache License

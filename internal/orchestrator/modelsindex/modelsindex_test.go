@@ -95,11 +95,11 @@ func TestModelsIndex(t *testing.T) {
 	t.Run("it gets a preloaded model by ID", func(t *testing.T) {
 		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/custom-models"), nil, nil, config.Configuration{})
 		require.NoError(t, err)
-		model, err := modelsIndex.GetModelByID(t.Context(), "not-existing-model")
+		model, err := modelsIndex.NewLookup().ByID(t.Context(), "not-existing-model")
 		require.NoError(t, err)
 		assert.Nil(t, model)
 
-		model, err = modelsIndex.GetModelByID(t.Context(), "face-detection")
+		model, err = modelsIndex.NewLookup().ByID(t.Context(), "face-detection")
 		require.NoError(t, err)
 		require.NotNil(t, model)
 		assert.Equal(t, &AIModel{
@@ -119,6 +119,7 @@ func TestModelsIndex(t *testing.T) {
 			ModelLabels: []string{"face"},
 			Runner:      "brick",
 			IsBuiltIn:   true,
+			Origin:      CuratedOrigin,
 			Status:      InstalledStatus,
 		}, model)
 
@@ -128,7 +129,7 @@ func TestModelsIndex(t *testing.T) {
 		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, nil, config.Configuration{})
 		require.NoError(t, err)
 
-		model, err := modelsIndex.GetModelByID(t.Context(), "a-builtin-model")
+		model, err := modelsIndex.NewLookup().ByID(t.Context(), "a-builtin-model")
 		require.NoError(t, err)
 		require.NotNil(t, model)
 		assert.Equal(t, &AIModel{
@@ -138,11 +139,12 @@ func TestModelsIndex(t *testing.T) {
 				PreLoaded: true,
 			},
 			IsBuiltIn: true,
+			Origin:    CuratedOrigin,
 			Status:    InstalledStatus,
 		}, model)
 		assert.Equal(t, InstalledStatus, model.Status)
 
-		model, err = modelsIndex.GetModelByID(t.Context(), "a-builtin-model-with-handler")
+		model, err = modelsIndex.NewLookup().ByID(t.Context(), "a-builtin-model-with-handler")
 		require.NoError(t, err)
 		require.NotNil(t, model)
 		assert.Equal(t, &AIModel{
@@ -152,20 +154,21 @@ func TestModelsIndex(t *testing.T) {
 				PreLoaded: true,
 			},
 			IsBuiltIn: true,
+			Origin:    CuratedOrigin,
 			Status:    InstalledStatus,
 		}, model)
 		assert.Equal(t, InstalledStatus, model.Status)
 	})
 
-	t.Run("it read the status of the model using the check handler", func(t *testing.T) {
-		t.Run("installed: info event with downloading=false", func(t *testing.T) {
+	t.Run("it read the status of the model from the handler listing", func(t *testing.T) {
+		t.Run("installed", func(t *testing.T) {
 			cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
-				return "{\"event\":\"info\",\"downloading\":false}\n", 0
+				return listingWith(`{"id":"a-model-not-preloaded-with-handler","installed":true}`), 0
 			})
 			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, cli, config.Configuration{})
 			require.NoError(t, err)
 
-			model, err := modelsIndex.GetModelByID(t.Context(), "a-model-not-preloaded-with-handler")
+			model, err := modelsIndex.NewLookup().ByID(t.Context(), "a-model-not-preloaded-with-handler")
 			require.NoError(t, err)
 			require.NotNil(t, model)
 			assert.Equal(t, &AIModel{
@@ -175,18 +178,19 @@ func TestModelsIndex(t *testing.T) {
 					PreLoaded: false,
 				},
 				IsBuiltIn: false,
+				Origin:    CuratedOrigin,
 				Status:    InstalledStatus,
 			}, model)
 		})
 
-		t.Run("not installed: info event with downloading=true", func(t *testing.T) {
+		t.Run("not installed: a download is in flight", func(t *testing.T) {
 			cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
-				return "{\"event\":\"info\",\"downloading\":true}\n", 0
+				return listingWith(`{"id":"a-model-not-preloaded-with-handler","installed":false,"downloading":true}`), 0
 			})
 			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, cli, config.Configuration{})
 			require.NoError(t, err)
 
-			model, err := modelsIndex.GetModelByID(t.Context(), "a-model-not-preloaded-with-handler")
+			model, err := modelsIndex.NewLookup().ByID(t.Context(), "a-model-not-preloaded-with-handler")
 			require.NoError(t, err)
 			require.NotNil(t, model)
 			assert.Equal(t, &AIModel{
@@ -196,18 +200,19 @@ func TestModelsIndex(t *testing.T) {
 					PreLoaded: false,
 				},
 				IsBuiltIn: false,
-				Status:    NotInstalledStatus,
+				Origin:    CuratedOrigin,
+				Status:    DownloadingStatus,
 			}, model)
 		})
 
-		t.Run("not installed: error event", func(t *testing.T) {
+		t.Run("not installed: absent from disk", func(t *testing.T) {
 			cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
-				return "{\"event\":\"error\",\"description\":\"model not found\"}\n", 1
+				return listingWith(`{"id":"a-model-not-preloaded-with-handler","installed":false}`), 0
 			})
 			modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("testdata/models"), nil, cli, config.Configuration{})
 			require.NoError(t, err)
 
-			model, err := modelsIndex.GetModelByID(t.Context(), "a-model-not-preloaded-with-handler")
+			model, err := modelsIndex.NewLookup().ByID(t.Context(), "a-model-not-preloaded-with-handler")
 			require.NoError(t, err)
 			require.NotNil(t, model)
 			assert.Equal(t, NotInstalledStatus, model.Status)
@@ -218,7 +223,7 @@ func TestModelsIndex(t *testing.T) {
 		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("not-existing-path"), paths.New("testdata/custom-models"), nil, config.Configuration{})
 		require.NoError(t, err)
 
-		eimodel, err := modelsIndex.GetModelByID(t.Context(), "my-model-id")
+		eimodel, err := modelsIndex.NewLookup().ByID(t.Context(), "my-model-id")
 		require.NoError(t, err)
 		require.NotNil(t, eimodel)
 
@@ -235,6 +240,7 @@ func TestModelsIndex(t *testing.T) {
 			ModelFolderPath: paths.New(f.Must(filepath.Abs("testdata/custom-models/my-custom-model"))),
 			Status:          InstalledStatus,
 			IsBuiltIn:       false, // a custom model is never built-in
+			Origin:          EdgeImpulseOrigin,
 		}, eimodel)
 	})
 
@@ -249,11 +255,45 @@ func TestModelsIndex(t *testing.T) {
 		modelsIndex, err := Load(platform.GetPlatform(nil), paths.New("testdata"), paths.New("path-not-existing"), paths.New("testdata/custom-models"), nil, config.Configuration{})
 		require.NoError(t, err)
 
-		model := modelsIndex.GetModelsByBrick("not-existing-brick")
+		model, err := modelsIndex.NewLookup().ByBrick(t.Context(), "not-existing-brick")
+		require.NoError(t, err)
 		assert.Empty(t, model)
 
-		model = modelsIndex.GetModelsByBrick("arduino:object_detection")
+		model, err = modelsIndex.NewLookup().ByBrick(t.Context(), "arduino:object_detection")
+		require.NoError(t, err)
 		assert.Len(t, model, 1)
 		assert.Equal(t, "face-detection", model[0].ID)
 	})
+}
+
+// TestNeedsNoDownload pins the one predicate a lookup and the install route share.
+// Every pre-loaded entry in models-list.yaml names a handler, so the two must agree.
+func TestNeedsNoDownload(t *testing.T) {
+	tests := []struct {
+		name  string
+		model AIModel
+		want  bool
+	}{
+		{
+			name:  "a custom model has no deployment at all",
+			model: AIModel{ID: "ei-model-990187-1"},
+			want:  true,
+		},
+		{
+			name:  "a pre-loaded model still names the handler that built it",
+			model: AIModel{ID: "piper-tts-en", Deployment: &ModelDeployment{Handler: "ai-hub-handler", PreLoaded: true}},
+			want:  true,
+		},
+		{
+			name:  "a downloadable model is installed by its handler, not its declaration",
+			model: AIModel{ID: "ei:efficientnet-b4", Deployment: &ModelDeployment{Handler: "ei-handler"}},
+			want:  false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.model.NeedsNoDownload())
+		})
+	}
+
 }

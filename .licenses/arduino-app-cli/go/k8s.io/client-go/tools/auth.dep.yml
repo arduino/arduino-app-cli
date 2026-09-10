@@ -1,13 +1,13 @@
 ---
 name: k8s.io/client-go/tools/auth
-version: v0.32.3
+version: v0.34.1
 type: go
 summary: Package auth defines a file format for holding authentication information
   needed by clients of Kubernetes.
 homepage: https://pkg.go.dev/k8s.io/client-go/tools/auth
 license: apache-2.0
 licenses:
-- sources: client-go@v0.32.3/LICENSE
+- sources: client-go@v0.34.1/LICENSE
   text: |2
 
                                      Apache License

@@ -1,13 +1,13 @@
 ---
 name: k8s.io/apimachinery/pkg/watch
-version: v0.32.3
+version: v0.34.1
 type: go
 summary: Package watch contains a generic watchable interface, and a fake for testing
   code that uses the watch interface.
 homepage: https://pkg.go.dev/k8s.io/apimachinery/pkg/watch
 license: apache-2.0
 licenses:
-- sources: apimachinery@v0.32.3/LICENSE
+- sources: apimachinery@v0.34.1/LICENSE
   text: |2
 
                                      Apache License

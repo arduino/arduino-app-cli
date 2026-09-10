@@ -141,3 +141,80 @@ func TestGetHighestVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestSumUniqueLayers(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []dockerImageLayer
+		expected int64
+	}{
+		{
+			name:     "no layers",
+			input:    nil,
+			expected: 0,
+		},
+		{
+			name:     "single image",
+			input:    []dockerImageLayer{{Hash: "a", Size: 100}, {Hash: "b", Size: 50}},
+			expected: 150,
+		},
+		{
+			name: "shared layer counted once",
+			input: []dockerImageLayer{
+				{Hash: "base", Size: 200}, {Hash: "a", Size: 50},
+				{Hash: "base", Size: 200}, {Hash: "b", Size: 30},
+			},
+			expected: 280, // base(200) once + a(50) + b(30)
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := sumUniqueLayers(tt.input); got != tt.expected {
+				t.Errorf("sumUniqueLayers() = %d, want %d", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestUpdateLayerProgress(t *testing.T) {
+	layerProgress := map[string]int64{}
+
+	// Two layers downloading in parallel: latest value per layer wins.
+	if got := updateLayerProgress(layerProgress, "Downloading", "layer1", 100); got != 100 {
+		t.Errorf("got %d, want 100", got)
+	}
+	if got := updateLayerProgress(layerProgress, "Downloading", "layer2", 50); got != 150 {
+		t.Errorf("got %d, want 150", got)
+	}
+	if got := updateLayerProgress(layerProgress, "Downloading", "layer1", 300); got != 350 {
+		t.Errorf("got %d, want 350 (layer1 updated, not added)", got)
+	}
+
+	// Extracting must not contribute (no double counting of the decompress phase).
+	if got := updateLayerProgress(layerProgress, "Extracting", "layer1", 999); got != 350 {
+		t.Errorf("got %d, want 350 (Extracting ignored)", got)
+	}
+
+	// Events without an ID must not contribute.
+	if got := updateLayerProgress(layerProgress, "Downloading", "", 999); got != 350 {
+		t.Errorf("got %d, want 350 (empty id ignored)", got)
+	}
+}
+
+func TestImageName(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"ghcr.io/arduino/app-bricks/python-apps-base:0.11.0rc6", "ghcr.io/arduino/app-bricks/python-apps-base"},
+		{"influxdb:2.7-alpine", "influxdb"},
+		{"ghcr.io/arduino/app-bricks/ei-models-runner@sha256:abc", "ghcr.io/arduino/app-bricks/ei-models-runner"},
+		{"nginx", "nginx"},
+	}
+	for _, tt := range tests {
+		if got := imageName(tt.input); got != tt.expected {
+			t.Errorf("imageName(%q) = %q, want %q", tt.input, got, tt.expected)
+		}
+	}
+}

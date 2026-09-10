@@ -22,12 +22,12 @@ import (
 )
 
 // runnerVersion do not edit, this is generate with `task bump:runner-version`
-var RunnerVersion = "0.11.0"
+var RunnerVersion = "0.13.0rc2"
 
 type Configuration struct {
 	appsDir                          *paths.Path
 	dataDir                          *paths.Path
-	requiredRuntimes                 []string
+	requiredRuntimes                 []RequiredRuntime
 	customModelsDir                  *paths.Path
 	modelsDir                        *paths.Path
 	assetDir                         *paths.Path
@@ -39,6 +39,13 @@ type Configuration struct {
 	LibrariesAPIURL                  *url.URL
 	EdgeImpulseAPIURL                *url.URL
 	ArduinoPlatformVersionConstraint semver.Constraint
+}
+
+// RequiredRuntime is a host unit whose socket is bind-mounted into app
+// containers, together with the supplementary group needed to access it.
+type RequiredRuntime struct {
+	Unit  string
+	Group string
 }
 
 func NewFromEnv() (Configuration, error) {
@@ -65,14 +72,20 @@ func NewFromEnv() (Configuration, error) {
 	}
 
 	// Required host units bind-mounted as /run/<unit> into app containers.
+	// Each entry is `<unit>[:<group>]`, where the optional group is the host
+	// group required to access the unit socket.
 	requiredRuntimesEnv, ok := os.LookupEnv("ARDUINO_APP_CLI__REQUIRED_RUNTIMES")
 	if !ok {
-		requiredRuntimesEnv = "arduino-router,arduino-cloud-connector"
+		requiredRuntimesEnv = "arduino-router:arduino-router,arduino-cloud-connector"
 	}
-	var requiredRuntimes []string
-	for u := range strings.SplitSeq(requiredRuntimesEnv, ",") {
-		if u = strings.TrimSpace(u); u != "" {
-			requiredRuntimes = append(requiredRuntimes, u)
+	var requiredRuntimes []RequiredRuntime
+	for entry := range strings.SplitSeq(requiredRuntimesEnv, ",") {
+		unit, group, _ := strings.Cut(entry, ":")
+		if unit = strings.TrimSpace(unit); unit != "" {
+			requiredRuntimes = append(requiredRuntimes, RequiredRuntime{
+				Unit:  unit,
+				Group: strings.TrimSpace(group),
+			})
 		}
 	}
 
@@ -90,11 +103,6 @@ func NewFromEnv() (Configuration, error) {
 			return Configuration{}, err
 		}
 		customModelsDir = paths.New(homeDir, ".arduino-bricks/models")
-	}
-	if customModelsDir.NotExist() {
-		if err := customModelsDir.MkdirAll(); err != nil {
-			slog.Warn("failed create custom model directory", "error", err)
-		}
 	}
 
 	registryBase := getDockerRegistryBase()
@@ -151,25 +159,29 @@ func NewFromEnv() (Configuration, error) {
 		EdgeImpulseAPIURL:                parsedEdgeImpulseURL,
 		ArduinoPlatformVersionConstraint: constraint,
 	}
-	if err := c.init(); err != nil {
-		return Configuration{}, err
-	}
+
 	return c, nil
 }
 
-func (c *Configuration) init() error {
+// EnsureFolders creates the folders required by arduino-app-cli.
+//
+// This must not be executed as root (e.g. under ALLOW_ROOT): the folders would
+// be created root-owned and cause permission issues for the arduino user that
+// runs the application. Callers should skip it when running as root.
+func (c *Configuration) EnsureFolders() error {
 	if err := c.AppsDir().MkdirAll(); err != nil {
-		return err
-	}
-	if err := c.examplesDir().Join("common").MkdirAll(); err != nil {
-		return err
-	}
-	if err := c.AssetDir().MkdirAll(); err != nil {
 		return err
 	}
 	if err := c.ModelsDir().MkdirAll(); err != nil {
 		return err
 	}
+	if err := c.AssetDir().MkdirAll(); err != nil {
+		return err
+	}
+	if err := c.CustomModelsDir().MkdirAll(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -181,43 +193,45 @@ func (c *Configuration) DataDir() *paths.Path {
 	return c.dataDir
 }
 
-func (c *Configuration) examplesDir() *paths.Path {
+func (c *Configuration) ExamplesBaseDir() *paths.Path {
 	return c.dataDir.Join("examples")
 }
 
-func (c *Configuration) ExamplesDirs(platform platform.Platform) paths.PathList {
-	boardExampleDir := c.examplesDir().Join(fmt.Sprintf("platform_%s", platform.BoardName))
-	if boardExampleDir.Exist() {
-		return paths.PathList{boardExampleDir, c.examplesDir().Join("common")}
-	}
-	return paths.PathList{c.examplesDir().Join("common")}
+func (c *Configuration) ExamplesAdditionalDirs() paths.PathList {
+	return paths.PathList{
+		c.ExamplesBaseDir().Join("core-and-foundational"),
+		c.ExamplesBaseDir().Join("bricks")}
 }
 
-// RequiredRuntimesPaths returns the discovered host paths for configured required
-// units, searching in order: /run/<unit>, /var/run/<unit>, /run/<unit>.sock,
-// /var/run/<unit>.sock. The first existing entry per unit is returned.
-func (c *Configuration) RequiredRuntimesPaths() paths.PathList {
-	var result paths.PathList
-	for _, runtime := range c.requiredRuntimes {
-		candidates := []*paths.Path{
-			paths.New("/run", runtime),
-			paths.New("/var/run", runtime),
-			paths.New("/run", runtime+".sock"),
-			paths.New("/var/run", runtime+".sock"),
-		}
-		found := false
-		for _, p := range candidates {
-			if p.Exist() {
-				result.AddIfMissing(p)
-				found = true
-				break
-			}
-		}
-		if !found {
-			slog.Debug("required runtime not found on host", "runtime", runtime)
-		}
+func (c *Configuration) ExamplesDirs(platform platform.Platform) paths.PathList {
+	boardExampleDir := c.ExamplesBaseDir().Join("inspirational").Join(fmt.Sprintf("platform_%s", platform.BoardName))
+	if boardExampleDir.Exist() {
+		return paths.PathList{boardExampleDir, c.ExamplesBaseDir().Join("inspirational").Join("common")}
 	}
-	return result
+	return paths.PathList{c.ExamplesBaseDir().Join("inspirational").Join("common")}
+}
+
+type RequiredRuntimeCandidate struct {
+	Paths []string
+	Group string
+}
+
+// RequiredRuntimeCandidates returns the socket paths every configured unit can have,
+// with the group needed to access it. Which path the board has is decided at start.
+func (c *Configuration) RequiredRuntimeCandidates() []RequiredRuntimeCandidate {
+	candidates := make([]RequiredRuntimeCandidate, 0, len(c.requiredRuntimes))
+	for _, runtime := range c.requiredRuntimes {
+		candidates = append(candidates, RequiredRuntimeCandidate{
+			Paths: []string{
+				paths.New("/run", runtime.Unit).String(),
+				paths.New("/var/run", runtime.Unit).String(),
+				paths.New("/run", runtime.Unit+".sock").String(),
+				paths.New("/var/run", runtime.Unit+".sock").String(),
+			},
+			Group: runtime.Group,
+		})
+	}
+	return candidates
 }
 
 func (c *Configuration) AssetDir() *paths.Path {

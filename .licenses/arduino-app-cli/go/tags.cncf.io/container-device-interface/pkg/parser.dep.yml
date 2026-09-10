@@ -1,12 +1,12 @@
 ---
 name: tags.cncf.io/container-device-interface/pkg/parser
-version: v1.0.1
+version: v1.1.0
 type: go
 summary:
 homepage: https://pkg.go.dev/tags.cncf.io/container-device-interface/pkg/parser
 license: apache-2.0
 licenses:
-- sources: container-device-interface@v1.0.1/LICENSE
+- sources: container-device-interface@v1.1.0/LICENSE
   text: |2
                                      Apache License
                                Version 2.0, January 2004

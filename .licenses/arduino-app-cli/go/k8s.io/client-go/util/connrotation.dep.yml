@@ -1,13 +1,13 @@
 ---
 name: k8s.io/client-go/util/connrotation
-version: v0.32.3
+version: v0.34.1
 type: go
 summary: Package connrotation implements a connection dialer that tracks and can close
   all created connections.
 homepage: https://pkg.go.dev/k8s.io/client-go/util/connrotation
 license: apache-2.0
 licenses:
-- sources: client-go@v0.32.3/LICENSE
+- sources: client-go@v0.34.1/LICENSE
   text: |2
 
                                      Apache License

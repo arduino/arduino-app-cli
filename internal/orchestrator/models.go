@@ -23,6 +23,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
@@ -30,28 +31,18 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
-type AIModelsListResult struct {
-	Models []AIModelItem `json:"models"`
-}
-
-type AIModelItem struct {
-	ID          string                  `json:"id"`
-	Name        string                  `json:"name"`
-	Description string                  `json:"description"`
-	Runner      string                  `json:"runner"`
-	Bricks      []string                `json:"brick_ids"`
-	Metadata    map[string]string       `json:"metadata,omitempty"`
-	IsBuiltIn   bool                    `json:"is_builtin"`
-	Size        *uint64                 `json:"size,omitempty"`
-	Status      modelsindex.ModelStatus `json:"status"`
-}
-
 type AIModelsListRequest struct {
 	FilterByBrickID []string
 }
 
-func AIModelsList(ctx context.Context, req AIModelsListRequest, modelsIndex *modelsindex.ModelsIndex) AIModelsListResult {
-	collection := modelsIndex.GetModels(ctx)
+// AIModelsList answers every model, filtered by brick when the request names one. It runs
+// one listing container, and fails when that fails: the install status of every model
+// comes from there, so a list without it states the declaration's guess as fact.
+func AIModelsList(ctx context.Context, req AIModelsListRequest, modelsIndex *modelsindex.ModelsIndex) ([]modelsindex.AIModel, error) {
+	collection, err := modelsIndex.NewLookup().All(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if len(req.FilterByBrickID) != 0 {
 		collection = slices.DeleteFunc(collection, func(model modelsindex.AIModel) bool {
 			return !slices.ContainsFunc(model.Bricks, func(brick modelsindex.BrickConfig) bool {
@@ -59,49 +50,34 @@ func AIModelsList(ctx context.Context, req AIModelsListRequest, modelsIndex *mod
 			})
 		})
 	}
-
-	items := f.Map(collection, func(model modelsindex.AIModel) AIModelItem {
-		return AIModelItem{
-			ID:          model.ID,
-			Name:        model.Name,
-			Description: model.Description,
-			Runner:      model.Runner,
-			Bricks:      f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
-			Metadata:    model.Metadata,
-			IsBuiltIn:   model.IsBuiltIn,
-			Status:      model.Status,
-			Size: func() *uint64 {
-				if model.Size > 0 {
-					return &model.Size
-				}
-				return nil
-			}(),
-		}
-	})
-	return AIModelsListResult{Models: items}
+	return collection, nil
 }
 
-func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, id string) (AIModelItem, bool, error) {
-
-	model, err := modelsIndex.GetModelByID(ctx, id)
+// AIModelDetails describes the model id names. It runs the listing container unless the
+// model is installed by its declaration. The id is plain: the API decodes the path before
+// calling in.
+func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, id string) (modelsindex.AIModel, bool, error) {
+	model, err := modelsIndex.NewLookup().ByID(ctx, id)
 	if err != nil {
-		return AIModelItem{}, false, err
+		return modelsindex.AIModel{}, false, err
 	}
 	if model == nil {
-		return AIModelItem{}, false, nil
+		return modelsindex.AIModel{}, false, nil
 	}
+	return *model, true, nil
+}
 
-	return AIModelItem{
-		ID:          model.ID,
-		Name:        model.Name,
-		Description: model.Description,
-		Runner:      model.Runner,
-		Bricks:      f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
-		Metadata:    model.Metadata,
-		IsBuiltIn:   model.IsBuiltIn,
-		Size:        &model.Size,
-		Status:      model.Status,
-	}, true, nil
+// AIModelInstall downloads a model the internal model list declares and describes what
+// landed. publish reports the handler's own events as they arrive.
+func AIModelInstall(ctx context.Context, dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform, id string, publish func(modelsindex.StreamMessage)) (modelsindex.AIModel, error) {
+	return modelsIndex.Install(ctx, dockerClient, id, plat, publish)
+}
+
+// AIModelDownload downloads a model no entry declares, from the links the caller supplies,
+// and describes it from the listing: the record the handler wrote is what says where the
+// files came from. The id is not an input, the downloader reports it.
+func AIModelDownload(ctx context.Context, dockerClient command.Cli, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform, modelURL, mmprojURL string, publish func(modelsindex.StreamMessage)) (modelsindex.AIModel, error) {
+	return modelsIndex.DownloadByURL(ctx, dockerClient.Client(), modelURL, mmprojURL, plat, publish)
 }
 
 var (
@@ -112,14 +88,17 @@ var (
 	ErrIncompleteImpulse   = errors.New("impulse not ready for deployment")
 )
 
-func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, platform platform.Platform, id string, idProvider *app.IDProvider, force bool) (err error) {
-	res, err := modelsIndex.GetModelByID(ctx, id)
+func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Configuration, modelsIndex *modelsindex.ModelsIndex, bricksIndex *bricksindex.BricksIndex, platform platform.Platform, modelID string, idProvider *appid.Provider, force bool) (err error) {
+	res, err := modelsIndex.NewLookup().ByID(ctx, modelID)
 	if err != nil {
 		return err
 	}
 	if res == nil {
-		return fmt.Errorf("%q: %w", id, ErrNotFound)
+		return fmt.Errorf("%q: %w", modelID, ErrNotFound)
 	}
+	// An app references the model by the id the model itself holds, so everything below
+	// asks with that one rather than with what the caller passed.
+	id := res.ID
 
 	if res.IsBuiltIn {
 		return ErrCannotRemoveModel
@@ -138,11 +117,12 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 
 	if runningAppReference != nil {
 		// TODO: we should destroy the app
-		if err := StopApp(ctx, dockerClient, platform, *runningAppReference, func(StreamMessage) {}); err != nil {
+		if err := StopApp(ctx, dockerClient, platform, *runningAppReference, cfg, func(StreamMessage) {}); err != nil {
 			slog.Warn("Error while stopping the app using the model", "app", runningAppReference.Name, "error", err.Error())
 		}
 	}
 
+	// TODO: skip the delete action when res.Status is already not-installed.
 	err = modelsIndex.Delete(ctx, dockerClient, platform, *res)
 	if err != nil {
 		return fmt.Errorf("error deleting model %q: %w", id, err)
@@ -170,7 +150,7 @@ func buildModelInUseMessage(references []string, runningAppRef *app.ArduinoApp) 
 // This allows the user to see both issues before deciding to use the flag
 // preventing the second error from being masked.
 func checkForModelReferences(ctx context.Context, dockerClient command.Cli,
-	cfg config.Configuration, idProvider *app.IDProvider, bricksIndex *bricksindex.BricksIndex,
+	cfg config.Configuration, idProvider *appid.Provider, bricksIndex *bricksindex.BricksIndex,
 	modelId string, platform platform.Platform) ([]string, *app.ArduinoApp, error) {
 	apps, err := ListApps(
 		ctx, dockerClient, ListAppRequest{
@@ -204,7 +184,7 @@ func checkForModelReferences(ctx context.Context, dockerClient command.Cli,
 }
 
 func isModelInUse(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, modelId string) error {
-	model, err := modelsIndex.GetModelByID(ctx, modelId)
+	model, err := modelsIndex.NewLookup().ByID(ctx, modelId)
 	if err != nil {
 		return fmt.Errorf("error retrieving model %q: %w", modelId, err)
 	}
@@ -228,31 +208,31 @@ func isModelInUse(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, doc
 	return nil
 }
 
-func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, platform platform.Platform, projectID int, impulseID int) (AIModelItem, error) {
+func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, platform platform.Platform, projectID int, impulseID int) (modelsindex.AIModel, error) {
 
 	eiParams, err := platform.EIDeploymentParams()
 	if err != nil {
-		return AIModelItem{}, err
+		return modelsindex.AIModel{}, err
 	}
 
 	id := fmt.Sprintf("ei-model-%d-%d", projectID, impulseID)
 	err = isModelInUse(ctx, modelsIndex, dockerClient, id)
 	if err != nil {
-		return AIModelItem{}, fmt.Errorf("cannot install EI model: %w", err)
+		return modelsindex.AIModel{}, fmt.Errorf("cannot install EI model: %w", err)
 	}
 
 	project, err := eiClient.GetProjectInfo(ctx, projectID, impulseID)
 	if err != nil {
-		return AIModelItem{}, err
+		return modelsindex.AIModel{}, err
 	}
 
 	if !project.ImpulseState.Complete {
-		return AIModelItem{}, fmt.Errorf("%w for project %d impulse %d", ErrIncompleteImpulse, projectID, impulseID)
+		return modelsindex.AIModel{}, fmt.Errorf("%w for project %d impulse %d", ErrIncompleteImpulse, projectID, impulseID)
 	}
 
 	dpList, err := eiClient.GetDeploymentHistory(ctx, projectID, impulseID, 1)
 	if err != nil {
-		return AIModelItem{}, err
+		return modelsindex.AIModel{}, err
 	}
 	// check if there is a deployment and is valid for arduino uno Q or ventuno target, otherwise build it.
 	var mversion int
@@ -261,11 +241,11 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 
 		job, err := eiClient.Build(ctx, projectID, impulseID, eiParams.ModelType, eiParams.Engine, eiParams.DeviceType)
 		if err != nil {
-			return AIModelItem{}, err
+			return modelsindex.AIModel{}, err
 		}
 		err = eiClient.WaitForBuildCompletion(ctx, projectID, job.JobID)
 		if err != nil {
-			return AIModelItem{}, err
+			return modelsindex.AIModel{}, err
 		}
 		mversion = job.DeploymentVersion
 	} else {
@@ -276,17 +256,17 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 
 	modelRC, err := eiClient.DownloadHistoricDeployment(ctx, projectID, mversion)
 	if err != nil {
-		return AIModelItem{}, err
+		return modelsindex.AIModel{}, err
 	}
 
 	impulse, err := eiClient.GetImpulseInfo(ctx, projectID, impulseID)
 	if err != nil {
-		return AIModelItem{}, err
+		return modelsindex.AIModel{}, err
 	}
 
 	bricks, err := buildBrickConfigForEIModel(bricksIndex, project.Details.Category, impulse.LearnBlocks, edgeModelsDir, blobModelsDir)
 	if err != nil {
-		return AIModelItem{}, err
+		return modelsindex.AIModel{}, err
 	}
 	customModelDescriptor := custommodel.ModelDescriptor{
 		ID:          id,
@@ -309,20 +289,21 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 	aimodel, err := custommodel.Store(edgeModelsDir, customModelDescriptor, modelRC, "model.eim")
 	if err != nil {
 		if errors.Is(err, syscall.ENOSPC) {
-			return AIModelItem{}, ErrInsufficientStorage
+			return modelsindex.AIModel{}, ErrInsufficientStorage
 		}
-		return AIModelItem{}, err
+		return modelsindex.AIModel{}, err
 	}
 
-	return AIModelItem{
+	return modelsindex.AIModel{
 		ID:          aimodel.ModelDescriptor.ID,
 		Name:        aimodel.ModelDescriptor.Name,
 		Description: aimodel.ModelDescriptor.Description,
 		Runner:      aimodel.ModelDescriptor.Runner,
-		Bricks: f.Map(aimodel.ModelDescriptor.Bricks, func(b custommodel.BrickConfig) string {
-			return b.ID
+		Bricks: f.Map(aimodel.ModelDescriptor.Bricks, func(b custommodel.BrickConfig) modelsindex.BrickConfig {
+			return modelsindex.BrickConfig{ID: b.ID}
 		}),
 		Metadata: aimodel.ModelDescriptor.Metadata,
+		Origin:   modelsindex.EdgeImpulseOrigin,
 		Status:   modelsindex.InstalledStatus,
 	}, nil
 }

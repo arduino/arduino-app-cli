@@ -33,7 +33,13 @@ func newModelListCmd() *cobra.Command {
 }
 
 func modelListHandler(ctx context.Context, excludeBuiltin bool) {
-	models := servicelocator.GetModelsIndex().GetModels(ctx)
+	// One listing run, in a container, so the cost is at this line and not hidden.
+	models, err := servicelocator.GetModelsIndex().NewLookup().All(ctx)
+	if err != nil {
+		// Without the listing every model reads not-installed, so there is no list to
+		// print, only a wrong one.
+		feedback.Fatal(err.Error(), feedback.ErrGeneric)
+	}
 	result := make([]modelsindex.AIModel, 0)
 	for _, m := range models {
 		if excludeBuiltin && m.IsBuiltIn {
@@ -51,7 +57,7 @@ type modelListResult struct {
 func (r modelListResult) String() string {
 	t := table.NewWriter()
 	t.SetStyle(tablestyle.CustomCleanStyle)
-	t.AppendHeader(table.Row{"ID", "NAME", "BUILTIN"})
+	t.AppendHeader(table.Row{"ID", "NAME", "ORIGIN", "BUILTIN"})
 
 	for _, model := range r.Models {
 		checkmark := ""
@@ -61,6 +67,7 @@ func (r modelListResult) String() string {
 		t.AppendRow(table.Row{
 			model.ID,
 			model.Name,
+			model.Origin,
 			checkmark,
 		})
 	}

@@ -73,6 +73,7 @@ func NewArduinoAppCLI(t *testing.T, opts ...ArduinoAppCLIOption) *ArduinoAppCLI 
 		require.NoError(t, os.CopyFS(dataDir.String(), os.DirFS(originalTestDataDir.String())))
 		require.NoError(t, err, "failed to copy testdata to temp dir")
 	}
+	require.NoError(t, dataDir.Join("models").MkdirAll())
 
 	cli := &ArduinoAppCLI{
 		t:          require.New(t),
@@ -185,6 +186,15 @@ func (cli *ArduinoAppCLI) convertEnvForExecutils(env map[string]string) []string
 	// Proxy code-coverage related env vars
 	if gocoverdir := os.Getenv("INTEGRATION_GOCOVERDIR"); gocoverdir != "" {
 		envVars = append(envVars, "GOCOVERDIR="+gocoverdir)
+	}
+
+	// The daemon runs handler containers, so it needs the same docker endpoint the
+	// caller uses. A development machine reaches it through DOCKER_HOST; CI has the
+	// default socket.
+	for _, name := range []string{"DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG"} {
+		if value := os.Getenv(name); value != "" {
+			envVars = append(envVars, name+"="+value)
+		}
 	}
 	return envVars
 }

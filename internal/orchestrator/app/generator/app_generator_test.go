@@ -63,6 +63,21 @@ func TestGenerateApp(t *testing.T) {
 	}
 }
 
+func TestGenerateAppWithBricks(t *testing.T) {
+	tempDir := paths.New(t.TempDir())
+	descriptor := app.AppDescriptor{
+		Name: "test app with bricks",
+		Bricks: []app.Brick{
+			{ID: "arduino:air_quality_monitoring"},
+			{ID: "arduino:object_detection"},
+		},
+	}
+
+	require.NoError(t, GenerateApp(tempDir, descriptor, true))
+	generated := f.Must(app.Load(tempDir))
+	require.Equal(t, descriptor.Bricks, generated.Descriptor.Bricks)
+}
+
 func compareFolders(t *testing.T, actualPath, goldenPath *paths.Path) {
 	t.Helper()
 

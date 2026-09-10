@@ -11,9 +11,10 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/spf13/cobra"
-	"go.bug.st/cleanup"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/app"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/brick"
@@ -60,7 +61,7 @@ func run(configuration cfg.Configuration) error {
 		SilenceErrors: true,
 	}
 
-	rootCmd.PersistentFlags().StringVar(&format, "format", "text", "Output format (text, json)")
+	rootCmd.PersistentFlags().StringVar(&format, "format", "text", "Output format (text, json, json-lines)")
 	rootCmd.PersistentFlags().StringVar(&logLevelStr, "log-level", "error", "Set the log level (debug, info, warn, error)")
 
 	rootCmd.AddCommand(
@@ -76,8 +77,17 @@ func run(configuration cfg.Configuration) error {
 		model.NewModelCmd(configuration),
 	)
 
-	ctx := context.Background()
-	ctx, _ = cleanup.InterruptableContext(ctx)
+	ctx, stop := signal.NotifyContext(context.Background(),
+		os.Interrupt,    // SIGINT used by Ctrl+C in interactive mode.
+		syscall.SIGTERM, // SIGTERM used by systemd in daemon mode.
+	)
+	defer stop()
+	// Restore the default action after the first signal, so that a second Ctrl+C
+	// or SIGTERM still kills a command that ignores its context.
+	go func() {
+		<-ctx.Done()
+		stop()
+	}()
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		return err
 	}
@@ -93,6 +103,16 @@ func main() {
 
 	if os.Geteuid() != 1000 && !configuration.AllowRoot {
 		feedback.Fatal("arduino-app-cli must be run as a non-root user with UID 1000. Try `su - arduino` before this command.", feedback.ErrGeneric)
+	}
+
+	// Skip folder creation only when running as root (e.g. under ALLOW_ROOT):
+	// creating them as root would leave them root-owned and cause permission
+	// issues for the arduino user. Any non-root user (arduino, CI, dev) creates
+	// its own folders.
+	if os.Geteuid() != 0 {
+		if err := configuration.EnsureFolders(); err != nil {
+			feedback.FatalError(err, feedback.ErrGeneric)
+		}
 	}
 
 	if err := run(configuration); err != nil {

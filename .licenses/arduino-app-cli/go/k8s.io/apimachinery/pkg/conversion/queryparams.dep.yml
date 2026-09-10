@@ -1,13 +1,13 @@
 ---
 name: k8s.io/apimachinery/pkg/conversion/queryparams
-version: v0.32.3
+version: v0.34.1
 type: go
 summary: Package queryparams provides conversion from versioned runtime objects to
   URL query values
 homepage: https://pkg.go.dev/k8s.io/apimachinery/pkg/conversion/queryparams
 license: apache-2.0
 licenses:
-- sources: apimachinery@v0.32.3/LICENSE
+- sources: apimachinery@v0.34.1/LICENSE
   text: |2
 
                                      Apache License

@@ -1,6 +1,6 @@
 ---
 name: github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil/header
-version: v1.22.0
+version: v1.23.2
 type: go
 summary: Package header provides functions for parsing HTTP headers.
 homepage: https://pkg.go.dev/github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil/header
@@ -35,7 +35,7 @@ licenses:
     THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
     (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
     OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-- sources: client_golang@v1.22.0/LICENSE
+- sources: client_golang@v1.23.2/LICENSE
   text: |2
                                      Apache License
                                Version 2.0, January 2004

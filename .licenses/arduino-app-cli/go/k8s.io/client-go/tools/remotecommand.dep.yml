@@ -1,13 +1,13 @@
 ---
 name: k8s.io/client-go/tools/remotecommand
-version: v0.32.3
+version: v0.34.1
 type: go
 summary: Package remotecommand adds support for executing commands in containers,
   with support for separate stdin, stdout, and stderr streams, as well as TTY.
 homepage: https://pkg.go.dev/k8s.io/client-go/tools/remotecommand
 license: apache-2.0
 licenses:
-- sources: client-go@v0.32.3/LICENSE
+- sources: client-go@v0.34.1/LICENSE
   text: |2
 
                                      Apache License

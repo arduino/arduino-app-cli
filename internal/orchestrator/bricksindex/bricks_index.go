@@ -6,7 +6,6 @@
 package bricksindex
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -18,11 +17,10 @@ import (
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
-	"github.com/compose-spec/compose-go/v2/loader"
-	"github.com/compose-spec/compose-go/v2/types"
 	yaml "github.com/goccy/go-yaml"
 	"github.com/goccy/go-yaml/ast"
 
+	"github.com/arduino/arduino-app-cli/internal/composefile"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -113,14 +111,12 @@ func (r *RequiresServices) UnmarshalYAML(node ast.Node) error {
 }
 
 type Brick struct {
-	ID              string   `yaml:"id"`
-	Name            string   `yaml:"name"`
-	Description     string   `yaml:"description"`
-	SupportedBoards []string `yaml:"supported_boards,omitempty"`
-	Category        string   `yaml:"category,omitempty"`
-	RequiresDisplay string   `yaml:"requires_display,omitempty"`
-	// Deprecated : the field `require_container` is deprecated, you can remove it from the brick config. It will be ignored if present.
-	RequireContainer            bool                      `yaml:"require_container"` // Deprecated
+	ID                          string                    `yaml:"id"`
+	Name                        string                    `yaml:"name"`
+	Description                 string                    `yaml:"description"`
+	SupportedBoards             []string                  `yaml:"supported_boards,omitempty"`
+	Category                    string                    `yaml:"category,omitempty"`
+	RequiresDisplay             string                    `yaml:"requires_display,omitempty"`
 	Variables                   []BrickVariable           `yaml:"variables,omitempty"`
 	Ports                       []string                  `yaml:"ports,omitempty"`
 	ModelName                   string                    `yaml:"model_name,omitempty"`
@@ -168,20 +164,6 @@ func (b Brick) GetReadmeFile() (string, error) {
 		return "", fmt.Errorf("cannot read README.md for brick %s: %w", b.ID, err)
 	}
 	return string(content), nil
-}
-
-func (b Brick) GetExamplesPath() (paths.PathList, error) {
-	if b.ExamplesPath == nil || b.ExamplesPath.NotExist() {
-		return nil, fmt.Errorf("examples not found for brick %s", b.ID)
-	}
-	dirEntries, err := b.ExamplesPath.ReadDir()
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("examples not found for brick %s", b.ID)
-		}
-		return nil, fmt.Errorf("cannot read examples directory %q: %w", b.ExamplesPath, err)
-	}
-	return dirEntries, nil
 }
 
 func (b Brick) GetApiDocPath() (*paths.Path, bool) {
@@ -271,12 +253,9 @@ func Load(platform platform.Platform, path *paths.Path) (*BricksIndex, error) {
 	}
 
 	for i := range yamlIndex.Bricks {
-		namespace, brickName, err := parseBrickID(yamlIndex.Bricks[i].ID)
+		namespace, brickName, err := ParseBrickID(yamlIndex.Bricks[i].ID)
 		if err != nil {
 			return nil, err
-		}
-		if yamlIndex.Bricks[i].RequireContainer {
-			slog.Warn("the field `require_container` is deprecated. You can remove it from the brick config", "brick_id", yamlIndex.Bricks[i].ID)
 		}
 		yamlIndex.Bricks[i].Source = "Arduino"
 		yamlIndex.Bricks[i].FullPath = path
@@ -299,7 +278,7 @@ func Load(platform platform.Platform, path *paths.Path) (*BricksIndex, error) {
 
 		// Extract ports from the compose file if it exists
 		if composeFile, ok := yamlIndex.Bricks[i].GetComposeFile(); ok {
-			if ports, err := extractPortsFromComposeFile(composeFile); err == nil {
+			if ports, err := composefile.ExtractPorts(composeFile); err == nil {
 				yamlIndex.Bricks[i].containerPorts = ports
 			} else {
 				slog.Warn("cannot extract ports from compose file, skipping", "brick_id", yamlIndex.Bricks[i].ID, "error", err)
@@ -328,42 +307,10 @@ func Load(platform platform.Platform, path *paths.Path) (*BricksIndex, error) {
 	}, nil
 }
 
-func parseBrickID(brickID string) (namespace, name string, err error) {
+func ParseBrickID(brickID string) (namespace, name string, err error) {
 	namespace, brickName, ok := strings.Cut(brickID, ":")
 	if !ok {
 		return "", "", errors.New("invalid ID")
 	}
 	return namespace, brickName, nil
-}
-
-func extractPortsFromComposeFile(composeFile *paths.Path) ([]string, error) {
-	content, err := composeFile.ReadFile()
-	if err != nil {
-		return nil, err
-	}
-
-	prj, err := loader.LoadWithContext(
-		context.Background(),
-		types.ConfigDetails{
-			ConfigFiles: []types.ConfigFile{{Content: content}},
-			Environment: types.NewMapping(os.Environ()),
-		},
-		func(o *loader.Options) { o.SetProjectName("default", false); o.SkipConsistencyCheck = true },
-		loader.WithSkipValidation,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	var ports []string
-	for _, svc := range prj.Services {
-		for _, p := range svc.Ports {
-			if p.Published != "" {
-				ports = append(ports, p.Published)
-			} else {
-				ports = append(ports, fmt.Sprintf("%d", p.Target))
-			}
-		}
-	}
-	return ports, nil
 }

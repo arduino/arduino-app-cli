@@ -7,7 +7,6 @@ package orchestrator
 
 import (
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
@@ -67,17 +66,25 @@ func parseDockerImage(image string) (name string, version string) {
 	return image, ""
 }
 
-// Returns the number of bytes that would be downloaded when pulling the new docker image while the old one is
-// already present locally. It accounts for image layers that are already present locally.
-func GetBytesToDownload(localRefStr string, remoteRefStr string) (int64, error) {
+// imageName returns the docker image reference without its tag/digest, e.g.
+// "ghcr.io/arduino/app-bricks/python-apps-base" for
+// "ghcr.io/arduino/app-bricks/python-apps-base:0.11.0rc6".
+func imageName(image string) string {
+	name, _ := parseDockerImage(image)
+	return name
+}
+
+// missingLayers returns the layers present in the remote image but not already
+// available locally, i.e. the layers that actually need to be downloaded.
+func missingLayers(localRefStr string, remoteRefStr string) ([]dockerImageLayer, error) {
 	localLayers, err := getImageLayers(localRefStr)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
 	remoteLayers, err := getImageLayers(remoteRefStr)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
 	localDigests := map[string]struct{}{}
@@ -85,18 +92,30 @@ func GetBytesToDownload(localRefStr string, remoteRefStr string) (int64, error) 
 		localDigests[l.Hash] = struct{}{}
 	}
 
-	var downloadBytes int64
+	var missing []dockerImageLayer
 	for _, l := range remoteLayers {
 		if _, ok := localDigests[l.Hash]; ok {
 			continue
 		}
+		missing = append(missing, l)
+	}
+	return missing, nil
+}
 
-		// The layer is missing, so sum its size to the total to download.
-		downloadBytes += l.Size
+// sumUniqueLayers sums the sizes of the given layers, counting each distinct
+// layer (by digest) only once. Shared layers are downloaded a single time, so
+// this yields the real total number of bytes to download.
+func sumUniqueLayers(layers []dockerImageLayer) int64 {
+	uniq := map[string]int64{}
+	for _, l := range layers {
+		uniq[l.Hash] = l.Size
 	}
 
-	slog.Debug("docker image bytes to download", "image", remoteRefStr, "byte", downloadBytes)
-	return downloadBytes, nil
+	var total int64
+	for _, size := range uniq {
+		total += size
+	}
+	return total
 }
 
 type dockerImageLayer struct {

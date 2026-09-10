@@ -1,6 +1,6 @@
 ---
 name: sigs.k8s.io/yaml
-version: v1.4.0
+version: v1.6.0
 type: go
 summary:
 homepage: https://pkg.go.dev/sigs.k8s.io/yaml

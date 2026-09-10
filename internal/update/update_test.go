@@ -189,25 +189,32 @@ func TestManagerUpgradePackages(t *testing.T) {
 		packages   []UpgradablePackage
 		svc1Err    error
 		svc2Err    error
-		expectEvts []EventType // expected last event type from broadcast
+		expectEvts []EventType // expected event sequence from broadcast
 	}{
 		{
 			name:       "both services upgrade successfully",
 			packages:   []UpgradablePackage{{Type: Arduino, Name: "arduino:zephyr", ToVersion: "2.0"}, {Type: Debian, Name: "pkg1", ToVersion: "1.1"}},
-			expectEvts: []EventType{DoneEvent},
+			expectEvts: []EventType{ProgressEvent, DoneEvent},
 		},
 		{
 			name:       "arduino service fails, deb succeeds",
 			packages:   []UpgradablePackage{{Type: Arduino, Name: "arduino:zephyr", ToVersion: "2.0"}, {Type: Debian, Name: "pkg1", ToVersion: "1.1"}},
 			svc1Err:    errors.New("arduino upgrade failed"),
-			expectEvts: []EventType{ErrorEvent, DoneEvent}, // should continue to deb upgrade and complete
+			expectEvts: []EventType{ErrorEvent, ProgressEvent, DoneEvent}, // should continue to deb upgrade and complete
 		},
 		{
 			name:     "deb service fails",
 			packages: []UpgradablePackage{{Type: Debian, Name: "pkg1", ToVersion: "1.1"}},
 			svc2Err:  errors.New("deb upgrade failed"),
-			// FIXME: we should alwas return Done?
-			expectEvts: []EventType{ErrorEvent},
+			// The error does not interrupt the sequence: done is still the last event.
+			expectEvts: []EventType{ErrorEvent, ProgressEvent, DoneEvent},
+		},
+		{
+			name:       "both services fail",
+			packages:   []UpgradablePackage{{Type: Arduino, Name: "arduino:zephyr", ToVersion: "2.0"}, {Type: Debian, Name: "pkg1", ToVersion: "1.1"}},
+			svc1Err:    errors.New("arduino upgrade failed"),
+			svc2Err:    errors.New("deb upgrade failed"),
+			expectEvts: []EventType{ErrorEvent, ErrorEvent, ProgressEvent, DoneEvent},
 		},
 	}
 
@@ -231,7 +238,7 @@ func TestManagerUpgradePackages(t *testing.T) {
 			err := m.UpgradePackages(context.Background(), tc.packages)
 			require.NoError(t, err, "unexpected error starting upgrade")
 
-			// Collect the last event
+			// Collect the events until the terminal done event (or timeout).
 			timeout := time.After(1 * time.Second)
 			var events []EventType
 		loop:
@@ -246,7 +253,6 @@ func TestManagerUpgradePackages(t *testing.T) {
 					break loop
 				}
 			}
-
 			assert.Equal(t, tc.expectEvts, events, "unexpected event sequence")
 		})
 	}
@@ -284,6 +290,7 @@ func TestManagerSubscribeReceivesUpgradeEvents(t *testing.T) {
 		applyFn: func(ctx context.Context, pkgs []PackageInfo, cb EventCallback) error {
 			cb(NewDataEvent(StartEvent, "starting arduino"))
 			cb(NewDataEvent(UpgradeLineEvent, "upgrading arduino"))
+			cb(NewProgressEvent("arduino upgrade", 50.0))
 			return nil
 		},
 	}
@@ -291,6 +298,7 @@ func TestManagerSubscribeReceivesUpgradeEvents(t *testing.T) {
 		applyFn: func(ctx context.Context, pkgs []PackageInfo, cb EventCallback) error {
 			cb(NewDataEvent(StartEvent, "starting deb"))
 			cb(NewDataEvent(UpgradeLineEvent, "upgrading deb"))
+			cb(NewProgressEvent("deb upgrade", 70.0))
 			return nil
 		},
 	}
@@ -308,8 +316,8 @@ func TestManagerSubscribeReceivesUpgradeEvents(t *testing.T) {
 
 	var events []Event
 	timeout := time.After(2 * time.Second)
-	// 2 from arduino + 2 from deb + 1 DoneEvent = 5
-	for range 5 {
+	// 3 from arduino + 3 from deb + 1 ProgressEvent 1 + DoneEvent  = 8
+	for range 8 {
 		select {
 		case ev := <-ch:
 			events = append(events, ev)
@@ -318,7 +326,7 @@ func TestManagerSubscribeReceivesUpgradeEvents(t *testing.T) {
 		}
 	}
 
-	assert.Len(t, events, 5, "expected 5 events")
+	assert.Len(t, events, 8, "expected 8 events")
 	assert.Equal(t, StartEvent, events[0].Type, "expected first event to be StartEvent")
-	assert.Equal(t, DoneEvent, events[len(events)-1].Type, "expected first event to be StartEvent")
+	assert.Equal(t, DoneEvent, events[len(events)-1].Type, "expected last event to be DoneEvent")
 }

@@ -1,12 +1,12 @@
 ---
 name: k8s.io/apimachinery/pkg/util/sets
-version: v0.32.3
+version: v0.34.1
 type: go
 summary: Package sets has generic set and specified sets.
 homepage: https://pkg.go.dev/k8s.io/apimachinery/pkg/util/sets
 license: apache-2.0
 licenses:
-- sources: apimachinery@v0.32.3/LICENSE
+- sources: apimachinery@v0.34.1/LICENSE
   text: |2
 
                                      Apache License

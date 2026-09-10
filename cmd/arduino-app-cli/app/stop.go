@@ -32,7 +32,7 @@ func newStopCmd(cfg config.Configuration) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return stopHandler(cmd.Context(), app)
+			return stopHandler(cmd.Context(), app, cfg)
 		},
 		ValidArgsFunction: completion.ApplicationNamesWithFilterFunc(cfg, func(apps orchestrator.AppInfo) bool {
 			return apps.Status == orchestrator.StatusStarting ||
@@ -41,10 +41,10 @@ func newStopCmd(cfg config.Configuration) *cobra.Command {
 	}
 }
 
-func stopHandler(ctx context.Context, app app.ArduinoApp) error {
+func stopHandler(ctx context.Context, app app.ArduinoApp, cfg config.Configuration) error {
 	out, _, getResult := feedback.OutputStreams()
 
-	if err := orchestrator.StopApp(ctx, servicelocator.GetDockerClient(), servicelocator.GetPlatform(), app, func(message orchestrator.StreamMessage) {
+	if err := orchestrator.StopApp(ctx, servicelocator.GetDockerClient(), servicelocator.GetPlatform(), app, cfg, func(message orchestrator.StreamMessage) {
 		switch message.GetType() {
 		case orchestrator.ProgressType:
 			fmt.Fprintf(out, "Progress[%s]: %.0f%%\n", message.GetProgress().Name, message.GetProgress().Progress)

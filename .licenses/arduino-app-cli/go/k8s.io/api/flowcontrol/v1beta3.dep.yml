@@ -1,12 +1,12 @@
 ---
 name: k8s.io/api/flowcontrol/v1beta3
-version: v0.32.3
+version: v0.34.1
 type: go
 summary: Package v1beta3 holds api types of version v1beta3 for group "flowcontrol.apiserver.k8s.io".
 homepage: https://pkg.go.dev/k8s.io/api/flowcontrol/v1beta3
 license: apache-2.0
 licenses:
-- sources: api@v0.32.3/LICENSE
+- sources: api@v0.34.1/LICENSE
   text: |2
 
                                      Apache License

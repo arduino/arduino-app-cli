@@ -17,6 +17,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
@@ -28,7 +29,7 @@ type AppLocalBrickCreateResponse struct {
 	ID string `json:"id"`
 }
 
-func HandleAppLocalBrickCreate(idProvider *app.IDProvider) http.HandlerFunc {
+func HandleAppLocalBrickCreate(idProvider *appid.Provider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		appId, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {

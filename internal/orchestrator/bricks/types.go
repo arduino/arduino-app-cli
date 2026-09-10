@@ -37,6 +37,7 @@ type BrickInstance struct {
 	Readme           string                `json:"readme"`
 }
 
+// AIModel names a model a brick can use. The plain id stays in app.yaml.
 type AIModel struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
@@ -56,8 +57,12 @@ type BrickVariable struct {
 }
 
 type CodeExample struct {
-	Path string `json:"path"`
+	Path        string `json:"path"`
+	EncodedID   string `json:"encoded_id,omitempty"`
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
 }
+
 type AppReference struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`

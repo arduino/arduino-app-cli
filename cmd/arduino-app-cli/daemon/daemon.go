@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/httprecover"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/pipewire"
 	"github.com/arduino/arduino-app-cli/internal/update"
 	"github.com/arduino/arduino-app-cli/internal/update/apt"
 	"github.com/arduino/arduino-app-cli/internal/update/arduino"
@@ -39,6 +41,17 @@ func NewDaemonCmd(cfg config.Configuration, version string) *cobra.Command {
 			err := stopArduinoContainers(cmd.Context(), servicelocator.GetDockerClient())
 			if err != nil {
 				slog.Warn("Failed to stop containers", slog.String("error", err.Error()))
+			}
+
+			app, err := orchestrator.GetDefaultApp(cfg)
+			if err != nil {
+				slog.Warn("failed to get default app", slog.String("error", err.Error()))
+			}
+			if app == nil {
+				slog.Debug("app is not set")
+				if err := pipewire.StopIfNotNeeded(cmd.Context(), cfg); err != nil {
+					slog.Warn("Failed to reconcile leftover audio service linger", slog.String("error", err.Error()))
+				}
 			}
 
 			// start the default app in the background
@@ -104,7 +117,7 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 		update.NewManager(
 			apt.New(),
 			arduino.NewArduinoPlatformUpdater(servicelocator.GetPlatform(), cfg.ArduinoPlatformVersionConstraint),
-		),
+		).WithSelfRestart(),
 		servicelocator.GetProvisioner(),
 		servicelocator.GetModelsIndex(),
 		servicelocator.GetBricksIndex(),
@@ -125,10 +138,14 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 
 	// Start the HTTP server
 	address := "127.0.0.1:" + daemonPort
+	// All the requests derive from srvCtx: canceling it interrupts all requests, including the long-lived
+	// SSE streams, that otherwise block the shutdown until the timeout.
+	srvCtx, cancelRequests := context.WithCancel(context.Background())
 	httpSrv := http.Server{
 		Addr:              address,
 		Handler:           httprecover.RecoverPanic(apiSrv),
 		ReadHeaderTimeout: 60 * time.Second,
+		BaseContext:       func(net.Listener) context.Context { return srvCtx },
 	}
 	go func() {
 		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -139,8 +156,10 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 	<-ctx.Done()
 	slog.Info("Shutting down HTTP server", slog.String("address", address))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	_ = httpSrv.Shutdown(ctx)
+	cancelRequests()
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	_ = httpSrv.Shutdown(shutdownCtx)
 	cancel()
 	slog.Info("HTTP server shut down", slog.String("address", address))
 }

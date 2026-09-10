@@ -1,12 +1,12 @@
 ---
 name: github.com/containerd/containerd/v2/pkg/tracing
-version: v2.1.3
+version: v2.2.4
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/containerd/containerd/v2/pkg/tracing
 license: apache-2.0
 licenses:
-- sources: v2@v2.1.3/LICENSE
+- sources: v2@v2.2.4/LICENSE
   text: |2
 
                                      Apache License

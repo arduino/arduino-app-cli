@@ -1,6 +1,6 @@
 ---
 name: github.com/containerd/platforms
-version: v1.0.0-rc.1
+version: v1.0.0-rc.2
 type: go
 summary: Package platforms provides a toolkit for normalizing, matching and specifying
   container platforms.

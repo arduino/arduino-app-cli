@@ -32,7 +32,7 @@ func newDestroyCmd(cfg config.Configuration) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return destroyHandler(cmd.Context(), app)
+			return destroyHandler(cmd.Context(), app, cfg)
 		},
 		ValidArgsFunction: completion.ApplicationNamesWithFilterFunc(cfg, func(apps orchestrator.AppInfo) bool {
 			return apps.Status != orchestrator.StatusUninitialized
@@ -40,10 +40,10 @@ func newDestroyCmd(cfg config.Configuration) *cobra.Command {
 	}
 }
 
-func destroyHandler(ctx context.Context, app app.ArduinoApp) error {
+func destroyHandler(ctx context.Context, app app.ArduinoApp, cfg config.Configuration) error {
 	out, _, getResult := feedback.OutputStreams()
 
-	if err := orchestrator.StopAndDestroyApp(ctx, servicelocator.GetDockerClient(), servicelocator.GetPlatform(), app, func(message orchestrator.StreamMessage) {
+	if err := orchestrator.StopAndDestroyApp(ctx, servicelocator.GetDockerClient(), servicelocator.GetPlatform(), app, cfg, func(message orchestrator.StreamMessage) {
 		switch message.GetType() {
 		case orchestrator.ProgressType:
 			fmt.Fprintf(out, "Progress[%s]: %.0f%%\n", message.GetProgress().Name, message.GetProgress().Progress)

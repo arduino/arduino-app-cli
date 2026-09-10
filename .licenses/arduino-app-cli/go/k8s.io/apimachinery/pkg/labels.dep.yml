@@ -1,13 +1,13 @@
 ---
 name: k8s.io/apimachinery/pkg/labels
-version: v0.32.3
+version: v0.34.1
 type: go
 summary: Package labels implements a simple label system, parsing and matching selectors
   with sets of labels.
 homepage: https://pkg.go.dev/k8s.io/apimachinery/pkg/labels
 license: apache-2.0
 licenses:
-- sources: apimachinery@v0.32.3/LICENSE
+- sources: apimachinery@v0.34.1/LICENSE
   text: |2
 
                                      Apache License

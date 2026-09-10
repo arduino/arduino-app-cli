@@ -1,12 +1,12 @@
 ---
 name: github.com/emicklei/go-restful/v3/log
-version: v3.11.0
+version: v3.13.0
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/emicklei/go-restful/v3/log
 license: mit
 licenses:
-- sources: v3@v3.11.0/LICENSE
+- sources: v3@v3.13.0/LICENSE
   text: |-
     Copyright (c) 2012,2013 Ernest Micklei
 

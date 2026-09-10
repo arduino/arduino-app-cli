@@ -1,6 +1,6 @@
 ---
 name: k8s.io/client-go/tools/clientcmd
-version: v0.32.3
+version: v0.34.1
 type: go
 summary: Package clientcmd provides one stop shopping for building a working client
   from a fixed config, from a .kubeconfig file, from command line flags, or from any
@@ -8,7 +8,7 @@ summary: Package clientcmd provides one stop shopping for building a working cli
 homepage: https://pkg.go.dev/k8s.io/client-go/tools/clientcmd
 license: apache-2.0
 licenses:
-- sources: client-go@v0.32.3/LICENSE
+- sources: client-go@v0.34.1/LICENSE
   text: |2
 
                                      Apache License

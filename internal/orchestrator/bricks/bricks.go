@@ -7,6 +7,7 @@ package bricks
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -17,8 +18,10 @@ import (
 	yaml "github.com/goccy/go-yaml"
 	"go.bug.st/f"
 
+	apimodels "github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
@@ -63,8 +66,10 @@ func (s *Service) List() BrickListResult {
 	return res
 }
 
-func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) AppBrickInstancesResult {
+func (s *Service) AppBrickInstancesList(ctx context.Context, a *app.ArduinoApp) AppBrickInstancesResult {
 	res := AppBrickInstancesResult{BrickInstances: make([]BrickInstance, len(a.Descriptor.Bricks))}
+	// One lookup for every brick instance, rather than a listing each.
+	models := s.modelsIndex.NewLookup()
 	for i, brickInstance := range a.Descriptor.Bricks {
 		brick, found := s.bricksIndex.WithAppBricks(a.LocalBricks).FindBrickByID(brickInstance.ID)
 		if !found {
@@ -79,29 +84,39 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) AppBrickInstancesResu
 		variablesMap, configVariables := getInstanceBrickConfigVariableDetails(brick, brickInstance.Variables)
 
 		res.BrickInstances[i] = BrickInstance{
-			ID:              brick.ID,
-			Name:            brick.Name,
-			Author:          brick.Source,
-			Category:        brick.Category,
-			Status:          "installed",
-			RequireModel:    brick.RequireModel,
-			ModelID:         cmp.Or(brickInstance.Model, brick.ModelName),
-			Variables:       variablesMap,
-			ConfigVariables: configVariables,
-			CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModelLite) AIModel {
-				return AIModel{
-					ID:          m.ID,
-					Name:        m.Name,
-					Description: m.Description,
-				}
-			}),
+			ID:               brick.ID,
+			Name:             brick.Name,
+			Author:           brick.Source,
+			Category:         brick.Category,
+			Status:           "installed",
+			RequireModel:     brick.RequireModel,
+			ModelID:          apimodels.EncodeModelID(cmp.Or(brickInstance.Model, brick.ModelName)),
+			Variables:        variablesMap,
+			ConfigVariables:  configVariables,
+			CompatibleModels: compatibleModels(ctx, models, brick.ID),
 		}
 
 	}
 	return res
 }
 
-func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (BrickInstance, error) {
+// compatibleModels lists the models the brick can use, with the ids encoded.
+func compatibleModels(ctx context.Context, models *modelsindex.Lookup, brickID string) []AIModel {
+	matches, err := models.ByBrick(ctx, brickID)
+	if err != nil {
+		slog.Warn("cannot get models info, brick compatibility list may be incomplete", "brick", brickID, "err", err)
+	}
+	return f.Map(matches, func(m modelsindex.AIModelLite) AIModel {
+		return AIModel{
+			ID:   apimodels.EncodeModelID(m.ID),
+			Name: m.Name,
+			// TODO: deprecated field, remove in future versions
+			Description: m.Description,
+		}
+	})
+}
+
+func (s *Service) AppBrickInstanceDetails(ctx context.Context, a *app.ArduinoApp, brickID string) (BrickInstance, error) {
 	bricksindex := s.bricksIndex.WithAppBricks(a.LocalBricks)
 	brick, found := bricksindex.FindBrickByID(brickID)
 	if !found {
@@ -119,28 +134,21 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 	if r, err := brick.GetReadmeFile(); err == nil {
 		readme = r
 	} else {
-		slog.Warn("cannot open readme for brick", "brickID", brick.ID, "error", err.Error())
+		slog.Warn("cannot open readme for brick", slog.String("brickID", brick.ID), slog.Any("error", err.Error()))
 	}
 
 	return BrickInstance{
-		ID:              brickID,
-		Name:            brick.Name,
-		Author:          brick.Source,
-		Category:        brick.Category,
-		Status:          "installed", // For now every Arduino brick are installed
-		RequireModel:    brick.RequireModel,
-		Variables:       variables,
-		ConfigVariables: configVariables,
-		ModelID:         cmp.Or(a.Descriptor.Bricks[brickIndex].Model, brick.ModelName),
-		CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModelLite) AIModel {
-			return AIModel{
-				ID:   m.ID,
-				Name: m.Name,
-				// TODO: deprecated field, remove in future versions
-				Description: m.Description,
-			}
-		}),
-		Readme: readme,
+		ID:               brickID,
+		Name:             brick.Name,
+		Author:           brick.Source,
+		Category:         brick.Category,
+		Status:           "installed", // For now every Arduino brick are installed
+		RequireModel:     brick.RequireModel,
+		Variables:        variables,
+		ConfigVariables:  configVariables,
+		ModelID:          apimodels.EncodeModelID(cmp.Or(a.Descriptor.Bricks[brickIndex].Model, brick.ModelName)),
+		CompatibleModels: compatibleModels(ctx, s.modelsIndex.NewLookup(), brick.ID),
+		Readme:           readme,
 	}, nil
 }
 
@@ -173,7 +181,7 @@ func getInstanceBrickConfigVariableDetails(
 	return variablesMap, variableDetails
 }
 
-func (s *Service) BricksDetails(id string, idProvider *app.IDProvider,
+func (s *Service) BricksDetails(ctx context.Context, id string, idProvider *appid.Provider,
 	cfg config.Configuration, platform platform.Platform) (BrickDetailsResult, error) {
 	brick, found := s.bricksIndex.FindBrickByID(id)
 	if !found {
@@ -182,55 +190,82 @@ func (s *Service) BricksDetails(id string, idProvider *app.IDProvider,
 
 	readme, err := brick.GetReadmeFile()
 	if err != nil {
-		slog.Warn("cannot open readme for brick", "brickID", brick.ID, "error", err.Error())
+		slog.Warn("cannot open readme for brick", slog.String("brickID", brick.ID), slog.Any("error", err.Error()))
 	}
 
 	var apiDocsPath string
 	if p, ok := brick.GetApiDocPath(); ok {
 		apiDocsPath = p.String()
 	} else {
-		slog.Warn("cannot load API doc", "brickID", brick.ID)
+		slog.Warn("cannot load API doc", slog.String("brickID", brick.ID))
 	}
 
-	examplePaths, err := brick.GetExamplesPath()
+	brickNamespace, brickName, err := bricksindex.ParseBrickID(brick.ID)
 	if err != nil {
-		slog.Warn("cannot load example for brick", "brickID", brick.ID, "error", err.Error())
+		slog.Warn("invalid brick id", "brickID", brick.ID, "error", err.Error())
 	}
-	codeExamples := f.Map(examplePaths, func(p *paths.Path) CodeExample {
-		return CodeExample{
-			Path: p.String(),
-		}
-	})
+	codeExamples := getBrickExamplesInfo(cfg, idProvider, brickNamespace, brickName)
 
 	usedByApps, err := getUsedByApps(cfg, brick.ID, idProvider, platform)
 	if err != nil {
-		slog.Warn("unable to get used by apps for brick", "brickID", brick.ID, "error", err.Error())
+		slog.Warn("unable to get used by apps for brick", slog.String("brickID", brick.ID), slog.Any("error", err.Error()))
 	}
 
 	variables, configVariables := getBrickConfigVariableDetails(brick)
 
 	return BrickDetailsResult{
-		ID:           id,
-		Name:         brick.Name,
-		Author:       brick.Source,
-		Description:  brick.Description,
-		Category:     brick.Category,
-		RequireModel: brick.RequireModel,
-		Status:       "installed", // For now every Arduino brick are installed
-		Variables:    variables,
-		Readme:       readme,
-		ApiDocsPath:  apiDocsPath,
-		CodeExamples: codeExamples,
-		UsedByApps:   usedByApps,
-		CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModelLite) AIModel {
-			return AIModel{
-				ID:          m.ID,
-				Name:        m.Name,
-				Description: m.Description,
-			}
-		}),
-		ConfigVariables: configVariables,
+		ID:               id,
+		Name:             brick.Name,
+		Author:           brick.Source,
+		Description:      brick.Description,
+		Category:         brick.Category,
+		RequireModel:     brick.RequireModel,
+		Status:           "installed", // For now every Arduino brick are installed
+		Variables:        variables,
+		Readme:           readme,
+		ApiDocsPath:      apiDocsPath,
+		CodeExamples:     codeExamples,
+		UsedByApps:       usedByApps,
+		CompatibleModels: compatibleModels(ctx, s.modelsIndex.NewLookup(), brick.ID),
+		ConfigVariables:  configVariables,
 	}, nil
+}
+
+func getBrickExamplesInfo(cfg config.Configuration, idProvider *appid.Provider, brickNamespace string, brickName string) []CodeExample {
+	var codeExamples = []CodeExample{}
+
+	examplesPath := cfg.ExamplesBaseDir().Join("bricks", brickNamespace, brickName)
+
+	dirEntries, err := examplesPath.ReadDir()
+	if err != nil {
+		slog.Warn("cannot read examples directory", slog.Any("error", err.Error()))
+		return []CodeExample{}
+	}
+
+	for _, brickExamplePath := range dirEntries {
+		id, err := idProvider.IDFromPath(brickExamplePath)
+		if err != nil {
+			slog.Warn("Invalid path", slog.String("brickExamplePath", brickExamplePath.String()))
+			continue
+		}
+
+		loadedApp, err := app.Load(id.ToPath())
+		if err != nil {
+			slog.Warn("App referenced in examples not found", slog.String("brickExamplePath", brickExamplePath.String()))
+			continue
+		}
+
+		mainPy := brickExamplePath.Join("python", "main.py")
+
+		codeExamples = append(codeExamples, CodeExample{
+			Path:        mainPy.String(),
+			EncodedID:   id.String(),
+			Name:        loadedApp.Name,
+			Description: loadedApp.Descriptor.Description,
+		})
+	}
+
+	return codeExamples
 }
 
 func getBrickConfigVariableDetails(
@@ -259,7 +294,9 @@ func getBrickConfigVariableDetails(
 	return variablesMap, variableDetails
 }
 
-func getUsedByApps(cfg config.Configuration, brickId string, idProvider *app.IDProvider, platform platform.Platform) ([]AppReference, error) {
+// Additional core-and-foundational and brick paths are not processed here;
+// we do not want them to appear in the brick example list.
+func getUsedByApps(cfg config.Configuration, brickId string, idProvider *appid.Provider, platform platform.Platform) ([]AppReference, error) {
 	pathsToExplore := paths.NewPathList()
 	pathsToExplore.AddAll(cfg.ExamplesDirs(platform))
 	pathsToExplore.Add(cfg.AppsDir())
@@ -274,7 +311,7 @@ func getUsedByApps(cfg config.Configuration, brickId string, idProvider *app.IDP
 		app, err := app.Load(appPath)
 		if err != nil {
 			// we are not considering the broken apps
-			slog.Warn("unable to parse app.yaml, skipping", "path", appPath.String(), "error", err.Error())
+			slog.Warn("unable to parse app.yaml, skipping", slog.String("path", appPath.String()), slog.Any("error", err.Error()))
 			continue
 		}
 
@@ -298,11 +335,12 @@ func getUsedByApps(cfg config.Configuration, brickId string, idProvider *app.IDP
 
 type BrickCreateUpdateRequest struct {
 	ID        string            `json:"-"`
-	Model     *string           `json:"model"`
+	Model     *string           `json:"model" example:"bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w"`
 	Variables map[string]string `json:"variables,omitempty"`
 }
 
 func (s *Service) BrickCreate(
+	ctx context.Context,
 	req BrickCreateUpdateRequest,
 	appCurrent app.ArduinoApp,
 ) error {
@@ -324,7 +362,7 @@ func (s *Service) BrickCreate(
 	for _, brickVar := range brick.Variables {
 		if brickVar.IsRequired() {
 			if _, exist := req.Variables[brickVar.Name]; !exist {
-				slog.Warn("[Skip] a required variable is not set by user", "variable", brickVar.Name, "brick", brickVar.Name)
+				slog.Warn("[Skip] a required variable is not set by user", slog.String("variable", brickVar.Name), slog.String("brick", brickVar.Name))
 			}
 		}
 	}
@@ -343,10 +381,14 @@ func (s *Service) BrickCreate(
 	brickInstance.ID = req.ID
 
 	if req.Model != nil {
-		if !s.modelsIndex.IsModelSupportedByBrick(*req.Model, req.ID) {
+		model, err := s.modelsIndex.NewLookup().ModelForBrick(ctx, *req.Model, req.ID)
+		if err != nil {
+			return fmt.Errorf("checking model %s: %w", *req.Model, err)
+		}
+		if model == nil {
 			return fmt.Errorf("model %s does not exsist", *req.Model)
 		}
-		brickInstance.Model = *req.Model
+		brickInstance.Model = model.ID
 	}
 	brickInstance.Variables = req.Variables
 
@@ -364,6 +406,7 @@ func (s *Service) BrickCreate(
 }
 
 func (s *Service) BrickUpdate(
+	ctx context.Context,
 	req BrickCreateUpdateRequest,
 	appCurrent app.ArduinoApp,
 ) error {
@@ -384,10 +427,14 @@ func (s *Service) BrickUpdate(
 	brickModel := appCurrent.Descriptor.Bricks[brickPosition].Model
 
 	if req.Model != nil && *req.Model != brickModel {
-		if !s.modelsIndex.IsModelSupportedByBrick(*req.Model, req.ID) {
+		model, err := s.modelsIndex.NewLookup().ModelForBrick(ctx, *req.Model, req.ID)
+		if err != nil {
+			return fmt.Errorf("checking model %s: %w", *req.Model, err)
+		}
+		if model == nil {
 			return fmt.Errorf("model %s is not supported by brick %q", *req.Model, req.ID)
 		}
-		brickModel = *req.Model
+		brickModel = model.ID
 	}
 
 	for name, updateValue := range req.Variables {

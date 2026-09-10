@@ -181,18 +181,24 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 		return fmt.Errorf("target version is empty for package '%s'", pkg.Name)
 	}
 
+	// Progress is reported on a local 0-100 scale: the Manager rescales it to the
+	// slice of the whole update process this updater is responsible for.
+	const (
+		indexProgress      float32 = 0.0
+		installProgress    float32 = 20.0
+		bootloaderProgress float32 = 90.0
+		completedProgress  float32 = 100.0
+	)
+
 	downloadProgressCB := func(curr *rpc.DownloadProgress) {
-		data := helpers.ArduinoCLIDownloadProgressToString(curr)
-		slog.Debug("Download progress", slog.String("download_progress", data))
-		eventCB(update.NewDataEvent(update.UpgradeLineEvent, data))
+		eventCB(update.NewDataEvent(update.UpgradeLineEvent, helpers.ArduinoCLIDownloadProgressToString(curr)))
 	}
 	taskProgressCB := func(msg *rpc.TaskProgress) {
-		data := helpers.ArduinoCLITaskProgressToString(msg)
-		slog.Debug("Task progress", slog.String("task_progress", data))
-		eventCB(update.NewDataEvent(update.UpgradeLineEvent, data))
+		eventCB(update.NewDataEvent(update.UpgradeLineEvent, helpers.ArduinoCLITaskProgressToString(msg)))
 	}
 
 	eventCB(update.NewDataEvent(update.StartEvent, "Upgrade is starting"))
+	eventCB(update.NewProgressEvent("update index", indexProgress))
 
 	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 	srv := commands.NewArduinoCoreServer()
@@ -224,6 +230,7 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 		}
 	}
 
+	eventCB(update.NewProgressEvent("platform install", installProgress))
 	stream := commands.PlatformInstallStreamResponseToCallbackFunction(
 		ctx,
 		downloadProgressCB,
@@ -246,6 +253,7 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))
 	})
 
+	eventCB(update.NewProgressEvent("burn bootloader", bootloaderProgress))
 	err := srv.BurnBootloader(
 		&rpc.BurnBootloaderRequest{
 			Instance:   inst,
@@ -257,6 +265,7 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 	if err != nil {
 		return fmt.Errorf("error burning bootloader: %w", err)
 	}
+	eventCB(update.NewProgressEvent("platform upgrade completed", completedProgress))
 
 	return nil
 }

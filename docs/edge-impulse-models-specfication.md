@@ -72,20 +72,20 @@ For Edge Impulse compatible bricks, the `bricks` list defines which AI Bricks ar
 
 The compatible bricks are determined by the **project category** set in Edge Impulse Studio. The table lists the mapping between Edge Impulse project categories and the corresponding AI Brick IDs, along with the required `model_configuration` variable name for each brick.
 
-| EI Project Category     | AI Brick ID                           | `model_configuration` variable         |
-| ----------------------- | ------------------------------------- | -------------------------------------- |
-| Object Detection        | `arduino:object_detection`            | `EI_OBJ_DETECTION_MODEL`               |
-| Object Detection        | `arduino:video_object_detection`      | `EI_V_OBJ_DETECTION_MODEL`             |
-| Images (Classification) | `arduino:image_classification`        | `EI_CLASSIFICATION_MODEL`              |
-| Images (Classification) | `arduino:video_image_classification`  | `EI_V_CLASSIFICATION_MODEL`            |
-| Images (Visual Anomaly) | `arduino:visual_anomaly_detection`    | `EI_V_ANOMALY_DETECTION_MODEL`         |
-| Audio                   | `arduino:audio_classification`        | `EI_AUDIO_CLASSIFICATION_MODEL`        |
-| Keyword Spotting        | `arduino:audio_classification`        | `EI_AUDIO_CLASSIFICATION_MODEL`        |
-| Keyword Spotting        | `arduino:keyword_spotting`            | `EI_KEYWORD_SPOTTING_MODEL`            |
-| Accelerometer           | `arduino:motion_detection`            | `EI_MOTION_DETECTION_MODEL`            |
-| Accelerometer           | `arduino:vibration_anomaly_detection` | `EI_VIBRATION_ANOMALY_DETECTION_MODEL` |
+| EI Project Category                             | AI Brick ID                           | `model_configuration` variable         |
+| ----------------------------------------------- | ------------------------------------- | -------------------------------------- |
+| Object detection                                | `arduino:object_detection`            | `EI_OBJ_DETECTION_MODEL`               |
+| Object detection                                | `arduino:video_object_detection`      | `EI_V_OBJ_DETECTION_MODEL`             |
+| Images                                          | `arduino:image_classification`        | `EI_CLASSIFICATION_MODEL`              |
+| Images                                          | `arduino:video_image_classification`  | `EI_V_CLASSIFICATION_MODEL`            |
+| Images[<sup>1</sup>](#v-anomaly-detection-note) | `arduino:visual_anomaly_detection`    | `EI_V_ANOMALY_DETECTION_MODEL`         |
+| Audio                                           | `arduino:audio_classification`        | `EI_AUDIO_CLASSIFICATION_MODEL`        |
+| Keyword spotting                                | `arduino:audio_classification`        | `EI_AUDIO_CLASSIFICATION_MODEL`        |
+| Keyword spotting                                | `arduino:keyword_spotting`            | `EI_KEYWORD_SPOTTING_MODEL`            |
+| Accelerometer                                   | `arduino:motion_detection`            | `EI_MOTION_DETECTION_MODEL`            |
+| Accelerometer                                   | `arduino:vibration_anomaly_detection` | `EI_VIBRATION_ANOMALY_DETECTION_MODEL` |
 
-> **Note on Visual Anomaly Detection**: The `arduino:visual_anomaly_detection` brick is only compatible with impulses that include a `KerasVisualAnomaly` learn block. Generic image classification impulses from the `Images` category are not compatible with this brick.
+> <a id="v-anomaly-detection-note"></a> <sup>1</sup> **Note on Visual Anomaly Detection**: The `arduino:visual_anomaly_detection` brick is only compatible with impulses that include a `KerasVisualAnomaly` learn block. Generic image classification impulses from the `Images` category are not compatible with this brick.
 
 ### Complete Example - Object Detection Model (`model.yaml`)
 
