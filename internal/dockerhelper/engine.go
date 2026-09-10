@@ -11,15 +11,21 @@ package dockerhelper
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/docker/cli/cli/command"
+	"github.com/docker/cli/cli/config"
 	"github.com/docker/cli/cli/flags"
 	"github.com/moby/moby/client"
 )
 
 // NewCli is the docker client this binary talks to the engine with.
 func NewCli() (*command.DockerCli, error) {
-	engine, err := client.New(client.FromEnv)
+	// The endpoint comes from the docker context, as it does for `docker` itself, so a
+	// host that keeps its engine elsewhere is reached the same way. It is resolved here
+	// and not on the first call, where the cli exits the process on failure.
+	opts := flags.NewClientOptions()
+	engine, err := command.NewAPIClientFromFlags(opts, config.LoadDefaultConfigFile(io.Discard))
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +33,7 @@ func NewCli() (*command.DockerCli, error) {
 	if err != nil {
 		return nil, err
 	}
-	return docker, docker.Initialize(flags.NewClientOptions())
+	return docker, docker.Initialize(opts)
 }
 
 // EngineVersion is what the engine of this board answers: its version, and the api it

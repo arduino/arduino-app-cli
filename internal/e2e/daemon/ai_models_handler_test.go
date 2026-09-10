@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -30,9 +29,7 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 	// The API takes the encoded form; modelID stays plain for the messages below.
 	encodedID := models.EncodeModelID(modelID)
 
-	modelsDir, err := paths.MkTempDir("", "models")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = modelsDir.RemoveAll() })
+	modelsDir := e2e.MkTempDir(t, "models")
 
 	httpClient, daemonAddr := GetHttpclientAndAddr(t, e2e.WithModelsDir(modelsDir), e2e.WithBoardName("ventunoq"))
 	requestEditor := func(_ context.Context, _ *http.Request) error { return nil }

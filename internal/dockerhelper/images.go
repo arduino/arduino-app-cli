@@ -60,11 +60,11 @@ func PullImages(ctx context.Context, docker dockerClient.APIClient, images []str
 	totalBytes := sumUniqueLayers(allLayers)
 	slog.Info("total docker images download size", "bytes", totalBytes)
 
-	freeSpace, err := dockerFreeSpace()
-	if err != nil {
-		return err
-	}
-	if uint64(float64(totalBytes)*2.5) > freeSpace {
+	// The engine may keep its images on another host, and then the space of this one
+	// says nothing: what cannot be checked does not stop a download.
+	if freeSpace, err := dockerFreeSpace(); err != nil {
+		slog.Warn("cannot read the free space of the docker partition", "error", err)
+	} else if uint64(float64(totalBytes)*2.5) > freeSpace {
 		return ErrOutOfSpace
 	}
 
