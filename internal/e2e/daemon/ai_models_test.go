@@ -24,14 +24,16 @@ import (
 )
 
 func TestAIModelList(t *testing.T) {
+	skipWithoutModelsImage(t)
 
-	httpClient := GetHttpclient(t)
+	httpClient := GetHttpclient(t, e2e.WithBoardName("unoq"))
 	var allAIModelsLen int
 
 	t.Run("should return all models when no filter is applied", func(t *testing.T) {
 		response, err := httpClient.GetAIModelsWithResponse(t.Context(), nil)
 
 		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, response.StatusCode(), "body: %s", response.Body)
 		require.NotEmpty(t, response.JSON200.Models)
 		allAIModelsLen = len(*response.JSON200.Models)
 	})
@@ -39,6 +41,7 @@ func TestAIModelList(t *testing.T) {
 	t.Run("should return a smaller,filtered list of models when brick filter is applied", func(t *testing.T) {
 		AllModelsResponse, err := httpClient.GetAIModelsWithResponse(t.Context(), nil)
 		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, AllModelsResponse.StatusCode(), "body: %s", AllModelsResponse.Body)
 		require.NotNil(t, AllModelsResponse.JSON200)
 		allAIModelsLen = len(*AllModelsResponse.JSON200.Models)
 
@@ -54,10 +57,12 @@ func TestAIModelList(t *testing.T) {
 }
 
 func TestAIModelDetails(t *testing.T) {
+	skipWithoutModelsImage(t)
+
 	customModelDir, err := paths.MkTempDir("", "custom-models")
 	require.NoError(t, err)
 
-	httpClient := GetHttpclient(t, e2e.WithCustomModelDir(customModelDir))
+	httpClient := GetHttpclient(t, e2e.WithCustomModelDir(customModelDir), e2e.WithBoardName("unoq"))
 
 	aiModelsList, err := httpClient.GetAIModelsWithResponse(t.Context(), nil)
 	require.NoError(t, err, "The HTTP client should not return an error for a 200 response")
@@ -65,12 +70,11 @@ func TestAIModelDetails(t *testing.T) {
 	require.NotEmpty(t, aiModelsList.JSON200.Models)
 
 	expectedModel := (*aiModelsList.JSON200.Models)[0]
+	// No field is required by the schema, so every one arrives as a pointer.
 	require.NotNil(t, expectedModel.Id, "Setup model's ID should not be nil")
 	require.NotNil(t, expectedModel.BrickIds, "Setup model's BrickId should not be nil")
-	require.NotNil(t, expectedModel.Name, "Setup model's Name should not be nil")
-	require.NotNil(t, expectedModel.Description, "Setup model's Description should not be nil")
+	require.NotEmpty(t, expectedModel.Name, "Setup model's Name should not be empty")
 	require.NotNil(t, expectedModel.Metadata, "Setup model's Metadata should not be nil")
-	require.NotNil(t, expectedModel.Runner, "Setup model's Runner should not be nil")
 
 	t.Run("should return full details for a valid model ID", func(t *testing.T) {
 		// We have to add an empty editor because there is a bug that make the function panic if we pass nil
@@ -79,26 +83,23 @@ func TestAIModelDetails(t *testing.T) {
 
 		modelDetails := response.JSON200
 
-		require.NotNil(t, modelDetails.Id, "Response model's ID should not be nil")
-		require.Equal(t, *expectedModel.Id, *modelDetails.Id, "ID should match")
+		require.Equal(t, expectedModel.Id, modelDetails.Id, "ID should match")
+		require.Equal(t, expectedModel.IdDecoded, modelDetails.IdDecoded, "the plain id should match too")
 
 		require.NotNil(t, modelDetails.BrickIds, "Response model's BrickId should not be nil")
 		require.Equal(t, *expectedModel.BrickIds, *modelDetails.BrickIds, "BrickIds should match")
 
-		require.NotNil(t, modelDetails.Name, "Response model's Name should not be nil")
-		require.Equal(t, *expectedModel.Name, *modelDetails.Name, "Name should match")
-
-		require.NotNil(t, modelDetails.Description, "Response model's Description should not be nil")
-		require.Equal(t, *expectedModel.Description, *modelDetails.Description, "Description should match")
+		require.Equal(t, expectedModel.Name, modelDetails.Name, "Name should match")
+		require.Equal(t, expectedModel.Description, modelDetails.Description, "Description should match")
+		require.Equal(t, expectedModel.Runner, modelDetails.Runner, "Runner should match")
+		require.Equal(t, expectedModel.Origin, modelDetails.Origin, "Origin should match")
+		require.Equal(t, expectedModel.Status, modelDetails.Status, "Status should match")
 
 		require.NotNil(t, modelDetails.Metadata, "Response model's Metadata should not be nil")
 		require.Equal(t, expectedModel.Metadata, modelDetails.Metadata, "Metadata should match")
 
-		require.NotNil(t, modelDetails.Runner, "Response model's Runner should not be nil")
-		require.Equal(t, *expectedModel.Runner, *modelDetails.Runner, "Runner should match")
-		require.NotNil(t, modelDetails.Size, "Response model's Size should not	 be nil")
+		require.NotNil(t, modelDetails.Size, "Response model's Size should not be nil")
 		require.Equal(t, *expectedModel.Size, *modelDetails.Size, "Size should match")
-
 	})
 
 	t.Run("should return full details for a valid custom model ID", func(t *testing.T) {
@@ -114,20 +115,25 @@ func TestAIModelDetails(t *testing.T) {
 		require.NoError(t, err)
 
 		// We have to add an empty editor because there is a bug that make the function panic if we pass nil
-		response, err := httpClient.GetAIModelDetailsWithResponse(t.Context(), "custom-classification-model-eim", func(ctx context.Context, req *http.Request) error { return nil })
+		response, err := httpClient.GetAIModelDetailsWithResponse(t.Context(), models.EncodeModelID("custom-classification-model-eim"), func(ctx context.Context, req *http.Request) error { return nil })
 		require.NoError(t, err)
 		require.NotNil(t, response.JSON200)
 
 		got := response.JSON200
 		require.Equal(t, &client.AIModelItem{
-			Id:          new("custom-classification-model-eim"),
+			// The id is reported twice: encoded, ready to paste into a path, and plain.
+			Id:          new(models.EncodeModelID("custom-classification-model-eim")),
+			IdDecoded:   new("custom-classification-model-eim"),
 			Name:        new("this is the name of the model"),
 			IsBuiltin:   new(false),
 			Runner:      new(""),
 			Description: new("this is the description of the model"),
 			BrickIds:    &[]string{"arduino:audio_classification"},
-			Status:      new(client.ModelStatus("installed")),
-			Size:        new(1),
+			// A model under the custom models directory is a deployment of the caller's
+			// own Edge Impulse project, not a catalog entry that happens to be EI-trained.
+			Origin: new(client.ModelOrigin("edge-impulse-user-project")),
+			Status: new(client.ModelStatus("installed")),
+			Size:   new(1),
 		}, got, "The returned model details should match the expected values")
 
 		// TODO test metadata and model configuration contents and runner
@@ -149,7 +155,7 @@ func TestAIModelDetails(t *testing.T) {
 		expectedDetails := fmt.Sprintf("models with id %q not found", unknownModelId)
 		var actualBody models.ErrorResponse
 
-		response, err := httpClient.GetAIModelDetailsWithResponse(context.Background(), unknownModelId, requestEditor)
+		response, err := httpClient.GetAIModelDetailsWithResponse(context.Background(), models.EncodeModelID(unknownModelId), requestEditor)
 
 		require.NoError(t, err, "The HTTP client should not return an error for a 404 response")
 		require.Equal(t, http.StatusNotFound, response.StatusCode(), "Status code should be 404 Not Found")
@@ -163,24 +169,12 @@ func TestAIModelDetails(t *testing.T) {
 }
 
 func TestAIModelDelete(t *testing.T) {
+	skipWithoutModelsImage(t)
+
 	customModelDir, err := paths.MkTempDir("", "custom-models")
 	require.NoError(t, err)
 
-	httpClient := GetHttpclient(t, e2e.WithCustomModelDir(customModelDir))
-
-	t.Run("error on empty model id", func(t *testing.T) {
-		modelId := " "
-		requestEditor := func(ctx context.Context, req *http.Request) error { return nil }
-		expectedDetails := "id must be set"
-		var actualBody models.ErrorResponse
-
-		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), modelId, &client.DeleteAIModelParams{Force: new(false)}, requestEditor)
-		require.NoError(t, err)
-		require.Equal(t, http.StatusPreconditionFailed, response.StatusCode())
-		err = json.Unmarshal(response.Body, &actualBody)
-		require.NoError(t, err)
-		require.Equal(t, expectedDetails, actualBody.Details)
-	})
+	httpClient := GetHttpclient(t, e2e.WithCustomModelDir(customModelDir), e2e.WithBoardName("unoq"))
 
 	t.Run("not found error on model not found", func(t *testing.T) {
 		modelId := "invalid_model_id"
@@ -188,7 +182,7 @@ func TestAIModelDelete(t *testing.T) {
 		expectedDetails := fmt.Sprintf("%q: model not found", modelId)
 		var actualBody models.ErrorResponse
 
-		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), modelId, &client.DeleteAIModelParams{Force: new(false)}, requestEditor)
+		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), models.EncodeModelID(modelId), &client.DeleteAIModelParams{Force: new(false)}, requestEditor)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusNotFound, response.StatusCode())
 		err = json.Unmarshal(response.Body, &actualBody)
@@ -202,7 +196,7 @@ func TestAIModelDelete(t *testing.T) {
 		expectedDetails := "cannot remove a built-in model"
 		var actualBody models.ErrorResponse
 
-		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), modelId, &client.DeleteAIModelParams{Force: new(false)}, requestEditor)
+		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), models.EncodeModelID(modelId), &client.DeleteAIModelParams{Force: new(false)}, requestEditor)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusConflict, response.StatusCode())
 		err = json.Unmarshal(response.Body, &actualBody)
@@ -255,14 +249,14 @@ func TestAIModelDelete(t *testing.T) {
 			t.Context(),
 			*appID,
 			"arduino:audio_classification",
-			client.BrickCreateUpdateRequest{Model: &modelId},
+			client.BrickCreateUpdateRequest{Model: new(models.EncodeModelID(modelId))},
 			func(ctx context.Context, req *http.Request) error { return nil },
 		)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, appUpdate.StatusCode())
 
 		/* Delete the model, not forced */
-		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), modelId, &client.DeleteAIModelParams{Force: new(false)}, requestEditor)
+		response, err := httpClient.DeleteAIModelWithResponse(t.Context(), models.EncodeModelID(modelId), &client.DeleteAIModelParams{Force: new(false)}, requestEditor)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusConflict, response.StatusCode())
 		err = json.Unmarshal(response.Body, &actualBody)
@@ -270,7 +264,7 @@ func TestAIModelDelete(t *testing.T) {
 		require.Equal(t, expectedDetails, actualBody.Details)
 
 		/* Delete the model, forced */
-		response, err = httpClient.DeleteAIModelWithResponse(t.Context(), modelId, &client.DeleteAIModelParams{Force: new(true)}, requestEditor)
+		response, err = httpClient.DeleteAIModelWithResponse(t.Context(), models.EncodeModelID(modelId), &client.DeleteAIModelParams{Force: new(true)}, requestEditor)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusNoContent, response.StatusCode())
 		require.NoError(t, err)

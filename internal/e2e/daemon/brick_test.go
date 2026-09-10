@@ -42,7 +42,7 @@ func setupTestBrick(t *testing.T) (*client.CreateAppResp, *client.ClientWithResp
 		t.Context(),
 		*createResp.JSON201.Id,
 		ImageClassifactionBrickID,
-		client.BrickCreateUpdateRequest{Model: new("mobilenet-image-classification")},
+		client.BrickCreateUpdateRequest{Model: new(models.EncodeModelID("mobilenet-image-classification"))},
 		func(ctx context.Context, req *http.Request) error { return nil },
 	)
 	require.NoError(t, err)
@@ -104,17 +104,17 @@ func TestBricksDetails(t *testing.T) {
 
 		expectedModelLiteInfo := []client.AIModel{
 			{
-				Id:          new("mobilenet-image-classification"),
+				Id:          new(models.EncodeModelID("mobilenet-image-classification")),
 				Name:        new("General purpose image classification"),
 				Description: new("General purpose image classification model based on MobileNetV2. This model is trained on the ImageNet dataset and can classify images into 1000 categories."),
 			},
 			{
-				Id:          new("person-classification"),
+				Id:          new(models.EncodeModelID("person-classification")),
 				Name:        new("Person classification"),
 				Description: new("Person classification model based on WakeVision dataset. This model is trained to classify images into two categories: person and not-person."),
 			},
 			{
-				Id:          new("ei:efficientnet-b4"),
+				Id:          new(models.EncodeModelID("ei:efficientnet-b4")),
 				Name:        new("General purpose object classification - EfficientNet-B4"),
 				Description: new("EfficientNetB4 is a machine learning model that can classify images from the Imagenet dataset. It can also be used as a backbone in building more complex models for specific use cases. This version of the model is optimized for NPU acceleration on supported devices, providing faster inference times while maintaining accuracy."),
 			}}

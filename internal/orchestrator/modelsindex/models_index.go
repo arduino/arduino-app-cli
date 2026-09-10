@@ -6,9 +6,7 @@
 package modelsindex
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -87,6 +85,7 @@ type AIModel struct {
 	Deployment      *ModelDeployment  `yaml:"deployment,omitempty"`
 
 	IsBuiltIn bool        `yaml:"-"` // a model is considered built-in if it is in the models-list.yaml and the "pre-loaded" flag is true
+	Origin    ModelOrigin `yaml:"-"`
 	Status    ModelStatus `yaml:"-"`
 	Size      uint64      `yaml:"-"`
 }
@@ -96,10 +95,32 @@ type ModelStatus string
 const (
 	InstalledStatus    ModelStatus = "installed"
 	NotInstalledStatus ModelStatus = "not-installed"
+	// DownloadingStatus is a transfer in progress, or one interrupted before it
+	// finished: the handler's ".download" marker is still there.
+	DownloadingStatus ModelStatus = "downloading"
 )
 
 func (s ModelStatus) AllowedStatuses() []ModelStatus {
-	return []ModelStatus{InstalledStatus, NotInstalledStatus}
+	return []ModelStatus{InstalledStatus, NotInstalledStatus, DownloadingStatus}
+}
+
+// ModelOrigin says where a model came from, and so whether the id alone installs it
+// again. Derived here, not read from the handler's "model_origin".
+type ModelOrigin string
+
+const (
+	// CuratedOrigin: declared by models-list.yaml, so the id is the whole install request.
+	CuratedOrigin ModelOrigin = "curated"
+	// UserOrigin: downloaded from a source the caller supplied, and installing it again
+	// needs that source again.
+	UserOrigin ModelOrigin = "user"
+	// EdgeImpulseOrigin: deployed from the caller's own project. A curated model trained
+	// on Edge Impulse stays curated: its declaration is what installs it.
+	EdgeImpulseOrigin ModelOrigin = "edge-impulse-user-project"
+)
+
+func (o ModelOrigin) AllowedOrigins() []ModelOrigin {
+	return []ModelOrigin{CuratedOrigin, UserOrigin, EdgeImpulseOrigin}
 }
 
 type AIModelLite struct {
@@ -113,6 +134,13 @@ type BrickConfig struct {
 	ModelConfiguration map[string]string `yaml:"model_configuration"`
 }
 
+// llamacppRepository is the models_repository GGUF models live under, and the only
+// directory the handler listing scans for models the catalog does not declare.
+const (
+	llamacppRepository = "llamacpp"
+	hfHandlerID        = "hf-handler"
+)
+
 type ModelsIndex struct {
 	InternalModels  []AIModel
 	modelsDir       *paths.Path
@@ -122,50 +150,77 @@ type ModelsIndex struct {
 	plat            platform.Platform
 }
 
-func (m *ModelsIndex) GetModels(ctx context.Context) []AIModel {
-	models := m.loadDryModels()
-	if m.Handlers != nil {
-		models, err := m.Handlers.getModelsInfo(ctx, m.cli, models)
-		if err != nil {
-			slog.Warn("cannot get models info", "err", err)
-		}
-		return models
-	}
-	return models
+// Lookup answers several model queries against at most one listing run. Not safe for
+// concurrent use.
+type Lookup struct {
+	idx    *ModelsIndex
+	models []AIModel
+	dry    []AIModel
+	err    error
+	loaded bool
 }
 
-// GetModelByID returns the model with the given ID and populates its Installed and Size fields.
-func (m *ModelsIndex) GetModelByID(ctx context.Context, id string) (*AIModel, error) {
-	models := m.loadDryModels()
-	idx := slices.IndexFunc(models, func(v AIModel) bool { return v.ID == id })
+func (m *ModelsIndex) NewLookup() *Lookup {
+	return &Lookup{idx: m}
+}
+
+// listing runs on first use only, and remembers a failure: retrying it per query would
+// mean a container start per question.
+func (l *Lookup) listing(ctx context.Context) error {
+	if l.loaded {
+		return l.err
+	}
+	l.models, l.err = l.idx.listModels(ctx)
+	l.loaded = true
+	return l.err
+}
+
+func (l *Lookup) ByID(ctx context.Context, id string) (*AIModel, error) {
+	if model, ok := l.known(id); ok && model.NeedsNoDownload() {
+		// It is there already, so its declaration is its state and no container runs. A
+		// pre-loaded model whose files are missing reads installed here, and the listing
+		// says otherwise: the image is broken in that case.
+		return model, nil
+	}
+	if err := l.listing(ctx); err != nil {
+		// A model the index knows exists whether or not the listing ran, so an unknown
+		// install status is a failure. Anything else is absent, not failed.
+		if _, declared := l.known(id); !declared {
+			slog.Warn("cannot get models info, reporting an undeclared model as absent", "model", id, "err", err)
+			return nil, nil
+		}
+		return nil, fmt.Errorf("cannot determine install status for model %q: %w", id, err)
+	}
+	idx := slices.IndexFunc(l.models, func(v AIModel) bool { return v.ID == id })
 	if idx == -1 {
 		return nil, nil
 	}
-	model := models[idx]
-	if model.Deployment != nil && model.Deployment.Handler != "" && !model.Deployment.PreLoaded { // non-preloaded internal models: determine actual install status
-		// TODO we should have a single method that do the check and get the info
-		installed, err := m.modelInstalled(ctx, model, m.cli)
-		if err != nil {
-			return nil, fmt.Errorf("cannot determine install status for model %q: %w", id, err)
-		}
-		if installed {
-			model.Status = InstalledStatus
-			// TODO : we should return an error if the size cannot be determined
-			model.Size = m.modelSize(ctx, model)
-		} else {
-			model.Status = NotInstalledStatus
-		}
-	}
-
-	return &model, nil
+	return &l.models[idx], nil
 }
 
-// GetModelsByBrick returns the models that are associated with the given brick name.
-func (m *ModelsIndex) GetModelsByBrick(brickID string) []AIModelLite {
-	models := m.loadDryModels()
-	matches := make([]AIModelLite, 0, len(models))
+// known reads the index's own files once per lookup: models-list.yaml and the custom
+// models come off disk, so asking about several models walks the directory once.
+func (l *Lookup) known(id string) (*AIModel, bool) {
+	if l.dry == nil {
+		l.dry = l.idx.loadDryModels()
+	}
+	if i := slices.IndexFunc(l.dry, func(v AIModel) bool { return v.ID == id }); i != -1 {
+		return &l.dry[i], true
+	}
+	return nil, false
+}
 
-	for _, model := range models {
+// All answers every model the index knows. A listing that failed leaves the declared ones,
+// and says so.
+func (l *Lookup) All(ctx context.Context) ([]AIModel, error) {
+	err := l.listing(ctx)
+	return l.models, err
+}
+
+func (l *Lookup) ByBrick(ctx context.Context, brickID string) ([]AIModelLite, error) {
+	err := l.listing(ctx)
+	matches := make([]AIModelLite, 0, len(l.models))
+	for _, model := range l.models {
 		if slices.ContainsFunc(model.Bricks, func(b BrickConfig) bool { return b.ID == brickID }) {
 			matches = append(matches, AIModelLite{
 				ID:          model.ID,
@@ -174,15 +229,38 @@ func (m *ModelsIndex) GetModelsByBrick(brickID string) []AIModelLite {
 			})
 		}
 	}
-
-	return matches
+	return matches, err
 }
 
-func (m *ModelsIndex) IsModelSupportedByBrick(modelID, brickID string) bool {
-	models := m.GetModelsByBrick(brickID)
-	return slices.ContainsFunc(models, func(model AIModelLite) bool {
-		return model.ID == modelID
-	})
+// ModelForBrick resolves a model the brick can use, by its plain id. Nil when no such
+// model exists or the brick cannot use it; the model, so a caller stores model.ID.
+func (l *Lookup) ModelForBrick(ctx context.Context, modelID, brickID string) (*AIModel, error) {
+	model, err := l.ByID(ctx, modelID)
+	if err != nil || model == nil {
+		return nil, err
+	}
+	if !slices.ContainsFunc(model.Bricks, func(b BrickConfig) bool { return b.ID == brickID }) {
+		return nil, nil
+	}
+	return model, nil
+}
+
+// NeedsNoDownload reports whether the model is there already - built-in, pre-loaded, or
+// custom - rather than something a handler has to write to disk.
+func (m AIModel) NeedsNoDownload() bool {
+	return m.Deployment == nil || m.Deployment.PreLoaded || m.Deployment.Handler == ""
+}
+
+func (m *ModelsIndex) listModels(ctx context.Context) ([]AIModel, error) {
+	known := m.loadDryModels()
+	if m.Handlers == nil || m.cli == nil {
+		return known, nil
+	}
+	models, err := m.Handlers.getModelsInfo(ctx, m.cli, known)
+	if err != nil {
+		return known, err
+	}
+	return models, nil
 }
 
 func (m *ModelsIndex) loadDryModels() []AIModel {
@@ -227,71 +305,6 @@ func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, custom
 	}, nil
 }
 
-func (m *ModelsIndex) modelSize(ctx context.Context, model AIModel) uint64 {
-	if sizeMBStr, ok := model.Metadata["model_size_mb"]; ok {
-		if sizeMB, err := strconv.ParseFloat(sizeMBStr, 64); err == nil && sizeMB > 0 {
-			return uint64(sizeMB * 1024 * 1024)
-		}
-	}
-	if model.Deployment == nil || model.Deployment.Handler == "" {
-		return 0
-	}
-	handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)
-	if !ok || len(handler.Actions.Info) == 0 {
-		return 0
-	}
-	size, err := runInfoAction(ctx, m.cli, handler, model, m.plat, m.Handlers.configEnv)
-	if err != nil {
-		slog.Warn("cannot get model size", "model", model.ID, "err", err)
-		return 0
-	}
-	return size
-}
-
-func (m *ModelsIndex) modelInstalled(ctx context.Context, model AIModel, cli client.APIClient) (bool, error) {
-	if model.Deployment == nil || model.Deployment.Handler == "" {
-		return false, fmt.Errorf("model %q has no deployment handler", model.ID)
-	}
-	handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)
-	if !ok {
-		return false, fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
-	}
-
-	envVars := model.Deployment.VariablesForPlatform(m.plat.BoardName)
-	maps.Insert(envVars, maps.All(m.Handlers.configEnv))
-
-	var buf bytes.Buffer
-	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
-		Image:  ResolveVars(handler.Image, envVars),
-		Cmd:    handler.Actions.Check,
-		Binds:  ResolveVarsSlice(handler.Volumes, envVars),
-		Env:    envVars,
-		Stdout: &buf,
-	})
-	if err != nil && !dockerhelper.IsExitError(err) {
-		return false, fmt.Errorf("model check failed for %q: %w", model.ID, err)
-	}
-
-	slog.Debug("model check output", "model", model.ID, "output", buf.String())
-	var out struct {
-		Event       string `json:"event"`
-		Description string `json:"description"`
-		Downloading bool   `json:"downloading"`
-	}
-	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
-		return false, fmt.Errorf("model check returned invalid JSON for %q: %w", model.ID, err)
-	}
-
-	switch out.Event {
-	case "error":
-		return false, nil
-	case "info":
-		return !out.Downloading, nil
-	default:
-		return false, fmt.Errorf("model check returned unexpected event %q for %q", out.Event, model.ID)
-	}
-}
-
 func loadInternalModels(dir *paths.Path, handlers *HandlersIndex) ([]AIModel, error) {
 	if dir == nil {
 		// skip loading internal models
@@ -312,6 +325,7 @@ func loadInternalModels(dir *paths.Path, handlers *HandlersIndex) ([]AIModel, er
 	for i, modelMap := range list.Models {
 		for id, model := range modelMap {
 			model.ID = id
+			model.Origin = CuratedOrigin
 			model.Status = NotInstalledStatus
 
 			if sizeMBStr, ok := model.Metadata["model_size_mb"]; ok {
@@ -392,6 +406,7 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 			Metadata:        m.ModelDescriptor.Metadata,
 			ModelFolderPath: m.FullPath,
 			IsBuiltIn:       false,
+			Origin:          EdgeImpulseOrigin,
 			Status:          InstalledStatus,
 			Size:            modelSizeMB,
 		})
@@ -400,30 +415,146 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 	return models, nil
 }
 
-func (m *ModelsIndex) Download(ctx context.Context, cli client.APIClient, model AIModel, plat platform.Platform, publish func(e StreamMessage)) error {
-	if err := hasSufficientDiskSpace(m.modelsDir, model.Size); err != nil {
-		return fmt.Errorf("insufficient disk space to download model %q: %w", model.ID, err)
+// DownloadByURL fetches a model no models-list.yaml entry declares, named by a Hugging
+// Face file URL.
+//
+// The id is not an input: the downloader makes it from the file that arrives, with the same
+// rule as the listing, and reports it on the stream. The id contains the repository
+// directory, so two owners with the same file name stay two models. There is no disk space
+// check, because the size is known only after Hugging Face resolves the URL.
+func (m *ModelsIndex) DownloadByURL(ctx context.Context, cli client.APIClient, modelURL, mmprojURL string, plat platform.Platform, publish func(e StreamMessage)) (AIModel, error) {
+	variables := map[string]string{
+		"model_url": modelURL,
+		// Fixed, not taken from the caller: it is the only directory the listing scans for
+		// undeclared models, and the id is derived from a path relative to it.
+		"models_repository": llamacppRepository,
+	}
+	if mmprojURL != "" {
+		variables["model_mmproj_url"] = mmprojURL
 	}
 
+	downloaded, err := m.runDownload(ctx, cli, AIModel{
+		Deployment: &ModelDeployment{
+			Handler: hfHandlerID,
+			Variables: []map[string]PlatformDeploymentConfig{
+				{plat.BoardName: {Variables: variables}},
+			},
+		},
+	}, plat, publish)
+	if err != nil {
+		return AIModel{}, err
+	}
+	if downloaded == nil {
+		return AIModel{}, ErrNoModelReported
+	}
+
+	// The files have landed, so the listing describes them: it reads the record the
+	// handler wrote, and answers as a later GetModels answers.
+	installed, err := m.NewLookup().ByID(ctx, downloaded.ID)
+	if err != nil || installed == nil {
+		return AIModel{}, fmt.Errorf("model %q was downloaded but is not listed: %w", downloaded.ID, errors.Join(err, ErrNotListed))
+	}
+	return *installed, nil
+}
+
+// IsKnown reports whether the index holds id in its own files, with no handler run. It is
+// the question the install route answers before its stream opens.
+func (m *ModelsIndex) IsKnown(id string) bool {
+	_, found := m.known(id)
+	return found
+}
+
+// known returns what the index's own files say about id, with no handler run: a
+// models-list.yaml entry, or a custom model. It is not a state - the listing owns the
+// install status, the size on disk and the record's metadata - so it stays in this package.
+func (m *ModelsIndex) known(id string) (*AIModel, bool) {
+	models := m.loadDryModels()
+	if i := slices.IndexFunc(models, func(v AIModel) bool { return v.ID == id }); i != -1 {
+		return &models[i], true
+	}
+	return nil, false
+}
+
+// Install fetches the model id names in the internal model list and answers with it as
+// installed. The declaration describes it; only the size comes from what landed.
+//
+// A model installed by its declaration is returned as it is: there is nothing to fetch.
+func (m *ModelsIndex) Install(ctx context.Context, dockerClient command.Cli, id string, plat platform.Platform, publish func(e StreamMessage)) (AIModel, error) {
+	model, found := m.known(id)
+	if !found {
+		return AIModel{}, fmt.Errorf("no model with id %q: %w", id, ErrUnknownModel)
+	}
+	if model.NeedsNoDownload() {
+		// It is there already, so the docker client is not read: a caller with nothing to
+		// download passes none.
+		return *model, nil
+	}
+
+	downloaded, err := m.runDownload(ctx, dockerClient.Client(), *model, plat, publish)
+	if err != nil {
+		return AIModel{}, err
+	}
+	installed := *model
+	installed.Status = InstalledStatus
+	if downloaded != nil && downloaded.Size > 0 {
+		installed.Size = downloaded.Size
+	}
+	return installed, nil
+}
+
+// runDownload runs one handler's download action and keeps the model its stream names. An
+// error event ends the run as ErrDownloadReported: publish has already carried it out.
+func (m *ModelsIndex) runDownload(ctx context.Context, cli client.APIClient, model AIModel, plat platform.Platform, publish func(e StreamMessage)) (*DownloadedModel, error) {
+	if model.NeedsNoDownload() {
+		// Guarded here too: the alternative is dereferencing a nil Deployment.
+		return nil, fmt.Errorf("model %q has nothing to download: %w", model.ID, ErrNoHandler)
+	}
+	if err := hasSufficientDiskSpace(m.modelsDir, model.Size); err != nil {
+		return nil, fmt.Errorf("insufficient disk space to download model %q: %w", model.ID, err)
+	}
+
+	if m.Handlers == nil {
+		return nil, fmt.Errorf("no handlers are configured: %w", ErrNoHandler)
+	}
 	handler, ok := m.Handlers.GetHandlerByID(model.Deployment.Handler)
 	if !ok {
-		return fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
+		return nil, fmt.Errorf("handler %q not found for model %q", model.Deployment.Handler, model.ID)
 	}
 
 	envVars := model.Deployment.VariablesForPlatform(plat.BoardName)
 	maps.Insert(envVars, maps.All(m.Handlers.configEnv))
 
-	return dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
+	var downloaded *DownloadedModel
+	var reported bool
+	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
 		Image: ResolveVars(handler.Image, envVars),
 		Cmd:   handler.Actions.Download,
 		Binds: ResolveVarsSlice(handler.Volumes, envVars),
 		Env:   envVars,
 		Stdout: f.NewCallbackWriter(func(line string) {
 			slog.Debug("download line", "model", model.ID, "line", line)
-			parseDownloadHandlerLine(line, publish)
+			parseDownloadHandlerLine(line, func(e StreamMessage) {
+				if named := e.GetModel(); named != nil {
+					downloaded = named
+				}
+				reported = reported || e.GetType() == ErrorType
+				publish(e)
+			})
 		}),
 		Stderr: io.Discard,
 	})
+	// The reported event comes first: a handler that prints one usually exits non-zero
+	// too, and the caller has already seen it. The exit is kept for the log.
+	if reported {
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrDownloadReported, err)
+		}
+		return nil, ErrDownloadReported
+	}
+	if err != nil {
+		return nil, err
+	}
+	return downloaded, nil
 }
 
 func (m *ModelsIndex) Delete(ctx context.Context, dockerClient command.Cli, platform platform.Platform, model AIModel) error {
@@ -449,7 +580,16 @@ func (m *ModelsIndex) Delete(ctx context.Context, dockerClient command.Cli, plat
 	return nil
 }
 
-var ErrInsufficientStorage = errors.New("insufficient storage to install model")
+var (
+	ErrInsufficientStorage = errors.New("insufficient storage to install model")
+	ErrNoHandler           = errors.New("no handler to run")
+	ErrUnknownModel        = errors.New("model not in the internal model list")
+	ErrNoModelReported     = errors.New("download named no model: a newer models-downloader image is required")
+	ErrNotListed           = errors.New("model not listed")
+	// ErrDownloadReported ends a download whose handler reported an error event, which
+	// publish has already carried to the caller.
+	ErrDownloadReported = errors.New("the download reported an error")
+)
 
 func hasSufficientDiskSpace(path *paths.Path, requiredBytes uint64) error {
 	diskStats, err := disk.Usage(path.String())

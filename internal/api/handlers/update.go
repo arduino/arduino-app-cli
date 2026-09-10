@@ -135,6 +135,31 @@ func HandleUpdateEvents(updater *update.Manager) http.HandlerFunc {
 		ch := updater.Subscribe()
 		defer updater.Unsubscribe(ch)
 
+		forward := func(event update.Event) {
+			switch event.Type {
+			case update.ErrorEvent:
+				err := event.GetError()
+				code := render.InternalServiceErr
+				if c := update.GetUpdateErrorCode(err); c != update.UnknownErrorCode {
+					code = render.SSEErrCode(string(c))
+				}
+				sseStream.SendError(render.SSEErrorData{
+					Code:    code,
+					Message: err.Error(),
+				})
+			case update.ProgressEvent:
+				sseStream.Send(render.SSEEvent{
+					Type: event.Type.String(),
+					Data: event.GetProgress(),
+				})
+			default:
+				sseStream.Send(render.SSEEvent{
+					Type: event.Type.String(),
+					Data: event.GetData(),
+				})
+			}
+		}
+
 		for {
 			select {
 			case event, ok := <-ch:
@@ -142,31 +167,22 @@ func HandleUpdateEvents(updater *update.Manager) http.HandlerFunc {
 					slog.Info("APT event channel closed, stopping SSE stream")
 					return
 				}
-				switch event.Type {
-				case update.ErrorEvent:
-					err := event.GetError()
-					code := render.InternalServiceErr
-					if c := update.GetUpdateErrorCode(err); c != update.UnknownErrorCode {
-						code = render.SSEErrCode(string(c))
-					}
-					sseStream.SendError(render.SSEErrorData{
-						Code:    code,
-						Message: err.Error(),
-					})
-				case update.ProgressEvent:
-					sseStream.Send(render.SSEEvent{
-						Type: event.Type.String(),
-						Data: event.GetProgress(),
-					})
-				default:
-					sseStream.Send(render.SSEEvent{
-						Type: event.Type.String(),
-						Data: event.GetData(),
-					})
-				}
+				forward(event)
 
 			case <-r.Context().Done():
-				return
+				// The daemon is shutting down, the self upgrade above all: deliver
+				// the events already broadcast, the restarting one included.
+				for {
+					select {
+					case event, ok := <-ch:
+						if !ok {
+							return
+						}
+						forward(event)
+					default:
+						return
+					}
+				}
 			}
 		}
 	}

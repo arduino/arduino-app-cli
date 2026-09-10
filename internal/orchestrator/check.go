@@ -28,6 +28,7 @@ import (
 // Errors are joined so every issue is reported at once.
 func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.BricksIndex, modelIndex *modelsindex.ModelsIndex) error {
 	var allErrors error
+	models := modelIndex.NewLookup()
 	for _, appBrick := range bricks {
 		indexBrick, found := index.FindBrickByID(appBrick.ID)
 		if !found {
@@ -37,7 +38,7 @@ func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.Bri
 
 		if indexBrick.RequireModel {
 			selectedModel := cmp.Or(appBrick.Model, indexBrick.ModelName)
-			model, err := modelIndex.GetModelByID(ctx, selectedModel)
+			model, err := models.ByID(ctx, selectedModel)
 			switch {
 			case err != nil:
 				allErrors = errors.Join(allErrors, fmt.Errorf("retrieving model %q for brick %q: %w", selectedModel, appBrick.ID, err))
@@ -47,7 +48,10 @@ func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.Bri
 				if model.Status != modelsindex.InstalledStatus {
 					allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q is not installed", selectedModel, appBrick.ID))
 				}
-				if !modelIndex.IsModelSupportedByBrick(selectedModel, appBrick.ID) {
+				switch supported, err := models.ModelForBrick(ctx, selectedModel, appBrick.ID); {
+				case err != nil:
+					allErrors = errors.Join(allErrors, fmt.Errorf("checking model %q for brick %q: %w", selectedModel, appBrick.ID, err))
+				case supported == nil:
 					allErrors = errors.Join(allErrors, fmt.Errorf("model %q is not compatible with brick %q", selectedModel, appBrick.ID))
 				}
 			}
