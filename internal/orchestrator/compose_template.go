@@ -225,7 +225,7 @@ func generateComposeTemplate(
 		}
 	}
 
-	deviceDrivers := []string{"drm", "dma_heap", "media", "video4linux", "alsa", "ttyUSB", "ttyACM"}
+	deviceDrivers := []string{"drm", "dma_heap", "media", "video4linux", "alsa", "ttyUSB", "ttyACM", "misc"}
 
 	mainAppCompose.Services = map[string]any{"main": service{
 		Image:             pythonImage,
