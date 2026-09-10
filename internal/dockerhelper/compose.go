@@ -125,8 +125,8 @@ func (p *composeProgress) On(events ...api.Resource) {
 	}
 }
 
-// Start and Done say only that an operation began and ended, which the caller knows:
-// what the sdk has to say is in the resources it reports to On.
+// Start and Done say only that an operation began and ended: what the sdk has to say
+// is in the resources it reports to On.
 func (p *composeProgress) Start(context.Context, string) {}
 
 func (p *composeProgress) Done(string, bool) {}

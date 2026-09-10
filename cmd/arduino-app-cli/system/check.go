@@ -11,9 +11,10 @@ import (
 	"strings"
 
 	"github.com/docker/cli/cli/command"
-	"github.com/moby/moby/client"
 	"github.com/moby/moby/client/pkg/versions"
 	"github.com/spf13/cobra"
+
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 )
@@ -63,13 +64,13 @@ const minEngineAPI = "1.44"
 // checkDockerEngine is the only thing that states the engine we need: the client
 // negotiates whatever version the board offers, older ones included.
 func checkDockerEngine(ctx context.Context, docker command.Cli) (string, error) {
-	engine, err := docker.Client().ServerVersion(ctx, client.ServerVersionOptions{})
+	version, apiVersion, err := dockerhelper.EngineVersion(ctx, docker)
 	if err != nil {
-		return "", fmt.Errorf("cannot reach the docker engine: %w", err)
+		return "", err
 	}
-	detail := fmt.Sprintf("version %s, api %s", engine.Version, engine.APIVersion)
-	if versions.LessThan(engine.APIVersion, minEngineAPI) {
-		return detail, fmt.Errorf("the engine speaks api %s, arduino-app-cli needs api %s or later", engine.APIVersion, minEngineAPI)
+	detail := fmt.Sprintf("version %s, api %s", version, apiVersion)
+	if versions.LessThan(apiVersion, minEngineAPI) {
+		return detail, fmt.Errorf("the engine speaks api %s, arduino-app-cli needs api %s or later", apiVersion, minEngineAPI)
 	}
 	return detail, nil
 }

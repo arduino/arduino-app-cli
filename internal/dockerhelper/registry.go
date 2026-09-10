@@ -3,7 +3,10 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package orchestrator
+// What an image is made of, read from the registry and not from the engine: it is how
+// the size of a download is known before it starts.
+
+package dockerhelper
 
 import (
 	"fmt"
@@ -11,51 +14,10 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
-	"github.com/shirou/gopsutil/v4/disk"
 	semver "go.bug.st/relaxed-semver"
 )
 
-// Returns the total free disk space in bytes, in the partition where docker stores images.
-func GetDockerFreeSpace() (uint64, error) {
-	usage, err := disk.Usage("/var/lib/docker")
-	if err != nil {
-		return 0, err
-	}
-
-	return usage.Free, nil
-}
-
-// Returns the highest version of a given docker image, from the input list, matching the targetImage.
-func GetHighestVersion(targetImage string, existingImages []string) string {
-	targetBase, _ := parseDockerImage(targetImage)
-
-	var highestVer *semver.Version
-	var highestImg = ""
-
-	for _, img := range existingImages {
-		name, version := parseDockerImage(img)
-
-		if name != targetBase {
-			continue
-		}
-
-		v, err := semver.Parse(version)
-		if err != nil {
-			// Skip any invalid semver tags like "latest".
-			continue
-		}
-
-		if highestVer == nil || !v.LessThan(highestVer) {
-			highestVer = v
-			highestImg = img
-		}
-	}
-
-	// If no matching image is found, an empty string is returned
-	return highestImg
-}
-
-// Splits a docker image in the name and tag/version parts.
+// parseDockerImage splits an image in its name and its tag or version.
 func parseDockerImage(image string) (name string, version string) {
 	if idx := strings.LastIndex(image, "@"); idx != -1 {
 		return image[:idx], image[idx+1:]
@@ -66,16 +28,14 @@ func parseDockerImage(image string) (name string, version string) {
 	return image, ""
 }
 
-// imageName returns the docker image reference without its tag/digest, e.g.
-// "ghcr.io/arduino/app-bricks/python-apps-base" for
-// "ghcr.io/arduino/app-bricks/python-apps-base:0.11.0rc6".
+// imageName is the reference without its tag or digest.
 func imageName(image string) string {
 	name, _ := parseDockerImage(image)
 	return name
 }
 
-// missingLayers returns the layers present in the remote image but not already
-// available locally, i.e. the layers that actually need to be downloaded.
+// missingLayers is what the remote image has and the local one has not: the layers a
+// pull has to download.
 func missingLayers(localRefStr string, remoteRefStr string) ([]dockerImageLayer, error) {
 	localLayers, err := getImageLayers(localRefStr)
 	if err != nil {
@@ -102,9 +62,8 @@ func missingLayers(localRefStr string, remoteRefStr string) ([]dockerImageLayer,
 	return missing, nil
 }
 
-// sumUniqueLayers sums the sizes of the given layers, counting each distinct
-// layer (by digest) only once. Shared layers are downloaded a single time, so
-// this yields the real total number of bytes to download.
+// sumUniqueLayers counts every digest once: a layer shared by two images is downloaded
+// once, so this is the real size of a download.
 func sumUniqueLayers(layers []dockerImageLayer) int64 {
 	uniq := map[string]int64{}
 	for _, l := range layers {
@@ -160,4 +119,34 @@ func getImageLayers(imageName string) ([]dockerImageLayer, error) {
 	}
 
 	return res, nil
+}
+
+// highestVersion is the newest version of the image in the list, or an empty string.
+func highestVersion(targetImage string, existingImages []string) string {
+	targetBase, _ := parseDockerImage(targetImage)
+
+	var highestVer *semver.Version
+	var highestImg = ""
+
+	for _, img := range existingImages {
+		name, version := parseDockerImage(img)
+
+		if name != targetBase {
+			continue
+		}
+
+		v, err := semver.Parse(version)
+		if err != nil {
+			// Skip any invalid semver tags like "latest".
+			continue
+		}
+
+		if highestVer == nil || !v.LessThan(highestVer) {
+			highestVer = v
+			highestImg = img
+		}
+	}
+
+	// If no matching image is found, an empty string is returned
+	return highestImg
 }

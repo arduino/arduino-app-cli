@@ -7,18 +7,15 @@ package orchestrator
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
-	"github.com/containerd/errdefs"
 	"github.com/docker/cli/cli/command"
-	"github.com/moby/moby/api/types/container"
-	dockerClient "github.com/moby/moby/client"
 
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -150,63 +147,14 @@ func (p *Provision) Render(
 	return prj, nil
 }
 
-func (p *Provision) init(
-	srcPath string,
-) error {
-	containerCfg := &container.Config{
+func (p *Provision) init(srcPath string) error {
+	return dockerhelper.Run(context.Background(), p.docker.Client(), dockerhelper.RunOptions{
 		Image: p.pythonImage,
-		User:  getCurrentUser(),
-		Entrypoint: []string{
-			"/bin/bash",
-			"-c",
-			fmt.Sprintf("%s && %s",
-				"arduino-bricks-list-modules -o /app/bricks-list.yaml -m /app/models-list.yaml",
-				"arduino-bricks-list-modules --provision-compose -o /app",
-			),
-		},
-	}
-	containerHostCfg := &container.HostConfig{
-		Binds:      []string{srcPath + ":/app"},
-		AutoRemove: true,
-	}
-	createOptions := dockerClient.ContainerCreateOptions{Config: containerCfg, HostConfig: containerHostCfg}
-	resp, err := p.docker.Client().ContainerCreate(context.Background(), createOptions)
-	if err != nil {
-		if errors.Is(err, errdefs.ErrNotFound) {
-			if err := pullBasePythonContainer(context.Background(), p.docker, p.pythonImage); err != nil {
-				return fmt.Errorf("provisioning failed to pull base image: %w", err)
-			}
-			// Now that we have pulled the container we recreate it
-			resp, err = p.docker.Client().ContainerCreate(context.Background(), createOptions)
-		}
-		if err != nil {
-			return fmt.Errorf("provisiong failed to create container: %w", err)
-		}
-	}
-
-	slog.Debug("provisioning container created", slog.String("container_id", resp.ID))
-
-	wait := p.docker.Client().ContainerWait(context.Background(), resp.ID, dockerClient.ContainerWaitOptions{Condition: container.WaitConditionNextExit})
-	waitCh, errCh := wait.Result, wait.Error
-	if _, err := p.docker.Client().ContainerStart(context.Background(), resp.ID, dockerClient.ContainerStartOptions{}); err != nil {
-		return fmt.Errorf("provisioning failed to start container: %w", err)
-	}
-	slog.Debug("provisioning container started", slog.String("container_id", resp.ID))
-
-	select {
-	case result := <-waitCh:
-		if result.Error != nil {
-			return fmt.Errorf("provisioning failed: %v", result.Error.Message)
-		}
-	case err := <-errCh:
-		return fmt.Errorf("provisioning failed: %w", err)
-	}
-	return nil
-}
-
-func pullBasePythonContainer(ctx context.Context, docker command.Cli, pythonImage string) error {
-	return pullImage(ctx, docker.Client(), pythonImage, map[string]int64{}, 0, "pulling the base image", func(event InitEvent) {
-		slog.Debug("Pulling container", slog.String("image", pythonImage), slog.String("line", event.Message))
+		Entrypoint: []string{"/bin/bash", "-c", fmt.Sprintf("%s && %s",
+			"arduino-bricks-list-modules -o /app/bricks-list.yaml -m /app/models-list.yaml",
+			"arduino-bricks-list-modules --provision-compose -o /app",
+		)},
+		Binds: []string{srcPath + ":/app"},
 	})
 }
 

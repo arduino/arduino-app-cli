@@ -6,63 +6,20 @@
 package orchestrator
 
 import (
-	"io"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
-	dockerCommand "github.com/docker/cli/cli/command"
-	"github.com/docker/cli/cli/flags"
-	dockerClient "github.com/moby/moby/client"
 	"github.com/stretchr/testify/require"
-	"go.bug.st/f"
 
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 )
 
-func TestListImagesAlreadyPulled(t *testing.T) {
-	docker := getDockerClient(t)
-
-	r, err := docker.ImagePull(t.Context(), "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8", dockerClient.ImagePullOptions{})
-	require.NoError(t, err)
-	_, _ = io.Copy(io.Discard, r)
-	r.Close()
-
-	images, err := listImagesAlreadyPulled(t.Context(), docker)
-	require.NoError(t, err)
-	require.Contains(t, images, "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8")
-}
-
-func TestRemoveImage(t *testing.T) {
-	docker := getDockerClient(t)
-
-	r, err := docker.ImagePull(t.Context(), "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8", dockerClient.ImagePullOptions{})
-	require.NoError(t, err)
-	_, _ = io.Copy(io.Discard, r)
-	r.Close()
-
-	size, err := removeImage(t.Context(), docker, "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8")
-	require.NoError(t, err)
-	require.Greater(t, size, int64(1024))
-}
-
-func getDockerClient(t *testing.T) dockerClient.APIClient {
-	t.Helper()
-	d, err := dockerCommand.NewDockerCli(
-		dockerCommand.WithAPIClient(
-			f.Must(dockerClient.New(dockerClient.FromEnv)),
-		),
-	)
-	require.NoError(t, err)
-	err = d.Initialize(flags.NewClientOptions())
-	require.NoError(t, err)
-	return d.Client()
-}
-
 func TestExtractImagesFromCompose(t *testing.T) {
-	oldPrefixes := imagePrefixes
-	imagePrefixes = []string{"ghcr.io/bcmi-labs/", "public.ecr.aws/arduino/", "ghcr.io/arduino/", "influxdb"}
-	defer func() { imagePrefixes = oldPrefixes }()
+	oldPrefixes := dockerhelper.ImagePrefixes
+	dockerhelper.ImagePrefixes = []string{"ghcr.io/bcmi-labs/", "public.ecr.aws/arduino/", "ghcr.io/arduino/", "influxdb"}
+	defer func() { dockerhelper.ImagePrefixes = oldPrefixes }()
 
 	tests := []struct {
 		name           string

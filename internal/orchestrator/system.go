@@ -6,9 +6,7 @@
 package orchestrator
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,7 +14,6 @@ import (
 	"os"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/arduino/arduino-cli/commands"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
@@ -24,11 +21,12 @@ import (
 	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
-	dockerClient "github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
+	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -36,8 +34,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
-
-var ErrDockerOutOfSpace = errors.New("not enough disk space to pull the docker image")
 
 const ExitCodeDockerOutOfSpace = 80
 
@@ -128,196 +124,24 @@ func SystemInit(ctx context.Context, cfg config.Configuration, platform platform
 
 func downloadSupportedImages(ctx context.Context, cfg config.Configuration, brickindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex, docker *command.DockerCli, eventCB InitEventCallback) error {
 	eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDocker, Message: "Pulling the latest docker images ..."})
-	imagesToPreinstall := []string{cfg.PythonImage}
 	brickImages, err := getAllSupportedBrickImages(brickindex, servicesindex)
 	if err != nil {
 		return err
 	}
-
 	handlerImages := modelsIndex.Handlers.GetDockerImages()
 
+	imagesToPreinstall := make([]string, 0, 1+len(brickImages)+len(handlerImages))
+	imagesToPreinstall = append(imagesToPreinstall, cfg.PythonImage)
 	imagesToPreinstall = append(imagesToPreinstall, brickImages...)
 	imagesToPreinstall = append(imagesToPreinstall, handlerImages...)
 
-	pulledImages, err := listImagesAlreadyPulled(ctx, docker.Client())
-	if err != nil {
-		return err
-	}
-
-	// Filter out container images that are already pulled
-	imagesToPreinstall = slices.DeleteFunc(imagesToPreinstall, func(v string) bool {
-		return slices.Contains(pulledImages, v)
-	})
-
-	imagesToPull := make([]string, 0, len(imagesToPreinstall))
-	allLayers := make([]dockerImageLayer, 0, len(imagesToPreinstall))
-	for _, image := range imagesToPreinstall {
-		previousExistingImage := GetHighestVersion(image, pulledImages)
-		layers, err := missingLayers(previousExistingImage, image)
-		if err != nil {
-			slog.Warn("Unable to get the new image layers size", "image", image, "error", err)
-		}
-		var bytes int64
-		for _, l := range layers {
-			bytes += l.Size
-		}
-		imagesToPull = append(imagesToPull, image)
-		allLayers = append(allLayers, layers...)
-		slog.Info("docker image to download", "image", image, "bytes", bytes)
-	}
-	totalBytes := sumUniqueLayers(allLayers)
-	slog.Info("total docker images download size", "bytes", totalBytes)
-
-	// Check that there is enough disk space for all the layers to download.
-	// Shared layers are counted once, so this is the real download size.
-	freeSpace, err := GetDockerFreeSpace()
-	if err != nil {
-		return err
-	}
-	if uint64(float64(totalBytes)*2.5) > freeSpace {
-		return ErrDockerOutOfSpace
-	}
-
-	layerProgress := map[string]int64{}
-	var lastLabel string
-	for i, image := range imagesToPull {
-		eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDocker, Message: fmt.Sprintf("Pulling container image %s ...", image)})
-		// The percentage stays global (across all images); the label tells the
-		// user which image is currently being pulled.
-		lastLabel = fmt.Sprintf("Pulling image %d/%d (%s)", i+1, len(imagesToPull), imageName(image))
-		if err := pullImage(ctx, docker.Client(), image, layerProgress, totalBytes, lastLabel, eventCB); err != nil {
-			return fmt.Errorf("failed to pull image %s: %w", image, err)
-		}
-	}
-
-	if totalBytes > 0 && len(imagesToPull) > 0 {
-		eventCB(InitEvent{Type: InitProgressEvent, Source: InitSourceDocker, Progress: InitProgress{Label: lastLabel, Curr: totalBytes, Total: totalBytes}})
-	}
-
-	return nil
-}
-
-const minDelay = 1 * time.Second
-const maxDelay = 10 * time.Second
-
-// updateLayerProgress records the bytes downloaded so far for a single layer
-func updateLayerProgress(layerProgress map[string]int64, status, id string, current int64) int64 {
-	if status == "Downloading" && id != "" {
-		layerProgress[id] = current
-	}
-
-	var downloaded int64
-	for _, c := range layerProgress {
-		downloaded += c
-	}
-	return downloaded
-}
-
-func pullImage(ctx context.Context, docker dockerClient.APIClient, imageName string, layerProgress map[string]int64, totalBytes int64, progressLabel string, eventCB InitEventCallback) error {
-	delay := minDelay
-	var out io.ReadCloser
-	var allErr error
-	var lastErr error
-	for range 10 { // 1s, 2s, 4s, 8s, 10s, 10s, 10s, 10s, 10s, 10s
-		out, lastErr = docker.ImagePull(ctx, imageName, dockerClient.ImagePullOptions{})
-		if lastErr == nil {
-			break // Success
-		}
-		allErr = errors.Join(allErr, lastErr)
-
-		if !isTemporaryDockerError(lastErr) {
-			return allErr // Non-retryable error
-		}
-
-		eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDocker, Message: fmt.Sprintf("received 'toomanyrequests' error from Docker registry, retrying in %s ...", delay)})
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(delay):
-		}
-		delay = min(delay*2, maxDelay)
-	}
-	if lastErr != nil {
-		return fmt.Errorf("failed to pull image %s after multiple attempts: %w", imageName, allErr)
-	}
-	defer out.Close()
-
-	scanner := bufio.NewScanner(out)
-	for scanner.Scan() {
-		type Payload struct {
-			Status         string `json:"status"`
-			Progress       string `json:"progress"`
-			ID             string `json:"id"`
-			ProgressDetail struct {
-				Current int64 `json:"current"`
-				Total   int64 `json:"total"`
-			} `json:"progressDetail"`
-		}
-
-		var payload Payload
-		if err := json.Unmarshal(scanner.Bytes(), &payload); err == nil {
-			// Accumulate the downloaded bytes across all layers/images and report
-			// the global download progress.
-			downloaded := updateLayerProgress(layerProgress, payload.Status, payload.ID, payload.ProgressDetail.Current)
-			if totalBytes > 0 {
-				if downloaded > totalBytes {
-					downloaded = totalBytes
-				}
-				eventCB(InitEvent{Type: InitProgressEvent, Source: InitSourceDocker, Progress: InitProgress{Label: progressLabel, Curr: downloaded, Total: totalBytes}})
-			}
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return err
-	}
-	return nil
-}
-func isTemporaryDockerError(err error) bool {
-	errorString := err.Error()
-	transientSubstrings := []string{
-		"toomanyrequests",
-		"Client.Timeout exceeded",
-		"request canceled while waiting for connection",
-	}
-
-	for _, sub := range transientSubstrings {
-		if strings.Contains(errorString, sub) {
-			return true
-		}
-	}
-	return false
-}
-
-// List of prefixes used to identify current or past Arduino images. Used both during 'system init' and during cleanup.
-var imagePrefixes = []string{
-	"ghcr.io/bcmi-labs/",
-	"public.ecr.aws/arduino/",
-	"ghcr.io/arduino/",
-	"influxdb",
-	"artifacts.codelinaro.org/iot-solutions-microservices/",
-}
-
-// Lists all the local docker images that could have been, or are downloaded by Arduino.
-// This is used both to avoid pulling already existing images and cleaning up unused old Arduino images.
-func listImagesAlreadyPulled(ctx context.Context, docker dockerClient.APIClient) ([]string, error) {
-	images, err := docker.ImageList(ctx, dockerClient.ImageListOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	result := make([]string, 0, len(images.Items))
-	for _, image := range images.Items {
-		for _, tag := range image.RepoTags {
-			if slices.ContainsFunc(imagePrefixes, func(p string) bool {
-				return strings.HasPrefix(tag, p)
-			}) {
-				result = append(result, tag)
-			}
-		}
-	}
-
-	return result, nil
+	return dockerhelper.PullImages(ctx, docker.Client(), imagesToPreinstall,
+		func(line string) {
+			eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDocker, Message: line})
+		},
+		func(label string, curr, total int64) {
+			eventCB(InitEvent{Type: InitProgressEvent, Source: InitSourceDocker, Progress: InitProgress{Label: label, Curr: curr, Total: total}})
+		})
 }
 
 func getAllSupportedBrickImages(bricksIndex *bricksindex.BricksIndex, servicesIndex *servicesindex.ServicesIndex) ([]string, error) {
@@ -371,12 +195,12 @@ func extractImagesFromCompose(composeFile *paths.Path) ([]string, error) {
 		return nil, err
 	}
 	for _, v := range prj.Services {
-		if slices.ContainsFunc(imagePrefixes, func(p string) bool {
+		if slices.ContainsFunc(dockerhelper.ImagePrefixes, func(p string) bool {
 			return strings.HasPrefix(v.Image, p)
 		}) {
 			result = append(result, v.Image)
 		} else {
-			slog.Warn("skipping image that does not match known prefixes", "image", v.Image, "prefixes", imagePrefixes)
+			slog.Warn("skipping image that does not match known prefixes", "image", v.Image, "prefixes", dockerhelper.ImagePrefixes)
 		}
 	}
 	return result, nil
@@ -414,12 +238,16 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 	}
 
 	// Remove dangling stuff
-	if count, err := removeDanglingContainers(ctx, docker.Client()); err != nil {
+	if count, err := dockerhelper.PruneContainers(ctx, docker.Client(), DockerAppLabel+"=true", nil); err != nil {
 		feedback.Warnf("failed to remove dangling containers - %v", err)
 	} else {
 		result.ContainersRemoved = count
 	}
-	if count, err := removeDanglingNetworks(ctx, docker.Client()); err != nil {
+	// A project of ours is a slug of the path of an app, which the label states.
+	const composeProjectLabel = "com.docker.compose.project"
+	if count, err := dockerhelper.PruneNetworks(ctx, docker.Client(), composeProjectLabel, func(labels map[string]string) bool {
+		return strings.Contains(labels[composeProjectLabel], "arduino-app-cli")
+	}); err != nil {
 		feedback.Warnf("failed to remove dangling networks - %v", err)
 	} else {
 		result.NetworksRemoved = count
@@ -432,7 +260,7 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 	}
 	slog.Debug("images that must stay", "imagesMustStay", imagesMustStay)
 
-	allImages, err := listImagesAlreadyPulled(ctx, docker.Client())
+	allImages, err := dockerhelper.ListImages(ctx, docker.Client())
 	if err != nil {
 		return result, err
 	}
@@ -444,7 +272,7 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 	slog.Info("images to remove", "imagesToRemove", imagesToRemove)
 
 	for _, image := range imagesToRemove {
-		imageSize, err := removeImage(ctx, docker.Client(), image)
+		imageSize, err := dockerhelper.RemoveImage(ctx, docker.Client(), image)
 		if err != nil {
 			feedback.Warnf("failed to remove image %s - %v", image, err)
 			continue
@@ -456,25 +284,6 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 	return result, nil
 }
 
-func removeImage(ctx context.Context, docker dockerClient.APIClient, imageName string) (int64, error) {
-	var size int64
-	if info, err := docker.ImageInspect(ctx, imageName); err != nil {
-		feedback.Warnf("failed to inspect image %s - %v", imageName, err)
-	} else {
-		size = info.Size
-	}
-
-	if _, err := docker.ImageRemove(ctx, imageName, dockerClient.ImageRemoveOptions{
-		Force:         true,
-		PruneChildren: true,
-	}); err != nil {
-		return 0, fmt.Errorf("failed to remove image %s: %w", imageName, err)
-	}
-
-	return size, nil
-}
-
-// images required by the system
 func getRequiredImages(cfg config.Configuration, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex) ([]string, error) {
 	bricksContainers, err := getAllSupportedBrickImages(bricksindex, servicesindex)
 	if err != nil {
@@ -489,53 +298,6 @@ func getRequiredImages(cfg config.Configuration, bricksindex *bricksindex.Bricks
 	requiredImages = append(requiredImages, handlerImages...)
 
 	return requiredImages, nil
-}
-
-func removeDanglingContainers(ctx context.Context, docker dockerClient.APIClient) (int, error) {
-	containers, err := docker.ContainerList(ctx, dockerClient.ContainerListOptions{
-		All:     true,
-		Filters: make(dockerClient.Filters).Add("label", DockerAppLabel+"=true"),
-	})
-	if err != nil {
-		return 0, fmt.Errorf("failed to list containers: %w", err)
-	}
-
-	var counter int
-	for _, info := range containers.Items {
-		if _, err := docker.ContainerRemove(ctx, info.ID, dockerClient.ContainerRemoveOptions{
-			Force:         true,
-			RemoveVolumes: true,
-		}); err != nil {
-			return 0, fmt.Errorf("failed to remove container %s: %w", info.ID, err)
-		}
-		counter++
-	}
-
-	return counter, nil
-}
-
-func removeDanglingNetworks(ctx context.Context, docker dockerClient.APIClient) (int, error) {
-	const dockerComposeProjectLabel = "com.docker.compose.project"
-
-	networks, err := docker.NetworkList(ctx, dockerClient.NetworkListOptions{
-		Filters: make(dockerClient.Filters).Add("label", dockerComposeProjectLabel),
-	})
-	if err != nil {
-		return 0, fmt.Errorf("failed to list networks: %w", err)
-	}
-
-	var counter int
-	for _, info := range networks.Items {
-		if !strings.Contains(info.Labels[dockerComposeProjectLabel], "arduino-app-cli") {
-			continue
-		}
-		if _, err := docker.NetworkRemove(ctx, info.ID, dockerClient.NetworkRemoveOptions{}); err != nil {
-			return 0, fmt.Errorf("failed to remove network %s: %w", info.ID, err)
-		}
-		counter++
-	}
-
-	return counter, nil
 }
 
 func installPlatformPackage(ctx context.Context, plat platform.Platform, eventCB InitEventCallback) error {
@@ -592,19 +354,21 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 
 	// Download progress CB
 	currLabel := ""
-	totalSize := int64(0)
+	var reported helpers.LastPercent
 	downloadProgressCB := func(curr *rpc.DownloadProgress) {
 		if start := curr.GetStart(); start != nil {
 			currLabel = start.GetLabel()
+			reported = 0
 		}
-		if update := curr.GetUpdate(); update != nil {
-			totalSize = update.GetTotalSize()
-			eventCB(InitEvent{Type: InitProgressEvent, Source: InitSourceArduino, Progress: InitProgress{
-				Label: currLabel,
-				Curr:  update.GetDownloaded(),
-				Total: totalSize,
-			}})
+		update := curr.GetUpdate()
+		if update == nil || !reported.Moved(update.GetDownloaded(), update.GetTotalSize()) {
+			return
 		}
+		eventCB(InitEvent{Type: InitProgressEvent, Source: InitSourceArduino, Progress: InitProgress{
+			Label: currLabel,
+			Curr:  update.GetDownloaded(),
+			Total: update.GetTotalSize(),
+		}})
 	}
 
 	// Force-update of the Arduino Libraries index
@@ -712,47 +476,5 @@ func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, platf
 		return fmt.Errorf("could not initialize sketch %s: %w", sketchPath.String(), err)
 	}
 
-	return nil
-}
-
-// PullAppImages downloads what an app needs before it is started, the way the system
-// init does: the size is read from the registry, so the percentage is over what is left.
-func PullAppImages(ctx context.Context, docker command.Cli, images []string, eventCB InitEventCallback) error {
-	pulledImages, err := listImagesAlreadyPulled(ctx, docker.Client())
-	if err != nil {
-		return err
-	}
-	imagesToPull := slices.DeleteFunc(slices.Clone(images), func(image string) bool {
-		return slices.Contains(pulledImages, image)
-	})
-	if len(imagesToPull) == 0 {
-		return nil
-	}
-
-	var allLayers []dockerImageLayer
-	for _, image := range imagesToPull {
-		layers, err := missingLayers(GetHighestVersion(image, pulledImages), image)
-		if err != nil {
-			slog.Warn("Unable to get the new image layers size", "image", image, "error", err)
-		}
-		allLayers = append(allLayers, layers...)
-	}
-	totalBytes := sumUniqueLayers(allLayers)
-
-	freeSpace, err := GetDockerFreeSpace()
-	if err != nil {
-		return err
-	}
-	if uint64(float64(totalBytes)*2.5) > freeSpace {
-		return ErrDockerOutOfSpace
-	}
-
-	layerProgress := map[string]int64{}
-	for i, image := range imagesToPull {
-		label := fmt.Sprintf("Pulling image %d/%d (%s)", i+1, len(imagesToPull), imageName(image))
-		if err := pullImage(ctx, docker.Client(), image, layerProgress, totalBytes, label, eventCB); err != nil {
-			return fmt.Errorf("failed to pull image %s: %w", image, err)
-		}
-	}
 	return nil
 }

@@ -12,7 +12,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/user"
 	"slices"
 	"sync"
 
@@ -228,25 +227,12 @@ func StartApp(
 				images = append(images, service.Image)
 			}
 		}
-		// The pull reports every chunk of every layer: one message per percent is enough.
-		reported := -1
-		if err := PullAppImages(ctx, docker, images, func(event InitEvent) {
-			switch event.Type {
-			case InitProgressEvent:
-				if event.Progress.Total <= 0 {
-					return
-				}
+		if err := dockerhelper.PullImages(ctx, docker.Client(), images,
+			func(line string) { cb(StreamMessage{data: line}) },
+			func(label string, curr, total int64) {
 				// Downloading the images is from 20% to 80% of the start of an app.
-				percent := 20 + int(event.Progress.Curr*60/event.Progress.Total)
-				if percent == reported {
-					return
-				}
-				reported = percent
-				cb(StreamMessage{progress: &Progress{Name: event.Progress.Label, Progress: float32(percent)}})
-			default:
-				cb(StreamMessage{data: event.Message})
-			}
-		}); err != nil {
+				cb(StreamMessage{progress: &Progress{Name: label, Progress: 20 + float32(curr*60/total)}})
+			}); err != nil {
 			return err
 		}
 
@@ -945,19 +931,6 @@ func editAppDefaults(userApp *app.ArduinoApp, isDefault bool, cfg config.Configu
 		}
 	}
 	return nil
-}
-
-func getCurrentUser() string {
-	userInfo := f.Must(user.Current())
-	uid := userInfo.Uid
-	gid := userInfo.Gid
-
-	// If exist use arduino group to avoid permission issue on files /var/lib/arduino-app-cli in.
-	if gInfo, err := user.LookupGroup("arduino"); err == nil {
-		gid = gInfo.Gid
-	}
-
-	return uid + ":" + gid
 }
 
 func compileUploadSketch(
