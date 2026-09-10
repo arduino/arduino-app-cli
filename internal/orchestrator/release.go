@@ -202,9 +202,13 @@ func BuildRelease(
 		return BuildReleaseResult{}, err
 	}
 
-	cb(StreamMessage{data: "building sketch", progress: &Progress{Name: "sketch", Progress: 20.0}})
-	if err := buildSketch(ctx, appToBuild, plat, prebuildDir, verbose, cb); err != nil {
-		return BuildReleaseResult{}, err
+	// The sketch is optional, as it is for the release manifest: an app made of
+	// python only ships without a firmware.
+	if _, hasSketch := appToBuild.GetSketchPath(); hasSketch {
+		cb(StreamMessage{data: "building sketch", progress: &Progress{Name: "sketch", Progress: 20.0}})
+		if err := buildSketch(ctx, appToBuild, plat, prebuildDir, verbose, cb); err != nil {
+			return BuildReleaseResult{}, err
+		}
 	}
 
 	cb(StreamMessage{data: "writing " + archivePath.Base(), progress: &Progress{Name: "archive", Progress: 90.0}})
@@ -501,11 +505,16 @@ func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platfo
 	// Upload to file
 	uploadStream, _ := commands.UploadToServerStreams(ctx, output, output)
 	if err := srv.Upload(&rpc.UploadRequest{
-		Instance:             inst,
-		Fqbn:                 fqbn,
-		SketchPath:           sketchPath.String(),
-		ImportDir:            buildPath.String(),
-		Verbose:              verbose,
+		Instance:   inst,
+		Fqbn:       fqbn,
+		SketchPath: sketchPath.String(),
+		ImportDir:  buildPath.String(),
+		Verbose:    verbose,
+		// There is no board to upload to: "default" is the protocol arduino-cli
+		// itself uses for portless uploads, and it selects the upload.tool.default
+		// recipe. Without it the firmware file generation asks for the user fields
+		// of an empty protocol and fails.
+		Port:                 &rpc.Port{Protocol: "default"},
 		UploadToFirmwareFile: new(destPath.Join("sketch.fw").String()),
 	}, uploadStream); err != nil {
 		return fmt.Errorf("failed to create the sketch artifact: %w", err)
