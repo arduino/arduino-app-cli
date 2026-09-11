@@ -173,11 +173,20 @@ func generateComposeTemplate(
 		},
 	}
 
+	// The DSP binaries live in /usr/share/qcom, or wherever the host says. Resolved
+	// here and not as a ${VAR} of the template: a mount is only written where its
+	// path exists, which is checked before the template is interpolated.
+	dspPath := cmp.Or(os.Getenv("HOST_DSP_INSTALLATION_PATH"), "/usr/share/qcom")
+
 	// Mounted only where the board has them.
 	optionalMounts := slices.Concat(
 		[]string{"/run/udev:ro", "/run/user/1000/pipewire-0"},
 		// camx CSI cameras are accessed through the cam_server socket and a host userspace library
 		[]string{"/run/cam_server", "/usr/lib/libcamera_metadata.so.0.1.0"},
+		// DSP binaries, at a stable path in the container wherever the host keeps them
+		[]string{dspPath + ":/run/host-qcom:ro"},
+		// the board model, where it is
+		[]string{"/sys/firmware/devicetree/base/model:ro"},
 		platform.Linux.BoardLeds.AsStrings(),
 	)
 	for _, mount := range optionalMounts {
@@ -225,7 +234,7 @@ func generateComposeTemplate(
 		}
 	}
 
-	deviceDrivers := []string{"drm", "dma_heap", "media", "video4linux", "alsa", "ttyUSB", "ttyACM"}
+	deviceDrivers := []string{"drm", "dma_heap", "media", "video4linux", "alsa", "ttyUSB", "ttyACM", "misc"}
 
 	mainAppCompose.Services = map[string]any{"main": service{
 		Image:             pythonImage,
@@ -431,15 +440,17 @@ func templateEnvironment(appEnv types.Mapping) types.Mapping {
 	return env
 }
 
-// mountExpr binds a path where it is, `<path>:ro` read-only. It renders to nothing,
-// and so is dropped, on a board that has not the path: never created, being optional.
+// mountExpr binds a path where it is, `<host>:<container>` at another path in the
+// container, `<...>:ro` read-only. It renders to nothing, and so is dropped, on a board
+// that has not the path: never created, being optional.
 func mountExpr(mount string) (string, error) {
 	// Cut only the suffix: a led path is /sys/class/leds/blue:user.
-	source, readOnly := strings.CutSuffix(mount, ":ro")
+	mount, readOnly := strings.CutSuffix(mount, ":ro")
+	source, target := splitMount(mount)
 	bind, err := json.Marshal(volume{
 		Type:     "bind",
 		Source:   source,
-		Target:   source,
+		Target:   target,
 		ReadOnly: readOnly,
 		Bind:     &bindOptions{CreateHostPath: false},
 	})
@@ -447,6 +458,17 @@ func mountExpr(mount string) (string, error) {
 		return "", err
 	}
 	return exprPrefix + fmt.Sprintf("{{ if pathExists %s }}%s{{ end }}", strconv.Quote(source), bind), nil
+}
+
+// splitMount reads the host and container paths of a mount: `<host>` is bound where it
+// is, `<host>:<container>` at the container path given. Only an absolute right side is
+// a container path, so a colon inside a path — a led is /sys/class/leds/blue:user — is
+// left where it belongs.
+func splitMount(mount string) (source, target string) {
+	if i := strings.LastIndex(mount, ":"); i >= 0 && strings.HasPrefix(mount[i+1:], "/") {
+		return mount[:i], mount[i+1:]
+	}
+	return mount, mount
 }
 
 func groupExprs(names []string) []string {
