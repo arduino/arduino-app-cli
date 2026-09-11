@@ -8,21 +8,20 @@ package modelsindex
 import (
 	"bufio"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
+	"iter"
 	"net"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 
-	dockertypes "github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/api/types/network"
-	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/stdcopy"
-	specs "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/moby/moby/api/pkg/stdcopy"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/jsonstream"
+	"github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -70,37 +69,38 @@ func newFakeDockerClientWithEnv(runFunc func(image string, cmd, env []string) (s
 	}
 }
 
-func (f *fakeDockerClient) ContainerCreate(_ context.Context, cfg *container.Config, _ *container.HostConfig, _ *network.NetworkingConfig, _ *specs.Platform, _ string) (container.CreateResponse, error) {
+func (f *fakeDockerClient) ContainerCreate(_ context.Context, options client.ContainerCreateOptions) (client.ContainerCreateResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.idCounter++
 	id := fmt.Sprintf("fake-%d", f.idCounter)
+	cfg := options.Config
 	f.pending[id] = &pendingContainer{image: cfg.Image, cmd: cfg.Cmd, env: cfg.Env}
-	return container.CreateResponse{ID: id}, nil
+	return client.ContainerCreateResult{ID: id}, nil
 }
 
-func (f *fakeDockerClient) ContainerWait(_ context.Context, id string, _ container.WaitCondition) (<-chan container.WaitResponse, <-chan error) {
+func (f *fakeDockerClient) ContainerWait(_ context.Context, id string, _ client.ContainerWaitOptions) client.ContainerWaitResult {
 	statusCh := make(chan container.WaitResponse, 1)
 	errCh := make(chan error, 1)
 	f.mu.Lock()
 	f.pending[id].statusCh = statusCh
 	f.pending[id].errCh = errCh
 	f.mu.Unlock()
-	return statusCh, errCh
+	return client.ContainerWaitResult{Result: statusCh, Error: errCh}
 }
 
-func (f *fakeDockerClient) ContainerAttach(_ context.Context, id string, _ container.AttachOptions) (dockertypes.HijackedResponse, error) {
+func (f *fakeDockerClient) ContainerAttach(_ context.Context, id string, _ client.ContainerAttachOptions) (client.ContainerAttachResult, error) {
 	clientConn, serverConn := net.Pipe()
 	f.mu.Lock()
 	f.pending[id].attachConn = serverConn
 	f.mu.Unlock()
-	return dockertypes.HijackedResponse{
+	return client.ContainerAttachResult{HijackedResponse: client.HijackedResponse{
 		Conn:   clientConn,
 		Reader: bufio.NewReader(clientConn),
-	}, nil
+	}}, nil
 }
 
-func (f *fakeDockerClient) ContainerStart(_ context.Context, id string, _ container.StartOptions) error {
+func (f *fakeDockerClient) ContainerStart(_ context.Context, id string, _ client.ContainerStartOptions) (client.ContainerStartResult, error) {
 	f.mu.Lock()
 	p := f.pending[id]
 	delete(f.pending, id)
@@ -115,25 +115,46 @@ func (f *fakeDockerClient) ContainerStart(_ context.Context, id string, _ contai
 			stdout, exitCode = f.runFunc(p.image, p.cmd)
 		}
 		if stdout != "" {
-			w := stdcopy.NewStdWriter(p.attachConn, stdcopy.Stdout)
-			fmt.Fprint(w, stdout)
+			writeStdoutFrame(p.attachConn, stdout)
 		}
 		p.attachConn.Close()
 		p.statusCh <- container.WaitResponse{StatusCode: int64(exitCode)}
 	}()
-	return nil
+	return client.ContainerStartResult{}, nil
 }
 
-func (f *fakeDockerClient) ContainerRemove(_ context.Context, _ string, _ container.RemoveOptions) error {
-	return nil
+func (f *fakeDockerClient) ContainerRemove(_ context.Context, _ string, _ client.ContainerRemoveOptions) (client.ContainerRemoveResult, error) {
+	return client.ContainerRemoveResult{}, nil
 }
 
-func (f *fakeDockerClient) ImagePull(_ context.Context, _ string, _ image.PullOptions) (io.ReadCloser, error) {
-	return io.NopCloser(strings.NewReader("")), nil
+func (f *fakeDockerClient) ImagePull(_ context.Context, _ string, _ client.ImagePullOptions) (client.ImagePullResponse, error) {
+	return fakePullResponse{ReadCloser: io.NopCloser(strings.NewReader(""))}, nil
 }
 
-func (f *fakeDockerClient) ImageInspect(ctx context.Context, _ string, _ ...client.ImageInspectOption) (image.InspectResponse, error) {
-	return image.InspectResponse{}, nil
+// fakePullResponse is what the client returns for a pull: a stream, plus the two ways
+// of reading it the api offers.
+type fakePullResponse struct {
+	io.ReadCloser
+}
+
+func (fakePullResponse) JSONMessages(context.Context) iter.Seq2[jsonstream.Message, error] {
+	return func(func(jsonstream.Message, error) bool) {}
+}
+
+func (fakePullResponse) Wait(context.Context) error { return nil }
+
+func (f *fakeDockerClient) ImageInspect(_ context.Context, _ string, _ ...client.ImageInspectOption) (client.ImageInspectResult, error) {
+	return client.ImageInspectResult{}, nil
+}
+
+// writeStdoutFrame multiplexes the payload the way the daemon does, which is what
+// stdcopy.StdCopy unframes on the other side.
+func writeStdoutFrame(w io.Writer, payload string) {
+	header := make([]byte, 8)
+	header[0] = byte(stdcopy.Stdout)
+	binary.BigEndian.PutUint32(header[4:], uint32(len(payload))) // nolint:gosec // a test payload is small
+	_, _ = w.Write(header)
+	_, _ = io.WriteString(w, payload)
 }
 
 // listModelsCmd is the listing container's command, as testdata/with-handlers declares it.

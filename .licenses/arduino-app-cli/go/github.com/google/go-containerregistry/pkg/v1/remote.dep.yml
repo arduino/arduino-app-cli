@@ -1,13 +1,13 @@
 ---
 name: github.com/google/go-containerregistry/pkg/v1/remote
-version: v0.20.7
+version: v0.22.1
 type: go
 summary: Package remote provides facilities for reading/writing v1.Images from/to
   a remote image registry.
 homepage: https://pkg.go.dev/github.com/google/go-containerregistry/pkg/v1/remote
 license: apache-2.0
 licenses:
-- sources: go-containerregistry@v0.20.7/LICENSE
+- sources: go-containerregistry@v0.22.1/LICENSE
   text: |2-
 
                                      Apache License

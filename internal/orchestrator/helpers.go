@@ -7,18 +7,15 @@ package orchestrator
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"slices"
-	"strings"
 
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/filters"
-	dockerClient "github.com/docker/docker/client"
 	"github.com/gosimple/slug"
+	"github.com/moby/moby/api/types/container"
+	dockerClient "github.com/moby/moby/client"
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -99,17 +96,17 @@ func getAppsStatus(
 	ctx context.Context,
 	docker dockerClient.APIClient,
 ) ([]AppStatusInfo, error) {
-	containers, err := docker.ContainerList(ctx, container.ListOptions{
+	containers, err := docker.ContainerList(ctx, dockerClient.ContainerListOptions{
 		All:     true,
-		Filters: filters.NewArgs(filters.Arg("label", DockerAppLabel+"=true")),
+		Filters: make(dockerClient.Filters).Add("label", DockerAppLabel+"=true"),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
-	if len(containers) == 0 {
+	if len(containers.Items) == 0 {
 		return nil, nil
 	}
-	return parseAppStatus(containers), nil
+	return parseAppStatus(containers.Items), nil
 }
 
 func getAppStatus(
@@ -117,22 +114,22 @@ func getAppStatus(
 	docker dockerClient.APIClient,
 	app app.ArduinoApp,
 ) (AppStatusInfo, error) {
-	containers, err := docker.ContainerList(ctx, container.ListOptions{
+	containers, err := docker.ContainerList(ctx, dockerClient.ContainerListOptions{
 		All:     true,
-		Filters: filters.NewArgs(filters.Arg("label", DockerAppPathLabel+"="+app.FullPath.String())),
+		Filters: make(dockerClient.Filters).Add("label", DockerAppPathLabel+"="+app.FullPath.String()),
 	})
 	if err != nil {
 		return AppStatusInfo{}, fmt.Errorf("failed to list containers: %w", err)
 	}
 
-	if len(containers) == 0 {
+	if len(containers.Items) == 0 {
 		return AppStatusInfo{
 			AppPath: app.FullPath,
 			Status:  StatusUninitialized,
 		}, nil
 	}
 
-	appInfo := parseAppStatus(containers)
+	appInfo := parseAppStatus(containers.Items)
 	if len(appInfo) == 0 {
 		return AppStatusInfo{}, fmt.Errorf("no app status found for app at path %s", app.FullPath)
 	}
@@ -160,6 +157,27 @@ func getRunningApp(
 	return &app, nil
 }
 
+// getAppServicesFromContainers reads the services of an app from its containers. The
+// compose file is not a source: an update removes the brick files that it includes.
+func getAppServicesFromContainers(ctx context.Context, docker dockerClient.APIClient, app app.ArduinoApp) ([]string, error) {
+	containers, err := docker.ContainerList(ctx, dockerClient.ContainerListOptions{
+		All:     true,
+		Filters: make(dockerClient.Filters).Add("label", DockerAppPathLabel+"="+app.FullPath.String()),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list containers: %w", err)
+	}
+
+	const dockerComposeServiceLabel = "com.docker.compose.service"
+	services := make([]string, 0, len(containers.Items))
+	for _, info := range containers.Items {
+		if name := info.Labels[dockerComposeServiceLabel]; name != "" && !slices.Contains(services, name) {
+			services = append(services, name)
+		}
+	}
+	return services, nil
+}
+
 func getAppComposeProjectNameFromApp(app app.ArduinoApp, cfg config.Configuration) (string, error) {
 	composeProjectName, err := app.FullPath.RelFrom(cfg.AppsDir())
 	if err != nil {
@@ -172,18 +190,6 @@ func findAppPathByName(name string, cfg config.Configuration) (*paths.Path, bool
 	appFolderName := slug.Make(name)
 	basePath := cfg.AppsDir().Join(appFolderName)
 	return basePath, basePath.Exist()
-}
-
-func GetCustomErrorFomDockerEvent(message string) error {
-	if strings.HasSuffix(message, ": unauthorized") {
-		return errors.New("could not reach the Docker registry to download base image. Please make sure to be authorized to download from it or flash the board with the latest Arduino Linux image. Details: " + message + ")")
-	}
-
-	if strings.HasSuffix(message, ": connection refused") || strings.Contains(message, ": no such host") {
-		return errors.New("could not reach the Docker registry to download base image. Please check your internet connection or flash the board with the latest Arduino Linux image. Details: " + message + ")")
-	}
-
-	return nil
 }
 
 type ledTarget string

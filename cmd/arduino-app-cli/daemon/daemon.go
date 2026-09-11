@@ -15,9 +15,8 @@ import (
 	"time"
 
 	"github.com/docker/cli/cli/command"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/filters"
 	"github.com/jub0bs/cors"
+	"github.com/moby/moby/client"
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
@@ -166,16 +165,16 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 
 // stopArduinoContainers stops the Arduino containers that start running automatically when the board boots
 func stopArduinoContainers(ctx context.Context, docker command.Cli) error {
-	containers, err := docker.Client().ContainerList(ctx, container.ListOptions{
+	containers, err := docker.Client().ContainerList(ctx, client.ContainerListOptions{
 		All:     false,
-		Filters: filters.NewArgs(filters.Arg("label", orchestrator.DockerAppLabel+"=true")),
+		Filters: make(client.Filters).Add("label", orchestrator.DockerAppLabel+"=true"),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to list containers: %w", err)
 	}
-	for _, c := range containers {
+	for _, c := range containers.Items {
 		slog.Debug("Stopping container", slog.String("ID", c.ID))
-		if err := docker.Client().ContainerStop(ctx, c.ID, container.StopOptions{}); err != nil {
+		if _, err := docker.Client().ContainerStop(ctx, c.ID, client.ContainerStopOptions{}); err != nil {
 			slog.Warn("Failed to stop container", "ID", c.ID, "error", err.Error())
 		}
 	}

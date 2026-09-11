@@ -19,10 +19,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/moby/moby/api/pkg/stdcopy"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/client"
 	"go.bug.st/f"
 	"golang.org/x/sync/errgroup"
 )
@@ -70,29 +69,29 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 		env = append(env, "HOME=/tmp")
 	}
 
-	resp, err := cli.ContainerCreate(ctx,
-		&container.Config{
+	resp, err := cli.ContainerCreate(ctx, client.ContainerCreateOptions{
+		Config: &container.Config{
 			Image: opts.Image,
 			Cmd:   opts.Cmd,
 			Env:   env,
 			User:  getCurrentUser(),
 		},
-		&container.HostConfig{
+		HostConfig: &container.HostConfig{
 			Binds:      opts.Binds,
 			LogConfig:  container.LogConfig{Type: "none"},
 			AutoRemove: true,
 		},
-		nil, nil, "",
-	)
+	})
 	if err != nil {
 		return fmt.Errorf("container create: %w", err)
 	}
 
 	slog.Debug("creating container", "id", resp.ID, "image", opts.Image, "cmd", opts.Cmd, "env", opts.Env, "binds", opts.Binds)
 
-	statusCh, errCh := cli.ContainerWait(ctx, resp.ID, container.WaitConditionNotRunning)
+	wait := cli.ContainerWait(ctx, resp.ID, client.ContainerWaitOptions{Condition: container.WaitConditionNotRunning})
+	statusCh, errCh := wait.Result, wait.Error
 
-	attachResp, err := cli.ContainerAttach(ctx, resp.ID, container.AttachOptions{
+	attachResp, err := cli.ContainerAttach(ctx, resp.ID, client.ContainerAttachOptions{
 		Stream: true,
 		Stdout: true,
 		Stderr: true,
@@ -102,7 +101,7 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 	}
 	defer attachResp.Close()
 
-	if err := cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+	if _, err := cli.ContainerStart(ctx, resp.ID, client.ContainerStartOptions{}); err != nil {
 		return fmt.Errorf("container start: %w", err)
 	}
 	slog.Debug("container launched", "id", resp.ID, "image", opts.Image, "launch_s", time.Since(launchStart).Seconds())
@@ -110,7 +109,7 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 	// Stop the container on ctx cancel so the daemon EOFs the attach stream,
 	// which unblocks StdCopy and fires errCh/statusCh.
 	stopOnCancel := context.AfterFunc(ctx, func() {
-		if err := cli.ContainerStop(context.Background(), resp.ID, container.StopOptions{}); err != nil {
+		if _, err := cli.ContainerStop(context.Background(), resp.ID, client.ContainerStopOptions{}); err != nil {
 			slog.Debug("container stop on cancel failed", "id", resp.ID, "err", err)
 		}
 	})
@@ -171,7 +170,7 @@ func ensureImage(ctx context.Context, cli client.APIClient, img string) error {
 	}
 	slog.Debug("image not found locally, pulling", "image", img)
 	// TODO: we should stream the pull progress to the caller.
-	pullResp, err := cli.ImagePull(ctx, img, image.PullOptions{})
+	pullResp, err := cli.ImagePull(ctx, img, client.ImagePullOptions{})
 	if err != nil {
 		return fmt.Errorf("image pull: %w", err)
 	}

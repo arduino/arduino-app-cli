@@ -32,7 +32,6 @@ func GetHttpclient(t *testing.T, opts ...e2e.ArduinoAppCLIOption) *client.Client
 func GetHttpclientAndAddr(t *testing.T, opts ...e2e.ArduinoAppCLIOption) (*client.ClientWithResponses, string) {
 	t.Helper()
 	cli := e2e.CreateEnvForDaemon(t, opts...)
-	t.Cleanup(cli.CleanUp)
 	httpClient, err := client.NewClientWithResponses(cli.DaemonAddr)
 	require.NoError(t, err)
 	return httpClient, cli.DaemonAddr

@@ -1,13 +1,13 @@
 ---
 name: github.com/go-logr/logr/funcr
-version: v1.4.3
+version: v1.4.4
 type: go
 summary: Package funcr implements formatting of structured log messages and optionally
   captures the call site and timestamp.
 homepage: https://pkg.go.dev/github.com/go-logr/logr/funcr
 license: apache-2.0
 licenses:
-- sources: logr@v1.4.3/LICENSE
+- sources: logr@v1.4.4/LICENSE
   text: |2
                                      Apache License
                                Version 2.0, January 2004
