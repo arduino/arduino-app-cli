@@ -185,10 +185,7 @@ func BuildRelease(
 	// fails, so it does not make anyone wait for the venv to find it out.
 	cb(StreamMessage{data: "freezing the compose files", progress: &Progress{Name: "compose files", Progress: 10.0}})
 	appEnv := appEnvironment(ctx, stagedApp, bricksIndex, modelsIndex, plat)
-	buildOpts := BuildOptions{
-		ProjectName: slug.Make(releaseName),
-	}
-	if err := provisioner.Resolve(&stagedApp, prebuildDir, bricksIndex, servicesIndex, cfg, appEnv, plat, buildOpts); err != nil {
+	if err := provisioner.Resolve(&stagedApp, prebuildDir, bricksIndex, servicesIndex, cfg, appEnv, plat); err != nil {
 		return BuildReleaseResult{}, fmt.Errorf("failed to freeze the compose files: %w", err)
 	}
 
@@ -459,17 +456,28 @@ func buildPythonEnv(ctx context.Context, docker command.Cli, pythonImage string,
 
 // writeReleaseArchive writes releaseDir as a gzipped tar rooted at its own name.
 // Symlinks and modes are kept: the venv relies on both.
-func writeReleaseArchive(releaseDir *paths.Path, archivePath *paths.Path) error {
+func writeReleaseArchive(releaseDir *paths.Path, archivePath *paths.Path) (err error) {
 	file, err := archivePath.Create()
 	if err != nil {
 		return fmt.Errorf("failed to create %s: %w", archivePath, err)
 	}
-	defer file.Close()
 
 	gzipWriter := gzip.NewWriter(file)
-	defer gzipWriter.Close()
 	tarWriter := tar.NewWriter(gzipWriter)
-	defer tarWriter.Close()
+	// A close writes the footer of what it wraps, so a dropped error is a truncated
+	// archive reported as a good one.
+	defer func() {
+		for _, closer := range []io.Closer{tarWriter, gzipWriter, file} {
+			if closeErr := closer.Close(); closeErr != nil && err == nil {
+				err = closeErr
+			}
+		}
+		if err != nil {
+			// Do not leave a half written archive behind.
+			_ = archivePath.Remove()
+			err = fmt.Errorf("failed to write %s: %w", archivePath, err)
+		}
+	}()
 
 	stagingDir := releaseDir.Parent()
 	// The files are read through the staging dir, so that a symlink cannot make the
@@ -546,10 +554,5 @@ func writeReleaseArchive(releaseDir *paths.Path, archivePath *paths.Path) error 
 		}
 		return nil
 	}()
-	if err != nil {
-		// Do not leave a half written archive behind.
-		_ = archivePath.Remove()
-		return fmt.Errorf("failed to write %s: %w", archivePath, err)
-	}
-	return nil
+	return err
 }

@@ -59,10 +59,7 @@ func AppLogs(
 		return helpers.EmptyIter[LogMessage](), nil
 	}
 
-	projectName, err := getAppComposeProjectNameFromApp(app, cfg)
-	if err != nil {
-		return nil, err
-	}
+	projectName := composeProjectName(app.FullPath, cfg.AppsDir())
 
 	bricksIndex = bricksIndex.WithAppBricks(app.LocalBricks)
 
