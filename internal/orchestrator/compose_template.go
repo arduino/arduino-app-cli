@@ -173,9 +173,9 @@ func generateComposeTemplate(
 		},
 	}
 
-	// The DSP binaries are installed in /usr/share/qcom, elsewhere where the host says
-	// so. Answered here and not as a ${VAR} of the template: a mount is only written
-	// where the path exists, which is checked before a template is interpolated.
+	// The DSP binaries live in /usr/share/qcom, or wherever the host says. Resolved
+	// here and not as a ${VAR} of the template: a mount is only written where its
+	// path exists, which is checked before the template is interpolated.
 	dspPath := cmp.Or(os.Getenv("HOST_DSP_INSTALLATION_PATH"), "/usr/share/qcom")
 
 	// Mounted only where the board has them.
@@ -183,9 +183,9 @@ func generateComposeTemplate(
 		[]string{"/run/udev:ro", "/run/user/1000/pipewire-0"},
 		// camx CSI cameras are accessed through the cam_server socket and a host userspace library
 		[]string{"/run/cam_server", "/usr/lib/libcamera_metadata.so.0.1.0"},
-		// DSP binaries
+		// DSP binaries, at a stable path in the container wherever the host keeps them
 		[]string{dspPath + ":/run/host-qcom:ro"},
-		// board model, at a stable path in the container
+		// the board model, where it is
 		[]string{"/sys/firmware/devicetree/base/model:ro"},
 		platform.Linux.BoardLeds.AsStrings(),
 	)
