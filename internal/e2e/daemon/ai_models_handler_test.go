@@ -58,12 +58,12 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 				hasProgress = true
 			case "done":
 				hasDone = true
-			case "error":
+			case sseEventError:
 				// A failed install arrives as an event. "SERVER_CLOSED" is the stream
 				// closing, not a failure.
 				var reported render.SSEErrorData
 				require.NoError(t, json.Unmarshal(e.Data, &reported))
-				if reported.Code != "SERVER_CLOSED" {
+				if reported.Code != sseCodeServerClosed {
 					require.Fail(t, "the install reported an error", string(e.Data))
 				}
 			}
