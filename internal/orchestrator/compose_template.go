@@ -178,6 +178,8 @@ func generateComposeTemplate(
 		[]string{"/run/udev:ro", "/run/user/1000/pipewire-0"},
 		// camx CSI cameras are accessed through the cam_server socket and a host userspace library
 		[]string{"/run/cam_server", "/usr/lib/libcamera_metadata.so.0.1.0"},
+		// the D-Bus socket gives access to system services like bluetooth
+		[]string{"/run/dbus/system_bus_socket"},
 		platform.Linux.BoardLeds.AsStrings(),
 	)
 	for _, mount := range optionalMounts {
@@ -209,6 +211,7 @@ func generateComposeTemplate(
 		runtimeGroupNames,              // access to the required runtime sockets
 		[]string{"fastrpc", "dmaheap"}, // support for NPU
 		[]string{"gpiod"},              // support GPIO access
+		[]string{"bluetooth"},          // support bluetooth access
 	)
 
 	// A service with a healthcheck is waited for, the others only have to be started.

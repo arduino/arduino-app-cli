@@ -7,9 +7,11 @@ package peripherals
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -19,6 +21,14 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/linuxconfig"
 	"github.com/arduino/arduino-app-cli/internal/platform"
+)
+
+const pwDumpTool = "pw-dump"
+
+const (
+	bluez5DeviceAPI  = "bluez5"
+	audioSinkClass   = "Audio/Sink"
+	audioSourceClass = "Audio/Source"
 )
 
 type AvailableDevices struct {
@@ -60,6 +70,13 @@ func Detect(ctx context.Context, plat platform.Platform) (AvailableDevices, erro
 	if sndDev := GetSoundDevices(); sndDev > 0 {
 		devices.HasSoundDevice = true
 	}
+	// Verify if there is a bluetooth speaker or microphone (headset) connected through PipeWire
+	if !devices.HasSoundDevice {
+		if nodes, ok := pwDumpNodes(ctx); ok &&
+			(hasBluetoothAudioNode(nodes, audioSinkClass) || hasBluetoothAudioNode(nodes, audioSourceClass)) {
+			devices.HasSoundDevice = true
+		}
+	}
 
 	carriers, err := linuxconfig.GetEnabledCarriers(ctx)
 	if err != nil {
@@ -69,6 +86,60 @@ func Detect(ctx context.Context, plat platform.Platform) (AvailableDevices, erro
 	devices.HasCSICameraDevice = HasCSICameraDriver() && (plat.HasNativeCSICameraSupport() || HasCSICameraOnCarrier(carriers))
 
 	return devices, nil
+}
+
+// pwNode represents the subset of a PipeWire object (as reported by pw-dump)
+// needed to detect bluetooth audio devices (speakers and microphones).
+type pwNode struct {
+	Info struct {
+		Props struct {
+			MediaClass string `json:"media.class"`
+			DeviceAPI  string `json:"device.api"`
+			NodeName   string `json:"node.name"`
+		} `json:"props"`
+	} `json:"info"`
+}
+
+// pwDumpNodes runs pw-dump and returns the parsed PipeWire graph. The second
+// return value is false when pw-dump is unavailable or fails, so callers can
+// safely skip bluetooth detection.
+func pwDumpNodes(ctx context.Context) ([]pwNode, bool) {
+	if _, err := exec.LookPath(pwDumpTool); err != nil {
+		slog.Debug("pw-dump tool not found in PATH, skipping bluetooth audio detection", slog.String("error", err.Error()))
+		return nil, false
+	}
+
+	cmd, err := paths.NewProcess(nil, pwDumpTool)
+	if err != nil {
+		slog.Warn("unable to create pw-dump process", slog.String("error", err.Error()))
+		return nil, false
+	}
+
+	stdout, stderr, err := cmd.RunAndCaptureOutput(ctx)
+	if err != nil {
+		slog.Warn("unable to run pw-dump", slog.String("error", err.Error()), slog.String("stderr", string(stderr)))
+		return nil, false
+	}
+
+	var nodes []pwNode
+	if err := json.Unmarshal(stdout, &nodes); err != nil {
+		slog.Warn("unable to parse pw-dump output", slog.String("error", err.Error()))
+		return nil, false
+	}
+	return nodes, true
+}
+
+// hasBluetoothAudioNode reports whether nodes contains a bluez5 device with the
+// given media class (audioSinkClass for a speaker, audioSourceClass for a
+// microphone).
+func hasBluetoothAudioNode(nodes []pwNode, mediaClass string) bool {
+	for _, n := range nodes {
+		if n.Info.Props.DeviceAPI == bluez5DeviceAPI && n.Info.Props.MediaClass == mediaClass {
+			slog.Debug("found bluetooth audio device", slog.String("node", n.Info.Props.NodeName), slog.String("mediaClass", mediaClass))
+			return true
+		}
+	}
+	return false
 }
 
 func GetSoundDevices() int {
