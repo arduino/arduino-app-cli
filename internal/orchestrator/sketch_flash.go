@@ -112,7 +112,7 @@ func (o MenuOptions) Has(optionValue MenuOptionValue) bool {
 	})
 }
 
-func GetPlatformMenuOptions(ctx context.Context, platform platform.Platform) (MenuOptions, error) {
+func GetPlatformMenuOptions(ctx context.Context, fqbn string) (MenuOptions, error) {
 	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 	srv := commands.NewArduinoCoreServer()
 	if err := SetArduinoCliConfig(ctx, srv); err != nil {
@@ -141,7 +141,7 @@ func GetPlatformMenuOptions(ctx context.Context, platform platform.Platform) (Me
 
 	info, err := srv.BoardDetails(ctx, &rpc.BoardDetailsRequest{
 		Instance: inst,
-		Fqbn:     platform.FQBN,
+		Fqbn:     fqbn,
 	})
 	if err != nil {
 		return MenuOptions{}, err
