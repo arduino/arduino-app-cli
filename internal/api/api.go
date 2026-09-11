@@ -45,7 +45,7 @@ func NewHTTPRouter(
 	mux := http.NewServeMux()
 	mux.Handle("GET /debug/", http.DefaultServeMux) // pprof endpoints
 
-	mux.Handle("GET /v1/version", handlers.HandlerVersion(version))
+	mux.Handle("GET /v1/version", handlers.HandlerVersion(version, cfg.PythonImage))
 	mux.Handle("GET /v1/config", handlers.HandleConfig(cfg))
 	mux.Handle("GET /v1/examples", handlers.HandleExamples(cfg, bricksIndex, idProvider))
 	mux.Handle("GET /v1/bricks", handlers.HandleBrickList(brickService))
