@@ -3,9 +3,15 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package orchestrator
+package dockerhelper
 
-import "testing"
+import (
+	"io"
+	"testing"
+
+	dockerClient "github.com/moby/moby/client"
+	"github.com/stretchr/testify/require"
+)
 
 func TestParseDockerImage(t *testing.T) {
 	tests := []struct {
@@ -134,9 +140,9 @@ func TestGetHighestVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := GetHighestVersion(tt.targetImage, tt.existingImages)
+			got := highestVersion(tt.targetImage, tt.existingImages)
 			if got != tt.expected {
-				t.Errorf("GetHighestVersion() = %q, want %q", got, tt.expected)
+				t.Errorf("highestVersion() = %q, want %q", got, tt.expected)
 			}
 		})
 	}
@@ -217,4 +223,30 @@ func TestImageName(t *testing.T) {
 			t.Errorf("imageName(%q) = %q, want %q", tt.input, got, tt.expected)
 		}
 	}
+}
+
+func TestListImagesAlreadyPulled(t *testing.T) {
+	docker := getDockerCli(t).Client()
+
+	r, err := docker.ImagePull(t.Context(), "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8", dockerClient.ImagePullOptions{})
+	require.NoError(t, err)
+	_, _ = io.Copy(io.Discard, r)
+	r.Close()
+
+	images, err := ListImages(t.Context(), docker)
+	require.NoError(t, err)
+	require.Contains(t, images, "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8")
+}
+
+func TestRemoveImage(t *testing.T) {
+	docker := getDockerCli(t).Client()
+
+	r, err := docker.ImagePull(t.Context(), "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8", dockerClient.ImagePullOptions{})
+	require.NoError(t, err)
+	_, _ = io.Copy(io.Discard, r)
+	r.Close()
+
+	size, err := RemoveImage(t.Context(), docker, "ghcr.io/arduino/app-bricks/python-apps-base:0.4.8")
+	require.NoError(t, err)
+	require.Greater(t, size, int64(1024))
 }

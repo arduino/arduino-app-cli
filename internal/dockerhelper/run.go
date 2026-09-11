@@ -3,8 +3,6 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Package dockerhandler provides a thin Docker API wrapper for running a container
-// to completion and streaming its output.
 package dockerhelper
 
 import (
@@ -26,18 +24,20 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// RunOptions is what a container is run with. Only Image is required.
 type RunOptions struct {
-	Image  string
-	Cmd    []string
-	Binds  []string
-	Env    map[string]string
-	Stdout io.Writer
-	Stderr io.Writer
+	Image      string
+	Entrypoint []string
+	Cmd        []string
+	Binds      []string
+	Env        map[string]string
+	Stdout     io.Writer
+	Stderr     io.Writer
 }
 
-// Run creates, starts, and waits for a container to exit, streaming stdout and
-// stderr to the provided writers. The container is always removed on return.
-func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
+// Run is `docker run --rm`: the container is started, waited for and removed, and what
+// it writes reaches the writers. A missing image is downloaded first.
+func Run(ctx context.Context, docker client.APIClient, opts RunOptions) error {
 	if opts.Stdout == nil {
 		opts.Stdout = io.Discard
 	}
@@ -55,7 +55,7 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 
 	launchStart := time.Now()
 
-	if err := ensureImage(ctx, cli, opts.Image); err != nil {
+	if err := ensureImage(ctx, docker, opts.Image); err != nil {
 		return err
 	}
 
@@ -69,12 +69,13 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 		env = append(env, "HOME=/tmp")
 	}
 
-	resp, err := cli.ContainerCreate(ctx, client.ContainerCreateOptions{
+	resp, err := docker.ContainerCreate(ctx, client.ContainerCreateOptions{
 		Config: &container.Config{
-			Image: opts.Image,
-			Cmd:   opts.Cmd,
-			Env:   env,
-			User:  getCurrentUser(),
+			Image:      opts.Image,
+			Entrypoint: opts.Entrypoint,
+			Cmd:        opts.Cmd,
+			Env:        env,
+			User:       getCurrentUser(),
 		},
 		HostConfig: &container.HostConfig{
 			Binds:      opts.Binds,
@@ -88,10 +89,12 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 
 	slog.Debug("creating container", "id", resp.ID, "image", opts.Image, "cmd", opts.Cmd, "env", opts.Env, "binds", opts.Binds)
 
-	wait := cli.ContainerWait(ctx, resp.ID, client.ContainerWaitOptions{Condition: container.WaitConditionNotRunning})
+	// AutoRemove is set, so the status comes with the removal: waiting for the container
+	// to stop races the daemon removing it, and the exit code is lost.
+	wait := docker.ContainerWait(ctx, resp.ID, client.ContainerWaitOptions{Condition: container.WaitConditionRemoved})
 	statusCh, errCh := wait.Result, wait.Error
 
-	attachResp, err := cli.ContainerAttach(ctx, resp.ID, client.ContainerAttachOptions{
+	attachResp, err := docker.ContainerAttach(ctx, resp.ID, client.ContainerAttachOptions{
 		Stream: true,
 		Stdout: true,
 		Stderr: true,
@@ -101,7 +104,7 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 	}
 	defer attachResp.Close()
 
-	if _, err := cli.ContainerStart(ctx, resp.ID, client.ContainerStartOptions{}); err != nil {
+	if _, err := docker.ContainerStart(ctx, resp.ID, client.ContainerStartOptions{}); err != nil {
 		return fmt.Errorf("container start: %w", err)
 	}
 	slog.Debug("container launched", "id", resp.ID, "image", opts.Image, "launch_s", time.Since(launchStart).Seconds())
@@ -109,7 +112,7 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 	// Stop the container on ctx cancel so the daemon EOFs the attach stream,
 	// which unblocks StdCopy and fires errCh/statusCh.
 	stopOnCancel := context.AfterFunc(ctx, func() {
-		if _, err := cli.ContainerStop(context.Background(), resp.ID, client.ContainerStopOptions{}); err != nil {
+		if _, err := docker.ContainerStop(context.Background(), resp.ID, client.ContainerStopOptions{}); err != nil {
 			slog.Debug("container stop on cancel failed", "id", resp.ID, "err", err)
 		}
 	})
@@ -147,9 +150,7 @@ func Run(ctx context.Context, cli client.APIClient, opts RunOptions) error {
 	return cmp.Or(ctx.Err(), runErr)
 }
 
-// ExitError is returned by Run when the container exits with a non-zero status.
-// Callers can use errors.AsType to inspect the exit code, or IsExitError for
-// a simple boolean check.
+// ExitError is what Run returns for a container that exited non-zero.
 type ExitError struct {
 	Code int64
 }
@@ -158,27 +159,19 @@ func (e *ExitError) Error() string {
 	return fmt.Sprintf("container exited with status %d", e.Code)
 }
 
-// IsExitError reports whether err (or any error wrapped by it) is an *ExitError.
+// IsExitError reports a container that exited non-zero, at any depth of the error.
 func IsExitError(err error) bool {
 	_, ok := errors.AsType[*ExitError](err)
 	return ok
 }
 
-func ensureImage(ctx context.Context, cli client.APIClient, img string) error {
-	if _, err := cli.ImageInspect(ctx, img); err == nil {
+// ensureImage downloads what the board has not, with the disk check and the retry that
+// every other pull has.
+func ensureImage(ctx context.Context, docker client.APIClient, img string) error {
+	if _, err := docker.ImageInspect(ctx, img); err == nil {
 		return nil
 	}
-	slog.Debug("image not found locally, pulling", "image", img)
-	// TODO: we should stream the pull progress to the caller.
-	pullResp, err := cli.ImagePull(ctx, img, client.ImagePullOptions{})
-	if err != nil {
-		return fmt.Errorf("image pull: %w", err)
-	}
-	defer pullResp.Close()
-	if _, err := io.Copy(io.Discard, pullResp); err != nil {
-		return fmt.Errorf("image pull read: %w", err)
-	}
-	return nil
+	return PullImages(ctx, docker, []string{img}, nil, nil)
 }
 
 func getCurrentUser() string {

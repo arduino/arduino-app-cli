@@ -10,12 +10,10 @@ import (
 
 	"github.com/compose-spec/compose-go/v2/types"
 	dockerCommand "github.com/docker/cli/cli/command"
-	"github.com/docker/cli/cli/flags"
 	"github.com/docker/compose/v5/pkg/api"
 	"github.com/moby/moby/api/types/container"
 	dockerClient "github.com/moby/moby/client"
 	"github.com/stretchr/testify/require"
-	"go.bug.st/f"
 )
 
 // TestComposeRoundTrip starts a project on the engine and stops it the way an app is
@@ -143,10 +141,7 @@ func TestRegistryError(t *testing.T) {
 
 func getDockerCli(t *testing.T) dockerCommand.Cli {
 	t.Helper()
-	docker, err := dockerCommand.NewDockerCli(
-		dockerCommand.WithAPIClient(f.Must(dockerClient.New(dockerClient.FromEnv))),
-	)
+	docker, err := NewCli()
 	require.NoError(t, err)
-	require.NoError(t, docker.Initialize(flags.NewClientOptions()))
 	return docker
 }

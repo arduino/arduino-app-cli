@@ -18,6 +18,7 @@ import (
 	dockerClient "github.com/moby/moby/client"
 	"go.bug.st/f"
 
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -96,17 +97,14 @@ func getAppsStatus(
 	ctx context.Context,
 	docker dockerClient.APIClient,
 ) ([]AppStatusInfo, error) {
-	containers, err := docker.ContainerList(ctx, dockerClient.ContainerListOptions{
-		All:     true,
-		Filters: make(dockerClient.Filters).Add("label", DockerAppLabel+"=true"),
-	})
+	containers, err := dockerhelper.Containers(ctx, docker, DockerAppLabel+"=true")
 	if err != nil {
-		return nil, fmt.Errorf("failed to list containers: %w", err)
+		return nil, err
 	}
-	if len(containers.Items) == 0 {
+	if len(containers) == 0 {
 		return nil, nil
 	}
-	return parseAppStatus(containers.Items), nil
+	return parseAppStatus(containers), nil
 }
 
 func getAppStatus(
@@ -114,22 +112,19 @@ func getAppStatus(
 	docker dockerClient.APIClient,
 	app app.ArduinoApp,
 ) (AppStatusInfo, error) {
-	containers, err := docker.ContainerList(ctx, dockerClient.ContainerListOptions{
-		All:     true,
-		Filters: make(dockerClient.Filters).Add("label", DockerAppPathLabel+"="+app.FullPath.String()),
-	})
+	containers, err := dockerhelper.Containers(ctx, docker, DockerAppPathLabel+"="+app.FullPath.String())
 	if err != nil {
-		return AppStatusInfo{}, fmt.Errorf("failed to list containers: %w", err)
+		return AppStatusInfo{}, err
 	}
 
-	if len(containers.Items) == 0 {
+	if len(containers) == 0 {
 		return AppStatusInfo{
 			AppPath: app.FullPath,
 			Status:  StatusUninitialized,
 		}, nil
 	}
 
-	appInfo := parseAppStatus(containers.Items)
+	appInfo := parseAppStatus(containers)
 	if len(appInfo) == 0 {
 		return AppStatusInfo{}, fmt.Errorf("no app status found for app at path %s", app.FullPath)
 	}
@@ -160,17 +155,14 @@ func getRunningApp(
 // getAppServicesFromContainers reads the services of an app from its containers. The
 // compose file is not a source: an update removes the brick files that it includes.
 func getAppServicesFromContainers(ctx context.Context, docker dockerClient.APIClient, app app.ArduinoApp) ([]string, error) {
-	containers, err := docker.ContainerList(ctx, dockerClient.ContainerListOptions{
-		All:     true,
-		Filters: make(dockerClient.Filters).Add("label", DockerAppPathLabel+"="+app.FullPath.String()),
-	})
+	containers, err := dockerhelper.Containers(ctx, docker, DockerAppPathLabel+"="+app.FullPath.String())
 	if err != nil {
-		return nil, fmt.Errorf("failed to list containers: %w", err)
+		return nil, err
 	}
 
 	const dockerComposeServiceLabel = "com.docker.compose.service"
-	services := make([]string, 0, len(containers.Items))
-	for _, info := range containers.Items {
+	services := make([]string, 0, len(containers))
+	for _, info := range containers {
 		if name := info.Labels[dockerComposeServiceLabel]; name != "" && !slices.Contains(services, name) {
 			services = append(services, name)
 		}

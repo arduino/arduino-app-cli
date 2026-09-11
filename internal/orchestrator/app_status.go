@@ -14,21 +14,16 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
 	"github.com/moby/moby/api/types/events"
-	"github.com/moby/moby/client"
 
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
 func AppStatusEvents(ctx context.Context, cfg config.Configuration, docker command.Cli, idProvider *appid.Provider) iter.Seq2[AppInfo, error] {
-	stream := docker.Client().Events(ctx, client.EventsListOptions{
-		Filters: make(client.Filters).
-			Add("label", DockerAppLabel+"=true").
-			Add("type", string(events.ContainerEventType)).
-			Add("event", "create", "start", "stop", "die", "restart", "destroy", "delete"),
-	})
-	chanMsg, chanError := stream.Messages, stream.Err
+	chanMsg, chanError := dockerhelper.ContainerEvents(ctx, docker.Client(), DockerAppLabel+"=true",
+		"create", "start", "stop", "die", "restart", "destroy", "delete")
 
 	return func(yield func(AppInfo, error) bool) {
 		for {
