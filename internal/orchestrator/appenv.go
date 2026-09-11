@@ -57,6 +57,13 @@ var hostVariables = map[string]func(hostFacts) string{
 		return strings.Join(f.Map(carriers, func(c linuxconfig.Carrier) string { return c.CarrierName }), ",")
 	},
 
+	// A DSP installation, at the path the distro of the board puts it and only on the
+	// distros that ship one. The name is fixed so a template can reference it; whether
+	// it has a value is a question for the board.
+	"HOST_DSP_INSTALLATION_PATH": func(hostFacts) string {
+		return platform.GetLinuxDistroConfig(platform.GetLinuxDistro())["HOST_DSP_INSTALLATION_PATH"]
+	},
+
 	"HOST_IP": func(hostFacts) string {
 		hostIP, err := helpers.GetHostIP()
 		if err != nil {
