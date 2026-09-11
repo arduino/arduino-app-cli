@@ -195,15 +195,26 @@ func extractImagesFromCompose(composeFile *paths.Path) ([]string, error) {
 		return nil, err
 	}
 	for _, v := range prj.Services {
-		if slices.ContainsFunc(dockerhelper.ImagePrefixes, func(p string) bool {
-			return strings.HasPrefix(v.Image, p)
-		}) {
+		if isOurImage(v.Image) {
 			result = append(result, v.Image)
 		} else {
-			slog.Warn("skipping image that does not match known prefixes", "image", v.Image, "prefixes", dockerhelper.ImagePrefixes)
+			slog.Warn("skipping image that is not one of ours", "image", v.Image)
 		}
 	}
 	return result, nil
+}
+
+// isOurImage states if an image is one of ours, past ones included: what to pull, and
+// what a cleanup may remove.
+func isOurImage(image string) bool {
+	prefixes := []string{
+		"ghcr.io/bcmi-labs/",
+		"public.ecr.aws/arduino/",
+		"ghcr.io/arduino/",
+		"influxdb",
+		"artifacts.codelinaro.org/iot-solutions-microservices/",
+	}
+	return slices.ContainsFunc(prefixes, func(p string) bool { return strings.HasPrefix(image, p) })
 }
 
 type SystemCleanupResult struct {
@@ -266,9 +277,7 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 	}
 	slog.Debug("all images already pulled", "allImages", allImages)
 
-	imagesToRemove := slices.DeleteFunc(allImages, func(v string) bool {
-		return slices.Contains(imagesMustStay, v)
-	})
+	imagesToRemove := removableImages(allImages, imagesMustStay)
 	slog.Info("images to remove", "imagesToRemove", imagesToRemove)
 
 	for _, image := range imagesToRemove {
@@ -282,6 +291,13 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 	}
 
 	return result, nil
+}
+
+// removableImages is what a cleanup may delete: our images, minus the ones in use.
+func removableImages(allImages, imagesMustStay []string) []string {
+	return slices.DeleteFunc(slices.Clone(allImages), func(image string) bool {
+		return !isOurImage(image) || slices.Contains(imagesMustStay, image)
+	})
 }
 
 func getRequiredImages(cfg config.Configuration, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex) ([]string, error) {

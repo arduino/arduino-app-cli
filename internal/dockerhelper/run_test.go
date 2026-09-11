@@ -7,7 +7,6 @@ package dockerhelper
 
 import (
 	"bytes"
-	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -69,11 +68,6 @@ func TestRun(t *testing.T) {
 func TestPullImages(t *testing.T) {
 	docker := getDockerCli(t).Client()
 	const image = "busybox:latest"
-
-	// What is already pulled is read through the prefixes of our images.
-	previous := ImagePrefixes
-	ImagePrefixes = append(slices.Clone(previous), "busybox")
-	t.Cleanup(func() { ImagePrefixes = previous })
 
 	// Start from a board that does not have it.
 	_, _ = RemoveImage(t.Context(), docker, image)

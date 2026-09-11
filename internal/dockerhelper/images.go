@@ -12,7 +12,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -60,11 +62,15 @@ func PullImages(ctx context.Context, docker dockerClient.APIClient, images []str
 	totalBytes := sumUniqueLayers(allLayers)
 	slog.Info("total docker images download size", "bytes", totalBytes)
 
-	// The engine may keep its images on another host, and then the space of this one
-	// says nothing: what cannot be checked does not stop a download.
-	if freeSpace, err := dockerFreeSpace(); err != nil {
-		slog.Warn("cannot read the free space of the docker partition", "error", err)
-	} else if uint64(float64(totalBytes)*2.5) > freeSpace {
+	freeSpace, err := dockerFreeSpace(ctx, docker)
+	switch {
+	// The engine keeps its images on another host, and then the space of this one says
+	// nothing: what cannot be checked does not stop a download.
+	case errors.Is(err, errEngineNotLocal):
+		slog.Warn("the docker engine is not local, the free space is not checked", "error", err)
+	case err != nil:
+		return fmt.Errorf("cannot read the free space of the docker root directory: %w", err)
+	case uint64(float64(totalBytes)*2.5) > freeSpace:
 		return ErrOutOfSpace
 	}
 
@@ -89,7 +95,7 @@ func PullImages(ctx context.Context, docker dockerClient.APIClient, images []str
 	return nil
 }
 
-// ListImages reports which images of ImagePrefixes the board already has.
+// ListImages reports every image the engine has, as name:version.
 func ListImages(ctx context.Context, docker dockerClient.APIClient) ([]string, error) {
 	images, err := docker.ImageList(ctx, dockerClient.ImageListOptions{})
 	if err != nil {
@@ -98,13 +104,7 @@ func ListImages(ctx context.Context, docker dockerClient.APIClient) ([]string, e
 
 	result := make([]string, 0, len(images.Items))
 	for _, image := range images.Items {
-		for _, tag := range image.RepoTags {
-			if slices.ContainsFunc(ImagePrefixes, func(p string) bool {
-				return strings.HasPrefix(tag, p)
-			}) {
-				result = append(result, tag)
-			}
-		}
+		result = append(result, image.RepoTags...)
 	}
 
 	return result, nil
@@ -128,19 +128,28 @@ func RemoveImage(ctx context.Context, docker dockerClient.APIClient, imageName s
 	return size, nil
 }
 
-// ImagePrefixes states which images are ours, past ones included: what to pull, and
-// what a cleanup may remove.
-var ImagePrefixes = []string{
-	"ghcr.io/bcmi-labs/",
-	"public.ecr.aws/arduino/",
-	"ghcr.io/arduino/",
-	"influxdb",
-	"artifacts.codelinaro.org/iot-solutions-microservices/",
-}
+// errEngineNotLocal is what an engine reached over the network answers: its disk is not
+// the one of this board.
+var errEngineNotLocal = errors.New("the docker engine does not run on this host")
 
-// dockerFreeSpace is the free space of the partition where docker keeps its images.
-func dockerFreeSpace() (uint64, error) {
-	usage, err := disk.Usage("/var/lib/docker")
+// dockerFreeSpace is the free space of the partition where the engine of this board
+// keeps its images, the directory the engine itself states.
+func dockerFreeSpace(ctx context.Context, docker dockerClient.APIClient) (uint64, error) {
+	if host := docker.DaemonHost(); !strings.HasPrefix(host, "unix://") && !strings.HasPrefix(host, "npipe://") {
+		return 0, fmt.Errorf("%w: %s", errEngineNotLocal, host)
+	}
+
+	info, err := docker.Info(ctx, dockerClient.InfoOptions{})
+	if err != nil {
+		return 0, err
+	}
+	// A desktop engine talks over a local socket but runs in a vm: what it states is a
+	// directory of that vm, and no path of this host.
+	root := info.Info.DockerRootDir
+	if _, err := os.Stat(root); errors.Is(err, fs.ErrNotExist) {
+		return 0, fmt.Errorf("%w: %s is not a directory of this host", errEngineNotLocal, root)
+	}
+	usage, err := disk.Usage(root)
 	if err != nil {
 		return 0, err
 	}
