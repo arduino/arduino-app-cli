@@ -1,13 +1,13 @@
 ---
 name: github.com/moby/buildkit/client/connhelper
-version: v0.23.2
+version: v0.33.0
 type: go
 summary: Package connhelper provides helpers for connecting to a remote daemon host
   with custom logic.
 homepage: https://pkg.go.dev/github.com/moby/buildkit/client/connhelper
 license: apache-2.0
 licenses:
-- sources: buildkit@v0.23.2/LICENSE
+- sources: buildkit@v0.33.0/LICENSE
   text: |2
                                      Apache License
                                Version 2.0, January 2004

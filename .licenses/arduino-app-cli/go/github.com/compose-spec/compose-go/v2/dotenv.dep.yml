@@ -1,6 +1,6 @@
 ---
 name: github.com/compose-spec/compose-go/v2/dotenv
-version: v2.8.1
+version: v2.15.0
 type: go
 summary: Package dotenv is a go port of the ruby dotenv library (https://github.com/bkeepers/dotenv)
 homepage: https://pkg.go.dev/github.com/compose-spec/compose-go/v2/dotenv
@@ -30,7 +30,7 @@ licenses:
     LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
     OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
     WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-- sources: v2@v2.7.1/LICENSE
+- sources: v2@v2.15.0/LICENSE
   text: |2
 
                                      Apache License

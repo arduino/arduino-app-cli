@@ -12,9 +12,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/user"
 	"slices"
-	"strings"
 	"sync"
 
 	"github.com/arduino/arduino-cli/commands"
@@ -27,6 +25,7 @@ import (
 	"go.bug.st/f"
 	semver "go.bug.st/relaxed-semver"
 
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -46,10 +45,6 @@ var (
 	ErrAppDoesntExists  = fmt.Errorf("app doesn't exist")
 	ErrAppNotFound      = fmt.Errorf("app not found")
 	ErrBadRequest       = fmt.Errorf("bad request")
-)
-
-const (
-	DefaultDockerStopTimeoutSeconds = 5
 )
 
 type AppStreamMessage struct {
@@ -219,48 +214,30 @@ func StartApp(
 		// What the template references, answered on this board: for a release the app
 		// half will come from the bundle instead of being resolved again here.
 		env := hostEnvironment(ctx, appToStart.FullPath, cfg).Merge(appEnv)
-		if err := provisioner.Render(ctx, &appToStart, env, appSecrets(appToStart, bricksIndex)); err != nil {
+		prj, err := provisioner.Render(ctx, &appToStart, env, appSecrets(appToStart, bricksIndex))
+		if err != nil {
 			return err
 		}
 
 		cb(StreamMessage{data: "python downloading"})
 
-		// Launch the docker compose command to start the app
-		commands := []string{
-			"docker", "compose",
-			"-f", appToStart.AppComposeFilePath().String(),
-			"up", "-d", "--remove-orphans", "--pull", "missing",
+		images := make([]string, 0, len(prj.Services))
+		for _, service := range prj.Services {
+			if service.Image != "" {
+				images = append(images, service.Image)
+			}
 		}
-
-		dockerParser := NewDockerProgressParser(200)
-
-		var customError error
-		callbackDockerWriter := NewCallbackWriter(func(line string) {
-			// docker compose sometimes returns errors as info lines, we try to parse them here and return a proper error
-			if e := GetCustomErrorFomDockerEvent(line); e != nil {
-				customError = e
-			}
-			if percentage, ok := dockerParser.Parse(line); ok {
-				// assumption: docker pull progress goes from 0 to 80% of the total app start progress
-				totalProgress := 20.0 + (percentage/100.0)*80.0
-				cb(StreamMessage{progress: &Progress{Name: "python starting", Progress: float32(totalProgress)}})
-				return
-			}
-			cb(StreamMessage{data: line})
-		})
-
-		slog.Debug("starting app", slog.String("command", strings.Join(commands, " ")))
-		process, err := paths.NewProcess(nil, commands...)
-		if err != nil {
+		if err := dockerhelper.PullImages(ctx, docker.Client(), images,
+			func(line string) { cb(StreamMessage{data: line}) },
+			func(label string, curr, total int64) {
+				// Downloading the images is from 20% to 80% of the start of an app.
+				cb(StreamMessage{progress: &Progress{Name: label, Progress: 20 + float32(curr*60/total)}})
+			}); err != nil {
 			return err
 		}
-		process.RedirectStderrTo(callbackDockerWriter)
-		process.RedirectStdoutTo(callbackDockerWriter)
-		if err := process.RunWithinContext(ctx); err != nil {
-			// custom error could have been set while reading the output. Not detected by the process exit code
-			if customError != nil {
-				return customError
-			}
+
+		slog.Debug("starting app", slog.String("project", prj.Name))
+		if err := dockerhelper.ComposeUp(ctx, docker, prj, func(line string) { cb(StreamMessage{data: line}) }); err != nil {
 			return err
 		}
 	}
@@ -288,10 +265,6 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 		slog.Debug("unable to disable audio service linger", slog.String("error", err.Error()))
 	}
 
-	callbackWriter := NewCallbackWriter(func(line string) {
-		cb(StreamMessage{data: line})
-	})
-
 	if _, ok := app.GetSketchPath(); ok {
 		// Before stopping the microcontroller we want to make sure that the app was running.
 		running, err := getRunningApp(ctx, docker.Client())
@@ -312,30 +285,21 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 	}
 
 	if app.MainPythonFile != nil {
-		composeFile := app.AppComposeFilePath()
-		// In case the app was never started
-		if composeFile.Exist() {
-			args := []string{
-				"docker",
-				"compose",
-				"-f", composeFile.String(),
-				cmd,
-				fmt.Sprintf("--timeout=%d", DefaultDockerStopTimeoutSeconds),
-			}
-			if cmd == "down" {
-				args = append(args, "--volumes", "--remove-orphans")
-			}
-
-			process, err := paths.NewProcess(nil, args...)
-			if err != nil {
-				return err
-			}
-
-			process.RedirectStderrTo(callbackWriter)
-			process.RedirectStdoutTo(callbackWriter)
-			if err := process.RunWithinContext(ctx); err != nil {
-				return err
-			}
+		// The project name stops the app without its compose file, which an update
+		// can remove, and finds what an older cli started just the same.
+		projectName, err := getAppComposeProjectNameFromApp(app, cfg)
+		if err != nil {
+			return err
+		}
+		line := func(line string) { cb(StreamMessage{data: line}) }
+		switch cmd {
+		case "down":
+			err = dockerhelper.ComposeDown(ctx, docker, projectName, line)
+		default:
+			err = dockerhelper.ComposeStop(ctx, docker, projectName, line)
+		}
+		if err != nil {
+			return err
 		}
 	}
 	cb(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
@@ -967,19 +931,6 @@ func editAppDefaults(userApp *app.ArduinoApp, isDefault bool, cfg config.Configu
 		}
 	}
 	return nil
-}
-
-func getCurrentUser() string {
-	userInfo := f.Must(user.Current())
-	uid := userInfo.Uid
-	gid := userInfo.Gid
-
-	// If exist use arduino group to avoid permission issue on files /var/lib/arduino-app-cli in.
-	if gInfo, err := user.LookupGroup("arduino"); err == nil {
-		gid = gInfo.Gid
-	}
-
-	return uid + ":" + gid
 }
 
 func compileUploadSketch(

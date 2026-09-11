@@ -7,20 +7,18 @@ package orchestrator
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"slices"
-	"strings"
 
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/filters"
-	dockerClient "github.com/docker/docker/client"
 	"github.com/gosimple/slug"
+	"github.com/moby/moby/api/types/container"
+	dockerClient "github.com/moby/moby/client"
 	"go.bug.st/f"
 
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -99,12 +97,9 @@ func getAppsStatus(
 	ctx context.Context,
 	docker dockerClient.APIClient,
 ) ([]AppStatusInfo, error) {
-	containers, err := docker.ContainerList(ctx, container.ListOptions{
-		All:     true,
-		Filters: filters.NewArgs(filters.Arg("label", DockerAppLabel+"=true")),
-	})
+	containers, err := dockerhelper.Containers(ctx, docker, DockerAppLabel+"=true")
 	if err != nil {
-		return nil, fmt.Errorf("failed to list containers: %w", err)
+		return nil, err
 	}
 	if len(containers) == 0 {
 		return nil, nil
@@ -117,12 +112,9 @@ func getAppStatus(
 	docker dockerClient.APIClient,
 	app app.ArduinoApp,
 ) (AppStatusInfo, error) {
-	containers, err := docker.ContainerList(ctx, container.ListOptions{
-		All:     true,
-		Filters: filters.NewArgs(filters.Arg("label", DockerAppPathLabel+"="+app.FullPath.String())),
-	})
+	containers, err := dockerhelper.Containers(ctx, docker, DockerAppPathLabel+"="+app.FullPath.String())
 	if err != nil {
-		return AppStatusInfo{}, fmt.Errorf("failed to list containers: %w", err)
+		return AppStatusInfo{}, err
 	}
 
 	if len(containers) == 0 {
@@ -160,6 +152,24 @@ func getRunningApp(
 	return &app, nil
 }
 
+// getAppServicesFromContainers reads the services of an app from its containers. The
+// compose file is not a source: an update removes the brick files that it includes.
+func getAppServicesFromContainers(ctx context.Context, docker dockerClient.APIClient, app app.ArduinoApp) ([]string, error) {
+	containers, err := dockerhelper.Containers(ctx, docker, DockerAppPathLabel+"="+app.FullPath.String())
+	if err != nil {
+		return nil, err
+	}
+
+	const dockerComposeServiceLabel = "com.docker.compose.service"
+	services := make([]string, 0, len(containers))
+	for _, info := range containers {
+		if name := info.Labels[dockerComposeServiceLabel]; name != "" && !slices.Contains(services, name) {
+			services = append(services, name)
+		}
+	}
+	return services, nil
+}
+
 func getAppComposeProjectNameFromApp(app app.ArduinoApp, cfg config.Configuration) (string, error) {
 	composeProjectName, err := app.FullPath.RelFrom(cfg.AppsDir())
 	if err != nil {
@@ -172,18 +182,6 @@ func findAppPathByName(name string, cfg config.Configuration) (*paths.Path, bool
 	appFolderName := slug.Make(name)
 	basePath := cfg.AppsDir().Join(appFolderName)
 	return basePath, basePath.Exist()
-}
-
-func GetCustomErrorFomDockerEvent(message string) error {
-	if strings.HasSuffix(message, ": unauthorized") {
-		return errors.New("could not reach the Docker registry to download base image. Please make sure to be authorized to download from it or flash the board with the latest Arduino Linux image. Details: " + message + ")")
-	}
-
-	if strings.HasSuffix(message, ": connection refused") || strings.Contains(message, ": no such host") {
-		return errors.New("could not reach the Docker registry to download base image. Please check your internet connection or flash the board with the latest Arduino Linux image. Details: " + message + ")")
-	}
-
-	return nil
 }
 
 type ledTarget string

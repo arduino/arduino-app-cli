@@ -7,17 +7,15 @@ package orchestrator
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
-	"github.com/containerd/errdefs"
 	"github.com/docker/cli/cli/command"
-	"github.com/docker/docker/api/types/container"
 
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -131,88 +129,33 @@ func (p *Provision) Render(
 	arduinoApp *app.ArduinoApp,
 	env types.Mapping,
 	secrets types.Mapping,
-) error {
+) (*types.Project, error) {
 	if arduinoApp == nil {
-		return fmt.Errorf("provisioning failed: arduinoApp is nil")
+		return nil, fmt.Errorf("provisioning failed: arduinoApp is nil")
 	}
 
 	if arduinoApp.AppComposeTemplateFilePath().NotExist() {
-		return fmt.Errorf("provisioning failed: %s not found, the app was not resolved", app.MainTemplateFileName)
+		return nil, fmt.Errorf("provisioning failed: %s not found, the app was not resolved", app.MainTemplateFileName)
 	}
 
 	prj, err := renderComposeFile(ctx, arduinoApp, env, secrets)
 	if err != nil {
-		return fmt.Errorf("provisioning failed to render the app compose file: %w", err)
+		return nil, fmt.Errorf("provisioning failed to render the app compose file: %w", err)
 	}
 
 	provisionComposeVolumes(prj)
-	return nil
+	return prj, nil
 }
 
-func (p *Provision) init(
-	srcPath string,
-) error {
-	containerCfg := &container.Config{
+func (p *Provision) init(srcPath string) error {
+	return dockerhelper.Run(context.Background(), p.docker.Client(), dockerhelper.RunOptions{
 		Image: p.pythonImage,
-		User:  getCurrentUser(),
-		Entrypoint: []string{
-			"/bin/bash",
-			"-c",
-			fmt.Sprintf("%s && %s",
-				"arduino-bricks-list-modules -o /app/bricks-list.yaml -m /app/models-list.yaml",
-				"arduino-bricks-list-modules --provision-compose -o /app",
-			),
-		},
-	}
-	containerHostCfg := &container.HostConfig{
-		Binds:      []string{srcPath + ":/app"},
-		AutoRemove: true,
-	}
-	resp, err := p.docker.Client().ContainerCreate(context.Background(), containerCfg, containerHostCfg, nil, nil, "")
-	if err != nil {
-		if errors.Is(err, errdefs.ErrNotFound) {
-			if err := pullBasePythonContainer(context.Background(), p.pythonImage); err != nil {
-				return fmt.Errorf("provisioning failed to pull base image: %w", err)
-			}
-			// Now that we have pulled the container we recreate it
-			resp, err = p.docker.Client().ContainerCreate(context.Background(), containerCfg, containerHostCfg, nil, nil, "")
-		}
-		if err != nil {
-			return fmt.Errorf("provisiong failed to create container: %w", err)
-		}
-	}
-
-	slog.Debug("provisioning container created", slog.String("container_id", resp.ID))
-
-	waitCh, errCh := p.docker.Client().ContainerWait(context.Background(), resp.ID, container.WaitConditionNextExit)
-	if err := p.docker.Client().ContainerStart(context.Background(), resp.ID, container.StartOptions{}); err != nil {
-		return fmt.Errorf("provisioning failed to start container: %w", err)
-	}
-	slog.Debug("provisioning container started", slog.String("container_id", resp.ID))
-
-	select {
-	case result := <-waitCh:
-		if result.Error != nil {
-			return fmt.Errorf("provisioning failed: %v", result.Error.Message)
-		}
-	case err := <-errCh:
-		return fmt.Errorf("provisioning failed: %w", err)
-	}
-	return nil
-}
-
-func pullBasePythonContainer(ctx context.Context, pythonImage string) error {
-	process, err := paths.NewProcess(nil, "docker", "pull", pythonImage)
-	if err != nil {
-		return err
-	}
-	process.RedirectStdoutTo(NewCallbackWriter(func(line string) {
-		slog.Debug("Pulling container", slog.String("image", pythonImage), slog.String("line", line))
-	}))
-	process.RedirectStderrTo(NewCallbackWriter(func(line string) {
-		slog.Error("Error pulling container", slog.String("image", pythonImage), slog.String("line", line))
-	}))
-	return process.RunWithinContext(ctx)
+		Entrypoint: []string{"/bin/bash", "-c", fmt.Sprintf("%s && %s",
+			"arduino-bricks-list-modules -o /app/bricks-list.yaml -m /app/models-list.yaml",
+			"arduino-bricks-list-modules --provision-compose -o /app",
+		)},
+		Binds: []string{srcPath + ":/app"},
+	})
 }
 
 const (

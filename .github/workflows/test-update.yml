@@ -59,7 +59,7 @@ jobs:
         id: test
         continue-on-error: ${{ matrix.warn != '' }}
         env:
-          GH_TOKEN: ${{ secrets.ARDUINOBOT_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           TEST_BASE_IMAGE: ${{ matrix.distro }}
           TEST_SKIP_SYSTEM_INIT: ${{ matrix.skip_system_init }}
         run: |

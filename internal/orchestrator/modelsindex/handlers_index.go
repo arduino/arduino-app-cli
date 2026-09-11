@@ -17,8 +17,8 @@ import (
 	"time"
 
 	composetmpl "github.com/compose-spec/compose-go/v2/template"
-	"github.com/docker/docker/client"
 	"github.com/goccy/go-yaml"
+	"github.com/moby/moby/client"
 	"go.bug.st/f"
 
 	"github.com/arduino/go-paths-helper"
@@ -522,6 +522,8 @@ func deleteInternalModel(ctx context.Context, cli client.APIClient, model AIMode
 		Binds:  ResolveVarsSlice(handler.Volumes, envVars),
 		Env:    envVars,
 		Stdout: io.Discard,
-		Stderr: io.Discard,
+		Stderr: f.NewCallbackWriter(func(line string) {
+			slog.Debug("handler stderr", "line", line)
+		}),
 	})
 }

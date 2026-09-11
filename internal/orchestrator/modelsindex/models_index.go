@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"maps"
 	"slices"
@@ -17,7 +16,7 @@ import (
 	"syscall"
 
 	"github.com/docker/cli/cli/command"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
 	"github.com/shirou/gopsutil/v4/disk"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
@@ -541,7 +540,9 @@ func (m *ModelsIndex) runDownload(ctx context.Context, cli client.APIClient, mod
 				publish(e)
 			})
 		}),
-		Stderr: io.Discard,
+		Stderr: f.NewCallbackWriter(func(line string) {
+			slog.Debug("handler stderr", "line", line)
+		}),
 	})
 	// The reported event comes first: a handler that prints one usually exits non-zero
 	// too, and the caller has already seen it. The exit is kept for the log.

@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -64,14 +65,12 @@ func WithBoardName(name string) ArduinoAppCLIOption {
 }
 
 func NewArduinoAppCLI(t *testing.T, opts ...ArduinoAppCLIOption) *ArduinoAppCLI {
-	rootDir, err := paths.MkTempDir("", "app-cli")
-	require.NoError(t, err)
+	rootDir := MkTempDir(t, "app-cli")
 	appDir := rootDir.Join("ArduinoApps")
 	dataDir := rootDir.Join("data")
 	originalTestDataDir := FindRepositoryRootPath(t).Join("internal", "e2e", "daemon", "testdata")
 	if originalTestDataDir.Exist() {
-		require.NoError(t, os.CopyFS(dataDir.String(), os.DirFS(originalTestDataDir.String())))
-		require.NoError(t, err, "failed to copy testdata to temp dir")
+		require.NoError(t, os.CopyFS(dataDir.String(), os.DirFS(originalTestDataDir.String())), "failed to copy testdata to temp dir")
 	}
 	require.NoError(t, dataDir.Join("models").MkdirAll())
 
@@ -115,6 +114,9 @@ func FindArduinoAppCLIPath(t *testing.T) *paths.Path {
 // The Environment must be disposed by calling the CleanUp method via defer.
 func CreateEnvForDaemon(t *testing.T, opts ...ArduinoAppCLIOption) *ArduinoAppCLI {
 	cli := NewArduinoAppCLI(t, opts...)
+	// Registered before the wait: a daemon that does not answer still holds the port,
+	// and every test after it would fail to bind.
+	t.Cleanup(cli.CleanUp)
 	_ = cli.StartDaemon()
 	return cli
 }
@@ -169,6 +171,7 @@ func (cli *ArduinoAppCLI) StartDaemon() string {
 		}
 
 		cli.daemonClient = c
+		connErr = nil
 		break
 	}
 	cli.t.NoError(connErr)
@@ -212,4 +215,19 @@ func (cli *ArduinoAppCLI) CleanUp() {
 	}
 
 	cli.t.NoError(cli.appDir.Parent().RemoveAll())
+}
+
+// MkTempDir is a directory the docker engine can bind-mount. Where the engine runs in
+// a vm of its own, as on a mac, the temporary directory of the host is not shared with
+// it and a bind mount of it is an empty directory owned by root.
+func MkTempDir(t *testing.T, prefix string) *paths.Path {
+	t.Helper()
+	base := ""
+	if runtime.GOOS != "linux" {
+		base = os.Getenv("HOME")
+	}
+	dir, err := paths.MkTempDir(base, prefix)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = dir.RemoveAll() })
+	return dir
 }

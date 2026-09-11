@@ -1,6 +1,6 @@
 ---
 name: github.com/fvbommel/sortorder
-version: v1.1.0
+version: v1.2.0
 type: go
 summary: Package sortorder implements sort orders and comparison functions.
 homepage: https://pkg.go.dev/github.com/fvbommel/sortorder
