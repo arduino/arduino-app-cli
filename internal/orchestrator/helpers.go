@@ -170,12 +170,13 @@ func getAppServicesFromContainers(ctx context.Context, docker dockerClient.APICl
 	return services, nil
 }
 
-func getAppComposeProjectNameFromApp(app app.ArduinoApp, cfg config.Configuration) (string, error) {
-	composeProjectName, err := app.FullPath.RelFrom(cfg.AppsDir())
-	if err != nil {
-		return "", fmt.Errorf("failed to get compose project name: %w", err)
+// composeProjectName is the docker project an app installed at appPath runs as. An app
+// of the board is named after the apps dir, anything else after the path it is at.
+func composeProjectName(appPath *paths.Path, appsDir *paths.Path) string {
+	if relPath, err := appPath.RelFrom(appsDir); err == nil {
+		return slug.Make(relPath.String())
 	}
-	return slug.Make(composeProjectName.String()), nil
+	return slug.Make(appPath.String())
 }
 
 func findAppPathByName(name string, cfg config.Configuration) (*paths.Path, bool) {

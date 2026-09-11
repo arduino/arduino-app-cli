@@ -54,7 +54,6 @@ func generateComposeTemplate(
 	cfg config.Configuration,
 	appEnv types.Mapping,
 	platform platform.Platform,
-	opts BuildOptions,
 ) error {
 	slog.Debug("Generating main compose file for the App")
 
@@ -143,13 +142,12 @@ func generateComposeTemplate(
 		services = append(services, svcs...)
 	}
 
+	// The project name is not stated here: the render step names the app after the
+	// path it is installed at, which a release build cannot know.
 	var mainAppCompose struct {
-		Name     string         `yaml:"name"`
 		Include  []string       `yaml:"include,omitempty"`
 		Services map[string]any `yaml:"services,omitempty"`
 	}
-	// Merge compose
-	mainAppCompose.Name = opts.ProjectName
 
 	includes, err := frozenComposeIncludes(composeFiles, genPath, cfg, appEnv)
 	if err != nil {

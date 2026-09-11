@@ -205,15 +205,9 @@ func StartApp(
 
 		cb(StreamMessage{progress: &Progress{Name: "python provisioning", Progress: provisionStartProgress}})
 
-		composeProjectName, err := getAppComposeProjectNameFromApp(appToStart, cfg)
-		if err != nil {
-			return err
-		}
-
 		// An app is provisioned every time it is started: it is editable, so its
 		// bricks, model or ports may have changed since the last run.
-		buildOpts := BuildOptions{ProjectName: composeProjectName}
-		if err := provisioner.Resolve(&appToStart, appToStart.ProvisioningStateDir(), bricksIndex, servicesIndex, cfg, appEnv, platform, buildOpts); err != nil {
+		if err := provisioner.Resolve(&appToStart, appToStart.ProvisioningStateDir(), bricksIndex, servicesIndex, cfg, appEnv, platform); err != nil {
 			return err
 		}
 
@@ -293,11 +287,9 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 	if app.MainPythonFile != nil {
 		// The project name stops the app without its compose file, which an update
 		// can remove, and finds what an older cli started just the same.
-		projectName, err := getAppComposeProjectNameFromApp(app, cfg)
-		if err != nil {
-			return err
-		}
+		projectName := composeProjectName(app.FullPath, cfg.AppsDir())
 		line := func(line string) { cb(StreamMessage{data: line}) }
+		var err error
 		switch cmd {
 		case "down":
 			err = dockerhelper.ComposeDown(ctx, docker, projectName, line)
