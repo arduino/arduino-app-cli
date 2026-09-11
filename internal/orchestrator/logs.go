@@ -6,6 +6,7 @@
 package orchestrator
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"iter"
@@ -19,10 +20,13 @@ import (
 	"github.com/docker/compose/v5/pkg/compose"
 	"go.bug.st/f"
 
+	"github.com/arduino/go-paths-helper"
+
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 )
 
 type AppLogsRequest struct {
@@ -32,10 +36,18 @@ type AppLogsRequest struct {
 	Tail             *uint64
 }
 
+type LogSource string
+
+const (
+	LogSourceMain  LogSource = "main"
+	LogSourceBrick LogSource = "brick"
+)
+
 type LogMessage struct {
-	Name      string
-	BrickName string
-	Content   string
+	Source        LogSource
+	BrickID       string // empty when Source != LogSourceBrick
+	ContainerName string
+	Content       string
 }
 
 func AppLogs(
@@ -44,6 +56,7 @@ func AppLogs(
 	req AppLogsRequest,
 	dockerCli command.Cli,
 	bricksIndex *bricksindex.BricksIndex,
+	servicesIndex *servicesindex.ServicesIndex,
 	cfg config.Configuration,
 ) (iter.Seq[LogMessage], error) {
 	if app.MainPythonFile == nil {
@@ -68,28 +81,54 @@ func AppLogs(
 
 	// Obtain mapping compose service name <-> brick name
 	serviceToBrickMapping := make(map[string]string, len(app.Descriptor.Bricks))
-	for _, brick := range app.Descriptor.Bricks {
-		brick, ok := bricksIndex.FindBrickByID(brick.ID)
+	addServices := func(composeFile *paths.Path, brickID string) error {
+		services, err := extractServicesFromComposeFile(composeFile)
+		if err != nil {
+			return err
+		}
+		for _, s := range services {
+			if _, claimed := serviceToBrickMapping[s.name]; !claimed {
+				serviceToBrickMapping[s.name] = brickID
+			}
+		}
+		return nil
+	}
+	for _, appBrick := range app.Descriptor.Bricks {
+		brick, ok := bricksIndex.FindBrickByID(appBrick.ID)
 		if !ok {
-			slog.Warn("brick not valid", slog.String("brick_id", brick.ID))
-			continue
-		}
-		composeFilePath, found := brick.GetComposeFile()
-		if !found {
-			slog.Warn("brick compose id not valid", slog.String("brick_id", brick.ID))
-			continue
-		}
-		if !composeFilePath.Exist() {
-			slog.Debug("Brick compose file not found", slog.String("module", brick.ID), slog.String("path", composeFilePath.String()))
+			slog.Warn("brick not valid", slog.String("brick_id", appBrick.ID))
 			continue
 		}
 
-		brickServices, err := extractServicesFromComposeFile(composeFilePath)
-		if err != nil {
-			return helpers.EmptyIter[LogMessage](), err
+		if composeFile, found := brick.GetComposeFile(); found && composeFile.Exist() {
+			if err := addServices(composeFile, brick.ID); err != nil {
+				return helpers.EmptyIter[LogMessage](), err
+			}
+		} else {
+			slog.Debug("brick has no compose file", slog.String("brick_id", brick.ID))
 		}
-		for _, s := range brickServices {
-			serviceToBrickMapping[s.name] = brick.ID
+
+		// Containers of an Arduino Service belong to the brick that requires it.
+		requiredServices, err := brick.GetMatchingService(bricksindex.BrickInstance{
+			Model: cmp.Or(appBrick.Model, brick.ModelName),
+		})
+		if err != nil {
+			slog.Warn("failed to get required services for brick", slog.String("brick_id", brick.ID), slog.Any("error", err))
+			continue
+		}
+		for _, serviceID := range requiredServices {
+			service, found := servicesIndex.FindServiceByID(serviceID)
+			if !found {
+				continue
+			}
+			composeFile, ok := service.GetComposeFile()
+			if !ok {
+				continue
+			}
+			slog.Debug("attributing service to brick", slog.String("service_id", serviceID), slog.String("brick_id", brick.ID))
+			if err := addServices(composeFile, brick.ID); err != nil {
+				slog.Warn("failed to load service compose", slog.String("service_id", serviceID), slog.Any("error", err))
+			}
 		}
 	}
 
@@ -182,12 +221,15 @@ func (d *DockerLogConsumer) write(container, message string) {
 		// remove the suffix -1 or -2 or -4
 		serviceName = serviceName[:idx]
 	}
+
+	msg := LogMessage{Source: LogSourceMain, ContainerName: serviceName}
+	if brickID, ok := d.mapping[serviceName]; ok {
+		msg.Source = LogSourceBrick
+		msg.BrickID = brickID
+	}
 	for line := range strings.SplitSeq(message, "\n") {
-		if !d.cb(LogMessage{
-			Name:      serviceName,
-			BrickName: d.mapping[serviceName],
-			Content:   line,
-		}) {
+		msg.Content = line
+		if !d.cb(msg) {
 			d.shuttingDown.CompareAndSwap(false, true)
 			return
 		}
