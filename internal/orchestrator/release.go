@@ -19,6 +19,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/arduino/arduino-cli/commands"
+	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
@@ -110,6 +112,8 @@ func BuildRelease(
 	plat platform.Platform,
 	cb func(StreamMessage),
 ) (BuildReleaseResult, error) {
+	verbose := false // TODO
+
 	if cb == nil {
 		cb = func(StreamMessage) {}
 	}
@@ -196,6 +200,15 @@ func BuildRelease(
 	cb(StreamMessage{data: "building the python environment", progress: &Progress{Name: "python environment", Progress: 20.0}})
 	if err := buildPythonEnv(ctx, docker, cfg.PythonImage, srcDir, prebuildDir, cb); err != nil {
 		return BuildReleaseResult{}, err
+	}
+
+	// The sketch is optional, as it is for the release manifest: an app made of
+	// python only ships without a firmware.
+	if _, hasSketch := stagedApp.GetSketchPath(); hasSketch {
+		cb(StreamMessage{data: "building sketch", progress: &Progress{Name: "sketch", Progress: 80.0}})
+		if err := buildSketch(ctx, stagedApp, plat, prebuildDir, verbose, cb); err != nil {
+			return BuildReleaseResult{}, err
+		}
 	}
 
 	cb(StreamMessage{data: "writing " + archivePath.Base(), progress: &Progress{Name: "archive", Progress: 90.0}})
@@ -451,6 +464,70 @@ func buildPythonEnv(ctx context.Context, docker command.Cli, pythonImage string,
 	if err != nil {
 		return fmt.Errorf("failed to build the python environment: %w", err)
 	}
+	return nil
+}
+
+func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platform.Platform, destPath *paths.Path, verbose bool, cb func(StreamMessage)) error {
+	output := NewCallbackWriter(func(line string) {
+		cb(StreamMessage{data: line})
+	})
+
+	sketchPath, ok := appToBuild.GetSketchPath()
+	if !ok {
+		return fmt.Errorf("no sketch path found in the Arduino app")
+	}
+	// Make the cache dir for the compiled sketch
+	buildPath := appToBuild.SketchBuildPath()
+	if err := buildPath.MkdirAll(); err != nil {
+		return fmt.Errorf("failed to create build directory: %w", err)
+	}
+
+	srv, inst, err := initializeArduinoCli(ctx, sketchPath, output)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
+	}()
+
+	// The option only exists on the platforms that wait for the Linux side.
+	menuOptions, err := GetPlatformMenuOptions(ctx, platform)
+	if err != nil {
+		slog.Warn("failed to get platform menu options", slog.String("error", err.Error()))
+	}
+	fqbn := platform.FQBN
+	if menuOptions.Has(WaitForApp) {
+		fqbn += ":" + WaitForApp.String()
+	}
+
+	// Compile the sketch
+	if err := compileSketch(
+		ctx, srv, inst,
+		sketchPath, buildPath,
+		platform, fqbn,
+		verbose, output,
+	); err != nil {
+		return err
+	}
+
+	// Upload to file
+	uploadStream, _ := commands.UploadToServerStreams(ctx, output, output)
+	if err := srv.Upload(&rpc.UploadRequest{
+		Instance:   inst,
+		Fqbn:       fqbn,
+		SketchPath: sketchPath.String(),
+		ImportDir:  buildPath.String(),
+		Verbose:    verbose,
+		// There is no board to upload to: "default" is the protocol arduino-cli
+		// itself uses for portless uploads, and it selects the upload.tool.default
+		// recipe. Without it the firmware file generation asks for the user fields
+		// of an empty protocol and fails.
+		Port:                 &rpc.Port{Protocol: "default"},
+		UploadToFirmwareFile: new(destPath.Join("sketch.fw").String()),
+	}, uploadStream); err != nil {
+		return fmt.Errorf("failed to create the sketch artifact: %w", err)
+	}
+
 	return nil
 }
 
