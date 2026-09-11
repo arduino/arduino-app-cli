@@ -1067,7 +1067,7 @@ func compileSketch(
 	w io.Writer,
 ) error {
 	// build the sketch
-	slog.Debug("compile and upload sketch", slog.String("fqbn", fqbn))
+	slog.Debug("compile sketch", slog.String("fqbn", fqbn))
 
 	server, getCompileResult := commands.CompilerServerToStreams(ctx, w, w, nil)
 	compileReq := rpc.CompileRequest{

@@ -204,9 +204,9 @@ func BuildRelease(
 
 	// The sketch is optional, as it is for the release manifest: an app made of
 	// python only ships without a firmware.
-	if _, hasSketch := appToBuild.GetSketchPath(); hasSketch {
-		cb(StreamMessage{data: "building sketch", progress: &Progress{Name: "sketch", Progress: 20.0}})
-		if err := buildSketch(ctx, appToBuild, plat, prebuildDir, verbose, cb); err != nil {
+	if _, hasSketch := stagedApp.GetSketchPath(); hasSketch {
+		cb(StreamMessage{data: "building sketch", progress: &Progress{Name: "sketch", Progress: 80.0}})
+		if err := buildSketch(ctx, stagedApp, plat, prebuildDir, verbose, cb); err != nil {
 			return BuildReleaseResult{}, err
 		}
 	}
@@ -490,7 +490,15 @@ func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platfo
 		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
 	}()
 
-	fqbn := platform.FQBN + ":" + WaitForApp.String()
+	// The option only exists on the platforms that wait for the Linux side.
+	menuOptions, err := GetPlatformMenuOptions(ctx, platform)
+	if err != nil {
+		slog.Warn("failed to get platform menu options", slog.String("error", err.Error()))
+	}
+	fqbn := platform.FQBN
+	if menuOptions.Has(WaitForApp) {
+		fqbn += ":" + WaitForApp.String()
+	}
 
 	// Compile the sketch
 	if err := compileSketch(
