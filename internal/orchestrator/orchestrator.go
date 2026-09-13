@@ -631,6 +631,60 @@ func ListApps(
 	return result, nil
 }
 
+// ListActiveApps returns all the apps that have a non-uninitialized status in Docker,
+// i.e. all apps that have been started at least once, including apps located outside the
+// standard apps directory and apps whose metadata is broken or missing on disk.
+// The result is sorted by app path.
+func ListActiveApps(
+	ctx context.Context,
+	docker command.Cli,
+	idProvider *appid.Provider,
+) ([]AppInfo, error) {
+	// The statuses returned by getAppsStatus come only from Docker containers that have
+	// been started, so StatusUninitialized is never present.
+	appsStatus, err := getAppsStatus(ctx, docker.Client())
+	if err != nil {
+		return nil, fmt.Errorf("failed to list apps status: %w", err)
+	}
+
+	// getAppsStatus iterates over a map, so sort the result to have a deterministic output.
+	slices.SortFunc(appsStatus, func(a, b AppStatusInfo) int {
+		return strings.Compare(a.AppPath.String(), b.AppPath.String())
+	})
+
+	apps := make([]AppInfo, 0, len(appsStatus))
+	for _, s := range appsStatus {
+		apps = append(apps, appInfoFromAppStatus(s, idProvider))
+	}
+	return apps, nil
+}
+
+// appInfoFromAppStatus builds an AppInfo from the status detected on the Docker daemon.
+// If the app metadata cannot be loaded, or the app ID cannot be resolved, the app is still
+// reported using the app path as fallback name, so that broken apps are visible in the status.
+func appInfoFromAppStatus(s AppStatusInfo, idProvider *appid.Provider) AppInfo {
+	info := AppInfo{Status: s.Status}
+
+	if id, err := idProvider.IDFromPath(s.AppPath); err != nil {
+		slog.Warn("unable to get app id", slog.String("path", s.AppPath.String()), slog.String("error", err.Error()))
+	} else {
+		info.ID = id
+		info.Example = id.IsExample()
+	}
+
+	userApp, err := app.Load(s.AppPath)
+	if err != nil {
+		slog.Warn("unable to load app metadata", slog.String("path", s.AppPath.String()), slog.String("error", err.Error()))
+		info.Name = s.AppPath.Base()
+		return info
+	}
+
+	info.Name = userApp.Name
+	info.Description = userApp.Descriptor.Description
+	info.Icon = userApp.Descriptor.Icon
+	return info
+}
+
 // exampleCompatibleWithBricksIndex returns true if all built-in bricks referenced by the app
 // are present in the given bricks index. Local bricks bundled with the app are always treated
 // as compatible and are skipped in the check.

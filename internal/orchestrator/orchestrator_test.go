@@ -6,6 +6,8 @@
 package orchestrator
 
 import (
+	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -13,6 +15,8 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/flags"
+	dockertypes "github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	dockerClient "github.com/docker/docker/client"
 	gCmp "github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -517,6 +521,183 @@ func TestListAppsLocalBricksCompatibility(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Apps, 1)
 		assert.Equal(t, exampleID, res.Apps[0].ID)
+	})
+}
+
+// fakeContainerClient is a client.APIClient that only implements ContainerList.
+// All other APIClient methods panic and must not be called.
+type fakeContainerClient struct {
+	dockerClient.APIClient
+
+	containers []container.Summary
+	err        error
+}
+
+func (f *fakeContainerClient) ContainerList(_ context.Context, _ container.ListOptions) ([]container.Summary, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.containers, nil
+}
+
+// Ping reports the daemon as unreachable so that the DockerCli initialization
+// does not try to negotiate the API version with this fake client.
+func (f *fakeContainerClient) Ping(_ context.Context) (dockertypes.Ping, error) {
+	return dockertypes.Ping{}, errors.New("docker daemon not reachable")
+}
+
+func TestListActiveApps(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
+
+	app1ID := createApp(t, "app1", false, idProvider, cfg)
+	app2ID := createApp(t, "app2", false, idProvider, cfg)
+	exampleID := createApp(t, "example1", true, idProvider, cfg)
+
+	newDockerCli := func(containers []container.Summary) command.Cli {
+		cli, err := command.NewDockerCli(
+			command.WithAPIClient(&fakeContainerClient{containers: containers}),
+			command.WithBaseContext(t.Context()),
+		)
+		require.NoError(t, err)
+		require.NoError(t, cli.Initialize(&flags.ClientOptions{}))
+		return cli
+	}
+
+	containerFor := func(appPath *paths.Path, state container.ContainerState, status string) container.Summary {
+		return container.Summary{
+			Labels: map[string]string{DockerAppPathLabel: appPath.String()},
+			State:  state,
+			Status: status,
+		}
+	}
+
+	t.Run("running and stopped apps are returned with their status, sorted by path", func(t *testing.T) {
+		cli := newDockerCli([]container.Summary{
+			containerFor(app2ID.ToPath(), container.StateExited, "Exited (137)"),
+			containerFor(app1ID.ToPath(), container.StateRunning, "Up 5 minutes"),
+		})
+
+		apps, err := ListActiveApps(t.Context(), cli, idProvider)
+		require.NoError(t, err)
+		assert.Empty(t, gCmp.Diff([]AppInfo{
+			{
+				ID:          app1ID,
+				Name:        "app1",
+				Description: "",
+				Icon:        "😃",
+				Status:      StatusRunning,
+				Example:     false,
+				Default:     false,
+			},
+			{
+				ID:          app2ID,
+				Name:        "app2",
+				Description: "",
+				Icon:        "😃",
+				Status:      StatusStopped,
+				Example:     false,
+				Default:     false,
+			},
+		}, apps))
+	})
+
+	t.Run("example apps are returned with the example id", func(t *testing.T) {
+		cli := newDockerCli([]container.Summary{
+			containerFor(exampleID.ToPath(), container.StateRunning, "Up 5 minutes"),
+		})
+
+		apps, err := ListActiveApps(t.Context(), cli, idProvider)
+		require.NoError(t, err)
+		require.Len(t, apps, 1)
+		assert.Empty(t, gCmp.Diff(AppInfo{
+			ID:          exampleID,
+			Name:        "example1",
+			Description: "",
+			Icon:        "😃",
+			Status:      StatusRunning,
+			Example:     true,
+			Default:     false,
+		}, apps[0]))
+	})
+
+	t.Run("apps in unknown locations are included", func(t *testing.T) {
+		unknownAppPath := paths.New(t.TempDir()).Join("my-app")
+		require.NoError(t, unknownAppPath.MkdirAll())
+		require.NoError(t, unknownAppPath.Join("app.yaml").WriteFile([]byte("name: My App\n")))
+		require.NoError(t, unknownAppPath.Join("python").MkdirAll())
+		require.NoError(t, unknownAppPath.Join("python", "main.py").WriteFile([]byte("print('running')\n")))
+
+		cli := newDockerCli([]container.Summary{
+			containerFor(unknownAppPath, container.StateRunning, "Up 5 minutes"),
+		})
+
+		apps, err := ListActiveApps(t.Context(), cli, idProvider)
+		require.NoError(t, err)
+		require.Len(t, apps, 1)
+		assert.Empty(t, gCmp.Diff(AppInfo{
+			ID:          f.Must(idProvider.IDFromPath(unknownAppPath)),
+			Name:        "My App",
+			Description: "",
+			Icon:        "",
+			Status:      StatusRunning,
+			Example:     false,
+			Default:     false,
+		}, apps[0]))
+	})
+
+	t.Run("apps with broken metadata are still shown with the path name", func(t *testing.T) {
+		brokenAppPath := cfg.AppsDir().Join("broken-app")
+		require.NoError(t, brokenAppPath.MkdirAll())
+		require.NoError(t, brokenAppPath.Join("app.yaml").WriteFile([]byte("not: [valid: yaml\n")))
+		t.Cleanup(func() { _ = brokenAppPath.RemoveAll() })
+
+		cli := newDockerCli([]container.Summary{
+			containerFor(brokenAppPath, container.StateRunning, "Up 5 minutes"),
+		})
+
+		apps, err := ListActiveApps(t.Context(), cli, idProvider)
+		require.NoError(t, err)
+		require.Len(t, apps, 1)
+		assert.Empty(t, gCmp.Diff(AppInfo{
+			ID:          f.Must(idProvider.ParseID("user:broken-app")),
+			Name:        "broken-app",
+			Description: "",
+			Icon:        "",
+			Status:      StatusRunning,
+			Example:     false,
+			Default:     false,
+		}, apps[0]))
+	})
+
+	t.Run("apps whose directory is missing are still shown with the path name", func(t *testing.T) {
+		goneAppPath := cfg.AppsDir().Join("gone-app")
+
+		cli := newDockerCli([]container.Summary{
+			containerFor(goneAppPath, container.StateRunning, "Up 5 minutes"),
+		})
+
+		apps, err := ListActiveApps(t.Context(), cli, idProvider)
+		require.NoError(t, err)
+		require.Len(t, apps, 1)
+		// The app directory does not exist, so no ID can be derived and only the
+		// path name is available as fallback.
+		require.Equal(t, AppInfo{
+			Name:   "gone-app",
+			Status: StatusRunning,
+		}, apps[0])
+	})
+
+	t.Run("returns an error if the docker status cannot be retrieved", func(t *testing.T) {
+		cli, err := command.NewDockerCli(
+			command.WithAPIClient(&fakeContainerClient{err: errors.New("cannot connect to docker")}),
+			command.WithBaseContext(t.Context()),
+		)
+		require.NoError(t, err)
+		require.NoError(t, cli.Initialize(&flags.ClientOptions{}))
+
+		_, err = ListActiveApps(t.Context(), cli, idProvider)
+		require.ErrorContains(t, err, "failed to list apps status")
 	})
 }
 

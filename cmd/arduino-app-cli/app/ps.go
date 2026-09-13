@@ -15,7 +15,6 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/tablestyle"
 )
 
@@ -28,7 +27,7 @@ var psVisibleStatuses = map[orchestrator.Status]bool{
 	orchestrator.StatusFailed:   true,
 }
 
-func newPsCmd(cfg config.Configuration) *cobra.Command {
+func newPsCmd() *cobra.Command {
 	var showAll bool
 
 	cmd := &cobra.Command{
@@ -39,7 +38,7 @@ func newPsCmd(cfg config.Configuration) *cobra.Command {
 			"include stopped apps. Apps that have never been started are never shown; use 'app list' to " +
 			"browse the full catalog instead.",
 		Run: func(cmd *cobra.Command, args []string) {
-			psHandler(cmd.Context(), cfg, showAll)
+			psHandler(cmd.Context(), showAll)
 		},
 	}
 
@@ -47,25 +46,18 @@ func newPsCmd(cfg config.Configuration) *cobra.Command {
 	return cmd
 }
 
-func psHandler(ctx context.Context, cfg config.Configuration, showAll bool) {
-	res, err := orchestrator.ListApps(ctx,
+func psHandler(ctx context.Context, showAll bool) {
+	apps, err := orchestrator.ListActiveApps(
+		ctx,
 		servicelocator.GetDockerClient(),
-		orchestrator.ListAppRequest{
-			ShowExamples:                   true,
-			ShowApps:                       true,
-			IncludeNonStandardLocationApps: true,
-		},
 		servicelocator.GetAppIDProvider(),
-		servicelocator.GetBricksIndex(),
-		cfg,
-		servicelocator.GetPlatform(),
 	)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}
 
 	feedback.PrintResult(appPsResult{
-		Apps: filterAppsByStatus(res.Apps, showAll),
+		Apps: filterAppsByStatus(apps, showAll),
 	})
 }
 
