@@ -563,6 +563,15 @@ func TestGetMatchingService(t *testing.T) {
 			wantServices:  []string{},
 		},
 		{
+			name: "model downloaded by link matches its runner pattern",
+			requiresServices: []RequiresService{
+				{ID: "arduino:llamacpp", When: &RequiresServiceMatch{Model: new("llamacpp:*")}},
+				{ID: "arduino:genie", When: &RequiresServiceMatch{Model: new("genie:*")}},
+			},
+			brickInstance: BrickInstance{Model: "llamacpp:unsloth/Qwen3.5-0.8B-GGUF/Qwen3.5-0.8B-Q8_0"},
+			wantServices:  []string{"arduino:llamacpp"},
+		},
+		{
 			name: "invalid pattern returns error",
 			requiresServices: []RequiresService{
 				{ID: "service-k", When: &RequiresServiceMatch{Model: new("[invalid")}},
@@ -582,6 +591,159 @@ func TestGetMatchingService(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, tt.wantServices, got)
 			}
+		})
+	}
+}
+
+func TestMatchString(t *testing.T) {
+	tests := []struct {
+		name    string
+		pattern string
+		s       string
+		want    bool
+		wantErr bool
+	}{
+		{
+			name:    "exact match",
+			pattern: "genie:mini",
+			s:       "genie:mini",
+			want:    true,
+		},
+		{
+			name:    "exact non-match",
+			pattern: "genie:",
+			s:       "genie:mini",
+		},
+		{
+			name:    "trailing wildcard",
+			pattern: "genie:*",
+			s:       "genie:mini",
+			want:    true,
+		},
+		{
+			name:    "trailing wildcard, nothing left",
+			pattern: "genie:*",
+			s:       "genie:",
+			want:    true,
+		},
+		{
+			name:    "trailing wildcard, wrong prefix",
+			pattern: "genie:*",
+			s:       "llamacpp:mini",
+		},
+		{
+			name:    "wildcard crosses the slash",
+			pattern: "llamacpp:*",
+			s:       "llamacpp:unsloth/Qwen3.5-0.8B-GGUF/Qwen3.5-0.8B-Q8_0",
+			want:    true,
+		},
+		{
+			name:    "leading wildcard",
+			pattern: "*-Q8_0",
+			s:       "llamacpp:unsloth/repo/model-Q8_0",
+			want:    true,
+		},
+		{
+			name:    "leading wildcard, wrong suffix",
+			pattern: "*-Q8_0",
+			s:       "llamacpp:unsloth/repo/model-Q4_0",
+		},
+		{
+			name:    "wildcard in the middle",
+			pattern: "llamacpp:*Q8_0",
+			s:       "llamacpp:unsloth/repo/model-Q8_0",
+			want:    true,
+		},
+		{
+			name:    "prefix fails",
+			pattern: "genie:*-Q8_0",
+			s:       "llamacpp:model-Q8_0",
+		},
+		{
+			name:    "suffix fails",
+			pattern: "genie:*-Q8_0",
+			s:       "genie:model-Q4_0",
+		},
+		{
+			name:    "both ends fail",
+			pattern: "genie:*-Q8_0",
+			s:       "llamacpp:model-Q4_0",
+		},
+		{
+			name:    "several wildcards",
+			pattern: "*:*/repo/*-Q8_0",
+			s:       "llamacpp:unsloth/repo/model-Q8_0",
+			want:    true,
+		},
+		{
+			name:    "several wildcards, wrong order",
+			pattern: "*repo*unsloth*",
+			s:       "llamacpp:unsloth/repo/model",
+		},
+		{
+			name:    "lone wildcard",
+			pattern: "*",
+			s:       "llamacpp:unsloth/repo/model",
+			want:    true,
+		},
+		{
+			name:    "lone wildcard, empty string",
+			pattern: "*",
+			s:       "",
+			want:    true,
+		},
+		{
+			name:    "ends overlap",
+			pattern: "a*a",
+			s:       "a",
+		},
+		{
+			name:    "ends touch",
+			pattern: "a*a",
+			s:       "aa",
+			want:    true,
+		},
+		{
+			name:    "empty pattern",
+			pattern: "",
+			s:       "genie:mini",
+		},
+		{
+			name:    "question mark",
+			pattern: "genie:min?",
+			s:       "genie:mini",
+			wantErr: true,
+		},
+		{
+			name:    "character class",
+			pattern: "genie:[mp]*",
+			s:       "genie:mini",
+			wantErr: true,
+		},
+		{
+			name:    "closing bracket",
+			pattern: "genie:mini]",
+			s:       "genie:mini]",
+			wantErr: true,
+		},
+		{
+			name:    "escape",
+			pattern: `genie:\*`,
+			s:       "genie:*",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := matchString(tt.pattern, tt.s)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.False(t, got)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

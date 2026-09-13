@@ -1,6 +1,6 @@
 ---
 name: github.com/moby/go-archive
-version: v0.1.0
+version: v0.3.3
 type: go
 summary: Package archive provides helper functions for dealing with archive files.
 homepage: https://pkg.go.dev/github.com/moby/go-archive

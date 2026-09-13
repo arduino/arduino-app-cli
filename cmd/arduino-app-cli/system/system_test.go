@@ -14,54 +14,8 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 )
 
-func TestThrottleProgress(t *testing.T) {
-	progress := func(label string, curr, total int64) orchestrator.InitEvent {
-		return orchestrator.InitEvent{
-			Type:     orchestrator.InitProgressEvent,
-			Progress: orchestrator.InitProgress{Label: label, Curr: curr, Total: total},
-		}
-	}
-	logEvt := func(msg string) orchestrator.InitEvent {
-		return orchestrator.InitEvent{Type: orchestrator.InitLogEvent, Message: msg}
-	}
-
-	var got []orchestrator.InitResult
-	cb := throttleProgress(func(e *orchestrator.InitResult) {
-		got = append(got, *e)
-	})
-
-	// Sequence: same integer percentage is collapsed; each new integer step and
-	// every log line passes through.
-	cb(progress("img", 0, 100))   // 0%  -> forwarded
-	cb(progress("img", 4, 100))   // 4%  -> forwarded
-	cb(progress("img", 49, 1000)) // 4%  -> dropped (same integer pct)
-	cb(logEvt("hello"))           //     -> forwarded (logs always pass)
-	cb(progress("img", 5, 100))   // 5%  -> forwarded
-	cb(progress("img", 5, 0))     //     -> dropped (Total <= 0)
-	cb(progress("other", 5, 100)) // 5%  -> forwarded (different label tracked separately)
-	cb(logEvt("done"))            //     -> forwarded
-
-	want := []orchestrator.InitResult{
-		*orchestrator.NewInitResult(progress("img", 0, 100)),
-		*orchestrator.NewInitResult(progress("img", 4, 100)),
-		*orchestrator.NewInitResult(logEvt("hello")),
-		*orchestrator.NewInitResult(progress("img", 5, 100)),
-		*orchestrator.NewInitResult(progress("other", 5, 100)),
-		*orchestrator.NewInitResult(logEvt("done")),
-	}
-
-	if len(got) != len(want) {
-		t.Fatalf("got %d events, want %d:\n got:  %+v\n want: %+v", len(got), len(want), got, want)
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Errorf("event %d = %+v, want %+v", i, got[i], want[i])
-		}
-	}
-}
-
 // The rendering of a result stream per output format is covered in the feedback
-// package, here we only check that the events reach the stream, throttled.
+// package, here we only check that the events reach the stream.
 func TestNewInitEventCallback(t *testing.T) {
 	var got []feedback.Result
 	cb := newInitEventCallback(func(res feedback.Result) {
@@ -73,12 +27,6 @@ func TestNewInitEventCallback(t *testing.T) {
 		Type:     orchestrator.InitProgressEvent,
 		Progress: orchestrator.InitProgress{Label: "img", Curr: 25, Total: 50},
 	})
-	// Same integer percentage as the previous event, dropped by the throttle.
-	cb(orchestrator.InitEvent{
-		Type:     orchestrator.InitProgressEvent,
-		Progress: orchestrator.InitProgress{Label: "img", Curr: 250, Total: 500},
-	})
-
 	want := []string{"pulling image", "img: 50%"}
 	if len(got) != len(want) {
 		t.Fatalf("got %d results, want %d: %+v", len(got), len(want), got)

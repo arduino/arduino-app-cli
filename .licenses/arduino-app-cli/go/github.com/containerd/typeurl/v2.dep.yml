@@ -1,6 +1,6 @@
 ---
 name: github.com/containerd/typeurl/v2
-version: v2.2.3
+version: v2.3.0
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/containerd/typeurl/v2

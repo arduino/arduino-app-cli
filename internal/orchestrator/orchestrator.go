@@ -11,11 +11,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"maps"
 	"os"
-	"os/user"
 	"slices"
-	"strings"
 	"sync"
 
 	"github.com/arduino/arduino-cli/commands"
@@ -28,6 +25,7 @@ import (
 	"go.bug.st/f"
 	semver "go.bug.st/relaxed-semver"
 
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -35,7 +33,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/linuxconfig"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/pipewire"
@@ -48,10 +45,6 @@ var (
 	ErrAppDoesntExists  = fmt.Errorf("app doesn't exist")
 	ErrAppNotFound      = fmt.Errorf("app not found")
 	ErrBadRequest       = fmt.Errorf("bad request")
-)
-
-const (
-	DefaultDockerStopTimeoutSeconds = 5
 )
 
 type AppStreamMessage struct {
@@ -202,7 +195,7 @@ func StartApp(
 	}
 
 	if appToStart.MainPythonFile != nil {
-		envs := getAppEnvironmentVariables(ctx, appToStart, bricksIndex, modelsIndex, platform, cfg)
+		appEnv := appEnvironment(ctx, appToStart, bricksIndex, modelsIndex, platform)
 
 		cb(StreamMessage{data: "python provisioning"})
 		provisionStartProgress := float32(0.0)
@@ -212,113 +205,44 @@ func StartApp(
 
 		cb(StreamMessage{progress: &Progress{Name: "python provisioning", Progress: provisionStartProgress}})
 
-		if err := provisioner.App(bricksIndex, servicesIndex, &appToStart, cfg, envs, platform); err != nil {
+		// An app is provisioned every time it is started: it is editable, so its
+		// bricks, model or ports may have changed since the last run.
+		if err := provisioner.Resolve(appToStart.ProvisioningStateDir(), bricksIndex, servicesIndex, &appToStart, cfg, appEnv, platform); err != nil {
+			return err
+		}
+
+		// What the template references, answered on this board: for a release the app
+		// half will come from the bundle instead of being resolved again here.
+		env := hostEnvironment(ctx, appToStart.FullPath, cfg).Merge(appEnv)
+		prj, err := provisioner.Render(ctx, &appToStart, env, appSecrets(appToStart, bricksIndex))
+		if err != nil {
 			return err
 		}
 
 		cb(StreamMessage{data: "python downloading"})
 
-		// Launch the docker compose command to start the app
-		commands := []string{}
-		commands = append(commands, "docker", "compose", "-f", appToStart.AppComposeFilePath().String())
-		if overrideComposeFile := appToStart.AppComposeOverrideFilePath(); overrideComposeFile.Exist() {
-			commands = append(commands, "-f", overrideComposeFile.String())
+		images := make([]string, 0, len(prj.Services))
+		for _, service := range prj.Services {
+			if service.Image != "" {
+				images = append(images, service.Image)
+			}
 		}
-		commands = append(commands, "up", "-d", "--remove-orphans", "--pull", "missing")
-
-		dockerParser := NewDockerProgressParser(200)
-
-		var customError error
-		callbackDockerWriter := NewCallbackWriter(func(line string) {
-			// docker compose sometimes returns errors as info lines, we try to parse them here and return a proper error
-			if e := GetCustomErrorFomDockerEvent(line); e != nil {
-				customError = e
-			}
-			if percentage, ok := dockerParser.Parse(line); ok {
-				// assumption: docker pull progress goes from 0 to 80% of the total app start progress
-				totalProgress := 20.0 + (percentage/100.0)*80.0
-				cb(StreamMessage{progress: &Progress{Name: "python starting", Progress: float32(totalProgress)}})
-				return
-			}
-			cb(StreamMessage{data: line})
-		})
-
-		slog.Debug("starting app", slog.String("command", strings.Join(commands, " ")), slog.Any("envs", envs))
-		process, err := paths.NewProcess(envs.AsList(), commands...)
-		if err != nil {
+		if err := dockerhelper.PullImages(ctx, docker.Client(), images,
+			func(line string) { cb(StreamMessage{data: line}) },
+			func(label string, curr, total int64) {
+				// Downloading the images is from 20% to 80% of the start of an app.
+				cb(StreamMessage{progress: &Progress{Name: label, Progress: 20 + float32(curr*60/total)}})
+			}); err != nil {
 			return err
 		}
-		process.RedirectStderrTo(callbackDockerWriter)
-		process.RedirectStdoutTo(callbackDockerWriter)
-		if err := process.RunWithinContext(ctx); err != nil {
-			// custom error could have been set while reading the output. Not detected by the process exit code
-			if customError != nil {
-				return customError
-			}
+
+		slog.Debug("starting app", slog.String("project", prj.Name))
+		if err := dockerhelper.ComposeUp(ctx, docker, prj, func(line string) { cb(StreamMessage{data: line}) }); err != nil {
 			return err
 		}
 	}
 	cb(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
 	return nil
-}
-
-// getAppEnvironmentVariables returns the environment variables for the app by merging variables and config in the following order:
-// - brick default variables (variables defined in the brick definition)
-// - model configuration variables (variables defined in the model configuration)
-// - brick instance variables (variables defined in the app.yaml for the brick instance)
-// In addition, it adds some useful environment variables like APP_HOME and HOST_IP.
-func getAppEnvironmentVariables(ctx context.Context, app app.ArduinoApp, brickIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform, cfg config.Configuration) helpers.EnvVars {
-	envs := make(helpers.EnvVars)
-
-	for _, brick := range app.Descriptor.Bricks {
-		if brickDef, found := brickIndex.WithAppBricks(app.LocalBricks).FindBrickByID(brick.ID); found {
-			maps.Insert(envs, brickDef.GetDefaultVariables())
-		}
-
-		if m, err := modelsIndex.GetModelByID(ctx, brick.Model); err != nil {
-			slog.Warn("unable to get model for brick", slog.String("brickID", brick.ID), slog.String("modelID", brick.Model), slog.String("error", err.Error()))
-		} else if m != nil {
-			for _, b := range m.Bricks {
-				maps.Insert(envs, maps.All(b.ModelConfiguration))
-			}
-		}
-
-		slog.Debug("adding Brick", slog.String("brickID", brick.ID), slog.String("model", brick.Model), slog.Any("variables", brick.Variables))
-		maps.Insert(envs, maps.All(brick.Variables))
-	}
-
-	envs["APP_HOME"] = app.FullPath.String()
-	envs["BOARD_NAME"] = plat.BoardName
-	// Directory where AI models are installed, shared with the containerized runners.
-	envs["MODELS_PATH"] = cfg.ModelsDir().String()
-	envs["XDG_RUNTIME_DIR"] = "/run/user/1000"
-
-	// Pre-select default camera device if available. This can be overridden by the app environment variables (or in future by applab)
-	// This is required because there are some video devices for HW acceleration that are auto registered in /dev but are not real cameras.
-	if videoDevices := peripherals.GetVideoDevices(); len(videoDevices) > 0 {
-		// VIDEO_DEVICE will be the first device in /dev/v4l/by-id
-		envs["VIDEO_DEVICE"] = videoDevices[0]
-	}
-
-	mediaCarriers, err := linuxconfig.GetEnabledCarriers(ctx)
-	if err != nil {
-		slog.Warn("unable to get configured carriers", slog.String("error", err.Error()))
-	} else if len(mediaCarriers) > 0 {
-		carrierNames := f.Map(mediaCarriers, func(c linuxconfig.Carrier) string {
-			return c.CarrierName
-		})
-		envs["CONFIGURED_CARRIERS"] = strings.Join(carrierNames, ",")
-	}
-
-	if hostIP, err := helpers.GetHostIP(); err == nil {
-		envs["HOST_IP"] = hostIP
-	} else {
-		slog.Warn("unable to get host IP", slog.String("error", err.Error()))
-	}
-
-	slog.Debug("Current environment variables", slog.Any("envs", envs))
-
-	return envs
 }
 
 func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration, cmd string, cb func(StreamMessage)) error {
@@ -341,10 +265,6 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 		slog.Debug("unable to disable audio service linger", slog.String("error", err.Error()))
 	}
 
-	callbackWriter := NewCallbackWriter(func(line string) {
-		cb(StreamMessage{data: line})
-	})
-
 	if _, ok := app.GetSketchPath(); ok {
 		// Before stopping the microcontroller we want to make sure that the app was running.
 		running, err := getRunningApp(ctx, docker.Client())
@@ -365,30 +285,21 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 	}
 
 	if app.MainPythonFile != nil {
-		mainCompose := app.AppComposeFilePath()
-		// In case the app was never started
-		if mainCompose.Exist() {
-			args := []string{
-				"docker",
-				"compose",
-				"-f", mainCompose.String(),
-				cmd,
-				fmt.Sprintf("--timeout=%d", DefaultDockerStopTimeoutSeconds),
-			}
-			if cmd == "down" {
-				args = append(args, "--volumes", "--remove-orphans")
-			}
-
-			process, err := paths.NewProcess(nil, args...)
-			if err != nil {
-				return err
-			}
-
-			process.RedirectStderrTo(callbackWriter)
-			process.RedirectStdoutTo(callbackWriter)
-			if err := process.RunWithinContext(ctx); err != nil {
-				return err
-			}
+		// The project name stops the app without its compose file, which an update
+		// can remove, and finds what an older cli started just the same.
+		projectName, err := getAppComposeProjectNameFromApp(app, cfg)
+		if err != nil {
+			return err
+		}
+		line := func(line string) { cb(StreamMessage{data: line}) }
+		switch cmd {
+		case "down":
+			err = dockerhelper.ComposeDown(ctx, docker, projectName, line)
+		default:
+			err = dockerhelper.ComposeStop(ctx, docker, projectName, line)
+		}
+		if err != nil {
+			return err
 		}
 	}
 	cb(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
@@ -1074,35 +985,6 @@ func editAppDefaults(userApp *app.ArduinoApp, isDefault bool, cfg config.Configu
 		}
 	}
 	return nil
-}
-
-func getCurrentUser() string {
-	userInfo := f.Must(user.Current())
-	uid := userInfo.Uid
-	gid := userInfo.Gid
-
-	// If exist use arduino group to avoid permission issue on files /var/lib/arduino-app-cli in.
-	if gInfo, err := user.LookupGroup("arduino"); err == nil {
-		gid = gInfo.Gid
-	}
-
-	return uid + ":" + gid
-}
-
-// addLedControl adds bindings for led control if the paths exist.
-func addLedControl(platform platform.Platform, volumes []volume) []volume {
-	for _, led := range platform.Linux.BoardLeds {
-
-		if led.Exist() {
-			volumes = append(volumes, volume{
-				Type:   "bind",
-				Source: led.String(),
-				Target: led.String(),
-			})
-		}
-	}
-
-	return volumes
 }
 
 func compileUploadSketch(

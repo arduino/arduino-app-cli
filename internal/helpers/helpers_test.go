@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetHostIP(t *testing.T) {
@@ -187,4 +188,25 @@ func TestArduinoCLITaskProgressToString(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLastPercent(t *testing.T) {
+	var reported LastPercent
+
+	require.True(t, reported.Moved(1, 100), "the first percent is worth reporting")
+	require.False(t, reported.Moved(1, 100), "the same percent is reported once")
+	require.False(t, reported.Moved(19, 1000), "and so is a different total that rounds to it")
+	require.True(t, reported.Moved(2, 100), "a new percent is worth reporting")
+	require.True(t, reported.Moved(100, 100), "the end of the download is too")
+
+	// A download of an unknown size has no percentage to report.
+	var unknown LastPercent
+	require.False(t, unknown.Moved(10, 0))
+	require.False(t, unknown.Moved(10, -1))
+
+	// What starts again starts from zero.
+	var restarted LastPercent
+	require.True(t, restarted.Moved(50, 100))
+	restarted = 0
+	require.True(t, restarted.Moved(50, 100))
 }

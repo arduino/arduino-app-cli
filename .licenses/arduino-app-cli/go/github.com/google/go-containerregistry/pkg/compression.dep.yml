@@ -1,12 +1,12 @@
 ---
 name: github.com/google/go-containerregistry/pkg/compression
-version: v0.20.7
+version: v0.22.1
 type: go
 summary: Package compression abstracts over gzip and zstd.
 homepage: https://pkg.go.dev/github.com/google/go-containerregistry/pkg/compression
 license: apache-2.0
 licenses:
-- sources: go-containerregistry@v0.20.7/LICENSE
+- sources: go-containerregistry@v0.22.1/LICENSE
   text: |2-
 
                                      Apache License

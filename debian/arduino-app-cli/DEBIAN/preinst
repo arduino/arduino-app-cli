@@ -20,7 +20,8 @@ if ! getent passwd "$USER_ID" >/dev/null 2>&1; then
         "arduino" >/dev/null
 fi
 
-username="$(getent passwd $USER_ID | cut -d: -f1)"
+username="$(getent passwd "$USER_ID" | cut -d: -f1)"
+USER_HOME="$(getent passwd "$USER_ID" | cut -d: -f6)"
 
 usermod -aG "$GROUP_NAME" "$username"
 
@@ -34,18 +35,19 @@ done
 # Starting with this version, the arduino-app-cli user directory is
 # no longer located at /home/arduino/.local/share/arduino-app-cli
 # Move the related file to the new location
-if [ "$1" = "upgrade" ]; then
+if [ "$1" = "upgrade" ] && [ -n "$USER_HOME" ]; then
+    LEGACY_DIR="${USER_HOME}/.local/share/arduino-app-cli"
     mkdir -p /var/lib/arduino-app-cli
-    cp /home/arduino/.local/share/arduino-app-cli/properties.msgpack /var/lib/arduino-app-cli || true
-    cp /home/arduino/.local/share/arduino-app-cli/bootloader_burned.flag /var/lib/arduino-app-cli/default.app || true
+    cp "${LEGACY_DIR}/properties.msgpack" /var/lib/arduino-app-cli || true
+    cp "${LEGACY_DIR}/bootloader_burned.flag" /var/lib/arduino-app-cli/default.app || true
 
-    DEFAULT_APP_FILE="/home/arduino/.local/share/arduino-app-cli/default.app"
+    DEFAULT_APP_FILE="${LEGACY_DIR}/default.app"
     if [ -f "${DEFAULT_APP_FILE}" ]; then
-        sed -s "s|/home/arduino/.local/share|/var/lib|" ${DEFAULT_APP_FILE} > /var/lib/arduino-app-cli/default.app
+        sed -s "s|${USER_HOME}/.local/share|/var/lib|" "${DEFAULT_APP_FILE}" > /var/lib/arduino-app-cli/default.app
     fi
 
-    
+
     # the examples directory changed its structure,
     # remove it to cleanup stale files
-    rm -rf /home/arduino/.local/share/arduino-app-cli/examples
+    rm -rf "${LEGACY_DIR}/examples"
 fi

@@ -1,6 +1,6 @@
 ---
 name: github.com/morikuni/aec
-version: v1.0.0
+version: v1.1.0
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/morikuni/aec

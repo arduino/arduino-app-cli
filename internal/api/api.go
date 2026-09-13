@@ -65,6 +65,7 @@ func NewHTTPRouter(
 	mux.Handle("GET /v1/models/{modelID}", handlers.HandlerModelByID(modelsIndex))
 	mux.Handle("PUT /v1/models/ei/projects/{projectID}", handlers.HandleInstallEIModel(cfg, bricksIndex, modelsIndex, dockerClient, platform))
 	mux.Handle("PUT /v1/models/{modelID}", handlers.HandleInstallModel(dockerClient, modelsIndex, platform))
+	mux.Handle("POST /v1/models", handlers.HandleDownloadModel(dockerClient, modelsIndex, platform))
 	mux.Handle("DELETE /v1/models/{modelID}", handlers.HandlerDeleteModelByID(dockerClient, cfg, modelsIndex, bricksIndex, idProvider, platform))
 
 	mux.Handle("GET /v1/apps", handlers.HandleAppList(dockerClient, idProvider, bricksIndex, cfg, platform))
@@ -72,7 +73,7 @@ func NewHTTPRouter(
 	mux.Handle("GET /v1/apps/events", handlers.HandlerAppStatus(dockerClient, idProvider, bricksIndex, cfg, platform))
 	mux.Handle("GET /v1/apps/{appID}", handlers.HandleAppDetails(dockerClient, bricksIndex, idProvider, cfg))
 	mux.Handle("PATCH /v1/apps/{appID}", handlers.HandleAppDetailsEdits(dockerClient, bricksIndex, idProvider, cfg))
-	mux.Handle("GET /v1/apps/{appID}/logs", handlers.HandleAppLogs(dockerClient, idProvider, bricksIndex))
+	mux.Handle("GET /v1/apps/{appID}/logs", handlers.HandleAppLogs(dockerClient, idProvider, bricksIndex, cfg))
 	mux.Handle("POST /v1/apps/{appID}/start", handlers.HandleAppStart(dockerClient, provisioner, modelsIndex, bricksIndex, servicesIndex, idProvider, cfg, platform))
 	mux.Handle("POST /v1/apps/{appID}/stop", handlers.HandleAppStop(dockerClient, idProvider, platform, cfg))
 	mux.Handle("POST /v1/apps/{appID}/clone", handlers.HandleAppClone(idProvider, cfg))

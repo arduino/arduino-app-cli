@@ -11,9 +11,10 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/spf13/cobra"
-	"go.bug.st/cleanup"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/app"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/brick"
@@ -28,6 +29,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/version"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/cmd/i18n"
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	cfg "github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
@@ -76,8 +78,17 @@ func run(configuration cfg.Configuration) error {
 		model.NewModelCmd(configuration),
 	)
 
-	ctx := context.Background()
-	ctx, _ = cleanup.InterruptableContext(ctx)
+	ctx, stop := signal.NotifyContext(context.Background(),
+		os.Interrupt,    // SIGINT used by Ctrl+C in interactive mode.
+		syscall.SIGTERM, // SIGTERM used by systemd in daemon mode.
+	)
+	defer stop()
+	// Restore the default action after the first signal, so that a second Ctrl+C
+	// or SIGTERM still kills a command that ignores its context.
+	go func() {
+		<-ctx.Done()
+		stop()
+	}()
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		return err
 	}
@@ -106,7 +117,7 @@ func main() {
 	}
 
 	if err := run(configuration); err != nil {
-		if errors.Is(err, orchestrator.ErrDockerOutOfSpace) {
+		if errors.Is(err, dockerhelper.ErrOutOfSpace) {
 			// Return a specific error code in case a specific error happened (disk full when pulling docker images).
 			feedback.FatalError(err, orchestrator.ExitCodeDockerOutOfSpace)
 		}

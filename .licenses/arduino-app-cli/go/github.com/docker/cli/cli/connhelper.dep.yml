@@ -1,13 +1,13 @@
 ---
 name: github.com/docker/cli/cli/connhelper
-version: v29.0.3+incompatible
+version: v29.8.0+incompatible
 type: go
 summary: Package connhelper provides helpers for connecting to a remote daemon host
   with custom logic.
 homepage: https://pkg.go.dev/github.com/docker/cli/cli/connhelper
 license: apache-2.0
 licenses:
-- sources: cli@v28.3.2+incompatible/LICENSE
+- sources: cli@v29.8.0+incompatible/LICENSE
   text: |2
 
                                      Apache License

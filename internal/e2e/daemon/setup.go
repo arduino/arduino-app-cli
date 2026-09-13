@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -31,7 +32,6 @@ func GetHttpclient(t *testing.T, opts ...e2e.ArduinoAppCLIOption) *client.Client
 func GetHttpclientAndAddr(t *testing.T, opts ...e2e.ArduinoAppCLIOption) (*client.ClientWithResponses, string) {
 	t.Helper()
 	cli := e2e.CreateEnvForDaemon(t, opts...)
-	t.Cleanup(cli.CleanUp)
 	httpClient, err := client.NewClientWithResponses(cli.DaemonAddr)
 	require.NoError(t, err)
 	return httpClient, cli.DaemonAddr
@@ -85,5 +85,14 @@ func loop(r io.ReadCloser, events chan Event) {
 			fmt.Fprintf(os.Stderr, "Unknown line: '%s'", line)
 			close(events)
 		}
+	}
+}
+
+// skipWithoutModelsImage skips a test that reads what the models-downloader container
+// reports. That image is arm64 only.
+func skipWithoutModelsImage(t *testing.T) {
+	t.Helper()
+	if runtime.GOARCH != "arm64" {
+		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
 	}
 }

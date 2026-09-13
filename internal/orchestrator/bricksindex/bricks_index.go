@@ -12,7 +12,6 @@ import (
 	"iter"
 	"log/slog"
 	"os"
-	"path"
 	"slices"
 	"strings"
 
@@ -82,6 +81,7 @@ type RequiresService struct {
 }
 
 type RequiresServiceMatch struct {
+	// A glob on the model id, where "*" is the only wildcard.
 	Model *string `yaml:"model,omitempty"`
 }
 
@@ -220,13 +220,45 @@ func (b Brick) GetMatchingService(brick BrickInstance) ([]string, error) {
 			services = append(services, r.ID)
 			continue
 		}
-		if ok, err := path.Match(*r.When.Model, brick.Model); err != nil {
+		if ok, err := matchString(*r.When.Model, brick.Model); err != nil {
 			return services, fmt.Errorf("invalid pattern in requires_services.when.model: %w", err)
 		} else if ok {
 			services = append(services, r.ID)
 		}
 	}
 	return services, nil
+}
+
+// matchString is a glob match of pattern against s, with "*" as the only wildcard. Unlike
+// path.Match, "*" matches "/" too, which a model id can contain.
+func matchString(pattern, s string) (bool, error) {
+	if strings.ContainsAny(pattern, `?[]\`) {
+		return false, fmt.Errorf(`%q: "*" is the only wildcard`, pattern)
+	}
+
+	parts := strings.Split(pattern, "*")
+	if len(parts) == 1 {
+		return pattern == s, nil
+	}
+
+	// The part before the first "*" and the one after the last are anchored to the ends.
+	first := parts[0]
+	last := parts[len(parts)-1]
+	if !strings.HasPrefix(s, first) || !strings.HasSuffix(s, last) {
+		return false, nil
+	}
+
+	rest := s[len(first):]
+	for _, part := range parts[1 : len(parts)-1] {
+		i := strings.Index(rest, part)
+		if i == -1 {
+			return false, nil
+		}
+		rest = rest[i+len(part):]
+	}
+
+	// The two anchors must not share characters: "a*a" does not match "a".
+	return len(rest) >= len(last), nil
 }
 
 type YamlBricksIndex struct {

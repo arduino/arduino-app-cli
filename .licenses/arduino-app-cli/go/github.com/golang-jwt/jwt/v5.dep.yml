@@ -1,6 +1,6 @@
 ---
 name: github.com/golang-jwt/jwt/v5
-version: v5.2.2
+version: v5.3.1
 type: go
 summary: 'Package jwt is a Go implementation of JSON Web Tokens: http://self-issued.info/docs/draft-jones-json-web-token.html'
 homepage: https://pkg.go.dev/github.com/golang-jwt/jwt/v5

@@ -1,5 +1,7 @@
 cleanup_agent_profiles() {
-  USER_HOME="/home/arduino"
+  USER_HOME="$(getent passwd "$USER_ID" | cut -d: -f6)"
+  [ -n "$USER_HOME" ] || return 0
+
   MASTER_AGENT="/etc/arduino-app-cli/AGENTS.md"
   PATHS_TO_LINK="
 $USER_HOME/.claude/CLAUDE.md

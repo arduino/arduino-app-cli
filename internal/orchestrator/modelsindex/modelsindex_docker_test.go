@@ -8,20 +8,20 @@ package modelsindex
 import (
 	"bufio"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
+	"iter"
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
-	dockertypes "github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/api/types/network"
-	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/stdcopy"
-	specs "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/moby/moby/api/pkg/stdcopy"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/jsonstream"
+	"github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -37,6 +37,9 @@ type fakeDockerClient struct {
 	client.APIClient
 
 	runFunc func(image string, cmd []string) (stdout string, exitCode int)
+	// runFuncEnv, when set, is called instead of runFunc and also receives the
+	// container's environment.
+	runFuncEnv func(image string, cmd, env []string) (stdout string, exitCode int)
 
 	mu        sync.Mutex
 	idCounter int
@@ -46,6 +49,7 @@ type fakeDockerClient struct {
 type pendingContainer struct {
 	image      string
 	cmd        []string
+	env        []string
 	attachConn net.Conn
 	statusCh   chan container.WaitResponse
 	errCh      chan error
@@ -58,64 +62,107 @@ func newFakeDockerClient(runFunc func(image string, cmd []string) (stdout string
 	}
 }
 
-func (f *fakeDockerClient) ContainerCreate(_ context.Context, cfg *container.Config, _ *container.HostConfig, _ *network.NetworkingConfig, _ *specs.Platform, _ string) (container.CreateResponse, error) {
+func newFakeDockerClientWithEnv(runFunc func(image string, cmd, env []string) (stdout string, exitCode int)) *fakeDockerClient {
+	return &fakeDockerClient{
+		runFuncEnv: runFunc,
+		pending:    make(map[string]*pendingContainer),
+	}
+}
+
+func (f *fakeDockerClient) ContainerCreate(_ context.Context, options client.ContainerCreateOptions) (client.ContainerCreateResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.idCounter++
 	id := fmt.Sprintf("fake-%d", f.idCounter)
-	f.pending[id] = &pendingContainer{image: cfg.Image, cmd: cfg.Cmd}
-	return container.CreateResponse{ID: id}, nil
+	cfg := options.Config
+	f.pending[id] = &pendingContainer{image: cfg.Image, cmd: cfg.Cmd, env: cfg.Env}
+	return client.ContainerCreateResult{ID: id}, nil
 }
 
-func (f *fakeDockerClient) ContainerWait(_ context.Context, id string, _ container.WaitCondition) (<-chan container.WaitResponse, <-chan error) {
+func (f *fakeDockerClient) ContainerWait(_ context.Context, id string, _ client.ContainerWaitOptions) client.ContainerWaitResult {
 	statusCh := make(chan container.WaitResponse, 1)
 	errCh := make(chan error, 1)
 	f.mu.Lock()
 	f.pending[id].statusCh = statusCh
 	f.pending[id].errCh = errCh
 	f.mu.Unlock()
-	return statusCh, errCh
+	return client.ContainerWaitResult{Result: statusCh, Error: errCh}
 }
 
-func (f *fakeDockerClient) ContainerAttach(_ context.Context, id string, _ container.AttachOptions) (dockertypes.HijackedResponse, error) {
+func (f *fakeDockerClient) ContainerAttach(_ context.Context, id string, _ client.ContainerAttachOptions) (client.ContainerAttachResult, error) {
 	clientConn, serverConn := net.Pipe()
 	f.mu.Lock()
 	f.pending[id].attachConn = serverConn
 	f.mu.Unlock()
-	return dockertypes.HijackedResponse{
+	return client.ContainerAttachResult{HijackedResponse: client.HijackedResponse{
 		Conn:   clientConn,
 		Reader: bufio.NewReader(clientConn),
-	}, nil
+	}}, nil
 }
 
-func (f *fakeDockerClient) ContainerStart(_ context.Context, id string, _ container.StartOptions) error {
+func (f *fakeDockerClient) ContainerStart(_ context.Context, id string, _ client.ContainerStartOptions) (client.ContainerStartResult, error) {
 	f.mu.Lock()
 	p := f.pending[id]
 	delete(f.pending, id)
 	f.mu.Unlock()
 
 	go func() {
-		stdout, exitCode := f.runFunc(p.image, p.cmd)
+		var stdout string
+		var exitCode int
+		if f.runFuncEnv != nil {
+			stdout, exitCode = f.runFuncEnv(p.image, p.cmd, p.env)
+		} else {
+			stdout, exitCode = f.runFunc(p.image, p.cmd)
+		}
 		if stdout != "" {
-			w := stdcopy.NewStdWriter(p.attachConn, stdcopy.Stdout)
-			fmt.Fprint(w, stdout)
+			writeStdoutFrame(p.attachConn, stdout)
 		}
 		p.attachConn.Close()
 		p.statusCh <- container.WaitResponse{StatusCode: int64(exitCode)}
 	}()
-	return nil
+	return client.ContainerStartResult{}, nil
 }
 
-func (f *fakeDockerClient) ContainerRemove(_ context.Context, _ string, _ container.RemoveOptions) error {
-	return nil
+func (f *fakeDockerClient) ContainerRemove(_ context.Context, _ string, _ client.ContainerRemoveOptions) (client.ContainerRemoveResult, error) {
+	return client.ContainerRemoveResult{}, nil
 }
 
-func (f *fakeDockerClient) ImagePull(_ context.Context, _ string, _ image.PullOptions) (io.ReadCloser, error) {
-	return io.NopCloser(strings.NewReader("")), nil
+func (f *fakeDockerClient) ImagePull(_ context.Context, _ string, _ client.ImagePullOptions) (client.ImagePullResponse, error) {
+	return fakePullResponse{ReadCloser: io.NopCloser(strings.NewReader(""))}, nil
 }
 
-func (f *fakeDockerClient) ImageInspect(ctx context.Context, _ string, _ ...client.ImageInspectOption) (image.InspectResponse, error) {
-	return image.InspectResponse{}, nil
+// fakePullResponse is what the client returns for a pull: a stream, plus the two ways
+// of reading it the api offers.
+type fakePullResponse struct {
+	io.ReadCloser
+}
+
+func (fakePullResponse) JSONMessages(context.Context) iter.Seq2[jsonstream.Message, error] {
+	return func(func(jsonstream.Message, error) bool) {}
+}
+
+func (fakePullResponse) Wait(context.Context) error { return nil }
+
+func (f *fakeDockerClient) ImageInspect(_ context.Context, _ string, _ ...client.ImageInspectOption) (client.ImageInspectResult, error) {
+	return client.ImageInspectResult{}, nil
+}
+
+// writeStdoutFrame multiplexes the payload the way the daemon does, which is what
+// stdcopy.StdCopy unframes on the other side.
+func writeStdoutFrame(w io.Writer, payload string) {
+	header := make([]byte, 8)
+	header[0] = byte(stdcopy.Stdout)
+	binary.BigEndian.PutUint32(header[4:], uint32(len(payload))) // nolint:gosec // a test payload is small
+	_, _ = w.Write(header)
+	_, _ = io.WriteString(w, payload)
+}
+
+// listModelsCmd is the listing container's command, as testdata/with-handlers declares it.
+const listModelsCmd = "/app/list_models.sh"
+
+// listingWith wraps model entries in the envelope the listing command prints.
+func listingWith(entries ...string) string {
+	return `{"event":"info","models":[` + strings.Join(entries, ",") + `]}`
 }
 
 func TestGetModelByID_WithDockerMock(t *testing.T) {
@@ -148,49 +195,59 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		})
 		idx := loadHandlersTestIndex(t, cli)
 
-		model, err := idx.GetModelByID(t.Context(), "piper-tts-en")
+		model, err := idx.NewLookup().ByID(t.Context(), "piper-tts-en")
 		require.NoError(t, err)
 		require.NotNil(t, model)
 		assert.Equal(t, uint64(46*1024*1024), model.Size)
 	})
 
-	t.Run("ei:efficientnet-b4 not installed: check exits 1 with error event", func(t *testing.T) {
+	t.Run("ei:efficientnet-b4 not installed: the listing reports it absent", func(t *testing.T) {
 		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
-			// check action → model not present (script signals this via error event + exit 0)
-			return "{\"event\":\"error\",\"description\":\"model not installed\"}\n", 0
+			return listingWith(`{"id":"ei:efficientnet-b4","installed":false,"model_size_mb":89}`), 0
 		})
 		idx := loadHandlersTestIndex(t, cli)
 
-		model, err := idx.GetModelByID(t.Context(), "ei:efficientnet-b4")
+		model, err := idx.NewLookup().ByID(t.Context(), "ei:efficientnet-b4")
 		require.NoError(t, err)
 		require.NotNil(t, model)
 		assert.Equal(t, NotInstalledStatus, model.Status)
 		assert.Equal(t, uint64(89*1024*1024), model.Size)
 	})
 
-	t.Run("ei:efficientnet-b4 installed: check exits 0, size from metadata", func(t *testing.T) {
+	t.Run("ei:efficientnet-b4 installed: size falls back to the declared one", func(t *testing.T) {
 		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
-			// check action → model is present (script signals this via info event + exit 0)
-			return "{\"event\":\"info\"}\n", 0
+			return listingWith(`{"id":"ei:efficientnet-b4","installed":true,"model_size_mb":89}`), 0
 		})
 		idx := loadHandlersTestIndex(t, cli)
 
-		model, err := idx.GetModelByID(t.Context(), "ei:efficientnet-b4")
+		model, err := idx.NewLookup().ByID(t.Context(), "ei:efficientnet-b4")
 		require.NoError(t, err)
 		require.NotNil(t, model)
 		assert.Equal(t, InstalledStatus, model.Status)
 		assert.Equal(t, uint64(89*1024*1024), model.Size)
 	})
 
-	t.Run("ei:efficientnet-b4 check script crashes: returns error", func(t *testing.T) {
+	t.Run("listing fails: returns an error rather than a declared status", func(t *testing.T) {
 		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
-			// no info event → treated as unexpected failure
 			return "", 1
 		})
 		idx := loadHandlersTestIndex(t, cli)
 
-		_, err := idx.GetModelByID(t.Context(), "ei:efficientnet-b4")
+		_, err := idx.NewLookup().ByID(t.Context(), "ei:efficientnet-b4")
 		require.Error(t, err)
+	})
+
+	t.Run("listing fails: an id nothing declares is absent, not an error", func(t *testing.T) {
+		// Only the listing can find an undeclared model, so a listing that did not run has
+		// not found it. A failure here would turn "no such model" into a 500.
+		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
+			return "", 1
+		})
+		idx := loadHandlersTestIndex(t, cli)
+
+		model, err := idx.NewLookup().ByID(t.Context(), "no-such-model-id")
+		require.NoError(t, err)
+		assert.Nil(t, model)
 	})
 
 	t.Run("ei-model-990187-1 custom model: always installed, no Docker call", func(t *testing.T) {
@@ -200,9 +257,293 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		})
 		idx := loadHandlersTestIndex(t, cli)
 
-		model, err := idx.GetModelByID(t.Context(), "ei-model-990187-1")
+		model, err := idx.NewLookup().ByID(t.Context(), "ei-model-990187-1")
 		require.NoError(t, err)
 		require.NotNil(t, model)
 		assert.Equal(t, InstalledStatus, model.Status)
 	})
+}
+
+// TestGetModelsMergesTheListing covers what the listing adds to a model the index knows:
+// the transfer in flight, and the link the record kept.
+func TestGetModelsMergesTheListing(t *testing.T) {
+	t.Run("a transfer in flight is its own status", func(t *testing.T) {
+		const listingOutput = `{"event":"info","models":[
+			{"id":"ei:efficientnet-b4","name":"EfficientNet-B4","handler":"ei-handler","installed":false,"downloading":true,"model_size_mb":89},
+			{"id":"piper-tts-en","name":"Piper TTS","handler":"ai-hub-handler","installed":true,"model_size_mb":46}
+		]}`
+
+		cli := newFakeDockerClient(func(_ string, cmd []string) (string, int) {
+			if len(cmd) > 0 && cmd[0] == listModelsCmd {
+				return listingOutput, 0
+			}
+			return "", 0
+		})
+
+		dir := paths.New("testdata/with-handlers")
+		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+		require.NoError(t, err)
+
+		models, err := idx.NewLookup().All(t.Context())
+		require.NoError(t, err)
+		byID := func(id string) *AIModel {
+			t.Helper()
+			for i := range models {
+				if models[i].ID == id {
+					return &models[i]
+				}
+			}
+			t.Fatalf("model %q missing from the index", id)
+			return nil
+		}
+
+		downloading := byID("ei:efficientnet-b4")
+		assert.Equal(t, DownloadingStatus, downloading.Status, "a transfer in flight is its own status")
+
+		// The field is absent for this entry: it must not inherit the neighbor's.
+		installed := byID("piper-tts-en")
+		assert.Equal(t, InstalledStatus, installed.Status)
+	})
+
+	t.Run("the record carries the link a model was downloaded from", func(t *testing.T) {
+		const listingOutput = `{"event":"info","models":[
+			{"id":"llamacpp:ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0",
+			 "name":"ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0",
+			 "handler":"llamacpp","model_origin":"user","installed":true,
+			 "download_metadata":{
+				"downloaded_at":"2026-09-02T09:04:32Z",
+				"handler":"hf-handler",
+				"model_id":"llamacpp:ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0",
+				"model_origin":"user",
+				"inputs":{
+					"models_repository":"llamacpp",
+					"model_directory":"ggml-org/SmolVLM-256M-Instruct-GGUF",
+					"model_url":"https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/SmolVLM-256M-Instruct-Q8_0.gguf",
+					"model_mmproj_url":"https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-256M-Instruct-Q8_0.gguf"}}},
+			{"id":"ei:efficientnet-b4","name":"EfficientNet-B4","handler":"ei-handler","installed":true,
+			 "download_metadata":{
+				"downloaded_at":"2026-08-30T11:02:00Z",
+				"handler":"ei-handler",
+				"model_id":"ei:efficientnet-b4",
+				"model_origin":"builtin",
+				"inputs":{"ei_project_id":"948887","ei_impulse_id":"4"}}}
+		]}`
+
+		cli := newFakeDockerClient(func(_ string, cmd []string) (string, int) {
+			if len(cmd) > 0 && cmd[0] == listModelsCmd {
+				return listingOutput, 0
+			}
+			return "", 0
+		})
+
+		dir := paths.New("testdata/with-handlers")
+		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+		require.NoError(t, err)
+
+		models, err := idx.NewLookup().All(t.Context())
+		require.NoError(t, err)
+		byID := func(id string) *AIModel {
+			t.Helper()
+			for i := range models {
+				if models[i].ID == id {
+					return &models[i]
+				}
+			}
+			t.Fatalf("model %q missing from the index", id)
+			return nil
+		}
+
+		// The record names a projection file, so the vlm brick is the one that can run it.
+		// Nothing declares this model, so its bricks are derived from what was downloaded.
+		vision := byID("llamacpp:ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0")
+		assert.Equal(t, []BrickConfig{{ID: vlmBrickID}}, vision.Bricks)
+		assert.Equal(t, map[string]string{
+			"source-model-url": "https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/SmolVLM-256M-Instruct-Q8_0.gguf",
+		}, vision.Metadata, "the link comes from the record the listing carries")
+
+		// This record names project and impulse numbers, not a link, so the entry's own
+		// metadata is all there is to report.
+		assert.Equal(t, map[string]string{"model_size_mb": "89", "source": "edgeimpulse"},
+			byID("ei:efficientnet-b4").Metadata)
+	})
+}
+
+// TestModelForBrick covers the write path: the lookup answers on plain ids, and reports
+// the model under its own id so the caller stores that.
+func TestModelForBrick(t *testing.T) {
+	cli := newFakeDockerClient(func(_ string, cmd []string) (string, int) {
+		if len(cmd) > 0 && cmd[0] == listModelsCmd {
+			return listingWith(`{"id":"ei:efficientnet-b4","installed":true,"model_size_mb":89}`), 0
+		}
+		return "", 0
+	})
+	dir := paths.New("testdata/with-handlers")
+	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+	require.NoError(t, err)
+
+	model, err := idx.NewLookup().ModelForBrick(t.Context(), "ei:efficientnet-b4", "arduino:image_classification")
+	require.NoError(t, err)
+	require.NotNil(t, model)
+	assert.Equal(t, "ei:efficientnet-b4", model.ID)
+
+	// A brick the model does not serve is not a lookup failure, it is simply no match.
+	other, err := idx.NewLookup().ModelForBrick(t.Context(), "ei:efficientnet-b4", "arduino:tts")
+	require.NoError(t, err)
+	assert.Nil(t, other)
+}
+
+// TestLookupRunsOneListing pins the reason Lookup exists: callers that query per brick
+// would otherwise pay a container start each, which on a board is seconds per brick.
+func TestLookupRunsOneListing(t *testing.T) {
+	var listings atomic.Int64
+	newIndex := func(t *testing.T) *ModelsIndex {
+		t.Helper()
+		cli := newFakeDockerClient(func(_ string, cmd []string) (string, int) {
+			if len(cmd) > 0 && cmd[0] == listModelsCmd {
+				listings.Add(1)
+			}
+			return listingWith(`{"id":"ei:efficientnet-b4","installed":true,"model_size_mb":89}`), 0
+		})
+		dir := paths.New("testdata/with-handlers")
+		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+		require.NoError(t, err)
+		return idx
+	}
+
+	t.Run("three queries share one listing", func(t *testing.T) {
+		listings.Store(0)
+		lookup := newIndex(t).NewLookup()
+
+		model, err := lookup.ByID(t.Context(), "ei:efficientnet-b4")
+		require.NoError(t, err)
+		require.NotNil(t, model)
+
+		_, err = lookup.ByBrick(t.Context(), "arduino:image_classification")
+		require.NoError(t, err)
+
+		supported, err := lookup.ModelForBrick(t.Context(), "ei:efficientnet-b4", "arduino:image_classification")
+		require.NoError(t, err)
+		assert.NotNil(t, supported)
+
+		assert.Equal(t, int64(1), listings.Load())
+	})
+
+	t.Run("a declared model needs no listing at all", func(t *testing.T) {
+		listings.Store(0)
+		lookup := newIndex(t).NewLookup()
+
+		model, err := lookup.ByID(t.Context(), "piper-tts-en")
+		require.NoError(t, err)
+		require.NotNil(t, model)
+
+		supported, err := lookup.ModelForBrick(t.Context(), "piper-tts-en", "arduino:tts")
+		require.NoError(t, err)
+		assert.NotNil(t, supported)
+
+		assert.Zero(t, listings.Load())
+	})
+
+	t.Run("each new Lookup takes its own listing", func(t *testing.T) {
+		listings.Store(0)
+		idx := newIndex(t)
+
+		_, err := idx.NewLookup().ByID(t.Context(), "ei:efficientnet-b4")
+		require.NoError(t, err)
+		_, err = idx.NewLookup().ByBrick(t.Context(), "arduino:image_classification")
+		require.NoError(t, err)
+
+		assert.Equal(t, int64(2), listings.Load())
+	})
+}
+
+// TestDownloadByURL pins what reaches the container for an undeclared model: the
+// hf-handler's script, the caller's URL, and models_repository fixed to llamacpp.
+// downloadedEntry is what the listing reports for the model these downloads write: the
+// record names the link, so the reconcile step can describe it.
+const downloadedEntry = `{"id":"llamacpp:org/repo/m-Q4_0","name":"org/repo/m-Q4_0","handler":"llamacpp",
+	"model_origin":"user","installed":true,"disk_size_mb":1,
+	"download_metadata":{"handler":"hf-handler","model_id":"llamacpp:org/repo/m-Q4_0",
+		"inputs":{"models_repository":"llamacpp","model_url":"llamacpp:org/repo:Q4_0"}}}`
+
+func TestDownloadByURL(t *testing.T) {
+	var gotCmd []string
+	var gotEnv []string
+	cli := newFakeDockerClientWithEnv(func(_ string, cmd, env []string) (string, int) {
+		if len(cmd) > 0 && cmd[0] == listModelsCmd {
+			return listingWith(downloadedEntry), 0
+		}
+		if len(cmd) > 0 && strings.Contains(cmd[0], "hf_model_downloader.sh") {
+			gotCmd, gotEnv = cmd, env
+		}
+		return `{"event":"info","description":"Downloaded to: /models/org/repo","artifacts":["/models/org/repo/m-Q4_0.gguf"],"model_id":"llamacpp:org/repo/m-Q4_0","size_mb":1}` + "\n", 0
+	})
+	dir := paths.New("testdata/with-handlers")
+	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+	require.NoError(t, err)
+
+	installed, err := idx.DownloadByURL(t.Context(), cli, "llamacpp:org/repo:Q4_0", "", platform.Platform{BoardName: "ventunoq"}, func(StreamMessage) {})
+	require.NoError(t, err)
+
+	require.NotEmpty(t, gotCmd, "the hf-handler download action must run")
+	assert.Contains(t, gotEnv, "model_url=llamacpp:org/repo:Q4_0")
+	assert.Contains(t, gotEnv, "models_repository=llamacpp")
+	assert.NotContains(t, strings.Join(gotEnv, " "), "model_mmproj_url", "an empty mmproj url must not be passed")
+
+	// The answer is the listed model, so the caller reports what a later GetModels reports.
+	assert.Equal(t, "llamacpp:org/repo/m-Q4_0", installed.ID)
+	assert.Equal(t, InstalledStatus, installed.Status)
+	assert.Equal(t, uint64(1024*1024), installed.Size)
+	assert.Equal(t, map[string]string{"source-model-url": "llamacpp:org/repo:Q4_0"}, installed.Metadata)
+}
+
+// A repository already on disk is not transferred again: the handler reports the model it
+// finds, with no "complete" event, and the route answers from that event alone.
+func TestDownloadByURLReportsAnInstalledModel(t *testing.T) {
+	cli := newFakeDockerClient(func(_ string, cmd []string) (string, int) {
+		if len(cmd) > 0 && cmd[0] == listModelsCmd {
+			return listingWith(downloadedEntry), 0
+		}
+		return `{"event":"info","description":"Model exists: org/repo (m-Q4_0.gguf)","artifacts":["/models/org/repo/m-Q4_0.gguf"],"model_id":"llamacpp:org/repo/m-Q4_0","size_mb":1}` + "\n", 0
+	})
+	dir := paths.New("testdata/with-handlers")
+	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+	require.NoError(t, err)
+
+	var messages []string
+	installed, err := idx.DownloadByURL(t.Context(), cli, "llamacpp:org/repo:Q4_0", "", platform.Platform{BoardName: "ventunoq"}, func(e StreamMessage) {
+		if e.IsData() {
+			messages = append(messages, e.GetData())
+		}
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "llamacpp:org/repo/m-Q4_0", installed.ID)
+	assert.Equal(t, uint64(1024*1024), installed.Size, "the size is the one on disk, not a transfer total")
+	assert.Equal(t, []string{"Model exists: org/repo (m-Q4_0.gguf)"}, messages)
+}
+
+// A model installed by its declaration reaches no container. The install route answers it
+// without calling Download at all, so this guards the other callers.
+func TestDownloadRefusesAModelWithNothingToDownload(t *testing.T) {
+	var started int
+	cli := newFakeDockerClient(func(_ string, _ []string) (string, int) {
+		started++
+		return "", 0
+	})
+	dir := paths.New("testdata/with-handlers")
+	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+	require.NoError(t, err)
+
+	// A nil docker client: a model that needs no download must not read it.
+	installed, err := idx.Install(t.Context(), nil, "piper-tts-en", platform.Platform{BoardName: "ventunoq"}, func(StreamMessage) {})
+
+	require.NoError(t, err)
+	assert.Equal(t, InstalledStatus, installed.Status, "a pre-loaded model is installed already")
+	assert.Zero(t, started, "a pre-loaded model must not start the downloader")
+
+	// The guard stays on the runner, for a caller that reaches it with such a model.
+	preLoaded, ok := idx.known("piper-tts-en")
+	require.True(t, ok)
+	_, err = idx.runDownload(t.Context(), cli, *preLoaded, platform.Platform{BoardName: "ventunoq"}, func(StreamMessage) {})
+	require.ErrorIs(t, err, ErrNoHandler)
 }

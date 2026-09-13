@@ -19,6 +19,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	dockerClient "github.com/docker/docker/client"
 	gCmp "github.com/google/go-cmp/cmp"
+	dockerClient "github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.bug.st/f"
@@ -243,10 +244,7 @@ func TestListApp(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
-	docker, err := dockerClient.NewClientWithOpts(
-		dockerClient.FromEnv,
-		dockerClient.WithAPIVersionNegotiation(),
-	)
+	docker, err := dockerClient.New(dockerClient.FromEnv)
 	require.NoError(t, err)
 	dockerCli, err := command.NewDockerCli(
 		command.WithAPIClient(docker),
@@ -404,10 +402,7 @@ func TestListAppsFiltersByBricksIndex(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
-	docker, err := dockerClient.NewClientWithOpts(
-		dockerClient.FromEnv,
-		dockerClient.WithAPIVersionNegotiation(),
-	)
+	docker, err := dockerClient.New(dockerClient.FromEnv)
 	require.NoError(t, err)
 	dockerCli, err := command.NewDockerCli(
 		command.WithAPIClient(docker),
@@ -483,10 +478,7 @@ func TestListAppsLocalBricksCompatibility(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
-	docker, err := dockerClient.NewClientWithOpts(
-		dockerClient.FromEnv,
-		dockerClient.WithAPIVersionNegotiation(),
-	)
+	docker, err := dockerClient.New(dockerClient.FromEnv)
 	require.NoError(t, err)
 	dockerCli, err := command.NewDockerCli(
 		command.WithAPIClient(docker),
@@ -752,10 +744,7 @@ func TestGetAppEnvironmentVariablesWithDefaults(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
-	docker, err := dockerClient.NewClientWithOpts(
-		dockerClient.FromEnv,
-		dockerClient.WithAPIVersionNegotiation(),
-	)
+	docker, err := dockerClient.New(dockerClient.FromEnv)
 	require.NoError(t, err)
 	dockerCli, err := command.NewDockerCli(
 		command.WithAPIClient(docker),
@@ -821,7 +810,7 @@ models:
 	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetDir(), cfg.ModelsDir(), cfg.CustomModelsDir(), nil, config.Configuration{})
 	require.NoError(t, err)
 
-	env := getAppEnvironmentVariables(t.Context(), appDesc, bricksIndex, modelIndex, platform.Platform{}, cfg)
+	env := hostEnvironment(t.Context(), appDesc.FullPath, cfg).Merge(appEnvironment(t.Context(), appDesc, bricksIndex, modelIndex, platform.Platform{}))
 	require.Equal(t, cfg.AppsDir().Join("app1").String(), env["APP_HOME"])
 	require.Equal(t, cfg.ModelsDir().String(), env["MODELS_PATH"])
 	require.Equal(t, "/models/ootb/ei/yolo-x-nano.eim", env["EI_OBJ_DETECTION_MODEL"])
@@ -833,10 +822,7 @@ func TestGetAppEnvironmentVariablesWithCustomModelOverrides(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
-	docker, err := dockerClient.NewClientWithOpts(
-		dockerClient.FromEnv,
-		dockerClient.WithAPIVersionNegotiation(),
-	)
+	docker, err := dockerClient.New(dockerClient.FromEnv)
 	require.NoError(t, err)
 	dockerCli, err := command.NewDockerCli(
 		command.WithAPIClient(docker),
@@ -902,7 +888,7 @@ models:
 	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetDir(), cfg.ModelsDir(), cfg.CustomModelsDir(), nil, config.Configuration{})
 	require.NoError(t, err)
 
-	env := getAppEnvironmentVariables(t.Context(), appDesc, bricksIndex, modelIndex, platform.Platform{}, cfg)
+	env := hostEnvironment(t.Context(), appDesc.FullPath, cfg).Merge(appEnvironment(t.Context(), appDesc, bricksIndex, modelIndex, platform.Platform{}))
 	require.Equal(t, cfg.AppsDir().Join("app1").String(), env["APP_HOME"])
 	require.Equal(t, "/home/arduino/.arduino-bricks/models/face-det.eim", env["EI_OBJ_DETECTION_MODEL"])
 	require.Equal(t, "/home/arduino/.arduino-bricks/models", env["CUSTOM_MODEL_PATH"])
@@ -913,10 +899,7 @@ func TestGetAppEnvironmentVariablesUsingMultipleBricks(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
-	docker, err := dockerClient.NewClientWithOpts(
-		dockerClient.FromEnv,
-		dockerClient.WithAPIVersionNegotiation(),
-	)
+	docker, err := dockerClient.New(dockerClient.FromEnv)
 	require.NoError(t, err)
 	dockerCli, err := command.NewDockerCli(
 		command.WithAPIClient(docker),
@@ -985,7 +968,7 @@ models:
 	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetDir(), cfg.ModelsDir(), cfg.CustomModelsDir(), nil, config.Configuration{})
 	require.NoError(t, err)
 
-	env := getAppEnvironmentVariables(t.Context(), appDesc, bricksIndex, modelIndex, platform.Platform{}, cfg)
+	env := hostEnvironment(t.Context(), appDesc.FullPath, cfg).Merge(appEnvironment(t.Context(), appDesc, bricksIndex, modelIndex, platform.Platform{}))
 	require.Equal(t, "/models/path/obj.eim", env["EI_OBJ_DETECTION_MODEL"])
 	require.Equal(t, "/models/path/video.eim", env["EI_V_OBJ_DETECTION_MODEL"])
 	require.Equal(t, "/default/video/value", env["MY_VIDEO_ENV"])
