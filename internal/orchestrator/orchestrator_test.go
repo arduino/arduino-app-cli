@@ -15,10 +15,8 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/flags"
-	dockertypes "github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	dockerClient "github.com/docker/docker/client"
 	gCmp "github.com/google/go-cmp/cmp"
+	"github.com/moby/moby/api/types/container"
 	dockerClient "github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -525,17 +523,17 @@ type fakeContainerClient struct {
 	err        error
 }
 
-func (f *fakeContainerClient) ContainerList(_ context.Context, _ container.ListOptions) ([]container.Summary, error) {
+func (f *fakeContainerClient) ContainerList(_ context.Context, _ dockerClient.ContainerListOptions) (dockerClient.ContainerListResult, error) {
 	if f.err != nil {
-		return nil, f.err
+		return dockerClient.ContainerListResult{}, f.err
 	}
-	return f.containers, nil
+	return dockerClient.ContainerListResult{Items: f.containers}, nil
 }
 
 // Ping reports the daemon as unreachable so that the DockerCli initialization
 // does not try to negotiate the API version with this fake client.
-func (f *fakeContainerClient) Ping(_ context.Context) (dockertypes.Ping, error) {
-	return dockertypes.Ping{}, errors.New("docker daemon not reachable")
+func (f *fakeContainerClient) Ping(_ context.Context, _ dockerClient.PingOptions) (dockerClient.PingResult, error) {
+	return dockerClient.PingResult{}, errors.New("docker daemon not reachable")
 }
 
 func TestListActiveApps(t *testing.T) {

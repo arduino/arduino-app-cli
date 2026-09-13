@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/arduino/arduino-cli/commands"
