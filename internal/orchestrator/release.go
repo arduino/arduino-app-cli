@@ -516,6 +516,9 @@ func buildPythonEnv(ctx context.Context, docker command.Cli, pythonImage string,
 	return nil
 }
 
+// ReleaseFirmwareFileName is the compiled sketch a release ships in its prebuild dir.
+const ReleaseFirmwareFileName = "sketch.fw"
+
 func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platform.Platform, destPath *paths.Path, verbose bool, cb func(StreamMessage)) error {
 	output := NewCallbackWriter(func(line string) {
 		cb(StreamMessage{data: line})
@@ -572,7 +575,7 @@ func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platfo
 		// recipe. Without it the firmware file generation asks for the user fields
 		// of an empty protocol and fails.
 		Port:                 &rpc.Port{Protocol: "default"},
-		UploadToFirmwareFile: new(destPath.Join("sketch.fw").String()),
+		UploadToFirmwareFile: new(destPath.Join(ReleaseFirmwareFileName).String()),
 	}, uploadStream); err != nil {
 		return fmt.Errorf("failed to create the sketch artifact: %w", err)
 	}
