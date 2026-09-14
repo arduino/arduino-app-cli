@@ -80,7 +80,7 @@ type appPsResult struct {
 func (r appPsResult) String() string {
 	t := table.NewWriter()
 	t.SetStyle(tablestyle.CustomCleanStyle)
-	t.AppendHeader(table.Row{"ID", "NAME", "STATUS"})
+	t.AppendHeader(table.Row{"ID", "STATUS", "NAME"})
 
 	for _, app := range r.Apps {
 		t.AppendRow(table.Row{
