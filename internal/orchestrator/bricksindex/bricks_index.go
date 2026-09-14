@@ -121,6 +121,7 @@ type Brick struct {
 	Ports                       []string                  `yaml:"ports,omitempty"`
 	ModelName                   string                    `yaml:"model_name,omitempty"`
 	ModelByBoard                []ModelsBoard             `yaml:"model_by_boards,omitempty"`
+	AIFrameworksCompatibility   []string                  `yaml:"ai_frameworks_compatibility,omitempty"`
 	MountDevicesIntoContainer   bool                      `yaml:"mount_devices_into_container,omitempty"`
 	RequiredDevices             []peripherals.DeviceClass `yaml:"required_devices,omitempty"`
 	RequiresServices            RequiresServices          `yaml:"requires_services,omitempty"`
