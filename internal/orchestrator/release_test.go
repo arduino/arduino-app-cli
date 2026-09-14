@@ -220,7 +220,7 @@ func TestBuildSketch(t *testing.T) {
 		require.False(t, hasSketch, "this is the gate BuildRelease builds the sketch on")
 
 		destPath := paths.New(t.TempDir())
-		err = buildSketch(context.Background(), pythonApp, unoQPlatform, destPath, false, noProgress)
+		err = buildSketch(context.Background(), pythonApp, unoQPlatform, paths.New(t.TempDir()), destPath, false, noProgress)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no sketch path found")
 		assert.False(t, destPath.Join("sketch.fw").Exist(), "no firmware without a sketch")
@@ -234,7 +234,7 @@ func TestBuildSketch(t *testing.T) {
 
 		// The compile needs the platform of the profile, so the build stops here.
 		destPath := paths.New(t.TempDir())
-		err = buildSketch(context.Background(), sketchApp, unoQPlatform, destPath, false, noProgress)
+		err = buildSketch(context.Background(), sketchApp, unoQPlatform, paths.New(t.TempDir()), destPath, false, noProgress)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no default profile")
 		assert.False(t, destPath.Join("sketch.fw").Exist())

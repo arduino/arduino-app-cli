@@ -126,8 +126,7 @@ func TestAppBuild(t *testing.T) {
 					stdout, stderr, err := cli.Run(ctx, buildArgs...)
 					require.NoError(t, err, "stdout: %s\nstderr: %s", stdout, stderr)
 
-					// The build writes nothing in the app: it is staged and built outside of it,
-					// and the runner gets the staged copy read-only.
+					// The app is only read: what ships is the staged copy.
 					assert.Equal(t, asAuthored, appEntries(t, appDir))
 
 					archives, err := outputDir.ReadDir()
@@ -254,12 +253,13 @@ func ensurePlatformInstalled(t *testing.T, platformID string) {
 	}, installStream))
 }
 
-// appEntries is every path of the app folder, relative and sorted: a build that writes
-// in the app is a build that ships something else than what was authored.
+// appEntries is every path of the app folder, relative and sorted, .cache apart: the
+// sketch is compiled with the cache of the app, as a start does.
 func appEntries(t *testing.T, appDir *paths.Path) []string {
 	t.Helper()
 
-	entries, err := appDir.ReadDirRecursive()
+	notCache := paths.FilterOutNames(".cache")
+	entries, err := appDir.ReadDirRecursiveFiltered(notCache, notCache)
 	require.NoError(t, err)
 	names := make([]string, 0, len(entries))
 	for _, entry := range entries {
