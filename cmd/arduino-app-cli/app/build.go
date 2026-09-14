@@ -7,6 +7,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -19,10 +20,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -109,24 +107,15 @@ func buildHandler(ctx context.Context, cfg config.Configuration, appToBuild app.
 	// First: creating it is what fills the asset dir the indexes are read from.
 	provisioner := servicelocator.GetProvisioner()
 
-	targetPlatform, bricksIndex, servicesIndex, modelsIndex, err := targetIndexes(cfg, req.Target)
-	if err != nil {
-		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
-	}
-
 	out, _, getResult := feedback.OutputStreams()
 
 	result, err := orchestrator.BuildRelease(
 		ctx,
 		servicelocator.GetDockerClient(),
 		provisioner,
-		modelsIndex,
-		bricksIndex,
-		servicesIndex,
 		appToBuild,
 		req,
 		cfg,
-		targetPlatform,
 		func(message orchestrator.StreamMessage) {
 			switch message.GetType() {
 			case orchestrator.ProgressType:
@@ -137,6 +126,9 @@ func buildHandler(ctx context.Context, cfg config.Configuration, appToBuild app.
 		},
 	)
 	if err != nil {
+		if errors.Is(err, orchestrator.ErrBadRequest) {
+			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+		}
 		feedback.Fatal(fmt.Sprintf("[ERROR] %s", err), feedback.ErrGeneric)
 	}
 
@@ -145,36 +137,6 @@ func buildHandler(ctx context.Context, cfg config.Configuration, appToBuild app.
 		Output:             getResult(),
 	})
 	return nil
-}
-
-// targetIndexes are the indexes of the board the release is built for: which bricks
-// and services exist, and which compose variant they use, depend on it.
-func targetIndexes(cfg config.Configuration, target string) (platform.Platform, *bricksindex.BricksIndex, *servicesindex.ServicesIndex, *modelsindex.ModelsIndex, error) {
-	if target == "" {
-		return servicelocator.GetPlatform(), servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), servicelocator.GetModelsIndex(), nil
-	}
-
-	targetPlatform, ok := platform.ForBoard(target)
-	if !ok {
-		return platform.Platform{}, nil, nil, nil, fmt.Errorf("unknown target board %q: expected one of %s", target, strings.Join(platform.SupportedBoards(), ", "))
-	}
-	if targetPlatform.BoardName == servicelocator.GetPlatform().BoardName {
-		return servicelocator.GetPlatform(), servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), servicelocator.GetModelsIndex(), nil
-	}
-
-	bricksIndex, err := bricksindex.Load(targetPlatform, cfg.AssetDir())
-	if err != nil {
-		return platform.Platform{}, nil, nil, nil, fmt.Errorf("failed to load the bricks index of %s: %w", target, err)
-	}
-	servicesIndex, err := servicesindex.Load(targetPlatform, cfg.AssetDir().Join("services"))
-	if err != nil {
-		return platform.Platform{}, nil, nil, nil, fmt.Errorf("failed to load the services index of %s: %w", target, err)
-	}
-	modelsIndex, err := modelsindex.Load(targetPlatform, cfg.AssetDir(), cfg.ModelsDir(), cfg.CustomModelsDir(), servicelocator.GetDockerClient().Client(), cfg)
-	if err != nil {
-		return platform.Platform{}, nil, nil, nil, fmt.Errorf("failed to load the models index of %s: %w", target, err)
-	}
-	return targetPlatform, bricksIndex, servicesIndex, modelsIndex, nil
 }
 
 type buildAppResult struct {

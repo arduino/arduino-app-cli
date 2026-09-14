@@ -103,17 +103,19 @@ func BuildRelease(
 	ctx context.Context,
 	docker command.Cli,
 	provisioner *Provision,
-	modelsIndex *modelsindex.ModelsIndex,
-	bricksIndex *bricksindex.BricksIndex,
-	servicesIndex *servicesindex.ServicesIndex,
 	appToBuild app.ArduinoApp,
 	req BuildReleaseRequest,
 	cfg config.Configuration,
-	plat platform.Platform,
 	cb func(StreamMessage),
 ) (BuildReleaseResult, error) {
 	if cb == nil {
 		cb = func(StreamMessage) {}
+	}
+
+	// Loaded per build, never by the caller: an index must be the target's own.
+	plat, bricksIndex, servicesIndex, modelsIndex, err := targetIndexes(cfg, docker, req.Target)
+	if err != nil {
+		return BuildReleaseResult{}, err
 	}
 
 	bricksIndex = bricksIndex.WithAppBricks(appToBuild.LocalBricks)
@@ -349,6 +351,33 @@ func releaseLibraries(ctx context.Context, arduinoApp app.ArduinoApp) []string {
 
 // A gzipped tar and not a zip: the venv needs symlinks and exec bits preserved.
 const ReleaseArchiveExt = ".arduinoapp"
+
+// targetIndexes are the indexes of the board the release is built for: which bricks and
+// services exist, and which compose variant they use, depend on it.
+func targetIndexes(cfg config.Configuration, docker command.Cli, target string) (platform.Platform, *bricksindex.BricksIndex, *servicesindex.ServicesIndex, *modelsindex.ModelsIndex, error) {
+	plat := platform.GetPlatform(cfg.DataDir())
+	if target != "" {
+		targetPlatform, ok := platform.ForBoard(target)
+		if !ok {
+			return platform.Platform{}, nil, nil, nil, fmt.Errorf("%w: unknown target board %q: expected one of %s", ErrBadRequest, target, strings.Join(platform.SupportedBoards(), ", "))
+		}
+		plat = targetPlatform
+	}
+
+	bricksIndex, err := bricksindex.Load(plat, cfg.AssetDir())
+	if err != nil {
+		return platform.Platform{}, nil, nil, nil, fmt.Errorf("failed to load the bricks index of %s: %w", plat.BoardName, err)
+	}
+	servicesIndex, err := servicesindex.Load(plat, cfg.AssetDir().Join("services"))
+	if err != nil {
+		return platform.Platform{}, nil, nil, nil, fmt.Errorf("failed to load the services index of %s: %w", plat.BoardName, err)
+	}
+	modelsIndex, err := modelsindex.Load(plat, cfg.AssetDir(), cfg.ModelsDir(), cfg.CustomModelsDir(), docker.Client(), cfg)
+	if err != nil {
+		return platform.Platform{}, nil, nil, nil, fmt.Errorf("failed to load the models index of %s: %w", plat.BoardName, err)
+	}
+	return plat, bricksIndex, servicesIndex, modelsIndex, nil
+}
 
 // releaseArchivePath resolves where the archive goes, without creating it.
 func releaseArchivePath(releaseName string, req BuildReleaseRequest) (*paths.Path, error) {
