@@ -233,13 +233,7 @@ func StartApp(
 
 		cb(StreamMessage{data: "python downloading"})
 
-		images := make([]string, 0, len(prj.Services))
-		for _, service := range prj.Services {
-			if service.Image != "" {
-				images = append(images, service.Image)
-			}
-		}
-		if err := dockerhelper.PullImages(ctx, docker.Client(), images,
+		if err := dockerhelper.PullImages(ctx, docker.Client(), dockerhelper.ComposeImages(prj),
 			func(line string) { cb(StreamMessage{data: line}) },
 			func(label string, curr, total int64) {
 				// Downloading the images is from 20% to 80% of the start of an app.
