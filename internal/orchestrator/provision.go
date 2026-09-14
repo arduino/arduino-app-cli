@@ -59,6 +59,7 @@ type service struct {
 type Provision struct {
 	docker      command.Cli
 	pythonImage string
+	appsDir     *paths.Path
 }
 
 func NewProvision(
@@ -68,6 +69,7 @@ func NewProvision(
 	provision := &Provision{
 		docker:      docker,
 		pythonImage: cfg.PythonImage,
+		appsDir:     cfg.AppsDir(),
 	}
 
 	dynamicProvisionDir := cfg.AssetDir()
@@ -98,10 +100,10 @@ func NewProvision(
 // Resolve turns the app bricks and services into the compose templates it is started
 // from, deriving them from the app and the target board and never from this host.
 func (p *Provision) Resolve(
+	arduinoApp *app.ArduinoApp,
 	genPath *paths.Path,
 	bricksIndex *bricksindex.BricksIndex,
 	servicesIndex *servicesindex.ServicesIndex,
-	arduinoApp *app.ArduinoApp,
 	cfg config.Configuration,
 	appEnv types.Mapping,
 	platform platform.Platform,
@@ -138,7 +140,11 @@ func (p *Provision) Render(
 		return nil, fmt.Errorf("provisioning failed: %s not found, the app was not resolved", app.MainTemplateFileName)
 	}
 
-	prj, err := renderComposeFile(ctx, arduinoApp, env, secrets)
+	// The docker project names what docker creates, so it is the app installed here and
+	// not the version of it: an upgrade must replace the containers of the one before.
+	projectName := composeProjectName(arduinoApp.FullPath, p.appsDir)
+
+	prj, err := renderComposeFile(ctx, arduinoApp, env, secrets, projectName)
 	if err != nil {
 		return nil, fmt.Errorf("provisioning failed to render the app compose file: %w", err)
 	}

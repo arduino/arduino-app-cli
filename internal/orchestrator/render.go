@@ -56,7 +56,7 @@ var hostFuncs = template.FuncMap{
 
 // renderComposeFile writes the compose file the app is started with: the template
 // evaluated on this board, with its includes merged in.
-func renderComposeFile(ctx context.Context, arduinoApp *app.ArduinoApp, env, secrets types.Mapping) (*types.Project, error) {
+func renderComposeFile(ctx context.Context, arduinoApp *app.ArduinoApp, env, secrets types.Mapping, projectName string) (*types.Project, error) {
 	// The overrides are a second compose file, merged over the main one. It is absent
 	// when no included compose declares a service.
 	templateFiles := paths.PathList{arduinoApp.AppComposeTemplateFilePath()}
@@ -87,7 +87,7 @@ func renderComposeFile(ctx context.Context, arduinoApp *app.ArduinoApp, env, sec
 			Environment: secrets.Clone().Merge(env),
 		},
 		// Relative paths are resolved now: the rendered file is read from elsewhere.
-		func(o *loader.Options) { o.ResolvePaths = true },
+		func(o *loader.Options) { o.ResolvePaths = true; o.SetProjectName(projectName, true) },
 	)
 	if err != nil {
 		return nil, err
