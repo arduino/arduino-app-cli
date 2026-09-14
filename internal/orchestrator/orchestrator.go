@@ -237,7 +237,20 @@ func StartApp(
 		}
 
 		slog.Debug("starting app", slog.String("project", prj.Name))
-		if err := dockerhelper.ComposeUp(ctx, docker, prj, func(line string) { cb(StreamMessage{data: line}) }); err != nil {
+		line := func(line string) { cb(StreamMessage{data: line}) }
+		err = dockerhelper.ComposeUp(ctx, docker, prj, line)
+		if dockerhelper.IsAddressPoolExhausted(err) {
+			// The board has no subnet left, so the apps that are not running give up
+			// the network they kept, and this app is started once more.
+			cb(StreamMessage{data: "No network left on this board, freeing the ones of the apps that are not running"})
+			freed, pruneErr := pruneIdleAppNetworks(ctx, docker.Client(), prj.Name)
+			if pruneErr != nil {
+				slog.Warn("failed to free the networks of the idle apps", slog.String("error", pruneErr.Error()))
+			}
+			slog.Debug("freed app networks", slog.Int("count", freed))
+			err = dockerhelper.ComposeUp(ctx, docker, prj, line)
+		}
+		if err != nil {
 			return err
 		}
 	}
