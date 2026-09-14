@@ -37,16 +37,14 @@ func newBrickConfigCmd(cfg config.Configuration) *cobra.Command {
 	var model string
 	cmd := &cobra.Command{
 		Use:   "config app_path brick_id [name=value...]",
-		Short: "Configure a brick of an Arduino App",
-		Long: `Configure a brick of an Arduino App.
+		Short: "Set the value of a brick's variable in an Arduino App",
+		Long: `Set the value of a brick's variable in an Arduino App.
 
 The variables are given as name=value pairs, and an empty value clears one. Only the
 variables named are changed, as the app API does it.
 
-An app installed from a release takes one change and no other: its secrets. A build
-freezes everything else, and a secret is what a build cannot ship, so the board the
-release is installed on is where the values are set. A name that is not a secret of
-the brick is refused there, and so is the model.`,
+If the given app is an App Release, then only brick variables that are secret can be
+changed.`,
 		Args: cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			variables, err := parseBrickVariables(args[2:])
