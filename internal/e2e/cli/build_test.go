@@ -52,6 +52,9 @@ func TestAppBuild(t *testing.T) {
 		// archiveName is the file --output is given, so a case proves the release folder
 		// follows it. Empty leaves the naming to the cli.
 		archiveName string
+		// includeData builds with --include-data, and the case writes a data folder to
+		// ship.
+		includeData bool
 	}{
 		{
 			name:        "an app with no sketch and no bricks",
@@ -71,6 +74,12 @@ func TestAppBuild(t *testing.T) {
 			newArgs:      []string{"--no-sketch"},
 			requirements: "six==1.17.0\n",
 		},
+		{
+			name:        "an app with a data folder",
+			appName:     "data-app",
+			newArgs:     []string{"--no-sketch"},
+			includeData: true,
+		},
 		// TODO: an app with a sketch, once the firmware it flashes ships in the release.
 	}
 	for _, test := range tests {
@@ -87,6 +96,10 @@ func TestAppBuild(t *testing.T) {
 			if test.requirements != "" {
 				require.NoError(t, appDir.Join("python", "requirements.txt").WriteFile([]byte(test.requirements)))
 			}
+			if test.includeData {
+				require.NoError(t, appDir.Join("data").MkdirAll())
+				require.NoError(t, appDir.Join("data", "keep.txt").WriteFile([]byte("state\n")))
+			}
 			asAuthored := appEntries(t, appDir)
 
 			outputDir := paths.New(t.TempDir())
@@ -94,8 +107,12 @@ func TestAppBuild(t *testing.T) {
 			if test.archiveName != "" {
 				output = outputDir.Join(test.archiveName)
 			}
+			buildArgs := []string{"app", "build", appDir.String(), "--output", output.String()}
+			if test.includeData {
+				buildArgs = append(buildArgs, "--include-data")
+			}
 			buildStart := time.Now().UTC().Truncate(time.Second)
-			stdout, stderr, err = cli.Run(ctx, "app", "build", appDir.String(), "--output", output.String())
+			stdout, stderr, err = cli.Run(ctx, buildArgs...)
 			require.NoError(t, err, "stdout: %s\nstderr: %s", stdout, stderr)
 
 			// The build writes nothing in the app: it is staged and built outside of it,
@@ -166,10 +183,17 @@ func TestAppBuild(t *testing.T) {
 			assert.Equal(t, test.requirements != "", ships(releaseName+"/prebuild/installed_requirements.txt"),
 				"the install marker does not match the requirements of the app")
 
-			// No data dir ships, and the app .cache is resolved anew by the build.
+			// The data of the app ships at the root, only when it is asked for. Its
+			// .cache never ships: the build resolves it anew.
+			assert.Equal(t, test.includeData, slices.Contains(names, releaseName+"/data/keep.txt"),
+				"the data folder does not match --include-data")
 			for _, name := range names {
-				assert.NotContains(t, name, "/data/")
+				// Whatever ships, src is the app as authored and holds no state.
 				assert.NotContains(t, name, "/src/.cache")
+				assert.NotContains(t, name, "/src/data")
+				if !test.includeData {
+					assert.NotContains(t, name, "/data/")
+				}
 			}
 		})
 	}

@@ -36,8 +36,9 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
-// A release is an app frozen with all its dependencies: <name>-<date>-<target>/
-// holds release.yaml, src/ as authored and prebuild/, which becomes .cache/ on install.
+// A release is an app frozen with all its dependencies: <name>-<date>-<target>/ holds
+// release.yaml, src/ as authored, prebuild/, which becomes .cache/ on install, and
+// data/ when the build is asked to ship it.
 
 type BuildReleaseRequest struct {
 	// Target defaults to the board running the build.
@@ -45,8 +46,10 @@ type BuildReleaseRequest struct {
 	// Notes is the release note, markdown, and goes in the manifest as it is given.
 	Notes string
 	// Output is the archive, or the directory to write it in. Defaults to the cwd.
-	Output    *paths.Path
-	Overwrite bool
+	Output *paths.Path
+	// IncludeData ships the data folder of the app, at the root of the archive.
+	IncludeData bool
+	Overwrite   bool
 }
 
 type BuildReleaseResult struct {
@@ -159,6 +162,13 @@ func BuildRelease(
 	cb(StreamMessage{progress: &Progress{Name: "copying the app", Progress: 0.0}})
 	if err := stageReleaseSrc(appToBuild, srcDir, bricksIndex); err != nil {
 		return BuildReleaseResult{}, err
+	}
+
+	// Data is state and not source, so it ships beside src and not in it.
+	if dataDir := appToBuild.FullPath.Join("data"); req.IncludeData && dataDir.IsDir() {
+		if err := dataDir.CopyDirTo(releaseDir.Join("data")); err != nil {
+			return BuildReleaseResult{}, fmt.Errorf("failed to copy the data folder: %w", err)
+		}
 	}
 
 	manifest := ReleaseManifest{
@@ -363,7 +373,7 @@ func releaseArchivePath(releaseName string, req BuildReleaseRequest) (*paths.Pat
 }
 
 // stageReleaseSrc copies the app folder as authored: .cache is resolved anew by the
-// build and data is created empty on install.
+// build and data is staged on its own, when it is asked for.
 func stageReleaseSrc(appToBuild app.ArduinoApp, srcDir *paths.Path, bricksIndex *bricksindex.BricksIndex) error {
 	if err := srcDir.MkdirAll(); err != nil {
 		return fmt.Errorf("failed to create the release src dir: %w", err)

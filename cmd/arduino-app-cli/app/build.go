@@ -28,10 +28,11 @@ import (
 
 func newBuildCmd(cfg config.Configuration) *cobra.Command {
 	var (
-		target    string
-		notes     string
-		output    string
-		overwrite bool
+		target      string
+		notes       string
+		output      string
+		includeData bool
+		overwrite   bool
 	)
 
 	cmd := &cobra.Command{
@@ -54,8 +55,9 @@ board defaults to the one running the build.`,
 			}
 
 			req := orchestrator.BuildReleaseRequest{
-				Target:    target,
-				Overwrite: overwrite,
+				Target:      target,
+				IncludeData: includeData,
+				Overwrite:   overwrite,
 			}
 			if notes != "" {
 				req.Notes = readReleaseNotes(notes)
@@ -79,6 +81,7 @@ board defaults to the one running the build.`,
 	cmd.Flags().StringVar(&target, "target", "", fmt.Sprintf("Board the release is built for (%s). Defaults to the board running the build", strings.Join(platform.SupportedBoards(), ", ")))
 	cmd.Flags().StringVar(&notes, "notes", "", "File with the release notes, or - to read them from the standard input")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output archive, which names the release folder as well, or the directory to write it in")
+	cmd.Flags().BoolVar(&includeData, "include-data", false, "Include data directory in the archive")
 	cmd.Flags().BoolVar(&overwrite, "overwrite", false, "Overwrite the output archive if it exists")
 
 	return cmd
