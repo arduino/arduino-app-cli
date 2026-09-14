@@ -435,6 +435,17 @@ func buildPythonEnv(ctx context.Context, docker command.Cli, pythonImage string,
 		return fmt.Errorf("failed to create the prebuild dir: %w", err)
 	}
 
+	// We create, and then delete, a mount point for the cache in src, which will point to the prebuild dir.
+	cacheMountPoint := srcDir.Join(".cache")
+	if err := cacheMountPoint.Mkdir(); err != nil {
+		return fmt.Errorf("failed to create the cache mount point: %w", err)
+	}
+	defer func() {
+		if err := cacheMountPoint.Remove(); err != nil {
+			slog.Warn("cannot remove the cache mount point", slog.String("path", cacheMountPoint.String()), slog.String("error", err.Error()))
+		}
+	}()
+
 	output := NewCallbackWriter(func(line string) {
 		cb(StreamMessage{data: line})
 	})
@@ -442,7 +453,7 @@ func buildPythonEnv(ctx context.Context, docker command.Cli, pythonImage string,
 		Image: pythonImage,
 		Cmd:   []string{"prepare"},
 		Binds: []string{
-			srcDir.String() + ":/app",
+			srcDir.String() + ":/app:ro",
 			prebuildDir.String() + ":/app/.cache",
 		},
 		Stdout: output,
