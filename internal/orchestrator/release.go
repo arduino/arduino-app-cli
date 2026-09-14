@@ -52,6 +52,8 @@ type BuildReleaseRequest struct {
 	// IncludeData ships the data folder of the app, at the root of the archive.
 	IncludeData bool
 	Overwrite   bool
+	// Verbose streams the sketch compile output, as a start does.
+	Verbose bool
 }
 
 type BuildReleaseResult struct {
@@ -60,9 +62,8 @@ type BuildReleaseResult struct {
 	Archive string `json:"archive"`
 }
 
-// ReleaseManifestFileName is the manifest at the root of the archive. It holds what a
-// board needs to list a release and to gate its install, so nothing here requires
-// opening the app it ships.
+// ReleaseManifestFileName is the manifest at the root of the archive: it holds what a
+// board needs to list a release and to gate its install, without opening the app.
 const ReleaseManifestFileName = "release.yaml"
 
 // ReleaseManifestSchema is the layout of the archive, not the version of the app: an
@@ -77,8 +78,7 @@ type ReleaseManifest struct {
 	// CreatedAt is when the build ran, UTC.
 	CreatedAt time.Time `yaml:"created_at"`
 	// Notes is the release note as it was authored, markdown, and is absent when none
-	// was given. It is held here and not in a file of its own: a reader must get every
-	// release fact without extracting anything else from the archive.
+	// was given. It is in the manifest so that a reader gets every release fact at once.
 	Notes     string         `yaml:"notes,omitempty"`
 	Bricks    []ReleaseBrick `yaml:"bricks,omitempty"`
 	Models    []ReleaseModel `yaml:"models,omitempty"`
@@ -110,8 +110,6 @@ func BuildRelease(
 	cfg config.Configuration,
 	cb func(StreamMessage),
 ) (BuildReleaseResult, error) {
-	verbose := false // TODO
-
 	if cb == nil {
 		cb = func(StreamMessage) {}
 	}
@@ -218,7 +216,7 @@ func BuildRelease(
 	// python only ships without a firmware.
 	if _, hasSketch := stagedApp.GetSketchPath(); hasSketch {
 		cb(StreamMessage{data: "building sketch", progress: &Progress{Name: "sketch", Progress: 80.0}})
-		if err := buildSketch(ctx, stagedApp, plat, prebuildDir, verbose, cb); err != nil {
+		if err := buildSketch(ctx, stagedApp, plat, prebuildDir, req.Verbose, cb); err != nil {
 			return BuildReleaseResult{}, err
 		}
 	}
@@ -348,8 +346,7 @@ func releaseModels(ctx context.Context, descriptor app.AppDescriptor, modelsInde
 }
 
 // releaseLibraries is the sketch libraries the app is built with, as name@version. An
-// app without a sketch has none, and a listing that fails leaves the manifest without
-// them: it is what a release is described by, never what it is built from.
+// app without a sketch has none, and a listing that fails leaves the manifest without them.
 func releaseLibraries(ctx context.Context, arduinoApp app.ArduinoApp) []string {
 	if _, hasSketch := arduinoApp.GetSketchPath(); !hasSketch {
 		return nil
@@ -570,10 +567,8 @@ func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platfo
 		SketchPath: sketchPath.String(),
 		ImportDir:  buildPath.String(),
 		Verbose:    verbose,
-		// There is no board to upload to: "default" is the protocol arduino-cli
-		// itself uses for portless uploads, and it selects the upload.tool.default
-		// recipe. Without it the firmware file generation asks for the user fields
-		// of an empty protocol and fails.
+		// There is no board to upload to: "default" is the protocol arduino-cli uses for
+		// portless uploads, and it selects the upload.tool.default recipe.
 		Port:                 &rpc.Port{Protocol: "default"},
 		UploadToFirmwareFile: new(destPath.Join(ReleaseFirmwareFileName).String()),
 	}, uploadStream); err != nil {
