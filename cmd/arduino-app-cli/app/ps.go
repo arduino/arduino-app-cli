@@ -66,9 +66,14 @@ func psHandler(ctx context.Context, showAll bool) {
 func filterAppsByStatus(apps []orchestrator.AppInfo, showAll bool) []orchestrator.AppInfo {
 	res := make([]orchestrator.AppInfo, 0, len(apps))
 	for _, a := range apps {
-		if psVisibleStatuses[a.Status] || (showAll && a.Status == orchestrator.StatusStopped) {
-			res = append(res, a)
-		}
+      switch a.Status {
+              case orchestrator.StatusStarting, orchestrator.StatusRunning, orchestrator.StatusStopping, orchestrator.StatusFailed:
+                      res = append(res, a)
+              case orchestrator.StatusStopped:
+                      if showAll {
+                              res = append(res, a)
+                      }
+              }
 	}
 	return res
 }
