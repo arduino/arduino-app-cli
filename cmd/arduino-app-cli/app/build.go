@@ -78,7 +78,7 @@ board defaults to the one running the build.`,
 
 	cmd.Flags().StringVar(&target, "target", "", fmt.Sprintf("Board the release is built for (%s). Defaults to the board running the build", strings.Join(platform.SupportedBoards(), ", ")))
 	cmd.Flags().StringVar(&notes, "notes", "", "File with the release notes, or - to read them from the standard input")
-	cmd.Flags().StringVarP(&output, "output", "o", "", "Output archive, or the directory to write it in")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Output archive, which names the release folder as well, or the directory to write it in")
 	cmd.Flags().BoolVar(&overwrite, "overwrite", false, "Overwrite the output archive if it exists")
 
 	return cmd

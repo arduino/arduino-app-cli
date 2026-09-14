@@ -49,11 +49,15 @@ func TestAppBuild(t *testing.T) {
 		// requirements is the python dependency the app declares, so the case proves the
 		// venv the release ships holds it already.
 		requirements string
+		// archiveName is the file --output is given, so a case proves the release folder
+		// follows it. Empty leaves the naming to the cli.
+		archiveName string
 	}{
 		{
-			name:    "an app with no sketch and no bricks",
-			appName: "plain-app",
-			newArgs: []string{"--no-sketch"},
+			name:        "an app with no sketch and no bricks",
+			appName:     "plain-app",
+			newArgs:     []string{"--no-sketch"},
+			archiveName: "my-release" + orchestrator.ReleaseArchiveExt,
 		},
 		{
 			name:       "an app with a brick",
@@ -86,8 +90,12 @@ func TestAppBuild(t *testing.T) {
 			asAuthored := appEntries(t, appDir)
 
 			outputDir := paths.New(t.TempDir())
+			output := outputDir
+			if test.archiveName != "" {
+				output = outputDir.Join(test.archiveName)
+			}
 			buildStart := time.Now().UTC().Truncate(time.Second)
-			stdout, stderr, err = cli.Run(ctx, "app", "build", appDir.String(), "--output", outputDir.String())
+			stdout, stderr, err = cli.Run(ctx, "app", "build", appDir.String(), "--output", output.String())
 			require.NoError(t, err, "stdout: %s\nstderr: %s", stdout, stderr)
 
 			// The build writes nothing in the app: it is staged and built outside of it,
@@ -111,7 +119,11 @@ func TestAppBuild(t *testing.T) {
 			_, offset := manifest.CreatedAt.Zone()
 			assert.Zero(t, offset)
 			assert.WithinRange(t, manifest.CreatedAt, buildStart, time.Now().UTC())
-			assert.Equal(t, test.appName+"-"+manifest.CreatedAt.Format("20060102-150405")+"-unoq", releaseName)
+			wantName := test.appName + "-" + manifest.CreatedAt.Format("20060102-150405") + "-unoq"
+			if test.archiveName != "" {
+				wantName = strings.TrimSuffix(test.archiveName, orchestrator.ReleaseArchiveExt)
+			}
+			assert.Equal(t, wantName, releaseName)
 
 			bricks := make([]string, 0, len(manifest.Bricks))
 			for _, brick := range manifest.Bricks {

@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"syscall"
 	"time"
 
@@ -137,6 +138,8 @@ func BuildRelease(
 	if err != nil {
 		return BuildReleaseResult{}, err
 	}
+	// The archive extracts to a folder of its own name.
+	releaseName = strings.TrimSuffix(archivePath.Base(), archivePath.Ext())
 
 	// Staged outside of the app: a release must not inherit its .cache.
 	stagingDir, err := cfg.MkTempBuildDir()
