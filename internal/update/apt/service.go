@@ -160,10 +160,14 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 	return nil
 }
 
+// debianFrontend keeps debconf away from the terminal. sudo gives every command a
+// pty, so dpkg-preconfigure would open /dev/tty and wait there for ever.
+const debianFrontend = "DEBIAN_FRONTEND=noninteractive"
+
 // runDpkgConfigureCommand is need in case an upgrade was interrupted in the middle
 // and the dpkg database is in an inconsistent state.
 func runDpkgConfigureCommand(ctx context.Context) error {
-	cmd, err := paths.NewProcess(nil, "sudo", "dpkg", "--configure", "-a")
+	cmd, err := paths.NewProcess([]string{debianFrontend}, "sudo", "dpkg", "--configure", "-a")
 	if err != nil {
 		return err
 	}
@@ -174,7 +178,7 @@ func runDpkgConfigureCommand(ctx context.Context) error {
 }
 
 func runUpdateCommand(ctx context.Context) error {
-	cmd, err := paths.NewProcess(nil, "sudo", "apt-get", "update")
+	cmd, err := paths.NewProcess([]string{debianFrontend}, "sudo", "apt-get", "update")
 	if err != nil {
 		return err
 	}
@@ -185,12 +189,17 @@ func runUpdateCommand(ctx context.Context) error {
 }
 
 func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, error] {
-	env := []string{"NEEDRESTART_MODE=a"}
+	env := []string{debianFrontend, "NEEDRESTART_MODE=a"}
 
 	aptOptions := []string{
 		"-o", "Acquire::Retries=3",
 		"-o", "Acquire::http::Timeout=30",
 		"-o", "Acquire::https::Timeout=30",
+		// A changed conffile must not stop the upgrade, and the dpkg lock of
+		// another apt must not hold it for ever.
+		"-o", "Dpkg::Options::=--force-confdef",
+		"-o", "Dpkg::Options::=--force-confold",
+		"-o", "DPkg::Lock::Timeout=300",
 	}
 	args := make([]string, 0, 5+len(aptOptions)+len(names))
 	args = append(args, "sudo", "apt-get", "install", "--only-upgrade", "-y")
@@ -224,7 +233,7 @@ func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, er
 
 func runAptCleanCommand(ctx context.Context) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
-		cmd, err := paths.NewProcess(nil, "sudo", "apt-get", "clean", "-y")
+		cmd, err := paths.NewProcess([]string{debianFrontend}, "sudo", "apt-get", "clean", "-y")
 		if err != nil {
 			_ = yield("", err)
 			return
