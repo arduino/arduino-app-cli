@@ -41,7 +41,6 @@ func TestAppBuild(t *testing.T) {
 		name string
 		// appName is the app the case builds, one per case: an app is built once.
 		appName string
-		version string
 		// newArgs are the flags app new is given, so a case states the app it needs.
 		newArgs []string
 		// wantBricks is what the manifest must state, and so what the frozen compose set
@@ -54,20 +53,17 @@ func TestAppBuild(t *testing.T) {
 		{
 			name:    "an app with no sketch and no bricks",
 			appName: "plain-app",
-			version: "1.2.3",
 			newArgs: []string{"--no-sketch"},
 		},
 		{
 			name:       "an app with a brick",
 			appName:    "brick-app",
-			version:    "1.2.4",
 			newArgs:    []string{"--no-sketch", "--bricks", "arduino:dbstorage_tsstore"},
 			wantBricks: []string{"arduino:dbstorage_tsstore"},
 		},
 		{
 			name:         "an app with a python dependency",
 			appName:      "deps-app",
-			version:      "1.2.5",
 			newArgs:      []string{"--no-sketch"},
 			requirements: "six==1.17.0\n",
 		},
@@ -83,27 +79,39 @@ func TestAppBuild(t *testing.T) {
 			stdout, stderr, err := cli.Run(ctx, newArgs...)
 			require.NoError(t, err, "stdout: %s\nstderr: %s", stdout, stderr)
 
+			appDir := cli.AppsDir().Join(test.appName)
 			if test.requirements != "" {
-				requirements := cli.AppsDir().Join(test.appName, "python", "requirements.txt")
-				require.NoError(t, requirements.WriteFile([]byte(test.requirements)))
+				require.NoError(t, appDir.Join("python", "requirements.txt").WriteFile([]byte(test.requirements)))
 			}
+			asAuthored := appEntries(t, appDir)
 
 			outputDir := paths.New(t.TempDir())
-			stdout, stderr, err = cli.Run(ctx, "app", "build", cli.AppsDir().Join(test.appName).String(),
-				"--version", test.version, "--output", outputDir.String())
+			buildStart := time.Now().UTC().Truncate(time.Second)
+			stdout, stderr, err = cli.Run(ctx, "app", "build", appDir.String(), "--output", outputDir.String())
 			require.NoError(t, err, "stdout: %s\nstderr: %s", stdout, stderr)
 
-			releaseName := test.appName + "-" + test.version + "-unoq"
-			archivePath := outputDir.Join(releaseName + orchestrator.ReleaseArchiveExt)
-			require.True(t, archivePath.Exist(), "stdout: %s\nstderr: %s", stdout, stderr)
+			// The build writes nothing in the app: it is staged and built outside of it,
+			// and the runner gets the staged copy read-only.
+			assert.Equal(t, asAuthored, appEntries(t, appDir))
+
+			archives, err := outputDir.ReadDir()
+			require.NoError(t, err)
+			archives.FilterSuffix(orchestrator.ReleaseArchiveExt)
+			require.Len(t, archives, 1, "stdout: %s\nstderr: %s", stdout, stderr)
+			archivePath := archives[0]
+			releaseName := strings.TrimSuffix(archivePath.Base(), orchestrator.ReleaseArchiveExt)
 
 			names, manifest := readRelease(t, archivePath)
 
 			assert.Equal(t, orchestrator.ReleaseManifestSchema, manifest.Schema)
 			assert.Equal(t, test.appName, manifest.Name)
-			assert.Equal(t, test.version, manifest.Version)
 			// The board of platform.json, which is the one running the build.
 			assert.Equal(t, "unoq", manifest.Target)
+			// Dated in UTC, and the same instant names the release.
+			_, offset := manifest.CreatedAt.Zone()
+			assert.Zero(t, offset)
+			assert.WithinRange(t, manifest.CreatedAt, buildStart, time.Now().UTC())
+			assert.Equal(t, test.appName+"-"+manifest.CreatedAt.Format("20060102-150405")+"-unoq", releaseName)
 
 			bricks := make([]string, 0, len(manifest.Bricks))
 			for _, brick := range manifest.Bricks {
@@ -153,6 +161,23 @@ func TestAppBuild(t *testing.T) {
 			}
 		})
 	}
+}
+
+// appEntries is every path of the app folder, relative and sorted: a build that writes
+// in the app is a build that ships something else than what was authored.
+func appEntries(t *testing.T, appDir *paths.Path) []string {
+	t.Helper()
+
+	entries, err := appDir.ReadDirRecursive()
+	require.NoError(t, err)
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		relPath, err := entry.RelFrom(appDir)
+		require.NoError(t, err)
+		names = append(names, relPath.String())
+	}
+	slices.Sort(names)
+	return names
 }
 
 // readRelease is the entry names of the archive, in the order they are written, and the

@@ -29,7 +29,6 @@ import (
 func newBuildCmd(cfg config.Configuration) *cobra.Command {
 	var (
 		target    string
-		version   string
 		notes     string
 		output    string
 		overwrite bool
@@ -42,8 +41,8 @@ func newBuildCmd(cfg config.Configuration) *cobra.Command {
 
 The release is the app frozen with all its dependencies: the python environment is
 built and the compose files are resolved for the target board, so that installing
-it generates nothing. The version defaults to a UTC timestamp and the target board
-to the one running the build.`,
+it generates nothing. The release is named after the build date, and the target
+board defaults to the one running the build.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
@@ -56,7 +55,6 @@ to the one running the build.`,
 
 			req := orchestrator.BuildReleaseRequest{
 				Target:    target,
-				Version:   version,
 				Overwrite: overwrite,
 			}
 			if notes != "" {
@@ -79,7 +77,6 @@ to the one running the build.`,
 	}
 
 	cmd.Flags().StringVar(&target, "target", "", fmt.Sprintf("Board the release is built for (%s). Defaults to the board running the build", strings.Join(platform.SupportedBoards(), ", ")))
-	cmd.Flags().StringVar(&version, "version", "", "Release version. Defaults to a UTC timestamp")
 	cmd.Flags().StringVar(&notes, "notes", "", "File with the release notes, or - to read them from the standard input")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output archive, or the directory to write it in")
 	cmd.Flags().BoolVar(&overwrite, "overwrite", false, "Overwrite the output archive if it exists")
@@ -183,7 +180,7 @@ type buildAppResult struct {
 }
 
 func (r buildAppResult) String() string {
-	return fmt.Sprintf("✓ Release %s %s built for %s in '%s'", r.Name, r.Version, r.Target, r.Archive)
+	return fmt.Sprintf("✓ Release %s built for %s in '%s'", r.Name, r.Target, r.Archive)
 }
 
 func (r buildAppResult) Data() any {

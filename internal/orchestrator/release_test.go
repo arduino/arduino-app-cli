@@ -14,6 +14,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/types"
@@ -25,6 +26,30 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
+
+func TestWriteReleaseManifest(t *testing.T) {
+	releaseDir := paths.New(t.TempDir())
+	manifest := ReleaseManifest{
+		Schema:    ReleaseManifestSchema,
+		Name:      "my-app",
+		Target:    "unoq",
+		CreatedAt: time.Date(2026, 9, 14, 13, 45, 12, 0, time.UTC),
+		Notes:     "line one\nline two\n",
+	}
+	require.NoError(t, writeReleaseManifest(releaseDir, manifest))
+
+	content, err := releaseDir.Join(ReleaseManifestFileName).ReadFile()
+	require.NoError(t, err)
+	// One instant, UTC and to the second, whatever the board the build ran on is set to.
+	assert.Contains(t, string(content), "created_at: 2026-09-14T13:45:12Z\n")
+	// The note is markdown and is read by people as well, so it keeps its line breaks.
+	assert.Contains(t, string(content), "notes: |\n  line one\n  line two\n")
+
+	var read ReleaseManifest
+	require.NoError(t, yaml.Unmarshal(content, &read))
+	assert.True(t, read.CreatedAt.Equal(manifest.CreatedAt))
+	assert.Equal(t, manifest.Notes, read.Notes)
+}
 
 func TestWriteReleaseArchive(t *testing.T) {
 	stagingDir := paths.New(t.TempDir())

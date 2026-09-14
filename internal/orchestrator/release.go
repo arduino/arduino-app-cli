@@ -35,14 +35,12 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
-// A release is an app frozen with all its dependencies: <name>-<version>-<target>/
+// A release is an app frozen with all its dependencies: <name>-<date>-<target>/
 // holds release.yaml, src/ as authored and prebuild/, which becomes .cache/ on install.
 
 type BuildReleaseRequest struct {
 	// Target defaults to the board running the build.
 	Target string
-	// Version defaults to a UTC timestamp, which keeps the releases of an app ordered.
-	Version string
 	// Notes is the release note, markdown, and goes in the manifest as it is given.
 	Notes string
 	// Output is the archive, or the directory to write it in. Defaults to the cwd.
@@ -52,7 +50,6 @@ type BuildReleaseRequest struct {
 
 type BuildReleaseResult struct {
 	Name    string `json:"name"`
-	Version string `json:"version"`
 	Target  string `json:"target"`
 	Archive string `json:"archive"`
 }
@@ -67,11 +64,12 @@ const ReleaseManifestFileName = "release.yaml"
 const ReleaseManifestSchema = 1
 
 type ReleaseManifest struct {
-	Schema  int    `yaml:"schema"`
-	Name    string `yaml:"name"`
-	Version string `yaml:"version"`
+	Schema int    `yaml:"schema"`
+	Name   string `yaml:"name"`
 	// Target is the board the release is built for, gated on at install and start.
 	Target string `yaml:"target"`
+	// CreatedAt is when the build ran, UTC.
+	CreatedAt time.Time `yaml:"created_at"`
 	// Notes is the release note as it was authored, markdown, and is absent when none
 	// was given. It is held here and not in a file of its own: a reader must get every
 	// release fact without extracting anything else from the archive.
@@ -126,15 +124,14 @@ func BuildRelease(
 	// TODO: fail when a service a brick requires is missing for the target. The
 	// generator skips it, so it would be missing from the archive for good.
 
-	version := req.Version
-	if version == "" {
-		version = time.Now().UTC().Format("20060102-150405")
-	}
+	// The same instant dates the release and names it: the date keeps the releases of
+	// an app ordered, as long as there is no version.
+	now := time.Now().UTC()
 	name := slug.Make(appToBuild.Name)
 	if name == "" {
 		return BuildReleaseResult{}, fmt.Errorf("%w: the app has no name", ErrBadRequest)
 	}
-	releaseName := fmt.Sprintf("%s-%s-%s", name, version, plat.BoardName)
+	releaseName := fmt.Sprintf("%s-%s-%s", name, now.Format("20060102-150405"), plat.BoardName)
 
 	archivePath, err := releaseArchivePath(releaseName, req)
 	if err != nil {
@@ -164,8 +161,8 @@ func BuildRelease(
 	manifest := ReleaseManifest{
 		Schema:    ReleaseManifestSchema,
 		Name:      appToBuild.Name,
-		Version:   version,
 		Target:    plat.BoardName,
+		CreatedAt: now,
 		Notes:     req.Notes,
 		Bricks:    releaseBricks(appToBuild.Descriptor),
 		Models:    releaseModels(ctx, appToBuild.Descriptor, modelsIndex),
@@ -206,7 +203,6 @@ func BuildRelease(
 	cb(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
 	return BuildReleaseResult{
 		Name:    name,
-		Version: version,
 		Target:  plat.BoardName,
 		Archive: archivePath.String(),
 	}, nil
