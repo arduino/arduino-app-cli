@@ -29,6 +29,10 @@ func HandleSketchAddLibrary(idProvider *appid.Provider) http.HandlerFunc {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "cannot alter examples"})
 			return
 		}
+		if id.IsRelease() {
+			render.EncodeResponse(w, http.StatusForbidden, models.ErrorResponse{Details: "cannot alter a release"})
+			return
+		}
 		app, err := app.Load(id.ToPath())
 
 		// Get query param addDeps (default false)
@@ -69,6 +73,10 @@ func HandleSketchRemoveLibrary(idProvider *appid.Provider) http.HandlerFunc {
 		}
 		if id.IsExample() {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "cannot alter examples"})
+			return
+		}
+		if id.IsRelease() {
+			render.EncodeResponse(w, http.StatusForbidden, models.ErrorResponse{Details: "cannot alter a release"})
 			return
 		}
 		app, err := app.Load(id.ToPath())

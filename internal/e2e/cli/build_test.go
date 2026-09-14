@@ -138,7 +138,7 @@ func TestAppBuild(t *testing.T) {
 
 					names, manifest := readRelease(t, archivePath)
 
-					assert.Equal(t, orchestrator.ReleaseManifestSchema, manifest.Schema)
+					assert.Equal(t, app.ReleaseManifestSchema, manifest.Schema)
 					assert.Equal(t, test.appName, manifest.Name)
 					// The board the build is given, which the release name states as well.
 					assert.Equal(t, target, manifest.Target)
@@ -162,7 +162,7 @@ func TestAppBuild(t *testing.T) {
 					// so a reader gets the release facts from the first block.
 					require.Greater(t, len(names), 2)
 					assert.Equal(t, releaseName, names[0])
-					assert.Equal(t, releaseName+"/"+orchestrator.ReleaseManifestFileName, names[1])
+					assert.Equal(t, releaseName+"/"+app.ReleaseManifestFileName, names[1])
 
 					// The app as authored, the frozen compose set and the brick index the board reads.
 					assert.Contains(t, names, releaseName+"/src/app.yaml")
@@ -294,7 +294,7 @@ func readRelease(t *testing.T, archivePath *paths.Path) ([]string, orchestrator.
 		require.NoError(t, err)
 		names = append(names, header.Name)
 
-		if strings.HasSuffix(header.Name, "/"+orchestrator.ReleaseManifestFileName) {
+		if strings.HasSuffix(header.Name, "/"+app.ReleaseManifestFileName) {
 			content, err := io.ReadAll(tarReader)
 			require.NoError(t, err)
 			require.NoError(t, yaml.Unmarshal(content, &manifest))
