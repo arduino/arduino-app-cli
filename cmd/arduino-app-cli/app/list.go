@@ -78,12 +78,17 @@ type appListResult struct {
 func (r appListResult) String() string {
 	t := table.NewWriter()
 	t.SetStyle(tablestyle.CustomCleanStyle)
-	t.AppendHeader(table.Row{"ID", "NAME", "DESCRIPTION"})
+	t.AppendHeader(table.Row{"ID", "NAME", "ICON", "DESCRIPTION"})
 
 	for _, app := range r.Apps {
+		name := app.Name
+		if app.Default {
+			name += " *"
+		}
 		t.AppendRow(table.Row{
 			cmdutil.IDToAlias(app.ID),
-			app.Name,
+			name,
+			app.Icon,
 			app.Description,
 		})
 	}
