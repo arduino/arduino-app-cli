@@ -598,6 +598,7 @@ func ListActiveApps(
 		} else {
 			info.ID = id
 			info.Example = id.IsExample()
+			info.Release = id.IsRelease()
 		}
 
 		userApp, err := app.Load(s.AppPath)

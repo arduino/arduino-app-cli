@@ -48,8 +48,7 @@ func ExportAppZip(
 }
 
 // appSourceFilter selects what an app is made of, dropping what is state: .cache and
-// __pycache__ are generated, the release manifest belongs to the release, and data
-// belongs to the board the app ran on.
+// __pycache__ are generated, the manifest is the release's and data is the board's.
 func appSourceFilter(includeData bool) paths.ReadDirFilter {
 	return func(p *paths.Path) bool {
 		switch p.Base() {

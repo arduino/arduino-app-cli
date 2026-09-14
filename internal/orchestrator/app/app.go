@@ -183,9 +183,8 @@ const (
 	// PrebuildDirName is what a release ships beside the app it is built from: the
 	// compose files and the python env, which the install copies as the .cache.
 	PrebuildDirName = "prebuild"
-	// ReleaseManifestFileName is the manifest a release is built with, at the root of
-	// the archive and of the app installed from it: an app that holds it runs what a
-	// build froze, and what a start would generate is already in .cache.
+	// ReleaseManifestFileName is the manifest at the root of the archive and of the app
+	// installed from it: an app that holds it runs what a build froze.
 	ReleaseManifestFileName = "release.yaml"
 )
 
@@ -204,6 +203,10 @@ type Release struct {
 
 // GetRelease reads the manifest: an app that holds one runs what a release froze.
 func (a *ArduinoApp) GetRelease() (Release, bool) {
+	// The zero value has no folder, so it holds no manifest.
+	if a.FullPath == nil {
+		return Release{}, false
+	}
 	manifest := a.FullPath.Join(ReleaseManifestFileName)
 	content, err := manifest.ReadFile()
 	if err != nil {

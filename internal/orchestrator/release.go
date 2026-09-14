@@ -39,8 +39,7 @@ import (
 )
 
 // A release is an app frozen with all its dependencies: <name>-<date>-<target>/ holds
-// release.yaml, src/ as authored, prebuild/, which becomes .cache/ on install, and
-// data/ when the build is asked to ship it.
+// release.yaml, src/ as authored, prebuild/, the .cache on install, and data/.
 
 const releaseSrcDir = "src"
 
@@ -65,8 +64,7 @@ type BuildReleaseResult struct {
 }
 
 // ReleaseManifest is what the archive states of itself: what a board needs to list a
-// release and to gate its install, so nothing here requires opening the app it ships.
-// app.Release reads the same file, and only the part an installed app is marked by.
+// release and to gate its install. app.Release reads the part that marks an app.
 type ReleaseManifest struct {
 	Schema int    `yaml:"schema"`
 	Name   string `yaml:"name"`
