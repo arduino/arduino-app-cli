@@ -567,25 +567,26 @@ func ListActiveApps(
 	return f.Map(appsStatus, func(s AppStatusInfo) AppInfo {
 		info := AppInfo{Status: s.Status}
 
-	if id, err := idProvider.IDFromPath(s.AppPath); err != nil {
-		slog.Warn("unable to get app id", slog.String("path", s.AppPath.String()), slog.String("error", err.Error()))
-	} else {
-		info.ID = id
-		info.Example = id.IsExample()
-	}
+		if id, err := idProvider.IDFromPath(s.AppPath); err != nil {
+			slog.Warn("unable to get app id", slog.String("path", s.AppPath.String()), slog.String("error", err.Error()))
+		} else {
+			info.ID = id
+			info.Example = id.IsExample()
+		}
 
-	userApp, err := app.Load(s.AppPath)
-	if err != nil {
-		slog.Warn("unable to load app metadata", slog.String("path", s.AppPath.String()), slog.String("error", err.Error()))
-		info.Name = s.AppPath.Base()
+		userApp, err := app.Load(s.AppPath)
+		if err != nil {
+			slog.Warn("unable to load app metadata", slog.String("path", s.AppPath.String()), slog.String("error", err.Error()))
+			info.Name = s.AppPath.Base()
+			return info
+		}
+
+		info.Name = userApp.Name
+		info.Description = userApp.Descriptor.Description
+		info.Icon = userApp.Descriptor.Icon
 		return info
-	}
-
-	info.Name = userApp.Name
-	info.Description = userApp.Descriptor.Description
-	info.Icon = userApp.Descriptor.Icon
-	return info
-}), nil
+	}), nil
+}
 
 // exampleCompatibleWithBricksIndex returns true if all built-in bricks referenced by the app
 // are present in the given bricks index. Local bricks bundled with the app are always treated

@@ -10,6 +10,7 @@ import (
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
+	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/cmdutil"
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
@@ -17,15 +18,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/tablestyle"
 )
-
-// psVisibleStatuses are the statuses shown by default, i.e. any app that has
-// been initialized at least once and is not currently stopped.
-var psVisibleStatuses = map[orchestrator.Status]bool{
-	orchestrator.StatusStarting: true,
-	orchestrator.StatusRunning:  true,
-	orchestrator.StatusStopping: true,
-	orchestrator.StatusFailed:   true,
-}
 
 func newPsCmd() *cobra.Command {
 	var showAll bool
@@ -57,25 +49,20 @@ func psHandler(ctx context.Context, showAll bool) {
 	}
 
 	feedback.PrintResult(appPsResult{
-		Apps: filterAppsByStatus(apps, showAll),
+		Apps: f.Filter(apps, func(a orchestrator.AppInfo) bool {
+			switch a.Status {
+			case orchestrator.StatusStarting,
+				orchestrator.StatusRunning,
+				orchestrator.StatusStopping,
+				orchestrator.StatusFailed:
+				return true
+			case orchestrator.StatusStopped:
+				return showAll
+			default:
+				return false
+			}
+		}),
 	})
-}
-
-// filterAppsByStatus keeps only apps that have been initialized at least once
-// (i.e. excludes StatusUninitialized), showing stopped apps only if showAll is set.
-func filterAppsByStatus(apps []orchestrator.AppInfo, showAll bool) []orchestrator.AppInfo {
-	res := make([]orchestrator.AppInfo, 0, len(apps))
-	for _, a := range apps {
-      switch a.Status {
-              case orchestrator.StatusStarting, orchestrator.StatusRunning, orchestrator.StatusStopping, orchestrator.StatusFailed:
-                      res = append(res, a)
-              case orchestrator.StatusStopped:
-                      if showAll {
-                              res = append(res, a)
-                      }
-              }
-	}
-	return res
 }
 
 type appPsResult struct {
