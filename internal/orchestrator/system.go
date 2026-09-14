@@ -254,10 +254,15 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 	} else {
 		result.ContainersRemoved = count
 	}
-	// A project of ours is a slug of the path of an app, which the label states.
-	const composeProjectLabel = "com.docker.compose.project"
+	// The app just destroyed has no container left to name its project, so the path of
+	// an app of ours counts as well.
+	ourProjects, err := ourComposeProjects(ctx, docker.Client())
+	if err != nil {
+		feedback.Warnf("failed to list the projects of the apps - %v", err)
+	}
 	if count, err := dockerhelper.PruneNetworks(ctx, docker.Client(), composeProjectLabel, func(labels map[string]string) bool {
-		return strings.Contains(labels[composeProjectLabel], "arduino-app-cli")
+		project := labels[composeProjectLabel]
+		return ourProjects[project] || strings.Contains(project, "arduino-app-cli")
 	}); err != nil {
 		feedback.Warnf("failed to remove dangling networks - %v", err)
 	} else {

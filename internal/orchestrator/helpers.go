@@ -24,6 +24,10 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
+// composeProjectLabel names the project a container or a network belongs to. A project
+// of ours is a slug of the path of an app.
+const composeProjectLabel = "com.docker.compose.project"
+
 type AppStatusInfo struct {
 	AppPath *paths.Path
 	Status  Status
@@ -262,4 +266,32 @@ func SetArduinoCliConfig(ctx context.Context, cli rpc.ArduinoCoreServiceServer) 
 	}
 
 	return nil
+}
+
+// pruneIdleAppNetworks removes the networks of our apps but the one named, so that the
+// daemon has subnets again. An app that is not running keeps its network to start warm,
+// which costs a subnet; the app that loses it is recreated at its next start.
+func pruneIdleAppNetworks(ctx context.Context, docker dockerClient.APIClient, keepProject string) (int, error) {
+	ours, err := ourComposeProjects(ctx, docker)
+	if err != nil {
+		return 0, err
+	}
+	return dockerhelper.PruneNetworks(ctx, docker, composeProjectLabel, func(labels map[string]string) bool {
+		project := labels[composeProjectLabel]
+		return project != keepProject && ours[project]
+	})
+}
+
+// ourComposeProjects names the compose projects of our apps. The containers of an app
+// state the project they belong to, the stopped ones included.
+func ourComposeProjects(ctx context.Context, docker dockerClient.APIClient) (map[string]bool, error) {
+	containers, err := dockerhelper.Containers(ctx, docker, DockerAppLabel+"=true")
+	if err != nil {
+		return nil, err
+	}
+	projects := map[string]bool{}
+	for _, info := range containers {
+		projects[info.Labels[composeProjectLabel]] = true
+	}
+	return projects, nil
 }
