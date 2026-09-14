@@ -77,8 +77,8 @@ func (r appPsResult) String() string {
 	for _, app := range r.Apps {
 		t.AppendRow(table.Row{
 			cmdutil.IDToAlias(app.ID),
+            app.Status,
 			app.Name,
-			app.Status,
 		})
 	}
 	return t.Render()
