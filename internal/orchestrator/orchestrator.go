@@ -1152,12 +1152,12 @@ func uploadSketch(
 	srv rpc.ArduinoCoreServiceServer,
 	inst *rpc.Instance,
 	sketchPath, buildPath *paths.Path,
-	supportsFlashToRam bool,
+	useLegacyFlashToRam bool,
 	fqbn string,
 	w io.Writer,
 ) error {
 	// Support the legacy ram upload option if there isn't the new wait_linux_boot option.
-	if supportsFlashToRam {
+	if useLegacyFlashToRam {
 		if err := legacyUploadSketchInRam(ctx, w, srv, inst, fqbn, sketchPath.String(), buildPath.String()); err != nil {
 			slog.Warn("failed to upload in ram mode, trying to configure the board in ram mode, and retry", slog.String("error", err.Error()))
 			if err := configureMicroInRamMode(ctx, w, srv, inst, fqbn); err != nil {
