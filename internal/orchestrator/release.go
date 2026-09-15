@@ -579,7 +579,8 @@ func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platfo
 }
 
 // writeReleaseArchive writes releaseDir as a gzipped tar rooted at its own name.
-// Symlinks and modes are kept: the venv relies on both.
+// Symlinks are kept as they are, and so are the modes of the venv of the prebuild: the
+// rest is normalized, so that the archive does not carry the umask of the build machine.
 func writeReleaseArchive(releaseDir *paths.Path, archivePath *paths.Path) (err error) {
 	file, err := archivePath.Create()
 	if err != nil {
@@ -658,6 +659,16 @@ func writeReleaseArchive(releaseDir *paths.Path, archivePath *paths.Path) (err e
 			// The install decides who owns the files.
 			header.Uid, header.Gid = 0, 0
 			header.Uname, header.Gname = "", ""
+			// The modes of the build machine are not shipped, or an app folder left group
+			// writable installs group writable. The venv is the exception: it needs its x.
+			if _, entry, _ := strings.Cut(header.Name, "/"); !strings.HasPrefix(entry, app.PrebuildDirName+"/") {
+				switch {
+				case info.IsDir():
+					header.Mode = 0755
+				case info.Mode().IsRegular():
+					header.Mode = 0644
+				}
+			}
 
 			if err := tarWriter.WriteHeader(header); err != nil {
 				return err
