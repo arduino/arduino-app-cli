@@ -31,7 +31,10 @@ func TestListSketchLibraries(t *testing.T) {
 		pythonApp, err := app.Load(createTestAppPythonOnly(t))
 		require.NoError(t, err)
 
-		libs, err := AddSketchLibrary(context.Background(), pythonApp, LibraryReleaseID{}, false)
+		editable, err := pythonApp.Edit()
+		require.NoError(t, err)
+
+		libs, err := AddSketchLibrary(context.Background(), editable, LibraryReleaseID{}, false)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot add a library. Missing sketch folder")
 		assert.Empty(t, libs)
@@ -41,7 +44,10 @@ func TestListSketchLibraries(t *testing.T) {
 		pythonApp, err := app.Load(createTestAppPythonOnly(t))
 		require.NoError(t, err)
 
-		id, err := RemoveSketchLibrary(context.Background(), pythonApp, LibraryReleaseID{}, true)
+		editable, err := pythonApp.Edit()
+		require.NoError(t, err)
+
+		id, err := RemoveSketchLibrary(context.Background(), editable, LibraryReleaseID{}, true)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot remove a library. Missing sketch folder")
 		assert.Empty(t, id)

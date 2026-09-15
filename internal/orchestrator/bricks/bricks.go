@@ -70,8 +70,9 @@ func (s *Service) AppBrickInstancesList(ctx context.Context, a *app.ArduinoApp) 
 	res := AppBrickInstancesResult{BrickInstances: make([]BrickInstance, len(a.Descriptor.Bricks))}
 	// One lookup for every brick instance, rather than a listing each.
 	models := s.modelsIndex.NewLookup()
+	bricksIndex := a.Bricks(s.bricksIndex)
 	for i, brickInstance := range a.Descriptor.Bricks {
-		brick, found := s.bricksIndex.WithAppBricks(a.LocalBricks).FindBrickByID(brickInstance.ID)
+		brick, found := bricksIndex.FindBrickByID(brickInstance.ID)
 		if !found {
 			res.BrickInstances[i] = BrickInstance{
 				ID:     brickInstance.ID,
@@ -117,8 +118,7 @@ func compatibleModels(ctx context.Context, models *modelsindex.Lookup, brickID s
 }
 
 func (s *Service) AppBrickInstanceDetails(ctx context.Context, a *app.ArduinoApp, brickID string) (BrickInstance, error) {
-	bricksindex := s.bricksIndex.WithAppBricks(a.LocalBricks)
-	brick, found := bricksindex.FindBrickByID(brickID)
+	brick, found := a.Bricks(s.bricksIndex).FindBrickByID(brickID)
 	if !found {
 		return BrickInstance{}, ErrBrickNotFound
 	}
@@ -343,9 +343,9 @@ type BrickCreateUpdateRequest struct {
 func (s *Service) BrickCreate(
 	ctx context.Context,
 	req BrickCreateUpdateRequest,
-	appCurrent app.ArduinoApp,
+	appCurrent app.Editable,
 ) error {
-	brick, present := s.bricksIndex.WithAppBricks(appCurrent.LocalBricks).FindBrickByID(req.ID)
+	brick, present := appCurrent.Bricks(s.bricksIndex).FindBrickByID(req.ID)
 	if !present {
 		return fmt.Errorf("brick %q not found", req.ID)
 	}
@@ -406,12 +406,20 @@ func (s *Service) BrickCreate(
 	return nil
 }
 
+// ErrReleaseSecretsOnly is what every other change of an installed release gets: it
+// runs what a build froze, and a secret is the only thing the build could not freeze.
+var ErrReleaseSecretsOnly = errors.New("only the secrets of a release can be changed")
+
 func (s *Service) BrickUpdate(
 	ctx context.Context,
 	req BrickCreateUpdateRequest,
 	appCurrent app.ArduinoApp,
 ) error {
-	brickFromIndex, present := s.bricksIndex.WithAppBricks(appCurrent.LocalBricks).FindBrickByID(req.ID)
+	// An app installed from a release is configured as any other, except that a build
+	// froze every value but the secrets.
+	isRelease := appCurrent.IsRelease()
+
+	brickFromIndex, present := appCurrent.Bricks(s.bricksIndex).FindBrickByID(req.ID)
 	if !present {
 		return fmt.Errorf("brick %q not found into the brick index", req.ID)
 	}
@@ -428,6 +436,9 @@ func (s *Service) BrickUpdate(
 	brickModel := appCurrent.Descriptor.Bricks[brickPosition].Model
 
 	if req.Model != nil && *req.Model != brickModel {
+		if isRelease {
+			return fmt.Errorf("%w: the model of a release is frozen", ErrReleaseSecretsOnly)
+		}
 		model, err := s.modelsIndex.NewLookup().ModelForBrick(ctx, *req.Model, req.ID)
 		if err != nil {
 			return fmt.Errorf("checking model %s: %w", *req.Model, err)
@@ -443,35 +454,38 @@ func (s *Service) BrickUpdate(
 		if !exist {
 			return fmt.Errorf("variable %q does not exist on brick %q", name, brickFromIndex.ID)
 		}
+		// The template a release ships holds every other value already: only a secret
+		// is left in it as a reference for the render to answer.
+		if isRelease && !value.Secret {
+			return fmt.Errorf("%w: %q is not a secret", ErrReleaseSecretsOnly, name)
+		}
 		if value.IsRequired() && updateValue == "" {
 			return fmt.Errorf("required variable %q cannot be empty", name)
 		}
-		updated := false
-		for _, v := range brickVariables {
-			if v == name {
-				brickVariables[name] = updateValue
-				updated = true
-				break
-			}
-		}
-		if !updated {
-			brickVariables[name] = updateValue
-		}
+		brickVariables[name] = updateValue
 	}
 
 	appCurrent.Descriptor.Bricks[brickPosition].Model = brickModel
 	appCurrent.Descriptor.Bricks[brickPosition].Variables = brickVariables
 
-	err := appCurrent.Save()
-	if err != nil {
-		return fmt.Errorf("cannot save brick instance with id %s", req.ID)
+	// A release is written back through the token of its secrets, which is what the
+	// checks above leave of the request.
+	save := appCurrent.EditSecrets().Save
+	if !isRelease {
+		editable, err := appCurrent.Edit()
+		if err != nil {
+			return err
+		}
+		save = editable.Save
+	}
+	if err := save(); err != nil {
+		return fmt.Errorf("cannot save brick instance with id %s: %w", req.ID, err)
 	}
 	return nil
-
 }
 
 func (s *Service) BrickDelete(
-	appCurrent *app.ArduinoApp,
+	appCurrent app.Editable,
 	id string,
 ) error {
 	if !slices.ContainsFunc(appCurrent.Descriptor.Bricks, func(b app.Brick) bool { return b.ID == id }) {
@@ -490,7 +504,7 @@ func (s *Service) BrickDelete(
 
 // LocalBrickRename renames a local brick by changing its ID, folder name, and display name.
 // The newID is derived from the newName by the caller (handler layer).
-func (s *Service) LocalBrickRename(appCurrent *app.ArduinoApp, oldID, newID, newName string) (_ LocalBrickRenameResult, _err error) {
+func (s *Service) LocalBrickRename(appCurrent app.Editable, oldID, newID, newName string) (_ LocalBrickRenameResult, _err error) {
 	if oldID == newID {
 		return LocalBrickRenameResult{}, fmt.Errorf("new brick id %q is the same as the current one", newID)
 	}

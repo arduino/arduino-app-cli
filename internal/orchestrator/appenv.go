@@ -135,13 +135,12 @@ func hostEnvironment(ctx context.Context, appPath *paths.Path, cfg config.Config
 	return envs
 }
 
-// appSecrets is the value of every variable a brick declares secret. It is read at
-// render time, on the board the app runs on, and never written to a template.
-//
-// app.yaml is not what the render step normally reads: a secret is only there because
-// that is the storage there is for now. A real secret store replaces this function.
+// appSecrets is the value of every variable a brick declares secret, read at render
+// time and never written to a template. app.yaml is the storage there is for now.
 func appSecrets(arduinoApp app.ArduinoApp, brickIndex *bricksindex.BricksIndex) types.Mapping {
-	brickIndex = brickIndex.WithAppBricks(arduinoApp.LocalBricks)
+	// A release states its own bricks: the index of this board is not the one that
+	// built it, so it cannot be asked which variable is a secret.
+	brickIndex = arduinoApp.Bricks(brickIndex)
 
 	secrets := make(types.Mapping)
 	for _, brick := range arduinoApp.Descriptor.Bricks {

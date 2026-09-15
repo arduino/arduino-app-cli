@@ -454,10 +454,13 @@ func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, platf
 		return err
 	}
 
-	if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, app); err != nil {
-		slog.Warn("Failed to migrate app to remove router bridge", "app", appPath, "error", err)
-	} else if ok {
-		slog.Info("App migrated, RouterBridge has been removed successfully", "app", appPath)
+	// A release ships a frozen sketch profile, so there is nothing to migrate.
+	if editable, err := app.Edit(); err == nil {
+		if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, editable); err != nil {
+			slog.Warn("Failed to migrate app to remove router bridge", "app", appPath, "error", err)
+		} else if ok {
+			slog.Info("App migrated, RouterBridge has been removed successfully", "app", appPath)
+		}
 	}
 
 	sketchPath, ok := app.GetSketchPath()

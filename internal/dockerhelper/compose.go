@@ -21,6 +21,17 @@ import (
 // stopTimeout is what a container is given to stop before it is killed.
 const stopTimeout = 5 * time.Second
 
+// ComposeImages is every image the project names, which is what a pull is given.
+func ComposeImages(prj *types.Project) []string {
+	images := make([]string, 0, len(prj.Services))
+	for _, service := range prj.Services {
+		if service.Image != "" {
+			images = append(images, service.Image)
+		}
+	}
+	return images
+}
+
 // ComposeUp starts the app the project states, reporting to line what it does. The
 // compose of the board takes no part: the sdk this binary links talks to the engine.
 func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line func(string)) error {
