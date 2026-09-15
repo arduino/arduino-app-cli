@@ -140,15 +140,7 @@ func hostEnvironment(ctx context.Context, appPath *paths.Path, cfg config.Config
 func appSecrets(arduinoApp app.ArduinoApp, brickIndex *bricksindex.BricksIndex) types.Mapping {
 	// A release states its own bricks: the index of this board is not the one that
 	// built it, so it cannot be asked which variable is a secret.
-	if _, isRelease := arduinoApp.GetRelease(); isRelease {
-		frozen, err := arduinoApp.ReleaseBricks()
-		if err != nil {
-			slog.Warn("cannot read the bricks the release ships", slog.String("app", arduinoApp.Name), slog.String("error", err.Error()))
-		} else {
-			brickIndex = frozen
-		}
-	}
-	brickIndex = brickIndex.WithAppBricks(arduinoApp.LocalBricks)
+	brickIndex = arduinoApp.Bricks(brickIndex)
 
 	secrets := make(types.Mapping)
 	for _, brick := range arduinoApp.Descriptor.Bricks {

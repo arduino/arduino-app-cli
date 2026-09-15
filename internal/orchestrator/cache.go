@@ -35,7 +35,7 @@ func CleanAppCache(
 	platform platform.Platform,
 	cfg config.Configuration,
 ) error {
-	if _, isRelease := app.GetRelease(); isRelease {
+	if app.IsRelease() {
 		return ErrCleanCacheReleaseApp
 	}
 

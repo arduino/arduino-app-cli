@@ -111,16 +111,8 @@ func HandleBrickCreate(
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
 			return
 		}
-		if appId.IsRelease() {
-			render.EncodeResponse(w, http.StatusForbidden, models.ErrorResponse{Details: "cannot alter a release"})
-			return
-		}
-		appPath := appId.ToPath()
-
-		app, err := app.Load(appPath)
-		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", appId.String()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
+		app, ok := loadEditableApp(w, appId)
+		if !ok {
 			return
 		}
 
@@ -244,16 +236,8 @@ func HandleBrickDelete(
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
 			return
 		}
-		if appId.IsRelease() {
-			render.EncodeResponse(w, http.StatusForbidden, models.ErrorResponse{Details: "cannot alter a release"})
-			return
-		}
-		appPath := appId.ToPath()
-
-		app, err := app.Load(appPath)
-		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", appId.String()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
+		app, ok := loadEditableApp(w, appId)
+		if !ok {
 			return
 		}
 
@@ -263,7 +247,7 @@ func HandleBrickDelete(
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "brickID must be set"})
 			return
 		}
-		err = brickService.BrickDelete(&app, id)
+		err = brickService.BrickDelete(app, id)
 		if err != nil {
 			switch {
 			case errors.Is(err, bricks.ErrBrickNotFound):
