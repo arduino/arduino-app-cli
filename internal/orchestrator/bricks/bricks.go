@@ -70,7 +70,7 @@ func (s *Service) AppBrickInstancesList(ctx context.Context, a *app.ArduinoApp) 
 	res := AppBrickInstancesResult{BrickInstances: make([]BrickInstance, len(a.Descriptor.Bricks))}
 	// One lookup for every brick instance, rather than a listing each.
 	models := s.modelsIndex.NewLookup()
-	bricksIndex := s.appBricks(a)
+	bricksIndex := a.Bricks(s.bricksIndex)
 	for i, brickInstance := range a.Descriptor.Bricks {
 		brick, found := bricksIndex.FindBrickByID(brickInstance.ID)
 		if !found {
@@ -118,7 +118,7 @@ func compatibleModels(ctx context.Context, models *modelsindex.Lookup, brickID s
 }
 
 func (s *Service) AppBrickInstanceDetails(ctx context.Context, a *app.ArduinoApp, brickID string) (BrickInstance, error) {
-	brick, found := s.appBricks(a).FindBrickByID(brickID)
+	brick, found := a.Bricks(s.bricksIndex).FindBrickByID(brickID)
 	if !found {
 		return BrickInstance{}, ErrBrickNotFound
 	}
@@ -150,22 +150,6 @@ func (s *Service) AppBrickInstanceDetails(ctx context.Context, a *app.ArduinoApp
 		CompatibleModels: compatibleModels(ctx, s.modelsIndex.NewLookup(), brick.ID),
 		Readme:           readme,
 	}, nil
-}
-
-// appBricks is the brick definitions the app is wired with. An app installed from a
-// release runs what a build froze, so the index the release ships is read instead of
-// the one of this board, which is not the index that built it.
-func (s *Service) appBricks(a *app.ArduinoApp) *bricksindex.BricksIndex {
-	index := s.bricksIndex
-	if _, isRelease := a.GetRelease(); isRelease {
-		frozen, err := a.ReleaseBricks()
-		if err != nil {
-			slog.Warn("cannot read the bricks the release ships", slog.String("app", a.Name), slog.String("error", err.Error()))
-		} else {
-			index = frozen
-		}
-	}
-	return index.WithAppBricks(a.LocalBricks)
 }
 
 func getInstanceBrickConfigVariableDetails(
@@ -359,13 +343,9 @@ type BrickCreateUpdateRequest struct {
 func (s *Service) BrickCreate(
 	ctx context.Context,
 	req BrickCreateUpdateRequest,
-	appCurrent app.ArduinoApp,
+	appCurrent app.Editable,
 ) error {
-	if _, isRelease := appCurrent.GetRelease(); isRelease {
-		return app.ErrReleaseReadOnly
-	}
-
-	brick, present := s.bricksIndex.WithAppBricks(appCurrent.LocalBricks).FindBrickByID(req.ID)
+	brick, present := appCurrent.Bricks(s.bricksIndex).FindBrickByID(req.ID)
 	if !present {
 		return fmt.Errorf("brick %q not found", req.ID)
 	}
@@ -437,9 +417,9 @@ func (s *Service) BrickUpdate(
 ) error {
 	// An app installed from a release is configured as any other, except that a build
 	// froze every value but the secrets.
-	_, isRelease := appCurrent.GetRelease()
+	isRelease := appCurrent.IsRelease()
 
-	brickFromIndex, present := s.appBricks(&appCurrent).FindBrickByID(req.ID)
+	brickFromIndex, present := appCurrent.Bricks(s.bricksIndex).FindBrickByID(req.ID)
 	if !present {
 		return fmt.Errorf("brick %q not found into the brick index", req.ID)
 	}
@@ -488,10 +468,15 @@ func (s *Service) BrickUpdate(
 	appCurrent.Descriptor.Bricks[brickPosition].Model = brickModel
 	appCurrent.Descriptor.Bricks[brickPosition].Variables = brickVariables
 
-	// Save refuses a release, which only its secrets may be written back to.
-	save := appCurrent.Save
-	if isRelease {
-		save = appCurrent.SaveSecrets
+	// A release is written back through the token of its secrets, which is what the
+	// checks above leave of the request.
+	save := appCurrent.EditSecrets().Save
+	if !isRelease {
+		editable, err := appCurrent.Edit()
+		if err != nil {
+			return err
+		}
+		save = editable.Save
 	}
 	if err := save(); err != nil {
 		return fmt.Errorf("cannot save brick instance with id %s: %w", req.ID, err)
@@ -500,13 +485,9 @@ func (s *Service) BrickUpdate(
 }
 
 func (s *Service) BrickDelete(
-	appCurrent *app.ArduinoApp,
+	appCurrent app.Editable,
 	id string,
 ) error {
-	if _, isRelease := appCurrent.GetRelease(); isRelease {
-		return app.ErrReleaseReadOnly
-	}
-
 	if !slices.ContainsFunc(appCurrent.Descriptor.Bricks, func(b app.Brick) bool { return b.ID == id }) {
 		return ErrBrickNotFound
 	}
@@ -523,11 +504,7 @@ func (s *Service) BrickDelete(
 
 // LocalBrickRename renames a local brick by changing its ID, folder name, and display name.
 // The newID is derived from the newName by the caller (handler layer).
-func (s *Service) LocalBrickRename(appCurrent *app.ArduinoApp, oldID, newID, newName string) (_ LocalBrickRenameResult, _err error) {
-	if _, isRelease := appCurrent.GetRelease(); isRelease {
-		return LocalBrickRenameResult{}, app.ErrReleaseReadOnly
-	}
-
+func (s *Service) LocalBrickRename(appCurrent app.Editable, oldID, newID, newName string) (_ LocalBrickRenameResult, _err error) {
 	if oldID == newID {
 		return LocalBrickRenameResult{}, fmt.Errorf("new brick id %q is the same as the current one", newID)
 	}

@@ -33,7 +33,7 @@ func PrepareRelease(
 	if cb == nil {
 		cb = func(StreamMessage) {}
 	}
-	if _, isRelease := arduinoApp.GetRelease(); !isRelease {
+	if !arduinoApp.IsRelease() {
 		return fmt.Errorf("%w: %q is not installed from a release", ErrBadRequest, arduinoApp.Name)
 	}
 

@@ -33,6 +33,9 @@ type ArduinoApp struct {
 	FullPath       *paths.Path // FullPath is the path to the App folder
 	LocalBricks    []bricksindex.Brick
 	Descriptor     AppDescriptor
+	// release is the manifest of the release the app is installed from, read once by
+	// Load: nil is an app the board owns.
+	release *Release
 }
 
 // Load creates an App instance by reading all the files composing an app and grouping them
@@ -106,6 +109,8 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 		app.LocalBricks = loadBricksFromFolder(appPath.Join("bricks"))
 	}
 
+	app.release = loadRelease(appPath)
+
 	return app, nil
 }
 
@@ -134,22 +139,42 @@ var (
 	ErrReleaseReadOnly = errors.New("the app is installed from a release and cannot be changed")
 )
 
-func (a *ArduinoApp) Save() error {
-	if _, isRelease := a.GetRelease(); isRelease {
-		return ErrReleaseReadOnly
+// editableApp is an alias, so the field of the tokens below is named after it and is
+// unexported: no other package can build a token without asking for one.
+type editableApp = ArduinoApp
+
+// Editable is the token every change of an app needs, and Edit is the only source of
+// one: a function that takes it cannot be handed a release by mistake.
+type Editable struct{ *editableApp }
+
+// Edit grants the token to an app the board owns, and refuses an installed release.
+func (a *ArduinoApp) Edit() (Editable, error) {
+	if a.IsRelease() {
+		return Editable{}, ErrReleaseReadOnly
 	}
-	if err := a.Descriptor.IsValid(); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidApp, err)
-	}
-	if err := a.writeApp(); err != nil {
-		return err
-	}
-	return nil
+	return Editable{a}, nil
 }
 
-// SaveSecrets writes the descriptor back when only a secret changed. It is the one
-// change an app installed from a release takes.
-func (a *ArduinoApp) SaveSecrets() error {
+// Save writes the descriptor back.
+func (e Editable) Save() error { return e.save() }
+
+// App is the app the token was granted for, for what reads the value itself.
+func (e Editable) App() *ArduinoApp { return e.editableApp }
+
+// SecretsEditable is the token of the one change an installed release takes: a secret
+// is the only value a build cannot freeze. The caller states that nothing else changed.
+type SecretsEditable struct{ *editableApp }
+
+// EditSecrets grants the token to any app, a release included.
+func (a *ArduinoApp) EditSecrets() SecretsEditable { return SecretsEditable{a} }
+
+// Save writes the descriptor back.
+func (e SecretsEditable) Save() error { return e.save() }
+
+func (a *ArduinoApp) save() error {
+	if a == nil {
+		return errors.New("internal error: the token holds no app to save")
+	}
 	if err := a.Descriptor.IsValid(); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidApp, err)
 	}
@@ -211,23 +236,33 @@ type Release struct {
 	ID string `yaml:"-"`
 }
 
-// GetRelease reads the manifest: an app that holds one runs what a release froze.
+// IsRelease is what most of the code asks: an app installed from a release runs what a
+// build froze, and nothing of it is written back.
+func (a *ArduinoApp) IsRelease() bool {
+	return a != nil && a.release != nil
+}
+
+// GetRelease is the release the app is installed from, for what reads the manifest
+// itself.
 func (a *ArduinoApp) GetRelease() (Release, bool) {
-	// The zero value has no folder, so it holds no manifest.
-	if a.FullPath == nil {
+	if a == nil || a.release == nil {
 		return Release{}, false
 	}
-	manifest := a.FullPath.Join(ReleaseManifestFileName)
-	content, err := manifest.ReadFile()
-	if err != nil {
-		return Release{}, false
+	return *a.release, true
+}
+
+// Bricks is the brick definitions the app is wired with, and the only way to ask: board
+// is the index this cli ships, and a release answers with the one a build froze.
+func (a *ArduinoApp) Bricks(board *bricksindex.BricksIndex) *bricksindex.BricksIndex {
+	if a.IsRelease() {
+		frozen, err := a.ReleaseBricks()
+		if err != nil {
+			slog.Warn("cannot read the bricks the release ships", slog.String("app", a.Name), slog.String("error", err.Error()))
+		} else {
+			board = frozen
+		}
 	}
-	var release Release
-	if err := yaml.Unmarshal(content, &release); err != nil {
-		slog.Warn("cannot read the release manifest of the app", "path", manifest, "error", err)
-	}
-	release.ID = a.FullPath.Base()
-	return release, true
+	return board.WithAppBricks(a.LocalBricks)
 }
 
 // ReleaseBricks is the brick definitions a release ships in its .cache, which are the
@@ -406,4 +441,20 @@ func load(brickPath *paths.Path) (b bricksindex.Brick, err error) {
 	brick.ExamplesPath = brickPath.Join("examples")
 	brick.DocsAPIPath = brickPath.Join("docs/API.md")
 	return brick, nil
+}
+
+// loadRelease reads the manifest an installed release holds, which no app the board
+// owns has.
+func loadRelease(appPath *paths.Path) *Release {
+	manifest := appPath.Join(ReleaseManifestFileName)
+	content, err := manifest.ReadFile()
+	if err != nil {
+		return nil
+	}
+	var release Release
+	if err := yaml.Unmarshal(content, &release); err != nil {
+		slog.Warn("cannot read the release manifest of the app", "path", manifest, "error", err)
+	}
+	release.ID = appPath.Base()
+	return &release
 }

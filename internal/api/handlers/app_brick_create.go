@@ -15,7 +15,6 @@ import (
 	"strings"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/render"
@@ -36,15 +35,8 @@ func HandleAppLocalBrickCreate(idProvider *appid.Provider) http.HandlerFunc {
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
 			return
 		}
-		if appId.IsRelease() {
-			render.EncodeResponse(w, http.StatusForbidden, models.ErrorResponse{Details: "cannot alter a release"})
-			return
-		}
-
-		a, err := app.Load(appId.ToPath())
-		if err != nil {
-			slog.Error("Unable to load the app", slog.String("error", err.Error()), slog.String("path", appId.String()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
+		a, ok := loadEditableApp(w, appId)
+		if !ok {
 			return
 		}
 

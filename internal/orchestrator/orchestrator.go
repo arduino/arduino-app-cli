@@ -189,10 +189,12 @@ func StartApp(
 	if _, ok := appToStart.GetSketchPath(); ok {
 		cb(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}})
 
-		if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, appToStart); err != nil {
-			cb(StreamMessage{data: "Failed to apply app migration for platform arduino:zephyr >0.54.1. Error: " + err.Error()})
-		} else if ok {
-			cb(StreamMessage{data: "Applied app migration for platform arduino:zephyr >0.54.1. Arduino_RouterBridge is now part of the platform and shouldn't be explicitly specified"})
+		if editable, err := appToStart.Edit(); err == nil {
+			if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, editable); err != nil {
+				cb(StreamMessage{data: "Failed to apply app migration for platform arduino:zephyr >0.54.1. Error: " + err.Error()})
+			} else if ok {
+				cb(StreamMessage{data: "Applied app migration for platform arduino:zephyr >0.54.1. Arduino_RouterBridge is now part of the platform and shouldn't be explicitly specified"})
+			}
 		}
 
 		if err := compileUploadSketch(ctx, verbose, platform, appToStart, sketchCallbackWriter); err != nil {
@@ -331,7 +333,7 @@ func cleanAppCacheFiles(app app.ArduinoApp, cb func(StreamMessage)) error {
 
 	// The .cache of an app installed from a release is what the release froze:
 	// nothing regenerates it, so a destroy leaves it where it is.
-	if _, isRelease := app.GetRelease(); isRelease {
+	if app.IsRelease() {
 		cb(StreamMessage{data: "Keeping the cache the release ships."})
 		return nil
 	}
@@ -929,44 +931,50 @@ func EditApp(
 	editApp *app.ArduinoApp,
 	cfg config.Configuration,
 ) (editErr error) {
-	// Before the rename below: a release is read-only, folder name included.
-	if _, isRelease := editApp.GetRelease(); isRelease {
-		return app.ErrReleaseReadOnly
-	}
-
+	// The default app is stored beside the apps and not in one, so it is the one edit
+	// an installed release takes.
 	if req.Default != nil {
 		if err := editAppDefaults(editApp, *req.Default, cfg); err != nil {
 			return fmt.Errorf("failed to edit app defaults: %w", err)
 		}
 	}
+	if req.Name == nil && req.Icon == nil && req.Description == nil {
+		return nil
+	}
+
+	// What follows is written to the app folder, which a release does not take.
+	editable, err := editApp.Edit()
+	if err != nil {
+		return err
+	}
 
 	if req.Name != nil {
-		editApp.Descriptor.Name = *req.Name
+		editable.Descriptor.Name = *req.Name
 	}
 	if req.Icon != nil {
-		editApp.Descriptor.Icon = *req.Icon
+		editable.Descriptor.Icon = *req.Icon
 	}
 	if req.Description != nil {
-		editApp.Descriptor.Description = *req.Description
+		editable.Descriptor.Description = *req.Description
 	}
 
-	if err := editApp.Descriptor.IsValid(); err != nil {
+	if err := editable.Descriptor.IsValid(); err != nil {
 		return fmt.Errorf("%w: %w", app.ErrInvalidApp, err)
 	}
 
 	if req.Name != nil {
-		newPath := editApp.FullPath.Parent().Join(slug.Make(*req.Name))
+		newPath := editable.FullPath.Parent().Join(slug.Make(*req.Name))
 		if newPath.Exist() {
 			return ErrAppAlreadyExists
 		}
-		if err := editApp.FullPath.Rename(newPath); err != nil {
+		if err := editable.FullPath.Rename(newPath); err != nil {
 			return fmt.Errorf("failed to rename app path: %w", err)
 		}
-		editApp.FullPath = newPath
-		editApp.Name = editApp.Descriptor.Name
+		editable.FullPath = newPath
+		editable.Name = editable.Descriptor.Name
 	}
 
-	return editApp.Save()
+	return editable.Save()
 }
 
 func editAppDefaults(userApp *app.ArduinoApp, isDefault bool, cfg config.Configuration) error {
@@ -1201,7 +1209,7 @@ func uploadSketch(
 // migrateRemoveRouterBridgeIfNeeded removes the Arduino_RouterBridge library from the sketch profile to allow automatic update of the library.
 // This is needed by the platform 0.55 will need a new Arduino_RouterBridge library to allow Serial output redirection to Monitor.
 // The migration is applied only if the platform in the profile doesn't specify a version.
-func migrateRemoveRouterBridgeIfNeeded(ctx context.Context, platform platform.Platform, app app.ArduinoApp) (bool, error) {
+func migrateRemoveRouterBridgeIfNeeded(ctx context.Context, platform platform.Platform, app app.Editable) (bool, error) {
 	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 	srv := commands.NewArduinoCoreServer()
 	if err := SetArduinoCliConfig(ctx, srv); err != nil {
@@ -1260,7 +1268,7 @@ func migrateRemoveRouterBridgeIfNeeded(ctx context.Context, platform platform.Pl
 	slog.Debug("Installed platform version", "version", platformVersion.String())
 
 	if platformVersion.GreaterThan(semver.MustParse("0.54.1")) {
-		libs, err := ListSketchLibraries(ctx, app)
+		libs, err := ListSketchLibraries(ctx, *app.App())
 		if err != nil {
 			return false, fmt.Errorf("unable to list sketch libraries: %w", err)
 		}
