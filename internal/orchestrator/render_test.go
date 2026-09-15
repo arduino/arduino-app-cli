@@ -106,6 +106,21 @@ services:
 		}}, main["volumes"])
 	})
 
+	t.Run("a mount can bind at another path in the container", func(t *testing.T) {
+		expr, err := mountExpr(existing + ":/run/device-model:ro")
+		require.NoError(t, err)
+
+		document := render(t, "services:\n  main:\n    volumes:\n      - '"+expr+"'\n")
+		main := document["services"].(map[string]any)["main"].(map[string]any)
+		require.Equal(t, []any{map[string]any{
+			"type":      "bind",
+			"source":    existing,
+			"target":    "/run/device-model",
+			"read_only": true,
+			"bind":      map[string]any{"create_host_path": false},
+		}}, main["volumes"])
+	})
+
 	t.Run("a mount the board has not is dropped", func(t *testing.T) {
 		expr, err := mountExpr(existing + "/missing")
 		require.NoError(t, err)
