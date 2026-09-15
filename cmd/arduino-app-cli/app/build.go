@@ -31,6 +31,7 @@ func newBuildCmd(cfg config.Configuration) *cobra.Command {
 		output      string
 		includeData bool
 		overwrite   bool
+		verbose     bool
 	)
 
 	cmd := &cobra.Command{
@@ -56,6 +57,7 @@ board defaults to the one running the build.`,
 				Target:      target,
 				IncludeData: includeData,
 				Overwrite:   overwrite,
+				Verbose:     verbose,
 			}
 			if notes != "" {
 				req.Notes = readReleaseNotes(notes)
@@ -81,26 +83,9 @@ board defaults to the one running the build.`,
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output archive, which names the release folder as well, or the directory to write it in")
 	cmd.Flags().BoolVar(&includeData, "include-data", false, "Include data directory in the archive")
 	cmd.Flags().BoolVar(&overwrite, "overwrite", false, "Overwrite the output archive if it exists")
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 
 	return cmd
-}
-
-// readReleaseNotes is the note the release ships in its manifest: a file, or the
-// standard input when the flag is -, so a note can be piped in as it is written.
-func readReleaseNotes(notes string) string {
-	if notes == "-" {
-		data, err := io.ReadAll(feedback.GetStdin())
-		if err != nil {
-			feedback.Fatal("Cannot read the release notes from the standard input: "+err.Error(), feedback.ErrBadArgument)
-		}
-		return string(data)
-	}
-
-	data, err := paths.New(notes).ReadFile()
-	if err != nil {
-		feedback.Fatal(fmt.Sprintf("Cannot read the notes file %q: %v", notes, err), feedback.ErrBadArgument)
-	}
-	return string(data)
 }
 
 func buildHandler(ctx context.Context, cfg config.Configuration, appToBuild app.ArduinoApp, req orchestrator.BuildReleaseRequest) error {
@@ -137,6 +122,24 @@ func buildHandler(ctx context.Context, cfg config.Configuration, appToBuild app.
 		Output:             getResult(),
 	})
 	return nil
+}
+
+// readReleaseNotes is the note the release ships in its manifest: a file, or the
+// standard input when the flag is -.
+func readReleaseNotes(notes string) string {
+	if notes == "-" {
+		data, err := io.ReadAll(feedback.GetStdin())
+		if err != nil {
+			feedback.Fatal("Cannot read the release notes from the standard input: "+err.Error(), feedback.ErrBadArgument)
+		}
+		return string(data)
+	}
+
+	data, err := paths.New(notes).ReadFile()
+	if err != nil {
+		feedback.Fatal(fmt.Sprintf("Cannot read the notes file %q: %v", notes, err), feedback.ErrBadArgument)
+	}
+	return string(data)
 }
 
 type buildAppResult struct {

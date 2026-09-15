@@ -1,12 +1,12 @@
 ---
 name: github.com/planetscale/vtprotobuf/types/known/timestamppb
-version: v0.6.1-0.20240319094008-0393e58bdf10
+version: v0.6.1-0.20250313105119-ba97887b0a25
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/planetscale/vtprotobuf/types/known/timestamppb
 license: bsd-3-clause
 licenses:
-- sources: vtprotobuf@v0.6.1-0.20240319094008-0393e58bdf10/LICENSE
+- sources: vtprotobuf@v0.6.1-0.20250313105119-ba97887b0a25/LICENSE
   text: |
     Copyright (c) 2021, PlanetScale Inc. All rights reserved.
     Copyright (c) 2013, The GoGo Authors. All rights reserved.

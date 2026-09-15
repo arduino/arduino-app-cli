@@ -20,6 +20,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/arduino/arduino-cli/commands"
+	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
@@ -50,6 +52,8 @@ type BuildReleaseRequest struct {
 	// IncludeData ships the data folder of the app, at the root of the archive.
 	IncludeData bool
 	Overwrite   bool
+	// Verbose streams the sketch compile output, as a start does.
+	Verbose bool
 }
 
 type BuildReleaseResult struct {
@@ -58,9 +62,8 @@ type BuildReleaseResult struct {
 	Archive string `json:"archive"`
 }
 
-// ReleaseManifestFileName is the manifest at the root of the archive. It holds what a
-// board needs to list a release and to gate its install, so nothing here requires
-// opening the app it ships.
+// ReleaseManifestFileName is the manifest at the root of the archive: it holds what a
+// board needs to list a release and to gate its install, without opening the app.
 const ReleaseManifestFileName = "release.yaml"
 
 // ReleaseManifestSchema is the layout of the archive, not the version of the app: an
@@ -75,8 +78,7 @@ type ReleaseManifest struct {
 	// CreatedAt is when the build ran, UTC.
 	CreatedAt time.Time `yaml:"created_at"`
 	// Notes is the release note as it was authored, markdown, and is absent when none
-	// was given. It is held here and not in a file of its own: a reader must get every
-	// release fact without extracting anything else from the archive.
+	// was given. It is in the manifest so that a reader gets every release fact at once.
 	Notes     string         `yaml:"notes,omitempty"`
 	Bricks    []ReleaseBrick `yaml:"bricks,omitempty"`
 	Models    []ReleaseModel `yaml:"models,omitempty"`
@@ -210,6 +212,17 @@ func BuildRelease(
 		return BuildReleaseResult{}, err
 	}
 
+	// The sketch is optional, as it is for the release manifest: an app made of
+	// python only ships without a firmware.
+	if _, hasSketch := stagedApp.GetSketchPath(); hasSketch {
+		cb(StreamMessage{data: "building sketch", progress: &Progress{Name: "sketch", Progress: 80.0}})
+		// The compile reads the staged sources and caches in the app folder, as a
+		// start does. Only the firmware lands in the release, in prebuild.
+		if err := buildSketch(ctx, stagedApp, plat, appToBuild.SketchBuildPath(), prebuildDir, req.Verbose, cb); err != nil {
+			return BuildReleaseResult{}, err
+		}
+	}
+
 	cb(StreamMessage{data: "writing " + archivePath.Base(), progress: &Progress{Name: "archive", Progress: 90.0}})
 	if err := writeReleaseArchive(releaseDir, archivePath); err != nil {
 		return BuildReleaseResult{}, err
@@ -335,8 +348,7 @@ func releaseModels(ctx context.Context, descriptor app.AppDescriptor, modelsInde
 }
 
 // releaseLibraries is the sketch libraries the app is built with, as name@version. An
-// app without a sketch has none, and a listing that fails leaves the manifest without
-// them: it is what a release is described by, never what it is built from.
+// app without a sketch has none, and a listing that fails leaves the manifest without them.
 func releaseLibraries(ctx context.Context, arduinoApp app.ArduinoApp) []string {
 	if _, hasSketch := arduinoApp.GetSketchPath(); !hasSketch {
 		return nil
@@ -500,6 +512,69 @@ func buildPythonEnv(ctx context.Context, docker command.Cli, pythonImage string,
 	if err != nil {
 		return fmt.Errorf("failed to build the python environment: %w", err)
 	}
+	return nil
+}
+
+// ReleaseFirmwareFileName is the compiled sketch a release ships in its prebuild dir.
+const ReleaseFirmwareFileName = "sketch.fw"
+
+func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platform.Platform, buildPath, destPath *paths.Path, verbose bool, cb func(StreamMessage)) error {
+	output := NewCallbackWriter(func(line string) {
+		cb(StreamMessage{data: line})
+	})
+
+	sketchPath, ok := appToBuild.GetSketchPath()
+	if !ok {
+		return fmt.Errorf("no sketch path found in the Arduino app")
+	}
+	if err := buildPath.MkdirAll(); err != nil {
+		return fmt.Errorf("failed to create build directory: %w", err)
+	}
+
+	srv, inst, err := initializeArduinoCli(ctx, sketchPath, output)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
+	}()
+
+	// The option only exists on the platforms that wait for the Linux side.
+	menuOptions, err := GetPlatformMenuOptions(ctx, platform)
+	if err != nil {
+		slog.Warn("failed to get platform menu options", slog.String("error", err.Error()))
+	}
+	fqbn := platform.FQBN
+	if menuOptions.Has(WaitForApp) {
+		fqbn += ":" + WaitForApp.String()
+	}
+
+	// Compile the sketch
+	if err := compileSketch(
+		ctx, srv, inst,
+		sketchPath, buildPath,
+		platform, fqbn,
+		verbose, output,
+	); err != nil {
+		return err
+	}
+
+	// Upload to file
+	uploadStream, _ := commands.UploadToServerStreams(ctx, output, output)
+	if err := srv.Upload(&rpc.UploadRequest{
+		Instance:   inst,
+		Fqbn:       fqbn,
+		SketchPath: sketchPath.String(),
+		ImportDir:  buildPath.String(),
+		Verbose:    verbose,
+		// There is no board to upload to: "default" is the protocol arduino-cli uses for
+		// portless uploads, and it selects the upload.tool.default recipe.
+		Port:                 &rpc.Port{Protocol: "default"},
+		UploadToFirmwareFile: new(destPath.Join(ReleaseFirmwareFileName).String()),
+	}, uploadStream); err != nil {
+		return fmt.Errorf("failed to create the sketch artifact: %w", err)
+	}
+
 	return nil
 }
 

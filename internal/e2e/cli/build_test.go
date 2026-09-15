@@ -17,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/arduino/arduino-cli/commands"
+	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
 	"github.com/stretchr/testify/assert"
@@ -34,8 +36,12 @@ func TestAppBuild(t *testing.T) {
 		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
 	}
 
-	cli := e2e.NewArduinoAppCLI(t, e2e.WithBoardName("unoq"))
+	cli := e2e.NewArduinoAppCLI(t)
 	t.Cleanup(cli.CleanUp)
+
+	ensurePlatformInstalled(t, "arduino:zephyr")
+
+	targets := []string{"unoq", "ventunoq"}
 
 	tests := []struct {
 		name string
@@ -80,16 +86,15 @@ func TestAppBuild(t *testing.T) {
 			newArgs:     []string{"--no-sketch"},
 			includeData: true,
 		},
-		// TODO: an app with a sketch, once the firmware it flashes ships in the release.
+		{
+			name:    "an app with a sketch",
+			appName: "sketch-app",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			// The runner image is pulled before the venv is built, so a build is not quick.
-			ctx, cancel := context.WithTimeout(t.Context(), 15*time.Minute)
-			defer cancel()
-
 			newArgs := append([]string{"app", "new", test.appName}, test.newArgs...)
-			stdout, stderr, err := cli.Run(ctx, newArgs...)
+			stdout, stderr, err := cli.Run(t.Context(), newArgs...)
 			require.NoError(t, err, "stdout: %s\nstderr: %s", stdout, stderr)
 
 			appDir := cli.AppsDir().Join(test.appName)
@@ -102,109 +107,159 @@ func TestAppBuild(t *testing.T) {
 			}
 			asAuthored := appEntries(t, appDir)
 
-			outputDir := paths.New(t.TempDir())
-			output := outputDir
-			if test.archiveName != "" {
-				output = outputDir.Join(test.archiveName)
-			}
-			buildArgs := []string{"app", "build", appDir.String(), "--output", output.String()}
-			if test.includeData {
-				buildArgs = append(buildArgs, "--include-data")
-			}
-			buildStart := time.Now().UTC().Truncate(time.Second)
-			stdout, stderr, err = cli.Run(ctx, buildArgs...)
-			require.NoError(t, err, "stdout: %s\nstderr: %s", stdout, stderr)
+			for _, target := range targets {
+				t.Run(target, func(t *testing.T) {
+					// The runner image is pulled before the venv is built, so a build is not quick.
+					ctx, cancel := context.WithTimeout(t.Context(), 15*time.Minute)
+					defer cancel()
 
-			// The build writes nothing in the app: it is staged and built outside of it,
-			// and the runner gets the staged copy read-only.
-			assert.Equal(t, asAuthored, appEntries(t, appDir))
+					outputDir := paths.New(t.TempDir())
+					output := outputDir
+					if test.archiveName != "" {
+						output = outputDir.Join(test.archiveName)
+					}
+					buildArgs := []string{"app", "build", appDir.String(), "--target", target, "--output", output.String()}
+					if test.includeData {
+						buildArgs = append(buildArgs, "--include-data")
+					}
+					buildStart := time.Now().UTC().Truncate(time.Second)
+					stdout, stderr, err := cli.Run(ctx, buildArgs...)
+					require.NoError(t, err, "stdout: %s\nstderr: %s", stdout, stderr)
 
-			archives, err := outputDir.ReadDir()
-			require.NoError(t, err)
-			archives.FilterSuffix(orchestrator.ReleaseArchiveExt)
-			require.Len(t, archives, 1, "stdout: %s\nstderr: %s", stdout, stderr)
-			archivePath := archives[0]
-			releaseName := strings.TrimSuffix(archivePath.Base(), orchestrator.ReleaseArchiveExt)
+					// The app is only read: what ships is the staged copy.
+					assert.Equal(t, asAuthored, appEntries(t, appDir))
 
-			names, manifest := readRelease(t, archivePath)
+					archives, err := outputDir.ReadDir()
+					require.NoError(t, err)
+					archives.FilterSuffix(orchestrator.ReleaseArchiveExt)
+					require.Len(t, archives, 1, "stdout: %s\nstderr: %s", stdout, stderr)
+					archivePath := archives[0]
+					releaseName := strings.TrimSuffix(archivePath.Base(), orchestrator.ReleaseArchiveExt)
 
-			assert.Equal(t, orchestrator.ReleaseManifestSchema, manifest.Schema)
-			assert.Equal(t, test.appName, manifest.Name)
-			// The board of platform.json, which is the one running the build.
-			assert.Equal(t, "unoq", manifest.Target)
-			// Dated in UTC, and the same instant names the release.
-			_, offset := manifest.CreatedAt.Zone()
-			assert.Zero(t, offset)
-			assert.WithinRange(t, manifest.CreatedAt, buildStart, time.Now().UTC())
-			wantName := test.appName + "-" + manifest.CreatedAt.Format("20060102-150405") + "-unoq"
-			if test.archiveName != "" {
-				wantName = strings.TrimSuffix(test.archiveName, orchestrator.ReleaseArchiveExt)
-			}
-			assert.Equal(t, wantName, releaseName)
+					names, manifest := readRelease(t, archivePath)
 
-			bricks := make([]string, 0, len(manifest.Bricks))
-			for _, brick := range manifest.Bricks {
-				bricks = append(bricks, brick.ID)
-			}
-			assert.ElementsMatch(t, test.wantBricks, bricks)
+					assert.Equal(t, orchestrator.ReleaseManifestSchema, manifest.Schema)
+					assert.Equal(t, test.appName, manifest.Name)
+					// The board the build is given, which the release name states as well.
+					assert.Equal(t, target, manifest.Target)
+					// Dated in UTC, and the same instant names the release.
+					_, offset := manifest.CreatedAt.Zone()
+					assert.Zero(t, offset)
+					assert.WithinRange(t, manifest.CreatedAt, buildStart, time.Now().UTC())
+					wantName := test.appName + "-" + manifest.CreatedAt.Format("20060102-150405") + "-" + target
+					if test.archiveName != "" {
+						wantName = strings.TrimSuffix(test.archiveName, orchestrator.ReleaseArchiveExt)
+					}
+					assert.Equal(t, wantName, releaseName)
 
-			// The manifest is the first entry after the folder the archive is rooted at,
-			// so a reader gets the release facts from the first block.
-			require.Greater(t, len(names), 2)
-			assert.Equal(t, releaseName, names[0])
-			assert.Equal(t, releaseName+"/"+orchestrator.ReleaseManifestFileName, names[1])
+					bricks := make([]string, 0, len(manifest.Bricks))
+					for _, brick := range manifest.Bricks {
+						bricks = append(bricks, brick.ID)
+					}
+					assert.ElementsMatch(t, test.wantBricks, bricks)
 
-			// The app as authored, the frozen compose set and the brick index the board reads.
-			assert.Contains(t, names, releaseName+"/src/app.yaml")
-			assert.Contains(t, names, releaseName+"/prebuild/"+app.MainTemplateFileName)
-			assert.Contains(t, names, releaseName+"/prebuild/bricks-list.yaml")
+					// The manifest is the first entry after the folder the archive is rooted at,
+					// so a reader gets the release facts from the first block.
+					require.Greater(t, len(names), 2)
+					assert.Equal(t, releaseName, names[0])
+					assert.Equal(t, releaseName+"/"+orchestrator.ReleaseManifestFileName, names[1])
 
-			ships := func(prefix string) bool {
-				return slices.ContainsFunc(names, func(name string) bool { return strings.HasPrefix(name, prefix) })
-			}
-			// The venv is what the build is for: the board installs nothing.
-			assert.True(t, ships(releaseName+"/prebuild/.venv/"), "the release ships no python environment")
+					// The app as authored, the frozen compose set and the brick index the board reads.
+					assert.Contains(t, names, releaseName+"/src/app.yaml")
+					assert.Contains(t, names, releaseName+"/prebuild/"+app.MainTemplateFileName)
+					assert.Contains(t, names, releaseName+"/prebuild/bricks-list.yaml")
 
-			// A brick with a container brings a compose to include, and the overrides of
-			// the services it declares. An app with none has neither.
-			withContainer := len(test.wantBricks) > 0
-			assert.Equal(t, withContainer, ships(releaseName+"/prebuild/compose/"),
-				"the frozen compose set does not match the bricks of the app")
-			assert.Equal(t, withContainer, ships(releaseName+"/prebuild/"+app.OverrideTemplateFileName),
-				"the overrides do not match the services of the app")
+					ships := func(prefix string) bool {
+						return slices.ContainsFunc(names, func(name string) bool { return strings.HasPrefix(name, prefix) })
+					}
+					// The venv is what the build is for: the board installs nothing.
+					assert.True(t, ships(releaseName+"/prebuild/.venv/"), "the release ships no python environment")
 
-			// A declared dependency is installed at build, and the marker run.sh reads to
-			// skip the install ships next to the venv.
-			holdsDependency := slices.ContainsFunc(names, func(name string) bool {
-				return strings.Contains(name, "/site-packages/six-1.17.0.dist-info")
-			})
-			assert.Equal(t, test.requirements != "", holdsDependency,
-				"the venv does not match the requirements of the app")
-			assert.Equal(t, test.requirements != "", ships(releaseName+"/prebuild/installed_requirements.txt"),
-				"the install marker does not match the requirements of the app")
+					// The firmware is built out of the sketch that ships, and an app with
+					// no sketch has none.
+					withSketch := !slices.Contains(test.newArgs, "--no-sketch")
+					assert.Equal(t, withSketch, slices.Contains(names, releaseName+"/src/sketch/sketch.ino"),
+						"the staged sources do not match the sketch of the app")
+					assert.Equal(t, withSketch, slices.Contains(names, releaseName+"/prebuild/"+orchestrator.ReleaseFirmwareFileName),
+						"the firmware does not match the sketch of the app")
 
-			// The data of the app ships at the root, only when it is asked for. Its
-			// .cache never ships: the build resolves it anew.
-			assert.Equal(t, test.includeData, slices.Contains(names, releaseName+"/data/keep.txt"),
-				"the data folder does not match --include-data")
-			for _, name := range names {
-				// Whatever ships, src is the app as authored and holds no state.
-				assert.NotContains(t, name, "/src/.cache")
-				assert.NotContains(t, name, "/src/data")
-				if !test.includeData {
-					assert.NotContains(t, name, "/data/")
-				}
+					// A brick with a container brings a compose to include, and the overrides of
+					// the services it declares. An app with none has neither.
+					withContainer := len(test.wantBricks) > 0
+					assert.Equal(t, withContainer, ships(releaseName+"/prebuild/compose/"),
+						"the frozen compose set does not match the bricks of the app")
+					assert.Equal(t, withContainer, ships(releaseName+"/prebuild/"+app.OverrideTemplateFileName),
+						"the overrides do not match the services of the app")
+
+					// A declared dependency is installed at build, and the marker run.sh reads to
+					// skip the install ships next to the venv.
+					holdsDependency := slices.ContainsFunc(names, func(name string) bool {
+						return strings.Contains(name, "/site-packages/six-1.17.0.dist-info")
+					})
+					assert.Equal(t, test.requirements != "", holdsDependency,
+						"the venv does not match the requirements of the app")
+					assert.Equal(t, test.requirements != "", ships(releaseName+"/prebuild/installed_requirements.txt"),
+						"the install marker does not match the requirements of the app")
+
+					// The data of the app ships at the root, only when it is asked for. Its
+					// .cache never ships: the build resolves it anew.
+					assert.Equal(t, test.includeData, slices.Contains(names, releaseName+"/data/keep.txt"),
+						"the data folder does not match --include-data")
+					for _, name := range names {
+						// Whatever ships, src is the app as authored and holds no state.
+						assert.NotContains(t, name, "/src/.cache")
+						assert.NotContains(t, name, "/src/data")
+						if !test.includeData {
+							assert.NotContains(t, name, "/data/")
+						}
+					}
+				})
 			}
 		})
 	}
 }
 
-// appEntries is every path of the app folder, relative and sorted: a build that writes
-// in the app is a build that ships something else than what was authored.
+// ensurePlatformInstalled installs the platform, named <package>:<architecture>. The
+// sketch profile pins no version, so arduino-cli compiles with the one on the system.
+func ensurePlatformInstalled(t *testing.T, platformID string) {
+	t.Helper()
+	ctx := t.Context()
+
+	platformPackage, architecture, found := strings.Cut(platformID, ":")
+	require.True(t, found, "the platform id %q is not <package>:<architecture>", platformID)
+
+	srv := commands.NewArduinoCoreServer()
+	require.NoError(t, orchestrator.SetArduinoCliConfig(ctx, srv))
+
+	resp, err := srv.Create(ctx, &rpc.CreateRequest{})
+	require.NoError(t, err)
+	instance := resp.GetInstance()
+	defer func() {
+		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: instance})
+	}()
+
+	indexStream, _ := commands.UpdateIndexStreamResponseToCallbackFunction(ctx, func(*rpc.DownloadProgress) {})
+	require.NoError(t, srv.UpdateIndex(&rpc.UpdateIndexRequest{Instance: instance}, indexStream))
+
+	initStream := commands.InitStreamResponseToCallbackFunction(ctx, func(*rpc.InitResponse) error { return nil })
+	require.NoError(t, srv.Init(&rpc.InitRequest{Instance: instance}, initStream))
+
+	installStream := commands.PlatformInstallStreamResponseToCallbackFunction(ctx,
+		func(*rpc.DownloadProgress) {}, func(*rpc.TaskProgress) {})
+	require.NoError(t, srv.PlatformInstall(&rpc.PlatformInstallRequest{
+		Instance:        instance,
+		PlatformPackage: platformPackage,
+		Architecture:    architecture,
+	}, installStream))
+}
+
+// appEntries is every path of the app folder, relative and sorted, .cache apart: the
+// sketch is compiled with the cache of the app, as a start does.
 func appEntries(t *testing.T, appDir *paths.Path) []string {
 	t.Helper()
 
-	entries, err := appDir.ReadDirRecursive()
+	notCache := paths.FilterOutNames(".cache")
+	entries, err := appDir.ReadDirRecursiveFiltered(notCache, notCache)
 	require.NoError(t, err)
 	names := make([]string, 0, len(entries))
 	for _, entry := range entries {
