@@ -276,11 +276,12 @@ func (b *Board) GetConnection(optPassword ...string) (remote.RemoteConn, error) 
 	}
 }
 
-var customNameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-]{0,63}$`)
+// A DNS label: max 63 chars, no leading or trailing hyphen.
+var customNameRegex = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$`)
 
 func SetCustomName(ctx context.Context, conn remote.RemoteConn, name string) error {
 	if !customNameRegex.MatchString(name) {
-		return fmt.Errorf("invalid custom name: %s, must match regex %s", name, customNameRegex.String())
+		return fmt.Errorf("invalid custom name %q: use letters, digits and hyphens, start and end with a letter or a digit, 63 characters maximum", name)
 	}
 
 	err := conn.GetCmd("sudo", "hostnamectl", "set-hostname", name).
