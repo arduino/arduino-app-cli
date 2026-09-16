@@ -62,6 +62,8 @@ func listHandler(ctx context.Context, cfg config.Configuration, showExamples, sh
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}
 
+	feedback.Warnf("Warning: the 'status' field has been removed from this list. You can use instead the new command 'app ps' to show the list of active apps.\n")
+
 	feedback.PrintResult(appListResult{
 		Apps:           res.Apps,
 		BrokenApps:     res.BrokenApps,

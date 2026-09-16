@@ -19,7 +19,7 @@ board — run them there via App Lab, `adb shell`, or SSH.
 4. **`--help` is the truth for the CLI.** Any `arduino-app-cli <cmd> --help` prints
    exact flags for the installed version.
 
----
+---2
 
 ## 1. The board
 
@@ -72,7 +72,10 @@ Command groups include `app`, `brick`, `model`, `monitor`, `properties`, `system
 **ID** like `user:my-app` or `examples:blink`):
 
 ```bash
-arduino-app-cli app list                              # apps + STATUS + IDs
+arduino-app-cli app list                              # app catalog + IDs
+arduino-app-cli app ps                                # starting/running/stopping/failed apps
+arduino-app-cli app ps --all                          # also includes stopped apps
+arduino-app-cli app start   ~/ArduinoApps/my-app
 arduino-app-cli app start   ~/ArduinoApps/my-app      # stops whatever was running!
 arduino-app-cli app stop    ~/ArduinoApps/my-app
 arduino-app-cli app restart ~/ArduinoApps/my-app
@@ -81,10 +84,16 @@ arduino-app-cli app logs    ~/ArduinoApps/my-app --tail 200
 arduino-app-cli monitor                               # MCU serial (Serial.print)
 ```
 
+`app list` is the application catalog and does not provide application status.
+Use `app ps` to see the status of applications on the board. By default, `app ps`
+shows `starting`, `running`, `stopping`, and `failed` applications. Use
+`app ps --all` or `-a` to also include stopped applications. Uninitialized
+applications are excluded.
+
 > **Only one App runs at a time.** `app start` implicitly stops the current one —
 > confirm with the user first.
 
-**Read-only / safe to run anytime:** `app list`, `app logs`, `brick list`,
+**Read-only / safe to run anytime:** `app list`, `app ps`, `app logs`, `brick list`,
 `brick details`, `config get`, `version`, `properties get`.
 
 **State-changing / confirm with the user first:** `app start|stop|restart|new|
