@@ -661,7 +661,7 @@ func writeReleaseArchive(releaseDir *paths.Path, archivePath *paths.Path) (err e
 			header.Uname, header.Gname = "", ""
 			// The modes of the build machine are not shipped, or an app folder left group
 			// writable installs group writable. The venv is the exception: it needs its x.
-			if _, entry, _ := strings.Cut(header.Name, "/"); !strings.HasPrefix(entry, app.PrebuildDirName+"/") {
+			if _, entry, _ := strings.Cut(header.Name, "/"); !strings.HasPrefix(entry, "prebuild/") {
 				switch {
 				case info.IsDir():
 					header.Mode = 0755
