@@ -568,6 +568,47 @@ Contains a JSON object with the details of an error.
 			},
 		},
 		{
+			OperationId: "buildApp",
+			Method:      http.MethodPost,
+			Path:        "/v1/apps/{appID}/build",
+			Request: (*struct {
+				ID          string `path:"appID" description:"application identifier."`
+				Target      string `json:"target" description:"Target defaults to the board running the build."`
+				Notes       string `json:"notes" description:"Notes is the release note, markdown, and goes in the manifest as it is given."`
+				IncludeData bool   `json:"include_data" description:"IncludeData ships the data folder of the app, at the root of the archive."`
+			})(nil),
+			Description: "Build the application into a release archive: the python environment is built and the compose files are resolved for the target board, so that installing it generates nothing.",
+			Summary:     "Build an app into a release archive",
+			Tags:        []Tag{ApplicationTag},
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "text/event-stream",
+				DataStructure: "",
+				Description: `A stream of Server-Sent Events (SSE) that notifies the progress.
+The client will receive events formatted as follows:
+
+**Event 'progress'**:
+Contains a JSON object with the percentage of completion.
+'event: progress'
+'data: {"progress":0.25}'
+
+**Event 'message'**:
+Contains a JSON object with an informational message.
+'event: message'
+'data: {"message":"building the python environment..."}'
+
+**Event 'error'**:
+Contains a JSON object with the details of an error.
+'event: error'
+'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+`,
+			},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+			},
+		},
+		{
 			OperationId: "editApp",
 			Method:      http.MethodPatch,
 			Path:        "/v1/apps/{id}",

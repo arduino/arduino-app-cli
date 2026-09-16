@@ -603,6 +603,18 @@ type ImportAppParams struct {
 	File *string `form:"file,omitempty" json:"file,omitempty"`
 }
 
+// BuildAppJSONBody defines parameters for BuildApp.
+type BuildAppJSONBody struct {
+	// IncludeData IncludeData ships the data folder of the app, at the root of the archive.
+	IncludeData *bool `json:"include_data,omitempty"`
+
+	// Notes Notes is the release note, markdown, and goes in the manifest as it is given.
+	Notes *string `json:"notes,omitempty"`
+
+	// Target Target defaults to the board running the build.
+	Target *string `json:"target,omitempty"`
+}
+
 // AppSketchRemoveLibraryParams defines parameters for AppSketchRemoveLibrary.
 type AppSketchRemoveLibraryParams struct {
 	// RemoveDeps if set to "true", the library's dependencies will be removed as well if not needed anymore.
@@ -714,6 +726,9 @@ type UpsertAppBrickInstanceJSONRequestBody = BrickCreateUpdateRequest
 
 // RenameAppLocalBrickJSONRequestBody defines body for RenameAppLocalBrick for application/json ContentType.
 type RenameAppLocalBrickJSONRequestBody = AppLocalBrickRenameRequest
+
+// BuildAppJSONRequestBody defines body for BuildApp for application/json ContentType.
+type BuildAppJSONRequestBody BuildAppJSONBody
 
 // EditAppJSONRequestBody defines body for EditApp for application/json ContentType.
 type EditAppJSONRequestBody = EditRequest
@@ -847,6 +862,11 @@ type ClientInterface interface {
 	RenameAppLocalBrickWithBody(ctx context.Context, appID string, brickID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	RenameAppLocalBrick(ctx context.Context, appID string, brickID string, body RenameAppLocalBrickJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// BuildAppWithBody request with any body
+	BuildAppWithBody(ctx context.Context, appID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	BuildApp(ctx context.Context, appID string, body BuildAppJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAppPorts request
 	GetAppPorts(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1152,6 +1172,30 @@ func (c *Client) RenameAppLocalBrickWithBody(ctx context.Context, appID string, 
 
 func (c *Client) RenameAppLocalBrick(ctx context.Context, appID string, brickID string, body RenameAppLocalBrickJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRenameAppLocalBrickRequest(c.Server, appID, brickID, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) BuildAppWithBody(ctx context.Context, appID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewBuildAppRequestWithBody(c.Server, appID, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) BuildApp(ctx context.Context, appID string, body BuildAppJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewBuildAppRequest(c.Server, appID, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2151,6 +2195,53 @@ func NewRenameAppLocalBrickRequestWithBody(server string, appID string, brickID 
 	}
 
 	operationPath := fmt.Sprintf("/v1/apps/%s/bricks/%s/rename", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewBuildAppRequest calls the generic BuildApp builder with application/json body
+func NewBuildAppRequest(server string, appID string, body BuildAppJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewBuildAppRequestWithBody(server, appID, "application/json", bodyReader)
+}
+
+// NewBuildAppRequestWithBody generates requests for BuildApp with any type of body
+func NewBuildAppRequestWithBody(server string, appID string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "appID", appID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/apps/%s/build", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -3742,6 +3833,11 @@ type ClientWithResponsesInterface interface {
 
 	RenameAppLocalBrickWithResponse(ctx context.Context, appID string, brickID string, body RenameAppLocalBrickJSONRequestBody, reqEditors ...RequestEditorFn) (*RenameAppLocalBrickResp, error)
 
+	// BuildAppWithBodyWithResponse request with any body
+	BuildAppWithBodyWithResponse(ctx context.Context, appID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*BuildAppResp, error)
+
+	BuildAppWithResponse(ctx context.Context, appID string, body BuildAppJSONRequestBody, reqEditors ...RequestEditorFn) (*BuildAppResp, error)
+
 	// GetAppPortsWithResponse request
 	GetAppPortsWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*GetAppPortsResp, error)
 
@@ -4206,6 +4302,38 @@ func (r RenameAppLocalBrickResp) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r RenameAppLocalBrickResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type BuildAppResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON412      *PreconditionFailed
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r BuildAppResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r BuildAppResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r BuildAppResp) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -5415,6 +5543,23 @@ func (c *ClientWithResponses) RenameAppLocalBrickWithResponse(ctx context.Contex
 	return ParseRenameAppLocalBrickResp(rsp)
 }
 
+// BuildAppWithBodyWithResponse request with arbitrary body returning *BuildAppResp
+func (c *ClientWithResponses) BuildAppWithBodyWithResponse(ctx context.Context, appID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*BuildAppResp, error) {
+	rsp, err := c.BuildAppWithBody(ctx, appID, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseBuildAppResp(rsp)
+}
+
+func (c *ClientWithResponses) BuildAppWithResponse(ctx context.Context, appID string, body BuildAppJSONRequestBody, reqEditors ...RequestEditorFn) (*BuildAppResp, error) {
+	rsp, err := c.BuildApp(ctx, appID, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseBuildAppResp(rsp)
+}
+
 // GetAppPortsWithResponse request returning *GetAppPortsResp
 func (c *ClientWithResponses) GetAppPortsWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*GetAppPortsResp, error) {
 	rsp, err := c.GetAppPorts(ctx, appID, reqEditors...)
@@ -6210,6 +6355,46 @@ func ParseRenameAppLocalBrickResp(rsp *http.Response) (*RenameAppLocalBrickResp,
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseBuildAppResp parses an HTTP response from a BuildAppWithResponse call
+func ParseBuildAppResp(rsp *http.Response) (*BuildAppResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &BuildAppResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
 		var dest PreconditionFailed
