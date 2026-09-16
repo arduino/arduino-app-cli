@@ -193,6 +193,14 @@ func (c *Configuration) DataDir() *paths.Path {
 	return c.dataDir
 }
 
+// BuildArtifactsDir is where finished release archives are kept so that a build
+// started over the API can be downloaded later by its own endpoint. It lives in the
+// system temp dir rather than the data dir: the archive must outlive the build
+// request, but not the machine, so it is fine to lose it on reboot.
+func (c *Configuration) BuildArtifactsDir() *paths.Path {
+	return paths.New(os.TempDir(), "build-artifacts")
+}
+
 func (c *Configuration) ExamplesBaseDir() *paths.Path {
 	return c.dataDir.Join("examples")
 }
