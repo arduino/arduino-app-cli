@@ -19,7 +19,7 @@ board — run them there via App Lab, `adb shell`, or SSH.
 4. **`--help` is the truth for the CLI.** Any `arduino-app-cli <cmd> --help` prints
    exact flags for the installed version.
 
----2
+---
 
 ## 1. The board
 
