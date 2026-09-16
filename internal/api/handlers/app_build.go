@@ -6,12 +6,13 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -25,6 +26,13 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
+
+// buildRequest is the JSON body of a build request.
+type buildRequest struct {
+	Target       string `json:"target" description:"board target to build for"`
+	IncludeData  bool   `json:"include_data" description:"include the app data in the release"`
+	ReleaseNotes string `json:"notes" description:"notes to attach to the release"`
+}
 
 // buildArtifact is the "done" event of a build: the release facts plus where the
 // archive can be downloaded. artifact_id is the archive file name, and download_path
@@ -59,19 +67,26 @@ func HandleAppBuild(
 			return
 		}
 
-		includeData := false
-		if val := r.URL.Query().Get("include_data"); val != "" {
-			includeData, err = strconv.ParseBool(val)
-			if err != nil {
-				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "the parameter 'include_data' must be a boolean"})
+		defer r.Body.Close()
+
+		var buildReq buildRequest
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			slog.Error("unable to read app build request", slog.String("error", err.Error()))
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "unable to read app build request"})
+			return
+		}
+		if len(body) > 0 {
+			if err := json.Unmarshal(body, &buildReq); err != nil {
+				slog.Error("unable to decode app build request", slog.String("error", err.Error()))
+				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "unable to decode app build request"})
 				return
 			}
 		}
 
-		target := r.URL.Query().Get("target")
-		if target != "" {
-			if _, ok := platform.ForBoard(target); !ok {
-				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: fmt.Sprintf("the parameter 'target' must be one of %s", strings.Join(platform.SupportedBoards(), ", "))})
+		if buildReq.Target != "" {
+			if _, ok := platform.ForBoard(buildReq.Target); !ok {
+				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: fmt.Sprintf("the field 'target' must be one of %s", strings.Join(platform.SupportedBoards(), ", "))})
 				return
 			}
 		}
@@ -86,9 +101,9 @@ func HandleAppBuild(
 		}
 
 		req := orchestrator.BuildReleaseRequest{
-			Target:      target,
-			Notes:       r.URL.Query().Get("release_notes"),
-			IncludeData: includeData,
+			Target:      buildReq.Target,
+			Notes:       buildReq.ReleaseNotes,
+			IncludeData: buildReq.IncludeData,
 			Output:      buildArtifactsDir(),
 			Overwrite:   true,
 		}
