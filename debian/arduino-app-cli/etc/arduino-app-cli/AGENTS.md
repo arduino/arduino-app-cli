@@ -75,7 +75,6 @@ Command groups include `app`, `brick`, `model`, `monitor`, `properties`, `system
 arduino-app-cli app list                              # app catalog + IDs
 arduino-app-cli app ps                                # starting/running/stopping/failed apps
 arduino-app-cli app ps --all                          # also includes stopped apps
-arduino-app-cli app start   ~/ArduinoApps/my-app
 arduino-app-cli app start   ~/ArduinoApps/my-app      # stops whatever was running!
 arduino-app-cli app stop    ~/ArduinoApps/my-app
 arduino-app-cli app restart ~/ArduinoApps/my-app
