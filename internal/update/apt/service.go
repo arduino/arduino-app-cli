@@ -195,11 +195,9 @@ func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, er
 		"-o", "Acquire::Retries=3",
 		"-o", "Acquire::http::Timeout=30",
 		"-o", "Acquire::https::Timeout=30",
-		// A changed conffile must not stop the upgrade, and the dpkg lock of
-		// another apt must not hold it for ever.
+		// A changed conffile must not open a prompt and stop the upgrade.
 		"-o", "Dpkg::Options::=--force-confdef",
 		"-o", "Dpkg::Options::=--force-confold",
-		"-o", "DPkg::Lock::Timeout=300",
 	}
 	args := make([]string, 0, 5+len(aptOptions)+len(names))
 	args = append(args, "sudo", "apt-get", "install", "--only-upgrade", "-y")
