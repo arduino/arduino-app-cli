@@ -22,6 +22,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
@@ -35,10 +36,9 @@ type buildArtifact struct {
 	DownloadPath string `json:"download_path"`
 }
 
-// HandleAppBuild builds an app into a release archive, the same work the "app build"
-// command does, and reports it as a stream of Server-Sent Events. The archive is kept
-// server-side under the build-artifacts dir; the final "done" event names it and the
-// path HandleAppBuildArtifact serves it from.
+// HandleAppBuild builds an app into a release archive and
+// reports it as a stream of events.
+// The final "done" event streams the artifact location.
 func HandleAppBuild(
 	dockerClient command.Cli,
 	provisioner *orchestrator.Provision,
@@ -55,11 +55,7 @@ func HandleAppBuild(
 		appToBuild, err := app.Load(id.ToPath())
 		if err != nil {
 			slog.Error("unable to load the app", slog.String("error", err.Error()), slog.String("path", id.String()))
-			if errors.Is(err, os.ErrNotExist) {
-				render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: "unable to find the app"})
-			} else {
-				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to load the app"})
-			}
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to load the app"})
 			return
 		}
 
@@ -72,8 +68,17 @@ func HandleAppBuild(
 			}
 		}
 
-		// Finished archives live here, apart from the staging dir the build tears down.
-		artifactsDir := cfg.BuildArtifactsDir()
+		target := r.URL.Query().Get("target")
+		if target != "" {
+			if _, ok := platform.ForBoard(target); !ok {
+				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: fmt.Sprintf("the parameter 'target' must be one of %s", strings.Join(platform.SupportedBoards(), ", "))})
+				return
+			}
+		}
+
+		// Finished archives live here
+		// TODO 2 to be defined how it should work. handle deletion/TTL and so on...
+		artifactsDir := buildArtifactsDir()
 		if err := artifactsDir.MkdirAll(); err != nil {
 			slog.Error("unable to create the build artifacts dir", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to prepare the build output directory"})
@@ -81,10 +86,10 @@ func HandleAppBuild(
 		}
 
 		req := orchestrator.BuildReleaseRequest{
-			Target:      r.URL.Query().Get("target"),
+			Target:      target,
 			Notes:       r.URL.Query().Get("release_notes"),
 			IncludeData: includeData,
-			Output:      artifactsDir,
+			Output:      buildArtifactsDir(),
 			Overwrite:   true,
 		}
 
@@ -115,6 +120,7 @@ func HandleAppBuild(
 			}
 		})
 		if err != nil {
+			slog.Error("Unable to build the app", slog.String("error", err.Error()))
 			code := render.InternalServiceErr
 			if errors.Is(err, orchestrator.ErrBadRequest) {
 				code = "BAD_REQUEST"
@@ -137,7 +143,7 @@ func HandleAppBuild(
 
 // HandleAppBuildArtifact serves a release archive a previous build produced. The
 // artifactID is the archive file name reported in the build's "done" event.
-func HandleAppBuildArtifact(idProvider *appid.Provider, cfg config.Configuration) http.HandlerFunc {
+func HandleAppBuildArtifact(idProvider *appid.Provider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if _, err := idProvider.IDFromBase64(r.PathValue("appID")); err != nil {
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid id"})
@@ -155,7 +161,7 @@ func HandleAppBuildArtifact(idProvider *appid.Provider, cfg config.Configuration
 			return
 		}
 
-		artifactPath := cfg.BuildArtifactsDir().Join(artifactID)
+		artifactPath := buildArtifactPath(artifactID)
 		if !artifactPath.Exist() {
 			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: "artifact not found"})
 			return
@@ -165,4 +171,12 @@ func HandleAppBuildArtifact(idProvider *appid.Provider, cfg config.Configuration
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, artifactID))
 		http.ServeFile(w, r, artifactPath.String())
 	}
+}
+
+func buildArtifactsDir() *paths.Path {
+	return paths.New(os.TempDir(), "build-artifacts")
+}
+
+func buildArtifactPath(artifactID string) *paths.Path {
+	return paths.New(buildArtifactsDir().String(), artifactID)
 }
