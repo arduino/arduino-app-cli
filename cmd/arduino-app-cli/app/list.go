@@ -62,7 +62,12 @@ func listHandler(ctx context.Context, cfg config.Configuration, showExamples, sh
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}
 
-	feedback.Warnf("Warning: the 'status' field has been removed from this list. You can use instead the new command 'app ps' to show the list of active apps. Example apps are no longer shown by default: use --examples to include them.\n")
+	// When calling the "app list" without flags, notify the users of a breaking behaviour change.
+	if !showExamples && !showAll && feedback.GetFormat() == feedback.Text {
+		feedback.Warnf("Note: 'app list' is now a catalog view. The STATUS column has been removed: " +
+			"use 'app ps' to see the apps running on the board. Example apps are no longer listed by " +
+			"default: use --examples to list them, or --all to list apps and examples together.")
+	}
 
 	feedback.PrintResult(appListResult{
 		Apps:           res.Apps,
