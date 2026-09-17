@@ -49,9 +49,8 @@ func listHandler(ctx context.Context, cfg config.Configuration, showExamples, sh
 		orchestrator.ListAppRequest{
 			// By default we only show user apps. --examples restricts the view to examples only,
 			// and --all shows both.
-			ShowApps:                       showAll || !showExamples,
-			ShowExamples:                   showAll || showExamples,
-			IncludeNonStandardLocationApps: true,
+			ShowApps:     showAll || !showExamples,
+			ShowExamples: showAll || showExamples,
 		},
 		servicelocator.GetAppIDProvider(),
 		servicelocator.GetBricksIndex(),
