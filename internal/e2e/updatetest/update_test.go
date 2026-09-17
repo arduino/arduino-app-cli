@@ -70,17 +70,19 @@ func TestUpdatePackage(t *testing.T) {
 	// The fixture packages in the image make the apt resolver report all three of
 	// its plans in one run: a package it holds back, an upgrade that needs a new
 	// package, and a pinned downgrade. The app-cli upgrade must survive all of them.
+	// Both ends are built from the current source, as in CurrentToCurrent: the
+	// binary that runs the upgrade is the one that must read the resolver.
 	t.Run("AptResolverCases", func(t *testing.T) {
 		t.Cleanup(func() { os.RemoveAll("build") })
 
-		tagAppCli := fetchDebPackageLatest(t, "build/stable", "arduino/arduino-app-cli")
+		const fromTag = "v9.9.0"
+		const toTag = "v9.9.1"
+
 		fetchDebPackageLatest(t, "build/stable", "arduino/arduino-router")
 
-		majorTag := genMajorTag(t, tagAppCli)
-		t.Logf("Updating from stable version %s to unstable version %s", tagAppCli, majorTag)
-
-		t.Logf("Building local deb version %s \n", majorTag)
-		buildDebVersion(t, "build", majorTag, arch)
+		t.Logf("Updating from current version %s to current version %s", fromTag, toTag)
+		buildDebVersion(t, "build/stable", fromTag, arch)
+		buildDebVersion(t, "build", toTag, arch)
 
 		const dockerImageName = "apt-test-resolver-cases-image"
 		t.Logf("Build docker image %s", dockerImageName)
@@ -91,12 +93,12 @@ func TestUpdatePackage(t *testing.T) {
 		startDaemonContainer(t, containerName, dockerImageName)
 
 		preUpdateVersion := getAppCliVersion(t, containerName)
-		require.Equal(t, "v"+preUpdateVersion, tagAppCli)
+		require.Equal(t, "v"+preUpdateVersion, fromTag)
 
 		runSystemUpdate(t, containerName)
 
 		postUpdateVersion := getAppCliVersion(t, containerName)
-		require.Equal(t, "v"+postUpdateVersion, majorTag)
+		require.Equal(t, "v"+postUpdateVersion, toTag)
 
 		// 2.0 needs a package that does not exist, so apt holds it back. Naming a
 		// held back package in the install makes it mandatory and fails the run.

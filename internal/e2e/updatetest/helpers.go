@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -172,23 +173,45 @@ func buildDockerImage(t *testing.T, dockerfile, name, arch string, buildArgs ...
 func startDockerContainer(t *testing.T, containerName string, containerImageName string) {
 	t.Helper()
 
-	cmd := exec.Command(
-		"docker", "run", "--rm", "-d",
-		"-p", "8800:8800",
+	args := []string{
+		"run", "--rm", "-d",
 		"--privileged",
-		"--cgroupns=host",
-		"--network", "host",
-		"-v", "/sys/fs/cgroup:/sys/fs/cgroup:rw",
 		"-v", "/var/run/docker.sock:/var/run/docker.sock",
 		"-e", "DOCKER_HOST=unix:///var/run/docker.sock",
 		"--name", containerName,
-		containerImageName,
-	)
+	}
+	if runtime.GOOS == "linux" {
+		args = append(args,
+			"--cgroupns=host",
+			"--network", "host",
+			"-v", "/sys/fs/cgroup:/sys/fs/cgroup:rw",
+		)
+	} else {
+		// A docker VM on macOS, colima or Docker Desktop: its cgroup tree is not
+		// ours to share, and host networking there does not reach the daemon port.
+		// Sharing the cgroup namespace kills the docker daemon of the VM.
+		args = append(args, "-p", "8800:8800")
+	}
+	args = append(args, containerImageName)
+
+	cmd := exec.Command("docker", args...) //nolint:gosec
 
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("failed to run container: %v", err)
 	}
 
+}
+
+// dockerExec runs a command in the container. The timeout matters: a wedged
+// docker daemon must not hold the test, or its cleanup, for ever.
+func dockerExec(t *testing.T, containerName string, command ...string) ([]byte, error) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	args := append([]string{"exec", containerName}, command...)
+	return exec.CommandContext(ctx, "docker", args...).CombinedOutput() //nolint:gosec
 }
 
 // getAppCliVersion reports the running daemon's version, not the binary on disk.
@@ -230,12 +253,7 @@ func getAppCliVersion(t *testing.T, containerName string) string {
 func getPackageVersion(t *testing.T, containerName, pkg string) string { // nolint:unparam
 	t.Helper()
 
-	cmd := exec.Command(
-		"docker", "exec",
-		containerName,
-		"dpkg-query", "-W", "-f=${Status} ${Version}", pkg,
-	)
-	output, err := cmd.CombinedOutput()
+	output, err := dockerExec(t, containerName, "dpkg-query", "-W", "-f=${Status} ${Version}", pkg)
 	if err != nil {
 		t.Logf("dpkg-query for %s failed: %v\n%s", pkg, err, output)
 		return ""
@@ -287,21 +305,38 @@ func startDaemonContainer(t *testing.T, containerName, imageName string) {
 	// Registered after the stop so LIFO reads the journal while the container lives.
 	t.Cleanup(func() { dumpDaemonJournal(t, containerName) })
 
-	waitForPort(t, daemonHost, 5*time.Second)
+	waitForDaemonUnit(t, containerName, 60*time.Second)
+	waitForPort(t, daemonHost, 30*time.Second)
+}
+
+// waitForDaemonUnit waits for the service inside the container, so a daemon that
+// never starts is not reported as a port that never opens.
+func waitForDaemonUnit(t *testing.T, containerName string, timeout time.Duration) {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
+	for {
+		output, _ := dockerExec(t, containerName, "systemctl", "is-active", "arduino-app-cli.service")
+		state := strings.TrimSpace(string(output))
+		if state == "active" {
+			t.Logf("the daemon unit is active in %s", containerName)
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the daemon unit of %s is %q after %v", containerName, state, timeout)
+		}
+		time.Sleep(time.Second)
+	}
 }
 
 // dumpDaemonJournal prints the daemon's own log, which the SSE stream does not carry.
 func dumpDaemonJournal(t *testing.T, containerName string) {
 	t.Helper()
 
-	cmd := exec.Command(
-		"docker", "exec",
-		containerName,
-		// No tail limit: the daemon restarts right after the moment of interest, so
-		// the entries we need are not at the end.
-		"journalctl", "-u", "arduino-app-cli.service", "--no-pager", "-o", "short-precise",
-	)
-	output, err := cmd.CombinedOutput()
+	// No tail limit: the daemon restarts right after the moment of interest, so
+	// the entries we need are not at the end.
+	output, err := dockerExec(t, containerName,
+		"journalctl", "-u", "arduino-app-cli.service", "--no-pager", "-o", "short-precise")
 	if err != nil {
 		t.Logf("could not read the daemon journal: %v\n%s", err, output)
 		return
@@ -322,7 +357,9 @@ func removeDockerImage(t *testing.T, imageName string) {
 func stopDockerContainer(t *testing.T, containerName string) {
 	t.Helper()
 
-	cleanupCmd := exec.Command("docker", "rm", "-f", containerName)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	cleanupCmd := exec.CommandContext(ctx, "docker", "rm", "-f", containerName)
 
 	t.Log("Removing Docker container " + containerName)
 	if err := cleanupCmd.Run(); err != nil {
