@@ -104,7 +104,7 @@ func renderRelease(
 	// need: an image name is frozen and no host fact depends on one.
 	appEnv := appEnvironment(ctx, arduinoApp, bricksIndex, modelsIndex, plat)
 	env := hostEnvironment(ctx, arduinoApp.FullPath, cfg).Merge(appEnv)
-	prj, err := provisioner.Render(ctx, &arduinoApp, env, appSecrets(arduinoApp, bricksIndex))
+	prj, err := provisioner.Render(ctx, &arduinoApp, env, arduinoApp.Secrets(bricksIndex))
 	if err != nil {
 		return nil, fmt.Errorf("failed to render the compose file of the release: %w", err)
 	}

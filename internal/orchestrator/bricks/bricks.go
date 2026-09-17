@@ -449,37 +449,44 @@ func (s *Service) BrickUpdate(
 		brickModel = model.ID
 	}
 
+	secretValues := make(map[string]string)
 	for name, updateValue := range req.Variables {
 		value, exist := brickFromIndex.GetVariable(name)
 		if !exist {
 			return fmt.Errorf("variable %q does not exist on brick %q", name, brickFromIndex.ID)
 		}
-		// The template a release ships holds every other value already: only a secret
-		// is left in it as a reference for the render to answer.
-		if isRelease && !value.Secret {
-			return fmt.Errorf("%w: %q is not a secret", ErrReleaseSecretsOnly, name)
-		}
 		if value.IsRequired() && updateValue == "" {
 			return fmt.Errorf("required variable %q cannot be empty", name)
+		}
+		// A secret is written apart from the descriptor a build freezes: it is the one
+		// value a release still takes.
+		if value.Secret {
+			secretValues[name] = updateValue
+			continue
+		}
+		if isRelease {
+			return fmt.Errorf("%w: %q is not a secret", ErrReleaseSecretsOnly, name)
 		}
 		brickVariables[name] = updateValue
 	}
 
-	appCurrent.Descriptor.Bricks[brickPosition].Model = brickModel
-	appCurrent.Descriptor.Bricks[brickPosition].Variables = brickVariables
-
-	// A release is written back through the token of its secrets, which is what the
-	// checks above leave of the request.
-	save := appCurrent.EditSecrets().Save
 	if !isRelease {
+		appCurrent.Descriptor.Bricks[brickPosition].Model = brickModel
+		appCurrent.Descriptor.Bricks[brickPosition].Variables = brickVariables
+
 		editable, err := appCurrent.Edit()
 		if err != nil {
 			return err
 		}
-		save = editable.Save
+		if err := editable.Save(); err != nil {
+			return fmt.Errorf("cannot save brick instance with id %s: %w", req.ID, err)
+		}
 	}
-	if err := save(); err != nil {
-		return fmt.Errorf("cannot save brick instance with id %s: %w", req.ID, err)
+
+	if len(secretValues) > 0 {
+		if err := appCurrent.UpdateSecrets(s.bricksIndex, req.ID, secretValues); err != nil {
+			return fmt.Errorf("cannot save the secrets of brick %s: %w", req.ID, err)
+		}
 	}
 	return nil
 }

@@ -11,8 +11,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -132,6 +134,18 @@ func (a *ArduinoApp) GetDescriptorPath() *paths.Path {
 	return descriptorFile
 }
 
+func (a *ArduinoApp) SketchBuildPath() *paths.Path {
+	return a.FullPath.Join(".cache", "sketch")
+}
+
+func (a *ArduinoApp) GetBricksPath() *paths.Path {
+	return a.FullPath.Join("bricks")
+}
+
+func (a *ArduinoApp) ProvisioningStateDir() *paths.Path {
+	return a.FullPath.Join(".cache")
+}
+
 var (
 	ErrInvalidApp = fmt.Errorf("invalid app")
 	// ErrReleaseReadOnly is what every change of an installed release gets: it runs
@@ -139,12 +153,9 @@ var (
 	ErrReleaseReadOnly = errors.New("the app is installed from a release and cannot be changed")
 )
 
-// editableApp is an alias, so the field of the tokens below is named after it and is
-// unexported: no other package can build a token without asking for one.
+// Editable is a token that grants the right to write back an app descriptor, and refuses
+// an installed release.
 type editableApp = ArduinoApp
-
-// Editable is the token every change of an app needs, and Edit is the only source of
-// one: a function that takes it cannot be handed a release by mistake.
 type Editable struct{ *editableApp }
 
 // Edit grants the token to an app the board owns, and refuses an installed release.
@@ -156,58 +167,74 @@ func (a *ArduinoApp) Edit() (Editable, error) {
 }
 
 // Save writes the descriptor back.
-func (e Editable) Save() error { return e.save() }
+func (e Editable) Save() error {
+	if e.editableApp == nil {
+		return errors.New("internal error: the token holds no app to save")
+	}
+	if err := e.Descriptor.IsValid(); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidApp, err)
+	}
+	return writeDescriptor(e.Descriptor, e.GetDescriptorPath())
+}
 
 // App is the app the token was granted for, for what reads the value itself.
 func (e Editable) App() *ArduinoApp { return e.editableApp }
 
-// SecretsEditable is the token of the one change an installed release takes: a secret
-// is the only value a build cannot freeze. The caller states that nothing else changed.
-type SecretsEditable struct{ *editableApp }
+// Secrets is the value of every variable a brick declares secret, the default of the
+// definition when the board never set it.
+func (a *ArduinoApp) Secrets(board *bricksindex.BricksIndex) map[string]string {
+	definitions := a.Bricks(board)
 
-// EditSecrets grants the token to any app, a release included.
-func (a *ArduinoApp) EditSecrets() SecretsEditable { return SecretsEditable{a} }
-
-// Save writes the descriptor back.
-func (e SecretsEditable) Save() error { return e.save() }
-
-func (a *ArduinoApp) save() error {
-	if a == nil {
-		return errors.New("internal error: the token holds no app to save")
+	values := make(map[string]string)
+	for _, brick := range a.Descriptor.Bricks {
+		definition, found := definitions.FindBrickByID(brick.ID)
+		if !found {
+			continue
+		}
+		for _, variable := range definition.Variables {
+			if !variable.Secret {
+				continue
+			}
+			values[variable.Name] = variable.DefaultValue
+			if value, set := brick.Variables[variable.Name]; set {
+				values[variable.Name] = value
+			}
+		}
 	}
-	if err := a.Descriptor.IsValid(); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidApp, err)
-	}
-	return a.writeApp()
+	return values
 }
 
-func (a *ArduinoApp) writeApp() error {
-	descriptorPath := a.GetDescriptorPath()
-	if descriptorPath == nil {
-		return errors.New("app descriptor file path is not set")
+// ErrNotASecret refuses the write of any other variable.
+var ErrNotASecret = errors.New("the variable is not a secret")
+
+// UpdateSecrets writes the secrets of one brick and refuses every other variable. It
+// takes a release: a hole in the read-only rule, until the board has a secret store.
+func (a *ArduinoApp) UpdateSecrets(board *bricksindex.BricksIndex, brickID string, values map[string]string) error {
+	definition, found := a.Bricks(board).FindBrickByID(brickID)
+	if !found {
+		return fmt.Errorf("brick %q is not in the index", brickID)
+	}
+	for name := range values {
+		if variable, isVariable := definition.GetVariable(name); !isVariable || !variable.Secret {
+			return fmt.Errorf("%w: %q of brick %q", ErrNotASecret, name, brickID)
+		}
 	}
 
-	out, err := yaml.Marshal(a.Descriptor)
+	// The file is read again, so a write of the secrets carries no other change with it.
+	descriptor, err := ParseDescriptorFile(a.GetDescriptorPath())
 	if err != nil {
-		return fmt.Errorf("cannot marshal app descriptor: %w", err)
+		return fmt.Errorf("cannot read app descriptor: %w", err)
 	}
-
-	if err := fatomic.WriteFile(descriptorPath.String(), out, os.FileMode(0644)); err != nil {
-		return fmt.Errorf("cannot write app descriptor file: %w", err)
+	position := slices.IndexFunc(descriptor.Bricks, func(b Brick) bool { return b.ID == brickID })
+	if position == -1 {
+		return fmt.Errorf("brick %q is not one of the app", brickID)
 	}
-	return nil
-}
+	if descriptor.Bricks[position].Variables == nil {
+		descriptor.Bricks[position].Variables = make(map[string]string, len(values))
+	}
+	maps.Copy(descriptor.Bricks[position].Variables, values)
 
-func (a *ArduinoApp) SketchBuildPath() *paths.Path {
-	return a.FullPath.Join(".cache", "sketch")
-}
-
-func (a *ArduinoApp) GetBricksPath() *paths.Path {
-	return a.FullPath.Join("bricks")
-}
-
-func (a *ArduinoApp) ProvisioningStateDir() *paths.Path {
-	return a.FullPath.Join(".cache")
+	return writeDescriptor(descriptor, a.GetDescriptorPath())
 }
 
 // The templates are exported because the resolve step also writes them outside of an
@@ -457,4 +484,21 @@ func loadRelease(appPath *paths.Path) *Release {
 	}
 	release.ID = appPath.Base()
 	return &release
+}
+
+func writeDescriptor(descriptor AppDescriptor, descriptorPath *paths.Path) error {
+	if descriptorPath == nil {
+		return errors.New("app descriptor file path is not set")
+	}
+
+	out, err := yaml.Marshal(descriptor)
+	if err != nil {
+		return fmt.Errorf("cannot marshal app descriptor: %w", err)
+	}
+
+	if err := fatomic.WriteFile(descriptorPath.String(), out, os.FileMode(0644)); err != nil {
+		return fmt.Errorf("cannot write app descriptor file: %w", err)
+	}
+
+	return nil
 }

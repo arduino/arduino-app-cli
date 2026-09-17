@@ -228,7 +228,7 @@ func StartApp(
 		// What the template references, answered on this board. The app half is in
 		// the template already, frozen, when the app comes from a release.
 		env := hostEnvironment(ctx, appToStart.FullPath, cfg).Merge(appEnv)
-		prj, err := provisioner.Render(ctx, &appToStart, env, appSecrets(appToStart, bricksIndex))
+		prj, err := provisioner.Render(ctx, &appToStart, env, appToStart.Secrets(bricksIndex))
 		if err != nil {
 			return err
 		}

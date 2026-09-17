@@ -111,7 +111,7 @@ func appEnvironment(
 
 	// A secret is only referenced here: its value is filled in when the app is
 	// rendered, so it is never written to a template that can be shipped.
-	for name := range appSecrets(app, brickIndex) {
+	for name := range app.Secrets(brickIndex) {
 		envs[name] = "${" + name + "}"
 	}
 
@@ -133,30 +133,4 @@ func hostEnvironment(ctx context.Context, appPath *paths.Path, cfg config.Config
 	slog.Debug("Host environment variables", slog.Any("envs", envs))
 
 	return envs
-}
-
-// appSecrets is the value of every variable a brick declares secret, read at render
-// time and never written to a template. app.yaml is the storage there is for now.
-func appSecrets(arduinoApp app.ArduinoApp, brickIndex *bricksindex.BricksIndex) types.Mapping {
-	// A release states its own bricks: the index of this board is not the one that
-	// built it, so it cannot be asked which variable is a secret.
-	brickIndex = arduinoApp.Bricks(brickIndex)
-
-	secrets := make(types.Mapping)
-	for _, brick := range arduinoApp.Descriptor.Bricks {
-		brickDef, found := brickIndex.FindBrickByID(brick.ID)
-		if !found {
-			continue
-		}
-		for _, variable := range brickDef.Variables {
-			if !variable.Secret {
-				continue
-			}
-			secrets[variable.Name] = variable.DefaultValue
-			if value, set := brick.Variables[variable.Name]; set {
-				secrets[variable.Name] = value
-			}
-		}
-	}
-	return secrets
 }
