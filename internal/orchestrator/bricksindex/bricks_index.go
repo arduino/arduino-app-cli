@@ -121,6 +121,7 @@ type Brick struct {
 	Ports                       []string                  `yaml:"ports,omitempty"`
 	ModelName                   string                    `yaml:"model_name,omitempty"`
 	ModelByBoard                []ModelsBoard             `yaml:"model_by_boards,omitempty"`
+	AIFrameworksCompatibility   []string                  `yaml:"ai_frameworks_compatibility,omitempty"`
 	MountDevicesIntoContainer   bool                      `yaml:"mount_devices_into_container,omitempty"`
 	RequiredDevices             []peripherals.DeviceClass `yaml:"required_devices,omitempty"`
 	RequiresServices            RequiresServices          `yaml:"requires_services,omitempty"`
@@ -273,8 +274,19 @@ func unmarshalBricksIndex(content io.Reader) (*YamlBricksIndex, error) {
 	return &index, nil
 }
 
+const bricksListFileName = "bricks-list.yaml"
+
+// WriteBricksList writes the bricks into dir as the index Load reads back.
+func WriteBricksList(dir *paths.Path, bricks []Brick) error {
+	data, err := yaml.Marshal(YamlBricksIndex{Bricks: bricks})
+	if err != nil {
+		return err
+	}
+	return dir.Join(bricksListFileName).WriteFile(data)
+}
+
 func Load(platform platform.Platform, path *paths.Path) (*BricksIndex, error) {
-	content, err := path.Join("bricks-list.yaml").Open()
+	content, err := path.Join(bricksListFileName).Open()
 	if err != nil {
 		return nil, err
 	}

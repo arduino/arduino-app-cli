@@ -214,7 +214,7 @@ bricks:
 		servicesIndex, "python-apps-base:latest", cfg, appEnv, unkownPlatform))
 
 	env := hostEnvironment(t.Context(), arduinoApp.FullPath, cfg).Merge(appEnv)
-	prj, err := renderComposeFile(t.Context(), &arduinoApp, env, types.Mapping{})
+	prj, err := renderComposeFile(t.Context(), &arduinoApp, env, types.Mapping{}, "test-app")
 	require.NoError(t, err)
 	require.True(t, arduinoApp.AppComposeFilePath().Exist(), "the compose file docker is given should exist")
 

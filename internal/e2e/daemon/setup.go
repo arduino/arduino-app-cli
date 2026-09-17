@@ -21,6 +21,12 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
 )
 
+// SSE event type and the error code the stream teardown always emits.
+const (
+	sseEventError       = "error"
+	sseCodeServerClosed = "SERVER_CLOSED"
+)
+
 func GetHttpclient(t *testing.T, opts ...e2e.ArduinoAppCLIOption) *client.ClientWithResponses {
 	t.Helper()
 	c, _ := GetHttpclientAndAddr(t, opts...)

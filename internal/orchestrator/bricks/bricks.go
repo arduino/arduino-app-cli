@@ -214,20 +214,21 @@ func (s *Service) BricksDetails(ctx context.Context, id string, idProvider *appi
 	variables, configVariables := getBrickConfigVariableDetails(brick)
 
 	return BrickDetailsResult{
-		ID:               id,
-		Name:             brick.Name,
-		Author:           brick.Source,
-		Description:      brick.Description,
-		Category:         brick.Category,
-		RequireModel:     brick.RequireModel,
-		Status:           "installed", // For now every Arduino brick are installed
-		Variables:        variables,
-		Readme:           readme,
-		ApiDocsPath:      apiDocsPath,
-		CodeExamples:     codeExamples,
-		UsedByApps:       usedByApps,
-		CompatibleModels: compatibleModels(ctx, s.modelsIndex.NewLookup(), brick.ID),
-		ConfigVariables:  configVariables,
+		ID:                        id,
+		Name:                      brick.Name,
+		Author:                    brick.Source,
+		Description:               brick.Description,
+		Category:                  brick.Category,
+		RequireModel:              brick.RequireModel,
+		Status:                    "installed", // For now every Arduino brick are installed
+		Variables:                 variables,
+		Readme:                    readme,
+		ApiDocsPath:               apiDocsPath,
+		CodeExamples:              codeExamples,
+		UsedByApps:                usedByApps,
+		CompatibleModels:          compatibleModels(ctx, s.modelsIndex.NewLookup(), brick.ID),
+		ConfigVariables:           configVariables,
+		AIFrameworksCompatibility: brick.AIFrameworksCompatibility,
 	}, nil
 }
 
