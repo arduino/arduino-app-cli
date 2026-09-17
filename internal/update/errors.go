@@ -50,6 +50,14 @@ func NewUnkownError(err error) *UpdateError {
 	}
 }
 
+func NewLockHeldError(err error) *UpdateError {
+	return &UpdateError{
+		Code:    GenericLockHeld,
+		Details: err.Error(),
+		err:     err,
+	}
+}
+
 func GetUpdateErrorCode(err error) ErrorCode {
 	var updateError *UpdateError
 	if errors.As(err, &updateError) {
