@@ -62,7 +62,7 @@ func listHandler(ctx context.Context, cfg config.Configuration, showExamples, sh
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}
 
-	feedback.Warnf("Warning: the 'status' field has been removed from this list. You can use instead the new command 'app ps' to show the list of active apps.\n")
+	feedback.Warnf("Warning: the 'status' field has been removed from this list. You can use instead the new command 'app ps' to show the list of active apps. Example apps are no longer shown by default: use --examples to include them.\n")
 
 	feedback.PrintResult(appListResult{
 		Apps:           res.Apps,
@@ -80,7 +80,7 @@ type appListResult struct {
 func (r appListResult) String() string {
 	t := table.NewWriter()
 	t.SetStyle(tablestyle.CustomCleanStyle)
-	t.AppendHeader(table.Row{"ID", "NAME", "ICON", "DESCRIPTION"})
+	t.AppendHeader(table.Row{"ID", "NAME", "ICON"})
 
 	for _, app := range r.Apps {
 		name := app.Name
@@ -91,7 +91,6 @@ func (r appListResult) String() string {
 			cmdutil.IDToAlias(app.ID),
 			name,
 			app.Icon,
-			app.Description,
 		})
 	}
 	if r.showBrokenApps && len(r.BrokenApps) > 0 {

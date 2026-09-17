@@ -471,6 +471,13 @@ func ListApps(
 		// and optionally add apps that are on different paths
 		if req.IncludeNonStandardLocationApps {
 			for _, appStatus := range appsStatus {
+				id, err := idProvider.IDFromPath(appStatus.AppPath)
+				if err != nil {
+					continue
+				}
+				if id.IsExample() && !req.ShowExamples {
+					continue
+				}
 				appPaths.AddIfMissing(appStatus.AppPath)
 			}
 		}
