@@ -76,6 +76,8 @@ func NewHTTPRouter(
 	mux.Handle("GET /v1/apps/{appID}/logs", handlers.HandleAppLogs(dockerClient, idProvider, bricksIndex, servicesIndex, cfg))
 	mux.Handle("POST /v1/apps/{appID}/start", handlers.HandleAppStart(dockerClient, provisioner, modelsIndex, bricksIndex, servicesIndex, idProvider, cfg, platform))
 	mux.Handle("POST /v1/apps/{appID}/stop", handlers.HandleAppStop(dockerClient, idProvider, platform, cfg))
+	mux.Handle("POST /v1/apps/{appID}/build", handlers.HandleAppBuild(dockerClient, provisioner, idProvider, cfg))
+	mux.Handle("GET /v1/apps/{appID}/build/{artifactID}", handlers.HandleAppBuildArtifact(idProvider))
 	mux.Handle("POST /v1/apps/{appID}/clone", handlers.HandleAppClone(idProvider, cfg))
 	mux.Handle("DELETE /v1/apps/{appID}", handlers.HandleAppDelete(dockerClient, idProvider, platform, cfg))
 	mux.Handle("GET /v1/apps/{appID}/export", handlers.HandleAppExport(idProvider, bricksIndex))
