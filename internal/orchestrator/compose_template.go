@@ -230,7 +230,13 @@ func generateComposeTemplate(
 		}
 	}
 
-	deviceDrivers := []string{"drm", "dma_heap", "media", "video4linux", "alsa", "ttyUSB", "ttyACM", "misc"}
+	deviceDrivers := []string{"drm", "dma_heap", "media", "video4linux", "alsa", "ttyUSB", "ttyACM"}
+
+	// The DSP is reached through the fastrpc nodes. They are misc devices, so a rule per
+	// node, by number: the major they share, 10, also holds tun, fuse and the loop control.
+	const fastrpcRules = exprPrefix + `{{ range deviceNumbers "misc" "fastrpc-*" }}c {{ . }} rmw{{ "\n" }}{{ end }}`
+
+	cgroupRules := append(cgroupRuleExprs(deviceDrivers), fastrpcRules)
 
 	mainAppCompose.Services = map[string]any{"main": service{
 		Image:             pythonImage,
@@ -240,7 +246,7 @@ func generateComposeTemplate(
 		DependsOn:         dependsOn,
 		User:              appUserExpr,
 		GroupAdd:          groupExprs(groupNames),
-		DeviceCgroupRules: cgroupRuleExprs(deviceDrivers),
+		DeviceCgroupRules: cgroupRules,
 		ExtraHosts:        []string{"msgpack-rpc-router:host-gateway"},
 		Labels: map[string]string{
 			DockerAppLabel:     "true",
@@ -260,7 +266,7 @@ func generateComposeTemplate(
 
 	// A compose file cannot declare a service it also includes, so the overrides of the
 	// included services go in a template of their own.
-	if err := writeOverrideTemplate(genPath, services, appEnv, deviceDrivers, groupNames); err != nil {
+	if err := writeOverrideTemplate(genPath, services, appEnv, cgroupRules, groupNames); err != nil {
 		return err
 	}
 
@@ -363,7 +369,7 @@ func frozenCompose(composeFile *paths.Path, lookup func(string) (string, bool)) 
 	return data, nil
 }
 
-func writeOverrideTemplate(genPath *paths.Path, services []serviceInfo, appEnv types.Mapping, deviceDrivers, groupNames []string) error {
+func writeOverrideTemplate(genPath *paths.Path, services []serviceInfo, appEnv types.Mapping, cgroupRules, groupNames []string) error {
 	overrideTemplateFile := genPath.Join(app.OverrideTemplateFileName)
 
 	// A leftover from a previous resolve would keep overriding services the app no longer has.
@@ -378,7 +384,7 @@ func writeOverrideTemplate(genPath *paths.Path, services []serviceInfo, appEnv t
 	}
 
 	data, err := yaml.Marshal(map[string]any{
-		"services": servicesOverrides(services, appUserExpr, appEnv, deviceDrivers, groupNames),
+		"services": servicesOverrides(services, appUserExpr, appEnv, cgroupRules, groupNames),
 	})
 	if err != nil {
 		return err
@@ -388,7 +394,7 @@ func writeOverrideTemplate(genPath *paths.Path, services []serviceInfo, appEnv t
 
 // servicesOverrides is what to apply to the services the brick and service composes
 // declare: they are not ours, so only these fields are stated.
-func servicesOverrides(services []serviceInfo, user string, appEnv types.Mapping, deviceDrivers, groupNames []string) map[string]any {
+func servicesOverrides(services []serviceInfo, user string, appEnv types.Mapping, cgroupRules, groupNames []string) map[string]any {
 	type serviceOverride struct {
 		User              *string           `yaml:"user,omitempty"`
 		Volumes           []volume          `yaml:"volumes,omitempty"`
@@ -413,7 +419,7 @@ func servicesOverrides(services []serviceInfo, user string, appEnv types.Mapping
 			override.User = &user
 		}
 		if svc.requireDevices {
-			override.DeviceCgroupRules = cgroupRuleExprs(deviceDrivers)
+			override.DeviceCgroupRules = cgroupRules
 			override.Volumes = []volume{{Type: "bind", Source: "/dev", Target: "/dev"}}
 		}
 		overrides[svc.name] = override
