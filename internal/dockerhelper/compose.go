@@ -50,6 +50,12 @@ func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line
 	return err
 }
 
+// IsAddressPoolExhausted states that the daemon has no subnet left for a new network.
+// It states about thirty of them, and every app keeps the one of its project.
+func IsAddressPoolExhausted(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "all predefined address pools have been fully subnetted")
+}
+
 // ComposeStop leaves the containers of the app where they are, stopped.
 func ComposeStop(ctx context.Context, docker command.Cli, projectName string, line func(string)) error {
 	backend, err := compose.NewComposeService(docker, compose.WithEventProcessor(newProgress(line)))
