@@ -61,7 +61,7 @@ func listHandler(ctx context.Context, cfg config.Configuration, showExamples, sh
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 	}
 
-	// When calling the "app list" without flags, notify the users of a breaking behaviour change.
+	// When calling the "app list" without flags, notify the users of a breaking behavior change.
 	if !showExamples && !showAll && feedback.GetFormat() == feedback.Text {
 		feedback.Warnf("Note: 'app list' is now a catalog view. The STATUS column has been removed: " +
 			"use 'app ps' to see the apps running on the board. Example apps are no longer listed by " +
