@@ -81,7 +81,7 @@ func startAppAndExpectError(
 	var errorMessages []string
 	for e := range events {
 		t.Log("Received SSE event", "event", e.Event, "data", string(e.Data))
-		if e.Event != "error" {
+		if e.Event != sseEventError {
 			continue
 		}
 		var payload struct {
@@ -89,7 +89,7 @@ func startAppAndExpectError(
 			Message string `json:"message"`
 		}
 		require.NoError(t, json.Unmarshal(e.Data, &payload))
-		if payload.Code == "SERVER_CLOSED" {
+		if payload.Code == sseCodeServerClosed {
 			// Emitted when the stream is torn down, not a failure of the start itself.
 			continue
 		}
