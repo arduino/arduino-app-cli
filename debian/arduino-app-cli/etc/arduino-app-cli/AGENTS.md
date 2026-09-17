@@ -72,7 +72,8 @@ Command groups include `app`, `brick`, `model`, `monitor`, `properties`, `system
 **ID** like `user:my-app` or `examples:blink`):
 
 ```bash
-arduino-app-cli app list                              # app catalog + IDs
+arduino-app-cli app list                               # apps catalog + IDs
+arduino-app-cli app list  --examples         # examples catalog + IDs
 arduino-app-cli app ps                                # starting/running/stopping/failed apps
 arduino-app-cli app ps --all                          # also includes stopped apps
 arduino-app-cli app start   ~/ArduinoApps/my-app      # stops whatever was running!
