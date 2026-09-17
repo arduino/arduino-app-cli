@@ -54,6 +54,8 @@ func fetchDebPackageLatest(t *testing.T, path, repo string) string {
 		"--repo", repo,
 		"--pattern", "*.deb",
 		"--dir", path,
+		// An interrupted run leaves its debs behind, and gh fails on an existing file.
+		"--clobber",
 	)
 
 	out, err := cmd2.CombinedOutput()
@@ -140,10 +142,13 @@ func genMinorTag(t *testing.T, tag string) string {
 	return buildVersion(parts[0], parts[1], parts[2])
 }
 
-func buildDockerImage(t *testing.T, dockerfile, name, arch string) {
+func buildDockerImage(t *testing.T, dockerfile, name, arch string, buildArgs ...string) { // nolint:unparam
 	t.Helper()
 
 	args := []string{"build", "--build-arg", fmt.Sprintf("ARCH=%s", arch)}
+	for _, arg := range buildArgs {
+		args = append(args, "--build-arg", arg)
+	}
 	// The distribution under test, the dockerfile default applies when it is unset.
 	if image := os.Getenv("TEST_BASE_IMAGE"); image != "" {
 		args = append(args, "--build-arg", "BASE_IMAGE="+image)
@@ -218,6 +223,29 @@ func getAppCliVersion(t *testing.T, containerName string) string {
 		}
 		time.Sleep(time.Second)
 	}
+}
+
+// getPackageVersion reports the installed version of a deb, or "" when the
+// package is not installed.
+func getPackageVersion(t *testing.T, containerName, pkg string) string { // nolint:unparam
+	t.Helper()
+
+	cmd := exec.Command(
+		"docker", "exec",
+		containerName,
+		"dpkg-query", "-W", "-f=${Status} ${Version}", pkg,
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Logf("dpkg-query for %s failed: %v\n%s", pkg, err, output)
+		return ""
+	}
+
+	fields := strings.Fields(string(output))
+	if len(fields) != 4 || strings.Join(fields[:3], " ") != "install ok installed" {
+		return ""
+	}
+	return fields[3]
 }
 
 func runSystemUpdate(t *testing.T, containerName string) {
