@@ -31,7 +31,7 @@ func TestListSketchLibraries(t *testing.T) {
 		pythonApp, err := app.Load(createTestAppPythonOnly(t))
 		require.NoError(t, err)
 
-		editable, err := pythonApp.Edit()
+		editable, err := pythonApp.GetAsEditable()
 		require.NoError(t, err)
 
 		libs, err := AddSketchLibrary(context.Background(), editable, LibraryReleaseID{}, false)
@@ -44,7 +44,7 @@ func TestListSketchLibraries(t *testing.T) {
 		pythonApp, err := app.Load(createTestAppPythonOnly(t))
 		require.NoError(t, err)
 
-		editable, err := pythonApp.Edit()
+		editable, err := pythonApp.GetAsEditable()
 		require.NoError(t, err)
 
 		id, err := RemoveSketchLibrary(context.Background(), editable, LibraryReleaseID{}, true)

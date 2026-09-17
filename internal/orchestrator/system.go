@@ -457,7 +457,7 @@ func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, platf
 	}
 
 	// A release ships a frozen sketch profile, so there is nothing to migrate.
-	if editable, err := app.Edit(); err == nil {
+	if editable, err := app.GetAsEditable(); err == nil {
 		if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, editable); err != nil {
 			slog.Warn("Failed to migrate app to remove router bridge", "app", appPath, "error", err)
 		} else if ok {

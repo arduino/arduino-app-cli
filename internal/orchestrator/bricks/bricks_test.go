@@ -1164,7 +1164,7 @@ func mustEdit(t *testing.T, appPath *paths.Path) app.Editable {
 	t.Helper()
 	a, err := app.Load(appPath)
 	require.NoError(t, err)
-	editable, err := a.Edit()
+	editable, err := a.GetAsEditable()
 	require.NoError(t, err)
 	return editable
 }

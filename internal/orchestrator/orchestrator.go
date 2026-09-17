@@ -189,7 +189,7 @@ func StartApp(
 	if _, ok := appToStart.GetSketchPath(); ok {
 		cb(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}})
 
-		if editable, err := appToStart.Edit(); err == nil {
+		if editable, err := appToStart.GetAsEditable(); err == nil {
 			if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, editable); err != nil {
 				cb(StreamMessage{data: "Failed to apply app migration for platform arduino:zephyr >0.54.1. Error: " + err.Error()})
 			} else if ok {
@@ -943,7 +943,7 @@ func EditApp(
 	}
 
 	// What follows is written to the app folder, which a release does not take.
-	editable, err := editApp.Edit()
+	editable, err := editApp.GetAsEditable()
 	if err != nil {
 		return err
 	}

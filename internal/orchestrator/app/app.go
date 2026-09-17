@@ -158,8 +158,8 @@ var (
 type editableApp = ArduinoApp
 type Editable struct{ *editableApp }
 
-// Edit grants the token to an app the board owns, and refuses an installed release.
-func (a *ArduinoApp) Edit() (Editable, error) {
+// GetAsEditable grants the token to an app the board owns, and refuses an installed release.
+func (a *ArduinoApp) GetAsEditable() (Editable, error) {
 	if a.IsRelease() {
 		return Editable{}, ErrReleaseReadOnly
 	}

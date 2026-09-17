@@ -977,7 +977,7 @@ models:
 // mustEdit takes the token every change of an app needs.
 func mustEdit(t *testing.T, a *app.ArduinoApp) app.Editable {
 	t.Helper()
-	editable, err := a.Edit()
+	editable, err := a.GetAsEditable()
 	require.NoError(t, err)
 	return editable
 }

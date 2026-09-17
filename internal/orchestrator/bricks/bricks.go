@@ -474,7 +474,7 @@ func (s *Service) BrickUpdate(
 		appCurrent.Descriptor.Bricks[brickPosition].Model = brickModel
 		appCurrent.Descriptor.Bricks[brickPosition].Variables = brickVariables
 
-		editable, err := appCurrent.Edit()
+		editable, err := appCurrent.GetAsEditable()
 		if err != nil {
 			return err
 		}

@@ -25,7 +25,7 @@ func loadEditableApp(w http.ResponseWriter, id appid.ID) (app.Editable, bool) {
 		render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
 		return app.Editable{}, false
 	}
-	editable, err := a.Edit()
+	editable, err := a.GetAsEditable()
 	if err != nil {
 		render.EncodeResponse(w, http.StatusForbidden, models.ErrorResponse{Details: "cannot alter a release"})
 		return app.Editable{}, false
