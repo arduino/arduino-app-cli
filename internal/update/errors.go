@@ -14,6 +14,7 @@ const (
 	NoInternetConnectionCode ErrorCode = "NO_INTERNET_CONNECTION"
 	OperationInProgressCode  ErrorCode = "OPERATION_IN_PROGRESS"
 	UnknownErrorCode         ErrorCode = "UNKNOWN_ERROR"
+	GenericLockHeld          ErrorCode = "GENERIC_LOCK_HELD"
 )
 
 var (
