@@ -7,6 +7,7 @@ package board
 
 import (
 	"io"
+	"io/fs"
 	"strings"
 	"testing"
 
@@ -85,11 +86,21 @@ func TestParseOSImageVersion(t *testing.T) {
 }
 
 func TestGetOSImageVersion(t *testing.T) {
-	const R0_IMAGE_VERSION_ID = "20250807-136"
-	R0Version := createBuildInfoConnection(R0_IMAGE_VERSION_ID)
-	AnotherVersion := createBuildInfoConnection("BUILD_ID=20250101-001")
-	require.Equal(t, GetOSImageVersion(R0Version), R0_IMAGE_VERSION_ID)
-	require.Equal(t, GetOSImageVersion(AnotherVersion), "20250101-001")
+	version, err := GetOSImageVersion(createBuildInfoConnection("BUILD_ID=20250101-001"))
+	require.NoError(t, err)
+	require.Equal(t, "20250101-001", version)
+
+	// A file without the version is a failure. A board without the file is the
+	// first R0 image.
+	_, err = GetOSImageVersion(createBuildInfoConnection("VARIANT_ID=xfce"))
+	require.Error(t, err)
+
+	missing := MockRemoteConn{ReadFileFunc: func(string) (io.ReadCloser, error) {
+		return nil, fs.ErrNotExist
+	}}
+	version, err = GetOSImageVersion(&missing)
+	require.NoError(t, err)
+	require.Equal(t, R0_IMAGE_VERSION_ID, version)
 }
 
 func TestIsUserPartitionPreservationSupported(t *testing.T) {

@@ -73,15 +73,21 @@ type RemoteFile struct {
 	base string
 
 	read io.ReadCloser
+	// Kept, so that a failed open is not retried at every read.
+	openErr error
 
 	conn remote.FS
 }
 
 func (a *RemoteFile) Read(p []byte) (n int, err error) {
+	if a.openErr != nil {
+		return 0, a.openErr
+	}
 	if a.read == nil {
 		r, err := a.conn.ReadFile(path.Join(a.base, a.name))
 		if err != nil {
-			return 0, err
+			a.openErr = &fs.PathError{Op: "open", Path: a.name, Err: err}
+			return 0, a.openErr
 		}
 		a.read = r
 	}

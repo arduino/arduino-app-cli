@@ -6,9 +6,13 @@
 package remote
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"strings"
 )
 
@@ -60,6 +64,50 @@ type RemoteTransfer interface {
 	// The remote path could instead be different from the local path, and that will
 	// rename while copying.
 	Push(ctx context.Context, local, remote string) error
+}
+
+// ErrConnLost is returned when the connection to the board drops. Data read
+// before the drop can be incomplete.
+var ErrConnLost = errors.New("connection to the board lost")
+
+// CmdError classifies the exit error of a remote command from its stderr, so
+// that a caller can tell a missing file from an unreachable board.
+func CmdError(err error, stderr []byte) error {
+	if err == nil {
+		return nil
+	}
+
+	msg := string(bytes.TrimSpace(stderr))
+	switch {
+	case strings.Contains(msg, "device offline"), strings.Contains(msg, "error: device"),
+		strings.Contains(msg, "no devices/emulators found"), strings.Contains(msg, "unauthorized"),
+		strings.Contains(msg, "error: closed"), strings.Contains(msg, "closed by remote host"),
+		strings.Contains(msg, "connection reset"):
+		return fmt.Errorf("%w: %s", ErrConnLost, msg)
+	// "file" prints "cannot open" with the reason in brackets, so the permission
+	// case must come first.
+	case strings.Contains(msg, "Permission denied"):
+		return fmt.Errorf("%w: %s", fs.ErrPermission, msg)
+	case strings.Contains(msg, "No such file or directory"), strings.Contains(msg, "cannot open"):
+		return fmt.Errorf("%w: %s", fs.ErrNotExist, msg)
+	case msg == "":
+		return err
+	default:
+		return fmt.Errorf("%w: %s", err, msg)
+	}
+}
+
+// PeekOutput waits for the first byte of the output of a started command, so
+// that a command that fails at once reports it here. It returns the output.
+func PeekOutput(r io.Reader, exitErr func() error) (io.Reader, error) {
+	buffered := bufio.NewReader(r)
+	if _, err := buffered.Peek(1); err != nil {
+		// No output at all: the command failed, or the file is empty.
+		if err := exitErr(); err != nil {
+			return nil, err
+		}
+	}
+	return buffered, nil
 }
 
 // WithCloser is a helper to create an io.ReadCloser from an io.Reader

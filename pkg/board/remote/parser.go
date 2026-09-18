@@ -10,6 +10,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/fs"
+	"path"
 	"strings"
 )
 
@@ -30,6 +32,24 @@ func ParseChage(r io.Reader) (bool, error) {
 		return false, err
 	}
 	return false, fmt.Errorf("unexpected output from chage command")
+}
+
+// ParseFileOutput parses the output of the `file -L` command, which reports a
+// missing path on its stdout and still exits with success.
+func ParseFileOutput(out []byte) (FileInfo, error) {
+	line := bytes.TrimSpace(out)
+	name, kind, ok := bytes.Cut(line, []byte(":"))
+	if !ok {
+		return FileInfo{}, fmt.Errorf("unexpected file command output: %s", line)
+	}
+	if bytes.Contains(kind, []byte("cannot open")) {
+		return FileInfo{}, fmt.Errorf("%w: %s", fs.ErrNotExist, line)
+	}
+
+	return FileInfo{
+		Name:  path.Base(string(bytes.TrimSpace(name))),
+		IsDir: string(bytes.TrimSpace(kind)) == "directory",
+	}, nil
 }
 
 // ParseLsOutput parses the output of the `ls -laQ` command and returns a slice of FileInfo.
