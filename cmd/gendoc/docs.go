@@ -758,7 +758,7 @@ Contains a JSON object with the details of an error.
 			Path:        "/v1/apps",
 			Request:     (*orchestrator.ListAppRequest)(nil),
 			Parameters: (*struct {
-				Filter string              `query:"filter" description:"Filters apps by apps,examples,default"`
+				Filter string              `query:"filter" description:"Filters apps by apps,examples,releases,default"`
 				Status orchestrator.Status `query:"status" description:"Filters applications by status"`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{

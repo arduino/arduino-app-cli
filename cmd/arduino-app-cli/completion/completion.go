@@ -70,6 +70,7 @@ func ApplicationNamesWithFilterFunc(cfg config.Configuration, filter func(apps o
 			orchestrator.ListAppRequest{
 				ShowExamples: true,
 				ShowApps:     true,
+				ShowReleases: true,
 			},
 			servicelocator.GetAppIDProvider(),
 			servicelocator.GetBricksIndex(),

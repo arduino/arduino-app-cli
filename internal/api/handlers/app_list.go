@@ -37,12 +37,13 @@ func HandleAppList(
 	return func(w http.ResponseWriter, r *http.Request) {
 		queryParams := r.URL.Query()
 
-		showExamples, showApps, showOnlyDefault := true, true, false
+		showExamples, showApps, showOnlyDefault, showReleases := true, true, false, true
 		if filter := queryParams.Get("filter"); filter != "" {
 			filters := strings.Split(strings.TrimSpace(filter), ",")
 			showExamples = slices.Contains(filters, "examples")
 			showOnlyDefault = slices.Contains(filters, "default")
 			showApps = slices.Contains(filters, "apps")
+			showReleases = slices.Contains(filters, "releases")
 		}
 
 		var statusFilter orchestrator.Status
@@ -58,6 +59,7 @@ func HandleAppList(
 		res, err := orchestrator.ListApps(r.Context(), dockerCli, orchestrator.ListAppRequest{
 			ShowApps:        showApps,
 			ShowExamples:    showExamples,
+			ShowReleases:    showReleases,
 			ShowOnlyDefault: showOnlyDefault,
 			StatusFilter:    statusFilter,
 		}, idProvider, bricksIndex, cfg, platform)

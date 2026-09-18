@@ -111,12 +111,8 @@ func HandleBrickCreate(
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
 			return
 		}
-		appPath := appId.ToPath()
-
-		app, err := app.Load(appPath)
-		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", appId.String()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
+		app, ok := loadEditableApp(w, appId)
+		if !ok {
 			return
 		}
 
@@ -185,6 +181,7 @@ func HandleBrickUpdates(
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
 			return
 		}
+		// A release takes one change, its secrets, which the service is what gates.
 		appPath := appId.ToPath()
 
 		app, err := app.Load(appPath)
@@ -215,6 +212,10 @@ func HandleBrickUpdates(
 		err = brickService.BrickUpdate(r.Context(), req, app)
 		if err != nil {
 			slog.Error("Unable to update the brick", slog.String("error", err.Error()))
+			if errors.Is(err, bricks.ErrReleaseSecretsOnly) {
+				render.EncodeResponse(w, http.StatusForbidden, models.ErrorResponse{Details: err.Error()})
+				return
+			}
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to update the brick"})
 
 			return
@@ -235,12 +236,8 @@ func HandleBrickDelete(
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
 			return
 		}
-		appPath := appId.ToPath()
-
-		app, err := app.Load(appPath)
-		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", appId.String()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
+		app, ok := loadEditableApp(w, appId)
+		if !ok {
 			return
 		}
 
@@ -250,7 +247,7 @@ func HandleBrickDelete(
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "brickID must be set"})
 			return
 		}
-		err = brickService.BrickDelete(&app, id)
+		err = brickService.BrickDelete(app, id)
 		if err != nil {
 			switch {
 			case errors.Is(err, bricks.ErrBrickNotFound):
