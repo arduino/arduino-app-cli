@@ -159,12 +159,13 @@ func TestServicesOverrides(t *testing.T) {
 	appEnv := types.Mapping{"FOO": "bar"}
 	user := "1000:1000"
 	withUser := "root"
+	cgroupRule := exprPrefix + `{{ with deviceMajor "drm" }}c {{ . }}:* rmw{{ end }}`
 
 	overrides := servicesOverrides([]serviceInfo{
 		{name: "plain"},
 		{name: "with-devices", requireDevices: true},
 		{name: "with-user", user: &withUser},
-	}, user, appEnv, []string{"drm"}, []string{"video"})
+	}, user, appEnv, []string{cgroupRule}, []string{"video"})
 
 	require.Len(t, overrides, 3)
 
@@ -185,8 +186,7 @@ func TestServicesOverrides(t *testing.T) {
 	require.NotContains(t, document.Services["with-user"], "user", "a service declaring a user keeps it")
 
 	require.NotContains(t, document.Services["plain"], "device_cgroup_rules")
-	require.Equal(t, []any{exprPrefix + `{{ with deviceMajor "drm" }}c {{ . }}:* rmw{{ end }}`},
-		document.Services["with-devices"]["device_cgroup_rules"])
+	require.Equal(t, []any{cgroupRule}, document.Services["with-devices"]["device_cgroup_rules"])
 	require.NotEmpty(t, document.Services["with-devices"]["volumes"], "/dev is mounted")
 }
 
