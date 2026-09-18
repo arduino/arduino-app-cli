@@ -6,9 +6,13 @@
 package remote
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"strings"
 )
 
@@ -82,4 +86,90 @@ func (w WithCloser) Close() error {
 // Any embedded single quote is escaped using the standard '\” idiom.
 func ShellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// ErrConnLost is returned when the connection to the board drops during an
+// operation. Data read before the drop can be incomplete.
+var ErrConnLost = errors.New("connection to the board lost")
+
+// ReadError classifies the exit error of a remote command from its stderr, so
+// that a caller can tell a missing file from an unreachable board.
+func ReadError(err error, stderr []byte) error {
+	if err == nil {
+		return nil
+	}
+
+	msg := string(bytes.TrimSpace(stderr))
+	switch {
+	case strings.Contains(msg, "device offline"), strings.Contains(msg, "error: device"),
+		strings.Contains(msg, "closed by remote host"), strings.Contains(msg, "connection reset"):
+		return fmt.Errorf("%w: %s", ErrConnLost, msg)
+	// "cannot open" comes from "file", which reports the reason in brackets, so
+	// the permission case must be tested first.
+	case strings.Contains(msg, "Permission denied"):
+		return fmt.Errorf("%w: %s", fs.ErrPermission, msg)
+	case strings.Contains(msg, "No such file or directory"), strings.Contains(msg, "cannot open"):
+		return fmt.Errorf("%w: %s", fs.ErrNotExist, msg)
+	case msg == "":
+		return err
+	default:
+		return fmt.Errorf("%w: %s", err, msg)
+	}
+}
+
+// ReadResult ends a remote read command. done is true when the output was read
+// to its end, and the command outcome is the result of the read. A false done
+// means the reader was closed early: the command must be stopped without
+// waiting for its output, and its outcome is not a read failure.
+type ReadResult func(done bool) error
+
+// StartRead returns a reader over an already started remote read command. It
+// waits for the first chunk of output, so a command that fails at once reports
+// the error here, like os.Open does. A failure later in the stream replaces the
+// final io.EOF, so that a truncated read cannot pass as a complete one.
+func StartRead(r io.Reader, result ReadResult) (io.ReadCloser, error) {
+	buffered := bufio.NewReader(r)
+	if _, err := buffered.Peek(1); err != nil {
+		// No output at all: either the file is empty, or the command failed.
+		if cerr := result(true); cerr != nil {
+			return nil, cerr
+		}
+		if !errors.Is(err, io.EOF) {
+			return nil, err
+		}
+		return WithCloser{Reader: bytes.NewReader(nil)}, nil
+	}
+
+	return &cmdReader{r: buffered, result: result}, nil
+}
+
+// cmdReader reads the output of a remote command. The command result is known
+// only at the end of the stream, so the reader waits for it there, and not only
+// at close time, which most callers ignore.
+type cmdReader struct {
+	r      io.Reader
+	result ReadResult
+
+	done   bool
+	closed bool
+	err    error
+}
+
+func (c *cmdReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	if errors.Is(err, io.EOF) {
+		c.done = true
+		if result := c.Close(); result != nil {
+			return n, result
+		}
+	}
+	return n, err
+}
+
+func (c *cmdReader) Close() error {
+	if !c.closed {
+		c.closed = true
+		c.err = c.result(c.done)
+	}
+	return c.err
 }
