@@ -88,8 +88,13 @@ func TestGetOSImageVersion(t *testing.T) {
 	const R0_IMAGE_VERSION_ID = "20250807-136"
 	R0Version := createBuildInfoConnection(R0_IMAGE_VERSION_ID)
 	AnotherVersion := createBuildInfoConnection("BUILD_ID=20250101-001")
-	require.Equal(t, GetOSImageVersion(R0Version), R0_IMAGE_VERSION_ID)
-	require.Equal(t, GetOSImageVersion(AnotherVersion), "20250101-001")
+	version, err := GetOSImageVersion(R0Version)
+	require.NoError(t, err)
+	require.Equal(t, version, R0_IMAGE_VERSION_ID)
+
+	version, err = GetOSImageVersion(AnotherVersion)
+	require.NoError(t, err)
+	require.Equal(t, version, "20250101-001")
 }
 
 func TestIsUserPartitionPreservationSupported(t *testing.T) {

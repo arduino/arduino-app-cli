@@ -7,8 +7,10 @@ package board
 
 import (
 	"bufio"
+	"errors"
+	"fmt"
 	"io"
-	"log/slog"
+	"io/fs"
 	"strings"
 
 	"github.com/arduino/arduino-app-cli/pkg/board/remote"
@@ -18,19 +20,22 @@ const R0_IMAGE_VERSION_ID = "20250807-136"
 
 // GetOSImageVersion returns the version of the OS image used in the board.
 // It is used by the AppLab to enforce image version compatibility.
-func GetOSImageVersion(rfs remote.FS) string {
+func GetOSImageVersion(rfs remote.FS) (string, error) {
 	f, err := rfs.ReadFile("/etc/buildinfo")
+	// The first R0 image has no buildinfo file.
+	if errors.Is(err, fs.ErrNotExist) {
+		return R0_IMAGE_VERSION_ID, nil
+	}
 	if err != nil {
-		slog.Warn("Unable to read buildinfo file", "err", err, "using_default", R0_IMAGE_VERSION_ID)
-		return R0_IMAGE_VERSION_ID
+		return "", fmt.Errorf("unable to read the buildinfo file: %w", err)
 	}
 	defer f.Close()
 
 	if version, ok := parseOSImageVersion(f); ok {
-		return version
+		return version, nil
 	}
-	slog.Warn("Unable to find OS Image version", "using_default", R0_IMAGE_VERSION_ID)
-	return R0_IMAGE_VERSION_ID
+
+	return "", fmt.Errorf("unable to find OS Image version in buildinfo file")
 }
 
 func parseOSImageVersion(r io.Reader) (string, bool) {
