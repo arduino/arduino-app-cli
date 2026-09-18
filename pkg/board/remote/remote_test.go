@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"os"
 	"os/exec"
@@ -111,6 +112,25 @@ func TestRemoteFS(t *testing.T) {
 						require.Equal(t, "Hello, World!", string(data))
 					})
 				}
+			})
+
+			t.Run("ReadFile/missing", func(t *testing.T) {
+				_, err := tc.conn.ReadFile("./testdir/missing.txt")
+				require.ErrorIs(t, err, fs.ErrNotExist)
+			})
+
+			t.Run("ReadFile/empty", func(t *testing.T) {
+				const emptyFile = "./testempty/file.txt"
+				require.NoError(t, tc.conn.MkDirAll(path.Dir(emptyFile)))
+				t.Cleanup(func() { _ = tc.conn.Remove(path.Dir(emptyFile)) })
+
+				require.NoError(t, tc.conn.WriteFile(strings.NewReader(""), emptyFile))
+				r, err := tc.conn.ReadFile(emptyFile)
+				require.NoError(t, err)
+				data, err := io.ReadAll(r)
+				require.NoError(t, err)
+				require.Empty(t, data)
+				require.NoError(t, r.Close())
 			})
 
 			t.Run("List", func(t *testing.T) {

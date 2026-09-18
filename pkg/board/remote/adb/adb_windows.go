@@ -8,6 +8,7 @@
 package adb
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"encoding/base64"
@@ -24,6 +25,8 @@ func adbReadFile(a *ADBConnection, path string) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot start adb process: %w", err)
 	}
+	var stderr bytes.Buffer
+	cmd.RedirectStderrTo(&stderr)
 	output, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, err
@@ -34,14 +37,16 @@ func adbReadFile(a *ADBConnection, path string) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	return remote.WithCloser{
-		Reader: decoded,
-		CloseFun: func() error {
-			err1 := output.Close()
-			err2 := cmd.Wait()
-			return cmp.Or(err1, err2)
-		},
-	}, nil
+	return remote.StartRead(decoded, func(done bool) error {
+		err1 := output.Close()
+		err2 := cmd.Wait()
+		// A reader closed before the end stops "base64" with a broken pipe, so
+		// its outcome says nothing about the read.
+		if !done {
+			return nil
+		}
+		return cmp.Or(remote.ReadError(err2, stderr.Bytes()), err1)
+	})
 }
 
 func adbWriteFile(a *ADBConnection, r io.Reader, pathStr string) error {

@@ -8,6 +8,7 @@ package adb
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -173,6 +174,8 @@ func (a *ADBConnection) Stats(p string) (remote.FileInfo, error) {
 	if err != nil {
 		return remote.FileInfo{}, err
 	}
+	var stderr bytes.Buffer
+	cmd.RedirectStderrTo(&stderr)
 	output, err := cmd.StdoutPipe()
 	if err != nil {
 		return remote.FileInfo{}, err
@@ -185,8 +188,10 @@ func (a *ADBConnection) Stats(p string) (remote.FileInfo, error) {
 
 	r := bufio.NewReader(output)
 	line, err := r.ReadBytes('\n')
-	if err != nil {
-		return remote.FileInfo{}, err
+	// No output at all: the command failed, or the device is not reachable.
+	if len(bytes.TrimSpace(line)) == 0 {
+		failure := cmp.Or(cmd.Wait(), err, fmt.Errorf("empty file command output"))
+		return remote.FileInfo{}, remote.ReadError(failure, stderr.Bytes())
 	}
 
 	line = bytes.TrimSpace(line)

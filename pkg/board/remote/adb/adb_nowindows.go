@@ -8,6 +8,7 @@
 package adb
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"fmt"
@@ -23,6 +24,8 @@ func adbReadFile(a *ADBConnection, path string) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create command to read file %q: %w", path, err)
 	}
+	var stderr bytes.Buffer
+	cmd.RedirectStderrTo(&stderr)
 	output, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, err
@@ -30,14 +33,16 @@ func adbReadFile(a *ADBConnection, path string) (io.ReadCloser, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
-	return remote.WithCloser{
-		Reader: output,
-		CloseFun: func() error {
-			err1 := output.Close()
-			err2 := cmd.Wait()
-			return cmp.Or(err1, err2)
-		},
-	}, nil
+	return remote.StartRead(output, func(done bool) error {
+		err1 := output.Close()
+		err2 := cmd.Wait()
+		// A reader closed before the end stops "cat" with a broken pipe, so its
+		// outcome says nothing about the read.
+		if !done {
+			return nil
+		}
+		return cmp.Or(remote.ReadError(err2, stderr.Bytes()), err1)
+	})
 }
 
 func adbWriteFile(a *ADBConnection, r io.Reader, pathStr string) error {

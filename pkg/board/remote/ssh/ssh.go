@@ -204,23 +204,34 @@ func (a *SSHConnection) WriteFile(r io.Reader, path string) error {
 func (a *SSHConnection) ReadFile(path string) (io.ReadCloser, error) {
 	session, err := a.client.NewSession()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: failed to open session: %w", remote.ErrConnLost, err)
 	}
+
+	var stderr bytes.Buffer
+	session.Stderr = &stderr
 
 	cmd := fmt.Sprintf("cat %s", remote.ShellQuote(path))
 	output, err := session.StdoutPipe()
 	if err != nil {
+		_ = session.Close()
 		return nil, err
 	}
 
 	if err := session.Start(cmd); err != nil {
+		_ = session.Close()
 		return nil, fmt.Errorf("failed to start command: %w", err)
 	}
 
-	return remote.WithCloser{
-		Reader:   output,
-		CloseFun: session.Close,
-	}, nil
+	return remote.StartRead(output, func(done bool) error {
+		// A reader closed before the end leaves "cat" writing, so the channel
+		// must be closed first, and the command outcome is not interesting.
+		if !done {
+			return session.Close()
+		}
+		err := waitError(session, &stderr)
+		_ = session.Close()
+		return err
+	})
 }
 
 func (a *SSHConnection) Remove(path string) error {
@@ -245,10 +256,14 @@ func (a *SSHConnection) Stats(p string) (remote.FileInfo, error) {
 	}
 	defer session.Close()
 
+	var stderr bytes.Buffer
+	session.Stderr = &stderr
+
 	cmd := fmt.Sprintf("file -L %s", remote.ShellQuote(p))
 	output, err := session.Output(cmd)
-	if err != nil {
-		return remote.FileInfo{}, err
+	// "file" reports a missing path on stdout, so only a silent failure is fatal.
+	if err != nil && len(bytes.TrimSpace(output)) == 0 {
+		return remote.FileInfo{}, remote.ReadError(err, stderr.Bytes())
 	}
 
 	line := bytes.TrimSpace(output)
@@ -375,4 +390,15 @@ func (a *SSHConnection) Push(ctx context.Context, local, remote string) error {
 		}
 		return scpClient.PushDir(ctx, os.DirFS(local), name, remote)
 	}
+}
+
+// waitError waits for the session end and classifies its outcome. A command
+// that ends without an exit status means the connection dropped mid read.
+func waitError(session *ssh.Session, stderr *bytes.Buffer) error {
+	err := session.Wait()
+	var missing *ssh.ExitMissingError
+	if errors.As(err, &missing) || errors.Is(err, io.EOF) {
+		return fmt.Errorf("%w: %w", remote.ErrConnLost, err)
+	}
+	return remote.ReadError(err, stderr.Bytes())
 }
