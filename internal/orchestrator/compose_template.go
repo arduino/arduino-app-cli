@@ -173,6 +173,11 @@ func generateComposeTemplate(
 		[]string{"/run/udev:ro", "/run/user/1000/pipewire-0"},
 		// camx CSI cameras are accessed through the cam_server socket and a host userspace library
 		[]string{"/run/cam_server", "/usr/lib/libcamera_metadata.so.0.1.0"},
+		// libfastrpc reads the board model here, to pick the DSP firmware of the board
+		[]string{"/sys/firmware/devicetree/base/model:ro"},
+		// The known locations of the DSP installation, at one path of ours: which of
+		// them a board has depends on its distro.
+		[]string{"/usr/share/qcom:/run/host-qcom:ro", "/usr/share/hexagon-dsp:/run/host-qcom:ro"},
 		platform.Linux.BoardLeds.AsStrings(),
 	)
 	for _, mount := range optionalMounts {
@@ -222,6 +227,12 @@ func generateComposeTemplate(
 
 	deviceDrivers := []string{"drm", "dma_heap", "media", "video4linux", "alsa", "ttyUSB", "ttyACM"}
 
+	// The DSP is reached through the fastrpc nodes. They are misc devices, so a rule per
+	// node, by number: the major they share, 10, also holds tun, fuse and the loop control.
+	const fastrpcRules = exprPrefix + `{{ range deviceNumbers "misc" "fastrpc-*" }}c {{ . }} rmw{{ "\n" }}{{ end }}`
+
+	cgroupRules := append(cgroupRuleExprs(deviceDrivers), fastrpcRules)
+
 	mainAppCompose.Services = map[string]any{"main": service{
 		Image:             pythonImage,
 		Volumes:           volumes,
@@ -230,7 +241,7 @@ func generateComposeTemplate(
 		DependsOn:         dependsOn,
 		User:              appUserExpr,
 		GroupAdd:          groupExprs(groupNames),
-		DeviceCgroupRules: cgroupRuleExprs(deviceDrivers),
+		DeviceCgroupRules: cgroupRules,
 		ExtraHosts:        []string{"msgpack-rpc-router:host-gateway"},
 		Labels: map[string]string{
 			DockerAppLabel:     "true",
@@ -250,7 +261,7 @@ func generateComposeTemplate(
 
 	// A compose file cannot declare a service it also includes, so the overrides of the
 	// included services go in a template of their own.
-	if err := writeOverrideTemplate(genPath, services, appEnv, deviceDrivers, groupNames); err != nil {
+	if err := writeOverrideTemplate(genPath, services, appEnv, cgroupRules, groupNames); err != nil {
 		return err
 	}
 
@@ -374,7 +385,7 @@ func frozenYAML(content []byte, lookup func(string) (string, bool)) ([]byte, err
 	return data, nil
 }
 
-func writeOverrideTemplate(genPath *paths.Path, services []serviceInfo, appEnv types.Mapping, deviceDrivers, groupNames []string) error {
+func writeOverrideTemplate(genPath *paths.Path, services []serviceInfo, appEnv types.Mapping, cgroupRules, groupNames []string) error {
 	overrideTemplateFile := genPath.Join(app.OverrideTemplateFileName)
 
 	// A leftover from a previous resolve would keep overriding services the app no longer has.
@@ -389,7 +400,7 @@ func writeOverrideTemplate(genPath *paths.Path, services []serviceInfo, appEnv t
 	}
 
 	data, err := yaml.Marshal(map[string]any{
-		"services": servicesOverrides(services, appUserExpr, appEnv, deviceDrivers, groupNames),
+		"services": servicesOverrides(services, appUserExpr, appEnv, cgroupRules, groupNames),
 	})
 	if err != nil {
 		return err
@@ -399,7 +410,7 @@ func writeOverrideTemplate(genPath *paths.Path, services []serviceInfo, appEnv t
 
 // servicesOverrides is what to apply to the services the brick and service composes
 // declare: they are not ours, so only these fields are stated.
-func servicesOverrides(services []serviceInfo, user string, appEnv types.Mapping, deviceDrivers, groupNames []string) map[string]any {
+func servicesOverrides(services []serviceInfo, user string, appEnv types.Mapping, cgroupRules, groupNames []string) map[string]any {
 	type serviceOverride struct {
 		User              *string           `yaml:"user,omitempty"`
 		Volumes           []volume          `yaml:"volumes,omitempty"`
@@ -424,7 +435,7 @@ func servicesOverrides(services []serviceInfo, user string, appEnv types.Mapping
 			override.User = &user
 		}
 		if svc.requireDevices {
-			override.DeviceCgroupRules = cgroupRuleExprs(deviceDrivers)
+			override.DeviceCgroupRules = cgroupRules
 			override.Volumes = []volume{{Type: "bind", Source: "/dev", Target: "/dev"}}
 		}
 		overrides[svc.name] = override
@@ -447,15 +458,17 @@ func templateEnvironment(appEnv types.Mapping) types.Mapping {
 	return env
 }
 
-// mountExpr binds a path where it is, `<path>:ro` read-only. It renders to nothing,
-// and so is dropped, on a board that has not the path: never created, being optional.
+// mountExpr binds a path where it is, `<host>:<container>` at another path in the
+// container, `<...>:ro` read-only. It renders to nothing, and so is dropped, on a board
+// that has not the path: never created, being optional.
 func mountExpr(mount string) (string, error) {
 	// Cut only the suffix: a led path is /sys/class/leds/blue:user.
-	source, readOnly := strings.CutSuffix(mount, ":ro")
+	mount, readOnly := strings.CutSuffix(mount, ":ro")
+	source, target := splitMount(mount)
 	bind, err := json.Marshal(volume{
 		Type:     "bind",
 		Source:   source,
-		Target:   source,
+		Target:   target,
 		ReadOnly: readOnly,
 		Bind:     &bindOptions{CreateHostPath: false},
 	})
@@ -463,6 +476,17 @@ func mountExpr(mount string) (string, error) {
 		return "", err
 	}
 	return exprPrefix + fmt.Sprintf("{{ if pathExists %s }}%s{{ end }}", strconv.Quote(source), bind), nil
+}
+
+// splitMount reads the host and container paths of a mount: `<host>` is bound where it
+// is, `<host>:<container>` at the container path given. Only an absolute right side is
+// a container path, so a colon inside a path — a led is /sys/class/leds/blue:user — is
+// left where it belongs.
+func splitMount(mount string) (source, target string) {
+	if i := strings.LastIndex(mount, ":"); i >= 0 && strings.HasPrefix(mount[i+1:], "/") {
+		return mount[:i], mount[i+1:]
+	}
+	return mount, mount
 }
 
 func groupExprs(names []string) []string {

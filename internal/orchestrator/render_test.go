@@ -106,6 +106,21 @@ services:
 		}}, main["volumes"])
 	})
 
+	t.Run("a mount can bind at another path in the container", func(t *testing.T) {
+		expr, err := mountExpr(existing + ":/run/device-model:ro")
+		require.NoError(t, err)
+
+		document := render(t, "services:\n  main:\n    volumes:\n      - '"+expr+"'\n")
+		main := document["services"].(map[string]any)["main"].(map[string]any)
+		require.Equal(t, []any{map[string]any{
+			"type":      "bind",
+			"source":    existing,
+			"target":    "/run/device-model",
+			"read_only": true,
+			"bind":      map[string]any{"create_host_path": false},
+		}}, main["volumes"])
+	})
+
 	t.Run("a mount the board has not is dropped", func(t *testing.T) {
 		expr, err := mountExpr(existing + "/missing")
 		require.NoError(t, err)
@@ -144,12 +159,13 @@ func TestServicesOverrides(t *testing.T) {
 	appEnv := types.Mapping{"FOO": "bar"}
 	user := "1000:1000"
 	withUser := "root"
+	cgroupRule := exprPrefix + `{{ with deviceMajor "drm" }}c {{ . }}:* rmw{{ end }}`
 
 	overrides := servicesOverrides([]serviceInfo{
 		{name: "plain"},
 		{name: "with-devices", requireDevices: true},
 		{name: "with-user", user: &withUser},
-	}, user, appEnv, []string{"drm"}, []string{"video"})
+	}, user, appEnv, []string{cgroupRule}, []string{"video"})
 
 	require.Len(t, overrides, 3)
 
@@ -170,8 +186,7 @@ func TestServicesOverrides(t *testing.T) {
 	require.NotContains(t, document.Services["with-user"], "user", "a service declaring a user keeps it")
 
 	require.NotContains(t, document.Services["plain"], "device_cgroup_rules")
-	require.Equal(t, []any{exprPrefix + `{{ with deviceMajor "drm" }}c {{ . }}:* rmw{{ end }}`},
-		document.Services["with-devices"]["device_cgroup_rules"])
+	require.Equal(t, []any{cgroupRule}, document.Services["with-devices"]["device_cgroup_rules"])
 	require.NotEmpty(t, document.Services["with-devices"]["volumes"], "/dev is mounted")
 }
 
