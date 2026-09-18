@@ -21,27 +21,36 @@ import (
 )
 
 func newListCmd(cfg config.Configuration) *cobra.Command {
+	var showExamples bool
+	var showAll bool
 	var showBrokenApps bool
 
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List the Arduino apps",
+		Short: "List the Arduino apps catalog",
+		Long: "List the Arduino apps catalog.\n" +
+			"By default only user apps are shown. Use --examples to list the example apps, " +
+			"or --all to list both.\n" +
+			"To see the live status of the apps on the board, use 'app ps' instead.",
 		Run: func(cmd *cobra.Command, args []string) {
-			listHandler(cmd.Context(), cfg, showBrokenApps)
+			listHandler(cmd.Context(), cfg, showExamples, showAll, showBrokenApps)
 		},
 	}
 
+	cmd.Flags().BoolVar(&showExamples, "examples", false, "Only list the example apps")
+	cmd.Flags().BoolVarP(&showAll, "all", "a", false, "List both user apps and example apps")
 	cmd.Flags().BoolVarP(&showBrokenApps, "show-broken-apps", "", false, "Output a list of broken apps")
 	return cmd
 }
 
-func listHandler(ctx context.Context, cfg config.Configuration, showBrokenApps bool) {
+func listHandler(ctx context.Context, cfg config.Configuration, showExamples, showAll, showBrokenApps bool) {
 	res, err := orchestrator.ListApps(ctx,
 		servicelocator.GetDockerClient(),
 		orchestrator.ListAppRequest{
-			ShowExamples:                   true,
-			ShowApps:                       true,
-			IncludeNonStandardLocationApps: true,
+			// By default we only show user apps. --examples restricts the view to examples only,
+			// and --all shows both.
+			ShowApps:     showAll || !showExamples,
+			ShowExamples: showAll || showExamples,
 		},
 		servicelocator.GetAppIDProvider(),
 		servicelocator.GetBricksIndex(),
@@ -50,6 +59,13 @@ func listHandler(ctx context.Context, cfg config.Configuration, showBrokenApps b
 	)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
+	}
+
+	// When calling the "app list" without flags, notify the users of a breaking behavior change.
+	if !showExamples && !showAll && feedback.GetFormat() == feedback.Text {
+		feedback.Warnf("Note: 'app list' is now a catalog view. The STATUS column has been removed: " +
+			"use 'app ps' to see the apps running on the board. Example apps are no longer listed by " +
+			"default: use --examples to list them, or --all to list apps and examples together.")
 	}
 
 	feedback.PrintResult(appListResult{
@@ -68,15 +84,17 @@ type appListResult struct {
 func (r appListResult) String() string {
 	t := table.NewWriter()
 	t.SetStyle(tablestyle.CustomCleanStyle)
-	t.AppendHeader(table.Row{"ID", "NAME", "ICON", "STATUS", "EXAMPLE"})
+	t.AppendHeader(table.Row{"ID", "NAME", "ICON"})
 
 	for _, app := range r.Apps {
+		name := app.Name
+		if app.Default {
+			name += " *"
+		}
 		t.AppendRow(table.Row{
 			cmdutil.IDToAlias(app.ID),
-			app.Name,
+			name,
 			app.Icon,
-			app.Status,
-			app.Example,
 		})
 	}
 	if r.showBrokenApps && len(r.BrokenApps) > 0 {
