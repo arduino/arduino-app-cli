@@ -5,7 +5,9 @@
 
 package update
 
-import "errors"
+import (
+	"errors"
+)
 
 type ErrorCode string
 
@@ -14,7 +16,7 @@ const (
 	NoInternetConnectionCode ErrorCode = "NO_INTERNET_CONNECTION"
 	OperationInProgressCode  ErrorCode = "OPERATION_IN_PROGRESS"
 	UnknownErrorCode         ErrorCode = "UNKNOWN_ERROR"
-	GenericLockHeld          ErrorCode = "GENERIC_LOCK_HELD"
+	AptLockHeld              ErrorCode = "APT_LOCK_HELD"
 )
 
 var (
@@ -52,7 +54,7 @@ func NewUnkownError(err error) *UpdateError {
 
 func NewLockHeldError(err error) *UpdateError {
 	return &UpdateError{
-		Code:    GenericLockHeld,
+		Code:    AptLockHeld,
 		Details: err.Error(),
 		err:     err,
 	}

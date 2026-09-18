@@ -9,10 +9,12 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"iter"
 	"log/slog"
+	"os/exec"
 	"regexp"
 	"strings"
 	"sync"
@@ -189,15 +191,20 @@ func runUpdateCommand(ctx context.Context) error {
 }
 
 // checkAptLockHeld probes whether the dpkg lock is held by another process by running
-// an apt-get install for a package that does not exist
+// an apt-get install for a package that does not exist.
 func checkAptLockHeld(ctx context.Context) error {
 	cmd, err := paths.NewProcess([]string{debianFrontend}, "sudo", "apt-get", "install", "--assume-no", "non-existent-package-probe")
 	if err != nil {
 		return err
 	}
 	out, err := cmd.RunAndCaptureCombinedOutput(ctx)
-	if err != nil && strings.Contains(strings.ToLower(string(out)), "lock") {
-		return update.NewLockHeldError(fmt.Errorf("apt lock is held by another process: %w: %s", err, out))
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) &&
+			exitErr.ExitCode() == 100 &&
+			strings.Contains(strings.ToLower(string(out)), "lock") {
+			return update.NewLockHeldError(fmt.Errorf("%w: %s", err, out))
+		}
 	}
 	return nil
 }
