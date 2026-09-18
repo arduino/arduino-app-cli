@@ -50,14 +50,14 @@ func TestCmdError(t *testing.T) {
 	})
 }
 
-func TestOpenOutput(t *testing.T) {
+func TestPeekOutput(t *testing.T) {
 	t.Run("command failed before the first byte", func(t *testing.T) {
-		_, err := remote.OpenOutput(strings.NewReader(""), func() error { return fs.ErrNotExist })
+		_, err := remote.PeekOutput(strings.NewReader(""), func() error { return fs.ErrNotExist })
 		require.ErrorIs(t, err, fs.ErrNotExist)
 	})
 
 	t.Run("empty file", func(t *testing.T) {
-		r, err := remote.OpenOutput(strings.NewReader(""), func() error { return nil })
+		r, err := remote.PeekOutput(strings.NewReader(""), func() error { return nil })
 		require.NoError(t, err)
 		data, err := io.ReadAll(r)
 		require.NoError(t, err)
@@ -66,7 +66,7 @@ func TestOpenOutput(t *testing.T) {
 
 	t.Run("the failure is not asked when the command writes", func(t *testing.T) {
 		calls := 0
-		r, err := remote.OpenOutput(strings.NewReader("Hello, World!"), func() error {
+		r, err := remote.PeekOutput(strings.NewReader("Hello, World!"), func() error {
 			calls++
 			return nil
 		})

@@ -8,14 +8,11 @@ package adb
 import (
 	"bufio"
 	"bytes"
-	"cmp"
 	"context"
 	"fmt"
 	"io"
-	"io/fs"
 	"log/slog"
 	"os"
-	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -151,60 +148,22 @@ func (a *ADBConnection) ForwardKillAll(ctx context.Context) error {
 }
 
 func (a *ADBConnection) List(path string) ([]remote.FileInfo, error) {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "ls", "-laQ", remote.ShellQuote(path))
+	out, err := a.run("ls", "-laQ", remote.ShellQuote(path))
 	if err != nil {
-		return nil, err
-	}
-	stdout, stderr, err := cmd.RunAndCaptureOutput(context.Background())
-	if err != nil {
-		return nil, remote.CmdError(err, stderr)
+		return nil, fmt.Errorf("failed to list directory %q: %w", path, err)
 	}
 
-	return remote.ParseLsOutput(bytes.NewReader(stdout))
+	return remote.ParseLsOutput(bytes.NewReader(out))
 }
 
 func (a *ADBConnection) Stats(p string) (remote.FileInfo, error) {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "file", "-L", remote.ShellQuote(p))
-	if err != nil {
+	out, err := a.run("file", "-L", remote.ShellQuote(p))
+	// "file" reports a missing path on stdout, so only a silent failure is fatal.
+	if err != nil && len(bytes.TrimSpace(out)) == 0 {
 		return remote.FileInfo{}, err
 	}
-	var stderr bytes.Buffer
-	cmd.RedirectStderrTo(&stderr)
-	output, err := cmd.StdoutPipe()
-	if err != nil {
-		return remote.FileInfo{}, err
-	}
-	defer output.Close()
-	if err := cmd.Start(); err != nil {
-		return remote.FileInfo{}, err
-	}
-	defer func() { _ = cmd.Wait() }()
 
-	r := bufio.NewReader(output)
-	line, err := r.ReadBytes('\n')
-	// No output at all: the command failed, or the device is not reachable.
-	if len(bytes.TrimSpace(line)) == 0 {
-		failure := cmp.Or(cmd.Wait(), err, fmt.Errorf("empty file command output"))
-		return remote.FileInfo{}, remote.CmdError(failure, stderr.Bytes())
-	}
-
-	line = bytes.TrimSpace(line)
-	parts := bytes.Split(line, []byte(":"))
-	if len(parts) < 2 {
-		return remote.FileInfo{}, fmt.Errorf("unexpected file command output: %s", line)
-	}
-
-	name := string(bytes.TrimSpace(parts[0]))
-	other := string(bytes.TrimSpace(parts[1]))
-
-	if strings.Contains(other, "cannot open") {
-		return remote.FileInfo{}, fs.ErrNotExist
-	}
-
-	return remote.FileInfo{
-		Name:  path.Base(name),
-		IsDir: other == "directory",
-	}, nil
+	return remote.ParseFileOutput(out)
 }
 
 func (a *ADBConnection) ReadFile(path string) (io.ReadCloser, error) {
@@ -216,26 +175,18 @@ func (a *ADBConnection) WriteFile(r io.Reader, path string) error {
 }
 
 func (a *ADBConnection) MkDirAll(path string) error {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "install", "-o", username, "-g", username, "-m", "755", "-d", remote.ShellQuote(path))
-	if err != nil {
-		return err
+	if _, err := a.run("install", "-o", username, "-g", username, "-m", "755", "-d", remote.ShellQuote(path)); err != nil {
+		return fmt.Errorf("failed to create directory %q: %w", path, err)
 	}
-	stdout, err := cmd.RunAndCaptureCombinedOutput(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to create directory %q: %w: %s", path, err, string(stdout))
-	}
+
 	return nil
 }
 
 func (a *ADBConnection) Remove(path string) error {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "rm", "-r", remote.ShellQuote(path))
-	if err != nil {
-		return err
+	if _, err := a.run("rm", "-r", remote.ShellQuote(path)); err != nil {
+		return fmt.Errorf("failed to remove path %q: %w", path, err)
 	}
-	stdout, err := cmd.RunAndCaptureCombinedOutput(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to remove path %q: %w: %s", path, err, string(stdout))
-	}
+
 	return nil
 }
 
@@ -391,3 +342,14 @@ var FindAdbPath = sync.OnceValue(func() string {
 		return path
 	}
 })
+
+// run executes an adb shell command, and classifies a failure with its stderr.
+func (a *ADBConnection) run(args ...string) ([]byte, error) {
+	cmd, err := paths.NewProcess(nil, append([]string{a.adbPath, "-s", a.host, "shell"}, args...)...) // nolint:gosec
+	if err != nil {
+		return nil, err
+	}
+
+	stdout, stderr, err := cmd.RunAndCaptureOutput(context.Background())
+	return stdout, remote.CmdError(err, stderr)
+}

@@ -10,7 +10,6 @@ package adb
 import (
 	"bytes"
 	"cmp"
-	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -37,7 +36,7 @@ func adbReadFile(a *ADBConnection, path string) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	r, err := remote.OpenOutput(decoded, func() error {
+	r, err := remote.PeekOutput(decoded, func() error {
 		return remote.CmdError(cmd.Wait(), stderr.Bytes())
 	})
 	if err != nil {
@@ -55,20 +54,17 @@ func adbReadFile(a *ADBConnection, path string) (io.ReadCloser, error) {
 
 func adbWriteFile(a *ADBConnection, r io.Reader, pathStr string) error {
 	// Create the file with the correct permissions and ownership
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "install", "-o", username, "-g", username, "-m", "0644", "/dev/null", pathStr) // nolint:gosec
-	if err != nil {
-		return fmt.Errorf("cannot create process: %w", err)
-	}
-	stdout, err := cmd.RunAndCaptureCombinedOutput(context.TODO())
-	if err != nil {
-		return fmt.Errorf("failed to create file to %q: %w: %s", pathStr, err, string(stdout))
+	if _, err := a.run("install", "-o", username, "-g", username, "-m", "0644", "/dev/null", pathStr); err != nil {
+		return fmt.Errorf("failed to create file %q: %w", pathStr, err)
 	}
 
 	// Write the content to the file.
-	cmd, err = paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "base64", "-d", ">", pathStr) // nolint:gosec
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "base64", "-d", ">", pathStr) // nolint:gosec
 	if err != nil {
 		return fmt.Errorf("cannot create write process: %w", err)
 	}
+	var stderr bytes.Buffer
+	cmd.RedirectStderrTo(&stderr)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return fmt.Errorf("cannot create stdin pipe: %w", err)
@@ -92,7 +88,8 @@ func adbWriteFile(a *ADBConnection, r io.Reader, pathStr string) error {
 	_ = stdin.Close() // Close the stdin pipe to signal that we're done writing.
 
 	if err := cmd.Wait(); err != nil {
-		return fmt.Errorf("failed to close command for writing file %q: %w", pathStr, err)
+		return fmt.Errorf("failed to write file %q: %w", pathStr, remote.CmdError(err, stderr.Bytes()))
 	}
+
 	return nil
 }

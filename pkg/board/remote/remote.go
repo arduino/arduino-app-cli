@@ -95,9 +95,9 @@ func CmdError(err error, stderr []byte) error {
 	}
 }
 
-// OpenOutput returns a reader over the output of a started command. It waits
-// for the first byte, so that a command that fails at once reports it here.
-func OpenOutput(r io.Reader, exitErr func() error) (io.Reader, error) {
+// PeekOutput waits for the first byte of the output of a started command, so
+// that a command that fails at once reports it here. It returns the output.
+func PeekOutput(r io.Reader, exitErr func() error) (io.Reader, error) {
 	buffered := bufio.NewReader(r)
 	if _, err := buffered.Peek(1); err != nil {
 		// No output at all: the command failed, or the file is empty.
