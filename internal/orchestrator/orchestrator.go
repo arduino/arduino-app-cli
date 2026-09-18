@@ -164,6 +164,13 @@ func StartApp(
 
 	cb(StreamMessage{data: fmt.Sprintf("Starting app %q", appToStart.Name)})
 
+	// An app installed from a release holds in .cache what a start generates: the
+	// compose files and the python env, frozen for the board it was built for.
+	release, isRelease := appToStart.GetRelease()
+	if isRelease {
+		slog.Debug("starting an app installed from a release", slog.String("release", release.ID), slog.String("target", release.Target))
+	}
+
 	// We start PW for any platform or addon in order to be consistend with Network and SBC mode.
 	if err := pipewire.EnsurePipewireRunning(ctx, cfg); err != nil {
 		slog.Warn("failed to enable audio service linger", slog.String("error", err.Error()))
@@ -206,14 +213,18 @@ func StartApp(
 
 		cb(StreamMessage{progress: &Progress{Name: "python provisioning", Progress: provisionStartProgress}})
 
-		// An app is provisioned every time it is started: it is editable, so its
-		// bricks, model or ports may have changed since the last run.
-		if err := provisioner.Resolve(&appToStart, appToStart.ProvisioningStateDir(), bricksIndex, servicesIndex, cfg, appEnv, platform); err != nil {
-			return err
+		// The compose files of a release are the ones the build resolved for the
+		// target board: resolving them again here would replace them.
+		if !isRelease {
+			// An app is provisioned every time it is started: it is editable, so its
+			// bricks, model or ports may have changed since the last run.
+			if err := provisioner.Resolve(&appToStart, appToStart.ProvisioningStateDir(), bricksIndex, servicesIndex, cfg, appEnv, platform); err != nil {
+				return err
+			}
 		}
 
-		// What the template references, answered on this board: for a release the app
-		// half will come from the bundle instead of being resolved again here.
+		// What the template references, answered on this board. The app half is in
+		// the template already, frozen, when the app comes from a release.
 		env := hostEnvironment(ctx, appToStart.FullPath, cfg).Merge(appEnv)
 		prj, err := provisioner.Render(ctx, &appToStart, env, appSecrets(appToStart, bricksIndex))
 		if err != nil {
@@ -324,6 +335,13 @@ func cleanAppCacheFiles(app app.ArduinoApp, cb func(StreamMessage)) error {
 		cb = func(StreamMessage) {}
 	}
 
+	// The .cache of an app installed from a release is what the release froze:
+	// nothing regenerates it, so a destroy leaves it where it is.
+	if _, isRelease := app.GetRelease(); isRelease {
+		cb(StreamMessage{data: "Keeping the cache the release ships."})
+		return nil
+	}
+
 	cachePath := app.FullPath.Join(".cache")
 
 	if exists, _ := cachePath.ExistCheck(); !exists {
@@ -419,6 +437,10 @@ type AppInfo struct {
 	Status      Status   `json:"status,omitempty"`
 	Example     bool     `json:"example"`
 	Default     bool     `json:"default"`
+	// Release tells an app installed from a release, which is frozen, from an app,
+	// which is edited. ReleaseID is the release it comes from.
+	Release   bool   `json:"release"`
+	ReleaseID string `json:"release_id,omitempty"`
 }
 
 type BrokenAppInfo struct {
@@ -430,6 +452,7 @@ type ListAppRequest struct {
 	ShowExamples    bool
 	ShowOnlyDefault bool // List only the default app (runs at startup)
 	ShowApps        bool
+	ShowReleases    bool // List the apps installed from a release, which are read-only
 	StatusFilter    Status
 }
 
@@ -462,6 +485,10 @@ func ListApps(
 	}
 	if req.ShowApps || req.ShowOnlyDefault {
 		pathsToExplore.Add(cfg.AppsDir())
+	}
+	// The releases are apps, installed apart because they are read-only.
+	if req.ShowReleases || req.ShowOnlyDefault {
+		pathsToExplore.Add(cfg.ReleasesDir())
 	}
 
 	appPaths, err := app.FindAppsInFolders(pathsToExplore)
@@ -512,6 +539,8 @@ func ListApps(
 			continue
 		}
 
+		release, isRelease := app.GetRelease()
+
 		result.Apps = append(result.Apps,
 			AppInfo{
 				ID:          id,
@@ -521,6 +550,8 @@ func ListApps(
 				Status:      status,
 				Example:     id.IsExample(),
 				Default:     isDefault,
+				Release:     isRelease,
+				ReleaseID:   release.ID,
 			},
 		)
 	}
@@ -557,6 +588,7 @@ func ListActiveApps(
 		} else {
 			info.ID = id
 			info.Example = id.IsExample()
+			info.Release = id.IsRelease()
 		}
 
 		userApp, err := app.Load(s.AppPath)
@@ -784,7 +816,8 @@ func CloneApp(
 		}
 	}()
 
-	list, err := originPath.ReadDir(paths.FilterOutNames(".cache", "data"))
+	// The manifest stays behind: a copy of a release is an app, and is edited.
+	list, err := originPath.ReadDir(paths.FilterOutNames(".cache", "data", app.ReleaseManifestFileName))
 	if err != nil {
 		return CloneAppResponse{}, fmt.Errorf("failed to read app directory: %w", err)
 	}
@@ -902,6 +935,11 @@ func EditApp(
 	editApp *app.ArduinoApp,
 	cfg config.Configuration,
 ) (editErr error) {
+	// Before the rename below: a release is read-only, folder name included.
+	if _, isRelease := editApp.GetRelease(); isRelease {
+		return app.ErrReleaseReadOnly
+	}
+
 	if req.Default != nil {
 		if err := editAppDefaults(editApp, *req.Default, cfg); err != nil {
 			return fmt.Errorf("failed to edit app defaults: %w", err)
@@ -1134,6 +1172,8 @@ func compileSketch(
 	return nil
 }
 
+// uploadSketch flashes what buildPath holds, whether a compile has just written it or
+// a release ships it.
 func uploadSketch(
 	ctx context.Context,
 	srv rpc.ArduinoCoreServiceServer,

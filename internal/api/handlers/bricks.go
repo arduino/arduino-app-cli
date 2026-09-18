@@ -111,6 +111,10 @@ func HandleBrickCreate(
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
 			return
 		}
+		if appId.IsRelease() {
+			render.EncodeResponse(w, http.StatusForbidden, models.ErrorResponse{Details: "cannot alter a release"})
+			return
+		}
 		appPath := appId.ToPath()
 
 		app, err := app.Load(appPath)
@@ -185,6 +189,10 @@ func HandleBrickUpdates(
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
 			return
 		}
+		if appId.IsRelease() {
+			render.EncodeResponse(w, http.StatusForbidden, models.ErrorResponse{Details: "cannot alter a release"})
+			return
+		}
 		appPath := appId.ToPath()
 
 		app, err := app.Load(appPath)
@@ -233,6 +241,10 @@ func HandleBrickDelete(
 		appId, err := idProvider.IDFromBase64(r.PathValue("appID"))
 		if err != nil {
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
+			return
+		}
+		if appId.IsRelease() {
+			render.EncodeResponse(w, http.StatusForbidden, models.ErrorResponse{Details: "cannot alter a release"})
 			return
 		}
 		appPath := appId.ToPath()

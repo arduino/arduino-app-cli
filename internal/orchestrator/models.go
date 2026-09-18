@@ -156,6 +156,7 @@ func checkForModelReferences(ctx context.Context, dockerClient command.Cli,
 		ctx, dockerClient, ListAppRequest{
 			ShowExamples: true,
 			ShowApps:     true,
+			ShowReleases: true,
 		}, idProvider, bricksIndex, cfg, platform)
 	if err != nil {
 		return nil, nil, err

@@ -30,6 +30,10 @@ func HandleAppLocalBrickRename(brickService *bricks.Service, idProvider *appid.P
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
 			return
 		}
+		if appId.IsRelease() {
+			render.EncodeResponse(w, http.StatusForbidden, models.ErrorResponse{Details: "cannot alter a release"})
+			return
+		}
 
 		a, err := app.Load(appId.ToPath())
 		if err != nil {
