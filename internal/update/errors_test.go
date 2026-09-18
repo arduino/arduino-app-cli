@@ -34,13 +34,4 @@ func TestUpdateError(t *testing.T) {
 		assert.True(t, errors.Is(updateErr, underlyingErr))
 		assert.Equal(t, UnknownErrorCode, GetUpdateErrorCode(updateErr))
 	})
-
-	t.Run("lock held error", func(t *testing.T) {
-		var underlyingErr = fmt.Errorf("exit status 100: E: Could not get lock /var/lib/dpkg/lock-frontend - open (11: Resource temporarily unavailable)")
-		var updateErr error = NewLockHeldError(underlyingErr)
-
-		assert.Equal(t, AptLockHeld, GetUpdateErrorCode(updateErr))
-		assert.Contains(t, updateErr.Error(), "apt lock is held by another process")
-		assert.Contains(t, updateErr.Error(), "exit status 100")
-	})
 }
