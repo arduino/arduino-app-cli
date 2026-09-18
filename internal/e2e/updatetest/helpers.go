@@ -470,9 +470,8 @@ func waitForUpgrade(t *testing.T, host string) {
 	for event, err := range itr {
 		require.NoError(t, err)
 		t.Logf("Received event: ID=%s, Event=%s, Data=%s\n", event.ID, event.Event, string(event.Data))
-		if event.Event == "restarting" {
+		if event.Event == "restarting" || event.Event == "done" {
 			break
 		}
 	}
-
 }
