@@ -186,8 +186,16 @@ func StartApp(
 
 	cb(StreamMessage{progress: &Progress{Name: "preparing", Progress: 0.0}})
 
-	if isRelease {
-		if _, ok := appToStart.GetSketchPath(); ok {
+	if _, ok := appToStart.GetSketchPath(); ok {
+		if isRelease {
+			cb(StreamMessage{progress: &Progress{Name: "uploading sketch", Progress: 0.0}})
+
+			// The firmware of a release is the one the build compiled: a start only uploads it.
+			fwFile := appToStart.ProvisioningStateDir().Join(ReleaseFirmwareFileName)
+			if err := uploadFirmwareFile(ctx, verbose, fwFile, sketchCallbackWriter); err != nil {
+				return err
+			}
+		} else {
 			cb(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}})
 
 			if editable, err := appToStart.GetAsEditable(); err == nil {
@@ -201,14 +209,6 @@ func StartApp(
 			if err := compileUploadSketch(ctx, verbose, platform, appToStart, sketchCallbackWriter); err != nil {
 				return err
 			}
-
-			cb(StreamMessage{progress: &Progress{Name: "sketch updated", Progress: 10.0}})
-		}
-	} else {
-		cb(StreamMessage{progress: &Progress{Name: "uploading sketch", Progress: 0.0}})
-
-		if err := uploadFirmwareFile(ctx, verbose, appToStart.ProvisioningStateDir().Join("sketch.fw"), sketchCallbackWriter); err != nil {
-			return err
 		}
 
 		cb(StreamMessage{progress: &Progress{Name: "sketch updated", Progress: 10.0}})
