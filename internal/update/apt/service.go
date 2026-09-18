@@ -190,8 +190,8 @@ func runUpdateCommand(ctx context.Context) error {
 	return nil
 }
 
-// checkAptLockHeld probes whether the dpkg lock is held by another process by running
-// an apt-get install for a package that does not exist.
+// checkAptLockHeld probes whether the dpkg lock is held by another process
+// by running an apt-get install for a package that does not exist.
 func checkAptLockHeld(ctx context.Context) error {
 	cmd, err := paths.NewProcess([]string{debianFrontend}, "sudo", "apt-get", "install", "--assume-no", "non-existent-package-probe")
 	if err != nil {
