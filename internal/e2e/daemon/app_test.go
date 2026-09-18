@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -652,7 +653,7 @@ func TestAppLogs(t *testing.T) {
 
 	createResp, err := httpClient.CreateAppWithResponse(
 		t.Context(),
-		&client.CreateAppParams{},
+		&client.CreateAppParams{SkipSketch: new(true)},
 		client.CreateAppRequest{
 			Icon:        new("📜"),
 			Name:        "app-with-logs",
@@ -665,10 +666,26 @@ func TestAppLogs(t *testing.T) {
 
 	startResp, err := httpClient.StartApp(t.Context(), appWithLogsId, nil)
 	require.NoError(t, err)
-	_, err = io.Copy(io.Discard, startResp.Body)
-	require.NoError(t, err, "Failed to unmarshal the JSON error response body")
-	startResp.Body.Close()
 	require.Equal(t, http.StatusOK, startResp.StatusCode)
+	defer startResp.Body.Close() // loop closes it too, but the linter cannot see that
+	startEvents := make(chan Event)
+	go loop(startResp.Body, startEvents)
+	for event := range startEvents {
+		t.Logf("start event: %s %s", event.Event, string(event.Data))
+		if event.Event != sseEventError {
+			continue
+		}
+		var errData struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		}
+		require.NoError(t, json.Unmarshal(event.Data, &errData))
+		// SERVER_CLOSED is emitted by the SSE teardown on every stream; ignore it.
+		if errData.Code == sseCodeServerClosed {
+			continue
+		}
+		t.Fatalf("app failed to start: code=%s message=%s", errData.Code, errData.Message)
+	}
 
 	t.Run("InvalidAppId_Fail", func(t *testing.T) {
 		var actualResponseBody models.ErrorResponse
@@ -707,6 +724,43 @@ func TestAppLogs(t *testing.T) {
 		err = json.Unmarshal(body, &actualResponseBody)
 		require.NoError(t, err, "Failed to unmarshal the JSON error response body")
 		require.Equal(t, "invalid tail value", actualResponseBody.Details)
+	})
+
+	t.Run("InvalidFilterValue_Fail", func(t *testing.T) {
+		var actualResponseBody models.ErrorResponse
+		invalidFilter := "unknown"
+		resp, err := httpClient.GetAppLogs(t.Context(), appWithLogsId, &client.GetAppLogsParams{Filter: &invalidFilter})
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		err = json.Unmarshal(body, &actualResponseBody)
+		require.NoError(t, err, "Failed to unmarshal the JSON error response body")
+		require.Equal(t, "invalid filter value", actualResponseBody.Details)
+	})
+
+	t.Run("GetLogs_Success_Receives_SSE_Message", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		defer cancel()
+		resp, err := httpClient.GetAppLogs(ctx, appWithLogsId, nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		events := make(chan Event)
+		go loop(resp.Body, events)
+		for event := range events {
+			if event.Event != "message" {
+				continue
+			}
+			var payload handlers.ResponseLogs
+			require.NoError(t, json.Unmarshal(event.Data, &payload))
+			require.NotEmpty(t, payload.ID, "id must be set")
+			require.NotEmpty(t, payload.Message, "message must be set")
+			return
+		}
+		t.Fatal("no message event received before timeout")
 	})
 	// find a way to test 400 invalid tail value: client generated code is type safe, so an invalid value can't be sent
 }

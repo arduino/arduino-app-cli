@@ -428,14 +428,9 @@ type BrokenAppInfo struct {
 
 type ListAppRequest struct {
 	ShowExamples    bool
-	ShowOnlyDefault bool
+	ShowOnlyDefault bool // List only the default app (runs at startup)
 	ShowApps        bool
 	StatusFilter    Status
-
-	// IncludeNonStandardLocationApps will include apps that are not in the standard apps directory.
-	// We will search by looking for docker container metadata, and add the app not present in the
-	// standard apps directory in the result list.
-	IncludeNonStandardLocationApps bool
 }
 
 func ListApps(
@@ -461,29 +456,21 @@ func ListApps(
 
 	// Retrieve all apps from the filesystem
 	var pathsToExplore paths.PathList
-	var appPaths paths.PathList
 	if req.ShowExamples || req.ShowOnlyDefault {
 		pathsToExplore.AddAll(cfg.ExamplesDirs(platform))
 		pathsToExplore.AddAll(cfg.ExamplesAdditionalDirs())
 	}
 	if req.ShowApps || req.ShowOnlyDefault {
 		pathsToExplore.Add(cfg.AppsDir())
-		// and optionally add apps that are on different paths
-		if req.IncludeNonStandardLocationApps {
-			for _, appStatus := range appsStatus {
-				appPaths.AddIfMissing(appStatus.AppPath)
-			}
-		}
 	}
 
-	appPathsTmp, err := app.FindAppsInFolders(pathsToExplore)
+	appPaths, err := app.FindAppsInFolders(pathsToExplore)
 	if err != nil {
 		slog.Error("unable to list apps", slog.String("error", err.Error()))
 		return ListAppResult{}, err
 	}
-	appPaths.AddAllMissing(appPathsTmp)
 
-	// Compose the result
+	// Go through all the known app paths, and create a result item for each.
 	result := ListAppResult{Apps: []AppInfo{}, BrokenApps: []BrokenAppInfo{}}
 	for _, file := range appPaths {
 		app, err := app.Load(file)

@@ -18,8 +18,41 @@ RUN apt update && apt install -y /tmp/stable.deb /tmp/router.deb \
     && mkdir -p /var/www/html/myrepo/dists/local/main/binary-${ARCH} \
     && mv /tmp/unstable.deb /var/www/html/myrepo/dists/local/main/binary-${ARCH}/
 
+# Fixture packages for the three plans the apt resolver can report: a package it
+# holds back, an upgrade that needs a new package, and a pinned downgrade.
+ARG EXTRA_PACKAGES=0
+RUN if [ "${EXTRA_PACKAGES}" = 1 ]; then set -eu; \
+      repo=/var/www/html/myrepo/dists/local/main/binary-${ARCH}; \
+      mkdeb() { \
+        rm -rf /tmp/fixture && mkdir -p /tmp/fixture/DEBIAN; \
+        { printf 'Package: %s\nVersion: %s\nArchitecture: all\n' "$1" "$2"; \
+          printf 'Maintainer: Arduino <test@arduino.cc>\n'; \
+          [ -z "$3" ] || printf '%s\n' "$3"; \
+          printf 'Description: apt resolver test fixture\n'; \
+        } > /tmp/fixture/DEBIAN/control; \
+        dpkg-deb -b /tmp/fixture "$repo/$1_$2_all.deb"; \
+      }; \
+      mkdeb arduino-heldback-test 1.0 ''; \
+      mkdeb arduino-heldback-test 2.0 'Depends: arduino-absent-test'; \
+      mkdeb arduino-newdep-test 1.0 ''; \
+      mkdeb arduino-newdep-test 2.0 'Depends: arduino-newdep-lib-test'; \
+      mkdeb arduino-newdep-lib-test 1.0 ''; \
+      mkdeb arduino-rec-test 1.0 ''; \
+      mkdeb arduino-rec-test 2.0 'Recommends: arduino-rec-lib-test'; \
+      mkdeb arduino-rec-lib-test 1.0 ''; \
+      mkdeb arduino-down-test 1.0 ''; \
+      mkdeb arduino-down-test 2.0 ''; \
+      dpkg -i "$repo"/arduino-heldback-test_1.0_all.deb \
+              "$repo"/arduino-newdep-test_1.0_all.deb \
+              "$repo"/arduino-rec-test_1.0_all.deb \
+              "$repo"/arduino-down-test_2.0_all.deb; \
+      printf 'Package: arduino-down-test\nPin: version 1.0\nPin-Priority: 1001\n' \
+        > /etc/apt/preferences.d/arduino-down-test; \
+    fi
+
 WORKDIR /var/www/html/myrepo
-RUN dpkg-scanpackages dists/local/main/binary-${ARCH} /dev/null | gzip -9c > dists/local/main/binary-${ARCH}/Packages.gz
+# -m publishes every version, so the repo can hold both ends of a downgrade.
+RUN dpkg-scanpackages -m dists/local/main/binary-${ARCH} /dev/null | gzip -9c > dists/local/main/binary-${ARCH}/Packages.gz
 WORKDIR /
 
 # Debug level so the daemon's own warnings reach the journal. The drop-in is not

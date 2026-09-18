@@ -68,9 +68,8 @@ func ApplicationNamesWithFilterFunc(cfg config.Configuration, filter func(apps o
 		apps, err := orchestrator.ListApps(cmd.Context(),
 			servicelocator.GetDockerClient(),
 			orchestrator.ListAppRequest{
-				ShowExamples:                   true,
-				ShowApps:                       true,
-				IncludeNonStandardLocationApps: true,
+				ShowExamples: true,
+				ShowApps:     true,
 			},
 			servicelocator.GetAppIDProvider(),
 			servicelocator.GetBricksIndex(),

@@ -331,7 +331,9 @@ func installPlatformPackage(ctx context.Context, plat platform.Platform, eventCB
 
 	eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDeb, Message: fmt.Sprintf("Installing package '%s'", packageName)})
 
-	cmd, err := paths.NewProcess(nil, "sudo", "apt-get", "install", "-y", packageName)
+	// The env keeps debconf off /dev/tty: the pty of sudo makes it available even
+	// when our own stdin is a pipe.
+	cmd, err := paths.NewProcess([]string{"DEBIAN_FRONTEND=noninteractive"}, "sudo", "apt-get", "install", "-y", packageName)
 	if err != nil {
 		return err
 	}
