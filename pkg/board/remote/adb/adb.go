@@ -158,8 +158,9 @@ func (a *ADBConnection) List(path string) ([]remote.FileInfo, error) {
 
 func (a *ADBConnection) Stats(p string) (remote.FileInfo, error) {
 	out, err := a.run("file", "-L", remote.ShellQuote(p))
-	// "file" reports a missing path on stdout, so only a silent failure is fatal.
-	if err != nil && len(bytes.TrimSpace(out)) == 0 {
+	// "file" reports a missing path on its stdout, and that is the only message
+	// that can hide a command failure.
+	if err != nil && !bytes.Contains(out, []byte("cannot open")) {
 		return remote.FileInfo{}, err
 	}
 

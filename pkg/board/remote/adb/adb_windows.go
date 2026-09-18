@@ -9,10 +9,10 @@ package adb
 
 import (
 	"bytes"
-	"cmp"
 	"encoding/base64"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/arduino/go-paths-helper"
 
@@ -36,9 +36,10 @@ func adbReadFile(a *ADBConnection, path string) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	r, err := remote.PeekOutput(decoded, func() error {
+	wait := sync.OnceValue(func() error {
 		return remote.CmdError(cmd.Wait(), stderr.Bytes())
 	})
+	r, err := remote.PeekOutput(decoded, wait)
 	if err != nil {
 		_ = output.Close()
 		return nil, err
@@ -47,7 +48,9 @@ func adbReadFile(a *ADBConnection, path string) (io.ReadCloser, error) {
 	return remote.WithCloser{
 		Reader: r,
 		CloseFun: func() error {
-			return cmp.Or(output.Close(), cmd.Wait())
+			// An empty file is over already, and Wait closed the pipe.
+			_ = output.Close()
+			return wait()
 		},
 	}, nil
 }

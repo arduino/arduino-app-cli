@@ -80,7 +80,9 @@ func CmdError(err error, stderr []byte) error {
 	msg := string(bytes.TrimSpace(stderr))
 	switch {
 	case strings.Contains(msg, "device offline"), strings.Contains(msg, "error: device"),
-		strings.Contains(msg, "closed by remote host"), strings.Contains(msg, "connection reset"):
+		strings.Contains(msg, "no devices/emulators found"), strings.Contains(msg, "unauthorized"),
+		strings.Contains(msg, "error: closed"), strings.Contains(msg, "closed by remote host"),
+		strings.Contains(msg, "connection reset"):
 		return fmt.Errorf("%w: %s", ErrConnLost, msg)
 	// "file" prints "cannot open" with the reason in brackets, so the permission
 	// case must come first.

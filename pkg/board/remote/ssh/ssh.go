@@ -217,7 +217,13 @@ func (a *SSHConnection) ReadFile(path string) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	return remote.WithCloser{Reader: r, CloseFun: session.Close}, nil
+	return remote.WithCloser{Reader: r, CloseFun: func() error {
+		// An empty file ends the session before this close.
+		if err := session.Close(); err != nil && !errors.Is(err, io.EOF) {
+			return err
+		}
+		return nil
+	}}, nil
 }
 
 func (a *SSHConnection) Remove(path string) error {
@@ -230,8 +236,9 @@ func (a *SSHConnection) Remove(path string) error {
 
 func (a *SSHConnection) Stats(p string) (remote.FileInfo, error) {
 	out, err := a.run(fmt.Sprintf("file -L %s", remote.ShellQuote(p)))
-	// "file" reports a missing path on stdout, so only a silent failure is fatal.
-	if err != nil && len(bytes.TrimSpace(out)) == 0 {
+	// "file" reports a missing path on its stdout, and that is the only message
+	// that can hide a command failure.
+	if err != nil && !bytes.Contains(out, []byte("cannot open")) {
 		return remote.FileInfo{}, err
 	}
 
