@@ -14,7 +14,6 @@ import (
 	"iter"
 	"log/slog"
 	"regexp"
-	"strings"
 	"sync"
 
 	"github.com/arduino/go-paths-helper"
@@ -34,7 +33,7 @@ func New() *Service {
 	return &Service{}
 }
 
-// ListUpgradablePackages lists all upgradable packages using the `apt list --upgradable` command.
+// ListUpgradablePackages lists all upgradable packages using the `apt-get -s upgrade` command.
 // It runs the `apt-get update` command before listing the packages to ensure the package list is up to date.
 // It filters the packages using the provided matcher function.
 // It returns a slice of UpgradablePackage or an error if the command fails.
@@ -199,8 +198,10 @@ func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, er
 		"-o", "Dpkg::Options::=--force-confdef",
 		"-o", "Dpkg::Options::=--force-confold",
 	}
-	args := make([]string, 0, 5+len(aptOptions)+len(names))
-	args = append(args, "sudo", "apt-get", "install", "--only-upgrade", "-y")
+	args := make([]string, 0, 7+len(aptOptions)+len(names))
+	// We allow downgrades because sometimes we need to force a specific patched version of a package.
+	// Nothing is ever removed: every listed package installs on its own, so a removal means the plan changed.
+	args = append(args, "sudo", "apt-get", "install", "--only-upgrade", "-y", "--allow-downgrades", "--no-remove")
 	args = append(args, aptOptions...)
 	args = append(args, names...)
 
@@ -321,25 +322,28 @@ func cleanupDockerContainers(ctx context.Context) iter.Seq2[string, error] {
 	}
 }
 
+// listUpgradablePackages returns the packages a dry-run upgrade would install:
+// packages apt holds back as not installable are left out, an upgrade that needs a
+// new dependency is kept in, and nothing is ever removed.
 func listUpgradablePackages(ctx context.Context, matcher func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
-	listUpgradable, err := paths.NewProcess(nil, "apt", "list", "--upgradable")
+	simulateUpgrade, err := paths.NewProcess(nil, "apt-get", "-s", "upgrade", "--with-new-pkgs")
 	if err != nil {
 		return nil, err
 	}
 
-	out, err := listUpgradable.StdoutPipe()
+	out, err := simulateUpgrade.StdoutPipe()
 	if err != nil {
 		return nil, err
 	}
 
-	err = listUpgradable.Start()
+	err = simulateUpgrade.Start()
 	if err != nil {
 		return nil, err
 	}
 
-	packages := parseListUpgradableOutput(out)
+	packages := parseSimulatedUpgradeOutput(out)
 
-	if err := listUpgradable.WaitWithinContext(ctx); err != nil {
+	if err := simulateUpgrade.WaitWithinContext(ctx); err != nil {
 		return nil, err
 	}
 
@@ -348,10 +352,10 @@ func listUpgradablePackages(ctx context.Context, matcher func(update.UpgradableP
 	return filtered, nil
 }
 
-// parseListUpgradableOutput parses the output of `apt list --upgradable` command
-// Example: apt/focal-updates 2.0.11 amd64 [upgradable from: 2.0.10]
-func parseListUpgradableOutput(r io.Reader) []update.UpgradablePackage {
-	re := regexp.MustCompile(`^([^ ]+) ([^ ]+) ([^ ]+)(?: \[upgradable from: ([^\[\]]*)\])?`)
+// parseSimulatedUpgradeOutput parses the `Inst` lines of the `apt-get -s upgrade` command.
+// Example: Inst apt [2.0.10] (2.0.11 Ubuntu:20.04/focal-updates [amd64])
+func parseSimulatedUpgradeOutput(r io.Reader) []update.UpgradablePackage {
+	re := regexp.MustCompile(`^Inst ([^ :]+)(?::[^ ]+)?(?: \[([^\[\]]*)\])? \(([^ )]+)[^)]*?(?: \[([^\[\]]+)\])?\)`)
 
 	res := []update.UpgradablePackage{}
 	scanner := bufio.NewScanner(r)
@@ -361,17 +365,12 @@ func parseListUpgradableOutput(r io.Reader) []update.UpgradablePackage {
 			continue
 		}
 
-		// Remove repository information in name
-		// example: "libgweather-common/zesty-updates,zesty-updates"
-		//       -> "libgweather-common"
-		name := strings.Split(matches[1], "/")[0]
-
 		pkg := update.UpgradablePackage{
 			Type:         update.Debian,
-			Name:         name,
-			ToVersion:    matches[2],
-			Architecture: matches[3],
-			FromVersion:  matches[4],
+			Name:         matches[1],
+			ToVersion:    matches[3],
+			Architecture: matches[4],
+			FromVersion:  matches[2],
 		}
 		res = append(res, pkg)
 	}
