@@ -73,8 +73,7 @@ type RemoteFile struct {
 	base string
 
 	read io.ReadCloser
-	// The file is opened at the first read, so the open error is kept here and
-	// not retried on every read.
+	// Kept, so that a failed open is not retried at every read.
 	openErr error
 
 	conn remote.FS

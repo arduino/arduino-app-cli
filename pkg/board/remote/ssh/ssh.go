@@ -160,10 +160,13 @@ func (a *SSHConnection) List(path string) ([]remote.FileInfo, error) {
 	}
 	defer session.Close()
 
+	var stderr bytes.Buffer
+	session.Stderr = &stderr
+
 	cmd := fmt.Sprintf("ls -laQ %s", remote.ShellQuote(path))
 	output, err := session.Output(cmd)
 	if err != nil {
-		return nil, err
+		return nil, remote.CmdError(err, stderr.Bytes())
 	}
 
 	return remote.ParseLsOutput(bytes.NewReader(output))
@@ -204,7 +207,7 @@ func (a *SSHConnection) WriteFile(r io.Reader, path string) error {
 func (a *SSHConnection) ReadFile(path string) (io.ReadCloser, error) {
 	session, err := a.client.NewSession()
 	if err != nil {
-		return nil, fmt.Errorf("%w: failed to open session: %w", remote.ErrConnLost, err)
+		return nil, fmt.Errorf("failed to open session: %w", err)
 	}
 
 	var stderr bytes.Buffer
@@ -222,16 +225,15 @@ func (a *SSHConnection) ReadFile(path string) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("failed to start command: %w", err)
 	}
 
-	return remote.StartRead(output, func(done bool) error {
-		// A reader closed before the end leaves "cat" writing, so the channel
-		// must be closed first, and the command outcome is not interesting.
-		if !done {
-			return session.Close()
-		}
-		err := waitError(session, &stderr)
-		_ = session.Close()
-		return err
+	r, err := remote.OpenOutput(output, func() error {
+		return remote.CmdError(session.Wait(), stderr.Bytes())
 	})
+	if err != nil {
+		_ = session.Close()
+		return nil, err
+	}
+
+	return remote.WithCloser{Reader: r, CloseFun: session.Close}, nil
 }
 
 func (a *SSHConnection) Remove(path string) error {
@@ -263,7 +265,7 @@ func (a *SSHConnection) Stats(p string) (remote.FileInfo, error) {
 	output, err := session.Output(cmd)
 	// "file" reports a missing path on stdout, so only a silent failure is fatal.
 	if err != nil && len(bytes.TrimSpace(output)) == 0 {
-		return remote.FileInfo{}, remote.ReadError(err, stderr.Bytes())
+		return remote.FileInfo{}, remote.CmdError(err, stderr.Bytes())
 	}
 
 	line := bytes.TrimSpace(output)
@@ -390,15 +392,4 @@ func (a *SSHConnection) Push(ctx context.Context, local, remote string) error {
 		}
 		return scpClient.PushDir(ctx, os.DirFS(local), name, remote)
 	}
-}
-
-// waitError waits for the session end and classifies its outcome. A command
-// that ends without an exit status means the connection dropped mid read.
-func waitError(session *ssh.Session, stderr *bytes.Buffer) error {
-	err := session.Wait()
-	var missing *ssh.ExitMissingError
-	if errors.As(err, &missing) || errors.Is(err, io.EOF) {
-		return fmt.Errorf("%w: %w", remote.ErrConnLost, err)
-	}
-	return remote.ReadError(err, stderr.Bytes())
 }

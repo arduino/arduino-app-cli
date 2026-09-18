@@ -155,18 +155,12 @@ func (a *ADBConnection) List(path string) ([]remote.FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd.RedirectStderrTo(os.Stdout)
-	output, err := cmd.StdoutPipe()
+	stdout, stderr, err := cmd.RunAndCaptureOutput(context.Background())
 	if err != nil {
-		return nil, err
+		return nil, remote.CmdError(err, stderr)
 	}
-	defer output.Close()
-	if err := cmd.Start(); err != nil {
-		return nil, err
-	}
-	defer func() { _ = cmd.Wait() }()
 
-	return remote.ParseLsOutput(output)
+	return remote.ParseLsOutput(bytes.NewReader(stdout))
 }
 
 func (a *ADBConnection) Stats(p string) (remote.FileInfo, error) {
@@ -191,7 +185,7 @@ func (a *ADBConnection) Stats(p string) (remote.FileInfo, error) {
 	// No output at all: the command failed, or the device is not reachable.
 	if len(bytes.TrimSpace(line)) == 0 {
 		failure := cmp.Or(cmd.Wait(), err, fmt.Errorf("empty file command output"))
-		return remote.FileInfo{}, remote.ReadError(failure, stderr.Bytes())
+		return remote.FileInfo{}, remote.CmdError(failure, stderr.Bytes())
 	}
 
 	line = bytes.TrimSpace(line)

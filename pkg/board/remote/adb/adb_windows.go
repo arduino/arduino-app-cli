@@ -37,16 +37,20 @@ func adbReadFile(a *ADBConnection, path string) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	return remote.StartRead(decoded, func(done bool) error {
-		err1 := output.Close()
-		err2 := cmd.Wait()
-		// A reader closed before the end stops "base64" with a broken pipe, so
-		// its outcome says nothing about the read.
-		if !done {
-			return nil
-		}
-		return cmp.Or(remote.ReadError(err2, stderr.Bytes()), err1)
+	r, err := remote.OpenOutput(decoded, func() error {
+		return remote.CmdError(cmd.Wait(), stderr.Bytes())
 	})
+	if err != nil {
+		_ = output.Close()
+		return nil, err
+	}
+
+	return remote.WithCloser{
+		Reader: r,
+		CloseFun: func() error {
+			return cmp.Or(output.Close(), cmd.Wait())
+		},
+	}, nil
 }
 
 func adbWriteFile(a *ADBConnection, r io.Reader, pathStr string) error {
