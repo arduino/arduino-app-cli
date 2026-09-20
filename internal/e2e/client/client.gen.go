@@ -587,7 +587,7 @@ type Unauthorized = ErrorResponse
 
 // GetAppsParams defines parameters for GetApps.
 type GetAppsParams struct {
-	// Filter Filters apps by apps,examples,releases,default
+	// Filter Filters apps by apps,examples,default
 	Filter *string `form:"filter,omitempty" json:"filter,omitempty"`
 
 	// Status Filters applications by status
@@ -610,6 +610,21 @@ type ImportAppFormdataBody struct {
 type ImportAppParams struct {
 	// File The ZIP archive. Must contain app.yaml (with a valid 'name') and python/main.py. The app folder name will be calculated from the app name.
 	File *string `form:"file,omitempty" json:"file,omitempty"`
+}
+
+// InstallAppFormdataBody defines parameters for InstallApp.
+type InstallAppFormdataBody struct {
+	// File The release archive (.arduinoapp). Must be built for this board.
+	File *string `form:"file,omitempty" json:"file,omitempty"`
+}
+
+// InstallAppParams defines parameters for InstallApp.
+type InstallAppParams struct {
+	// File The release archive (.arduinoapp). Must be built for this board.
+	File *string `form:"file,omitempty" json:"file,omitempty"`
+
+	// Prepare After the install, download the containers and models the release needs to run.
+	Prepare *bool `form:"prepare,omitempty" json:"prepare,omitempty"`
 }
 
 // BuildAppJSONBody defines parameters for BuildApp.
@@ -729,6 +744,9 @@ type CreateAppJSONRequestBody = CreateAppRequest
 
 // ImportAppFormdataRequestBody defines body for ImportApp for application/x-www-form-urlencoded ContentType.
 type ImportAppFormdataRequestBody ImportAppFormdataBody
+
+// InstallAppFormdataRequestBody defines body for InstallApp for application/x-www-form-urlencoded ContentType.
+type InstallAppFormdataRequestBody InstallAppFormdataBody
 
 // CreateAppLocalBrickJSONRequestBody defines body for CreateAppLocalBrick for application/json ContentType.
 type CreateAppLocalBrickJSONRequestBody = AppLocalBrickCreateRequest
@@ -851,6 +869,11 @@ type ClientInterface interface {
 	ImportAppWithBody(ctx context.Context, params *ImportAppParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	ImportAppWithFormdataBody(ctx context.Context, params *ImportAppParams, body ImportAppFormdataRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// InstallAppWithBody request with any body
+	InstallAppWithBody(ctx context.Context, params *InstallAppParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	InstallAppWithFormdataBody(ctx context.Context, params *InstallAppParams, body InstallAppFormdataRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAppBrickInstances request
 	GetAppBrickInstances(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1070,6 +1093,30 @@ func (c *Client) ImportAppWithBody(ctx context.Context, params *ImportAppParams,
 
 func (c *Client) ImportAppWithFormdataBody(ctx context.Context, params *ImportAppParams, body ImportAppFormdataRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewImportAppRequestWithFormdataBody(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) InstallAppWithBody(ctx context.Context, params *InstallAppParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewInstallAppRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) InstallAppWithFormdataBody(ctx context.Context, params *InstallAppParams, body InstallAppFormdataRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewInstallAppRequestWithFormdataBody(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1937,6 +1984,85 @@ func NewImportAppRequestWithBody(server string, params *ImportAppParams, content
 	}
 
 	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewInstallAppRequestWithFormdataBody calls the generic InstallApp builder with application/x-www-form-urlencoded body
+func NewInstallAppRequestWithFormdataBody(server string, params *InstallAppParams, body InstallAppFormdataRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	bodyStr, err := runtime.MarshalForm(body, nil)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = strings.NewReader(bodyStr.Encode())
+	return NewInstallAppRequestWithBody(server, params, "application/x-www-form-urlencoded", bodyReader)
+}
+
+// NewInstallAppRequestWithBody generates requests for InstallApp with any type of body
+func NewInstallAppRequestWithBody(server string, params *InstallAppParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/apps/install")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.File != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "file", *params.File, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "base64"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Prepare != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "prepare", *params.Prepare, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -3864,6 +3990,11 @@ type ClientWithResponsesInterface interface {
 
 	ImportAppWithFormdataBodyWithResponse(ctx context.Context, params *ImportAppParams, body ImportAppFormdataRequestBody, reqEditors ...RequestEditorFn) (*ImportAppResp, error)
 
+	// InstallAppWithBodyWithResponse request with any body
+	InstallAppWithBodyWithResponse(ctx context.Context, params *InstallAppParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InstallAppResp, error)
+
+	InstallAppWithFormdataBodyWithResponse(ctx context.Context, params *InstallAppParams, body InstallAppFormdataRequestBody, reqEditors ...RequestEditorFn) (*InstallAppResp, error)
+
 	// GetAppBrickInstancesWithResponse request
 	GetAppBrickInstancesWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*GetAppBrickInstancesResp, error)
 
@@ -4162,6 +4293,38 @@ func (r ImportAppResp) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ImportAppResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type InstallAppResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON409      *Conflict
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r InstallAppResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r InstallAppResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r InstallAppResp) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -5547,6 +5710,23 @@ func (c *ClientWithResponses) ImportAppWithFormdataBodyWithResponse(ctx context.
 	return ParseImportAppResp(rsp)
 }
 
+// InstallAppWithBodyWithResponse request with arbitrary body returning *InstallAppResp
+func (c *ClientWithResponses) InstallAppWithBodyWithResponse(ctx context.Context, params *InstallAppParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InstallAppResp, error) {
+	rsp, err := c.InstallAppWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseInstallAppResp(rsp)
+}
+
+func (c *ClientWithResponses) InstallAppWithFormdataBodyWithResponse(ctx context.Context, params *InstallAppParams, body InstallAppFormdataRequestBody, reqEditors ...RequestEditorFn) (*InstallAppResp, error) {
+	rsp, err := c.InstallAppWithFormdataBody(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseInstallAppResp(rsp)
+}
+
 // GetAppBrickInstancesWithResponse request returning *GetAppBrickInstancesResp
 func (c *ClientWithResponses) GetAppBrickInstancesWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*GetAppBrickInstancesResp, error) {
 	rsp, err := c.GetAppBrickInstances(ctx, appID, reqEditors...)
@@ -6152,6 +6332,46 @@ func ParseImportAppResp(rsp *http.Response) (*ImportAppResp, error) {
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseInstallAppResp parses an HTTP response from a InstallAppWithResponse call
+func ParseInstallAppResp(rsp *http.Response) (*InstallAppResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &InstallAppResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest BadRequest
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

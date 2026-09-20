@@ -530,6 +530,52 @@ Contains a JSON object with the details of an error.
 			},
 		},
 		{
+			OperationId: "installApp",
+			Method:      http.MethodPut,
+			Path:        "/v1/apps/install",
+			Request: (*struct {
+				File []byte `form:"file" description:"The release archive (.arduinoapp). Must be built for this board." validate:"required"`
+			})(nil),
+			Parameters: (*struct {
+				Prepare bool `query:"prepare" description:"After the install, download the containers and models the release needs to run."`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "text/event-stream",
+				DataStructure: "",
+				Description: `A stream of Server-Sent Events (SSE) that notifies the progress.
+The client will receive events formatted as follows:
+
+**Event 'progress'**:
+Contains a JSON object with the percentage of completion.
+'event: progress'
+'data: {"progress":0.25}'
+
+**Event 'message'**:
+Contains a JSON object with an informational message.
+'event: message'
+'data: {"message":"downloading..."}'
+
+**Event 'done'**:
+Contains a JSON object with the installed app.
+'event: done'
+'data: {"id":"dXNlcjpteS1yZWxlYXNl","name":"my-release","release":"my-release-20270101","target":"unoq"}'
+
+**Event 'error'**:
+Contains a JSON object with the details of an error.
+'event: error'
+'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+`,
+			},
+			Description: "Installs a release archive as a new app in the releases dir. The release is read only and is named after the release, date included. If prepare is true, it also downloads the containers and models the release needs to run.",
+			Summary:     "Installs an app from a release archive",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusConflict, Reference: "#/components/responses/Conflict"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
 			OperationId: "startApp",
 			Method:      http.MethodPost,
 			Path:        "/v1/apps/{id}/start",
@@ -824,7 +870,7 @@ Contains a JSON object with the details of an error.
 			Path:        "/v1/apps",
 			Request:     (*orchestrator.ListAppRequest)(nil),
 			Parameters: (*struct {
-				Filter string              `query:"filter" description:"Filters apps by apps,examples,releases,default"`
+				Filter string              `query:"filter" description:"Filters apps by apps,examples,default"`
 				Status orchestrator.Status `query:"status" description:"Filters applications by status"`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{

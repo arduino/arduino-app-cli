@@ -18,11 +18,11 @@ paths:
         to apply different filters.
       operationId: getApps
       parameters:
-      - description: Filters apps by apps,examples,releases,default
+      - description: Filters apps by apps,examples,default
         in: query
         name: filter
         schema:
-          description: Filters apps by apps,examples,releases,default
+          description: Filters apps by apps,examples,default
           type: string
       - description: Filters applications by status
         in: query
@@ -943,6 +943,78 @@ paths:
         "500":
           $ref: '#/components/responses/InternalServerError'
       summary: Imports an app from ZIP
+      tags:
+      - Application
+  /v1/apps/install:
+    put:
+      description: Installs a release archive as a new app in the releases dir. The
+        release is read only and is named after the release, date included. If prepare
+        is true, it also downloads the containers and models the release needs to
+        run.
+      operationId: installApp
+      parameters:
+      - description: The release archive (.arduinoapp). Must be built for this board.
+        in: query
+        name: file
+        schema:
+          description: The release archive (.arduinoapp). Must be built for this board.
+          format: base64
+          type: string
+      - description: After the install, download the containers and models the release
+          needs to run.
+        in: query
+        name: prepare
+        schema:
+          description: After the install, download the containers and models the release
+            needs to run.
+          type: boolean
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                file:
+                  description: The release archive (.arduinoapp). Must be built for
+                    this board.
+                  format: base64
+                  type: string
+              type: object
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                type: string
+          description: |
+            A stream of Server-Sent Events (SSE) that notifies the progress.
+            The client will receive events formatted as follows:
+
+            **Event 'progress'**:
+            Contains a JSON object with the percentage of completion.
+            'event: progress'
+            'data: {"progress":0.25}'
+
+            **Event 'message'**:
+            Contains a JSON object with an informational message.
+            'event: message'
+            'data: {"message":"downloading..."}'
+
+            **Event 'done'**:
+            Contains a JSON object with the installed app.
+            'event: done'
+            'data: {"id":"dXNlcjpteS1yZWxlYXNl","name":"my-release","release":"my-release-20270101","target":"unoq"}'
+
+            **Event 'error'**:
+            Contains a JSON object with the details of an error.
+            'event: error'
+            'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Installs an app from a release archive
       tags:
       - Application
   /v1/bricks:
