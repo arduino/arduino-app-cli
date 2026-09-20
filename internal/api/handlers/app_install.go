@@ -49,7 +49,7 @@ func HandleAppInstall(
 
 		queryParams := r.URL.Query()
 		var prepare bool
-		if queryParams.Has("prepare") || queryParams.Get("prepare") == "true" {
+		if queryParams.Has("prepare") || queryParams.Get("prepare") == "true" { // nolint:goconst
 			prepare = true
 		}
 
