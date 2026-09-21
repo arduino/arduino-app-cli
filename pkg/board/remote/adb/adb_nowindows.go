@@ -35,7 +35,9 @@ func adbReadFile(a *ADBConnection, path string) (io.ReadCloser, error) {
 	}
 	// Wait is not idempotent, and an empty file already waits in the parser.
 	exit := sync.OnceValues(func() ([]byte, error) {
-		return stderr.Bytes(), cmd.Wait()
+		// Wait first: it ends the copy of stderr.
+		err := cmd.Wait()
+		return stderr.Bytes(), err
 	})
 	r, err := remote.ParseReadOutput(output, exit)
 	if err != nil {

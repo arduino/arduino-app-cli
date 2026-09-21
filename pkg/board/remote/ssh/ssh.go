@@ -223,7 +223,9 @@ func (a *SSHConnection) ReadFile(path string) (io.ReadCloser, error) {
 	}
 
 	r, err := remote.ParseReadOutput(output, func() ([]byte, error) {
-		return stderr.Bytes(), session.Wait()
+		// Wait first: it ends the copy of stderr.
+		err := session.Wait()
+		return stderr.Bytes(), err
 	})
 	if err != nil {
 		_ = session.Close()
