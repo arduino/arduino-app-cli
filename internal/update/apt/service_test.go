@@ -6,8 +6,6 @@
 package apt
 
 import (
-	"errors"
-	"os/exec"
 	"strings"
 	"testing"
 
@@ -16,24 +14,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/update"
 )
-
-func TestCheckAptLockHeld(t *testing.T) {
-	t.Run("exit code 100 is treated as lock held", func(t *testing.T) {
-		cmd := exec.Command("sh", "-c", "exit 100")
-		err := cmd.Run()
-		require.Error(t, err)
-		var exitErr *exec.ExitError
-		require.True(t, errors.As(err, &exitErr))
-		require.Equal(t, 100, exitErr.ExitCode())
-	})
-
-	t.Run("lock text is treated as lock held", func(t *testing.T) {
-		out := "E: Could not get lock /var/lib/dpkg/lock-frontend - open (11: Resource temporarily unavailable)"
-		err := errors.New("boom")
-		require.True(t, strings.Contains(strings.ToLower(out), "lock"))
-		require.NotNil(t, err)
-	})
-}
 
 func TestParseSimulatedUpgradeOutput(t *testing.T) {
 	t.Run("edges cases", func(t *testing.T) {
