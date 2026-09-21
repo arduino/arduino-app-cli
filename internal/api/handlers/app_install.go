@@ -48,10 +48,7 @@ func HandleAppInstall(
 		defer file.Close()
 
 		queryParams := r.URL.Query()
-		var prepare bool
-		if queryParams.Has("prepare") || queryParams.Get("prepare") == "true" { // nolint:goconst
-			prepare = true
-		}
+		prepare := queryParams.Get("prepare") == "true" // nolint:goconst
 
 		tempFile, err := paths.MkTempFile(nil, "app-install-*.tar.gz")
 		if err != nil {
