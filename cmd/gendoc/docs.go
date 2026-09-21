@@ -572,11 +572,12 @@ Contains a JSON object with the details of an error.
 			Method:      http.MethodPost,
 			Path:        "/v1/apps/{appID}/build",
 			Request: (*struct {
-				ID          string `path:"appID" description:"application identifier."`
-				BuildID     string `query:"buildid" description:"Optional build identifier. When set, the progress events published to the app build events stream are tagged with it, so a client can filter the stream down to this build."`
-				Target      string `json:"target" description:"Target defaults to the board running the build."`
-				Notes       string `json:"notes" description:"Notes is the release note, markdown, and goes in the manifest as it is given."`
-				IncludeData bool   `json:"include_data" description:"IncludeData ships the data folder of the app, at the root of the archive."`
+				ID           string `path:"appID" description:"application identifier."`
+				BuildID      string `query:"buildid" description:"Optional build identifier. When set, the progress events published to the app build events stream are tagged with it, so a client can filter the stream down to this build."`
+				Target       string `json:"target" description:"Target defaults to the board running the build."`
+				ReleaseLabel string `json:"release_label" description:"ReleaseLabel is an optional label the user attaches to the release. It is stored in the manifest as it is given."`
+				Notes        string `json:"notes" description:"Notes is the release note, markdown, and goes in the manifest as it is given."`
+				IncludeData  bool   `json:"include_data" description:"IncludeData ships the data folder of the app, at the root of the archive."`
 			})(nil),
 			Description: "Build the application into a release archive: the python environment is built and the compose files are resolved for the target board, so that installing it generates nothing. The gzipped release archive is streamed back as the response body for the client to save; build progress is reported on the app build events stream.",
 			Summary:     "Build an app into a release archive",

@@ -46,6 +46,9 @@ const releaseSrcDir = "src"
 type BuildReleaseRequest struct {
 	// Target defaults to the board running the build.
 	Target string
+	// ReleaseLabel is an optional label the user attaches to the release. It is
+	// stored in the manifest as it is given, and it is absent when left empty.
+	ReleaseLabel string
 	// Notes is the release note, markdown, and goes in the manifest as it is given.
 	Notes string
 	// Output is the archive, or the directory to write it in. Defaults to the cwd.
@@ -68,6 +71,8 @@ type BuildReleaseResult struct {
 type ReleaseManifest struct {
 	Schema int    `yaml:"schema"`
 	Name   string `yaml:"name"`
+	// ReleaseLabel is the optional label the user gave the release at build time.
+	ReleaseLabel string `yaml:"release_label,omitempty"`
 	// Target is the board the release is built for, gated on at install and start.
 	Target string `yaml:"target"`
 	// CreatedAt is when the build ran, UTC.
@@ -171,14 +176,15 @@ func BuildRelease(
 	}
 
 	manifest := ReleaseManifest{
-		Schema:    app.ReleaseManifestSchema,
-		Name:      appToBuild.Name,
-		Target:    plat.BoardName,
-		CreatedAt: now,
-		Notes:     req.Notes,
-		Bricks:    releaseBricks(appToBuild.Descriptor),
-		Models:    releaseModels(ctx, appToBuild.Descriptor, modelsIndex),
-		Libraries: releaseLibraries(ctx, appToBuild),
+		Schema:       app.ReleaseManifestSchema,
+		Name:         appToBuild.Name,
+		ReleaseLabel: req.ReleaseLabel,
+		Target:       plat.BoardName,
+		CreatedAt:    now,
+		Notes:        req.Notes,
+		Bricks:       releaseBricks(appToBuild.Descriptor),
+		Models:       releaseModels(ctx, appToBuild.Descriptor, modelsIndex),
+		Libraries:    releaseLibraries(ctx, appToBuild),
 	}
 	if err := writeReleaseManifest(releaseDir, manifest); err != nil {
 		return BuildReleaseResult{}, err

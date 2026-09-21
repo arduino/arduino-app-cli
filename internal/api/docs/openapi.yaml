@@ -354,6 +354,10 @@ paths:
                   description: Notes is the release note, markdown, and goes in the
                     manifest as it is given.
                   type: string
+                release_label:
+                  description: ReleaseLabel is an optional label the user attaches
+                    to the release. It is stored in the manifest as it is given.
+                  type: string
                 target:
                   description: Target defaults to the board running the build.
                   type: string

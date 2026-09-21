@@ -31,6 +31,7 @@ import (
 // buildRequest is the JSON body of a build request.
 type buildRequest struct {
 	Target       string `json:"target" description:"board target to build for"`
+	ReleaseLabel string `json:"release_label" description:"optional label to attach to the release"`
 	IncludeData  bool   `json:"include_data" description:"include the app data in the release"`
 	ReleaseNotes string `json:"notes" description:"notes to attach to the release"`
 }
@@ -120,11 +121,12 @@ func HandleAppBuild(
 		}
 
 		req := orchestrator.BuildReleaseRequest{
-			Target:      buildReq.Target,
-			Notes:       buildReq.ReleaseNotes,
-			IncludeData: buildReq.IncludeData,
-			Output:      artifactsDir,
-			Overwrite:   true,
+			Target:       buildReq.Target,
+			ReleaseLabel: buildReq.ReleaseLabel,
+			Notes:        buildReq.ReleaseNotes,
+			IncludeData:  buildReq.IncludeData,
+			Output:       artifactsDir,
+			Overwrite:    true,
 		}
 
 		result, err := orchestrator.BuildRelease(r.Context(), dockerClient, provisioner, appToBuild, req, cfg, func(item orchestrator.StreamMessage) {

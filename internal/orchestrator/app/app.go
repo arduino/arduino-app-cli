@@ -259,6 +259,9 @@ type Release struct {
 	Schema int `yaml:"schema"`
 	// Target is the board the release is built for, gated on at install and at start.
 	Target string `yaml:"target"`
+	// ReleaseLabel is the optional label the user gave the release at build time, read
+	// from the manifest and absent when none was given.
+	ReleaseLabel string `yaml:"release_label,omitempty"`
 	// ID is the release folder name, so it is read from the path and never written.
 	ID string `yaml:"-"`
 }
