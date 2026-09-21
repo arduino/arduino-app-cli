@@ -204,7 +204,7 @@ func (a *SSHConnection) WriteFile(r io.Reader, path string) error {
 func (a *SSHConnection) ReadFile(path string) (io.ReadCloser, error) {
 	session, err := a.client.NewSession()
 	if err != nil {
-		return nil, fmt.Errorf("failed to open session: %w", err)
+		return nil, err
 	}
 
 	var stderr bytes.Buffer
@@ -223,7 +223,7 @@ func (a *SSHConnection) ReadFile(path string) (io.ReadCloser, error) {
 	}
 
 	r, err := remote.PeekOutput(output, func() error {
-		return remote.CmdError(session.Wait(), stderr.Bytes())
+		return remote.ReadError(session.Wait(), stderr.Bytes())
 	})
 	if err != nil {
 		_ = session.Close()

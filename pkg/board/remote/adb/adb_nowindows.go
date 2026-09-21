@@ -9,6 +9,7 @@ package adb
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -33,8 +34,9 @@ func adbReadFile(a *ADBConnection, path string) (io.ReadCloser, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
+	// Wait is not idempotent, and an empty file already waits below.
 	wait := sync.OnceValue(func() error {
-		return remote.CmdError(cmd.Wait(), stderr.Bytes())
+		return remote.ReadError(cmd.Wait(), stderr.Bytes())
 	})
 	r, err := remote.PeekOutput(output, wait)
 	if err != nil {
@@ -45,9 +47,7 @@ func adbReadFile(a *ADBConnection, path string) (io.ReadCloser, error) {
 	return remote.WithCloser{
 		Reader: r,
 		CloseFun: func() error {
-			// An empty file is over already, and Wait closed the pipe.
-			_ = output.Close()
-			return wait()
+			return cmp.Or(output.Close(), wait())
 		},
 	}, nil
 }

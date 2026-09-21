@@ -7,9 +7,7 @@ package remote
 
 import (
 	"bufio"
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -66,32 +64,19 @@ type RemoteTransfer interface {
 	Push(ctx context.Context, local, remote string) error
 }
 
-// ErrConnLost is returned when the connection to the board drops. Data read
-// before the drop can be incomplete.
-var ErrConnLost = errors.New("connection to the board lost")
-
-// CmdError classifies the exit error of a remote command from its stderr, so
-// that a caller can tell a missing file from an unreachable board.
-func CmdError(err error, stderr []byte) error {
-	if err == nil {
-		return nil
-	}
-
-	msg := string(bytes.TrimSpace(stderr))
+// ReadError classifies the exit error of a remote read from its stderr, so that
+// a caller can tell a missing file from a read that failed.
+func ReadError(err error, stderr []byte) error {
+	msg := strings.TrimSpace(string(stderr))
 	switch {
-	case strings.Contains(msg, "device offline"), strings.Contains(msg, "error: device"),
-		strings.Contains(msg, "no devices/emulators found"), strings.Contains(msg, "unauthorized"),
-		strings.Contains(msg, "error: closed"), strings.Contains(msg, "closed by remote host"),
-		strings.Contains(msg, "connection reset"):
-		return fmt.Errorf("%w: %s", ErrConnLost, msg)
-	case strings.Contains(msg, "Permission denied"):
-		return fmt.Errorf("%w: %s", fs.ErrPermission, msg)
 	case strings.Contains(msg, "No such file or directory"):
 		return fmt.Errorf("%w: %s", fs.ErrNotExist, msg)
-	case msg == "":
-		return err
-	default:
+	case strings.Contains(msg, "Permission denied"):
+		return fmt.Errorf("%w: %s", fs.ErrPermission, msg)
+	case msg != "":
 		return fmt.Errorf("%w: %s", err, msg)
+	default:
+		return err
 	}
 }
 

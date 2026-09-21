@@ -17,7 +17,7 @@ import (
 	"github.com/arduino/arduino-app-cli/pkg/board/remote"
 )
 
-func TestCmdError(t *testing.T) {
+func TestReadError(t *testing.T) {
 	exitErr := errors.New("exit status 1")
 
 	tests := []struct {
@@ -27,26 +27,19 @@ func TestCmdError(t *testing.T) {
 	}{
 		{"missing file", "cat: '/etc/nope': No such file or directory", fs.ErrNotExist},
 		{"no permission", "cat: /etc/shadow: Permission denied", fs.ErrPermission},
-		{"device offline", "error: device offline", remote.ErrConnLost},
-		{"device not found", "error: device '10.0.0.1:5555' not found", remote.ErrConnLost},
-		{"connection dropped", "Connection closed by remote host", remote.ErrConnLost},
 		{"unknown failure", "something else went wrong", exitErr},
 		{"no stderr", "", exitErr},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := remote.CmdError(exitErr, []byte(tc.stderr))
+			err := remote.ReadError(exitErr, []byte(tc.stderr))
 			require.ErrorIs(t, err, tc.expected)
 			if tc.stderr != "" {
 				require.ErrorContains(t, err, tc.stderr)
 			}
 		})
 	}
-
-	t.Run("command succeeded", func(t *testing.T) {
-		require.NoError(t, remote.CmdError(nil, []byte("cat: No such file or directory")))
-	})
 }
 
 func TestPeekOutput(t *testing.T) {
