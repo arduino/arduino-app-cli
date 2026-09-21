@@ -7,6 +7,7 @@ package dockerhelper
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/moby/moby/api/types/container"
@@ -50,16 +51,19 @@ func PruneNetworks(ctx context.Context, docker dockerClient.APIClient, remove fu
 	}
 
 	var pruned int
+	var failed []error
 	for _, info := range networks.Items {
 		if !remove(info.Labels) {
 			continue
 		}
+		// A network an app still runs on is refused: take the others anyway.
 		if _, err := docker.NetworkRemove(ctx, info.ID, dockerClient.NetworkRemoveOptions{}); err != nil {
-			return 0, fmt.Errorf("failed to remove network %s: %w", info.ID, err)
+			failed = append(failed, fmt.Errorf("failed to remove network %s: %w", info.Name, err))
+			continue
 		}
 		pruned++
 	}
-	return pruned, nil
+	return pruned, errors.Join(failed...)
 }
 
 // Containers lists the containers carrying the label, stopped ones included.

@@ -241,12 +241,12 @@ func StartApp(
 		line := func(line string) { cb(StreamMessage{data: line}) }
 		err = dockerhelper.ComposeUp(ctx, docker, prj, line)
 		if dockerhelper.IsAddressPoolExhausted(err) {
-			// The board has no subnet left, so the apps that are not running give up
-			// the network they kept, and this app is started once more.
-			cb(StreamMessage{data: "No network left on this board, freeing the ones of the apps that are not running"})
-			freed, pruneErr := pruneIdleAppNetworks(ctx, docker.Client(), prj.Name)
+			// The board has no subnet left, so the apps give up the networks they
+			// kept, and this app is started once more.
+			cb(StreamMessage{data: "No network left on this board, freeing the ones the apps keep"})
+			freed, pruneErr := pruneAppNetworks(ctx, docker.Client())
 			if pruneErr != nil {
-				slog.Warn("failed to free the networks of the idle apps", slog.String("error", pruneErr.Error()))
+				slog.Warn("failed to free the networks of the apps", slog.String("error", pruneErr.Error()))
 			}
 			slog.Debug("freed app networks", slog.Int("count", freed))
 			err = dockerhelper.ComposeUp(ctx, docker, prj, line)

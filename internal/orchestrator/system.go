@@ -21,6 +21,7 @@ import (
 	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
+	dockerClient "github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
 
@@ -254,16 +255,7 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 	} else {
 		result.ContainersRemoved = count
 	}
-	// The app just destroyed has no container left to name its project, so the path of
-	// an app of ours counts as well.
-	ourProjects, err := ourComposeProjects(ctx, docker.Client())
-	if err != nil {
-		feedback.Warnf("failed to list the projects of the apps - %v", err)
-	}
-	if count, err := dockerhelper.PruneNetworks(ctx, docker.Client(), func(labels map[string]string) bool {
-		project := labels[composeProjectLabel]
-		return labels[DockerAppLabel] == "true" || ourProjects[project] || strings.Contains(project, "arduino-app-cli")
-	}); err != nil {
+	if count, err := pruneAppNetworks(ctx, docker.Client()); err != nil {
 		feedback.Warnf("failed to remove dangling networks - %v", err)
 	} else {
 		result.NetworksRemoved = count
@@ -500,4 +492,24 @@ func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, platf
 	}
 
 	return nil
+}
+
+// composeProjectLabel names the project a container or a network belongs to.
+const composeProjectLabel = "com.docker.compose.project"
+
+// pruneAppNetworks removes the networks of our apps, which cost a subnet each. The
+// label reaches a network only from this version on, so the containers state the rest.
+func pruneAppNetworks(ctx context.Context, docker dockerClient.APIClient) (int, error) {
+	containers, err := dockerhelper.Containers(ctx, docker, DockerAppLabel+"=true")
+	if err != nil {
+		return 0, err
+	}
+	ours := map[string]bool{}
+	for _, info := range containers {
+		ours[info.Labels[composeProjectLabel]] = true
+	}
+
+	return dockerhelper.PruneNetworks(ctx, docker, func(labels map[string]string) bool {
+		return labels[DockerAppLabel] == "true" || ours[labels[composeProjectLabel]]
+	})
 }
