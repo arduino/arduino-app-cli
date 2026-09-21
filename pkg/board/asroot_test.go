@@ -54,5 +54,16 @@ func TestExecAsRoot(t *testing.T) {
 			require.NoError(t, err)
 			assert.True(t, strings.HasPrefix(string(out), "root"))
 		})
+
+		t.Run(tc.name+" with wrong password", func(t *testing.T) {
+			out, err := board.ExecAsRoot(tc.conn, "wrong-"+tc.password, "whoami")
+			require.Error(t, err)
+			assert.Contains(t, string(out), "sudo")
+		})
+
+		t.Run(tc.name+" with failing command", func(t *testing.T) {
+			_, err := board.ExecAsRoot(tc.conn, tc.password, "false")
+			require.Error(t, err)
+		})
 	}
 }
