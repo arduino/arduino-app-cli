@@ -147,7 +147,17 @@ func generateComposeTemplate(
 	var mainAppCompose struct {
 		Include  []string       `yaml:"include,omitempty"`
 		Services map[string]any `yaml:"services,omitempty"`
+		Networks map[string]any `yaml:"networks,omitempty"`
 	}
+
+	// The network of the app carries the labels of its containers: a cleanup has to
+	// find it back once the containers are gone.
+	mainAppCompose.Networks = map[string]any{"default": map[string]any{
+		"labels": map[string]string{
+			DockerAppLabel:     "true",
+			DockerAppPathLabel: appHomeRef,
+		},
+	}}
 
 	includes, err := frozenComposeIncludes(composeFiles, genPath, cfg, appEnv)
 	if err != nil {
