@@ -8,6 +8,7 @@ package dockerhelper
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -47,14 +48,15 @@ func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line
 	if err != nil && reported.registryError != nil {
 		return reported.registryError
 	}
+	if err != nil && reported.networkError != nil {
+		return fmt.Errorf("%w: %w", ErrNetwork, reported.networkError)
+	}
 	return err
 }
 
-// IsAddressPoolExhausted states that the daemon has no subnet left for a new network.
-// It states about thirty of them, and every app keeps the one of its project.
-func IsAddressPoolExhausted(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "all predefined address pools have been fully subnetted")
-}
+// ErrNetwork states that the network of the app was not created. The daemon words a
+// pool with no subnet left in its own way, so the event says it, not the message.
+var ErrNetwork = errors.New("failed to create the network of the app")
 
 // ComposeStop leaves the containers of the app where they are, stopped.
 func ComposeStop(ctx context.Context, docker command.Cli, projectName string, line func(string)) error {
@@ -102,6 +104,7 @@ type composeProgress struct {
 	mu            sync.Mutex
 	said          map[string]string
 	registryError error
+	networkError  error
 }
 
 func newProgress(line func(string)) *composeProgress {
@@ -118,6 +121,9 @@ func (p *composeProgress) On(events ...api.Resource) {
 	for _, event := range events {
 		if err := registryError(event.Details); err != nil {
 			p.registryError = err
+		}
+		if event.Status == api.Error && strings.HasPrefix(event.ID, "Network ") {
+			p.networkError = errors.New(event.Details)
 		}
 		// The sdk repeats itself for every chunk of every layer: what a resource does
 		// is a line, the bytes it is at are not.

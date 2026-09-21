@@ -8,6 +8,7 @@ package orchestrator
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -240,10 +241,10 @@ func StartApp(
 		slog.Debug("starting app", slog.String("project", prj.Name))
 		line := func(line string) { cb(StreamMessage{data: line}) }
 		err = dockerhelper.ComposeUp(ctx, docker, prj, line)
-		if dockerhelper.IsAddressPoolExhausted(err) {
-			// The board has no subnet left, so the apps give up the networks they
-			// kept, and this app is started once more.
-			cb(StreamMessage{data: "No network left on this board, freeing the ones the apps keep"})
+		if errors.Is(err, dockerhelper.ErrNetwork) {
+			// The board is likely out of subnets, so the apps give up the networks
+			// they keep, and this app is started once more.
+			cb(StreamMessage{data: "Could not create the network, freeing the ones the apps keep"})
 			freed, pruneErr := pruneAppNetworks(ctx, docker.Client())
 			if pruneErr != nil {
 				slog.Warn("failed to free the networks of the apps", slog.String("error", pruneErr.Error()))
