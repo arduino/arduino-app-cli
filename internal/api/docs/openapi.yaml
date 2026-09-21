@@ -319,9 +319,21 @@ paths:
     post:
       description: 'Build the application into a release archive: the python environment
         is built and the compose files are resolved for the target board, so that
-        installing it generates nothing.'
+        installing it generates nothing. The gzipped release archive is streamed back
+        as the response body for the client to save; build progress is reported on
+        the app build events stream.'
       operationId: buildApp
       parameters:
+      - description: Optional build identifier. When set, the progress events published
+          to the app build events stream are tagged with it, so a client can filter
+          the stream down to this build.
+        in: query
+        name: buildid
+        schema:
+          description: Optional build identifier. When set, the progress events published
+            to the app build events stream are tagged with it, so a client can filter
+            the stream down to this build.
+          type: string
       - description: application identifier.
         in: path
         name: appID
@@ -349,27 +361,11 @@ paths:
       responses:
         "200":
           content:
-            text/event-stream:
+            application/gzip:
               schema:
+                format: base64
                 type: string
-          description: |
-            A stream of Server-Sent Events (SSE) that notifies the progress.
-            The client will receive events formatted as follows:
-
-            **Event 'progress'**:
-            Contains a JSON object with the percentage of completion.
-            'event: progress'
-            'data: {"progress":0.25}'
-
-            **Event 'message'**:
-            Contains a JSON object with an informational message.
-            'event: message'
-            'data: {"message":"building the python environment..."}'
-
-            **Event 'error'**:
-            Contains a JSON object with the details of an error.
-            'event: error'
-            'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+          description: The gzipped release archive, streamed for the client to save.
         "400":
           $ref: '#/components/responses/BadRequest'
         "412":
@@ -377,6 +373,57 @@ paths:
         "500":
           $ref: '#/components/responses/InternalServerError'
       summary: Build an app into a release archive
+      tags:
+      - Application
+  /v1/apps/{appID}/build/events:
+    get:
+      description: Stream the progress of every build of the given app as Server-Sent
+        Events. Each event carries the 'build_id' it belongs to, so a client can filter
+        the stream down to a single build it triggered.
+      operationId: buildAppEvents
+      parameters:
+      - description: application identifier.
+        in: path
+        name: appID
+        required: true
+        schema:
+          description: application identifier.
+          type: string
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                type: string
+          description: |
+            A stream of Server-Sent Events (SSE) that notifies the progress of every build of the app.
+            Each event carries the 'build_id' it belongs to, so the client can filter by build.
+            The client will receive events formatted as follows:
+
+            **Event 'progress'**:
+            Contains a JSON object with the percentage of completion.
+            'event: progress'
+            'data: {"build_id":"abc","name":"python environment","progress":0.25}'
+
+            **Event 'message'**:
+            Contains a JSON object with an informational message.
+            'event: message'
+            'data: {"build_id":"abc","message":"building the python environment..."}'
+
+            **Event 'done'**:
+            Contains a JSON object with the built release facts.
+            'event: done'
+            'data: {"build_id":"abc","name":"my-app","target":"unoq"}'
+
+            **Event 'error'**:
+            Contains a JSON object with the details of an error.
+            'event: error'
+            'data: {"build_id":"abc","code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+        "412":
+          $ref: '#/components/responses/PreconditionFailed'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Stream an app's build events
       tags:
       - Application
   /v1/apps/{appID}/exposed-ports:

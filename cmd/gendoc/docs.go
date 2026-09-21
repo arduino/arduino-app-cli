@@ -573,39 +573,67 @@ Contains a JSON object with the details of an error.
 			Path:        "/v1/apps/{appID}/build",
 			Request: (*struct {
 				ID          string `path:"appID" description:"application identifier."`
+				BuildID     string `query:"buildid" description:"Optional build identifier. When set, the progress events published to the app build events stream are tagged with it, so a client can filter the stream down to this build."`
 				Target      string `json:"target" description:"Target defaults to the board running the build."`
 				Notes       string `json:"notes" description:"Notes is the release note, markdown, and goes in the manifest as it is given."`
 				IncludeData bool   `json:"include_data" description:"IncludeData ships the data folder of the app, at the root of the archive."`
 			})(nil),
-			Description: "Build the application into a release archive: the python environment is built and the compose files are resolved for the target board, so that installing it generates nothing.",
+			Description: "Build the application into a release archive: the python environment is built and the compose files are resolved for the target board, so that installing it generates nothing. The gzipped release archive is streamed back as the response body for the client to save; build progress is reported on the app build events stream.",
 			Summary:     "Build an app into a release archive",
 			Tags:        []Tag{ApplicationTag},
 			CustomSuccessResponse: &CustomResponseDef{
-				ContentType:   "text/event-stream",
-				DataStructure: "",
-				Description: `A stream of Server-Sent Events (SSE) that notifies the progress.
-The client will receive events formatted as follows:
-
-**Event 'progress'**:
-Contains a JSON object with the percentage of completion.
-'event: progress'
-'data: {"progress":0.25}'
-
-**Event 'message'**:
-Contains a JSON object with an informational message.
-'event: message'
-'data: {"message":"building the python environment..."}'
-
-**Event 'error'**:
-Contains a JSON object with the details of an error.
-'event: error'
-'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
-`,
+				ContentType:   "application/gzip",
+				DataStructure: []byte{},
+				Description:   "The gzipped release archive, streamed for the client to save.",
+				StatusCode:    http.StatusOK,
 			},
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
 				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+			},
+		},
+		{
+			OperationId: "buildAppEvents",
+			Method:      http.MethodGet,
+			Path:        "/v1/apps/{appID}/build/events",
+			Request: (*struct {
+				ID string `path:"appID" description:"application identifier."`
+			})(nil),
+			Description: "Stream the progress of every build of the given app as Server-Sent Events. Each event carries the 'build_id' it belongs to, so a client can filter the stream down to a single build it triggered.",
+			Summary:     "Stream an app's build events",
+			Tags:        []Tag{ApplicationTag},
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "text/event-stream",
+				DataStructure: "",
+				Description: `A stream of Server-Sent Events (SSE) that notifies the progress of every build of the app.
+Each event carries the 'build_id' it belongs to, so the client can filter by build.
+The client will receive events formatted as follows:
+
+**Event 'progress'**:
+Contains a JSON object with the percentage of completion.
+'event: progress'
+'data: {"build_id":"abc","name":"python environment","progress":0.25}'
+
+**Event 'message'**:
+Contains a JSON object with an informational message.
+'event: message'
+'data: {"build_id":"abc","message":"building the python environment..."}'
+
+**Event 'done'**:
+Contains a JSON object with the built release facts.
+'event: done'
+'data: {"build_id":"abc","name":"my-app","target":"unoq"}'
+
+**Event 'error'**:
+Contains a JSON object with the details of an error.
+'event: error'
+'data: {"build_id":"abc","code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+`,
+			},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
 			},
 		},
 		{

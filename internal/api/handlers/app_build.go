@@ -24,6 +24,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
+	"github.com/arduino/arduino-app-cli/internal/releasebuild"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
@@ -34,24 +35,39 @@ type buildRequest struct {
 	ReleaseNotes string `json:"notes" description:"notes to attach to the release"`
 }
 
-// buildArtifact is the "done" event of a build: the release facts plus where the
-// archive can be downloaded. artifact_id is the archive file name, and download_path
-// is the endpoint that serves it.
-type buildArtifact struct {
-	Name         string `json:"name"`
-	Target       string `json:"target"`
-	ArtifactID   string `json:"artifact_id"`
-	DownloadPath string `json:"download_path"`
-}
+// The build progress events published to the app-wide build events stream. Each
+// carries the build id it belongs to, so a subscriber can filter by build. The
+// id is empty when the caller did not provide the "buildid" query parameter.
+type (
+	buildProgressEvent struct {
+		BuildID  string  `json:"build_id,omitempty"`
+		Name     string  `json:"name"`
+		Progress float32 `json:"progress"`
+	}
+	buildMessageEvent struct {
+		BuildID string `json:"build_id,omitempty"`
+		Message string `json:"message"`
+	}
+	buildDoneEvent struct {
+		BuildID string `json:"build_id,omitempty"`
+		Name    string `json:"name"`
+		Target  string `json:"target"`
+	}
+	buildErrorEvent struct {
+		BuildID string            `json:"build_id,omitempty"`
+		Code    render.SSEErrCode `json:"code"`
+		Message string            `json:"message,omitempty"`
+	}
+)
 
-// HandleAppBuild builds an app into a release archive and
-// reports it as a stream of events.
-// The final "done" event streams the artifact location.
+// HandleAppBuild builds an app into a release archive and streams the archive
+// back as the response body. Build progress is published to the app-wide build events stream.
 func HandleAppBuild(
 	dockerClient command.Cli,
 	provisioner *orchestrator.Provision,
 	idProvider *appid.Provider,
 	cfg config.Configuration,
+	broker *releasebuild.EventBroker,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := idProvider.IDFromBase64(r.PathValue("appID"))
@@ -59,6 +75,9 @@ func HandleAppBuild(
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid id"})
 			return
 		}
+
+		appKey := id.String()
+		buildID := r.URL.Query().Get("buildid")
 
 		appToBuild, err := app.Load(id.ToPath())
 		if err != nil {
@@ -104,8 +123,59 @@ func HandleAppBuild(
 			Target:      buildReq.Target,
 			Notes:       buildReq.ReleaseNotes,
 			IncludeData: buildReq.IncludeData,
-			Output:      buildArtifactsDir(),
+			Output:      artifactsDir,
 			Overwrite:   true,
+		}
+
+		result, err := orchestrator.BuildRelease(r.Context(), dockerClient, provisioner, appToBuild, req, cfg, func(item orchestrator.StreamMessage) {
+			// A StreamMessage may carry a progress value, an info message, or both,
+			// so publish each independently to avoid dropping either one.
+			if p := item.GetProgress(); p != nil {
+				broker.Publish(appKey, render.SSEEvent{Type: "progress", Data: buildProgressEvent{BuildID: buildID, Name: p.Name, Progress: p.Progress}})
+			}
+			if item.GetData() != "" {
+				broker.Publish(appKey, render.SSEEvent{Type: "message", Data: buildMessageEvent{BuildID: buildID, Message: item.GetData()}})
+			}
+		})
+		if err != nil {
+			slog.Error("Unable to build the app", slog.String("error", err.Error()))
+			code := render.InternalServiceErr
+			status := http.StatusInternalServerError
+			if errors.Is(err, orchestrator.ErrBadRequest) {
+				code = "BAD_REQUEST"
+				status = http.StatusBadRequest
+			}
+			broker.Publish(appKey, render.SSEEvent{Type: "error", Data: buildErrorEvent{BuildID: buildID, Code: code, Message: err.Error()}})
+			render.EncodeResponse(w, status, models.ErrorResponse{Details: err.Error()})
+			return
+		}
+
+		archivePath := paths.New(result.Archive)
+		defer func() { _ = archivePath.Remove() }()
+
+		broker.Publish(appKey, render.SSEEvent{Type: "done", Data: buildDoneEvent{BuildID: buildID, Name: result.Name, Target: result.Target}})
+
+		if !archivePath.Exist() {
+			slog.Error("the build archive is missing", slog.String("path", archivePath.String()))
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "the build archive is missing"})
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/gzip")
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename=%q`, archivePath.Base()))
+		http.ServeFile(w, r, archivePath.String())
+	}
+}
+
+// HandleAppBuildEvents streams, as Server-Sent Events, the progress of every
+// build of the given app. Each event carries the "build_id" it belongs to, so a
+// client can filter the stream down to a single build it triggered.
+func HandleAppBuildEvents(idProvider *appid.Provider, broker *releasebuild.EventBroker) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := idProvider.IDFromBase64(r.PathValue("appID"))
+		if err != nil {
+			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid id"})
+			return
 		}
 
 		sseStream, err := render.NewSSEStream(r.Context(), w)
@@ -116,82 +186,23 @@ func HandleAppBuild(
 		}
 		defer sseStream.Close()
 
-		type progress struct {
-			Name     string  `json:"name"`
-			Progress float32 `json:"progress"`
-		}
-		type message struct {
-			Message string `json:"message"`
-		}
+		events, unsubscribe := broker.Subscribe(id.String())
+		defer unsubscribe()
 
-		result, err := orchestrator.BuildRelease(r.Context(), dockerClient, provisioner, appToBuild, req, cfg, func(item orchestrator.StreamMessage) {
-			// A StreamMessage may carry a progress value, an info message, or both,
-			// so emit each independently to avoid dropping either one.
-			if p := item.GetProgress(); p != nil {
-				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress(*p)})
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case event, ok := <-events:
+				if !ok {
+					return
+				}
+				sseStream.Send(event)
 			}
-			if item.GetData() != "" {
-				sseStream.Send(render.SSEEvent{Type: "message", Data: message{Message: item.GetData()}})
-			}
-		})
-		if err != nil {
-			slog.Error("Unable to build the app", slog.String("error", err.Error()))
-			code := render.InternalServiceErr
-			if errors.Is(err, orchestrator.ErrBadRequest) {
-				code = "BAD_REQUEST"
-			}
-			sseStream.SendError(render.SSEErrorData{Code: code, Message: err.Error()})
-			return
 		}
-
-		// The id is the archive file name; the download path is the endpoint that
-		// serves it back. Anyone with the appID can retrieve it afterwards.
-		artifactID := paths.New(result.Archive).Base()
-		sseStream.Send(render.SSEEvent{Type: "done", Data: buildArtifact{
-			Name:         result.Name,
-			Target:       result.Target,
-			ArtifactID:   artifactID,
-			DownloadPath: fmt.Sprintf("/v1/apps/%s/build/%s", r.PathValue("appID"), artifactID),
-		}})
-	}
-}
-
-// HandleAppBuildArtifact serves a release archive a previous build produced. The
-// artifactID is the archive file name reported in the build's "done" event.
-func HandleAppBuildArtifact(idProvider *appid.Provider) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if _, err := idProvider.IDFromBase64(r.PathValue("appID")); err != nil {
-			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid id"})
-			return
-		}
-
-		artifactID := r.PathValue("artifactID")
-		// The id names a file in the artifacts dir and nothing else: no separators, no
-		// traversal, and the release extension, so it can only resolve inside the dir.
-		if artifactID == "" ||
-			strings.ContainsAny(artifactID, `/\`) ||
-			strings.Contains(artifactID, "..") ||
-			!strings.HasSuffix(artifactID, orchestrator.ReleaseArchiveExt) {
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "invalid artifact id"})
-			return
-		}
-
-		artifactPath := buildArtifactPath(artifactID)
-		if !artifactPath.Exist() {
-			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: "artifact not found"})
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/octet-stream")
-		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, artifactID))
-		http.ServeFile(w, r, artifactPath.String())
 	}
 }
 
 func buildArtifactsDir() *paths.Path {
 	return paths.New(os.TempDir(), "build-artifacts")
-}
-
-func buildArtifactPath(artifactID string) *paths.Path {
-	return paths.New(buildArtifactsDir().String(), artifactID)
 }
