@@ -167,6 +167,7 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 			// continue with deb packages upgrade.
 		}
 
+		debUpdateErr := false
 		if err := m.debUpdateService.UpgradePackages(ctx, debPkgs, func(e Event) {
 			if e.Type == ProgressEvent {
 				progress := e.GetProgress()
@@ -174,6 +175,7 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 				m.broadcast(NewProgressEvent(progress.Step, globalProgress))
 			} else {
 				m.broadcast(e)
+				debUpdateErr = true
 			}
 		}); err != nil {
 			m.broadcast(NewErrorEvent(NewLockHeldError(fmt.Errorf("failed to upgrade APT packages: %w", err))))
@@ -181,7 +183,7 @@ func (m *Manager) UpgradePackages(ctx context.Context, pkgs []UpgradablePackage)
 			// operation, DoneEvent is always broadcast as the only terminal event.
 		}
 
-		restartSelf := m.selfRestart && slices.ContainsFunc(debPkgs, func(p PackageInfo) bool { return p.Name == selfPackageName })
+		restartSelf := debUpdateErr && m.selfRestart && slices.ContainsFunc(debPkgs, func(p PackageInfo) bool { return p.Name == selfPackageName })
 		if restartSelf {
 			m.broadcast(NewDataEvent(RestartEvent, fmt.Sprintf("Upgrade completed. Restarting (pid %d) ...", os.Getpid())))
 		}

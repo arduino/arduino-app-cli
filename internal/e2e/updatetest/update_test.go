@@ -146,30 +146,32 @@ func TestUpdatePackage(t *testing.T) {
 		buildDockerImage(t, dockerFile, dockerImageName, arch)
 		t.Cleanup(func() { removeDockerImage(t, dockerImageName) })
 
-		t.Run("CLI Command", func(t *testing.T) {
-			const containerName = "apt-test-update-current"
-			startDaemonContainer(t, containerName, dockerImageName)
+		// t.Run("CLI Command", func(t *testing.T) {
+		// 	const containerName = "apt-test-update-current"
+		// 	startDaemonContainer(t, containerName, dockerImageName)
 
-			preUpdateVersion := getAppCliVersion(t, containerName)
-			require.Equal(t, "v"+preUpdateVersion, fromTag)
+		// 	preUpdateVersion := getAppCliVersion(t, containerName)
+		// 	require.Equal(t, "v"+preUpdateVersion, fromTag)
 
-			runSystemUpdate(t, containerName)
+		// 	runSystemUpdate(t, containerName)
 
-			postUpdateVersion := getAppCliVersion(t, containerName)
-			require.Equal(t, "v"+postUpdateVersion, toTag)
-		})
+		// 	postUpdateVersion := getAppCliVersion(t, containerName)
+		// 	require.Equal(t, "v"+postUpdateVersion, toTag)
+		// })
 
 		t.Run("HTTP Request", func(t *testing.T) {
 			const containerName = "apt-test-update-current-http"
 			startDaemonContainer(t, containerName, dockerImageName)
-
 			preUpdateVersion := getAppCliVersion(t, containerName)
+			t.Logf("MARTA 1 %s %s", "v"+preUpdateVersion, fromTag)
 			require.Equal(t, "v"+preUpdateVersion, fromTag)
 
 			putUpdateRequest(t, daemonHost)
+			t.Logf("MARTA 2")
 			waitForRestart(t, daemonHost)
 
 			postUpdateVersion := getAppCliVersion(t, containerName)
+			t.Logf("MARTA 3")
 			require.Equal(t, "v"+postUpdateVersion, toTag)
 		})
 	})

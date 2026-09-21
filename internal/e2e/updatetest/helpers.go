@@ -298,13 +298,11 @@ const daemonHost = "127.0.0.1:8800"
 // daemon's own log always ends up in the test output.
 func startDaemonContainer(t *testing.T, containerName, imageName string) {
 	t.Helper()
-
 	t.Logf("start container %s and wait for daemon", containerName)
 	startDockerContainer(t, containerName, imageName)
 	t.Cleanup(func() { stopDockerContainer(t, containerName) })
 	// Registered after the stop so LIFO reads the journal while the container lives.
 	t.Cleanup(func() { dumpDaemonJournal(t, containerName) })
-
 	waitForDaemonUnit(t, containerName, 60*time.Second)
 	waitForPort(t, daemonHost, 30*time.Second)
 }
