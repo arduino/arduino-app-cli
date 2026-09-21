@@ -64,7 +64,7 @@ This is reccomended way to test a local development version of Arduino App CLI o
 
 To test an update on the board, the working tree has to be offered as the available upgrade instead of the released version.
 
-- `go tool task board:publish-update` builds the debian package from the working tree with a version that outranks the official one, copies it to `/opt/arduino-app-cli-local-repo` on the board, generates the package index next to it, and registers that directory as an apt source. From that point on, an update triggered through the daemon, the CLI, or the app installs the code under test.
+- `go tool task board:publish-update` builds the debian package from the working tree with a version that outranks the official one, turns `build/local-apt-repo` into an apt repository, serves it over http from a local container, makes it reachable on the board's `localhost` through `adb reverse` (or an `ssh` tunnel), and registers it as an apt source on the board. From that point on, an update triggered through the daemon, the CLI, or the app installs the code under test, as long as the server and the tunnel are up. The port is `8765`, and can be changed with `LOCAL_REPO_PORT`.
 - `go tool task board:publish-update:clean` removes the source and the directory, putting the board back to following the official repository.
 
 The package is built from the working tree and not fetched from a release on purpose: the update path also depends on files shipped by the package itself, so both ends of the upgrade have to carry the code under test.
@@ -75,7 +75,7 @@ The board is reached over `adb` by default. To use `ssh` instead, set `BOARD` to
 BOARD=arduino@my-board.local go tool task board:publish-update
 ```
 
-Both tasks ask for the board password (up to three times over `ssh`: login, copy, and `sudo`). Setting `BOARD_PASSWORD` skips every prompt and runs unattended; it requires `sshpass`, and it is passed through `sshpass -e`, so it does not show up in the process list. Keep it in `.env.local`, which is not tracked.
+Both tasks ask for the board password (up to three times over `ssh`: tunnel login, command login, and `sudo`). Setting `BOARD_PASSWORD` skips every prompt and runs unattended; it requires `sshpass`, and it is passed through `sshpass -e`, so it does not show up in the process list. Keep it in `.env.local`, which is not tracked.
 
 ## Automatic Corrections
 

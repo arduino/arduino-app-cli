@@ -266,17 +266,24 @@ tasks:
   # release, because the update path depends on files shipped by the package
   # itself: both ends of the upgrade have to carry the code under test.
   #
+  # The repository stays on this machine: it is served over http from the build
+  # dir and tunneled to the board's localhost, so the only thing written on the
+  # board is the apt source pointing at it. Server and tunnel keep running after
+  # the task returns, and the board can only update while they are up.
+  #
   # The board is reached over adb by default; set BOARD (e.g.
   # BOARD=arduino@my-board.local, also via `.env.local`) to use ssh instead, and
-  # BOARD_PASSWORD to skip the password prompts.
+  # BOARD_PASSWORD to skip the password prompts. LOCAL_REPO_PORT picks the port,
+  # the same on both ends.
   board:publish-update:
     desc: Build the working tree as a .deb and publish it on the board as the available update
     interactive: true
     vars:
       REPO_DIR: ./build/local-apt-repo
-      STAGING_DIR: /tmp/arduino-app-cli-local-repo
-      BOARD_REPO_DIR: /opt/arduino-app-cli-local-repo
+      SERVER_CONTAINER: arduino-app-cli-local-repo
       SOURCE_LIST: /etc/apt/sources.list.d/arduino-app-cli-local.list
+      PORT:
+        sh: echo "${LOCAL_REPO_PORT:-8765}"
       # A version that outranks whatever the official repository offers, so apt
       # picks the local build as the candidate.
       LOCAL_VERSION:
@@ -288,22 +295,27 @@ tasks:
           VERSION: "{{ .LOCAL_VERSION }}"
           OUTPUT: "{{ .REPO_DIR }}"
       - ./scripts/build-apt-repo.sh {{ .REPO_DIR }}
-      - ./scripts/board-push.sh {{ .REPO_DIR }} {{ .STAGING_DIR }}
+      # nginx serves the files as an unprivileged user, while the build leaves
+      # the directory readable only by its owner.
+      - chmod -R a+rX {{ .REPO_DIR }}
+      # Recreated at every run, since the directory it mounts has just been
+      # replaced.
+      - docker rm -f {{ .SERVER_CONTAINER }} >/dev/null 2>&1 || true
+      - >-
+        docker run -d --name {{ .SERVER_CONTAINER }}
+        -p 127.0.0.1:{{ .PORT }}:80
+        -v "$(cd {{ .REPO_DIR }} && pwd):/usr/share/nginx/html:ro"
+        nginx:1.27-alpine
+      - ./scripts/board-tunnel.sh open {{ .PORT }}
       - |
           ./scripts/board-sudo.sh "$(cat <<'EOS'
           set -e
-          rm -rf {{ .BOARD_REPO_DIR }}
-          mkdir -p {{ .BOARD_REPO_DIR }}
-          cp -r {{ .STAGING_DIR }}/. {{ .BOARD_REPO_DIR }}/
-          rm -rf {{ .STAGING_DIR }}
-          chown -R root:root {{ .BOARD_REPO_DIR }}
-          chmod -R a+rX {{ .BOARD_REPO_DIR }}
-          printf 'deb [trusted=yes] file:%s ./\n' {{ .BOARD_REPO_DIR }} > {{ .SOURCE_LIST }}
+          printf 'deb [trusted=yes] http://localhost:%s ./\n' {{ .PORT }} > {{ .SOURCE_LIST }}
           apt-get update
           apt-cache policy arduino-app-cli
           EOS
           )"
-      - echo "Version {{ .LOCAL_VERSION }} published, 'system update' on the board now offers it."
+      - echo "Version {{ .LOCAL_VERSION }} published, 'system update' on the board now offers it while the server and the tunnel are up."
 
   board:publish-update:clean:
     desc: Remove the locally published update from the board, restoring the official repository
