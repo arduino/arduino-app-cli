@@ -30,6 +30,7 @@ import (
 
 // buildRequest is the JSON body of a build request.
 type buildRequest struct {
+	BuildID      string `json:"build_id" description:"optional build identifier used to tag the build events stream"`
 	Target       string `json:"target" description:"board target to build for"`
 	ReleaseLabel string `json:"release_label" description:"optional label to attach to the release"`
 	IncludeData  bool   `json:"include_data" description:"include the app data in the release"`
@@ -37,8 +38,7 @@ type buildRequest struct {
 }
 
 // The build progress events published to the app-wide build events stream. Each
-// carries the build id it belongs to, so a subscriber can filter by build. The
-// id is empty when the caller did not provide the "buildid" query parameter.
+// carries the optional build id it belongs to, so a subscriber can filter by build.
 type (
 	buildProgressEvent struct {
 		BuildID  string  `json:"build_id,omitempty"`
@@ -78,7 +78,6 @@ func HandleAppBuild(
 		}
 
 		appKey := id.String()
-		buildID := r.URL.Query().Get("buildid")
 
 		appToBuild, err := app.Load(id.ToPath())
 		if err != nil {
@@ -103,6 +102,8 @@ func HandleAppBuild(
 				return
 			}
 		}
+
+		buildID := buildReq.BuildID
 
 		if buildReq.Target != "" {
 			if _, ok := platform.ForBoard(buildReq.Target); !ok {

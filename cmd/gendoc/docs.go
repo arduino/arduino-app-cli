@@ -573,7 +573,7 @@ Contains a JSON object with the details of an error.
 			Path:        "/v1/apps/{appID}/build",
 			Request: (*struct {
 				ID           string `path:"appID" description:"application identifier."`
-				BuildID      string `query:"buildid" description:"Optional build identifier. When set, the progress events published to the app build events stream are tagged with it, so a client can filter the stream down to this build."`
+				BuildID      string `json:"build_id" description:"Optional build identifier. When set, the progress events published to the app build events stream are tagged with it, so a client can filter the stream down to this build."`
 				Target       string `json:"target" description:"Target defaults to the board running the build."`
 				ReleaseLabel string `json:"release_label" description:"ReleaseLabel is an optional label the user attaches to the release. It is stored in the manifest as it is given."`
 				Notes        string `json:"notes" description:"Notes is the release note, markdown, and goes in the manifest as it is given."`

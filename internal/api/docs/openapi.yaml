@@ -324,16 +324,6 @@ paths:
         the app build events stream.'
       operationId: buildApp
       parameters:
-      - description: Optional build identifier. When set, the progress events published
-          to the app build events stream are tagged with it, so a client can filter
-          the stream down to this build.
-        in: query
-        name: buildid
-        schema:
-          description: Optional build identifier. When set, the progress events published
-            to the app build events stream are tagged with it, so a client can filter
-            the stream down to this build.
-          type: string
       - description: application identifier.
         in: path
         name: appID
@@ -346,6 +336,11 @@ paths:
           application/json:
             schema:
               properties:
+                build_id:
+                  description: Optional build identifier. When set, the progress events
+                    published to the app build events stream are tagged with it, so
+                    a client can filter the stream down to this build.
+                  type: string
                 include_data:
                   description: IncludeData ships the data folder of the app, at the
                     root of the archive.
