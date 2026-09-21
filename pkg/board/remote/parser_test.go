@@ -44,7 +44,7 @@ func TestParseReadOutput(t *testing.T) {
 	}
 
 	t.Run("empty file", func(t *testing.T) {
-		r, err := ParseReadOutput(strings.NewReader(""), func() ([]byte, error) {
+		r, err := ParseReadOutput(&closedByWait{}, func() ([]byte, error) {
 			// A read that succeeds can still write on stderr.
 			return []byte("adb: warning"), nil
 		})
@@ -77,6 +77,18 @@ func TestParseReadOutput(t *testing.T) {
 type failingReader struct{}
 
 func (failingReader) Read([]byte) (int, error) { return 0, os.ErrClosed }
+
+// closedByWait is the output of an empty file: the wait closes the pipe, so
+// only the first read reports the end.
+type closedByWait struct{ reads int }
+
+func (r *closedByWait) Read([]byte) (int, error) {
+	r.reads++
+	if r.reads > 1 {
+		return 0, os.ErrClosed
+	}
+	return 0, io.EOF
+}
 
 func TestParseLsOutput(t *testing.T) {
 	input := `total 20

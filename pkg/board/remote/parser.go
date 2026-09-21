@@ -47,6 +47,9 @@ func ParseReadOutput(stdout io.Reader, exit func() ([]byte, error)) (io.Reader, 
 		if !errors.Is(err, io.EOF) {
 			return nil, err
 		}
+
+		// The file is empty, and the wait above closed the command output.
+		return bytes.NewReader(nil), nil
 	}
 
 	return out, nil
