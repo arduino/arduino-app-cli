@@ -199,8 +199,7 @@ func checkAptLockHeld(ctx context.Context) error {
 	}
 	out, err := cmd.RunAndCaptureCombinedOutput(ctx)
 	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) &&
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok &&
 			exitErr.ExitCode() == 100 &&
 			strings.Contains(strings.ToLower(string(out)), "lock") {
 			return update.NewLockHeldError(fmt.Errorf("%w: %s", err, out))
