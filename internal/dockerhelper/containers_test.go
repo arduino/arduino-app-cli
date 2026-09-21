@@ -75,11 +75,13 @@ func TestPruneNetworks(t *testing.T) {
 		_, _ = docker.NetworkRemove(context.WithoutCancel(t.Context()), created.ID, dockerClient.NetworkRemoveOptions{})
 	})
 
-	kept, err := PruneNetworks(t.Context(), docker, testLabel, func(map[string]string) bool { return false })
+	kept, err := PruneNetworks(t.Context(), docker, func(map[string]string) bool { return false })
 	require.NoError(t, err)
 	require.Zero(t, kept)
 
-	pruned, err := PruneNetworks(t.Context(), docker, testLabel, nil)
+	pruned, err := PruneNetworks(t.Context(), docker, func(labels map[string]string) bool {
+		return labels[testLabel] == "network"
+	})
 	require.NoError(t, err)
 	require.Equal(t, 1, pruned)
 }

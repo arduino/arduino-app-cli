@@ -260,9 +260,9 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 	if err != nil {
 		feedback.Warnf("failed to list the projects of the apps - %v", err)
 	}
-	if count, err := dockerhelper.PruneNetworks(ctx, docker.Client(), composeProjectLabel, func(labels map[string]string) bool {
+	if count, err := dockerhelper.PruneNetworks(ctx, docker.Client(), func(labels map[string]string) bool {
 		project := labels[composeProjectLabel]
-		return ourProjects[project] || strings.Contains(project, "arduino-app-cli")
+		return labels[DockerAppLabel] == "true" || ourProjects[project] || strings.Contains(project, "arduino-app-cli")
 	}); err != nil {
 		feedback.Warnf("failed to remove dangling networks - %v", err)
 	} else {

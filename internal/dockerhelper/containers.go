@@ -41,18 +41,17 @@ func PruneContainers(ctx context.Context, docker dockerClient.APIClient, label s
 	return pruned, nil
 }
 
-// PruneNetworks removes the networks carrying the label, keep having the last word.
-func PruneNetworks(ctx context.Context, docker dockerClient.APIClient, label string, keep func(labels map[string]string) bool) (int, error) {
-	networks, err := docker.NetworkList(ctx, dockerClient.NetworkListOptions{
-		Filters: make(dockerClient.Filters).Add("label", label),
-	})
+// PruneNetworks removes every network remove says yes to, reading the labels of it,
+// and reports how many.
+func PruneNetworks(ctx context.Context, docker dockerClient.APIClient, remove func(labels map[string]string) bool) (int, error) {
+	networks, err := docker.NetworkList(ctx, dockerClient.NetworkListOptions{})
 	if err != nil {
 		return 0, fmt.Errorf("failed to list networks: %w", err)
 	}
 
 	var pruned int
 	for _, info := range networks.Items {
-		if keep != nil && !keep(info.Labels) {
+		if !remove(info.Labels) {
 			continue
 		}
 		if _, err := docker.NetworkRemove(ctx, info.ID, dockerClient.NetworkRemoveOptions{}); err != nil {

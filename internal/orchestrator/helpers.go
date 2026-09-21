@@ -277,9 +277,9 @@ func pruneIdleAppNetworks(ctx context.Context, docker dockerClient.APIClient, ke
 	if err != nil {
 		return 0, err
 	}
-	return dockerhelper.PruneNetworks(ctx, docker, composeProjectLabel, func(labels map[string]string) bool {
+	return dockerhelper.PruneNetworks(ctx, docker, func(labels map[string]string) bool {
 		project := labels[composeProjectLabel]
-		return project != keepProject && ours[project]
+		return project != keepProject && (labels[DockerAppLabel] == "true" || ours[project])
 	})
 }
 
