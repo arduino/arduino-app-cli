@@ -4303,7 +4303,6 @@ type InstallAppResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON400      *BadRequest
-	JSON409      *Conflict
 	JSON500      *InternalServerError
 }
 
@@ -6378,13 +6377,6 @@ func ParseInstallAppResp(rsp *http.Response) (*InstallAppResp, error) {
 			return nil, err
 		}
 		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError

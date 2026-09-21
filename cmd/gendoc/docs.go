@@ -571,7 +571,6 @@ Contains a JSON object with the details of an error.
 			Tags:        []Tag{ApplicationTag},
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
-				{StatusCode: http.StatusConflict, Reference: "#/components/responses/Conflict"},
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
 			},
 		},
