@@ -961,12 +961,14 @@ paths:
           format: base64
           type: string
       - description: After the install, download the containers and models the release
-          needs to run.
+          needs to run. Any value other than the literal string 'true' (including
+          an empty value or omitting the parameter) is treated as false.
         in: query
         name: prepare
         schema:
           description: After the install, download the containers and models the release
-            needs to run.
+            needs to run. Any value other than the literal string 'true' (including
+            an empty value or omitting the parameter) is treated as false.
           type: boolean
       requestBody:
         content:

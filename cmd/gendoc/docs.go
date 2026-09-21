@@ -537,7 +537,7 @@ Contains a JSON object with the details of an error.
 				File []byte `form:"file" description:"The release archive (.arduinoapp). Must be built for this board." validate:"required"`
 			})(nil),
 			Parameters: (*struct {
-				Prepare bool `query:"prepare" description:"After the install, download the containers and models the release needs to run."`
+				Prepare bool `query:"prepare" description:"After the install, download the containers and models the release needs to run. Any value other than the literal string 'true' (including an empty value or omitting the parameter) is treated as false."`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "text/event-stream",
