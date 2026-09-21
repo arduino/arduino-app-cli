@@ -13,7 +13,6 @@ import (
 	"net/http"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/render"
@@ -30,11 +29,8 @@ func HandleAppLocalBrickRename(brickService *bricks.Service, idProvider *appid.P
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
 			return
 		}
-
-		a, err := app.Load(appId.ToPath())
-		if err != nil {
-			slog.Error("Unable to load the app", slog.String("error", err.Error()), slog.String("path", appId.String()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
+		a, ok := loadEditableApp(w, appId)
+		if !ok {
 			return
 		}
 
@@ -61,7 +57,7 @@ func HandleAppLocalBrickRename(brickService *bricks.Service, idProvider *appid.P
 			return
 		}
 
-		res, err := brickService.LocalBrickRename(&a, oldID, newID, req.Name)
+		res, err := brickService.LocalBrickRename(a, oldID, newID, req.Name)
 		if err != nil {
 			switch {
 			case errors.Is(err, bricks.ErrBrickNotFound):

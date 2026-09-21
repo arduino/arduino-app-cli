@@ -20,6 +20,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/arduino/arduino-cli/commands"
+	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
 	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
@@ -37,8 +39,9 @@ import (
 )
 
 // A release is an app frozen with all its dependencies: <name>-<date>-<target>/ holds
-// release.yaml, src/ as authored, prebuild/, which becomes .cache/ on install, and
-// data/ when the build is asked to ship it.
+// release.yaml, src/ as authored, prebuild/, the .cache on install, and data/.
+
+const releaseSrcDir = "src"
 
 type BuildReleaseRequest struct {
 	// Target defaults to the board running the build.
@@ -50,6 +53,8 @@ type BuildReleaseRequest struct {
 	// IncludeData ships the data folder of the app, at the root of the archive.
 	IncludeData bool
 	Overwrite   bool
+	// Verbose streams the sketch compile output, as a start does.
+	Verbose bool
 }
 
 type BuildReleaseResult struct {
@@ -58,15 +63,8 @@ type BuildReleaseResult struct {
 	Archive string `json:"archive"`
 }
 
-// ReleaseManifestFileName is the manifest at the root of the archive. It holds what a
-// board needs to list a release and to gate its install, so nothing here requires
-// opening the app it ships.
-const ReleaseManifestFileName = "release.yaml"
-
-// ReleaseManifestSchema is the layout of the archive, not the version of the app: an
-// older release must stay readable by a newer cli.
-const ReleaseManifestSchema = 1
-
+// ReleaseManifest is what the archive states of itself: what a board needs to list a
+// release and to gate its install. app.Release reads the part that marks an app.
 type ReleaseManifest struct {
 	Schema int    `yaml:"schema"`
 	Name   string `yaml:"name"`
@@ -75,8 +73,7 @@ type ReleaseManifest struct {
 	// CreatedAt is when the build ran, UTC.
 	CreatedAt time.Time `yaml:"created_at"`
 	// Notes is the release note as it was authored, markdown, and is absent when none
-	// was given. It is held here and not in a file of its own: a reader must get every
-	// release fact without extracting anything else from the archive.
+	// was given. It is in the manifest so that a reader gets every release fact at once.
 	Notes     string         `yaml:"notes,omitempty"`
 	Bricks    []ReleaseBrick `yaml:"bricks,omitempty"`
 	Models    []ReleaseModel `yaml:"models,omitempty"`
@@ -158,8 +155,8 @@ func BuildRelease(
 	}()
 
 	releaseDir := stagingDir.Join(releaseName)
-	srcDir := releaseDir.Join("src")
-	prebuildDir := releaseDir.Join("prebuild")
+	srcDir := releaseDir.Join(releaseSrcDir)
+	prebuildDir := releaseDir.Join(app.PrebuildDirName)
 
 	cb(StreamMessage{progress: &Progress{Name: "copying the app", Progress: 0.0}})
 	if err := stageReleaseSrc(appToBuild, srcDir, bricksIndex); err != nil {
@@ -174,7 +171,7 @@ func BuildRelease(
 	}
 
 	manifest := ReleaseManifest{
-		Schema:    ReleaseManifestSchema,
+		Schema:    app.ReleaseManifestSchema,
 		Name:      appToBuild.Name,
 		Target:    plat.BoardName,
 		CreatedAt: now,
@@ -210,6 +207,17 @@ func BuildRelease(
 		return BuildReleaseResult{}, err
 	}
 
+	// The sketch is optional, as it is for the release manifest: an app made of
+	// python only ships without a firmware.
+	if _, hasSketch := stagedApp.GetSketchPath(); hasSketch {
+		cb(StreamMessage{data: "building sketch", progress: &Progress{Name: "sketch", Progress: 80.0}})
+		// The compile reads the staged sources and caches in the app folder, as a
+		// start does. Only the firmware lands in the release, in prebuild.
+		if err := buildSketch(ctx, stagedApp, plat, appToBuild.SketchBuildPath(), prebuildDir, req.Verbose, cb); err != nil {
+			return BuildReleaseResult{}, err
+		}
+	}
+
 	cb(StreamMessage{data: "writing " + archivePath.Base(), progress: &Progress{Name: "archive", Progress: 90.0}})
 	if err := writeReleaseArchive(releaseDir, archivePath); err != nil {
 		return BuildReleaseResult{}, err
@@ -223,6 +231,8 @@ func BuildRelease(
 	}, nil
 }
 
+// writeReleaseManifest writes the file the install keeps as it is: it is the manifest
+// of the archive and the marker of the app installed from it.
 func writeReleaseManifest(releaseDir *paths.Path, manifest ReleaseManifest) error {
 	// The note is markdown and is read by people as well: a block keeps its line breaks
 	// where an escaped string would bury them.
@@ -230,7 +240,7 @@ func writeReleaseManifest(releaseDir *paths.Path, manifest ReleaseManifest) erro
 	if err != nil {
 		return fmt.Errorf("failed to write the release manifest: %w", err)
 	}
-	if err := releaseDir.Join(ReleaseManifestFileName).WriteFile(data); err != nil {
+	if err := releaseDir.Join(app.ReleaseManifestFileName).WriteFile(data); err != nil {
 		return fmt.Errorf("failed to write the release manifest: %w", err)
 	}
 	return nil
@@ -335,8 +345,7 @@ func releaseModels(ctx context.Context, descriptor app.AppDescriptor, modelsInde
 }
 
 // releaseLibraries is the sketch libraries the app is built with, as name@version. An
-// app without a sketch has none, and a listing that fails leaves the manifest without
-// them: it is what a release is described by, never what it is built from.
+// app without a sketch has none, and a listing that fails leaves the manifest without them.
 func releaseLibraries(ctx context.Context, arduinoApp app.ArduinoApp) []string {
 	if _, hasSketch := arduinoApp.GetSketchPath(); !hasSketch {
 		return nil
@@ -503,6 +512,69 @@ func buildPythonEnv(ctx context.Context, docker command.Cli, pythonImage string,
 	return nil
 }
 
+// ReleaseFirmwareFileName is the compiled sketch a release ships in its prebuild dir.
+const ReleaseFirmwareFileName = "sketch.fw"
+
+func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platform.Platform, buildPath, destPath *paths.Path, verbose bool, cb func(StreamMessage)) error {
+	output := NewCallbackWriter(func(line string) {
+		cb(StreamMessage{data: line})
+	})
+
+	sketchPath, ok := appToBuild.GetSketchPath()
+	if !ok {
+		return fmt.Errorf("no sketch path found in the Arduino app")
+	}
+	if err := buildPath.MkdirAll(); err != nil {
+		return fmt.Errorf("failed to create build directory: %w", err)
+	}
+
+	srv, inst, err := initializeArduinoCli(ctx, sketchPath, output)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
+	}()
+
+	// The option only exists on the platforms that wait for the Linux side.
+	menuOptions, err := GetPlatformMenuOptions(ctx, platform)
+	if err != nil {
+		slog.Warn("failed to get platform menu options", slog.String("error", err.Error()))
+	}
+	fqbn := platform.FQBN
+	if menuOptions.Has(WaitForApp) {
+		fqbn += ":" + WaitForApp.String()
+	}
+
+	// Compile the sketch
+	if err := compileSketch(
+		ctx, srv, inst,
+		sketchPath, buildPath,
+		platform, fqbn,
+		verbose, output,
+	); err != nil {
+		return err
+	}
+
+	// Upload to file
+	uploadStream, _ := commands.UploadToServerStreams(ctx, output, output)
+	if err := srv.Upload(&rpc.UploadRequest{
+		Instance:   inst,
+		Fqbn:       fqbn,
+		SketchPath: sketchPath.String(),
+		ImportDir:  buildPath.String(),
+		Verbose:    verbose,
+		// There is no board to upload to: "default" is the protocol arduino-cli uses for
+		// portless uploads, and it selects the upload.tool.default recipe.
+		Port:                 &rpc.Port{Protocol: "default"},
+		UploadToFirmwareFile: new(destPath.Join(ReleaseFirmwareFileName).String()),
+	}, uploadStream); err != nil {
+		return fmt.Errorf("failed to create the sketch artifact: %w", err)
+	}
+
+	return nil
+}
+
 // writeReleaseArchive writes releaseDir as a gzipped tar rooted at its own name.
 // Symlinks and modes are kept: the venv relies on both.
 func writeReleaseArchive(releaseDir *paths.Path, archivePath *paths.Path) (err error) {
@@ -554,7 +626,7 @@ func writeReleaseArchive(releaseDir *paths.Path, archivePath *paths.Path) (err e
 
 		// The manifest goes right after the release folder the archive is rooted at, so
 		// that a reader gets the release facts from the first block.
-		manifest := releaseDir.Join(ReleaseManifestFileName)
+		manifest := releaseDir.Join(app.ReleaseManifestFileName)
 		entries = slices.DeleteFunc(entries, func(p *paths.Path) bool { return p.EqualsTo(manifest) })
 
 		for _, entry := range append(paths.PathList{releaseDir, manifest}, entries...) {

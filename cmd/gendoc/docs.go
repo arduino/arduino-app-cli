@@ -787,9 +787,9 @@ Contains a JSON object with the details of an error.
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "text/event-stream",
-				DataStructure: orchestrator.LogMessage{},
+				DataStructure: handlers.ResponseLogs{},
 			},
-			Description: "Obtain a ServerSentEvnt stream of logs. It is possible to apply different filters.",
+			Description: "Obtain a ServerSentEvent stream of logs. It is possible to apply different filters.",
 			Summary:     "Get the logs of a running app",
 			Tags:        []Tag{ApplicationTag},
 			PossibleErrors: []ErrorResponse{
@@ -827,7 +827,7 @@ Contains a JSON object with the details of an error.
 			Path:        "/v1/apps",
 			Request:     (*orchestrator.ListAppRequest)(nil),
 			Parameters: (*struct {
-				Filter string              `query:"filter" description:"Filters apps by apps,examples,default"`
+				Filter string              `query:"filter" description:"Filters apps by apps,examples,releases,default"`
 				Status orchestrator.Status `query:"status" description:"Filters applications by status"`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{

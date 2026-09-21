@@ -30,7 +30,7 @@ import (
 func TestWriteReleaseManifest(t *testing.T) {
 	releaseDir := paths.New(t.TempDir())
 	manifest := ReleaseManifest{
-		Schema:    ReleaseManifestSchema,
+		Schema:    app.ReleaseManifestSchema,
 		Name:      "my-app",
 		Target:    "unoq",
 		CreatedAt: time.Date(2026, 9, 14, 13, 45, 12, 0, time.UTC),
@@ -38,7 +38,7 @@ func TestWriteReleaseManifest(t *testing.T) {
 	}
 	require.NoError(t, writeReleaseManifest(releaseDir, manifest))
 
-	content, err := releaseDir.Join(ReleaseManifestFileName).ReadFile()
+	content, err := releaseDir.Join(app.ReleaseManifestFileName).ReadFile()
 	require.NoError(t, err)
 	// One instant, UTC and to the second, whatever the board the build ran on is set to.
 	assert.Contains(t, string(content), "created_at: 2026-09-14T13:45:12Z\n")
@@ -62,7 +62,7 @@ func TestWriteReleaseArchive(t *testing.T) {
 		require.NoError(t, file.WriteFile([]byte(content)))
 		require.NoError(t, os.Chmod(file.String(), mode))
 	}
-	write(0o644, "schema: 1\n", ReleaseManifestFileName)
+	write(0o644, "schema: 1\n", app.ReleaseManifestFileName)
 	write(0o644, "name: my-app\n", "src", "app.yaml")
 	write(0o755, "#!/bin/sh\n", "src", "python", "run.sh")
 	write(0o644, "junk", "src", "__pycache__", "app.pyc")
@@ -206,6 +206,56 @@ handlers:
 	assert.Equal(t, "build.example/models-downloader:ei", handler.Image)
 	_, found = frozen.Handlers.GetHandlerByID("ai-hub-handler")
 	assert.False(t, found, "no model of the release names it")
+}
+
+func TestBuildSketch(t *testing.T) {
+	// Never the real data dir: the arduino-cli writes into it as soon as it starts.
+	t.Setenv("ARDUINO_DIRECTORIES_DATA", t.TempDir())
+	noProgress := func(StreamMessage) {}
+
+	t.Run("a python-only app has no sketch to build", func(t *testing.T) {
+		pythonApp, err := app.Load(createTestAppPythonOnly(t))
+		require.NoError(t, err)
+		_, hasSketch := pythonApp.GetSketchPath()
+		require.False(t, hasSketch, "this is the gate BuildRelease builds the sketch on")
+
+		destPath := paths.New(t.TempDir())
+		err = buildSketch(context.Background(), pythonApp, unoQPlatform, paths.New(t.TempDir()), destPath, false, noProgress)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no sketch path found")
+		assert.False(t, destPath.Join("sketch.fw").Exist(), "no firmware without a sketch")
+	})
+
+	t.Run("a sketch is built from its default profile", func(t *testing.T) {
+		sketchApp, err := app.Load(createTestAppWithSketch(t))
+		require.NoError(t, err)
+		_, hasSketch := sketchApp.GetSketchPath()
+		require.True(t, hasSketch)
+
+		// The compile needs the platform of the profile, so the build stops here.
+		destPath := paths.New(t.TempDir())
+		err = buildSketch(context.Background(), sketchApp, unoQPlatform, paths.New(t.TempDir()), destPath, false, noProgress)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no default profile")
+		assert.False(t, destPath.Join("sketch.fw").Exist())
+	})
+}
+
+// createTestAppWithSketch is createTestAppPythonOnly with a sketch, whose
+// sketch.yaml names no default profile.
+func createTestAppWithSketch(t *testing.T) *paths.Path {
+	appPath := createTestAppPythonOnly(t)
+
+	sketchDir := appPath.Join("sketch")
+	require.NoError(t, sketchDir.MkdirAll())
+	require.NoError(t, sketchDir.Join("sketch.ino").WriteFile([]byte("void setup() {}\nvoid loop() {}\n")))
+	require.NoError(t, sketchDir.Join("sketch.yaml").WriteFile([]byte(`profiles:
+  default:
+    platforms:
+      - platform: arduino:zephyr
+    libraries:
+`)))
+	return appPath
 }
 
 func TestReleaseArchivePath(t *testing.T) {

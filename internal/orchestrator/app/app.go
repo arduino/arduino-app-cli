@@ -11,8 +11,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -20,6 +22,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 const maxDescriptionLength = 150
@@ -32,6 +35,9 @@ type ArduinoApp struct {
 	FullPath       *paths.Path // FullPath is the path to the App folder
 	LocalBricks    []bricksindex.Brick
 	Descriptor     AppDescriptor
+	// release is the manifest of the release the app is installed from, read once by
+	// Load: nil is an app the board owns.
+	release *Release
 }
 
 // Load creates an App instance by reading all the files composing an app and grouping them
@@ -105,6 +111,8 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 		app.LocalBricks = loadBricksFromFolder(appPath.Join("bricks"))
 	}
 
+	app.release = loadRelease(appPath)
+
 	return app, nil
 }
 
@@ -126,35 +134,6 @@ func (a *ArduinoApp) GetDescriptorPath() *paths.Path {
 	return descriptorFile
 }
 
-var ErrInvalidApp = fmt.Errorf("invalid app")
-
-func (a *ArduinoApp) Save() error {
-	if err := a.Descriptor.IsValid(); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidApp, err)
-	}
-	if err := a.writeApp(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (a *ArduinoApp) writeApp() error {
-	descriptorPath := a.GetDescriptorPath()
-	if descriptorPath == nil {
-		return errors.New("app descriptor file path is not set")
-	}
-
-	out, err := yaml.Marshal(a.Descriptor)
-	if err != nil {
-		return fmt.Errorf("cannot marshal app descriptor: %w", err)
-	}
-
-	if err := fatomic.WriteFile(descriptorPath.String(), out, os.FileMode(0644)); err != nil {
-		return fmt.Errorf("cannot write app descriptor file: %w", err)
-	}
-	return nil
-}
-
 func (a *ArduinoApp) SketchBuildPath() *paths.Path {
 	return a.FullPath.Join(".cache", "sketch")
 }
@@ -167,12 +146,159 @@ func (a *ArduinoApp) ProvisioningStateDir() *paths.Path {
 	return a.FullPath.Join(".cache")
 }
 
+var (
+	ErrInvalidApp = fmt.Errorf("invalid app")
+	// ErrReleaseReadOnly is what every change of an installed release gets: it runs
+	// what a build froze, and changing it would make it something else.
+	ErrReleaseReadOnly = errors.New("the app is installed from a release and cannot be changed")
+)
+
+// Editable is a token that grants the right to write back an app descriptor, and refuses
+// an installed release.
+type editableApp = ArduinoApp
+type Editable struct{ *editableApp }
+
+// GetAsEditable grants the token to an app the board owns, and refuses an installed release.
+func (a *ArduinoApp) GetAsEditable() (Editable, error) {
+	if a.IsRelease() {
+		return Editable{}, ErrReleaseReadOnly
+	}
+	return Editable{a}, nil
+}
+
+// Save writes the descriptor back.
+func (e Editable) Save() error {
+	if e.editableApp == nil {
+		return errors.New("internal error: the token holds no app to save")
+	}
+	if err := e.Descriptor.IsValid(); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidApp, err)
+	}
+	return writeDescriptor(e.Descriptor, e.GetDescriptorPath())
+}
+
+// App is the app the token was granted for, for what reads the value itself.
+func (e Editable) App() *ArduinoApp { return e.editableApp }
+
+// Secrets is the value of every variable a brick declares secret, the default of the
+// definition when the board never set it.
+func (a *ArduinoApp) Secrets(board *bricksindex.BricksIndex) map[string]string {
+	definitions := a.Bricks(board)
+
+	values := make(map[string]string)
+	for _, brick := range a.Descriptor.Bricks {
+		definition, found := definitions.FindBrickByID(brick.ID)
+		if !found {
+			continue
+		}
+		for _, variable := range definition.Variables {
+			if !variable.Secret {
+				continue
+			}
+			values[variable.Name] = variable.DefaultValue
+			if value, set := brick.Variables[variable.Name]; set {
+				values[variable.Name] = value
+			}
+		}
+	}
+	return values
+}
+
+// ErrNotASecret refuses the write of any other variable.
+var ErrNotASecret = errors.New("the variable is not a secret")
+
+// UpdateSecrets writes the secrets of one brick and refuses every other variable. It
+// takes a release: a hole in the read-only rule, until the board has a secret store.
+func (a *ArduinoApp) UpdateSecrets(board *bricksindex.BricksIndex, brickID string, values map[string]string) error {
+	definition, found := a.Bricks(board).FindBrickByID(brickID)
+	if !found {
+		return fmt.Errorf("brick %q is not in the index", brickID)
+	}
+	for name := range values {
+		if variable, isVariable := definition.GetVariable(name); !isVariable || !variable.Secret {
+			return fmt.Errorf("%w: %q of brick %q", ErrNotASecret, name, brickID)
+		}
+	}
+
+	// The file is read again, so a write of the secrets carries no other change with it.
+	descriptor, err := ParseDescriptorFile(a.GetDescriptorPath())
+	if err != nil {
+		return fmt.Errorf("cannot read app descriptor: %w", err)
+	}
+	position := slices.IndexFunc(descriptor.Bricks, func(b Brick) bool { return b.ID == brickID })
+	if position == -1 {
+		return fmt.Errorf("brick %q is not one of the app", brickID)
+	}
+	if descriptor.Bricks[position].Variables == nil {
+		descriptor.Bricks[position].Variables = make(map[string]string, len(values))
+	}
+	maps.Copy(descriptor.Bricks[position].Variables, values)
+
+	return writeDescriptor(descriptor, a.GetDescriptorPath())
+}
+
 // The templates are exported because the resolve step also writes them outside of an
 // app folder, when building a release.
 const (
 	MainTemplateFileName     = "app-compose.tmpl.yaml"
 	OverrideTemplateFileName = "app-compose-overrides.tmpl.yaml"
+	// PrebuildDirName is what a release ships beside the app it is built from: the
+	// compose files and the python env, which the install copies as the .cache.
+	PrebuildDirName = "prebuild"
+	// ReleaseManifestFileName is the manifest at the root of the archive and of the app
+	// installed from it: an app that holds it runs what a build froze.
+	ReleaseManifestFileName = "release.yaml"
 )
+
+// ReleaseManifestSchema is the layout of the manifest, not the version of the app: an
+// older release must stay readable by a newer cli.
+const ReleaseManifestSchema = 1
+
+// Release is what the manifest says of the release an app comes from.
+type Release struct {
+	Schema int `yaml:"schema"`
+	// Target is the board the release is built for, gated on at install and at start.
+	Target string `yaml:"target"`
+	// ID is the release folder name, so it is read from the path and never written.
+	ID string `yaml:"-"`
+}
+
+// IsRelease is what most of the code asks: an app installed from a release runs what a
+// build froze, and nothing of it is written back.
+func (a *ArduinoApp) IsRelease() bool {
+	return a != nil && a.release != nil
+}
+
+// GetRelease is the release the app is installed from, for what reads the manifest
+// itself.
+func (a *ArduinoApp) GetRelease() (Release, bool) {
+	if a == nil || a.release == nil {
+		return Release{}, false
+	}
+	return *a.release, true
+}
+
+// Bricks is the brick definitions the app is wired with, and the only way to ask: board
+// is the index this cli ships, and a release answers with the one a build froze.
+func (a *ArduinoApp) Bricks(board *bricksindex.BricksIndex) *bricksindex.BricksIndex {
+	if a.IsRelease() {
+		frozen, err := a.ReleaseBricks()
+		if err != nil {
+			slog.Warn("cannot read the bricks the release ships", slog.String("app", a.Name), slog.String("error", err.Error()))
+		} else {
+			board = frozen
+		}
+	}
+	return board.WithAppBricks(a.LocalBricks)
+}
+
+// ReleaseBricks is the brick definitions a release ships in its .cache, which are the
+// ones the app was built with. The index of the board is not the one that built the
+// release, so it may hold neither the brick nor the same definition of it. Only the
+// config of a brick is read from here, so no board fact is resolved.
+func (a *ArduinoApp) ReleaseBricks() (*bricksindex.BricksIndex, error) {
+	return bricksindex.Load(platform.Platform{}, a.ProvisioningStateDir())
+}
 
 func (a *ArduinoApp) AppComposeTemplateFilePath() *paths.Path {
 	return a.ProvisioningStateDir().Join(MainTemplateFileName)
@@ -342,4 +468,37 @@ func load(brickPath *paths.Path) (b bricksindex.Brick, err error) {
 	brick.ExamplesPath = brickPath.Join("examples")
 	brick.DocsAPIPath = brickPath.Join("docs/API.md")
 	return brick, nil
+}
+
+// loadRelease reads the manifest an installed release holds, which no app the board
+// owns has.
+func loadRelease(appPath *paths.Path) *Release {
+	manifest := appPath.Join(ReleaseManifestFileName)
+	content, err := manifest.ReadFile()
+	if err != nil {
+		return nil
+	}
+	var release Release
+	if err := yaml.Unmarshal(content, &release); err != nil {
+		slog.Warn("cannot read the release manifest of the app", "path", manifest, "error", err)
+	}
+	release.ID = appPath.Base()
+	return &release
+}
+
+func writeDescriptor(descriptor AppDescriptor, descriptorPath *paths.Path) error {
+	if descriptorPath == nil {
+		return errors.New("app descriptor file path is not set")
+	}
+
+	out, err := yaml.Marshal(descriptor)
+	if err != nil {
+		return fmt.Errorf("cannot marshal app descriptor: %w", err)
+	}
+
+	if err := fatomic.WriteFile(descriptorPath.String(), out, os.FileMode(0644)); err != nil {
+		return fmt.Errorf("cannot write app descriptor file: %w", err)
+	}
+
+	return nil
 }

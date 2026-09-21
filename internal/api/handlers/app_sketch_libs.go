@@ -29,15 +29,14 @@ func HandleSketchAddLibrary(idProvider *appid.Provider) http.HandlerFunc {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "cannot alter examples"})
 			return
 		}
-		app, err := app.Load(id.ToPath())
+		app, ok := loadEditableApp(w, id)
+		if !ok {
+			return
+		}
 
 		// Get query param addDeps (default false)
 		addDeps, _ := strconv.ParseBool(r.URL.Query().Get("add_deps"))
 
-		if err != nil {
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
-			return
-		}
 		libRef, err := orchestrator.ParseLibraryReleaseID(r.PathValue("libRef"))
 		if err != nil {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "unable to parse library reference"})
@@ -71,9 +70,8 @@ func HandleSketchRemoveLibrary(idProvider *appid.Provider) http.HandlerFunc {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "cannot alter examples"})
 			return
 		}
-		app, err := app.Load(id.ToPath())
-		if err != nil {
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
+		app, ok := loadEditableApp(w, id)
+		if !ok {
 			return
 		}
 

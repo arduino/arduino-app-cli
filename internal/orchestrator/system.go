@@ -331,7 +331,9 @@ func installPlatformPackage(ctx context.Context, plat platform.Platform, eventCB
 
 	eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDeb, Message: fmt.Sprintf("Installing package '%s'", packageName)})
 
-	cmd, err := paths.NewProcess(nil, "sudo", "apt-get", "install", "-y", packageName)
+	// The env keeps debconf off /dev/tty: the pty of sudo makes it available even
+	// when our own stdin is a pipe.
+	cmd, err := paths.NewProcess([]string{"DEBIAN_FRONTEND=noninteractive"}, "sudo", "apt-get", "install", "-y", packageName)
 	if err != nil {
 		return err
 	}
@@ -454,10 +456,13 @@ func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, platf
 		return err
 	}
 
-	if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, app); err != nil {
-		slog.Warn("Failed to migrate app to remove router bridge", "app", appPath, "error", err)
-	} else if ok {
-		slog.Info("App migrated, RouterBridge has been removed successfully", "app", appPath)
+	// A release ships a frozen sketch profile, so there is nothing to migrate.
+	if editable, err := app.GetAsEditable(); err == nil {
+		if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, editable); err != nil {
+			slog.Warn("Failed to migrate app to remove router bridge", "app", appPath, "error", err)
+		} else if ok {
+			slog.Info("App migrated, RouterBridge has been removed successfully", "app", appPath)
+		}
 	}
 
 	sketchPath, ok := app.GetSketchPath()

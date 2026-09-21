@@ -15,7 +15,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/update"
 )
 
-func TestParseListUpgradableOutput(t *testing.T) {
+func TestParseSimulatedUpgradeOutput(t *testing.T) {
 	t.Run("edges cases", func(t *testing.T) {
 		tests := []struct {
 			name     string
@@ -33,8 +33,8 @@ func TestParseListUpgradableOutput(t *testing.T) {
 				expected: []update.UpgradablePackage{},
 			},
 			{
-				name:  "upgradable package without [upgradable from]",
-				input: "nano/bionic-updates 2.9.3-2 amd64",
+				name:  "package without the installed version",
+				input: "Inst nano (2.9.3-2 Ubuntu:18.04/bionic-updates [amd64])",
 				expected: []update.UpgradablePackage{
 					{
 						Type:         update.Debian,
@@ -47,7 +47,7 @@ func TestParseListUpgradableOutput(t *testing.T) {
 			},
 			{
 				name:  "package with from and to versions",
-				input: "apt/focal-updates 2.0.11 amd64 [upgradable from: 2.0.10]",
+				input: "Inst apt [2.0.10] (2.0.11 Ubuntu:20.04/focal-updates [amd64])",
 				expected: []update.UpgradablePackage{
 					{
 						Type:         update.Debian,
@@ -59,12 +59,33 @@ func TestParseListUpgradableOutput(t *testing.T) {
 				},
 			},
 			{
+				name:  "architecture qualified name",
+				input: "Inst libgcc-s1:i386 [10.5.0-1] (10.5.0-4 Debian:13/trixie [i386])",
+				expected: []update.UpgradablePackage{
+					{
+						Type:         update.Debian,
+						Name:         "libgcc-s1",
+						ToVersion:    "10.5.0-4",
+						FromVersion:  "10.5.0-1",
+						Architecture: "i386",
+					},
+				},
+			},
+			{
 				name: "multiple packages",
-				input: `
-distro-info-data/focal-updates,focal-updates 0.43ubuntu1.18 all [upgradable from: 0.43ubuntu1.16]
-apt/focal-updates 2.0.11 amd64 [upgradable from: 2.0.10]
-code/stable 1.100.3-1748872405 amd64 [upgradable from: 1.100.2-1747260578]
-containerd.io/focal 1.7.27-1 amd64 [upgradable from: 1.7.25-1]
+				input: `Reading package lists...
+Building dependency tree...
+Reading state information...
+Calculating upgrade...
+The following packages will be upgraded:
+  apt code containerd.io distro-info-data
+4 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+Inst distro-info-data [0.43ubuntu1.16] (0.43ubuntu1.18 Ubuntu:20.04/focal-updates [all])
+Inst apt [2.0.10] (2.0.11 Ubuntu:20.04/focal-updates [amd64]) []
+Conf apt (2.0.11 Ubuntu:20.04/focal-updates [amd64])
+Inst code [1.100.2-1747260578] (1.100.3-1748872405 code:stable [amd64])
+Inst containerd.io [1.7.25-1] (1.7.27-1 Docker:focal [amd64])
+Conf containerd.io (1.7.27-1 Docker:focal [amd64])
 `,
 				expected: []update.UpgradablePackage{
 					{
@@ -97,10 +118,36 @@ containerd.io/focal 1.7.27-1 amd64 [upgradable from: 1.7.25-1]
 					},
 				},
 			},
+			{
+				// A held back package has no Inst line: it must not be listed, because
+				// apt-get install --only-upgrade would then fail on it.
+				name: "held back package",
+				input: `Reading package lists...
+Building dependency tree...
+Reading state information...
+Calculating upgrade...
+The following packages have been kept back:
+  alsa-ucm-conf libasound2t64
+The following packages will be upgraded:
+  arduino-app-cli
+1 upgraded, 0 newly installed, 0 to remove and 2 not upgraded.
+Inst arduino-app-cli [1.2.0] (1.3.0 arduino:stable [arm64])
+Conf arduino-app-cli (1.3.0 arduino:stable [arm64])
+`,
+				expected: []update.UpgradablePackage{
+					{
+						Type:         update.Debian,
+						Name:         "arduino-app-cli",
+						ToVersion:    "1.3.0",
+						FromVersion:  "1.2.0",
+						Architecture: "arm64",
+					},
+				},
+			},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				res := parseListUpgradableOutput(strings.NewReader(tt.input))
+				res := parseSimulatedUpgradeOutput(strings.NewReader(tt.input))
 				require.Equal(t, tt.expected, res)
 			})
 		}

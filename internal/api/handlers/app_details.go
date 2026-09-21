@@ -87,7 +87,16 @@ func HandleAppDetailsEdits(
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "invalid request"})
 			return
 		}
-		if id.IsExample() {
+		switch {
+		case id.IsRelease():
+			if editRequest.Description != nil || editRequest.Icon != nil || editRequest.Name != nil {
+				render.EncodeResponse(w, http.StatusForbidden, models.ErrorResponse{Details: "you can patch just the default field for a release"})
+				return
+			}
+			appEditRequest = orchestrator.AppEditRequest{
+				Default: editRequest.Default,
+			}
+		case id.IsExample():
 			if editRequest.Description != nil || editRequest.Icon != nil || editRequest.Name != nil {
 				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "you can patch just the default field for example apps"})
 				return
@@ -95,7 +104,7 @@ func HandleAppDetailsEdits(
 			appEditRequest = orchestrator.AppEditRequest{
 				Default: editRequest.Default,
 			}
-		} else {
+		default:
 			appEditRequest = orchestrator.AppEditRequest{
 				Default:     editRequest.Default,
 				Name:        editRequest.Name,

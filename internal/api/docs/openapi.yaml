@@ -18,11 +18,11 @@ paths:
         to apply different filters.
       operationId: getApps
       parameters:
-      - description: Filters apps by apps,examples,default
+      - description: Filters apps by apps,examples,releases,default
         in: query
         name: filter
         schema:
-          description: Filters apps by apps,examples,default
+          description: Filters apps by apps,examples,releases,default
           type: string
       - description: Filters applications by status
         in: query
@@ -751,7 +751,7 @@ paths:
       - Application
   /v1/apps/{id}/logs:
     get:
-      description: Obtain a ServerSentEvnt stream of logs. It is possible to apply
+      description: Obtain a ServerSentEvent stream of logs. It is possible to apply
         different filters.
       operationId: getAppLogs
       parameters:
@@ -779,7 +779,7 @@ paths:
           content:
             text/event-stream:
               schema:
-                type: string
+                $ref: '#/components/schemas/ResponseLogs'
           description: OK
         "400":
           $ref: '#/components/responses/BadRequest'
@@ -1796,6 +1796,10 @@ components:
           type: string
         name:
           type: string
+        release:
+          type: boolean
+        release_id:
+          type: string
         status:
           $ref: '#/components/schemas/Status'
       type: object
@@ -2293,6 +2297,15 @@ components:
             type: string
           nullable: true
           type: array
+      type: object
+    ResponseLogs:
+      properties:
+        container_name:
+          type: string
+        id:
+          type: string
+        message:
+          type: string
       type: object
     SketchAddLibraryResponse:
       properties:
