@@ -587,7 +587,7 @@ type Unauthorized = ErrorResponse
 
 // GetAppsParams defines parameters for GetApps.
 type GetAppsParams struct {
-	// Filter Filters apps by apps,examples,default
+	// Filter Filters apps by apps,examples,releases,default
 	Filter *string `form:"filter,omitempty" json:"filter,omitempty"`
 
 	// Status Filters applications by status

@@ -18,11 +18,11 @@ paths:
         to apply different filters.
       operationId: getApps
       parameters:
-      - description: Filters apps by apps,examples,default
+      - description: Filters apps by apps,examples,releases,default
         in: query
         name: filter
         schema:
-          description: Filters apps by apps,examples,default
+          description: Filters apps by apps,examples,releases,default
           type: string
       - description: Filters applications by status
         in: query
