@@ -11,8 +11,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -148,23 +150,62 @@ func (a *ADBConnection) ForwardKillAll(ctx context.Context) error {
 }
 
 func (a *ADBConnection) List(path string) ([]remote.FileInfo, error) {
-	out, err := a.run("ls", "-laQ", remote.ShellQuote(path))
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "ls", "-laQ", remote.ShellQuote(path))
 	if err != nil {
-		return nil, fmt.Errorf("failed to list directory %q: %w", path, err)
+		return nil, err
 	}
+	cmd.RedirectStderrTo(os.Stdout)
+	output, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	defer output.Close()
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	defer func() { _ = cmd.Wait() }()
 
-	return remote.ParseLsOutput(bytes.NewReader(out))
+	return remote.ParseLsOutput(output)
 }
 
 func (a *ADBConnection) Stats(p string) (remote.FileInfo, error) {
-	out, err := a.run("file", "-L", remote.ShellQuote(p))
-	// "file" reports a missing path on its stdout, and that is the only message
-	// that can hide a command failure.
-	if err != nil && !bytes.Contains(out, []byte("cannot open")) {
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "file", "-L", remote.ShellQuote(p))
+	if err != nil {
+		return remote.FileInfo{}, err
+	}
+	output, err := cmd.StdoutPipe()
+	if err != nil {
+		return remote.FileInfo{}, err
+	}
+	defer output.Close()
+	if err := cmd.Start(); err != nil {
+		return remote.FileInfo{}, err
+	}
+	defer func() { _ = cmd.Wait() }()
+
+	r := bufio.NewReader(output)
+	line, err := r.ReadBytes('\n')
+	if err != nil {
 		return remote.FileInfo{}, err
 	}
 
-	return remote.ParseFileOutput(out)
+	line = bytes.TrimSpace(line)
+	parts := bytes.Split(line, []byte(":"))
+	if len(parts) < 2 {
+		return remote.FileInfo{}, fmt.Errorf("unexpected file command output: %s", line)
+	}
+
+	name := string(bytes.TrimSpace(parts[0]))
+	other := string(bytes.TrimSpace(parts[1]))
+
+	if strings.Contains(other, "cannot open") {
+		return remote.FileInfo{}, fs.ErrNotExist
+	}
+
+	return remote.FileInfo{
+		Name:  path.Base(name),
+		IsDir: other == "directory",
+	}, nil
 }
 
 func (a *ADBConnection) ReadFile(path string) (io.ReadCloser, error) {
@@ -176,18 +217,26 @@ func (a *ADBConnection) WriteFile(r io.Reader, path string) error {
 }
 
 func (a *ADBConnection) MkDirAll(path string) error {
-	if _, err := a.run("install", "-o", username, "-g", username, "-m", "755", "-d", remote.ShellQuote(path)); err != nil {
-		return fmt.Errorf("failed to create directory %q: %w", path, err)
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "install", "-o", username, "-g", username, "-m", "755", "-d", remote.ShellQuote(path))
+	if err != nil {
+		return err
 	}
-
+	stdout, err := cmd.RunAndCaptureCombinedOutput(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to create directory %q: %w: %s", path, err, string(stdout))
+	}
 	return nil
 }
 
 func (a *ADBConnection) Remove(path string) error {
-	if _, err := a.run("rm", "-r", remote.ShellQuote(path)); err != nil {
-		return fmt.Errorf("failed to remove path %q: %w", path, err)
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "rm", "-r", remote.ShellQuote(path))
+	if err != nil {
+		return err
 	}
-
+	stdout, err := cmd.RunAndCaptureCombinedOutput(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to remove path %q: %w: %s", path, err, string(stdout))
+	}
 	return nil
 }
 
@@ -343,14 +392,3 @@ var FindAdbPath = sync.OnceValue(func() string {
 		return path
 	}
 })
-
-// run executes an adb shell command, and classifies a failure with its stderr.
-func (a *ADBConnection) run(args ...string) ([]byte, error) {
-	cmd, err := paths.NewProcess(nil, append([]string{a.adbPath, "-s", a.host, "shell"}, args...)...) // nolint:gosec
-	if err != nil {
-		return nil, err
-	}
-
-	stdout, stderr, err := cmd.RunAndCaptureOutput(context.Background())
-	return stdout, remote.CmdError(err, stderr)
-}

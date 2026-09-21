@@ -84,11 +84,9 @@ func CmdError(err error, stderr []byte) error {
 		strings.Contains(msg, "error: closed"), strings.Contains(msg, "closed by remote host"),
 		strings.Contains(msg, "connection reset"):
 		return fmt.Errorf("%w: %s", ErrConnLost, msg)
-	// "file" prints "cannot open" with the reason in brackets, so the permission
-	// case must come first.
 	case strings.Contains(msg, "Permission denied"):
 		return fmt.Errorf("%w: %s", fs.ErrPermission, msg)
-	case strings.Contains(msg, "No such file or directory"), strings.Contains(msg, "cannot open"):
+	case strings.Contains(msg, "No such file or directory"):
 		return fmt.Errorf("%w: %s", fs.ErrNotExist, msg)
 	case msg == "":
 		return err

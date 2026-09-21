@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net"
 	"os"
@@ -153,36 +154,48 @@ func (a *SSHConnection) ForwardKillAll(ctx context.Context) error {
 }
 
 func (a *SSHConnection) List(path string) ([]remote.FileInfo, error) {
-	out, err := a.run(fmt.Sprintf("ls -laQ %s", remote.ShellQuote(path)))
+	session, err := a.client.NewSession()
 	if err != nil {
-		return nil, fmt.Errorf("failed to list directory %q: %w", path, err)
+		return nil, err
+	}
+	defer session.Close()
+
+	cmd := fmt.Sprintf("ls -laQ %s", remote.ShellQuote(path))
+	output, err := session.Output(cmd)
+	if err != nil {
+		return nil, err
 	}
 
-	return remote.ParseLsOutput(bytes.NewReader(out))
+	return remote.ParseLsOutput(bytes.NewReader(output))
 }
 
 func (a *SSHConnection) MkDirAll(path string) error {
-	if _, err := a.run(fmt.Sprintf("mkdir -p %s", remote.ShellQuote(path))); err != nil {
-		return fmt.Errorf("failed to create directory %q: %w", path, err)
+	session, err := a.client.NewSession()
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	cmd := fmt.Sprintf("mkdir -p %s", remote.ShellQuote(path))
+	if err := session.Run(cmd); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
 	return nil
 }
 
-// WriteFile needs its own session, because it writes the content on the stdin.
 func (a *SSHConnection) WriteFile(r io.Reader, path string) error {
 	session, err := a.client.NewSession()
 	if err != nil {
-		return fmt.Errorf("failed to open session: %w", err)
+		return err
 	}
 	defer session.Close()
 
-	var stderr bytes.Buffer
-	session.Stderr = &stderr
+	cmd := fmt.Sprintf("cat > %s", remote.ShellQuote(path))
 	session.Stdin = r
 
-	if err := session.Run(fmt.Sprintf("cat > %s", remote.ShellQuote(path))); err != nil {
-		return fmt.Errorf("failed to write file %q: %w", path, remote.CmdError(err, stderr.Bytes()))
+	if err := session.Run(cmd); err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
 	}
 
 	return nil
@@ -227,22 +240,50 @@ func (a *SSHConnection) ReadFile(path string) (io.ReadCloser, error) {
 }
 
 func (a *SSHConnection) Remove(path string) error {
-	if _, err := a.run(fmt.Sprintf("rm -rf %s", remote.ShellQuote(path))); err != nil {
-		return fmt.Errorf("failed to remove path %q: %w", path, err)
+	session, err := a.client.NewSession()
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	cmd := fmt.Sprintf("rm -rf %s", remote.ShellQuote(path))
+	if err := session.Run(cmd); err != nil {
+		return fmt.Errorf("failed to remove file: %w", err)
 	}
 
 	return nil
 }
 
 func (a *SSHConnection) Stats(p string) (remote.FileInfo, error) {
-	out, err := a.run(fmt.Sprintf("file -L %s", remote.ShellQuote(p)))
-	// "file" reports a missing path on its stdout, and that is the only message
-	// that can hide a command failure.
-	if err != nil && !bytes.Contains(out, []byte("cannot open")) {
+	session, err := a.client.NewSession()
+	if err != nil {
+		return remote.FileInfo{}, err
+	}
+	defer session.Close()
+
+	cmd := fmt.Sprintf("file -L %s", remote.ShellQuote(p))
+	output, err := session.Output(cmd)
+	if err != nil {
 		return remote.FileInfo{}, err
 	}
 
-	return remote.ParseFileOutput(out)
+	line := bytes.TrimSpace(output)
+	parts := bytes.Split(line, []byte(":"))
+	if len(parts) < 2 {
+		return remote.FileInfo{}, fmt.Errorf("unexpected file command output: %s", line)
+	}
+
+	name := string(bytes.TrimSpace(parts[0]))
+	other := string(bytes.TrimSpace(parts[1]))
+
+	if strings.Contains(other, "cannot open") {
+		return remote.FileInfo{}, fs.ErrNotExist
+	}
+
+	return remote.FileInfo{
+		Name:  path.Base(name),
+		IsDir: other == "directory",
+	}, nil
 }
 
 type SSHCommand struct {
@@ -350,19 +391,4 @@ func (a *SSHConnection) Push(ctx context.Context, local, remote string) error {
 		}
 		return scpClient.PushDir(ctx, os.DirFS(local), name, remote)
 	}
-}
-
-// run executes cmd on the board, and classifies a failure with its stderr.
-func (a *SSHConnection) run(cmd string) ([]byte, error) {
-	session, err := a.client.NewSession()
-	if err != nil {
-		return nil, fmt.Errorf("failed to open session: %w", err)
-	}
-	defer session.Close()
-
-	var stderr bytes.Buffer
-	session.Stderr = &stderr
-
-	out, err := session.Output(cmd)
-	return out, remote.CmdError(err, stderr.Bytes())
 }

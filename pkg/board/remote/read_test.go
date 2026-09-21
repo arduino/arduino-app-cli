@@ -26,7 +26,6 @@ func TestCmdError(t *testing.T) {
 		expected error
 	}{
 		{"missing file", "cat: '/etc/nope': No such file or directory", fs.ErrNotExist},
-		{"file command on missing path", "/etc/nope: cannot open `/etc/nope' (No such file or directory)", fs.ErrNotExist},
 		{"no permission", "cat: /etc/shadow: Permission denied", fs.ErrPermission},
 		{"device offline", "error: device offline", remote.ErrConnLost},
 		{"device not found", "error: device '10.0.0.1:5555' not found", remote.ErrConnLost},
