@@ -6,11 +6,9 @@
 package remote
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"io"
-	"io/fs"
 	"strings"
 )
 
@@ -62,35 +60,6 @@ type RemoteTransfer interface {
 	// The remote path could instead be different from the local path, and that will
 	// rename while copying.
 	Push(ctx context.Context, local, remote string) error
-}
-
-// ReadError classifies the exit error of a remote read from its stderr, so that
-// a caller can tell a missing file from a read that failed.
-func ReadError(err error, stderr []byte) error {
-	msg := strings.TrimSpace(string(stderr))
-	switch {
-	case strings.Contains(msg, "No such file or directory"):
-		return fmt.Errorf("%w: %s", fs.ErrNotExist, msg)
-	case strings.Contains(msg, "Permission denied"):
-		return fmt.Errorf("%w: %s", fs.ErrPermission, msg)
-	case msg != "":
-		return fmt.Errorf("%w: %s", err, msg)
-	default:
-		return err
-	}
-}
-
-// PeekOutput waits for the first byte of the output of a started command, so
-// that a command that fails at once reports it here. It returns the output.
-func PeekOutput(r io.Reader, exitErr func() error) (io.Reader, error) {
-	buffered := bufio.NewReader(r)
-	if _, err := buffered.Peek(1); err != nil {
-		// No output at all: the command failed, or the file is empty.
-		if err := exitErr(); err != nil {
-			return nil, err
-		}
-	}
-	return buffered, nil
 }
 
 // WithCloser is a helper to create an io.ReadCloser from an io.Reader

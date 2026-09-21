@@ -6,12 +6,77 @@
 package remote
 
 import (
+	"errors"
+	"io"
+	"io/fs"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestParseReadOutput(t *testing.T) {
+	exitErr := errors.New("exit status 1")
+
+	tests := []struct {
+		name     string
+		stderr   string
+		expected error
+	}{
+		{"missing file", "cat: '/etc/nope': No such file or directory", fs.ErrNotExist},
+		{"no permission", "cat: /etc/shadow: Permission denied", fs.ErrPermission},
+		{"unknown failure", "something else went wrong", exitErr},
+		{"no stderr", "", exitErr},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := ParseReadOutput(strings.NewReader(""), func() ([]byte, error) {
+				return []byte(tc.stderr), exitErr
+			})
+			require.ErrorIs(t, err, tc.expected)
+			if tc.stderr != "" {
+				require.ErrorContains(t, err, tc.stderr)
+			}
+		})
+	}
+
+	t.Run("empty file", func(t *testing.T) {
+		r, err := ParseReadOutput(strings.NewReader(""), func() ([]byte, error) {
+			// A read that succeeds can still write on stderr.
+			return []byte("adb: warning"), nil
+		})
+		require.NoError(t, err)
+		data, err := io.ReadAll(r)
+		require.NoError(t, err)
+		require.Empty(t, data)
+	})
+
+	t.Run("the command end is not asked when the read writes", func(t *testing.T) {
+		calls := 0
+		r, err := ParseReadOutput(strings.NewReader("Hello, World!"), func() ([]byte, error) {
+			calls++
+			return nil, nil
+		})
+		require.NoError(t, err)
+
+		data, err := io.ReadAll(r)
+		require.NoError(t, err)
+		require.Equal(t, "Hello, World!", string(data))
+		require.Equal(t, 0, calls)
+	})
+
+	t.Run("no output and no failure to explain it", func(t *testing.T) {
+		_, err := ParseReadOutput(failingReader{}, func() ([]byte, error) { return nil, nil })
+		require.ErrorIs(t, err, os.ErrClosed)
+	})
+}
+
+type failingReader struct{}
+
+func (failingReader) Read([]byte) (int, error) { return 0, os.ErrClosed }
 
 func TestParseLsOutput(t *testing.T) {
 	input := `total 20

@@ -9,7 +9,6 @@ package adb
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -38,11 +37,11 @@ func adbReadFile(a *ADBConnection, path string) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	// Wait is not idempotent, and an empty file already waits below.
-	wait := sync.OnceValue(func() error {
-		return remote.ReadError(cmd.Wait(), stderr.Bytes())
+	// Wait is not idempotent, and an empty file already waits in the parser.
+	exit := sync.OnceValues(func() ([]byte, error) {
+		return stderr.Bytes(), cmd.Wait()
 	})
-	r, err := remote.PeekOutput(decoded, wait)
+	r, err := remote.ParseReadOutput(decoded, exit)
 	if err != nil {
 		_ = output.Close()
 		return nil, err
@@ -51,7 +50,10 @@ func adbReadFile(a *ADBConnection, path string) (io.ReadCloser, error) {
 	return remote.WithCloser{
 		Reader: r,
 		CloseFun: func() error {
-			return cmp.Or(output.Close(), wait())
+			// An empty file is over already, and Wait closed the pipe.
+			_ = output.Close()
+			_, err := exit()
+			return err
 		},
 	}, nil
 }

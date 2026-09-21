@@ -222,8 +222,8 @@ func (a *SSHConnection) ReadFile(path string) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("failed to start command: %w", err)
 	}
 
-	r, err := remote.PeekOutput(output, func() error {
-		return remote.ReadError(session.Wait(), stderr.Bytes())
+	r, err := remote.ParseReadOutput(output, func() ([]byte, error) {
+		return stderr.Bytes(), session.Wait()
 	})
 	if err != nil {
 		_ = session.Close()

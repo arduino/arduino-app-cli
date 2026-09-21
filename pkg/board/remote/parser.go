@@ -8,10 +8,49 @@ package remote
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"strings"
 )
+
+// ParseReadOutput returns the output of the command that reads a remote file.
+// It waits for the first byte, so that a failed read is reported here, and not
+// at the first Read of the caller. exit must wait for the command end, and
+// return its stderr with its error.
+func ParseReadOutput(stdout io.Reader, exit func() ([]byte, error)) (io.Reader, error) {
+	parseReadError := func(stderr []byte, err error) error {
+		if err == nil {
+			return nil
+		}
+
+		msg := strings.TrimSpace(string(stderr))
+		switch {
+		case strings.Contains(msg, "No such file or directory"):
+			return fmt.Errorf("%w: %s", fs.ErrNotExist, msg)
+		case strings.Contains(msg, "Permission denied"):
+			return fmt.Errorf("%w: %s", fs.ErrPermission, msg)
+		case msg != "":
+			return fmt.Errorf("%w: %s", err, msg)
+		default:
+			return err
+		}
+	}
+
+	out := bufio.NewReader(stdout)
+	if _, err := out.Peek(1); err != nil {
+		// No output at all: the read failed, or the file is empty.
+		if failure := parseReadError(exit()); failure != nil {
+			return nil, failure
+		}
+		if !errors.Is(err, io.EOF) {
+			return nil, err
+		}
+	}
+
+	return out, nil
+}
 
 func ParseChage(r io.Reader) (bool, error) {
 	scanner := bufio.NewScanner(r)
