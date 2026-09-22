@@ -113,26 +113,6 @@ func TestCreateApp(t *testing.T) {
 			//expectedErrorDetails: new("invalid app: icon cannot be empty"),
 		},
 		{
-			name: "should return 201 Created on first successful creation",
-			parameters: client.CreateAppParams{
-				SkipSketch: new(false),
-			},
-			body:               defaultRequestBody,
-			expectedStatusCode: http.StatusCreated,
-		},
-		{
-			name: "should return 409 Conflict when creating a duplicate app",
-			parameters: client.CreateAppParams{
-				SkipSketch: new(false),
-			},
-			body:               defaultRequestBody,
-			expectedStatusCode: http.StatusConflict,
-			expectedErrorDetails: new(
-				`app already exists with id: "` +
-					base64.RawURLEncoding.EncodeToString([]byte("user:helloworld")) + `"`,
-			),
-		},
-		{
 			name: "should return 201 Created on successful creation with skip_sketch",
 			parameters: client.CreateAppParams{
 				SkipSketch: new(true),
@@ -166,6 +146,30 @@ func TestCreateApp(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should return 409 Conflict with the existing app id when creating a duplicate app", func(t *testing.T) {
+		createResp, err := httpClient.CreateAppWithResponse(
+			t.Context(),
+			&client.CreateAppParams{SkipSketch: new(false)},
+			defaultRequestBody,
+		)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusCreated, createResp.StatusCode())
+		require.NotNil(t, createResp.JSON201)
+		require.NotNil(t, createResp.JSON201.Id)
+
+		conflictResp, err := httpClient.CreateAppWithResponse(
+			t.Context(),
+			&client.CreateAppParams{SkipSketch: new(false)},
+			defaultRequestBody,
+		)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusConflict, conflictResp.StatusCode())
+
+		var actualErrorResponse models.ErrorResponse
+		require.NoError(t, json.Unmarshal(conflictResp.Body, &actualErrorResponse))
+		require.Contains(t, actualErrorResponse.Details, *createResp.JSON201.Id)
+	})
 }
 func TestCreateAndVerifyAppDetails(t *testing.T) {
 	httpClient := GetHttpclient(t)
