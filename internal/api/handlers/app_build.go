@@ -156,13 +156,13 @@ func HandleAppBuild(
 		archivePath := paths.New(result.Archive)
 		defer func() { _ = archivePath.Remove() }()
 
-		broker.Publish(appKey, render.SSEEvent{Type: "done", Data: buildDoneEvent{BuildID: buildID, Name: result.Name, Target: result.Target}})
-
 		if !archivePath.Exist() {
 			slog.Error("the build archive is missing", slog.String("path", archivePath.String()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "the build archive is missing"})
 			return
 		}
+
+		broker.Publish(appKey, render.SSEEvent{Type: "done", Data: buildDoneEvent{BuildID: buildID, Name: result.Name, Target: result.Target}})
 
 		w.Header().Set("Content-Type", "application/gzip")
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename=%q`, archivePath.Base()))
