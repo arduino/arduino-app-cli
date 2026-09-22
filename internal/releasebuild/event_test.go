@@ -22,27 +22,27 @@ func event(n int) render.SSEEvent {
 
 // receive returns the next event, or fails if none arrives before the timeout, so
 // a stuck delivery fails the test instead of hanging it.
-func receive(t *testing.T, ch <-chan render.SSEEvent, timeout time.Duration) render.SSEEvent {
+func receive(t *testing.T, ch <-chan render.SSEEvent) render.SSEEvent {
 	t.Helper()
 	select {
 	case e, ok := <-ch:
 		require.True(t, ok, "the channel was closed before an event arrived")
 		return e
-	case <-time.After(timeout):
+	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for an event")
 		return render.SSEEvent{}
 	}
 }
 
-// expectNoEvent fails if an event arrives on an open channel within the window.
-func expectNoEvent(t *testing.T, ch <-chan render.SSEEvent, within time.Duration) {
+// expectNoEvent fails if an event arrives on an open channel within a short window.
+func expectNoEvent(t *testing.T, ch <-chan render.SSEEvent) {
 	t.Helper()
 	select {
 	case e, ok := <-ch:
 		if ok {
 			t.Fatalf("received an unexpected event: %+v", e)
 		}
-	case <-time.After(within):
+	case <-time.After(50 * time.Millisecond):
 	}
 }
 
@@ -54,7 +54,7 @@ func TestEventBrokerDeliversToSubscriber(t *testing.T) {
 	want := event(1)
 	broker.Publish("app-1", want)
 
-	require.Equal(t, want, receive(t, ch, time.Second))
+	require.Equal(t, want, receive(t, ch))
 }
 
 func TestEventBrokerFansOutToEverySubscriber(t *testing.T) {
@@ -67,8 +67,8 @@ func TestEventBrokerFansOutToEverySubscriber(t *testing.T) {
 	want := event(1)
 	broker.Publish("app-1", want)
 
-	require.Equal(t, want, receive(t, chA, time.Second))
-	require.Equal(t, want, receive(t, chB, time.Second))
+	require.Equal(t, want, receive(t, chA))
+	require.Equal(t, want, receive(t, chB))
 }
 
 func TestEventBrokerIsolatesByApp(t *testing.T) {
@@ -81,8 +81,8 @@ func TestEventBrokerIsolatesByApp(t *testing.T) {
 	want := event(1)
 	broker.Publish("app-a", want)
 
-	require.Equal(t, want, receive(t, chA, time.Second))
-	expectNoEvent(t, chB, 50*time.Millisecond)
+	require.Equal(t, want, receive(t, chA))
+	expectNoEvent(t, chB)
 }
 
 func TestEventBrokerPublishWithoutSubscribersIsNoOp(t *testing.T) {
@@ -101,7 +101,7 @@ func TestEventBrokerPreservesOrder(t *testing.T) {
 	}
 
 	for _, e := range want {
-		require.Equal(t, e, receive(t, ch, time.Second))
+		require.Equal(t, e, receive(t, ch))
 	}
 }
 
@@ -115,8 +115,8 @@ func TestEventBrokerLateSubscriberMissesEarlierEvents(t *testing.T) {
 	defer unsubscribe()
 	broker.Publish("app-1", event(2))
 
-	require.Equal(t, event(2), receive(t, ch, time.Second))
-	expectNoEvent(t, ch, 50*time.Millisecond)
+	require.Equal(t, event(2), receive(t, ch))
+	expectNoEvent(t, ch)
 }
 
 func TestEventBrokerUnsubscribeStopsDeliveryAndClosesChannel(t *testing.T) {
@@ -151,7 +151,7 @@ func TestEventBrokerUnsubscribeOneKeepsTheOther(t *testing.T) {
 	want := event(1)
 	broker.Publish("app-1", want)
 
-	require.Equal(t, want, receive(t, chB, time.Second))
+	require.Equal(t, want, receive(t, chB))
 	_, ok := <-chA
 	require.False(t, ok, "the unsubscribed channel must be closed")
 }
