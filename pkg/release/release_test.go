@@ -16,10 +16,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// writeTestArchive writes a minimal release archive, entries in the given order, root
-// being the release folder every entry is written under.
-func writeTestArchive(t *testing.T, root string, entries map[string]string, order []string) *paths.Path {
+// writeTestArchive writes a minimal release archive, entries in the given order, rooted
+// under the "my-app-1.0.0-unoq" release folder.
+func writeTestArchive(t *testing.T, entries map[string]string, order []string) *paths.Path {
 	t.Helper()
+	const root = "my-app-1.0.0-unoq"
 	archivePath := paths.New(t.TempDir()).Join(root + ".arduinoapp")
 
 	file, err := archivePath.Create()
@@ -54,7 +55,7 @@ func TestReadReleaseInfo(t *testing.T) {
 		"created_at: 2026-09-14T13:45:12Z\n" +
 		"notes: hello\n"
 
-	archivePath := writeTestArchive(t, "my-app-1.0.0-unoq", map[string]string{
+	archivePath := writeTestArchive(t, map[string]string{
 		"release.yaml": manifest,
 		"src/app.yaml": "name: my-app\n",
 	}, []string{"release.yaml", "src/app.yaml"})
@@ -77,7 +78,7 @@ func TestReadReleaseInfoNotAReleaseArchive(t *testing.T) {
 }
 
 func TestReadReleaseInfoWrongExtension(t *testing.T) {
-	archivePath := writeTestArchive(t, "my-app-1.0.0-unoq", map[string]string{
+	archivePath := writeTestArchive(t, map[string]string{
 		"release.yaml": "schema: 1\nname: my-app\ntarget: unoq\n",
 	}, []string{"release.yaml"})
 	renamed := archivePath.Parent().Join("my-app-1.0.0-unoq.tar.gz")
@@ -88,7 +89,7 @@ func TestReadReleaseInfoWrongExtension(t *testing.T) {
 }
 
 func TestReadReleaseInfoNoManifest(t *testing.T) {
-	archivePath := writeTestArchive(t, "my-app-1.0.0-unoq", map[string]string{
+	archivePath := writeTestArchive(t, map[string]string{
 		"src/app.yaml": "name: my-app\n",
 	}, []string{"src/app.yaml"})
 
@@ -97,7 +98,7 @@ func TestReadReleaseInfoNoManifest(t *testing.T) {
 }
 
 func TestReadReleaseInfoIncompleteManifest(t *testing.T) {
-	archivePath := writeTestArchive(t, "my-app-1.0.0-unoq", map[string]string{
+	archivePath := writeTestArchive(t, map[string]string{
 		"release.yaml": "schema: 1\n",
 	}, []string{"release.yaml"})
 
