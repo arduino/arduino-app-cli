@@ -101,6 +101,14 @@ func TestSelectBestVersion(t *testing.T) {
 			expectedVer: "1.2.0-rc.3",
 			expectNil:   false,
 		},
+		{
+			name:        "Excludes the pre-releases of the excluded major (<2.0.0-0)",
+			available:   []string{"1.9.0", "2.0.0-rc.1", "2.0.0"},
+			installed:   "1.0.0",
+			constraint:  "<2.0.0-0",
+			expectedVer: "1.9.0",
+			expectNil:   false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
