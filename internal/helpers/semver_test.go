@@ -3,13 +3,12 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package arduino
+package helpers
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
 	semver "go.bug.st/relaxed-semver"
 )
 
@@ -111,7 +110,7 @@ func TestSelectBestVersion(t *testing.T) {
 			constraint, err := semver.ParseConstraint(tt.constraint)
 			require.NoError(t, err, "Setup: failed to parse constraint")
 
-			got := selectBestVersion(tt.available, installedV, constraint)
+			got := SelectBestVersion(tt.available, installedV, constraint)
 
 			if tt.expectNil {
 				require.Nil(t, got, "Expected result to be nil")

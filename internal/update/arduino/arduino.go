@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"slices"
 	"sync"
 
 	"github.com/arduino/arduino-cli/commands"
@@ -113,7 +112,7 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ f
 		availableReleases = append(availableReleases, k)
 	}
 
-	bestVersion := selectBestVersion(availableReleases, installedV, a.constraint)
+	bestVersion := helpers.SelectBestVersion(availableReleases, installedV, a.constraint)
 
 	if bestVersion == nil {
 		return []update.UpgradablePackage{}, nil
@@ -129,36 +128,6 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ f
 		FromVersion: platformSummary.GetInstalledVersion(),
 		ToVersion:   bestVersion.String(),
 	}}, nil
-}
-
-func selectBestVersion(available []string, installed *semver.Version, constraint semver.Constraint) *semver.Version {
-	candidates := make([]*semver.Version, 0, len(available))
-
-	for _, verStr := range available {
-		v, err := semver.Parse(verStr)
-		if err != nil {
-			continue
-		}
-
-		if !constraint.Match(v) {
-			continue
-		}
-		if installed != nil && v.LessThan(installed) {
-			continue
-		}
-
-		candidates = append(candidates, v)
-	}
-
-	if len(candidates) == 0 {
-		return nil
-	}
-
-	slices.SortFunc(candidates, func(a, b *semver.Version) int {
-		return a.CompareTo(b)
-	})
-
-	return candidates[len(candidates)-1]
 }
 
 // UpgradePackages implements ServiceUpdater.
