@@ -548,7 +548,7 @@ The client will receive events formatted as follows:
 **Event 'progress'**:
 Contains a JSON object with the percentage of completion.
 'event: progress'
-'data: {"progress":0.25}'
+'data: {"name":"containers","progress":25}'
 
 **Event 'message'**:
 Contains a JSON object with an informational message.
