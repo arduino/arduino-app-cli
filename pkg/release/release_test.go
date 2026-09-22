@@ -82,7 +82,7 @@ func TestReadReleaseInfoNoManifest(t *testing.T) {
 	}, []string{"src/app.yaml"})
 
 	_, err := ReadReleaseInfo(archivePath)
-	assert.ErrorContains(t, err, "carries no release manifest")
+	assert.ErrorContains(t, err, "no release manifest")
 }
 
 func TestReadReleaseInfoIncompleteManifest(t *testing.T) {
