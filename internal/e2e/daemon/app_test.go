@@ -125,9 +125,12 @@ func TestCreateApp(t *testing.T) {
 			parameters: client.CreateAppParams{
 				SkipSketch: new(false),
 			},
-			body:                 defaultRequestBody,
-			expectedStatusCode:   http.StatusConflict,
-			expectedErrorDetails: new("app already exists"),
+			body:               defaultRequestBody,
+			expectedStatusCode: http.StatusConflict,
+			expectedErrorDetails: new(
+				`app already exists with id: "` +
+					base64.RawURLEncoding.EncodeToString([]byte("user:helloworld")) + `"`,
+			),
 		},
 		{
 			name: "should return 201 Created on successful creation with skip_sketch",
