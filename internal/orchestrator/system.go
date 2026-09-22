@@ -21,7 +21,7 @@ import (
 	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
-	dockerClient "github.com/moby/moby/client"
+	"github.com/moby/moby/api/types/container"
 	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
 
@@ -235,6 +235,13 @@ func (s SystemCleanupResult) IsEmpty() bool {
 func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex, docker command.Cli, platform platform.Platform) (SystemCleanupResult, error) {
 	var result SystemCleanupResult
 
+	// Read before anything removes the containers: they tell which network is ours.
+	appContainers, err := dockerhelper.Containers(ctx, docker.Client(), DockerAppLabel+"=true")
+	if err != nil {
+		feedback.Warnf("failed to list the app containers - %v", err)
+	}
+	removeNetwork := ourNetworks(appContainers)
+
 	// Remove running app
 	runningApp, err := getRunningApp(ctx, docker.Client())
 	if err != nil {
@@ -255,11 +262,12 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 	} else {
 		result.ContainersRemoved = count
 	}
-	if count, err := pruneAppNetworks(ctx, docker.Client()); err != nil {
+	// The count holds even when a network resists, so it is read before the error.
+	count, err := dockerhelper.PruneNetworks(ctx, docker.Client(), removeNetwork)
+	if err != nil {
 		feedback.Warnf("failed to remove dangling networks - %v", err)
-	} else {
-		result.NetworksRemoved = count
 	}
+	result.NetworksRemoved = count
 
 	// Remove unused images
 	imagesMustStay, err := getRequiredImages(cfg, bricksindex, servicesindex, modelsIndex)
@@ -497,19 +505,20 @@ func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, platf
 // composeProjectLabel names the project a container or a network belongs to.
 const composeProjectLabel = "com.docker.compose.project"
 
-// pruneAppNetworks removes the networks of our apps, which cost a subnet each. The
-// label reaches a network only from this version on, so the containers state the rest.
-func pruneAppNetworks(ctx context.Context, docker dockerClient.APIClient) (int, error) {
-	containers, err := dockerhelper.Containers(ctx, docker, DockerAppLabel+"=true")
-	if err != nil {
-		return 0, err
-	}
-	ours := map[string]bool{}
+// ourNetworks says which networks are ours, which cost a subnet each. The label
+// reaches a network only from this version on, so an older one is ours through the
+// compose project of the containers, which the caller reads before they go.
+func ourNetworks(containers []container.Summary) func(labels map[string]string) bool {
+	projects := map[string]bool{}
 	for _, info := range containers {
-		ours[info.Labels[composeProjectLabel]] = true
+		// A container outside compose has no project: an empty key would take every
+		// network that carries none either.
+		if project := info.Labels[composeProjectLabel]; project != "" {
+			projects[project] = true
+		}
 	}
 
-	return dockerhelper.PruneNetworks(ctx, docker, func(labels map[string]string) bool {
-		return labels[DockerAppLabel] == "true" || ours[labels[composeProjectLabel]]
-	})
+	return func(labels map[string]string) bool {
+		return labels[DockerAppLabel] == "true" || projects[labels[composeProjectLabel]]
+	}
 }

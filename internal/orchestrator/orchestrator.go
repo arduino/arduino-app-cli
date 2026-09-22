@@ -245,7 +245,11 @@ func StartApp(
 			// The board is likely out of subnets, so the apps give up the networks
 			// they keep, and this app is started once more.
 			cb(StreamMessage{data: "Could not create the network, freeing the ones the apps keep"})
-			freed, pruneErr := pruneAppNetworks(ctx, docker.Client())
+			appContainers, pruneErr := dockerhelper.Containers(ctx, docker.Client(), DockerAppLabel+"=true")
+			if pruneErr != nil {
+				slog.Warn("failed to list the app containers", slog.String("error", pruneErr.Error()))
+			}
+			freed, pruneErr := dockerhelper.PruneNetworks(ctx, docker.Client(), ourNetworks(appContainers))
 			if pruneErr != nil {
 				slog.Warn("failed to free the networks of the apps", slog.String("error", pruneErr.Error()))
 			}
