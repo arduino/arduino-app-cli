@@ -21,6 +21,7 @@ import (
 	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
+	"github.com/moby/moby/api/types/container"
 	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
 
@@ -234,6 +235,13 @@ func (s SystemCleanupResult) IsEmpty() bool {
 func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex, docker command.Cli, platform platform.Platform) (SystemCleanupResult, error) {
 	var result SystemCleanupResult
 
+	// Read before anything removes the containers: they tell which network is ours.
+	appContainers, err := dockerhelper.Containers(ctx, docker.Client(), DockerAppLabel+"=true")
+	if err != nil {
+		feedback.Warnf("failed to list the app containers - %v", err)
+	}
+	removeNetwork := ourNetworks(appContainers)
+
 	// Remove running app
 	runningApp, err := getRunningApp(ctx, docker.Client())
 	if err != nil {
@@ -254,15 +262,12 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 	} else {
 		result.ContainersRemoved = count
 	}
-	// A project of ours is a slug of the path of an app, which the label states.
-	const composeProjectLabel = "com.docker.compose.project"
-	if count, err := dockerhelper.PruneNetworks(ctx, docker.Client(), composeProjectLabel, func(labels map[string]string) bool {
-		return strings.Contains(labels[composeProjectLabel], "arduino-app-cli")
-	}); err != nil {
+	// A network that resists does not cancel the others: the count is read anyway.
+	count, err := dockerhelper.PruneNetworks(ctx, docker.Client(), removeNetwork)
+	if err != nil {
 		feedback.Warnf("failed to remove dangling networks - %v", err)
-	} else {
-		result.NetworksRemoved = count
 	}
+	result.NetworksRemoved = count
 
 	// Remove unused images
 	imagesMustStay, err := getRequiredImages(cfg, bricksindex, servicesindex, modelsIndex)
@@ -498,4 +503,24 @@ func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, platf
 	}
 
 	return nil
+}
+
+// composeProjectLabel names the project a container or a network belongs to.
+const composeProjectLabel = "com.docker.compose.project"
+
+// ourNetworks tells the networks of our apps, which cost a subnet each. The label
+// reaches a network only from this version on: an older one is ours by the compose
+// project of the containers, which the caller reads before they go.
+func ourNetworks(containers []container.Summary) func(labels map[string]string) bool {
+	projects := map[string]bool{}
+	for _, info := range containers {
+		// An empty key would take every network that carries no project either.
+		if project := info.Labels[composeProjectLabel]; project != "" {
+			projects[project] = true
+		}
+	}
+
+	return func(labels map[string]string) bool {
+		return labels[DockerAppLabel] == "true" || projects[labels[composeProjectLabel]]
+	}
 }

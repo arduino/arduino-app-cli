@@ -8,6 +8,7 @@ package orchestrator
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -255,7 +256,24 @@ func StartApp(
 		}
 
 		slog.Debug("starting app", slog.String("project", prj.Name))
-		if err := dockerhelper.ComposeUp(ctx, docker, prj, func(line string) { cb(StreamMessage{data: line}) }); err != nil {
+		line := func(line string) { cb(StreamMessage{data: line}) }
+		err = dockerhelper.ComposeUp(ctx, docker, prj, line)
+		if errors.Is(err, dockerhelper.ErrNetwork) {
+			// The board is likely out of subnets: the apps give up the networks they
+			// keep, and this app is started once more.
+			cb(StreamMessage{data: "Could not create the network, freeing the ones the apps keep"})
+			appContainers, pruneErr := dockerhelper.Containers(ctx, docker.Client(), DockerAppLabel+"=true")
+			if pruneErr != nil {
+				slog.Warn("failed to list the app containers", slog.String("error", pruneErr.Error()))
+			}
+			freed, pruneErr := dockerhelper.PruneNetworks(ctx, docker.Client(), ourNetworks(appContainers))
+			if pruneErr != nil {
+				slog.Warn("failed to free the networks of the apps", slog.String("error", pruneErr.Error()))
+			}
+			slog.Debug("freed app networks", slog.Int("count", freed))
+			err = dockerhelper.ComposeUp(ctx, docker, prj, line)
+		}
+		if err != nil {
 			return err
 		}
 	}
