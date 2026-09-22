@@ -204,6 +204,8 @@ type AppInfo struct {
 	Icon        *string `json:"icon,omitempty"`
 	Id          *string `json:"id,omitempty"`
 	Name        *string `json:"name,omitempty"`
+	Release     *bool   `json:"release,omitempty"`
+	ReleaseId   *string `json:"release_id,omitempty"`
 
 	// Status Application status
 	Status *Status `json:"status,omitempty"`
@@ -585,7 +587,7 @@ type Unauthorized = ErrorResponse
 
 // GetAppsParams defines parameters for GetApps.
 type GetAppsParams struct {
-	// Filter Filters apps by apps,examples,default
+	// Filter Filters apps by apps,examples,releases,default
 	Filter *string `form:"filter,omitempty" json:"filter,omitempty"`
 
 	// Status Filters applications by status
@@ -612,11 +614,17 @@ type ImportAppParams struct {
 
 // BuildAppJSONBody defines parameters for BuildApp.
 type BuildAppJSONBody struct {
+	// BuildId Optional build identifier. When set, the progress events published to the app build events stream are tagged with it, so a client can filter the stream down to this build.
+	BuildId *string `json:"build_id,omitempty"`
+
 	// IncludeData IncludeData ships the data folder of the app, at the root of the archive.
 	IncludeData *bool `json:"include_data,omitempty"`
 
 	// Notes Notes is the release note, markdown, and goes in the manifest as it is given.
 	Notes *string `json:"notes,omitempty"`
+
+	// ReleaseLabel ReleaseLabel is an optional label the user attaches to the release. It is stored in the manifest as it is given.
+	ReleaseLabel *string `json:"release_label,omitempty"`
 
 	// Target Target defaults to the board running the build.
 	Target *string `json:"target,omitempty"`
@@ -874,6 +882,9 @@ type ClientInterface interface {
 	BuildAppWithBody(ctx context.Context, appID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	BuildApp(ctx context.Context, appID string, body BuildAppJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// BuildAppEvents request
+	BuildAppEvents(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAppPorts request
 	GetAppPorts(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1203,6 +1214,18 @@ func (c *Client) BuildAppWithBody(ctx context.Context, appID string, contentType
 
 func (c *Client) BuildApp(ctx context.Context, appID string, body BuildAppJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewBuildAppRequest(c.Server, appID, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) BuildAppEvents(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewBuildAppEventsRequest(c.Server, appID)
 	if err != nil {
 		return nil, err
 	}
@@ -2264,6 +2287,40 @@ func NewBuildAppRequestWithBody(server string, appID string, contentType string,
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewBuildAppEventsRequest generates requests for BuildAppEvents
+func NewBuildAppEventsRequest(server string, appID string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "appID", appID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/apps/%s/build/events", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -3845,6 +3902,9 @@ type ClientWithResponsesInterface interface {
 
 	BuildAppWithResponse(ctx context.Context, appID string, body BuildAppJSONRequestBody, reqEditors ...RequestEditorFn) (*BuildAppResp, error)
 
+	// BuildAppEventsWithResponse request
+	BuildAppEventsWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*BuildAppEventsResp, error)
+
 	// GetAppPortsWithResponse request
 	GetAppPortsWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*GetAppPortsResp, error)
 
@@ -4341,6 +4401,37 @@ func (r BuildAppResp) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r BuildAppResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type BuildAppEventsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON412      *PreconditionFailed
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r BuildAppEventsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r BuildAppEventsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r BuildAppEventsResp) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -5567,6 +5658,15 @@ func (c *ClientWithResponses) BuildAppWithResponse(ctx context.Context, appID st
 	return ParseBuildAppResp(rsp)
 }
 
+// BuildAppEventsWithResponse request returning *BuildAppEventsResp
+func (c *ClientWithResponses) BuildAppEventsWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*BuildAppEventsResp, error) {
+	rsp, err := c.BuildAppEvents(ctx, appID, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseBuildAppEventsResp(rsp)
+}
+
 // GetAppPortsWithResponse request returning *GetAppPortsResp
 func (c *ClientWithResponses) GetAppPortsWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*GetAppPortsResp, error) {
 	rsp, err := c.GetAppPorts(ctx, appID, reqEditors...)
@@ -6403,6 +6503,39 @@ func ParseBuildAppResp(rsp *http.Response) (*BuildAppResp, error) {
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseBuildAppEventsResp parses an HTTP response from a BuildAppEventsWithResponse call
+func ParseBuildAppEventsResp(rsp *http.Response) (*BuildAppEventsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &BuildAppEventsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
 		var dest PreconditionFailed
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
