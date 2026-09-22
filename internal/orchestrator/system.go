@@ -426,16 +426,20 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 		}
 		if version == "" {
 			eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceArduino, Message: fmt.Sprintf(
-				"installed zephyr platform already satisfies the version constraint '%s', skipping install", cfg.ArduinoPlatformVersionConstraint)})
+				"installed %s platform already satisfies the version constraint '%s', skipping install", platform.PlatformID, cfg.ArduinoPlatformVersionConstraint)})
 		} else {
+			platformPackage, architecture, err := platform.PackageAndArchitecture()
+			if err != nil {
+				return err
+			}
 			str := commands.PlatformInstallStreamResponseToCallbackFunction(ctx, downloadProgressCB, func(msg *rpc.TaskProgress) {})
 			if err := cli.PlatformInstall(&rpc.PlatformInstallRequest{
 				Instance:        cliInstance,
-				PlatformPackage: "arduino",
-				Architecture:    "zephyr",
+				PlatformPackage: platformPackage,
+				Architecture:    architecture,
 				Version:         version,
 			}, str); err != nil {
-				return fmt.Errorf("could not install zephyr platform %s: %w", version, err)
+				return fmt.Errorf("could not install %s platform %s: %w", platform.PlatformID, version, err)
 			}
 		}
 	}

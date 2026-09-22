@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/arduino/go-paths-helper"
 
@@ -122,6 +123,16 @@ func GetPlatform(dir *paths.Path) Platform {
 
 func (p Platform) GetMicro() micro.Micro {
 	return micro.New(micro.GpioPin(p.Micro.ResetPin))
+}
+
+// PackageAndArchitecture splits the PlatformID, in the form '<package>:<architecture>'.
+// This is used when installing the platform with the Arduino CLI (that wants them separate).
+func (p Platform) PackageAndArchitecture() (string, string, error) {
+	pkg, architecture, found := strings.Cut(p.PlatformID, ":")
+	if !found || pkg == "" || architecture == "" {
+		return "", "", fmt.Errorf("invalid platform id '%s': expected the form '<package>:<architecture>'", p.PlatformID)
+	}
+	return pkg, architecture, nil
 }
 
 func (p Platform) SupportFlashToRam() bool {

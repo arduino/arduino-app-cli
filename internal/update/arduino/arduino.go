@@ -158,6 +158,10 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 	if !a.constraint.Match(parsedTargetVersion) {
 		return fmt.Errorf("target version '%s' of package '%s' does not satisfy the version constraint '%s'", targetVersion, pkg.Name, a.constraint)
 	}
+	platformPackage, architecture, err := a.platform.PackageAndArchitecture()
+	if err != nil {
+		return err
+	}
 
 	// Progress is reported on a local 0-100 scale: the Manager rescales it to the
 	// slice of the whole update process this updater is responsible for.
@@ -218,8 +222,8 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 	if err := srv.PlatformInstall(
 		&rpc.PlatformInstallRequest{
 			Instance:        inst,
-			PlatformPackage: "arduino",
-			Architecture:    "zephyr",
+			PlatformPackage: platformPackage,
+			Architecture:    architecture,
 			Version:         targetVersion,
 		},
 		stream,
