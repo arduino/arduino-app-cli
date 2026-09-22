@@ -42,8 +42,8 @@ func PruneContainers(ctx context.Context, docker dockerClient.APIClient, label s
 	return pruned, nil
 }
 
-// PruneNetworks removes every network remove says yes to, reading the labels of it,
-// and reports how many.
+// PruneNetworks removes every network remove accepts, by its labels, and reports how
+// many went.
 func PruneNetworks(ctx context.Context, docker dockerClient.APIClient, remove func(labels map[string]string) bool) (int, error) {
 	networks, err := docker.NetworkList(ctx, dockerClient.NetworkListOptions{})
 	if err != nil {

@@ -242,8 +242,8 @@ func StartApp(
 		line := func(line string) { cb(StreamMessage{data: line}) }
 		err = dockerhelper.ComposeUp(ctx, docker, prj, line)
 		if errors.Is(err, dockerhelper.ErrNetwork) {
-			// The board is likely out of subnets, so the apps give up the networks
-			// they keep, and this app is started once more.
+			// The board is likely out of subnets: the apps give up the networks they
+			// keep, and this app is started once more.
 			cb(StreamMessage{data: "Could not create the network, freeing the ones the apps keep"})
 			appContainers, pruneErr := dockerhelper.Containers(ctx, docker.Client(), DockerAppLabel+"=true")
 			if pruneErr != nil {

@@ -150,8 +150,8 @@ func generateComposeTemplate(
 		Networks map[string]any `yaml:"networks,omitempty"`
 	}
 
-	// The network of the app carries the labels of its containers: a cleanup has to
-	// find it back once the containers are gone.
+	// The network carries the labels of its containers: a cleanup finds it once they
+	// are gone.
 	mainAppCompose.Networks = map[string]any{"default": map[string]any{
 		"labels": map[string]string{
 			DockerAppLabel:     "true",

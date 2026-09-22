@@ -262,7 +262,7 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 	} else {
 		result.ContainersRemoved = count
 	}
-	// The count holds even when a network resists, so it is read before the error.
+	// A network that resists does not cancel the others: the count is read anyway.
 	count, err := dockerhelper.PruneNetworks(ctx, docker.Client(), removeNetwork)
 	if err != nil {
 		feedback.Warnf("failed to remove dangling networks - %v", err)
@@ -505,14 +505,13 @@ func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, platf
 // composeProjectLabel names the project a container or a network belongs to.
 const composeProjectLabel = "com.docker.compose.project"
 
-// ourNetworks says which networks are ours, which cost a subnet each. The label
-// reaches a network only from this version on, so an older one is ours through the
-// compose project of the containers, which the caller reads before they go.
+// ourNetworks tells the networks of our apps, which cost a subnet each. The label
+// reaches a network only from this version on: an older one is ours by the compose
+// project of the containers, which the caller reads before they go.
 func ourNetworks(containers []container.Summary) func(labels map[string]string) bool {
 	projects := map[string]bool{}
 	for _, info := range containers {
-		// A container outside compose has no project: an empty key would take every
-		// network that carries none either.
+		// An empty key would take every network that carries no project either.
 		if project := info.Labels[composeProjectLabel]; project != "" {
 			projects[project] = true
 		}

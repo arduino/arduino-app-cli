@@ -54,8 +54,8 @@ func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line
 	return err
 }
 
-// ErrNetwork states that the network of the app was not created. The daemon words a
-// pool with no subnet left in its own way, so the event says it, not the message.
+// ErrNetwork states that the network of the app was not created. A pool with no
+// subnet left is one of the reasons, worded by the daemon.
 var ErrNetwork = errors.New("failed to create the network of the app")
 
 // ComposeStop leaves the containers of the app where they are, stopped.
