@@ -62,7 +62,7 @@ func HandleAppCreate(
 			switch {
 			case errors.Is(err, orchestrator.ErrAppAlreadyExists):
 				slog.Error("app already exists", slog.String("error", err.Error()))
-				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: "app already exists"})
+				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: err.Error()})
 
 			case errors.Is(err, app.ErrInvalidApp):
 				slog.Error("invalid app data", slog.String("error", err.Error()))

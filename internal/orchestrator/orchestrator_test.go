@@ -32,6 +32,18 @@ import (
 
 var unoQPlatform = platform.Platform{BoardName: "unoq"}
 
+func TestCreateAppAlreadyExisting(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
+
+	existingApp, err := CreateApp(CreateAppRequest{Name: "existing-app"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+	require.NoError(t, err)
+
+	_, err = CreateApp(CreateAppRequest{Name: "existing-app"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+	require.ErrorIs(t, err, ErrAppAlreadyExists)
+	require.Contains(t, err.Error(), existingApp.ID.String())
+}
+
 func TestCloneApp(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)

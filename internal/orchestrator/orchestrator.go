@@ -748,7 +748,11 @@ func CreateApp(
 
 	basePath, appExists := findAppPathByName(req.Name, cfg)
 	if appExists {
-		return CreateAppResponse{}, ErrAppAlreadyExists
+		existingID, err := idProvider.IDFromPath(basePath)
+		if err != nil {
+			return CreateAppResponse{}, ErrAppAlreadyExists
+		}
+		return CreateAppResponse{}, fmt.Errorf("%w with id: %q", ErrAppAlreadyExists, existingID)
 	}
 	appName := req.Name
 	newApp := app.AppDescriptor{
