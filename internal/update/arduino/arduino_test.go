@@ -24,7 +24,7 @@ func TestUpgradePackagesRejectsInvalidTargets(t *testing.T) {
 	}{
 		{
 			name:        "Version outside the constraint",
-			pkg:         update.PackageInfo{Name: "arduino:zephyr", ToVersion: "1.2.0"},
+			pkg:         update.PackageInfo{Name: "arduino:zephyr", ToVersion: "2.2.0"},
 			expectedErr: "does not satisfy the version constraint",
 		},
 		{
@@ -44,7 +44,7 @@ func TestUpgradePackagesRejectsInvalidTargets(t *testing.T) {
 		},
 	}
 
-	constraint, err := semver.ParseConstraint("<1.0.0")
+	constraint, err := semver.ParseConstraint("<2.0.0")
 	require.NoError(t, err, "Setup: failed to parse constraint")
 
 	for _, tt := range tests {
