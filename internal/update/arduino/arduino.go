@@ -149,6 +149,15 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 	if targetVersion == "" {
 		return fmt.Errorf("target version is empty for package '%s'", pkg.Name)
 	}
+	// The constraint is enforced again here: the version comes from the caller, and
+	// the list it was taken from may have been produced under a different one.
+	parsedTargetVersion, err := semver.Parse(targetVersion)
+	if err != nil {
+		return fmt.Errorf("invalid target version '%s' for package '%s': %w", targetVersion, pkg.Name, err)
+	}
+	if !a.constraint.Match(parsedTargetVersion) {
+		return fmt.Errorf("target version '%s' of package '%s' does not satisfy the version constraint '%s'", targetVersion, pkg.Name, a.constraint)
+	}
 
 	// Progress is reported on a local 0-100 scale: the Manager rescales it to the
 	// slice of the whole update process this updater is responsible for.
@@ -223,7 +232,7 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 	})
 
 	eventCB(update.NewProgressEvent("burn bootloader", bootloaderProgress))
-	err := srv.BurnBootloader(
+	err = srv.BurnBootloader(
 		&rpc.BurnBootloaderRequest{
 			Instance:   inst,
 			Fqbn:       a.platform.FQBN,
