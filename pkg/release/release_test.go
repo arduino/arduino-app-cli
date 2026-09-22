@@ -76,6 +76,17 @@ func TestReadReleaseInfoNotAReleaseArchive(t *testing.T) {
 	assert.ErrorContains(t, err, "is not a release archive")
 }
 
+func TestReadReleaseInfoWrongExtension(t *testing.T) {
+	archivePath := writeTestArchive(t, "my-app-1.0.0-unoq", map[string]string{
+		"release.yaml": "schema: 1\nname: my-app\ntarget: unoq\n",
+	}, []string{"release.yaml"})
+	renamed := archivePath.Parent().Join("my-app-1.0.0-unoq.tar.gz")
+	require.NoError(t, archivePath.Rename(renamed))
+
+	_, err := ReadReleaseInfo(renamed)
+	assert.ErrorContains(t, err, "is not a release archive")
+}
+
 func TestReadReleaseInfoNoManifest(t *testing.T) {
 	archivePath := writeTestArchive(t, "my-app-1.0.0-unoq", map[string]string{
 		"src/app.yaml": "name: my-app\n",

@@ -23,6 +23,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
 
+	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 )
 
@@ -30,17 +31,23 @@ import (
 type ReleaseInfo struct {
 	Schema int    `yaml:"schema"`
 	Name   string `yaml:"name"`
-	// Target is the board the release is built for.
 	Target string `yaml:"target"`
 	// CreatedAt is when the build ran, UTC.
 	CreatedAt time.Time `yaml:"created_at"`
 	// Notes is the release note value, if present.
-	Notes string `yaml:"notes,omitempty"`
+	Notes     string                      `yaml:"notes,omitempty"`
+	Bricks    []orchestrator.ReleaseBrick `yaml:"bricks,omitempty"`
+	Models    []orchestrator.ReleaseModel `yaml:"models,omitempty"`
+	Libraries []string                    `yaml:"libraries,omitempty"`
 }
 
 // ReadReleaseInfo reads the release file extracting and
 // stops once the release.yaml file is found
 func ReadReleaseInfo(archive *paths.Path) (ReleaseInfo, error) {
+	if ext := archive.Ext(); ext != orchestrator.ReleaseArchiveExt {
+		return ReleaseInfo{}, fmt.Errorf("%s is not a release archive: expected %q", archive.Base(), orchestrator.ReleaseArchiveExt)
+	}
+
 	file, err := archive.Open()
 	if err != nil {
 		return ReleaseInfo{}, fmt.Errorf("cannot open %s: %w", archive, err)
