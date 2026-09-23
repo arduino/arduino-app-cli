@@ -419,8 +419,7 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 
 		// Only a missing platform is installed here, and its version is pinned to the
 		// configured constraint. An already installed one is left as it is: upgrading
-		// it is the job of `system update`, which ends with a `system init`, so an
-		// install here would replace the version the update has just chosen.
+		// it is the job of `system update`.
 		version, installedVersion, err := platformVersionToInstall(ctx, cli, cliInstance, platform.PlatformID, cfg.ArduinoPlatformVersionConstraint)
 		if err != nil {
 			return err
