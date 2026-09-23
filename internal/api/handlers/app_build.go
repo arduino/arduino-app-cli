@@ -84,8 +84,6 @@ func HandleAppBuild(
 			return
 		}
 
-		defer r.Body.Close()
-
 		var buildReq buildRequest
 			if err := json.Unmarshal(r.Body, &buildReq); err != nil {
 				slog.Error("unable to decode app build request", slog.String("error", err.Error()))
