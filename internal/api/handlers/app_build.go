@@ -184,7 +184,3 @@ func HandleAppBuildEvents(broker *releasebuild.EventBroker) http.HandlerFunc {
 		}
 	}
 }
-
-func buildArtifactsDir() *paths.Path {
-	return paths.New(os.TempDir(), "build-artifacts")
-}
