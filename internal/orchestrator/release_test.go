@@ -288,7 +288,7 @@ func TestReleaseArchivePath(t *testing.T) {
 	})
 
 	t.Run("an output file is the archive", func(t *testing.T) {
-		wanted := outputDir.Join("named.arduinoapp")
+		wanted := outputDir.Join("named" + ReleaseArchiveExt)
 		archivePath, err := releaseArchivePath("my-app-1.0.0-unoq", BuildReleaseRequest{Output: wanted})
 		require.NoError(t, err)
 		assert.Equal(t, wanted.String(), archivePath.String())

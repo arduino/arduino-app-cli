@@ -359,7 +359,7 @@ func releaseLibraries(ctx context.Context, arduinoApp app.ArduinoApp) []string {
 }
 
 // A gzipped tar and not a zip: the venv needs symlinks and exec bits preserved.
-const ReleaseArchiveExt = ".arduinoapp"
+const ReleaseArchiveExt = ".ard"
 
 // targetIndexes are the indexes of the board the release is built for: which bricks and
 // services exist, and which compose variant they use, depend on it.
