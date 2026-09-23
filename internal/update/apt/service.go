@@ -23,6 +23,7 @@ import (
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/sudo"
 	"github.com/arduino/arduino-app-cli/internal/update"
 )
 
@@ -162,14 +163,10 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 	return nil
 }
 
-// debianFrontend keeps debconf away from the terminal. sudo gives every command a
-// pty, so dpkg-preconfigure would open /dev/tty and wait there for ever.
-const debianFrontend = "DEBIAN_FRONTEND=noninteractive"
-
 // runDpkgConfigureCommand is need in case an upgrade was interrupted in the middle
 // and the dpkg database is in an inconsistent state.
 func runDpkgConfigureCommand(ctx context.Context) error {
-	cmd, err := paths.NewProcess([]string{debianFrontend}, "sudo", "dpkg", "--configure", "-a")
+	cmd, err := sudo.DpkgConfigure.Process()
 	if err != nil {
 		return err
 	}
@@ -180,7 +177,7 @@ func runDpkgConfigureCommand(ctx context.Context) error {
 }
 
 func runUpdateCommand(ctx context.Context) error {
-	cmd, err := paths.NewProcess([]string{debianFrontend}, "sudo", "apt-get", "update")
+	cmd, err := sudo.AptUpdate.Process()
 	if err != nil {
 		return err
 	}
@@ -193,7 +190,7 @@ func runUpdateCommand(ctx context.Context) error {
 // checkAptLockHeld probes whether the dpkg lock is held by another process
 // by running an apt-get install for a package that does not exist.
 func checkAptLockHeld(ctx context.Context) error {
-	cmd, err := paths.NewProcess([]string{debianFrontend}, "sudo", "apt-get", "install", "--assume-no", "non-existent-package-probe")
+	cmd, err := sudo.AptLockProbe.Process()
 	if err != nil {
 		return err
 	}
@@ -213,8 +210,6 @@ func checkAptLockHeld(ctx context.Context) error {
 }
 
 func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, error] {
-	env := []string{debianFrontend, "NEEDRESTART_MODE=a"}
-
 	aptOptions := []string{
 		"-o", "Acquire::Retries=3",
 		"-o", "Acquire::http::Timeout=30",
@@ -223,15 +218,15 @@ func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, er
 		"-o", "Dpkg::Options::=--force-confdef",
 		"-o", "Dpkg::Options::=--force-confold",
 	}
-	args := make([]string, 0, 7+len(aptOptions)+len(names))
 	// We allow downgrades because sometimes we need to force a specific patched version of a package.
 	// Nothing is ever removed: every listed package installs on its own, so a removal means the plan changed.
-	args = append(args, "sudo", "apt-get", "install", "--only-upgrade", "-y", "--allow-downgrades", "--no-remove")
+	args := make([]string, 0, 2+len(aptOptions)+len(names))
+	args = append(args, "--allow-downgrades", "--no-remove")
 	args = append(args, aptOptions...)
 	args = append(args, names...)
 
 	return func(yield func(string, error) bool) {
-		cmd, err := paths.NewProcess(env, args...)
+		cmd, err := sudo.AptUpgrade.Process(args...)
 		if err != nil {
 			_ = yield("", err)
 			return
@@ -257,7 +252,7 @@ func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, er
 
 func runAptCleanCommand(ctx context.Context) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
-		cmd, err := paths.NewProcess([]string{debianFrontend}, "sudo", "apt-get", "clean", "-y")
+		cmd, err := sudo.AptClean.Process()
 		if err != nil {
 			_ = yield("", err)
 			return
