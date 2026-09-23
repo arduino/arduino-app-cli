@@ -248,8 +248,11 @@ func TestEditApp(t *testing.T) {
 			appDir := cfg.AppsDir().Join(appName)
 			emptySlugApp := f.Must(app.Load(appDir))
 
-			err = EditApp(AppEditRequest{Name: new("$$$")}, &emptySlugApp, cfg)
+			err = EditApp(AppEditRequest{Name: new("$$$"), Default: new(true)}, &emptySlugApp, cfg)
 			require.ErrorIs(t, err, app.ErrInvalidApp)
+			defaultApp, err := GetDefaultApp(cfg)
+			require.NoError(t, err)
+			require.Nil(t, defaultApp) // A rejected edit must not set the default app
 			require.Equal(t, appDir.String(), emptySlugApp.FullPath.String())
 			require.True(t, cfg.AppsDir().Join("-1").NotExist())
 			editedApp, err := app.Load(appDir)

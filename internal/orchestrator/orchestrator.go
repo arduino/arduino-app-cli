@@ -963,6 +963,10 @@ func EditApp(
 	editApp *app.ArduinoApp,
 	cfg config.Configuration,
 ) (editErr error) {
+	if req.Name != nil && slug.Make(*req.Name) == "" {
+		return fmt.Errorf("%w: invalid app name %q", app.ErrInvalidApp, *req.Name)
+	}
+
 	// The default app is stored beside the apps and not in one, so it is the one edit
 	// an installed release takes.
 	if req.Default != nil {
@@ -995,11 +999,7 @@ func EditApp(
 	}
 
 	if req.Name != nil {
-		folderName := slug.Make(*req.Name)
-		if folderName == "" {
-			return fmt.Errorf("%w: invalid app name %q", app.ErrInvalidApp, *req.Name)
-		}
-		newPath, err := findRenamePath(editable.FullPath, folderName)
+		newPath, err := findRenamePath(editable.FullPath, slug.Make(*req.Name))
 		if err != nil {
 			return err
 		}
