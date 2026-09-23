@@ -132,7 +132,8 @@ func NewFromEnv() (Configuration, error) {
 		return Configuration{}, fmt.Errorf("invalid LIBRARIES_API_URL: %w", err)
 	}
 
-	constraintStr := cmp.Or(os.Getenv("ARDUINO_APP_CLI__PLATFORM_VERSION_CONSTRAINT"), "<1.0.0")
+	// The '-0' suffix keeps the pre-releases of 2.0.0 out: otherwise '2.0.0-rc.1' would be an accepted version.
+	constraintStr := cmp.Or(os.Getenv("ARDUINO_APP_CLI__PLATFORM_VERSION_CONSTRAINT"), "<2.0.0-0")
 
 	edgeImpulseAPIURL := os.Getenv("EDGE_IMPULSE_API_URL")
 	if edgeImpulseAPIURL == "" {

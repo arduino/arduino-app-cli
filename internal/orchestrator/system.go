@@ -24,6 +24,7 @@ import (
 	"github.com/moby/moby/api/types/container"
 	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
+	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
@@ -410,7 +411,7 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 		}
 	}
 
-	// Install zephyr platform
+	// Install the platform, if it is missing
 	{
 		if err := cli.Init(&rpc.InitRequest{Instance: cliInstance}, commands.InitStreamResponseToCallbackFunction(ctx, func(r *rpc.InitResponse) error {
 			if p := r.GetInitProgress().GetDownloadProgress(); p != nil {
@@ -421,13 +422,30 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 			return fmt.Errorf("could not initialize Arduino Core Server: %w", err)
 		}
 
-		str := commands.PlatformInstallStreamResponseToCallbackFunction(ctx, downloadProgressCB, func(msg *rpc.TaskProgress) {})
-		if err := cli.PlatformInstall(&rpc.PlatformInstallRequest{
-			Instance:        cliInstance,
-			PlatformPackage: "arduino",
-			Architecture:    "zephyr",
-		}, str); err != nil {
-			return fmt.Errorf("could not install zephyr platform: %w", err)
+		// Only a missing platform is installed here, and its version is pinned to the
+		// configured constraint. An already installed one is left as it is: upgrading
+		// it is the job of `system update`.
+		version, err := platformVersionToInstall(ctx, cli, cliInstance, platform.PlatformID, cfg.ArduinoPlatformVersionConstraint)
+		if err != nil {
+			return err
+		}
+		if version == "" {
+			eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceArduino, Message: fmt.Sprintf(
+				"platform %s already installed, skipping install", platform.PlatformID)})
+		} else {
+			platformPackage, architecture, err := platform.PackageAndArchitecture()
+			if err != nil {
+				return err
+			}
+			str := commands.PlatformInstallStreamResponseToCallbackFunction(ctx, downloadProgressCB, func(msg *rpc.TaskProgress) {})
+			if err := cli.PlatformInstall(&rpc.PlatformInstallRequest{
+				Instance:        cliInstance,
+				PlatformPackage: platformPackage,
+				Architecture:    architecture,
+				Version:         version,
+			}, str); err != nil {
+				return fmt.Errorf("could not install %s platform %s: %w", platform.PlatformID, version, err)
+			}
 		}
 	}
 
@@ -452,6 +470,49 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 	}
 
 	return nil
+}
+
+// platformVersionToInstall returns a platform version to install if it isn't installed, "" otherwise.
+func platformVersionToInstall(
+	ctx context.Context,
+	cli rpc.ArduinoCoreServiceServer,
+	inst *rpc.Instance,
+	platformID string,
+	constraint semver.Constraint,
+) (string, error) {
+	platforms, err := cli.PlatformSearch(ctx, &rpc.PlatformSearchRequest{
+		Instance:          inst,
+		ManuallyInstalled: true,
+	})
+	if err != nil {
+		return "", fmt.Errorf("could not search the %s platform: %w", platformID, err)
+	}
+
+	var summary *rpc.PlatformSummary
+	for _, p := range platforms.GetSearchOutput() {
+		if p.GetMetadata().GetId() == platformID {
+			summary = p
+			break
+		}
+	}
+	if summary == nil {
+		return "", fmt.Errorf("platform %s not found in the platforms index", platformID)
+	}
+
+	if summary.GetInstalledVersion() != "" {
+		return "", nil // A platform is already installed, return an empty version string.
+	}
+
+	available := make([]string, 0, len(summary.GetReleases()))
+	for version := range summary.GetReleases() {
+		available = append(available, version)
+	}
+
+	best := helpers.SelectBestVersion(available, nil, constraint)
+	if best == nil {
+		return "", fmt.Errorf("no version of platform %s satisfies the constraint '%s'", platformID, constraint)
+	}
+	return best.String(), nil
 }
 
 func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, platform platform.Platform, cli rpc.ArduinoCoreServiceServer, cliInstance *rpc.Instance, downloadProgressCB func(*rpc.DownloadProgress)) error {
