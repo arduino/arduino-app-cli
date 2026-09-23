@@ -103,8 +103,7 @@ func HandleAppBuild(
 		}
 
 		// Finished archives live here
-		// TODO 2 to be defined how it should work. handle deletion/TTL and so on...
-		artifactsDir := buildArtifactsDir()
+		artifactsDir := paths.New(os.TempDir(), "build-artifacts")
 		if err := artifactsDir.MkdirAll(); err != nil {
 			slog.Error("unable to create the build artifacts dir", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to prepare the build output directory"})
