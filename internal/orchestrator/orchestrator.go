@@ -995,18 +995,34 @@ func EditApp(
 	}
 
 	if req.Name != nil {
-		newPath := editable.FullPath.Parent().Join(slug.Make(*req.Name))
-		if newPath.Exist() {
-			return ErrAppAlreadyExists
+		newPath, err := findRenamePath(editable.FullPath, slug.Make(*req.Name))
+		if err != nil {
+			return err
 		}
-		if err := editable.FullPath.Rename(newPath); err != nil {
-			return fmt.Errorf("failed to rename app path: %w", err)
+		if !newPath.EqualsTo(editable.FullPath) {
+			if err := editable.FullPath.Rename(newPath); err != nil {
+				return fmt.Errorf("failed to rename app path: %w", err)
+			}
+			editable.FullPath = newPath
 		}
-		editable.FullPath = newPath
 		editable.Name = editable.Descriptor.Name
 	}
 
 	return editable.Save()
+}
+
+// findRenamePath returns the folder an app at appPath moves to when renamed to
+// folderName: the first of folderName, folderName-1, folderName-2, ... that is
+// free or is already the app's own folder.
+func findRenamePath(appPath *paths.Path, folderName string) (*paths.Path, error) {
+	candidate := appPath.Parent().Join(folderName)
+	for i := 1; i <= 100; i++ { // In case of name collision, we try up to 100 times.
+		if candidate.EqualsTo(appPath) || candidate.NotExist() {
+			return candidate, nil
+		}
+		candidate = appPath.Parent().Join(fmt.Sprintf("%s-%d", folderName, i))
+	}
+	return nil, ErrAppAlreadyExists
 }
 
 func editAppDefaults(userApp *app.ArduinoApp, isDefault bool, cfg config.Configuration) error {
