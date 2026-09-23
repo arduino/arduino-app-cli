@@ -36,30 +36,6 @@ type buildRequest struct {
 	ReleaseNotes string `json:"notes" description:"notes to attach to the release"`
 }
 
-// The build progress events published to the app-wide build events stream. Each
-// carries the optional build id it belongs to, so a subscriber can filter by build.
-type (
-	buildProgressEvent struct {
-		BuildID  string  `json:"build_id,omitempty"`
-		Name     string  `json:"name"`
-		Progress float32 `json:"progress"`
-	}
-	buildMessageEvent struct {
-		BuildID string `json:"build_id,omitempty"`
-		Message string `json:"message"`
-	}
-	buildDoneEvent struct {
-		BuildID string `json:"build_id,omitempty"`
-		Name    string `json:"name"`
-		Target  string `json:"target"`
-	}
-	buildErrorEvent struct {
-		BuildID string            `json:"build_id,omitempty"`
-		Code    render.SSEErrCode `json:"code"`
-		Message string            `json:"message,omitempty"`
-	}
-)
-
 // HandleAppBuild builds an app into a release archive and streams the archive
 // back as the response body. Build progress is published to the global build events stream.
 func HandleAppBuild(
@@ -116,14 +92,7 @@ func HandleAppBuild(
 			Overwrite:    true,
 		}
 		result, err := orchestrator.BuildRelease(r.Context(), dockerClient, provisioner, appToBuild, req, cfg, func(item orchestrator.StreamMessage) {
-			// A StreamMessage may carry a progress value, an info message, or both,
-			// so publish each independently to avoid dropping either one.
-			if p := item.GetProgress(); p != nil {
-				broker.Publish(render.SSEEvent{Type: "progress", Data: buildProgressEvent{BuildID: buildID, Name: p.Name, Progress: p.Progress}})
-			}
-			if item.GetData() != "" {
-				broker.Publish(render.SSEEvent{Type: "message", Data: buildMessageEvent{BuildID: buildID, Message: item.GetData()}})
-			}
+			broker.PublishStreamMessage(buildID, item)
 		})
 		if err != nil {
 			slog.Error("Unable to build the app", slog.String("error", err.Error()))
@@ -133,7 +102,7 @@ func HandleAppBuild(
 				code = "BAD_REQUEST"
 				status = http.StatusBadRequest
 			}
-			broker.Publish(render.SSEEvent{Type: "error", Data: buildErrorEvent{BuildID: buildID, Code: code, Message: err.Error()}})
+			broker.PublishError(buildID, code, err.Error())
 			render.EncodeResponse(w, status, models.ErrorResponse{Details: err.Error()})
 			return
 		}
@@ -147,7 +116,7 @@ func HandleAppBuild(
 			return
 		}
 
-		broker.Publish(render.SSEEvent{Type: "done", Data: buildDoneEvent{BuildID: buildID, Name: result.Name, Target: result.Target}})
+		broker.PublishDone(buildID, result.Name, result.Target)
 
 		w.Header().Set("Content-Type", "application/gzip")
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename=%q`, archivePath.Base()))

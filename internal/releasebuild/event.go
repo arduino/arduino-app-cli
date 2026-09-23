@@ -8,6 +8,7 @@ package releasebuild
 import (
 	"sync"
 
+	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
@@ -18,6 +19,30 @@ type EventBroker struct {
 	mu   sync.Mutex
 	subs map[chan render.SSEEvent]struct{}
 }
+
+// The build events published to the build events stream. Each carries the optional
+// build id it belongs to, so a subscriber can filter by build.
+type (
+	progressEvent struct {
+		BuildID  string  `json:"build_id,omitempty"`
+		Name     string  `json:"name"`
+		Progress float32 `json:"progress"`
+	}
+	messageEvent struct {
+		BuildID string `json:"build_id,omitempty"`
+		Message string `json:"message"`
+	}
+	doneEvent struct {
+		BuildID string `json:"build_id,omitempty"`
+		Name    string `json:"name"`
+		Target  string `json:"target"`
+	}
+	errorEvent struct {
+		BuildID string            `json:"build_id,omitempty"`
+		Code    render.SSEErrCode `json:"code"`
+		Message string            `json:"message,omitempty"`
+	}
+)
 
 // NewEventBroker returns a ready-to-use broker with no subscribers.
 func NewEventBroker() *EventBroker {
@@ -45,9 +70,30 @@ func (b *EventBroker) Subscribe() (<-chan render.SSEEvent, func()) {
 	return ch, unsubscribe
 }
 
-// Publish delivers an event to every current subscriber. It never blocks the
+// PublishStreamMessage converts a build StreamMessage into a SSE event. It may hold
+// a progress value, an info message, or both.
+func (b *EventBroker) PublishStreamMessage(buildID string, item orchestrator.StreamMessage) {
+	if p := item.GetProgress(); p != nil {
+		b.publish(render.SSEEvent{Type: "progress", Data: progressEvent{BuildID: buildID, Name: p.Name, Progress: p.Progress}})
+	}
+	if item.GetData() != "" {
+		b.publish(render.SSEEvent{Type: "message", Data: messageEvent{BuildID: buildID, Message: item.GetData()}})
+	}
+}
+
+// PublishDone publishes the "done" event that a finished build emits.
+func (b *EventBroker) PublishDone(buildID, name, target string) {
+	b.publish(render.SSEEvent{Type: "done", Data: doneEvent{BuildID: buildID, Name: name, Target: target}})
+}
+
+// PublishError publishes the "error" event that a failed build emits.
+func (b *EventBroker) PublishError(buildID string, code render.SSEErrCode, message string) {
+	b.publish(render.SSEEvent{Type: "error", Data: errorEvent{BuildID: buildID, Code: code, Message: message}})
+}
+
+// publish delivers an event to every current subscriber. It never blocks the
 // caller: an event is dropped for a subscriber whose buffer is full.
-func (b *EventBroker) Publish(event render.SSEEvent) {
+func (b *EventBroker) publish(event render.SSEEvent) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	for ch := range b.subs {

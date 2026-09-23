@@ -52,7 +52,7 @@ func TestEventBrokerDeliversToSubscriber(t *testing.T) {
 	defer unsubscribe()
 
 	want := event(1)
-	broker.Publish(want)
+	broker.publish(want)
 
 	require.Equal(t, want, receive(t, ch))
 }
@@ -65,7 +65,7 @@ func TestEventBrokerFansOutToEverySubscriber(t *testing.T) {
 	defer unsubscribeB()
 
 	want := event(1)
-	broker.Publish(want)
+	broker.publish(want)
 
 	require.Equal(t, want, receive(t, chA))
 	require.Equal(t, want, receive(t, chB))
@@ -73,7 +73,7 @@ func TestEventBrokerFansOutToEverySubscriber(t *testing.T) {
 
 func TestEventBrokerPublishWithoutSubscribersIsNoOp(t *testing.T) {
 	broker := NewEventBroker()
-	require.NotPanics(t, func() { broker.Publish(event(1)) })
+	require.NotPanics(t, func() { broker.publish(event(1)) })
 }
 
 func TestEventBrokerPreservesOrder(t *testing.T) {
@@ -83,7 +83,7 @@ func TestEventBrokerPreservesOrder(t *testing.T) {
 
 	want := []render.SSEEvent{event(1), event(2), event(3)}
 	for _, e := range want {
-		broker.Publish(e)
+		broker.publish(e)
 	}
 
 	for _, e := range want {
@@ -95,11 +95,11 @@ func TestEventBrokerLateSubscriberMissesEarlierEvents(t *testing.T) {
 	broker := NewEventBroker()
 
 	// Published before anyone subscribes: the broker keeps no history.
-	broker.Publish(event(1))
+	broker.publish(event(1))
 
 	ch, unsubscribe := broker.Subscribe()
 	defer unsubscribe()
-	broker.Publish(event(2))
+	broker.publish(event(2))
 
 	require.Equal(t, event(2), receive(t, ch))
 	expectNoEvent(t, ch)
@@ -115,7 +115,7 @@ func TestEventBrokerUnsubscribeStopsDeliveryAndClosesChannel(t *testing.T) {
 	require.False(t, ok, "the channel must be closed after unsubscribe")
 
 	// Publishing with no subscribers left is a safe no-op.
-	require.NotPanics(t, func() { broker.Publish(event(1)) })
+	require.NotPanics(t, func() { broker.publish(event(1)) })
 }
 
 func TestEventBrokerUnsubscribeIsIdempotent(t *testing.T) {
@@ -135,7 +135,7 @@ func TestEventBrokerUnsubscribeOneKeepsTheOther(t *testing.T) {
 	unsubscribeA()
 
 	want := event(1)
-	broker.Publish(want)
+	broker.publish(want)
 
 	require.Equal(t, want, receive(t, chB))
 	_, ok := <-chA
@@ -152,7 +152,7 @@ func TestEventBrokerPublishNeverBlocksWhenBufferFull(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		for i := 0; i < published; i++ {
-			broker.Publish(event(i))
+			broker.publish(event(i))
 		}
 		close(done)
 	}()
@@ -175,4 +175,28 @@ func TestEventBrokerPublishNeverBlocksWhenBufferFull(t *testing.T) {
 	}
 	require.Greater(t, received, 0, "the subscriber should have received the buffered events")
 	require.Less(t, received, published, "events beyond the buffer must be dropped, not queued")
+}
+
+func TestEventBrokerPublishDone(t *testing.T) {
+	broker := NewEventBroker()
+	ch, unsubscribe := broker.Subscribe()
+	defer unsubscribe()
+
+	broker.PublishDone("build-1", "my-app", "unoq")
+
+	got := receive(t, ch)
+	require.Equal(t, "done", got.Type)
+	require.Equal(t, doneEvent{BuildID: "build-1", Name: "my-app", Target: "unoq"}, got.Data)
+}
+
+func TestEventBrokerPublishError(t *testing.T) {
+	broker := NewEventBroker()
+	ch, unsubscribe := broker.Subscribe()
+	defer unsubscribe()
+
+	broker.PublishError("build-1", render.InternalServiceErr, "boom")
+
+	got := receive(t, ch)
+	require.Equal(t, "error", got.Type)
+	require.Equal(t, errorEvent{BuildID: "build-1", Code: render.InternalServiceErr, Message: "boom"}, got.Data)
 }
