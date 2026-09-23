@@ -967,18 +967,21 @@ func EditApp(
 		return fmt.Errorf("%w: invalid app name %q", app.ErrInvalidApp, *req.Name)
 	}
 
-	// The default app is stored beside the apps and not in one, so it is the one edit
-	// an installed release takes.
+	if req.Name != nil || req.Icon != nil || req.Description != nil {
+		if err := editAppFolder(req, editApp, cfg); err != nil {
+			return err
+		}
+	}
+
 	if req.Default != nil {
 		if err := editAppDefaults(editApp, *req.Default, cfg); err != nil {
 			return fmt.Errorf("failed to edit app defaults: %w", err)
 		}
 	}
-	if req.Name == nil && req.Icon == nil && req.Description == nil {
-		return nil
-	}
+	return nil
+}
 
-	// What follows is written to the app folder, which a release does not take.
+func editAppFolder(req AppEditRequest, editApp *app.ArduinoApp, cfg config.Configuration) error {
 	editable, err := editApp.GetAsEditable()
 	if err != nil {
 		return err
