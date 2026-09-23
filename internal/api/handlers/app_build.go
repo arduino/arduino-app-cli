@@ -87,19 +87,11 @@ func HandleAppBuild(
 		defer r.Body.Close()
 
 		var buildReq buildRequest
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			slog.Error("unable to read app build request", slog.String("error", err.Error()))
-			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "unable to read app build request"})
-			return
-		}
-		if len(body) > 0 {
-			if err := json.Unmarshal(body, &buildReq); err != nil {
+			if err := json.Unmarshal(r.Body, &buildReq); err != nil {
 				slog.Error("unable to decode app build request", slog.String("error", err.Error()))
 				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "unable to decode app build request"})
 				return
 			}
-		}
 
 		buildID := buildReq.BuildID
 
