@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -85,11 +84,11 @@ func HandleAppBuild(
 		}
 
 		var buildReq buildRequest
-			if err := json.Unmarshal(r.Body, &buildReq); err != nil {
-				slog.Error("unable to decode app build request", slog.String("error", err.Error()))
-				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "unable to decode app build request"})
-				return
-			}
+		if err := json.NewDecoder(r.Body).Decode(&buildReq); err != nil {
+			slog.Error("unable to decode app build request", slog.String("error", err.Error()))
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "unable to decode app build request"})
+			return
+		}
 
 		buildID := buildReq.BuildID
 
