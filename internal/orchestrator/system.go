@@ -420,13 +420,13 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 		// Only a missing platform is installed here, and its version is pinned to the
 		// configured constraint. An already installed one is left as it is: upgrading
 		// it is the job of `system update`.
-		version, installedVersion, err := platformVersionToInstall(ctx, cli, cliInstance, platform.PlatformID, cfg.ArduinoPlatformVersionConstraint)
+		version, err := platformVersionToInstall(ctx, cli, cliInstance, platform.PlatformID, cfg.ArduinoPlatformVersionConstraint)
 		if err != nil {
 			return err
 		}
 		if version == "" {
 			eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceArduino, Message: fmt.Sprintf(
-				"platform %s %s already installed, skipping install", platform.PlatformID, installedVersion)})
+				"platform %s already installed, skipping install", platform.PlatformID)})
 		} else {
 			platformPackage, architecture, err := platform.PackageAndArchitecture()
 			if err != nil {
@@ -467,21 +467,20 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 	return nil
 }
 
-// platformVersionToInstall returns the highest version of the given platform that
-// satisfies the constraint, and the version already installed, if any.
+// platformVersionToInstall returns a platform version to install if it isn't installed, "" otherwise.
 func platformVersionToInstall(
 	ctx context.Context,
 	cli rpc.ArduinoCoreServiceServer,
 	inst *rpc.Instance,
 	platformID string,
 	constraint semver.Constraint,
-) (string, string, error) {
+) (string, error) {
 	platforms, err := cli.PlatformSearch(ctx, &rpc.PlatformSearchRequest{
 		Instance:          inst,
 		ManuallyInstalled: true,
 	})
 	if err != nil {
-		return "", "", fmt.Errorf("could not search the %s platform: %w", platformID, err)
+		return "", fmt.Errorf("could not search the %s platform: %w", platformID, err)
 	}
 
 	var summary *rpc.PlatformSummary
@@ -492,11 +491,11 @@ func platformVersionToInstall(
 		}
 	}
 	if summary == nil {
-		return "", "", fmt.Errorf("platform %s not found in the platforms index", platformID)
+		return "", fmt.Errorf("platform %s not found in the platforms index", platformID)
 	}
 
-	if installedVersion := summary.GetInstalledVersion(); installedVersion != "" {
-		return "", installedVersion, nil
+	if summary.GetInstalledVersion() != "" {
+		return "", nil // A platform is already installed, return an empty version string.
 	}
 
 	available := make([]string, 0, len(summary.GetReleases()))
@@ -506,9 +505,9 @@ func platformVersionToInstall(
 
 	best := helpers.SelectBestVersion(available, nil, constraint)
 	if best == nil {
-		return "", "", fmt.Errorf("no version of platform %s satisfies the constraint '%s'", platformID, constraint)
+		return "", fmt.Errorf("no version of platform %s satisfies the constraint '%s'", platformID, constraint)
 	}
-	return best.String(), "", nil
+	return best.String(), nil
 }
 
 func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, platform platform.Platform, cli rpc.ArduinoCoreServiceServer, cliInstance *rpc.Instance, downloadProgressCB func(*rpc.DownloadProgress)) error {
