@@ -995,7 +995,11 @@ func EditApp(
 	}
 
 	if req.Name != nil {
-		newPath, err := findRenamePath(editable.FullPath, slug.Make(*req.Name))
+		folderName := slug.Make(*req.Name)
+		if folderName == "" {
+			return fmt.Errorf("%w: invalid app name %q", app.ErrInvalidApp, *req.Name)
+		}
+		newPath, err := findRenamePath(editable.FullPath, folderName)
 		if err != nil {
 			return err
 		}
@@ -1011,12 +1015,9 @@ func EditApp(
 	return editable.Save()
 }
 
-// findRenamePath returns the folder an app at appPath moves to when renamed to
-// folderName: the first of folderName, folderName-1, folderName-2, ... that is
-// free or is already the app's own folder.
 func findRenamePath(appPath *paths.Path, folderName string) (*paths.Path, error) {
 	candidate := appPath.Parent().Join(folderName)
-	for i := 1; i <= 100; i++ { // In case of name collision, we try up to 100 times.
+	for i := 1; i <= 100; i++ {
 		if candidate.EqualsTo(appPath) || candidate.NotExist() {
 			return candidate, nil
 		}

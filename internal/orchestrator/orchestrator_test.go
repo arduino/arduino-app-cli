@@ -241,6 +241,22 @@ func TestEditApp(t *testing.T) {
 			require.Equal(t, cfg.AppsDir().Join("new-name-1").String(), existingApp.FullPath.String())
 		})
 
+		t.Run("name with an empty slug", func(t *testing.T) {
+			appName := "empty-slug"
+			_, err := CreateApp(CreateAppRequest{Name: appName}, &bricksindex.BricksIndex{}, idProvider, cfg)
+			require.NoError(t, err)
+			appDir := cfg.AppsDir().Join(appName)
+			emptySlugApp := f.Must(app.Load(appDir))
+
+			err = EditApp(AppEditRequest{Name: new("$$$")}, &emptySlugApp, cfg)
+			require.ErrorIs(t, err, app.ErrInvalidApp)
+			require.Equal(t, appDir.String(), emptySlugApp.FullPath.String())
+			require.True(t, cfg.AppsDir().Join("-1").NotExist())
+			editedApp, err := app.Load(appDir)
+			require.NoError(t, err)
+			require.Equal(t, appName, editedApp.Name)
+		})
+
 		t.Run("same slug as the current folder", func(t *testing.T) {
 			appName := "same-slug"
 			_, err := CreateApp(CreateAppRequest{Name: appName}, &bricksindex.BricksIndex{}, idProvider, cfg)
