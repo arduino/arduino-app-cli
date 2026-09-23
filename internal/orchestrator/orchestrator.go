@@ -1004,10 +1004,14 @@ func EditApp(
 			return err
 		}
 		if !newPath.EqualsTo(editable.FullPath) {
+			oldPath := editable.FullPath
 			if err := editable.FullPath.Rename(newPath); err != nil {
 				return fmt.Errorf("failed to rename app path: %w", err)
 			}
 			editable.FullPath = newPath
+			if err := moveDefaultApp(oldPath, editApp, cfg); err != nil {
+				return fmt.Errorf("failed to update default app: %w", err)
+			}
 		}
 		editable.Name = editable.Descriptor.Name
 	}
@@ -1024,6 +1028,21 @@ func findRenamePath(appPath *paths.Path, folderName string) (*paths.Path, error)
 		candidate = appPath.Parent().Join(fmt.Sprintf("%s-%d", folderName, i))
 	}
 	return nil, ErrAppAlreadyExists
+}
+
+func moveDefaultApp(oldPath *paths.Path, movedApp *app.ArduinoApp, cfg config.Configuration) error {
+	defaultAppFilePath := cfg.DataDir().Join(defaultAppFileName)
+	if defaultAppFilePath.NotExist() {
+		return nil
+	}
+	defaultAppPath, err := defaultAppFilePath.ReadFile()
+	if err != nil {
+		return err
+	}
+	if string(bytes.TrimSpace(defaultAppPath)) != oldPath.String() {
+		return nil
+	}
+	return SetDefaultApp(movedApp, cfg)
 }
 
 func editAppDefaults(userApp *app.ArduinoApp, isDefault bool, cfg config.Configuration) error {

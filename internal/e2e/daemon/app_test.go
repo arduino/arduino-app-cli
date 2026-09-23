@@ -464,6 +464,27 @@ func TestEditApp(t *testing.T) {
 		require.NotNil(t, detailsResp.JSON200)
 		require.Equal(t, "empty-slug", detailsResp.JSON200.Name)
 	})
+
+	t.Run("RenameDefaultApp_KeepsDefault", func(t *testing.T) {
+		appID := createApp(t, "default-to-rename")
+
+		editResp, err := httpClient.EditAppWithResponse(t.Context(), appID, client.EditRequest{Default: new(true)})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, editResp.StatusCode())
+
+		editResp, err = httpClient.EditAppWithResponse(t.Context(), appID, client.EditRequest{Name: new("default-renamed")})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, editResp.StatusCode())
+		require.NotNil(t, editResp.JSON200)
+		require.Equal(t, userAppID("default-renamed"), editResp.JSON200.Id)
+
+		detailsResp, err := httpClient.GetAppDetailsWithResponse(t.Context(), userAppID("default-renamed"))
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, detailsResp.StatusCode())
+		require.NotNil(t, detailsResp.JSON200)
+		require.NotNil(t, detailsResp.JSON200.Default)
+		require.True(t, *detailsResp.JSON200.Default)
+	})
 }
 
 func TestDeleteApp(t *testing.T) {
