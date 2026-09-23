@@ -118,7 +118,6 @@ func HandleAppBuild(
 			Output:       artifactsDir,
 			Overwrite:    true,
 		}
-
 		result, err := orchestrator.BuildRelease(r.Context(), dockerClient, provisioner, appToBuild, req, cfg, func(item orchestrator.StreamMessage) {
 			// A StreamMessage may carry a progress value, an info message, or both,
 			// so publish each independently to avoid dropping either one.
