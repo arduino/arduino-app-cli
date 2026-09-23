@@ -35,6 +35,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
+	"github.com/arduino/arduino-app-cli/internal/sudo"
 )
 
 const ExitCodeDockerOutOfSpace = 80
@@ -337,9 +338,7 @@ func installPlatformPackage(ctx context.Context, plat platform.Platform, eventCB
 
 	eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDeb, Message: fmt.Sprintf("Installing package '%s'", packageName)})
 
-	// The env keeps debconf off /dev/tty: the pty of sudo makes it available even
-	// when our own stdin is a pipe.
-	cmd, err := paths.NewProcess([]string{"DEBIAN_FRONTEND=noninteractive"}, "sudo", "apt-get", "install", "-y", packageName)
+	cmd, err := sudo.AptInstall.Process(packageName)
 	if err != nil {
 		return err
 	}
