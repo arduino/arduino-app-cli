@@ -461,6 +461,7 @@ func TestEditApp(t *testing.T) {
 		detailsResp, err := httpClient.GetAppDetailsWithResponse(t.Context(), appID)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, detailsResp.StatusCode())
+		require.NotNil(t, detailsResp.JSON200)
 		require.Equal(t, "empty-slug", detailsResp.JSON200.Name)
 	})
 }
