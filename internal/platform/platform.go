@@ -126,7 +126,6 @@ func (p Platform) GetMicro() micro.Micro {
 }
 
 // PackageAndArchitecture splits the PlatformID, in the form '<package>:<architecture>'.
-// This is used when installing the platform with the Arduino CLI (that wants them separate).
 func (p Platform) PackageAndArchitecture() (string, string, error) {
 	pkg, architecture, found := strings.Cut(p.PlatformID, ":")
 	if !found || pkg == "" || architecture == "" {
