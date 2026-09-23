@@ -48,56 +48,42 @@ func expectNoEvent(t *testing.T, ch <-chan render.SSEEvent) {
 
 func TestEventBrokerDeliversToSubscriber(t *testing.T) {
 	broker := NewEventBroker()
-	ch, unsubscribe := broker.Subscribe("app-1")
+	ch, unsubscribe := broker.Subscribe()
 	defer unsubscribe()
 
 	want := event(1)
-	broker.Publish("app-1", want)
+	broker.Publish(want)
 
 	require.Equal(t, want, receive(t, ch))
 }
 
 func TestEventBrokerFansOutToEverySubscriber(t *testing.T) {
 	broker := NewEventBroker()
-	chA, unsubscribeA := broker.Subscribe("app-1")
+	chA, unsubscribeA := broker.Subscribe()
 	defer unsubscribeA()
-	chB, unsubscribeB := broker.Subscribe("app-1")
+	chB, unsubscribeB := broker.Subscribe()
 	defer unsubscribeB()
 
 	want := event(1)
-	broker.Publish("app-1", want)
+	broker.Publish(want)
 
 	require.Equal(t, want, receive(t, chA))
 	require.Equal(t, want, receive(t, chB))
 }
 
-func TestEventBrokerIsolatesByApp(t *testing.T) {
-	broker := NewEventBroker()
-	chA, unsubscribeA := broker.Subscribe("app-a")
-	defer unsubscribeA()
-	chB, unsubscribeB := broker.Subscribe("app-b")
-	defer unsubscribeB()
-
-	want := event(1)
-	broker.Publish("app-a", want)
-
-	require.Equal(t, want, receive(t, chA))
-	expectNoEvent(t, chB)
-}
-
 func TestEventBrokerPublishWithoutSubscribersIsNoOp(t *testing.T) {
 	broker := NewEventBroker()
-	require.NotPanics(t, func() { broker.Publish("nobody", event(1)) })
+	require.NotPanics(t, func() { broker.Publish(event(1)) })
 }
 
 func TestEventBrokerPreservesOrder(t *testing.T) {
 	broker := NewEventBroker()
-	ch, unsubscribe := broker.Subscribe("app-1")
+	ch, unsubscribe := broker.Subscribe()
 	defer unsubscribe()
 
 	want := []render.SSEEvent{event(1), event(2), event(3)}
 	for _, e := range want {
-		broker.Publish("app-1", e)
+		broker.Publish(e)
 	}
 
 	for _, e := range want {
@@ -109,11 +95,11 @@ func TestEventBrokerLateSubscriberMissesEarlierEvents(t *testing.T) {
 	broker := NewEventBroker()
 
 	// Published before anyone subscribes: the broker keeps no history.
-	broker.Publish("app-1", event(1))
+	broker.Publish(event(1))
 
-	ch, unsubscribe := broker.Subscribe("app-1")
+	ch, unsubscribe := broker.Subscribe()
 	defer unsubscribe()
-	broker.Publish("app-1", event(2))
+	broker.Publish(event(2))
 
 	require.Equal(t, event(2), receive(t, ch))
 	expectNoEvent(t, ch)
@@ -121,20 +107,20 @@ func TestEventBrokerLateSubscriberMissesEarlierEvents(t *testing.T) {
 
 func TestEventBrokerUnsubscribeStopsDeliveryAndClosesChannel(t *testing.T) {
 	broker := NewEventBroker()
-	ch, unsubscribe := broker.Subscribe("app-1")
+	ch, unsubscribe := broker.Subscribe()
 
 	unsubscribe()
 
 	_, ok := <-ch
 	require.False(t, ok, "the channel must be closed after unsubscribe")
 
-	// Publishing to an app with no subscribers left is a safe no-op.
-	require.NotPanics(t, func() { broker.Publish("app-1", event(1)) })
+	// Publishing with no subscribers left is a safe no-op.
+	require.NotPanics(t, func() { broker.Publish(event(1)) })
 }
 
 func TestEventBrokerUnsubscribeIsIdempotent(t *testing.T) {
 	broker := NewEventBroker()
-	_, unsubscribe := broker.Subscribe("app-1")
+	_, unsubscribe := broker.Subscribe()
 
 	unsubscribe()
 	require.NotPanics(t, unsubscribe, "a second unsubscribe must not panic")
@@ -142,14 +128,14 @@ func TestEventBrokerUnsubscribeIsIdempotent(t *testing.T) {
 
 func TestEventBrokerUnsubscribeOneKeepsTheOther(t *testing.T) {
 	broker := NewEventBroker()
-	chA, unsubscribeA := broker.Subscribe("app-1")
-	chB, unsubscribeB := broker.Subscribe("app-1")
+	chA, unsubscribeA := broker.Subscribe()
+	chB, unsubscribeB := broker.Subscribe()
 	defer unsubscribeB()
 
 	unsubscribeA()
 
 	want := event(1)
-	broker.Publish("app-1", want)
+	broker.Publish(want)
 
 	require.Equal(t, want, receive(t, chB))
 	_, ok := <-chA
@@ -159,14 +145,14 @@ func TestEventBrokerUnsubscribeOneKeepsTheOther(t *testing.T) {
 func TestEventBrokerPublishNeverBlocksWhenBufferFull(t *testing.T) {
 	broker := NewEventBroker()
 	// The subscriber never reads, so its buffer fills and further events are dropped.
-	ch, unsubscribe := broker.Subscribe("app-1")
+	ch, unsubscribe := broker.Subscribe()
 	defer unsubscribe()
 
 	const published = 1000
 	done := make(chan struct{})
 	go func() {
 		for i := 0; i < published; i++ {
-			broker.Publish("app-1", event(i))
+			broker.Publish(event(i))
 		}
 		close(done)
 	}()

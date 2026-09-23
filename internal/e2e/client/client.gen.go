@@ -841,6 +841,9 @@ type ClientInterface interface {
 
 	CreateApp(ctx context.Context, params *CreateAppParams, body CreateAppJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// BuildAppEvents request
+	BuildAppEvents(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetAppsEvents request
 	GetAppsEvents(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -882,9 +885,6 @@ type ClientInterface interface {
 	BuildAppWithBody(ctx context.Context, appID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	BuildApp(ctx context.Context, appID string, body BuildAppJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// BuildAppEvents request
-	BuildAppEvents(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAppPorts request
 	GetAppPorts(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1022,6 +1022,18 @@ func (c *Client) CreateAppWithBody(ctx context.Context, params *CreateAppParams,
 
 func (c *Client) CreateApp(ctx context.Context, params *CreateAppParams, body CreateAppJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateAppRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) BuildAppEvents(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewBuildAppEventsRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -1214,18 +1226,6 @@ func (c *Client) BuildAppWithBody(ctx context.Context, appID string, contentType
 
 func (c *Client) BuildApp(ctx context.Context, appID string, body BuildAppJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewBuildAppRequest(c.Server, appID, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) BuildAppEvents(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewBuildAppEventsRequest(c.Server, appID)
 	if err != nil {
 		return nil, err
 	}
@@ -1825,6 +1825,33 @@ func NewCreateAppRequestWithBody(server string, params *CreateAppParams, content
 	return req, nil
 }
 
+// NewBuildAppEventsRequest generates requests for BuildAppEvents
+func NewBuildAppEventsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/apps/build/events")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetAppsEventsRequest generates requests for GetAppsEvents
 func NewGetAppsEventsRequest(server string) (*http.Request, error) {
 	var err error
@@ -2287,40 +2314,6 @@ func NewBuildAppRequestWithBody(server string, appID string, contentType string,
 	}
 
 	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewBuildAppEventsRequest generates requests for BuildAppEvents
-func NewBuildAppEventsRequest(server string, appID string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "appID", appID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/v1/apps/%s/build/events", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
 
 	return req, nil
 }
@@ -3860,6 +3853,9 @@ type ClientWithResponsesInterface interface {
 
 	CreateAppWithResponse(ctx context.Context, params *CreateAppParams, body CreateAppJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAppResp, error)
 
+	// BuildAppEventsWithResponse request
+	BuildAppEventsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*BuildAppEventsResp, error)
+
 	// GetAppsEventsWithResponse request
 	GetAppsEventsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAppsEventsResp, error)
 
@@ -3901,9 +3897,6 @@ type ClientWithResponsesInterface interface {
 	BuildAppWithBodyWithResponse(ctx context.Context, appID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*BuildAppResp, error)
 
 	BuildAppWithResponse(ctx context.Context, appID string, body BuildAppJSONRequestBody, reqEditors ...RequestEditorFn) (*BuildAppResp, error)
-
-	// BuildAppEventsWithResponse request
-	BuildAppEventsWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*BuildAppEventsResp, error)
 
 	// GetAppPortsWithResponse request
 	GetAppPortsWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*GetAppPortsResp, error)
@@ -4073,6 +4066,36 @@ func (r CreateAppResp) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r CreateAppResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type BuildAppEventsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r BuildAppEventsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r BuildAppEventsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r BuildAppEventsResp) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -4401,37 +4424,6 @@ func (r BuildAppResp) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r BuildAppResp) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type BuildAppEventsResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON412      *PreconditionFailed
-	JSON500      *InternalServerError
-}
-
-// Status returns HTTPResponse.Status
-func (r BuildAppEventsResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r BuildAppEventsResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r BuildAppEventsResp) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -5520,6 +5512,15 @@ func (c *ClientWithResponses) CreateAppWithResponse(ctx context.Context, params 
 	return ParseCreateAppResp(rsp)
 }
 
+// BuildAppEventsWithResponse request returning *BuildAppEventsResp
+func (c *ClientWithResponses) BuildAppEventsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*BuildAppEventsResp, error) {
+	rsp, err := c.BuildAppEvents(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseBuildAppEventsResp(rsp)
+}
+
 // GetAppsEventsWithResponse request returning *GetAppsEventsResp
 func (c *ClientWithResponses) GetAppsEventsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAppsEventsResp, error) {
 	rsp, err := c.GetAppsEvents(ctx, reqEditors...)
@@ -5656,15 +5657,6 @@ func (c *ClientWithResponses) BuildAppWithResponse(ctx context.Context, appID st
 		return nil, err
 	}
 	return ParseBuildAppResp(rsp)
-}
-
-// BuildAppEventsWithResponse request returning *BuildAppEventsResp
-func (c *ClientWithResponses) BuildAppEventsWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*BuildAppEventsResp, error) {
-	rsp, err := c.BuildAppEvents(ctx, appID, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseBuildAppEventsResp(rsp)
 }
 
 // GetAppPortsWithResponse request returning *GetAppPortsResp
@@ -6072,6 +6064,32 @@ func ParseCreateAppResp(rsp *http.Response) (*CreateAppResp, error) {
 		}
 		response.JSON409 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseBuildAppEventsResp parses an HTTP response from a BuildAppEventsWithResponse call
+func ParseBuildAppEventsResp(rsp *http.Response) (*BuildAppEventsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &BuildAppEventsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -6503,39 +6521,6 @@ func ParseBuildAppResp(rsp *http.Response) (*BuildAppResp, error) {
 		}
 		response.JSON400 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest PreconditionFailed
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON412 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalServerError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseBuildAppEventsResp parses an HTTP response from a BuildAppEventsWithResponse call
-func ParseBuildAppEventsResp(rsp *http.Response) (*BuildAppEventsResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &BuildAppEventsResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
 		var dest PreconditionFailed
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

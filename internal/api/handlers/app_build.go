@@ -62,7 +62,7 @@ type (
 )
 
 // HandleAppBuild builds an app into a release archive and streams the archive
-// back as the response body. Build progress is published to the app-wide build events stream.
+// back as the response body. Build progress is published to the global build events stream.
 func HandleAppBuild(
 	dockerClient command.Cli,
 	provisioner *orchestrator.Provision,
@@ -76,8 +76,6 @@ func HandleAppBuild(
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid id"})
 			return
 		}
-
-		appKey := id.String()
 
 		appToBuild, err := app.Load(id.ToPath())
 		if err != nil {
@@ -134,10 +132,10 @@ func HandleAppBuild(
 			// A StreamMessage may carry a progress value, an info message, or both,
 			// so publish each independently to avoid dropping either one.
 			if p := item.GetProgress(); p != nil {
-				broker.Publish(appKey, render.SSEEvent{Type: "progress", Data: buildProgressEvent{BuildID: buildID, Name: p.Name, Progress: p.Progress}})
+				broker.Publish(render.SSEEvent{Type: "progress", Data: buildProgressEvent{BuildID: buildID, Name: p.Name, Progress: p.Progress}})
 			}
 			if item.GetData() != "" {
-				broker.Publish(appKey, render.SSEEvent{Type: "message", Data: buildMessageEvent{BuildID: buildID, Message: item.GetData()}})
+				broker.Publish(render.SSEEvent{Type: "message", Data: buildMessageEvent{BuildID: buildID, Message: item.GetData()}})
 			}
 		})
 		if err != nil {
@@ -148,7 +146,7 @@ func HandleAppBuild(
 				code = "BAD_REQUEST"
 				status = http.StatusBadRequest
 			}
-			broker.Publish(appKey, render.SSEEvent{Type: "error", Data: buildErrorEvent{BuildID: buildID, Code: code, Message: err.Error()}})
+			broker.Publish(render.SSEEvent{Type: "error", Data: buildErrorEvent{BuildID: buildID, Code: code, Message: err.Error()}})
 			render.EncodeResponse(w, status, models.ErrorResponse{Details: err.Error()})
 			return
 		}
@@ -162,7 +160,7 @@ func HandleAppBuild(
 			return
 		}
 
-		broker.Publish(appKey, render.SSEEvent{Type: "done", Data: buildDoneEvent{BuildID: buildID, Name: result.Name, Target: result.Target}})
+		broker.Publish(render.SSEEvent{Type: "done", Data: buildDoneEvent{BuildID: buildID, Name: result.Name, Target: result.Target}})
 
 		w.Header().Set("Content-Type", "application/gzip")
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename=%q`, archivePath.Base()))
@@ -171,16 +169,10 @@ func HandleAppBuild(
 }
 
 // HandleAppBuildEvents streams, as Server-Sent Events, the progress of every
-// build of the given app. Each event carries the "build_id" it belongs to, so a
+// build of every app. Each event carries the "build_id" it belongs to, so a
 // client can filter the stream down to a single build it triggered.
-func HandleAppBuildEvents(idProvider *appid.Provider, broker *releasebuild.EventBroker) http.HandlerFunc {
+func HandleAppBuildEvents(broker *releasebuild.EventBroker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := idProvider.IDFromBase64(r.PathValue("appID"))
-		if err != nil {
-			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid id"})
-			return
-		}
-
 		sseStream, err := render.NewSSEStream(r.Context(), w)
 		if err != nil {
 			slog.Error("unable to create SSE stream", slog.String("error", err.Error()))
@@ -189,7 +181,7 @@ func HandleAppBuildEvents(idProvider *appid.Provider, broker *releasebuild.Event
 		}
 		defer sseStream.Close()
 
-		events, unsubscribe := broker.Subscribe(id.String())
+		events, unsubscribe := broker.Subscribe()
 		defer unsubscribe()
 
 		for {

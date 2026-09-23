@@ -81,7 +81,7 @@ func TestAppReleaseBuildStream(t *testing.T) {
 
 	// Subscribe to the build events stream before triggering the build: the broker
 	// only reaches the subscribers present when an event is published.
-	eventsReq, err := http.NewRequestWithContext(ctx, http.MethodGet, daemonAddr+"/v1/apps/"+appID+"/build/events", nil)
+	eventsReq, err := http.NewRequestWithContext(ctx, http.MethodGet, daemonAddr+"/v1/apps/build/events", nil)
 	require.NoError(t, err)
 	events, err := newSSEClient(eventsReq, 0)
 	require.NoError(t, err)
