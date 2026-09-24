@@ -616,3 +616,44 @@ func getModelSize(ctx context.Context, cli client.APIClient, handler ModelHandle
 	outputSize, found := parseInfoSize(buf.Bytes())
 	return outputSize, found, nil
 }
+
+// isModelInstalled runs the handler's check action. Every checker exits 0 with an info
+// event: "downloading": false when the model is installed, true when a download is in
+// progress or was interrupted. Anything else, or no check action, is not installed.
+func isModelInstalled(ctx context.Context, cli client.APIClient, handler ModelHandler, envVars map[string]string) bool {
+	if len(handler.Actions.Check) == 0 {
+		return false
+	}
+
+	var buf bytes.Buffer
+	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
+		Image:  ResolveVars(handler.Image, envVars),
+		Cmd:    handler.Actions.Check,
+		Binds:  ResolveVarsSlice(handler.Volumes, envVars),
+		Env:    envVars,
+		Stdout: &buf,
+		Stderr: io.Discard,
+	})
+	if err != nil {
+		// "Model does not exist" exits 1.
+		return false
+	}
+	return parseCheckInstalled(buf.Bytes())
+}
+
+// parseCheckInstalled reports whether a check action's output says the model is installed.
+func parseCheckInstalled(out []byte) bool {
+	for line := range bytes.Lines(out) {
+		var raw struct {
+			Event       string `json:"event"`
+			Downloading *bool  `json:"downloading"`
+		}
+		if err := json.Unmarshal(line, &raw); err != nil {
+			continue
+		}
+		if raw.Event == "info" && raw.Downloading != nil && !*raw.Downloading {
+			return true
+		}
+	}
+	return false
+}
