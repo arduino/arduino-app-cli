@@ -210,7 +210,8 @@ func (a *SSHConnection) ReadFile(path string) (io.ReadCloser, error) {
 	var stderr bytes.Buffer
 	session.Stderr = &stderr
 
-	cmd := fmt.Sprintf("cat %s", remote.ShellQuote(path))
+	// LC_ALL=C: the parser reads the failure of cat in English.
+	cmd := fmt.Sprintf("LC_ALL=C cat %s", remote.ShellQuote(path))
 	output, err := session.StdoutPipe()
 	if err != nil {
 		_ = session.Close()
@@ -222,18 +223,20 @@ func (a *SSHConnection) ReadFile(path string) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("failed to start command: %w", err)
 	}
 
-	r, err := remote.ParseReadOutput(output, func() ([]byte, error) {
+	// Wait is not idempotent, and the parser can ask for the end twice.
+	exit := sync.OnceValues(func() ([]byte, error) {
 		// Wait first: it ends the copy of stderr.
 		err := session.Wait()
 		return stderr.Bytes(), err
 	})
+	r, err := remote.ParseReadOutput(output, exit)
 	if err != nil {
 		_ = session.Close()
 		return nil, err
 	}
 
 	return remote.WithCloser{Reader: r, CloseFun: func() error {
-		// An empty file ends the session before this close.
+		// The read reports the command failure, and an ended session is closed.
 		if err := session.Close(); err != nil && !errors.Is(err, io.EOF) {
 			return err
 		}

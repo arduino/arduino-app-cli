@@ -54,7 +54,7 @@ func TestParseReadOutput(t *testing.T) {
 		require.Empty(t, data)
 	})
 
-	t.Run("the command end is not asked when the read writes", func(t *testing.T) {
+	t.Run("the command end is asked at the end of the file", func(t *testing.T) {
 		calls := 0
 		r, err := ParseReadOutput(strings.NewReader("Hello, World!"), func() ([]byte, error) {
 			calls++
@@ -65,7 +65,7 @@ func TestParseReadOutput(t *testing.T) {
 		data, err := io.ReadAll(r)
 		require.NoError(t, err)
 		require.Equal(t, "Hello, World!", string(data))
-		require.Equal(t, 0, calls)
+		require.Equal(t, 1, calls)
 	})
 
 	t.Run("no output and no failure to explain it", func(t *testing.T) {

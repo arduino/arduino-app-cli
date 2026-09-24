@@ -17,8 +17,9 @@ import (
 
 // ParseReadOutput returns the output of the command that reads a remote file.
 // It waits for the first byte, so that a failed read is reported here, and not
-// at the first Read of the caller. exit must wait for the command end, and
-// return its stderr with its error.
+// at the first Read of the caller. The end of the output asks for the command
+// outcome too, so that a truncated read is never a complete file. exit must
+// wait for the command end, and return its stderr with its error.
 func ParseReadOutput(stdout io.Reader, exit func() ([]byte, error)) (io.Reader, error) {
 	parseReadError := func(stderr []byte, err error) error {
 		if err == nil {
@@ -38,10 +39,12 @@ func ParseReadOutput(stdout io.Reader, exit func() ([]byte, error)) (io.Reader, 
 		}
 	}
 
+	wait := func() error { return parseReadError(exit()) }
+
 	out := bufio.NewReader(stdout)
 	if _, err := out.Peek(1); err != nil {
 		// No output at all: the read failed, or the file is empty.
-		if failure := parseReadError(exit()); failure != nil {
+		if failure := wait(); failure != nil {
 			return nil, failure
 		}
 		if !errors.Is(err, io.EOF) {
@@ -52,7 +55,7 @@ func ParseReadOutput(stdout io.Reader, exit func() ([]byte, error)) (io.Reader, 
 		return bytes.NewReader(nil), nil
 	}
 
-	return out, nil
+	return &readOutput{Reader: out, wait: wait}, nil
 }
 
 func ParseChage(r io.Reader) (bool, error) {
@@ -118,4 +121,21 @@ func ParseLsOutput(out io.Reader) ([]FileInfo, error) {
 	}
 
 	return files, nil
+}
+
+// readOutput reports the command failure at the end of the file, and nothing
+// when the caller stops before it.
+type readOutput struct {
+	io.Reader
+	wait func() error
+}
+
+func (r *readOutput) Read(p []byte) (int, error) {
+	n, err := r.Reader.Read(p)
+	if errors.Is(err, io.EOF) {
+		if failure := r.wait(); failure != nil {
+			return n, failure
+		}
+	}
+	return n, err
 }

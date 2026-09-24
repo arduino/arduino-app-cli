@@ -20,7 +20,8 @@ import (
 )
 
 func adbReadFile(a *ADBConnection, path string) (io.ReadCloser, error) {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "cat", path) // nolint:gosec
+	// LC_ALL=C: the parser reads the failure of the command in English.
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "LC_ALL=C", "cat", path) // nolint:gosec
 	if err != nil {
 		return nil, fmt.Errorf("failed to create command to read file %q: %w", path, err)
 	}
@@ -33,7 +34,7 @@ func adbReadFile(a *ADBConnection, path string) (io.ReadCloser, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
-	// Wait is not idempotent, and an empty file already waits in the parser.
+	// Wait is not idempotent, and both the parser and Close ask for the end.
 	exit := sync.OnceValues(func() ([]byte, error) {
 		// Wait first: it ends the copy of stderr.
 		err := cmd.Wait()
@@ -48,10 +49,11 @@ func adbReadFile(a *ADBConnection, path string) (io.ReadCloser, error) {
 	return remote.WithCloser{
 		Reader: r,
 		CloseFun: func() error {
-			// An empty file is over already, and Wait closed the pipe.
+			// The read reports the command failure; this wait only releases
+			// the process, which fails when the close breaks its pipe.
 			_ = output.Close()
-			_, err := exit()
-			return err
+			_, _ = exit()
+			return nil
 		},
 	}, nil
 }
