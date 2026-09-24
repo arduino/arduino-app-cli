@@ -24,6 +24,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/pipewire"
+	"github.com/arduino/arduino-app-cli/internal/releasebuild"
 	"github.com/arduino/arduino-app-cli/internal/update"
 	"github.com/arduino/arduino-app-cli/internal/update/apt"
 	"github.com/arduino/arduino-app-cli/internal/update/arduino"
@@ -124,6 +125,7 @@ func httpHandler(ctx context.Context, cfg config.Configuration, daemonPort, vers
 		servicelocator.GetAppIDProvider(),
 		servicelocator.GetPlatform(),
 		cfg,
+		releasebuild.NewEventBroker(),
 		corsConfig.Origins,
 	)
 

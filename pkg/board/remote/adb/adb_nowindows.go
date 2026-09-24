@@ -59,8 +59,8 @@ func adbReadFile(a *ADBConnection, path string) (io.ReadCloser, error) {
 }
 
 func adbWriteFile(a *ADBConnection, r io.Reader, pathStr string) error {
-	// Create the file with the correct permissions and ownership
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "install", "-o", username, "-g", username, "-m", "0644", "/dev/null", pathStr) // nolint:gosec
+	// Create the file with the correct permissions and ownership, only when it is missing.
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "test", "-e", pathStr, "||", "install", "-o", username, "-g", username, "-m", "0644", "/dev/null", pathStr) // nolint:gosec
 	if err != nil {
 		return fmt.Errorf("failed to create command for creating file %q: %w", pathStr, err)
 	}
