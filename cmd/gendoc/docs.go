@@ -621,7 +621,7 @@ Contains a JSON object with an informational message.
 **Event 'done'**:
 Contains a JSON object with the built release facts.
 'event: done'
-'data: {"build_id":"abc","name":"my-app","target":"unoq"}'
+'data: {"build_id":"abc","name":"user:my-app","target":"unoq"}'
 
 **Event 'error'**:
 Contains a JSON object with the details of an error.
@@ -1253,7 +1253,7 @@ the upgrade continues and 'done' is emitted anyway.
 
 **Event 'done'**:
 Contains a string with the message that the update process is complete. It is emitted last,
-also when 'error' events were received. 
+also when 'error' events were received.
 'event: done'
 'data: Update completed'
 `,
