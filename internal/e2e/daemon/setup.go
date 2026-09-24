@@ -25,8 +25,11 @@ import (
 const (
 	sseEventError       = "error"
 	sseEventData        = "data"
+	sseEventDone        = "done"
 	sseCodeServerClosed = "SERVER_CLOSED"
 )
+
+var ARM64Arch = "arm64"
 
 func GetHttpclient(t *testing.T, opts ...e2e.ArduinoAppCLIOption) *client.ClientWithResponses {
 	t.Helper()
@@ -95,7 +98,7 @@ func loop(r io.ReadCloser, events chan Event) {
 // reports. That image is arm64 only.
 func skipWithoutModelsImage(t *testing.T) {
 	t.Helper()
-	if runtime.GOARCH != "arm64" {
+	if runtime.GOARCH != ARM64Arch {
 		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
 	}
 }

@@ -55,7 +55,7 @@ func TestAppReleaseBuildInvalidTarget(t *testing.T) {
 // events stream. The python environment is built in the runner image, which is
 // arm64 only, so a docker daemon is required as well.
 func TestAppReleaseBuildStream(t *testing.T) {
-	if runtime.GOARCH != "arm64" {
+	if runtime.GOARCH != ARM64Arch {
 		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
 	}
 
@@ -119,7 +119,7 @@ func TestAppReleaseBuildStream(t *testing.T) {
 				continue
 			}
 			t.Fatalf("build failed: code=%s message=%s", payload.Code, payload.Message)
-		case sseEventData:
+		case sseEventDone:
 			var payload struct {
 				BuildID string `json:"build_id"`
 				Name    string `json:"name"`
@@ -154,6 +154,10 @@ func TestAppReleaseBuildStream(t *testing.T) {
 }
 
 func TestAppReleaseInstallFromArchive(t *testing.T) {
+	if runtime.GOARCH != "arm64" {
+		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
+	}
+
 	httpClient, daemonAddr := GetHttpclientAndAddr(t, e2e.WithBoardName("unoq"))
 
 	const (
@@ -234,6 +238,10 @@ func TestAppReleaseInstallFromArchive(t *testing.T) {
 // TestAppReleasePrepare installs a release without letting install prepare it, then
 // asserts the prepare endpoint downloads what it needs on its own.
 func TestAppReleasePrepare(t *testing.T) {
+	if runtime.GOARCH != ARM64Arch {
+		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
+	}
+
 	httpClient, daemonAddr := GetHttpclientAndAddr(t, e2e.WithBoardName("unoq"))
 
 	const (
