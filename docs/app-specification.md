@@ -107,7 +107,9 @@ This section describes the structure of a single item within the bricks list in 
 #### Handling Secrets in Variables
 
 Some Bricks declare certain variables as Secrets within their own Brick definition (not in app.yaml). This is used to flag sensitive information, such as API keys or database passwords.
-In app.yaml, the user sets the value of a secret variable exactly like any other variable, using the standard variables map — no special syntax is required.
+The App API stores the values of these variables in the CLI data directory's `secrets` shadow folder, outside the App folder. This keeps new secrets out of `app.yaml` and app exports.
+
+For backward compatibility, secret values already present in `app.yaml` are still used. When the same secret exists in both locations, the value in `app.yaml` takes precedence.
 
 Automatic Redaction: When an App is exported, the values of variables flagged as secret in the Brick's definition are automatically redacted (set to empty). This ensures that the App bundle can be safely shared without leaking personal credentials or private keys.
 

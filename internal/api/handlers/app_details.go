@@ -18,6 +18,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/secrets"
 	"github.com/arduino/arduino-app-cli/internal/render"
 
 	"github.com/docker/cli/cli/command"
@@ -119,6 +120,32 @@ func HandleAppDetailsEdits(
 				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to edit the app"})
 			}
 			return
+		}
+
+		if editRequest.Name != nil {
+			newID, err := idProvider.IDFromPath(appToEdit.FullPath)
+			if err != nil {
+				slog.Error("Unable to get renamed app id", slog.String("error", err.Error()))
+				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to move app secrets"})
+				return
+			}
+			oldStore := secrets.NewStore(cfg, id)
+			values, err := oldStore.Get()
+			if err != nil {
+				slog.Error("Unable to load app secrets", slog.String("error", err.Error()), slog.String("path", id.String()))
+				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to move app secrets"})
+				return
+			}
+			if err := secrets.NewStore(cfg, newID).Set(values); err != nil {
+				slog.Error("Unable to save app secrets", slog.String("error", err.Error()), slog.String("path", newID.String()))
+				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to move app secrets"})
+				return
+			}
+			if err := oldStore.Delete(); err != nil {
+				slog.Error("Unable to remove app secrets", slog.String("error", err.Error()), slog.String("path", id.String()))
+				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to move app secrets"})
+				return
+			}
 		}
 
 		res, err := orchestrator.AppDetails(r.Context(), dockerClient, appToEdit, bricksIndex, idProvider, cfg)

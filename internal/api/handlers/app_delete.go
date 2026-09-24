@@ -16,6 +16,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/secrets"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
@@ -48,6 +49,11 @@ func HandleAppDelete(
 		if err != nil {
 			slog.Error("Unable to delete the app", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to delete the app"})
+			return
+		}
+		if err := secrets.NewStore(cfg, id).Delete(); err != nil {
+			slog.Error("Unable to delete app secrets", slog.String("error", err.Error()), slog.String("path", id.String()))
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to delete app secrets"})
 			return
 		}
 		render.EncodeResponse(w, http.StatusOK, nil)

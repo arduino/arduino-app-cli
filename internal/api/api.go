@@ -85,11 +85,11 @@ func NewHTTPRouter(
 	mux.Handle("DELETE /v1/apps/{appID}/sketch/libraries/{libRef}", handlers.HandleSketchRemoveLibrary(idProvider))
 	mux.Handle("GET /v1/apps/{appID}/sketch/libraries", handlers.HandleSketchListLibraries(idProvider))
 
-	mux.Handle("GET /v1/apps/{appID}/bricks", handlers.HandleAppBrickInstancesList(brickService, idProvider))
-	mux.Handle("GET /v1/apps/{appID}/bricks/{brickID}", handlers.HandleAppBrickInstanceDetails(brickService, idProvider))
-	mux.Handle("PUT /v1/apps/{appID}/bricks/{brickID}", handlers.HandleBrickCreate(brickService, idProvider))
-	mux.Handle("PATCH /v1/apps/{appID}/bricks/{brickID}", handlers.HandleBrickUpdates(brickService, idProvider))
-	mux.Handle("DELETE /v1/apps/{appID}/bricks/{brickID}", handlers.HandleBrickDelete(brickService, idProvider))
+	mux.Handle("GET /v1/apps/{appID}/bricks", handlers.HandleAppBrickInstancesList(brickService, idProvider, cfg))
+	mux.Handle("GET /v1/apps/{appID}/bricks/{brickID}", handlers.HandleAppBrickInstanceDetails(brickService, idProvider, cfg))
+	mux.Handle("PUT /v1/apps/{appID}/bricks/{brickID}", handlers.HandleBrickCreate(brickService, idProvider, cfg))
+	mux.Handle("PATCH /v1/apps/{appID}/bricks/{brickID}", handlers.HandleBrickUpdates(brickService, idProvider, cfg))
+	mux.Handle("DELETE /v1/apps/{appID}/bricks/{brickID}", handlers.HandleBrickDelete(brickService, idProvider, cfg))
 	mux.Handle("POST /v1/apps/{appID}/bricks", handlers.HandleAppLocalBrickCreate(idProvider))
 	mux.Handle("POST /v1/apps/{appID}/bricks/{brickID}/rename", handlers.HandleAppLocalBrickRename(brickService, idProvider))
 
