@@ -145,6 +145,26 @@ func TestRemoteFS(t *testing.T) {
 					assert.Error(t, err)
 				}
 			})
+
+			t.Run("WriteFileKeepsMode", func(t *testing.T) {
+				sh, ok := tc.conn.(remote.RemoteShell)
+				require.True(t, ok)
+
+				const file = "./readonly.txt"
+				require.NoError(t, tc.conn.WriteFile(strings.NewReader("first"), file))
+				t.Cleanup(func() { _ = tc.conn.Remove(file) })
+
+				out, err := sh.GetCmd("chmod", "0444", file).Output(t.Context())
+				require.NoError(t, err, string(out))
+
+				require.Error(t, tc.conn.WriteFile(strings.NewReader("second"), file))
+
+				r, err := tc.conn.ReadFile(file)
+				require.NoError(t, err)
+				data, err := io.ReadAll(r)
+				require.NoError(t, err)
+				assert.Equal(t, "first", string(data))
+			})
 		})
 	}
 }
