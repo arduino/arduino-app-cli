@@ -1012,8 +1012,9 @@ func editAppFolder(req AppEditRequest, editApp *app.ArduinoApp, cfg config.Confi
 				return fmt.Errorf("failed to rename app path: %w", err)
 			}
 			editable.FullPath = newPath
+			// The folder is already renamed: the edit must complete, so the client gets the new ID.
 			if err := moveDefaultApp(oldPath, editApp, cfg); err != nil {
-				return fmt.Errorf("failed to update default app: %w", err)
+				slog.Warn("failed to update default app after renaming", slog.String("path", newPath.String()), slog.String("error", err.Error()))
 			}
 		}
 		editable.Name = editable.Descriptor.Name
