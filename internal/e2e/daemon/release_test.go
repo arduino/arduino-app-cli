@@ -85,7 +85,7 @@ func TestAppReleaseBuildStream(t *testing.T) {
 	// only reaches the subscribers present when an event is published.
 	eventsReq, err := http.NewRequestWithContext(ctx, http.MethodGet, daemonAddr+"/v1/apps/build/events", nil)
 	require.NoError(t, err)
-	events, err := newSSEClient(eventsReq, 0)
+	events, err := newSSEClient(eventsReq)
 	require.NoError(t, err)
 
 	type buildOutcome struct {
@@ -193,7 +193,7 @@ func TestAppReleaseInstallFromArchive(t *testing.T) {
 	require.NoError(t, err)
 	installReq.Header.Set("Content-Type", writer.FormDataContentType())
 
-	events, err := newSSEClient(installReq, 0)
+	events, err := newSSEClient(installReq)
 	require.NoError(t, err)
 
 	var sawDone bool
@@ -273,7 +273,7 @@ func TestAppReleasePrepare(t *testing.T) {
 	require.NoError(t, err)
 	installReq.Header.Set("Content-Type", writer.FormDataContentType())
 
-	installEvents, err := newSSEClient(installReq, 0)
+	installEvents, err := newSSEClient(installReq)
 	require.NoError(t, err)
 
 	var installedID string
@@ -314,7 +314,7 @@ func TestAppReleasePrepare(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	prepareEvents, err := newSSEClient(prepareReq, 0)
+	prepareEvents, err := newSSEClient(prepareReq)
 	require.NoError(t, err)
 
 	var sawPrepareDone bool

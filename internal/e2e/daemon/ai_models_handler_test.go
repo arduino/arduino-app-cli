@@ -47,7 +47,7 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 
 		req, err := http.NewRequest(http.MethodPut, daemonAddr+"/v1/models/"+encodedID, nil) //nolint:gosec
 		assert.NoError(t, err, "failed to create request for model install")
-		events, err := newSSEClient(req, 0)
+		events, err := newSSEClient(req)
 		require.NoError(t, err)
 		hasProgress := false
 		hasDone := false

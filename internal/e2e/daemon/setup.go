@@ -44,11 +44,7 @@ func GetHttpclientAndAddr(t *testing.T, opts ...e2e.ArduinoAppCLIOption) (*clien
 	return httpClient, cli.DaemonAddr
 }
 
-func newSSEClient(req *http.Request, lastEventID int64) (events chan Event, err error) {
-
-	if lastEventID > 0 {
-		req.Header.Set("Last-Event-ID", fmt.Sprintf("%d", lastEventID))
-	}
+func newSSEClient(req *http.Request) (events chan Event, err error) {
 	resp, err := http.DefaultClient.Do(req) //nolint
 	if err != nil {
 		return nil, err
