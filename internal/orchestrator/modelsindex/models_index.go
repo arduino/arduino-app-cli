@@ -624,7 +624,7 @@ func hasSufficientDiskSpace(path *paths.Path, requiredBytes uint64) error {
 		return err
 	}
 	if diskStats != nil {
-		if diskStats.Used+requiredBytes > diskStats.Total {
+		if requiredBytes > diskStats.Free {
 			return ErrInsufficientStorage
 		}
 		return nil
