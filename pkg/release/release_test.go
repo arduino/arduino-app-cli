@@ -21,7 +21,7 @@ import (
 func writeTestArchive(t *testing.T, entries map[string]string, order []string) *paths.Path {
 	t.Helper()
 	const root = "my-app-1.0.0-unoq"
-	archivePath := paths.New(t.TempDir()).Join(root + ".arduinoapp")
+	archivePath := paths.New(t.TempDir()).Join(root + ".ard")
 
 	file, err := archivePath.Create()
 	require.NoError(t, err)
@@ -70,7 +70,7 @@ func TestReadReleaseManifest(t *testing.T) {
 }
 
 func TestReadReleaseManifestNotAReleaseArchive(t *testing.T) {
-	archivePath := paths.New(t.TempDir()).Join("not-an-archive.arduinoapp")
+	archivePath := paths.New(t.TempDir()).Join("not-an-archive.ard")
 	require.NoError(t, archivePath.WriteFile([]byte("plain text, no gzip header")))
 
 	_, err := ReadReleaseManifest(archivePath)
@@ -107,7 +107,7 @@ func TestReadReleaseManifestIncompleteManifest(t *testing.T) {
 }
 
 func TestReadReleaseManifestMultipleRoots(t *testing.T) {
-	archivePath := paths.New(t.TempDir()).Join("my-app-1.0.0-unoq.arduinoapp")
+	archivePath := paths.New(t.TempDir()).Join("my-app-1.0.0-unoq.ard")
 
 	file, err := archivePath.Create()
 	require.NoError(t, err)
