@@ -494,8 +494,7 @@ func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
 }
 
 // parseInfoSize returns the download size an info action reports in its stat event.
-// false: no stat event, one with no size, or an error event. A size <= 0 is unknown: AI
-// Hub reports -1 for a model it cannot find.
+// false: no stat event, one with no size, or an error event.
 func parseInfoSize(out []byte) (uint64, bool) {
 	var size uint64
 	var found bool
@@ -589,11 +588,8 @@ func deleteInternalModel(ctx context.Context, cli client.APIClient, model AIMode
 	})
 }
 
-// getModelSize runs the handler's info action. false: the size is unknown, and the caller
-// downloads unchecked.
 func getModelSize(ctx context.Context, cli client.APIClient, handler ModelHandler, envVars map[string]string) (uint64, bool, error) {
 	if len(handler.Actions.Info) == 0 {
-		// An empty Cmd would run the image's default command.
 		return 0, false, nil
 	}
 
@@ -607,9 +603,6 @@ func getModelSize(ctx context.Context, cli client.APIClient, handler ModelHandle
 		Stderr: &stderr,
 	})
 	if err != nil {
-		// A handler that prints an error event usually exits non-zero too: parse first
-		// so its description reaches the log.
-		parseInfoSize(buf.Bytes())
 		return 0, false, fmt.Errorf("running info action: %w: %s", err, stderr.String())
 	}
 
@@ -617,31 +610,39 @@ func getModelSize(ctx context.Context, cli client.APIClient, handler ModelHandle
 	return outputSize, found, nil
 }
 
-// isModelInstalled runs the handler's check action. Every checker exits 0 with an info
-// event: "downloading": false when the model is installed, true when a download is in
-// progress or was interrupted. Anything else, or no check action, is not installed.
 func isModelInstalled(ctx context.Context, cli client.APIClient, handler ModelHandler, envVars map[string]string) bool {
 	if len(handler.Actions.Check) == 0 {
 		return false
 	}
 
-	var buf bytes.Buffer
+	var buf, stderr bytes.Buffer
 	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
 		Image:  ResolveVars(handler.Image, envVars),
 		Cmd:    handler.Actions.Check,
 		Binds:  ResolveVarsSlice(handler.Volumes, envVars),
 		Env:    envVars,
 		Stdout: &buf,
-		Stderr: io.Discard,
+		Stderr: &stderr,
 	})
-	if err != nil {
-		// "Model does not exist" exits 1.
-		return false
+	if err != nil && !hasErrorEvent(buf.Bytes()) {
+		slog.Warn("check action failed, model assumed not on disk", "err", err, "stderr", stderr.String())
 	}
+
 	return parseCheckInstalled(buf.Bytes())
 }
 
-// parseCheckInstalled reports whether a check action's output says the model is installed.
+func hasErrorEvent(out []byte) bool {
+	for line := range bytes.Lines(out) {
+		var raw struct {
+			Event string `json:"event"`
+		}
+		if json.Unmarshal(line, &raw) == nil && MessageType(raw.Event) == ErrorType {
+			return true
+		}
+	}
+	return false
+}
+
 func parseCheckInstalled(out []byte) bool {
 	for line := range bytes.Lines(out) {
 		var raw struct {

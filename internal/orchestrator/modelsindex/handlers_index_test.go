@@ -401,3 +401,29 @@ handlers:
 	// What the freeze does not answer stays a reference for whoever reads the file.
 	assert.Equal(t, []string{"${MODELS_PATH}/${models_repository}:/models"}, entry.Volumes)
 }
+
+func TestHasErrorEvent(t *testing.T) {
+	assert.True(t, hasErrorEvent([]byte(`{"event": "error", "description": "Model does not exist: x", "downloading": false}`)))
+	assert.False(t, hasErrorEvent([]byte(`{"event": "info", "downloading": true}`)))
+	assert.False(t, hasErrorEvent([]byte("docker: pull failed\n")))
+	assert.False(t, hasErrorEvent(nil))
+}
+
+func TestParseCheckInstalled(t *testing.T) {
+	tests := []struct {
+		name string
+		out  string
+		want bool
+	}{
+		{"installed", `{"event": "info", "description": "Model exists: x", "downloading": false}`, true},
+		{"partial download", `{"event": "info", "description": "Model downloading: x", "downloading": true}`, false},
+		{"does not exist", `{"event": "error", "description": "Model does not exist: x", "downloading": false}`, false},
+		{"info without downloading", `{"event": "info", "description": "x"}`, false},
+		{"empty", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, parseCheckInstalled([]byte(tt.out)))
+		})
+	}
+}
