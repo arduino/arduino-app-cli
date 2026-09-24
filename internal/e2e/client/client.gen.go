@@ -946,6 +946,9 @@ type ClientInterface interface {
 	// GetAppLogs request
 	GetAppLogs(ctx context.Context, id string, params *GetAppLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PrepareAppRelease request
+	PrepareAppRelease(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// StartApp request
 	StartApp(ctx context.Context, id string, params *StartAppParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1429,6 +1432,18 @@ func (c *Client) ExportApp(ctx context.Context, id string, params *ExportAppPara
 
 func (c *Client) GetAppLogs(ctx context.Context, id string, params *GetAppLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAppLogsRequest(c.Server, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PrepareAppRelease(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPrepareAppReleaseRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -2990,6 +3005,40 @@ func NewGetAppLogsRequest(server string, id string, params *GetAppLogsParams) (*
 	return req, nil
 }
 
+// NewPrepareAppReleaseRequest generates requests for PrepareAppRelease
+func NewPrepareAppReleaseRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/apps/%s/prepare", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewStartAppRequest generates requests for StartApp
 func NewStartAppRequest(server string, id string, params *StartAppParams) (*http.Request, error) {
 	var err error
@@ -4066,6 +4115,9 @@ type ClientWithResponsesInterface interface {
 	// GetAppLogsWithResponse request
 	GetAppLogsWithResponse(ctx context.Context, id string, params *GetAppLogsParams, reqEditors ...RequestEditorFn) (*GetAppLogsResp, error)
 
+	// PrepareAppReleaseWithResponse request
+	PrepareAppReleaseWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*PrepareAppReleaseResp, error)
+
 	// StartAppWithResponse request
 	StartAppWithResponse(ctx context.Context, id string, params *StartAppParams, reqEditors ...RequestEditorFn) (*StartAppResp, error)
 
@@ -4943,6 +4995,38 @@ func (r GetAppLogsResp) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetAppLogsResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PrepareAppReleaseResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON412      *PreconditionFailed
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r PrepareAppReleaseResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PrepareAppReleaseResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PrepareAppReleaseResp) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -5951,6 +6035,15 @@ func (c *ClientWithResponses) GetAppLogsWithResponse(ctx context.Context, id str
 		return nil, err
 	}
 	return ParseGetAppLogsResp(rsp)
+}
+
+// PrepareAppReleaseWithResponse request returning *PrepareAppReleaseResp
+func (c *ClientWithResponses) PrepareAppReleaseWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*PrepareAppReleaseResp, error) {
+	rsp, err := c.PrepareAppRelease(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePrepareAppReleaseResp(rsp)
 }
 
 // StartAppWithResponse request returning *StartAppResp
@@ -7196,6 +7289,46 @@ func ParseGetAppLogsResp(rsp *http.Response) (*GetAppLogsResp, error) {
 	}
 
 	response := &GetAppLogsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePrepareAppReleaseResp parses an HTTP response from a PrepareAppReleaseWithResponse call
+func ParsePrepareAppReleaseResp(rsp *http.Response) (*PrepareAppReleaseResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PrepareAppReleaseResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

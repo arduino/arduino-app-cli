@@ -530,51 +530,6 @@ Contains a JSON object with the details of an error.
 			},
 		},
 		{
-			OperationId: "installApp",
-			Method:      http.MethodPut,
-			Path:        "/v1/apps/install",
-			Request: (*struct {
-				File []byte `form:"file" description:"The release archive (.arduinoapp). Must be built for this board." validate:"required"`
-			})(nil),
-			Parameters: (*struct {
-				Prepare bool `query:"prepare" description:"After the install, download the containers and models the release needs to run. Any value other than the literal string 'true' (including an empty value or omitting the parameter) is treated as false."`
-			})(nil),
-			CustomSuccessResponse: &CustomResponseDef{
-				ContentType:   "text/event-stream",
-				DataStructure: "",
-				Description: `A stream of Server-Sent Events (SSE) that notifies the progress.
-The client will receive events formatted as follows:
-
-**Event 'progress'**:
-Contains a JSON object with the percentage of completion.
-'event: progress'
-'data: {"name":"containers","progress":25}'
-
-**Event 'message'**:
-Contains a JSON object with an informational message.
-'event: message'
-'data: {"message":"downloading..."}'
-
-**Event 'done'**:
-Contains a JSON object with the installed app.
-'event: done'
-'data: {"id":"dXNlcjpteS1yZWxlYXNl","name":"my-release","release":"my-release-20270101","target":"unoq"}'
-
-**Event 'error'**:
-Contains a JSON object with the details of an error.
-'event: error'
-'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
-`,
-			},
-			Description: "Installs a release archive as a new app in the releases dir. The release is read only and is named after the release, date included. If prepare is true, it also downloads the containers and models the release needs to run.",
-			Summary:     "Installs an app from a release archive",
-			Tags:        []Tag{ApplicationTag},
-			PossibleErrors: []ErrorResponse{
-				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
-				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
-			},
-		},
-		{
 			OperationId: "startApp",
 			Method:      http.MethodPost,
 			Path:        "/v1/apps/{id}/start",
@@ -675,6 +630,94 @@ Contains a JSON object with the details of an error.
 `,
 			},
 			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "installApp",
+			Method:      http.MethodPut,
+			Path:        "/v1/apps/install",
+			Request: (*struct {
+				File []byte `form:"file" description:"The release archive (.arduinoapp). Must be built for this board." validate:"required"`
+			})(nil),
+			Parameters: (*struct {
+				Prepare bool `query:"prepare" description:"After the install, download the containers and models the release needs to run. Any value other than the literal string 'true' (including an empty value or omitting the parameter) is treated as false."`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "text/event-stream",
+				DataStructure: "",
+				Description: `A stream of Server-Sent Events (SSE) that notifies the progress.
+The client will receive events formatted as follows:
+
+**Event 'progress'**:
+Contains a JSON object with the percentage of completion.
+'event: progress'
+'data: {"name":"containers","progress":25}'
+
+**Event 'message'**:
+Contains a JSON object with an informational message.
+'event: message'
+'data: {"message":"downloading..."}'
+
+**Event 'done'**:
+Contains a JSON object with the installed app.
+'event: done'
+'data: {"id":"dXNlcjpteS1yZWxlYXNl","name":"my-release","release":"my-release-20270101","target":"unoq"}'
+
+**Event 'error'**:
+Contains a JSON object with the details of an error.
+'event: error'
+'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+`,
+			},
+			Description: "Installs a release archive as a new app in the releases dir. The release is read only and is named after the release, date included. If prepare is true, it also downloads the containers and models the release needs to run.",
+			Summary:     "Installs an app from a release archive",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "prepareAppRelease",
+			Method:      http.MethodPut,
+			Path:        "/v1/apps/{id}/prepare",
+			Request: (*struct {
+				ID string `path:"id" description:"application identifier."`
+			})(nil),
+			Description: "Downloads the containers and models an already installed release needs to run, without starting it.",
+			Summary:     "Prepares an installed release app",
+			Tags:        []Tag{ApplicationTag},
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "text/event-stream",
+				DataStructure: "",
+				Description: `A stream of Server-Sent Events (SSE) that notifies the progress.
+The client will receive events formatted as follows:
+
+**Event 'progress'**:
+Contains a JSON object with the percentage of completion.
+'event: progress'
+'data: {"name":"containers","progress":25}'
+
+**Event 'message'**:
+Contains a JSON object with an informational message.
+'event: message'
+'data: {"message":"downloading..."}'
+
+**Event 'done'**:
+Contains a JSON object with the prepared app.
+'event: done'
+'data: {"id":"dXNlcjpteS1yZWxlYXNl","name":"my-release","release":"my-release-20270101","target":"unoq"}'
+
+**Event 'error'**:
+Contains a JSON object with the details of an error.
+'event: error'
+'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+`,
+			},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
 			},
 		},

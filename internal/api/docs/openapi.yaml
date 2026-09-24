@@ -738,8 +738,6 @@ paths:
       summary: Get the logs of a running app
       tags:
       - Application
-<<<<<<< HEAD
-=======
   /v1/apps/{id}/prepare:
     put:
       description: Downloads the containers and models an already installed release
@@ -791,7 +789,6 @@ paths:
       summary: Prepares an installed release app
       tags:
       - Application
->>>>>>> fcb073b8 (Address review)
   /v1/apps/{id}/start:
     post:
       description: Start the application and handles all the operation to start any
