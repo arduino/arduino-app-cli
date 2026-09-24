@@ -128,14 +128,20 @@ func ParseLsOutput(out io.Reader) ([]FileInfo, error) {
 type readOutput struct {
 	io.Reader
 	wait func() error
+	end  error
 }
 
 func (r *readOutput) Read(p []byte) (int, error) {
+	if r.end != nil {
+		return 0, r.end
+	}
+
 	n, err := r.Reader.Read(p)
 	if errors.Is(err, io.EOF) {
-		if failure := r.wait(); failure != nil {
-			return n, failure
+		if r.end = r.wait(); r.end == nil {
+			r.end = io.EOF
 		}
+		return n, r.end
 	}
 	return n, err
 }
