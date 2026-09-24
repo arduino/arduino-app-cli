@@ -111,8 +111,9 @@ func HandleAppBuild(
 		defer func() { _ = archivePath.Remove() }()
 
 		if !archivePath.Exist() {
-			slog.Error("the build archive is missing", slog.String("path", archivePath.String()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "the build archive is missing"})
+			slog.Error("the build did not produce a release archive", slog.String("path", archivePath.String()))
+			broker.PublishError(buildID, render.InternalServiceErr, "the build did not produce a release archive")
+			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "the build did not produce a release archive"})
 			return
 		}
 
