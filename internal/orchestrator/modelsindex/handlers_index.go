@@ -493,6 +493,39 @@ func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
 	}
 }
 
+// parseInfoSize returns the download size an info action reports in its stat event.
+// false: no stat event, one with no size, or an error event. A size <= 0 is unknown: AI
+// Hub reports -1 for a model it cannot find.
+func parseInfoSize(out []byte) (uint64, bool) {
+	var size uint64
+	var found bool
+	for line := range bytes.Lines(out) {
+		var raw struct {
+			Event       string   `json:"event"`
+			Description string   `json:"description"`
+			SizeBytes   *uint64  `json:"size_bytes"`
+			SizeMB      *float64 `json:"size_mb"`
+		}
+		if err := json.Unmarshal(line, &raw); err != nil {
+			slog.Debug("non-JSON stdout from info action", "line", string(line))
+			continue
+		}
+		switch raw.Event {
+		case "error":
+			slog.Warn("info action reported an error, size unknown", "description", raw.Description)
+			return 0, false
+		case "stat":
+			switch {
+			case raw.SizeBytes != nil && *raw.SizeBytes > 0:
+				size, found = *raw.SizeBytes, true
+			case raw.SizeMB != nil && *raw.SizeMB > 0:
+				size, found = uint64(*raw.SizeMB*1024*1024), true
+			}
+		}
+	}
+	return size, found
+}
+
 func (h *HandlersIndex) GetDockerImages() []string {
 	if h == nil {
 		slog.Warn("handlers index is nil, cannot get model handler images")
@@ -554,4 +587,32 @@ func deleteInternalModel(ctx context.Context, cli client.APIClient, model AIMode
 			slog.Debug("handler stderr", "line", line)
 		}),
 	})
+}
+
+// getModelSize runs the handler's info action. false: the size is unknown, and the caller
+// downloads unchecked.
+func getModelSize(ctx context.Context, cli client.APIClient, handler ModelHandler, envVars map[string]string) (uint64, bool, error) {
+	if len(handler.Actions.Info) == 0 {
+		// An empty Cmd would run the image's default command.
+		return 0, false, nil
+	}
+
+	var buf, stderr bytes.Buffer
+	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
+		Image:  ResolveVars(handler.Image, envVars),
+		Cmd:    handler.Actions.Info,
+		Binds:  ResolveVarsSlice(handler.Volumes, envVars),
+		Env:    envVars,
+		Stdout: &buf,
+		Stderr: &stderr,
+	})
+	if err != nil {
+		// A handler that prints an error event usually exits non-zero too: parse first
+		// so its description reaches the log.
+		parseInfoSize(buf.Bytes())
+		return 0, false, fmt.Errorf("running info action: %w: %s", err, stderr.String())
+	}
+
+	outputSize, found := parseInfoSize(buf.Bytes())
+	return outputSize, found, nil
 }
