@@ -48,7 +48,7 @@ func writeTestArchive(t *testing.T, entries map[string]string, order []string) *
 	return archivePath
 }
 
-func TestReadReleaseInfo(t *testing.T) {
+func TestReadReleaseManifest(t *testing.T) {
 	manifest := "schema: 1\n" +
 		"name: my-app\n" +
 		"target: unoq\n" +
@@ -60,7 +60,7 @@ func TestReadReleaseInfo(t *testing.T) {
 		"src/app.yaml": "name: my-app\n",
 	}, []string{"release.yaml", "src/app.yaml"})
 
-	info, err := ReadReleaseInfo(archivePath)
+	info, err := ReadReleaseManifest(archivePath)
 	require.NoError(t, err)
 	assert.Equal(t, 1, info.Schema)
 	assert.Equal(t, "my-app", info.Name)
@@ -69,44 +69,44 @@ func TestReadReleaseInfo(t *testing.T) {
 	assert.Equal(t, "hello", info.Notes)
 }
 
-func TestReadReleaseInfoNotAReleaseArchive(t *testing.T) {
+func TestReadReleaseManifestNotAReleaseArchive(t *testing.T) {
 	archivePath := paths.New(t.TempDir()).Join("not-an-archive.arduinoapp")
 	require.NoError(t, archivePath.WriteFile([]byte("plain text, no gzip header")))
 
-	_, err := ReadReleaseInfo(archivePath)
+	_, err := ReadReleaseManifest(archivePath)
 	assert.ErrorContains(t, err, "is not a release archive")
 }
 
-func TestReadReleaseInfoWrongExtension(t *testing.T) {
+func TestReadReleaseManifestWrongExtension(t *testing.T) {
 	archivePath := writeTestArchive(t, map[string]string{
 		"release.yaml": "schema: 1\nname: my-app\ntarget: unoq\n",
 	}, []string{"release.yaml"})
 	renamed := archivePath.Parent().Join("my-app-1.0.0-unoq.tar.gz")
 	require.NoError(t, archivePath.Rename(renamed))
 
-	_, err := ReadReleaseInfo(renamed)
+	_, err := ReadReleaseManifest(renamed)
 	assert.ErrorContains(t, err, "is not a release archive")
 }
 
-func TestReadReleaseInfoNoManifest(t *testing.T) {
+func TestReadReleaseManifestNoManifest(t *testing.T) {
 	archivePath := writeTestArchive(t, map[string]string{
 		"src/app.yaml": "name: my-app\n",
 	}, []string{"src/app.yaml"})
 
-	_, err := ReadReleaseInfo(archivePath)
+	_, err := ReadReleaseManifest(archivePath)
 	assert.ErrorContains(t, err, "no release manifest")
 }
 
-func TestReadReleaseInfoIncompleteManifest(t *testing.T) {
+func TestReadReleaseManifestIncompleteManifest(t *testing.T) {
 	archivePath := writeTestArchive(t, map[string]string{
 		"release.yaml": "schema: 1\n",
 	}, []string{"release.yaml"})
 
-	_, err := ReadReleaseInfo(archivePath)
+	_, err := ReadReleaseManifest(archivePath)
 	assert.ErrorContains(t, err, "states no name or no target")
 }
 
-func TestReadReleaseInfoMultipleRoots(t *testing.T) {
+func TestReadReleaseManifestMultipleRoots(t *testing.T) {
 	archivePath := paths.New(t.TempDir()).Join("my-app-1.0.0-unoq.arduinoapp")
 
 	file, err := archivePath.Create()
@@ -122,6 +122,6 @@ func TestReadReleaseInfoMultipleRoots(t *testing.T) {
 	require.NoError(t, gzipWriter.Close())
 	require.NoError(t, file.Close())
 
-	_, err = ReadReleaseInfo(archivePath)
+	_, err = ReadReleaseManifest(archivePath)
 	assert.ErrorContains(t, err, "is not rooted at a single release folder")
 }
