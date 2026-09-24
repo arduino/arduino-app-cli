@@ -963,6 +963,10 @@ func EditApp(
 	editApp *app.ArduinoApp,
 	cfg config.Configuration,
 ) (editErr error) {
+	if req.Name != nil && slug.Make(*req.Name) == "" {
+		return fmt.Errorf("%w: invalid app name %q", app.ErrInvalidApp, *req.Name)
+	}
+
 	// The default app is stored beside the apps and not in one, so it is the one edit
 	// an installed release takes.
 	if req.Default != nil {
@@ -995,18 +999,31 @@ func EditApp(
 	}
 
 	if req.Name != nil {
-		newPath := editable.FullPath.Parent().Join(slug.Make(*req.Name))
-		if newPath.Exist() {
-			return ErrAppAlreadyExists
+		newPath, err := findRenamePath(editable.FullPath, slug.Make(*req.Name))
+		if err != nil {
+			return err
 		}
-		if err := editable.FullPath.Rename(newPath); err != nil {
-			return fmt.Errorf("failed to rename app path: %w", err)
+		if !newPath.EqualsTo(editable.FullPath) {
+			if err := editable.FullPath.Rename(newPath); err != nil {
+				return fmt.Errorf("failed to rename app path: %w", err)
+			}
+			editable.FullPath = newPath
 		}
-		editable.FullPath = newPath
 		editable.Name = editable.Descriptor.Name
 	}
 
 	return editable.Save()
+}
+
+func findRenamePath(appPath *paths.Path, folderName string) (*paths.Path, error) {
+	candidate := appPath.Parent().Join(folderName)
+	for i := 1; i <= 100; i++ {
+		if candidate.EqualsTo(appPath) || candidate.NotExist() {
+			return candidate, nil
+		}
+		candidate = appPath.Parent().Join(fmt.Sprintf("%s-%d", folderName, i))
+	}
+	return nil, ErrAppAlreadyExists
 }
 
 func editAppDefaults(userApp *app.ArduinoApp, isDefault bool, cfg config.Configuration) error {

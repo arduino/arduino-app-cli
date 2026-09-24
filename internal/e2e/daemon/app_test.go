@@ -387,6 +387,83 @@ func TestEditApp(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "invalid app: icon \"💻 invalid\" is not a valid single emoji", actualResponseBody.Details)
 	})
+
+	createApp := func(t *testing.T, name string) string {
+		t.Helper()
+		createResp, err := httpClient.CreateAppWithResponse(
+			t.Context(),
+			&client.CreateAppParams{SkipSketch: new(true)},
+			client.CreateAppRequest{Name: name},
+		)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusCreated, createResp.StatusCode())
+		require.NotNil(t, createResp.JSON201)
+		return *createResp.JSON201.Id
+	}
+	userAppID := func(folder string) string {
+		return base64.RawURLEncoding.EncodeToString([]byte("user:" + folder))
+	}
+
+	t.Run("RenameSameSlug_KeepsId", func(t *testing.T) {
+		appID := createApp(t, "same-slug")
+
+		editResp, err := httpClient.EditAppWithResponse(t.Context(), appID, client.EditRequest{Name: new("Same-Slug")})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, editResp.StatusCode())
+		require.NotNil(t, editResp.JSON200)
+		require.Equal(t, appID, editResp.JSON200.Id)
+		require.Equal(t, "Same-Slug", editResp.JSON200.Name)
+	})
+
+	t.Run("RenameToTakenName_AddsSuffix", func(t *testing.T) {
+		createApp(t, "taken")
+		firstID := createApp(t, "first")
+		secondID := createApp(t, "second")
+
+		editResp, err := httpClient.EditAppWithResponse(t.Context(), firstID, client.EditRequest{Name: new("taken")})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, editResp.StatusCode())
+		require.NotNil(t, editResp.JSON200)
+		require.Equal(t, userAppID("taken-1"), editResp.JSON200.Id)
+		require.Equal(t, "taken", editResp.JSON200.Name)
+
+		editResp, err = httpClient.EditAppWithResponse(t.Context(), secondID, client.EditRequest{Name: new("taken")})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, editResp.StatusCode())
+		require.NotNil(t, editResp.JSON200)
+		require.Equal(t, userAppID("taken-2"), editResp.JSON200.Id)
+		require.Equal(t, "taken", editResp.JSON200.Name)
+
+		// The app already sits in the first free suffixed folder: it stays there.
+		editResp, err = httpClient.EditAppWithResponse(t.Context(), userAppID("taken-1"), client.EditRequest{Name: new("Taken")})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, editResp.StatusCode())
+		require.NotNil(t, editResp.JSON200)
+		require.Equal(t, userAppID("taken-1"), editResp.JSON200.Id)
+		require.Equal(t, "Taken", editResp.JSON200.Name)
+	})
+
+	t.Run("RenameEmptySlug_Fail", func(t *testing.T) {
+		appID := createApp(t, "empty-slug")
+
+		var actualResponseBody models.ErrorResponse
+		editResp, err := httpClient.EditApp(t.Context(), appID, client.EditRequest{Name: new("$$$")})
+		require.NoError(t, err)
+		defer editResp.Body.Close()
+
+		require.Equal(t, http.StatusBadRequest, editResp.StatusCode)
+		body, err := io.ReadAll(editResp.Body)
+		require.NoError(t, err)
+		err = json.Unmarshal(body, &actualResponseBody)
+		require.NoError(t, err)
+		require.Equal(t, "invalid app: invalid app name \"$$$\"", actualResponseBody.Details)
+
+		detailsResp, err := httpClient.GetAppDetailsWithResponse(t.Context(), appID)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, detailsResp.StatusCode())
+		require.NotNil(t, detailsResp.JSON200)
+		require.Equal(t, "empty-slug", detailsResp.JSON200.Name)
+	})
 }
 
 func TestDeleteApp(t *testing.T) {
