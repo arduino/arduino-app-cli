@@ -738,6 +738,60 @@ paths:
       summary: Get the logs of a running app
       tags:
       - Application
+<<<<<<< HEAD
+=======
+  /v1/apps/{id}/prepare:
+    put:
+      description: Downloads the containers and models an already installed release
+        needs to run, without starting it.
+      operationId: prepareAppRelease
+      parameters:
+      - description: application identifier.
+        in: path
+        name: id
+        required: true
+        schema:
+          description: application identifier.
+          type: string
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                type: string
+          description: |
+            A stream of Server-Sent Events (SSE) that notifies the progress.
+            The client will receive events formatted as follows:
+
+            **Event 'progress'**:
+            Contains a JSON object with the percentage of completion.
+            'event: progress'
+            'data: {"name":"containers","progress":25}'
+
+            **Event 'message'**:
+            Contains a JSON object with an informational message.
+            'event: message'
+            'data: {"message":"downloading..."}'
+
+            **Event 'done'**:
+            Contains a JSON object with the prepared app.
+            'event: done'
+            'data: {"id":"dXNlcjpteS1yZWxlYXNl","name":"my-release","release":"my-release-20270101","target":"unoq"}'
+
+            **Event 'error'**:
+            Contains a JSON object with the details of an error.
+            'event: error'
+            'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "412":
+          $ref: '#/components/responses/PreconditionFailed'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Prepares an installed release app
+      tags:
+      - Application
+>>>>>>> fcb073b8 (Address review)
   /v1/apps/{id}/start:
     post:
       description: Start the application and handles all the operation to start any
@@ -994,7 +1048,7 @@ paths:
             **Event 'progress'**:
             Contains a JSON object with the percentage of completion.
             'event: progress'
-            'data: {"progress":0.25}'
+            'data: {"name":"containers","progress":25}'
 
             **Event 'message'**:
             Contains a JSON object with an informational message.

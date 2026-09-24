@@ -74,7 +74,7 @@ func HandleAppPrepare(
 		}); err != nil {
 			code := render.InternalServiceErr
 			if errors.Is(err, orchestrator.ErrBadRequest) {
-				code = "bad_request"
+				code = render.BadRequestErr
 			}
 			sseStream.SendError(render.SSEErrorData{Code: code, Message: err.Error()})
 			return

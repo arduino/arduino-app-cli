@@ -92,9 +92,9 @@ func HandleAppInstall(
 			code := render.InternalServiceErr
 			switch {
 			case errors.Is(err, orchestrator.ErrAppAlreadyExists):
-				code = "app_already_exists"
+				code = render.AppAlreadyExistsErr
 			case errors.Is(err, orchestrator.ErrBadRequest):
-				code = "bad_request"
+				code = render.BadRequestErr
 			}
 			sseStream.SendError(render.SSEErrorData{Code: code, Message: err.Error()})
 			return

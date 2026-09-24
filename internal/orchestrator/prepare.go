@@ -93,6 +93,10 @@ func PrepareInstalledRelease(
 	plat platform.Platform,
 	cb func(StreamMessage),
 ) error {
+	if !arduinoApp.IsRelease() {
+		return fmt.Errorf("%w: %q is not installed from a release", ErrBadRequest, arduinoApp.Name)
+	}
+
 	prj, err := renderRelease(ctx, docker, provisioner, arduinoApp, cfg, plat)
 	if err != nil {
 		return err
