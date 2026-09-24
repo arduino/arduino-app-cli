@@ -22,11 +22,12 @@ import (
 )
 
 // runnerVersion do not edit, this is generate with `task bump:runner-version`
-var RunnerVersion = "0.13.0rc2"
+var RunnerVersion = "0.13.0rc5"
 
 type Configuration struct {
 	appsDir                          *paths.Path
 	dataDir                          *paths.Path
+	releasesDir                      *paths.Path
 	requiredRuntimes                 []RequiredRuntime
 	customModelsDir                  *paths.Path
 	modelsDir                        *paths.Path
@@ -69,6 +70,12 @@ func NewFromEnv() (Configuration, error) {
 	dataDir := paths.New(os.Getenv("ARDUINO_APP_CLI__DATA_DIR"))
 	if dataDir == nil {
 		dataDir = paths.New("/var/lib/arduino-app-cli")
+	}
+
+	// Where the releases are installed: not among the apps, they are not edited.
+	releasesDir := paths.New(os.Getenv("ARDUINO_APP_CLI__RELEASES_DIR"))
+	if releasesDir == nil {
+		releasesDir = dataDir.Join("releases")
 	}
 
 	// Required host units bind-mounted as /run/<unit> into app containers.
@@ -125,7 +132,8 @@ func NewFromEnv() (Configuration, error) {
 		return Configuration{}, fmt.Errorf("invalid LIBRARIES_API_URL: %w", err)
 	}
 
-	constraintStr := cmp.Or(os.Getenv("ARDUINO_APP_CLI__PLATFORM_VERSION_CONSTRAINT"), "<1.0.0")
+	// The '-0' suffix keeps the pre-releases of 2.0.0 out: otherwise '2.0.0-rc.1' would be an accepted version.
+	constraintStr := cmp.Or(os.Getenv("ARDUINO_APP_CLI__PLATFORM_VERSION_CONSTRAINT"), "<2.0.0-0")
 
 	edgeImpulseAPIURL := os.Getenv("EDGE_IMPULSE_API_URL")
 	if edgeImpulseAPIURL == "" {
@@ -146,6 +154,7 @@ func NewFromEnv() (Configuration, error) {
 	c := Configuration{
 		appsDir:                          appsDir,
 		dataDir:                          dataDir,
+		releasesDir:                      releasesDir,
 		requiredRuntimes:                 requiredRuntimes,
 		customModelsDir:                  customModelsDir,
 		modelsDir:                        modelsDir,
@@ -181,6 +190,9 @@ func (c *Configuration) EnsureFolders() error {
 	if err := c.CustomModelsDir().MkdirAll(); err != nil {
 		return err
 	}
+	if err := c.ReleasesDir().MkdirAll(); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -191,6 +203,12 @@ func (c *Configuration) AppsDir() *paths.Path {
 
 func (c *Configuration) DataDir() *paths.Path {
 	return c.dataDir
+}
+
+// ReleasesDir holds the releases as they are installed, frozen: the app a release is
+// run as is a copy of it, in the apps dir.
+func (c *Configuration) ReleasesDir() *paths.Path {
+	return c.releasesDir
 }
 
 func (c *Configuration) ExamplesBaseDir() *paths.Path {

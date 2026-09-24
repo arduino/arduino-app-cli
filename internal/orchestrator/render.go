@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"os"
 	"os/user"
+	"path/filepath"
 	"strings"
 	"text/template"
 
@@ -36,6 +37,26 @@ var hostFuncs = template.FuncMap{
 			return ""
 		}
 		return group.Gid
+	},
+
+	// The major:minor of the devices of a class the name pattern matches: the minor of a
+	// misc device is assigned at boot, and which nodes exist is up to the board.
+	"deviceNumbers": func(class, pattern string) []string {
+		attributes, err := filepath.Glob("/sys/class/" + class + "/" + pattern + "/dev")
+		if err != nil {
+			slog.Warn("cannot list the devices of the class", slog.String("class", class), slog.String("pattern", pattern), slog.Any("error", err))
+			return nil
+		}
+		numbers := make([]string, 0, len(attributes))
+		for _, attribute := range attributes {
+			content, err := os.ReadFile(attribute)
+			if err != nil {
+				slog.Warn("cannot read the device number", slog.String("path", attribute), slog.Any("error", err))
+				continue
+			}
+			numbers = append(numbers, strings.TrimSpace(string(content)))
+		}
+		return numbers
 	},
 
 	"deviceMajor": func(driver string) string {
@@ -158,11 +179,19 @@ func renderComposeNode(node any) (any, error) {
 			switch item := item.(type) {
 			case nil:
 			case string:
-				if isExpression && rendered[item] {
+				if !isExpression {
+					rendered[item] = true
+					items = append(items, item)
 					continue
 				}
-				rendered[item] = true
-				items = append(items, item)
+				// An expression can write a list of its own: one item per line.
+				for line := range strings.SplitSeq(item, "\n") {
+					if line = strings.TrimSpace(line); line == "" || rendered[line] {
+						continue
+					}
+					rendered[line] = true
+					items = append(items, line)
+				}
 			default:
 				items = append(items, item)
 			}

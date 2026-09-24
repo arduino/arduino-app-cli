@@ -39,8 +39,9 @@ import (
 )
 
 // A release is an app frozen with all its dependencies: <name>-<date>-<target>/ holds
-// release.yaml, src/ as authored, prebuild/, which becomes .cache/ on install, and
-// data/ when the build is asked to ship it.
+// release.yaml, src/ as authored, prebuild/, the .cache on install, and data/.
+
+const releaseSrcDir = "src"
 
 type BuildReleaseRequest struct {
 	// Target defaults to the board running the build.
@@ -62,14 +63,8 @@ type BuildReleaseResult struct {
 	Archive string `json:"archive"`
 }
 
-// ReleaseManifestFileName is the manifest at the root of the archive: it holds what a
-// board needs to list a release and to gate its install, without opening the app.
-const ReleaseManifestFileName = "release.yaml"
-
-// ReleaseManifestSchema is the layout of the archive, not the version of the app: an
-// older release must stay readable by a newer cli.
-const ReleaseManifestSchema = 1
-
+// ReleaseManifest is what the archive states of itself: what a board needs to list a
+// release and to gate its install. app.Release reads the part that marks an app.
 type ReleaseManifest struct {
 	Schema int    `yaml:"schema"`
 	Name   string `yaml:"name"`
@@ -160,8 +155,8 @@ func BuildRelease(
 	}()
 
 	releaseDir := stagingDir.Join(releaseName)
-	srcDir := releaseDir.Join("src")
-	prebuildDir := releaseDir.Join("prebuild")
+	srcDir := releaseDir.Join(releaseSrcDir)
+	prebuildDir := releaseDir.Join(app.PrebuildDirName)
 
 	cb(StreamMessage{progress: &Progress{Name: "copying the app", Progress: 0.0}})
 	if err := stageReleaseSrc(appToBuild, srcDir, bricksIndex); err != nil {
@@ -176,7 +171,7 @@ func BuildRelease(
 	}
 
 	manifest := ReleaseManifest{
-		Schema:    ReleaseManifestSchema,
+		Schema:    app.ReleaseManifestSchema,
 		Name:      appToBuild.Name,
 		Target:    plat.BoardName,
 		CreatedAt: now,
@@ -236,6 +231,8 @@ func BuildRelease(
 	}, nil
 }
 
+// writeReleaseManifest writes the file the install keeps as it is: it is the manifest
+// of the archive and the marker of the app installed from it.
 func writeReleaseManifest(releaseDir *paths.Path, manifest ReleaseManifest) error {
 	// The note is markdown and is read by people as well: a block keeps its line breaks
 	// where an escaped string would bury them.
@@ -243,7 +240,7 @@ func writeReleaseManifest(releaseDir *paths.Path, manifest ReleaseManifest) erro
 	if err != nil {
 		return fmt.Errorf("failed to write the release manifest: %w", err)
 	}
-	if err := releaseDir.Join(ReleaseManifestFileName).WriteFile(data); err != nil {
+	if err := releaseDir.Join(app.ReleaseManifestFileName).WriteFile(data); err != nil {
 		return fmt.Errorf("failed to write the release manifest: %w", err)
 	}
 	return nil
@@ -362,7 +359,7 @@ func releaseLibraries(ctx context.Context, arduinoApp app.ArduinoApp) []string {
 }
 
 // A gzipped tar and not a zip: the venv needs symlinks and exec bits preserved.
-const ReleaseArchiveExt = ".arduinoapp"
+const ReleaseArchiveExt = ".ard"
 
 // targetIndexes are the indexes of the board the release is built for: which bricks and
 // services exist, and which compose variant they use, depend on it.
@@ -579,7 +576,8 @@ func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platfo
 }
 
 // writeReleaseArchive writes releaseDir as a gzipped tar rooted at its own name.
-// Symlinks and modes are kept: the venv relies on both.
+// Symlinks are kept as they are, and so are the modes of the venv of the prebuild: the
+// rest is normalized, so that the archive does not carry the umask of the build machine.
 func writeReleaseArchive(releaseDir *paths.Path, archivePath *paths.Path) (err error) {
 	file, err := archivePath.Create()
 	if err != nil {
@@ -629,7 +627,7 @@ func writeReleaseArchive(releaseDir *paths.Path, archivePath *paths.Path) (err e
 
 		// The manifest goes right after the release folder the archive is rooted at, so
 		// that a reader gets the release facts from the first block.
-		manifest := releaseDir.Join(ReleaseManifestFileName)
+		manifest := releaseDir.Join(app.ReleaseManifestFileName)
 		entries = slices.DeleteFunc(entries, func(p *paths.Path) bool { return p.EqualsTo(manifest) })
 
 		for _, entry := range append(paths.PathList{releaseDir, manifest}, entries...) {
@@ -658,6 +656,16 @@ func writeReleaseArchive(releaseDir *paths.Path, archivePath *paths.Path) (err e
 			// The install decides who owns the files.
 			header.Uid, header.Gid = 0, 0
 			header.Uname, header.Gname = "", ""
+			// The modes of the build machine are not shipped, or an app folder left group
+			// writable installs group writable. The venv is the exception: it needs its x.
+			if _, entry, _ := strings.Cut(header.Name, "/"); !strings.HasPrefix(entry, "prebuild/") {
+				switch {
+				case info.IsDir():
+					header.Mode = 0755
+				case info.Mode().IsRegular():
+					header.Mode = 0644
+				}
+			}
 
 			if err := tarWriter.WriteHeader(header); err != nil {
 				return err

@@ -7,6 +7,7 @@ package dockerhelper
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/moby/moby/api/types/container"
@@ -41,26 +42,28 @@ func PruneContainers(ctx context.Context, docker dockerClient.APIClient, label s
 	return pruned, nil
 }
 
-// PruneNetworks removes the networks carrying the label, keep having the last word.
-func PruneNetworks(ctx context.Context, docker dockerClient.APIClient, label string, keep func(labels map[string]string) bool) (int, error) {
-	networks, err := docker.NetworkList(ctx, dockerClient.NetworkListOptions{
-		Filters: make(dockerClient.Filters).Add("label", label),
-	})
+// PruneNetworks removes every network remove accepts, by its labels, and reports how
+// many went.
+func PruneNetworks(ctx context.Context, docker dockerClient.APIClient, remove func(labels map[string]string) bool) (int, error) {
+	networks, err := docker.NetworkList(ctx, dockerClient.NetworkListOptions{})
 	if err != nil {
 		return 0, fmt.Errorf("failed to list networks: %w", err)
 	}
 
 	var pruned int
+	var failed []error
 	for _, info := range networks.Items {
-		if keep != nil && !keep(info.Labels) {
+		if !remove(info.Labels) {
 			continue
 		}
+		// A network an app still runs on is refused: take the others anyway.
 		if _, err := docker.NetworkRemove(ctx, info.ID, dockerClient.NetworkRemoveOptions{}); err != nil {
-			return 0, fmt.Errorf("failed to remove network %s: %w", info.ID, err)
+			failed = append(failed, fmt.Errorf("failed to remove network %s: %w", info.Name, err))
+			continue
 		}
 		pruned++
 	}
-	return pruned, nil
+	return pruned, errors.Join(failed...)
 }
 
 // Containers lists the containers carrying the label, stopped ones included.

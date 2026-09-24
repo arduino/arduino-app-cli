@@ -8,8 +8,8 @@ vars:
   GOLANGCI_LINT_VERSION: v2.11.4
   GOIMPORTS_VERSION: v0.42.0
   DPRINT_VERSION: 0.48.0
-  EXAMPLE_VERSION: "0.13.0rc2"
-  RUNNER_VERSION: "0.13.0rc2"
+  EXAMPLE_VERSION: "0.13.0rc5"
+  RUNNER_VERSION: "0.13.0rc5"
   VERSION: # if version is not passed we hack the semver by encoding the commit as pre-release
     sh: echo "${VERSION:-0.0.0-$(git rev-parse --short HEAD)}"
 
@@ -165,6 +165,7 @@ tasks:
 
   build-deb:copyright:
     desc: Add dependency licenses to debian copyright file
+    silent: true
     cmds:
       - mkdir -p debian/arduino-app-cli/usr/share/doc/arduino-app-cli
       - |

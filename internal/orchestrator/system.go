@@ -21,8 +21,10 @@ import (
 	"github.com/compose-spec/compose-go/v2/loader"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
+	"github.com/moby/moby/api/types/container"
 	"github.com/sirupsen/logrus"
 	"go.bug.st/f"
+	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
@@ -234,6 +236,13 @@ func (s SystemCleanupResult) IsEmpty() bool {
 func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex, docker command.Cli, platform platform.Platform) (SystemCleanupResult, error) {
 	var result SystemCleanupResult
 
+	// Read before anything removes the containers: they tell which network is ours.
+	appContainers, err := dockerhelper.Containers(ctx, docker.Client(), DockerAppLabel+"=true")
+	if err != nil {
+		feedback.Warnf("failed to list the app containers - %v", err)
+	}
+	removeNetwork := ourNetworks(appContainers)
+
 	// Remove running app
 	runningApp, err := getRunningApp(ctx, docker.Client())
 	if err != nil {
@@ -254,15 +263,12 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 	} else {
 		result.ContainersRemoved = count
 	}
-	// A project of ours is a slug of the path of an app, which the label states.
-	const composeProjectLabel = "com.docker.compose.project"
-	if count, err := dockerhelper.PruneNetworks(ctx, docker.Client(), composeProjectLabel, func(labels map[string]string) bool {
-		return strings.Contains(labels[composeProjectLabel], "arduino-app-cli")
-	}); err != nil {
+	// A network that resists does not cancel the others: the count is read anyway.
+	count, err := dockerhelper.PruneNetworks(ctx, docker.Client(), removeNetwork)
+	if err != nil {
 		feedback.Warnf("failed to remove dangling networks - %v", err)
-	} else {
-		result.NetworksRemoved = count
 	}
+	result.NetworksRemoved = count
 
 	// Remove unused images
 	imagesMustStay, err := getRequiredImages(cfg, bricksindex, servicesindex, modelsIndex)
@@ -405,7 +411,7 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 		}
 	}
 
-	// Install zephyr platform
+	// Install the platform, if it is missing
 	{
 		if err := cli.Init(&rpc.InitRequest{Instance: cliInstance}, commands.InitStreamResponseToCallbackFunction(ctx, func(r *rpc.InitResponse) error {
 			if p := r.GetInitProgress().GetDownloadProgress(); p != nil {
@@ -416,13 +422,30 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 			return fmt.Errorf("could not initialize Arduino Core Server: %w", err)
 		}
 
-		str := commands.PlatformInstallStreamResponseToCallbackFunction(ctx, downloadProgressCB, func(msg *rpc.TaskProgress) {})
-		if err := cli.PlatformInstall(&rpc.PlatformInstallRequest{
-			Instance:        cliInstance,
-			PlatformPackage: "arduino",
-			Architecture:    "zephyr",
-		}, str); err != nil {
-			return fmt.Errorf("could not install zephyr platform: %w", err)
+		// Only a missing platform is installed here, and its version is pinned to the
+		// configured constraint. An already installed one is left as it is: upgrading
+		// it is the job of `system update`.
+		version, err := platformVersionToInstall(ctx, cli, cliInstance, platform.PlatformID, cfg.ArduinoPlatformVersionConstraint)
+		if err != nil {
+			return err
+		}
+		if version == "" {
+			eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceArduino, Message: fmt.Sprintf(
+				"platform %s already installed, skipping install", platform.PlatformID)})
+		} else {
+			platformPackage, architecture, err := platform.PackageAndArchitecture()
+			if err != nil {
+				return err
+			}
+			str := commands.PlatformInstallStreamResponseToCallbackFunction(ctx, downloadProgressCB, func(msg *rpc.TaskProgress) {})
+			if err := cli.PlatformInstall(&rpc.PlatformInstallRequest{
+				Instance:        cliInstance,
+				PlatformPackage: platformPackage,
+				Architecture:    architecture,
+				Version:         version,
+			}, str); err != nil {
+				return fmt.Errorf("could not install %s platform %s: %w", platform.PlatformID, version, err)
+			}
 		}
 	}
 
@@ -449,6 +472,49 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 	return nil
 }
 
+// platformVersionToInstall returns a platform version to install if it isn't installed, "" otherwise.
+func platformVersionToInstall(
+	ctx context.Context,
+	cli rpc.ArduinoCoreServiceServer,
+	inst *rpc.Instance,
+	platformID string,
+	constraint semver.Constraint,
+) (string, error) {
+	platforms, err := cli.PlatformSearch(ctx, &rpc.PlatformSearchRequest{
+		Instance:          inst,
+		ManuallyInstalled: true,
+	})
+	if err != nil {
+		return "", fmt.Errorf("could not search the %s platform: %w", platformID, err)
+	}
+
+	var summary *rpc.PlatformSummary
+	for _, p := range platforms.GetSearchOutput() {
+		if p.GetMetadata().GetId() == platformID {
+			summary = p
+			break
+		}
+	}
+	if summary == nil {
+		return "", fmt.Errorf("platform %s not found in the platforms index", platformID)
+	}
+
+	if summary.GetInstalledVersion() != "" {
+		return "", nil // A platform is already installed, return an empty version string.
+	}
+
+	available := make([]string, 0, len(summary.GetReleases()))
+	for version := range summary.GetReleases() {
+		available = append(available, version)
+	}
+
+	best := helpers.SelectBestVersion(available, nil, constraint)
+	if best == nil {
+		return "", fmt.Errorf("no version of platform %s satisfies the constraint '%s'", platformID, constraint)
+	}
+	return best.String(), nil
+}
+
 func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, platform platform.Platform, cli rpc.ArduinoCoreServiceServer, cliInstance *rpc.Instance, downloadProgressCB func(*rpc.DownloadProgress)) error {
 	// Open the app to get the sketch path
 	app, err := app.Load(appPath)
@@ -456,10 +522,13 @@ func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, platf
 		return err
 	}
 
-	if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, app); err != nil {
-		slog.Warn("Failed to migrate app to remove router bridge", "app", appPath, "error", err)
-	} else if ok {
-		slog.Info("App migrated, RouterBridge has been removed successfully", "app", appPath)
+	// A release ships a frozen sketch profile, so there is nothing to migrate.
+	if editable, err := app.GetAsEditable(); err == nil {
+		if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, editable); err != nil {
+			slog.Warn("Failed to migrate app to remove router bridge", "app", appPath, "error", err)
+		} else if ok {
+			slog.Info("App migrated, RouterBridge has been removed successfully", "app", appPath)
+		}
 	}
 
 	sketchPath, ok := app.GetSketchPath()
@@ -495,4 +564,24 @@ func downloadSketchLibsUsedInApp(ctx context.Context, appPath *paths.Path, platf
 	}
 
 	return nil
+}
+
+// composeProjectLabel names the project a container or a network belongs to.
+const composeProjectLabel = "com.docker.compose.project"
+
+// ourNetworks tells the networks of our apps, which cost a subnet each. The label
+// reaches a network only from this version on: an older one is ours by the compose
+// project of the containers, which the caller reads before they go.
+func ourNetworks(containers []container.Summary) func(labels map[string]string) bool {
+	projects := map[string]bool{}
+	for _, info := range containers {
+		// An empty key would take every network that carries no project either.
+		if project := info.Labels[composeProjectLabel]; project != "" {
+			projects[project] = true
+		}
+	}
+
+	return func(labels map[string]string) bool {
+		return labels[DockerAppLabel] == "true" || projects[labels[composeProjectLabel]]
+	}
 }

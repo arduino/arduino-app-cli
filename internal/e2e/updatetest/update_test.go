@@ -60,7 +60,7 @@ func TestUpdatePackage(t *testing.T) {
 			require.Equal(t, "v"+preUpdateVersion, tagAppCli)
 
 			putUpdateRequest(t, daemonHost)
-			waitForUpgrade(t, daemonHost)
+			waitForRestart(t, daemonHost)
 
 			postUpdateVersion := getAppCliVersion(t, containerName)
 			require.Equal(t, "v"+postUpdateVersion, majorTag)
@@ -162,12 +162,11 @@ func TestUpdatePackage(t *testing.T) {
 		t.Run("HTTP Request", func(t *testing.T) {
 			const containerName = "apt-test-update-current-http"
 			startDaemonContainer(t, containerName, dockerImageName)
-
 			preUpdateVersion := getAppCliVersion(t, containerName)
 			require.Equal(t, "v"+preUpdateVersion, fromTag)
 
 			putUpdateRequest(t, daemonHost)
-			waitForUpgrade(t, daemonHost)
+			waitForRestart(t, daemonHost)
 
 			postUpdateVersion := getAppCliVersion(t, containerName)
 			require.Equal(t, "v"+postUpdateVersion, toTag)
@@ -222,7 +221,7 @@ func TestUpdatePackage(t *testing.T) {
 			require.Equal(t, "v"+preUpdateVersion, minorTag)
 
 			putUpdateRequest(t, daemonHost)
-			waitForUpgrade(t, daemonHost)
+			waitForDone(t, daemonHost)
 
 			postUpdateVersion := getAppCliVersion(t, containerName)
 			require.Equal(t, "v"+postUpdateVersion, tagAppCli)

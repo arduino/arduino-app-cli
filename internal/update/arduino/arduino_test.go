@@ -6,119 +6,56 @@
 package arduino
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
 	semver "go.bug.st/relaxed-semver"
+
+	"github.com/arduino/arduino-app-cli/internal/platform"
+	"github.com/arduino/arduino-app-cli/internal/update"
 )
 
-func TestSelectBestVersion(t *testing.T) {
+func TestUpgradePackagesRejectsInvalidTargets(t *testing.T) {
 	tests := []struct {
 		name        string
-		available   []string
-		installed   string
-		constraint  string
-		expectedVer string
-		expectNil   bool
+		pkg         update.PackageInfo
+		expectedErr string
 	}{
 		{
-			name:        "Standard upgrade within constraint",
-			available:   []string{"1.0.0", "1.1.0", "1.2.0"},
-			installed:   "1.0.0",
-			constraint:  "^1.0.0",
-			expectedVer: "1.2.0",
-			expectNil:   false,
+			name:        "Version outside the constraint",
+			pkg:         update.PackageInfo{Name: "arduino:zephyr", ToVersion: "2.2.0"},
+			expectedErr: "does not satisfy the version constraint",
 		},
 		{
-			name:        "Upgrade available but blocked by constraint",
-			available:   []string{"2.0.0"},
-			installed:   "1.0.0",
-			constraint:  "^1.0.0",
-			expectedVer: "",
-			expectNil:   true,
+			name:        "Version not parsable",
+			pkg:         update.PackageInfo{Name: "arduino:zephyr", ToVersion: "not-a-version"},
+			expectedErr: "invalid target version",
 		},
 		{
-			name:        "Major upgrade allowed by constraint (<3.0.0)",
-			available:   []string{"2.0.0"},
-			installed:   "1.0.0",
-			constraint:  "<3.0.0",
-			expectedVer: "2.0.0",
-			expectNil:   false,
+			name:        "Version empty",
+			pkg:         update.PackageInfo{Name: "arduino:zephyr", ToVersion: ""},
+			expectedErr: "target version is empty",
 		},
 		{
-			name:        "Sorts correctly mixed versions",
-			available:   []string{"1.5.0", "1.1.0", "1.9.0", "1.2.0"},
-			installed:   "1.0.0",
-			constraint:  "^1.0.0",
-			expectedVer: "1.9.0",
-			expectNil:   false,
-		},
-		{
-			name:        "Ignores older versions",
-			available:   []string{"0.9.0", "0.8.0"},
-			installed:   "1.0.0",
-			constraint:  "^1.0.0",
-			expectedVer: "",
-			expectNil:   true,
-		},
-		{
-			name:        "Ignores invalid strings",
-			available:   []string{"1.1.0", "not-a-version", "invalid"},
-			installed:   "1.0.0",
-			constraint:  "^1.0.0",
-			expectedVer: "1.1.0",
-			expectNil:   false,
-		},
-		{
-			name:        "Empty available list returns nil",
-			available:   []string{},
-			installed:   "1.0.0",
-			constraint:  "^1.0.0",
-			expectedVer: "",
-			expectNil:   true,
-		},
-		{
-			name:        "Includes installed version if present in available",
-			available:   []string{"1.0.0"},
-			installed:   "1.0.0",
-			constraint:  "^1.0.0",
-			expectedVer: "1.0.0",
-			expectNil:   false,
-		},
-		{
-			name:        "No upgrade found (all available are older)",
-			available:   []string{"1.0.0", "1.1.0"},
-			installed:   "1.5.0",
-			constraint:  "^1.0.0",
-			expectedVer: "",
-			expectNil:   true,
-		},
-		{
-			name:        "Sorts RC versions correctly",
-			available:   []string{"1.1.0", "1.2.0-rc.3", "2.2.0-rc.4"},
-			installed:   "1.0.0",
-			constraint:  "<2.0.0",
-			expectedVer: "1.2.0-rc.3",
-			expectNil:   false,
+			name:        "Unsupported package",
+			pkg:         update.PackageInfo{Name: "arduino:renesas", ToVersion: "0.5.0"},
+			expectedErr: "unexpected package name",
 		},
 	}
+
+	constraint, err := semver.ParseConstraint("<2.0.0")
+	require.NoError(t, err, "Setup: failed to parse constraint")
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			installedV, err := semver.Parse(tt.installed)
-			require.NoError(t, err, "Setup: failed to parse installed version")
+			updater := NewArduinoPlatformUpdater(platform.Platform{PlatformID: "arduino:zephyr"}, constraint)
 
-			constraint, err := semver.ParseConstraint(tt.constraint)
-			require.NoError(t, err, "Setup: failed to parse constraint")
+			err := updater.UpgradePackages(context.Background(), []update.PackageInfo{tt.pkg}, func(update.Event) {
+				t.Error("no event must be emitted for a rejected upgrade")
+			})
 
-			got := selectBestVersion(tt.available, installedV, constraint)
-
-			if tt.expectNil {
-				require.Nil(t, got, "Expected result to be nil")
-			} else {
-				require.NotNil(t, got, "Expected result not to be nil")
-				require.Equal(t, tt.expectedVer, got.String(), "Selected version mismatch")
-			}
+			require.ErrorContains(t, err, tt.expectedErr)
 		})
 	}
 }

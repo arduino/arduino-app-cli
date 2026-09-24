@@ -32,6 +32,18 @@ import (
 
 var unoQPlatform = platform.Platform{BoardName: "unoq"}
 
+func TestCreateAppAlreadyExisting(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
+
+	existingApp, err := CreateApp(CreateAppRequest{Name: "existing-app"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+	require.NoError(t, err)
+
+	_, err = CreateApp(CreateAppRequest{Name: "existing-app"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+	require.ErrorIs(t, err, ErrAppAlreadyExists)
+	require.Contains(t, err.Error(), existingApp.ID.String())
+}
+
 func TestCloneApp(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
@@ -415,21 +427,21 @@ func TestListAppsFiltersByBricksIndex(t *testing.T) {
 	compatibleEx, err := app.Load(compatibleExID.ToPath())
 	require.NoError(t, err)
 	compatibleEx.Descriptor.Bricks = []app.Brick{{ID: "arduino:compatible_brick"}}
-	require.NoError(t, compatibleEx.Save())
+	require.NoError(t, mustEdit(t, &compatibleEx).Save())
 
 	// Create an incompatible example (uses arduino:incompatible_brick, absent from the index)
 	incompatibleExID := createApp(t, "incompatible-example", true, idProvider, cfg)
 	incompatibleEx, err := app.Load(incompatibleExID.ToPath())
 	require.NoError(t, err)
 	incompatibleEx.Descriptor.Bricks = []app.Brick{{ID: "arduino:incompatible_brick"}}
-	require.NoError(t, incompatibleEx.Save())
+	require.NoError(t, mustEdit(t, &incompatibleEx).Save())
 
 	// Create a user app with the incompatible brick — should never be filtered
 	userAppID := createApp(t, "user-app", false, idProvider, cfg)
 	userApp, err := app.Load(userAppID.ToPath())
 	require.NoError(t, err)
 	userApp.Descriptor.Bricks = []app.Brick{{ID: "arduino:incompatible_brick"}}
-	require.NoError(t, userApp.Save())
+	require.NoError(t, mustEdit(t, &userApp).Save())
 
 	// Build a bricks index that only contains arduino:compatible_brick
 	bricksIndexContent := []byte(`
@@ -491,7 +503,7 @@ func TestListAppsLocalBricksCompatibility(t *testing.T) {
 	exampleApp, err := app.Load(exampleID.ToPath())
 	require.NoError(t, err)
 	exampleApp.Descriptor.Bricks = []app.Brick{{ID: "local:my_custom_brick"}}
-	require.NoError(t, exampleApp.Save())
+	require.NoError(t, mustEdit(t, &exampleApp).Save())
 
 	// Add a local brick to the app's bricks/ folder
 	localBrickDir := exampleID.ToPath().Join("bricks", "local", "my_custom_brick")
@@ -972,4 +984,12 @@ models:
 	require.Equal(t, "/default/video/value", env["MY_VIDEO_ENV"])
 	// for common env variable, the last brick wins
 	require.Equal(t, "default-common-obj", env["COMMON_ENV"])
+}
+
+// mustEdit takes the token every change of an app needs.
+func mustEdit(t *testing.T, a *app.ArduinoApp) app.Editable {
+	t.Helper()
+	editable, err := a.GetAsEditable()
+	require.NoError(t, err)
+	return editable
 }

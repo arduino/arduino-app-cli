@@ -9,11 +9,14 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"iter"
 	"log/slog"
+	"os/exec"
 	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/arduino/go-paths-helper"
@@ -187,6 +190,28 @@ func runUpdateCommand(ctx context.Context) error {
 	return nil
 }
 
+// checkAptLockHeld probes whether the dpkg lock is held by another process
+// by running an apt-get install for a package that does not exist.
+func checkAptLockHeld(ctx context.Context) error {
+	cmd, err := paths.NewProcess([]string{debianFrontend}, "sudo", "apt-get", "install", "--assume-no", "non-existent-package-probe")
+	if err != nil {
+		return err
+	}
+	out, err := cmd.RunAndCaptureCombinedOutput(ctx)
+	// The probe never succeeds: apt exits 100 on the missing package. Anything
+	// else, a sudo denial included, means it never reached apt.
+	exitErr, ok := errors.AsType[*exec.ExitError](err)
+	if !ok || exitErr.ExitCode() != 100 {
+		slog.Warn("apt lock probe did not run", "error", err, "output", string(out))
+		return nil
+	}
+	// The lock file path is in the message, so the match survives a translated apt.
+	if strings.Contains(strings.ToLower(string(out)), "lock") {
+		return update.NewLockHeldError(fmt.Errorf("%w: %s", err, out))
+	}
+	return nil
+}
+
 func runUpgradeCommand(ctx context.Context, names []string) iter.Seq2[string, error] {
 	env := []string{debianFrontend, "NEEDRESTART_MODE=a"}
 
@@ -326,6 +351,10 @@ func cleanupDockerContainers(ctx context.Context) iter.Seq2[string, error] {
 // packages apt holds back as not installable are left out, an upgrade that needs a
 // new dependency is kept in, and nothing is ever removed.
 func listUpgradablePackages(ctx context.Context, matcher func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
+	if err := checkAptLockHeld(ctx); err != nil {
+		return nil, err
+	}
+
 	simulateUpgrade, err := paths.NewProcess(nil, "apt-get", "-s", "upgrade", "--with-new-pkgs")
 	if err != nil {
 		return nil, err

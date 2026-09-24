@@ -461,7 +461,7 @@ func waitForPort(t *testing.T, host string, timeout time.Duration) { // nolint:u
 	t.Fatalf("Server at %s did not start within %v", host, timeout)
 }
 
-func waitForUpgrade(t *testing.T, host string) {
+func waitForRestart(t *testing.T, host string) {
 	t.Helper()
 
 	url := fmt.Sprintf("http://%s/v1/system/update/events", host)
@@ -474,5 +474,19 @@ func waitForUpgrade(t *testing.T, host string) {
 			break
 		}
 	}
+}
 
+func waitForDone(t *testing.T, host string) {
+	t.Helper()
+
+	url := fmt.Sprintf("http://%s/v1/system/update/events", host)
+
+	itr := NewSSEClient(t.Context(), url)
+	for event, err := range itr {
+		require.NoError(t, err)
+		t.Logf("Received event: ID=%s, Event=%s, Data=%s\n", event.ID, event.Event, string(event.Data))
+		if event.Event == "done" {
+			break
+		}
+	}
 }
