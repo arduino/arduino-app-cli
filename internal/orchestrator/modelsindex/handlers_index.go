@@ -651,7 +651,7 @@ func parseCheckInstalled(out []byte) bool {
 		if err := json.Unmarshal(line, &raw); err != nil {
 			continue
 		}
-		if raw.Event == "info" && raw.Downloading != nil && !*raw.Downloading {
+		if MessageType(raw.Event) == InfoType && raw.Downloading != nil && !*raw.Downloading {
 			return true
 		}
 	}
