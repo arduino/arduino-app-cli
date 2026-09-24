@@ -967,18 +967,21 @@ func EditApp(
 		return fmt.Errorf("%w: invalid app name %q", app.ErrInvalidApp, *req.Name)
 	}
 
-	// The default app is stored beside the apps and not in one, so it is the one edit
-	// an installed release takes.
+	if req.Name != nil || req.Icon != nil || req.Description != nil {
+		if err := editAppFolder(req, editApp, cfg); err != nil {
+			return err
+		}
+	}
+
 	if req.Default != nil {
 		if err := editAppDefaults(editApp, *req.Default, cfg); err != nil {
 			return fmt.Errorf("failed to edit app defaults: %w", err)
 		}
 	}
-	if req.Name == nil && req.Icon == nil && req.Description == nil {
-		return nil
-	}
+	return nil
+}
 
-	// What follows is written to the app folder, which a release does not take.
+func editAppFolder(req AppEditRequest, editApp *app.ArduinoApp, cfg config.Configuration) error {
 	editable, err := editApp.GetAsEditable()
 	if err != nil {
 		return err
@@ -1004,10 +1007,15 @@ func EditApp(
 			return err
 		}
 		if !newPath.EqualsTo(editable.FullPath) {
+			oldPath := editable.FullPath
 			if err := editable.FullPath.Rename(newPath); err != nil {
 				return fmt.Errorf("failed to rename app path: %w", err)
 			}
 			editable.FullPath = newPath
+			// The folder is already renamed: the edit must complete, so the client gets the new ID.
+			if err := moveDefaultApp(oldPath, editApp, cfg); err != nil {
+				slog.Warn("failed to update default app after renaming", slog.String("path", newPath.String()), slog.String("error", err.Error()))
+			}
 		}
 		editable.Name = editable.Descriptor.Name
 	}
@@ -1024,6 +1032,21 @@ func findRenamePath(appPath *paths.Path, folderName string) (*paths.Path, error)
 		candidate = appPath.Parent().Join(fmt.Sprintf("%s-%d", folderName, i))
 	}
 	return nil, ErrAppAlreadyExists
+}
+
+func moveDefaultApp(oldPath *paths.Path, movedApp *app.ArduinoApp, cfg config.Configuration) error {
+	defaultAppFilePath := cfg.DataDir().Join(defaultAppFileName)
+	if defaultAppFilePath.NotExist() {
+		return nil
+	}
+	defaultAppPath, err := defaultAppFilePath.ReadFile()
+	if err != nil {
+		return err
+	}
+	if string(bytes.TrimSpace(defaultAppPath)) != oldPath.String() {
+		return nil
+	}
+	return SetDefaultApp(movedApp, cfg)
 }
 
 func editAppDefaults(userApp *app.ArduinoApp, isDefault bool, cfg config.Configuration) error {

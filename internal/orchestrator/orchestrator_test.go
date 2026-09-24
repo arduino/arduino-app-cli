@@ -274,6 +274,52 @@ func TestEditApp(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, "Same-Slug", editedApp.Name)
 		})
+
+		t.Run("renaming the default app keeps it default", func(t *testing.T) {
+			_, err := CreateApp(CreateAppRequest{Name: "default-to-rename"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+			require.NoError(t, err)
+			defaultApp := f.Must(app.Load(cfg.AppsDir().Join("default-to-rename")))
+			_, err = CreateApp(CreateAppRequest{Name: "other-to-rename"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+			require.NoError(t, err)
+			otherApp := f.Must(app.Load(cfg.AppsDir().Join("other-to-rename")))
+			require.NoError(t, SetDefaultApp(&defaultApp, cfg))
+			t.Cleanup(func() { _ = SetDefaultApp(nil, cfg) })
+
+			// Renaming another app leaves the default app untouched.
+			err = EditApp(AppEditRequest{Name: new("other-renamed")}, &otherApp, cfg)
+			require.NoError(t, err)
+			currentDefaultApp, err := GetDefaultApp(cfg)
+			require.NoError(t, err)
+			require.NotNil(t, currentDefaultApp)
+			require.True(t, cfg.AppsDir().Join("default-to-rename").EqualsTo(currentDefaultApp.FullPath))
+
+			err = EditApp(AppEditRequest{Name: new("default-renamed")}, &defaultApp, cfg)
+			require.NoError(t, err)
+			currentDefaultApp, err = GetDefaultApp(cfg)
+			require.NoError(t, err)
+			require.NotNil(t, currentDefaultApp)
+			require.True(t, cfg.AppsDir().Join("default-renamed").EqualsTo(currentDefaultApp.FullPath))
+		})
+
+		t.Run("default and name in the same request", func(t *testing.T) {
+			_, err := CreateApp(CreateAppRequest{Name: "set-and-rename"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+			require.NoError(t, err)
+			userApp := f.Must(app.Load(cfg.AppsDir().Join("set-and-rename")))
+			t.Cleanup(func() { _ = SetDefaultApp(nil, cfg) })
+
+			err = EditApp(AppEditRequest{Name: new("set-and-renamed"), Default: new(true)}, &userApp, cfg)
+			require.NoError(t, err)
+			currentDefaultApp, err := GetDefaultApp(cfg)
+			require.NoError(t, err)
+			require.NotNil(t, currentDefaultApp)
+			require.True(t, cfg.AppsDir().Join("set-and-renamed").EqualsTo(currentDefaultApp.FullPath))
+
+			err = EditApp(AppEditRequest{Name: new("unset-and-renamed"), Default: new(false)}, &userApp, cfg)
+			require.NoError(t, err)
+			currentDefaultApp, err = GetDefaultApp(cfg)
+			require.NoError(t, err)
+			require.Nil(t, currentDefaultApp)
+		})
 	})
 
 	t.Run("with icon and description", func(t *testing.T) {
