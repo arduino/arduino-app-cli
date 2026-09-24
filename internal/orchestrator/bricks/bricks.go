@@ -25,6 +25,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/secrets"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -66,7 +67,7 @@ func (s *Service) List() BrickListResult {
 	return res
 }
 
-func (s *Service) AppBrickInstancesList(ctx context.Context, a *app.ArduinoApp) AppBrickInstancesResult {
+func (s *Service) AppBrickInstancesList(ctx context.Context, a *app.ArduinoApp, secretsStore *secrets.Store) (AppBrickInstancesResult, error) {
 	res := AppBrickInstancesResult{BrickInstances: make([]BrickInstance, len(a.Descriptor.Bricks))}
 	// One lookup for every brick instance, rather than a listing each.
 	models := s.modelsIndex.NewLookup()
@@ -97,7 +98,7 @@ func (s *Service) AppBrickInstancesList(ctx context.Context, a *app.ArduinoApp) 
 		}
 
 	}
-	return res
+	return res, nil
 }
 
 // compatibleModels lists the models the brick can use, with the ids encoded.
@@ -116,7 +117,7 @@ func compatibleModels(ctx context.Context, models *modelsindex.Lookup, brickID s
 	})
 }
 
-func (s *Service) AppBrickInstanceDetails(ctx context.Context, a *app.ArduinoApp, brickID string) (BrickInstance, error) {
+func (s *Service) AppBrickInstanceDetails(ctx context.Context, a *app.ArduinoApp, brickID string, secretsStore *secrets.Store) (BrickInstance, error) {
 	bricksindex := s.bricksIndex.WithAppBricks(a.LocalBricks)
 	brick, found := bricksindex.FindBrickByID(brickID)
 	if !found {
@@ -344,6 +345,7 @@ func (s *Service) BrickCreate(
 	ctx context.Context,
 	req BrickCreateUpdateRequest,
 	appCurrent app.ArduinoApp,
+	secretsStore *secrets.Store,
 ) error {
 	brick, present := s.bricksIndex.WithAppBricks(appCurrent.LocalBricks).FindBrickByID(req.ID)
 	if !present {
@@ -410,6 +412,7 @@ func (s *Service) BrickUpdate(
 	ctx context.Context,
 	req BrickCreateUpdateRequest,
 	appCurrent app.ArduinoApp,
+	secretsStore *secrets.Store,
 ) error {
 	brickFromIndex, present := s.bricksIndex.WithAppBricks(appCurrent.LocalBricks).FindBrickByID(req.ID)
 	if !present {
@@ -473,6 +476,7 @@ func (s *Service) BrickUpdate(
 func (s *Service) BrickDelete(
 	appCurrent *app.ArduinoApp,
 	id string,
+	secretsStore *secrets.Store,
 ) error {
 	if !slices.ContainsFunc(appCurrent.Descriptor.Bricks, func(b app.Brick) bool { return b.ID == id }) {
 		return ErrBrickNotFound

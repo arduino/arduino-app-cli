@@ -47,7 +47,7 @@ func HandleAppBrickInstancesList(
 			return
 		}
 
-		res := brickService.AppBrickInstancesList(r.Context(), &app)
+		res, _ := brickService.AppBrickInstancesList(r.Context(), &app, nil)
 		render.EncodeResponse(w, http.StatusOK, res)
 	}
 }
@@ -77,7 +77,7 @@ func HandleAppBrickInstanceDetails(
 			return
 		}
 
-		res, err := brickService.AppBrickInstanceDetails(r.Context(), &app, brickID)
+		res, err := brickService.AppBrickInstanceDetails(r.Context(), &app, brickID, nil)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to obtain brick details"})
@@ -140,7 +140,7 @@ func HandleBrickCreate(
 			return
 		}
 
-		err = brickService.BrickCreate(r.Context(), req, app)
+		err = brickService.BrickCreate(r.Context(), req, app, nil)
 		if err != nil {
 			// TODO: handle specific errors
 			slog.Error("Unable to create brick", slog.String("error", err.Error()))
@@ -212,7 +212,7 @@ func HandleBrickUpdates(
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
 			return
 		}
-		err = brickService.BrickUpdate(r.Context(), req, app)
+		err = brickService.BrickUpdate(r.Context(), req, app, nil)
 		if err != nil {
 			slog.Error("Unable to update the brick", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to update the brick"})
@@ -250,7 +250,7 @@ func HandleBrickDelete(
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "brickID must be set"})
 			return
 		}
-		err = brickService.BrickDelete(&app, id)
+		err = brickService.BrickDelete(&app, id, nil)
 		if err != nil {
 			switch {
 			case errors.Is(err, bricks.ErrBrickNotFound):
