@@ -210,11 +210,12 @@ func TestAppReleaseInstallFromArchive(t *testing.T) {
 				Message string `json:"message"`
 			}
 			require.NoError(t, json.Unmarshal(e.Data, &payload))
+			// ignore SERVER_CLOSED
 			if payload.Code == sseCodeServerClosed {
 				continue
 			}
 			t.Fatalf("install failed: code=%s message=%s", payload.Code, payload.Message)
-		case sseEventData:
+		case sseEventDone:
 			var payload struct {
 				ID      string `json:"id"`
 				Name    string `json:"name"`
@@ -339,7 +340,7 @@ func TestAppReleasePrepare(t *testing.T) {
 				continue
 			}
 			t.Fatalf("prepare failed: code=%s message=%s", payload.Code, payload.Message)
-		case sseEventData:
+		case sseEventDone:
 			var payload struct {
 				ID      string `json:"id"`
 				Name    string `json:"name"`
