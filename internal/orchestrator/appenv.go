@@ -22,6 +22,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/linuxconfig"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/secrets"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -111,7 +112,12 @@ func appEnvironment(
 
 	// A secret is only referenced here: its value is filled in when the app is
 	// rendered, so it is never written to a template that can be shipped.
-	for name := range appSecrets(app, brickIndex) {
+	appSecrets, err := appSecrets(app, brickIndex, nil)
+	if err != nil {
+		// Should never happen...
+		slog.Error("unable to get app secrets", slog.String("error", err.Error()))
+	}
+	for name := range appSecrets {
 		envs[name] = "${" + name + "}"
 	}
 
@@ -135,15 +141,21 @@ func hostEnvironment(ctx context.Context, appPath *paths.Path, cfg config.Config
 	return envs
 }
 
-// appSecrets is the value of every variable a brick declares secret. It is read at
-// render time, on the board the app runs on, and never written to a template.
-//
-// app.yaml is not what the render step normally reads: a secret is only there because
-// that is the storage there is for now. A real secret store replaces this function.
-func appSecrets(arduinoApp app.ArduinoApp, brickIndex *bricksindex.BricksIndex) types.Mapping {
-	brickIndex = brickIndex.WithAppBricks(arduinoApp.LocalBricks)
+// appSecrets return a mapping with all the bricks secrets key/values.
+// It is read at render time, on the board the app runs on, and never written to a template.
+// Values in app.yaml are retained for backward compatibility and override the external secret store.
+func appSecrets(arduinoApp app.ArduinoApp, brickIndex *bricksindex.BricksIndex, store *secrets.Store) (types.Mapping, error) {
+	var stored map[string]string
+	if store != nil {
+		s, err := store.Get()
+		if err != nil {
+			return nil, err
+		}
+		stored = s
+	}
 
-	secrets := make(types.Mapping)
+	brickIndex = brickIndex.WithAppBricks(arduinoApp.LocalBricks)
+	values := types.NewMapping(nil)
 	for _, brick := range arduinoApp.Descriptor.Bricks {
 		brickDef, found := brickIndex.FindBrickByID(brick.ID)
 		if !found {
@@ -153,11 +165,14 @@ func appSecrets(arduinoApp app.ArduinoApp, brickIndex *bricksindex.BricksIndex) 
 			if !variable.Secret {
 				continue
 			}
-			secrets[variable.Name] = variable.DefaultValue
+			values[variable.Name] = variable.DefaultValue
+			if value, set := stored[variable.Name]; set {
+				values[variable.Name] = value
+			}
 			if value, set := brick.Variables[variable.Name]; set {
-				secrets[variable.Name] = value
+				values[variable.Name] = value
 			}
 		}
 	}
-	return secrets
+	return values, nil
 }

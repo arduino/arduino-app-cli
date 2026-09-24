@@ -37,6 +37,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/pipewire"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/secrets"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
@@ -214,8 +215,16 @@ func StartApp(
 
 		// What the template references, answered on this board: for a release the app
 		// half will come from the bundle instead of being resolved again here.
+		appID, err := appid.NewAppProvider(cfg, platform).IDFromPath(appToStart.FullPath)
+		if err != nil {
+			return fmt.Errorf("failed to get app id for secrets: %w", err)
+		}
+		appSecrets, err := appSecrets(appToStart, bricksIndex, secrets.NewStore(cfg, appID))
+		if err != nil {
+			return fmt.Errorf("failed to load app secrets: %w", err)
+		}
 		env := hostEnvironment(ctx, appToStart.FullPath, cfg).Merge(appEnv)
-		prj, err := provisioner.Render(ctx, &appToStart, env, appSecrets(appToStart, bricksIndex))
+		prj, err := provisioner.Render(ctx, &appToStart, env, appSecrets)
 		if err != nil {
 			return err
 		}
