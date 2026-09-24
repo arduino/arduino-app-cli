@@ -106,7 +106,7 @@ func TestAppReleaseBuildStream(t *testing.T) {
 	// streamed, so a subscriber sees the build finish on the stream it filters by id.
 	var sawDone bool
 	for e := range events {
-		t.Log("Received SSE event", "event", e.Event, "data", string(e.Data))
+		t.Log("Received SSE event", "event", e.Event, sseEventData, string(e.Data))
 		switch e.Event {
 		case sseEventError:
 			var payload struct {
@@ -198,7 +198,7 @@ func TestAppReleaseInstallFromArchive(t *testing.T) {
 
 	var sawDone bool
 	for e := range events {
-		t.Log("Received SSE event", "event", e.Event, "data", string(e.Data))
+		t.Log("Received SSE event", "event", e.Event, sseEventData, string(e.Data))
 		switch e.Event {
 		case sseEventError:
 			var payload struct {
@@ -279,7 +279,7 @@ func TestAppReleasePrepare(t *testing.T) {
 	var installedID string
 	var sawInstallDone bool
 	for e := range installEvents {
-		t.Log("Received SSE event", "event", e.Event, "data", string(e.Data))
+		t.Log("Received SSE event", "event", e.Event, sseEventData, string(e.Data))
 		switch e.Event {
 		case sseEventError:
 			var payload struct {
@@ -319,7 +319,7 @@ func TestAppReleasePrepare(t *testing.T) {
 
 	var sawPrepareDone bool
 	for e := range prepareEvents {
-		t.Log("Received SSE event", "event", e.Event, "data", string(e.Data))
+		t.Log("Received SSE event", "event", e.Event, sseEventData, string(e.Data))
 		switch e.Event {
 		case sseEventError:
 			var payload struct {

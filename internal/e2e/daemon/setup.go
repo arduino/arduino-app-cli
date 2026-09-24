@@ -24,6 +24,7 @@ import (
 // SSE event type and the error code the stream teardown always emits.
 const (
 	sseEventError       = "error"
+	sseEventData        = "data"
 	sseCodeServerClosed = "SERVER_CLOSED"
 )
 
