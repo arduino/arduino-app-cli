@@ -20,6 +20,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/secrets"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -119,6 +120,31 @@ func TestBrickCreate(t *testing.T) {
 		require.Equal(t, "arduino:arduino_cloud", after.Descriptor.Bricks[0].ID)
 		require.Equal(t, deviceID, after.Descriptor.Bricks[0].Variables["ARDUINO_DEVICE_ID"])
 		require.Equal(t, secret, after.Descriptor.Bricks[0].Variables["ARDUINO_SECRET"])
+	})
+
+	t.Run("stores secrets outside app.yaml", func(t *testing.T) {
+		tempDummyApp := paths.New(t.TempDir()).Join("app")
+		require.NoError(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
+
+		t.Setenv("ARDUINO_APP_CLI__DATA_DIR", t.TempDir())
+		cfg, err := config.NewFromEnv()
+		require.NoError(t, err)
+		idProvider := appid.NewAppProvider(cfg, unoQPlatform)
+		store := secrets.NewStore(cfg, f.Must(idProvider.IDFromPath(tempDummyApp)))
+
+		err = brickService.BrickCreate(t.Context(), BrickCreateUpdateRequest{
+			ID: "arduino:arduino_cloud",
+			Variables: map[string]string{
+				"ARDUINO_DEVICE_ID": "device-id",
+				"ARDUINO_SECRET":    "secret-value",
+			},
+		}, f.Must(app.Load(tempDummyApp)), store)
+		require.NoError(t, err)
+
+		after := f.Must(app.Load(tempDummyApp))
+		require.Equal(t, "device-id", after.Descriptor.Bricks[0].Variables["ARDUINO_DEVICE_ID"])
+		require.NotContains(t, after.Descriptor.Bricks[0].Variables, "ARDUINO_SECRET")
+		require.Equal(t, map[string]string{"ARDUINO_SECRET": "secret-value"}, f.Must(store.Get()))
 	})
 }
 
@@ -234,6 +260,28 @@ func TestUpdateBrick(t *testing.T) {
 		require.Equal(t, "arduino:arduino_cloud", after.Descriptor.Bricks[0].ID)
 		require.Equal(t, "i-am-a-device-id", after.Descriptor.Bricks[0].Variables["ARDUINO_DEVICE_ID"])
 		require.Equal(t, secret, after.Descriptor.Bricks[0].Variables["ARDUINO_SECRET"])
+	})
+
+	t.Run("returns legacy app.yaml secrets before stored secrets", func(t *testing.T) {
+		tempDummyApp := paths.New(t.TempDir()).Join("app")
+		require.NoError(t, paths.New("testdata/dummy-app-for-update").CopyDirTo(tempDummyApp))
+
+		t.Setenv("ARDUINO_APP_CLI__DATA_DIR", t.TempDir())
+		cfg, err := config.NewFromEnv()
+		require.NoError(t, err)
+		idProvider := appid.NewAppProvider(cfg, unoQPlatform)
+		store := secrets.NewStore(cfg, f.Must(idProvider.IDFromPath(tempDummyApp)))
+		require.NoError(t, store.Set(map[string]string{"ARDUINO_SECRET": "stored-secret"}))
+
+		legacyApp := f.Must(app.Load(tempDummyApp))
+		legacyApp.Descriptor.Bricks[0].Variables["ARDUINO_SECRET"] = "legacy-secret"
+		require.NoError(t, legacyApp.Save())
+
+		stored, err := store.Get()
+		require.NoError(t, err)
+		brick, found := bricksIndex.FindBrickByID("arduino:arduino_cloud")
+		require.True(t, found)
+		require.Equal(t, "legacy-secret", populateSecretVariablesFromStore(brick, legacyApp.Descriptor.Bricks[0].Variables, stored)["ARDUINO_SECRET"])
 	})
 
 	t.Run("update a custom model definition in a brick", func(t *testing.T) {
@@ -391,6 +439,21 @@ func TestGetBrickInstanceVariableDetails(t *testing.T) {
 			require.Equal(t, tt.expectedConfigVariables, actualConfigVariables)
 		})
 	}
+}
+
+func TestEffectiveVariables(t *testing.T) {
+	brick := &bricksindex.Brick{Variables: []bricksindex.BrickVariable{
+		{Name: "SECRET", Secret: true},
+		{Name: "VISIBLE"},
+	}}
+
+	t.Run("adds a stored secret when app.yaml has no variables", func(t *testing.T) {
+		require.Equal(t, map[string]string{"SECRET": "stored-secret"}, populateSecretVariablesFromStore(brick, nil, map[string]string{"SECRET": "stored-secret"}))
+	})
+
+	t.Run("keeps a legacy app.yaml secret", func(t *testing.T) {
+		require.Equal(t, map[string]string{"SECRET": "legacy-secret"}, populateSecretVariablesFromStore(brick, map[string]string{"SECRET": "legacy-secret"}, map[string]string{"SECRET": "stored-secret"}))
+	})
 }
 
 func TestBricksDetails(t *testing.T) {

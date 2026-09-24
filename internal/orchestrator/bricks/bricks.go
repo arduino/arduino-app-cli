@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"slices"
 
@@ -30,10 +31,11 @@ import (
 )
 
 var (
-	ErrBrickNotFound   = errors.New("brick not found")
-	ErrCannotSaveBrick = errors.New("cannot save brick instance")
-	ErrBrickNotLocal   = errors.New("brick is not a local brick")
-	ErrBrickIDConflict = errors.New("a brick with the new id already exists")
+	ErrBrickNotFound            = errors.New("brick not found")
+	ErrCannotSaveBrick          = errors.New("cannot save brick instance")
+	ErrBrickNotLocal            = errors.New("brick is not a local brick")
+	ErrBrickIDConflict          = errors.New("a brick with the new id already exists")
+	ErrCannotAccessSecretsStore = errors.New("can't access secrets store")
 )
 
 type Service struct {
@@ -68,6 +70,10 @@ func (s *Service) List() BrickListResult {
 }
 
 func (s *Service) AppBrickInstancesList(ctx context.Context, a *app.ArduinoApp, secretsStore *secrets.Store) (AppBrickInstancesResult, error) {
+	secretValues, err := getSecretValues(secretsStore)
+	if err != nil {
+		return AppBrickInstancesResult{}, ErrCannotAccessSecretsStore
+	}
 	res := AppBrickInstancesResult{BrickInstances: make([]BrickInstance, len(a.Descriptor.Bricks))}
 	// One lookup for every brick instance, rather than a listing each.
 	models := s.modelsIndex.NewLookup()
@@ -82,7 +88,7 @@ func (s *Service) AppBrickInstancesList(ctx context.Context, a *app.ArduinoApp, 
 			continue
 		}
 
-		variablesMap, configVariables := getInstanceBrickConfigVariableDetails(brick, brickInstance.Variables)
+		variablesMap, configVariables := getInstanceBrickConfigVariableDetails(brick, populateSecretVariablesFromStore(brick, brickInstance.Variables, secretValues))
 
 		res.BrickInstances[i] = BrickInstance{
 			ID:               brick.ID,
@@ -118,6 +124,10 @@ func compatibleModels(ctx context.Context, models *modelsindex.Lookup, brickID s
 }
 
 func (s *Service) AppBrickInstanceDetails(ctx context.Context, a *app.ArduinoApp, brickID string, secretsStore *secrets.Store) (BrickInstance, error) {
+	secretValues, err := getSecretValues(secretsStore)
+	if err != nil {
+		return BrickInstance{}, ErrCannotAccessSecretsStore
+	}
 	bricksindex := s.bricksIndex.WithAppBricks(a.LocalBricks)
 	brick, found := bricksindex.FindBrickByID(brickID)
 	if !found {
@@ -129,7 +139,7 @@ func (s *Service) AppBrickInstanceDetails(ctx context.Context, a *app.ArduinoApp
 		return BrickInstance{}, fmt.Errorf("brick %s not added in the app", brickID)
 	}
 
-	variables, configVariables := getInstanceBrickConfigVariableDetails(brick, a.Descriptor.Bricks[brickIndex].Variables)
+	variables, configVariables := getInstanceBrickConfigVariableDetails(brick, populateSecretVariablesFromStore(brick, a.Descriptor.Bricks[brickIndex].Variables, secretValues))
 
 	var readme string
 	if r, err := brick.GetReadmeFile(); err == nil {
@@ -393,7 +403,20 @@ func (s *Service) BrickCreate(
 		}
 		brickInstance.Model = model.ID
 	}
-	brickInstance.Variables = req.Variables
+	if secretsStore == nil {
+		// Legacy: if there is no secrets store, we treat all variables as
+		// non-secret and store them directly in the brick instance.
+		brickInstance.Variables = req.Variables
+
+		// TODO: shall we panic here, and assert the presence of a secrets store?
+	} else {
+		// If there are "legacy" secrets (i.e. secrets that were previously stored directly in the brick instance),
+		// we extract them and merge them with the non-secret variables from the request.
+		legacySecrets := brickSecretVariables(brick, brickInstance.Variables)
+
+		brickInstance.Variables = brickNonSecretVariables(brick, req.Variables)
+		maps.Copy(brickInstance.Variables, legacySecrets)
+	}
 
 	if brickIndex == -1 {
 		appCurrent.Descriptor.Bricks = append(appCurrent.Descriptor.Bricks, brickInstance)
@@ -401,9 +424,11 @@ func (s *Service) BrickCreate(
 		appCurrent.Descriptor.Bricks[brickIndex] = brickInstance
 	}
 
-	err := appCurrent.Save()
-	if err != nil {
-		return fmt.Errorf("cannot save brick instance with id %s", req.ID)
+	if err := appCurrent.Save(); err != nil {
+		return fmt.Errorf("cannot save brick instance with id %s: %w", req.ID, err)
+	}
+	if err := updateSecretValues(secretsStore, brickSecretVariables(brick, req.Variables)); err != nil {
+		return fmt.Errorf("cannot save secrets for brick instance with id %s: %w", req.ID, err)
 	}
 	return nil
 }
@@ -449,28 +474,116 @@ func (s *Service) BrickUpdate(
 		if value.IsRequired() && updateValue == "" {
 			return fmt.Errorf("required variable %q cannot be empty", name)
 		}
-		updated := false
-		for _, v := range brickVariables {
-			if v == name {
-				brickVariables[name] = updateValue
-				updated = true
-				break
-			}
+		if value.Secret && secretsStore != nil {
+			continue
 		}
-		if !updated {
-			brickVariables[name] = updateValue
-		}
+		brickVariables[name] = updateValue
 	}
 
 	appCurrent.Descriptor.Bricks[brickPosition].Model = brickModel
 	appCurrent.Descriptor.Bricks[brickPosition].Variables = brickVariables
 
-	err := appCurrent.Save()
-	if err != nil {
+	if err := appCurrent.Save(); err != nil {
 		return fmt.Errorf("cannot save brick instance with id %s", req.ID)
+	}
+	if err := updateSecretValues(secretsStore, brickSecretVariables(brickFromIndex, req.Variables)); err != nil {
+		return fmt.Errorf("cannot save secrets for brick instance with id %s: %w", req.ID, err)
 	}
 	return nil
 
+}
+
+func getSecretValues(store *secrets.Store) (map[string]string, error) {
+	if store == nil {
+		return nil, nil
+	}
+	return store.Get()
+}
+
+func updateSecretValues(secretsStore *secrets.Store, updates map[string]string) error {
+	if secretsStore == nil || len(updates) == 0 {
+		return nil
+	}
+	values, err := secretsStore.Get()
+	if err != nil {
+		return err
+	}
+	for name, value := range updates {
+		values[name] = value
+	}
+	return secretsStore.Set(values)
+}
+
+// brickSecretVariables selects from the given map only the variables that are marked as secret in the brick's definition.
+func brickSecretVariables(brick *bricksindex.Brick, variables map[string]string) map[string]string {
+	secrets := make(map[string]string)
+	for name, value := range variables {
+		if variable, found := brick.GetVariable(name); found && variable.Secret {
+			secrets[name] = value
+		}
+	}
+	return secrets
+}
+
+// brickNonSecretVariables selects from the given map only the variables that are not marked as secret in the brick's definition.
+func brickNonSecretVariables(brick *bricksindex.Brick, variables map[string]string) map[string]string {
+	values := make(map[string]string)
+	for name, value := range variables {
+		if variable, found := brick.GetVariable(name); found && !variable.Secret {
+			values[name] = value
+		}
+	}
+	return values
+}
+
+// populateSecretVariablesFromStore return a copy of the given variables map populated with the indexedBrick secret variables.
+// The secret values are taken from the secretVariables map (unless a value is already present in the variables map).
+func populateSecretVariablesFromStore(indexedBrick *bricksindex.Brick, variables, secretVariables map[string]string) map[string]string {
+	effective := maps.Clone(variables)
+	if effective == nil {
+		effective = make(map[string]string)
+	}
+	for _, variable := range indexedBrick.Variables {
+		if !variable.Secret {
+			continue
+		}
+		if _, legacyValue := effective[variable.Name]; legacyValue {
+			continue
+		}
+		if value, stored := secretVariables[variable.Name]; stored {
+			effective[variable.Name] = value
+		}
+	}
+	return effective
+}
+
+// removeUnusedSecretValues removes secret values from the secrets store that are no longer used by any of the given bricks.
+func removeUnusedSecretValues(index *bricksindex.BricksIndex, bricks []app.Brick, secretsStore *secrets.Store) error {
+	if secretsStore == nil {
+		return nil
+	}
+	values, err := secretsStore.Get()
+	if err != nil {
+		return err
+	}
+	used := map[string]bool{}
+	for _, brick := range bricks {
+		indexedBrick, found := index.FindBrickByID(brick.ID)
+		if !found {
+			continue
+		}
+		for _, variable := range indexedBrick.Variables {
+			if variable.Secret {
+				used[variable.Name] = true
+			}
+		}
+	}
+	for name := range values {
+		if !used[name] {
+			delete(values, name)
+		}
+	}
+	return secretsStore.Set(values)
 }
 
 func (s *Service) BrickDelete(
@@ -488,6 +601,9 @@ func (s *Service) BrickDelete(
 
 	if err := appCurrent.Save(); err != nil {
 		return ErrCannotSaveBrick
+	}
+	if err := removeUnusedSecretValues(s.bricksIndex.WithAppBricks(appCurrent.LocalBricks), appCurrent.Descriptor.Bricks, secretsStore); err != nil {
+		return fmt.Errorf("%w: %v", ErrCannotSaveBrick, err)
 	}
 	return nil
 }
