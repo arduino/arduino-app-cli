@@ -119,7 +119,7 @@ func TestAppReleaseBuildStream(t *testing.T) {
 				continue
 			}
 			t.Fatalf("build failed: code=%s message=%s", payload.Code, payload.Message)
-		case "done":
+		case sseEventData:
 			var payload struct {
 				BuildID string `json:"build_id"`
 				Name    string `json:"name"`
@@ -210,7 +210,7 @@ func TestAppReleaseInstallFromArchive(t *testing.T) {
 				continue
 			}
 			t.Fatalf("install failed: code=%s message=%s", payload.Code, payload.Message)
-		case "done":
+		case sseEventData:
 			var payload struct {
 				ID      string `json:"id"`
 				Name    string `json:"name"`
@@ -291,7 +291,7 @@ func TestAppReleasePrepare(t *testing.T) {
 				continue
 			}
 			t.Fatalf("install failed: code=%s message=%s", payload.Code, payload.Message)
-		case "done":
+		case sseEventData:
 			var payload struct {
 				ID string `json:"id"`
 			}
@@ -331,7 +331,7 @@ func TestAppReleasePrepare(t *testing.T) {
 				continue
 			}
 			t.Fatalf("prepare failed: code=%s message=%s", payload.Code, payload.Message)
-		case "done":
+		case sseEventData:
 			var payload struct {
 				ID      string `json:"id"`
 				Name    string `json:"name"`
