@@ -29,6 +29,9 @@ go.work.sum
 
 build/
 
+# local task configuration, may hold the board password
+.env.local
+
 **/.cache
 
 /arduino-app-cli
