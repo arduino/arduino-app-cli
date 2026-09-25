@@ -104,7 +104,7 @@ func StartApp(
 		cb = func(StreamMessage) {}
 	}
 
-	bricksIndex = bricksIndex.WithAppBricks(appToStart.LocalBricks)
+	bricksIndex = appToStart.Bricks(bricksIndex)
 
 	if err := checkBricks(ctx, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex); err != nil {
 		return err
