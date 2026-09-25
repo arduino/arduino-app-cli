@@ -47,6 +47,7 @@ var (
 	ErrAppDoesntExists  = fmt.Errorf("app doesn't exist")
 	ErrAppNotFound      = fmt.Errorf("app not found")
 	ErrBadRequest       = fmt.Errorf("bad request")
+	ErrNotPrepared      = fmt.Errorf("the release is not prepared")
 )
 
 type AppStreamMessage struct {
@@ -242,6 +243,14 @@ func StartApp(
 		prj, err := provisioner.Render(ctx, &appToStart, env, appToStart.Secrets(bricksIndex))
 		if err != nil {
 			return err
+		}
+
+		// A release runs what its build froze and a prepare downloaded: a start never
+		// fetches a missing image or model, it fails and asks for a prepare first.
+		if isRelease {
+			if err := checkReleasePrepared(ctx, docker, appToStart, prj, cfg, platform); err != nil {
+				return err
+			}
 		}
 
 		cb(StreamMessage{data: "python downloading"})

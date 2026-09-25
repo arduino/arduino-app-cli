@@ -22,6 +22,7 @@ const (
 	InternalServiceErr  SSEErrCode = "INTERNAL_SERVER_ERROR"
 	BadRequestErr       SSEErrCode = "bad_request"
 	AppAlreadyExistsErr SSEErrCode = "app_already_exists"
+	NotPreparedErr      SSEErrCode = "not_prepared"
 )
 
 type SSEErrorData struct {

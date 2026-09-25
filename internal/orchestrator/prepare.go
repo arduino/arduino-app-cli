@@ -8,6 +8,7 @@ package orchestrator
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
@@ -102,6 +103,52 @@ func PrepareInstalledRelease(
 		return err
 	}
 	return PrepareRelease(ctx, docker, arduinoApp, prj, cfg, plat, cb)
+}
+
+// checkReleasePrepared verifies a release has on the board everything a start needs: the
+// container images its frozen compose names and the models it ships.
+func checkReleasePrepared(
+	ctx context.Context,
+	docker command.Cli,
+	arduinoApp app.ArduinoApp,
+	prj *types.Project,
+	cfg config.Configuration,
+	plat platform.Platform,
+) error {
+	allImages, err := dockerhelper.ListImages(ctx, docker.Client())
+	if err != nil {
+		return fmt.Errorf("failed to list the images of the board: %w", err)
+	}
+	for _, image := range dockerhelper.ComposeImages(prj) {
+		if !slices.Contains(allImages, image) {
+			return fmt.Errorf("%w: the container %q is not on the board", ErrNotPrepared, image)
+		}
+	}
+
+	// The release ships its own model records: the index of this board is not the one
+	// that built it and may not know them.
+	manifest, err := readReleaseManifest(arduinoApp.FullPath)
+	if err != nil {
+		return err
+	}
+	if len(manifest.Models) == 0 {
+		return nil
+	}
+	models, err := frozenModelsIndex(arduinoApp, docker, cfg, plat)
+	if err != nil {
+		return fmt.Errorf("cannot read the models the release ships: %w", err)
+	}
+	lookup := models.NewLookup()
+	for _, model := range manifest.Models {
+		found, err := lookup.ByID(ctx, model.ID)
+		if err != nil {
+			return fmt.Errorf("cannot determine whether the model %q is on the board: %w", model.ID, err)
+		}
+		if found == nil || found.Status != modelsindex.InstalledStatus {
+			return fmt.Errorf("%w: the model %q is not on the board", ErrNotPrepared, model.ID)
+		}
+	}
+	return nil
 }
 
 // renderRelease writes the compose file docker is given, from the templates the release

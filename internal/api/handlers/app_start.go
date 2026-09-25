@@ -6,6 +6,7 @@
 package handlers
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -75,8 +76,12 @@ func HandleAppStart(
 				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: item.GetData()}})
 			}
 		}); err != nil {
+			code := render.InternalServiceErr
+			if errors.Is(err, orchestrator.ErrNotPrepared) {
+				code = render.NotPreparedErr
+			}
 			sseStream.SendError(render.SSEErrorData{
-				Code:    render.InternalServiceErr,
+				Code:    code,
 				Message: err.Error(),
 			})
 		}
