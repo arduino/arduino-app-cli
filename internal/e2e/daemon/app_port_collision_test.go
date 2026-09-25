@@ -75,7 +75,7 @@ func startAppAndExpectError(
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, daemonAddr+"/v1/apps/"+appID+"/start", nil)
 	require.NoError(t, err)
-	events, err := newSSEClient(req, 0)
+	events, err := newSSEClient(req)
 	require.NoError(t, err)
 
 	var errorMessages []string

@@ -81,6 +81,29 @@ func PrepareRelease(
 	return nil
 }
 
+// PrepareInstalledRelease renders the compose project of an already installed release
+// and downloads what it needs to run, without starting it: the same rendering an
+// install does, followed by the prepare part alone.
+func PrepareInstalledRelease(
+	ctx context.Context,
+	docker command.Cli,
+	provisioner *Provision,
+	arduinoApp app.ArduinoApp,
+	cfg config.Configuration,
+	plat platform.Platform,
+	cb func(StreamMessage),
+) error {
+	if !arduinoApp.IsRelease() {
+		return fmt.Errorf("%w: %q is not installed from a release", ErrBadRequest, arduinoApp.Name)
+	}
+
+	prj, err := renderRelease(ctx, docker, provisioner, arduinoApp, cfg, plat)
+	if err != nil {
+		return err
+	}
+	return PrepareRelease(ctx, docker, arduinoApp, prj, cfg, plat, cb)
+}
+
 // renderRelease writes the compose file docker is given, from the templates the release
 // froze. It runs once the release is in place: the paths it resolves are absolute.
 func renderRelease(

@@ -268,7 +268,7 @@ tasks:
       - task: build-deb
       - adb shell rm /tmp/*.deb || true
       - adb push ./build/arduino-app-cli_*_arm64.deb /tmp/
-      - ./scripts/run-remote-sudo.sh "dpkg -i /tmp/arduino-app-cli*_arm64.deb && needrestart -r a"
+      - ./scripts/run-remote-sudo.sh "DEBIAN_FRONTEND=noninteractive dpkg -i /tmp/arduino-app-cli*_arm64.deb && DEBIAN_FRONTEND=noninteractive needrestart -r a"
 
   bump:runner-version:
     desc: Update the RunnerVersion constant in config.go to match RUNNER_VERSION.
