@@ -614,13 +614,13 @@ type ImportAppParams struct {
 
 // InstallAppFormdataBody defines parameters for InstallApp.
 type InstallAppFormdataBody struct {
-	// File The release archive (.arduinoapp). Must be built for this board.
+	// File The release archive (.ard). Must be built for this board.
 	File *string `form:"file,omitempty" json:"file,omitempty"`
 }
 
 // InstallAppParams defines parameters for InstallApp.
 type InstallAppParams struct {
-	// File The release archive (.arduinoapp). Must be built for this board.
+	// File The release archive (.ard). Must be built for this board.
 	File *string `form:"file,omitempty" json:"file,omitempty"`
 
 	// Prepare After the install, download the containers and models the release needs to run. Any value other than the literal string 'true' (including an empty value or omitting the parameter) is treated as false.

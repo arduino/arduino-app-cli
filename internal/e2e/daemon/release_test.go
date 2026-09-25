@@ -182,7 +182,7 @@ func TestAppReleaseInstallFromArchive(t *testing.T) {
 
 	body := new(bytes.Buffer)
 	writer := multipart.NewWriter(body)
-	part, err := writer.CreateFormFile("file", appName+".arduinoapp")
+	part, err := writer.CreateFormFile("file", appName+".ard")
 	require.NoError(t, err)
 	_, err = part.Write(buildResp.Body)
 	require.NoError(t, err)
@@ -267,7 +267,7 @@ func TestAppReleasePrepare(t *testing.T) {
 
 	body := new(bytes.Buffer)
 	writer := multipart.NewWriter(body)
-	part, err := writer.CreateFormFile("file", appName+".arduinoapp")
+	part, err := writer.CreateFormFile("file", appName+".ard")
 	require.NoError(t, err)
 	_, err = part.Write(buildResp.Body)
 	require.NoError(t, err)

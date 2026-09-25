@@ -1004,11 +1004,11 @@ paths:
         run.
       operationId: installApp
       parameters:
-      - description: The release archive (.arduinoapp). Must be built for this board.
+      - description: The release archive (.ard). Must be built for this board.
         in: query
         name: file
         schema:
-          description: The release archive (.arduinoapp). Must be built for this board.
+          description: The release archive (.ard). Must be built for this board.
           format: base64
           type: string
       - description: After the install, download the containers and models the release
@@ -1027,8 +1027,8 @@ paths:
             schema:
               properties:
                 file:
-                  description: The release archive (.arduinoapp). Must be built for
-                    this board.
+                  description: The release archive (.ard). Must be built for this
+                    board.
                   format: base64
                   type: string
               type: object
