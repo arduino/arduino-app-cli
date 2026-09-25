@@ -69,6 +69,7 @@ func TestWriteReleaseArchive(t *testing.T) {
 	write(0o644, "junk", "src", ".cache", "leftover")
 	// A package of the venv may well have a data folder, which must ship.
 	write(0o644, "weights", "prebuild", ".venv", "lib", "pkg", "data", "weights.bin")
+	write(0o755, "#!/bin/sh\n", "prebuild", ".venv", "bin", "activate")
 
 	// Never walked into, and never followed: the target is archived as it is.
 	venvLink := releaseDir.Join("prebuild", ".venv", "bin", "python")
@@ -106,9 +107,18 @@ func TestWriteReleaseArchive(t *testing.T) {
 		assert.Empty(t, header.Gname, header.Name)
 	}
 
+	// The umask of the build machine is not shipped: nothing of the app is run directly.
 	sketchRunner := byName["my-app-1.0.0-unoq/src/python/run.sh"]
 	require.NotNil(t, sketchRunner)
-	assert.Equal(t, int64(0o755), sketchRunner.Mode&0o777)
+	assert.Equal(t, int64(0o644), sketchRunner.Mode&0o777)
+	srcDir := byName["my-app-1.0.0-unoq/src"]
+	require.NotNil(t, srcDir)
+	assert.Equal(t, int64(0o755), srcDir.Mode&0o777)
+
+	// The venv is the exception: its bin scripts need the x bit.
+	venvScript := byName["my-app-1.0.0-unoq/prebuild/.venv/bin/activate"]
+	require.NotNil(t, venvScript)
+	assert.Equal(t, int64(0o755), venvScript.Mode&0o777)
 
 	link := byName["my-app-1.0.0-unoq/prebuild/.venv/bin/python"]
 	require.NotNil(t, link)
@@ -278,7 +288,7 @@ func TestReleaseArchivePath(t *testing.T) {
 	})
 
 	t.Run("an output file is the archive", func(t *testing.T) {
-		wanted := outputDir.Join("named.arduinoapp")
+		wanted := outputDir.Join("named" + ReleaseArchiveExt)
 		archivePath, err := releaseArchivePath("my-app-1.0.0-unoq", BuildReleaseRequest{Output: wanted})
 		require.NoError(t, err)
 		assert.Equal(t, wanted.String(), archivePath.String())

@@ -8,6 +8,7 @@ package orchestrator
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -187,18 +188,28 @@ func StartApp(
 	cb(StreamMessage{progress: &Progress{Name: "preparing", Progress: 0.0}})
 
 	if _, ok := appToStart.GetSketchPath(); ok {
-		cb(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}})
+		if isRelease {
+			cb(StreamMessage{progress: &Progress{Name: "uploading sketch", Progress: 0.0}})
 
-		if editable, err := appToStart.GetAsEditable(); err == nil {
-			if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, editable); err != nil {
-				cb(StreamMessage{data: "Failed to apply app migration for platform arduino:zephyr >0.54.1. Error: " + err.Error()})
-			} else if ok {
-				cb(StreamMessage{data: "Applied app migration for platform arduino:zephyr >0.54.1. Arduino_RouterBridge is now part of the platform and shouldn't be explicitly specified"})
+			// The firmware of a release is the one the build compiled: a start only uploads it.
+			fwFile := appToStart.ProvisioningStateDir().Join(ReleaseFirmwareFileName)
+			if err := uploadFirmwareFile(ctx, verbose, fwFile, sketchCallbackWriter); err != nil {
+				return err
 			}
-		}
+		} else {
+			cb(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}})
 
-		if err := compileUploadSketch(ctx, verbose, platform, appToStart, sketchCallbackWriter); err != nil {
-			return err
+			if editable, err := appToStart.GetAsEditable(); err == nil {
+				if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, editable); err != nil {
+					cb(StreamMessage{data: "Failed to apply app migration for platform arduino:zephyr >0.54.1. Error: " + err.Error()})
+				} else if ok {
+					cb(StreamMessage{data: "Applied app migration for platform arduino:zephyr >0.54.1. Arduino_RouterBridge is now part of the platform and shouldn't be explicitly specified"})
+				}
+			}
+
+			if err := compileUploadSketch(ctx, verbose, platform, appToStart, sketchCallbackWriter); err != nil {
+				return err
+			}
 		}
 
 		cb(StreamMessage{progress: &Progress{Name: "sketch updated", Progress: 10.0}})
@@ -245,7 +256,24 @@ func StartApp(
 		}
 
 		slog.Debug("starting app", slog.String("project", prj.Name))
-		if err := dockerhelper.ComposeUp(ctx, docker, prj, func(line string) { cb(StreamMessage{data: line}) }); err != nil {
+		line := func(line string) { cb(StreamMessage{data: line}) }
+		err = dockerhelper.ComposeUp(ctx, docker, prj, line)
+		if errors.Is(err, dockerhelper.ErrNetwork) {
+			// The board is likely out of subnets: the apps give up the networks they
+			// keep, and this app is started once more.
+			cb(StreamMessage{data: "Could not create the network, freeing the ones the apps keep"})
+			appContainers, pruneErr := dockerhelper.Containers(ctx, docker.Client(), DockerAppLabel+"=true")
+			if pruneErr != nil {
+				slog.Warn("failed to list the app containers", slog.String("error", pruneErr.Error()))
+			}
+			freed, pruneErr := dockerhelper.PruneNetworks(ctx, docker.Client(), ourNetworks(appContainers))
+			if pruneErr != nil {
+				slog.Warn("failed to free the networks of the apps", slog.String("error", pruneErr.Error()))
+			}
+			slog.Debug("freed app networks", slog.Int("count", freed))
+			err = dockerhelper.ComposeUp(ctx, docker, prj, line)
+		}
+		if err != nil {
 			return err
 		}
 	}
@@ -738,7 +766,11 @@ func CreateApp(
 
 	basePath, appExists := findAppPathByName(req.Name, cfg)
 	if appExists {
-		return CreateAppResponse{}, ErrAppAlreadyExists
+		existingID, err := idProvider.IDFromPath(basePath)
+		if err != nil {
+			return CreateAppResponse{}, ErrAppAlreadyExists
+		}
+		return CreateAppResponse{}, fmt.Errorf("%w with id: %q", ErrAppAlreadyExists, existingID)
 	}
 	appName := req.Name
 	newApp := app.AppDescriptor{
@@ -931,18 +963,25 @@ func EditApp(
 	editApp *app.ArduinoApp,
 	cfg config.Configuration,
 ) (editErr error) {
-	// The default app is stored beside the apps and not in one, so it is the one edit
-	// an installed release takes.
+	if req.Name != nil && slug.Make(*req.Name) == "" {
+		return fmt.Errorf("%w: invalid app name %q", app.ErrInvalidApp, *req.Name)
+	}
+
+	if req.Name != nil || req.Icon != nil || req.Description != nil {
+		if err := editAppFolder(req, editApp, cfg); err != nil {
+			return err
+		}
+	}
+
 	if req.Default != nil {
 		if err := editAppDefaults(editApp, *req.Default, cfg); err != nil {
 			return fmt.Errorf("failed to edit app defaults: %w", err)
 		}
 	}
-	if req.Name == nil && req.Icon == nil && req.Description == nil {
-		return nil
-	}
+	return nil
+}
 
-	// What follows is written to the app folder, which a release does not take.
+func editAppFolder(req AppEditRequest, editApp *app.ArduinoApp, cfg config.Configuration) error {
 	editable, err := editApp.GetAsEditable()
 	if err != nil {
 		return err
@@ -963,18 +1002,51 @@ func EditApp(
 	}
 
 	if req.Name != nil {
-		newPath := editable.FullPath.Parent().Join(slug.Make(*req.Name))
-		if newPath.Exist() {
-			return ErrAppAlreadyExists
+		newPath, err := findRenamePath(editable.FullPath, slug.Make(*req.Name))
+		if err != nil {
+			return err
 		}
-		if err := editable.FullPath.Rename(newPath); err != nil {
-			return fmt.Errorf("failed to rename app path: %w", err)
+		if !newPath.EqualsTo(editable.FullPath) {
+			oldPath := editable.FullPath
+			if err := editable.FullPath.Rename(newPath); err != nil {
+				return fmt.Errorf("failed to rename app path: %w", err)
+			}
+			editable.FullPath = newPath
+			// The folder is already renamed: the edit must complete, so the client gets the new ID.
+			if err := moveDefaultApp(oldPath, editApp, cfg); err != nil {
+				slog.Warn("failed to update default app after renaming", slog.String("path", newPath.String()), slog.String("error", err.Error()))
+			}
 		}
-		editable.FullPath = newPath
 		editable.Name = editable.Descriptor.Name
 	}
 
 	return editable.Save()
+}
+
+func findRenamePath(appPath *paths.Path, folderName string) (*paths.Path, error) {
+	candidate := appPath.Parent().Join(folderName)
+	for i := 1; i <= 100; i++ {
+		if candidate.EqualsTo(appPath) || candidate.NotExist() {
+			return candidate, nil
+		}
+		candidate = appPath.Parent().Join(fmt.Sprintf("%s-%d", folderName, i))
+	}
+	return nil, ErrAppAlreadyExists
+}
+
+func moveDefaultApp(oldPath *paths.Path, movedApp *app.ArduinoApp, cfg config.Configuration) error {
+	defaultAppFilePath := cfg.DataDir().Join(defaultAppFileName)
+	if defaultAppFilePath.NotExist() {
+		return nil
+	}
+	defaultAppPath, err := defaultAppFilePath.ReadFile()
+	if err != nil {
+		return err
+	}
+	if string(bytes.TrimSpace(defaultAppPath)) != oldPath.String() {
+		return nil
+	}
+	return SetDefaultApp(movedApp, cfg)
 }
 
 func editAppDefaults(userApp *app.ArduinoApp, isDefault bool, cfg config.Configuration) error {
@@ -1062,6 +1134,32 @@ func compileUploadSketch(
 	return nil
 }
 
+func uploadFirmwareFile(
+	ctx context.Context,
+	verbose bool,
+	fwFile *paths.Path,
+	w io.Writer,
+) error {
+	srv, inst, err := initializeArduinoCli(ctx, nil, w)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
+	}()
+
+	// Upload the sketch
+	uploadServ, _ := commands.UploadFirmwareFileToServerStreams(ctx, w, w)
+	if err := srv.UploadFirmwareFile(&rpc.UploadFirmwareFileRequest{
+		Instance:     inst,
+		FirmwareFile: fwFile.String(),
+		Verbose:      verbose,
+	}, uploadServ); err != nil {
+		return err
+	}
+	return nil
+}
+
 func initializeArduinoCli(ctx context.Context, sketchPath *paths.Path, w io.Writer) (_ rpc.ArduinoCoreServiceServer, _ *rpc.Instance, _err error) {
 	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 	srv := commands.NewArduinoCoreServer()
@@ -1081,19 +1179,22 @@ func initializeArduinoCli(ctx context.Context, sketchPath *paths.Path, w io.Writ
 		}
 	}()
 
-	sketchResp, err := srv.LoadSketch(ctx, &rpc.LoadSketchRequest{SketchPath: sketchPath.String()})
-	if err != nil {
-		return nil, nil, err
-	}
-	sketch := sketchResp.GetSketch()
-	profile := sketch.GetDefaultProfile().GetName()
-	if profile == "" {
-		return nil, nil, fmt.Errorf("sketch %q has no default profile", sketchPath)
-	}
 	initReq := &rpc.InitRequest{
-		Instance:   inst,
-		SketchPath: sketchPath.String(),
-		Profile:    profile,
+		Instance: inst,
+	}
+	if sketchPath != nil {
+		sketchResp, err := srv.LoadSketch(ctx, &rpc.LoadSketchRequest{SketchPath: sketchPath.String()})
+		if err != nil {
+			return nil, nil, err
+		}
+		sketch := sketchResp.GetSketch()
+		profile := sketch.GetDefaultProfile().GetName()
+		if profile == "" {
+			return nil, nil, fmt.Errorf("sketch %q has no default profile", sketchPath)
+		}
+
+		initReq.Profile = profile
+		initReq.SketchPath = sketchPath.String()
 	}
 
 	if err := srv.Init(

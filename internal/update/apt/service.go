@@ -198,12 +198,16 @@ func checkAptLockHeld(ctx context.Context) error {
 		return err
 	}
 	out, err := cmd.RunAndCaptureCombinedOutput(ctx)
-	if err != nil {
-		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok &&
-			exitErr.ExitCode() == 100 &&
-			strings.Contains(strings.ToLower(string(out)), "lock") {
-			return update.NewLockHeldError(fmt.Errorf("%w: %s", err, out))
-		}
+	// The probe never succeeds: apt exits 100 on the missing package. Anything
+	// else, a sudo denial included, means it never reached apt.
+	exitErr, ok := errors.AsType[*exec.ExitError](err)
+	if !ok || exitErr.ExitCode() != 100 {
+		slog.Warn("apt lock probe did not run", "error", err, "output", string(out))
+		return nil
+	}
+	// The lock file path is in the message, so the match survives a translated apt.
+	if strings.Contains(strings.ToLower(string(out)), "lock") {
+		return update.NewLockHeldError(fmt.Errorf("%w: %s", err, out))
 	}
 	return nil
 }
@@ -347,11 +351,11 @@ func cleanupDockerContainers(ctx context.Context) iter.Seq2[string, error] {
 // packages apt holds back as not installable are left out, an upgrade that needs a
 // new dependency is kept in, and nothing is ever removed.
 func listUpgradablePackages(ctx context.Context, matcher func(update.UpgradablePackage) bool) ([]update.UpgradablePackage, error) {
-	simulateUpgrade, err := paths.NewProcess(nil, "apt-get", "-s", "upgrade", "--with-new-pkgs")
 	if err := checkAptLockHeld(ctx); err != nil {
 		return nil, err
 	}
 
+	simulateUpgrade, err := paths.NewProcess(nil, "apt-get", "-s", "upgrade", "--with-new-pkgs")
 	if err != nil {
 		return nil, err
 	}

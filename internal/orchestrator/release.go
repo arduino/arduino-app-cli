@@ -46,6 +46,9 @@ const releaseSrcDir = "src"
 type BuildReleaseRequest struct {
 	// Target defaults to the board running the build.
 	Target string
+	// ReleaseLabel is an optional label the user attaches to the release. It is
+	// stored in the manifest as it is given, and it is absent when left empty.
+	ReleaseLabel string
 	// Notes is the release note, markdown, and goes in the manifest as it is given.
 	Notes string
 	// Output is the archive, or the directory to write it in. Defaults to the cwd.
@@ -68,6 +71,8 @@ type BuildReleaseResult struct {
 type ReleaseManifest struct {
 	Schema int    `yaml:"schema"`
 	Name   string `yaml:"name"`
+	// ReleaseLabel is the optional label the user gave the release at build time.
+	ReleaseLabel string `yaml:"release_label,omitempty"`
 	// Target is the board the release is built for, gated on at install and start.
 	Target string `yaml:"target"`
 	// CreatedAt is when the build ran, UTC.
@@ -171,14 +176,15 @@ func BuildRelease(
 	}
 
 	manifest := ReleaseManifest{
-		Schema:    app.ReleaseManifestSchema,
-		Name:      appToBuild.Name,
-		Target:    plat.BoardName,
-		CreatedAt: now,
-		Notes:     req.Notes,
-		Bricks:    releaseBricks(appToBuild.Descriptor),
-		Models:    releaseModels(ctx, appToBuild.Descriptor, modelsIndex),
-		Libraries: releaseLibraries(ctx, appToBuild),
+		Schema:       app.ReleaseManifestSchema,
+		Name:         appToBuild.Name,
+		ReleaseLabel: req.ReleaseLabel,
+		Target:       plat.BoardName,
+		CreatedAt:    now,
+		Notes:        req.Notes,
+		Bricks:       releaseBricks(appToBuild.Descriptor),
+		Models:       releaseModels(ctx, appToBuild.Descriptor, modelsIndex),
+		Libraries:    releaseLibraries(ctx, appToBuild),
 	}
 	if err := writeReleaseManifest(releaseDir, manifest); err != nil {
 		return BuildReleaseResult{}, err
@@ -359,7 +365,7 @@ func releaseLibraries(ctx context.Context, arduinoApp app.ArduinoApp) []string {
 }
 
 // A gzipped tar and not a zip: the venv needs symlinks and exec bits preserved.
-const ReleaseArchiveExt = ".arduinoapp"
+const ReleaseArchiveExt = ".ard"
 
 // targetIndexes are the indexes of the board the release is built for: which bricks and
 // services exist, and which compose variant they use, depend on it.
@@ -576,7 +582,8 @@ func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platfo
 }
 
 // writeReleaseArchive writes releaseDir as a gzipped tar rooted at its own name.
-// Symlinks and modes are kept: the venv relies on both.
+// Symlinks are kept as they are, and so are the modes of the venv of the prebuild: the
+// rest is normalized, so that the archive does not carry the umask of the build machine.
 func writeReleaseArchive(releaseDir *paths.Path, archivePath *paths.Path) (err error) {
 	file, err := archivePath.Create()
 	if err != nil {
@@ -655,6 +662,16 @@ func writeReleaseArchive(releaseDir *paths.Path, archivePath *paths.Path) (err e
 			// The install decides who owns the files.
 			header.Uid, header.Gid = 0, 0
 			header.Uname, header.Gname = "", ""
+			// The modes of the build machine are not shipped, or an app folder left group
+			// writable installs group writable. The venv is the exception: it needs its x.
+			if _, entry, _ := strings.Cut(header.Name, "/"); !strings.HasPrefix(entry, "prebuild/") {
+				switch {
+				case info.IsDir():
+					header.Mode = 0755
+				case info.Mode().IsRegular():
+					header.Mode = 0644
+				}
+			}
 
 			if err := tarWriter.WriteHeader(header); err != nil {
 				return err

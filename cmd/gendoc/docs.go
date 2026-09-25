@@ -568,6 +568,72 @@ Contains a JSON object with the details of an error.
 			},
 		},
 		{
+			OperationId: "buildApp",
+			Method:      http.MethodPost,
+			Path:        "/v1/apps/{appID}/build",
+			Request: (*struct {
+				ID           string `path:"appID" description:"application identifier."`
+				BuildID      string `json:"build_id" description:"Optional build identifier. When set, the progress events published to the app build events stream are tagged with it, so a client can filter the stream down to this build."`
+				Target       string `json:"target" description:"Target defaults to the board running the build."`
+				ReleaseLabel string `json:"release_label" description:"ReleaseLabel is an optional label the user attaches to the release. It is stored in the manifest as it is given."`
+				Notes        string `json:"notes" description:"Notes is the release note, markdown, and goes in the manifest as it is given."`
+				IncludeData  bool   `json:"include_data" description:"IncludeData ships the data folder of the app, at the root of the archive."`
+			})(nil),
+			Description: "Build the application into a release archive: the python environment is built and the compose files are resolved for the target board, so that installing it generates nothing. The gzipped release archive is streamed back as the response body for the client to save; build progress is reported on the app build events stream.",
+			Summary:     "Build an app into a release archive",
+			Tags:        []Tag{ApplicationTag},
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/gzip",
+				DataStructure: []byte{},
+				Description:   "The gzipped release archive, streamed for the client to save.",
+				StatusCode:    http.StatusOK,
+			},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+			},
+		},
+		{
+			OperationId: "buildAppEvents",
+			Method:      http.MethodGet,
+			Path:        "/v1/apps/build/events",
+			Description: "Stream the progress of every build of every app as Server-Sent Events. Each event carries the 'build_id' it belongs to, so a client can filter the stream down to a single build it triggered.",
+			Summary:     "Stream every app's build events",
+			Tags:        []Tag{ApplicationTag},
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "text/event-stream",
+				DataStructure: "",
+				Description: `A stream of Server-Sent Events (SSE) that notifies the progress of every build of every app.
+Each event carries the 'build_id' it belongs to, so the client can filter by build.
+The client will receive events formatted as follows:
+
+**Event 'progress'**:
+Contains a JSON object with the percentage of completion.
+'event: progress'
+'data: {"build_id":"abc","name":"python environment","progress":0.25}'
+
+**Event 'message'**:
+Contains a JSON object with an informational message.
+'event: message'
+'data: {"build_id":"abc","message":"building the python environment..."}'
+
+**Event 'done'**:
+Contains a JSON object with the built release facts.
+'event: done'
+'data: {"build_id":"abc","name":"user:my-app","target":"unoq"}'
+
+**Event 'error'**:
+Contains a JSON object with the details of an error.
+'event: error'
+'data: {"build_id":"abc","code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+`,
+			},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
 			OperationId: "editApp",
 			Method:      http.MethodPatch,
 			Path:        "/v1/apps/{id}",
@@ -1187,7 +1253,7 @@ the upgrade continues and 'done' is emitted anyway.
 
 **Event 'done'**:
 Contains a string with the message that the update process is complete. It is emitted last,
-also when 'error' events were received. 
+also when 'error' events were received.
 'event: done'
 'data: Update completed'
 `,

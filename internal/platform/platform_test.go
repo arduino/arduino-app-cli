@@ -29,3 +29,32 @@ func TestGetPlatformWithOverride(t *testing.T) {
 	p := GetPlatform(tmpDir)
 	assert.Equal(t, "some:custom:board", p.FQBN)
 }
+
+func TestPackageAndArchitecture(t *testing.T) {
+	tests := []struct {
+		name         string
+		platformID   string
+		expectedPkg  string
+		expectedArch string
+		expectErr    bool
+	}{
+		{name: "Well formed id", platformID: "arduino:zephyr", expectedPkg: "arduino", expectedArch: "zephyr"},
+		{name: "Empty id", platformID: "", expectErr: true},
+		{name: "Missing separator", platformID: "arduino", expectErr: true},
+		{name: "Empty package", platformID: ":zephyr", expectErr: true},
+		{name: "Empty architecture", platformID: "arduino:", expectErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pkg, arch, err := Platform{PlatformID: tt.platformID}.PackageAndArchitecture()
+
+			if tt.expectErr {
+				require.ErrorContains(t, err, "invalid platform id")
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedPkg, pkg)
+			assert.Equal(t, tt.expectedArch, arch)
+		})
+	}
+}

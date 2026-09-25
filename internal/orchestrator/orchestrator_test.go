@@ -32,6 +32,18 @@ import (
 
 var unoQPlatform = platform.Platform{BoardName: "unoq"}
 
+func TestCreateAppAlreadyExisting(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
+
+	existingApp, err := CreateApp(CreateAppRequest{Name: "existing-app"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+	require.NoError(t, err)
+
+	_, err = CreateApp(CreateAppRequest{Name: "existing-app"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+	require.ErrorIs(t, err, ErrAppAlreadyExists)
+	require.Contains(t, err.Error(), existingApp.ID.String())
+}
+
 func TestCloneApp(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
@@ -215,8 +227,98 @@ func TestEditApp(t *testing.T) {
 			appDir := cfg.AppsDir().Join(existingAppName)
 			existingApp := f.Must(app.Load(appDir))
 
-			err = EditApp(AppEditRequest{Name: new(existingAppName)}, &existingApp, cfg)
-			require.ErrorIs(t, err, ErrAppAlreadyExists)
+			err = EditApp(AppEditRequest{Name: new("new-name")}, &existingApp, cfg)
+			require.NoError(t, err)
+			require.Equal(t, cfg.AppsDir().Join("new-name-1").String(), existingApp.FullPath.String())
+			require.True(t, appDir.NotExist())
+			editedApp, err := app.Load(cfg.AppsDir().Join("new-name-1"))
+			require.NoError(t, err)
+			require.Equal(t, "new-name", editedApp.Name)
+
+			// The app already sits in the first free suffixed folder: it stays there.
+			err = EditApp(AppEditRequest{Name: new("New-Name")}, &existingApp, cfg)
+			require.NoError(t, err)
+			require.Equal(t, cfg.AppsDir().Join("new-name-1").String(), existingApp.FullPath.String())
+		})
+
+		t.Run("name with an empty slug", func(t *testing.T) {
+			appName := "empty-slug"
+			_, err := CreateApp(CreateAppRequest{Name: appName}, &bricksindex.BricksIndex{}, idProvider, cfg)
+			require.NoError(t, err)
+			appDir := cfg.AppsDir().Join(appName)
+			emptySlugApp := f.Must(app.Load(appDir))
+
+			err = EditApp(AppEditRequest{Name: new("$$$"), Default: new(true)}, &emptySlugApp, cfg)
+			require.ErrorIs(t, err, app.ErrInvalidApp)
+			defaultApp, err := GetDefaultApp(cfg)
+			require.NoError(t, err)
+			require.Nil(t, defaultApp) // A rejected edit must not set the default app
+			require.Equal(t, appDir.String(), emptySlugApp.FullPath.String())
+			require.True(t, cfg.AppsDir().Join("-1").NotExist())
+			editedApp, err := app.Load(appDir)
+			require.NoError(t, err)
+			require.Equal(t, appName, editedApp.Name)
+		})
+
+		t.Run("same slug as the current folder", func(t *testing.T) {
+			appName := "same-slug"
+			_, err := CreateApp(CreateAppRequest{Name: appName}, &bricksindex.BricksIndex{}, idProvider, cfg)
+			require.NoError(t, err)
+			appDir := cfg.AppsDir().Join(appName)
+			sameSlugApp := f.Must(app.Load(appDir))
+
+			err = EditApp(AppEditRequest{Name: new("Same-Slug")}, &sameSlugApp, cfg)
+			require.NoError(t, err)
+			require.Equal(t, appDir.String(), sameSlugApp.FullPath.String())
+			editedApp, err := app.Load(appDir)
+			require.NoError(t, err)
+			require.Equal(t, "Same-Slug", editedApp.Name)
+		})
+
+		t.Run("renaming the default app keeps it default", func(t *testing.T) {
+			_, err := CreateApp(CreateAppRequest{Name: "default-to-rename"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+			require.NoError(t, err)
+			defaultApp := f.Must(app.Load(cfg.AppsDir().Join("default-to-rename")))
+			_, err = CreateApp(CreateAppRequest{Name: "other-to-rename"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+			require.NoError(t, err)
+			otherApp := f.Must(app.Load(cfg.AppsDir().Join("other-to-rename")))
+			require.NoError(t, SetDefaultApp(&defaultApp, cfg))
+			t.Cleanup(func() { _ = SetDefaultApp(nil, cfg) })
+
+			// Renaming another app leaves the default app untouched.
+			err = EditApp(AppEditRequest{Name: new("other-renamed")}, &otherApp, cfg)
+			require.NoError(t, err)
+			currentDefaultApp, err := GetDefaultApp(cfg)
+			require.NoError(t, err)
+			require.NotNil(t, currentDefaultApp)
+			require.True(t, cfg.AppsDir().Join("default-to-rename").EqualsTo(currentDefaultApp.FullPath))
+
+			err = EditApp(AppEditRequest{Name: new("default-renamed")}, &defaultApp, cfg)
+			require.NoError(t, err)
+			currentDefaultApp, err = GetDefaultApp(cfg)
+			require.NoError(t, err)
+			require.NotNil(t, currentDefaultApp)
+			require.True(t, cfg.AppsDir().Join("default-renamed").EqualsTo(currentDefaultApp.FullPath))
+		})
+
+		t.Run("default and name in the same request", func(t *testing.T) {
+			_, err := CreateApp(CreateAppRequest{Name: "set-and-rename"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+			require.NoError(t, err)
+			userApp := f.Must(app.Load(cfg.AppsDir().Join("set-and-rename")))
+			t.Cleanup(func() { _ = SetDefaultApp(nil, cfg) })
+
+			err = EditApp(AppEditRequest{Name: new("set-and-renamed"), Default: new(true)}, &userApp, cfg)
+			require.NoError(t, err)
+			currentDefaultApp, err := GetDefaultApp(cfg)
+			require.NoError(t, err)
+			require.NotNil(t, currentDefaultApp)
+			require.True(t, cfg.AppsDir().Join("set-and-renamed").EqualsTo(currentDefaultApp.FullPath))
+
+			err = EditApp(AppEditRequest{Name: new("unset-and-renamed"), Default: new(false)}, &userApp, cfg)
+			require.NoError(t, err)
+			currentDefaultApp, err = GetDefaultApp(cfg)
+			require.NoError(t, err)
+			require.Nil(t, currentDefaultApp)
 		})
 	})
 
