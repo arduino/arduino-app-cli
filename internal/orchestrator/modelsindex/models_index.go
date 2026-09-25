@@ -82,11 +82,10 @@ type AIModel struct {
 	Metadata        map[string]string `yaml:"metadata,omitempty"`
 	SupportedBoards []string          `yaml:"supported_boards,omitempty"`
 	Deployment      *ModelDeployment  `yaml:"deployment,omitempty"`
-
-	IsBuiltIn bool        `yaml:"-"` // a model is considered built-in if it is in the models-list.yaml and the "pre-loaded" flag is true
-	Origin    ModelOrigin `yaml:"-"`
-	Status    ModelStatus `yaml:"-"`
-	Size      uint64      `yaml:"-"`
+	IsBuiltIn       bool              `yaml:"-"` // a model is considered built-in if it is in the models-list.yaml and the "pre-loaded" flag is true
+	Origin          ModelOrigin       `yaml:"-"`
+	Status          ModelStatus       `yaml:"-"`
+	Size            uint64            `yaml:"-"`
 }
 
 type ModelStatus string
@@ -399,14 +398,13 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 			continue // FIXME: collect broken models
 		}
 
-		var modelSizeMB uint64
+		var sizeBytes uint64
 		if modelFileInfo, err := m.FullPath.Join("model.eim").Stat(); err != nil {
 			slog.Warn("unable to stat custom model file", slog.String("error", err.Error()), "path", m.FullPath.Join("model.eim"))
 		} else {
 			modelSizeBytes := modelFileInfo.Size()
 			if modelSizeBytes > 0 {
-				sizeBytes := uint64(modelSizeBytes)
-				modelSizeMB = (sizeBytes + (1024*1024 - 1)) / (1024 * 1024)
+				sizeBytes = uint64(modelSizeBytes)
 			}
 		}
 
@@ -422,7 +420,7 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 			IsBuiltIn:       false,
 			Origin:          EdgeImpulseOrigin,
 			Status:          InstalledStatus,
-			Size:            modelSizeMB,
+			Size:            sizeBytes,
 		})
 	}
 
