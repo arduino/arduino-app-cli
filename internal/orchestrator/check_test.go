@@ -682,3 +682,73 @@ func TestCheckPortCollisions(t *testing.T) {
 		})
 	}
 }
+
+func TestRequiredServices(t *testing.T) {
+	servicesIndex := writeServicesIndex(t, map[string]string{
+		"arduino:audio": "services:\n  audio:\n    image: busybox\n    ports: [\"8085:8085\"]\n",
+		"arduino:db":    "services:\n  db:\n    image: busybox\n    ports: [\"9999:9999\"]\n",
+	})
+
+	bIndex := &bricksindex.BricksIndex{
+		BuiltInBricks: []bricksindex.Brick{
+			{ID: "arduino:object_detection"},
+			// Both speech bricks require the same service, like arduino:asr and arduino:tts do.
+			{ID: "arduino:asr", RequiresServices: bricksindex.RequiresServices{{ID: "arduino:audio"}}},
+			{ID: "arduino:tts", RequiresServices: bricksindex.RequiresServices{{ID: "arduino:audio"}}},
+			{ID: "arduino:storage", RequiresServices: bricksindex.RequiresServices{{ID: "arduino:db"}}},
+			{ID: "arduino:needs_missing", RequiresServices: bricksindex.RequiresServices{{ID: "arduino:missing"}}},
+		},
+	}
+
+	testCases := []struct {
+		name   string
+		bricks []app.Brick
+		want   []RequiredService
+	}{
+		{
+			name:   "a brick requiring no service",
+			bricks: []app.Brick{{ID: "arduino:object_detection"}},
+			want:   nil,
+		},
+		{
+			name:   "the ports of the required service",
+			bricks: []app.Brick{{ID: "arduino:asr"}},
+			want: []RequiredService{
+				{ID: "arduino:audio", Name: "audio service", BrickID: "arduino:asr", Ports: []string{"8085"}},
+			},
+		},
+		{
+			name:   "a service required twice is returned once, against the first brick",
+			bricks: []app.Brick{{ID: "arduino:asr"}, {ID: "arduino:tts"}},
+			want: []RequiredService{
+				{ID: "arduino:audio", Name: "audio service", BrickID: "arduino:asr", Ports: []string{"8085"}},
+			},
+		},
+		{
+			name:   "services are sorted by ID, whatever the brick order",
+			bricks: []app.Brick{{ID: "arduino:storage"}, {ID: "arduino:asr"}},
+			want: []RequiredService{
+				{ID: "arduino:audio", Name: "audio service", BrickID: "arduino:asr", Ports: []string{"8085"}},
+				{ID: "arduino:db", Name: "db service", BrickID: "arduino:storage", Ports: []string{"9999"}},
+			},
+		},
+		{
+			name:   "services missing from the index are skipped",
+			bricks: []app.Brick{{ID: "arduino:needs_missing"}},
+			want:   nil,
+		},
+		{
+			name:   "bricks missing from the index are skipped",
+			bricks: []app.Brick{{ID: "arduino:unknown-brick"}},
+			want:   nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := RequiredServices(tc.bricks, bIndex, servicesIndex)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
