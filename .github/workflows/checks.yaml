@@ -32,6 +32,14 @@ jobs:
           version: v2.11.4
           args: --timeout 300s
 
+      # Every sudo command is declared in internal/sudo, pkg/board apart.
+      - name: Check no command bypasses internal/sudo
+        run: |
+          if git grep -n --untracked '"sudo"' -- '*.go' ':!*_test.go' ':!internal/sudo/*' ':!pkg/board/*'; then
+            echo "::error::declare the command in internal/sudo instead"
+            exit 1
+          fi
+
       - name: Set up Go
         uses: actions/setup-go@v6
         with:

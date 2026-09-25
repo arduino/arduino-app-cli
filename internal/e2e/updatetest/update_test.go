@@ -50,6 +50,7 @@ func TestUpdatePackage(t *testing.T) {
 
 			postUpdateVersion := getAppCliVersion(t, containerName)
 			require.Equal(t, "v"+postUpdateVersion, majorTag)
+			requireSudoRules(t, containerName)
 		})
 
 		t.Run("HTTP Request", func(t *testing.T) {
@@ -64,6 +65,7 @@ func TestUpdatePackage(t *testing.T) {
 
 			postUpdateVersion := getAppCliVersion(t, containerName)
 			require.Equal(t, "v"+postUpdateVersion, majorTag)
+			requireSudoRules(t, containerName)
 		})
 	})
 
@@ -99,6 +101,7 @@ func TestUpdatePackage(t *testing.T) {
 
 		postUpdateVersion := getAppCliVersion(t, containerName)
 		require.Equal(t, "v"+postUpdateVersion, toTag)
+		requireSudoRules(t, containerName)
 
 		// 2.0 needs a package that does not exist, so apt holds it back. Naming a
 		// held back package in the install makes it mandatory and fails the run.
@@ -157,6 +160,7 @@ func TestUpdatePackage(t *testing.T) {
 
 			postUpdateVersion := getAppCliVersion(t, containerName)
 			require.Equal(t, "v"+postUpdateVersion, toTag)
+			requireSudoRules(t, containerName)
 		})
 
 		t.Run("HTTP Request", func(t *testing.T) {
@@ -170,6 +174,7 @@ func TestUpdatePackage(t *testing.T) {
 
 			postUpdateVersion := getAppCliVersion(t, containerName)
 			require.Equal(t, "v"+postUpdateVersion, toTag)
+			requireSudoRules(t, containerName)
 		})
 	})
 

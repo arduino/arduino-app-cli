@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
+	"github.com/arduino/arduino-app-cli/internal/sudo"
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 )
@@ -43,6 +44,7 @@ func checkPlatform(ctx context.Context, docker command.Cli) []check {
 		run  func() (string, error)
 	}{
 		{"docker engine", func() (string, error) { return checkDockerEngine(ctx, docker) }},
+		{"sudo rules", func() (string, error) { return checkSudoRules(ctx) }},
 	}
 
 	results := make([]check, 0, len(checks))
@@ -73,6 +75,18 @@ func checkDockerEngine(ctx context.Context, docker command.Cli) (string, error) 
 		return detail, fmt.Errorf("the engine speaks api %s, arduino-app-cli needs api %s or later", apiVersion, minEngineAPI)
 	}
 	return detail, nil
+}
+
+// checkSudoRules reports the commands of the cli the sudoers file does not allow.
+func checkSudoRules(ctx context.Context) (string, error) {
+	missing, err := sudo.Check(ctx)
+	if err != nil {
+		return "", err
+	}
+	if len(missing) > 0 {
+		return "", fmt.Errorf("the sudoers file does not allow: %s", strings.Join(missing, "; "))
+	}
+	return "every command of the cli is allowed", nil
 }
 
 // check is what one requirement of a board turned out to be.
