@@ -8,10 +8,11 @@
 package adb
 
 import (
-	"cmp"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/arduino/go-paths-helper"
 
@@ -19,10 +20,13 @@ import (
 )
 
 func adbReadFile(a *ADBConnection, path string) (io.ReadCloser, error) {
-	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "cat", path) // nolint:gosec
+	// LC_ALL=C: the parser reads the failure of the command in English.
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "LC_ALL=C", "cat", path) // nolint:gosec
 	if err != nil {
 		return nil, fmt.Errorf("failed to create command to read file %q: %w", path, err)
 	}
+	var stderr bytes.Buffer
+	cmd.RedirectStderrTo(&stderr)
 	output, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, err
@@ -30,12 +34,26 @@ func adbReadFile(a *ADBConnection, path string) (io.ReadCloser, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
+	// Wait is not idempotent, and both the parser and Close ask for the end.
+	exit := sync.OnceValues(func() ([]byte, error) {
+		// Wait first: it ends the copy of stderr.
+		err := cmd.Wait()
+		return stderr.Bytes(), err
+	})
+	r, err := remote.ParseReadOutput(output, exit)
+	if err != nil {
+		_ = output.Close()
+		return nil, err
+	}
+
 	return remote.WithCloser{
-		Reader: output,
+		Reader: r,
 		CloseFun: func() error {
-			err1 := output.Close()
-			err2 := cmd.Wait()
-			return cmp.Or(err1, err2)
+			// The read reports the command failure; this wait only releases
+			// the process, which fails when the close breaks its pipe.
+			_ = output.Close()
+			_, _ = exit()
+			return nil
 		},
 	}, nil
 }
