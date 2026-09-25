@@ -1,6 +1,6 @@
 ---
 name: go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc
-version: v0.63.0
+version: v0.71.0
 type: go
 summary: Package otelgrpc is the instrumentation library for google.golang.org/grpc.
 homepage: https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc

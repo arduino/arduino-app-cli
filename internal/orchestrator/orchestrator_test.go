@@ -6,6 +6,8 @@
 package orchestrator
 
 import (
+	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -13,8 +15,9 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/flags"
-	dockerClient "github.com/docker/docker/client"
 	gCmp "github.com/google/go-cmp/cmp"
+	"github.com/moby/moby/api/types/container"
+	dockerClient "github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.bug.st/f"
@@ -29,13 +32,25 @@ import (
 
 var unoQPlatform = platform.Platform{BoardName: "unoq"}
 
+func TestCreateAppAlreadyExisting(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
+
+	existingApp, err := CreateApp(CreateAppRequest{Name: "existing-app"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+	require.NoError(t, err)
+
+	_, err = CreateApp(CreateAppRequest{Name: "existing-app"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+	require.ErrorIs(t, err, ErrAppAlreadyExists)
+	require.Contains(t, err.Error(), existingApp.ID.String())
+}
+
 func TestCloneApp(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
 	originalAppID := f.Must(idProvider.ParseID("user:original-app"))
 	originalAppPath := originalAppID.ToPath()
-	r, err := CreateApp(CreateAppRequest{Name: "original-app"}, idProvider, cfg)
+	r, err := CreateApp(CreateAppRequest{Name: "original-app"}, &bricksindex.BricksIndex{}, idProvider, cfg)
 	require.NoError(t, err)
 	require.Equal(t, originalAppID, r.ID)
 	require.DirExists(t, originalAppPath.String())
@@ -154,7 +169,7 @@ func TestEditApp(t *testing.T) {
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
 	t.Run("with default", func(t *testing.T) {
-		_, err := CreateApp(CreateAppRequest{Name: "app-default"}, idProvider, cfg)
+		_, err := CreateApp(CreateAppRequest{Name: "app-default"}, &bricksindex.BricksIndex{}, idProvider, cfg)
 		require.NoError(t, err)
 		appDir := cfg.AppsDir().Join("app-default")
 
@@ -192,7 +207,7 @@ func TestEditApp(t *testing.T) {
 
 	t.Run("with name", func(t *testing.T) {
 		originalAppName := "original-name"
-		_, err := CreateApp(CreateAppRequest{Name: originalAppName}, idProvider, cfg)
+		_, err := CreateApp(CreateAppRequest{Name: originalAppName}, &bricksindex.BricksIndex{}, idProvider, cfg)
 		require.NoError(t, err)
 		appDir := cfg.AppsDir().Join(originalAppName)
 		userApp := f.Must(app.Load(appDir))
@@ -207,19 +222,109 @@ func TestEditApp(t *testing.T) {
 
 		t.Run("already existing name", func(t *testing.T) {
 			existingAppName := "existing-name"
-			_, err := CreateApp(CreateAppRequest{Name: existingAppName}, idProvider, cfg)
+			_, err := CreateApp(CreateAppRequest{Name: existingAppName}, &bricksindex.BricksIndex{}, idProvider, cfg)
 			require.NoError(t, err)
 			appDir := cfg.AppsDir().Join(existingAppName)
 			existingApp := f.Must(app.Load(appDir))
 
-			err = EditApp(AppEditRequest{Name: new(existingAppName)}, &existingApp, cfg)
-			require.ErrorIs(t, err, ErrAppAlreadyExists)
+			err = EditApp(AppEditRequest{Name: new("new-name")}, &existingApp, cfg)
+			require.NoError(t, err)
+			require.Equal(t, cfg.AppsDir().Join("new-name-1").String(), existingApp.FullPath.String())
+			require.True(t, appDir.NotExist())
+			editedApp, err := app.Load(cfg.AppsDir().Join("new-name-1"))
+			require.NoError(t, err)
+			require.Equal(t, "new-name", editedApp.Name)
+
+			// The app already sits in the first free suffixed folder: it stays there.
+			err = EditApp(AppEditRequest{Name: new("New-Name")}, &existingApp, cfg)
+			require.NoError(t, err)
+			require.Equal(t, cfg.AppsDir().Join("new-name-1").String(), existingApp.FullPath.String())
+		})
+
+		t.Run("name with an empty slug", func(t *testing.T) {
+			appName := "empty-slug"
+			_, err := CreateApp(CreateAppRequest{Name: appName}, &bricksindex.BricksIndex{}, idProvider, cfg)
+			require.NoError(t, err)
+			appDir := cfg.AppsDir().Join(appName)
+			emptySlugApp := f.Must(app.Load(appDir))
+
+			err = EditApp(AppEditRequest{Name: new("$$$"), Default: new(true)}, &emptySlugApp, cfg)
+			require.ErrorIs(t, err, app.ErrInvalidApp)
+			defaultApp, err := GetDefaultApp(cfg)
+			require.NoError(t, err)
+			require.Nil(t, defaultApp) // A rejected edit must not set the default app
+			require.Equal(t, appDir.String(), emptySlugApp.FullPath.String())
+			require.True(t, cfg.AppsDir().Join("-1").NotExist())
+			editedApp, err := app.Load(appDir)
+			require.NoError(t, err)
+			require.Equal(t, appName, editedApp.Name)
+		})
+
+		t.Run("same slug as the current folder", func(t *testing.T) {
+			appName := "same-slug"
+			_, err := CreateApp(CreateAppRequest{Name: appName}, &bricksindex.BricksIndex{}, idProvider, cfg)
+			require.NoError(t, err)
+			appDir := cfg.AppsDir().Join(appName)
+			sameSlugApp := f.Must(app.Load(appDir))
+
+			err = EditApp(AppEditRequest{Name: new("Same-Slug")}, &sameSlugApp, cfg)
+			require.NoError(t, err)
+			require.Equal(t, appDir.String(), sameSlugApp.FullPath.String())
+			editedApp, err := app.Load(appDir)
+			require.NoError(t, err)
+			require.Equal(t, "Same-Slug", editedApp.Name)
+		})
+
+		t.Run("renaming the default app keeps it default", func(t *testing.T) {
+			_, err := CreateApp(CreateAppRequest{Name: "default-to-rename"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+			require.NoError(t, err)
+			defaultApp := f.Must(app.Load(cfg.AppsDir().Join("default-to-rename")))
+			_, err = CreateApp(CreateAppRequest{Name: "other-to-rename"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+			require.NoError(t, err)
+			otherApp := f.Must(app.Load(cfg.AppsDir().Join("other-to-rename")))
+			require.NoError(t, SetDefaultApp(&defaultApp, cfg))
+			t.Cleanup(func() { _ = SetDefaultApp(nil, cfg) })
+
+			// Renaming another app leaves the default app untouched.
+			err = EditApp(AppEditRequest{Name: new("other-renamed")}, &otherApp, cfg)
+			require.NoError(t, err)
+			currentDefaultApp, err := GetDefaultApp(cfg)
+			require.NoError(t, err)
+			require.NotNil(t, currentDefaultApp)
+			require.True(t, cfg.AppsDir().Join("default-to-rename").EqualsTo(currentDefaultApp.FullPath))
+
+			err = EditApp(AppEditRequest{Name: new("default-renamed")}, &defaultApp, cfg)
+			require.NoError(t, err)
+			currentDefaultApp, err = GetDefaultApp(cfg)
+			require.NoError(t, err)
+			require.NotNil(t, currentDefaultApp)
+			require.True(t, cfg.AppsDir().Join("default-renamed").EqualsTo(currentDefaultApp.FullPath))
+		})
+
+		t.Run("default and name in the same request", func(t *testing.T) {
+			_, err := CreateApp(CreateAppRequest{Name: "set-and-rename"}, &bricksindex.BricksIndex{}, idProvider, cfg)
+			require.NoError(t, err)
+			userApp := f.Must(app.Load(cfg.AppsDir().Join("set-and-rename")))
+			t.Cleanup(func() { _ = SetDefaultApp(nil, cfg) })
+
+			err = EditApp(AppEditRequest{Name: new("set-and-renamed"), Default: new(true)}, &userApp, cfg)
+			require.NoError(t, err)
+			currentDefaultApp, err := GetDefaultApp(cfg)
+			require.NoError(t, err)
+			require.NotNil(t, currentDefaultApp)
+			require.True(t, cfg.AppsDir().Join("set-and-renamed").EqualsTo(currentDefaultApp.FullPath))
+
+			err = EditApp(AppEditRequest{Name: new("unset-and-renamed"), Default: new(false)}, &userApp, cfg)
+			require.NoError(t, err)
+			currentDefaultApp, err = GetDefaultApp(cfg)
+			require.NoError(t, err)
+			require.Nil(t, currentDefaultApp)
 		})
 	})
 
 	t.Run("with icon and description", func(t *testing.T) {
 		commonAppName := "common-app"
-		_, err := CreateApp(CreateAppRequest{Name: commonAppName}, idProvider, cfg)
+		_, err := CreateApp(CreateAppRequest{Name: commonAppName}, &bricksindex.BricksIndex{}, idProvider, cfg)
 		require.NoError(t, err)
 		commonAppDir := cfg.AppsDir().Join(commonAppName)
 		commonApp := f.Must(app.Load(commonAppDir))
@@ -239,10 +344,7 @@ func TestListApp(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
-	docker, err := dockerClient.NewClientWithOpts(
-		dockerClient.FromEnv,
-		dockerClient.WithAPIVersionNegotiation(),
-	)
+	docker, err := dockerClient.New(dockerClient.FromEnv)
 	require.NoError(t, err)
 	dockerCli, err := command.NewDockerCli(
 		command.WithAPIClient(docker),
@@ -400,10 +502,7 @@ func TestListAppsFiltersByBricksIndex(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
-	docker, err := dockerClient.NewClientWithOpts(
-		dockerClient.FromEnv,
-		dockerClient.WithAPIVersionNegotiation(),
-	)
+	docker, err := dockerClient.New(dockerClient.FromEnv)
 	require.NoError(t, err)
 	dockerCli, err := command.NewDockerCli(
 		command.WithAPIClient(docker),
@@ -418,21 +517,21 @@ func TestListAppsFiltersByBricksIndex(t *testing.T) {
 	compatibleEx, err := app.Load(compatibleExID.ToPath())
 	require.NoError(t, err)
 	compatibleEx.Descriptor.Bricks = []app.Brick{{ID: "arduino:compatible_brick"}}
-	require.NoError(t, compatibleEx.Save())
+	require.NoError(t, mustEdit(t, &compatibleEx).Save())
 
 	// Create an incompatible example (uses arduino:incompatible_brick, absent from the index)
 	incompatibleExID := createApp(t, "incompatible-example", true, idProvider, cfg)
 	incompatibleEx, err := app.Load(incompatibleExID.ToPath())
 	require.NoError(t, err)
 	incompatibleEx.Descriptor.Bricks = []app.Brick{{ID: "arduino:incompatible_brick"}}
-	require.NoError(t, incompatibleEx.Save())
+	require.NoError(t, mustEdit(t, &incompatibleEx).Save())
 
 	// Create a user app with the incompatible brick — should never be filtered
 	userAppID := createApp(t, "user-app", false, idProvider, cfg)
 	userApp, err := app.Load(userAppID.ToPath())
 	require.NoError(t, err)
 	userApp.Descriptor.Bricks = []app.Brick{{ID: "arduino:incompatible_brick"}}
-	require.NoError(t, userApp.Save())
+	require.NoError(t, mustEdit(t, &userApp).Save())
 
 	// Build a bricks index that only contains arduino:compatible_brick
 	bricksIndexContent := []byte(`
@@ -479,10 +578,7 @@ func TestListAppsLocalBricksCompatibility(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
-	docker, err := dockerClient.NewClientWithOpts(
-		dockerClient.FromEnv,
-		dockerClient.WithAPIVersionNegotiation(),
-	)
+	docker, err := dockerClient.New(dockerClient.FromEnv)
 	require.NoError(t, err)
 	dockerCli, err := command.NewDockerCli(
 		command.WithAPIClient(docker),
@@ -497,7 +593,7 @@ func TestListAppsLocalBricksCompatibility(t *testing.T) {
 	exampleApp, err := app.Load(exampleID.ToPath())
 	require.NoError(t, err)
 	exampleApp.Descriptor.Bricks = []app.Brick{{ID: "local:my_custom_brick"}}
-	require.NoError(t, exampleApp.Save())
+	require.NoError(t, mustEdit(t, &exampleApp).Save())
 
 	// Add a local brick to the app's bricks/ folder
 	localBrickDir := exampleID.ToPath().Join("bricks", "local", "my_custom_brick")
@@ -517,6 +613,183 @@ func TestListAppsLocalBricksCompatibility(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Apps, 1)
 		assert.Equal(t, exampleID, res.Apps[0].ID)
+	})
+}
+
+// fakeContainerClient is a client.APIClient that only implements ContainerList.
+// All other APIClient methods panic and must not be called.
+type fakeContainerClient struct {
+	dockerClient.APIClient
+
+	containers []container.Summary
+	err        error
+}
+
+func (f *fakeContainerClient) ContainerList(_ context.Context, _ dockerClient.ContainerListOptions) (dockerClient.ContainerListResult, error) {
+	if f.err != nil {
+		return dockerClient.ContainerListResult{}, f.err
+	}
+	return dockerClient.ContainerListResult{Items: f.containers}, nil
+}
+
+// Ping reports the daemon as unreachable so that the DockerCli initialization
+// does not try to negotiate the API version with this fake client.
+func (f *fakeContainerClient) Ping(_ context.Context, _ dockerClient.PingOptions) (dockerClient.PingResult, error) {
+	return dockerClient.PingResult{}, errors.New("docker daemon not reachable")
+}
+
+func TestListActiveApps(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
+
+	app1ID := createApp(t, "app1", false, idProvider, cfg)
+	app2ID := createApp(t, "app2", false, idProvider, cfg)
+	exampleID := createApp(t, "example1", true, idProvider, cfg)
+
+	newDockerCli := func(containers []container.Summary) command.Cli {
+		cli, err := command.NewDockerCli(
+			command.WithAPIClient(&fakeContainerClient{containers: containers}),
+			command.WithBaseContext(t.Context()),
+		)
+		require.NoError(t, err)
+		require.NoError(t, cli.Initialize(&flags.ClientOptions{}))
+		return cli
+	}
+
+	containerFor := func(appPath *paths.Path, state container.ContainerState, status string) container.Summary {
+		return container.Summary{
+			Labels: map[string]string{DockerAppPathLabel: appPath.String()},
+			State:  state,
+			Status: status,
+		}
+	}
+
+	t.Run("running and stopped apps are returned with their status, sorted by path", func(t *testing.T) {
+		cli := newDockerCli([]container.Summary{
+			containerFor(app2ID.ToPath(), container.StateExited, "Exited (137)"),
+			containerFor(app1ID.ToPath(), container.StateRunning, "Up 5 minutes"),
+		})
+
+		apps, err := ListActiveApps(t.Context(), cli, idProvider)
+		require.NoError(t, err)
+		assert.Empty(t, gCmp.Diff([]AppInfo{
+			{
+				ID:          app1ID,
+				Name:        "app1",
+				Description: "",
+				Icon:        "😃",
+				Status:      StatusRunning,
+				Example:     false,
+				Default:     false,
+			},
+			{
+				ID:          app2ID,
+				Name:        "app2",
+				Description: "",
+				Icon:        "😃",
+				Status:      StatusStopped,
+				Example:     false,
+				Default:     false,
+			},
+		}, apps))
+	})
+
+	t.Run("example apps are returned with the example id", func(t *testing.T) {
+		cli := newDockerCli([]container.Summary{
+			containerFor(exampleID.ToPath(), container.StateRunning, "Up 5 minutes"),
+		})
+
+		apps, err := ListActiveApps(t.Context(), cli, idProvider)
+		require.NoError(t, err)
+		require.Len(t, apps, 1)
+		assert.Empty(t, gCmp.Diff(AppInfo{
+			ID:          exampleID,
+			Name:        "example1",
+			Description: "",
+			Icon:        "😃",
+			Status:      StatusRunning,
+			Example:     true,
+			Default:     false,
+		}, apps[0]))
+	})
+
+	t.Run("apps in unknown locations are included", func(t *testing.T) {
+		unknownAppPath := paths.New(t.TempDir()).Join("my-app")
+		require.NoError(t, unknownAppPath.MkdirAll())
+		require.NoError(t, unknownAppPath.Join("app.yaml").WriteFile([]byte("name: My App\n")))
+		require.NoError(t, unknownAppPath.Join("python").MkdirAll())
+		require.NoError(t, unknownAppPath.Join("python", "main.py").WriteFile([]byte("print('running')\n")))
+
+		cli := newDockerCli([]container.Summary{
+			containerFor(unknownAppPath, container.StateRunning, "Up 5 minutes"),
+		})
+
+		apps, err := ListActiveApps(t.Context(), cli, idProvider)
+		require.NoError(t, err)
+		require.Len(t, apps, 1)
+		assert.Empty(t, gCmp.Diff(AppInfo{
+			ID:          f.Must(idProvider.IDFromPath(unknownAppPath)),
+			Name:        "My App",
+			Description: "",
+			Icon:        "",
+			Status:      StatusRunning,
+			Example:     false,
+			Default:     false,
+		}, apps[0]))
+	})
+
+	t.Run("apps with broken metadata are still shown with the path name", func(t *testing.T) {
+		brokenAppPath := cfg.AppsDir().Join("broken-app")
+		require.NoError(t, brokenAppPath.MkdirAll())
+		require.NoError(t, brokenAppPath.Join("app.yaml").WriteFile([]byte("not: [valid: yaml\n")))
+		t.Cleanup(func() { _ = brokenAppPath.RemoveAll() })
+
+		cli := newDockerCli([]container.Summary{
+			containerFor(brokenAppPath, container.StateRunning, "Up 5 minutes"),
+		})
+
+		apps, err := ListActiveApps(t.Context(), cli, idProvider)
+		require.NoError(t, err)
+		require.Len(t, apps, 1)
+		assert.Empty(t, gCmp.Diff(AppInfo{
+			ID:          f.Must(idProvider.ParseID("user:broken-app")),
+			Name:        "broken-app",
+			Description: "",
+			Icon:        "",
+			Status:      StatusRunning,
+			Example:     false,
+			Default:     false,
+		}, apps[0]))
+	})
+
+	t.Run("apps whose directory is missing are still shown with the path name", func(t *testing.T) {
+		goneAppPath := cfg.AppsDir().Join("gone-app")
+
+		cli := newDockerCli([]container.Summary{
+			containerFor(goneAppPath, container.StateRunning, "Up 5 minutes"),
+		})
+
+		apps, err := ListActiveApps(t.Context(), cli, idProvider)
+		require.NoError(t, err)
+		require.Len(t, apps, 1)
+		// The app directory does not exist, so no ID can be derived and only the
+		// path name is available as fallback.
+		require.Equal(t, AppInfo{
+			Name:   "gone-app",
+			Status: StatusRunning,
+		}, apps[0])
+	})
+
+	t.Run("returns an error if the docker status cannot be retrieved", func(t *testing.T) {
+		cli, err := command.NewDockerCli(
+			command.WithAPIClient(&fakeContainerClient{err: errors.New("cannot connect to docker")}),
+			command.WithBaseContext(t.Context()),
+		)
+		require.NoError(t, err)
+		require.NoError(t, cli.Initialize(&flags.ClientOptions{}))
+
+		_, err = ListActiveApps(t.Context(), cli, idProvider)
+		require.ErrorContains(t, err, "failed to list apps status")
 	})
 }
 
@@ -551,7 +824,7 @@ func createApp(
 	res, err := CreateApp(CreateAppRequest{
 		Name: name,
 		Icon: "😃",
-	}, idProvider, cfg)
+	}, &bricksindex.BricksIndex{}, idProvider, cfg)
 	require.NoError(t, err)
 	require.Empty(t, gCmp.Diff(f.Must(idProvider.ParseID("user:"+name)), res.ID))
 	if isExample {
@@ -571,10 +844,7 @@ func TestGetAppEnvironmentVariablesWithDefaults(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
-	docker, err := dockerClient.NewClientWithOpts(
-		dockerClient.FromEnv,
-		dockerClient.WithAPIVersionNegotiation(),
-	)
+	docker, err := dockerClient.New(dockerClient.FromEnv)
 	require.NoError(t, err)
 	dockerCli, err := command.NewDockerCli(
 		command.WithAPIClient(docker),
@@ -640,7 +910,7 @@ models:
 	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetDir(), cfg.ModelsDir(), cfg.CustomModelsDir(), nil, config.Configuration{})
 	require.NoError(t, err)
 
-	env := getAppEnvironmentVariables(t.Context(), appDesc, bricksIndex, modelIndex, platform.Platform{}, cfg)
+	env := hostEnvironment(t.Context(), appDesc.FullPath, cfg).Merge(appEnvironment(t.Context(), appDesc, bricksIndex, modelIndex, platform.Platform{}))
 	require.Equal(t, cfg.AppsDir().Join("app1").String(), env["APP_HOME"])
 	require.Equal(t, cfg.ModelsDir().String(), env["MODELS_PATH"])
 	require.Equal(t, "/models/ootb/ei/yolo-x-nano.eim", env["EI_OBJ_DETECTION_MODEL"])
@@ -652,10 +922,7 @@ func TestGetAppEnvironmentVariablesWithCustomModelOverrides(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
-	docker, err := dockerClient.NewClientWithOpts(
-		dockerClient.FromEnv,
-		dockerClient.WithAPIVersionNegotiation(),
-	)
+	docker, err := dockerClient.New(dockerClient.FromEnv)
 	require.NoError(t, err)
 	dockerCli, err := command.NewDockerCli(
 		command.WithAPIClient(docker),
@@ -721,7 +988,7 @@ models:
 	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetDir(), cfg.ModelsDir(), cfg.CustomModelsDir(), nil, config.Configuration{})
 	require.NoError(t, err)
 
-	env := getAppEnvironmentVariables(t.Context(), appDesc, bricksIndex, modelIndex, platform.Platform{}, cfg)
+	env := hostEnvironment(t.Context(), appDesc.FullPath, cfg).Merge(appEnvironment(t.Context(), appDesc, bricksIndex, modelIndex, platform.Platform{}))
 	require.Equal(t, cfg.AppsDir().Join("app1").String(), env["APP_HOME"])
 	require.Equal(t, "/home/arduino/.arduino-bricks/models/face-det.eim", env["EI_OBJ_DETECTION_MODEL"])
 	require.Equal(t, "/home/arduino/.arduino-bricks/models", env["CUSTOM_MODEL_PATH"])
@@ -732,10 +999,7 @@ func TestGetAppEnvironmentVariablesUsingMultipleBricks(t *testing.T) {
 	cfg := setTestOrchestratorConfig(t)
 	idProvider := appid.NewAppProvider(cfg, unoQPlatform)
 
-	docker, err := dockerClient.NewClientWithOpts(
-		dockerClient.FromEnv,
-		dockerClient.WithAPIVersionNegotiation(),
-	)
+	docker, err := dockerClient.New(dockerClient.FromEnv)
 	require.NoError(t, err)
 	dockerCli, err := command.NewDockerCli(
 		command.WithAPIClient(docker),
@@ -804,10 +1068,18 @@ models:
 	modelIndex, err := modelsindex.Load(platform.GetPlatform(nil), cfg.AssetDir(), cfg.ModelsDir(), cfg.CustomModelsDir(), nil, config.Configuration{})
 	require.NoError(t, err)
 
-	env := getAppEnvironmentVariables(t.Context(), appDesc, bricksIndex, modelIndex, platform.Platform{}, cfg)
+	env := hostEnvironment(t.Context(), appDesc.FullPath, cfg).Merge(appEnvironment(t.Context(), appDesc, bricksIndex, modelIndex, platform.Platform{}))
 	require.Equal(t, "/models/path/obj.eim", env["EI_OBJ_DETECTION_MODEL"])
 	require.Equal(t, "/models/path/video.eim", env["EI_V_OBJ_DETECTION_MODEL"])
 	require.Equal(t, "/default/video/value", env["MY_VIDEO_ENV"])
 	// for common env variable, the last brick wins
 	require.Equal(t, "default-common-obj", env["COMMON_ENV"])
+}
+
+// mustEdit takes the token every change of an app needs.
+func mustEdit(t *testing.T, a *app.ArduinoApp) app.Editable {
+	t.Helper()
+	editable, err := a.GetAsEditable()
+	require.NoError(t, err)
+	return editable
 }

@@ -18,11 +18,11 @@ paths:
         to apply different filters.
       operationId: getApps
       parameters:
-      - description: Filters apps by apps,examples,default
+      - description: Filters apps by apps,examples,releases,default
         in: query
         name: filter
         schema:
-          description: Filters apps by apps,examples,default
+          description: Filters apps by apps,examples,releases,default
           type: string
       - description: Filters applications by status
         in: query
@@ -313,6 +313,65 @@ paths:
         "500":
           $ref: '#/components/responses/InternalServerError'
       summary: Rename a local brick
+      tags:
+      - Application
+  /v1/apps/{appID}/build:
+    post:
+      description: 'Build the application into a release archive: the python environment
+        is built and the compose files are resolved for the target board, so that
+        installing it generates nothing. The gzipped release archive is streamed back
+        as the response body for the client to save; build progress is reported on
+        the app build events stream.'
+      operationId: buildApp
+      parameters:
+      - description: application identifier.
+        in: path
+        name: appID
+        required: true
+        schema:
+          description: application identifier.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                build_id:
+                  description: Optional build identifier. When set, the progress events
+                    published to the app build events stream are tagged with it, so
+                    a client can filter the stream down to this build.
+                  type: string
+                include_data:
+                  description: IncludeData ships the data folder of the app, at the
+                    root of the archive.
+                  type: boolean
+                notes:
+                  description: Notes is the release note, markdown, and goes in the
+                    manifest as it is given.
+                  type: string
+                release_label:
+                  description: ReleaseLabel is an optional label the user attaches
+                    to the release. It is stored in the manifest as it is given.
+                  type: string
+                target:
+                  description: Target defaults to the board running the build.
+                  type: string
+              type: object
+      responses:
+        "200":
+          content:
+            application/gzip:
+              schema:
+                format: base64
+                type: string
+          description: The gzipped release archive, streamed for the client to save.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "412":
+          $ref: '#/components/responses/PreconditionFailed'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Build an app into a release archive
       tags:
       - Application
   /v1/apps/{appID}/exposed-ports:
@@ -640,7 +699,7 @@ paths:
       - Application
   /v1/apps/{id}/logs:
     get:
-      description: Obtain a ServerSentEvnt stream of logs. It is possible to apply
+      description: Obtain a ServerSentEvent stream of logs. It is possible to apply
         different filters.
       operationId: getAppLogs
       parameters:
@@ -668,7 +727,7 @@ paths:
           content:
             text/event-stream:
               schema:
-                type: string
+                $ref: '#/components/schemas/ResponseLogs'
           description: OK
         "400":
           $ref: '#/components/responses/BadRequest'
@@ -771,6 +830,47 @@ paths:
         "500":
           $ref: '#/components/responses/InternalServerError'
       summary: Stop an existing app/example
+      tags:
+      - Application
+  /v1/apps/build/events:
+    get:
+      description: Stream the progress of every build of every app as Server-Sent
+        Events. Each event carries the 'build_id' it belongs to, so a client can filter
+        the stream down to a single build it triggered.
+      operationId: buildAppEvents
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                type: string
+          description: |
+            A stream of Server-Sent Events (SSE) that notifies the progress of every build of every app.
+            Each event carries the 'build_id' it belongs to, so the client can filter by build.
+            The client will receive events formatted as follows:
+
+            **Event 'progress'**:
+            Contains a JSON object with the percentage of completion.
+            'event: progress'
+            'data: {"build_id":"abc","name":"python environment","progress":0.25}'
+
+            **Event 'message'**:
+            Contains a JSON object with an informational message.
+            'event: message'
+            'data: {"build_id":"abc","message":"building the python environment..."}'
+
+            **Event 'done'**:
+            Contains a JSON object with the built release facts.
+            'event: done'
+            'data: {"build_id":"abc","name":"user:my-app","target":"unoq"}'
+
+            **Event 'error'**:
+            Contains a JSON object with the details of an error.
+            'event: error'
+            'data: {"build_id":"abc","code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Stream every app's build events
       tags:
       - Application
   /v1/apps/events:
@@ -1015,6 +1115,62 @@ paths:
       summary: Get a list of available AI models
       tags:
       - AIModels
+    post:
+      description: |
+        Download an LLamaCPP AI model from a Hugging Face link. The progress is a stream of Server-Sent Events.
+
+        "model_url" is the URL of the model file on Hugging Face. It selects one file at one commit. For a vision model, "mmproj_url" is the URL of the projection file. Only llama.cpp models are supported: the file must be a GGUF file, and it goes in the llamacpp models directory.
+
+        The downloader makes the id from the file that it writes, and reports it in the "done" event. If the internal model list declares that file, the answer is the declared model.
+
+        Hugging Face reads the URL at the download only, so a bad URL is an error event. The request is idempotent: the handler does not transfer a file that is on disk again.
+      operationId: downloadModel
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DownloadModelRequest'
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                type: string
+          description: |
+            A stream of Server-Sent Events (SSE) reporting the download.
+
+            **Event 'message'**:
+            A line of progress information from the handler.
+            'event: message'
+            'data: {"message":"Downloading to: /models/llamacpp/unsloth/SmolLM2-135M-Instruct-GGUF"}'
+
+            **Event 'progress'**:
+            The bytes transferred for the file in download. "name" is the file name, not the model id. A
+            vision model reports the model file and the projection file under their own names.
+            'event: progress'
+            'data: {"name":"SmolLM2-135M-Instruct-Q4_K_M.gguf","current":75876627,"total":105454144,"progress":71.95}'
+
+            **Event 'done'**:
+            The installed model. A declared model has the values from its own entry. For a download, the
+            downloader makes the id from the file that arrives, and adds the repository name. The caller
+            does not know that id before this event.
+            'event: done'
+            'data: {"id":"bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N","id_decoded":"llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","name":"unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","status":"installed"}'
+
+            **Event 'error'**:
+            Contains a JSON object with the details of an error. The 200 status is sent with the stream, so
+            every later failure is an error event. A models directory with no free space has the code
+            'insufficient_storage'.
+            'event: error'
+            'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+            'data: {"code":"insufficient_storage","message":"insufficient disk space to install model"}'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Download a LLamaCPP model from Hugging Face
+      tags:
+      - AIModels
   /v1/models/{id}:
     delete:
       description: Deletes a specific AI model. By default, fails if referenced by
@@ -1027,22 +1183,23 @@ paths:
         schema:
           description: If true, deletes the model even if referenced by apps.
           type: boolean
-      - description: AI model identifier
+      - description: AI model identifier.
         in: path
         name: id
         required: true
         schema:
-          description: AI model identifier
+          description: AI model identifier.
+          example: bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N
           type: string
       responses:
         "204":
           description: AI model successfully deleted
+        "400":
+          $ref: '#/components/responses/BadRequest'
         "404":
           $ref: '#/components/responses/NotFound'
         "409":
           $ref: '#/components/responses/Conflict'
-        "412":
-          $ref: '#/components/responses/PreconditionFailed'
         "500":
           $ref: '#/components/responses/InternalServerError'
       summary: Delete an AI model
@@ -1058,6 +1215,7 @@ paths:
         required: true
         schema:
           description: AI model identifier.
+          example: bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N
           type: string
       responses:
         "200":
@@ -1066,9 +1224,71 @@ paths:
               schema:
                 $ref: '#/components/schemas/AIModelItem'
           description: Successful response
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalServerError'
       summary: Get AI model details
+      tags:
+      - AIModels
+    put:
+      description: |-
+        Install an AI model from the internal model list. The progress is a stream of Server-Sent Events.
+
+        The path takes a model ID from the internal model list. An invalid model ID returns 404.
+
+        The request is idempotent: the handler does not transfer a model that is on disk again. A declaration with no handler installs the model itself, and the stream sends "done" immediately.
+      operationId: installModel
+      parameters:
+      - description: The id of a model in the internal model list.
+        in: path
+        name: id
+        required: true
+        schema:
+          description: The id of a model in the internal model list.
+          example: bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w
+          type: string
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                type: string
+          description: |
+            A stream of Server-Sent Events (SSE) reporting the download.
+
+            **Event 'message'**:
+            A line of progress information from the handler.
+            'event: message'
+            'data: {"message":"Downloading to: /models/llamacpp/unsloth/SmolLM2-135M-Instruct-GGUF"}'
+
+            **Event 'progress'**:
+            The bytes transferred for the file in download. "name" is the file name, not the model id. A
+            vision model reports the model file and the projection file under their own names.
+            'event: progress'
+            'data: {"name":"SmolLM2-135M-Instruct-Q4_K_M.gguf","current":75876627,"total":105454144,"progress":71.95}'
+
+            **Event 'done'**:
+            The installed model, with the values from its entry in the internal model list.
+            'event: done'
+            'data: {"id":"bGxhbWFjcHA6dW5zbG90aC9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtR0dVRi9TbW9sTE0yLTEzNU0tSW5zdHJ1Y3QtUTRfS19N","id_decoded":"llamacpp:unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","name":"unsloth/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M","status":"installed"}'
+
+            **Event 'error'**:
+            Contains a JSON object with the details of an error. The 200 status is sent with the stream, so
+            every later failure is an error event. A models directory with no free space has the code
+            'insufficient_storage'.
+            'event: error'
+            'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+            'data: {"code":"insufficient_storage","message":"insufficient disk space to install model"}'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Install an AI model from the internal model list
       tags:
       - AIModels
   /v1/models/ei/projects/{projectID}:
@@ -1335,7 +1555,7 @@ paths:
                 type: string
           description: |
             A stream of Server-Sent Events (SSE) that notifies the progress of the update process.
-            The 'done' event is the only terminal event: an 'error' reports a step that failed but does
+            The 'done' and 'restarting' events are the only terminal event: an 'error' reports a step that failed but does
             not end the operation, so the client should collect the errors received during the stream and
             present a final summary once 'done' arrives.
             The client will receive events formatted as follows:
@@ -1369,9 +1589,7 @@ paths:
 
             **Event 'done'**:
             Contains a string with the message that the update process is complete. It is emitted last,
-            also when 'error' events were received. Note that if the upgrade restarts arduino-app-cli
-            itself, the stream can end before 'done' is delivered: clients should treat the stream
-            closing as an end condition too.
+            also when 'error' events were received.
             'event: done'
             'data: Update completed'
         "500":
@@ -1490,6 +1708,10 @@ components:
         description:
           type: string
         id:
+          example: bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w
+          type: string
+        id_decoded:
+          example: llamacpp:gemma-3-1b-it-Q4_0
           type: string
         is_builtin:
           type: boolean
@@ -1499,6 +1721,8 @@ components:
           type: object
         name:
           type: string
+        origin:
+          $ref: '#/components/schemas/ModelOrigin'
         runner:
           type: string
         size:
@@ -1579,6 +1803,10 @@ components:
           type: string
         name:
           type: string
+        release:
+          type: boolean
+        release_id:
+          type: string
         status:
           $ref: '#/components/schemas/Status'
       type: object
@@ -1644,6 +1872,7 @@ components:
     BrickCreateUpdateRequest:
       properties:
         model:
+          example: bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w
           nullable: true
           type: string
         variables:
@@ -1653,6 +1882,10 @@ components:
       type: object
     BrickDetailsResult:
       properties:
+        ai_frameworks_compatibility:
+          items:
+            type: string
+          type: array
         api_docs_path:
           type: string
         author:
@@ -1859,6 +2092,17 @@ components:
         id:
           type: string
       type: object
+    DownloadModelRequest:
+      properties:
+        mmproj_url:
+          example: https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/resolve/main/mmproj-F16.gguf
+          type: string
+        model_url:
+          example: https://huggingface.co/unsloth/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf
+          type: string
+      required:
+      - model_url
+      type: object
     EditRequest:
       properties:
         default:
@@ -1997,11 +2241,23 @@ components:
         id:
           type: string
       type: object
+    ModelOrigin:
+      description: 'Where the model came from: "curated" is declared by the internal
+        model list and installs from its id alone, "user" was downloaded from a source
+        the caller supplied and needs that source again, "edge-impulse-user-project"
+        was deployed from the caller''s own Edge Impulse project.'
+      enum:
+      - curated
+      - user
+      - edge-impulse-user-project
+      type: string
+      uniqueItems: true
     ModelStatus:
       description: Model status
       enum:
       - installed
       - not-installed
+      - downloading
       type: string
       uniqueItems: true
     PackageType:
@@ -2048,6 +2304,15 @@ components:
             type: string
           nullable: true
           type: array
+      type: object
+    ResponseLogs:
+      properties:
+        container_name:
+          type: string
+        id:
+          type: string
+        message:
+          type: string
       type: object
     SketchAddLibraryResponse:
       properties:

@@ -22,11 +22,12 @@ import (
 )
 
 // runnerVersion do not edit, this is generate with `task bump:runner-version`
-var RunnerVersion = "0.12.0"
+var RunnerVersion = "0.13.0rc5"
 
 type Configuration struct {
 	appsDir                          *paths.Path
 	dataDir                          *paths.Path
+	releasesDir                      *paths.Path
 	requiredRuntimes                 []RequiredRuntime
 	customModelsDir                  *paths.Path
 	modelsDir                        *paths.Path
@@ -69,6 +70,12 @@ func NewFromEnv() (Configuration, error) {
 	dataDir := paths.New(os.Getenv("ARDUINO_APP_CLI__DATA_DIR"))
 	if dataDir == nil {
 		dataDir = paths.New("/var/lib/arduino-app-cli")
+	}
+
+	// Where the releases are installed: not among the apps, they are not edited.
+	releasesDir := paths.New(os.Getenv("ARDUINO_APP_CLI__RELEASES_DIR"))
+	if releasesDir == nil {
+		releasesDir = dataDir.Join("releases")
 	}
 
 	// Required host units bind-mounted as /run/<unit> into app containers.
@@ -125,7 +132,8 @@ func NewFromEnv() (Configuration, error) {
 		return Configuration{}, fmt.Errorf("invalid LIBRARIES_API_URL: %w", err)
 	}
 
-	constraintStr := cmp.Or(os.Getenv("ARDUINO_APP_CLI__PLATFORM_VERSION_CONSTRAINT"), "<1.0.0")
+	// The '-0' suffix keeps the pre-releases of 2.0.0 out: otherwise '2.0.0-rc.1' would be an accepted version.
+	constraintStr := cmp.Or(os.Getenv("ARDUINO_APP_CLI__PLATFORM_VERSION_CONSTRAINT"), "<2.0.0-0")
 
 	edgeImpulseAPIURL := os.Getenv("EDGE_IMPULSE_API_URL")
 	if edgeImpulseAPIURL == "" {
@@ -146,6 +154,7 @@ func NewFromEnv() (Configuration, error) {
 	c := Configuration{
 		appsDir:                          appsDir,
 		dataDir:                          dataDir,
+		releasesDir:                      releasesDir,
 		requiredRuntimes:                 requiredRuntimes,
 		customModelsDir:                  customModelsDir,
 		modelsDir:                        modelsDir,
@@ -181,6 +190,9 @@ func (c *Configuration) EnsureFolders() error {
 	if err := c.CustomModelsDir().MkdirAll(); err != nil {
 		return err
 	}
+	if err := c.ReleasesDir().MkdirAll(); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -191,6 +203,12 @@ func (c *Configuration) AppsDir() *paths.Path {
 
 func (c *Configuration) DataDir() *paths.Path {
 	return c.dataDir
+}
+
+// ReleasesDir holds the releases as they are installed, frozen: the app a release is
+// run as is a copy of it, in the apps dir.
+func (c *Configuration) ReleasesDir() *paths.Path {
+	return c.releasesDir
 }
 
 func (c *Configuration) ExamplesBaseDir() *paths.Path {
@@ -211,44 +229,27 @@ func (c *Configuration) ExamplesDirs(platform platform.Platform) paths.PathList 
 	return paths.PathList{c.ExamplesBaseDir().Join("inspirational").Join("common")}
 }
 
-type ResolvedRequiredRuntime struct {
-	Path  *paths.Path
+type RequiredRuntimeCandidate struct {
+	Paths []string
 	Group string
 }
 
-// RequiredRuntimes returns the configured required units that are available on
-// the host, each paired with the group needed to access its socket. The socket
-// path is searched in order: /run/<unit>, /var/run/<unit>, /run/<unit>.sock,
-// /var/run/<unit>.sock. The first existing entry per unit is returned.
-func (c *Configuration) RequiredRuntimes() []ResolvedRequiredRuntime {
-	var result []ResolvedRequiredRuntime
-	seen := map[string]bool{}
+// RequiredRuntimeCandidates returns the socket paths every configured unit can have,
+// with the group needed to access it. Which path the board has is decided at start.
+func (c *Configuration) RequiredRuntimeCandidates() []RequiredRuntimeCandidate {
+	candidates := make([]RequiredRuntimeCandidate, 0, len(c.requiredRuntimes))
 	for _, runtime := range c.requiredRuntimes {
-		candidates := []*paths.Path{
-			paths.New("/run", runtime.Unit),
-			paths.New("/var/run", runtime.Unit),
-			paths.New("/run", runtime.Unit+".sock"),
-			paths.New("/var/run", runtime.Unit+".sock"),
-		}
-		found := false
-		for _, p := range candidates {
-			if p.Exist() {
-				if !seen[p.String()] {
-					seen[p.String()] = true
-					result = append(result, ResolvedRequiredRuntime{
-						Path:  p,
-						Group: runtime.Group,
-					})
-				}
-				found = true
-				break
-			}
-		}
-		if !found {
-			slog.Debug("required runtime not found on host", "runtime", runtime.Unit)
-		}
+		candidates = append(candidates, RequiredRuntimeCandidate{
+			Paths: []string{
+				paths.New("/run", runtime.Unit).String(),
+				paths.New("/var/run", runtime.Unit).String(),
+				paths.New("/run", runtime.Unit+".sock").String(),
+				paths.New("/var/run", runtime.Unit+".sock").String(),
+			},
+			Group: runtime.Group,
+		})
 	}
-	return result
+	return candidates
 }
 
 func (c *Configuration) AssetDir() *paths.Path {
@@ -257,6 +258,22 @@ func (c *Configuration) AssetDir() *paths.Path {
 
 func (c *Configuration) MkTempAssetDir() (*paths.Path, error) {
 	return c.assetDir.Parent().MkTempDir("dynamic-provisioning")
+}
+
+// MkTempBuildDir is where a release is staged while it is built. Not the system temp
+// dir: it holds the python environment of the app, and /tmp is in RAM on a board.
+func (c *Configuration) MkTempBuildDir() (*paths.Path, error) {
+	buildsDir := c.dataDir.Join("builds")
+	if cacheDir, err := os.UserCacheDir(); err == nil {
+		buildsDir = paths.New(cacheDir, "arduino-app-cli", "builds")
+	} else {
+		slog.Debug("no user cache dir, staging the release build in the data dir", slog.String("error", err.Error()))
+	}
+
+	if err := buildsDir.MkdirAll(); err != nil {
+		return nil, err
+	}
+	return buildsDir.MkTempDir("release")
 }
 
 func (c *Configuration) CustomModelsDir() *paths.Path {

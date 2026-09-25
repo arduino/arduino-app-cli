@@ -12,30 +12,12 @@ import (
 
 var _ feedback.Result = (*orchestrator.InitResult)(nil)
 
+// newInitEventCallback writes what `system init` reports. Nothing is dropped here:
+// what reports a progress states it once per percent.
 func newInitEventCallback(printEvent func(feedback.Result)) orchestrator.InitEventCallback {
-	return throttleProgress(func(e *orchestrator.InitResult) {
-		printEvent(e)
-	})
-}
-
-// throttleProgress drops the progress events that would render the same
-// percentage twice in a row for a given label.
-func throttleProgress(next func(*orchestrator.InitResult)) orchestrator.InitEventCallback {
-	lastPct := map[string]int{}
 	return func(event orchestrator.InitEvent) {
-		e := orchestrator.NewInitResult(event)
-		if e == nil {
-			return
+		if result := orchestrator.NewInitResult(event); result != nil {
+			printEvent(result)
 		}
-		if e.Type == orchestrator.InitResultProgress {
-			if e.Total <= 0 {
-				return
-			}
-			if last, ok := lastPct[e.Label]; ok && last == e.Percent {
-				return
-			}
-			lastPct[e.Label] = e.Percent
-		}
-		next(e)
 	}
 }

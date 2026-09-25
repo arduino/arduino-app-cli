@@ -1,13 +1,13 @@
 ---
 name: github.com/google/go-containerregistry/internal/verify
-version: v0.20.7
+version: v0.22.1
 type: go
 summary: Package verify provides a ReadCloser that verifies content matches the expected
   hash values.
 homepage: https://pkg.go.dev/github.com/google/go-containerregistry/internal/verify
 license: apache-2.0
 licenses:
-- sources: go-containerregistry@v0.20.7/LICENSE
+- sources: go-containerregistry@v0.22.1/LICENSE
   text: |2-
 
                                      Apache License

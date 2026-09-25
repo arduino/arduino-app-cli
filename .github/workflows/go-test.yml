@@ -8,7 +8,13 @@ on:
 
 jobs:
   go-test-internal:
-    runs-on: ubuntu-latest
+    # The models-downloader image is arm64 only, so the model tests skip on amd64.
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+
     steps:
       - name: install dependencies
         run: |

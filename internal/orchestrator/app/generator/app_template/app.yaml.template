@@ -12,4 +12,11 @@ icon: {{ .Icon }}
 ports: [{{ joinInts .Ports }}]
 
 # A list of bricks used by this application.
+{{- if .Bricks }}
+bricks:
+{{- range .Bricks }}
+  - {{ printf "%q" .ID }}
+{{- end }}
+{{- else }}
 bricks: []
+{{- end }}

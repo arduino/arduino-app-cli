@@ -7,6 +7,7 @@ package bricks
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -17,6 +18,7 @@ import (
 	yaml "github.com/goccy/go-yaml"
 	"go.bug.st/f"
 
+	apimodels "github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
@@ -64,10 +66,13 @@ func (s *Service) List() BrickListResult {
 	return res
 }
 
-func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) AppBrickInstancesResult {
+func (s *Service) AppBrickInstancesList(ctx context.Context, a *app.ArduinoApp) AppBrickInstancesResult {
 	res := AppBrickInstancesResult{BrickInstances: make([]BrickInstance, len(a.Descriptor.Bricks))}
+	// One lookup for every brick instance, rather than a listing each.
+	models := s.modelsIndex.NewLookup()
+	bricksIndex := a.Bricks(s.bricksIndex)
 	for i, brickInstance := range a.Descriptor.Bricks {
-		brick, found := s.bricksIndex.WithAppBricks(a.LocalBricks).FindBrickByID(brickInstance.ID)
+		brick, found := bricksIndex.FindBrickByID(brickInstance.ID)
 		if !found {
 			res.BrickInstances[i] = BrickInstance{
 				ID:     brickInstance.ID,
@@ -80,31 +85,40 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) AppBrickInstancesResu
 		variablesMap, configVariables := getInstanceBrickConfigVariableDetails(brick, brickInstance.Variables)
 
 		res.BrickInstances[i] = BrickInstance{
-			ID:              brick.ID,
-			Name:            brick.Name,
-			Author:          brick.Source,
-			Category:        brick.Category,
-			Status:          "installed",
-			RequireModel:    brick.RequireModel,
-			ModelID:         cmp.Or(brickInstance.Model, brick.ModelName),
-			Variables:       variablesMap,
-			ConfigVariables: configVariables,
-			CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModelLite) AIModel {
-				return AIModel{
-					ID:          m.ID,
-					Name:        m.Name,
-					Description: m.Description,
-				}
-			}),
+			ID:               brick.ID,
+			Name:             brick.Name,
+			Author:           brick.Source,
+			Category:         brick.Category,
+			Status:           "installed",
+			RequireModel:     brick.RequireModel,
+			ModelID:          apimodels.EncodeModelID(cmp.Or(brickInstance.Model, brick.ModelName)),
+			Variables:        variablesMap,
+			ConfigVariables:  configVariables,
+			CompatibleModels: compatibleModels(ctx, models, brick.ID),
 		}
 
 	}
 	return res
 }
 
-func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (BrickInstance, error) {
-	bricksindex := s.bricksIndex.WithAppBricks(a.LocalBricks)
-	brick, found := bricksindex.FindBrickByID(brickID)
+// compatibleModels lists the models the brick can use, with the ids encoded.
+func compatibleModels(ctx context.Context, models *modelsindex.Lookup, brickID string) []AIModel {
+	matches, err := models.ByBrick(ctx, brickID)
+	if err != nil {
+		slog.Warn("cannot get models info, brick compatibility list may be incomplete", "brick", brickID, "err", err)
+	}
+	return f.Map(matches, func(m modelsindex.AIModelLite) AIModel {
+		return AIModel{
+			ID:   apimodels.EncodeModelID(m.ID),
+			Name: m.Name,
+			// TODO: deprecated field, remove in future versions
+			Description: m.Description,
+		}
+	})
+}
+
+func (s *Service) AppBrickInstanceDetails(ctx context.Context, a *app.ArduinoApp, brickID string) (BrickInstance, error) {
+	brick, found := a.Bricks(s.bricksIndex).FindBrickByID(brickID)
 	if !found {
 		return BrickInstance{}, ErrBrickNotFound
 	}
@@ -124,24 +138,17 @@ func (s *Service) AppBrickInstanceDetails(a *app.ArduinoApp, brickID string) (Br
 	}
 
 	return BrickInstance{
-		ID:              brickID,
-		Name:            brick.Name,
-		Author:          brick.Source,
-		Category:        brick.Category,
-		Status:          "installed", // For now every Arduino brick are installed
-		RequireModel:    brick.RequireModel,
-		Variables:       variables,
-		ConfigVariables: configVariables,
-		ModelID:         cmp.Or(a.Descriptor.Bricks[brickIndex].Model, brick.ModelName),
-		CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModelLite) AIModel {
-			return AIModel{
-				ID:   m.ID,
-				Name: m.Name,
-				// TODO: deprecated field, remove in future versions
-				Description: m.Description,
-			}
-		}),
-		Readme: readme,
+		ID:               brickID,
+		Name:             brick.Name,
+		Author:           brick.Source,
+		Category:         brick.Category,
+		Status:           "installed", // For now every Arduino brick are installed
+		RequireModel:     brick.RequireModel,
+		Variables:        variables,
+		ConfigVariables:  configVariables,
+		ModelID:          apimodels.EncodeModelID(cmp.Or(a.Descriptor.Bricks[brickIndex].Model, brick.ModelName)),
+		CompatibleModels: compatibleModels(ctx, s.modelsIndex.NewLookup(), brick.ID),
+		Readme:           readme,
 	}, nil
 }
 
@@ -174,7 +181,7 @@ func getInstanceBrickConfigVariableDetails(
 	return variablesMap, variableDetails
 }
 
-func (s *Service) BricksDetails(id string, idProvider *appid.Provider,
+func (s *Service) BricksDetails(ctx context.Context, id string, idProvider *appid.Provider,
 	cfg config.Configuration, platform platform.Platform) (BrickDetailsResult, error) {
 	brick, found := s.bricksIndex.FindBrickByID(id)
 	if !found {
@@ -207,26 +214,21 @@ func (s *Service) BricksDetails(id string, idProvider *appid.Provider,
 	variables, configVariables := getBrickConfigVariableDetails(brick)
 
 	return BrickDetailsResult{
-		ID:           id,
-		Name:         brick.Name,
-		Author:       brick.Source,
-		Description:  brick.Description,
-		Category:     brick.Category,
-		RequireModel: brick.RequireModel,
-		Status:       "installed", // For now every Arduino brick are installed
-		Variables:    variables,
-		Readme:       readme,
-		ApiDocsPath:  apiDocsPath,
-		CodeExamples: codeExamples,
-		UsedByApps:   usedByApps,
-		CompatibleModels: f.Map(s.modelsIndex.GetModelsByBrick(brick.ID), func(m modelsindex.AIModelLite) AIModel {
-			return AIModel{
-				ID:          m.ID,
-				Name:        m.Name,
-				Description: m.Description,
-			}
-		}),
-		ConfigVariables: configVariables,
+		ID:                        id,
+		Name:                      brick.Name,
+		Author:                    brick.Source,
+		Description:               brick.Description,
+		Category:                  brick.Category,
+		RequireModel:              brick.RequireModel,
+		Status:                    "installed", // For now every Arduino brick are installed
+		Variables:                 variables,
+		Readme:                    readme,
+		ApiDocsPath:               apiDocsPath,
+		CodeExamples:              codeExamples,
+		UsedByApps:                usedByApps,
+		CompatibleModels:          compatibleModels(ctx, s.modelsIndex.NewLookup(), brick.ID),
+		ConfigVariables:           configVariables,
+		AIFrameworksCompatibility: brick.AIFrameworksCompatibility,
 	}, nil
 }
 
@@ -334,15 +336,16 @@ func getUsedByApps(cfg config.Configuration, brickId string, idProvider *appid.P
 
 type BrickCreateUpdateRequest struct {
 	ID        string            `json:"-"`
-	Model     *string           `json:"model"`
+	Model     *string           `json:"model" example:"bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w"`
 	Variables map[string]string `json:"variables,omitempty"`
 }
 
 func (s *Service) BrickCreate(
+	ctx context.Context,
 	req BrickCreateUpdateRequest,
-	appCurrent app.ArduinoApp,
+	appCurrent app.Editable,
 ) error {
-	brick, present := s.bricksIndex.WithAppBricks(appCurrent.LocalBricks).FindBrickByID(req.ID)
+	brick, present := appCurrent.Bricks(s.bricksIndex).FindBrickByID(req.ID)
 	if !present {
 		return fmt.Errorf("brick %q not found", req.ID)
 	}
@@ -379,10 +382,14 @@ func (s *Service) BrickCreate(
 	brickInstance.ID = req.ID
 
 	if req.Model != nil {
-		if !s.modelsIndex.IsModelSupportedByBrick(*req.Model, req.ID) {
+		model, err := s.modelsIndex.NewLookup().ModelForBrick(ctx, *req.Model, req.ID)
+		if err != nil {
+			return fmt.Errorf("checking model %s: %w", *req.Model, err)
+		}
+		if model == nil {
 			return fmt.Errorf("model %s does not exsist", *req.Model)
 		}
-		brickInstance.Model = *req.Model
+		brickInstance.Model = model.ID
 	}
 	brickInstance.Variables = req.Variables
 
@@ -399,11 +406,20 @@ func (s *Service) BrickCreate(
 	return nil
 }
 
+// ErrReleaseSecretsOnly is what every other change of an installed release gets: it
+// runs what a build froze, and a secret is the only thing the build could not freeze.
+var ErrReleaseSecretsOnly = errors.New("only the secrets of a release can be changed")
+
 func (s *Service) BrickUpdate(
+	ctx context.Context,
 	req BrickCreateUpdateRequest,
 	appCurrent app.ArduinoApp,
 ) error {
-	brickFromIndex, present := s.bricksIndex.WithAppBricks(appCurrent.LocalBricks).FindBrickByID(req.ID)
+	// An app installed from a release is configured as any other, except that a build
+	// froze every value but the secrets.
+	isRelease := appCurrent.IsRelease()
+
+	brickFromIndex, present := appCurrent.Bricks(s.bricksIndex).FindBrickByID(req.ID)
 	if !present {
 		return fmt.Errorf("brick %q not found into the brick index", req.ID)
 	}
@@ -420,12 +436,20 @@ func (s *Service) BrickUpdate(
 	brickModel := appCurrent.Descriptor.Bricks[brickPosition].Model
 
 	if req.Model != nil && *req.Model != brickModel {
-		if !s.modelsIndex.IsModelSupportedByBrick(*req.Model, req.ID) {
+		if isRelease {
+			return fmt.Errorf("%w: the model of a release is frozen", ErrReleaseSecretsOnly)
+		}
+		model, err := s.modelsIndex.NewLookup().ModelForBrick(ctx, *req.Model, req.ID)
+		if err != nil {
+			return fmt.Errorf("checking model %s: %w", *req.Model, err)
+		}
+		if model == nil {
 			return fmt.Errorf("model %s is not supported by brick %q", *req.Model, req.ID)
 		}
-		brickModel = *req.Model
+		brickModel = model.ID
 	}
 
+	secretValues := make(map[string]string)
 	for name, updateValue := range req.Variables {
 		value, exist := brickFromIndex.GetVariable(name)
 		if !exist {
@@ -434,32 +458,41 @@ func (s *Service) BrickUpdate(
 		if value.IsRequired() && updateValue == "" {
 			return fmt.Errorf("required variable %q cannot be empty", name)
 		}
-		updated := false
-		for _, v := range brickVariables {
-			if v == name {
-				brickVariables[name] = updateValue
-				updated = true
-				break
-			}
+		// A secret is written apart from the descriptor a build freezes: it is the one
+		// value a release still takes.
+		if value.Secret {
+			secretValues[name] = updateValue
+			continue
 		}
-		if !updated {
-			brickVariables[name] = updateValue
+		if isRelease {
+			return fmt.Errorf("%w: %q is not a secret", ErrReleaseSecretsOnly, name)
+		}
+		brickVariables[name] = updateValue
+	}
+
+	if !isRelease {
+		appCurrent.Descriptor.Bricks[brickPosition].Model = brickModel
+		appCurrent.Descriptor.Bricks[brickPosition].Variables = brickVariables
+
+		editable, err := appCurrent.GetAsEditable()
+		if err != nil {
+			return err
+		}
+		if err := editable.Save(); err != nil {
+			return fmt.Errorf("cannot save brick instance with id %s: %w", req.ID, err)
 		}
 	}
 
-	appCurrent.Descriptor.Bricks[brickPosition].Model = brickModel
-	appCurrent.Descriptor.Bricks[brickPosition].Variables = brickVariables
-
-	err := appCurrent.Save()
-	if err != nil {
-		return fmt.Errorf("cannot save brick instance with id %s", req.ID)
+	if len(secretValues) > 0 {
+		if err := appCurrent.UpdateSecrets(s.bricksIndex, req.ID, secretValues); err != nil {
+			return fmt.Errorf("cannot save the secrets of brick %s: %w", req.ID, err)
+		}
 	}
 	return nil
-
 }
 
 func (s *Service) BrickDelete(
-	appCurrent *app.ArduinoApp,
+	appCurrent app.Editable,
 	id string,
 ) error {
 	if !slices.ContainsFunc(appCurrent.Descriptor.Bricks, func(b app.Brick) bool { return b.ID == id }) {
@@ -478,7 +511,7 @@ func (s *Service) BrickDelete(
 
 // LocalBrickRename renames a local brick by changing its ID, folder name, and display name.
 // The newID is derived from the newName by the caller (handler layer).
-func (s *Service) LocalBrickRename(appCurrent *app.ArduinoApp, oldID, newID, newName string) (_ LocalBrickRenameResult, _err error) {
+func (s *Service) LocalBrickRename(appCurrent app.Editable, oldID, newID, newName string) (_ LocalBrickRenameResult, _err error) {
 	if oldID == newID {
 		return LocalBrickRenameResult{}, fmt.Errorf("new brick id %q is the same as the current one", newID)
 	}

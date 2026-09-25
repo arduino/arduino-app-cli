@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -54,6 +55,8 @@ func fetchDebPackageLatest(t *testing.T, path, repo string) string {
 		"--repo", repo,
 		"--pattern", "*.deb",
 		"--dir", path,
+		// An interrupted run leaves its debs behind, and gh fails on an existing file.
+		"--clobber",
 	)
 
 	out, err := cmd2.CombinedOutput()
@@ -84,8 +87,10 @@ func buildDebVersion(t *testing.T, storePath, tagVersion, arch string) {
 		outputDir,
 	)
 
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("failed to run build command: %v", err)
+	// Without the output a failing task only reports task's own exit code 201.
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("failed to run build command: %v\n%s", err, out)
 	}
 }
 
@@ -138,12 +143,24 @@ func genMinorTag(t *testing.T, tag string) string {
 	return buildVersion(parts[0], parts[1], parts[2])
 }
 
-func buildDockerImage(t *testing.T, dockerfile, name, arch string) {
+func buildDockerImage(t *testing.T, dockerfile, name, arch string, buildArgs ...string) { // nolint:unparam
 	t.Helper()
 
-	arch = fmt.Sprintf("ARCH=%s", arch)
+	args := []string{"build", "--build-arg", fmt.Sprintf("ARCH=%s", arch)}
+	for _, arg := range buildArgs {
+		args = append(args, "--build-arg", arg)
+	}
+	// The distribution under test, the dockerfile default applies when it is unset.
+	if image := os.Getenv("TEST_BASE_IMAGE"); image != "" {
+		args = append(args, "--build-arg", "BASE_IMAGE="+image)
+	}
+	// Set to 0 to run the real `system init` instead of the shim that skips it.
+	if skip := os.Getenv("TEST_SKIP_SYSTEM_INIT"); skip != "" {
+		args = append(args, "--build-arg", "SKIP_SYSTEM_INIT="+skip)
+	}
+	args = append(args, "-t", name, "-f", dockerfile, ".")
 
-	cmd := exec.Command("docker", "build", "--build-arg", arch, "-t", name, "-f", dockerfile, ".")
+	cmd := exec.Command("docker", args...) //nolint:gosec
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -156,18 +173,28 @@ func buildDockerImage(t *testing.T, dockerfile, name, arch string) {
 func startDockerContainer(t *testing.T, containerName string, containerImageName string) {
 	t.Helper()
 
-	cmd := exec.Command(
-		"docker", "run", "--rm", "-d",
-		"-p", "8800:8800",
+	args := []string{
+		"run", "--rm", "-d",
 		"--privileged",
-		"--cgroupns=host",
-		"--network", "host",
-		"-v", "/sys/fs/cgroup:/sys/fs/cgroup:rw",
 		"-v", "/var/run/docker.sock:/var/run/docker.sock",
 		"-e", "DOCKER_HOST=unix:///var/run/docker.sock",
 		"--name", containerName,
-		containerImageName,
-	)
+	}
+	if runtime.GOOS == "linux" {
+		args = append(args,
+			"--cgroupns=host",
+			"--network", "host",
+			"-v", "/sys/fs/cgroup:/sys/fs/cgroup:rw",
+		)
+	} else {
+		// A docker VM on macOS, colima or Docker Desktop: its cgroup tree is not
+		// ours to share, and host networking there does not reach the daemon port.
+		// Sharing the cgroup namespace kills the docker daemon of the VM.
+		args = append(args, "-p", "8800:8800")
+	}
+	args = append(args, containerImageName)
+
+	cmd := exec.Command("docker", args...) //nolint:gosec
 
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("failed to run container: %v", err)
@@ -175,31 +202,68 @@ func startDockerContainer(t *testing.T, containerName string, containerImageName
 
 }
 
-func getAppCliVersion(t *testing.T, containerName string) string {
+// dockerExec runs a command in the container. The timeout matters: a wedged
+// docker daemon must not hold the test, or its cleanup, for ever.
+func dockerExec(t *testing.T, containerName string, command ...string) ([]byte, error) {
 	t.Helper()
 
-	cmd := exec.Command(
-		"docker", "exec",
-		"--user", "arduino",
-		containerName,
-		"arduino-app-cli", "version", "--format", "json",
-	)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("command failed: %v\nOutput: %s", err, output)
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	args := append([]string{"exec", containerName}, command...)
+	return exec.CommandContext(ctx, "docker", args...).CombinedOutput() //nolint:gosec
+}
+
+// getAppCliVersion reports the running daemon's version, not the binary on disk.
+func getAppCliVersion(t *testing.T, containerName string) string {
+	t.Helper()
 
 	var version struct {
 		Version       string `json:"version"`
 		DaemonVersion string `json:"daemon_version"`
 	}
-	err = json.Unmarshal(output, &version)
-	require.NoError(t, err)
-	// TODO to enable after 0.6.7
-	// require.Equal(t, version.Version, version.DaemonVersion, "client and daemon versions should match")
-	require.NotEmpty(t, version.Version)
-	return version.Version
+	// The old daemon keeps serving until its restart completes.
+	deadline := time.Now().Add(90 * time.Second)
+	for {
+		cmd := exec.Command(
+			"docker", "exec",
+			"--user", "1000",
+			containerName,
+			"arduino-app-cli", "version", "--format", "json",
+		)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("command failed: %v\nOutput: %s", err, output)
+		}
+		require.NoError(t, json.Unmarshal(output, &version))
 
+		if version.Version != "" && version.Version == version.DaemonVersion {
+			return version.DaemonVersion
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("daemon reports version %q while the installed binary is %q",
+				version.DaemonVersion, version.Version)
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+// getPackageVersion reports the installed version of a deb, or "" when the
+// package is not installed.
+func getPackageVersion(t *testing.T, containerName, pkg string) string { // nolint:unparam
+	t.Helper()
+
+	output, err := dockerExec(t, containerName, "dpkg-query", "-W", "-f=${Status} ${Version}", pkg)
+	if err != nil {
+		t.Logf("dpkg-query for %s failed: %v\n%s", pkg, err, output)
+		return ""
+	}
+
+	fields := strings.Fields(string(output))
+	if len(fields) != 4 || strings.Join(fields[:3], " ") != "install ok installed" {
+		return ""
+	}
+	return fields[3]
 }
 
 func runSystemUpdate(t *testing.T, containerName string) {
@@ -207,9 +271,9 @@ func runSystemUpdate(t *testing.T, containerName string) {
 
 	cmd := exec.Command(
 		"docker", "exec",
-		"--user", "arduino",
+		"--user", "1000",
 		containerName,
-		"arduino-app-cli", "system", "update", "--only-arduino", "--yes",
+		"arduino-app-cli", "--log-level", "debug", "system", "update", "--only-arduino", "--yes",
 	)
 
 	cmd.Stderr = os.Stderr
@@ -228,6 +292,58 @@ func runSystemUpdate(t *testing.T, containerName string) {
 	}
 }
 
+const daemonHost = "127.0.0.1:8800"
+
+// startDaemonContainer starts the container and waits for the daemon, making sure the
+// daemon's own log always ends up in the test output.
+func startDaemonContainer(t *testing.T, containerName, imageName string) {
+	t.Helper()
+
+	t.Logf("start container %s and wait for daemon", containerName)
+	startDockerContainer(t, containerName, imageName)
+	t.Cleanup(func() { stopDockerContainer(t, containerName) })
+	// Registered after the stop so LIFO reads the journal while the container lives.
+	t.Cleanup(func() { dumpDaemonJournal(t, containerName) })
+
+	waitForDaemonUnit(t, containerName, 60*time.Second)
+	waitForPort(t, daemonHost, 30*time.Second)
+}
+
+// waitForDaemonUnit waits for the service inside the container, so a daemon that
+// never starts is not reported as a port that never opens.
+func waitForDaemonUnit(t *testing.T, containerName string, timeout time.Duration) {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
+	for {
+		output, _ := dockerExec(t, containerName, "systemctl", "is-active", "arduino-app-cli.service")
+		state := strings.TrimSpace(string(output))
+		if state == "active" {
+			t.Logf("the daemon unit is active in %s", containerName)
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the daemon unit of %s is %q after %v", containerName, state, timeout)
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+// dumpDaemonJournal prints the daemon's own log, which the SSE stream does not carry.
+func dumpDaemonJournal(t *testing.T, containerName string) {
+	t.Helper()
+
+	// No tail limit: the daemon restarts right after the moment of interest, so
+	// the entries we need are not at the end.
+	output, err := dockerExec(t, containerName,
+		"journalctl", "-u", "arduino-app-cli.service", "--no-pager", "-o", "short-precise")
+	if err != nil {
+		t.Logf("could not read the daemon journal: %v\n%s", err, output)
+		return
+	}
+	t.Logf("daemon journal of %s:\n%s", containerName, output)
+}
+
 func removeDockerImage(t *testing.T, imageName string) {
 	t.Helper()
 
@@ -241,7 +357,9 @@ func removeDockerImage(t *testing.T, imageName string) {
 func stopDockerContainer(t *testing.T, containerName string) {
 	t.Helper()
 
-	cleanupCmd := exec.Command("docker", "rm", "-f", containerName)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	cleanupCmd := exec.CommandContext(ctx, "docker", "rm", "-f", containerName)
 
 	t.Log("Removing Docker container " + containerName)
 	if err := cleanupCmd.Run(); err != nil {
@@ -343,7 +461,7 @@ func waitForPort(t *testing.T, host string, timeout time.Duration) { // nolint:u
 	t.Fatalf("Server at %s did not start within %v", host, timeout)
 }
 
-func waitForUpgrade(t *testing.T, host string) {
+func waitForRestart(t *testing.T, host string) {
 	t.Helper()
 
 	url := fmt.Sprintf("http://%s/v1/system/update/events", host)
@@ -356,5 +474,19 @@ func waitForUpgrade(t *testing.T, host string) {
 			break
 		}
 	}
+}
 
+func waitForDone(t *testing.T, host string) {
+	t.Helper()
+
+	url := fmt.Sprintf("http://%s/v1/system/update/events", host)
+
+	itr := NewSSEClient(t.Context(), url)
+	for event, err := range itr {
+		require.NoError(t, err)
+		t.Logf("Received event: ID=%s, Event=%s, Data=%s\n", event.ID, event.Event, string(event.Data))
+		if event.Event == "done" {
+			break
+		}
+	}
 }

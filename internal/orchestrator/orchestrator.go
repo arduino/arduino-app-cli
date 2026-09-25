@@ -8,12 +8,11 @@ package orchestrator
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
-	"maps"
 	"os"
-	"os/user"
 	"slices"
 	"strings"
 	"sync"
@@ -28,6 +27,7 @@ import (
 	"go.bug.st/f"
 	semver "go.bug.st/relaxed-semver"
 
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -35,7 +35,6 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/linuxconfig"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/pipewire"
@@ -48,10 +47,6 @@ var (
 	ErrAppDoesntExists  = fmt.Errorf("app doesn't exist")
 	ErrAppNotFound      = fmt.Errorf("app not found")
 	ErrBadRequest       = fmt.Errorf("bad request")
-)
-
-const (
-	DefaultDockerStopTimeoutSeconds = 5
 )
 
 type AppStreamMessage struct {
@@ -170,6 +165,13 @@ func StartApp(
 
 	cb(StreamMessage{data: fmt.Sprintf("Starting app %q", appToStart.Name)})
 
+	// An app installed from a release holds in .cache what a start generates: the
+	// compose files and the python env, frozen for the board it was built for.
+	release, isRelease := appToStart.GetRelease()
+	if isRelease {
+		slog.Debug("starting an app installed from a release", slog.String("release", release.ID), slog.String("target", release.Target))
+	}
+
 	// We start PW for any platform or addon in order to be consistend with Network and SBC mode.
 	if err := pipewire.EnsurePipewireRunning(ctx, cfg); err != nil {
 		slog.Warn("failed to enable audio service linger", slog.String("error", err.Error()))
@@ -186,23 +188,35 @@ func StartApp(
 	cb(StreamMessage{progress: &Progress{Name: "preparing", Progress: 0.0}})
 
 	if _, ok := appToStart.GetSketchPath(); ok {
-		cb(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}})
+		if isRelease {
+			cb(StreamMessage{progress: &Progress{Name: "uploading sketch", Progress: 0.0}})
 
-		if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, appToStart); err != nil {
-			cb(StreamMessage{data: "Failed to apply app migration for platform arduino:zephyr >0.54.1. Error: " + err.Error()})
-		} else if ok {
-			cb(StreamMessage{data: "Applied app migration for platform arduino:zephyr >0.54.1. Arduino_RouterBridge is now part of the platform and shouldn't be explicitly specified"})
-		}
+			// The firmware of a release is the one the build compiled: a start only uploads it.
+			fwFile := appToStart.ProvisioningStateDir().Join(ReleaseFirmwareFileName)
+			if err := uploadFirmwareFile(ctx, verbose, fwFile, sketchCallbackWriter); err != nil {
+				return err
+			}
+		} else {
+			cb(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}})
 
-		if err := compileUploadSketch(ctx, verbose, platform, appToStart, sketchCallbackWriter); err != nil {
-			return err
+			if editable, err := appToStart.GetAsEditable(); err == nil {
+				if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, editable); err != nil {
+					cb(StreamMessage{data: "Failed to apply app migration for platform arduino:zephyr >0.54.1. Error: " + err.Error()})
+				} else if ok {
+					cb(StreamMessage{data: "Applied app migration for platform arduino:zephyr >0.54.1. Arduino_RouterBridge is now part of the platform and shouldn't be explicitly specified"})
+				}
+			}
+
+			if err := compileUploadSketch(ctx, verbose, platform, appToStart, sketchCallbackWriter); err != nil {
+				return err
+			}
 		}
 
 		cb(StreamMessage{progress: &Progress{Name: "sketch updated", Progress: 10.0}})
 	}
 
 	if appToStart.MainPythonFile != nil {
-		envs := getAppEnvironmentVariables(ctx, appToStart, bricksIndex, modelsIndex, platform, cfg)
+		appEnv := appEnvironment(ctx, appToStart, bricksIndex, modelsIndex, platform)
 
 		cb(StreamMessage{data: "python provisioning"})
 		provisionStartProgress := float32(0.0)
@@ -212,113 +226,59 @@ func StartApp(
 
 		cb(StreamMessage{progress: &Progress{Name: "python provisioning", Progress: provisionStartProgress}})
 
-		if err := provisioner.App(bricksIndex, servicesIndex, &appToStart, cfg, envs, platform); err != nil {
+		// The compose files of a release are the ones the build resolved for the
+		// target board: resolving them again here would replace them.
+		if !isRelease {
+			// An app is provisioned every time it is started: it is editable, so its
+			// bricks, model or ports may have changed since the last run.
+			if err := provisioner.Resolve(&appToStart, appToStart.ProvisioningStateDir(), bricksIndex, servicesIndex, cfg, appEnv, platform); err != nil {
+				return err
+			}
+		}
+
+		// What the template references, answered on this board. The app half is in
+		// the template already, frozen, when the app comes from a release.
+		env := hostEnvironment(ctx, appToStart.FullPath, cfg).Merge(appEnv)
+		prj, err := provisioner.Render(ctx, &appToStart, env, appToStart.Secrets(bricksIndex))
+		if err != nil {
 			return err
 		}
 
 		cb(StreamMessage{data: "python downloading"})
 
-		// Launch the docker compose command to start the app
-		commands := []string{}
-		commands = append(commands, "docker", "compose", "-f", appToStart.AppComposeFilePath().String())
-		if overrideComposeFile := appToStart.AppComposeOverrideFilePath(); overrideComposeFile.Exist() {
-			commands = append(commands, "-f", overrideComposeFile.String())
-		}
-		commands = append(commands, "up", "-d", "--remove-orphans", "--pull", "missing")
-
-		dockerParser := NewDockerProgressParser(200)
-
-		var customError error
-		callbackDockerWriter := NewCallbackWriter(func(line string) {
-			// docker compose sometimes returns errors as info lines, we try to parse them here and return a proper error
-			if e := GetCustomErrorFomDockerEvent(line); e != nil {
-				customError = e
-			}
-			if percentage, ok := dockerParser.Parse(line); ok {
-				// assumption: docker pull progress goes from 0 to 80% of the total app start progress
-				totalProgress := 20.0 + (percentage/100.0)*80.0
-				cb(StreamMessage{progress: &Progress{Name: "python starting", Progress: float32(totalProgress)}})
-				return
-			}
-			cb(StreamMessage{data: line})
-		})
-
-		slog.Debug("starting app", slog.String("command", strings.Join(commands, " ")), slog.Any("envs", envs))
-		process, err := paths.NewProcess(envs.AsList(), commands...)
-		if err != nil {
+		if err := dockerhelper.PullImages(ctx, docker.Client(), dockerhelper.ComposeImages(prj),
+			func(line string) { cb(StreamMessage{data: line}) },
+			func(label string, curr, total int64) {
+				// Downloading the images is from 20% to 80% of the start of an app.
+				cb(StreamMessage{progress: &Progress{Name: label, Progress: 20 + float32(curr*60/total)}})
+			}); err != nil {
 			return err
 		}
-		process.RedirectStderrTo(callbackDockerWriter)
-		process.RedirectStdoutTo(callbackDockerWriter)
-		if err := process.RunWithinContext(ctx); err != nil {
-			// custom error could have been set while reading the output. Not detected by the process exit code
-			if customError != nil {
-				return customError
+
+		slog.Debug("starting app", slog.String("project", prj.Name))
+		line := func(line string) { cb(StreamMessage{data: line}) }
+		err = dockerhelper.ComposeUp(ctx, docker, prj, line)
+		if errors.Is(err, dockerhelper.ErrNetwork) {
+			// The board is likely out of subnets: the apps give up the networks they
+			// keep, and this app is started once more.
+			cb(StreamMessage{data: "Could not create the network, freeing the ones the apps keep"})
+			appContainers, pruneErr := dockerhelper.Containers(ctx, docker.Client(), DockerAppLabel+"=true")
+			if pruneErr != nil {
+				slog.Warn("failed to list the app containers", slog.String("error", pruneErr.Error()))
 			}
+			freed, pruneErr := dockerhelper.PruneNetworks(ctx, docker.Client(), ourNetworks(appContainers))
+			if pruneErr != nil {
+				slog.Warn("failed to free the networks of the apps", slog.String("error", pruneErr.Error()))
+			}
+			slog.Debug("freed app networks", slog.Int("count", freed))
+			err = dockerhelper.ComposeUp(ctx, docker, prj, line)
+		}
+		if err != nil {
 			return err
 		}
 	}
 	cb(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
 	return nil
-}
-
-// getAppEnvironmentVariables returns the environment variables for the app by merging variables and config in the following order:
-// - brick default variables (variables defined in the brick definition)
-// - model configuration variables (variables defined in the model configuration)
-// - brick instance variables (variables defined in the app.yaml for the brick instance)
-// In addition, it adds some useful environment variables like APP_HOME and HOST_IP.
-func getAppEnvironmentVariables(ctx context.Context, app app.ArduinoApp, brickIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, plat platform.Platform, cfg config.Configuration) helpers.EnvVars {
-	envs := make(helpers.EnvVars)
-
-	for _, brick := range app.Descriptor.Bricks {
-		if brickDef, found := brickIndex.WithAppBricks(app.LocalBricks).FindBrickByID(brick.ID); found {
-			maps.Insert(envs, brickDef.GetDefaultVariables())
-		}
-
-		if m, err := modelsIndex.GetModelByID(ctx, brick.Model); err != nil {
-			slog.Warn("unable to get model for brick", slog.String("brickID", brick.ID), slog.String("modelID", brick.Model), slog.String("error", err.Error()))
-		} else if m != nil {
-			for _, b := range m.Bricks {
-				maps.Insert(envs, maps.All(b.ModelConfiguration))
-			}
-		}
-
-		slog.Debug("adding Brick", slog.String("brickID", brick.ID), slog.String("model", brick.Model), slog.Any("variables", brick.Variables))
-		maps.Insert(envs, maps.All(brick.Variables))
-	}
-
-	envs["APP_HOME"] = app.FullPath.String()
-	envs["BOARD_NAME"] = plat.BoardName
-	// Directory where AI models are installed, shared with the containerized runners.
-	envs["MODELS_PATH"] = cfg.ModelsDir().String()
-	envs["XDG_RUNTIME_DIR"] = "/run/user/1000"
-
-	// Pre-select default camera device if available. This can be overridden by the app environment variables (or in future by applab)
-	// This is required because there are some video devices for HW acceleration that are auto registered in /dev but are not real cameras.
-	if videoDevices := peripherals.GetVideoDevices(); len(videoDevices) > 0 {
-		// VIDEO_DEVICE will be the first device in /dev/v4l/by-id
-		envs["VIDEO_DEVICE"] = videoDevices[0]
-	}
-
-	mediaCarriers, err := linuxconfig.GetEnabledCarriers(ctx)
-	if err != nil {
-		slog.Warn("unable to get configured carriers", slog.String("error", err.Error()))
-	} else if len(mediaCarriers) > 0 {
-		carrierNames := f.Map(mediaCarriers, func(c linuxconfig.Carrier) string {
-			return c.CarrierName
-		})
-		envs["CONFIGURED_CARRIERS"] = strings.Join(carrierNames, ",")
-	}
-
-	if hostIP, err := helpers.GetHostIP(); err == nil {
-		envs["HOST_IP"] = hostIP
-	} else {
-		slog.Warn("unable to get host IP", slog.String("error", err.Error()))
-	}
-
-	slog.Debug("Current environment variables", slog.Any("envs", envs))
-
-	return envs
 }
 
 func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration, cmd string, cb func(StreamMessage)) error {
@@ -341,10 +301,6 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 		slog.Debug("unable to disable audio service linger", slog.String("error", err.Error()))
 	}
 
-	callbackWriter := NewCallbackWriter(func(line string) {
-		cb(StreamMessage{data: line})
-	})
-
 	if _, ok := app.GetSketchPath(); ok {
 		// Before stopping the microcontroller we want to make sure that the app was running.
 		running, err := getRunningApp(ctx, docker.Client())
@@ -365,30 +321,19 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 	}
 
 	if app.MainPythonFile != nil {
-		mainCompose := app.AppComposeFilePath()
-		// In case the app was never started
-		if mainCompose.Exist() {
-			args := []string{
-				"docker",
-				"compose",
-				"-f", mainCompose.String(),
-				cmd,
-				fmt.Sprintf("--timeout=%d", DefaultDockerStopTimeoutSeconds),
-			}
-			if cmd == "down" {
-				args = append(args, "--volumes", "--remove-orphans")
-			}
-
-			process, err := paths.NewProcess(nil, args...)
-			if err != nil {
-				return err
-			}
-
-			process.RedirectStderrTo(callbackWriter)
-			process.RedirectStdoutTo(callbackWriter)
-			if err := process.RunWithinContext(ctx); err != nil {
-				return err
-			}
+		// The project name stops the app without its compose file, which an update
+		// can remove, and finds what an older cli started just the same.
+		projectName := composeProjectName(app.FullPath, cfg.AppsDir())
+		line := func(line string) { cb(StreamMessage{data: line}) }
+		var err error
+		switch cmd {
+		case "down":
+			err = dockerhelper.ComposeDown(ctx, docker, projectName, line)
+		default:
+			err = dockerhelper.ComposeStop(ctx, docker, projectName, line)
+		}
+		if err != nil {
+			return err
 		}
 	}
 	cb(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
@@ -412,6 +357,13 @@ func StopAndDestroyApp(ctx context.Context, dockerClient command.Cli, platform p
 func cleanAppCacheFiles(app app.ArduinoApp, cb func(StreamMessage)) error {
 	if cb == nil {
 		cb = func(StreamMessage) {}
+	}
+
+	// The .cache of an app installed from a release is what the release froze:
+	// nothing regenerates it, so a destroy leaves it where it is.
+	if app.IsRelease() {
+		cb(StreamMessage{data: "Keeping the cache the release ships."})
+		return nil
 	}
 
 	cachePath := app.FullPath.Join(".cache")
@@ -509,6 +461,10 @@ type AppInfo struct {
 	Status      Status   `json:"status,omitempty"`
 	Example     bool     `json:"example"`
 	Default     bool     `json:"default"`
+	// Release tells an app installed from a release, which is frozen, from an app,
+	// which is edited. ReleaseID is the release it comes from.
+	Release   bool   `json:"release"`
+	ReleaseID string `json:"release_id,omitempty"`
 }
 
 type BrokenAppInfo struct {
@@ -518,14 +474,10 @@ type BrokenAppInfo struct {
 
 type ListAppRequest struct {
 	ShowExamples    bool
-	ShowOnlyDefault bool
+	ShowOnlyDefault bool // List only the default app (runs at startup)
 	ShowApps        bool
+	ShowReleases    bool // List the apps installed from a release, which are read-only
 	StatusFilter    Status
-
-	// IncludeNonStandardLocationApps will include apps that are not in the standard apps directory.
-	// We will search by looking for docker container metadata, and add the app not present in the
-	// standard apps directory in the result list.
-	IncludeNonStandardLocationApps bool
 }
 
 func ListApps(
@@ -551,29 +503,25 @@ func ListApps(
 
 	// Retrieve all apps from the filesystem
 	var pathsToExplore paths.PathList
-	var appPaths paths.PathList
 	if req.ShowExamples || req.ShowOnlyDefault {
 		pathsToExplore.AddAll(cfg.ExamplesDirs(platform))
 		pathsToExplore.AddAll(cfg.ExamplesAdditionalDirs())
 	}
 	if req.ShowApps || req.ShowOnlyDefault {
 		pathsToExplore.Add(cfg.AppsDir())
-		// and optionally add apps that are on different paths
-		if req.IncludeNonStandardLocationApps {
-			for _, appStatus := range appsStatus {
-				appPaths.AddIfMissing(appStatus.AppPath)
-			}
-		}
+	}
+	// The releases are apps, installed apart because they are read-only.
+	if req.ShowReleases || req.ShowOnlyDefault {
+		pathsToExplore.Add(cfg.ReleasesDir())
 	}
 
-	appPathsTmp, err := app.FindAppsInFolders(pathsToExplore)
+	appPaths, err := app.FindAppsInFolders(pathsToExplore)
 	if err != nil {
 		slog.Error("unable to list apps", slog.String("error", err.Error()))
 		return ListAppResult{}, err
 	}
-	appPaths.AddAllMissing(appPathsTmp)
 
-	// Compose the result
+	// Go through all the known app paths, and create a result item for each.
 	result := ListAppResult{Apps: []AppInfo{}, BrokenApps: []BrokenAppInfo{}}
 	for _, file := range appPaths {
 		app, err := app.Load(file)
@@ -615,6 +563,8 @@ func ListApps(
 			continue
 		}
 
+		release, isRelease := app.GetRelease()
+
 		result.Apps = append(result.Apps,
 			AppInfo{
 				ID:          id,
@@ -624,11 +574,59 @@ func ListApps(
 				Status:      status,
 				Example:     id.IsExample(),
 				Default:     isDefault,
+				Release:     isRelease,
+				ReleaseID:   release.ID,
 			},
 		)
 	}
 
 	return result, nil
+}
+
+// ListActiveApps returns all the apps that have a non-uninitialized status in Docker,
+// i.e. all apps that have been started at least once, including apps located outside the
+// standard apps directory and apps whose metadata is broken or missing on disk.
+// The result is sorted by app path.
+func ListActiveApps(
+	ctx context.Context,
+	docker command.Cli,
+	idProvider *appid.Provider,
+) ([]AppInfo, error) {
+	// The statuses returned by getAppsStatus come only from Docker containers that have
+	// been started, so StatusUninitialized is never present.
+	appsStatus, err := getAppsStatus(ctx, docker.Client())
+	if err != nil {
+		return nil, fmt.Errorf("failed to list apps status: %w", err)
+	}
+
+	// getAppsStatus iterates over a map, so sort the result to have a deterministic output.
+	slices.SortFunc(appsStatus, func(a, b AppStatusInfo) int {
+		return strings.Compare(a.AppPath.String(), b.AppPath.String())
+	})
+
+	return f.Map(appsStatus, func(s AppStatusInfo) AppInfo {
+		info := AppInfo{Status: s.Status}
+
+		if id, err := idProvider.IDFromPath(s.AppPath); err != nil {
+			slog.Warn("unable to get app id", slog.String("path", s.AppPath.String()), slog.String("error", err.Error()))
+		} else {
+			info.ID = id
+			info.Example = id.IsExample()
+			info.Release = id.IsRelease()
+		}
+
+		userApp, err := app.Load(s.AppPath)
+		if err != nil {
+			slog.Warn("unable to load app metadata", slog.String("path", s.AppPath.String()), slog.String("error", err.Error()))
+			info.Name = s.AppPath.Base()
+			return info
+		}
+
+		info.Name = userApp.Name
+		info.Description = userApp.Descriptor.Description
+		info.Icon = userApp.Descriptor.Icon
+		return info
+	}), nil
 }
 
 // exampleCompatibleWithBricksIndex returns true if all built-in bricks referenced by the app
@@ -740,6 +738,7 @@ type CreateAppRequest struct {
 	Name        string
 	Icon        string
 	Description string
+	Bricks      []string
 	SkipSketch  bool
 }
 
@@ -749,6 +748,7 @@ type CreateAppResponse struct {
 
 func CreateApp(
 	req CreateAppRequest,
+	bricksIndex *bricksindex.BricksIndex,
 	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) (CreateAppResponse, error) {
@@ -756,16 +756,29 @@ func CreateApp(
 		return CreateAppResponse{}, fmt.Errorf("app name cannot be empty")
 	}
 
+	appBricks := make([]app.Brick, 0, len(req.Bricks))
+	for _, id := range req.Bricks {
+		if _, found := bricksIndex.FindBrickByID(id); !found {
+			return CreateAppResponse{}, fmt.Errorf("%w: brick %q not found", ErrBadRequest, id)
+		}
+		appBricks = append(appBricks, app.Brick{ID: id})
+	}
+
 	basePath, appExists := findAppPathByName(req.Name, cfg)
 	if appExists {
-		return CreateAppResponse{}, ErrAppAlreadyExists
+		existingID, err := idProvider.IDFromPath(basePath)
+		if err != nil {
+			return CreateAppResponse{}, ErrAppAlreadyExists
+		}
+		return CreateAppResponse{}, fmt.Errorf("%w with id: %q", ErrAppAlreadyExists, existingID)
 	}
 	appName := req.Name
 	newApp := app.AppDescriptor{
 		Name:        appName,
 		Description: req.Description,
 		Ports:       []int{},
-		Icon:        req.Icon, // TODO: not sure if icon will exists for bricks
+		Bricks:      appBricks,
+		Icon:        req.Icon,
 	}
 	if err := newApp.IsValid(); err != nil {
 		return CreateAppResponse{}, fmt.Errorf("%w: %v", app.ErrInvalidApp, err)
@@ -831,7 +844,8 @@ func CloneApp(
 		}
 	}()
 
-	list, err := originPath.ReadDir(paths.FilterOutNames(".cache", "data"))
+	// The manifest stays behind: a copy of a release is an app, and is edited.
+	list, err := originPath.ReadDir(paths.FilterOutNames(".cache", "data", app.ReleaseManifestFileName))
 	if err != nil {
 		return CloneAppResponse{}, fmt.Errorf("failed to read app directory: %w", err)
 	}
@@ -949,39 +963,90 @@ func EditApp(
 	editApp *app.ArduinoApp,
 	cfg config.Configuration,
 ) (editErr error) {
+	if req.Name != nil && slug.Make(*req.Name) == "" {
+		return fmt.Errorf("%w: invalid app name %q", app.ErrInvalidApp, *req.Name)
+	}
+
+	if req.Name != nil || req.Icon != nil || req.Description != nil {
+		if err := editAppFolder(req, editApp, cfg); err != nil {
+			return err
+		}
+	}
+
 	if req.Default != nil {
 		if err := editAppDefaults(editApp, *req.Default, cfg); err != nil {
 			return fmt.Errorf("failed to edit app defaults: %w", err)
 		}
 	}
+	return nil
+}
+
+func editAppFolder(req AppEditRequest, editApp *app.ArduinoApp, cfg config.Configuration) error {
+	editable, err := editApp.GetAsEditable()
+	if err != nil {
+		return err
+	}
 
 	if req.Name != nil {
-		editApp.Descriptor.Name = *req.Name
+		editable.Descriptor.Name = *req.Name
 	}
 	if req.Icon != nil {
-		editApp.Descriptor.Icon = *req.Icon
+		editable.Descriptor.Icon = *req.Icon
 	}
 	if req.Description != nil {
-		editApp.Descriptor.Description = *req.Description
+		editable.Descriptor.Description = *req.Description
 	}
 
-	if err := editApp.Descriptor.IsValid(); err != nil {
+	if err := editable.Descriptor.IsValid(); err != nil {
 		return fmt.Errorf("%w: %w", app.ErrInvalidApp, err)
 	}
 
 	if req.Name != nil {
-		newPath := editApp.FullPath.Parent().Join(slug.Make(*req.Name))
-		if newPath.Exist() {
-			return ErrAppAlreadyExists
+		newPath, err := findRenamePath(editable.FullPath, slug.Make(*req.Name))
+		if err != nil {
+			return err
 		}
-		if err := editApp.FullPath.Rename(newPath); err != nil {
-			return fmt.Errorf("failed to rename app path: %w", err)
+		if !newPath.EqualsTo(editable.FullPath) {
+			oldPath := editable.FullPath
+			if err := editable.FullPath.Rename(newPath); err != nil {
+				return fmt.Errorf("failed to rename app path: %w", err)
+			}
+			editable.FullPath = newPath
+			// The folder is already renamed: the edit must complete, so the client gets the new ID.
+			if err := moveDefaultApp(oldPath, editApp, cfg); err != nil {
+				slog.Warn("failed to update default app after renaming", slog.String("path", newPath.String()), slog.String("error", err.Error()))
+			}
 		}
-		editApp.FullPath = newPath
-		editApp.Name = editApp.Descriptor.Name
+		editable.Name = editable.Descriptor.Name
 	}
 
-	return editApp.Save()
+	return editable.Save()
+}
+
+func findRenamePath(appPath *paths.Path, folderName string) (*paths.Path, error) {
+	candidate := appPath.Parent().Join(folderName)
+	for i := 1; i <= 100; i++ {
+		if candidate.EqualsTo(appPath) || candidate.NotExist() {
+			return candidate, nil
+		}
+		candidate = appPath.Parent().Join(fmt.Sprintf("%s-%d", folderName, i))
+	}
+	return nil, ErrAppAlreadyExists
+}
+
+func moveDefaultApp(oldPath *paths.Path, movedApp *app.ArduinoApp, cfg config.Configuration) error {
+	defaultAppFilePath := cfg.DataDir().Join(defaultAppFileName)
+	if defaultAppFilePath.NotExist() {
+		return nil
+	}
+	defaultAppPath, err := defaultAppFilePath.ReadFile()
+	if err != nil {
+		return err
+	}
+	if string(bytes.TrimSpace(defaultAppPath)) != oldPath.String() {
+		return nil
+	}
+	return SetDefaultApp(movedApp, cfg)
 }
 
 func editAppDefaults(userApp *app.ArduinoApp, isDefault bool, cfg config.Configuration) error {
@@ -1011,35 +1076,6 @@ func editAppDefaults(userApp *app.ArduinoApp, isDefault bool, cfg config.Configu
 	return nil
 }
 
-func getCurrentUser() string {
-	userInfo := f.Must(user.Current())
-	uid := userInfo.Uid
-	gid := userInfo.Gid
-
-	// If exist use arduino group to avoid permission issue on files /var/lib/arduino-app-cli in.
-	if gInfo, err := user.LookupGroup("arduino"); err == nil {
-		gid = gInfo.Gid
-	}
-
-	return uid + ":" + gid
-}
-
-// addLedControl adds bindings for led control if the paths exist.
-func addLedControl(platform platform.Platform, volumes []volume) []volume {
-	for _, led := range platform.Linux.BoardLeds {
-
-		if led.Exist() {
-			volumes = append(volumes, volume{
-				Type:   "bind",
-				Source: led.String(),
-				Target: led.String(),
-			})
-		}
-	}
-
-	return volumes
-}
-
 func compileUploadSketch(
 	ctx context.Context,
 	verbose bool,
@@ -1047,39 +1083,118 @@ func compileUploadSketch(
 	arduinoApp app.ArduinoApp,
 	w io.Writer,
 ) error {
-	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
-	srv := commands.NewArduinoCoreServer()
-	if err := SetArduinoCliConfig(ctx, srv); err != nil {
-		return err
+	sketchPath, ok := arduinoApp.GetSketchPath()
+	if !ok {
+		return fmt.Errorf("no sketch path found in the Arduino app")
+	}
+	// Make the cache dir for the compiled sketch
+	buildPath := arduinoApp.SketchBuildPath()
+	if err := buildPath.MkdirAll(); err != nil {
+		return fmt.Errorf("failed to create build directory: %w", err)
 	}
 
-	var inst *rpc.Instance
-	if resp, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
+	srv, inst, err := initializeArduinoCli(ctx, sketchPath, w)
+	if err != nil {
 		return err
-	} else {
-		inst = resp.GetInstance()
 	}
 	defer func() {
 		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
 	}()
 
-	sketchPath, ok := arduinoApp.GetSketchPath()
-	if !ok {
-		return fmt.Errorf("no sketch path found in the Arduino app")
+	menuOptions, err := GetPlatformMenuOptions(ctx, platform)
+	if err != nil {
+		slog.Warn("failed to get platform menu options", slog.String("error", err.Error()))
 	}
-	sketchResp, err := srv.LoadSketch(ctx, &rpc.LoadSketchRequest{SketchPath: sketchPath.String()})
+	fqbn := platform.FQBN
+	if menuOptions.Has(WaitForApp) {
+		fqbn += ":" + WaitForApp.String()
+	}
+	useLegacyFlashToRam := !menuOptions.Has(WaitForApp) && platform.SupportFlashToRam()
+
+	// Compile the sketch
+	if err := compileSketch(
+		ctx, srv, inst,
+		sketchPath, buildPath,
+		platform, fqbn,
+		verbose, w,
+	); err != nil {
+		return err
+	}
+
+	// Upload the sketch
+	if err := uploadSketch(
+		ctx, srv, inst,
+		sketchPath, buildPath,
+		useLegacyFlashToRam,
+		fqbn, w,
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func uploadFirmwareFile(
+	ctx context.Context,
+	verbose bool,
+	fwFile *paths.Path,
+	w io.Writer,
+) error {
+	srv, inst, err := initializeArduinoCli(ctx, nil, w)
 	if err != nil {
 		return err
 	}
-	sketch := sketchResp.GetSketch()
-	profile := sketch.GetDefaultProfile().GetName()
-	if profile == "" {
-		return fmt.Errorf("sketch %q has no default profile", sketchPath)
+	defer func() {
+		_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
+	}()
+
+	// Upload the sketch
+	uploadServ, _ := commands.UploadFirmwareFileToServerStreams(ctx, w, w)
+	if err := srv.UploadFirmwareFile(&rpc.UploadFirmwareFileRequest{
+		Instance:     inst,
+		FirmwareFile: fwFile.String(),
+		Verbose:      verbose,
+	}, uploadServ); err != nil {
+		return err
 	}
+	return nil
+}
+
+func initializeArduinoCli(ctx context.Context, sketchPath *paths.Path, w io.Writer) (_ rpc.ArduinoCoreServiceServer, _ *rpc.Instance, _err error) {
+	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
+	srv := commands.NewArduinoCoreServer()
+	if err := SetArduinoCliConfig(ctx, srv); err != nil {
+		return nil, nil, err
+	}
+
+	var inst *rpc.Instance
+	if resp, err := srv.Create(ctx, &rpc.CreateRequest{}); err != nil {
+		return nil, nil, err
+	} else {
+		inst = resp.GetInstance()
+	}
+	defer func() {
+		if _err != nil {
+			_, _ = srv.Destroy(ctx, &rpc.DestroyRequest{Instance: inst})
+		}
+	}()
+
 	initReq := &rpc.InitRequest{
-		Instance:   inst,
-		SketchPath: sketchPath.String(),
-		Profile:    profile,
+		Instance: inst,
+	}
+	if sketchPath != nil {
+		sketchResp, err := srv.LoadSketch(ctx, &rpc.LoadSketchRequest{SketchPath: sketchPath.String()})
+		if err != nil {
+			return nil, nil, err
+		}
+		sketch := sketchResp.GetSketch()
+		profile := sketch.GetDefaultProfile().GetName()
+		if profile == "" {
+			return nil, nil, fmt.Errorf("sketch %q has no default profile", sketchPath)
+		}
+
+		initReq.Profile = profile
+		initReq.SketchPath = sketchPath.String()
 	}
 
 	if err := srv.Init(
@@ -1110,28 +1225,23 @@ func compileUploadSketch(
 			return nil
 		}),
 	); err != nil {
-		return err
+		return nil, nil, err
 	}
+	return srv, inst, nil
+}
 
-	menuOptions, err := GetPlatformMenuOptions(ctx, platform)
-	if err != nil {
-		slog.Warn("failed to get platform menu options", slog.String("error", err.Error()))
-	}
-
-	fqbn := platform.FQBN
-	if menuOptions.Has(WaitForApp) {
-		fqbn += ":" + WaitForApp.String()
-	}
-
-	slog.Debug("compile and upload sketch", slog.String("fqbn", fqbn), slog.Any("menuOptions", menuOptions))
-
+func compileSketch(
+	ctx context.Context,
+	srv rpc.ArduinoCoreServiceServer,
+	inst *rpc.Instance,
+	sketchPath, buildPath *paths.Path,
+	platform platform.Platform,
+	fqbn string,
+	verbose bool,
+	w io.Writer,
+) error {
 	// build the sketch
-	buildPath := arduinoApp.SketchBuildPath()
-	if buildPath.NotExist() {
-		if err := buildPath.MkdirAll(); err != nil {
-			return fmt.Errorf("failed to create build directory: %w", err)
-		}
-	}
+	slog.Debug("compile sketch", slog.String("fqbn", fqbn))
 
 	server, getCompileResult := commands.CompilerServerToStreams(ctx, w, w, nil)
 	compileReq := rpc.CompileRequest{
@@ -1142,8 +1252,7 @@ func compileUploadSketch(
 		Jobs:       platform.CompileJobs,
 		Verbose:    verbose,
 	}
-	err = srv.Compile(&compileReq, server)
-	if err != nil {
+	if err := srv.Compile(&compileReq, server); err != nil {
 		return err
 	}
 
@@ -1163,15 +1272,28 @@ func compileUploadSketch(
 	for _, lib := range result.GetUsedLibraries() {
 		_, _ = w.Write([]byte("Used library " + lib.GetName() + " (" + lib.GetVersion() + ") in " + lib.GetInstallDir() + "\n"))
 	}
+	return nil
+}
 
+// uploadSketch flashes what buildPath holds, whether a compile has just written it or
+// a release ships it.
+func uploadSketch(
+	ctx context.Context,
+	srv rpc.ArduinoCoreServiceServer,
+	inst *rpc.Instance,
+	sketchPath, buildPath *paths.Path,
+	useLegacyFlashToRam bool,
+	fqbn string,
+	w io.Writer,
+) error {
 	// Support the legacy ram upload option if there isn't the new wait_linux_boot option.
-	if !menuOptions.Has(WaitForApp) && platform.SupportFlashToRam() {
-		if err := legacyUploadSketchInRam(ctx, w, srv, inst, platform, sketchPath.String(), buildPath.String()); err != nil {
+	if useLegacyFlashToRam {
+		if err := legacyUploadSketchInRam(ctx, w, srv, inst, fqbn, sketchPath.String(), buildPath.String()); err != nil {
 			slog.Warn("failed to upload in ram mode, trying to configure the board in ram mode, and retry", slog.String("error", err.Error()))
-			if err := configureMicroInRamMode(ctx, w, srv, inst, platform); err != nil {
+			if err := configureMicroInRamMode(ctx, w, srv, inst, fqbn); err != nil {
 				return err
 			}
-			return legacyUploadSketchInRam(ctx, w, srv, inst, platform, sketchPath.String(), buildPath.String())
+			return legacyUploadSketchInRam(ctx, w, srv, inst, fqbn, sketchPath.String(), buildPath.String())
 		}
 		return nil
 	}
@@ -1179,7 +1301,7 @@ func compileUploadSketch(
 	stream, _ := commands.UploadToServerStreams(ctx, w, w)
 	return srv.Upload(&rpc.UploadRequest{
 		Instance:   inst,
-		Fqbn:       platform.FQBN,
+		Fqbn:       fqbn,
 		SketchPath: sketchPath.String(),
 		ImportDir:  buildPath.String(),
 	}, stream)
@@ -1188,7 +1310,7 @@ func compileUploadSketch(
 // migrateRemoveRouterBridgeIfNeeded removes the Arduino_RouterBridge library from the sketch profile to allow automatic update of the library.
 // This is needed by the platform 0.55 will need a new Arduino_RouterBridge library to allow Serial output redirection to Monitor.
 // The migration is applied only if the platform in the profile doesn't specify a version.
-func migrateRemoveRouterBridgeIfNeeded(ctx context.Context, platform platform.Platform, app app.ArduinoApp) (bool, error) {
+func migrateRemoveRouterBridgeIfNeeded(ctx context.Context, platform platform.Platform, app app.Editable) (bool, error) {
 	logrus.SetLevel(logrus.ErrorLevel) // Reduce the log level of arduino-cli
 	srv := commands.NewArduinoCoreServer()
 	if err := SetArduinoCliConfig(ctx, srv); err != nil {
@@ -1247,7 +1369,7 @@ func migrateRemoveRouterBridgeIfNeeded(ctx context.Context, platform platform.Pl
 	slog.Debug("Installed platform version", "version", platformVersion.String())
 
 	if platformVersion.GreaterThan(semver.MustParse("0.54.1")) {
-		libs, err := ListSketchLibraries(ctx, app)
+		libs, err := ListSketchLibraries(ctx, *app.App())
 		if err != nil {
 			return false, fmt.Errorf("unable to list sketch libraries: %w", err)
 		}

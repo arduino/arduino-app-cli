@@ -21,6 +21,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -456,6 +457,9 @@ func TestInstallEIModel_WhenModelIsBuilt_DoNotTriggerTheBuild_and_StoreSucceeded
 	require.NoError(t, err)
 	require.Equal(t, "Imola-Model", result.Name)
 	require.Equal(t, "edgeimpulse", result.Metadata["source"])
+	// The install answers with the model, named by the plain id that also names its
+	// directory on disk. The API encodes it when it renders the response.
+	require.Equal(t, "ei-model-100-1", result.ID)
 
 	// assert write on disk
 	basePath := paths.New(tempDir).Join("custom-ei").Join(result.ID)
@@ -571,7 +575,7 @@ func assertAppYamlContent(t *testing.T, yamlFile string) {
 	data, err := os.ReadFile(yamlFile)
 	require.NoError(t, err)
 
-	var config AIModelItem
+	var config custommodel.ModelDescriptor
 	err = yaml.Unmarshal(data, &config)
 	require.NoError(t, err, "Failed to parse YAML")
 

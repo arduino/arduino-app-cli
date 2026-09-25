@@ -47,7 +47,7 @@ func HandleAppBrickInstancesList(
 			return
 		}
 
-		res := brickService.AppBrickInstancesList(&app)
+		res := brickService.AppBrickInstancesList(r.Context(), &app)
 		render.EncodeResponse(w, http.StatusOK, res)
 	}
 }
@@ -77,7 +77,7 @@ func HandleAppBrickInstanceDetails(
 			return
 		}
 
-		res, err := brickService.AppBrickInstanceDetails(&app, brickID)
+		res, err := brickService.AppBrickInstanceDetails(r.Context(), &app, brickID)
 		if err != nil {
 			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to obtain brick details"})
@@ -85,6 +85,20 @@ func HandleAppBrickInstanceDetails(
 		}
 		render.EncodeResponse(w, http.StatusOK, res)
 	}
+}
+
+// decodeRequestModel turns the brick request's model id into the plain form app.yaml
+// holds. A request naming no model is left alone.
+func decodeRequestModel(req *bricks.BrickCreateUpdateRequest) error {
+	if req.Model == nil || *req.Model == "" {
+		return nil
+	}
+	id, err := models.DecodeModelID(*req.Model)
+	if err != nil {
+		return err
+	}
+	req.Model = &id
+	return nil
 }
 
 func HandleBrickCreate(
@@ -97,12 +111,8 @@ func HandleBrickCreate(
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
 			return
 		}
-		appPath := appId.ToPath()
-
-		app, err := app.Load(appPath)
-		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", appId.String()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
+		app, ok := loadEditableApp(w, appId)
+		if !ok {
 			return
 		}
 
@@ -121,8 +131,12 @@ func HandleBrickCreate(
 		}
 
 		req.ID = id
+		if err := decodeRequestModel(&req); err != nil {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
+			return
+		}
 
-		err = brickService.BrickCreate(req, app)
+		err = brickService.BrickCreate(r.Context(), req, app)
 		if err != nil {
 			// TODO: handle specific errors
 			slog.Error("Unable to create brick", slog.String("error", err.Error()))
@@ -141,7 +155,7 @@ func HandleBrickDetails(brickService *bricks.Service, idProvider *appid.Provider
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "id must be set"})
 			return
 		}
-		res, err := brickService.BricksDetails(id, idProvider, cfg, platform)
+		res, err := brickService.BricksDetails(r.Context(), id, idProvider, cfg, platform)
 		if err != nil {
 			if errors.Is(err, bricks.ErrBrickNotFound) {
 				details := fmt.Sprintf("brick with id %q not found", id)
@@ -167,6 +181,7 @@ func HandleBrickUpdates(
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
 			return
 		}
+		// A release takes one change, its secrets, which the service is what gates.
 		appPath := appId.ToPath()
 
 		app, err := app.Load(appPath)
@@ -190,9 +205,17 @@ func HandleBrickUpdates(
 		}
 
 		req.ID = id
-		err = brickService.BrickUpdate(req, app)
+		if err := decodeRequestModel(&req); err != nil {
+			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
+			return
+		}
+		err = brickService.BrickUpdate(r.Context(), req, app)
 		if err != nil {
 			slog.Error("Unable to update the brick", slog.String("error", err.Error()))
+			if errors.Is(err, bricks.ErrReleaseSecretsOnly) {
+				render.EncodeResponse(w, http.StatusForbidden, models.ErrorResponse{Details: err.Error()})
+				return
+			}
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to update the brick"})
 
 			return
@@ -213,12 +236,8 @@ func HandleBrickDelete(
 			render.EncodeResponse(w, http.StatusPreconditionFailed, models.ErrorResponse{Details: "invalid app id"})
 			return
 		}
-		appPath := appId.ToPath()
-
-		app, err := app.Load(appPath)
-		if err != nil {
-			slog.Error("Unable to parse the app.yaml", slog.String("error", err.Error()), slog.String("path", appId.String()))
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
+		app, ok := loadEditableApp(w, appId)
+		if !ok {
 			return
 		}
 
@@ -228,7 +247,7 @@ func HandleBrickDelete(
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "brickID must be set"})
 			return
 		}
-		err = brickService.BrickDelete(&app, id)
+		err = brickService.BrickDelete(app, id)
 		if err != nil {
 			switch {
 			case errors.Is(err, bricks.ErrBrickNotFound):

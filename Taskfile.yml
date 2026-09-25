@@ -8,8 +8,8 @@ vars:
   GOLANGCI_LINT_VERSION: v2.11.4
   GOIMPORTS_VERSION: v0.42.0
   DPRINT_VERSION: 0.48.0
-  EXAMPLE_VERSION: "0.12.1"
-  RUNNER_VERSION: "0.12.0"
+  EXAMPLE_VERSION: "0.13.0rc5"
+  RUNNER_VERSION: "0.13.0rc5"
   VERSION: # if version is not passed we hack the semver by encoding the commit as pre-release
     sh: echo "${VERSION:-0.0.0-$(git rev-parse --short HEAD)}"
 
@@ -65,7 +65,7 @@ tasks:
 
   test:update:
     cmds:
-      - go tool gotest.tools/gotestsum -- -v -timeout=60m ./internal/e2e/updatetest
+      - go tool gotest.tools/gotestsum -- -v -timeout=60m {{ .CLI_ARGS }} ./internal/e2e/updatetest
 
   test:pkg:
     desc: Run only tests in the pkg directory
@@ -136,10 +136,17 @@ tasks:
 
   build-deb:clone-examples:
     desc: "Clones the examples repo directly into the debian structure"
+    vars:
+      # Written by this task, read by its status: the clone itself records no version.
+      # Outside the packaged tree, so the deb does not carry it.
+      STAMP: "build/examples-version"
+    status:
+      - test -d "debian/arduino-app-cli/var/lib/arduino-app-cli/examples"
+      - test "$(cat {{.STAMP}} 2>/dev/null)" = "{{.EXAMPLE_VERSION}}"
     cmds:
       - |
           set -e
-          echo "Runner version set as: {{ .EXAMPLE_VERSION }}"
+          echo "Examples version set as: {{ .EXAMPLE_VERSION }}"
           TMP_PATH="$(mktemp -d)"
           DEST_PATH="debian/arduino-app-cli/var/lib/arduino-app-cli/"
           echo "Cloning arduino/app-bricks-examples into temporary directory ${TMP_PATH}..."
@@ -151,11 +158,14 @@ tasks:
           mv "${TMP_PATH}/bricks" "${DEST_PATH}/examples"
           mv "${TMP_PATH}/examples.json" "${DEST_PATH}/examples"
           rm -rf "${TMP_PATH}"
+          mkdir -p "$(dirname "{{.STAMP}}")"
+          echo "{{ .EXAMPLE_VERSION }}" > "{{.STAMP}}"
           echo "Examples successfully cloned."
     silent: false
 
   build-deb:copyright:
     desc: Add dependency licenses to debian copyright file
+    silent: true
     cmds:
       - mkdir -p debian/arduino-app-cli/usr/share/doc/arduino-app-cli
       - |
@@ -198,7 +208,7 @@ tasks:
       - |
           set -e
           echo "Runner version set as: {{ .RUNNER_VERSION }}"
-          gh release download -R arduino/app-bricks-py "release/{{.SEMVER_TAG}}" -p '*.whl' -D "{{.TMPDIR}}" --clobber
+          gh release download -R arduino/app-bricks-py "bricks/{{.SEMVER_TAG}}" -p '*.whl' -D "{{.TMPDIR}}" --clobber
           unzip -o "{{.TMPDIR}}/arduino_app_bricks-{{.SEMVER_TAG}}-py3-none-any.whl" -d "{{.TMPDIR}}/extract"
           # Wipe any previous versions so the destination contains exactly one.
           rm -rf "{{.DEST}}" && mkdir -p "{{.DEST}}"

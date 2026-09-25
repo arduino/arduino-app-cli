@@ -16,6 +16,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
@@ -27,6 +28,7 @@ type CreateAppRequest struct {
 }
 
 func HandleAppCreate(
+	bricksIndex *bricksindex.BricksIndex,
 	idProvider *appid.Provider,
 	cfg config.Configuration,
 ) http.HandlerFunc {
@@ -52,6 +54,7 @@ func HandleAppCreate(
 				Description: req.Description,
 				SkipSketch:  skipSketch,
 			},
+			bricksIndex,
 			idProvider,
 			cfg,
 		)
@@ -59,7 +62,7 @@ func HandleAppCreate(
 			switch {
 			case errors.Is(err, orchestrator.ErrAppAlreadyExists):
 				slog.Error("app already exists", slog.String("error", err.Error()))
-				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: "app already exists"})
+				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: err.Error()})
 
 			case errors.Is(err, app.ErrInvalidApp):
 				slog.Error("invalid app data", slog.String("error", err.Error()))

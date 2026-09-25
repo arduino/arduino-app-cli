@@ -1,12 +1,12 @@
 ---
 name: github.com/moby/patternmatcher/ignorefile
-version: v0.6.0
+version: v0.6.1
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/moby/patternmatcher/ignorefile
 license: apache-2.0
 licenses:
-- sources: patternmatcher@v0.6.0/LICENSE
+- sources: patternmatcher@v0.6.1/LICENSE
   text: |2
 
                                      Apache License

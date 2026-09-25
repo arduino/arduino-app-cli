@@ -16,8 +16,30 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// Defines values for ModelOrigin.
+const (
+	Curated                ModelOrigin = "curated"
+	EdgeImpulseUserProject ModelOrigin = "edge-impulse-user-project"
+	User                   ModelOrigin = "user"
+)
+
+// Valid indicates whether the value is a known member of the ModelOrigin enum.
+func (e ModelOrigin) Valid() bool {
+	switch e {
+	case Curated:
+		return true
+	case EdgeImpulseUserProject:
+		return true
+	case User:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ModelStatus.
 const (
+	Downloading  ModelStatus = "downloading"
 	Installed    ModelStatus = "installed"
 	NotInstalled ModelStatus = "not-installed"
 )
@@ -25,6 +47,8 @@ const (
 // Valid indicates whether the value is a known member of the ModelStatus enum.
 func (e ModelStatus) Valid() bool {
 	switch e {
+	case Downloading:
+		return true
 	case Installed:
 		return true
 	case NotInstalled:
@@ -125,11 +149,15 @@ type AIModelItem struct {
 	BrickIds    *[]string          `json:"brick_ids,omitempty"`
 	Description *string            `json:"description,omitempty"`
 	Id          *string            `json:"id,omitempty"`
+	IdDecoded   *string            `json:"id_decoded,omitempty"`
 	IsBuiltin   *bool              `json:"is_builtin,omitempty"`
 	Metadata    *map[string]string `json:"metadata,omitempty"`
 	Name        *string            `json:"name,omitempty"`
-	Runner      *string            `json:"runner,omitempty"`
-	Size        *int               `json:"size,omitempty"`
+
+	// Origin Where the model came from: "curated" is declared by the internal model list and installs from its id alone, "user" was downloaded from a source the caller supplied and needs that source again, "edge-impulse-user-project" was deployed from the caller's own Edge Impulse project.
+	Origin *ModelOrigin `json:"origin,omitempty"`
+	Runner *string      `json:"runner,omitempty"`
+	Size   *int         `json:"size,omitempty"`
 
 	// Status Model status
 	Status *ModelStatus `json:"status,omitempty"`
@@ -176,6 +204,8 @@ type AppInfo struct {
 	Icon        *string `json:"icon,omitempty"`
 	Id          *string `json:"id,omitempty"`
 	Name        *string `json:"name,omitempty"`
+	Release     *bool   `json:"release,omitempty"`
+	ReleaseId   *string `json:"release_id,omitempty"`
 
 	// Status Application status
 	Status *Status `json:"status,omitempty"`
@@ -234,19 +264,20 @@ type BrickCreateUpdateRequest struct {
 
 // BrickDetailsResult defines model for BrickDetailsResult.
 type BrickDetailsResult struct {
-	ApiDocsPath      *string                `json:"api_docs_path,omitempty"`
-	Author           *string                `json:"author,omitempty"`
-	Category         *string                `json:"category,omitempty"`
-	CodeExamples     *[]CodeExample         `json:"code_examples,omitempty"`
-	CompatibleModels *[]AIModel             `json:"compatible_models,omitempty"`
-	ConfigVariables  *[]BrickConfigVariable `json:"config_variables,omitempty"`
-	Description      *string                `json:"description,omitempty"`
-	Id               *string                `json:"id,omitempty"`
-	Name             *string                `json:"name,omitempty"`
-	Readme           *string                `json:"readme,omitempty"`
-	RequireModel     *bool                  `json:"require_model,omitempty"`
-	Status           *string                `json:"status,omitempty"`
-	UsedByApps       *[]AppReference        `json:"used_by_apps,omitempty"`
+	AiFrameworksCompatibility *[]string              `json:"ai_frameworks_compatibility,omitempty"`
+	ApiDocsPath               *string                `json:"api_docs_path,omitempty"`
+	Author                    *string                `json:"author,omitempty"`
+	Category                  *string                `json:"category,omitempty"`
+	CodeExamples              *[]CodeExample         `json:"code_examples,omitempty"`
+	CompatibleModels          *[]AIModel             `json:"compatible_models,omitempty"`
+	ConfigVariables           *[]BrickConfigVariable `json:"config_variables,omitempty"`
+	Description               *string                `json:"description,omitempty"`
+	Id                        *string                `json:"id,omitempty"`
+	Name                      *string                `json:"name,omitempty"`
+	Readme                    *string                `json:"readme,omitempty"`
+	RequireModel              *bool                  `json:"require_model,omitempty"`
+	Status                    *string                `json:"status,omitempty"`
+	UsedByApps                *[]AppReference        `json:"used_by_apps,omitempty"`
 
 	// Variables Deprecated: use config_variables instead. This field is kept for backward compatibility.
 	Variables *map[string]BrickVariable `json:"variables,omitempty"`
@@ -363,6 +394,12 @@ type CreateAppResponse struct {
 	Id *string `json:"id,omitempty"`
 }
 
+// DownloadModelRequest defines model for DownloadModelRequest.
+type DownloadModelRequest struct {
+	MmprojUrl *string `json:"mmproj_url,omitempty"`
+	ModelUrl  string  `json:"model_url"`
+}
+
 // EditRequest defines model for EditRequest.
 type EditRequest struct {
 	Default *bool `json:"default,omitempty"`
@@ -439,6 +476,9 @@ type LocalBrickRenameResult struct {
 	Id *string `json:"id,omitempty"`
 }
 
+// ModelOrigin Where the model came from: "curated" is declared by the internal model list and installs from its id alone, "user" was downloaded from a source the caller supplied and needs that source again, "edge-impulse-user-project" was deployed from the caller's own Edge Impulse project.
+type ModelOrigin string
+
 // ModelStatus Model status
 type ModelStatus string
 
@@ -470,6 +510,13 @@ type Port struct {
 // PropertyKeysResponse defines model for PropertyKeysResponse.
 type PropertyKeysResponse struct {
 	Keys *[]string `json:"keys,omitempty"`
+}
+
+// ResponseLogs defines model for ResponseLogs.
+type ResponseLogs struct {
+	ContainerName *string `json:"container_name,omitempty"`
+	Id            *string `json:"id,omitempty"`
+	Message       *string `json:"message,omitempty"`
 }
 
 // SketchAddLibraryResponse defines model for SketchAddLibraryResponse.
@@ -540,7 +587,7 @@ type Unauthorized = ErrorResponse
 
 // GetAppsParams defines parameters for GetApps.
 type GetAppsParams struct {
-	// Filter Filters apps by apps,examples,default
+	// Filter Filters apps by apps,examples,releases,default
 	Filter *string `form:"filter,omitempty" json:"filter,omitempty"`
 
 	// Status Filters applications by status
@@ -563,6 +610,24 @@ type ImportAppFormdataBody struct {
 type ImportAppParams struct {
 	// File The ZIP archive. Must contain app.yaml (with a valid 'name') and python/main.py. The app folder name will be calculated from the app name.
 	File *string `form:"file,omitempty" json:"file,omitempty"`
+}
+
+// BuildAppJSONBody defines parameters for BuildApp.
+type BuildAppJSONBody struct {
+	// BuildId Optional build identifier. When set, the progress events published to the app build events stream are tagged with it, so a client can filter the stream down to this build.
+	BuildId *string `json:"build_id,omitempty"`
+
+	// IncludeData IncludeData ships the data folder of the app, at the root of the archive.
+	IncludeData *bool `json:"include_data,omitempty"`
+
+	// Notes Notes is the release note, markdown, and goes in the manifest as it is given.
+	Notes *string `json:"notes,omitempty"`
+
+	// ReleaseLabel ReleaseLabel is an optional label the user attaches to the release. It is stored in the manifest as it is given.
+	ReleaseLabel *string `json:"release_label,omitempty"`
+
+	// Target Target defaults to the board running the build.
+	Target *string `json:"target,omitempty"`
 }
 
 // AppSketchRemoveLibraryParams defines parameters for AppSketchRemoveLibrary.
@@ -677,11 +742,17 @@ type UpsertAppBrickInstanceJSONRequestBody = BrickCreateUpdateRequest
 // RenameAppLocalBrickJSONRequestBody defines body for RenameAppLocalBrick for application/json ContentType.
 type RenameAppLocalBrickJSONRequestBody = AppLocalBrickRenameRequest
 
+// BuildAppJSONRequestBody defines body for BuildApp for application/json ContentType.
+type BuildAppJSONRequestBody BuildAppJSONBody
+
 // EditAppJSONRequestBody defines body for EditApp for application/json ContentType.
 type EditAppJSONRequestBody = EditRequest
 
 // CloneAppJSONRequestBody defines body for CloneApp for application/json ContentType.
 type CloneAppJSONRequestBody = CloneRequest
+
+// DownloadModelJSONRequestBody defines body for DownloadModel for application/json ContentType.
+type DownloadModelJSONRequestBody = DownloadModelRequest
 
 // InstallEIModelJSONRequestBody defines body for InstallEIModel for application/json ContentType.
 type InstallEIModelJSONRequestBody InstallEIModelJSONBody
@@ -770,6 +841,9 @@ type ClientInterface interface {
 
 	CreateApp(ctx context.Context, params *CreateAppParams, body CreateAppJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// BuildAppEvents request
+	BuildAppEvents(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetAppsEvents request
 	GetAppsEvents(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -806,6 +880,11 @@ type ClientInterface interface {
 	RenameAppLocalBrickWithBody(ctx context.Context, appID string, brickID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	RenameAppLocalBrick(ctx context.Context, appID string, brickID string, body RenameAppLocalBrickJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// BuildAppWithBody request with any body
+	BuildAppWithBody(ctx context.Context, appID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	BuildApp(ctx context.Context, appID string, body BuildAppJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAppPorts request
 	GetAppPorts(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -868,6 +947,11 @@ type ClientInterface interface {
 	// GetAIModels request
 	GetAIModels(ctx context.Context, params *GetAIModelsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DownloadModelWithBody request with any body
+	DownloadModelWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	DownloadModel(ctx context.Context, body DownloadModelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// InstallEIModelWithBody request with any body
 	InstallEIModelWithBody(ctx context.Context, projectID int, params *InstallEIModelParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -878,6 +962,9 @@ type ClientInterface interface {
 
 	// GetAIModelDetails request
 	GetAIModelDetails(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// InstallModel request
+	InstallModel(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetPropertyKeys request
 	GetPropertyKeys(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -935,6 +1022,18 @@ func (c *Client) CreateAppWithBody(ctx context.Context, params *CreateAppParams,
 
 func (c *Client) CreateApp(ctx context.Context, params *CreateAppParams, body CreateAppJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateAppRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) BuildAppEvents(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewBuildAppEventsRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -1103,6 +1202,30 @@ func (c *Client) RenameAppLocalBrickWithBody(ctx context.Context, appID string, 
 
 func (c *Client) RenameAppLocalBrick(ctx context.Context, appID string, brickID string, body RenameAppLocalBrickJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRenameAppLocalBrickRequest(c.Server, appID, brickID, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) BuildAppWithBody(ctx context.Context, appID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewBuildAppRequestWithBody(c.Server, appID, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) BuildApp(ctx context.Context, appID string, body BuildAppJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewBuildAppRequest(c.Server, appID, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1365,6 +1488,30 @@ func (c *Client) GetAIModels(ctx context.Context, params *GetAIModelsParams, req
 	return c.Client.Do(req)
 }
 
+func (c *Client) DownloadModelWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDownloadModelRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DownloadModel(ctx context.Context, body DownloadModelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDownloadModelRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) InstallEIModelWithBody(ctx context.Context, projectID int, params *InstallEIModelParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewInstallEIModelRequestWithBody(c.Server, projectID, params, contentType, body)
 	if err != nil {
@@ -1403,6 +1550,18 @@ func (c *Client) DeleteAIModel(ctx context.Context, id string, params *DeleteAIM
 
 func (c *Client) GetAIModelDetails(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAIModelDetailsRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) InstallModel(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewInstallModelRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1662,6 +1821,33 @@ func NewCreateAppRequestWithBody(server string, params *CreateAppParams, content
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewBuildAppEventsRequest generates requests for BuildAppEvents
+func NewBuildAppEventsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/apps/build/events")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -2066,6 +2252,53 @@ func NewRenameAppLocalBrickRequestWithBody(server string, appID string, brickID 
 	}
 
 	operationPath := fmt.Sprintf("/v1/apps/%s/bricks/%s/rename", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewBuildAppRequest calls the generic BuildApp builder with application/json body
+func NewBuildAppRequest(server string, appID string, body BuildAppJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewBuildAppRequestWithBody(server, appID, "application/json", bodyReader)
+}
+
+// NewBuildAppRequestWithBody generates requests for BuildApp with any type of body
+func NewBuildAppRequestWithBody(server string, appID string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "appID", appID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/apps/%s/build", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -3009,6 +3242,46 @@ func NewGetAIModelsRequest(server string, params *GetAIModelsParams) (*http.Requ
 	return req, nil
 }
 
+// NewDownloadModelRequest calls the generic DownloadModel builder with application/json body
+func NewDownloadModelRequest(server string, body DownloadModelJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewDownloadModelRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewDownloadModelRequestWithBody generates requests for DownloadModel with any type of body
+func NewDownloadModelRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/models")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewInstallEIModelRequest calls the generic InstallEIModel builder with application/json body
 func NewInstallEIModelRequest(server string, projectID int, params *InstallEIModelParams, body InstallEIModelJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -3157,6 +3430,40 @@ func NewGetAIModelDetailsRequest(server string, id string) (*http.Request, error
 	}
 
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewInstallModelRequest generates requests for InstallModel
+func NewInstallModelRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/models/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -3546,6 +3853,9 @@ type ClientWithResponsesInterface interface {
 
 	CreateAppWithResponse(ctx context.Context, params *CreateAppParams, body CreateAppJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAppResp, error)
 
+	// BuildAppEventsWithResponse request
+	BuildAppEventsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*BuildAppEventsResp, error)
+
 	// GetAppsEventsWithResponse request
 	GetAppsEventsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAppsEventsResp, error)
 
@@ -3582,6 +3892,11 @@ type ClientWithResponsesInterface interface {
 	RenameAppLocalBrickWithBodyWithResponse(ctx context.Context, appID string, brickID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RenameAppLocalBrickResp, error)
 
 	RenameAppLocalBrickWithResponse(ctx context.Context, appID string, brickID string, body RenameAppLocalBrickJSONRequestBody, reqEditors ...RequestEditorFn) (*RenameAppLocalBrickResp, error)
+
+	// BuildAppWithBodyWithResponse request with any body
+	BuildAppWithBodyWithResponse(ctx context.Context, appID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*BuildAppResp, error)
+
+	BuildAppWithResponse(ctx context.Context, appID string, body BuildAppJSONRequestBody, reqEditors ...RequestEditorFn) (*BuildAppResp, error)
 
 	// GetAppPortsWithResponse request
 	GetAppPortsWithResponse(ctx context.Context, appID string, reqEditors ...RequestEditorFn) (*GetAppPortsResp, error)
@@ -3644,6 +3959,11 @@ type ClientWithResponsesInterface interface {
 	// GetAIModelsWithResponse request
 	GetAIModelsWithResponse(ctx context.Context, params *GetAIModelsParams, reqEditors ...RequestEditorFn) (*GetAIModelsResp, error)
 
+	// DownloadModelWithBodyWithResponse request with any body
+	DownloadModelWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DownloadModelResp, error)
+
+	DownloadModelWithResponse(ctx context.Context, body DownloadModelJSONRequestBody, reqEditors ...RequestEditorFn) (*DownloadModelResp, error)
+
 	// InstallEIModelWithBodyWithResponse request with any body
 	InstallEIModelWithBodyWithResponse(ctx context.Context, projectID int, params *InstallEIModelParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InstallEIModelResp, error)
 
@@ -3654,6 +3974,9 @@ type ClientWithResponsesInterface interface {
 
 	// GetAIModelDetailsWithResponse request
 	GetAIModelDetailsWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetAIModelDetailsResp, error)
+
+	// InstallModelWithResponse request
+	InstallModelWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*InstallModelResp, error)
 
 	// GetPropertyKeysWithResponse request
 	GetPropertyKeysWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetPropertyKeysResp, error)
@@ -3743,6 +4066,36 @@ func (r CreateAppResp) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r CreateAppResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type BuildAppEventsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r BuildAppEventsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r BuildAppEventsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r BuildAppEventsResp) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -4039,6 +4392,38 @@ func (r RenameAppLocalBrickResp) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r RenameAppLocalBrickResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type BuildAppResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON412      *PreconditionFailed
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r BuildAppResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r BuildAppResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r BuildAppResp) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -4653,6 +5038,37 @@ func (r GetAIModelsResp) ContentType() string {
 	return ""
 }
 
+type DownloadModelResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r DownloadModelResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DownloadModelResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DownloadModelResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type InstallEIModelResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4691,9 +5107,9 @@ func (r InstallEIModelResp) ContentType() string {
 type DeleteAIModelResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON400      *BadRequest
 	JSON404      *NotFound
 	JSON409      *Conflict
-	JSON412      *PreconditionFailed
 	JSON500      *InternalServerError
 }
 
@@ -4725,6 +5141,8 @@ type GetAIModelDetailsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *AIModelItem
+	JSON400      *BadRequest
+	JSON404      *NotFound
 	JSON500      *InternalServerError
 }
 
@@ -4746,6 +5164,38 @@ func (r GetAIModelDetailsResp) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetAIModelDetailsResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type InstallModelResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON404      *NotFound
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r InstallModelResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r InstallModelResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r InstallModelResp) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -5062,6 +5512,15 @@ func (c *ClientWithResponses) CreateAppWithResponse(ctx context.Context, params 
 	return ParseCreateAppResp(rsp)
 }
 
+// BuildAppEventsWithResponse request returning *BuildAppEventsResp
+func (c *ClientWithResponses) BuildAppEventsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*BuildAppEventsResp, error) {
+	rsp, err := c.BuildAppEvents(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseBuildAppEventsResp(rsp)
+}
+
 // GetAppsEventsWithResponse request returning *GetAppsEventsResp
 func (c *ClientWithResponses) GetAppsEventsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAppsEventsResp, error) {
 	rsp, err := c.GetAppsEvents(ctx, reqEditors...)
@@ -5181,6 +5640,23 @@ func (c *ClientWithResponses) RenameAppLocalBrickWithResponse(ctx context.Contex
 		return nil, err
 	}
 	return ParseRenameAppLocalBrickResp(rsp)
+}
+
+// BuildAppWithBodyWithResponse request with arbitrary body returning *BuildAppResp
+func (c *ClientWithResponses) BuildAppWithBodyWithResponse(ctx context.Context, appID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*BuildAppResp, error) {
+	rsp, err := c.BuildAppWithBody(ctx, appID, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseBuildAppResp(rsp)
+}
+
+func (c *ClientWithResponses) BuildAppWithResponse(ctx context.Context, appID string, body BuildAppJSONRequestBody, reqEditors ...RequestEditorFn) (*BuildAppResp, error) {
+	rsp, err := c.BuildApp(ctx, appID, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseBuildAppResp(rsp)
 }
 
 // GetAppPortsWithResponse request returning *GetAppPortsResp
@@ -5370,6 +5846,23 @@ func (c *ClientWithResponses) GetAIModelsWithResponse(ctx context.Context, param
 	return ParseGetAIModelsResp(rsp)
 }
 
+// DownloadModelWithBodyWithResponse request with arbitrary body returning *DownloadModelResp
+func (c *ClientWithResponses) DownloadModelWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DownloadModelResp, error) {
+	rsp, err := c.DownloadModelWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDownloadModelResp(rsp)
+}
+
+func (c *ClientWithResponses) DownloadModelWithResponse(ctx context.Context, body DownloadModelJSONRequestBody, reqEditors ...RequestEditorFn) (*DownloadModelResp, error) {
+	rsp, err := c.DownloadModel(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDownloadModelResp(rsp)
+}
+
 // InstallEIModelWithBodyWithResponse request with arbitrary body returning *InstallEIModelResp
 func (c *ClientWithResponses) InstallEIModelWithBodyWithResponse(ctx context.Context, projectID int, params *InstallEIModelParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InstallEIModelResp, error) {
 	rsp, err := c.InstallEIModelWithBody(ctx, projectID, params, contentType, body, reqEditors...)
@@ -5403,6 +5896,15 @@ func (c *ClientWithResponses) GetAIModelDetailsWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseGetAIModelDetailsResp(rsp)
+}
+
+// InstallModelWithResponse request returning *InstallModelResp
+func (c *ClientWithResponses) InstallModelWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*InstallModelResp, error) {
+	rsp, err := c.InstallModel(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseInstallModelResp(rsp)
 }
 
 // GetPropertyKeysWithResponse request returning *GetPropertyKeysResp
@@ -5562,6 +6064,32 @@ func ParseCreateAppResp(rsp *http.Response) (*CreateAppResp, error) {
 		}
 		response.JSON409 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseBuildAppEventsResp parses an HTTP response from a BuildAppEventsWithResponse call
+func ParseBuildAppEventsResp(rsp *http.Response) (*BuildAppEventsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &BuildAppEventsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -5952,6 +6480,46 @@ func ParseRenameAppLocalBrickResp(rsp *http.Response) (*RenameAppLocalBrickResp,
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseBuildAppResp parses an HTTP response from a BuildAppWithResponse call
+func ParseBuildAppResp(rsp *http.Response) (*BuildAppResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &BuildAppResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
 		var dest PreconditionFailed
@@ -6732,6 +7300,39 @@ func ParseGetAIModelsResp(rsp *http.Response) (*GetAIModelsResp, error) {
 	return response, nil
 }
 
+// ParseDownloadModelResp parses an HTTP response from a DownloadModelWithResponse call
+func ParseDownloadModelResp(rsp *http.Response) (*DownloadModelResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DownloadModelResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseInstallEIModelResp parses an HTTP response from a InstallEIModelWithResponse call
 func ParseInstallEIModelResp(rsp *http.Response) (*InstallEIModelResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -6807,6 +7408,13 @@ func ParseDeleteAIModelResp(rsp *http.Response) (*DeleteAIModelResp, error) {
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest NotFound
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -6820,13 +7428,6 @@ func ParseDeleteAIModelResp(rsp *http.Response) (*DeleteAIModelResp, error) {
 			return nil, err
 		}
 		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest PreconditionFailed
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
@@ -6860,6 +7461,60 @@ func ParseGetAIModelDetailsResp(rsp *http.Response) (*GetAIModelDetailsResp, err
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseInstallModelResp parses an HTTP response from a InstallModelWithResponse call
+func ParseInstallModelResp(rsp *http.Response) (*InstallModelResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &InstallModelResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
