@@ -66,9 +66,16 @@ if [ -n "${BOARD_PASSWORD:-}" ]; then
 fi
 
 mkdir -p "$(dirname "$SOCKET")"
+# The background process would inherit the caller's stdout and stderr and keep
+# them open, so anything reading the task output (e.g. `| tee`) would never see
+# it end. Its messages go to a log instead, shown if the tunnel does not open.
+LOG="${SOCKET%.sock}.log"
 # ExitOnForwardFailure makes the command fail if the port is already taken on
 # the board, instead of leaving a tunnel that forwards nothing.
-ssh -f -N -M -S "$SOCKET" \
+if ! ssh -f -N -M -S "$SOCKET" \
   -o ExitOnForwardFailure=yes \
   -R "$PORT:127.0.0.1:$PORT" \
-  "$BOARD"
+  "$BOARD" >/dev/null 2>"$LOG"; then
+  cat "$LOG" >&2
+  exit 1
+fi

@@ -317,22 +317,28 @@ tasks:
           )"
       - echo "Version {{ .LOCAL_VERSION }} published, 'system update' on the board now offers it while the server and the tunnel are up."
 
+  # Undoes board:publish-update: removes the apt source from the board, then
+  # closes the tunnel and stops the server. The source goes first, so that the
+  # board is never left following a repository it can no longer reach.
   board:publish-update:clean:
     desc: Remove the locally published update from the board, restoring the official repository
     interactive: true
     vars:
-      BOARD_REPO_DIR: /opt/arduino-app-cli-local-repo
+      SERVER_CONTAINER: arduino-app-cli-local-repo
       SOURCE_LIST: /etc/apt/sources.list.d/arduino-app-cli-local.list
+      PORT:
+        sh: echo "${LOCAL_REPO_PORT:-8765}"
     cmds:
       - |
           ./scripts/board-sudo.sh "$(cat <<'EOS'
           set -e
           rm -f {{ .SOURCE_LIST }}
-          rm -rf {{ .BOARD_REPO_DIR }}
           apt-get update
           apt-cache policy arduino-app-cli
           EOS
           )"
+      - ./scripts/board-tunnel.sh close {{ .PORT }}
+      - docker rm -f {{ .SERVER_CONTAINER }} >/dev/null 2>&1 || true
 
   bump:runner-version:
     desc: Update the RunnerVersion constant in config.go to match RUNNER_VERSION.
