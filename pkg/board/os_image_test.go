@@ -40,6 +40,9 @@ func (m *MockRemoteConn) Stats(path string) (remote.FileInfo, error) {
 func (m *MockRemoteConn) WriteFile(data io.Reader, path string) error {
 	return nil
 }
+func (m *MockRemoteConn) Move(src string, dst string) error {
+	return nil
+}
 
 func createBuildInfoConnection(imageVersion string) remote.FS {
 	mockConn := MockRemoteConn{

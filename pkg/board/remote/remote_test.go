@@ -130,6 +130,75 @@ func TestRemoteFS(t *testing.T) {
 				}
 			})
 
+			t.Run("Move", func(t *testing.T) {
+				const dir = "./movedir"
+				require.NoError(t, tc.conn.MkDirAll(dir))
+				t.Cleanup(func() { _ = tc.conn.Remove(dir) })
+
+				write := func(t *testing.T, p string, content string) {
+					t.Helper()
+					require.NoError(t, tc.conn.WriteFile(strings.NewReader(content), p))
+				}
+				read := func(t *testing.T, p string) string {
+					t.Helper()
+					r, err := tc.conn.ReadFile(p)
+					require.NoError(t, err)
+					defer r.Close()
+					data, err := io.ReadAll(r)
+					require.NoError(t, err)
+					return string(data)
+				}
+
+				t.Run("file to missing destination", func(t *testing.T) {
+					src := dir + "/src.txt"
+					dst := dir + "/dst.txt"
+					write(t, src, "hello")
+					require.NoError(t, tc.conn.Move(src, dst))
+					assert.Equal(t, "hello", read(t, dst))
+					_, err := tc.conn.Stats(src)
+					assert.Error(t, err)
+				})
+
+				t.Run("file overwrites existing file", func(t *testing.T) {
+					src := dir + "/over-src.txt"
+					dst := dir + "/over-dst.txt"
+					write(t, src, "new")
+					write(t, dst, "old")
+					require.NoError(t, tc.conn.Move(src, dst))
+					assert.Equal(t, "new", read(t, dst))
+					_, err := tc.conn.Stats(src)
+					assert.Error(t, err)
+				})
+
+				t.Run("destination directory is an error", func(t *testing.T) {
+					src := dir + "/todir-src.txt"
+					dstDir := dir + "/todir"
+					write(t, src, "hello")
+					require.NoError(t, tc.conn.MkDirAll(dstDir))
+					err := tc.conn.Move(src, dstDir)
+					require.Error(t, err)
+					// The source must NOT have been moved inside the destination directory.
+					assert.Equal(t, "hello", read(t, src))
+					_, err = tc.conn.Stats(dstDir + "/" + path.Base(src))
+					assert.Error(t, err)
+				})
+
+				t.Run("missing source is an error", func(t *testing.T) {
+					err := tc.conn.Move(dir+"/nosuch.txt", dir+"/whatever.txt")
+					require.Error(t, err)
+				})
+
+				t.Run("paths with spaces quotes and dollars", func(t *testing.T) {
+					src := dir + "/it's $file.txt"
+					dst := dir + `/it's $moved.txt`
+					write(t, src, "hello")
+					require.NoError(t, tc.conn.Move(src, dst))
+					assert.Equal(t, "hello", read(t, dst))
+					_, err := tc.conn.Stats(src)
+					assert.Error(t, err)
+				})
+			})
+
 			t.Run("Remove", func(t *testing.T) {
 				for _, file := range files {
 					err := tc.conn.Remove("./" + file)
