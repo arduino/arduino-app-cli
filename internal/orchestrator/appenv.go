@@ -65,6 +65,17 @@ var hostVariables = map[string]func(hostFacts) string{
 		}
 		return hostIP
 	},
+
+	// The bind source of the DSP mount point is not known at build time,
+	// so the host variable is used to fill it in.
+	"HOST_DSP_INSTALLATION_PATH": func(hostFacts) string {
+		for _, p := range paths.NewPathList("/usr/share/qcom", "/usr/share/hexagon-dsp") {
+			if p.Exist() {
+				return p.String()
+			}
+		}
+		return ""
+	},
 }
 
 // hostFacts is what the answers above are allowed to look at, besides the board.
