@@ -18573,17 +18573,17 @@ Please see the LICENSE file for details.
 
 *****
 License for the following packages:
-  golang.org/x/crypto/argon2@v0.56.0
-  golang.org/x/crypto/blake2b@v0.56.0
-  golang.org/x/crypto/blowfish@v0.56.0
-  golang.org/x/crypto/cast5@v0.56.0
-  golang.org/x/crypto/curve25519@v0.56.0
-  golang.org/x/crypto/hkdf@v0.56.0
-  golang.org/x/crypto/sha3@v0.56.0
-  golang.org/x/crypto/ssh@v0.56.0
-  golang.org/x/crypto/ssh/agent@v0.56.0
-  golang.org/x/crypto/ssh/internal/bcrypt_pbkdf@v0.56.0
-  golang.org/x/crypto/ssh/knownhosts@v0.56.0
+  golang.org/x/crypto/argon2@v0.57.0
+  golang.org/x/crypto/blake2b@v0.57.0
+  golang.org/x/crypto/blowfish@v0.57.0
+  golang.org/x/crypto/cast5@v0.57.0
+  golang.org/x/crypto/curve25519@v0.57.0
+  golang.org/x/crypto/hkdf@v0.57.0
+  golang.org/x/crypto/sha3@v0.57.0
+  golang.org/x/crypto/ssh@v0.57.0
+  golang.org/x/crypto/ssh/agent@v0.57.0
+  golang.org/x/crypto/ssh/internal/bcrypt_pbkdf@v0.57.0
+  golang.org/x/crypto/ssh/knownhosts@v0.57.0
   golang.org/x/net/context@v0.58.0
   golang.org/x/net/http2@v0.58.0
   golang.org/x/net/internal/httpcommon@v0.58.0
@@ -18593,31 +18593,31 @@ License for the following packages:
   golang.org/x/net/proxy@v0.58.0
   golang.org/x/net/publicsuffix@v0.58.0
   golang.org/x/net/trace@v0.58.0
-  golang.org/x/sync/errgroup@v0.22.0
-  golang.org/x/sync/semaphore@v0.22.0
-  golang.org/x/sync/singleflight@v0.22.0
+  golang.org/x/sync/errgroup@v0.23.0
+  golang.org/x/sync/semaphore@v0.23.0
+  golang.org/x/sync/singleflight@v0.23.0
   golang.org/x/sys/execabs@v0.48.0
   golang.org/x/sys/unix@v0.48.0
-  golang.org/x/term@v0.45.0
-  golang.org/x/text/encoding@v0.41.0
-  golang.org/x/text/encoding/internal@v0.41.0
-  golang.org/x/text/encoding/internal/identifier@v0.41.0
-  golang.org/x/text/encoding/unicode@v0.41.0
-  golang.org/x/text/feature/plural@v0.41.0
-  golang.org/x/text/internal@v0.41.0
-  golang.org/x/text/internal/catmsg@v0.41.0
-  golang.org/x/text/internal/format@v0.41.0
-  golang.org/x/text/internal/language@v0.41.0
-  golang.org/x/text/internal/language/compact@v0.41.0
-  golang.org/x/text/internal/number@v0.41.0
-  golang.org/x/text/internal/stringset@v0.41.0
-  golang.org/x/text/internal/tag@v0.41.0
-  golang.org/x/text/internal/utf8internal@v0.41.0
-  golang.org/x/text/language@v0.41.0
-  golang.org/x/text/message@v0.41.0
-  golang.org/x/text/message/catalog@v0.41.0
-  golang.org/x/text/runes@v0.41.0
-  golang.org/x/text/width@v0.41.0
+  golang.org/x/term@v0.46.0
+  golang.org/x/text/encoding@v0.42.0
+  golang.org/x/text/encoding/internal@v0.42.0
+  golang.org/x/text/encoding/internal/identifier@v0.42.0
+  golang.org/x/text/encoding/unicode@v0.42.0
+  golang.org/x/text/feature/plural@v0.42.0
+  golang.org/x/text/internal@v0.42.0
+  golang.org/x/text/internal/catmsg@v0.42.0
+  golang.org/x/text/internal/format@v0.42.0
+  golang.org/x/text/internal/language@v0.42.0
+  golang.org/x/text/internal/language/compact@v0.42.0
+  golang.org/x/text/internal/number@v0.42.0
+  golang.org/x/text/internal/stringset@v0.42.0
+  golang.org/x/text/internal/tag@v0.42.0
+  golang.org/x/text/internal/utf8internal@v0.42.0
+  golang.org/x/text/language@v0.42.0
+  golang.org/x/text/message@v0.42.0
+  golang.org/x/text/message/catalog@v0.42.0
+  golang.org/x/text/runes@v0.42.0
+  golang.org/x/text/width@v0.42.0
   golang.org/x/time/rate@v0.15.0
 
 Copyright 2009 The Go Authors.
