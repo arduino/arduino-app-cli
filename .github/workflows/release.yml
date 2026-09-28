@@ -42,9 +42,13 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - uses: arduino/setup-task@v3.0.0
+        with:
+          version: 3.53.1
+
       - name: Build deb
         run: |
-          go tool task build-deb VERSION=${TAG_VERSION} ARCH=${{ matrix.arch }} RELEASE="true"
+          task build-deb VERSION=${TAG_VERSION} ARCH=${{ matrix.arch }} RELEASE="true"
 
       - name: Upload deb artifact
         uses: actions/upload-artifact@v4

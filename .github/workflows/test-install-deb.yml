@@ -27,11 +27,15 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - uses: arduino/setup-task@v3.0.0
+        with:
+          version: 3.53.1
+
       - name: Build the deb
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          go tool task build-deb ARCH=amd64 OUTPUT=$PWD/build
+          task build-deb ARCH=amd64 OUTPUT=$PWD/build
 
       - name: Upload the deb
         uses: actions/upload-artifact@v4
