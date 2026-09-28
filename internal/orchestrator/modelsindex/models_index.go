@@ -402,8 +402,8 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 		var modelSize uint64
 		if modelFileInfo, err := m.FullPath.Join("model.eim").Stat(); err != nil {
 			slog.Warn("unable to stat custom model file", slog.String("error", err.Error()), "path", m.FullPath.Join("model.eim"))
-		} else {
-			modelSize = uint64(modelFileInfo.Size())
+		} else if sizeBytes := modelFileInfo.Size(); sizeBytes > 0 {
+			modelSize = uint64(sizeBytes)
 		}
 
 		models = append(models, AIModel{
