@@ -47,8 +47,8 @@ path = [
   "dprint.json",
   "adbd.Dockerfile",
   "Taskfile.yml",
-  "go.mod",
-  "go.sum",
+  "**/go.mod",
+  "**/go.sum",
   "README.md",
   "internal/api/docs/**",
 ]
