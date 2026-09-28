@@ -37,7 +37,7 @@ func newLogsCmd(cfg config.Configuration) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return logsHandler(cmd.Context(), app, &tail, follow, all)
+			return logsHandler(cmd.Context(), app, cfg, &tail, follow, all)
 		},
 		ValidArgsFunction: completion.ApplicationNames(cfg),
 	}
@@ -47,34 +47,41 @@ func newLogsCmd(cfg config.Configuration) *cobra.Command {
 	return cmd
 }
 
-func logsHandler(ctx context.Context, app app.ArduinoApp, tail *uint64, follow, all bool) error {
+func logsHandler(ctx context.Context, app app.ArduinoApp, cfg config.Configuration, tail *uint64, follow, all bool) error {
 	stdout, _, err := feedback.DirectStreams()
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 		return nil
 	}
 
-	cfg := orchestrator.AppLogsRequest{
+	req := orchestrator.AppLogsRequest{
 		ShowAppLogs: true,
 		Follow:      follow,
 		Tail:        tail,
 	}
 	if all {
-		cfg.ShowServicesLogs = true
+		req.ShowServicesLogs = true
 	}
 	logsIter, err := orchestrator.AppLogs(
 		ctx,
 		app,
-		cfg,
+		req,
 		servicelocator.GetDockerClient(),
 		servicelocator.GetBricksIndex(),
+		servicelocator.GetServicesIndex(),
+		cfg,
 	)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrGeneric)
 		return nil
 	}
 	for msg := range logsIter {
-		fmt.Fprintf(stdout, "[%s] %s\n", msg.Name, msg.Content)
+		switch msg.Source {
+		case orchestrator.LogSourceBrick:
+			fmt.Fprintf(stdout, "[%s (%s)] %s\n", msg.BrickID, msg.ContainerName, msg.Content)
+		default:
+			fmt.Fprintf(stdout, "[%s] %s\n", msg.ContainerName, msg.Content)
+		}
 	}
 	return nil
 }

@@ -53,19 +53,28 @@ type Platform struct {
 // available without any additional carrier/hat.
 // Derived from BoardName so it stays consistent with platform.json overrides.
 func (p Platform) HasNativeCSICameraSupport() bool {
-	return p.BoardName == "ventunoq"
+	return p.BoardName == BoardVentunoQ
 }
 
-func GetPlatform(dir *paths.Path) Platform {
-	compatible := devicetree.LoadCompatible()
-	slog.Debug("detected platform", "compatible", compatible)
-	var platform Platform
-	switch {
-	case compatible.IsCompatibleWith("arduino,imola"):
-		platform = Platform{
+const (
+	BoardUnoQ     = "unoq"
+	BoardVentunoQ = "ventunoq"
+)
+
+// SupportedBoards are the board names ForBoard knows about.
+func SupportedBoards() []string {
+	return []string{BoardUnoQ, BoardVentunoQ}
+}
+
+// ForBoard is the platform of a board by name, for the cases where it is chosen
+// instead of detected: building a release names the board it is built for.
+func ForBoard(boardName string) (Platform, bool) {
+	switch boardName {
+	case BoardUnoQ:
+		return Platform{
 			FQBN:       "arduino:zephyr:unoq",
 			PlatformID: "arduino:zephyr",
-			BoardName:  "unoq",
+			BoardName:  BoardUnoQ,
 			Linux: struct {
 				BoardLeds paths.PathList
 				Distro    Distro
@@ -77,12 +86,12 @@ func GetPlatform(dir *paths.Path) Platform {
 			Micro: struct{ ResetPin GpioPin }{
 				ResetPin: GpioPin{Chip: "gpiochip1", Number: 38},
 			},
-		}
-	case compatible.IsCompatibleWith("arduino,monza"):
-		platform = Platform{
+		}, true
+	case BoardVentunoQ:
+		return Platform{
 			FQBN:       "arduino:zephyr:ventunoq",
 			PlatformID: "arduino:zephyr",
-			BoardName:  "ventunoq",
+			BoardName:  BoardVentunoQ,
 			Linux: struct {
 				BoardLeds paths.PathList
 				Distro    Distro
@@ -94,8 +103,24 @@ func GetPlatform(dir *paths.Path) Platform {
 			Micro: struct{ ResetPin GpioPin }{
 				ResetPin: GpioPin{Chip: "gpiochip2", Number: 78},
 			},
-		}
+		}, true
 	default:
+		return Platform{}, false
+	}
+}
+
+func GetPlatform(dir *paths.Path) Platform {
+	compatible := devicetree.LoadCompatible()
+	slog.Debug("detected platform", "compatible", compatible)
+	var platform Platform
+	var known bool
+	switch {
+	case compatible.IsCompatibleWith("arduino,imola"):
+		platform, known = ForBoard(BoardUnoQ)
+	case compatible.IsCompatibleWith("arduino,monza"):
+		platform, known = ForBoard(BoardVentunoQ)
+	}
+	if !known {
 		slog.Warn("not supported platform", "compatible", compatible)
 	}
 
@@ -120,6 +145,15 @@ func GetPlatform(dir *paths.Path) Platform {
 
 func (p Platform) GetMicro() micro.Micro {
 	return micro.New(micro.GpioPin(p.Micro.ResetPin))
+}
+
+// PackageAndArchitecture splits the PlatformID, in the form '<package>:<architecture>'.
+func (p Platform) PackageAndArchitecture() (string, string, error) {
+	pkg, architecture, found := strings.Cut(p.PlatformID, ":")
+	if !found || pkg == "" || architecture == "" {
+		return "", "", fmt.Errorf("invalid platform id '%s': expected the form '<package>:<architecture>'", p.PlatformID)
+	}
+	return pkg, architecture, nil
 }
 
 func (p Platform) SupportFlashToRam() bool {

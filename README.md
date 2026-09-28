@@ -4,6 +4,14 @@
 
 [![Test Go status](https://github.com/arduino/arduino-app-cli/actions/workflows/go-test.yml/badge.svg)](https://github.com/arduino/arduino-app-cli/actions/workflows/go-test.yml)
 
+## Requirements
+
+A Docker engine speaking **API 1.44 or later** (Docker Engine 25.0+). Run the following command to check if requirements are met:
+
+```bash
+arduino-app-cli system check
+```
+
 ## Docs
 
 For guidance on installation and development, see the [User documentation].

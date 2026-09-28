@@ -1,6 +1,6 @@
 ---
 name: github.com/go-logr/logr
-version: v1.4.3
+version: v1.4.4
 type: go
 summary: Package logr defines a general-purpose logging API and abstract interfaces
   to back that API.

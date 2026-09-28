@@ -1,6 +1,6 @@
 ---
 name: github.com/containerd/ttrpc
-version: v1.2.7
+version: v1.2.9
 type: go
 summary: package ttrpc defines and implements a low level simple transfer protocol
   optimized for low latency and reliable connections between processes on the same

@@ -1,13 +1,13 @@
 ---
 name: github.com/google/go-containerregistry/pkg/v1/remote/transport
-version: v0.20.7
+version: v0.22.1
 type: go
 summary: Package transport provides facilities for setting up an authenticated http.RoundTripper
   given an Authenticator and base RoundTripper.
 homepage: https://pkg.go.dev/github.com/google/go-containerregistry/pkg/v1/remote/transport
 license: apache-2.0
 licenses:
-- sources: go-containerregistry@v0.20.7/LICENSE
+- sources: go-containerregistry@v0.22.1/LICENSE
   text: |2-
 
                                      Apache License

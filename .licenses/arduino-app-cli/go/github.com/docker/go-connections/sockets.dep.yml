@@ -1,13 +1,13 @@
 ---
 name: github.com/docker/go-connections/sockets
-version: v0.5.0
+version: v0.8.1
 type: go
 summary: Package sockets provides helper functions to create and configure Unix or
   TCP sockets.
 homepage: https://pkg.go.dev/github.com/docker/go-connections/sockets
 license: apache-2.0
 licenses:
-- sources: go-connections@v0.5.0/LICENSE
+- sources: go-connections@v0.8.1/LICENSE
   text: |2
 
                                      Apache License
@@ -200,4 +200,7 @@ licenses:
        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
        See the License for the specific language governing permissions and
        limitations under the License.
+- sources: go-connections@v0.8.1/README.md
+  text: go-connections is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE)
+    for the full license text.
 notices: []

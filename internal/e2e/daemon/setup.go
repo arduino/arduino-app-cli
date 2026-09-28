@@ -21,6 +21,16 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
 )
 
+// SSE event type and the error code the stream teardown always emits.
+const (
+	sseEventError       = "error"
+	sseEventData        = "data"
+	sseEventDone        = "done"
+	sseCodeServerClosed = "SERVER_CLOSED"
+)
+
+var ARM64Arch = "arm64"
+
 func GetHttpclient(t *testing.T, opts ...e2e.ArduinoAppCLIOption) *client.ClientWithResponses {
 	t.Helper()
 	c, _ := GetHttpclientAndAddr(t, opts...)
@@ -32,17 +42,12 @@ func GetHttpclient(t *testing.T, opts ...e2e.ArduinoAppCLIOption) *client.Client
 func GetHttpclientAndAddr(t *testing.T, opts ...e2e.ArduinoAppCLIOption) (*client.ClientWithResponses, string) {
 	t.Helper()
 	cli := e2e.CreateEnvForDaemon(t, opts...)
-	t.Cleanup(cli.CleanUp)
 	httpClient, err := client.NewClientWithResponses(cli.DaemonAddr)
 	require.NoError(t, err)
 	return httpClient, cli.DaemonAddr
 }
 
-func newSSEClient(req *http.Request, lastEventID int64) (events chan Event, err error) {
-
-	if lastEventID > 0 {
-		req.Header.Set("Last-Event-ID", fmt.Sprintf("%d", lastEventID))
-	}
+func newSSEClient(req *http.Request) (events chan Event, err error) {
 	resp, err := http.DefaultClient.Do(req) //nolint
 	if err != nil {
 		return nil, err
@@ -93,7 +98,7 @@ func loop(r io.ReadCloser, events chan Event) {
 // reports. That image is arm64 only.
 func skipWithoutModelsImage(t *testing.T) {
 	t.Helper()
-	if runtime.GOARCH != "arm64" {
+	if runtime.GOARCH != ARM64Arch {
 		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
 	}
 }

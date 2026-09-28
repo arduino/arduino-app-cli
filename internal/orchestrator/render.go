@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"os"
 	"os/user"
+	"path/filepath"
 	"strings"
 	"text/template"
 
@@ -38,6 +39,26 @@ var hostFuncs = template.FuncMap{
 		return group.Gid
 	},
 
+	// The major:minor of the devices of a class the name pattern matches: the minor of a
+	// misc device is assigned at boot, and which nodes exist is up to the board.
+	"deviceNumbers": func(class, pattern string) []string {
+		attributes, err := filepath.Glob("/sys/class/" + class + "/" + pattern + "/dev")
+		if err != nil {
+			slog.Warn("cannot list the devices of the class", slog.String("class", class), slog.String("pattern", pattern), slog.Any("error", err))
+			return nil
+		}
+		numbers := make([]string, 0, len(attributes))
+		for _, attribute := range attributes {
+			content, err := os.ReadFile(attribute)
+			if err != nil {
+				slog.Warn("cannot read the device number", slog.String("path", attribute), slog.Any("error", err))
+				continue
+			}
+			numbers = append(numbers, strings.TrimSpace(string(content)))
+		}
+		return numbers
+	},
+
 	"deviceMajor": func(driver string) string {
 		devices, err := os.ReadFile("/proc/devices")
 		if err != nil {
@@ -56,7 +77,7 @@ var hostFuncs = template.FuncMap{
 
 // renderComposeFile writes the compose file the app is started with: the template
 // evaluated on this board, with its includes merged in.
-func renderComposeFile(ctx context.Context, arduinoApp *app.ArduinoApp, env, secrets types.Mapping) (*types.Project, error) {
+func renderComposeFile(ctx context.Context, arduinoApp *app.ArduinoApp, env, secrets types.Mapping, projectName string) (*types.Project, error) {
 	// The overrides are a second compose file, merged over the main one. It is absent
 	// when no included compose declares a service.
 	templateFiles := paths.PathList{arduinoApp.AppComposeTemplateFilePath()}
@@ -87,7 +108,7 @@ func renderComposeFile(ctx context.Context, arduinoApp *app.ArduinoApp, env, sec
 			Environment: secrets.Clone().Merge(env),
 		},
 		// Relative paths are resolved now: the rendered file is read from elsewhere.
-		func(o *loader.Options) { o.ResolvePaths = true },
+		func(o *loader.Options) { o.ResolvePaths = true; o.SetProjectName(projectName, true) },
 	)
 	if err != nil {
 		return nil, err
@@ -104,6 +125,8 @@ func renderComposeFile(ctx context.Context, arduinoApp *app.ArduinoApp, env, sec
 	if err := fatomic.WriteFile(composeFile.String(), data, 0644); err != nil {
 		return nil, err
 	}
+	// What the containers state they were started from: `docker compose ls` reads it.
+	prj.ComposeFiles = []string{composeFile.String()}
 	slog.Debug("wrote the app compose file", slog.String("path", composeFile.String()))
 
 	return prj, nil
@@ -156,11 +179,19 @@ func renderComposeNode(node any) (any, error) {
 			switch item := item.(type) {
 			case nil:
 			case string:
-				if isExpression && rendered[item] {
+				if !isExpression {
+					rendered[item] = true
+					items = append(items, item)
 					continue
 				}
-				rendered[item] = true
-				items = append(items, item)
+				// An expression can write a list of its own: one item per line.
+				for line := range strings.SplitSeq(item, "\n") {
+					if line = strings.TrimSpace(line); line == "" || rendered[line] {
+						continue
+					}
+					rendered[line] = true
+					items = append(items, line)
+				}
 			default:
 				items = append(items, item)
 			}

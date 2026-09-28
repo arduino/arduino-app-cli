@@ -568,6 +568,160 @@ Contains a JSON object with the details of an error.
 			},
 		},
 		{
+			OperationId: "buildApp",
+			Method:      http.MethodPost,
+			Path:        "/v1/apps/{appID}/build",
+			Request: (*struct {
+				ID           string `path:"appID" description:"application identifier."`
+				BuildID      string `json:"build_id" description:"Optional build identifier. When set, the progress events published to the app build events stream are tagged with it, so a client can filter the stream down to this build."`
+				Target       string `json:"target" description:"Target defaults to the board running the build."`
+				ReleaseLabel string `json:"release_label" description:"ReleaseLabel is an optional label the user attaches to the release. It is stored in the manifest as it is given."`
+				Notes        string `json:"notes" description:"Notes is the release note, markdown, and goes in the manifest as it is given."`
+				IncludeData  bool   `json:"include_data" description:"IncludeData ships the data folder of the app, at the root of the archive."`
+			})(nil),
+			Description: "Build the application into a release archive: the python environment is built and the compose files are resolved for the target board, so that installing it generates nothing. The gzipped release archive is streamed back as the response body for the client to save; build progress is reported on the app build events stream.",
+			Summary:     "Build an app into a release archive",
+			Tags:        []Tag{ApplicationTag},
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "application/gzip",
+				DataStructure: []byte{},
+				Description:   "The gzipped release archive, streamed for the client to save.",
+				StatusCode:    http.StatusOK,
+			},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+			},
+		},
+		{
+			OperationId: "buildAppEvents",
+			Method:      http.MethodGet,
+			Path:        "/v1/apps/build/events",
+			Description: "Stream the progress of every build of every app as Server-Sent Events. Each event carries the 'build_id' it belongs to, so a client can filter the stream down to a single build it triggered.",
+			Summary:     "Stream every app's build events",
+			Tags:        []Tag{ApplicationTag},
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "text/event-stream",
+				DataStructure: "",
+				Description: `A stream of Server-Sent Events (SSE) that notifies the progress of every build of every app.
+Each event carries the 'build_id' it belongs to, so the client can filter by build.
+The client will receive events formatted as follows:
+
+**Event 'progress'**:
+Contains a JSON object with the percentage of completion.
+'event: progress'
+'data: {"build_id":"abc","name":"python environment","progress":0.25}'
+
+**Event 'message'**:
+Contains a JSON object with an informational message.
+'event: message'
+'data: {"build_id":"abc","message":"building the python environment..."}'
+
+**Event 'done'**:
+Contains a JSON object with the built release facts.
+'event: done'
+'data: {"build_id":"abc","name":"user:my-app","target":"unoq"}'
+
+**Event 'error'**:
+Contains a JSON object with the details of an error.
+'event: error'
+'data: {"build_id":"abc","code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+`,
+			},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "installApp",
+			Method:      http.MethodPut,
+			Path:        "/v1/apps/install",
+			Request: (*struct {
+				File []byte `form:"file" description:"The release archive (.ard). Must be built for this board." validate:"required"`
+			})(nil),
+			Parameters: (*struct {
+				Prepare bool `query:"prepare" description:"After the install, download the containers and models the release needs to run. Any value other than the literal string 'true' (including an empty value or omitting the parameter) is treated as false."`
+			})(nil),
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "text/event-stream",
+				DataStructure: "",
+				Description: `A stream of Server-Sent Events (SSE) that notifies the progress.
+The client will receive events formatted as follows:
+
+**Event 'progress'**:
+Contains a JSON object with the percentage of completion.
+'event: progress'
+'data: {"name":"containers","progress":25}'
+
+**Event 'message'**:
+Contains a JSON object with an informational message.
+'event: message'
+'data: {"message":"downloading..."}'
+
+**Event 'done'**:
+Contains a JSON object with the installed app.
+'event: done'
+'data: {"id":"dXNlcjpteS1yZWxlYXNl","name":"my-release","release":"my-release-20270101","target":"unoq"}'
+
+**Event 'error'**:
+Contains a JSON object with the details of an error.
+'event: error'
+'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+`,
+			},
+			Description: "Installs a release archive as a new app in the releases dir. The release is read only and is named after the release, date included. If prepare is true, it also downloads the containers and models the release needs to run.",
+			Summary:     "Installs an app from a release archive",
+			Tags:        []Tag{ApplicationTag},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
+			OperationId: "prepareAppRelease",
+			Method:      http.MethodPut,
+			Path:        "/v1/apps/{id}/prepare",
+			Request: (*struct {
+				ID string `path:"id" description:"application identifier."`
+			})(nil),
+			Description: "Downloads the containers and models an already installed release needs to run, without starting it.",
+			Summary:     "Prepares an installed release app",
+			Tags:        []Tag{ApplicationTag},
+			CustomSuccessResponse: &CustomResponseDef{
+				ContentType:   "text/event-stream",
+				DataStructure: "",
+				Description: `A stream of Server-Sent Events (SSE) that notifies the progress.
+The client will receive events formatted as follows:
+
+**Event 'progress'**:
+Contains a JSON object with the percentage of completion.
+'event: progress'
+'data: {"name":"containers","progress":25}'
+
+**Event 'message'**:
+Contains a JSON object with an informational message.
+'event: message'
+'data: {"message":"downloading..."}'
+
+**Event 'done'**:
+Contains a JSON object with the prepared app.
+'event: done'
+'data: {"id":"dXNlcjpteS1yZWxlYXNl","name":"my-release","release":"my-release-20270101","target":"unoq"}'
+
+**Event 'error'**:
+Contains a JSON object with the details of an error.
+'event: error'
+'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+`,
+			},
+			PossibleErrors: []ErrorResponse{
+				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
+				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+			},
+		},
+		{
 			OperationId: "editApp",
 			Method:      http.MethodPatch,
 			Path:        "/v1/apps/{id}",
@@ -718,9 +872,9 @@ Contains a JSON object with the details of an error.
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "text/event-stream",
-				DataStructure: orchestrator.LogMessage{},
+				DataStructure: handlers.ResponseLogs{},
 			},
-			Description: "Obtain a ServerSentEvnt stream of logs. It is possible to apply different filters.",
+			Description: "Obtain a ServerSentEvent stream of logs. It is possible to apply different filters.",
 			Summary:     "Get the logs of a running app",
 			Tags:        []Tag{ApplicationTag},
 			PossibleErrors: []ErrorResponse{
@@ -758,7 +912,7 @@ Contains a JSON object with the details of an error.
 			Path:        "/v1/apps",
 			Request:     (*orchestrator.ListAppRequest)(nil),
 			Parameters: (*struct {
-				Filter string              `query:"filter" description:"Filters apps by apps,examples,default"`
+				Filter string              `query:"filter" description:"Filters apps by apps,examples,releases,default"`
 				Status orchestrator.Status `query:"status" description:"Filters applications by status"`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
@@ -1187,7 +1341,7 @@ the upgrade continues and 'done' is emitted anyway.
 
 **Event 'done'**:
 Contains a string with the message that the update process is complete. It is emitted last,
-also when 'error' events were received. 
+also when 'error' events were received.
 'event: done'
 'data: Update completed'
 `,

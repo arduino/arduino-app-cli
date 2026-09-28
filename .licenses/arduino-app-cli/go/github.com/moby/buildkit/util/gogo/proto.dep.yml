@@ -1,13 +1,13 @@
 ---
 name: github.com/moby/buildkit/util/gogo/proto
-version: v0.23.2
+version: v0.33.0
 type: go
 summary: Package proto is a transition package for methods from gogo that are used
   within buildkit and don't have an existing method in the standard protobuf library.
 homepage: https://pkg.go.dev/github.com/moby/buildkit/util/gogo/proto
 license: apache-2.0
 licenses:
-- sources: buildkit@v0.23.2/LICENSE
+- sources: buildkit@v0.33.0/LICENSE
   text: |2
                                      Apache License
                                Version 2.0, January 2004

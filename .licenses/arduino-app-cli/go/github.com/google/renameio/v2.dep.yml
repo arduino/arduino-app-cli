@@ -1,6 +1,6 @@
 ---
 name: github.com/google/renameio/v2
-version: v2.0.0
+version: v2.0.2
 type: go
 summary: Package renameio provides a way to atomically create or replace a file or
   symbolic link.

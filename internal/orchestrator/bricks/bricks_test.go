@@ -31,7 +31,7 @@ func TestBrickCreate(t *testing.T) {
 	brickService := NewService(nil, bricksIndex)
 
 	t.Run("fails if brick id does not exist", func(t *testing.T) {
-		err = brickService.BrickCreate(t.Context(), BrickCreateUpdateRequest{ID: "not-existing-id"}, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err = brickService.BrickCreate(t.Context(), BrickCreateUpdateRequest{ID: "not-existing-id"}, mustEdit(t, paths.New("testdata/dummy-app")))
 		require.Error(t, err)
 		require.Equal(t, "brick \"not-existing-id\" not found", err.Error())
 	})
@@ -40,7 +40,7 @@ func TestBrickCreate(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"NON_EXISTING_VARIABLE": "some-value",
 		}}
-		err = brickService.BrickCreate(t.Context(), req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err = brickService.BrickCreate(t.Context(), req, mustEdit(t, paths.New("testdata/dummy-app")))
 		require.Error(t, err)
 		require.Equal(t, "variable \"NON_EXISTING_VARIABLE\" does not exist on brick \"arduino:arduino_cloud\"", err.Error())
 	})
@@ -50,7 +50,7 @@ func TestBrickCreate(t *testing.T) {
 			"ARDUINO_DEVICE_ID": "",
 			"ARDUINO_SECRET":    "a-secret-a",
 		}}
-		err = brickService.BrickCreate(t.Context(), req, f.Must(app.Load(paths.New("testdata/dummy-app"))))
+		err = brickService.BrickCreate(t.Context(), req, mustEdit(t, paths.New("testdata/dummy-app")))
 		require.Error(t, err)
 		require.Equal(t, "required variable \"ARDUINO_DEVICE_ID\" cannot be empty", err.Error())
 	})
@@ -64,7 +64,7 @@ func TestBrickCreate(t *testing.T) {
 		req := BrickCreateUpdateRequest{ID: "arduino:arduino_cloud", Variables: map[string]string{
 			"ARDUINO_SECRET": "a-secret-a",
 		}}
-		err = brickService.BrickCreate(t.Context(), req, f.Must(app.Load(tempDummyApp)))
+		err = brickService.BrickCreate(t.Context(), req, mustEdit(t, tempDummyApp))
 		require.NoError(t, err)
 
 		after, err := app.Load(tempDummyApp)
@@ -82,7 +82,7 @@ func TestBrickCreate(t *testing.T) {
 		require.Nil(t, paths.New("testdata/dummy-app").CopyDirTo(tempDummyApp))
 
 		req := BrickCreateUpdateRequest{ID: "arduino:dbstorage_sqlstore"}
-		err = brickService.BrickCreate(t.Context(), req, f.Must(app.Load(tempDummyApp)))
+		err = brickService.BrickCreate(t.Context(), req, mustEdit(t, tempDummyApp))
 		require.Nil(t, err)
 		after, err := app.Load(tempDummyApp)
 		require.Nil(t, err)
@@ -110,7 +110,7 @@ func TestBrickCreate(t *testing.T) {
 			},
 		}
 
-		err = brickService.BrickCreate(t.Context(), req, f.Must(app.Load(tempDummyApp)))
+		err = brickService.BrickCreate(t.Context(), req, mustEdit(t, tempDummyApp))
 		require.Nil(t, err)
 
 		after, err := app.Load(tempDummyApp)
@@ -1069,14 +1069,12 @@ func TestLocalBrickRename(t *testing.T) {
 	const sourceApp = "testdata/dummy-app-with-local-brick"
 	const tempApp = "testdata/dummy-app-with-local-brick-temp"
 
-	setup := func(t *testing.T) *app.ArduinoApp {
+	setup := func(t *testing.T) app.Editable {
 		t.Helper()
 		require.NoError(t, paths.New(tempApp).RemoveAll())
 		require.NoError(t, paths.New(sourceApp).CopyDirTo(paths.New(tempApp)))
 		t.Cleanup(func() { _ = paths.New(tempApp).RemoveAll() })
-		a, err := app.Load(paths.New(tempApp))
-		require.NoError(t, err)
-		return &a
+		return mustEdit(t, paths.New(tempApp))
 	}
 
 	bricksIndex, err := bricksindex.Load(platform.GetPlatform(nil), paths.New("testdata"))
@@ -1159,4 +1157,14 @@ func TestLocalBrickRename(t *testing.T) {
 		require.Contains(t, string(appYamlRaw), "nested-renamed-brick")
 		require.NotContains(t, string(appYamlRaw), "nested-local-brick")
 	})
+}
+
+// mustEdit loads the app and takes the token every change of it needs.
+func mustEdit(t *testing.T, appPath *paths.Path) app.Editable {
+	t.Helper()
+	a, err := app.Load(appPath)
+	require.NoError(t, err)
+	editable, err := a.GetAsEditable()
+	require.NoError(t, err)
+	return editable
 }

@@ -38,6 +38,7 @@ func NewSystemCmd(cfg config.Configuration) *cobra.Command {
 	cmd.AddCommand(newNetworkModeCmd())
 	cmd.AddCommand(newKeyboardSetCmd())
 	cmd.AddCommand(newBoardSetNameCmd())
+	cmd.AddCommand(newCheckCmd(servicelocator.GetDockerClient()))
 
 	return cmd
 }

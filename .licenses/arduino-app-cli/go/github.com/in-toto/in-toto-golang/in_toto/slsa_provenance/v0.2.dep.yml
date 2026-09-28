@@ -1,12 +1,12 @@
 ---
 name: github.com/in-toto/in-toto-golang/in_toto/slsa_provenance/v0.2
-version: v0.9.0
+version: v0.11.0
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/in-toto/in-toto-golang/in_toto/slsa_provenance/v0.2
 license: apache-2.0
 licenses:
-- sources: in-toto-golang@v0.9.0/LICENSE
+- sources: in-toto-golang@v0.11.0/LICENSE
   text: |
     Copyright 2018 New York University
 

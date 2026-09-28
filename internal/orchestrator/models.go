@@ -154,9 +154,9 @@ func checkForModelReferences(ctx context.Context, dockerClient command.Cli,
 	modelId string, platform platform.Platform) ([]string, *app.ArduinoApp, error) {
 	apps, err := ListApps(
 		ctx, dockerClient, ListAppRequest{
-			ShowExamples:                   true,
-			ShowApps:                       true,
-			IncludeNonStandardLocationApps: true,
+			ShowExamples: true,
+			ShowApps:     true,
+			ShowReleases: true,
 		}, idProvider, bricksIndex, cfg, platform)
 	if err != nil {
 		return nil, nil, err

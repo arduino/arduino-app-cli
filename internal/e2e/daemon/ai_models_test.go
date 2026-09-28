@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
@@ -59,8 +58,7 @@ func TestAIModelList(t *testing.T) {
 func TestAIModelDetails(t *testing.T) {
 	skipWithoutModelsImage(t)
 
-	customModelDir, err := paths.MkTempDir("", "custom-models")
-	require.NoError(t, err)
+	customModelDir := e2e.MkTempDir(t, "custom-models")
 
 	httpClient := GetHttpclient(t, e2e.WithCustomModelDir(customModelDir), e2e.WithBoardName("unoq"))
 
@@ -171,8 +169,7 @@ func TestAIModelDetails(t *testing.T) {
 func TestAIModelDelete(t *testing.T) {
 	skipWithoutModelsImage(t)
 
-	customModelDir, err := paths.MkTempDir("", "custom-models")
-	require.NoError(t, err)
+	customModelDir := e2e.MkTempDir(t, "custom-models")
 
 	httpClient := GetHttpclient(t, e2e.WithCustomModelDir(customModelDir), e2e.WithBoardName("unoq"))
 

@@ -29,7 +29,7 @@ jobs:
 
       - name: Build the deb
         env:
-          GH_TOKEN: ${{ secrets.ARDUINOBOT_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           go tool task build-deb ARCH=amd64 OUTPUT=$PWD/build
 

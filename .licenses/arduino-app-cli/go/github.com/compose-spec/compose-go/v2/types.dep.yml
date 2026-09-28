@@ -1,12 +1,12 @@
 ---
 name: github.com/compose-spec/compose-go/v2/types
-version: v2.8.1
+version: v2.15.0
 type: go
 summary:
 homepage: https://pkg.go.dev/github.com/compose-spec/compose-go/v2/types
 license: apache-2.0
 licenses:
-- sources: v2@v2.7.1/LICENSE
+- sources: v2@v2.15.0/LICENSE
   text: |2
 
                                      Apache License

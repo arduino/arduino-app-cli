@@ -23,6 +23,9 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 )
 
+// TODO: group these in one function, called by both the app start and the app build.
+// The device ones only apply to the board running them, not to a release target.
+
 // checkBricks validates that each app brick exists in the index, that its selected model (when
 // required) is installed, and that all required brick variables are set.
 // Errors are joined so every issue is reported at once.

@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -30,9 +29,7 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 	// The API takes the encoded form; modelID stays plain for the messages below.
 	encodedID := models.EncodeModelID(modelID)
 
-	modelsDir, err := paths.MkTempDir("", "models")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = modelsDir.RemoveAll() })
+	modelsDir := e2e.MkTempDir(t, "models")
 
 	httpClient, daemonAddr := GetHttpclientAndAddr(t, e2e.WithModelsDir(modelsDir), e2e.WithBoardName("ventunoq"))
 	requestEditor := func(_ context.Context, _ *http.Request) error { return nil }
@@ -50,7 +47,7 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 
 		req, err := http.NewRequest(http.MethodPut, daemonAddr+"/v1/models/"+encodedID, nil) //nolint:gosec
 		assert.NoError(t, err, "failed to create request for model install")
-		events, err := newSSEClient(req, 0)
+		events, err := newSSEClient(req)
 		require.NoError(t, err)
 		hasProgress := false
 		hasDone := false
@@ -61,12 +58,12 @@ func TestModelHandlerDownloadFlow(t *testing.T) {
 				hasProgress = true
 			case "done":
 				hasDone = true
-			case "error":
+			case sseEventError:
 				// A failed install arrives as an event. "SERVER_CLOSED" is the stream
 				// closing, not a failure.
 				var reported render.SSEErrorData
 				require.NoError(t, json.Unmarshal(e.Data, &reported))
-				if reported.Code != "SERVER_CLOSED" {
+				if reported.Code != sseCodeServerClosed {
 					require.Fail(t, "the install reported an error", string(e.Data))
 				}
 			}

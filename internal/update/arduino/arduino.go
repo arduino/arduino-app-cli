@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"slices"
 	"sync"
 
 	"github.com/arduino/arduino-cli/commands"
@@ -113,7 +112,7 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ f
 		availableReleases = append(availableReleases, k)
 	}
 
-	bestVersion := selectBestVersion(availableReleases, installedV, a.constraint)
+	bestVersion := helpers.SelectBestVersion(availableReleases, installedV, a.constraint)
 
 	if bestVersion == nil {
 		return []update.UpgradablePackage{}, nil
@@ -129,36 +128,6 @@ func (a *ArduinoPlatformUpdater) ListUpgradablePackages(ctx context.Context, _ f
 		FromVersion: platformSummary.GetInstalledVersion(),
 		ToVersion:   bestVersion.String(),
 	}}, nil
-}
-
-func selectBestVersion(available []string, installed *semver.Version, constraint semver.Constraint) *semver.Version {
-	candidates := make([]*semver.Version, 0, len(available))
-
-	for _, verStr := range available {
-		v, err := semver.Parse(verStr)
-		if err != nil {
-			continue
-		}
-
-		if !constraint.Match(v) {
-			continue
-		}
-		if installed != nil && v.LessThan(installed) {
-			continue
-		}
-
-		candidates = append(candidates, v)
-	}
-
-	if len(candidates) == 0 {
-		return nil
-	}
-
-	slices.SortFunc(candidates, func(a, b *semver.Version) int {
-		return a.CompareTo(b)
-	})
-
-	return candidates[len(candidates)-1]
 }
 
 // UpgradePackages implements ServiceUpdater.
@@ -179,6 +148,19 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 	targetVersion := pkg.ToVersion
 	if targetVersion == "" {
 		return fmt.Errorf("target version is empty for package '%s'", pkg.Name)
+	}
+	// The constraint is enforced again here: the version comes from the caller, and
+	// the list it was taken from may have been produced under a different one.
+	parsedTargetVersion, err := semver.Parse(targetVersion)
+	if err != nil {
+		return fmt.Errorf("invalid target version '%s' for package '%s': %w", targetVersion, pkg.Name, err)
+	}
+	if !a.constraint.Match(parsedTargetVersion) {
+		return fmt.Errorf("target version '%s' of package '%s' does not satisfy the version constraint '%s'", targetVersion, pkg.Name, a.constraint)
+	}
+	platformPackage, architecture, err := a.platform.PackageAndArchitecture()
+	if err != nil {
+		return err
 	}
 
 	// Progress is reported on a local 0-100 scale: the Manager rescales it to the
@@ -240,8 +222,8 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 	if err := srv.PlatformInstall(
 		&rpc.PlatformInstallRequest{
 			Instance:        inst,
-			PlatformPackage: "arduino",
-			Architecture:    "zephyr",
+			PlatformPackage: platformPackage,
+			Architecture:    architecture,
 			Version:         targetVersion,
 		},
 		stream,
@@ -254,7 +236,7 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 	})
 
 	eventCB(update.NewProgressEvent("burn bootloader", bootloaderProgress))
-	err := srv.BurnBootloader(
+	err = srv.BurnBootloader(
 		&rpc.BurnBootloaderRequest{
 			Instance:   inst,
 			Fqbn:       a.platform.FQBN,

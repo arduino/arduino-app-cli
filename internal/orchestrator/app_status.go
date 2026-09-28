@@ -13,28 +13,17 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
-	"github.com/docker/docker/api/types/events"
-	"github.com/docker/docker/api/types/filters"
+	"github.com/moby/moby/api/types/events"
 
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
 
 func AppStatusEvents(ctx context.Context, cfg config.Configuration, docker command.Cli, idProvider *appid.Provider) iter.Seq2[AppInfo, error] {
-	chanMsg, chanError := docker.Client().Events(ctx, events.ListOptions{
-		Filters: filters.NewArgs(
-			filters.Arg("label", DockerAppLabel+"=true"),
-			filters.Arg("type", string(events.ContainerEventType)),
-			filters.Arg("event", "create"),
-			filters.Arg("event", "start"),
-			filters.Arg("event", "stop"),
-			filters.Arg("event", "die"),
-			filters.Arg("event", "restart"),
-			filters.Arg("event", "destroy"),
-			filters.Arg("event", "delete"),
-		),
-	})
+	chanMsg, chanError := dockerhelper.ContainerEvents(ctx, docker.Client(), DockerAppLabel+"=true",
+		"create", "start", "stop", "die", "restart", "destroy", "delete")
 
 	return func(yield func(AppInfo, error) bool) {
 		for {

@@ -1,13 +1,13 @@
 ---
 name: github.com/google/go-containerregistry/pkg/v1/partial
-version: v0.20.7
+version: v0.22.1
 type: go
 summary: Package partial defines methods for building up a v1.Image from minimal subsets
   that are sufficient for defining a v1.Image.
 homepage: https://pkg.go.dev/github.com/google/go-containerregistry/pkg/v1/partial
 license: apache-2.0
 licenses:
-- sources: go-containerregistry@v0.20.7/LICENSE
+- sources: go-containerregistry@v0.22.1/LICENSE
   text: |2-
 
                                      Apache License

@@ -29,6 +29,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/version"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/cmd/i18n"
+	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	cfg "github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 )
@@ -116,7 +117,7 @@ func main() {
 	}
 
 	if err := run(configuration); err != nil {
-		if errors.Is(err, orchestrator.ErrDockerOutOfSpace) {
+		if errors.Is(err, dockerhelper.ErrOutOfSpace) {
 			// Return a specific error code in case a specific error happened (disk full when pulling docker images).
 			feedback.FatalError(err, orchestrator.ExitCodeDockerOutOfSpace)
 		}
