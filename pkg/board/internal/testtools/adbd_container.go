@@ -81,14 +81,16 @@ func getRandPort(t testing.TB) string {
 	return strconv.Itoa(port)
 }
 
+// getBaseProjectPath is the repo root, not the nearest go.mod: pkg/board is its own
+// module, but adbd.Dockerfile and the scripts it copies live at the repo root.
 func getBaseProjectPath(t testing.TB) string {
 	dir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get working dir: %v", err)
 	}
 	for {
-		goModPath := filepath.Join(dir, "go.mod")
-		if _, err := os.Stat(goModPath); err == nil {
+		gitPath := filepath.Join(dir, ".git")
+		if _, err := os.Stat(gitPath); err == nil {
 			return dir
 		}
 		parentDir := filepath.Dir(dir)
@@ -98,6 +100,6 @@ func getBaseProjectPath(t testing.TB) string {
 		dir = parentDir
 	}
 
-	t.Fatalf("go.mod not found in any parent directory")
+	t.Fatalf(".git not found in any parent directory")
 	return "" // Unreachable, but required for compilation
 }

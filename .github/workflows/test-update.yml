@@ -56,6 +56,13 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - uses: arduino/setup-task@v3.0.0
+        with:
+          version: 3.53.1
+
+      - name: Install gotestsum
+        run: task install:gotestsum
+
       - name: Run dep package update test
         id: test
         continue-on-error: ${{ matrix.warn != '' }}
@@ -64,7 +71,7 @@ jobs:
           TEST_BASE_IMAGE: ${{ matrix.distro }}
           TEST_SKIP_SYSTEM_INIT: ${{ matrix.skip_system_init }}
         run: |
-          go tool task test:update -- -run 'TestUpdatePackage/${{ matrix.scenario }}'
+          task test:update -- -run 'TestUpdatePackage/${{ matrix.scenario }}'
 
       - name: Warn about the expected failure
         if: ${{ matrix.warn != '' && steps.test.outcome == 'failure' }}

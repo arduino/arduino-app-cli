@@ -22,7 +22,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
 )
 
-//go:generate go tool oapi-codegen -config cfg.yaml ../api/docs/openapi.yaml
+//go:generate ../../.bin/oapi-codegen -config cfg.yaml ../api/docs/openapi.yaml
 
 type ArduinoAppCLI struct {
 	t            *require.Assertions

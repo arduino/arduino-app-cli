@@ -18,7 +18,37 @@ permissions:
   pull-requests: write
 
 jobs:
+  discover-go-modules:
+    runs-on: ubuntu-latest
+    outputs:
+      modules: ${{ steps.find.outputs.modules }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - id: find
+        # One entry per go.mod found, root included as ".". A new pkg/* module is
+        # picked up here without editing this workflow.
+        run: |
+          modules="$(find . -name go.mod -exec dirname {} \; | sort | jq -R -s -c 'split("\n")[:-1]')"
+          echo "modules=$modules" >> "$GITHUB_OUTPUT"
+
+  lint:
+    needs: discover-go-modules
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module: ${{ fromJson(needs.discover-go-modules.outputs.modules) }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.11.4
+          args: --timeout 300s
+          working-directory: ${{ matrix.module }}
+
   run-checks:
+    needs: discover-go-modules
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -27,17 +57,26 @@ jobs:
         with:
           dprint-version: 0.48.0
 
-      - uses: golangci/golangci-lint-action@v9
-        with:
-          version: v2.11.4
-          args: --timeout 300s
-
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
+      - name: Check the go directive stays in sync across modules
+        run: |
+          want="$(sed -n 's/^go //p' go.mod)"
+          for d in $(echo '${{ needs.discover-go-modules.outputs.modules }}' | jq -r '.[]'); do
+            [ "$d" = "." ] && continue
+            got="$(sed -n 's/^go //p' "$d/go.mod")"
+            if [ "$got" != "$want" ]; then
+              echo "::error::$d/go.mod has go $got, root go.mod has go $want"
+              exit 1
+            fi
+          done
+
       - name: Check go mod
         run: |
-          go mod tidy
+          for d in $(echo '${{ needs.discover-go-modules.outputs.modules }}' | jq -r '.[]'); do
+            (cd "$d" && go mod tidy)
+          done
           git diff --color --exit-code

@@ -8,10 +8,18 @@ vars:
   GOLANGCI_LINT_VERSION: v2.11.4
   GOIMPORTS_VERSION: v0.42.0
   DPRINT_VERSION: 0.48.0
+  GOTESTSUM_VERSION: v1.13.0
+  YQ_VERSION: v4.53.6
+  OAPI_CODEGEN_VERSION: v2.7.1
+  LICENSED_NOTICE_DEDUPLICATE_VERSION: v1.0.0
   EXAMPLE_VERSION: "0.13.0rc5"
   RUNNER_VERSION: "0.13.0rc5"
   VERSION: # if version is not passed we hack the semver by encoding the commit as pre-release
     sh: echo "${VERSION:-0.0.0-$(git rev-parse --short HEAD)}"
+  # pkg/* that are their own Go module: found by their go.mod, so a new one is picked
+  # up here without editing every task and workflow that loops over them.
+  PKG_MODULES:
+    sh: find pkg -mindepth 1 -name go.mod | xargs -n1 dirname | sort
 
 tasks:
   init:
@@ -23,6 +31,9 @@ tasks:
       - install:dprint
       - install:oapi-codegen
       - install:reuse
+      - install:gotestsum
+      - install:yq
+      - install:licensed-notice-deduplicate
 
   install:linter:
     cmds:
@@ -47,7 +58,19 @@ tasks:
 
   install:oapi-codegen:
     cmds:
-      - go get -tool github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.7.1
+      - GOBIN={{ .ROOT_DIR }}/.bin go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@{{ .OAPI_CODEGEN_VERSION }}
+
+  install:gotestsum:
+    cmds:
+      - GOBIN={{ .ROOT_DIR }}/.bin go install gotest.tools/gotestsum@{{ .GOTESTSUM_VERSION }}
+
+  install:yq:
+    cmds:
+      - GOBIN={{ .ROOT_DIR }}/.bin go install github.com/mikefarah/yq/v4@{{ .YQ_VERSION }}
+
+  install:licensed-notice-deduplicate:
+    cmds:
+      - GOBIN={{ .ROOT_DIR }}/.bin go install github.com/arduino/licensed-notice-deduplicate@{{ .LICENSED_NOTICE_DEDUPLICATE_VERSION }}
 
   test:
     desc: Run all tests
@@ -61,16 +84,18 @@ tasks:
     cmds:
       - go build ./cmd/arduino-app-cli
       - task: generate
-      - go tool gotest.tools/gotestsum $(go list ./internal/... ./cmd/... | grep -v internal/e2e/updatetest) -v -race {{ .CLI_ARGS }}
+      - ${PWD}/.bin/gotestsum $(go list ./internal/... ./cmd/... | grep -v internal/e2e/updatetest) -v -race {{ .CLI_ARGS }}
 
   test:update:
     cmds:
-      - go tool gotest.tools/gotestsum -- -v -timeout=60m {{ .CLI_ARGS }} ./internal/e2e/updatetest
+      - ${PWD}/.bin/gotestsum -- -v -timeout=60m {{ .CLI_ARGS }} ./internal/e2e/updatetest
 
   test:pkg:
     desc: Run only tests in the pkg directory
     cmds:
-      - go tool gotest.tools/gotestsum ./pkg/... -v -race {{ .CLI_ARGS }}
+      # Each is its own Go module, so ./pkg/... from the root module would not reach them.
+      - for: { var: PKG_MODULES }
+        cmd: cd {{ .ITEM }} && go test ./... -v -race {{ .CLI_ARGS }}
 
   test:cover:
     desc: Run all tests and open cover html report
@@ -83,6 +108,9 @@ tasks:
     desc: Run the linters
     cmds:
       - ${PWD}/.bin/golangci-lint run --fix -v --timeout 300s {{ .CLI_ARGS }}
+      # Each is its own Go module, so golangci-lint from the root would not reach them.
+      - for: { var: PKG_MODULES }
+        cmd: cd {{ .ITEM }} && {{ .ROOT_DIR }}/.bin/golangci-lint run --fix -v --timeout 300s {{ .CLI_ARGS }}
 
   fmt:
     desc: Run format
@@ -303,7 +331,7 @@ tasks:
           fi
       - licensed cache
       - licensed notices
-      - go tool licensed-notice-deduplicate .licenses/arduino-app-cli/NOTICE
+      - ${PWD}/.bin/licensed-notice-deduplicate .licenses/arduino-app-cli/NOTICE
 
   # Source: https://github.com/arduino/tooling-project-assets/blob/main/workflow-templates/assets/check-dependencies-task/Taskfile.yml
   general:check-dep-licenses:
@@ -321,9 +349,8 @@ tasks:
             | \
               xargs \
                 --null \
-                go tool \
-                  github.com/mikefarah/yq/v4 \
-                    'select(.license == "other") | filename'
+                ${PWD}/.bin/yq \
+                  'select(.license == "other") | filename'
           )"
           if [[ "$MATCHES" != "" ]]; then
             printf "%s" "$MATCHES"
@@ -343,7 +370,7 @@ tasks:
     desc: "Generate Go client for Edge Impulse API using oapi-codegen and filtering by used paths"
     cmds:
       - |
-          curl -fsSL https://studio.edgeimpulse.com/openapi.yml | yq '.paths = {
+          curl -fsSL https://studio.edgeimpulse.com/openapi.yml | ${PWD}/.bin/yq '.paths = {
           "/api/{projectId}/deployment": .paths."/api/{projectId}/deployment",
           "/api/{projectId}/deployment/download": .paths."/api/{projectId}/deployment/download",
           "/api/{projectId}/jobs/build-ondevice-model": .paths."/api/{projectId}/jobs/build-ondevice-model",
@@ -352,5 +379,5 @@ tasks:
           "/api/{projectId}/jobs/{jobId}/stdout": .paths."/api/{projectId}/jobs/{jobId}/stdout",
           "/api/{projectId}/deployment/last": .paths."/api/{projectId}/deployment/last"
             }' > openapi-filtered.yml
-      - oapi-codegen --package=edgeimpulse --generate types,client --response-type-suffix=HTTPResponse openapi-filtered.yml > internal/api/edgeimpulse/client.gen.go
+      - ${PWD}/.bin/oapi-codegen --package=edgeimpulse --generate types,client --response-type-suffix=HTTPResponse openapi-filtered.yml > internal/api/edgeimpulse/client.gen.go
       - rm openapi-filtered.yml

@@ -85,12 +85,17 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - uses: arduino/setup-task@v3.0.0
+        with:
+          version: 3.53.1
+
+      - name: Install license tooling
+        run: |
+          task install:yq install:licensed-notice-deduplicate
+
       - name: Update dependencies license metadata cache
         run: |
-          go tool \
-            github.com/go-task/task/v3/cmd/task \
-              --silent \
-              general:cache-dep-licenses
+          task --silent general:cache-dep-licenses
 
       - name: Check for outdated cache
         id: diff
@@ -147,9 +152,14 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - uses: arduino/setup-task@v3.0.0
+        with:
+          version: 3.53.1
+
+      - name: Install license tooling
+        run: |
+          task install:yq install:licensed-notice-deduplicate
+
       - name: Check for dependencies with unapproved licenses
         run: |
-          go tool \
-            github.com/go-task/task/v3/cmd/task \
-              --silent \
-              general:check-dep-licenses
+          task --silent general:check-dep-licenses
