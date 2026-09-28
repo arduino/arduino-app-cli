@@ -295,9 +295,6 @@ func stageReleaseIndexes(
 		if model == nil {
 			return fmt.Errorf("model %q is not in the index", brick.Model)
 		}
-		if model.IsBuiltIn {
-			continue
-		}
 		models = append(models, *model)
 		if model.Deployment != nil && !slices.Contains(handlers, model.Deployment.Handler) {
 			handlers = append(handlers, model.Deployment.Handler)
