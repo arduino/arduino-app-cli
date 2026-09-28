@@ -2,8 +2,17 @@ module github.com/arduino/arduino-app-cli
 
 go 1.26.3
 
+replace (
+	github.com/arduino/arduino-app-cli/pkg/board => ./pkg/board
+	github.com/arduino/arduino-app-cli/pkg/release => ./pkg/release
+	github.com/arduino/arduino-app-cli/pkg/x => ./pkg/x
+)
+
 require (
 	github.com/Andrew-M-C/go.emoji v1.1.4
+	github.com/arduino/arduino-app-cli/pkg/board v0.0.0-00010101000000-000000000000
+	github.com/arduino/arduino-app-cli/pkg/release v0.0.0-00010101000000-000000000000
+	github.com/arduino/arduino-app-cli/pkg/x v0.0.0-00010101000000-000000000000
 	github.com/arduino/arduino-cli v1.5.2-0.20260909100341-30513ed32c42
 	github.com/arduino/go-paths-helper v1.14.0
 	github.com/compose-spec/compose-go/v2 v2.15.0
@@ -34,10 +43,9 @@ require (
 	github.com/warthog618/go-gpiocdev v0.9.1
 	go.bug.st/f v0.5.0
 	go.bug.st/relaxed-semver v0.15.0
-	golang.org/x/crypto v0.56.0
-	golang.org/x/sync v0.22.0
-	golang.org/x/term v0.45.0
-	golang.org/x/text v0.41.0
+	golang.org/x/sync v0.23.0
+	golang.org/x/term v0.46.0
+	golang.org/x/text v0.42.0
 )
 
 require (
@@ -299,7 +307,8 @@ require (
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.6 // indirect
-	golang.org/x/mod v0.40.0 // indirect
+	golang.org/x/crypto v0.57.0 // indirect
+	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect

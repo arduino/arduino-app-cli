@@ -12,6 +12,10 @@ vars:
   RUNNER_VERSION: "0.13.0rc5"
   VERSION: # if version is not passed we hack the semver by encoding the commit as pre-release
     sh: echo "${VERSION:-0.0.0-$(git rev-parse --short HEAD)}"
+  # pkg/* that are their own Go module: found by their go.mod, so a new one is picked
+  # up here without editing every task and workflow that loops over them.
+  PKG_MODULES:
+    sh: find pkg -mindepth 1 -name go.mod | xargs -n1 dirname | sort
 
 tasks:
   init:
@@ -70,7 +74,9 @@ tasks:
   test:pkg:
     desc: Run only tests in the pkg directory
     cmds:
-      - go tool gotest.tools/gotestsum ./pkg/... -v -race {{ .CLI_ARGS }}
+      # Each is its own Go module, so ./pkg/... from the root module would not reach them.
+      - for: { var: PKG_MODULES }
+        cmd: cd {{ .ITEM }} && go test ./... -v -race {{ .CLI_ARGS }}
 
   test:cover:
     desc: Run all tests and open cover html report
@@ -83,6 +89,9 @@ tasks:
     desc: Run the linters
     cmds:
       - ${PWD}/.bin/golangci-lint run --fix -v --timeout 300s {{ .CLI_ARGS }}
+      # Each is its own Go module, so golangci-lint from the root would not reach them.
+      - for: { var: PKG_MODULES }
+        cmd: cd {{ .ITEM }} && {{ .ROOT_DIR }}/.bin/golangci-lint run --fix -v --timeout 300s {{ .CLI_ARGS }}
 
   fmt:
     desc: Run format

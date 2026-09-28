@@ -8,17 +8,17 @@ ARG ARCH
 RUN test -n "${ARCH}" || (echo "Error: ARCH is not set" && exit 1)
 ARG RELEASE
 
-# Download dependencies first (this layer will be cached by docker for quicker image builds).
-# This will be recomputed only when these two files change, instead of every build.
+# Any change under pkg now busts the go mod download cache below too, not just go.mod
+# and go.sum: go.mod points some requires to ./pkg/*, so it must be copied in first.
 COPY go.mod go.sum* /app/
 WORKDIR /app
+ADD pkg ./pkg
 
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
   go mod download
 
 ADD cmd ./cmd
 ADD internal ./internal
-ADD pkg ./pkg
 
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
   --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
