@@ -2073,6 +2073,9 @@ components:
         category:
           type: string
         compatible_models:
+          deprecated: true
+          description: 'Deprecated: always empty on the app bricks list; use the per-brick
+            details endpoint instead.'
           items:
             $ref: '#/components/schemas/AIModel'
           nullable: true

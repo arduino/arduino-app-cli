@@ -66,10 +66,8 @@ func (s *Service) List() BrickListResult {
 	return res
 }
 
-func (s *Service) AppBrickInstancesList(ctx context.Context, a *app.ArduinoApp) AppBrickInstancesResult {
+func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) AppBrickInstancesResult {
 	res := AppBrickInstancesResult{BrickInstances: make([]BrickInstance, len(a.Descriptor.Bricks))}
-	// One lookup for every brick instance, rather than a listing each.
-	models := s.modelsIndex.NewLookup()
 	bricksIndex := a.Bricks(s.bricksIndex)
 	for i, brickInstance := range a.Descriptor.Bricks {
 		brick, found := bricksIndex.FindBrickByID(brickInstance.ID)
@@ -85,16 +83,17 @@ func (s *Service) AppBrickInstancesList(ctx context.Context, a *app.ArduinoApp) 
 		variablesMap, configVariables := getInstanceBrickConfigVariableDetails(brick, brickInstance.Variables)
 
 		res.BrickInstances[i] = BrickInstance{
-			ID:               brick.ID,
-			Name:             brick.Name,
-			Author:           brick.Source,
-			Category:         brick.Category,
-			Status:           "installed",
-			RequireModel:     brick.RequireModel,
-			ModelID:          apimodels.EncodeModelID(cmp.Or(brickInstance.Model, brick.ModelName)),
-			Variables:        variablesMap,
-			ConfigVariables:  configVariables,
-			CompatibleModels: compatibleModels(ctx, models, brick.ID),
+			ID:              brick.ID,
+			Name:            brick.Name,
+			Author:          brick.Source,
+			Category:        brick.Category,
+			Status:          "installed",
+			RequireModel:    brick.RequireModel,
+			ModelID:         apimodels.EncodeModelID(cmp.Or(brickInstance.Model, brick.ModelName)),
+			Variables:       variablesMap,
+			ConfigVariables: configVariables,
+			// Deprecated: always empty here, a container run is too expensive for a list. Use AppBrickInstanceDetails.
+			CompatibleModels: []AIModel{},
 		}
 
 	}

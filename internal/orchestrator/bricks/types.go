@@ -33,7 +33,7 @@ type BrickInstance struct {
 	ConfigVariables  []BrickConfigVariable `json:"config_variables,omitempty"`
 	RequireModel     bool                  `json:"require_model"`
 	ModelID          string                `json:"model,omitempty"`
-	CompatibleModels []AIModel             `json:"compatible_models"`
+	CompatibleModels []AIModel             `json:"compatible_models" deprecated:"true" description:"Deprecated: always empty on the app bricks list; use the per-brick details endpoint instead."`
 	Readme           string                `json:"readme"`
 }
 

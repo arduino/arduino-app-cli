@@ -292,8 +292,11 @@ type BrickExamples struct {
 
 // BrickInstance defines model for BrickInstance.
 type BrickInstance struct {
-	Author           *string                `json:"author,omitempty"`
-	Category         *string                `json:"category,omitempty"`
+	Author   *string `json:"author,omitempty"`
+	Category *string `json:"category,omitempty"`
+
+	// CompatibleModels Deprecated: always empty on the app bricks list; use the per-brick details endpoint instead.
+	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
 	CompatibleModels *[]AIModel             `json:"compatible_models,omitempty"`
 	ConfigVariables  *[]BrickConfigVariable `json:"config_variables,omitempty"`
 	Id               *string                `json:"id,omitempty"`
