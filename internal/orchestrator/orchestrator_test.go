@@ -7,10 +7,12 @@ package orchestrator
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
@@ -358,6 +360,40 @@ func TestListApp(t *testing.T) {
 	createApp(t, "app1", false, idProvider, cfg)
 	createApp(t, "app2", false, idProvider, cfg)
 	createApp(t, "example1", true, idProvider, cfg)
+
+	t.Run("release creation date", func(t *testing.T) {
+		createdAt := time.Date(2026, 9, 14, 13, 45, 12, 0, time.UTC)
+		for _, name := range []string{"dated-release", "old-release"} {
+			releaseDir := cfg.ReleasesDir().Join(name)
+			require.NoError(t, releaseDir.MkdirAll())
+			require.NoError(t, releaseDir.Join("app.yaml").WriteFile([]byte("name: "+name+"\n")))
+			require.NoError(t, releaseDir.Join("python").MkdirAll())
+			require.NoError(t, releaseDir.Join("python", "main.py").WriteFile([]byte("print('ready')\n")))
+			if name == "dated-release" {
+				require.NoError(t, writeReleaseManifest(releaseDir, ReleaseManifest{
+					Schema: app.ReleaseManifestSchema, Name: name, Target: "unoq", CreatedAt: createdAt,
+				}))
+			} else {
+				require.NoError(t, releaseDir.Join(app.ReleaseManifestFileName).WriteFile([]byte("schema: 1\nname: old-release\ntarget: unoq\n")))
+			}
+		}
+
+		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{ShowApps: true, ShowReleases: true}, idProvider, nil, cfg, unoQPlatform)
+		require.NoError(t, err)
+		require.Empty(t, res.BrokenApps)
+		require.Len(t, res.Apps, 4)
+		for _, info := range res.Apps {
+			encoded, err := json.Marshal(info)
+			require.NoError(t, err)
+			if info.Name == "dated-release" {
+				require.Equal(t, &createdAt, info.CreatedAt)
+				assert.Contains(t, string(encoded), `"created_at":"2026-09-14T13:45:12Z"`)
+			} else {
+				assert.Nil(t, info.CreatedAt)
+				assert.NotContains(t, string(encoded), `"created_at"`)
+			}
+		}
+	})
 
 	t.Run("list all apps", func(t *testing.T) {
 		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
