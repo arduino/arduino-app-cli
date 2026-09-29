@@ -223,6 +223,7 @@ type handlerModelEntry struct {
 	DiskSizeMB  *float64       `json:"disk_size_mb"`  // actual on-disk size, only when installed
 	ModelOrigin string         `json:"model_origin"`
 	Metadata    *entryMetadata `json:"download_metadata"`
+	Mmproj      string         `json:"mmproj"`
 }
 
 func (e handlerModelEntry) applyStat(m *AIModel) {
@@ -305,7 +306,7 @@ func (h *HandlersIndex) userDownloadModel(entry handlerModelEntry) (AIModel, boo
 		Name:      entry.Name,
 		IsBuiltIn: false,
 		Origin:    UserOrigin,
-		Bricks:    bricksForVision(md.Inputs["model_mmproj_url"]),
+		Bricks:    bricksForVision(entry.Mmproj),
 		Deployment: &ModelDeployment{
 			Handler: md.Handler,
 			Variables: []map[string]PlatformDeploymentConfig{
