@@ -214,6 +214,8 @@ type handlerModelEntry struct {
 	ID          string         `json:"id"`
 	Name        string         `json:"name"`
 	Handler     string         `json:"handler"`
+	Runtime     string         `json:"runtime"`
+	Publisher   string         `json:"model_publisher"`
 	Platform    string         `json:"platform"`
 	ModelType   string         `json:"model_type"`
 	Path        string         `json:"path"`
@@ -241,6 +243,7 @@ func (e handlerModelEntry) applyStat(m *AIModel) {
 	if e.Metadata != nil {
 		m.setSourceURL(e.Metadata.Inputs["model_url"])
 	}
+	m.setMetadata(map[string]string{"runtime": e.Runtime, "publisher": e.Publisher})
 	if e.Installed && e.DiskSizeMB != nil && *e.DiskSizeMB > 0 {
 		m.Size = uint64(*e.DiskSizeMB * 1024 * 1024)
 	} else if e.ModelSizeMB != nil && *e.ModelSizeMB > 0 {
@@ -272,6 +275,17 @@ func (m *AIModel) setSourceURL(url string) {
 	metadata := make(map[string]string, len(m.Metadata)+1)
 	maps.Copy(metadata, m.Metadata)
 	metadata["source-model-url"] = url
+	m.Metadata = metadata
+}
+
+func (m *AIModel) setMetadata(values map[string]string) {
+	maps.DeleteFunc(values, func(_, v string) bool { return v == "" })
+	if len(values) == 0 {
+		return
+	}
+	metadata := make(map[string]string, len(m.Metadata)+len(values))
+	maps.Copy(metadata, m.Metadata)
+	maps.Copy(metadata, values)
 	m.Metadata = metadata
 }
 

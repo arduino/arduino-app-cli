@@ -309,7 +309,8 @@ func TestGetModelsMergesTheListing(t *testing.T) {
 		const listingOutput = `{"event":"info","models":[
 			{"id":"llamacpp:ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0",
 			 "name":"ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0",
-			 "handler":"llamacpp","model_origin":"user","installed":true,
+			 "handler":"llamacpp","runtime":"llamacpp","model_publisher":"ggml-org",
+			 "model_origin":"user","installed":true,
 			 "mmproj":"/models/llamacpp/ggml-org/SmolVLM-256M-Instruct-GGUF/mmproj-SmolVLM-256M-Instruct-Q8_0.gguf",
 			 "download_metadata":{
 				"downloaded_at":"2026-09-02T09:04:32Z",
@@ -321,6 +322,7 @@ func TestGetModelsMergesTheListing(t *testing.T) {
 					"model_directory":"ggml-org/SmolVLM-256M-Instruct-GGUF",
 					"model_url":"https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/SmolVLM-256M-Instruct-Q8_0.gguf"}}},
 			{"id":"ei:efficientnet-b4","name":"EfficientNet-B4","handler":"ei-handler","installed":true,
+			 "runtime":"edge-impulse-sdk","model_publisher":"qualcomm-ai-hub",
 			 "download_metadata":{
 				"downloaded_at":"2026-08-30T11:02:00Z",
 				"handler":"ei-handler",
@@ -359,12 +361,22 @@ func TestGetModelsMergesTheListing(t *testing.T) {
 		assert.Equal(t, []BrickConfig{{ID: vlmBrickID}}, vision.Bricks)
 		assert.Equal(t, map[string]string{
 			"source-model-url": "https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/SmolVLM-256M-Instruct-Q8_0.gguf",
+			"runtime":          "llamacpp",
+			"publisher":        "ggml-org",
 		}, vision.Metadata, "the link comes from the record the listing carries")
 
-		// This record names project and impulse numbers, not a link, so the entry's own
-		// metadata is all there is to report.
-		assert.Equal(t, map[string]string{"model_size_mb": "89", "source": "edgeimpulse"},
-			byID("ei:efficientnet-b4").Metadata)
+		// This record names project and impulse numbers, not a link, so no link is added.
+		assert.Equal(t, map[string]string{
+			"model_size_mb": "89",
+			"source":        "edgeimpulse",
+			"runtime":       "edge-impulse-sdk",
+			"publisher":     "qualcomm-ai-hub",
+		}, byID("ei:efficientnet-b4").Metadata)
+
+		known, ok := idx.NewLookup().known("ei:efficientnet-b4")
+		require.True(t, ok)
+		assert.Equal(t, map[string]string{"model_size_mb": "89", "source": "edgeimpulse"}, known.Metadata,
+			"the index's own entry stays as declared")
 	})
 }
 

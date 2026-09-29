@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"testing"
 
@@ -94,7 +95,14 @@ func TestAIModelDetails(t *testing.T) {
 		require.Equal(t, expectedModel.Status, modelDetails.Status, "Status should match")
 
 		require.NotNil(t, modelDetails.Metadata, "Response model's Metadata should not be nil")
-		require.Equal(t, expectedModel.Metadata, modelDetails.Metadata, "Metadata should match")
+		// runtime and publisher come from the listing, which details skip for a pre-loaded model.
+		withoutListingFields := func(m map[string]string) map[string]string {
+			m = maps.Clone(m)
+			delete(m, "runtime")
+			delete(m, "publisher")
+			return m
+		}
+		require.Equal(t, withoutListingFields(*expectedModel.Metadata), withoutListingFields(*modelDetails.Metadata), "Metadata should match")
 
 		require.NotNil(t, modelDetails.Size, "Response model's Size should not be nil")
 		require.Equal(t, *expectedModel.Size, *modelDetails.Size, "Size should match")
