@@ -361,7 +361,7 @@ func TestListApp(t *testing.T) {
 	createApp(t, "app2", false, idProvider, cfg)
 	createApp(t, "example1", true, idProvider, cfg)
 
-	t.Run("release creation date", func(t *testing.T) {
+	t.Run("release metadata", func(t *testing.T) {
 		createdAt := time.Date(2026, 9, 14, 13, 45, 12, 0, time.UTC)
 		for _, name := range []string{"dated-release", "old-release"} {
 			releaseDir := cfg.ReleasesDir().Join(name)
@@ -371,7 +371,7 @@ func TestListApp(t *testing.T) {
 			require.NoError(t, releaseDir.Join("python", "main.py").WriteFile([]byte("print('ready')\n")))
 			if name == "dated-release" {
 				require.NoError(t, writeReleaseManifest(releaseDir, ReleaseManifest{
-					Schema: app.ReleaseManifestSchema, Name: name, Target: "unoq", CreatedAt: createdAt,
+					Schema: app.ReleaseManifestSchema, Name: name, Target: "unoq", CreatedAt: createdAt, ReleaseLabel: "v1.0",
 				}))
 			} else {
 				require.NoError(t, releaseDir.Join(app.ReleaseManifestFileName).WriteFile([]byte("schema: 1\nname: old-release\ntarget: unoq\n")))
@@ -387,10 +387,14 @@ func TestListApp(t *testing.T) {
 			require.NoError(t, err)
 			if info.Name == "dated-release" {
 				require.Equal(t, &createdAt, info.CreatedAt)
+				assert.Equal(t, "v1.0", info.ReleaseLabel)
 				assert.Contains(t, string(encoded), `"created_at":"2026-09-14T13:45:12Z"`)
+				assert.Contains(t, string(encoded), `"release_label":"v1.0"`)
 			} else {
 				assert.Nil(t, info.CreatedAt)
+				assert.Empty(t, info.ReleaseLabel)
 				assert.NotContains(t, string(encoded), `"created_at"`)
+				assert.NotContains(t, string(encoded), `"release_label"`)
 			}
 		}
 	})
