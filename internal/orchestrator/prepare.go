@@ -61,7 +61,7 @@ func PrepareRelease(
 
 	// The release states its models, and ships their records: the index of this board is
 	// not the one that built it and may not know them.
-	models, err := frozenModelsIndex(arduinoApp, docker, cfg, plat)
+	models, err := arduinoApp.ReleaseModels(docker, cfg, plat)
 	if err != nil {
 		return fmt.Errorf("cannot read the models the release ships: %w", err)
 	}
@@ -105,15 +105,11 @@ func PrepareInstalledRelease(
 	return PrepareRelease(ctx, docker, arduinoApp, prj, cfg, plat, cb)
 }
 
-// checkReleasePrepared verifies a release has on the board everything a start needs: the
-// container images its frozen compose names and the models it ships.
-func checkReleasePrepared(
+// checkReleaseImages verifies the container images a release needs are on the board
+func checkReleaseImages(
 	ctx context.Context,
 	docker command.Cli,
-	arduinoApp app.ArduinoApp,
 	prj *types.Project,
-	cfg config.Configuration,
-	plat platform.Platform,
 ) error {
 	allImages, err := dockerhelper.ListImages(ctx, docker.Client())
 	if err != nil {
@@ -122,30 +118,6 @@ func checkReleasePrepared(
 	for _, image := range dockerhelper.ComposeImages(prj) {
 		if !slices.Contains(allImages, image) {
 			return fmt.Errorf("%w: the container %q is not on the board", ErrNotPrepared, image)
-		}
-	}
-
-	// The release ships its own model records: the index of this board is not the one
-	// that built it and may not know them.
-	manifest, err := readReleaseManifest(arduinoApp.FullPath)
-	if err != nil {
-		return err
-	}
-	if len(manifest.Models) == 0 {
-		return nil
-	}
-	models, err := frozenModelsIndex(arduinoApp, docker, cfg, plat)
-	if err != nil {
-		return fmt.Errorf("cannot read the models the release ships: %w", err)
-	}
-	lookup := models.NewLookup()
-	for _, model := range manifest.Models {
-		found, err := lookup.ByID(ctx, model.ID)
-		if err != nil {
-			return fmt.Errorf("cannot determine whether the model %q is on the board: %w", model.ID, err)
-		}
-		if found == nil || found.Status != modelsindex.InstalledStatus {
-			return fmt.Errorf("%w: the model %q is not on the board", ErrNotPrepared, model.ID)
 		}
 	}
 	return nil
@@ -165,7 +137,7 @@ func renderRelease(
 	if err != nil {
 		return nil, fmt.Errorf("cannot read the bricks the release ships: %w", err)
 	}
-	modelsIndex, err := frozenModelsIndex(arduinoApp, docker, cfg, plat)
+	modelsIndex, err := arduinoApp.ReleaseModels(docker, cfg, plat)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read the models the release ships: %w", err)
 	}
@@ -179,22 +151,4 @@ func renderRelease(
 		return nil, fmt.Errorf("failed to render the compose file of the release: %w", err)
 	}
 	return prj, nil
-}
-
-// frozenModelsIndex is the models index a release ships in its .cache. The models land
-// where every model does, so what is downloaded here is what a start reads.
-func frozenModelsIndex(
-	arduinoApp app.ArduinoApp,
-	docker command.Cli,
-	cfg config.Configuration,
-	plat platform.Platform,
-) (*modelsindex.ModelsIndex, error) {
-	return modelsindex.Load(
-		plat,
-		arduinoApp.ProvisioningStateDir(),
-		cfg.ModelsDir(),
-		cfg.CustomModelsDir(),
-		docker.Client(),
-		cfg,
-	)
 }
