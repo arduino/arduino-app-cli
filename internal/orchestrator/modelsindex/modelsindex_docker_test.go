@@ -311,6 +311,7 @@ func TestGetModelsMergesTheListing(t *testing.T) {
 			 "name":"ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0",
 			 "handler":"llamacpp","runtime":"llamacpp","model_publisher":"ggml-org",
 			 "model_origin":"user","installed":true,
+			 "mmproj":"/models/llamacpp/ggml-org/SmolVLM-256M-Instruct-GGUF/mmproj-SmolVLM-256M-Instruct-Q8_0.gguf",
 			 "download_metadata":{
 				"downloaded_at":"2026-09-02T09:04:32Z",
 				"handler":"hf-handler",
@@ -319,8 +320,7 @@ func TestGetModelsMergesTheListing(t *testing.T) {
 				"inputs":{
 					"models_repository":"llamacpp",
 					"model_directory":"ggml-org/SmolVLM-256M-Instruct-GGUF",
-					"model_url":"https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/SmolVLM-256M-Instruct-Q8_0.gguf",
-					"model_mmproj_url":"https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-256M-Instruct-Q8_0.gguf"}}},
+					"model_url":"https://huggingface.co/ggml-org/SmolVLM-256M-Instruct-GGUF/resolve/main/SmolVLM-256M-Instruct-Q8_0.gguf"}}},
 			{"id":"ei:efficientnet-b4","name":"EfficientNet-B4","handler":"ei-handler","installed":true,
 			 "runtime":"edge-impulse-sdk","model_publisher":"qualcomm-ai-hub",
 			 "download_metadata":{
@@ -355,7 +355,7 @@ func TestGetModelsMergesTheListing(t *testing.T) {
 			return nil
 		}
 
-		// The record names a projection file, so the vlm brick is the one that can run it.
+		// The listing reports a projection file, so the vlm brick is the one that can run it.
 		// Nothing declares this model, so its bricks are derived from what was downloaded.
 		vision := byID("llamacpp:ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0")
 		assert.Equal(t, []BrickConfig{{ID: vlmBrickID}}, vision.Bricks)
