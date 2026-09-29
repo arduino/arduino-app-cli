@@ -280,7 +280,7 @@ func stageReleaseIndexes(
 	}
 
 	// The models the app is wired with and the handlers they name. A built-in model is
-	// left out: it ships with the board image.
+	// included even if it ships with the board image, to avoid "unknown model" errors during the prepare.
 	lookup := modelsIndex.NewLookup()
 	var models []modelsindex.AIModel
 	var handlers []string
