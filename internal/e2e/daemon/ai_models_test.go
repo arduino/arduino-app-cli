@@ -101,6 +101,7 @@ func TestAIModelDetails(t *testing.T) {
 	})
 
 	t.Run("should return full details for a valid custom model ID", func(t *testing.T) {
+		modelContent := []byte("some random data to create a non empty model file")
 		_, err := custommodel.Store(customModelDir.Join("my-model"), custommodel.ModelDescriptor{
 			ID:          "custom-classification-model-eim",
 			Name:        "this is the name of the model",
@@ -109,7 +110,7 @@ func TestAIModelDetails(t *testing.T) {
 			Bricks: []custommodel.BrickConfig{
 				{ID: "arduino:audio_classification"},
 			},
-		}, io.NopCloser(bytes.NewReader([]byte("some random data to create a non empty model file"))), "model.eim")
+		}, io.NopCloser(bytes.NewReader(modelContent)), "model.eim")
 		require.NoError(t, err)
 
 		// We have to add an empty editor because there is a bug that make the function panic if we pass nil
@@ -131,7 +132,7 @@ func TestAIModelDetails(t *testing.T) {
 			// own Edge Impulse project, not a catalog entry that happens to be EI-trained.
 			Origin: new(client.ModelOrigin("edge-impulse-user-project")),
 			Status: new(client.ModelStatus("installed")),
-			Size:   new(1),
+			Size:   new(len(modelContent)),
 		}, got, "The returned model details should match the expected values")
 
 		// TODO test metadata and model configuration contents and runner

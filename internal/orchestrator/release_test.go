@@ -208,14 +208,14 @@ handlers:
 	frozen, err := modelsindex.Load(unoQPlatform, prebuildDir, cfg.ModelsDir(), cfg.CustomModelsDir(), nil, cfg)
 	require.NoError(t, err)
 	assert.True(t, frozen.IsKnown("ei:efficientnet-b4"))
-	assert.False(t, frozen.IsKnown("piper-tts-en"), "a built-in model ships with the board image")
+	assert.True(t, frozen.IsKnown("piper-tts-en"), "built-in models should be included in the frozen index")
 
 	handler, found := frozen.Handlers.GetHandlerByID("ei-handler")
 	require.True(t, found)
 	// The image is the one the build resolved, not a reference the board answers.
 	assert.Equal(t, "build.example/models-downloader:ei", handler.Image)
 	_, found = frozen.Handlers.GetHandlerByID("ai-hub-handler")
-	assert.False(t, found, "no model of the release names it")
+	assert.True(t, found, "handlers of built-in models should be included in the frozen index")
 }
 
 func TestBuildSketch(t *testing.T) {

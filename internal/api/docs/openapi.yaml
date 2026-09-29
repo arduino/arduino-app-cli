@@ -738,6 +738,57 @@ paths:
       summary: Get the logs of a running app
       tags:
       - Application
+  /v1/apps/{id}/prepare:
+    put:
+      description: Downloads the containers and models an already installed release
+        needs to run, without starting it.
+      operationId: prepareAppRelease
+      parameters:
+      - description: application identifier.
+        in: path
+        name: id
+        required: true
+        schema:
+          description: application identifier.
+          type: string
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                type: string
+          description: |
+            A stream of Server-Sent Events (SSE) that notifies the progress.
+            The client will receive events formatted as follows:
+
+            **Event 'progress'**:
+            Contains a JSON object with the percentage of completion.
+            'event: progress'
+            'data: {"name":"containers","progress":25}'
+
+            **Event 'message'**:
+            Contains a JSON object with an informational message.
+            'event: message'
+            'data: {"message":"downloading..."}'
+
+            **Event 'done'**:
+            Contains a JSON object with the prepared app.
+            'event: done'
+            'data: {"id":"dXNlcjpteS1yZWxlYXNl","name":"my-release","release":"my-release-20270101","target":"unoq"}'
+
+            **Event 'error'**:
+            Contains a JSON object with the details of an error.
+            'event: error'
+            'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "412":
+          $ref: '#/components/responses/PreconditionFailed'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Prepares an installed release app
+      tags:
+      - Application
   /v1/apps/{id}/start:
     post:
       description: Start the application and handles all the operation to start any
@@ -943,6 +994,78 @@ paths:
         "500":
           $ref: '#/components/responses/InternalServerError'
       summary: Imports an app from ZIP
+      tags:
+      - Application
+  /v1/apps/install:
+    put:
+      description: Installs a release archive as a new app in the releases dir. The
+        release is read only and is named after the release, date included. If prepare
+        is true, it also downloads the containers and models the release needs to
+        run.
+      operationId: installApp
+      parameters:
+      - description: The release archive (.ard). Must be built for this board.
+        in: query
+        name: file
+        schema:
+          description: The release archive (.ard). Must be built for this board.
+          format: base64
+          type: string
+      - description: After the install, download the containers and models the release
+          needs to run. Any value other than the literal string 'true' (including
+          an empty value or omitting the parameter) is treated as false.
+        in: query
+        name: prepare
+        schema:
+          description: After the install, download the containers and models the release
+            needs to run. Any value other than the literal string 'true' (including
+            an empty value or omitting the parameter) is treated as false.
+          type: boolean
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                file:
+                  description: The release archive (.ard). Must be built for this
+                    board.
+                  format: base64
+                  type: string
+              type: object
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                type: string
+          description: |
+            A stream of Server-Sent Events (SSE) that notifies the progress.
+            The client will receive events formatted as follows:
+
+            **Event 'progress'**:
+            Contains a JSON object with the percentage of completion.
+            'event: progress'
+            'data: {"name":"containers","progress":25}'
+
+            **Event 'message'**:
+            Contains a JSON object with an informational message.
+            'event: message'
+            'data: {"message":"downloading..."}'
+
+            **Event 'done'**:
+            Contains a JSON object with the installed app.
+            'event: done'
+            'data: {"id":"dXNlcjpteS1yZWxlYXNl","name":"my-release","release":"my-release-20270101","target":"unoq"}'
+
+            **Event 'error'**:
+            Contains a JSON object with the details of an error.
+            'event: error'
+            'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+      summary: Installs an app from a release archive
       tags:
       - Application
   /v1/bricks:

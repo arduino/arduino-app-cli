@@ -10,6 +10,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"runtime"
 	"testing"
@@ -19,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 )
@@ -53,11 +55,11 @@ func TestAppReleaseBuildInvalidTarget(t *testing.T) {
 // events stream. The python environment is built in the runner image, which is
 // arm64 only, so a docker daemon is required as well.
 func TestAppReleaseBuildStream(t *testing.T) {
-	if runtime.GOARCH != "arm64" {
+	if runtime.GOARCH != ARM64Arch {
 		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
 	}
 
-	httpClient, daemonAddr := GetHttpclientAndAddr(t)
+	httpClient, daemonAddr := GetHttpclientAndAddr(t, e2e.WithBoardName("unoq"))
 
 	const (
 		appName      = "streamed-build-app"
@@ -83,7 +85,7 @@ func TestAppReleaseBuildStream(t *testing.T) {
 	// only reaches the subscribers present when an event is published.
 	eventsReq, err := http.NewRequestWithContext(ctx, http.MethodGet, daemonAddr+"/v1/apps/build/events", nil)
 	require.NoError(t, err)
-	events, err := newSSEClient(eventsReq, 0)
+	events, err := newSSEClient(eventsReq)
 	require.NoError(t, err)
 
 	type buildOutcome struct {
@@ -104,7 +106,7 @@ func TestAppReleaseBuildStream(t *testing.T) {
 	// streamed, so a subscriber sees the build finish on the stream it filters by id.
 	var sawDone bool
 	for e := range events {
-		t.Log("Received SSE event", "event", e.Event, "data", string(e.Data))
+		t.Log("Received SSE event", "event", e.Event, sseEventData, string(e.Data))
 		switch e.Event {
 		case sseEventError:
 			var payload struct {
@@ -117,7 +119,7 @@ func TestAppReleaseBuildStream(t *testing.T) {
 				continue
 			}
 			t.Fatalf("build failed: code=%s message=%s", payload.Code, payload.Message)
-		case "done":
+		case sseEventDone:
 			var payload struct {
 				BuildID string `json:"build_id"`
 				Name    string `json:"name"`
@@ -149,4 +151,212 @@ func TestAppReleaseBuildStream(t *testing.T) {
 	gzipReader, err := gzip.NewReader(bytes.NewReader(resp.Body))
 	require.NoError(t, err)
 	require.NoError(t, gzipReader.Close())
+}
+
+func TestAppReleaseInstallFromArchive(t *testing.T) {
+	if runtime.GOARCH != "arm64" {
+		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
+	}
+
+	httpClient, daemonAddr := GetHttpclientAndAddr(t, e2e.WithBoardName("unoq"))
+
+	const (
+		appName = "release-install-app"
+		target  = "unoq"
+	)
+
+	createResp, err := httpClient.CreateAppWithResponse(
+		t.Context(),
+		&client.CreateAppParams{SkipSketch: new(true)},
+		client.CreateAppRequest{Icon: new("💻"), Name: appName},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode())
+	appID := *createResp.JSON201.Id
+
+	buildResp, err := httpClient.BuildAppWithResponse(t.Context(), appID, client.BuildAppJSONRequestBody{
+		Target: new(target),
+	})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, buildResp.StatusCode())
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("file", appName+".ard")
+	require.NoError(t, err)
+	_, err = part.Write(buildResp.Body)
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	installReq, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodPut,
+		daemonAddr+"/v1/apps/install?prepare=true",
+		body,
+	)
+	require.NoError(t, err)
+	installReq.Header.Set("Content-Type", writer.FormDataContentType())
+
+	events, err := newSSEClient(installReq)
+	require.NoError(t, err)
+
+	var sawDone bool
+	for e := range events {
+		t.Log("Received SSE event", "event", e.Event, sseEventData, string(e.Data))
+		switch e.Event {
+		case sseEventError:
+			var payload struct {
+				Code    string `json:"code"`
+				Message string `json:"message"`
+			}
+			require.NoError(t, json.Unmarshal(e.Data, &payload))
+			// ignore SERVER_CLOSED
+			if payload.Code == sseCodeServerClosed {
+				continue
+			}
+			t.Fatalf("install failed: code=%s message=%s", payload.Code, payload.Message)
+		case sseEventDone:
+			var payload struct {
+				ID      string `json:"id"`
+				Name    string `json:"name"`
+				Release string `json:"release"`
+				Target  string `json:"target"`
+			}
+			require.NoError(t, json.Unmarshal(e.Data, &payload))
+			assert.Equal(t, appName, payload.Name)
+			assert.Equal(t, target, payload.Target)
+			assert.NotEmpty(t, payload.ID)
+			assert.NotEmpty(t, payload.Release)
+			sawDone = true
+		}
+		if sawDone {
+			break
+		}
+	}
+	require.True(t, sawDone, "no done event received on the install stream")
+}
+
+// TestAppReleasePrepare installs a release without letting install prepare it, then
+// asserts the prepare endpoint downloads what it needs on its own.
+func TestAppReleasePrepare(t *testing.T) {
+	if runtime.GOARCH != ARM64Arch {
+		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
+	}
+
+	httpClient, daemonAddr := GetHttpclientAndAddr(t, e2e.WithBoardName("unoq"))
+
+	const (
+		appName = "release-prepare-app"
+		target  = "unoq"
+	)
+
+	createResp, err := httpClient.CreateAppWithResponse(
+		t.Context(),
+		&client.CreateAppParams{SkipSketch: new(true)},
+		client.CreateAppRequest{Icon: new("💻"), Name: appName},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode())
+	appID := *createResp.JSON201.Id
+
+	buildResp, err := httpClient.BuildAppWithResponse(t.Context(), appID, client.BuildAppJSONRequestBody{
+		Target: new(target),
+	})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, buildResp.StatusCode())
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("file", appName+".ard")
+	require.NoError(t, err)
+	_, err = part.Write(buildResp.Body)
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	installReq, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodPut,
+		daemonAddr+"/v1/apps/install",
+		body,
+	)
+	require.NoError(t, err)
+	installReq.Header.Set("Content-Type", writer.FormDataContentType())
+
+	installEvents, err := newSSEClient(installReq)
+	require.NoError(t, err)
+
+	var installedID string
+	var sawInstallDone bool
+	for e := range installEvents {
+		t.Log("Received SSE event", "event", e.Event, sseEventData, string(e.Data))
+		switch e.Event {
+		case sseEventError:
+			var payload struct {
+				Code    string `json:"code"`
+				Message string `json:"message"`
+			}
+			require.NoError(t, json.Unmarshal(e.Data, &payload))
+			if payload.Code == sseCodeServerClosed {
+				continue
+			}
+			t.Fatalf("install failed: code=%s message=%s", payload.Code, payload.Message)
+		case sseEventDone:
+			var payload struct {
+				ID string `json:"id"`
+			}
+			require.NoError(t, json.Unmarshal(e.Data, &payload))
+			installedID = payload.ID
+			sawInstallDone = true
+		}
+		if sawInstallDone {
+			break
+		}
+	}
+	require.True(t, sawInstallDone, "no done event received on the install stream")
+	require.NotEmpty(t, installedID)
+
+	prepareReq, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodPut,
+		daemonAddr+"/v1/apps/"+installedID+"/prepare",
+		nil,
+	)
+	require.NoError(t, err)
+
+	prepareEvents, err := newSSEClient(prepareReq)
+	require.NoError(t, err)
+
+	var sawPrepareDone bool
+	for e := range prepareEvents {
+		t.Log("Received SSE event", "event", e.Event, sseEventData, string(e.Data))
+		switch e.Event {
+		case sseEventError:
+			var payload struct {
+				Code    string `json:"code"`
+				Message string `json:"message"`
+			}
+			require.NoError(t, json.Unmarshal(e.Data, &payload))
+			if payload.Code == sseCodeServerClosed {
+				continue
+			}
+			t.Fatalf("prepare failed: code=%s message=%s", payload.Code, payload.Message)
+		case sseEventDone:
+			var payload struct {
+				ID      string `json:"id"`
+				Name    string `json:"name"`
+				Release string `json:"release"`
+				Target  string `json:"target"`
+			}
+			require.NoError(t, json.Unmarshal(e.Data, &payload))
+			assert.Equal(t, installedID, payload.ID)
+			assert.Equal(t, appName, payload.Name)
+			assert.Equal(t, target, payload.Target)
+			assert.NotEmpty(t, payload.Release)
+			sawPrepareDone = true
+		}
+		if sawPrepareDone {
+			break
+		}
+	}
+	require.True(t, sawPrepareDone, "no done event received on the prepare stream")
 }

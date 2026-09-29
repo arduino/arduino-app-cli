@@ -19,7 +19,9 @@ import (
 type SSEErrCode string
 
 const (
-	InternalServiceErr SSEErrCode = "INTERNAL_SERVER_ERROR"
+	InternalServiceErr  SSEErrCode = "INTERNAL_SERVER_ERROR"
+	BadRequestErr       SSEErrCode = "bad_request"
+	AppAlreadyExistsErr SSEErrCode = "app_already_exists"
 )
 
 type SSEErrorData struct {

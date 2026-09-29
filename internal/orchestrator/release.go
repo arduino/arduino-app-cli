@@ -280,7 +280,7 @@ func stageReleaseIndexes(
 	}
 
 	// The models the app is wired with and the handlers they name. A built-in model is
-	// left out: it ships with the board image.
+	// included even if it ships with the board image, to avoid "unknown model" errors during the prepare.
 	lookup := modelsIndex.NewLookup()
 	var models []modelsindex.AIModel
 	var handlers []string
@@ -294,9 +294,6 @@ func stageReleaseIndexes(
 		}
 		if model == nil {
 			return fmt.Errorf("model %q is not in the index", brick.Model)
-		}
-		if model.IsBuiltIn {
-			continue
 		}
 		models = append(models, *model)
 		if model.Deployment != nil && !slices.Contains(handlers, model.Deployment.Handler) {
