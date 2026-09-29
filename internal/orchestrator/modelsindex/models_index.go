@@ -625,7 +625,7 @@ func hasSufficientDiskSpace(path *paths.Path, requiredBytes uint64) error {
 	}
 	if diskStats != nil {
 		if requiredBytes > diskStats.Free {
-			return ErrInsufficientStorage
+			return fmt.Errorf("%w: model needs %d bytes, %d bytes free", ErrInsufficientStorage, requiredBytes, diskStats.Free)
 		}
 		return nil
 	}
