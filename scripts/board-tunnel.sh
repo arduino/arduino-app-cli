@@ -32,6 +32,7 @@ fi
 ACTION="$1"
 PORT="$2"
 SOCKET="$(cd "$(dirname "$0")/.." && pwd)/build/board-tunnel-${PORT}.sock"
+LOG="${SOCKET%.sock}.log"
 
 if [ -z "${BOARD:-}" ]; then
   if [ "$ACTION" = "open" ]; then
@@ -50,6 +51,7 @@ if [ -S "$SOCKET" ]; then
 fi
 
 if [ "$ACTION" = "close" ]; then
+  rm -f "$LOG"
   exit 0
 fi
 
@@ -69,7 +71,6 @@ mkdir -p "$(dirname "$SOCKET")"
 # The background process would inherit the caller's stdout and stderr and keep
 # them open, so anything reading the task output (e.g. `| tee`) would never see
 # it end. Its messages go to a log instead, shown if the tunnel does not open.
-LOG="${SOCKET%.sock}.log"
 # ExitOnForwardFailure makes the command fail if the port is already taken on
 # the board, instead of leaving a tunnel that forwards nothing.
 if ! ssh -f -N -M -S "$SOCKET" \
