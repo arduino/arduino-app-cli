@@ -289,6 +289,25 @@ bricks:
 	}
 }
 
+func TestCheckBricksReturnsMissingRequiredVariableError(t *testing.T) {
+	err := checkBricks(
+		t.Context(),
+		[]app.Brick{{ID: "arduino:cloud"}},
+		&bricksindex.BricksIndex{BuiltInBricks: []bricksindex.Brick{{
+			ID: "arduino:cloud",
+			Variables: []bricksindex.BrickVariable{{
+				Name: "TOKEN",
+			}},
+		}}},
+		&modelsindex.ModelsIndex{},
+	)
+
+	var missing *MissingRequiredVariableError
+	require.ErrorAs(t, err, &missing)
+	assert.Equal(t, "TOKEN", missing.Name)
+	assert.Equal(t, "arduino:cloud", missing.BrickID)
+}
+
 func TestValidateVirtualDevice(t *testing.T) {
 	// fail if a camera device is not detected and one of two brick require a physical camera
 

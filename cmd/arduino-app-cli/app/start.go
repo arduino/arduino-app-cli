@@ -8,6 +8,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -91,7 +92,7 @@ func startHandler(ctx context.Context, cfg config.Configuration, app app.Arduino
 		streamCb,
 	)
 	if err != nil {
-		feedback.Fatal(fmt.Sprintf("[ERROR] %s", err.Error()), feedback.ErrGeneric)
+		feedback.Fatal(decorateErrorMessage(err, app.FullPath.String()), feedback.ErrGeneric)
 	}
 
 	outputResult := getResult()
@@ -102,6 +103,50 @@ func startHandler(ctx context.Context, cfg config.Configuration, app app.Arduino
 	})
 
 	return nil
+}
+
+func decorateErrorMessage(err error, appPath string) string {
+	suggestions := missingVariableSuggestions(err, appPath)
+	messages := make([]string, 0, len(suggestions)+1)
+	messages = append(messages, fmt.Sprintf("[ERROR] %s", err))
+	messages = append(messages, suggestions...)
+	return strings.Join(messages, "\n")
+}
+
+// missingVariableSuggestions returns a list of suggestions for missing required environment variables
+// if the given error contains missing required variable errors.
+func missingVariableSuggestions(err error, appPath string) []string {
+	var suggestions []string
+	seen := map[string]struct{}{}
+	var visit func(error)
+	visit = func(err error) {
+		if err == nil {
+			return
+		}
+		if missing, ok := err.(*orchestrator.MissingRequiredVariableError); ok {
+			suggestion := fmt.Sprintf("  arduino-app-cli app brick config %s %s %s=value", appPath, missing.BrickID, missing.Name)
+			if _, found := seen[suggestion]; !found {
+				seen[suggestion] = struct{}{}
+				suggestions = append(suggestions, suggestion)
+			}
+			return
+		}
+		// errors.As stops at the first match. Visit every wrapped error so each
+		// missing variable in an errors.Join gets its own configuration hint.
+		switch err := err.(type) {
+		case interface{ Unwrap() []error }:
+			for _, wrapped := range err.Unwrap() {
+				visit(wrapped)
+			}
+		case interface{ Unwrap() error }:
+			visit(err.Unwrap())
+		}
+	}
+	visit(err)
+	if len(suggestions) > 0 {
+		suggestions = append([]string{"To configure the variables use:"}, suggestions...)
+	}
+	return suggestions
 }
 
 type startAppResult struct {
