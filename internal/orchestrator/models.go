@@ -53,10 +53,11 @@ func AIModelsList(ctx context.Context, req AIModelsListRequest, modelsIndex *mod
 	return collection, nil
 }
 
-// AIModelDetails describes the model id names, as the list does. The id is plain: the API
-// decodes the path before calling in.
+// AIModelDetails describes the model id names. It runs the listing container unless the
+// model is installed by its declaration. The id is plain: the API decodes the path before
+// calling in.
 func AIModelDetails(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, id string) (modelsindex.AIModel, bool, error) {
-	model, err := modelsIndex.NewLookup().ByIDFullInfo(ctx, id)
+	model, err := modelsIndex.NewLookup().ByID(ctx, id)
 	if err != nil {
 		return modelsindex.AIModel{}, false, err
 	}

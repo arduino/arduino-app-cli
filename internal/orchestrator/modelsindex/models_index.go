@@ -197,19 +197,6 @@ func (l *Lookup) ByID(ctx context.Context, id string) (*AIModel, error) {
 	return &l.models[idx], nil
 }
 
-// ByIDFullInfo is ByID with the listing's fields on every model.
-func (l *Lookup) ByIDFullInfo(ctx context.Context, id string) (*AIModel, error) {
-	if err := l.listing(ctx); err != nil {
-		slog.Warn("cannot list models, describing the model from its declaration", "model", id, "err", err)
-		return l.ByID(ctx, id)
-	}
-	idx := slices.IndexFunc(l.models, func(v AIModel) bool { return v.ID == id })
-	if idx == -1 {
-		return nil, nil
-	}
-	return &l.models[idx], nil
-}
-
 // known reads the index's own files once per lookup: models-list.yaml and the custom
 // models come off disk, so asking about several models walks the directory once.
 func (l *Lookup) known(id string) (*AIModel, bool) {
