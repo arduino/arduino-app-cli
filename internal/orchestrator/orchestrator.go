@@ -98,6 +98,7 @@ func StartApp(
 	cfg config.Configuration,
 	platform platform.Platform,
 	verbose bool,
+	prepare bool,
 	cb func(StreamMessage),
 ) error {
 	if cb == nil {
@@ -107,6 +108,12 @@ func StartApp(
 	bricksIndex = appToStart.Bricks(bricksIndex)
 
 	modelsIndex = appToStart.Models(modelsIndex, docker, cfg, platform)
+
+	if prepare && !appToStart.IsRelease() {
+		if err := prepareModels(ctx, docker, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex, platform, cb); err != nil {
+			return err
+		}
+	}
 
 	if err := checkBricks(ctx, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex); err != nil {
 		return err
@@ -247,10 +254,10 @@ func StartApp(
 			return err
 		}
 
-		// A release runs what its build froze and a prepare downloaded: a start never
-		// fetches a missing image, it fails and asks for a prepare first.
-		if isRelease {
-			if err := checkReleaseImages(ctx, docker, prj); err != nil {
+		// Without a prepare, a start never fetches a missing image: it fails and asks for
+		// one first.
+		if !prepare {
+			if err := checkImages(ctx, docker, prj); err != nil {
 				return err
 			}
 		}
@@ -420,7 +427,7 @@ func RestartApp(
 		}
 	}
 
-	return StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, platform, verbose, cb)
+	return StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, platform, verbose, !appToStart.IsRelease(), cb)
 }
 
 func StartDefaultApp(
@@ -452,7 +459,7 @@ func StartDefaultApp(
 	}
 
 	// TODO: we need to stop all other running app before starting the default app.
-	if err := StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, *app, cfg, platform, false, func(sm StreamMessage) {}); err != nil {
+	if err := StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, *app, cfg, platform, false, !app.IsRelease(), func(sm StreamMessage) {}); err != nil {
 		return fmt.Errorf("failed to start app: %w", err)
 	}
 

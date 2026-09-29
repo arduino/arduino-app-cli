@@ -6,6 +6,7 @@
 package orchestrator
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"slices"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -105,8 +107,8 @@ func PrepareInstalledRelease(
 	return PrepareRelease(ctx, docker, arduinoApp, prj, cfg, plat, cb)
 }
 
-// checkReleaseImages verifies the container images a release needs are on the board
-func checkReleaseImages(
+// checkImages verifies the container images an app needs are on the board
+func checkImages(
 	ctx context.Context,
 	docker command.Cli,
 	prj *types.Project,
@@ -118,6 +120,44 @@ func checkReleaseImages(
 	for _, image := range dockerhelper.ComposeImages(prj) {
 		if !slices.Contains(allImages, image) {
 			return fmt.Errorf("%w: the container %q is not on the board", ErrNotPrepared, image)
+		}
+	}
+	return nil
+}
+
+// prepareModels installs the models an editable app is wired with but does not have yet, so
+// that a start downloads them in place instead of failing as not prepared. It resolves the
+// models the same way checkBricks does, and leaves to it the reporting of anything wrong:
+// an unknown or incompatible model is skipped here and fails the check that follows.
+func prepareModels(
+	ctx context.Context,
+	docker command.Cli,
+	bricks []app.Brick,
+	index *bricksindex.BricksIndex,
+	modelIndex *modelsindex.ModelsIndex,
+	plat platform.Platform,
+	cb func(StreamMessage),
+) error {
+	models := modelIndex.NewLookup()
+	for _, appBrick := range bricks {
+		indexBrick, found := index.FindBrickByID(appBrick.ID)
+		if !found || !indexBrick.RequireModel {
+			continue
+		}
+		selectedModel := cmp.Or(appBrick.Model, indexBrick.ModelName)
+		model, err := models.ByID(ctx, selectedModel)
+		if err != nil || model == nil || model.Status == modelsindex.InstalledStatus {
+			// A model that is unknown, unreadable or already installed is not downloaded
+			// here: checkBricks reports the first two, the last is nothing to do.
+			continue
+		}
+		cb(StreamMessage{data: "downloading the model " + selectedModel})
+		if _, err := modelIndex.Install(ctx, docker, selectedModel, plat, func(message modelsindex.StreamMessage) {
+			if message.IsData() {
+				cb(StreamMessage{data: message.GetData()})
+			}
+		}); err != nil {
+			return fmt.Errorf("failed to download the model %q: %w", selectedModel, err)
 		}
 	}
 	return nil

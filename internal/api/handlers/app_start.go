@@ -68,7 +68,10 @@ func HandleAppStart(
 		type log struct {
 			Message string `json:"message"`
 		}
-		if err := orchestrator.StartApp(r.Context(), dockerCli, provisioner, modelsIndex, bricksIndex, servicesIndex, app, cfg, platform, verbose, func(item orchestrator.StreamMessage) {
+		// An editable app is prepared by its start, downloading what it is missing; a
+		// release is not, so a start of one that is not prepared fails as not prepared.
+		prepare := !app.IsRelease()
+		if err := orchestrator.StartApp(r.Context(), dockerCli, provisioner, modelsIndex, bricksIndex, servicesIndex, app, cfg, platform, verbose, prepare, func(item orchestrator.StreamMessage) {
 			switch item.GetType() {
 			case orchestrator.ProgressType:
 				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress(*item.GetProgress())})
