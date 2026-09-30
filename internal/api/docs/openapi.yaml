@@ -1891,6 +1891,10 @@ components:
           items:
             $ref: '#/components/schemas/AppDetailedBrick'
           type: array
+        created_at:
+          format: date-time
+          nullable: true
+          type: string
         default:
           type: boolean
         description:
@@ -1903,7 +1907,15 @@ components:
           type: string
         name:
           type: string
+        notes:
+          type: string
         path:
+          type: string
+        release:
+          type: boolean
+        release_id:
+          type: string
+        release_label:
           type: string
         status:
           $ref: '#/components/schemas/Status'

@@ -184,14 +184,19 @@ type AppDetailedBrick struct {
 
 // AppDetailedInfo defines model for AppDetailedInfo.
 type AppDetailedInfo struct {
-	Bricks      *[]AppDetailedBrick `json:"bricks,omitempty"`
-	Default     *bool               `json:"default,omitempty"`
-	Description *string             `json:"description,omitempty"`
-	Example     *bool               `json:"example,omitempty"`
-	Icon        *string             `json:"icon,omitempty"`
-	Id          string              `json:"id"`
-	Name        string              `json:"name"`
-	Path        *string             `json:"path,omitempty"`
+	Bricks       *[]AppDetailedBrick `json:"bricks,omitempty"`
+	CreatedAt    *time.Time          `json:"created_at,omitempty"`
+	Default      *bool               `json:"default,omitempty"`
+	Description  *string             `json:"description,omitempty"`
+	Example      *bool               `json:"example,omitempty"`
+	Icon         *string             `json:"icon,omitempty"`
+	Id           string              `json:"id"`
+	Name         string              `json:"name"`
+	Notes        *string             `json:"notes,omitempty"`
+	Path         *string             `json:"path,omitempty"`
+	Release      *bool               `json:"release,omitempty"`
+	ReleaseId    *string             `json:"release_id,omitempty"`
+	ReleaseLabel *string             `json:"release_label,omitempty"`
 
 	// Status Application status
 	Status Status `json:"status"`

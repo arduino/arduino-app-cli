@@ -654,15 +654,20 @@ func exampleCompatibleWithBricksIndex(a app.ArduinoApp, idx *bricksindex.BricksI
 }
 
 type AppDetailedInfo struct {
-	ID          appid.ID           `json:"id" required:"true" `
-	Name        string             `json:"name" required:"true"`
-	Path        string             `json:"path"`
-	Description string             `json:"description"`
-	Icon        string             `json:"icon"`
-	Status      Status             `json:"status" required:"true"`
-	Example     bool               `json:"example"`
-	Default     bool               `json:"default"`
-	Bricks      []AppDetailedBrick `json:"bricks,omitempty"`
+	ID           appid.ID           `json:"id" required:"true" `
+	Name         string             `json:"name" required:"true"`
+	Path         string             `json:"path"`
+	Description  string             `json:"description"`
+	Icon         string             `json:"icon"`
+	Status       Status             `json:"status" required:"true"`
+	Example      bool               `json:"example"`
+	Default      bool               `json:"default"`
+	Release      bool               `json:"release"`
+	ReleaseID    string             `json:"release_id,omitempty"`
+	ReleaseLabel string             `json:"release_label,omitempty"`
+	CreatedAt    *time.Time         `json:"created_at,omitempty"`
+	Notes        string             `json:"notes,omitempty"`
+	Bricks       []AppDetailedBrick `json:"bricks,omitempty"`
 }
 
 type AppDetailedBrick struct {
@@ -715,15 +720,22 @@ func AppDetails(
 		return AppDetailedInfo{}, err
 	}
 
+	release, isRelease := userApp.GetRelease()
+
 	return AppDetailedInfo{
-		ID:          id,
-		Name:        userApp.Name,
-		Path:        userApp.FullPath.String(),
-		Description: userApp.Descriptor.Description,
-		Icon:        userApp.Descriptor.Icon,
-		Status:      status,
-		Example:     id.IsExample(),
-		Default:     defaultAppPath == userApp.FullPath.String(),
+		ID:           id,
+		Name:         userApp.Name,
+		Path:         userApp.FullPath.String(),
+		Description:  userApp.Descriptor.Description,
+		Icon:         userApp.Descriptor.Icon,
+		Status:       status,
+		Example:      id.IsExample(),
+		Default:      defaultAppPath == userApp.FullPath.String(),
+		Release:      isRelease,
+		ReleaseID:    release.ID,
+		ReleaseLabel: release.ReleaseLabel,
+		CreatedAt:    release.CreatedAt,
+		Notes:        release.Notes,
 		Bricks: f.Map(userApp.Descriptor.Bricks, func(b app.Brick) AppDetailedBrick {
 			res := AppDetailedBrick{ID: b.ID}
 			bi, found := bricksIndex.FindBrickByID(b.ID)
