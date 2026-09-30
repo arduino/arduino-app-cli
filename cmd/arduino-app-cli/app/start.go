@@ -124,7 +124,7 @@ func missingVariableSuggestions(err error, appPath string) []string {
 			return
 		}
 		if missing, ok := err.(*orchestrator.MissingRequiredVariableError); ok {
-			suggestion := fmt.Sprintf("  arduino-app-cli app brick config %s %s %s=value", appPath, missing.BrickID, missing.Name)
+			suggestion := fmt.Sprintf("  arduino-app-cli app brick config %s %s %s[=value]", appPath, missing.BrickID, missing.Name)
 			if _, found := seen[suggestion]; !found {
 				seen[suggestion] = struct{}{}
 				suggestions = append(suggestions, suggestion)
