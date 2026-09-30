@@ -540,7 +540,7 @@ func (m *ModelsIndex) runDownload(ctx context.Context, cli client.APIClient, mod
 
 	if err := hasSufficientDiskSpace(m.modelsDir, model.Size); err != nil {
 		if !isModelInstalled(ctx, cli, handler, envVars) {
-			return nil, fmt.Errorf("insufficient disk space to download model %q: %w", model.ID, err)
+			return nil, err
 		}
 		slog.Debug("model already installed, disk check skipped", "model", model.ID)
 	}
