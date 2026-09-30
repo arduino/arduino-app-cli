@@ -6,6 +6,7 @@
 package modelsindex
 
 import (
+	"math"
 	"path/filepath"
 	"testing"
 
@@ -296,4 +297,16 @@ func TestNeedsNoDownload(t *testing.T) {
 		})
 	}
 
+}
+
+func TestHasSufficientDiskSpace(t *testing.T) {
+	dir := paths.New(t.TempDir())
+
+	t.Run("nothing required fits", func(t *testing.T) {
+		assert.NoError(t, hasSufficientDiskSpace(dir, 0))
+	})
+	t.Run("more than the disk holds does not fit", func(t *testing.T) {
+		// Used+required would overflow and wrap below Total.
+		assert.ErrorIs(t, hasSufficientDiskSpace(dir, math.MaxUint64), ErrInsufficientStorage)
+	})
 }

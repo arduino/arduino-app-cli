@@ -430,8 +430,7 @@ func loadCustomModels(dir *paths.Path) ([]AIModel, error) {
 //
 // The id is not an input: the downloader makes it from the file that arrives, with the same
 // rule as the listing, and reports it on the stream. The id contains the repository
-// directory, so two owners with the same file name stay two models. There is no disk space
-// check, because the size is known only after Hugging Face resolves the URL.
+// directory, so two owners with the same file name stay two models.
 func (m *ModelsIndex) DownloadByURL(ctx context.Context, cli client.APIClient, modelURL, mmprojURL string, plat platform.Platform, publish func(e StreamMessage)) (AIModel, error) {
 	variables := map[string]string{
 		"model_url": modelURL,
@@ -519,9 +518,6 @@ func (m *ModelsIndex) runDownload(ctx context.Context, cli client.APIClient, mod
 		// Guarded here too: the alternative is dereferencing a nil Deployment.
 		return nil, fmt.Errorf("model %q has nothing to download: %w", model.ID, ErrNoHandler)
 	}
-	if err := hasSufficientDiskSpace(m.modelsDir, model.Size); err != nil {
-		return nil, fmt.Errorf("insufficient disk space to download model %q: %w", model.ID, err)
-	}
 
 	if m.Handlers == nil {
 		return nil, fmt.Errorf("no handlers are configured: %w", ErrNoHandler)
@@ -533,6 +529,21 @@ func (m *ModelsIndex) runDownload(ctx context.Context, cli client.APIClient, mod
 
 	envVars := model.Deployment.VariablesForPlatform(plat.BoardName)
 	maps.Insert(envVars, maps.All(m.Handlers.configEnv))
+
+	if model.Size == 0 {
+		if s, ok, err := getModelSize(ctx, cli, handler, envVars); err != nil {
+			slog.Warn("info action failed, downloading unchecked", "err", err)
+		} else if ok {
+			model.Size = s
+		}
+	}
+
+	if err := hasSufficientDiskSpace(m.modelsDir, model.Size); err != nil {
+		if !isModelInstalled(ctx, cli, handler, envVars) {
+			return nil, fmt.Errorf("insufficient disk space to download model %q: %w", model.ID, err)
+		}
+		slog.Debug("model already installed, disk check skipped", "model", model.ID)
+	}
 
 	var downloaded *DownloadedModel
 	var reported bool
@@ -609,8 +620,8 @@ func hasSufficientDiskSpace(path *paths.Path, requiredBytes uint64) error {
 		return err
 	}
 	if diskStats != nil {
-		if diskStats.Used+requiredBytes > diskStats.Total {
-			return ErrInsufficientStorage
+		if requiredBytes > diskStats.Free {
+			return fmt.Errorf("%w: model needs %d bytes, %d bytes free", ErrInsufficientStorage, requiredBytes, diskStats.Free)
 		}
 		return nil
 	}

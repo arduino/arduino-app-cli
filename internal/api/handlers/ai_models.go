@@ -309,7 +309,7 @@ func (d *downloadStream) sendError(err error) {
 		return
 	}
 	if errors.Is(err, modelsindex.ErrInsufficientStorage) {
-		d.sse.SendError(render.SSEErrorData{Code: "insufficient_storage", Message: "insufficient disk space to install model"})
+		d.sse.SendError(render.SSEErrorData{Code: "insufficient_storage", Message: err.Error()})
 		return
 	}
 	d.sse.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: err.Error()})

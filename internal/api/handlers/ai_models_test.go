@@ -118,6 +118,7 @@ func TestDownloadStream(t *testing.T) {
 
 		require.Len(t, sse.errors, 1)
 		assert.Equal(t, render.SSEErrCode("insufficient_storage"), sse.errors[0].Code)
+		assert.Contains(t, sse.errors[0].Message, modelsindex.ErrInsufficientStorage.Error())
 	})
 
 	t.Run("anything else is an internal error carrying the reason", func(t *testing.T) {
