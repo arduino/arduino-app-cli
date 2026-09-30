@@ -141,6 +141,11 @@ func TestStageReleaseIndexes(t *testing.T) {
       name: "EfficientNet-B4"
       deployment:
         handler: "ei-handler"
+  - whisper-base:
+      name: "Whisper (base)"
+      deployment:
+        handler: "ai-hub-handler"
+        pre-loaded: true
 `)))
 	require.NoError(t, cfg.AssetDir().Join("models-handlers.yaml").WriteFile([]byte(`listing:
   image: ${DOCKER_REGISTRY_BASE}models-downloader:listing
@@ -179,8 +184,14 @@ handlers:
 
 	localBrick := bricksindex.Brick{ID: "local:my_brick"}
 	bricksIndex := &bricksindex.BricksIndex{
-		BuiltInBricks: []bricksindex.Brick{{ID: "arduino:tts"}, {ID: "arduino:image_classification"}},
-		AppBricks:     []bricksindex.Brick{localBrick},
+		BuiltInBricks: []bricksindex.Brick{
+			{ID: "arduino:tts", RequireModel: true, ModelName: "piper-tts-en"},
+			{ID: "arduino:image_classification", RequireModel: true, ModelName: "ei:efficientnet-b4"},
+			// A brick whose default model the app does not override: a start resolves it
+			// from the brick, so the build has to freeze it the same way.
+			{ID: "arduino:asr", RequireModel: true, ModelName: "whisper-base"},
+		},
+		AppBricks: []bricksindex.Brick{localBrick},
 	}
 	appToBuild := app.ArduinoApp{
 		Name:        "my-app",
@@ -189,6 +200,7 @@ handlers:
 			{ID: localBrick.ID},
 			{ID: "arduino:tts", Model: "piper-tts-en"},
 			{ID: "arduino:image_classification", Model: "ei:efficientnet-b4"},
+			{ID: "arduino:asr"},
 		}},
 	}
 
@@ -200,15 +212,16 @@ handlers:
 	var bricks bricksindex.YamlBricksIndex
 	require.NoError(t, yaml.Unmarshal(content, &bricks))
 	// The brick the app brings along ships in src, so the index does not state it.
-	assert.Equal(t, []string{"arduino:tts", "arduino:image_classification"},
-		[]string{bricks.Bricks[0].ID, bricks.Bricks[1].ID})
-	assert.Len(t, bricks.Bricks, 2)
+	assert.Equal(t, []string{"arduino:tts", "arduino:image_classification", "arduino:asr"},
+		[]string{bricks.Bricks[0].ID, bricks.Bricks[1].ID, bricks.Bricks[2].ID})
+	assert.Len(t, bricks.Bricks, 3)
 
 	// The frozen index is read back the way a board reads its own.
 	frozen, err := modelsindex.Load(unoQPlatform, prebuildDir, cfg.ModelsDir(), cfg.CustomModelsDir(), nil, cfg)
 	require.NoError(t, err)
 	assert.True(t, frozen.IsKnown("ei:efficientnet-b4"))
 	assert.True(t, frozen.IsKnown("piper-tts-en"), "built-in models should be included in the frozen index")
+	assert.True(t, frozen.IsKnown("whisper-base"), "a brick's default model should be included in the frozen index")
 
 	handler, found := frozen.Handlers.GetHandlerByID("ei-handler")
 	require.True(t, found)
