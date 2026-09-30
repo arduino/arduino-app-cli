@@ -1920,6 +1920,10 @@ components:
       type: object
     AppInfo:
       properties:
+        created_at:
+          format: date-time
+          nullable: true
+          type: string
         default:
           type: boolean
         description:
@@ -1935,6 +1939,8 @@ components:
         release:
           type: boolean
         release_id:
+          type: string
+        release_label:
           type: string
         status:
           $ref: '#/components/schemas/Status'

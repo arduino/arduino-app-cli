@@ -214,6 +214,8 @@ type handlerModelEntry struct {
 	ID          string         `json:"id"`
 	Name        string         `json:"name"`
 	Handler     string         `json:"handler"`
+	Runtime     string         `json:"runtime"`
+	Publisher   string         `json:"model_publisher"`
 	Platform    string         `json:"platform"`
 	ModelType   string         `json:"model_type"`
 	Path        string         `json:"path"`
@@ -223,6 +225,7 @@ type handlerModelEntry struct {
 	DiskSizeMB  *float64       `json:"disk_size_mb"`  // actual on-disk size, only when installed
 	ModelOrigin string         `json:"model_origin"`
 	Metadata    *entryMetadata `json:"download_metadata"`
+	Mmproj      string         `json:"mmproj"`
 }
 
 func (e handlerModelEntry) applyStat(m *AIModel) {
@@ -240,6 +243,7 @@ func (e handlerModelEntry) applyStat(m *AIModel) {
 	if e.Metadata != nil {
 		m.setSourceURL(e.Metadata.Inputs["model_url"])
 	}
+	m.setMetadata(map[string]string{"runtime": e.Runtime, "publisher": e.Publisher})
 	if e.Installed && e.DiskSizeMB != nil && *e.DiskSizeMB > 0 {
 		m.Size = uint64(*e.DiskSizeMB * 1024 * 1024)
 	} else if e.ModelSizeMB != nil && *e.ModelSizeMB > 0 {
@@ -274,6 +278,17 @@ func (m *AIModel) setSourceURL(url string) {
 	m.Metadata = metadata
 }
 
+func (m *AIModel) setMetadata(values map[string]string) {
+	maps.DeleteFunc(values, func(_, v string) bool { return v == "" })
+	if len(values) == 0 {
+		return
+	}
+	metadata := make(map[string]string, len(m.Metadata)+len(values))
+	maps.Copy(metadata, m.Metadata)
+	maps.Copy(metadata, values)
+	m.Metadata = metadata
+}
+
 // The handler's own word for a model no models-list.yaml entry declares: the container's
 // ORIGIN_USER, and the only value here that matters.
 const handlerUserOrigin = "user"
@@ -305,7 +320,7 @@ func (h *HandlersIndex) userDownloadModel(entry handlerModelEntry) (AIModel, boo
 		Name:      entry.Name,
 		IsBuiltIn: false,
 		Origin:    UserOrigin,
-		Bricks:    bricksForVision(md.Inputs["model_mmproj_url"]),
+		Bricks:    bricksForVision(entry.Mmproj),
 		Deployment: &ModelDeployment{
 			Handler: md.Handler,
 			Variables: []map[string]PlatformDeploymentConfig{
@@ -493,6 +508,38 @@ func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
 	}
 }
 
+// parseInfoSize returns the download size an info action reports in its stat event.
+// false: no stat event, one with no size, or an error event.
+func parseInfoSize(out []byte) (uint64, bool) {
+	var size uint64
+	var found bool
+	for line := range bytes.Lines(out) {
+		var raw struct {
+			Event       string   `json:"event"`
+			Description string   `json:"description"`
+			SizeBytes   *uint64  `json:"size_bytes"`
+			SizeMB      *float64 `json:"size_mb"`
+		}
+		if err := json.Unmarshal(line, &raw); err != nil {
+			slog.Debug("non-JSON stdout from info action", "line", string(line))
+			continue
+		}
+		switch raw.Event {
+		case "error":
+			slog.Warn("info action reported an error, size unknown", "description", raw.Description)
+			return 0, false
+		case "stat":
+			switch {
+			case raw.SizeBytes != nil && *raw.SizeBytes > 0:
+				size, found = *raw.SizeBytes, true
+			case raw.SizeMB != nil && *raw.SizeMB > 0:
+				size, found = uint64(*raw.SizeMB*1024*1024), true
+			}
+		}
+	}
+	return size, found
+}
+
 func (h *HandlersIndex) GetDockerImages() []string {
 	if h == nil {
 		slog.Warn("handlers index is nil, cannot get model handler images")
@@ -554,4 +601,75 @@ func deleteInternalModel(ctx context.Context, cli client.APIClient, model AIMode
 			slog.Debug("handler stderr", "line", line)
 		}),
 	})
+}
+
+func getModelSize(ctx context.Context, cli client.APIClient, handler ModelHandler, envVars map[string]string) (uint64, bool, error) {
+	if len(handler.Actions.Info) == 0 {
+		return 0, false, nil
+	}
+
+	var buf, stderr bytes.Buffer
+	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
+		Image:  ResolveVars(handler.Image, envVars),
+		Cmd:    handler.Actions.Info,
+		Binds:  ResolveVarsSlice(handler.Volumes, envVars),
+		Env:    envVars,
+		Stdout: &buf,
+		Stderr: &stderr,
+	})
+	if err != nil {
+		return 0, false, fmt.Errorf("running info action: %w: %s", err, stderr.String())
+	}
+
+	outputSize, found := parseInfoSize(buf.Bytes())
+	return outputSize, found, nil
+}
+
+func isModelInstalled(ctx context.Context, cli client.APIClient, handler ModelHandler, envVars map[string]string) bool {
+	if len(handler.Actions.Check) == 0 {
+		return false
+	}
+
+	var buf, stderr bytes.Buffer
+	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
+		Image:  ResolveVars(handler.Image, envVars),
+		Cmd:    handler.Actions.Check,
+		Binds:  ResolveVarsSlice(handler.Volumes, envVars),
+		Env:    envVars,
+		Stdout: &buf,
+		Stderr: &stderr,
+	})
+	if err != nil && !hasErrorEvent(buf.Bytes()) {
+		slog.Warn("check action failed, model assumed not on disk", "err", err, "stderr", stderr.String())
+	}
+
+	return parseCheckInstalled(buf.Bytes())
+}
+
+func hasErrorEvent(out []byte) bool {
+	for line := range bytes.Lines(out) {
+		var raw struct {
+			Event string `json:"event"`
+		}
+		if json.Unmarshal(line, &raw) == nil && MessageType(raw.Event) == ErrorType {
+			return true
+		}
+	}
+	return false
+}
+
+func parseCheckInstalled(out []byte) bool {
+	for line := range bytes.Lines(out) {
+		var raw struct {
+			Event       string `json:"event"`
+			Downloading *bool  `json:"downloading"`
+		}
+		if err := json.Unmarshal(line, &raw); err != nil {
+			continue
+		}
+		if MessageType(raw.Event) == InfoType && raw.Downloading != nil && !*raw.Downloading {
+			return true
+		}
+	}
+	return false
 }

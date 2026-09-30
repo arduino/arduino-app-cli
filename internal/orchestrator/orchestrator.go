@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/arduino/arduino-cli/commands"
 	rpc "github.com/arduino/arduino-cli/rpc/cc/arduino/cli/commands/v1"
@@ -481,8 +482,10 @@ type AppInfo struct {
 	Default     bool     `json:"default"`
 	// Release tells an app installed from a release, which is frozen, from an app,
 	// which is edited. ReleaseID is the release it comes from.
-	Release   bool   `json:"release"`
-	ReleaseID string `json:"release_id,omitempty"`
+	Release      bool       `json:"release"`
+	ReleaseID    string     `json:"release_id,omitempty"`
+	ReleaseLabel string     `json:"release_label,omitempty"`
+	CreatedAt    *time.Time `json:"created_at,omitempty"`
 }
 
 type BrokenAppInfo struct {
@@ -585,15 +588,17 @@ func ListApps(
 
 		result.Apps = append(result.Apps,
 			AppInfo{
-				ID:          id,
-				Name:        app.Name,
-				Description: app.Descriptor.Description,
-				Icon:        app.Descriptor.Icon,
-				Status:      status,
-				Example:     id.IsExample(),
-				Default:     isDefault,
-				Release:     isRelease,
-				ReleaseID:   release.ID,
+				ID:           id,
+				Name:         app.Name,
+				Description:  app.Descriptor.Description,
+				Icon:         app.Descriptor.Icon,
+				Status:       status,
+				Example:      id.IsExample(),
+				Default:      isDefault,
+				Release:      isRelease,
+				ReleaseID:    release.ID,
+				ReleaseLabel: release.ReleaseLabel,
+				CreatedAt:    release.CreatedAt,
 			},
 		)
 	}

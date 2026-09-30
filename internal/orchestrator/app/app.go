@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
@@ -264,7 +265,8 @@ type Release struct {
 	Target string `yaml:"target"`
 	// ReleaseLabel is the optional label the user gave the release at build time, read
 	// from the manifest and absent when none was given.
-	ReleaseLabel string `yaml:"release_label,omitempty"`
+	ReleaseLabel string     `yaml:"release_label,omitempty"`
+	CreatedAt    *time.Time `yaml:"created_at,omitempty"`
 	// ID is the release folder name, so it is read from the path and never written.
 	ID string `yaml:"-"`
 }

@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/oapi-codegen/runtime"
 )
@@ -198,14 +199,16 @@ type AppDetailedInfo struct {
 
 // AppInfo defines model for AppInfo.
 type AppInfo struct {
-	Default     *bool   `json:"default,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Example     *bool   `json:"example,omitempty"`
-	Icon        *string `json:"icon,omitempty"`
-	Id          *string `json:"id,omitempty"`
-	Name        *string `json:"name,omitempty"`
-	Release     *bool   `json:"release,omitempty"`
-	ReleaseId   *string `json:"release_id,omitempty"`
+	CreatedAt    *time.Time `json:"created_at,omitempty"`
+	Default      *bool      `json:"default,omitempty"`
+	Description  *string    `json:"description,omitempty"`
+	Example      *bool      `json:"example,omitempty"`
+	Icon         *string    `json:"icon,omitempty"`
+	Id           *string    `json:"id,omitempty"`
+	Name         *string    `json:"name,omitempty"`
+	Release      *bool      `json:"release,omitempty"`
+	ReleaseId    *string    `json:"release_id,omitempty"`
+	ReleaseLabel *string    `json:"release_label,omitempty"`
 
 	// Status Application status
 	Status *Status `json:"status,omitempty"`
