@@ -77,16 +77,17 @@ func checkDockerEngine(ctx context.Context, docker command.Cli) (string, error) 
 	return detail, nil
 }
 
-// checkSudoRules reports the commands of the cli the sudoers file does not allow.
+// checkSudoRules reports the commands of the cli the sudoers file does not let the
+// daemon user run without a password.
 func checkSudoRules(ctx context.Context) (string, error) {
 	missing, err := sudo.Check(ctx)
 	if err != nil {
 		return "", err
 	}
 	if len(missing) > 0 {
-		return "", fmt.Errorf("the sudoers file does not allow: %s", strings.Join(missing, "; "))
+		return "", fmt.Errorf("the sudoers file does not allow without a password: %s", strings.Join(missing, "; "))
 	}
-	return "every command of the cli is allowed", nil
+	return "every command of the cli is allowed without a password", nil
 }
 
 // check is what one requirement of a board turned out to be.

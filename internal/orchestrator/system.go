@@ -324,17 +324,11 @@ func getRequiredImages(cfg config.Configuration, bricksindex *bricksindex.Bricks
 }
 
 func installPlatformPackage(ctx context.Context, plat platform.Platform, eventCB InitEventCallback) error {
-	var packageName string
-
-	switch plat.BoardName {
-	case "unoq":
-		packageName = "arduino-unoq"
-	case "ventunoq":
-		packageName = "arduino-ventunoq"
-	default:
+	if !slices.Contains(platform.SupportedBoards(), plat.BoardName) {
 		eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDeb, Message: fmt.Sprintf("no platform-specific debian package to install for board '%s'", plat.BoardName)})
 		return nil
 	}
+	packageName := platform.DebianPackage(plat.BoardName)
 
 	eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDeb, Message: fmt.Sprintf("Installing package '%s'", packageName)})
 

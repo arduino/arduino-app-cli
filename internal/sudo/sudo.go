@@ -15,6 +15,8 @@ import (
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
+
+	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
 // Command is one command the cli runs with sudo. Samples are tails a rule ending
@@ -61,12 +63,19 @@ var (
 	})
 )
 
-// The command of `system init`: a rule names the package, so a new board needs
-// a new sample.
+// The command of `system init`. Samples come from platform.SupportedBoards, so it
+// cannot drift from the packages installPlatformPackage installs.
 var AptInstall = add(Command{
-	Args:    []string{"apt-get", "install", "-y"},
-	Samples: [][]string{{"arduino-unoq"}, {"arduino-ventunoq"}},
-	Env:     []string{debianFrontend},
+	Args: []string{"apt-get", "install", "-y"},
+	Samples: func() [][]string {
+		boards := platform.SupportedBoards()
+		samples := make([][]string, len(boards))
+		for i, board := range boards {
+			samples[i] = []string{platform.DebianPackage(board)}
+		}
+		return samples
+	}(),
+	Env: []string{debianFrontend},
 })
 
 // The command of `system set-name`, which pkg/board still spells out itself.
@@ -80,8 +89,8 @@ func (c Command) Process(tail ...string) (*paths.Process, error) {
 	return paths.NewProcess(c.Env, slices.Concat([]string{"sudo"}, c.Args, tail)...)
 }
 
-// Check reports what the sudoers file does not allow to the daemon user. `sudo -l`
-// resolves a rule and runs nothing.
+// Check reports what the sudoers file does not let the daemon user run without a
+// password. `sudo -l` resolves a rule and runs nothing.
 func Check(ctx context.Context) ([]string, error) {
 	// -U reads the rules of the daemon user: sudo allows root everything.
 	const daemonUID = "1000"
@@ -90,9 +99,11 @@ func Check(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("no user with uid %s on this system: %w", daemonUID, err)
 	}
 
+	// -l twice adds the matching rule to the output, NOPASSWD included: a single -l
+	// only says the command is allowed, password or not.
 	sudoList := func(args ...string) ([]byte, error) {
 		cmd, err := paths.NewProcess(nil,
-			slices.Concat([]string{"sudo", "-n", "-l", "-U", daemon.Username}, args)...)
+			slices.Concat([]string{"sudo", "-n", "-l", "-l", "-U", daemon.Username}, args)...)
 		if err != nil {
 			return nil, err
 		}
@@ -113,7 +124,8 @@ func Check(ctx context.Context) ([]string, error) {
 		}
 		for _, sample := range samples {
 			argv := slices.Concat(c.Args, sample)
-			if _, err := sudoList(argv...); err != nil {
+			out, err := sudoList(argv...)
+			if err != nil || !strings.Contains(string(out), "NOPASSWD") {
 				missing = append(missing, strings.Join(argv, " "))
 			}
 		}

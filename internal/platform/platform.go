@@ -52,6 +52,12 @@ func SupportedBoards() []string {
 	return []string{BoardUnoQ, BoardVentunoQ}
 }
 
+// DebianPackage is the platform-specific debian package `system init` installs for
+// a supported board.
+func DebianPackage(boardName string) string {
+	return "arduino-" + boardName
+}
+
 // ForBoard is the platform of a board by name, for the cases where it is chosen
 // instead of detected: building a release names the board it is built for.
 func ForBoard(boardName string) (Platform, bool) {
