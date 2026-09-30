@@ -1321,12 +1321,12 @@ func TestImportApp(t *testing.T) {
 		return buf.Bytes()
 	}
 
-	createMultipartBody := func(t *testing.T, zipData []byte) (*bytes.Buffer, string) {
+	createMultipartBodyWithName := func(t *testing.T, zipData []byte, fileName string) (*bytes.Buffer, string) {
 		t.Helper()
 		body := new(bytes.Buffer)
 		writer := multipart.NewWriter(body)
 
-		part, err := writer.CreateFormFile("file", "test-app.zip")
+		part, err := writer.CreateFormFile("file", fileName)
 		require.NoError(t, err)
 		_, err = part.Write(zipData)
 		require.NoError(t, err)
@@ -1335,6 +1335,10 @@ func TestImportApp(t *testing.T) {
 		require.NoError(t, err)
 
 		return body, writer.FormDataContentType()
+	}
+	createMultipartBody := func(t *testing.T, zipData []byte) (*bytes.Buffer, string) {
+		t.Helper()
+		return createMultipartBodyWithName(t, zipData, "test-app.zip")
 	}
 	t.Run("Import_ValidNestedApp_Success", func(t *testing.T) {
 		appFolderName := "my-nested-app"
@@ -1521,45 +1525,35 @@ func TestImportApp(t *testing.T) {
 		expectedMsg := "bad request: app name is missing"
 		require.Equal(t, expectedMsg, errorResponse.Details)
 	})
-	t.Run("Import_Conflict_Fail", func(t *testing.T) {
-		appName := "conflict-app"
+	t.Run("Import_Duplicate_Renamed", func(t *testing.T) {
+		appName := "duplicate-app"
 		zipData := createZipBytes(t, map[string]string{
 			"app.yaml":       fmt.Sprintf("name: %s", appName),
 			"python/main.py": "pass",
 		})
 
-		bodyBuf1, contentType1 := createMultipartBody(t, zipData)
-		resp1, err := httpClient.ImportAppWithBody(
-			t.Context(),
-			&client.ImportAppParams{},
-			contentType1,
-			bodyBuf1,
-		)
-		require.NoError(t, err)
-		require.Equal(t, http.StatusCreated, resp1.StatusCode)
-		resp1.Body.Close()
+		importApp := func(t *testing.T) string {
+			t.Helper()
+			bodyBuf, contentType := createMultipartBodyWithName(t, zipData, appName+".zip")
+			resp, err := httpClient.ImportAppWithBody(t.Context(), &client.ImportAppParams{}, contentType, bodyBuf)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusCreated, resp.StatusCode)
+			defer resp.Body.Close()
 
-		bodyBuf2, contentType2 := createMultipartBody(t, zipData)
-		resp2, err := httpClient.ImportAppWithBody(
-			t.Context(),
-			&client.ImportAppParams{},
-			contentType2,
-			bodyBuf2,
-		)
-		require.NoError(t, err)
-		require.Equal(t, http.StatusConflict, resp2.StatusCode)
+			var respBody handlers.AppImportResponse
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.NoError(t, json.Unmarshal(body, &respBody))
+			decoded, err := base64.RawStdEncoding.DecodeString(respBody.ID)
+			require.NoError(t, err)
+			return string(decoded)
+		}
 
-		require.NotNil(t, resp2.Body)
-		defer resp2.Body.Close()
+		// The first import takes the name of the zip file.
+		require.Equal(t, "user:"+appName, importApp(t))
 
-		bodyBytes, err := io.ReadAll(resp2.Body)
-		require.NoError(t, err)
-		var errorResponse models.ErrorResponse
-		err = json.Unmarshal(bodyBytes, &errorResponse)
-		require.NoError(t, err)
-
-		expectedMsg := "app already exists"
-		require.Equal(t, expectedMsg, errorResponse.Details)
+		// The second import does not overwrite the first: it is renamed with a timestamp suffix.
+		require.Regexp(t, `^user:`+appName+`-\d{8}-\d{6}$`, importApp(t))
 	})
 }
 
