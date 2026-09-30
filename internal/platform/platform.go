@@ -104,21 +104,50 @@ func GetPlatform(dir *paths.Path) Platform {
 
 	if dir != nil {
 		if filePath := dir.Join("platform.json"); filePath.Exist() {
-			if f, err := filePath.Open(); err == nil {
-				defer f.Close()
-				if err = json.NewDecoder(f).Decode(&platform); err == nil {
-					slog.Debug("loaded override from platform.json file", "file", filePath.String(), "platform", platform)
-				} else {
-					slog.Warn("failed to decode override platform.json file", "file", filePath.String(), "error", err)
-				}
+			if err := applyOverride(filePath, &platform); err == nil {
+				slog.Debug("loaded override from platform.json file", "file", filePath.String(), "platform", platform)
 			} else {
-				slog.Warn("failed to open override platform.json file", "file", filePath.String(), "error", err)
+				slog.Warn("failed to load override platform.json file", "file", filePath.String(), "error", err)
 			}
 		}
 	}
 
 	slog.Info("using platform config", "platform", platform)
 	return platform
+}
+
+func applyOverride(filePath *paths.Path, platform *Platform) error {
+	data, err := filePath.ReadFile()
+	if err != nil {
+		return err
+	}
+
+	// Check if the "board_name" field is present in the file.
+	var override struct {
+		BoardName *string `json:"board_name"`
+	}
+	if err := json.Unmarshal(data, &override); err != nil {
+		return err
+	}
+
+	if err := json.Unmarshal(data, platform); err != nil {
+		return err
+	}
+
+	parts := strings.Split(platform.FQBN, ":")
+	if len(parts) < 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
+		if platform.FQBN != "" {
+			slog.Warn("invalid FQBN in platform.json file", "file", filePath.String(), "fqbn", platform.FQBN)
+		}
+		return nil
+	}
+
+	// Take the BoardName from the FQBN, if if was not explicitly provided in the JSON file.
+	platform.PlatformID = parts[0] + ":" + parts[1]
+	if override.BoardName == nil {
+		platform.BoardName = parts[2]
+	}
+	return nil
 }
 
 func (p Platform) GetMicro() micro.Micro {
