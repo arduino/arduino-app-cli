@@ -1405,7 +1405,7 @@ also when 'error' events were received.
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
-				DataStructure: bricks.BrickInstance{},
+				DataStructure: bricks.AppBrickInstanceDetails{},
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},

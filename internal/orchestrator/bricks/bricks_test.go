@@ -662,7 +662,7 @@ bricks:
 		app           *app.ArduinoApp
 		brickID       string
 		expectedError string
-		validate      func(*testing.T, BrickInstance)
+		validate      func(*testing.T, AppBrickInstanceDetails)
 	}{
 		{
 			name:    "Brick not found in global Index",
@@ -694,7 +694,7 @@ bricks:
 					},
 				},
 			},
-			validate: func(t *testing.T, res BrickInstance) {
+			validate: func(t *testing.T, res AppBrickInstanceDetails) {
 				require.Equal(t, "arduino:weather_forecast", res.ID)
 				require.Equal(t, "Weather Forecast", res.Name)
 				require.Equal(t, "installed", res.Status)
@@ -715,7 +715,7 @@ bricks:
 					},
 				},
 			},
-			validate: func(t *testing.T, res BrickInstance) {
+			validate: func(t *testing.T, res AppBrickInstanceDetails) {
 				require.Equal(t, "arduino:object_detection", res.ID)
 				require.Equal(t, models.EncodeModelID("yolox-object-detection"), res.ModelID)
 				require.Len(t, res.CompatibleModels, 2)
@@ -737,7 +737,7 @@ bricks:
 					},
 				},
 			},
-			validate: func(t *testing.T, res BrickInstance) {
+			validate: func(t *testing.T, res AppBrickInstanceDetails) {
 				require.Equal(t, "arduino:object_detection", res.ID)
 				require.Equal(t, models.EncodeModelID("face-detection"), res.ModelID)
 				require.Len(t, res.CompatibleModels, 2)
@@ -924,10 +924,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 				require.Equal(t, "video", brick.Category)
 				require.True(t, brick.RequireModel)
 				require.Equal(t, models.EncodeModelID("face-detection"), brick.ModelID)
-				require.Equal(t, []AIModel{
-					{ID: models.EncodeModelID("yolox-object-detection"), Name: "General purpose object detection - YoloX", Description: "a-model-description"},
-					{ID: models.EncodeModelID("face-detection"), Name: "Lightweight-Face-Detection", Description: ""},
-				}, brick.CompatibleModels)
+				require.Empty(t, brick.CompatibleModels, "the list must not populate compatible models, it's deprecated there")
 
 				foundCustom := false
 				for _, v := range brick.ConfigVariables {
@@ -957,10 +954,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 				require.Equal(t, "arduino:object_detection", brick.ID)
 				require.True(t, brick.RequireModel)
 				require.Equal(t, models.EncodeModelID("yolox-object-detection"), brick.ModelID)
-				require.Equal(t, []AIModel{
-					{ID: models.EncodeModelID("yolox-object-detection"), Name: "General purpose object detection - YoloX", Description: "a-model-description"},
-					{ID: models.EncodeModelID("face-detection"), Name: "Lightweight-Face-Detection", Description: ""},
-				}, brick.CompatibleModels)
+				require.Empty(t, brick.CompatibleModels, "the list must not populate compatible models, it's deprecated there")
 			},
 		},
 		{
@@ -982,7 +976,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 				require.Equal(t, "arduino:brick-with-boards", brick.ID)
 				require.True(t, brick.RequireModel)
 				require.Equal(t, models.EncodeModelID("a-model-for-ventunoq"), brick.ModelID)
-				require.Equal(t, []AIModel{{ID: models.EncodeModelID("a-model-for-ventunoq"), Name: "A model for ventunoq"}}, brick.CompatibleModels)
+				require.Empty(t, brick.CompatibleModels, "the list must not populate compatible models, it's deprecated there")
 			},
 		},
 		{
@@ -1057,7 +1051,7 @@ func TestAppBrickInstancesList(t *testing.T) {
 				bricksIndex: bIndex,
 				modelsIndex: modelsIdx,
 			}
-			result := svc.AppBrickInstancesList(t.Context(), tt.app)
+			result := svc.AppBrickInstancesList(tt.app)
 			if tt.validate != nil {
 				tt.validate(t, result)
 			}

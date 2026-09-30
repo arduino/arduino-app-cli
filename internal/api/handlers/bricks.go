@@ -47,7 +47,7 @@ func HandleAppBrickInstancesList(
 			return
 		}
 
-		res := brickService.AppBrickInstancesList(r.Context(), &app)
+		res := brickService.AppBrickInstancesList(&app)
 		render.EncodeResponse(w, http.StatusOK, res)
 	}
 }

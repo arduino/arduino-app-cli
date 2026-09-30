@@ -85,6 +85,7 @@ func TestGetAppBrickInstances(t *testing.T) {
 		require.Equal(t, "video", *(*brickInstances.JSON200.Bricks)[0].Category)
 		require.True(t, *(*brickInstances.JSON200.Bricks)[0].RequireModel)
 		require.Nil(t, (*brickInstances.JSON200.Bricks)[0].Variables)
+		require.Empty(t, *(*brickInstances.JSON200.Bricks)[0].CompatibleModels, "compatible_models is deprecated on the list, always empty")
 	})
 
 	t.Run("GetAppBrickInstances_InvalidAppID_Fail", func(t *testing.T) {

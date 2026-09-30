@@ -20,10 +20,25 @@ type BrickListItem struct {
 }
 
 type AppBrickInstancesResult struct {
-	BrickInstances []BrickInstance `json:"bricks"`
+	BrickInstances []AppBrickInstanceListItem `json:"bricks"`
 }
 
-type BrickInstance struct {
+type AppBrickInstanceListItem struct {
+	ID               string                `json:"id"`
+	Name             string                `json:"name"`
+	Author           string                `json:"author"`
+	Category         string                `json:"category"`
+	Status           string                `json:"status"`
+	Variables        map[string]string     `json:"variables,omitempty" description:"Deprecated: use config_variables instead. This field is kept for backward compatibility."`
+	ConfigVariables  []BrickConfigVariable `json:"config_variables,omitempty"`
+	RequireModel     bool                  `json:"require_model"`
+	ModelID          string                `json:"model,omitempty"`
+	CompatibleModels []AIModel             `json:"compatible_models" deprecated:"true" description:"Deprecated: always empty on the app bricks list; use the per-brick details endpoint instead."`
+}
+
+// AppBrickInstanceDetails is the single-brick counterpart of AppBrickInstanceListItem: it
+// adds the fields a container run makes too expensive to compute for every brick in a list.
+type AppBrickInstanceDetails struct {
 	ID               string                `json:"id"`
 	Name             string                `json:"name"`
 	Author           string                `json:"author"`
