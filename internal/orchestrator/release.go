@@ -183,7 +183,7 @@ func BuildRelease(
 		CreatedAt:    now,
 		Notes:        req.Notes,
 		Bricks:       releaseBricks(appToBuild.Descriptor),
-		Models:       releaseModels(ctx, appToBuild.Descriptor, modelsIndex),
+		Models:       releaseModels(ctx, appToBuild.Descriptor, bricksIndex, modelsIndex),
 		Libraries:    releaseLibraries(ctx, appToBuild),
 	}
 	if err := writeReleaseManifest(releaseDir, manifest); err != nil {
@@ -285,15 +285,20 @@ func stageReleaseIndexes(
 	var models []modelsindex.AIModel
 	var handlers []string
 	for _, brick := range appToBuild.Descriptor.Bricks {
-		if brick.Model == "" || slices.ContainsFunc(models, func(m modelsindex.AIModel) bool { return m.ID == brick.Model }) {
+		definition, found := bricksIndex.FindBrickByID(brick.ID)
+		if !found {
+			return fmt.Errorf("brick %q is not in the index", brick.ID)
+		}
+		modelID := selectedModelID(brick, definition)
+		if modelID == "" || slices.ContainsFunc(models, func(m modelsindex.AIModel) bool { return m.ID == modelID }) {
 			continue
 		}
-		model, err := lookup.ByID(ctx, brick.Model)
+		model, err := lookup.ByID(ctx, modelID)
 		if err != nil {
 			return err
 		}
 		if model == nil {
-			return fmt.Errorf("model %q is not in the index", brick.Model)
+			return fmt.Errorf("model %q is not in the index", modelID)
 		}
 		models = append(models, *model)
 		if model.Deployment != nil && !slices.Contains(handlers, model.Deployment.Handler) {
@@ -328,17 +333,22 @@ func releaseBricks(descriptor app.AppDescriptor) []ReleaseBrick {
 }
 
 // releaseModels is the AI models the bricks of the app are wired with, each stated once.
-func releaseModels(ctx context.Context, descriptor app.AppDescriptor, modelsIndex *modelsindex.ModelsIndex) []ReleaseModel {
+func releaseModels(ctx context.Context, descriptor app.AppDescriptor, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex) []ReleaseModel {
 	lookup := modelsIndex.NewLookup()
 
 	models := make([]ReleaseModel, 0, len(descriptor.Bricks))
 	for _, brick := range descriptor.Bricks {
-		if brick.Model == "" || slices.ContainsFunc(models, func(m ReleaseModel) bool { return m.ID == brick.Model }) {
+		definition, found := bricksIndex.FindBrickByID(brick.ID)
+		if !found {
 			continue
 		}
-		model := ReleaseModel{ID: brick.Model}
-		if found, err := lookup.ByID(ctx, brick.Model); err != nil {
-			slog.Warn("cannot name the model of a brick in the release manifest", slog.String("model_id", brick.Model), slog.String("error", err.Error()))
+		modelID := selectedModelID(brick, definition)
+		if modelID == "" || slices.ContainsFunc(models, func(m ReleaseModel) bool { return m.ID == modelID }) {
+			continue
+		}
+		model := ReleaseModel{ID: modelID}
+		if found, err := lookup.ByID(ctx, modelID); err != nil {
+			slog.Warn("cannot name the model of a brick in the release manifest", slog.String("model_id", modelID), slog.String("error", err.Error()))
 		} else if found != nil {
 			model.Name = found.Name
 		}
