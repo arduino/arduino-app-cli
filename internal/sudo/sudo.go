@@ -99,8 +99,9 @@ func Check(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("no user with uid %s on this system: %w", daemonUID, err)
 	}
 
-	// -l twice adds the matching rule to the output, NOPASSWD included: a single -l
-	// only says the command is allowed, password or not.
+	// -l twice adds the matching rule to the output. A NOPASSWD rule prints
+	// "Options: !authenticate" there; a single -l only says the command is
+	// allowed, password or not, and sudoers has no "NOPASSWD" text to grep for.
 	sudoList := func(args ...string) ([]byte, error) {
 		cmd, err := paths.NewProcess(nil,
 			slices.Concat([]string{"sudo", "-n", "-l", "-l", "-U", daemon.Username}, args)...)
@@ -125,7 +126,7 @@ func Check(ctx context.Context) ([]string, error) {
 		for _, sample := range samples {
 			argv := slices.Concat(c.Args, sample)
 			out, err := sudoList(argv...)
-			if err != nil || !strings.Contains(string(out), "NOPASSWD") {
+			if err != nil || !strings.Contains(string(out), "!authenticate") {
 				missing = append(missing, strings.Join(argv, " "))
 			}
 		}
