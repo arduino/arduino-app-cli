@@ -34,6 +34,13 @@ type FS interface {
 	ReadFile(path string) (io.ReadCloser, error)
 	Remove(path string) error
 	Stats(path string) (FileInfo, error)
+
+	// Move moves a file from src to dst.
+	//
+	// dst is always the final destination path, and not the parent directory,
+	// even if it exists. If dst already exists as a file it is overwritten; if
+	// dst is an existing directory Move returns an error.
+	Move(src, dst string) error
 }
 
 type RemoteShell interface {

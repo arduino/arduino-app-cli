@@ -86,6 +86,13 @@ func (a *LocalConnection) Remove(path string) error {
 	return os.RemoveAll(path)
 }
 
+func (a *LocalConnection) Move(src string, dst string) error {
+	if err := os.Rename(src, dst); err != nil {
+		return fmt.Errorf("failed to move %q to %q: %w", src, dst, err)
+	}
+	return nil
+}
+
 type LocalCommand struct {
 	cmd *paths.Process
 	err error

@@ -240,6 +240,18 @@ func (a *ADBConnection) Remove(path string) error {
 	return nil
 }
 
+func (a *ADBConnection) Move(src string, dst string) error {
+	cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "shell", "mv", "-T", "--", remote.ShellQuote(src), remote.ShellQuote(dst))
+	if err != nil {
+		return err
+	}
+	stdout, err := cmd.RunAndCaptureCombinedOutput(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to move %q to %q: %w: %s", src, dst, err, string(stdout))
+	}
+	return nil
+}
+
 type ADBCommand struct {
 	cmd *paths.Process
 	err error

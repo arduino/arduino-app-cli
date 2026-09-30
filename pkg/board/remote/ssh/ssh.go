@@ -238,6 +238,21 @@ func (a *SSHConnection) Remove(path string) error {
 	return nil
 }
 
+func (a *SSHConnection) Move(src string, dst string) error {
+	session, err := a.client.NewSession()
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	cmd := fmt.Sprintf("mv -T -- %s %s", remote.ShellQuote(src), remote.ShellQuote(dst))
+	if err := session.Run(cmd); err != nil {
+		return fmt.Errorf("failed to move %q to %q: %w", src, dst, err)
+	}
+
+	return nil
+}
+
 func (a *SSHConnection) Stats(p string) (remote.FileInfo, error) {
 	session, err := a.client.NewSession()
 	if err != nil {
