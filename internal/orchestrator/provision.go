@@ -168,6 +168,7 @@ const (
 	DockerAppLabel     = "cc.arduino.app"
 	DockerAppMainLabel = "cc.arduino.app.main"
 	DockerAppPathLabel = "cc.arduino.app.path"
+	MainServiceName    = "main"
 )
 
 type serviceInfo struct {
@@ -217,7 +218,7 @@ func extractServicesFromComposeFile(composeFile *paths.Path) ([]serviceInfo, err
 
 func provisionComposeVolumes(prj *types.Project) {
 	for name, svc := range prj.Services {
-		if name == "main" {
+		if name == MainServiceName {
 			continue
 		}
 		for _, v := range svc.Volumes {

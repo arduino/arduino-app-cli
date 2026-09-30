@@ -11,7 +11,6 @@ import (
 	"strconv"
 
 	"github.com/moby/moby/api/types/container"
-	"go.bug.st/f"
 )
 
 type Status string
@@ -25,7 +24,7 @@ const (
 	StatusUninitialized Status = "uninitialized"
 )
 
-func StatusFromDockerState(s container.ContainerState, statusMessage string) Status {
+func StatusFromDockerState(s container.ContainerState, statusMessage string, serviceName string) Status {
 	switch s {
 	case container.StateRunning:
 		return StatusRunning
@@ -36,11 +35,27 @@ func StatusFromDockerState(s container.ContainerState, statusMessage string) Sta
 	case container.StateCreated, container.StatePaused:
 		return StatusStopped
 	case container.StateExited:
-		if !isExitBySignal(statusMessage) {
-			// The app exited on its own, which we consider a failure.
+		// Containers without the compose service label keep the previous (main) behavior.
+		if serviceName == "" {
+			serviceName = MainServiceName
+		}
+		exitCode, ok := parseExitCode(statusMessage)
+		if !ok {
 			return StatusFailed
 		}
-		return StatusStopped
+		if serviceName == MainServiceName {
+			// POSIX exit code greater than 128+n means terminated by signal https://tldp.org/LDP/abs/html/exitcodes.html
+			if exitCode > 128 {
+				return StatusStopped
+			}
+			// The main service exited on its own, which we consider a failure.
+			return StatusFailed
+		}
+		// Non-main services: exit code 0 (completed successfully) or > 128 (terminated by signal) is considered stopped.
+		if exitCode == 0 || exitCode > 128 {
+			return StatusStopped
+		}
+		return StatusFailed
 	case container.StateDead:
 		return StatusFailed
 	default:
@@ -66,16 +81,17 @@ func (s Status) AllowedStatuses() []Status {
 	return []Status{StatusStarting, StatusRunning, StatusStopping, StatusStopped, StatusFailed, StatusUninitialized}
 }
 
-func isExitBySignal(statusMessage string) bool {
-	var exitCodeRegex = regexp.MustCompile(`Exited \((\d+)\)`)
+var exitCodeRegex = regexp.MustCompile(`Exited \((\d+)\)`)
+
+func parseExitCode(statusMessage string) (int, bool) {
 	matches := exitCodeRegex.FindStringSubmatch(statusMessage)
 	if len(matches) < 2 {
 		// not matching an exit code
-		return false
+		return 0, false
 	}
-	exitCode := f.Must(strconv.Atoi(matches[1]))
-
-	// posix exit code greater than 128+n means terminated by signal https://tldp.org/LDP/abs/html/exitcodes.html
-	return exitCode > 128
-
+	exitCode, err := strconv.Atoi(matches[1])
+	if err != nil {
+		return 0, false
+	}
+	return exitCode, true
 }
