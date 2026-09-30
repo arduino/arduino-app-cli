@@ -80,7 +80,7 @@ var hostVariables = map[string]func(hostFacts) string{
 				}
 			}
 		}
-		return "/usr/share/qcom"
+		return ""
 	},
 }
 
