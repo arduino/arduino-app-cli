@@ -7,7 +7,6 @@ package orchestrator
 
 import (
 	"archive/tar"
-	"cmp"
 	"compress/gzip"
 	"context"
 	"errors"
@@ -290,12 +289,7 @@ func stageReleaseIndexes(
 		if !found {
 			return fmt.Errorf("brick %q is not in the index", brick.ID)
 		}
-		if !definition.RequireModel {
-			continue
-		}
-		// Resolve the model the same way a start does. A default model has to be
-		// frozen too, or a start of the release fails to find it.
-		modelID := cmp.Or(brick.Model, definition.ModelName)
+		modelID := selectedModelID(brick, definition)
 		if modelID == "" || slices.ContainsFunc(models, func(m modelsindex.AIModel) bool { return m.ID == modelID }) {
 			continue
 		}
@@ -345,12 +339,10 @@ func releaseModels(ctx context.Context, descriptor app.AppDescriptor, bricksInde
 	models := make([]ReleaseModel, 0, len(descriptor.Bricks))
 	for _, brick := range descriptor.Bricks {
 		definition, found := bricksIndex.FindBrickByID(brick.ID)
-		if !found || !definition.RequireModel {
+		if !found {
 			continue
 		}
-		// Resolve the model a brick uses the same way a start does: the app override, or
-		// the brick default when the app names none.
-		modelID := cmp.Or(brick.Model, definition.ModelName)
+		modelID := selectedModelID(brick, definition)
 		if modelID == "" || slices.ContainsFunc(models, func(m ReleaseModel) bool { return m.ID == modelID }) {
 			continue
 		}

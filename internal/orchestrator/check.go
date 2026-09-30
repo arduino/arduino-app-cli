@@ -26,6 +26,15 @@ import (
 // TODO: group these in one function, called by both the app start and the app build.
 // The device ones only apply to the board running them, not to a release target.
 
+// selectedModelID resolves the model a brick is wired with: the app override, or the brick
+// default when the app names none.
+func selectedModelID(brick app.Brick, definition *bricksindex.Brick) string {
+	if !definition.RequireModel {
+		return ""
+	}
+	return cmp.Or(brick.Model, definition.ModelName)
+}
+
 // checkBricks validates that each app brick exists in the index, that its selected model (when
 // required) is installed, and that all required brick variables are set.
 // Errors are joined so every issue is reported at once.
@@ -40,7 +49,7 @@ func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.Bri
 		}
 
 		if indexBrick.RequireModel {
-			selectedModel := cmp.Or(appBrick.Model, indexBrick.ModelName)
+			selectedModel := selectedModelID(appBrick, indexBrick)
 			model, err := models.ByID(ctx, selectedModel)
 			switch {
 			case err != nil:
