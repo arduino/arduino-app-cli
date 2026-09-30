@@ -29,8 +29,8 @@ func TestStartErrorMessageSuggestsConfiguringMissingVariables(t *testing.T) {
 	require.Equal(t, `[ERROR] variable "ARDUINO_DEVICE_ID" is required by brick "arduino:arduino_cloud"
 variable "ARDUINO_SECRET" is required by brick "arduino:arduino_cloud"
 To configure the variables use:
-  arduino-app-cli app brick config /apps/weather arduino:arduino_cloud ARDUINO_DEVICE_ID=value
-  arduino-app-cli app brick config /apps/weather arduino:arduino_cloud ARDUINO_SECRET=value`, decorateErrorMessage(err, "/apps/weather"))
+  arduino-app-cli app brick config /apps/weather arduino:arduino_cloud ARDUINO_DEVICE_ID[=value]
+  arduino-app-cli app brick config /apps/weather arduino:arduino_cloud ARDUINO_SECRET[=value]`, decorateErrorMessage(err, "/apps/weather"))
 }
 
 func TestStartErrorMessageDoesNotSuggestConfigForOtherErrors(t *testing.T) {

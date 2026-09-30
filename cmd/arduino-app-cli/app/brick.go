@@ -36,23 +36,32 @@ func newBrickCmd(cfg config.Configuration) *cobra.Command {
 func newBrickConfigCmd(cfg config.Configuration) *cobra.Command {
 	var model string
 	cmd := &cobra.Command{
-		Use:   "config app_path brick_id [name=value...]",
-		Short: "Set the value of a brick's variable in an Arduino App",
-		Long: `Set the value of a brick's variable in an Arduino App.
+		Use:   "config app_path brick_id name[=value] [name[=value] ...]",
+		Short: "Set the value of a brick's variables in an Arduino App",
+		Long: `Set the value of a brick's variables in an Arduino App.
 
-The variables are given as name=value pairs, and an empty value clears one. Only the
-variables named are changed, as the app API does it.
+Variables given as "name" without a value will be prompted for a value on the terminal.
+Variables given as "name=value" will be changed, without any prompt.
+Variables given as "name=" with an empty value will be cleared, without any prompt.
 
-If the given app is an App Release, then only brick variables that are secret can be
-changed.`,
+On an App Release, only secret variables can be changed.`,
 		Args: cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			variables, err := parseBrickVariables(args[2:])
+			inputValue := func(name string) (string, error) {
+				secret := false
+				if brick, ok := servicelocator.GetBricksIndex().FindBrickByID(args[1]); ok {
+					if variable, ok := brick.GetVariable(name); ok && variable.Secret {
+						secret = true
+					}
+				}
+				return feedback.InputUserField(name, secret)
+			}
+			variables, err := parseBrickVariables(args[2:], inputValue)
 			if err != nil {
 				return err
 			}
 			if len(variables) == 0 && model == "" {
-				return errors.New("give a name=value pair or the model to change")
+				return errors.New("give a variable or the model to change")
 			}
 			brickConfigHandler(cmd.Context(), args[0], args[1], variables, model)
 			return nil
@@ -99,14 +108,21 @@ func brickConfigHandler(ctx context.Context, appRef, brickID string, variables m
 	feedback.PrintResult(brickConfigResult{Brick: brickID, Variables: names, Model: model})
 }
 
-// parseBrickVariables reads the name=value pairs. A value is not validated here: what a
-// variable may hold is what the brick that reads it accepts.
-func parseBrickVariables(args []string) (map[string]string, error) {
+// parseBrickVariables reads the variable arguments. A value is not validated here: what
+// a variable may hold is what the brick that reads it accepts.
+func parseBrickVariables(args []string, input func(name string) (string, error)) (map[string]string, error) {
 	variables := make(map[string]string, len(args))
 	for _, arg := range args {
-		name, value, found := strings.Cut(arg, "=")
-		if !found || name == "" {
-			return nil, fmt.Errorf("%q is not a name=value pair", arg)
+		name, value, hasValue := strings.Cut(arg, "=")
+		if name == "" {
+			return nil, fmt.Errorf("%q is not a variable name", arg)
+		}
+		if !hasValue {
+			var err error
+			value, err = input(name)
+			if err != nil {
+				return nil, fmt.Errorf("cannot read value for %q: %w", name, err)
+			}
 		}
 		variables[name] = value
 	}
