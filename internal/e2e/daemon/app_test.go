@@ -942,7 +942,7 @@ func TestAppDetails(t *testing.T) {
 		require.False(t, *detailsResp.JSON200.Default)
 		require.Equal(t, client.Uninitialized, detailsResp.JSON200.Status)
 		require.NotEmpty(t, detailsResp.JSON200.Path)
-		require.Equal(t, "release notes from manifest", *detailsResp.JSON200.Notes)
+		require.Equal(t, new("release notes from manifest"), detailsResp.JSON200.Notes)
 	})
 }
 
