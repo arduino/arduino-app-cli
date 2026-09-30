@@ -40,10 +40,6 @@ type FS interface {
 	// dst is always the final destination path, and not the parent directory,
 	// even if it exists. If dst already exists as a file it is overwritten; if
 	// dst is an existing directory Move returns an error.
-	//
-	// Move is atomic within a single filesystem. Across filesystems, the ssh
-	// and adb backends rely on the device's mv, which falls back to copy+delete
-	// and is not atomic; the local backend returns an error (no fallback).
 	Move(src, dst string) error
 }
 
