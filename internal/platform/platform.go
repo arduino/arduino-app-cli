@@ -121,15 +121,6 @@ func applyOverride(filePath *paths.Path, platform *Platform) error {
 	if err != nil {
 		return err
 	}
-
-	// Check if the "board_name" field is present in the file.
-	var override struct {
-		BoardName *string `json:"board_name"`
-	}
-	if err := json.Unmarshal(data, &override); err != nil {
-		return err
-	}
-
 	if err := json.Unmarshal(data, platform); err != nil {
 		return err
 	}
@@ -142,9 +133,9 @@ func applyOverride(filePath *paths.Path, platform *Platform) error {
 		return nil
 	}
 
-	// Take the BoardName from the FQBN, if if was not explicitly provided in the JSON file.
+	// Take the BoardName from the FQBN, if it is not present in the input struct or in the json file.
 	platform.PlatformID = parts[0] + ":" + parts[1]
-	if override.BoardName == nil {
+	if platform.BoardName == "" {
 		platform.BoardName = parts[2]
 	}
 	return nil

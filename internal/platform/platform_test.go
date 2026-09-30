@@ -62,7 +62,7 @@ func TestApplyOverride(t *testing.T) {
 			name:              "Empty board name specified in the file",
 			content:           `{"fqbn":"arduino:zephyr:unoq","board_name":""}`,
 			expectedID:        "arduino:zephyr",
-			expectedBoardName: "",
+			expectedBoardName: "unoq",
 		},
 		{
 			name:              "No FQBN keeps the detected platform",
