@@ -168,9 +168,45 @@ type AIModelsListResult struct {
 	Models *[]AIModelItem `json:"models,omitempty"`
 }
 
+// AppBrickInstanceDetails defines model for AppBrickInstanceDetails.
+type AppBrickInstanceDetails struct {
+	Author           *string                `json:"author,omitempty"`
+	Category         *string                `json:"category,omitempty"`
+	CompatibleModels *[]AIModel             `json:"compatible_models,omitempty"`
+	ConfigVariables  *[]BrickConfigVariable `json:"config_variables,omitempty"`
+	Id               *string                `json:"id,omitempty"`
+	Model            *string                `json:"model,omitempty"`
+	Name             *string                `json:"name,omitempty"`
+	Readme           *string                `json:"readme,omitempty"`
+	RequireModel     *bool                  `json:"require_model,omitempty"`
+	Status           *string                `json:"status,omitempty"`
+
+	// Variables Deprecated: use config_variables instead. This field is kept for backward compatibility.
+	Variables *map[string]string `json:"variables,omitempty"`
+}
+
+// AppBrickInstanceListItem defines model for AppBrickInstanceListItem.
+type AppBrickInstanceListItem struct {
+	Author   *string `json:"author,omitempty"`
+	Category *string `json:"category,omitempty"`
+
+	// CompatibleModels Deprecated: always empty on the app bricks list; use the per-brick details endpoint instead.
+	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
+	CompatibleModels *[]AIModel             `json:"compatible_models,omitempty"`
+	ConfigVariables  *[]BrickConfigVariable `json:"config_variables,omitempty"`
+	Id               *string                `json:"id,omitempty"`
+	Model            *string                `json:"model,omitempty"`
+	Name             *string                `json:"name,omitempty"`
+	RequireModel     *bool                  `json:"require_model,omitempty"`
+	Status           *string                `json:"status,omitempty"`
+
+	// Variables Deprecated: use config_variables instead. This field is kept for backward compatibility.
+	Variables *map[string]string `json:"variables,omitempty"`
+}
+
 // AppBrickInstancesResult defines model for AppBrickInstancesResult.
 type AppBrickInstancesResult struct {
-	Bricks *[]BrickInstance `json:"bricks,omitempty"`
+	Bricks *[]AppBrickInstanceListItem `json:"bricks,omitempty"`
 }
 
 // AppDetailedBrick defines model for AppDetailedBrick.
@@ -288,26 +324,6 @@ type BrickExamples struct {
 	Brick         *string    `json:"brick,omitempty"`
 	BrickCategory *string    `json:"brick_category,omitempty"`
 	Examples      *[]Example `json:"examples,omitempty"`
-}
-
-// BrickInstance defines model for BrickInstance.
-type BrickInstance struct {
-	Author   *string `json:"author,omitempty"`
-	Category *string `json:"category,omitempty"`
-
-	// CompatibleModels Deprecated: always empty on the app bricks list; use the per-brick details endpoint instead.
-	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
-	CompatibleModels *[]AIModel             `json:"compatible_models,omitempty"`
-	ConfigVariables  *[]BrickConfigVariable `json:"config_variables,omitempty"`
-	Id               *string                `json:"id,omitempty"`
-	Model            *string                `json:"model,omitempty"`
-	Name             *string                `json:"name,omitempty"`
-	Readme           *string                `json:"readme,omitempty"`
-	RequireModel     *bool                  `json:"require_model,omitempty"`
-	Status           *string                `json:"status,omitempty"`
-
-	// Variables Deprecated: use config_variables instead. This field is kept for backward compatibility.
-	Variables *map[string]string `json:"variables,omitempty"`
 }
 
 // BrickListItem defines model for BrickListItem.
@@ -4486,7 +4502,7 @@ func (r DeleteAppBrickInstanceResp) ContentType() string {
 type GetAppBrickInstanceByBrickIDResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *BrickInstance
+	JSON200      *AppBrickInstanceDetails
 	JSON400      *BadRequest
 	JSON412      *PreconditionFailed
 	JSON500      *InternalServerError
@@ -6635,7 +6651,7 @@ func ParseGetAppBrickInstanceByBrickIDResp(rsp *http.Response) (*GetAppBrickInst
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest BrickInstance
+		var dest AppBrickInstanceDetails
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

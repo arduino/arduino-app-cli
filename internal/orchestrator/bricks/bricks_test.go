@@ -662,7 +662,7 @@ bricks:
 		app           *app.ArduinoApp
 		brickID       string
 		expectedError string
-		validate      func(*testing.T, BrickInstance)
+		validate      func(*testing.T, AppBrickInstanceDetails)
 	}{
 		{
 			name:    "Brick not found in global Index",
@@ -694,7 +694,7 @@ bricks:
 					},
 				},
 			},
-			validate: func(t *testing.T, res BrickInstance) {
+			validate: func(t *testing.T, res AppBrickInstanceDetails) {
 				require.Equal(t, "arduino:weather_forecast", res.ID)
 				require.Equal(t, "Weather Forecast", res.Name)
 				require.Equal(t, "installed", res.Status)
@@ -715,7 +715,7 @@ bricks:
 					},
 				},
 			},
-			validate: func(t *testing.T, res BrickInstance) {
+			validate: func(t *testing.T, res AppBrickInstanceDetails) {
 				require.Equal(t, "arduino:object_detection", res.ID)
 				require.Equal(t, models.EncodeModelID("yolox-object-detection"), res.ModelID)
 				require.Len(t, res.CompatibleModels, 2)
@@ -737,7 +737,7 @@ bricks:
 					},
 				},
 			},
-			validate: func(t *testing.T, res BrickInstance) {
+			validate: func(t *testing.T, res AppBrickInstanceDetails) {
 				require.Equal(t, "arduino:object_detection", res.ID)
 				require.Equal(t, models.EncodeModelID("face-detection"), res.ModelID)
 				require.Len(t, res.CompatibleModels, 2)

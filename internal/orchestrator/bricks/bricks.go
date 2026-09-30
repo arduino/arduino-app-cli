@@ -67,12 +67,12 @@ func (s *Service) List() BrickListResult {
 }
 
 func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) AppBrickInstancesResult {
-	res := AppBrickInstancesResult{BrickInstances: make([]BrickInstance, len(a.Descriptor.Bricks))}
+	res := AppBrickInstancesResult{BrickInstances: make([]AppBrickInstanceListItem, len(a.Descriptor.Bricks))}
 	bricksIndex := a.Bricks(s.bricksIndex)
 	for i, brickInstance := range a.Descriptor.Bricks {
 		brick, found := bricksIndex.FindBrickByID(brickInstance.ID)
 		if !found {
-			res.BrickInstances[i] = BrickInstance{
+			res.BrickInstances[i] = AppBrickInstanceListItem{
 				ID:     brickInstance.ID,
 				Name:   brickInstance.ID, // using the ID as name to avoid empty UI element
 				Status: "not_found",
@@ -82,7 +82,7 @@ func (s *Service) AppBrickInstancesList(a *app.ArduinoApp) AppBrickInstancesResu
 
 		variablesMap, configVariables := getInstanceBrickConfigVariableDetails(brick, brickInstance.Variables)
 
-		res.BrickInstances[i] = BrickInstance{
+		res.BrickInstances[i] = AppBrickInstanceListItem{
 			ID:              brick.ID,
 			Name:            brick.Name,
 			Author:          brick.Source,
@@ -116,15 +116,15 @@ func compatibleModels(ctx context.Context, models *modelsindex.Lookup, brickID s
 	})
 }
 
-func (s *Service) AppBrickInstanceDetails(ctx context.Context, a *app.ArduinoApp, brickID string) (BrickInstance, error) {
+func (s *Service) AppBrickInstanceDetails(ctx context.Context, a *app.ArduinoApp, brickID string) (AppBrickInstanceDetails, error) {
 	brick, found := a.Bricks(s.bricksIndex).FindBrickByID(brickID)
 	if !found {
-		return BrickInstance{}, ErrBrickNotFound
+		return AppBrickInstanceDetails{}, ErrBrickNotFound
 	}
 	// Check if the brick is already added in the app
 	brickIndex := slices.IndexFunc(a.Descriptor.Bricks, func(b app.Brick) bool { return b.ID == brickID })
 	if brickIndex == -1 {
-		return BrickInstance{}, fmt.Errorf("brick %s not added in the app", brickID)
+		return AppBrickInstanceDetails{}, fmt.Errorf("brick %s not added in the app", brickID)
 	}
 
 	variables, configVariables := getInstanceBrickConfigVariableDetails(brick, a.Descriptor.Bricks[brickIndex].Variables)
@@ -136,7 +136,7 @@ func (s *Service) AppBrickInstanceDetails(ctx context.Context, a *app.ArduinoApp
 		slog.Warn("cannot open readme for brick", slog.String("brickID", brick.ID), slog.Any("error", err.Error()))
 	}
 
-	return BrickInstance{
+	return AppBrickInstanceDetails{
 		ID:               brickID,
 		Name:             brick.Name,
 		Author:           brick.Source,

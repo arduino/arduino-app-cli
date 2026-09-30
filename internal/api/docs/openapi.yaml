@@ -187,7 +187,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BrickInstance'
+                $ref: '#/components/schemas/AppBrickInstanceDetails'
           description: Successful response
         "400":
           $ref: '#/components/responses/BadRequest'
@@ -1863,11 +1863,80 @@ components:
           nullable: true
           type: array
       type: object
+    AppBrickInstanceDetails:
+      properties:
+        author:
+          type: string
+        category:
+          type: string
+        compatible_models:
+          items:
+            $ref: '#/components/schemas/AIModel'
+          nullable: true
+          type: array
+        config_variables:
+          items:
+            $ref: '#/components/schemas/BrickConfigVariable'
+          type: array
+        id:
+          type: string
+        model:
+          type: string
+        name:
+          type: string
+        readme:
+          type: string
+        require_model:
+          type: boolean
+        status:
+          type: string
+        variables:
+          additionalProperties:
+            type: string
+          description: 'Deprecated: use config_variables instead. This field is kept
+            for backward compatibility.'
+          type: object
+      type: object
+    AppBrickInstanceListItem:
+      properties:
+        author:
+          type: string
+        category:
+          type: string
+        compatible_models:
+          deprecated: true
+          description: 'Deprecated: always empty on the app bricks list; use the per-brick
+            details endpoint instead.'
+          items:
+            $ref: '#/components/schemas/AIModel'
+          nullable: true
+          type: array
+        config_variables:
+          items:
+            $ref: '#/components/schemas/BrickConfigVariable'
+          type: array
+        id:
+          type: string
+        model:
+          type: string
+        name:
+          type: string
+        require_model:
+          type: boolean
+        status:
+          type: string
+        variables:
+          additionalProperties:
+            type: string
+          description: 'Deprecated: use config_variables instead. This field is kept
+            for backward compatibility.'
+          type: object
+      type: object
     AppBrickInstancesResult:
       properties:
         bricks:
           items:
-            $ref: '#/components/schemas/BrickInstance'
+            $ref: '#/components/schemas/AppBrickInstanceListItem'
           nullable: true
           type: array
       type: object
@@ -2065,43 +2134,6 @@ components:
             $ref: '#/components/schemas/Example'
           nullable: true
           type: array
-      type: object
-    BrickInstance:
-      properties:
-        author:
-          type: string
-        category:
-          type: string
-        compatible_models:
-          deprecated: true
-          description: 'Deprecated: always empty on the app bricks list; use the per-brick
-            details endpoint instead.'
-          items:
-            $ref: '#/components/schemas/AIModel'
-          nullable: true
-          type: array
-        config_variables:
-          items:
-            $ref: '#/components/schemas/BrickConfigVariable'
-          type: array
-        id:
-          type: string
-        model:
-          type: string
-        name:
-          type: string
-        readme:
-          type: string
-        require_model:
-          type: boolean
-        status:
-          type: string
-        variables:
-          additionalProperties:
-            type: string
-          description: 'Deprecated: use config_variables instead. This field is kept
-            for backward compatibility.'
-          type: object
       type: object
     BrickListItem:
       properties:
