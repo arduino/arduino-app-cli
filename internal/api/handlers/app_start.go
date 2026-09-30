@@ -6,6 +6,7 @@
 package handlers
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -67,7 +68,10 @@ func HandleAppStart(
 		type log struct {
 			Message string `json:"message"`
 		}
-		if err := orchestrator.StartApp(r.Context(), dockerCli, provisioner, modelsIndex, bricksIndex, servicesIndex, app, cfg, platform, verbose, func(item orchestrator.StreamMessage) {
+		// An editable app is prepared by its start, downloading what it is missing; a
+		// release is not, so a start of one that is not prepared fails as not prepared.
+		prepare := !app.IsRelease()
+		if err := orchestrator.StartApp(r.Context(), dockerCli, provisioner, modelsIndex, bricksIndex, servicesIndex, app, cfg, platform, verbose, prepare, func(item orchestrator.StreamMessage) {
 			switch item.GetType() {
 			case orchestrator.ProgressType:
 				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress(*item.GetProgress())})
@@ -75,8 +79,12 @@ func HandleAppStart(
 				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: item.GetData()}})
 			}
 		}); err != nil {
+			code := render.InternalServiceErr
+			if errors.Is(err, orchestrator.ErrNotPrepared) {
+				code = render.NotPreparedErr
+			}
 			sseStream.SendError(render.SSEErrorData{
-				Code:    render.InternalServiceErr,
+				Code:    code,
 				Message: err.Error(),
 			})
 		}

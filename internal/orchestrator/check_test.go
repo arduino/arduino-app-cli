@@ -233,7 +233,7 @@ bricks:
   - arduino:ai-brick:
       model: i-am-not-installed-model
 `,
-			expectedError: errors.New("model \"i-am-not-installed-model\" for brick \"arduino:ai-brick\" is not installed"),
+			expectedError: errors.New("app is not prepared: model \"i-am-not-installed-model\" for brick \"arduino:ai-brick\" is not installed"),
 		},
 		{
 			name: "valid if no model is specified and the brick default model is installed",

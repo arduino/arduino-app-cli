@@ -58,7 +58,7 @@ func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.Bri
 				allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q not found", selectedModel, appBrick.ID))
 			default:
 				if model.Status != modelsindex.InstalledStatus {
-					allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q is not installed", selectedModel, appBrick.ID))
+					allErrors = errors.Join(allErrors, fmt.Errorf("%w: model %q for brick %q is not installed", ErrNotPrepared, selectedModel, appBrick.ID))
 				}
 				switch supported, err := models.ModelForBrick(ctx, selectedModel, appBrick.ID); {
 				case err != nil:

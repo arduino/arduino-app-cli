@@ -6,14 +6,17 @@
 package orchestrator
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -60,7 +63,7 @@ func PrepareRelease(
 
 	// The release states its models, and ships their records: the index of this board is
 	// not the one that built it and may not know them.
-	models, err := frozenModelsIndex(arduinoApp, docker, cfg, plat)
+	models, err := arduinoApp.ReleaseModels(docker, cfg, plat)
 	if err != nil {
 		return fmt.Errorf("cannot read the models the release ships: %w", err)
 	}
@@ -104,6 +107,62 @@ func PrepareInstalledRelease(
 	return PrepareRelease(ctx, docker, arduinoApp, prj, cfg, plat, cb)
 }
 
+// checkImages verifies the container images an app needs are on the board
+func checkImages(
+	ctx context.Context,
+	docker command.Cli,
+	prj *types.Project,
+) error {
+	allImages, err := dockerhelper.ListImages(ctx, docker.Client())
+	if err != nil {
+		return fmt.Errorf("failed to list the images of the board: %w", err)
+	}
+	for _, image := range dockerhelper.ComposeImages(prj) {
+		if !slices.Contains(allImages, image) {
+			return fmt.Errorf("%w: the container %q is not on the board", ErrNotPrepared, image)
+		}
+	}
+	return nil
+}
+
+// prepareModels installs the models an editable app is wired with but does not have yet, so
+// that a start downloads them in place instead of failing as not prepared. It resolves the
+// models the same way checkBricks does, and leaves to it the reporting of anything wrong:
+// an unknown or incompatible model is skipped here and fails the check that follows.
+func prepareModels(
+	ctx context.Context,
+	docker command.Cli,
+	bricks []app.Brick,
+	index *bricksindex.BricksIndex,
+	modelIndex *modelsindex.ModelsIndex,
+	plat platform.Platform,
+	cb func(StreamMessage),
+) error {
+	models := modelIndex.NewLookup()
+	for _, appBrick := range bricks {
+		indexBrick, found := index.FindBrickByID(appBrick.ID)
+		if !found || !indexBrick.RequireModel {
+			continue
+		}
+		selectedModel := cmp.Or(appBrick.Model, indexBrick.ModelName)
+		model, err := models.ByID(ctx, selectedModel)
+		if err != nil || model == nil || model.Status == modelsindex.InstalledStatus {
+			// A model that is unknown, unreadable or already installed is not downloaded
+			// here: checkBricks reports the first two, the last is nothing to do.
+			continue
+		}
+		cb(StreamMessage{data: "downloading the model " + selectedModel})
+		if _, err := modelIndex.Install(ctx, docker, selectedModel, plat, func(message modelsindex.StreamMessage) {
+			if message.IsData() {
+				cb(StreamMessage{data: message.GetData()})
+			}
+		}); err != nil {
+			return fmt.Errorf("failed to download the model %q: %w", selectedModel, err)
+		}
+	}
+	return nil
+}
+
 // renderRelease writes the compose file docker is given, from the templates the release
 // froze. It runs once the release is in place: the paths it resolves are absolute.
 func renderRelease(
@@ -118,7 +177,7 @@ func renderRelease(
 	if err != nil {
 		return nil, fmt.Errorf("cannot read the bricks the release ships: %w", err)
 	}
-	modelsIndex, err := frozenModelsIndex(arduinoApp, docker, cfg, plat)
+	modelsIndex, err := arduinoApp.ReleaseModels(docker, cfg, plat)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read the models the release ships: %w", err)
 	}
@@ -132,22 +191,4 @@ func renderRelease(
 		return nil, fmt.Errorf("failed to render the compose file of the release: %w", err)
 	}
 	return prj, nil
-}
-
-// frozenModelsIndex is the models index a release ships in its .cache. The models land
-// where every model does, so what is downloaded here is what a start reads.
-func frozenModelsIndex(
-	arduinoApp app.ArduinoApp,
-	docker command.Cli,
-	cfg config.Configuration,
-	plat platform.Platform,
-) (*modelsindex.ModelsIndex, error) {
-	return modelsindex.Load(
-		plat,
-		arduinoApp.ProvisioningStateDir(),
-		cfg.ModelsDir(),
-		cfg.CustomModelsDir(),
-		docker.Client(),
-		cfg,
-	)
 }

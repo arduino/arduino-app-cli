@@ -48,6 +48,7 @@ var (
 	ErrAppDoesntExists  = fmt.Errorf("app doesn't exist")
 	ErrAppNotFound      = fmt.Errorf("app not found")
 	ErrBadRequest       = fmt.Errorf("bad request")
+	ErrNotPrepared      = fmt.Errorf("app is not prepared")
 )
 
 type AppStreamMessage struct {
@@ -98,13 +99,22 @@ func StartApp(
 	cfg config.Configuration,
 	platform platform.Platform,
 	verbose bool,
+	prepare bool,
 	cb func(StreamMessage),
 ) error {
 	if cb == nil {
 		cb = func(StreamMessage) {}
 	}
 
-	bricksIndex = bricksIndex.WithAppBricks(appToStart.LocalBricks)
+	bricksIndex = appToStart.Bricks(bricksIndex)
+
+	modelsIndex = appToStart.Models(modelsIndex, docker, cfg, platform)
+
+	if prepare && !appToStart.IsRelease() {
+		if err := prepareModels(ctx, docker, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex, platform, cb); err != nil {
+			return err
+		}
+	}
 
 	if err := checkBricks(ctx, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex); err != nil {
 		return err
@@ -243,6 +253,14 @@ func StartApp(
 		prj, err := provisioner.Render(ctx, &appToStart, env, appToStart.Secrets(bricksIndex))
 		if err != nil {
 			return err
+		}
+
+		// Without a prepare, a start never fetches a missing image: it fails and asks for
+		// one first.
+		if !prepare {
+			if err := checkImages(ctx, docker, prj); err != nil {
+				return err
+			}
 		}
 
 		cb(StreamMessage{data: "python downloading"})
@@ -410,7 +428,7 @@ func RestartApp(
 		}
 	}
 
-	return StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, platform, verbose, cb)
+	return StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, platform, verbose, !appToStart.IsRelease(), cb)
 }
 
 func StartDefaultApp(
@@ -442,7 +460,7 @@ func StartDefaultApp(
 	}
 
 	// TODO: we need to stop all other running app before starting the default app.
-	if err := StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, *app, cfg, platform, false, func(sm StreamMessage) {}); err != nil {
+	if err := StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, *app, cfg, platform, false, !app.IsRelease(), func(sm StreamMessage) {}); err != nil {
 		return fmt.Errorf("failed to start app: %w", err)
 	}
 

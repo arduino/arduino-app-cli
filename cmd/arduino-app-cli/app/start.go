@@ -21,6 +21,7 @@ import (
 
 func newStartCmd(cfg config.Configuration) *cobra.Command {
 	var verbose bool
+	var noPrepare bool
 	cmd := &cobra.Command{
 		Use:   "start app_path",
 		Short: "Start an Arduino App",
@@ -33,7 +34,7 @@ func newStartCmd(cfg config.Configuration) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return startHandler(cmd.Context(), cfg, app, verbose)
+			return startHandler(cmd.Context(), cfg, app, verbose, !noPrepare)
 		},
 		ValidArgsFunction: completion.ApplicationNamesWithFilterFunc(cfg, func(apps orchestrator.AppInfo) bool {
 			return apps.Status != orchestrator.StatusStarting &&
@@ -42,12 +43,38 @@ func newStartCmd(cfg config.Configuration) *cobra.Command {
 	}
 
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
+	cmd.Flags().BoolVar(&noPrepare, "no-prepare", false, "Start the app without preparing it first, failing if its containers or models are not already on the board")
 
 	return cmd
 }
 
-func startHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp, verbose bool) error {
+func startHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp, verbose bool, prepare bool) error {
 	out, _, getResult := feedback.OutputStreams()
+
+	streamCb := func(message orchestrator.StreamMessage) {
+		switch message.GetType() {
+		case orchestrator.ProgressType:
+			fmt.Fprintf(out, "Progress[%s]: %.0f%%\n", message.GetProgress().Name, message.GetProgress().Progress)
+		case orchestrator.InfoType:
+			fmt.Fprintln(out, "[INFO]", message.GetData())
+		}
+	}
+
+	// A release is prepared apart, by the wrapper of a prepare, before it is started.
+	// An editable app is prepared by its own start instead.
+	if prepare && app.IsRelease() {
+		if err := orchestrator.PrepareInstalledRelease(
+			ctx,
+			servicelocator.GetDockerClient(),
+			servicelocator.GetProvisioner(),
+			app,
+			cfg,
+			servicelocator.GetPlatform(),
+			streamCb,
+		); err != nil {
+			feedback.Fatal(fmt.Sprintf("[ERROR] %s", err.Error()), feedback.ErrGeneric)
+		}
+	}
 
 	err := orchestrator.StartApp(
 		ctx,
@@ -60,14 +87,8 @@ func startHandler(ctx context.Context, cfg config.Configuration, app app.Arduino
 		cfg,
 		servicelocator.GetPlatform(),
 		verbose,
-		func(message orchestrator.StreamMessage) {
-			switch message.GetType() {
-			case orchestrator.ProgressType:
-				fmt.Fprintf(out, "Progress[%s]: %.0f%%\n", message.GetProgress().Name, message.GetProgress().Progress)
-			case orchestrator.InfoType:
-				fmt.Fprintln(out, "[INFO]", message.GetData())
-			}
-		},
+		prepare,
+		streamCb,
 	)
 	if err != nil {
 		feedback.Fatal(fmt.Sprintf("[ERROR] %s", err.Error()), feedback.ErrGeneric)

@@ -560,6 +560,12 @@ Contains a JSON object with an informational message.
 Contains a JSON object with the details of an error.
 'event: error'
 'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+
+When the containers or models a start needs are not on the board, the error code
+is 'not_prepared'. An app installed from a release is made ready with a prepare
+(PUT /v1/apps/{appID}/prepare); otherwise the missing model must be installed
+before the app is started again.
+'data: {"code":"not_prepared","message":"the app is not prepared: the container \"...\" is not on the board"}'
 `,
 			},
 			PossibleErrors: []ErrorResponse{

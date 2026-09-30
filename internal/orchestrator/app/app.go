@@ -19,10 +19,13 @@ import (
 	"time"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/docker/cli/cli/command"
 	yaml "github.com/goccy/go-yaml"
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
 
@@ -303,6 +306,34 @@ func (a *ArduinoApp) Bricks(board *bricksindex.BricksIndex) *bricksindex.BricksI
 // config of a brick is read from here, so no board fact is resolved.
 func (a *ArduinoApp) ReleaseBricks() (*bricksindex.BricksIndex, error) {
 	return bricksindex.Load(platform.Platform{}, a.ProvisioningStateDir())
+}
+
+// Models is the models index to validate the app against: a release answers with the one
+// its build froze, the only index aware of a custom model it ships, and an editable app
+// with the board index this cli holds.
+func (a *ArduinoApp) Models(board *modelsindex.ModelsIndex, docker command.Cli, cfg config.Configuration, plat platform.Platform) *modelsindex.ModelsIndex {
+	if a.IsRelease() {
+		frozen, err := a.ReleaseModels(docker, cfg, plat)
+		if err != nil {
+			slog.Warn("cannot read the models the release ships", slog.String("app", a.Name), slog.String("error", err.Error()))
+		} else {
+			return frozen
+		}
+	}
+	return board
+}
+
+// ReleaseModels is the models index a release ships in its .cache, the ones its build
+// wired the app with.
+func (a *ArduinoApp) ReleaseModels(docker command.Cli, cfg config.Configuration, plat platform.Platform) (*modelsindex.ModelsIndex, error) {
+	return modelsindex.Load(
+		plat,
+		a.ProvisioningStateDir(),
+		cfg.ModelsDir(),
+		cfg.CustomModelsDir(),
+		docker.Client(),
+		cfg,
+	)
 }
 
 func (a *ArduinoApp) AppComposeTemplateFilePath() *paths.Path {
