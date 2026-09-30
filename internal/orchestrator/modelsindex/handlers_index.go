@@ -13,6 +13,7 @@ import (
 	"io"
 	"log/slog"
 	"maps"
+	"math"
 	"slices"
 	"time"
 
@@ -34,18 +35,64 @@ type HandlerActions struct {
 	Check    []string
 	Info     []string
 }
+type Action string
+
+const (
+	ActionDownload Action = "download"
+	ActionDelete   Action = "delete"
+	ActionCheck    Action = "check"
+	ActionInfo     Action = "info"
+)
 
 func (a HandlerActions) validate(id string) error {
-	if len(a.Download) == 0 {
-		return fmt.Errorf("handler %q: missing required action \"download\"", id)
-	}
-	if len(a.Delete) == 0 {
-		return fmt.Errorf("handler %q: missing required action \"delete\"", id)
-	}
-	if len(a.Check) == 0 {
-		return fmt.Errorf("handler %q: missing required action \"check\"", id)
+	for _, name := range []Action{ActionDownload, ActionDelete, ActionCheck} {
+		if len(a.command(name)) == 0 {
+			return fmt.Errorf("handler %q: missing required action %q", id, name)
+		}
 	}
 	return nil
+}
+
+func (a HandlerActions) command(name Action) []string {
+	switch name {
+	case ActionDownload:
+		return a.Download
+	case ActionDelete:
+		return a.Delete
+	case ActionCheck:
+		return a.Check
+	case ActionInfo:
+		return a.Info
+	default:
+		return nil
+	}
+}
+
+func (h *HandlersIndex) runAction(ctx context.Context, cli client.APIClient, handler ModelHandler, action Action, vars map[string]string, lineParser func(string)) error {
+
+	command := handler.Actions.command(action)
+	if len(command) == 0 {
+		return fmt.Errorf("handler %q: %w: %q", handler.ID, ErrNoAction, action)
+	}
+	env := maps.Clone(vars)
+	maps.Insert(env, maps.All(h.configEnv))
+
+	var stdout io.Writer = io.Discard
+	if lineParser != nil {
+		stdout = f.NewCallbackWriter(lineParser)
+	}
+
+	return dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
+		Image:  ResolveVars(handler.Image, env),
+		Cmd:    command,
+		Binds:  ResolveVarsSlice(handler.Volumes, env),
+		Env:    env,
+		Stdout: stdout,
+		Stderr: f.NewCallbackWriter(func(line string) {
+			slog.Debug("handler stderr", "handler", handler.ID, "action", action, "line", line)
+		}),
+	})
+
 }
 
 type ModelHandler struct {
@@ -240,15 +287,24 @@ func (e handlerModelEntry) applyStat(m *AIModel) {
 	default:
 		m.Status = NotInstalledStatus
 	}
+	if e.Handler != "" {
+		m.Handler = e.Handler
+	}
 	if e.Metadata != nil {
 		m.setSourceURL(e.Metadata.Inputs["model_url"])
 	}
 	m.setMetadata(map[string]string{"runtime": e.Runtime, "publisher": e.Publisher})
 	if e.Installed && e.DiskSizeMB != nil && *e.DiskSizeMB > 0 {
-		m.Size = uint64(*e.DiskSizeMB * 1024 * 1024)
+		m.SizeBytes = mibToBytes(*e.DiskSizeMB)
 	} else if e.ModelSizeMB != nil && *e.ModelSizeMB > 0 {
-		m.Size = uint64(*e.ModelSizeMB * 1024 * 1024)
+		m.SizeBytes = mibToBytes(*e.ModelSizeMB)
 	}
+}
+
+// mibToBytes converts the listing's size_mb (MiB, rounded to 0.01) to bytes.
+func mibToBytes(v float64) uint64 {
+	const mib = 1 << 20
+	return uint64(math.Round(v * mib))
 }
 
 const (
@@ -316,11 +372,12 @@ func (h *HandlersIndex) userDownloadModel(entry handlerModelEntry) (AIModel, boo
 		return AIModel{}, false
 	}
 	return AIModel{
-		ID:        entry.ID,
-		Name:      entry.Name,
-		IsBuiltIn: false,
-		Origin:    UserOrigin,
-		Bricks:    bricksForVision(entry.Mmproj),
+		ID:           entry.ID,
+		Name:         entry.Name,
+		Handler:      md.Handler,
+		Preinstalled: false,
+		Origin:       UserOrigin,
+		Bricks:       bricksForVision(entry.Mmproj),
 		Deployment: &ModelDeployment{
 			Handler: md.Handler,
 			Variables: []map[string]PlatformDeploymentConfig{
@@ -330,6 +387,8 @@ func (h *HandlersIndex) userDownloadModel(entry handlerModelEntry) (AIModel, boo
 	}, true
 }
 
+// getModelsInfo runs the listing and merges its state into models, in place. It appends
+// the user models the listing found and the catalog does not declare.
 func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient, models []AIModel) ([]AIModel, error) {
 	if h == nil || h.listing == nil {
 		slog.Warn("handlers index or listing config is nil, cannot get model info")
@@ -337,27 +396,19 @@ func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient,
 	}
 	entries, err := runListAction(ctx, cli, h.listing, h.configEnv)
 	if err != nil {
-		return models, fmt.Errorf("cannot list models: %w", err)
+		return nil, fmt.Errorf("cannot list models: %w", err)
 	}
-	// A shallow clone: applyStat replaces the maps it writes rather than editing them.
-	modelsInfo := slices.Clone(models)
-	dryIndex := make(map[string]int, len(models))
-	for i, m := range models {
-		dryIndex[m.ID] = i
-	}
+
+	// EI users model has stat already calculated in the dryIndex
 	for _, entry := range entries {
-		if i, ok := dryIndex[entry.ID]; ok {
-			entry.applyStat(&modelsInfo[i])
-			continue
+		if i := slices.IndexFunc(models, func(m AIModel) bool { return m.ID == entry.ID }); i >= 0 {
+			entry.applyStat(&models[i])
+		} else if model, ok := h.userDownloadModel(entry); ok {
+			entry.applyStat(&model)
+			models = append(models, model)
 		}
-		model, ok := h.userDownloadModel(entry)
-		if !ok {
-			continue
-		}
-		entry.applyStat(&model)
-		modelsInfo = append(modelsInfo, model)
 	}
-	return modelsInfo, nil
+	return models, nil
 }
 
 func runListAction(ctx context.Context, cli client.APIClient, listing *ListingConfig, configEnv map[string]string) ([]handlerModelEntry, error) {
@@ -498,7 +549,7 @@ func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
 		if raw.ModelID != "" {
 			// Reported only once the handler has recorded the model, so an id here means
 			// a later listing can resolve it too.
-			model = &DownloadedModel{ID: raw.ModelID, Size: uint64(raw.SizeMB * 1024 * 1024)}
+			model = &DownloadedModel{ID: raw.ModelID, Size: mibToBytes(raw.SizeMB)}
 		}
 		publish(NewInfoMessage(raw.Description, model))
 	case "error":
@@ -582,25 +633,14 @@ type rawHandlersList struct {
 	Handlers []map[string]rawHandlerEntry `yaml:"handlers"`
 }
 
-func deleteInternalModel(ctx context.Context, cli client.APIClient, model AIModel, handler ModelHandler, plat platform.Platform, configEnv map[string]string) error {
-	if model.Deployment == nil || model.Deployment.Handler == "" {
-		return fmt.Errorf("model %q has no deployment handler", model.ID)
-	}
+func (h *HandlersIndex) deleteInternalModel(ctx context.Context, cli client.APIClient, model AIModel, handler ModelHandler, plat platform.Platform) error {
+	model.Deployment.VariablesForPlatform(plat.BoardName)
+	return h.runAction(ctx, cli, handler, ActionDelete, model.Deployment.VariablesForPlatform(plat.BoardName), nil)
+}
 
-	envVars := model.Deployment.VariablesForPlatform(plat.BoardName)
-	maps.Insert(envVars, maps.All(configEnv)) // include config env vars for template resolution
-
-	slog.Debug("running delete action", "model", model.ID)
-	return dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
-		Image:  ResolveVars(handler.Image, envVars),
-		Cmd:    handler.Actions.Delete,
-		Binds:  ResolveVarsSlice(handler.Volumes, envVars),
-		Env:    envVars,
-		Stdout: io.Discard,
-		Stderr: f.NewCallbackWriter(func(line string) {
-			slog.Debug("handler stderr", "line", line)
-		}),
-	})
+func (h *HandlersIndex) downloadModel(ctx context.Context, cli client.APIClient, model AIModel, handler ModelHandler, plat platform.Platform, lineParser func(line string)) error {
+	model.Deployment.VariablesForPlatform(plat.BoardName)
+	return h.runAction(ctx, cli, handler, ActionDownload, model.Deployment.VariablesForPlatform(plat.BoardName), lineParser)
 }
 
 func getModelSize(ctx context.Context, cli client.APIClient, handler ModelHandler, envVars map[string]string) (uint64, bool, error) {

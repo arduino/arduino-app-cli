@@ -106,6 +106,7 @@ func TestModelsIndex(t *testing.T) {
 		assert.Equal(t, &AIModel{
 			ID:          "face-detection",
 			Name:        "Lightweight-Face-Detection",
+			Handler:     "",
 			Description: "Face bounding box detection. This model is trained on the WIDER FACE dataset and can detect faces in images.",
 			Bricks: []BrickConfig{
 				{ID: "arduino:object_detection", ModelConfiguration: map[string]string{"EI_OBJ_DETECTION_MODEL": "/models/ootb/ei/lw-face-det.eim"}},
@@ -117,11 +118,11 @@ func TestModelsIndex(t *testing.T) {
 				"source-model-id":  "face-det-lite",
 				"source-model-url": "https://aihub.qualcomm.com/models/face_det_lite",
 			},
-			ModelLabels: []string{"face"},
-			Runner:      "brick",
-			IsBuiltIn:   true,
-			Origin:      CuratedOrigin,
-			Status:      InstalledStatus,
+			ModelLabels:  []string{"face"},
+			Runner:       "brick",
+			Preinstalled: true,
+			Origin:       CuratedOrigin,
+			Status:       InstalledStatus,
 		}, model)
 
 	})
@@ -139,9 +140,9 @@ func TestModelsIndex(t *testing.T) {
 				Handler:   "",
 				PreLoaded: true,
 			},
-			IsBuiltIn: true,
-			Origin:    CuratedOrigin,
-			Status:    InstalledStatus,
+			Preinstalled: true,
+			Origin:       CuratedOrigin,
+			Status:       InstalledStatus,
 		}, model)
 		assert.Equal(t, InstalledStatus, model.Status)
 
@@ -154,9 +155,9 @@ func TestModelsIndex(t *testing.T) {
 				Handler:   "my-handler",
 				PreLoaded: true,
 			},
-			IsBuiltIn: true,
-			Origin:    CuratedOrigin,
-			Status:    InstalledStatus,
+			Preinstalled: true,
+			Origin:       CuratedOrigin,
+			Status:       InstalledStatus,
 		}, model)
 		assert.Equal(t, InstalledStatus, model.Status)
 	})
@@ -178,9 +179,9 @@ func TestModelsIndex(t *testing.T) {
 					Handler:   "my-handler",
 					PreLoaded: false,
 				},
-				IsBuiltIn: false,
-				Origin:    CuratedOrigin,
-				Status:    InstalledStatus,
+				Preinstalled: false,
+				Origin:       CuratedOrigin,
+				Status:       InstalledStatus,
 			}, model)
 		})
 
@@ -200,9 +201,9 @@ func TestModelsIndex(t *testing.T) {
 					Handler:   "my-handler",
 					PreLoaded: false,
 				},
-				IsBuiltIn: false,
-				Origin:    CuratedOrigin,
-				Status:    DownloadingStatus,
+				Preinstalled: false,
+				Origin:       CuratedOrigin,
+				Status:       DownloadingStatus,
 			}, model)
 		})
 
@@ -231,6 +232,7 @@ func TestModelsIndex(t *testing.T) {
 		assert.Equal(t, &AIModel{
 			ID:          "my-model-id",
 			Name:        "my custom model from edge impulse",
+			Handler:     "ei-handler",
 			Description: "A small and accurate model for detecting bounding boxes for faces in images.",
 			Bricks:      []BrickConfig{{ID: "object-detection", ModelConfiguration: map[string]string{"AN_ENV_VARIABLE": "/my/env7variable"}}},
 			Metadata: map[string]string{
@@ -240,8 +242,8 @@ func TestModelsIndex(t *testing.T) {
 			},
 			ModelFolderPath: paths.New(f.Must(filepath.Abs("testdata/custom-models/my-custom-model"))),
 			Status:          InstalledStatus,
-			IsBuiltIn:       false, // a custom model is never built-in
-			Origin:          EdgeImpulseOrigin,
+			Preinstalled:    false, // a custom model is never built-in
+			Origin:          UserOrigin,
 		}, eimodel)
 	})
 

@@ -42,7 +42,7 @@ func modelListHandler(ctx context.Context, excludeBuiltin bool) {
 	}
 	result := make([]modelsindex.AIModel, 0)
 	for _, m := range models {
-		if excludeBuiltin && m.IsBuiltIn {
+		if excludeBuiltin && m.Preinstalled {
 			continue
 		}
 		result = append(result, m)
@@ -61,7 +61,7 @@ func (r modelListResult) String() string {
 
 	for _, model := range r.Models {
 		checkmark := ""
-		if model.IsBuiltIn {
+		if model.Preinstalled {
 			checkmark = "✓"
 		}
 		t.AppendRow(table.Row{

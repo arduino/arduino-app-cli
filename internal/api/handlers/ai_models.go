@@ -34,12 +34,22 @@ type InstallEIModelRequest struct {
 
 func HandleModelsList(modelsIndex *modelsindex.ModelsIndex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		var refresh bool
+		if refreshRaw := r.URL.Query().Get("refresh"); refreshRaw != "" {
+			var err error
+			refresh, err = strconv.ParseBool(refreshRaw)
+			if err != nil {
+				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "invalid refresh value"})
+				return
+			}
+		}
 		var brickFilter []string
 		if bricks := strings.TrimSpace(r.URL.Query().Get("bricks")); bricks != "" {
 			brickFilter = strings.Split(bricks, ",")
 		}
 		list, err := orchestrator.AIModelsList(r.Context(), orchestrator.AIModelsListRequest{
 			FilterByBrickID: brickFilter,
+			Refresh:         refresh,
 		}, modelsIndex)
 		if err != nil {
 			// Without the listing, every model would report the status its declaration
@@ -105,6 +115,8 @@ func HandlerDeleteModelByID(dockerClient command.Cli, cfg config.Configuration, 
 				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: err.Error()})
 			case errors.Is(err, orchestrator.ErrCannotRemoveModel):
 				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: err.Error()})
+			case errors.Is(err, modelsindex.ErrInstallInProgress):
+				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: err.Error()})
 			default:
 				render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: err.Error()})
 			}
@@ -165,6 +177,10 @@ func HandleInstallEIModel(cfg config.Configuration, bricksIndex *bricksindex.Bri
 			case errors.Is(err, orchestrator.ErrInsufficientStorage):
 				slog.Error("insufficient storage to install Edge Impulse model", slog.String("error", err.Error()))
 				render.EncodeResponse(w, http.StatusInsufficientStorage, models.ErrorResponse{Details: "insufficient storage to install Edge Impulse model"})
+				return
+			case errors.Is(err, modelsindex.ErrInstallInProgress):
+				slog.Warn("edge impulse install already in progress", "project", projectID, "err", err)
+				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: "an install of this Edge Impulse model is already in progress"})
 				return
 			default:
 				slog.Error("unable to install Edge Impulse model", slog.String("error", err.Error()))
@@ -310,6 +326,10 @@ func (d *downloadStream) sendError(err error) {
 	}
 	if errors.Is(err, modelsindex.ErrInsufficientStorage) {
 		d.sse.SendError(render.SSEErrorData{Code: "insufficient_storage", Message: err.Error()})
+		return
+	}
+	if errors.Is(err, modelsindex.ErrInstallInProgress) {
+		d.sse.SendError(render.SSEErrorData{Code: "install_in_progress", Message: err.Error()})
 		return
 	}
 	d.sse.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: err.Error()})

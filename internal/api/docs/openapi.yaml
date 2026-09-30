@@ -1223,8 +1223,9 @@ paths:
       - Libraries
   /v1/models:
     get:
-      description: Returns the list of AI models available in the system. It is possible
-        to filter the models by bricks.
+      description: Returns the list of AI models available in the system, from a cache
+        the daemon fills at startup and after every install and delete. It is possible
+        to filter the models by bricks, and to force a new listing with refresh=true.
       operationId: getAIModels
       parameters:
       - description: Filter models by bricks. If not specified, all models are returned.
@@ -1233,6 +1234,14 @@ paths:
         schema:
           description: Filter models by bricks. If not specified, all models are returned.
           type: string
+      - description: Run the models listing again instead of answering from the cache.
+          Use after changing model files outside the API. Defaults to false.
+        in: query
+        name: refresh
+        schema:
+          description: Run the models listing again instead of answering from the
+            cache. Use after changing model files outside the API. Defaults to false.
+          type: boolean
       responses:
         "200":
           content:
@@ -1837,14 +1846,16 @@ components:
           type: array
         description:
           type: string
+        handler:
+          description: handler that manages the model, as the listing reports it (hf-handler,
+            ei-handler, ai-hub-handler)
+          type: string
         id:
           example: bGxhbWFjcHA6Z2VtbWEtMy0xYi1pdC1RNF8w
           type: string
         id_decoded:
           example: llamacpp:gemma-3-1b-it-Q4_0
           type: string
-        is_builtin:
-          type: boolean
         metadata:
           additionalProperties:
             type: string
@@ -1853,9 +1864,15 @@ components:
           type: string
         origin:
           $ref: '#/components/schemas/ModelOrigin'
+        preinstalled:
+          description: 'ships with the board image: nothing to download, cannot be
+            deleted'
+          type: boolean
         runner:
           type: string
-        size:
+        size_bytes:
+          description: size in bytes, converted from MiB rounded to two decimals (approximate
+            to ~5 KiB); on disk when installed, declared otherwise; omitted when unknown
           minimum: 0
           nullable: true
           type: integer
@@ -2427,12 +2444,11 @@ components:
     ModelOrigin:
       description: 'Where the model came from: "curated" is declared by the internal
         model list and installs from its id alone, "user" was downloaded from a source
-        the caller supplied and needs that source again, "edge-impulse-user-project"
-        was deployed from the caller''s own Edge Impulse project.'
+        the caller supplied (a Hugging Face link, an Edge Impulse project) and needs
+        that source again.'
       enum:
       - curated
       - user
-      - edge-impulse-user-project
       type: string
       uniqueItems: true
     ModelStatus:

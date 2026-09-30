@@ -19,7 +19,6 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
-	"go.bug.st/f"
 
 	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -33,12 +32,18 @@ import (
 
 type AIModelsListRequest struct {
 	FilterByBrickID []string
+	Refresh         bool
 }
 
 // AIModelsList answers every model, filtered by brick when the request names one. It runs
 // one listing container, and fails when that fails: the install status of every model
 // comes from there, so a list without it states the declaration's guess as fact.
 func AIModelsList(ctx context.Context, req AIModelsListRequest, modelsIndex *modelsindex.ModelsIndex) ([]modelsindex.AIModel, error) {
+	if req.Refresh {
+		if _, err := modelsIndex.Refresh(ctx); err != nil {
+			return nil, err
+		}
+	}
 	collection, err := modelsIndex.NewLookup().All(ctx)
 	if err != nil {
 		return nil, err
@@ -100,7 +105,7 @@ func AIModelDelete(ctx context.Context, dockerClient command.Cli, cfg config.Con
 	// asks with that one rather than with what the caller passed.
 	id := res.ID
 
-	if res.IsBuiltIn {
+	if res.Preinstalled {
 		return ErrCannotRemoveModel
 	}
 
@@ -216,6 +221,12 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 	}
 
 	id := fmt.Sprintf("ei-model-%d-%d", projectID, impulseID)
+	unlock, err := modelsIndex.LockModel(id)
+	if err != nil {
+		return modelsindex.AIModel{}, err
+	}
+	defer unlock()
+
 	err = isModelInUse(ctx, modelsIndex, dockerClient, id)
 	if err != nil {
 		return modelsindex.AIModel{}, fmt.Errorf("cannot install EI model: %w", err)
@@ -294,18 +305,16 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 		return modelsindex.AIModel{}, err
 	}
 
-	return modelsindex.AIModel{
-		ID:          aimodel.ModelDescriptor.ID,
-		Name:        aimodel.ModelDescriptor.Name,
-		Description: aimodel.ModelDescriptor.Description,
-		Runner:      aimodel.ModelDescriptor.Runner,
-		Bricks: f.Map(aimodel.ModelDescriptor.Bricks, func(b custommodel.BrickConfig) modelsindex.BrickConfig {
-			return modelsindex.BrickConfig{ID: b.ID}
-		}),
-		Metadata: aimodel.ModelDescriptor.Metadata,
-		Origin:   modelsindex.EdgeImpulseOrigin,
-		Status:   modelsindex.InstalledStatus,
-	}, nil
+	models, err := modelsIndex.Refresh(context.WithoutCancel(ctx))
+	if err != nil {
+		return modelsindex.AIModel{}, fmt.Errorf("model %q downloaded, but the listing failed: %w", aimodel.ModelDescriptor.ID, err)
+	}
+	i := slices.IndexFunc(models, func(v modelsindex.AIModel) bool { return v.ID == aimodel.ModelDescriptor.ID })
+	if i == -1 {
+		return modelsindex.AIModel{}, fmt.Errorf("model %q was downloaded but is not listed", aimodel.ModelDescriptor.ID)
+	}
+
+	return models[i], nil
 }
 
 func buildBrickConfigForEIModel(bricksIndex *bricksindex.BricksIndex, category *edgeimpulse.ProjectCategory, impulse []edgeimpulse.ImpulseLearnBlock, edgeModelsDir *paths.Path, blobModelsDir *paths.Path) ([]custommodel.BrickConfig, error) {

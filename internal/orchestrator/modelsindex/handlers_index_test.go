@@ -8,6 +8,7 @@ package modelsindex
 import (
 	"bytes"
 	"slices"
+	"sync/atomic"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
@@ -98,6 +99,33 @@ func TestParseDownloadHandlerLine(t *testing.T) {
 
 		assert.False(t, called)
 	})
+}
+
+func TestRunActionWithoutTheAction(t *testing.T) {
+	var runs atomic.Int64
+	cli := newFakeDockerClient(func(_ string, _ []string) (string, int) {
+		runs.Add(1)
+		return "", 0
+	})
+
+	// Download, delete and check are required; info is optional and left out.
+	handler := ModelHandler{
+		ID:      "no-info-handler",
+		Image:   "example/image:tag",
+		Volumes: []string{"/tmp/models:/models"},
+		Actions: HandlerActions{
+			Download: []string{"/app/download.sh"},
+			Delete:   []string{"/app/delete.sh"},
+			Check:    []string{"/app/check.sh"},
+		},
+	}
+	h := &HandlersIndex{configEnv: map[string]string{"BOARD_NAME": "unoq"}}
+
+	err := h.runAction(t.Context(), cli, handler, ActionInfo, map[string]string{}, nil)
+
+	require.ErrorIs(t, err, ErrNoAction)
+	assert.Contains(t, err.Error(), "no-info-handler", "the error names the handler")
+	assert.Zero(t, runs.Load(), "no container starts for a missing action")
 }
 
 func TestResolveVars(t *testing.T) {
@@ -236,7 +264,7 @@ func TestUserDownloadModel(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, "llamacpp:unsloth/Qwen3.5-0.8B-GGUF/Qwen3.5-0.8B-Q4_0", model.ID)
 		assert.Equal(t, "unsloth/Qwen3.5-0.8B-GGUF/Qwen3.5-0.8B-Q4_0", model.Name)
-		assert.False(t, model.IsBuiltIn, "a built-in model cannot be deleted")
+		assert.False(t, model.Preinstalled, "a built-in model cannot be deleted")
 		assert.Nil(t, model.ModelFolderPath, "the listing's path is a container path")
 		require.NotNil(t, model.Deployment)
 		// The handler id comes from the record: entry.Handler is a namespace.
@@ -293,21 +321,21 @@ func TestApplyStatusTo(t *testing.T) {
 		var model AIModel
 		handlerModelEntry{Installed: true, DiskSizeMB: &diskSize, ModelSizeMB: &yamlSize}.applyStat(&model)
 		assert.Equal(t, InstalledStatus, model.Status)
-		assert.Equal(t, uint64(507*1024*1024), model.Size)
+		assert.Equal(t, uint64(507*1024*1024), model.SizeBytes)
 	})
 
 	t.Run("not installed falls back to the declared size", func(t *testing.T) {
 		var model AIModel
 		handlerModelEntry{Installed: false, DiskSizeMB: &diskSize, ModelSizeMB: &yamlSize}.applyStat(&model)
 		assert.Equal(t, NotInstalledStatus, model.Status)
-		assert.Equal(t, uint64(480*1024*1024), model.Size)
+		assert.Equal(t, uint64(480*1024*1024), model.SizeBytes)
 	})
 
 	t.Run("a transfer in flight is its own status", func(t *testing.T) {
 		var model AIModel
 		handlerModelEntry{Installed: false, Downloading: true}.applyStat(&model)
 		assert.Equal(t, DownloadingStatus, model.Status)
-		assert.Zero(t, model.Size)
+		assert.Zero(t, model.SizeBytes)
 	})
 }
 

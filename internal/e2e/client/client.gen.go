@@ -19,17 +19,14 @@ import (
 
 // Defines values for ModelOrigin.
 const (
-	Curated                ModelOrigin = "curated"
-	EdgeImpulseUserProject ModelOrigin = "edge-impulse-user-project"
-	User                   ModelOrigin = "user"
+	Curated ModelOrigin = "curated"
+	User    ModelOrigin = "user"
 )
 
 // Valid indicates whether the value is a known member of the ModelOrigin enum.
 func (e ModelOrigin) Valid() bool {
 	switch e {
 	case Curated:
-		return true
-	case EdgeImpulseUserProject:
 		return true
 	case User:
 		return true
@@ -147,18 +144,25 @@ type AIModel struct {
 
 // AIModelItem defines model for AIModelItem.
 type AIModelItem struct {
-	BrickIds    *[]string          `json:"brick_ids,omitempty"`
-	Description *string            `json:"description,omitempty"`
-	Id          *string            `json:"id,omitempty"`
-	IdDecoded   *string            `json:"id_decoded,omitempty"`
-	IsBuiltin   *bool              `json:"is_builtin,omitempty"`
-	Metadata    *map[string]string `json:"metadata,omitempty"`
-	Name        *string            `json:"name,omitempty"`
+	BrickIds    *[]string `json:"brick_ids,omitempty"`
+	Description *string   `json:"description,omitempty"`
 
-	// Origin Where the model came from: "curated" is declared by the internal model list and installs from its id alone, "user" was downloaded from a source the caller supplied and needs that source again, "edge-impulse-user-project" was deployed from the caller's own Edge Impulse project.
+	// Handler handler that manages the model, as the listing reports it (hf-handler, ei-handler, ai-hub-handler)
+	Handler   *string            `json:"handler,omitempty"`
+	Id        *string            `json:"id,omitempty"`
+	IdDecoded *string            `json:"id_decoded,omitempty"`
+	Metadata  *map[string]string `json:"metadata,omitempty"`
+	Name      *string            `json:"name,omitempty"`
+
+	// Origin Where the model came from: "curated" is declared by the internal model list and installs from its id alone, "user" was downloaded from a source the caller supplied (a Hugging Face link, an Edge Impulse project) and needs that source again.
 	Origin *ModelOrigin `json:"origin,omitempty"`
-	Runner *string      `json:"runner,omitempty"`
-	Size   *int         `json:"size,omitempty"`
+
+	// Preinstalled ships with the board image: nothing to download, cannot be deleted
+	Preinstalled *bool   `json:"preinstalled,omitempty"`
+	Runner       *string `json:"runner,omitempty"`
+
+	// SizeBytes size in bytes, converted from MiB rounded to two decimals (approximate to ~5 KiB); on disk when installed, declared otherwise; omitted when unknown
+	SizeBytes *int `json:"size_bytes,omitempty"`
 
 	// Status Model status
 	Status *ModelStatus `json:"status,omitempty"`
@@ -503,7 +507,7 @@ type LocalBrickRenameResult struct {
 	Id *string `json:"id,omitempty"`
 }
 
-// ModelOrigin Where the model came from: "curated" is declared by the internal model list and installs from its id alone, "user" was downloaded from a source the caller supplied and needs that source again, "edge-impulse-user-project" was deployed from the caller's own Edge Impulse project.
+// ModelOrigin Where the model came from: "curated" is declared by the internal model list and installs from its id alone, "user" was downloaded from a source the caller supplied (a Hugging Face link, an Edge Impulse project) and needs that source again.
 type ModelOrigin string
 
 // ModelStatus Model status
@@ -731,6 +735,9 @@ type ListLibrariesParamsSort string
 type GetAIModelsParams struct {
 	// Bricks Filter models by bricks. If not specified, all models are returned.
 	Bricks *string `form:"bricks,omitempty" json:"bricks,omitempty"`
+
+	// Refresh Run the models listing again instead of answering from the cache. Use after changing model files outside the API. Defaults to false.
+	Refresh *bool `form:"refresh,omitempty" json:"refresh,omitempty"`
 }
 
 // InstallEIModelJSONBody defines parameters for InstallEIModel.
@@ -3421,6 +3428,18 @@ func NewGetAIModelsRequest(server string, params *GetAIModelsParams) (*http.Requ
 		if params.Bricks != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "bricks", *params.Bricks, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Refresh != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "refresh", *params.Refresh, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {

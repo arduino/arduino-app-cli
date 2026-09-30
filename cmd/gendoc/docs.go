@@ -99,7 +99,7 @@ func NewOpenApiGenerator(version string) *Generator {
 				UniqueItems: new(true),
 				Enum:        f.Map(modelsindex.ModelOrigin("").AllowedOrigins(), func(v modelsindex.ModelOrigin) any { return v }),
 				Type:        new(openapi3.SchemaTypeString),
-				Description: new("Where the model came from: \"curated\" is declared by the internal model list and installs from its id alone, \"user\" was downloaded from a source the caller supplied and needs that source again, \"edge-impulse-user-project\" was deployed from the caller's own Edge Impulse project."),
+				Description: new("Where the model came from: \"curated\" is declared by the internal model list and installs from its id alone, \"user\" was downloaded from a source the caller supplied (a Hugging Face link, an Edge Impulse project) and needs that source again."),
 				ReflectType: reflect.TypeOf(modelsindex.ModelOrigin("")),
 			},
 		},
@@ -1032,7 +1032,8 @@ Contains a JSON object with the details of an error.
 			Method:      http.MethodGet,
 			Path:        "/v1/models",
 			Request: (*struct {
-				Bricks string `query:"bricks" description:"Filter models by bricks. If not specified, all models are returned."`
+				Bricks  string `query:"bricks" description:"Filter models by bricks. If not specified, all models are returned."`
+				Refresh bool   `query:"refresh" description:"Run the models listing again instead of answering from the cache. Use after changing model files outside the API. Defaults to false."`
 			})(nil),
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "application/json",
@@ -1040,7 +1041,7 @@ Contains a JSON object with the details of an error.
 				Description:   "Successful response",
 				StatusCode:    http.StatusOK,
 			},
-			Description: "Returns the list of AI models available in the system. It is possible to filter the models by bricks.",
+			Description: "Returns the list of AI models available in the system, from a cache the daemon fills at startup and after every install and delete. It is possible to filter the models by bricks, and to force a new listing with refresh=true.",
 			Summary:     "Get a list of available AI models",
 			Tags:        []Tag{AIModelsTag},
 			PossibleErrors: []ErrorResponse{

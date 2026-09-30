@@ -188,17 +188,29 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 
 	})
 
-	t.Run("piper-tts-en is pre-loaded: returns size from metadata, no Docker call", func(t *testing.T) {
+	t.Run("piper-tts-en is pre-loaded: state comes from the listing", func(t *testing.T) {
 		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
-			t.Fatal("unexpected Docker call for pre-loaded model")
-			return "", 0
+			return listingWith(`{"id":"piper-tts-en","installed":true,"model_size_mb":46}`), 0
 		})
 		idx := loadHandlersTestIndex(t, cli)
 
 		model, err := idx.NewLookup().ByID(t.Context(), "piper-tts-en")
 		require.NoError(t, err)
 		require.NotNil(t, model)
-		assert.Equal(t, uint64(46*1024*1024), model.Size)
+		assert.Equal(t, InstalledStatus, model.Status)
+		assert.Equal(t, uint64(46*1024*1024), model.SizeBytes)
+	})
+
+	t.Run("piper-tts-en is pre-loaded: files missing reads not installed", func(t *testing.T) {
+		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
+			return listingWith(`{"id":"piper-tts-en","installed":false,"model_size_mb":46}`), 0
+		})
+		idx := loadHandlersTestIndex(t, cli)
+
+		model, err := idx.NewLookup().ByID(t.Context(), "piper-tts-en")
+		require.NoError(t, err)
+		require.NotNil(t, model)
+		assert.Equal(t, NotInstalledStatus, model.Status)
 	})
 
 	t.Run("ei:efficientnet-b4 not installed: the listing reports it absent", func(t *testing.T) {
@@ -211,7 +223,7 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, model)
 		assert.Equal(t, NotInstalledStatus, model.Status)
-		assert.Equal(t, uint64(89*1024*1024), model.Size)
+		assert.Equal(t, uint64(89*1024*1024), model.SizeBytes)
 	})
 
 	t.Run("ei:efficientnet-b4 installed: size falls back to the declared one", func(t *testing.T) {
@@ -224,7 +236,7 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, model)
 		assert.Equal(t, InstalledStatus, model.Status)
-		assert.Equal(t, uint64(89*1024*1024), model.Size)
+		assert.Equal(t, uint64(89*1024*1024), model.SizeBytes)
 	})
 
 	t.Run("listing fails: returns an error rather than a declared status", func(t *testing.T) {
@@ -237,23 +249,22 @@ func TestGetModelByID_WithDockerMock(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("listing fails: an id nothing declares is absent, not an error", func(t *testing.T) {
-		// Only the listing can find an undeclared model, so a listing that did not run has
-		// not found it. A failure here would turn "no such model" into a 500.
+	t.Run("listing fails: an id nothing declares is an error too", func(t *testing.T) {
+		// Only the listing can find an undeclared model, so a listing that did not run cannot
+		// say it is absent: a 404 here would hide the broken listing.
 		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
 			return "", 1
 		})
 		idx := loadHandlersTestIndex(t, cli)
 
-		model, err := idx.NewLookup().ByID(t.Context(), "no-such-model-id")
-		require.NoError(t, err)
-		assert.Nil(t, model)
+		_, err := idx.NewLookup().ByID(t.Context(), "no-such-model-id")
+		require.Error(t, err)
 	})
 
-	t.Run("ei-model-990187-1 custom model: always installed, no Docker call", func(t *testing.T) {
+	t.Run("ei-model-990187-1 custom model: installed, found by the folder scan", func(t *testing.T) {
+		// The listing runs, but knows nothing of custom models: the folder scan finds it.
 		cli := newFakeDockerClient(func(image string, cmd []string) (string, int) {
-			t.Fatal("unexpected Docker call for custom model")
-			return "", 0
+			return listingWith(), 0
 		})
 		idx := loadHandlersTestIndex(t, cli)
 
@@ -309,7 +320,7 @@ func TestGetModelsMergesTheListing(t *testing.T) {
 		const listingOutput = `{"event":"info","models":[
 			{"id":"llamacpp:ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0",
 			 "name":"ggml-org/SmolVLM-256M-Instruct-GGUF/SmolVLM-256M-Instruct-Q8_0",
-			 "handler":"llamacpp","runtime":"llamacpp","model_publisher":"ggml-org",
+			 "handler":"hf-handler","runtime":"llamacpp","model_publisher":"ggml-org",
 			 "model_origin":"user","installed":true,
 			 "mmproj":"/models/llamacpp/ggml-org/SmolVLM-256M-Instruct-GGUF/mmproj-SmolVLM-256M-Instruct-Q8_0.gguf",
 			 "download_metadata":{
@@ -373,7 +384,7 @@ func TestGetModelsMergesTheListing(t *testing.T) {
 			"publisher":     "qualcomm-ai-hub",
 		}, byID("ei:efficientnet-b4").Metadata)
 
-		known, ok := idx.NewLookup().known("ei:efficientnet-b4")
+		known, ok := idx.known("ei:efficientnet-b4")
 		require.True(t, ok)
 		assert.Equal(t, map[string]string{"model_size_mb": "89", "source": "edgeimpulse"}, known.Metadata,
 			"the index's own entry stays as declared")
@@ -440,7 +451,7 @@ func TestLookupRunsOneListing(t *testing.T) {
 		assert.Equal(t, int64(1), listings.Load())
 	})
 
-	t.Run("a declared model needs no listing at all", func(t *testing.T) {
+	t.Run("a pre-loaded model is listed like any other", func(t *testing.T) {
 		listings.Store(0)
 		lookup := newIndex(t).NewLookup()
 
@@ -452,10 +463,10 @@ func TestLookupRunsOneListing(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, supported)
 
-		assert.Zero(t, listings.Load())
+		assert.Equal(t, int64(1), listings.Load())
 	})
 
-	t.Run("each new Lookup takes its own listing", func(t *testing.T) {
+	t.Run("new Lookups share the cached listing", func(t *testing.T) {
 		listings.Store(0)
 		idx := newIndex(t)
 
@@ -464,8 +475,63 @@ func TestLookupRunsOneListing(t *testing.T) {
 		_, err = idx.NewLookup().ByBrick(t.Context(), "arduino:image_classification")
 		require.NoError(t, err)
 
+		assert.Equal(t, int64(1), listings.Load())
+	})
+
+	t.Run("Refresh runs the listing again", func(t *testing.T) {
+		listings.Store(0)
+		idx := newIndex(t)
+
+		_, err := idx.NewLookup().ByID(t.Context(), "ei:efficientnet-b4")
+		require.NoError(t, err)
+		_, err = idx.Refresh(t.Context())
+		require.NoError(t, err)
+		_, err = idx.NewLookup().ByID(t.Context(), "ei:efficientnet-b4")
+		require.NoError(t, err)
+
 		assert.Equal(t, int64(2), listings.Load())
 	})
+
+	t.Run("a failed listing is remembered per Lookup", func(t *testing.T) {
+		var failed atomic.Int64
+		cli := newFakeDockerClient(func(_ string, cmd []string) (string, int) {
+			if len(cmd) > 0 && cmd[0] == listModelsCmd {
+				failed.Add(1)
+			}
+			return "", 1
+		})
+		dir := paths.New("testdata/with-handlers")
+		idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+		require.NoError(t, err)
+
+		lookup := idx.NewLookup()
+		_, err1 := lookup.ByID(t.Context(), "ei:efficientnet-b4")
+		_, err2 := lookup.ByID(t.Context(), "piper-tts-en")
+		_, err3 := lookup.All(t.Context())
+		require.Error(t, err1)
+		require.Error(t, err2)
+		require.Error(t, err3)
+		assert.Equal(t, int64(1), failed.Load(), "one Lookup, one attempt")
+
+		// A failure is not cached in the index: the next Lookup tries again.
+		_, err = idx.NewLookup().ByID(t.Context(), "ei:efficientnet-b4")
+		require.Error(t, err)
+		assert.Equal(t, int64(2), failed.Load(), "a new Lookup retries")
+	})
+}
+
+func TestRefreshEmptyCatalog(t *testing.T) {
+	tmp := paths.New(t.TempDir())
+	require.NoError(t, tmp.Join("models-list.yaml").WriteFile([]byte("models: []\n")))
+
+	// No handlers file and no Docker client: the dry catalog is the whole answer.
+	idx, err := Load(platform.Platform{}, tmp, tmp, nil, nil, config.Configuration{})
+	require.NoError(t, err)
+
+	models, err := idx.Refresh(t.Context())
+	require.ErrorIs(t, err, ErrEmptyCatalog)
+	assert.Nil(t, models)
+	assert.Nil(t, idx.snapshot(), "an empty catalog is not cached")
 }
 
 // TestDownloadByURL pins what reaches the container for an undeclared model: the
@@ -504,7 +570,7 @@ func TestDownloadByURL(t *testing.T) {
 	// The answer is the listed model, so the caller reports what a later GetModels reports.
 	assert.Equal(t, "llamacpp:org/repo/m-Q4_0", installed.ID)
 	assert.Equal(t, InstalledStatus, installed.Status)
-	assert.Equal(t, uint64(1024*1024), installed.Size)
+	assert.Equal(t, uint64(1024*1024), installed.SizeBytes)
 	assert.Equal(t, map[string]string{"source-model-url": "llamacpp:org/repo:Q4_0"}, installed.Metadata)
 }
 
@@ -530,7 +596,7 @@ func TestDownloadByURLReportsAnInstalledModel(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "llamacpp:org/repo/m-Q4_0", installed.ID)
-	assert.Equal(t, uint64(1024*1024), installed.Size, "the size is the one on disk, not a transfer total")
+	assert.Equal(t, uint64(1024*1024), installed.SizeBytes, "the size is the one on disk, not a transfer total")
 	assert.Equal(t, []string{"Model exists: org/repo (m-Q4_0.gguf)"}, messages)
 }
 
@@ -558,4 +624,92 @@ func TestDownloadRefusesAModelWithNothingToDownload(t *testing.T) {
 	require.True(t, ok)
 	_, err = idx.runDownload(t.Context(), cli, *preLoaded, platform.Platform{BoardName: "ventunoq"}, func(StreamMessage) {})
 	require.ErrorIs(t, err, ErrNoHandler)
+}
+
+func TestLockKey(t *testing.T) {
+	const board = "ventunoq"
+	userHF := AIModel{
+		ID:     "llamacpp:org/repo/m-Q4_0",
+		Origin: UserOrigin,
+		Deployment: &ModelDeployment{
+			Handler:   "hf-handler",
+			Variables: []map[string]PlatformDeploymentConfig{{board: {Variables: map[string]string{"model_url": "https://hf.co/org/repo/m-Q4_0.gguf"}}}},
+		},
+	}
+	userNoURL := userHF
+	userNoURL.Deployment = &ModelDeployment{
+		Handler:   "hf-handler",
+		Variables: []map[string]PlatformDeploymentConfig{{board: {Variables: map[string]string{"models_repository": "llamacpp"}}}},
+	}
+
+	tests := []struct {
+		name  string
+		model AIModel
+		want  string
+	}{
+		{"curated: its id", AIModel{ID: "gemma-3-1b", Origin: CuratedOrigin, Deployment: &ModelDeployment{Handler: "hf-handler"}}, "gemma-3-1b"},
+		{"user EI, no deployment: its id", AIModel{ID: "ei-model-1-2", Origin: UserOrigin}, "ei-model-1-2"},
+		{"user HF: the link its install locked", userHF, "https://hf.co/org/repo/m-Q4_0.gguf"},
+		{"user model with no link: its id", userNoURL, "llamacpp:org/repo/m-Q4_0"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, lockKey(tc.model, board))
+		})
+	}
+}
+
+// TestDownloadByURLHoldsTheLock: a second download of the same link, while the first runs,
+// is refused before any container starts; and a delete of the model that link installs
+// takes the same lock.
+func TestDownloadByURLHoldsTheLock(t *testing.T) {
+	const url = "llamacpp:org/repo:Q4_0" // the link downloadedEntry records
+	var downloads atomic.Int64
+	started := make(chan struct{})
+	release := make(chan struct{})
+	cli := newFakeDockerClient(func(_ string, cmd []string) (string, int) {
+		if len(cmd) > 0 && cmd[0] == listModelsCmd {
+			return listingWith(downloadedEntry), 0
+		}
+		if downloads.Add(1) == 1 {
+			close(started)
+			<-release // hold the first download until the test is done checking
+		}
+		return `{"event":"info","description":"done","model_id":"llamacpp:org/repo/m-Q4_0","size_mb":1}` + "\n", 0
+	})
+	dir := paths.New("testdata/with-handlers")
+	plat := platform.Platform{BoardName: "ventunoq"}
+	idx, err := Load(plat, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+	require.NoError(t, err)
+	idx.locksDir = paths.New(t.TempDir()) // a test config has no data dir: locking would be off
+
+	firstErr := make(chan error, 1)
+	go func() {
+		_, err := idx.DownloadByURL(context.Background(), cli, url, "", plat, func(StreamMessage) {})
+		firstErr <- err
+	}()
+	<-started
+
+	t.Run("a second download of the same link is refused", func(t *testing.T) {
+		_, err := idx.DownloadByURL(t.Context(), cli, url, "", plat, func(StreamMessage) {})
+		require.ErrorIs(t, err, ErrInstallInProgress)
+		assert.Equal(t, int64(1), downloads.Load(), "no second container")
+	})
+
+	t.Run("deleting the model that link installs takes the same lock", func(t *testing.T) {
+		listed, err := idx.NewLookup().ByID(t.Context(), "llamacpp:org/repo/m-Q4_0")
+		require.NoError(t, err)
+		require.NotNil(t, listed)
+		_, err = lockModel(idx.locksDir, lockKey(*listed, plat.BoardName))
+		require.ErrorIs(t, err, ErrInstallInProgress)
+	})
+
+	close(release)
+	require.NoError(t, <-firstErr)
+
+	t.Run("after it ends the link is free again", func(t *testing.T) {
+		unlock, err := lockModel(idx.locksDir, url)
+		require.NoError(t, err)
+		unlock()
+	})
 }

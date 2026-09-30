@@ -104,8 +104,8 @@ func TestAIModelDetails(t *testing.T) {
 		}
 		require.Equal(t, withoutListingFields(*expectedModel.Metadata), withoutListingFields(*modelDetails.Metadata), "Metadata should match")
 
-		require.NotNil(t, modelDetails.Size, "Response model's Size should not be nil")
-		require.Equal(t, *expectedModel.Size, *modelDetails.Size, "Size should match")
+		require.NotNil(t, modelDetails.SizeBytes, "Response model's Size should not be nil")
+		require.Equal(t, *expectedModel.SizeBytes, *modelDetails.SizeBytes, "Size should match")
 	})
 
 	t.Run("should return full details for a valid custom model ID", func(t *testing.T) {
@@ -129,18 +129,18 @@ func TestAIModelDetails(t *testing.T) {
 		got := response.JSON200
 		require.Equal(t, &client.AIModelItem{
 			// The id is reported twice: encoded, ready to paste into a path, and plain.
-			Id:          new(models.EncodeModelID("custom-classification-model-eim")),
-			IdDecoded:   new("custom-classification-model-eim"),
-			Name:        new("this is the name of the model"),
-			IsBuiltin:   new(false),
-			Runner:      new(""),
-			Description: new("this is the description of the model"),
-			BrickIds:    &[]string{"arduino:audio_classification"},
+			Id:           new(models.EncodeModelID("custom-classification-model-eim")),
+			IdDecoded:    new("custom-classification-model-eim"),
+			Name:         new("this is the name of the model"),
+			Preinstalled: new(false),
+			Runner:       new(""),
+			Description:  new("this is the description of the model"),
+			BrickIds:     &[]string{"arduino:audio_classification"},
 			// A model under the custom models directory is a deployment of the caller's
 			// own Edge Impulse project, not a catalog entry that happens to be EI-trained.
-			Origin: new(client.ModelOrigin("edge-impulse-user-project")),
-			Status: new(client.ModelStatus("installed")),
-			Size:   new(len(modelContent)),
+			Origin:    new(client.ModelOrigin("user")),
+			Status:    new(client.ModelStatus("installed")),
+			SizeBytes: new(len(modelContent)),
 		}, got, "The returned model details should match the expected values")
 
 		// TODO test metadata and model configuration contents and runner

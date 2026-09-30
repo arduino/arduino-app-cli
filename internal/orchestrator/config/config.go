@@ -40,6 +40,7 @@ type Configuration struct {
 	LibrariesAPIURL                  *url.URL
 	EdgeImpulseAPIURL                *url.URL
 	ArduinoPlatformVersionConstraint semver.Constraint
+	ModelsLocksDir                   *paths.Path
 }
 
 // RequiredRuntime is a host unit whose socket is bind-mounted into app
@@ -193,6 +194,9 @@ func (c *Configuration) EnsureFolders() error {
 	if err := c.ReleasesDir().MkdirAll(); err != nil {
 		return err
 	}
+	if err := c.ModelLocksDir().MkdirAll(); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -282,6 +286,15 @@ func (c *Configuration) CustomModelsDir() *paths.Path {
 
 func (c *Configuration) ModelsDir() *paths.Path {
 	return c.modelsDir
+}
+
+// ModelLocksDir holds one lock file per model being installed or deleted. It sits
+// outside ModelsDir because the listing container mounts and scans all of that.
+func (c *Configuration) ModelLocksDir() *paths.Path {
+	if c.dataDir == nil {
+		return nil
+	}
+	return c.dataDir.Join("locks", "models")
 }
 
 func (c *Configuration) DockerRegistryBase() string {

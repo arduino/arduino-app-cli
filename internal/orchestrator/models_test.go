@@ -20,6 +20,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/edgeimpulse"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -332,7 +333,7 @@ func TestInstallEIModel_WhenModelIsNotBuilt_ThanTriggerTheBuild(t *testing.T) {
 	projectId := 100
 	impulseId := 1
 	tempDir := t.TempDir()
-	result, err := InstallEIModel(context.Background(), nil, &modelsindex.ModelsIndex{}, nil, client, paths.New(tempDir), platform.Platform{BoardName: "unoq"}, projectId, impulseId)
+	result, err := InstallEIModel(context.Background(), nil, newTestModelsIndex(t, tempDir, "unoq"), nil, client, paths.New(tempDir), platform.Platform{BoardName: "unoq"}, projectId, impulseId)
 
 	// assert
 	require.NoError(t, err)
@@ -381,7 +382,7 @@ func TestInstallEIModel_WhenModelIsNotFullyTrained_ThanRaiseError(t *testing.T) 
 	projectId := 100
 	impulseId := 1
 	tempDir := t.TempDir()
-	_, err = InstallEIModel(context.Background(), nil, &modelsindex.ModelsIndex{}, nil, client, paths.New(tempDir), platform.Platform{BoardName: "unoq"}, projectId, impulseId)
+	_, err = InstallEIModel(context.Background(), nil, newTestModelsIndex(t, tempDir, "unoq"), nil, client, paths.New(tempDir), platform.Platform{BoardName: "unoq"}, projectId, impulseId)
 
 	// assert
 	require.Equal(t, "impulse not ready for deployment for project 100 impulse 1", err.Error())
@@ -451,7 +452,7 @@ func TestInstallEIModel_WhenModelIsBuilt_DoNotTriggerTheBuild_and_StoreSucceeded
 	projectId := 100
 	impulseId := 1
 	tempDir := t.TempDir()
-	result, err := InstallEIModel(context.Background(), nil, &modelsindex.ModelsIndex{}, nil, client, paths.New(tempDir), platform.Platform{BoardName: "unoq"}, projectId, impulseId)
+	result, err := InstallEIModel(context.Background(), nil, newTestModelsIndex(t, tempDir, "unoq"), nil, client, paths.New(tempDir), platform.Platform{BoardName: "unoq"}, projectId, impulseId)
 
 	// assert
 	require.NoError(t, err)
@@ -530,7 +531,7 @@ func TestInstallEIModel_VentunoQ_UsesQNNDeviceType(t *testing.T) {
 	projectId := 200
 	impulseId := 1
 	tempDir := t.TempDir()
-	result, err := InstallEIModel(context.Background(), nil, &modelsindex.ModelsIndex{}, nil, client, paths.New(tempDir), platform.Platform{BoardName: "ventunoq"}, projectId, impulseId)
+	result, err := InstallEIModel(context.Background(), nil, newTestModelsIndex(t, tempDir, "ventunoq"), nil, client, paths.New(tempDir), platform.Platform{BoardName: "ventunoq"}, projectId, impulseId)
 
 	require.NoError(t, err)
 	require.Equal(t, "VentunoQ-Model", result.Name)
@@ -581,4 +582,21 @@ func assertAppYamlContent(t *testing.T, yamlFile string) {
 
 	require.Equal(t, "ei-model-100-1", config.ID)
 	require.Equal(t, "Imola-Model", config.Name)
+}
+
+// newTestModelsIndex loads the modelsindex fixtures as the catalog, and scans tempDir for
+// custom models: the directory InstallEIModel writes into, so the refresh at its end finds
+// the new model. No Docker client, so no listing container runs.
+func newTestModelsIndex(t *testing.T, tempDir, board string) *modelsindex.ModelsIndex {
+	t.Helper()
+	idx, err := modelsindex.Load(
+		platform.Platform{BoardName: board},
+		paths.New("modelsindex/testdata"),
+		paths.New("path-not-existing"),
+		paths.New(tempDir),
+		nil,
+		config.Configuration{},
+	)
+	require.NoError(t, err)
+	return idx
 }
