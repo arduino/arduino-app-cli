@@ -28,6 +28,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/api/handlers"
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
 )
 
@@ -888,7 +889,9 @@ func TestAppLogs(t *testing.T) {
 }
 
 func TestAppDetails(t *testing.T) {
-	httpClient := GetHttpclient(t)
+	cli := e2e.CreateEnvForDaemon(t)
+	httpClient, err := client.NewClientWithResponses(cli.DaemonAddr)
+	require.NoError(t, err)
 
 	appName := "test-app-details"
 	createResp, err := httpClient.CreateAppWithResponse(
@@ -913,6 +916,8 @@ func TestAppDetails(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode())
+	releaseManifest := "schema: 1\nname: " + appName + "\ntarget: unoq\nnotes: release notes from manifest\n"
+	require.NoError(t, cli.AppsDir().Join(appName).Join("release.yaml").WriteFile([]byte(releaseManifest)))
 
 	t.Run("DetailsOfApp", func(t *testing.T) {
 		appID := createResp.JSON201.Id
@@ -937,6 +942,7 @@ func TestAppDetails(t *testing.T) {
 		require.False(t, *detailsResp.JSON200.Default)
 		require.Equal(t, client.Uninitialized, detailsResp.JSON200.Status)
 		require.NotEmpty(t, detailsResp.JSON200.Path)
+		require.Equal(t, "release notes from manifest", *detailsResp.JSON200.Notes)
 	})
 }
 
