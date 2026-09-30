@@ -267,6 +267,7 @@ type Release struct {
 	// from the manifest and absent when none was given.
 	ReleaseLabel string     `yaml:"release_label,omitempty"`
 	CreatedAt    *time.Time `yaml:"created_at,omitempty"`
+	Notes        string     `yaml:"notes,omitempty"`
 	// ID is the release folder name, so it is read from the path and never written.
 	ID string `yaml:"-"`
 }
