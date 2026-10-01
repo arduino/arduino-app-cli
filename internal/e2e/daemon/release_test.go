@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"mime/multipart"
 	"net/http"
+	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
@@ -201,6 +202,7 @@ func TestAppReleaseInstallFromArchive(t *testing.T) {
 	require.NoError(t, err)
 
 	var sawDone bool
+	var releaseID string
 	for e := range events {
 		t.Log("Received SSE event", "event", e.Event, sseEventData, string(e.Data))
 		switch e.Event {
@@ -227,6 +229,7 @@ func TestAppReleaseInstallFromArchive(t *testing.T) {
 			assert.Equal(t, target, payload.Target)
 			assert.NotEmpty(t, payload.ID)
 			assert.NotEmpty(t, payload.Release)
+			releaseID = payload.ID
 			sawDone = true
 		}
 		if sawDone {
@@ -234,6 +237,27 @@ func TestAppReleaseInstallFromArchive(t *testing.T) {
 		}
 	}
 	require.True(t, sawDone, "no done event received on the install stream")
+
+	t.Run("clone into an editable app", func(t *testing.T) {
+		cloneResp, err := httpClient.CloneAppWithResponse(t.Context(), releaseID, client.CloneRequest{Name: new("cloned-from-release")})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusCreated, cloneResp.StatusCode())
+		require.NotNil(t, cloneResp.JSON201.Id)
+
+		detailsResp, err := httpClient.GetAppDetailsWithResponse(t.Context(), *cloneResp.JSON201.Id)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, detailsResp.StatusCode())
+		details := detailsResp.JSON200
+		assert.Equal(t, "cloned-from-release", details.Name)
+		assert.False(t, details.Release != nil && *details.Release, "the clone of a release must not be a release")
+		require.NotNil(t, details.Path)
+		assert.FileExists(t, filepath.Join(*details.Path, "app.yaml"))
+		assert.FileExists(t, filepath.Join(*details.Path, "README.md"))
+		assert.FileExists(t, filepath.Join(*details.Path, "python", "main.py"))
+		assert.NoFileExists(t, filepath.Join(*details.Path, "release.yaml"))
+		assert.NoDirExists(t, filepath.Join(*details.Path, ".cache"))
+		assert.NoDirExists(t, filepath.Join(*details.Path, "data"))
+	})
 }
 
 // TestAppReleasePrepare installs a release without letting install prepare it, then
