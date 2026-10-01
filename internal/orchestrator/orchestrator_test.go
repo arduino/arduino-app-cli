@@ -143,6 +143,38 @@ func TestCloneApp(t *testing.T) {
 				_ = baseApp.RemoveAll()
 			})
 		})
+		t.Run("from a release", func(t *testing.T) {
+			releaseDir := cfg.ReleasesDir().Join("a-release")
+			require.NoError(t, releaseDir.Join("sketch").MkdirAll())
+			require.NoError(t, releaseDir.Join("sketch", "sketch.ino").WriteFile([]byte("void setup() {}\nvoid loop() {}\n")))
+			require.NoError(t, releaseDir.Join("sketch", "sketch.yaml").WriteFile([]byte("default_profile: default\n")))
+			require.NoError(t, releaseDir.Join("python").MkdirAll())
+			require.NoError(t, releaseDir.Join("python", "main.py").WriteFile([]byte("print('ready')\n")))
+			require.NoError(t, releaseDir.Join(".cache").MkdirAll())
+			require.NoError(t, releaseDir.Join(".cache", ReleaseFirmwareFileName).WriteFile([]byte("fw")))
+			require.NoError(t, releaseDir.Join("data").MkdirAll())
+			require.NoError(t, releaseDir.Join("app.yaml").WriteFile([]byte("name: a-release")))
+			require.NoError(t, releaseDir.Join(app.ReleaseManifestFileName).WriteFile([]byte("schema: 1\nname: a-release\ntarget: unoq\n")))
+			t.Cleanup(func() { _ = releaseDir.RemoveAll() })
+
+			resp, err := CloneApp(CloneAppRequest{FromID: f.Must(idProvider.ParseID("release:a-release")), Name: new("from-release")}, idProvider, cfg)
+			require.NoError(t, err)
+			require.Equal(t, f.Must(idProvider.ParseID("user:from-release")), resp.ID)
+			appDir := resp.ID.ToPath()
+			t.Cleanup(func() { _ = appDir.RemoveAll() })
+
+			require.FileExists(t, appDir.Join("sketch", "sketch.ino").String())
+			require.FileExists(t, appDir.Join("sketch", "sketch.yaml").String())
+			require.NoFileExists(t, appDir.Join(app.ReleaseManifestFileName).String())
+			require.NoDirExists(t, appDir.Join(".cache").String())
+			require.NoDirExists(t, appDir.Join("data").String())
+
+			clonedApp, err := app.Load(appDir)
+			require.NoError(t, err)
+			require.False(t, clonedApp.IsRelease())
+			_, err = clonedApp.GetAsEditable()
+			require.NoError(t, err)
+		})
 	})
 
 	t.Run("invalid app", func(t *testing.T) {
