@@ -36,6 +36,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
+	"github.com/arduino/arduino-app-cli/pkg/release"
 )
 
 // A release is an app frozen with all its dependencies: <name>-<date>-<target>/ holds
@@ -66,38 +67,10 @@ type BuildReleaseResult struct {
 	Archive string `json:"archive"`
 }
 
-// ReleaseManifest is what the archive states of itself: what a board needs to list a
-// release and to gate its install. app.Release reads the part that marks an app.
-type ReleaseManifest struct {
-	Schema int    `yaml:"schema"`
-	Name   string `yaml:"name"`
-	// ReleaseLabel is the optional label the user gave the release at build time.
-	ReleaseLabel string `yaml:"release_label,omitempty"`
-	// Target is the board the release is built for, gated on at install and start.
-	Target string `yaml:"target"`
-	// CreatedAt is when the build ran, UTC.
-	CreatedAt time.Time `yaml:"created_at"`
-	// Notes is the release note as it was authored, markdown, and is absent when none
-	// was given. It is in the manifest so that a reader gets every release fact at once.
-	Notes     string         `yaml:"notes,omitempty"`
-	Bricks    []ReleaseBrick `yaml:"bricks,omitempty"`
-	Models    []ReleaseModel `yaml:"models,omitempty"`
-	Libraries []string       `yaml:"libraries,omitempty"`
-}
-
-// ReleaseBrick is a brick of the app as the build wired it: the model is part of what a
-// release freezes, so it is stated here and not derived again on the board.
-type ReleaseBrick struct {
-	ID    string `yaml:"id"`
-	Model string `yaml:"model,omitempty"`
-}
-
-// ReleaseModel is an AI model the app is built with. The id holds the runner and the
-// variant, which is as close to a version as a model gets.
-type ReleaseModel struct {
-	ID   string `yaml:"id"`
-	Name string `yaml:"name,omitempty"`
-}
+// ReleaseManifest, ReleaseBrick, and ReleaseModel remain aliases for existing callers.
+type ReleaseManifest = release.ReleaseManifest
+type ReleaseBrick = release.ReleaseBrick
+type ReleaseModel = release.ReleaseModel
 
 // BuildRelease provisions an app for the target board and builds its python
 // environment into a release archive, without touching the app folder.
@@ -372,7 +345,7 @@ func releaseLibraries(ctx context.Context, arduinoApp app.ArduinoApp) []string {
 }
 
 // A gzipped tar and not a zip: the venv needs symlinks and exec bits preserved.
-const ReleaseArchiveExt = ".ard"
+//const ReleaseArchiveExt = release.ReleaseArchiveExt
 
 // targetIndexes are the indexes of the board the release is built for: which bricks and
 // services exist, and which compose variant they use, depend on it.
@@ -403,7 +376,7 @@ func targetIndexes(cfg config.Configuration, docker command.Cli, target string) 
 
 // releaseArchivePath resolves where the archive goes, without creating it.
 func releaseArchivePath(releaseName string, req BuildReleaseRequest) (*paths.Path, error) {
-	fileName := releaseName + ReleaseArchiveExt
+	fileName := releaseName + release.ReleaseArchiveExt
 
 	archivePath := paths.New(fileName)
 	if req.Output != nil {

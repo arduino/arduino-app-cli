@@ -25,6 +25,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
+	"github.com/arduino/arduino-app-cli/pkg/release"
 )
 
 func TestWriteReleaseManifest(t *testing.T) {
@@ -76,7 +77,7 @@ func TestWriteReleaseArchive(t *testing.T) {
 	require.NoError(t, venvLink.Parent().MkdirAll())
 	require.NoError(t, os.Symlink("../../../../usr/bin/python3", venvLink.String()))
 
-	archivePath := paths.New(t.TempDir()).Join("my-app-1.0.0-unoq" + ReleaseArchiveExt)
+	archivePath := paths.New(t.TempDir()).Join("my-app-1.0.0-unoq" + release.ReleaseArchiveExt)
 	require.NoError(t, writeReleaseArchive(releaseDir, archivePath))
 
 	headers := readArchiveHeaders(t, archivePath)
@@ -282,7 +283,7 @@ func createTestAppWithSketch(t *testing.T) *paths.Path {
 }
 
 func TestReleaseArchivePath(t *testing.T) {
-	existing := paths.New(t.TempDir()).Join("taken" + ReleaseArchiveExt)
+	existing := paths.New(t.TempDir()).Join("taken" + release.ReleaseArchiveExt)
 	require.NoError(t, existing.WriteFile(nil))
 	outputDir := paths.New(t.TempDir())
 
@@ -291,17 +292,17 @@ func TestReleaseArchivePath(t *testing.T) {
 		require.NoError(t, err)
 		cwd, err := os.Getwd()
 		require.NoError(t, err)
-		assert.Equal(t, paths.New(cwd, "my-app-1.0.0-unoq"+ReleaseArchiveExt).String(), archivePath.String())
+		assert.Equal(t, paths.New(cwd, "my-app-1.0.0-unoq"+release.ReleaseArchiveExt).String(), archivePath.String())
 	})
 
 	t.Run("an output dir holds the release name", func(t *testing.T) {
 		archivePath, err := releaseArchivePath("my-app-1.0.0-unoq", BuildReleaseRequest{Output: outputDir})
 		require.NoError(t, err)
-		assert.Equal(t, outputDir.Join("my-app-1.0.0-unoq"+ReleaseArchiveExt).String(), archivePath.String())
+		assert.Equal(t, outputDir.Join("my-app-1.0.0-unoq"+release.ReleaseArchiveExt).String(), archivePath.String())
 	})
 
 	t.Run("an output file is the archive", func(t *testing.T) {
-		wanted := outputDir.Join("named" + ReleaseArchiveExt)
+		wanted := outputDir.Join("named" + release.ReleaseArchiveExt)
 		archivePath, err := releaseArchivePath("my-app-1.0.0-unoq", BuildReleaseRequest{Output: wanted})
 		require.NoError(t, err)
 		assert.Equal(t, wanted.String(), archivePath.String())

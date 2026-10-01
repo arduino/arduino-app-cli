@@ -27,6 +27,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
+	"github.com/arduino/arduino-app-cli/pkg/release"
 )
 
 // TestAppBuild builds a release out of a new app. The python environment is built in the
@@ -66,7 +67,7 @@ func TestAppBuild(t *testing.T) {
 			name:        "an app with no sketch and no bricks",
 			appName:     "plain-app",
 			newArgs:     []string{"--no-sketch"},
-			archiveName: "my-release" + orchestrator.ReleaseArchiveExt,
+			archiveName: "my-release" + release.ReleaseArchiveExt,
 		},
 		{
 			name:       "an app with a brick",
@@ -131,10 +132,10 @@ func TestAppBuild(t *testing.T) {
 
 					archives, err := outputDir.ReadDir()
 					require.NoError(t, err)
-					archives.FilterSuffix(orchestrator.ReleaseArchiveExt)
+					archives.FilterSuffix(release.ReleaseArchiveExt)
 					require.Len(t, archives, 1, "stdout: %s\nstderr: %s", stdout, stderr)
 					archivePath := archives[0]
-					releaseName := strings.TrimSuffix(archivePath.Base(), orchestrator.ReleaseArchiveExt)
+					releaseName := strings.TrimSuffix(archivePath.Base(), release.ReleaseArchiveExt)
 
 					names, manifest := readRelease(t, archivePath)
 
@@ -148,7 +149,7 @@ func TestAppBuild(t *testing.T) {
 					assert.WithinRange(t, manifest.CreatedAt, buildStart, time.Now().UTC())
 					wantName := test.appName + "-" + manifest.CreatedAt.Format("20060102-150405") + "-" + target
 					if test.archiveName != "" {
-						wantName = strings.TrimSuffix(test.archiveName, orchestrator.ReleaseArchiveExt)
+						wantName = strings.TrimSuffix(test.archiveName, release.ReleaseArchiveExt)
 					}
 					assert.Equal(t, wantName, releaseName)
 

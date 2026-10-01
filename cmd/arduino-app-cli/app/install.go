@@ -19,6 +19,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/pkg/release"
 )
 
 func newInstallCmd(cfg config.Configuration) *cobra.Command {
@@ -48,7 +49,7 @@ release alone, and prepare it later with 'start --prepare'.`,
 			if len(args) != 0 {
 				return nil, cobra.ShellCompDirectiveNoFileComp
 			}
-			return []string{strings.TrimPrefix(orchestrator.ReleaseArchiveExt, ".")}, cobra.ShellCompDirectiveFilterFileExt
+			return []string{strings.TrimPrefix(release.ReleaseArchiveExt, ".")}, cobra.ShellCompDirectiveFilterFileExt
 		},
 	}
 
