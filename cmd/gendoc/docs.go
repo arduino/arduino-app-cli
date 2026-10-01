@@ -481,8 +481,8 @@ func (g *Generator) InitOperations() {
 				Description:   "Successful response",
 				StatusCode:    http.StatusCreated,
 			},
-			Description: "Clone an existing app or example, in a new one. It is possible to specify the new name and icon.",
-			Summary:     "Creates a new app, from another app or example identified by ID.",
+			Description: "Clone an existing app, example or App Release, in a new one. It is possible to specify the new name and icon.",
+			Summary:     "Creates a new app, from another app, example or App Release identified by ID.",
 			Tags:        []Tag{ApplicationTag},
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},

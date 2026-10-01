@@ -41,7 +41,7 @@ func newCreateCmd(cfg config.Configuration) *cobra.Command {
 
 	cmd.Flags().StringVarP(&icon, "icon", "i", "", "Icon for the app")
 	cmd.Flags().StringVarP(&description, "description", "d", "", "Description for the app")
-	cmd.Flags().StringVarP(&fromApp, "from-app", "", "", "Create the new app from the path of an existing app")
+	cmd.Flags().StringVarP(&fromApp, "from-app", "", "", "Create the new app from an existing app, example or App Release (path or ID)")
 	cmd.Flags().StringArrayVarP(&brickIDs, "bricks", "b", []string{}, "List of bricks to include in the app")
 	cmd.Flags().BoolVarP(&noSketch, "no-sketch", "", false, "Do not include Sketch files")
 
