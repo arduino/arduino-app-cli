@@ -248,6 +248,7 @@ func TestAppReleaseInstallFromArchive(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, detailsResp.StatusCode())
 		details := detailsResp.JSON200
+		assert.Equal(t, "cloned-from-release", details.Name)
 		assert.False(t, details.Release != nil && *details.Release, "the clone of a release must not be a release")
 		require.NotNil(t, details.Path)
 		assert.FileExists(t, filepath.Join(*details.Path, "app.yaml"))

@@ -145,6 +145,7 @@ func TestCloneApp(t *testing.T) {
 		})
 		t.Run("from a release", func(t *testing.T) {
 			releaseDir := cfg.ReleasesDir().Join("a-release")
+			t.Cleanup(func() { _ = releaseDir.RemoveAll() })
 			require.NoError(t, releaseDir.Join("sketch").MkdirAll())
 			require.NoError(t, releaseDir.Join("sketch", "sketch.ino").WriteFile([]byte("void setup() {}\nvoid loop() {}\n")))
 			require.NoError(t, releaseDir.Join("sketch", "sketch.yaml").WriteFile([]byte("default_profile: default\n")))
@@ -155,7 +156,6 @@ func TestCloneApp(t *testing.T) {
 			require.NoError(t, releaseDir.Join("data").MkdirAll())
 			require.NoError(t, releaseDir.Join("app.yaml").WriteFile([]byte("name: a-release")))
 			require.NoError(t, releaseDir.Join(app.ReleaseManifestFileName).WriteFile([]byte("schema: 1\nname: a-release\ntarget: unoq\n")))
-			t.Cleanup(func() { _ = releaseDir.RemoveAll() })
 
 			resp, err := CloneApp(CloneAppRequest{FromID: f.Must(idProvider.ParseID("release:a-release")), Name: new("from-release")}, idProvider, cfg)
 			require.NoError(t, err)
