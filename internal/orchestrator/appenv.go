@@ -23,6 +23,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/peripherals"
 	"github.com/arduino/arduino-app-cli/internal/platform"
+	"github.com/arduino/arduino-app-cli/pkg/x/devicetree"
 )
 
 const appHomeRef = "${APP_HOME}"
@@ -64,6 +65,22 @@ var hostVariables = map[string]func(hostFacts) string{
 			return ""
 		}
 		return hostIP
+	},
+
+	// The bind source of the DSP mount point is not known at build time,
+	// so the host variable is used to fill it in. A candidate is only valid
+	// if it ships the firmware subdirectory for this board's SoC.
+	"HOST_DSP_INSTALLATION_PATH": func(hostFacts) string {
+		for _, c := range devicetree.LoadCompatible() {
+			if soc, ok := strings.CutPrefix(c, "qcom,"); ok {
+				for _, p := range paths.NewPathList("/usr/share/qcom", "/usr/share/hexagon-dsp") {
+					if p.Join(soc).IsDir() {
+						return p.String()
+					}
+				}
+			}
+		}
+		return ""
 	},
 }
 
