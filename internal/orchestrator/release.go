@@ -344,9 +344,6 @@ func releaseLibraries(ctx context.Context, arduinoApp app.ArduinoApp) []string {
 	return f.Map(libraries, LibraryReleaseID.String)
 }
 
-// A gzipped tar and not a zip: the venv needs symlinks and exec bits preserved.
-//const ReleaseArchiveExt = release.ReleaseArchiveExt
-
 // targetIndexes are the indexes of the board the release is built for: which bricks and
 // services exist, and which compose variant they use, depend on it.
 func targetIndexes(cfg config.Configuration, docker command.Cli, target string) (platform.Platform, *bricksindex.BricksIndex, *servicesindex.ServicesIndex, *modelsindex.ModelsIndex, error) {
