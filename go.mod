@@ -20,6 +20,7 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.6.8
 	github.com/jub0bs/cors v0.7.0
 	github.com/leonelquinteros/gotext v1.7.2
+	github.com/mattn/go-isatty v0.0.24
 	github.com/moby/moby/api v1.56.0
 	github.com/moby/moby/client v0.6.0
 	github.com/oapi-codegen/runtime v1.6.0
@@ -205,7 +206,6 @@ require (
 	github.com/mailru/easyjson v0.9.2 // indirect
 	github.com/marcinbor85/gohex v0.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect
-	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mattn/go-runewidth v0.0.30 // indirect
 	github.com/mattn/go-shellwords v1.0.14 // indirect
 	github.com/mikefarah/yq/v4 v4.53.6 // indirect

@@ -75,6 +75,7 @@ Command groups include `app`, `brick`, `model`, `monitor`, `properties`, `system
 arduino-app-cli app list                              # apps catalog + IDs
 arduino-app-cli app list --examples                   # examples catalog + IDs
 arduino-app-cli app list --all                        # apps + examples catalog + IDs
+arduino-app-cli app details ~/ArduinoApps/my-app      # app metadata, bricks, and variables
 arduino-app-cli app ps                                # starting/running/stopping/failed apps
 arduino-app-cli app ps --all                          # also includes stopped apps
 arduino-app-cli app start   ~/ArduinoApps/my-app      # stops whatever was running!
@@ -94,8 +95,8 @@ applications are excluded.
 > **Only one App runs at a time.** `app start` implicitly stops the current one —
 > confirm with the user first.
 
-**Read-only / safe to run anytime:** `app list`, `app ps`, `app logs`, `brick list`,
-`brick details`, `config get`, `version`, `properties get`.
+**Read-only / safe to run anytime:** `app list`, `app details`, `app ps`, `app logs`,
+`brick list`, `brick details`, `config get`, `version`, `properties get`.
 
 **State-changing / confirm with the user first:** `app start|stop|restart|new|
 destroy|clean-cache|import`, `model delete`, `system *`,
