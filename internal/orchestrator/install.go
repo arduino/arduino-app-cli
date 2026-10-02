@@ -17,6 +17,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/docker/cli/cli/command"
@@ -30,9 +31,18 @@ import (
 
 type InstallReleaseResult struct {
 	AppID   appid.ID
-	Release app.Release
+	Release ReleaseResult
 	Name    string
 	Path    *paths.Path
+}
+
+type ReleaseResult struct {
+	Schema       int        `yaml:"schema"`
+	Target       string     `yaml:"target"`
+	ReleaseLabel string     `yaml:"release_label,omitempty"`
+	CreatedAt    *time.Time `yaml:"created_at,omitempty"`
+	Notes        string     `yaml:"notes,omitempty"`
+	ID           string     `yaml:"-"`
 }
 
 // InstallRelease unpacks a release archive into the releases dir as the app it runs
@@ -125,7 +135,7 @@ func InstallRelease(
 	return InstallReleaseResult{
 		AppID: appID,
 		// What GetRelease will read back off the folder the app was just installed in.
-		Release: app.Release{
+		Release: ReleaseResult{
 			Schema: manifest.Schema,
 			Target: manifest.Target,
 			ID:     releaseName,

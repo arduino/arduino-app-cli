@@ -19,21 +19,22 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
-
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 )
 
-const ReleaseArchiveExt = ".ard"
+const (
+	ReleaseArchiveExt       = ".ard"
+	ReleaseManifestFileName = "release.yaml"
+)
 
 // ReleaseManifest is what the archive states of itself: what a board needs to list a
 // release and to gate its install. app.Release reads the part that marks an app.
 type ReleaseManifest struct {
-	Schema int    `yaml:"schema"`
-	Name   string `yaml:"name"`
+	Schema       int    `yaml:"schema"`
+	Name         string `yaml:"name"`
 	ReleaseLabel string `yaml:"release_label,omitempty"`
-	Target string `yaml:"target"`
+	Target       string `yaml:"target"`
 	// CreatedAt is when the build ran, UTC.
-	CreatedAt time.Time `yaml:"created_at"`
+	CreatedAt time.Time      `yaml:"created_at"`
 	Notes     string         `yaml:"notes,omitempty"`
 	Bricks    []ReleaseBrick `yaml:"bricks,omitempty"`
 	Models    []ReleaseModel `yaml:"models,omitempty"`
@@ -92,7 +93,7 @@ func ReadReleaseManifest(archive *paths.Path) (ReleaseManifest, error) {
 		if root != releaseName || root == "" || root == "." || root == ".." {
 			return ReleaseManifest{}, fmt.Errorf("%s is not rooted at a single release folder", archive.Base())
 		}
-		if entry != app.ReleaseManifestFileName {
+		if entry != ReleaseManifestFileName {
 			continue
 		}
 
