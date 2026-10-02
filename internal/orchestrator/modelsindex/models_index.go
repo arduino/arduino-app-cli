@@ -314,7 +314,7 @@ func Load(plat platform.Platform, dir *paths.Path, modelsDir *paths.Path, custom
 		Handlers:        handlers,
 		cli:             cli,
 		plat:            plat,
-		locksDir:        cfg.ModelsLocksDir,
+		locksDir:        cfg.ModelLocksDir(),
 	}, nil
 }
 

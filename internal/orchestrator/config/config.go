@@ -40,7 +40,6 @@ type Configuration struct {
 	LibrariesAPIURL                  *url.URL
 	EdgeImpulseAPIURL                *url.URL
 	ArduinoPlatformVersionConstraint semver.Constraint
-	ModelsLocksDir                   *paths.Path
 }
 
 // RequiredRuntime is a host unit whose socket is bind-mounted into app

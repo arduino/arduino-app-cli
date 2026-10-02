@@ -42,6 +42,7 @@ func NewAIModelItem(model modelsindex.AIModel) AIModelItem {
 		ID:           EncodeModelID(model.ID),
 		IDDecoded:    model.ID,
 		Name:         model.Name,
+		Handler:      model.Handler,
 		Description:  model.Description,
 		Runner:       model.Runner,
 		Bricks:       f.Map(model.Bricks, func(b modelsindex.BrickConfig) string { return b.ID }),
