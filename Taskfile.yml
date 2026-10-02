@@ -260,21 +260,8 @@ tasks:
       - adb push ./build/arduino-app-cli_*_arm64.deb /tmp/
       - ./scripts/run-remote-sudo.sh "dpkg -i /tmp/arduino-app-cli*_arm64.deb && needrestart -r a"
 
-  # Publishes the working tree on the board as the update that `system update`
-  # will offer, by turning a locally built package into an apt repository the
-  # board follows. The package must come from the working tree and not from a
-  # release, because the update path depends on files shipped by the package
-  # itself: both ends of the upgrade have to carry the code under test.
-  #
-  # The repository stays on this machine: it is served over http from the build
-  # dir and tunneled to the board's localhost, so the only thing written on the
-  # board is the apt source pointing at it. Server and tunnel keep running after
-  # the task returns, and the board can only update while they are up.
-  #
-  # The board is reached over adb by default; set BOARD (e.g.
-  # BOARD=arduino@my-board.local, also via `.env.local`) to use ssh instead, and
-  # BOARD_PASSWORD to skip the password prompts. LOCAL_REPO_PORT picks the port,
-  # the same on both ends.
+  # Serves a .deb of the working tree as a local apt repo, tunneled to the
+  # board, so `system update` offers it. See docs/contributor-guide/development.md.
   board:publish-update:
     desc: Build the working tree as a .deb and publish it on the board as the available update
     interactive: true
@@ -284,8 +271,7 @@ tasks:
       SOURCE_LIST: /etc/apt/sources.list.d/arduino-app-cli-local.list
       PORT:
         sh: echo "${LOCAL_REPO_PORT:-8765}"
-      # A version that outranks whatever the official repository offers, so apt
-      # picks the local build as the candidate.
+      # Must outrank the official version.
       LOCAL_VERSION:
         sh: echo "${LOCAL_VERSION:-99.0.0+$(git rev-parse --short HEAD)}"
     cmds:
@@ -295,11 +281,7 @@ tasks:
           VERSION: "{{ .LOCAL_VERSION }}"
           OUTPUT: "{{ .REPO_DIR }}"
       - ./scripts/build-apt-repo.sh {{ .REPO_DIR }}
-      # nginx serves the files as an unprivileged user, while the build leaves
-      # the directory readable only by its owner.
       - chmod -R a+rX {{ .REPO_DIR }}
-      # Recreated at every run, since the directory it mounts has just been
-      # replaced.
       - docker rm -f {{ .SERVER_CONTAINER }} >/dev/null 2>&1 || true
       - >-
         docker run -d --name {{ .SERVER_CONTAINER }}
@@ -317,9 +299,6 @@ tasks:
           )"
       - echo "Version {{ .LOCAL_VERSION }} published, 'system update' on the board now offers it while the server and the tunnel are up."
 
-  # Undoes board:publish-update: removes the apt source from the board, then
-  # closes the tunnel and stops the server. The source goes first, so that the
-  # board is never left following a repository it can no longer reach.
   board:publish-update:clean:
     desc: Remove the locally published update from the board, restoring the official repository
     interactive: true

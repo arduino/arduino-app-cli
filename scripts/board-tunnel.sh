@@ -4,21 +4,9 @@
 # SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Makes a port of this machine reachable from the board, as the same port on
-# the board's localhost, or closes that tunnel.
-#
-# The transport is selected by the BOARD variable (it can be set in `.env.local`,
-# which the Taskfile loads):
-#   BOARD unset             -> adb reverse, for a board connected via USB
-#   BOARD=arduino@<host>    -> ssh remote forwarding, kept in background
-#
-# Set BOARD_PASSWORD to avoid being asked for the board password; it is handed
-# to ssh through SSH_ASKPASS, so it never shows up in the process list.
-#
-# The tunnel outlives the script, so that the board can keep reaching this
-# machine after the task that opened it has returned. Over ssh, the background
-# process is tracked through a control socket, which is how `close` finds it.
-#
+# Exposes a local port on the board's localhost, or closes it.
+# BOARD unset: adb reverse. BOARD=user@host: background ssh -R, tracked by a
+# control socket. BOARD_PASSWORD skips the prompt (via SSH_ASKPASS).
 #   ./scripts/board-tunnel.sh open <port>
 #   ./scripts/board-tunnel.sh close <port>
 
@@ -43,8 +31,7 @@ if [ -z "${BOARD:-}" ]; then
   exit 0
 fi
 
-# Closing first also makes `open` idempotent, replacing a tunnel left over by a
-# previous run.
+# Close first: makes `open` idempotent.
 if [ -S "$SOCKET" ]; then
   ssh -S "$SOCKET" -O exit "$BOARD" 2>/dev/null || true
   rm -f "$SOCKET"
@@ -56,10 +43,7 @@ if [ "$ACTION" = "close" ]; then
 fi
 
 if [ -n "${BOARD_PASSWORD:-}" ]; then
-  # Not sshpass, unlike the other scripts: it runs ssh on a pseudo-terminal that
-  # it closes as soon as ssh goes to background, and the hangup kills the
-  # ProxyCommand, if the board is reached through one, taking the tunnel down.
-  # The helper reads the password from the environment, so it holds no secret.
+  # Not sshpass: its pty hangup kills a ProxyCommand, dropping the tunnel.
   ASKPASS="$(mktemp)"
   trap 'rm -f "$ASKPASS"' EXIT
   printf '#!/bin/sh\necho "$BOARD_PASSWORD"\n' >"$ASKPASS"
@@ -68,11 +52,8 @@ if [ -n "${BOARD_PASSWORD:-}" ]; then
 fi
 
 mkdir -p "$(dirname "$SOCKET")"
-# The background process would inherit the caller's stdout and stderr and keep
-# them open, so anything reading the task output (e.g. `| tee`) would never see
-# it end. Its messages go to a log instead, shown if the tunnel does not open.
-# ExitOnForwardFailure makes the command fail if the port is already taken on
-# the board, instead of leaving a tunnel that forwards nothing.
+# Output to a log: inherited stdout/stderr would keep pipes (`| tee`) open.
+# ExitOnForwardFailure: fail if the port is taken on the board.
 if ! ssh -f -N -M -S "$SOCKET" \
   -o ExitOnForwardFailure=yes \
   -R "$PORT:127.0.0.1:$PORT" \

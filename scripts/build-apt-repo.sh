@@ -4,14 +4,8 @@
 # SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Turns a directory containing .deb files into a flat apt repository, by
-# generating the package index (`Packages`, `Packages.gz`, `Release`) next to
-# them.
-#
-# The index is generated here and not on the board, because `dpkg-dev` and
-# `apt-utils` are not part of the board image, and installing them there would
-# alter the very system we are about to test. Docker is already required to
-# build the package, so it is used to provide those tools.
+# Generates a flat apt index (Packages, Packages.gz, Release) for the .debs in
+# a dir. In docker: the board has no dpkg-dev/apt-utils.
 
 set -euo pipefail
 
@@ -23,7 +17,6 @@ fi
 REPO_DIR="$(cd "$1" && pwd)"
 IMAGE="arduino-app-cli-aptrepo"
 
-# Cached by docker after the first run.
 docker build -q -t "$IMAGE" - <<'DOCKERFILE'
 FROM debian:bookworm
 RUN apt-get update \
@@ -31,7 +24,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 DOCKERFILE
 
-# Run as the current user, so the generated files are not owned by root.
+# Output not owned by root.
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   --volume "$REPO_DIR:/repo" \
@@ -41,8 +34,7 @@ docker run --rm \
     rm -f Packages Packages.gz Release
     dpkg-scanpackages --multiversion . > Packages
     gzip --keep --force Packages
-    # Written aside and moved in place, so that the index does not end up
-    # describing a half-written copy of itself.
+    # Written aside, or it would index itself.
     apt-ftparchive release . > Release.tmp
     mv Release.tmp Release
   '

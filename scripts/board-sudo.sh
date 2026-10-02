@@ -4,19 +4,10 @@
 # SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Runs a command as sudo on the board, asking for the password interactively.
-#
-# The transport is selected by the BOARD variable (it can be set in `.env.local`,
-# which the Taskfile loads):
-#   BOARD unset             -> adb, for a board connected via USB
-#   BOARD=arduino@<host>    -> ssh
-#
-# Set BOARD_PASSWORD to skip the prompt and run unattended; over ssh it is also
-# handed to the login through `sshpass -e`, so it never shows up in the process
-# list.
-#
-# The command is given as arguments, and may span multiple lines:
-#   ./scripts/board-sudo.sh "apt-get update && apt-get install -y foo"
+# Runs a command with sudo on the board.
+# BOARD unset: adb. BOARD=user@host: ssh.
+# BOARD_PASSWORD skips the prompts (ssh login via `sshpass -e`).
+#   ./scripts/board-sudo.sh "<command>"
 
 set -euo pipefail
 
@@ -25,12 +16,9 @@ if [ "$#" -eq 0 ]; then
   exit 1
 fi
 
-# The command travels base64-encoded and is decoded on the board: that keeps it
-# intact through the local shell, the remote shell, and (for adb) the way adb
-# joins its arguments back into a single command line.
+# base64: survives local shell, remote shell and adb argument joining.
 ENCODED_CMD="$(printf '%s' "$*" | base64 | tr -d '\n')"
-# The decoding happens in a command substitution, so that stdin stays free for
-# the password that `sudo -S` reads.
+# Decoded in a substitution: stdin stays free for `sudo -S`.
 REMOTE_CMD="sudo -S sh -c \"\$(printf %s $ENCODED_CMD | base64 -d)\""
 
 if [ -n "${BOARD_PASSWORD:-}" ]; then
