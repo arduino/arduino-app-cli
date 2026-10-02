@@ -16,6 +16,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 )
 
 func NewCompletionCommand() *cobra.Command {
@@ -88,6 +89,27 @@ func ApplicationNamesWithFilterFunc(cfg config.Configuration, filter func(apps o
 			}
 		}
 		return res, cobra.ShellCompDirectiveDefault
+	}
+}
+
+func ModelIDs() cobra.CompletionFunc {
+	return ModelIDsWithFilterFunc(func(_ modelsindex.AIModel) bool { return true })
+}
+
+func ModelIDsWithFilterFunc(filter func(model modelsindex.AIModel) bool) cobra.CompletionFunc {
+	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		models, err := servicelocator.GetModelsIndex().NewLookup().All(cmd.Context())
+		if err != nil {
+			return nil, cobra.ShellCompDirectiveError
+		}
+
+		var res []string
+		for _, m := range models {
+			if filter(m) {
+				res = append(res, m.ID)
+			}
+		}
+		return res, cobra.ShellCompDirectiveNoFileComp
 	}
 }
 
