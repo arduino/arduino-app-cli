@@ -7,10 +7,12 @@ package updatetest
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"iter"
 	"net"
 	"net/http"
@@ -276,9 +278,12 @@ func runSystemUpdate(t *testing.T, containerName string) {
 		"arduino-app-cli", "--log-level", "debug", "system", "update", "--only-arduino", "--yes",
 	)
 
-	cmd.Stderr = os.Stderr
-	cmd.Stdout = os.Stdout
+	// The output is streamed and kept: the copy is read for a sudo denial.
+	var out bytes.Buffer
+	cmd.Stderr = io.MultiWriter(os.Stderr, &out)
+	cmd.Stdout = io.MultiWriter(os.Stdout, &out)
 	err := cmd.Run()
+	requireNoSudoDenial(t, "system update", out.Bytes())
 	if err != nil {
 		// The apt service SIGTERMs the current process after upgrading the
 		// arduino-app-cli package itself, so exit status 143 (128 + SIGTERM)
@@ -342,6 +347,29 @@ func dumpDaemonJournal(t *testing.T, containerName string) {
 		return
 	}
 	t.Logf("daemon journal of %s:\n%s", containerName, output)
+	requireNoSudoDenial(t, "the daemon journal", output)
+}
+
+// requireSudoRules fails when the installed sudoers file does not allow a command
+// of the cli. It runs as the daemon user, whose rules are the ones that matter.
+func requireSudoRules(t *testing.T, containerName string) {
+	t.Helper()
+
+	cmd := exec.Command("docker", "exec", "--user", "1000", containerName, "arduino-app-cli", "system", "check")
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, "system check failed:\n%s", output)
+	t.Logf("system check of %s:\n%s", containerName, output)
+}
+
+// requireNoSudoDenial fails on a command sudo refused, which the daemon swallows.
+func requireNoSudoDenial(t *testing.T, source string, out []byte) {
+	t.Helper()
+
+	for _, marker := range []string{"a password is required", "is not allowed to execute", "no tty present"} {
+		if strings.Contains(string(out), marker) {
+			t.Errorf("sudo refused a command in %s (%q): a rule of the sudoers file is missing", source, marker)
+		}
+	}
 }
 
 func removeDockerImage(t *testing.T, imageName string) {

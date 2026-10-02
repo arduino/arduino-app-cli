@@ -35,6 +35,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
+	"github.com/arduino/arduino-app-cli/internal/sudo"
 )
 
 const ExitCodeDockerOutOfSpace = 80
@@ -323,23 +324,15 @@ func getRequiredImages(cfg config.Configuration, bricksindex *bricksindex.Bricks
 }
 
 func installPlatformPackage(ctx context.Context, plat platform.Platform, eventCB InitEventCallback) error {
-	var packageName string
-
-	switch plat.BoardName {
-	case "unoq":
-		packageName = "arduino-unoq"
-	case "ventunoq":
-		packageName = "arduino-ventunoq"
-	default:
+	if !slices.Contains(platform.SupportedBoards(), plat.BoardName) {
 		eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDeb, Message: fmt.Sprintf("no platform-specific debian package to install for board '%s'", plat.BoardName)})
 		return nil
 	}
+	packageName := platform.DebianPackage(plat.BoardName)
 
 	eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDeb, Message: fmt.Sprintf("Installing package '%s'", packageName)})
 
-	// The env keeps debconf off /dev/tty: the pty of sudo makes it available even
-	// when our own stdin is a pipe.
-	cmd, err := paths.NewProcess([]string{"DEBIAN_FRONTEND=noninteractive"}, "sudo", "apt-get", "install", "-y", packageName)
+	cmd, err := sudo.AptInstall.Process(packageName)
 	if err != nil {
 		return err
 	}
