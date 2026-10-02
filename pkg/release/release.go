@@ -3,10 +3,7 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Package release reads the facts a release archive states of itself, without
-// extracting or installing it. It is meant for callers, such as App Lab, that need
-// those facts before an install runs, so that no daemon round trip is needed for a
-// file the caller already has on disk.
+// Package release reads a release archive.
 package release
 
 import (
@@ -18,23 +15,51 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
-
-	"github.com/arduino/arduino-app-cli/internal/orchestrator"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 )
 
-// ReleaseManifest is orchestrator.ReleaseManifest, aliased so callers of this package
-// need not import orchestrator themselves.
-type ReleaseManifest = orchestrator.ReleaseManifest
+const (
+	ReleaseArchiveExt       = ".ard"
+	ReleaseManifestFileName = "release.yaml"
+)
+
+// ReleaseManifest is what the archive states of itself: what a board needs to list a
+// release and to gate its install. app.Release reads the part that marks an app.
+type ReleaseManifest struct {
+	Schema       int    `yaml:"schema"`
+	Name         string `yaml:"name"`
+	ReleaseLabel string `yaml:"release_label,omitempty"`
+	Target       string `yaml:"target"`
+	// CreatedAt is when the build ran, UTC.
+	CreatedAt time.Time      `yaml:"created_at"`
+	Notes     string         `yaml:"notes,omitempty"`
+	Bricks    []ReleaseBrick `yaml:"bricks,omitempty"`
+	Models    []ReleaseModel `yaml:"models,omitempty"`
+	Libraries []string       `yaml:"libraries,omitempty"`
+}
+
+// ReleaseBrick is a brick of the app as the build wired it: the model is part of what a
+// release freezes, so it is stated here and not derived again on the board.
+type ReleaseBrick struct {
+	ID    string `yaml:"id"`
+	Model string `yaml:"model,omitempty"`
+}
+
+// ReleaseModel is an AI model the app is built with. The id holds the runner and the
+// variant, which is as close to a version as a model gets.
+type ReleaseModel struct {
+	ID   string `yaml:"id"`
+	Name string `yaml:"name,omitempty"`
+}
 
 // ReadReleaseManifest reads the release file extracting and
 // stops once the release.yaml file is found
 func ReadReleaseManifest(archive *paths.Path) (ReleaseManifest, error) {
-	if ext := archive.Ext(); ext != orchestrator.ReleaseArchiveExt {
-		return ReleaseManifest{}, fmt.Errorf("%s is not a release archive: expected %q", archive.Base(), orchestrator.ReleaseArchiveExt)
+	if ext := archive.Ext(); ext != ReleaseArchiveExt {
+		return ReleaseManifest{}, fmt.Errorf("%s is not a release archive: expected %q", archive.Base(), ReleaseArchiveExt)
 	}
 
 	file, err := archive.Open()
@@ -68,7 +93,7 @@ func ReadReleaseManifest(archive *paths.Path) (ReleaseManifest, error) {
 		if root != releaseName || root == "" || root == "." || root == ".." {
 			return ReleaseManifest{}, fmt.Errorf("%s is not rooted at a single release folder", archive.Base())
 		}
-		if entry != app.ReleaseManifestFileName {
+		if entry != ReleaseManifestFileName {
 			continue
 		}
 

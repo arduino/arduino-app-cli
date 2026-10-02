@@ -27,6 +27,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
+	"github.com/arduino/arduino-app-cli/pkg/release"
 )
 
 const maxDescriptionLength = 150
@@ -39,9 +40,7 @@ type ArduinoApp struct {
 	FullPath       *paths.Path // FullPath is the path to the App folder
 	LocalBricks    []bricksindex.Brick
 	Descriptor     AppDescriptor
-	// release is the manifest of the release the app is installed from, read once by
-	// Load: nil is an app the board owns.
-	release *Release
+	release        *Release
 }
 
 // Load creates an App instance by reading all the files composing an app and grouping them
@@ -248,10 +247,8 @@ const (
 	OverrideTemplateFileName = "app-compose-overrides.tmpl.yaml"
 	// PrebuildDirName is what a release ships beside the app it is built from: the
 	// compose files and the python env, which the install copies as the .cache.
-	PrebuildDirName = "prebuild"
-	// ReleaseManifestFileName is the manifest at the root of the archive and of the app
-	// installed from it: an app that holds it runs what a build froze.
-	ReleaseManifestFileName = "release.yaml"
+	PrebuildDirName         = "prebuild"
+	ReleaseManifestFileName = release.ReleaseManifestFileName
 )
 
 // ReleaseManifestSchema is the layout of the manifest, not the version of the app: an

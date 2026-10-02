@@ -23,7 +23,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
-	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/pkg/release"
 )
 
 // TestAppBuildInvalidTarget asserts the build endpoint rejects an unsupported
@@ -146,7 +146,7 @@ func TestAppReleaseBuildStream(t *testing.T) {
 	require.Contains(t, resp.HTTPResponse.Header.Get("Content-Type"), "gzip")
 	disposition := resp.HTTPResponse.Header.Get("Content-Disposition")
 	assert.Contains(t, disposition, "attachment")
-	assert.Contains(t, disposition, orchestrator.ReleaseArchiveExt)
+	assert.Contains(t, disposition, release.ReleaseArchiveExt)
 
 	// The body is a valid gzip stream: what it ships is asserted by the cli build test.
 	gzipReader, err := gzip.NewReader(bytes.NewReader(resp.Body))
