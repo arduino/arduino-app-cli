@@ -731,8 +731,8 @@ func TestListActiveApps(t *testing.T) {
 	containerFor := func(appPath *paths.Path, state container.ContainerState, status string) container.Summary {
 		return container.Summary{
 			Labels: map[string]string{
-				DockerAppPathLabel:        appPath.String(),
-				dockerComposeServiceLabel: "main",
+				DockerAppPathLabel: appPath.String(),
+				DockerAppMainLabel: "true",
 			},
 			State:  state,
 			Status: status,

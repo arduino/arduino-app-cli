@@ -49,8 +49,8 @@ func parseAppStatus(containers []container.Summary) []AppStatusInfo {
 		if !ok {
 			continue
 		}
-		serviceName := c.Labels[dockerComposeServiceLabel]
-		appsStatusMap[appPath] = append(appsStatusMap[appPath], StatusFromDockerState(c.State, c.Status, serviceName))
+		isMain := c.Labels[DockerAppMainLabel] == "true" //nolint:goconst
+		appsStatusMap[appPath] = append(appsStatusMap[appPath], StatusFromDockerState(c.State, c.Status, isMain))
 	}
 
 	appendResult := func(appPath *paths.Path, status Status) {

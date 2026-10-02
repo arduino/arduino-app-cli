@@ -24,7 +24,7 @@ const (
 	StatusUninitialized Status = "uninitialized"
 )
 
-func StatusFromDockerState(s container.ContainerState, statusMessage string, serviceName string) Status {
+func StatusFromDockerState(s container.ContainerState, statusMessage string, isMain bool) Status {
 	switch s {
 	case container.StateRunning:
 		return StatusRunning
@@ -35,24 +35,13 @@ func StatusFromDockerState(s container.ContainerState, statusMessage string, ser
 	case container.StateCreated, container.StatePaused:
 		return StatusStopped
 	case container.StateExited:
-		// Containers without the compose service label keep the previous (main) behavior.
-		if serviceName == "" {
-			serviceName = MainServiceName
-		}
 		exitCode, ok := parseExitCode(statusMessage)
 		if !ok {
 			return StatusFailed
 		}
-		if serviceName == MainServiceName {
-			// POSIX exit code greater than 128+n means terminated by signal https://tldp.org/LDP/abs/html/exitcodes.html
-			if exitCode > 128 {
-				return StatusStopped
-			}
-			// The main service exited on its own, which we consider a failure.
-			return StatusFailed
-		}
-		// Non-main services: exit code 0 (completed successfully) or > 128 (terminated by signal) is considered stopped.
-		if exitCode == 0 || exitCode > 128 {
+		// POSIX exit code greater than 128+n means terminated by signal https://tldp.org/LDP/abs/html/exitcodes.html
+		// Non-main services exiting with 0 are also considered stopped. Main exiting with 0 is considered failed.
+		if exitCode > 128 || (!isMain && exitCode == 0) {
 			return StatusStopped
 		}
 		return StatusFailed

@@ -17,99 +17,99 @@ func TestParseAppStatus(t *testing.T) {
 		name           string
 		containerState []container.ContainerState
 		statusMessage  []string
-		serviceNames   []string
+		isMain         []bool
 		want           Status
 	}{
 		{
 			name:           "everything running",
 			containerState: []container.ContainerState{container.StateRunning, container.StateRunning},
 			statusMessage:  []string{"Up 5 minutes", "Up 10 minutes"},
-			serviceNames:   []string{"main", "dep"},
+			isMain:         []bool{true, false},
 			want:           StatusRunning,
 		},
 		{
 			name:           "everything stopped",
 			containerState: []container.ContainerState{container.StateCreated, container.StatePaused, container.StateExited},
 			statusMessage:  []string{"Created", "Paused", "Exited (137)"},
-			serviceNames:   []string{"main", "dep1", "dep2"},
+			isMain:         []bool{true, false, false},
 			want:           StatusStopped,
 		},
 		{
 			name:           "failed container",
 			containerState: []container.ContainerState{container.StateRunning, container.StateDead},
 			statusMessage:  []string{"Up 5 minutes", "Dead"},
-			serviceNames:   []string{"main", "dep"},
+			isMain:         []bool{true, false},
 			want:           StatusFailed,
 		},
 		{
 			name:           "failed container takes precedence over stopping and starting",
 			containerState: []container.ContainerState{container.StateRunning, container.StateDead, container.StateRemoving, container.StateRestarting},
 			statusMessage:  []string{"Up 5 minutes", "Dead", "Removing", "Restarting"},
-			serviceNames:   []string{"main", "dep1", "dep2", "dep3"},
+			isMain:         []bool{true, false, false, false},
 			want:           StatusFailed,
 		},
 		{
 			name:           "stopping",
 			containerState: []container.ContainerState{container.StateRunning, container.StateRemoving},
 			statusMessage:  []string{"Up 5 minutes", "Removing"},
-			serviceNames:   []string{"main", "dep"},
+			isMain:         []bool{true, false},
 			want:           StatusStopping,
 		},
 		{
 			name:           "stopping takes precedence over starting",
 			containerState: []container.ContainerState{container.StateRunning, container.StateRestarting, container.StateRemoving},
 			statusMessage:  []string{"Up 5 minutes", "Restarting", "Removing"},
-			serviceNames:   []string{"main", "dep1", "dep2"},
+			isMain:         []bool{true, false, false},
 			want:           StatusStopping,
 		},
 		{
 			name:           "starting",
 			containerState: []container.ContainerState{container.StateRestarting, container.StateExited},
 			statusMessage:  []string{"Restarting", "Exited (129)"},
-			serviceNames:   []string{"main", "dep"},
+			isMain:         []bool{true, false},
 			want:           StatusStarting,
 		},
 		{
 			name:           "failed",
 			containerState: []container.ContainerState{container.StateRestarting, container.StateExited},
 			statusMessage:  []string{"Restarting", "Exited (1)"},
-			serviceNames:   []string{"main", "dep"},
+			isMain:         []bool{true, false},
 			want:           StatusFailed,
 		},
 		{
 			name:           "non-main exit 0 is considered stopped",
 			containerState: []container.ContainerState{container.StateExited, container.StateExited},
 			statusMessage:  []string{"Exited (137)", "Exited (0)"},
-			serviceNames:   []string{"main", "init"},
+			isMain:         []bool{true, false},
 			want:           StatusStopped,
 		},
 		{
 			name:           "main exit 0 is considered failed",
 			containerState: []container.ContainerState{container.StateExited, container.StateExited},
 			statusMessage:  []string{"Exited (0)", "Exited (0)"},
-			serviceNames:   []string{"main", "init"},
+			isMain:         []bool{true, false},
 			want:           StatusFailed,
 		},
 		{
 			name:           "non-main exit 143 (> 128) is considered stopped",
 			containerState: []container.ContainerState{container.StateExited, container.StateExited},
 			statusMessage:  []string{"Exited (137)", "Exited (143)"},
-			serviceNames:   []string{"main", "dep"},
+			isMain:         []bool{true, false},
 			want:           StatusStopped,
 		},
 		{
 			name:           "non-main exit 1 is considered failed",
 			containerState: []container.ContainerState{container.StateExited, container.StateExited},
 			statusMessage:  []string{"Exited (137)", "Exited (1)"},
-			serviceNames:   []string{"main", "dep"},
+			isMain:         []bool{true, false},
 			want:           StatusFailed,
 		},
 		{
-			name:           "empty serviceName with exit 0 is considered failed",
+			name:           "unlabeled container with exit 0 is considered stopped",
 			containerState: []container.ContainerState{container.StateExited},
 			statusMessage:  []string{"Exited (0)"},
-			serviceNames:   []string{""},
-			want:           StatusFailed,
+			isMain:         []bool{false},
+			want:           StatusStopped,
 		},
 	}
 
@@ -118,8 +118,8 @@ func TestParseAppStatus(t *testing.T) {
 			var input []container.Summary
 			for i, c := range tc.containerState {
 				labels := map[string]string{DockerAppPathLabel: "path1"}
-				if len(tc.serviceNames) > i && tc.serviceNames[i] != "" {
-					labels[dockerComposeServiceLabel] = tc.serviceNames[i]
+				if len(tc.isMain) > i && tc.isMain[i] {
+					labels[DockerAppMainLabel] = "true"
 				}
 				input = append(input, container.Summary{
 					Labels: labels,
@@ -140,126 +140,105 @@ func TestStatusFromDockerState(t *testing.T) {
 		name          string
 		state         container.ContainerState
 		statusMessage string
-		serviceName   string
+		isMain        bool
 		want          Status
 	}{
 		{
 			name:          "running",
 			state:         container.StateRunning,
 			statusMessage: "Up 10 minutes",
-			serviceName:   "main",
+			isMain:        true,
 			want:          StatusRunning,
 		},
 		{
 			name:          "restarting",
 			state:         container.StateRestarting,
 			statusMessage: "Restarting",
-			serviceName:   "main",
+			isMain:        true,
 			want:          StatusStarting,
 		},
 		{
 			name:          "removing",
 			state:         container.StateRemoving,
 			statusMessage: "Removing",
-			serviceName:   "main",
+			isMain:        true,
 			want:          StatusStopping,
 		},
 		{
 			name:          "created",
 			state:         container.StateCreated,
 			statusMessage: "Created",
-			serviceName:   "main",
+			isMain:        true,
 			want:          StatusStopped,
 		},
 		{
 			name:          "paused",
 			state:         container.StatePaused,
 			statusMessage: "Paused",
-			serviceName:   "main",
+			isMain:        true,
 			want:          StatusStopped,
 		},
 		{
 			name:          "dead",
 			state:         container.StateDead,
 			statusMessage: "Dead",
-			serviceName:   "main",
+			isMain:        true,
 			want:          StatusFailed,
 		},
 		{
 			name:          "main exit 0 -> StatusFailed",
 			state:         container.StateExited,
 			statusMessage: "Exited (0)",
-			serviceName:   "main",
+			isMain:        true,
 			want:          StatusFailed,
 		},
 		{
 			name:          "main exit > 128 -> StatusStopped",
 			state:         container.StateExited,
 			statusMessage: "Exited (137)",
-			serviceName:   "main",
+			isMain:        true,
 			want:          StatusStopped,
 		},
 		{
 			name:          "main exit 1 -> StatusFailed",
 			state:         container.StateExited,
 			statusMessage: "Exited (1)",
-			serviceName:   "main",
+			isMain:        true,
 			want:          StatusFailed,
 		},
 		{
 			name:          "non-main exit 0 -> StatusStopped",
 			state:         container.StateExited,
 			statusMessage: "Exited (0)",
-			serviceName:   "init",
+			isMain:        false,
 			want:          StatusStopped,
 		},
 		{
 			name:          "non-main exit 143 (> 128) -> StatusStopped",
 			state:         container.StateExited,
 			statusMessage: "Exited (143)",
-			serviceName:   "worker",
+			isMain:        false,
 			want:          StatusStopped,
 		},
 		{
 			name:          "non-main exit 1 -> StatusFailed",
 			state:         container.StateExited,
 			statusMessage: "Exited (1)",
-			serviceName:   "worker",
-			want:          StatusFailed,
-		},
-		{
-			name:          "empty serviceName with exit 0 -> StatusFailed",
-			state:         container.StateExited,
-			statusMessage: "Exited (0)",
-			serviceName:   "",
-			want:          StatusFailed,
-		},
-		{
-			name:          "empty serviceName with exit 143 (> 128) -> StatusStopped",
-			state:         container.StateExited,
-			statusMessage: "Exited (143)",
-			serviceName:   "",
-			want:          StatusStopped,
-		},
-		{
-			name:          "empty serviceName with exit 1 -> StatusFailed",
-			state:         container.StateExited,
-			statusMessage: "Exited (1)",
-			serviceName:   "",
+			isMain:        false,
 			want:          StatusFailed,
 		},
 		{
 			name:          "unparseable exit message -> StatusFailed",
 			state:         container.StateExited,
 			statusMessage: "Exited unexpectedly",
-			serviceName:   "worker",
+			isMain:        false,
 			want:          StatusFailed,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := StatusFromDockerState(tc.state, tc.statusMessage, tc.serviceName)
+			got := StatusFromDockerState(tc.state, tc.statusMessage, tc.isMain)
 			require.Equal(t, tc.want, got)
 		})
 	}
