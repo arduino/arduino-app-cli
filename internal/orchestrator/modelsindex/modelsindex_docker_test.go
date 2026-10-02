@@ -45,6 +45,10 @@ type fakeDockerClient struct {
 	mu        sync.Mutex
 	idCounter int
 	pending   map[string]*pendingContainer
+
+	// onStop is called by ContainerStop, which dockerhelper.Run sends when its context ends:
+	// it lets a fake container that blocks finish, as a real one does on SIGTERM.
+	onStop func()
 }
 
 type pendingContainer struct {
@@ -122,6 +126,13 @@ func (f *fakeDockerClient) ContainerStart(_ context.Context, id string, _ client
 		p.statusCh <- container.WaitResponse{StatusCode: int64(exitCode)}
 	}()
 	return client.ContainerStartResult{}, nil
+}
+
+func (f *fakeDockerClient) ContainerStop(_ context.Context, _ string, _ client.ContainerStopOptions) (client.ContainerStopResult, error) {
+	if f.onStop != nil {
+		f.onStop()
+	}
+	return client.ContainerStopResult{}, nil
 }
 
 func (f *fakeDockerClient) ContainerRemove(_ context.Context, _ string, _ client.ContainerRemoveOptions) (client.ContainerRemoveResult, error) {
@@ -728,5 +739,68 @@ func TestDownloadByURLHoldsTheLock(t *testing.T) {
 		unlock, err := lockModel(idx.locksDir, url)
 		require.NoError(t, err)
 		unlock()
+	})
+}
+
+// TestDownloadCancelled: a caller that goes away mid-download stops the container, which
+// cleans up and reports "interrupted"; the result is the cancellation, not a container
+// error, and the listing runs again so the cache does not keep "downloading". A download
+// that fails on its own stays a container error, with no extra listing.
+func TestDownloadCancelled(t *testing.T) {
+	const url = "llamacpp:org/repo:Q4_0"
+	const interrupted = `{"event":"error","description":"Download interrupted by signal; partial files removed"}`
+	plat := platform.Platform{BoardName: "ventunoq"}
+
+	newIndex := func(t *testing.T, download func() (string, int)) (*ModelsIndex, *fakeDockerClient, *atomic.Int64) {
+		t.Helper()
+		var listings atomic.Int64
+		cli := newFakeDockerClient(func(_ string, cmd []string) (string, int) {
+			if len(cmd) > 0 && cmd[0] == listModelsCmd {
+				listings.Add(1)
+				return listingWith(), 0
+			}
+			return download()
+		})
+		dir := paths.New("testdata/with-handlers")
+		idx, err := Load(plat, dir, paths.New(t.TempDir()), dir.Join("custom-models"), cli, config.Configuration{})
+		require.NoError(t, err)
+		return idx, cli, &listings
+	}
+
+	t.Run("cancelled: the cancellation is the error, and the listing runs again", func(t *testing.T) {
+		started := make(chan struct{})
+		stopped := make(chan struct{})
+		var stopOnce sync.Once
+		idx, cli, listings := newIndex(t, func() (string, int) {
+			close(started)
+			<-stopped // a real download runs until the stop signal
+			return interrupted + "\n", 130
+		})
+		cli.onStop = func() { stopOnce.Do(func() { close(stopped) }) }
+
+		ctx, cancel := context.WithCancel(t.Context())
+		errCh := make(chan error, 1)
+		go func() {
+			_, err := idx.DownloadByURL(ctx, cli, url, "", plat, func(StreamMessage) {})
+			errCh <- err
+		}()
+		<-started
+		before := listings.Load()
+		cancel()
+
+		err := <-errCh
+		require.ErrorIs(t, err, context.Canceled)
+		assert.NotErrorIs(t, err, ErrDownloadReported, "the container's interrupted event follows the cancel, it is not the cause")
+		assert.Greater(t, listings.Load(), before, "the cache is refreshed after a cancel")
+	})
+
+	t.Run("failed on its own: a container error, no extra listing", func(t *testing.T) {
+		idx, cli, listings := newIndex(t, func() (string, int) {
+			return `{"event":"error","description":"Download failed: disk full"}` + "\n", 1
+		})
+
+		_, err := idx.DownloadByURL(t.Context(), cli, url, "", plat, func(StreamMessage) {})
+		require.ErrorIs(t, err, ErrDownloadReported)
+		assert.Zero(t, listings.Load(), "no refresh on a plain failure")
 	})
 }

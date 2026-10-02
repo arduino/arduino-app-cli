@@ -642,6 +642,13 @@ func (m *ModelsIndex) runDownload(ctx context.Context, cli client.APIClient, mod
 
 	err := m.Handlers.downloadModel(ctx, cli, model, handler, plat, lineParser)
 
+	if ctx.Err() != nil {
+		if _, rerr := m.Refresh(context.WithoutCancel(ctx)); rerr != nil {
+			slog.Warn("download cancelled; refreshing the models listing failed", "model", model.ID, "err", rerr)
+		}
+		return nil, ctx.Err()
+	}
+
 	if reported {
 		return nil, errors.Join(ErrDownloadReported, err) // err may be nil: Join drops it
 	}
