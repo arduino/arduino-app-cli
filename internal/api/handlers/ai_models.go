@@ -222,12 +222,12 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 			return
 		}
 
-		// A 404 has to be a status, so this one question is asked before the stream opens.
-		if !modelsIndex.IsKnown(id) {
-			details := fmt.Sprintf("no model with id %q is declared", id)
-			render.EncodeResponse(w, http.StatusNotFound, models.ErrorResponse{Details: details})
+		unlock, res, err := modelsIndex.PrecheckInstall(r.Context(), dockerClient, id, plat)
+		if err != nil {
+			writeModelError(w, err) // 404 unknown / 409 in progress / 500 / 507
 			return
 		}
+		defer unlock()
 
 		sseStream, err := render.NewSSEStream(r.Context(), w)
 		if err != nil {
@@ -236,6 +236,17 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 			return
 		}
 		defer sseStream.Close()
+
+		if res.Installed {
+			// D1: nothing to download; answer with the model as the listing reports it.
+			model, err := modelsIndex.NewLookup().ByID(r.Context(), id)
+			if err != nil || model == nil {
+				(&downloadStream{sse: sseStream}).sendError(fmt.Errorf("model %q is installed but not listed: %w", id, err))
+				return
+			}
+			sseStream.Send(render.SSEEvent{Type: "done", Data: models.NewAIModelItem(*model)})
+			return
+		}
 
 		stream := &downloadStream{sse: sseStream}
 		installed, err := orchestrator.AIModelInstall(r.Context(), dockerClient, modelsIndex, plat, id, stream.publish)
@@ -264,6 +275,18 @@ func HandleDownloadModel(dockerClient command.Cli, modelsIndex *modelsindex.Mode
 		modelURL := strings.TrimSpace(req.ModelURL)
 		if modelURL == "" {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: "model_url must be set"})
+			return
+		}
+
+		unlock, res, err := modelsIndex.PrecheckDownload(r.Context(), dockerClient.Client(), modelURL, strings.TrimSpace(req.MmprojURL), plat)
+		if err != nil {
+			writeModelError(w, err) // 400/403/404/409/410/422/500/502/507
+			return
+		}
+		defer unlock()
+		if res.Installed {
+			// D1: a user download that is already there is a conflict, not a no-op.
+			render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: "model already installed"})
 			return
 		}
 
@@ -333,4 +356,29 @@ func (d *downloadStream) sendError(err error) {
 		return
 	}
 	d.sse.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: err.Error()})
+}
+
+func writeModelError(w http.ResponseWriter, err error) {
+	status := http.StatusInternalServerError
+	switch {
+	case errors.Is(err, modelsindex.ErrUnknownModel):
+		status = http.StatusNotFound
+	case errors.Is(err, modelsindex.ErrInstallInProgress):
+		status = http.StatusConflict
+	case errors.Is(err, modelsindex.ErrInsufficientStorage):
+		status = http.StatusInsufficientStorage
+	case errors.Is(err, modelsindex.ErrBadModelURL):
+		status = http.StatusBadRequest
+	case errors.Is(err, modelsindex.ErrModelNotFound):
+		status = http.StatusNotFound
+	case errors.Is(err, modelsindex.ErrModelForbidden):
+		status = http.StatusForbidden
+	case errors.Is(err, modelsindex.ErrModelGone):
+		status = http.StatusGone
+	case errors.Is(err, modelsindex.ErrUnsupportedModel):
+		status = http.StatusUnprocessableEntity
+	case errors.Is(err, modelsindex.ErrHubUnreachable):
+		status = http.StatusBadGateway
+	}
+	render.EncodeResponse(w, status, models.ErrorResponse{Details: err.Error()})
 }

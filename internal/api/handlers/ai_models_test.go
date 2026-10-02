@@ -162,7 +162,7 @@ func TestHandleInstallModel(t *testing.T) {
 
 		assert.Equal(t, http.StatusNotFound, rec.Code)
 		assert.NotContains(t, rec.Header().Get("Content-Type"), "text/event-stream")
-		assert.Contains(t, rec.Body.String(), "is declared",
+		assert.Contains(t, rec.Body.String(), "no model with id",
 			"the answer says the model list does not declare it")
 	})
 
@@ -373,4 +373,31 @@ func TestDownloadStreamInstallInProgress(t *testing.T) {
 	(&downloadStream{sse: sse}).sendError(fmt.Errorf("locking model %q: %w", "x", modelsindex.ErrInstallInProgress))
 	require.Len(t, sse.errors, 1)
 	assert.Equal(t, render.SSEErrCode("install_in_progress"), sse.errors[0].Code)
+}
+
+func TestWriteModelError(t *testing.T) {
+	tests := []struct {
+		err  error
+		want int
+	}{
+		{modelsindex.ErrUnknownModel, http.StatusNotFound},
+		{modelsindex.ErrInstallInProgress, http.StatusConflict},
+		{modelsindex.ErrInsufficientStorage, http.StatusInsufficientStorage},
+		{modelsindex.ErrBadModelURL, http.StatusBadRequest},
+		{modelsindex.ErrModelNotFound, http.StatusNotFound},
+		{modelsindex.ErrModelForbidden, http.StatusForbidden},
+		{modelsindex.ErrModelGone, http.StatusGone},
+		{modelsindex.ErrUnsupportedModel, http.StatusUnprocessableEntity},
+		{modelsindex.ErrHubUnreachable, http.StatusBadGateway},
+		{modelsindex.ErrInfoFailed, http.StatusInternalServerError},
+		{errors.New("anything else"), http.StatusInternalServerError},
+	}
+	for _, tc := range tests {
+		t.Run(tc.err.Error(), func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			writeModelError(rec, fmt.Errorf("wrapped: %w", tc.err))
+			assert.Equal(t, tc.want, rec.Code)
+			assert.Contains(t, rec.Body.String(), tc.err.Error())
+		})
+	}
 }

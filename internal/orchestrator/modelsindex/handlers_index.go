@@ -515,81 +515,35 @@ func NewDoneMessage(description string) StreamMessage {
 	return StreamMessage{done: description}
 }
 
-func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
-	var raw struct {
-		Event       string  `json:"event"`
-		Description string  `json:"description"`
-		Current     int64   `json:"current"`
-		Total       int64   `json:"total"`
-		SizeMB      float64 `json:"size_mb"`
-		Unit        string  `json:"unit"`
-		ModelID     string  `json:"model_id"`
-	}
-	if err := json.Unmarshal([]byte(line), &raw); err != nil {
-		slog.Debug("non-JSON stdout from handler", "line", line)
-		return
-	}
-
-	switch raw.Event {
-	case "start":
-		publish(NewInfoMessage(raw.Description, nil))
-	case "update":
-		publish(NewProgressMessage(Progress{
-			Name:     raw.Description,
-			Current:  raw.Current,
-			Total:    raw.Total,
-			Progress: float32(raw.Current) / float32(raw.Total) * 100,
-		}))
-	case "complete":
-		publish(NewDoneMessage("download complete"))
-	case "info":
-		// The model the handler made of the files it wrote. The event lists the files too,
-		// but the id is reported outright now, so nothing parses them.
-		var model *DownloadedModel
-		if raw.ModelID != "" {
-			// Reported only once the handler has recorded the model, so an id here means
-			// a later listing can resolve it too.
-			model = &DownloadedModel{ID: raw.ModelID, Size: mibToBytes(raw.SizeMB)}
-		}
-		publish(NewInfoMessage(raw.Description, model))
-	case "error":
-		publish(NewErrorMessage(raw.Description))
-	default:
-		slog.Warn("unknown event from handler", "event", raw.Event, "line", line)
-	}
+type HandlerEvent struct {
+	Event       string   `json:"event"` // start, update, complete, info, stat, error
+	Description string   `json:"description"`
+	Current     int64    `json:"current"`     // update: bytes so far
+	Total       int64    `json:"total"`       // update: bytes expected
+	SizeBytes   *int64   `json:"size_bytes"`  // stat (HF); -1 or null means unknown
+	SizeMB      *float64 `json:"size_mb"`     // stat, info, complete: MiB, 2 decimals
+	ModelID     string   `json:"model_id"`    // info: the id of what was downloaded
+	Downloading *bool    `json:"downloading"` // check: nil when the event does not say
+	Artifacts   []string `json:"artifacts"`
 }
 
-// parseInfoSize returns the download size an info action reports in its stat event.
-// false: no stat event, one with no size, or an error event.
-func parseInfoSize(out []byte) (uint64, bool) {
-	var size uint64
-	var found bool
-	for line := range bytes.Lines(out) {
-		var raw struct {
-			Event       string   `json:"event"`
-			Description string   `json:"description"`
-			SizeBytes   *uint64  `json:"size_bytes"`
-			SizeMB      *float64 `json:"size_mb"`
-		}
-		if err := json.Unmarshal(line, &raw); err != nil {
-			slog.Debug("non-JSON stdout from info action", "line", string(line))
-			continue
-		}
-		switch raw.Event {
-		case "error":
-			slog.Warn("info action reported an error, size unknown", "description", raw.Description)
-			return 0, false
-		case "stat":
-			switch {
-			case raw.SizeBytes != nil && *raw.SizeBytes > 0:
-				size, found = *raw.SizeBytes, true
-			case raw.SizeMB != nil && *raw.SizeMB > 0:
-				size, found = uint64(*raw.SizeMB*1024*1024), true
-			}
-		}
+func parseHandlerEvent(line string) (e HandlerEvent, ok bool) {
+	if err := json.Unmarshal([]byte(line), &e); err != nil {
+		return HandlerEvent{}, false
 	}
-	return size, found
+	return e, true
 }
+
+func (e HandlerEvent) Size() uint64 {
+	if e.SizeBytes != nil && *e.SizeBytes > 0 {
+		return uint64(*e.SizeBytes)
+	}
+	if e.SizeMB != nil && *e.SizeMB > 0 {
+		return mibToBytes(*e.SizeMB)
+	}
+	return 0
+}
+func (e HandlerEvent) IsError() bool { return e.Event == "error" }
 
 func (h *HandlersIndex) GetDockerImages() []string {
 	if h == nil {
@@ -643,73 +597,13 @@ func (h *HandlersIndex) downloadModel(ctx context.Context, cli client.APIClient,
 	return h.runAction(ctx, cli, handler, ActionDownload, model.Deployment.VariablesForPlatform(plat.BoardName), lineParser)
 }
 
-func getModelSize(ctx context.Context, cli client.APIClient, handler ModelHandler, envVars map[string]string) (uint64, bool, error) {
-	if len(handler.Actions.Info) == 0 {
-		return 0, false, nil
+// checkLineInstalled reads one line of a check action. ok is false for a line that does not
+// say: a check answers with the downloading flag, on an info event when the model is there
+// and on an error event when it is not.
+func checkLineInstalled(line string) (installed, ok bool) {
+	e, parsed := parseHandlerEvent(line)
+	if !parsed || e.Downloading == nil {
+		return false, false
 	}
-
-	var buf, stderr bytes.Buffer
-	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
-		Image:  ResolveVars(handler.Image, envVars),
-		Cmd:    handler.Actions.Info,
-		Binds:  ResolveVarsSlice(handler.Volumes, envVars),
-		Env:    envVars,
-		Stdout: &buf,
-		Stderr: &stderr,
-	})
-	if err != nil {
-		return 0, false, fmt.Errorf("running info action: %w: %s", err, stderr.String())
-	}
-
-	outputSize, found := parseInfoSize(buf.Bytes())
-	return outputSize, found, nil
-}
-
-func isModelInstalled(ctx context.Context, cli client.APIClient, handler ModelHandler, envVars map[string]string) bool {
-	if len(handler.Actions.Check) == 0 {
-		return false
-	}
-
-	var buf, stderr bytes.Buffer
-	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
-		Image:  ResolveVars(handler.Image, envVars),
-		Cmd:    handler.Actions.Check,
-		Binds:  ResolveVarsSlice(handler.Volumes, envVars),
-		Env:    envVars,
-		Stdout: &buf,
-		Stderr: &stderr,
-	})
-	if err != nil && !hasErrorEvent(buf.Bytes()) {
-		slog.Warn("check action failed, model assumed not on disk", "err", err, "stderr", stderr.String())
-	}
-
-	return parseCheckInstalled(buf.Bytes())
-}
-
-func hasErrorEvent(out []byte) bool {
-	for line := range bytes.Lines(out) {
-		var raw struct {
-			Event string `json:"event"`
-		}
-		if json.Unmarshal(line, &raw) == nil && MessageType(raw.Event) == ErrorType {
-			return true
-		}
-	}
-	return false
-}
-
-func parseCheckInstalled(out []byte) bool {
-	for line := range bytes.Lines(out) {
-		var raw struct {
-			Event       string `json:"event"`
-			Downloading *bool  `json:"downloading"`
-		}
-		if err := json.Unmarshal(line, &raw); err != nil {
-			continue
-		}
-		if MessageType(raw.Event) == InfoType && raw.Downloading != nil && !*raw.Downloading {
-			return true
-		}
-	}
-	return false
+	return !*e.Downloading && !e.IsError(), true
 }

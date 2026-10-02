@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"iter"
@@ -659,17 +660,22 @@ func TestLockKey(t *testing.T) {
 	}
 }
 
-// TestDownloadByURLHoldsTheLock: a second download of the same link, while the first runs,
-// is refused before any container starts; and a delete of the model that link installs
-// takes the same lock.
+// TestDownloadByURLHoldsTheLock: PrecheckDownload takes the link's lock and the caller holds
+// it through the download. A second precheck of the same link, or a delete of the model the
+// link installs, is refused meanwhile; once released, the link is free again.
 func TestDownloadByURLHoldsTheLock(t *testing.T) {
 	const url = "llamacpp:org/repo:Q4_0" // the link downloadedEntry records
 	var downloads atomic.Int64
 	started := make(chan struct{})
 	release := make(chan struct{})
 	cli := newFakeDockerClient(func(_ string, cmd []string) (string, int) {
-		if len(cmd) > 0 && cmd[0] == listModelsCmd {
+		switch {
+		case len(cmd) > 0 && cmd[0] == listModelsCmd:
 			return listingWith(downloadedEntry), 0
+		case len(cmd) > 0 && strings.Contains(cmd[0], "hf_model_info.sh"):
+			return `{"event":"stat","size_bytes":1}` + "\n", 0
+		case len(cmd) > 0 && strings.Contains(cmd[0], "hf_model_checker.sh"):
+			return `{"event":"error","description":"Model does not exist","downloading":false}` + "\n", 1
 		}
 		if downloads.Add(1) == 1 {
 			close(started)
@@ -679,28 +685,39 @@ func TestDownloadByURLHoldsTheLock(t *testing.T) {
 	})
 	dir := paths.New("testdata/with-handlers")
 	plat := platform.Platform{BoardName: "ventunoq"}
-	idx, err := Load(plat, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+	idx, err := Load(plat, dir, paths.New(t.TempDir()), dir.Join("custom-models"), cli, config.Configuration{})
 	require.NoError(t, err)
 	idx.locksDir = paths.New(t.TempDir()) // a test config has no data dir: locking would be off
 
 	firstErr := make(chan error, 1)
 	go func() {
-		_, err := idx.DownloadByURL(context.Background(), cli, url, "", plat, func(StreamMessage) {})
+		unlock, res, err := idx.PrecheckDownload(context.Background(), cli, url, "", plat)
+		if err != nil {
+			firstErr <- err
+			return
+		}
+		defer unlock()
+		if res.Installed {
+			firstErr <- errors.New("precheck reported the model installed")
+			return
+		}
+		_, err = idx.DownloadByURL(context.Background(), cli, url, "", plat, func(StreamMessage) {})
 		firstErr <- err
 	}()
 	<-started
 
-	t.Run("a second download of the same link is refused", func(t *testing.T) {
-		_, err := idx.DownloadByURL(t.Context(), cli, url, "", plat, func(StreamMessage) {})
+	t.Run("a second precheck of the same link is refused", func(t *testing.T) {
+		_, _, err := idx.PrecheckDownload(t.Context(), cli, url, "", plat)
 		require.ErrorIs(t, err, ErrInstallInProgress)
-		assert.Equal(t, int64(1), downloads.Load(), "no second container")
+		assert.Equal(t, int64(1), downloads.Load(), "no second download container")
 	})
 
 	t.Run("deleting the model that link installs takes the same lock", func(t *testing.T) {
 		listed, err := idx.NewLookup().ByID(t.Context(), "llamacpp:org/repo/m-Q4_0")
 		require.NoError(t, err)
 		require.NotNil(t, listed)
-		_, err = lockModel(idx.locksDir, lockKey(*listed, plat.BoardName))
+		unlock, err := lockModel(idx.locksDir, lockKey(*listed, plat.BoardName))
+		defer unlock()
 		require.ErrorIs(t, err, ErrInstallInProgress)
 	})
 

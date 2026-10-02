@@ -71,11 +71,23 @@ func PrepareRelease(
 		done := 50.0 + 50.0*float32(i)/float32(len(manifest.Models))
 		cb(StreamMessage{data: "downloading the model " + model.ID})
 		cb(StreamMessage{progress: &Progress{Name: "models", Progress: done}})
-		if _, err := models.Install(ctx, docker, model.ID, plat, func(message modelsindex.StreamMessage) {
+
+		// Not deferred: inside the loop a defer would hold every model's lock until the end.
+		unlock, res, err := models.PrecheckInstall(ctx, docker, model.ID, plat)
+		if err != nil {
+			return fmt.Errorf("model %q: %w", model.ID, err)
+		}
+		if res.Installed {
+			unlock()
+			continue // already on the board
+		}
+		_, err = models.Install(ctx, docker, model.ID, plat, func(message modelsindex.StreamMessage) {
 			if message.IsData() {
 				cb(StreamMessage{data: message.GetData()})
 			}
-		}); err != nil {
+		})
+		unlock()
+		if err != nil {
 			return fmt.Errorf("failed to download the model %q: %w", model.ID, err)
 		}
 	}
