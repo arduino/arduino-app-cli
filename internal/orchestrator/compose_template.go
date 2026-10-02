@@ -176,13 +176,6 @@ func generateComposeTemplate(
 			Source: "/dev",
 			Target: "/dev",
 		},
-		// Mount the host DSP installation path, at whichever of its known paths the board has it.
-		volume{
-			Type:     "bind",
-			Source:   "${HOST_DSP_INSTALLATION_PATH:-/usr/share/qcom}",
-			Target:   "/run/host-qcom",
-			ReadOnly: true,
-		},
 	}
 
 	// Mounted only where the board has them.
@@ -192,6 +185,9 @@ func generateComposeTemplate(
 		[]string{"/run/cam_server", "/usr/lib/libcamera_metadata.so.0.1.0"},
 		// libfastrpc reads the board model here, to pick the DSP firmware of the board
 		[]string{"/sys/firmware/devicetree/base/model:ro"},
+		// The known locations of the DSP installation, at one path of ours: which of
+		// them a board has depends on its distro.
+		[]string{"/usr/share/qcom:/run/host-qcom:ro", "/usr/share/hexagon-dsp:/run/host-qcom:ro"},
 		platform.Linux.BoardLeds.AsStrings(),
 	)
 	for _, mount := range optionalMounts {
