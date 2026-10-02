@@ -20,6 +20,7 @@ import (
 	"github.com/shirou/gopsutil/v4/disk"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
+	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -535,7 +536,8 @@ func (m *ModelsIndex) runDownload(ctx context.Context, cli client.APIClient, mod
 	maps.Insert(envVars, maps.All(m.Handlers.configEnv))
 
 	var downloaded *DownloadedModel
-	var reported bool
+	var errorReported bool
+	var lastPercent helpers.LastPercent
 	err := dockerhelper.Run(ctx, cli, dockerhelper.RunOptions{
 		Image: ResolveVars(handler.Image, envVars),
 		Cmd:   handler.Actions.Download,
@@ -547,7 +549,10 @@ func (m *ModelsIndex) runDownload(ctx context.Context, cli client.APIClient, mod
 				if named := e.GetModel(); named != nil {
 					downloaded = named
 				}
-				reported = reported || e.GetType() == ErrorType
+				errorReported = errorReported || e.GetType() == ErrorType
+				if p := e.GetProgress(); p != nil && !lastPercent.Moved(p.Current, p.Total) {
+					return
+				}
 				publish(e)
 			})
 		}),
@@ -557,7 +562,7 @@ func (m *ModelsIndex) runDownload(ctx context.Context, cli client.APIClient, mod
 	})
 	// The reported event comes first: a handler that prints one usually exits non-zero
 	// too, and the caller has already seen it. The exit is kept for the log.
-	if reported {
+	if errorReported {
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrDownloadReported, err)
 		}

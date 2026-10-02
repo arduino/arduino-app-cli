@@ -34,7 +34,7 @@ declare.`,
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: completion.ModelIDs(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if mmprojURL != "" && !isDownloadSource(args[0]) {
+			if mmprojURL != "" && !isDownloadSource(servicelocator.GetModelsIndex(), args[0]) {
 				return errors.New("--mmproj-url only applies when installing from a URL or a llama.cpp id")
 			}
 			modelInstallHandler(cmd.Context(), args[0], mmprojURL)
@@ -64,13 +64,14 @@ func modelInstallHandler(ctx context.Context, idOrURL, mmprojURL string) {
 		}
 	}
 
+	modelsIndex := servicelocator.GetModelsIndex()
 	var installed modelsindex.AIModel
 	var err error
-	if isDownloadSource(idOrURL) {
-		installed, err = orchestrator.AIModelDownload(ctx, servicelocator.GetDockerClient(), servicelocator.GetModelsIndex(),
+	if isDownloadSource(modelsIndex, idOrURL) {
+		installed, err = orchestrator.AIModelDownload(ctx, servicelocator.GetDockerClient(), modelsIndex,
 			servicelocator.GetPlatform(), idOrURL, mmprojURL, publish)
 	} else {
-		installed, err = orchestrator.AIModelInstall(ctx, servicelocator.GetDockerClient(), servicelocator.GetModelsIndex(),
+		installed, err = orchestrator.AIModelInstall(ctx, servicelocator.GetDockerClient(), modelsIndex,
 			servicelocator.GetPlatform(), idOrURL, publish)
 	}
 	switch {
@@ -101,8 +102,11 @@ func (r installModelResult) Data() any {
 }
 
 // isDownloadSource reports whether idOrURL is a URL or a llama.cpp id, not a catalog id.
-// A catalog id is a plain slug and never holds a "/".
-func isDownloadSource(idOrURL string) bool {
+// The catalog is asked first; a string it does not declare falls back to shape alone.
+func isDownloadSource(modelsIndex *modelsindex.ModelsIndex, idOrURL string) bool {
+	if modelsIndex.IsKnown(idOrURL) {
+		return false
+	}
 	return strings.HasPrefix(idOrURL, "http://") ||
 		strings.HasPrefix(idOrURL, "https://") ||
 		strings.HasPrefix(idOrURL, "llamacpp:") ||
