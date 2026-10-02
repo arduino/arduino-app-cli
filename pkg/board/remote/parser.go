@@ -8,10 +8,55 @@ package remote
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"strings"
 )
+
+// ParseReadOutput returns the output of the command that reads a remote file.
+// It waits for the first byte, so that a failed read is reported here, and not
+// at the first Read of the caller. The end of the output asks for the command
+// outcome too, so that a truncated read is never a complete file. exit must
+// wait for the command end, and return its stderr with its error.
+func ParseReadOutput(stdout io.Reader, exit func() ([]byte, error)) (io.Reader, error) {
+	parseReadError := func(stderr []byte, err error) error {
+		if err == nil {
+			return nil
+		}
+
+		msg := strings.TrimSpace(string(stderr))
+		switch {
+		case strings.Contains(msg, "No such file or directory"):
+			return fmt.Errorf("%w: %s", fs.ErrNotExist, msg)
+		case strings.Contains(msg, "Permission denied"):
+			return fmt.Errorf("%w: %s", fs.ErrPermission, msg)
+		case msg != "":
+			return fmt.Errorf("%w: %s", err, msg)
+		default:
+			return err
+		}
+	}
+
+	wait := func() error { return parseReadError(exit()) }
+
+	out := bufio.NewReader(stdout)
+	if _, err := out.Peek(1); err != nil {
+		// No output at all: the read failed, or the file is empty.
+		if failure := wait(); failure != nil {
+			return nil, failure
+		}
+		if !errors.Is(err, io.EOF) {
+			return nil, err
+		}
+
+		// The file is empty, and the wait above closed the command output.
+		return bytes.NewReader(nil), nil
+	}
+
+	return &readOutput{Reader: out, wait: wait}, nil
+}
 
 func ParseChage(r io.Reader) (bool, error) {
 	scanner := bufio.NewScanner(r)
@@ -76,4 +121,27 @@ func ParseLsOutput(out io.Reader) ([]FileInfo, error) {
 	}
 
 	return files, nil
+}
+
+// readOutput reports the command failure at the end of the file, and nothing
+// when the caller stops before it.
+type readOutput struct {
+	io.Reader
+	wait func() error
+	end  error
+}
+
+func (r *readOutput) Read(p []byte) (int, error) {
+	if r.end != nil {
+		return 0, r.end
+	}
+
+	n, err := r.Reader.Read(p)
+	if errors.Is(err, io.EOF) {
+		if r.end = r.wait(); r.end == nil {
+			r.end = io.EOF
+		}
+		return n, r.end
+	}
+	return n, err
 }
