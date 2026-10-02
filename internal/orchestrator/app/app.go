@@ -40,7 +40,7 @@ type ArduinoApp struct {
 	FullPath       *paths.Path // FullPath is the path to the App folder
 	LocalBricks    []bricksindex.Brick
 	Descriptor     AppDescriptor
-	release *Release
+	release        *Release
 }
 
 // Load creates an App instance by reading all the files composing an app and grouping them
