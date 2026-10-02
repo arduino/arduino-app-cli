@@ -1151,7 +1151,7 @@ every later failure is an error event. A models directory with no free space has
 'insufficient_storage'.
 'event: error'
 'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
-'data: {"code":"insufficient_storage","message":"insufficient disk space to install model"}'
+'data: {"code":"insufficient_storage","message":"insufficient storage to install model: model needs 34820885376 bytes, 3690143744 bytes free"}'
 `,
 			},
 			Description: `Install an AI model from the internal model list. The progress is a stream of Server-Sent Events.
@@ -1203,7 +1203,7 @@ every later failure is an error event. A models directory with no free space has
 'insufficient_storage'.
 'event: error'
 'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
-'data: {"code":"insufficient_storage","message":"insufficient disk space to install model"}'
+'data: {"code":"insufficient_storage","message":"insufficient storage to install model: model needs 34820885376 bytes, 3690143744 bytes free"}'
 `,
 			},
 			Description: `Download an LLamaCPP AI model from a Hugging Face link. The progress is a stream of Server-Sent Events.

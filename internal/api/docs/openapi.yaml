@@ -1293,7 +1293,7 @@ paths:
             'insufficient_storage'.
             'event: error'
             'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
-            'data: {"code":"insufficient_storage","message":"insufficient disk space to install model"}'
+            'data: {"code":"insufficient_storage","message":"insufficient storage to install model: model needs 34820885376 bytes, 3690143744 bytes free"}'
         "400":
           $ref: '#/components/responses/BadRequest'
         "500":
@@ -1411,7 +1411,7 @@ paths:
             'insufficient_storage'.
             'event: error'
             'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
-            'data: {"code":"insufficient_storage","message":"insufficient disk space to install model"}'
+            'data: {"code":"insufficient_storage","message":"insufficient storage to install model: model needs 34820885376 bytes, 3690143744 bytes free"}'
         "400":
           $ref: '#/components/responses/BadRequest'
         "404":
