@@ -58,17 +58,17 @@ board defaults to the one running the build.`,
 				Target:       target,
 				ReleaseLabel: releaseLabel,
 				IncludeData:  includeData,
-				Overwrite:    overwrite,
 				Verbose:      verbose,
 			}
 			if notes != "" {
 				req.Notes = readReleaseNotes(notes)
 			}
+			var outputPath *paths.Path
 			if output != "" {
-				req.Output = paths.New(output)
+				outputPath = paths.New(output)
 			}
 
-			return buildHandler(cmd.Context(), cfg, appToBuild, req)
+			return buildHandler(cmd.Context(), cfg, appToBuild, req, outputPath, overwrite)
 		},
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 			if len(args) != 0 {
@@ -91,13 +91,23 @@ board defaults to the one running the build.`,
 	return cmd
 }
 
-func buildHandler(ctx context.Context, cfg config.Configuration, appToBuild app.ArduinoApp, req orchestrator.BuildReleaseRequest) error {
+func buildHandler(ctx context.Context, cfg config.Configuration, appToBuild app.ArduinoApp, req orchestrator.BuildReleaseRequest, output *paths.Path, overwrite bool) error {
 	// First: creating it is what fills the asset dir the indexes are read from.
 	provisioner := servicelocator.GetProvisioner()
 
 	out, _, getResult := feedback.OutputStreams()
 
-	result, err := orchestrator.BuildRelease(
+	var archivePath *paths.Path
+	if output != nil && !output.IsDir() {
+		resolved, err := releaseArchivePath("", output, overwrite)
+		if err != nil {
+			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+		}
+		archivePath = resolved
+		req.ReleaseName = strings.TrimSuffix(resolved.Base(), resolved.Ext())
+	}
+
+	result, reader, err := orchestrator.BuildRelease(
 		ctx,
 		servicelocator.GetDockerClient(),
 		provisioner,
@@ -120,10 +130,74 @@ func buildHandler(ctx context.Context, cfg config.Configuration, appToBuild app.
 		feedback.Fatal(fmt.Sprintf("[ERROR] %s", err), feedback.ErrGeneric)
 	}
 
+	// A dir or nothing passed to the --output flag leaves the naming to the build, so the
+	// archive path is known only now.
+	if archivePath == nil {
+		resolved, err := releaseArchivePath(result.FileName, output, overwrite)
+		if err != nil {
+			_ = reader.Close()
+			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+		}
+		archivePath = resolved
+	}
+
+	if err := saveReleaseArchive(reader, archivePath); err != nil {
+		feedback.Fatal(fmt.Sprintf("[ERROR] %s", err), feedback.ErrGeneric)
+	}
+
 	feedback.PrintResult(buildAppResult{
 		BuildReleaseResult: result,
+		Archive:            archivePath.String(),
 		Output:             getResult(),
 	})
+	return nil
+}
+
+// releaseArchivePath resolves where the archive goes, without creating it. fileName names
+// it when output is a directory or is left out; an output file is taken as it is.
+func releaseArchivePath(fileName string, output *paths.Path, overwrite bool) (*paths.Path, error) {
+	archivePath := paths.New(fileName)
+	if output != nil {
+		archivePath = output
+		if archivePath.IsDir() {
+			archivePath = archivePath.Join(fileName)
+		}
+	}
+	archivePath, err := archivePath.Abs()
+	if err != nil {
+		return nil, err
+	}
+
+	if archivePath.Exist() && !overwrite {
+		return nil, fmt.Errorf("%s already exists", archivePath)
+	}
+	return archivePath, nil
+}
+
+// saveReleaseArchive writes the release stream to the archive, closing the stream so the
+// build staging dir goes with it, and removing a half written archive on failure.
+func saveReleaseArchive(reader io.ReadCloser, archivePath *paths.Path) (err error) {
+	defer func() {
+		if closeErr := reader.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+		if err != nil {
+			// Do not leave a half written archive behind.
+			_ = archivePath.Remove()
+		}
+	}()
+
+	file, err := archivePath.Create()
+	if err != nil {
+		return fmt.Errorf("failed to create %s: %w", archivePath, err)
+	}
+	if _, err := io.Copy(file, reader); err != nil {
+		_ = file.Close()
+		return fmt.Errorf("failed to write %s: %w", archivePath, err)
+	}
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("failed to write %s: %w", archivePath, err)
+	}
 	return nil
 }
 
@@ -147,7 +221,8 @@ func readReleaseNotes(notes string) string {
 
 type buildAppResult struct {
 	orchestrator.BuildReleaseResult
-	Output *feedback.OutputStreamsResult `json:"output,omitempty"`
+	Archive string                        `json:"archive"`
+	Output  *feedback.OutputStreamsResult `json:"output,omitempty"`
 }
 
 func (r buildAppResult) String() string {

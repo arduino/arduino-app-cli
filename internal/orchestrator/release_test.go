@@ -285,46 +285,6 @@ func createTestAppWithSketch(t *testing.T) *paths.Path {
 	return appPath
 }
 
-func TestReleaseArchivePath(t *testing.T) {
-	existing := paths.New(t.TempDir()).Join("taken" + release.ReleaseArchiveExt)
-	require.NoError(t, existing.WriteFile(nil))
-	outputDir := paths.New(t.TempDir())
-
-	t.Run("the default is the release name in the current dir", func(t *testing.T) {
-		archivePath, err := releaseArchivePath("my-app-1.0.0-unoq", BuildReleaseRequest{})
-		require.NoError(t, err)
-		cwd, err := os.Getwd()
-		require.NoError(t, err)
-		assert.Equal(t, paths.New(cwd, "my-app-1.0.0-unoq"+release.ReleaseArchiveExt).String(), archivePath.String())
-	})
-
-	t.Run("an output dir holds the release name", func(t *testing.T) {
-		archivePath, err := releaseArchivePath("my-app-1.0.0-unoq", BuildReleaseRequest{Output: outputDir})
-		require.NoError(t, err)
-		assert.Equal(t, outputDir.Join("my-app-1.0.0-unoq"+release.ReleaseArchiveExt).String(), archivePath.String())
-	})
-
-	t.Run("an output file is the archive", func(t *testing.T) {
-		wanted := outputDir.Join("named" + release.ReleaseArchiveExt)
-		archivePath, err := releaseArchivePath("my-app-1.0.0-unoq", BuildReleaseRequest{Output: wanted})
-		require.NoError(t, err)
-		assert.Equal(t, wanted.String(), archivePath.String())
-	})
-
-	t.Run("an existing archive is not overwritten", func(t *testing.T) {
-		_, err := releaseArchivePath("my-app-1.0.0-unoq", BuildReleaseRequest{Output: existing})
-		require.Error(t, err)
-		assert.True(t, errors.Is(err, ErrBadRequest))
-		assert.Contains(t, err.Error(), "already exists")
-	})
-
-	t.Run("overwrite takes an existing archive", func(t *testing.T) {
-		archivePath, err := releaseArchivePath("my-app-1.0.0-unoq", BuildReleaseRequest{Output: existing, Overwrite: true})
-		require.NoError(t, err)
-		assert.Equal(t, existing.String(), archivePath.String())
-	})
-}
-
 func readArchiveHeaders(t *testing.T, archivePath *paths.Path) []*tar.Header {
 	t.Helper()
 

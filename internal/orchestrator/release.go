@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -52,19 +53,19 @@ type BuildReleaseRequest struct {
 	ReleaseLabel string
 	// Notes is the release note, markdown, and goes in the manifest as it is given.
 	Notes string
-	// Output is the archive, or the directory to write it in. Defaults to the cwd.
-	Output *paths.Path
+	// ReleaseName names the archive and the folder it extracts to. Defaults to the app
+	// name, the build date and the target board.
+	ReleaseName string
 	// IncludeData ships the data folder of the app, at the root of the archive.
 	IncludeData bool
-	Overwrite   bool
 	// Verbose streams the sketch compile output, as a start does.
 	Verbose bool
 }
 
 type BuildReleaseResult struct {
-	Name    string `json:"name"`
-	Target  string `json:"target"`
-	Archive string `json:"archive"`
+	Name     string `json:"name"`
+	Target   string `json:"target"`
+	FileName string `json:"-"`
 }
 
 // ReleaseManifest, ReleaseBrick, and ReleaseModel remain aliases for existing callers.
@@ -82,7 +83,7 @@ func BuildRelease(
 	req BuildReleaseRequest,
 	cfg config.Configuration,
 	cb func(StreamMessage),
-) (BuildReleaseResult, error) {
+) (BuildReleaseResult, io.ReadCloser, error) {
 	if cb == nil {
 		cb = func(StreamMessage) {}
 	}
@@ -90,16 +91,16 @@ func BuildRelease(
 	// Loaded per build, never by the caller: an index must be the target's own.
 	plat, bricksIndex, servicesIndex, modelsIndex, err := targetIndexes(cfg, docker, req.Target)
 	if err != nil {
-		return BuildReleaseResult{}, err
+		return BuildReleaseResult{}, nil, err
 	}
 
 	bricksIndex = bricksIndex.WithAppBricks(appToBuild.LocalBricks)
 	if err := checkBricks(ctx, appToBuild.Descriptor.Bricks, bricksIndex, modelsIndex); err != nil {
-		return BuildReleaseResult{}, err
+		return BuildReleaseResult{}, nil, err
 	}
 
 	if err := checkPortCollisions(appToBuild.Descriptor, bricksIndex, servicesIndex); err != nil {
-		return BuildReleaseResult{}, err
+		return BuildReleaseResult{}, nil, err
 	}
 
 	// TODO: fail when a service a brick requires is missing for the target. The
@@ -110,25 +111,30 @@ func BuildRelease(
 	now := time.Now().UTC()
 	name := slug.Make(appToBuild.Name)
 	if name == "" {
-		return BuildReleaseResult{}, fmt.Errorf("%w: the app has no name", ErrBadRequest)
+		return BuildReleaseResult{}, nil, fmt.Errorf("%w: the app has no name", ErrBadRequest)
 	}
 	releaseName := fmt.Sprintf("%s-%s-%s", name, now.Format("20060102-150405"), plat.BoardName)
-
-	archivePath, err := releaseArchivePath(releaseName, req)
-	if err != nil {
-		return BuildReleaseResult{}, err
+	// A caller names the archive to follow its output.
+	if req.ReleaseName != "" {
+		releaseName = req.ReleaseName
 	}
-	// The archive extracts to a folder of its own name.
-	releaseName = strings.TrimSuffix(archivePath.Base(), archivePath.Ext())
 
 	// Staged outside of the app: a release must not inherit its .cache.
 	stagingDir, err := cfg.MkTempBuildDir()
 	if err != nil {
-		return BuildReleaseResult{}, fmt.Errorf("failed to create the staging dir: %w", err)
+		return BuildReleaseResult{}, nil, fmt.Errorf("failed to create the staging dir: %w", err)
 	}
-	defer func() {
+	// The staging dir holds the archive the stream reads, so its cleanup moves to the
+	// stream once the archiving owns it, and runs here on every path that returns first.
+	cleanup := func() {
 		if err := stagingDir.RemoveAll(); err != nil {
 			slog.Warn("cannot remove the release staging dir", slog.String("path", stagingDir.String()), slog.String("error", err.Error()))
+		}
+	}
+	streamOwns := false
+	defer func() {
+		if !streamOwns {
+			cleanup()
 		}
 	}()
 
@@ -138,13 +144,13 @@ func BuildRelease(
 
 	cb(StreamMessage{progress: &Progress{Name: "copying the app", Progress: 0.0}})
 	if err := stageReleaseSrc(appToBuild, srcDir, bricksIndex); err != nil {
-		return BuildReleaseResult{}, err
+		return BuildReleaseResult{}, nil, err
 	}
 
 	// Data is state and not source, so it ships beside src and not in it.
 	if dataDir := appToBuild.FullPath.Join("data"); req.IncludeData && dataDir.IsDir() {
 		if err := dataDir.CopyDirTo(releaseDir.Join("data")); err != nil {
-			return BuildReleaseResult{}, fmt.Errorf("failed to copy the data folder: %w", err)
+			return BuildReleaseResult{}, nil, fmt.Errorf("failed to copy the data folder: %w", err)
 		}
 	}
 
@@ -160,13 +166,13 @@ func BuildRelease(
 		Libraries:    releaseLibraries(ctx, appToBuild),
 	}
 	if err := writeReleaseManifest(releaseDir, manifest); err != nil {
-		return BuildReleaseResult{}, err
+		return BuildReleaseResult{}, nil, err
 	}
 
 	// Loaded back from the staging dir: the provisioning must read the copy that ships.
 	stagedApp, err := app.Load(srcDir)
 	if err != nil {
-		return BuildReleaseResult{}, fmt.Errorf("the staged app is not valid: %w", err)
+		return BuildReleaseResult{}, nil, fmt.Errorf("the staged app is not valid: %w", err)
 	}
 
 	// Before the environment, as in a start: it is quick and it is where a build
@@ -174,16 +180,16 @@ func BuildRelease(
 	cb(StreamMessage{data: "freezing the compose files", progress: &Progress{Name: "compose files", Progress: 10.0}})
 	appEnv := appEnvironment(ctx, stagedApp, bricksIndex, modelsIndex, plat)
 	if err := provisioner.Resolve(&stagedApp, prebuildDir, bricksIndex, servicesIndex, cfg, appEnv, plat); err != nil {
-		return BuildReleaseResult{}, fmt.Errorf("failed to freeze the compose files: %w", err)
+		return BuildReleaseResult{}, nil, fmt.Errorf("failed to freeze the compose files: %w", err)
 	}
 
 	if err := stageReleaseIndexes(ctx, prebuildDir, appToBuild, bricksIndex, modelsIndex, cfg, appEnv); err != nil {
-		return BuildReleaseResult{}, fmt.Errorf("failed to freeze the brick and model indexes: %w", err)
+		return BuildReleaseResult{}, nil, fmt.Errorf("failed to freeze the brick and model indexes: %w", err)
 	}
 
 	cb(StreamMessage{data: "building the python environment", progress: &Progress{Name: "python environment", Progress: 20.0}})
 	if err := buildPythonEnv(ctx, docker, cfg.PythonImage, srcDir, prebuildDir, cb); err != nil {
-		return BuildReleaseResult{}, err
+		return BuildReleaseResult{}, nil, err
 	}
 
 	// The sketch is optional, as it is for the release manifest: an app made of
@@ -193,21 +199,21 @@ func BuildRelease(
 		// The compile reads the staged sources and caches in the app folder, as a
 		// start does. Only the firmware lands in the release, in prebuild.
 		if err := buildSketch(ctx, stagedApp, plat, appToBuild.SketchBuildPath(), prebuildDir, req.Verbose, cb); err != nil {
-			return BuildReleaseResult{}, err
+			return BuildReleaseResult{}, nil, err
 		}
 	}
 
-	cb(StreamMessage{data: "writing " + archivePath.Base(), progress: &Progress{Name: "archive", Progress: 90.0}})
-	if err := writeReleaseArchive(releaseDir, archivePath); err != nil {
-		return BuildReleaseResult{}, err
-	}
-
-	cb(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
+	// The archiving streams straight to the caller, so the build never stages the archive
+	// to a file of its own: the staging dir goes with the stream it feeds.
+	fileName := releaseName + release.ReleaseArchiveExt
+	cb(StreamMessage{data: "writing " + fileName, progress: &Progress{Name: "archive", Progress: 90.0}})
+	stream := newArchiveStream(releaseDir, cleanup, cb)
+	streamOwns = true
 	return BuildReleaseResult{
-		Name:    name,
-		Target:  plat.BoardName,
-		Archive: archivePath.String(),
-	}, nil
+		Name:     name,
+		Target:   plat.BoardName,
+		FileName: fileName,
+	}, stream, nil
 }
 
 // writeReleaseManifest writes the file the install keeps as it is: it is the manifest
@@ -369,28 +375,6 @@ func targetIndexes(cfg config.Configuration, docker command.Cli, target string) 
 		return platform.Platform{}, nil, nil, nil, fmt.Errorf("failed to load the models index of %s: %w", plat.BoardName, err)
 	}
 	return plat, bricksIndex, servicesIndex, modelsIndex, nil
-}
-
-// releaseArchivePath resolves where the archive goes, without creating it.
-func releaseArchivePath(releaseName string, req BuildReleaseRequest) (*paths.Path, error) {
-	fileName := releaseName + release.ReleaseArchiveExt
-
-	archivePath := paths.New(fileName)
-	if req.Output != nil {
-		archivePath = req.Output
-		if archivePath.IsDir() {
-			archivePath = archivePath.Join(fileName)
-		}
-	}
-	archivePath, err := archivePath.Abs()
-	if err != nil {
-		return nil, err
-	}
-
-	if archivePath.Exist() && !req.Overwrite {
-		return nil, fmt.Errorf("%w: %s already exists", ErrBadRequest, archivePath)
-	}
-	return archivePath, nil
 }
 
 // stageReleaseSrc copies the app folder as authored: .cache is resolved anew by the
@@ -558,24 +542,47 @@ func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platfo
 	return nil
 }
 
-// writeReleaseArchive writes the release archive to a file, removing a half written one
-// so a build never leaves a truncated archive reported as a good one.
-func writeReleaseArchive(releaseDir *paths.Path, archivePath *paths.Path) (err error) {
-	file, err := archivePath.Create()
-	if err != nil {
-		return fmt.Errorf("failed to create %s: %w", archivePath, err)
-	}
-	defer func() {
-		if closeErr := file.Close(); closeErr != nil && err == nil {
-			err = closeErr
+// archiveStream streams a release archive as it is written, so a caller can save it.
+type archiveStream struct {
+	reader  *io.PipeReader
+	done    chan struct{}
+	once    sync.Once
+	cleanup func()
+}
+
+// newArchiveStream archives releaseDir into a pipe and hands back its read end. The
+// cleanup runs once the stream is closed and the archiving has stopped, so the staging
+// dir is never removed from under a read.
+func newArchiveStream(releaseDir *paths.Path, cleanup func(), cb func(StreamMessage)) *archiveStream {
+	reader, writer := io.Pipe()
+	stream := &archiveStream{reader: reader, done: make(chan struct{}), cleanup: cleanup}
+
+	go func() {
+		defer close(stream.done)
+		if err := writeReleaseArchiveTo(releaseDir, writer); err != nil {
+			// The error reaches the consumer's Read, so a truncated archive is never read
+			// as a good one.
+			_ = writer.CloseWithError(fmt.Errorf("failed to write the release archive: %w", err))
+			return
 		}
-		if err != nil {
-			// Do not leave a half written archive behind.
-			_ = archivePath.Remove()
-			err = fmt.Errorf("failed to write %s: %w", archivePath, err)
-		}
+		// The write is done only once the last block is read, so the progress is complete
+		// before the consumer gets the end of the stream.
+		cb(StreamMessage{progress: &Progress{Progress: 100.0}})
+		_ = writer.Close()
 	}()
-	return writeReleaseArchiveTo(releaseDir, file)
+
+	return stream
+}
+
+func (a *archiveStream) Read(p []byte) (int, error) { return a.reader.Read(p) }
+
+// Close stops the archiving and removes the staging dir, once the writer has stopped so
+// the files are never pulled from under a read.
+func (a *archiveStream) Close() error {
+	err := a.reader.Close()
+	<-a.done
+	a.once.Do(a.cleanup)
+	return err
 }
 
 // Symlinks are kept as they are, and so are the modes of the venv of the prebuild: the
