@@ -1216,10 +1216,23 @@ does not know that id before this event.
 
 **Event 'error'**:
 Contains a JSON object with the details of an error. The 200 status is sent with the stream, so
-every later failure is an error event. A models directory with no free space has the code
-'insufficient_storage'.
+every later failure is an error event. "code" names the cause, "message" carries the
+downloader's words:
+
+| code | cause |
+|---|---|
+| invalid_model_url | the URL does not name a Hugging Face GGUF file |
+| model_not_found | the repository, revision or file does not exist |
+| model_private_or_gated | the repository is private or gated |
+| model_disabled | the authors disabled the repository |
+| model_incompatible | quantization or architecture not supported |
+| no_compatible_file | the repository has no GGUF file |
+| hub_unreachable | Hugging Face cannot be reached, or timed out |
+| insufficient_storage | not enough free disk |
+| INTERNAL_SERVER_ERROR | anything else |
+
 'event: error'
-'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
+'data: {"code":"model_not_found","message":"Hugging Face model repository unsloth/nope does not exist, or is not public."}'
 'data: {"code":"insufficient_storage","message":"insufficient storage to install model: model needs 34820885376 bytes, 3690143744 bytes free"}'
 `,
 			},

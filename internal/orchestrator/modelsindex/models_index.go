@@ -13,6 +13,7 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/docker/cli/cli/command"
@@ -618,6 +619,46 @@ var (
 	// publish has already carried to the caller.
 	ErrDownloadReported = errors.New("the download reported an error")
 )
+
+// The Hugging Face handler's failures, as ClassifyHandlerError reads them from its error text.
+var (
+	ErrBadModelURL      = errors.New("invalid model URL")
+	ErrModelNotFound    = errors.New("model not found on the hub")
+	ErrModelForbidden   = errors.New("model is private or gated")
+	ErrModelGone        = errors.New("model repository disabled")
+	ErrUnsupportedModel = errors.New("model not supported on this board")
+	ErrNoCompatibleFile = errors.New("no compatible model file")
+	ErrHubUnreachable   = errors.New("cannot reach the model hub")
+)
+
+var hfErrorPatterns = []struct {
+	contains string
+	err      error
+}{
+	{"Invalid Hugging Face URL:", ErrBadModelURL},
+	{"does not exist, or is not public", ErrModelNotFound}, // repo missing, or private seen anonymously
+	{"is gated", ErrModelForbidden},
+	{"is private", ErrModelForbidden},
+	{"has been disabled by its authors", ErrModelGone},
+	{"contains no GGUF files at all", ErrNoCompatibleFile}, // before "File '": same sentence
+	{"Revision '", ErrModelNotFound},                       // "Revision 'x' does not exist in …"
+	{"File '", ErrModelNotFound},                           // "File 'x' does not exist in …"
+	{"No file matching", ErrModelNotFound},                 // quantization not in the repo
+	{"Not supported quantization", ErrUnsupportedModel},
+	{"Unsupported model architecture", ErrUnsupportedModel},
+	{"Could not verify Hugging Face repository", ErrHubUnreachable}, // network, DNS, proxy, timeout
+}
+
+// ClassifyHandlerError turns a Hugging Face handler's error text into a sentinel. Text no
+// pattern matches comes back as a plain error.
+func ClassifyHandlerError(text string) error {
+	for _, p := range hfErrorPatterns {
+		if strings.Contains(text, p.contains) {
+			return fmt.Errorf("%w: %s", p.err, text)
+		}
+	}
+	return errors.New(text)
+}
 
 func hasSufficientDiskSpace(path *paths.Path, requiredBytes uint64) error {
 	diskStats, err := disk.Usage(path.String())
