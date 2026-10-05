@@ -22,6 +22,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/platform"
+	"github.com/arduino/arduino-app-cli/internal/releasebuild"
 )
 
 func newBuildCmd(cfg config.Configuration) *cobra.Command {
@@ -99,7 +100,7 @@ func buildHandler(ctx context.Context, cfg config.Configuration, appToBuild app.
 
 	var archivePath *paths.Path
 	if output != nil && !output.IsDir() {
-		resolved, err := releaseArchivePath("", output, overwrite)
+		resolved, err := releasebuild.ResolveArchivePath("", output, overwrite)
 		if err != nil {
 			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 		}
@@ -133,7 +134,7 @@ func buildHandler(ctx context.Context, cfg config.Configuration, appToBuild app.
 	// A dir or nothing passed to the --output flag leaves the naming to the build, so the
 	// archive path is known only now.
 	if archivePath == nil {
-		resolved, err := releaseArchivePath(result.FileName, output, overwrite)
+		resolved, err := releasebuild.ResolveArchivePath(result.FileName, output, overwrite)
 		if err != nil {
 			_ = reader.Close()
 			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
@@ -153,27 +154,6 @@ func buildHandler(ctx context.Context, cfg config.Configuration, appToBuild app.
 	return nil
 }
 
-// releaseArchivePath resolves where the archive goes, without creating it. fileName names
-// it when output is a directory or is left out; an output file is taken as it is.
-func releaseArchivePath(fileName string, output *paths.Path, overwrite bool) (*paths.Path, error) {
-	archivePath := paths.New(fileName)
-	if output != nil {
-		archivePath = output
-		if archivePath.IsDir() {
-			archivePath = archivePath.Join(fileName)
-		}
-	}
-	archivePath, err := archivePath.Abs()
-	if err != nil {
-		return nil, err
-	}
-
-	if archivePath.Exist() && !overwrite {
-		return nil, fmt.Errorf("%s already exists", archivePath)
-	}
-	return archivePath, nil
-}
-
 // saveReleaseArchive writes the release stream to the archive, closing the stream so the
 // build staging dir goes with it, and removing a half written archive on failure.
 func saveReleaseArchive(reader io.ReadCloser, archivePath *paths.Path) (err error) {
@@ -187,18 +167,7 @@ func saveReleaseArchive(reader io.ReadCloser, archivePath *paths.Path) (err erro
 		}
 	}()
 
-	file, err := archivePath.Create()
-	if err != nil {
-		return fmt.Errorf("failed to create %s: %w", archivePath, err)
-	}
-	if _, err := io.Copy(file, reader); err != nil {
-		_ = file.Close()
-		return fmt.Errorf("failed to write %s: %w", archivePath, err)
-	}
-	if err := file.Close(); err != nil {
-		return fmt.Errorf("failed to write %s: %w", archivePath, err)
-	}
-	return nil
+	return releasebuild.WriteArchive(reader, archivePath)
 }
 
 // readReleaseNotes is the note the release ships in its manifest: a file, or the

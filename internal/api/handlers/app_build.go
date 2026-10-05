@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -112,7 +111,7 @@ func HandleAppBuild(
 		archivePath := artifactsDir.Join(result.FileName)
 		defer func() { _ = archivePath.Remove() }()
 
-		if err := drainToFile(reader, archivePath); err != nil {
+		if err := releasebuild.WriteArchive(reader, archivePath); err != nil {
 			slog.Error("unable to write the release archive", slog.String("error", err.Error()))
 			broker.PublishError(buildID, render.InternalServiceErr, "unable to write the release archive")
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to write the release archive"})
@@ -125,20 +124,6 @@ func HandleAppBuild(
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename=%q`, result.FileName))
 		http.ServeFile(w, r, archivePath.String())
 	}
-}
-
-// drainToFile writes the release stream to a file, so the archive is served from a
-// complete file and a build never streams a truncated archive onto a 200 response.
-func drainToFile(reader io.Reader, path *paths.Path) error {
-	file, err := path.Create()
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(file, reader); err != nil {
-		_ = file.Close()
-		return err
-	}
-	return file.Close()
 }
 
 // HandleAppBuildEvents streams, as Server-Sent Events, the progress of every
