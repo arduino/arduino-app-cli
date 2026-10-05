@@ -56,7 +56,7 @@ install it without being asked.`,
 					return err
 				}
 				if !yes {
-					feedback.Print("Install cancelled.")
+					feedback.Print("Install canceled.")
 					return nil
 				}
 			}

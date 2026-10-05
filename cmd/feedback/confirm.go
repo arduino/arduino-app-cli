@@ -6,7 +6,8 @@
 package feedback
 
 import (
-	"fmt"
+	"bufio"
+	"errors"
 	"io"
 	"strings"
 )
@@ -14,10 +15,10 @@ import (
 // Confirm prints the question and reads the answer from in.
 func Confirm(question string, in io.Reader) (bool, error) {
 	Print(question)
-	var answer string
-	if _, err := fmt.Fscanf(in, "%s\n", &answer); err != nil {
+	line, err := bufio.NewReader(in).ReadString('\n')
+	if err != nil && (!errors.Is(err, io.EOF) || line == "") {
 		return false, err
 	}
-	answer = strings.ToLower(answer)
+	answer := strings.ToLower(strings.TrimSpace(line))
 	return answer == "yes" || answer == "y", nil
 }
