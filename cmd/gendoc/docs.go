@@ -246,6 +246,57 @@ func NewOpenApiGenerator(version string) *Generator {
 						},
 					},
 				},
+				"Gone": {
+					Response: &openapi3.Response{
+						Description: "Gone",
+						Content: map[string]openapi3.MediaType{
+							"application/json": {
+								Example: new(any(map[string]any{
+									"details": "The resource is no longer available.",
+								})),
+								Schema: &openapi3.SchemaOrRef{
+									SchemaReference: &openapi3.SchemaReference{
+										Ref: ErrorResponseSchema,
+									},
+								},
+							},
+						},
+					},
+				},
+				"UnprocessableEntity": {
+					Response: &openapi3.Response{
+						Description: "Unprocessable Entity",
+						Content: map[string]openapi3.MediaType{
+							"application/json": {
+								Example: new(any(map[string]any{
+									"details": "The request is valid but cannot be processed.",
+								})),
+								Schema: &openapi3.SchemaOrRef{
+									SchemaReference: &openapi3.SchemaReference{
+										Ref: ErrorResponseSchema,
+									},
+								},
+							},
+						},
+					},
+				},
+				"BadGateway": {
+					Response: &openapi3.Response{
+						Description: "Bad Gateway",
+						Content: map[string]openapi3.MediaType{
+							"application/json": {
+								Example: new(any(map[string]any{
+									"details": "An upstream service could not be reached.",
+								})),
+								Schema: &openapi3.SchemaOrRef{
+									SchemaReference: &openapi3.SchemaReference{
+										Ref: ErrorResponseSchema,
+									},
+								},
+							},
+						},
+					},
+				},
 				"Forbidden": {
 					Response: &openapi3.Response{
 						Description: "Forbidden",
@@ -1213,13 +1264,36 @@ every later failure is an error event. A models directory with no free space has
 
 The downloader makes the id from the file that it writes, and reports it in the "done" event. If the internal model list declares that file, the answer is the declared model.
 
-Hugging Face reads the URL at the download only, so a bad URL is an error event. The request is idempotent: the handler does not transfer a file that is on disk again.
+A precheck asks Hugging Face about the model before the stream opens. A failure there is an HTTP error whose "code" names the cause:
+
+| code | status | cause |
+|---|---|---|
+| invalid_model_url | 400 | the URL does not name a Hugging Face GGUF file |
+| model_private_or_gated | 403 | the repository is private or gated |
+| model_not_found | 404 | the repository, revision or file does not exist |
+| install_in_progress | 409 | the same model is downloading |
+| model_disabled | 410 | the authors disabled the repository |
+| model_incompatible | 422 | quantization or architecture not supported |
+| model_too_large | 422 | the model does not fit in the board's RAM |
+| no_compatible_file | 422 | the repository has no GGUF file |
+| hub_unreachable | 502 | Hugging Face cannot be reached, or timed out |
+| insufficient_storage | 507 | not enough free disk |
+
+A failure after the stream opens is an "error" event with the same codes. The request is idempotent: the handler does not transfer a file that is on disk again.
 `,
 			Summary: "Download a LLamaCPP model from Hugging Face",
 			Tags:    []Tag{AIModelsTag},
+			// The precheck's failures, before the stream opens. "code" names the cause.
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusForbidden, Reference: "#/components/responses/Forbidden"},
+				{StatusCode: http.StatusNotFound, Reference: "#/components/responses/NotFound"},
+				{StatusCode: http.StatusConflict, Reference: "#/components/responses/Conflict"},
+				{StatusCode: http.StatusGone, Reference: "#/components/responses/Gone"},
+				{StatusCode: http.StatusUnprocessableEntity, Reference: "#/components/responses/UnprocessableEntity"},
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
+				{StatusCode: http.StatusBadGateway, Reference: "#/components/responses/BadGateway"},
+				{StatusCode: http.StatusInsufficientStorage, Reference: "#/components/responses/InsufficientStorage"},
 			},
 		},
 		{

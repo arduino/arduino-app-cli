@@ -19,6 +19,7 @@ import (
 	"github.com/docker/cli/cli/command"
 	"github.com/moby/moby/client"
 	"github.com/shirou/gopsutil/v4/disk"
+	"github.com/shirou/gopsutil/v4/mem"
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
@@ -549,7 +550,7 @@ func (m *ModelsIndex) precheck(ctx context.Context, cli client.APIClient, model 
 		// no info action: size unknown, carry on
 	case infoErr:
 		if isUser {
-			return fail(classifyInfoError(infoErrText))
+			return fail(ClassifyHandlerError(infoErrText))
 		}
 		return fail(fmt.Errorf("%w: %s", ErrInfoFailed, infoErrText))
 	case err != nil:
@@ -563,7 +564,14 @@ func (m *ModelsIndex) precheck(ctx context.Context, cli client.APIClient, model 
 		}
 	})
 
-	// 4. disk
+	// 4. memory: a user model the board cannot hold in RAM is refused before it lands
+	if isUser && res.SizeBytes > 0 && !res.Installed {
+		if err := fitsInMemory(res.SizeBytes, plat); err != nil {
+			return fail(err)
+		}
+	}
+
+	// 5. disk
 	if res.SizeBytes > 0 && !res.Installed {
 		if err := hasSufficientDiskSpace(m.modelsDir, res.SizeBytes); err != nil {
 			return fail(fmt.Errorf("%w: %w", ErrInsufficientStorage, err))
@@ -580,8 +588,35 @@ var (
 	ErrModelForbidden   = errors.New("model is private or gated")         // 403
 	ErrModelGone        = errors.New("model repository disabled")         // 410
 	ErrUnsupportedModel = errors.New("model not supported on this board") // 422
+	ErrNoCompatibleFile = errors.New("no compatible model file")          // 422
+	ErrModelTooLarge    = errors.New("model too large for this board")    // 422
 	ErrHubUnreachable   = errors.New("cannot reach the model hub")        // 502
 )
+
+// maxModelMemFraction is the share of RAM a model file may take: the rest is the KV cache,
+// llama.cpp itself and the OS.
+const maxModelMemFraction = 0.75
+
+// totalMemory is a var so tests can fake the board.
+var totalMemory = func() (uint64, error) {
+	v, err := mem.VirtualMemory()
+	if err != nil {
+		return 0, err
+	}
+	return v.Total, nil
+}
+
+func fitsInMemory(sizeBytes uint64, plat platform.Platform) error {
+	total, err := totalMemory()
+	if err != nil {
+		slog.Warn("cannot read total memory, skipping model size check", "err", err)
+		return nil
+	}
+	if limit := uint64(float64(total) * maxModelMemFraction); sizeBytes > limit {
+		return fmt.Errorf("%w: %s: model is %d bytes, limit %d bytes of %d", ErrModelTooLarge, plat.BoardName, sizeBytes, limit, total)
+	}
+	return nil
+}
 
 // Install fetches the model id names in the internal model list and answers with it as
 // installed. The declaration describes it; only the size comes from what landed.
@@ -778,14 +813,18 @@ var infoErrorPatterns = []struct {
 	{"is gated", ErrModelForbidden},
 	{"is private", ErrModelForbidden},
 	{"has been disabled by its authors", ErrModelGone},
-	{"Revision '", ErrModelNotFound},       // "Revision 'x' does not exist in …"
-	{"File '", ErrModelNotFound},           // "File 'x' does not exist in …"
-	{"No file matching", ErrModelNotFound}, // quantization not in the repo
+	{"contains no GGUF files at all", ErrNoCompatibleFile}, // before "File '": same sentence
+	{"Revision '", ErrModelNotFound},                       // "Revision 'x' does not exist in …"
+	{"File '", ErrModelNotFound},                           // "File 'x' does not exist in …"
+	{"No file matching", ErrModelNotFound},                 // quantization not in the repo
 	{"Not supported quantization", ErrUnsupportedModel},
+	{"Unsupported model architecture", ErrUnsupportedModel},
 	{"Could not verify Hugging Face repository", ErrHubUnreachable}, // network, DNS, proxy
 }
 
-func classifyInfoError(text string) error {
+// ClassifyHandlerError turns a Hugging Face handler's error text into a sentinel, wrapping
+// ErrInfoFailed when no pattern matches.
+func ClassifyHandlerError(text string) error {
 	for _, p := range infoErrorPatterns {
 		if strings.Contains(text, p.contains) {
 			return fmt.Errorf("%w: %s", p.err, text)

@@ -1262,7 +1262,22 @@ paths:
 
         The downloader makes the id from the file that it writes, and reports it in the "done" event. If the internal model list declares that file, the answer is the declared model.
 
-        Hugging Face reads the URL at the download only, so a bad URL is an error event. The request is idempotent: the handler does not transfer a file that is on disk again.
+        A precheck asks Hugging Face about the model before the stream opens. A failure there is an HTTP error whose "code" names the cause:
+
+        | code | status | cause |
+        |---|---|---|
+        | invalid_model_url | 400 | the URL does not name a Hugging Face GGUF file |
+        | model_private_or_gated | 403 | the repository is private or gated |
+        | model_not_found | 404 | the repository, revision or file does not exist |
+        | install_in_progress | 409 | the same model is downloading |
+        | model_disabled | 410 | the authors disabled the repository |
+        | model_incompatible | 422 | quantization or architecture not supported |
+        | model_too_large | 422 | the model does not fit in the board's RAM |
+        | no_compatible_file | 422 | the repository has no GGUF file |
+        | hub_unreachable | 502 | Hugging Face cannot be reached, or timed out |
+        | insufficient_storage | 507 | not enough free disk |
+
+        A failure after the stream opens is an "error" event with the same codes. The request is idempotent: the handler does not transfer a file that is on disk again.
       operationId: downloadModel
       requestBody:
         content:
@@ -1305,8 +1320,22 @@ paths:
             'data: {"code":"insufficient_storage","message":"insufficient disk space to install model"}'
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "410":
+          $ref: '#/components/responses/Gone'
+        "422":
+          $ref: '#/components/responses/UnprocessableEntity'
         "500":
           $ref: '#/components/responses/InternalServerError'
+        "502":
+          $ref: '#/components/responses/BadGateway'
+        "507":
+          $ref: '#/components/responses/InsufficientStorage'
       summary: Download a LLamaCPP model from Hugging Face
       tags:
       - AIModels
@@ -1754,6 +1783,14 @@ paths:
       - Application
 components:
   responses:
+    BadGateway:
+      content:
+        application/json:
+          example:
+            details: An upstream service could not be reached.
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      description: Bad Gateway
     BadRequest:
       content:
         application/json:
@@ -1778,6 +1815,14 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
       description: Forbidden
+    Gone:
+      content:
+        application/json:
+          example:
+            details: The resource is no longer available.
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      description: Gone
     InsufficientStorage:
       content:
         application/json:
@@ -1826,6 +1871,14 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
       description: Unauthorized
+    UnprocessableEntity:
+      content:
+        application/json:
+          example:
+            details: The request is valid but cannot be processed.
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      description: Unprocessable Entity
   schemas:
     AIModel:
       properties:

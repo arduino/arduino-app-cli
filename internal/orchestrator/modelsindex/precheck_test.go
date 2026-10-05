@@ -6,6 +6,7 @@
 package modelsindex
 
 import (
+	"math"
 	"strings"
 	"testing"
 
@@ -45,9 +46,9 @@ func TestParseInfoLine(t *testing.T) {
 	}
 }
 
-// TestClassifyInfoError uses the sentences hf_downloader.py prints today, whole, so a
+// TestClassifyHandlerError uses the sentences hf_downloader.py prints today, whole, so a
 // rewording on the container side shows up here as a row falling to ErrInfoFailed.
-func TestClassifyInfoError(t *testing.T) {
+func TestClassifyHandlerError(t *testing.T) {
 	tests := []struct {
 		text string
 		want error
@@ -58,15 +59,16 @@ func TestClassifyInfoError(t *testing.T) {
 		{"Hugging Face repository 'a/b' is private. Only public model repositories can be downloaded.", ErrModelForbidden},
 		{"Hugging Face repository 'a/b' has been disabled by its authors.", ErrModelGone},
 		{"Revision 'x' does not exist in Hugging Face repository 'a/b'.", ErrModelNotFound},
-		{"File 'm.gguf' does not exist in Hugging Face repository 'a/b', which contains no GGUF files at all.", ErrModelNotFound},
+		{"File 'm.gguf' does not exist in Hugging Face repository 'a/b', which contains no GGUF files at all.", ErrNoCompatibleFile},
 		{"No file matching '*Q4_0*.gguf' found in repository 'a/b'.", ErrModelNotFound},
 		{"Cannot download model. Not supported quantization: Q2_K.", ErrUnsupportedModel},
+		{"Unsupported model architecture 'bert' in Hugging Face repository 'a/b'.", ErrUnsupportedModel},
 		{"Could not verify Hugging Face repository 'a/b': connection refused", ErrHubUnreachable},
 		{"something nobody has seen before", ErrInfoFailed},
 	}
 	for _, tc := range tests {
 		t.Run(tc.text, func(t *testing.T) {
-			err := classifyInfoError(tc.text)
+			err := ClassifyHandlerError(tc.text)
 			require.ErrorIs(t, err, tc.want)
 			assert.Contains(t, err.Error(), tc.text, "the container's words reach the user")
 		})
@@ -106,6 +108,22 @@ func TestPrecheck(t *testing.T) {
 		require.NoError(t, err)
 		defer unlock()
 		assert.Equal(t, PrecheckResult{SizeBytes: 1024}, res)
+	})
+
+	t.Run("bigger than the board's RAM allows: too large, before the disk check", func(t *testing.T) {
+		orig := totalMemory
+		t.Cleanup(func() { totalMemory = orig })
+		totalMemory = func() (uint64, error) { return 1000, nil }
+
+		idx, cli := newIndex(t, `{"event":"stat","size_bytes":751}`, notInstalled, 1)
+		_, _, err := idx.PrecheckDownload(t.Context(), cli, url, "", plat)
+		require.ErrorIs(t, err, ErrModelTooLarge)
+		assert.Contains(t, err.Error(), "ventunoq")
+
+		idx, cli = newIndex(t, `{"event":"stat","size_bytes":750}`, notInstalled, 1)
+		unlock, _, err := idx.PrecheckDownload(t.Context(), cli, url, "", plat)
+		require.NoError(t, err, "at the limit still fits")
+		unlock()
 	})
 
 	t.Run("info fails: classified, and the lock released", func(t *testing.T) {
@@ -164,6 +182,10 @@ func TestPrecheck(t *testing.T) {
 	})
 
 	t.Run("bigger than the free space: ErrInsufficientStorage, lock released", func(t *testing.T) {
+		orig := totalMemory
+		t.Cleanup(func() { totalMemory = orig })
+		totalMemory = func() (uint64, error) { return math.MaxUint64, nil }
+
 		idx, cli := newIndex(t, `{"event":"stat","size_bytes":1152921504606846976}`, notInstalled, 1) // 1 EiB
 		_, _, err := idx.PrecheckDownload(t.Context(), cli, url, "", plat)
 		require.ErrorIs(t, err, ErrInsufficientStorage)

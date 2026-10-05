@@ -6,6 +6,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -96,6 +97,17 @@ func TestDownloadStream(t *testing.T) {
 		assert.Equal(t, render.SSEErrorData{
 			Code: render.InternalServiceErr, Message: "repository does not exist",
 		}, sse.errors[0])
+	})
+
+	t.Run("a Hugging Face error line carries its own code", func(t *testing.T) {
+		// Hugging Face can fail after the precheck too, e.g. unreachable mid-download.
+		sse := &fakeSSE{}
+		stream := &downloadStream{sse: sse}
+
+		stream.publish(modelsindex.NewErrorMessage("Could not verify Hugging Face repository 'a/b': timed out"))
+
+		require.Len(t, sse.errors, 1)
+		assert.Equal(t, render.SSEErrCode("hub_unreachable"), sse.errors[0].Code)
 	})
 
 	t.Run("the handler's own done line is a message, not the route's done", func(t *testing.T) {
@@ -377,27 +389,33 @@ func TestDownloadStreamInstallInProgress(t *testing.T) {
 
 func TestWriteModelError(t *testing.T) {
 	tests := []struct {
-		err  error
-		want int
+		err    error
+		status int
+		code   string
 	}{
-		{modelsindex.ErrUnknownModel, http.StatusNotFound},
-		{modelsindex.ErrInstallInProgress, http.StatusConflict},
-		{modelsindex.ErrInsufficientStorage, http.StatusInsufficientStorage},
-		{modelsindex.ErrBadModelURL, http.StatusBadRequest},
-		{modelsindex.ErrModelNotFound, http.StatusNotFound},
-		{modelsindex.ErrModelForbidden, http.StatusForbidden},
-		{modelsindex.ErrModelGone, http.StatusGone},
-		{modelsindex.ErrUnsupportedModel, http.StatusUnprocessableEntity},
-		{modelsindex.ErrHubUnreachable, http.StatusBadGateway},
-		{modelsindex.ErrInfoFailed, http.StatusInternalServerError},
-		{errors.New("anything else"), http.StatusInternalServerError},
+		{modelsindex.ErrUnknownModel, http.StatusNotFound, "model_unknown"},
+		{modelsindex.ErrInstallInProgress, http.StatusConflict, "install_in_progress"},
+		{modelsindex.ErrInsufficientStorage, http.StatusInsufficientStorage, "insufficient_storage"},
+		{modelsindex.ErrBadModelURL, http.StatusBadRequest, "invalid_model_url"},
+		{modelsindex.ErrModelNotFound, http.StatusNotFound, "model_not_found"},
+		{modelsindex.ErrModelForbidden, http.StatusForbidden, "model_private_or_gated"},
+		{modelsindex.ErrModelGone, http.StatusGone, "model_disabled"},
+		{modelsindex.ErrUnsupportedModel, http.StatusUnprocessableEntity, "model_incompatible"},
+		{modelsindex.ErrModelTooLarge, http.StatusUnprocessableEntity, "model_too_large"},
+		{modelsindex.ErrNoCompatibleFile, http.StatusUnprocessableEntity, "no_compatible_file"},
+		{modelsindex.ErrHubUnreachable, http.StatusBadGateway, "hub_unreachable"},
+		{modelsindex.ErrInfoFailed, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR"},
+		{errors.New("anything else"), http.StatusInternalServerError, "INTERNAL_SERVER_ERROR"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.err.Error(), func(t *testing.T) {
 			rec := httptest.NewRecorder()
 			writeModelError(rec, fmt.Errorf("wrapped: %w", tc.err))
-			assert.Equal(t, tc.want, rec.Code)
-			assert.Contains(t, rec.Body.String(), tc.err.Error())
+			assert.Equal(t, tc.status, rec.Code)
+			var body models.ErrorResponse
+			require.NoError(t, json.NewDecoder(rec.Body).Decode(&body))
+			assert.Equal(t, tc.code, body.Code, "the UI picks its message by code")
+			assert.Contains(t, body.Details, tc.err.Error())
 		})
 	}
 }

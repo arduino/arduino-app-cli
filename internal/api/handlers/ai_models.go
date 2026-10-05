@@ -335,7 +335,8 @@ func (d *downloadStream) publish(e modelsindex.StreamMessage) {
 			Name: p.Name, Current: p.Current, Total: p.Total, Progress: progress,
 		}})
 	case modelsindex.ErrorType:
-		d.sse.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: e.GetError()})
+		_, code := modelErrorStatus(modelsindex.ClassifyHandlerError(e.GetError()))
+		d.sse.SendError(render.SSEErrorData{Code: render.SSEErrCode(code), Message: e.GetError()})
 	case modelsindex.DoneType:
 		d.sse.Send(render.SSEEvent{Type: "message", Data: sseLog{Message: e.GetDone()}})
 	}
@@ -347,38 +348,40 @@ func (d *downloadStream) sendError(err error) {
 		slog.Error("download reported an error", "err", err)
 		return
 	}
-	if errors.Is(err, modelsindex.ErrInsufficientStorage) {
-		d.sse.SendError(render.SSEErrorData{Code: "insufficient_storage", Message: err.Error()})
-		return
+	_, code := modelErrorStatus(err)
+	d.sse.SendError(render.SSEErrorData{Code: render.SSEErrCode(code), Message: err.Error()})
+}
+
+// modelErrors gives each model failure its HTTP status and a stable code the UI maps to
+// its own message. Order matters: the first match wins.
+var modelErrors = []struct {
+	err    error
+	status int
+	code   string
+}{
+	{modelsindex.ErrUnknownModel, http.StatusNotFound, "model_unknown"},
+	{modelsindex.ErrInstallInProgress, http.StatusConflict, "install_in_progress"},
+	{modelsindex.ErrInsufficientStorage, http.StatusInsufficientStorage, "insufficient_storage"},
+	{modelsindex.ErrBadModelURL, http.StatusBadRequest, "invalid_model_url"},
+	{modelsindex.ErrModelNotFound, http.StatusNotFound, "model_not_found"},
+	{modelsindex.ErrModelForbidden, http.StatusForbidden, "model_private_or_gated"},
+	{modelsindex.ErrModelGone, http.StatusGone, "model_disabled"},
+	{modelsindex.ErrUnsupportedModel, http.StatusUnprocessableEntity, "model_incompatible"},
+	{modelsindex.ErrModelTooLarge, http.StatusUnprocessableEntity, "model_too_large"},
+	{modelsindex.ErrNoCompatibleFile, http.StatusUnprocessableEntity, "no_compatible_file"},
+	{modelsindex.ErrHubUnreachable, http.StatusBadGateway, "hub_unreachable"},
+}
+
+func modelErrorStatus(err error) (int, string) {
+	for _, e := range modelErrors {
+		if errors.Is(err, e.err) {
+			return e.status, e.code
+		}
 	}
-	if errors.Is(err, modelsindex.ErrInstallInProgress) {
-		d.sse.SendError(render.SSEErrorData{Code: "install_in_progress", Message: err.Error()})
-		return
-	}
-	d.sse.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: err.Error()})
+	return http.StatusInternalServerError, string(render.InternalServiceErr)
 }
 
 func writeModelError(w http.ResponseWriter, err error) {
-	status := http.StatusInternalServerError
-	switch {
-	case errors.Is(err, modelsindex.ErrUnknownModel):
-		status = http.StatusNotFound
-	case errors.Is(err, modelsindex.ErrInstallInProgress):
-		status = http.StatusConflict
-	case errors.Is(err, modelsindex.ErrInsufficientStorage):
-		status = http.StatusInsufficientStorage
-	case errors.Is(err, modelsindex.ErrBadModelURL):
-		status = http.StatusBadRequest
-	case errors.Is(err, modelsindex.ErrModelNotFound):
-		status = http.StatusNotFound
-	case errors.Is(err, modelsindex.ErrModelForbidden):
-		status = http.StatusForbidden
-	case errors.Is(err, modelsindex.ErrModelGone):
-		status = http.StatusGone
-	case errors.Is(err, modelsindex.ErrUnsupportedModel):
-		status = http.StatusUnprocessableEntity
-	case errors.Is(err, modelsindex.ErrHubUnreachable):
-		status = http.StatusBadGateway
-	}
-	render.EncodeResponse(w, status, models.ErrorResponse{Details: err.Error()})
+	status, code := modelErrorStatus(err)
+	render.EncodeResponse(w, status, models.ErrorResponse{Code: code, Details: err.Error()})
 }
