@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -55,15 +56,20 @@ func detailsHandler(ctx context.Context, cfg config.Configuration, arduinoApp ap
 }
 
 type appDetailsResult struct {
-	ID          string              `json:"id"`
-	Name        string              `json:"name"`
-	Path        string              `json:"path"`
-	Description string              `json:"description"`
-	Icon        string              `json:"icon"`
-	Status      orchestrator.Status `json:"status"`
-	Example     bool                `json:"example"`
-	Default     bool                `json:"default"`
-	Bricks      []appDetailsBrick   `json:"bricks"`
+	ID           string              `json:"id"`
+	Name         string              `json:"name"`
+	Path         string              `json:"path"`
+	Description  string              `json:"description"`
+	Icon         string              `json:"icon"`
+	Status       orchestrator.Status `json:"status"`
+	Example      bool                `json:"example"`
+	Default      bool                `json:"default"`
+	Release      bool                `json:"release"`
+	ReleaseID    string              `json:"release_id,omitempty"`
+	ReleaseLabel string              `json:"release_label,omitempty"`
+	CreatedAt    *time.Time          `json:"created_at,omitempty"`
+	Notes        string              `json:"notes,omitempty"`
+	Bricks       []appDetailsBrick   `json:"bricks"`
 }
 
 type appDetailsBrick struct {
@@ -87,15 +93,20 @@ func newAppDetailsResult(
 	bricksIndex *bricksindex.BricksIndex,
 ) appDetailsResult {
 	result := appDetailsResult{
-		ID:          details.ID.String(),
-		Name:        details.Name,
-		Path:        details.Path,
-		Description: details.Description,
-		Icon:        details.Icon,
-		Status:      details.Status,
-		Example:     details.Example,
-		Default:     details.Default,
-		Bricks:      make([]appDetailsBrick, len(arduinoApp.Descriptor.Bricks)),
+		ID:           details.ID.String(),
+		Name:         details.Name,
+		Path:         details.Path,
+		Description:  details.Description,
+		Icon:         details.Icon,
+		Status:       details.Status,
+		Example:      details.Example,
+		Default:      details.Default,
+		Release:      details.Release,
+		ReleaseID:    details.ReleaseID,
+		ReleaseLabel: details.ReleaseLabel,
+		CreatedAt:    details.CreatedAt,
+		Notes:        details.Notes,
+		Bricks:       make([]appDetailsBrick, len(arduinoApp.Descriptor.Bricks)),
 	}
 
 	index := arduinoApp.Bricks(bricksIndex)
@@ -133,6 +144,22 @@ func (r appDetailsResult) String() string {
 	}
 	fmt.Fprintf(&out, "Path: %s\nStatus: %s\n", r.Path, r.Status)
 	fmt.Fprintf(&out, "Example: %t\nDefault: %t\n", r.Example, r.Default)
+
+	if r.Release {
+		out.WriteString("Release:\n")
+		if r.ReleaseID != "" {
+			fmt.Fprintf(&out, "  Release ID: %s\n", r.ReleaseID)
+		}
+		if r.ReleaseLabel != "" {
+			fmt.Fprintf(&out, "  Release Label: %s\n", r.ReleaseLabel)
+		}
+		if r.CreatedAt != nil {
+			fmt.Fprintf(&out, "  Created At: %s\n", r.CreatedAt.Format(time.RFC3339))
+		}
+		if r.Notes != "" {
+			fmt.Fprintf(&out, "  Notes: %s\n", r.Notes)
+		}
+	}
 
 	out.WriteString("\nBricks:\n")
 	if len(r.Bricks) == 0 {
