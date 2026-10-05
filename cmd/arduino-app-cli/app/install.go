@@ -24,6 +24,7 @@ import (
 
 func newInstallCmd(cfg config.Configuration) *cobra.Command {
 	var noPrepare bool
+	var forceYes bool
 	cmd := &cobra.Command{
 		Use:   "install release_path",
 		Short: "Install an Arduino App release archive",
@@ -42,7 +43,20 @@ release alone, and prepare it later with 'start --prepare'.`,
 			if len(args) == 0 {
 				return cmd.Help()
 			}
-			installHandler(cmd.Context(), cfg, paths.New(args[0]), !noPrepare)
+			archive := paths.New(args[0])
+			if !forceYes {
+				question := fmt.Sprintf("WARNING: you are going to install third-party code from '%s'.\n"+
+					"Are you sure? (yes/no)", archive.Base())
+				yes, err := feedback.Confirm(question, feedback.GetStdin())
+				if err != nil {
+					return err
+				}
+				if !yes {
+					feedback.Print("Install cancelled.")
+					return nil
+				}
+			}
+			installHandler(cmd.Context(), cfg, archive, !noPrepare)
 			return nil
 		},
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -54,6 +68,7 @@ release alone, and prepare it later with 'start --prepare'.`,
 	}
 
 	cmd.Flags().BoolVar(&noPrepare, "no-prepare", false, "Install the release alone, without downloading its containers and its models")
+	cmd.Flags().BoolVar(&forceYes, "yes", false, "Install without asking for confirmation")
 
 	return cmd
 }
