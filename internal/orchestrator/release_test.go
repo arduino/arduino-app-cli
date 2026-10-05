@@ -78,7 +78,10 @@ func TestWriteReleaseArchive(t *testing.T) {
 	require.NoError(t, os.Symlink("../../../../usr/bin/python3", venvLink.String()))
 
 	archivePath := paths.New(t.TempDir()).Join("my-app-1.0.0-unoq" + release.ReleaseArchiveExt)
-	require.NoError(t, writeReleaseArchive(releaseDir, archivePath))
+	file, err := archivePath.Create()
+	require.NoError(t, err)
+	require.NoError(t, writeReleaseArchiveTo(releaseDir, file))
+	require.NoError(t, file.Close())
 
 	headers := readArchiveHeaders(t, archivePath)
 	names := make([]string, 0, len(headers))

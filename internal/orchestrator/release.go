@@ -558,29 +558,38 @@ func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platfo
 	return nil
 }
 
-// writeReleaseArchive writes releaseDir as a gzipped tar rooted at its own name.
-// Symlinks are kept as they are, and so are the modes of the venv of the prebuild: the
-// rest is normalized, so that the archive does not carry the umask of the build machine.
+// writeReleaseArchive writes the release archive to a file, removing a half written one
+// so a build never leaves a truncated archive reported as a good one.
 func writeReleaseArchive(releaseDir *paths.Path, archivePath *paths.Path) (err error) {
 	file, err := archivePath.Create()
 	if err != nil {
 		return fmt.Errorf("failed to create %s: %w", archivePath, err)
 	}
-
-	gzipWriter := gzip.NewWriter(file)
-	tarWriter := tar.NewWriter(gzipWriter)
-	// A close writes the footer of what it wraps, so a dropped error is a truncated
-	// archive reported as a good one.
 	defer func() {
-		for _, closer := range []io.Closer{tarWriter, gzipWriter, file} {
-			if closeErr := closer.Close(); closeErr != nil && err == nil {
-				err = closeErr
-			}
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = closeErr
 		}
 		if err != nil {
 			// Do not leave a half written archive behind.
 			_ = archivePath.Remove()
 			err = fmt.Errorf("failed to write %s: %w", archivePath, err)
+		}
+	}()
+	return writeReleaseArchiveTo(releaseDir, file)
+}
+
+// Symlinks are kept as they are, and so are the modes of the venv of the prebuild: the
+// rest is normalized, so that the archive does not carry the umask of the build machine.
+func writeReleaseArchiveTo(releaseDir *paths.Path, w io.Writer) (err error) {
+	gzipWriter := gzip.NewWriter(w)
+	tarWriter := tar.NewWriter(gzipWriter)
+	// A close writes the footer of what it wraps, so a dropped error is a truncated
+	// archive reported as a good one.
+	defer func() {
+		for _, closer := range []io.Closer{tarWriter, gzipWriter} {
+			if closeErr := closer.Close(); closeErr != nil && err == nil {
+				err = closeErr
+			}
 		}
 	}()
 
