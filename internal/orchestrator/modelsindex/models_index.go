@@ -479,9 +479,37 @@ func (m *ModelsIndex) PrecheckInstall(ctx context.Context, docker command.Cli, i
 	return m.precheck(ctx, docker.Client(), *model, id, false, plat)
 }
 
-// PrecheckDownload is PrecheckInstall for a Hugging Face download by link.
+// PrecheckDownload is PrecheckInstall for a Hugging Face download by link. Files on disk
+// are not enough to call it installed: a download stopped after its file landed but
+// before its record was written leaves a file the listing ignores and the API cannot
+// delete. Only a listed model recorded from this link counts; anything else downloads
+// again, and the downloader clears the leftover first.
 func (m *ModelsIndex) PrecheckDownload(ctx context.Context, cli client.APIClient, modelURL, mmprojURL string, plat platform.Platform) (func(), PrecheckResult, error) {
-	return m.precheck(ctx, cli, userHFModel(modelURL, mmprojURL, plat), modelURL, true, plat)
+	unlock, res, err := m.precheck(ctx, cli, userHFModel(modelURL, mmprojURL, plat), modelURL, true, plat)
+	if err != nil || !res.Installed {
+		return unlock, res, err
+	}
+	recorded, err := m.listedFromSource(ctx, modelURL)
+	if err != nil {
+		unlock()
+		return func() {}, PrecheckResult{}, err
+	}
+	if !recorded {
+		slog.Warn("model file found without a download record, downloading again", "url", modelURL)
+		res.Installed = false
+	}
+	return unlock, res, nil
+}
+
+// listedFromSource reports whether the listing holds a model recorded from url.
+func (m *ModelsIndex) listedFromSource(ctx context.Context, url string) (bool, error) {
+	models, err := m.NewLookup().All(ctx)
+	if err != nil {
+		return false, err
+	}
+	return slices.ContainsFunc(models, func(v AIModel) bool {
+		return v.Metadata["source-model-url"] == url
+	}), nil
 }
 
 func (m *ModelsIndex) precheck(ctx context.Context, cli client.APIClient, model AIModel, key string, isUser bool, plat platform.Platform) (func(), PrecheckResult, error) {

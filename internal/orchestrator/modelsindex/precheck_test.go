@@ -77,10 +77,13 @@ func TestClassifyInfoError(t *testing.T) {
 func TestPrecheck(t *testing.T) {
 	const url = "llamacpp:org/repo:Q4_0"
 	plat := platform.Platform{BoardName: "ventunoq"}
-	newIndex := func(t *testing.T, info, check string, checkExit int) (*ModelsIndex, *fakeDockerClient) {
+	// listing is what the listing container reports: none by default.
+	newIndex := func(t *testing.T, info, check string, checkExit int, listing ...string) (*ModelsIndex, *fakeDockerClient) {
 		t.Helper()
 		cli := newFakeDockerClient(func(_ string, cmd []string) (string, int) {
 			switch {
+			case len(cmd) > 0 && cmd[0] == listModelsCmd:
+				return listingWith(listing...), 0
 			case len(cmd) > 0 && strings.Contains(cmd[0], "_info.sh"):
 				return info + "\n", 0
 			case len(cmd) > 0 && strings.Contains(cmd[0], "_checker.sh"):
@@ -121,9 +124,32 @@ func TestPrecheck(t *testing.T) {
 		assert.NotErrorIs(t, err, ErrModelForbidden)
 	})
 
-	t.Run("already on disk: Installed", func(t *testing.T) {
-		idx, cli := newIndex(t, `{"event":"stat","size_bytes":1024}`, `{"event":"info","description":"Model exists","downloading":false}`, 0)
+	const exists = `{"event":"info","description":"Model exists","downloading":false}`
+
+	t.Run("on disk and recorded from this link: Installed", func(t *testing.T) {
+		// downloadedEntry's record names this very link as its model_url.
+		idx, cli := newIndex(t, `{"event":"stat","size_bytes":1024}`, exists, 0, downloadedEntry)
 		unlock, res, err := idx.PrecheckDownload(t.Context(), cli, url, "", plat)
+		require.NoError(t, err)
+		defer unlock()
+		assert.True(t, res.Installed)
+	})
+
+	t.Run("on disk but no record of it: a leftover, download again", func(t *testing.T) {
+		// Seen on a board: a download stopped after its file landed, before its record.
+		// check finds the file, the listing does not list it, so a 409 "already
+		// installed" would refuse a model nobody can see or delete.
+		idx, cli := newIndex(t, `{"event":"stat","size_bytes":1024}`, exists, 0)
+		unlock, res, err := idx.PrecheckDownload(t.Context(), cli, url, "", plat)
+		require.NoError(t, err)
+		defer unlock()
+		assert.False(t, res.Installed)
+	})
+
+	t.Run("a curated install is not confirmed against the listing", func(t *testing.T) {
+		// Curated models are listed from their declaration, record or not: check is enough.
+		idx, cli := newIndex(t, `{"event":"stat","size_bytes":1024}`, exists, 0)
+		unlock, res, err := idx.precheck(t.Context(), cli, userHFModel(url, "", plat), "curated-key", false, plat)
 		require.NoError(t, err)
 		defer unlock()
 		assert.True(t, res.Installed)
