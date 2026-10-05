@@ -48,6 +48,10 @@ install it without being asked.`,
 				return cmd.Help()
 			}
 			archive := paths.New(args[0])
+			// The archive is checked before asking, not to confirm an install that cannot start.
+			if archive.NotExist() {
+				feedback.Fatal(fmt.Sprintf("%s: %s not found", orchestrator.ErrBadRequest, archive), feedback.ErrBadArgument)
+			}
 			if !forceYes {
 				question := fmt.Sprintf("WARNING: you are going to install third-party code from '%s'.\n"+
 					"Are you sure? (yes/no)", archive.Base())
