@@ -53,8 +53,9 @@ install it without being asked.`,
 				feedback.Fatal(fmt.Sprintf("%s: %s not found", orchestrator.ErrBadRequest, archive), feedback.ErrBadArgument)
 			}
 			if !forceYes {
-				question := fmt.Sprintf("WARNING: you are going to install third-party code from '%s'.\n"+
-					"Are you sure? (yes/no)", archive.Base())
+				question := fmt.Sprintf("WARNING: '%s' can run any command on this device, with full access to the system.\n"+
+					"Only install App Releases from sources you trust.\n"+
+					"Do you want to continue? (yes/no)", archive.Base())
 				yes, err := feedback.Confirm(question, feedback.GetStdin())
 				if err != nil {
 					return err
