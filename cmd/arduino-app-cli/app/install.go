@@ -37,7 +37,11 @@ for this board, and it is named after the release, date included.
 
 The install then downloads what the release needs to run, its containers and its
 models, which a start would otherwise wait for. Pass --no-prepare to install the
-release alone, and prepare it later with 'start --prepare'.`,
+release alone, and prepare it later with 'start --prepare'.
+
+A release can run commands on this device, so the install asks for a
+confirmation first. Install a release only from trusted sources. Pass --yes to
+install it without being asked.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
