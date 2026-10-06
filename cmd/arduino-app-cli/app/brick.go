@@ -150,7 +150,7 @@ func (r brickConfigResult) String() string {
 	if r.Model != "" {
 		changed = append(changed, "model "+r.Model)
 	}
-	return fmt.Sprintf("✓ Set %s on brick %s", strings.Join(changed, " and "), r.Brick)
+	return fmt.Sprintf("✓ Updated %s on brick %s", strings.Join(changed, " and "), r.Brick)
 }
 
 func (r brickConfigResult) Data() any {

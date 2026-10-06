@@ -466,7 +466,11 @@ func (s *Service) BrickUpdate(
 		if isRelease {
 			return fmt.Errorf("%w: %q is not a secret", ErrReleaseSecretsOnly, name)
 		}
-		brickVariables[name] = updateValue
+		if updateValue == "" {
+			delete(brickVariables, name)
+		} else {
+			brickVariables[name] = updateValue
+		}
 	}
 
 	if !isRelease {
