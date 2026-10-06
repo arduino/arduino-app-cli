@@ -162,7 +162,7 @@ func BuildRelease(
 		CreatedAt:    now,
 		Notes:        req.Notes,
 		Bricks:       releaseBricks(appToBuild.Descriptor),
-		Models:       releaseModels(ctx, appToBuild.Descriptor, bricksIndex, modelsIndex),
+		Models:       releaseModels(appToBuild.Descriptor, bricksIndex),
 		Libraries:    releaseLibraries(ctx, appToBuild),
 	}
 	if err := writeReleaseManifest(releaseDir, manifest); err != nil {
@@ -305,33 +305,25 @@ func stageReleaseIndexes(
 }
 
 // releaseBricks is the bricks of the app and the model each is wired with.
-func releaseBricks(descriptor app.AppDescriptor) []ReleaseBrick {
-	return f.Map(descriptor.Bricks, func(brick app.Brick) ReleaseBrick {
-		return ReleaseBrick{ID: brick.ID, Model: brick.Model}
+func releaseBricks(descriptor app.AppDescriptor) []string {
+	return f.Map(descriptor.Bricks, func(brick app.Brick) string {
+		return brick.ID
 	})
 }
 
 // releaseModels is the AI models the bricks of the app are wired with, each stated once.
-func releaseModels(ctx context.Context, descriptor app.AppDescriptor, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex) []ReleaseModel {
-	lookup := modelsIndex.NewLookup()
-
-	models := make([]ReleaseModel, 0, len(descriptor.Bricks))
+func releaseModels(descriptor app.AppDescriptor, bricksIndex *bricksindex.BricksIndex) []string {
+	models := make([]string, 0, len(descriptor.Bricks))
 	for _, brick := range descriptor.Bricks {
 		definition, found := bricksIndex.FindBrickByID(brick.ID)
 		if !found {
 			continue
 		}
 		modelID := selectedModelID(brick, definition)
-		if modelID == "" || slices.ContainsFunc(models, func(m ReleaseModel) bool { return m.ID == modelID }) {
+		if modelID == "" || slices.Contains(models, modelID) {
 			continue
 		}
-		model := ReleaseModel{ID: modelID}
-		if found, err := lookup.ByID(ctx, modelID); err != nil {
-			slog.Warn("cannot name the model of a brick in the release manifest", slog.String("model_id", modelID), slog.String("error", err.Error()))
-		} else if found != nil {
-			model.Name = found.Name
-		}
-		models = append(models, model)
+		models = append(models, modelID)
 	}
 	return models
 }
@@ -624,12 +616,17 @@ func writeReleaseArchiveTo(releaseDir *paths.Path, w io.Writer) (err error) {
 			return err
 		}
 
-		// The manifest goes right after the release folder the archive is rooted at, so
-		// that a reader gets the release facts from the first block.
-		manifest := releaseDir.Join(app.ReleaseManifestFileName)
-		entries = slices.DeleteFunc(entries, func(p *paths.Path) bool { return p.EqualsTo(manifest) })
+		// Write metadata on the top, so we can read these files without full decompression.
+		priority := paths.PathList{
+			releaseDir.Join(app.ReleaseManifestFileName),
+			releaseDir.Join(release.BricksListFileName),
+			releaseDir.Join(release.ModelsListFileName),
+		}
+		entries = slices.DeleteFunc(entries, func(p *paths.Path) bool {
+			return slices.ContainsFunc(priority, p.EqualsTo)
+		})
 
-		for _, entry := range append(paths.PathList{releaseDir, manifest}, entries...) {
+		for _, entry := range append(append(paths.PathList{releaseDir}, priority...), entries...) {
 			info, err := entry.Lstat()
 			if err != nil {
 				return err

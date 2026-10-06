@@ -67,16 +67,16 @@ func PrepareRelease(
 	if err != nil {
 		return fmt.Errorf("cannot read the models the release ships: %w", err)
 	}
-	for i, model := range manifest.Models {
+	for i, modelId := range manifest.Models {
 		done := 50.0 + 50.0*float32(i)/float32(len(manifest.Models))
-		cb(StreamMessage{data: "downloading the model " + model.ID})
+		cb(StreamMessage{data: "downloading the model " + modelId})
 		cb(StreamMessage{progress: &Progress{Name: "models", Progress: done}})
-		if _, err := models.Install(ctx, docker, model.ID, plat, func(message modelsindex.StreamMessage) {
+		if _, err := models.Install(ctx, docker, modelId, plat, func(message modelsindex.StreamMessage) {
 			if message.IsData() {
 				cb(StreamMessage{data: message.GetData()})
 			}
 		}); err != nil {
-			return fmt.Errorf("failed to download the model %q: %w", model.ID, err)
+			return fmt.Errorf("failed to download the model %q: %w", modelId, err)
 		}
 	}
 

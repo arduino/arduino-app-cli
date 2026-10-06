@@ -154,9 +154,7 @@ func TestAppBuild(t *testing.T) {
 					assert.Equal(t, wantName, releaseName)
 
 					bricks := make([]string, 0, len(manifest.Bricks))
-					for _, brick := range manifest.Bricks {
-						bricks = append(bricks, brick.ID)
-					}
+					bricks = append(bricks, manifest.Bricks...)
 					assert.ElementsMatch(t, test.wantBricks, bricks)
 
 					// The manifest is the first entry after the folder the archive is rooted at,
