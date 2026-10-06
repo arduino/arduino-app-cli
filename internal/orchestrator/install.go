@@ -93,8 +93,7 @@ func InstallRelease(
 		return InstallReleaseResult{}, fmt.Errorf("%w: the release is built for %s, this board is a %s", ErrBadRequest, manifest.Target, plat.BoardName)
 	}
 
-	// The app folder as it runs: the release ships neither the data nor its content.
-	if err := stagingDir.Join("data").MkdirAll(); err != nil {
+	if err := stagingDir.Join(app.DataDirName).MkdirAll(); err != nil {
 		return InstallReleaseResult{}, fmt.Errorf("failed to create the data dir: %w", err)
 	}
 	if _, err := app.Load(stagingDir); err != nil {
@@ -153,6 +152,9 @@ func appLayout(entry string) string {
 		return rest
 	case app.PrebuildDirName:
 		return path.Join(".cache", rest)
+	case app.DataDirName:
+		// Ships beside src, installs as the data folder of the app.
+		return path.Join(app.DataDirName, rest)
 	case app.ReleaseManifestFileName:
 		return app.ReleaseManifestFileName
 	default:

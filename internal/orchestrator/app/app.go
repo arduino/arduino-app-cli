@@ -247,7 +247,9 @@ const (
 	OverrideTemplateFileName = "app-compose-overrides.tmpl.yaml"
 	// PrebuildDirName is what a release ships beside the app it is built from: the
 	// compose files and the python env, which the install copies as the .cache.
-	PrebuildDirName         = "prebuild"
+	PrebuildDirName = "prebuild"
+	// DataDirName is the state the app writes, which a release ships at its root.
+	DataDirName             = "data"
 	ReleaseManifestFileName = release.ReleaseManifestFileName
 )
 
