@@ -77,17 +77,29 @@ func brickConfigHandler(ctx context.Context, appRef, brickID string, variableArg
 		feedback.Fatal(fmt.Sprintf("Cannot find the brick with ID %q", brickID), feedback.ErrBadArgument)
 	}
 
-	inputValue := func(name string) (string, error) {
-		variable, ok := brick.GetVariable(name)
-		if !ok {
+	// Check that all requested variables exists
+	for _, arg := range variableArgs {
+		name, _, _ := strings.Cut(arg, "=")
+		if name == "" {
+			feedback.Fatal(fmt.Sprintf("%q is not a variable name", arg), feedback.ErrBadArgument)
+		}
+		if _, ok := brick.GetVariable(name); !ok {
 			feedback.Fatal(fmt.Sprintf("Variable %q does not exist on brick %q", name, brickID), feedback.ErrBadArgument)
 		}
-		return feedback.InputUserField(name, variable.Secret)
 	}
 
-	variables, err := parseBrickVariables(variableArgs, inputValue)
-	if err != nil {
-		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+	variables := make(map[string]string, len(variableArgs))
+	for _, arg := range variableArgs {
+		name, value, hasValue := strings.Cut(arg, "=")
+		if !hasValue {
+			var err error
+			variable, _ := brick.GetVariable(name)
+			value, err = feedback.InputUserField(name, variable.Secret)
+			if err != nil {
+				feedback.Fatal(fmt.Sprintf("cannot read value for %q: %v", name, err), feedback.ErrBadArgument)
+			}
+		}
+		variables[name] = value
 	}
 	if len(variables) == 0 && model == "" {
 		feedback.Fatal("give a variable or the model to change", feedback.ErrBadArgument)
@@ -111,27 +123,6 @@ func brickConfigHandler(ctx context.Context, appRef, brickID string, variableArg
 	}
 	slices.Sort(names)
 	feedback.PrintResult(brickConfigResult{Brick: brickID, Variables: names, Model: model})
-}
-
-// parseBrickVariables reads the variable arguments. A value is not validated here: what
-// a variable may hold is what the brick that reads it accepts.
-func parseBrickVariables(args []string, input func(name string) (string, error)) (map[string]string, error) {
-	variables := make(map[string]string, len(args))
-	for _, arg := range args {
-		name, value, hasValue := strings.Cut(arg, "=")
-		if name == "" {
-			return nil, fmt.Errorf("%q is not a variable name", arg)
-		}
-		if !hasValue {
-			var err error
-			value, err = input(name)
-			if err != nil {
-				return nil, fmt.Errorf("cannot read value for %q: %w", name, err)
-			}
-		}
-		variables[name] = value
-	}
-	return variables, nil
 }
 
 // The names are reported and never the values: a variable may be a secret, and a secret
