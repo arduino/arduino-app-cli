@@ -231,7 +231,6 @@ type handlerModelEntry struct {
 func (e handlerModelEntry) applyStat(m *AIModel) {
 	// The listing computes the two flags from one marker, and never reports both: a
 	// transfer in flight, or interrupted, is neither installed nor plain absent.
-	// TODO(#585): nothing clears the marker, so an abandoned download reads as in flight.
 	switch {
 	case e.Downloading:
 		m.Status = DownloadingStatus
@@ -625,9 +624,11 @@ func getModelSize(ctx context.Context, cli client.APIClient, handler ModelHandle
 	return outputSize, found, nil
 }
 
-func isModelInstalled(ctx context.Context, cli client.APIClient, handler ModelHandler, envVars map[string]string) bool {
+// checkModel runs the check action. The handler clears its ".download" marker when a run is
+// stopped or fails, so DownloadingStatus means another run is writing the model.
+func checkModel(ctx context.Context, cli client.APIClient, handler ModelHandler, envVars map[string]string) ModelStatus {
 	if len(handler.Actions.Check) == 0 {
-		return false
+		return NotInstalledStatus
 	}
 
 	var buf, stderr bytes.Buffer
@@ -643,7 +644,19 @@ func isModelInstalled(ctx context.Context, cli client.APIClient, handler ModelHa
 		slog.Warn("check action failed, model assumed not on disk", "err", err, "stderr", stderr.String())
 	}
 
-	return parseCheckInstalled(buf.Bytes())
+	for line := range bytes.Lines(buf.Bytes()) {
+		var raw struct {
+			Event       string `json:"event"`
+			Downloading *bool  `json:"downloading"`
+		}
+		if json.Unmarshal(line, &raw) == nil && MessageType(raw.Event) == InfoType && raw.Downloading != nil {
+			if *raw.Downloading {
+				return DownloadingStatus
+			}
+			return InstalledStatus
+		}
+	}
+	return NotInstalledStatus
 }
 
 func hasErrorEvent(out []byte) bool {
@@ -652,22 +665,6 @@ func hasErrorEvent(out []byte) bool {
 			Event string `json:"event"`
 		}
 		if json.Unmarshal(line, &raw) == nil && MessageType(raw.Event) == ErrorType {
-			return true
-		}
-	}
-	return false
-}
-
-func parseCheckInstalled(out []byte) bool {
-	for line := range bytes.Lines(out) {
-		var raw struct {
-			Event       string `json:"event"`
-			Downloading *bool  `json:"downloading"`
-		}
-		if err := json.Unmarshal(line, &raw); err != nil {
-			continue
-		}
-		if MessageType(raw.Event) == InfoType && raw.Downloading != nil && !*raw.Downloading {
 			return true
 		}
 	}

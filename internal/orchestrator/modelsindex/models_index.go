@@ -95,9 +95,7 @@ type ModelStatus string
 const (
 	InstalledStatus    ModelStatus = "installed"
 	NotInstalledStatus ModelStatus = "not-installed"
-	// DownloadingStatus is a transfer in progress, or one interrupted before it
-	// finished: the handler's ".download" marker is still there.
-	DownloadingStatus ModelStatus = "downloading"
+	DownloadingStatus  ModelStatus = "downloading"
 )
 
 func (s ModelStatus) AllowedStatuses() []ModelStatus {
@@ -531,6 +529,13 @@ func (m *ModelsIndex) runDownload(ctx context.Context, cli client.APIClient, mod
 	envVars := model.Deployment.VariablesForPlatform(plat.BoardName)
 	maps.Insert(envVars, maps.All(m.Handlers.configEnv))
 
+	// A second run into the same directory reads the first one's marker as an interrupted
+	// download and deletes the files it is writing, so both fail.
+	status := checkModel(ctx, cli, handler, envVars)
+	if status == DownloadingStatus {
+		return nil, fmt.Errorf("model %q: %w", model.ID, ErrDownloadInProgress)
+	}
+
 	if model.Size == 0 {
 		if s, ok, err := getModelSize(ctx, cli, handler, envVars); err != nil {
 			slog.Warn("info action failed, downloading unchecked", "err", err)
@@ -540,7 +545,7 @@ func (m *ModelsIndex) runDownload(ctx context.Context, cli client.APIClient, mod
 	}
 
 	if err := hasSufficientDiskSpace(m.modelsDir, model.Size); err != nil {
-		if !isModelInstalled(ctx, cli, handler, envVars) {
+		if status != InstalledStatus {
 			return nil, err
 		}
 		slog.Debug("model already installed, disk check skipped", "model", model.ID)
@@ -614,6 +619,7 @@ var (
 	ErrUnknownModel        = errors.New("model not in the internal model list")
 	ErrNoModelReported     = errors.New("download named no model: a newer models-downloader image is required")
 	ErrNotListed           = errors.New("model not listed")
+	ErrDownloadInProgress  = errors.New("model is already being downloaded")
 	// ErrDownloadReported ends a download whose handler reported an error event, which
 	// publish has already carried to the caller.
 	ErrDownloadReported = errors.New("the download reported an error")

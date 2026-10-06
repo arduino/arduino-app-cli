@@ -534,6 +534,31 @@ func TestDownloadByURLReportsAnInstalledModel(t *testing.T) {
 	assert.Equal(t, []string{"Model exists: org/repo (m-Q4_0.gguf)"}, messages)
 }
 
+// A download already running into the directory is refused before the transfer starts: a
+// second run would delete the files the first one is writing.
+func TestDownloadRefusesAModelBeingDownloaded(t *testing.T) {
+	var downloads int
+	cli := newFakeDockerClient(func(_ string, cmd []string) (string, int) {
+		switch {
+		case len(cmd) > 0 && cmd[0] == listModelsCmd:
+			return listingWith(downloadedEntry), 0
+		case len(cmd) > 0 && strings.Contains(cmd[0], "hf_model_checker.sh"):
+			return `{"event":"info","description":"Model downloading: org/repo","downloading":true}` + "\n", 0
+		case len(cmd) > 0 && strings.Contains(cmd[0], "hf_model_downloader.sh"):
+			downloads++
+		}
+		return "", 0
+	})
+	dir := paths.New("testdata/with-handlers")
+	idx, err := Load(platform.Platform{BoardName: "ventunoq"}, dir, paths.New("not-existing-path"), dir.Join("custom-models"), cli, config.Configuration{})
+	require.NoError(t, err)
+
+	_, err = idx.DownloadByURL(t.Context(), cli, "llamacpp:org/repo:Q4_0", "", platform.Platform{BoardName: "ventunoq"}, func(StreamMessage) {})
+
+	require.ErrorIs(t, err, ErrDownloadInProgress)
+	assert.Zero(t, downloads, "the download action must not run")
+}
+
 // A model installed by its declaration reaches no container. The install route answers it
 // without calling Download at all, so this guards the other callers.
 func TestDownloadRefusesAModelWithNothingToDownload(t *testing.T) {
