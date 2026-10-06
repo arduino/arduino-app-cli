@@ -47,23 +47,7 @@ Variables given as "name=" with an empty value will be cleared, without any prom
 On an App Release, only secret variables can be changed.`,
 		Args: cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			inputValue := func(name string) (string, error) {
-				secret := false
-				if brick, ok := servicelocator.GetBricksIndex().FindBrickByID(args[1]); ok {
-					if variable, ok := brick.GetVariable(name); ok && variable.Secret {
-						secret = true
-					}
-				}
-				return feedback.InputUserField(name, secret)
-			}
-			variables, err := parseBrickVariables(args[2:], inputValue)
-			if err != nil {
-				return err
-			}
-			if len(variables) == 0 && model == "" {
-				return errors.New("give a variable or the model to change")
-			}
-			brickConfigHandler(cmd.Context(), args[0], args[1], variables, model)
+			brickConfigHandler(cmd.Context(), args[0], args[1], args[2:], model)
 			return nil
 		},
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -82,10 +66,31 @@ On an App Release, only secret variables can be changed.`,
 	return cmd
 }
 
-func brickConfigHandler(ctx context.Context, appRef, brickID string, variables map[string]string, model string) {
+func brickConfigHandler(ctx context.Context, appRef, brickID string, variableArgs []string, model string) {
 	arduinoApp, err := Load(appRef)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+	}
+
+	brick, ok := arduinoApp.Bricks(servicelocator.GetBricksIndex()).FindBrickByID(brickID)
+	if !ok {
+		feedback.Fatal(fmt.Sprintf("Cannot find the brick with ID %q", brickID), feedback.ErrBadArgument)
+	}
+
+	inputValue := func(name string) (string, error) {
+		variable, ok := brick.GetVariable(name)
+		if !ok {
+			feedback.Fatal(fmt.Sprintf("Variable %q does not exist on brick %q", name, brickID), feedback.ErrBadArgument)
+		}
+		return feedback.InputUserField(name, variable.Secret)
+	}
+
+	variables, err := parseBrickVariables(variableArgs, inputValue)
+	if err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+	}
+	if len(variables) == 0 && model == "" {
+		feedback.Fatal("give a variable or the model to change", feedback.ErrBadArgument)
 	}
 
 	req := bricks.BrickCreateUpdateRequest{ID: brickID, Variables: variables}
