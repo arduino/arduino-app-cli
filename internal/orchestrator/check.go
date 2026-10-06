@@ -103,11 +103,7 @@ type RequiredService struct {
 	Ports   []string
 }
 
-// RequiredServices returns the services required by the given app bricks, deduplicated by service
-// ID and sorted by it. A service can be required by more than one brick, but it is started once and
-// publishes its ports once, so it must count as a single source: the first brick requiring it is
-// the one it is reported against.
-// Bricks missing from the index, and services not available for the current board, are skipped.
+// RequiredServices returns the services required by the given app bricks.
 func RequiredServices(
 	bricks []app.Brick,
 	index *bricksindex.BricksIndex,
@@ -117,7 +113,7 @@ func RequiredServices(
 	for _, appBrick := range bricks {
 		indexBrick, found := index.FindBrickByID(appBrick.ID)
 		if !found {
-			continue
+			return nil, fmt.Errorf("brick %q not found in the index", appBrick.ID)
 		}
 
 		matchingServices, err := indexBrick.GetMatchingService(bricksindex.BrickInstance{

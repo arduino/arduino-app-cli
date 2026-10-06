@@ -635,8 +635,9 @@ func TestCheckPortCollisions(t *testing.T) {
 			bricks:   []app.Brick{{ID: "arduino:data_logger"}},
 		},
 		{
-			name:   "bricks missing from the index are skipped",
-			bricks: []app.Brick{{ID: "arduino:web_ui"}, {ID: "arduino:unknown-brick"}},
+			name:       "a brick missing from the index is an error",
+			bricks:     []app.Brick{{ID: "arduino:web_ui"}, {ID: "arduino:unknown-brick"}},
+			wantErrors: []string{`brick "arduino:unknown-brick" not found in the index`},
 		},
 		{
 			name:     "every collision is reported",
@@ -701,9 +702,10 @@ func TestRequiredServices(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name   string
-		bricks []app.Brick
-		want   []RequiredService
+		name    string
+		bricks  []app.Brick
+		want    []RequiredService
+		wantErr string
 	}{
 		{
 			name:   "a brick requiring no service",
@@ -738,15 +740,19 @@ func TestRequiredServices(t *testing.T) {
 			want:   nil,
 		},
 		{
-			name:   "bricks missing from the index are skipped",
-			bricks: []app.Brick{{ID: "arduino:unknown-brick"}},
-			want:   nil,
+			name:    "a brick missing from the index is an error",
+			bricks:  []app.Brick{{ID: "arduino:unknown-brick"}},
+			wantErr: `brick "arduino:unknown-brick" not found in the index`,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := RequiredServices(tc.bricks, bIndex, servicesIndex)
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
 		})
