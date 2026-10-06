@@ -6,15 +6,15 @@
 package handlers
 
 import (
-	"fmt"
 	"log/slog"
 	"net/http"
-	"strconv"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
@@ -29,6 +29,7 @@ type port struct {
 
 func HandleAppPorts(
 	bricksIndex *bricksindex.BricksIndex,
+	servicesIndex *servicesindex.ServicesIndex,
 	idProvider *appid.Provider,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -44,62 +45,30 @@ func HandleAppPorts(
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to find the app"})
 			return
 		}
-		brickInfoMap, err := GetBrickPortInfoByID(app.Descriptor.Bricks, bricksIndex.WithAppBricks(app.LocalBricks))
+
+		ports, err := orchestrator.AppPorts(app, bricksIndex, servicesIndex)
 		if err != nil {
-			slog.Error("Unable to find bricks ports", slog.String("error", err.Error()), slog.String("path", id.String()))
+			slog.Error("Unable to find the app ports", slog.String("error", err.Error()), slog.String("path", id.String()))
 			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "Unable to find bricks ports"})
 			return
 		}
-		response := buildAppPortResponse(app.Descriptor.Ports, brickInfoMap)
 
-		render.EncodeResponse(w, http.StatusOK, response)
+		render.EncodeResponse(w, http.StatusOK, buildAppPortResponse(ports))
 	}
 }
 
-func buildAppPortResponse(appPorts []int, brickInfoMap map[string]BrickPortInfo) AppPortResponse {
+func buildAppPortResponse(ports []orchestrator.PortInfo) AppPortResponse {
 	response := AppPortResponse{
-		Ports: make([]port, 0, len(appPorts)+len(brickInfoMap)),
+		Ports: make([]port, 0, len(ports)),
 	}
 
-	for _, p := range appPorts {
+	for _, p := range ports {
 		response.Ports = append(response.Ports, port{
-			Port:   strconv.Itoa(p),
-			Source: "app.yaml",
+			Port:        p.Port,
+			Source:      p.Source,
+			ServiceName: p.RequiresDisplay,
 		})
 	}
 
-	for source, brickInfo := range brickInfoMap {
-		for _, p := range brickInfo.Ports {
-			response.Ports = append(response.Ports, port{
-				Port:        p,
-				Source:      source,
-				ServiceName: brickInfo.RequiresDisplay,
-			})
-		}
-	}
-
 	return response
-}
-
-type BrickPortInfo struct {
-	Ports           []string
-	RequiresDisplay string
-}
-
-func GetBrickPortInfoByID(bricks []app.Brick, bricksIndex *bricksindex.BricksIndex) (map[string]BrickPortInfo, error) {
-
-	brickInfoByID := make(map[string]BrickPortInfo)
-
-	for _, brick := range bricks {
-		brickData, found := bricksIndex.FindBrickByID(brick.ID)
-		if !found {
-			return nil, fmt.Errorf("brick %q not found in the index", brick.ID)
-		}
-		brickInfoByID[brick.ID] = BrickPortInfo{
-			Ports:           brickData.GetPorts(),
-			RequiresDisplay: brickData.RequiresDisplay,
-		}
-	}
-
-	return brickInfoByID, nil
 }
