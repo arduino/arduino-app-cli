@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/arduino/arduino-app-cli/cmd/i18n"
@@ -34,7 +35,7 @@ func InputUserField(prompt string, secret bool) (string, error) {
 	fmt.Fprintf(stdOut, "%s: ", prompt)
 
 	if secret {
-		// Read and return a password (no characted echoed on terminal)
+		// Read and return a password (no characters echoed on terminal)
 		value, err := term.ReadPassword(int(os.Stdin.Fd())) // nolint: gosec
 		fmt.Fprintln(stdOut)
 		return string(value), err
@@ -42,6 +43,11 @@ func InputUserField(prompt string, secret bool) (string, error) {
 
 	// Read and return an input line
 	sc := bufio.NewScanner(os.Stdin)
-	sc.Scan()
-	return sc.Text(), sc.Err()
+	if !sc.Scan() {
+		if err := sc.Err(); err != nil {
+			return "", err
+		}
+		return "", io.EOF
+	}
+	return sc.Text(), nil
 }
