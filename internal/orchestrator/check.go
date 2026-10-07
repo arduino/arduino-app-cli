@@ -26,6 +26,16 @@ import (
 // TODO: group these in one function, called by both the app start and the app build.
 // The device ones only apply to the board running them, not to a release target.
 
+// MissingRequiredVariableError reports a required variable that is absent from an app brick.
+type MissingRequiredVariableError struct {
+	Name    string
+	BrickID string
+}
+
+func (e *MissingRequiredVariableError) Error() string {
+	return fmt.Sprintf("variable %q is required by brick %q", e.Name, e.BrickID)
+}
+
 // selectedModelID resolves the model a brick is wired with: the app override, or the brick
 // default when the app names none.
 func selectedModelID(brick app.Brick, definition *bricksindex.Brick) string {
@@ -81,7 +91,10 @@ func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.Bri
 		for _, indexBrickVariable := range indexBrick.Variables {
 			if indexBrickVariable.IsRequired() {
 				if _, exist := appBrick.Variables[indexBrickVariable.Name]; !exist {
-					allErrors = errors.Join(allErrors, fmt.Errorf("variable %q is required by brick %q", indexBrickVariable.Name, indexBrick.ID))
+					allErrors = errors.Join(allErrors, &MissingRequiredVariableError{
+						Name:    indexBrickVariable.Name,
+						BrickID: indexBrick.ID,
+					})
 				}
 			}
 		}

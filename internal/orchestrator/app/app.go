@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"maps"
 	"os"
 	"regexp"
 	"slices"
@@ -235,7 +234,13 @@ func (a *ArduinoApp) UpdateSecrets(board *bricksindex.BricksIndex, brickID strin
 	if descriptor.Bricks[position].Variables == nil {
 		descriptor.Bricks[position].Variables = make(map[string]string, len(values))
 	}
-	maps.Copy(descriptor.Bricks[position].Variables, values)
+	for name, value := range values {
+		if value == "" {
+			delete(descriptor.Bricks[position].Variables, name)
+		} else {
+			descriptor.Bricks[position].Variables[name] = value
+		}
+	}
 
 	return writeDescriptor(descriptor, a.GetDescriptorPath())
 }

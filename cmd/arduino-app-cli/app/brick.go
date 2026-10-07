@@ -36,25 +36,18 @@ func newBrickCmd(cfg config.Configuration) *cobra.Command {
 func newBrickConfigCmd(cfg config.Configuration) *cobra.Command {
 	var model string
 	cmd := &cobra.Command{
-		Use:   "config app_path brick_id [name=value...]",
-		Short: "Set the value of a brick's variable in an Arduino App",
-		Long: `Set the value of a brick's variable in an Arduino App.
+		Use:   "config app_path brick_id name[=value] [name[=value] ...]",
+		Short: "Set the value of a brick's variables in an Arduino App",
+		Long: `Set the value of a brick's variables in an Arduino App.
 
-The variables are given as name=value pairs, and an empty value clears one. Only the
-variables named are changed, as the app API does it.
+Variables given as "name" without a value will be prompted for a value on the terminal.
+Variables given as "name=value" will be changed, without any prompt.
+Variables given as "name=" with an empty value will be cleared, without any prompt.
 
-If the given app is an App Release, then only brick variables that are secret can be
-changed.`,
+On an App Release, only secret variables can be changed.`,
 		Args: cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			variables, err := parseBrickVariables(args[2:])
-			if err != nil {
-				return err
-			}
-			if len(variables) == 0 && model == "" {
-				return errors.New("give a name=value pair or the model to change")
-			}
-			brickConfigHandler(cmd.Context(), args[0], args[1], variables, model)
+			brickConfigHandler(cmd.Context(), args[0], args[1], args[2:], model)
 			return nil
 		},
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -73,10 +66,43 @@ changed.`,
 	return cmd
 }
 
-func brickConfigHandler(ctx context.Context, appRef, brickID string, variables map[string]string, model string) {
+func brickConfigHandler(ctx context.Context, appRef, brickID string, variableArgs []string, model string) {
 	arduinoApp, err := Load(appRef)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+	}
+
+	brick, ok := arduinoApp.Bricks(servicelocator.GetBricksIndex()).FindBrickByID(brickID)
+	if !ok {
+		feedback.Fatal(fmt.Sprintf("Cannot find the brick with ID %q", brickID), feedback.ErrBadArgument)
+	}
+
+	// Check that all requested variables exists
+	for _, arg := range variableArgs {
+		name, _, _ := strings.Cut(arg, "=")
+		if name == "" {
+			feedback.Fatal(fmt.Sprintf("%q is not a variable name", arg), feedback.ErrBadArgument)
+		}
+		if _, ok := brick.GetVariable(name); !ok {
+			feedback.Fatal(fmt.Sprintf("Variable %q does not exist on brick %q", name, brickID), feedback.ErrBadArgument)
+		}
+	}
+
+	variables := make(map[string]string, len(variableArgs))
+	for _, arg := range variableArgs {
+		name, value, hasValue := strings.Cut(arg, "=")
+		if !hasValue {
+			var err error
+			variable, _ := brick.GetVariable(name)
+			value, err = feedback.InputUserField(name, variable.Secret)
+			if err != nil {
+				feedback.Fatal(fmt.Sprintf("cannot read value for %q: %v", name, err), feedback.ErrBadArgument)
+			}
+		}
+		variables[name] = value
+	}
+	if len(variables) == 0 && model == "" {
+		feedback.Fatal("give a variable or the model to change", feedback.ErrBadArgument)
 	}
 
 	req := bricks.BrickCreateUpdateRequest{ID: brickID, Variables: variables}
@@ -99,20 +125,6 @@ func brickConfigHandler(ctx context.Context, appRef, brickID string, variables m
 	feedback.PrintResult(brickConfigResult{Brick: brickID, Variables: names, Model: model})
 }
 
-// parseBrickVariables reads the name=value pairs. A value is not validated here: what a
-// variable may hold is what the brick that reads it accepts.
-func parseBrickVariables(args []string) (map[string]string, error) {
-	variables := make(map[string]string, len(args))
-	for _, arg := range args {
-		name, value, found := strings.Cut(arg, "=")
-		if !found || name == "" {
-			return nil, fmt.Errorf("%q is not a name=value pair", arg)
-		}
-		variables[name] = value
-	}
-	return variables, nil
-}
-
 // The names are reported and never the values: a variable may be a secret, and a secret
 // must not reach a log or a terminal that is scrolled back.
 type brickConfigResult struct {
@@ -129,7 +141,7 @@ func (r brickConfigResult) String() string {
 	if r.Model != "" {
 		changed = append(changed, "model "+r.Model)
 	}
-	return fmt.Sprintf("✓ Set %s on brick %s", strings.Join(changed, " and "), r.Brick)
+	return fmt.Sprintf("✓ Updated %s on brick %s", strings.Join(changed, " and "), r.Brick)
 }
 
 func (r brickConfigResult) Data() any {
