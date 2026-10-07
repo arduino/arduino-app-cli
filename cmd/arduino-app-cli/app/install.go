@@ -56,7 +56,7 @@ install it without being asked.`,
 				question := fmt.Sprintf("WARNING: '%s' can run any command on this device, with full access to the system.\n"+
 					"Only install App Releases from sources you trust.\n"+
 					"Do you want to continue? (yes/no)", archive.Base())
-				yes, err := feedback.Confirm(question, feedback.GetStdin())
+				yes, err := feedback.Confirm(question)
 				if err != nil {
 					return err
 				}

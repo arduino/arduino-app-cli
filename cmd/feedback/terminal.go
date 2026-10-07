@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/arduino/arduino-app-cli/cmd/i18n"
 
@@ -50,4 +51,17 @@ func InputUserField(prompt string, secret bool) (string, error) {
 		return "", io.EOF
 	}
 	return sc.Text(), nil
+}
+
+func Confirm(question string) (bool, error) {
+	answer, err := InputUserField(question, false)
+	if err != nil {
+		return false, err
+	}
+	return isYes(answer), nil
+}
+
+func isYes(answer string) bool {
+	answer = strings.ToLower(strings.TrimSpace(answer))
+	return answer == "yes" || answer == "y"
 }

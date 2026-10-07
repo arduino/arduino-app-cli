@@ -113,7 +113,7 @@ func newUpdateCmd(cfg config.Configuration) *cobra.Command {
 				feedback.Print(question)
 				yes = true
 			} else {
-				yes, err = feedback.Confirm(question, feedback.GetStdin())
+				yes, err = feedback.Confirm(question)
 				if err != nil {
 					return err
 				}
