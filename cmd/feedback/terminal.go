@@ -53,6 +53,7 @@ func InputUserField(prompt string, secret bool) (string, error) {
 	return sc.Text(), nil
 }
 
+// Confirm asks for explicit approval for the question. Only "yes" or "y" returns true; all other answers return false.
 func Confirm(question string) (bool, error) {
 	answer, err := InputUserField(question, false)
 	if err != nil {

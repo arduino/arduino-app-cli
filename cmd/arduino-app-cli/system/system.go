@@ -107,20 +107,14 @@ func newUpdateCmd(cfg config.Configuration) *cobra.Command {
 				feedback.Printf("Package: %s, From: %s, To: %s", pkg.Name, pkg.FromVersion, pkg.ToVersion)
 			}
 
-			const question = "Do you want to upgrade these packages? (yes/no)"
-			var yes bool
-			if forceYes {
-				feedback.Print(question)
-				yes = true
-			} else {
-				yes, err = feedback.Confirm(question)
+			if !forceYes {
+				yes, err := feedback.Confirm("Do you want to upgrade these packages? (yes/no)")
 				if err != nil {
 					return err
 				}
-			}
-
-			if !yes {
-				return nil
+				if !yes {
+					return nil
+				}
 			}
 
 			if err := updater.UpgradePackages(cmd.Context(), pkgs); err != nil {
