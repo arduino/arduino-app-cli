@@ -8,7 +8,6 @@ package system
 import (
 	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/docker/cli/cli/command"
 	"github.com/spf13/cobra"
@@ -108,21 +107,14 @@ func newUpdateCmd(cfg config.Configuration) *cobra.Command {
 				feedback.Printf("Package: %s, From: %s, To: %s", pkg.Name, pkg.FromVersion, pkg.ToVersion)
 			}
 
-			feedback.Printf("Do you want to upgrade these packages? (yes/no)")
-			var yes bool
-			if forceYes {
-				yes = true
-			} else {
-				var yesInput string
-				_, err := fmt.Scanf("%s\n", &yesInput)
+			if !forceYes {
+				yes, err := feedback.Confirm("Do you want to upgrade these packages? (yes/no)")
 				if err != nil {
 					return err
 				}
-				yes = strings.ToLower(yesInput) == "yes" || strings.ToLower(yesInput) == "y"
-			}
-
-			if !yes {
-				return nil
+				if !yes {
+					return nil
+				}
 			}
 
 			if err := updater.UpgradePackages(cmd.Context(), pkgs); err != nil {
