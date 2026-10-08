@@ -79,8 +79,15 @@ func NewProvision(
 		_ = dynamicProvisionDir.RemoveAll()
 	}
 
-	if dynamicProvisionDir.Exist() {
+	// The assets are there when the bricks list is: an empty directory, left by a failed or
+	// an older provisioning, is provisioned again.
+	if dynamicProvisionDir.Join(provisionedAssetsMarker).Exist() {
 		return provision, nil
+	}
+	if dynamicProvisionDir.Exist() {
+		if err := dynamicProvisionDir.RemoveAll(); err != nil {
+			return nil, fmt.Errorf("failed to remove the incomplete provisioning dir: %w", err)
+		}
 	}
 
 	tmpProvisionDir, err := cfg.MkTempAssetDir()
@@ -152,6 +159,10 @@ func (p *Provision) Render(
 	provisionComposeVolumes(prj)
 	return prj, nil
 }
+
+// provisionedAssetsMarker is the file the provisioning writes first: the assets are
+// complete when it is there.
+const provisionedAssetsMarker = "bricks-list.yaml"
 
 func (p *Provision) init(srcPath string) error {
 	return dockerhelper.Run(context.Background(), p.docker.Client(), dockerhelper.RunOptions{
