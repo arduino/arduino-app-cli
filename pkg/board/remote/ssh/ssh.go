@@ -336,9 +336,19 @@ func (c SSHCommand) Run(ctx context.Context) error {
 	if c.err != nil {
 		return c.err
 	}
-
 	defer c.session.Close()
-	return c.session.Run(c.cmd)
+
+	err := c.session.Run(c.cmd)
+	if err != nil {
+		if err, ok := errors.AsType[*ssh.ExitError](err); ok {
+			return remote.ExitError{
+				Status:       err.ExitStatus(),
+				ErrorMessage: err.Error(),
+			}
+		}
+	}
+
+	return err
 }
 
 func (c *SSHCommand) Output(ctx context.Context) ([]byte, error) {

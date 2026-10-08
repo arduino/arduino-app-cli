@@ -292,6 +292,15 @@ func TestRemoteShell(t *testing.T) {
 				require.NoError(t, err)
 			})
 
+			t.Run("Check Exit Codes", func(t *testing.T) {
+				cmd := cmder("false")
+				err := cmd.Run(t.Context())
+				require.Error(t, err)
+				var expectedError remote.ExitError
+				require.ErrorAs(t, err, &expectedError)
+				require.Equal(t, 1, expectedError.ExitCode())
+			})
+
 			t.Run("Output", func(t *testing.T) {
 				cmd := cmder("echo", "Hello, World!")
 				output, err := cmd.Output(t.Context())

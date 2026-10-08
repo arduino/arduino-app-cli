@@ -7,10 +7,12 @@ package local
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/arduino/go-paths-helper"
@@ -111,7 +113,18 @@ func (a *LocalCommand) Run(ctx context.Context) error {
 	if a.err != nil {
 		return fmt.Errorf("failed to create command: %w", a.err)
 	}
-	return a.cmd.RunWithinContext(ctx)
+
+	err := a.cmd.RunWithinContext(ctx)
+	if err != nil {
+		if err, ok := errors.AsType[*exec.ExitError](err); ok {
+			return remote.ExitError{
+				Status:       err.ExitCode(),
+				ErrorMessage: err.Error(),
+			}
+		}
+	}
+
+	return err
 }
 
 func (a *LocalCommand) Output(ctx context.Context) ([]byte, error) {

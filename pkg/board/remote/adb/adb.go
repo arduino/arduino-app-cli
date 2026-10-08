@@ -9,11 +9,13 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -273,7 +275,17 @@ func (a *ADBCommand) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to create command: %w", a.err)
 	}
 
-	return a.cmd.RunWithinContext(ctx)
+	err := a.cmd.RunWithinContext(ctx)
+	if err != nil {
+		if err, ok := errors.AsType[*exec.ExitError](err); ok {
+			return remote.ExitError{
+				Status:       err.ExitCode(),
+				ErrorMessage: err.Error(),
+			}
+		}
+	}
+
+	return err
 }
 
 func (a *ADBCommand) Output(ctx context.Context) ([]byte, error) {
