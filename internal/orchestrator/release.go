@@ -45,12 +45,9 @@ import (
 
 const releaseSrcDir = "src"
 
-// What a release ships for the board and not for the app folder: the install puts each
-// kind where the board keeps its own. The Edge Impulse models are one folder per id.
-const (
-	releaseExternalDir = "external"
-	releaseEIModelsDir = "ei-models"
-)
+// releaseCustomEIDir is the Edge Impulse models a release ships for the board, one folder
+// per model id. Named as the store on disk is, which is where the install puts them.
+const releaseCustomEIDir = "custom-ei"
 
 type BuildReleaseRequest struct {
 	// Target defaults to the board running the build.
@@ -190,7 +187,7 @@ func BuildRelease(
 		return BuildReleaseResult{}, nil, fmt.Errorf("failed to freeze the compose files: %w", err)
 	}
 
-	if err := stageReleaseIndexes(ctx, prebuildDir, releaseDir.Join(releaseExternalDir, releaseEIModelsDir), appToBuild, bricksIndex, modelsIndex, cfg, appEnv); err != nil {
+	if err := stageReleaseIndexes(ctx, prebuildDir, releaseDir.Join(releaseCustomEIDir), appToBuild, bricksIndex, modelsIndex, cfg, appEnv); err != nil {
 		return BuildReleaseResult{}, nil, fmt.Errorf("failed to freeze the brick and model indexes: %w", err)
 	}
 

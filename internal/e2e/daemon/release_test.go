@@ -483,6 +483,12 @@ func TestAppReleaseEIModel(t *testing.T) {
 	installed := installRelease(t, daemonAddr, appName+release.ReleaseArchiveExt, buildResp.Body, false)
 	require.NotEmpty(t, installed.ID)
 
+	// The app folder keeps no copy of what was installed for the board.
+	detailsResp, err := httpClient.GetAppDetailsWithResponse(t.Context(), installed.ID)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, detailsResp.StatusCode())
+	assert.NoDirExists(t, filepath.Join(*detailsResp.JSON200.Path, "custom-ei"))
+
 	// The model is back where the frozen compose binds it from.
 	content, err := modelDir.Join("model.eim").ReadFile()
 	require.NoError(t, err)

@@ -47,6 +47,8 @@ type ReleaseResult struct {
 
 // InstallRelease unpacks a release archive into the releases dir as the app it runs
 // as: src is the app folder, prebuild the .cache, and prepare downloads what it needs.
+//
+// TODO: the unpacking needs a rewrite of its own.
 func InstallRelease(
 	ctx context.Context,
 	docker command.Cli,
@@ -104,9 +106,9 @@ func InstallRelease(
 	if releasePath.Exist() {
 		return InstallReleaseResult{}, fmt.Errorf("%w: %s is already installed", ErrAppAlreadyExists, releaseName)
 	}
-	// Before the rename: what ships for the board leaves the staging dir, so none of it
-	// is left in the app folder the release installs as.
-	if err := installEIModels(stagingDir.Join(releaseExternalDir, releaseEIModelsDir), cfg.EIModelsDir()); err != nil {
+	// Before the rename: the models go to the board, so the staged copy of them must not
+	// stay in the app folder the release installs as.
+	if err := installEIModels(stagingDir.Join(releaseCustomEIDir), cfg.EIModelsDir()); err != nil {
 		return InstallReleaseResult{}, err
 	}
 	if err := stagingDir.Rename(releasePath); err != nil {
@@ -160,9 +162,9 @@ func appLayout(entry string) string {
 	case app.DataDirName:
 		// Ships beside src, installs as the data folder of the app.
 		return path.Join(app.DataDirName, rest)
-	case releaseExternalDir:
-		// Ships beside src, installs in the dirs the board keeps its own content in.
-		return path.Join(releaseExternalDir, rest)
+	case releaseCustomEIDir:
+		// Ships beside src, installs where the board keeps its own models.
+		return path.Join(releaseCustomEIDir, rest)
 	case app.ReleaseManifestFileName:
 		return app.ReleaseManifestFileName
 	default:
@@ -172,15 +174,12 @@ func appLayout(entry string) string {
 
 // installEIModels copies the models a release ships where the board keeps its own, which
 // is where the frozen compose binds them from. One already there is kept: an app uses it.
+//
+// The copy is never a move: the models are under $HOME, another partition on the board.
 func installEIModels(shippedDir *paths.Path, eiModelsDir *paths.Path) error {
 	if shippedDir.NotExist() {
 		return nil
 	}
-	defer func() {
-		if err := shippedDir.RemoveAll(); err != nil {
-			slog.Warn("cannot remove the models of the release staging dir", slog.String("path", shippedDir.String()), slog.String("error", err.Error()))
-		}
-	}()
 
 	// One folder per model, named by the id the build staged it under.
 	modelDirs, err := shippedDir.ReadDir(paths.FilterDirectories())
@@ -198,7 +197,8 @@ func installEIModels(shippedDir *paths.Path, eiModelsDir *paths.Path) error {
 			return fmt.Errorf("failed to install the model %q of the release: %w", modelDir.Base(), err)
 		}
 	}
-	return nil
+	// The app folder is what the staging dir becomes, and the models are not part of it.
+	return shippedDir.RemoveAll()
 }
 
 // extractRelease unpacks the archive into destDir, each entry where layout puts it.
