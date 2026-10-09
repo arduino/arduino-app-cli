@@ -41,8 +41,8 @@ type ReleaseManifest struct {
 	Notes     string    `yaml:"notes,omitempty"`
 	Libraries []string  `yaml:"libraries,omitempty"`
 
-	Bricks []ReleaseBrick `yaml:"-"`
-	Models []ReleaseModel `yaml:"-"`
+	bricks []ReleaseBrick
+	models []ReleaseModel
 }
 
 type ReleaseBrick struct {
@@ -133,13 +133,13 @@ func ReadReleaseManifest(archive *paths.Path) (ReleaseManifest, error) {
 		return ReleaseManifest{}, fmt.Errorf("its release manifest states no name or no target")
 	}
 
-	manifest.Bricks = bricksList.Bricks
+	manifest.bricks = bricksList.Bricks
 
-	manifest.Models = make([]ReleaseModel, 0, len(modelsList.Models))
+	manifest.models = make([]ReleaseModel, 0, len(modelsList.Models))
 	for _, entry := range modelsList.Models {
 		for id, model := range entry {
 			model.ID = id
-			manifest.Models = append(manifest.Models, model)
+			manifest.models = append(manifest.models, model)
 		}
 	}
 
@@ -147,9 +147,9 @@ func ReadReleaseManifest(archive *paths.Path) (ReleaseManifest, error) {
 }
 
 func (r ReleaseManifest) GetBricksInfo() []ReleaseBrick {
-	return r.Bricks
+	return r.bricks
 }
 
 func (r ReleaseManifest) GetModelInfo() []ReleaseModel {
-	return r.Models
+	return r.models
 }
