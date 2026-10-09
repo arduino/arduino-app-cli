@@ -29,8 +29,9 @@ import (
 var ErrAuthFailed = errors.New("ssh authentication failed")
 
 type SSHConnection struct {
-	client *ssh.Client
-	wg     sync.WaitGroup
+	client   *ssh.Client
+	sessions chan struct{}
+	wg       sync.WaitGroup
 
 	mu             sync.Mutex
 	ForwardedPorts []ForwardedPort
@@ -45,7 +46,18 @@ type ForwardedPort struct {
 // Ensures SSHConnection implements the RemoteConn interface at compile time.
 var _ remote.RemoteConn = (*SSHConnection)(nil)
 
-func FromHost(user, password, address string) (*SSHConnection, error) {
+// Option configures a connection returned by FromHost.
+type Option func(*SSHConnection)
+
+// WithMaxSessions bounds the sessions open at once. sshd never reports its own
+// MaxSessions, so this cap only lowers the chance of a refusal; 10 is its default.
+func WithMaxSessions(n int) Option {
+	return func(a *SSHConnection) {
+		a.sessions = make(chan struct{}, max(n, 1))
+	}
+}
+
+func FromHost(user, password, address string, opts ...Option) (*SSHConnection, error) {
 	client, err := ssh.Dial("tcp", address, &ssh.ClientConfig{
 		User: user,
 		Auth: []ssh.AuthMethod{
@@ -64,9 +76,24 @@ func FromHost(user, password, address string) (*SSHConnection, error) {
 		return nil, fmt.Errorf("failed to dial SSH: %w", err)
 	}
 
-	return &SSHConnection{
-		client: client,
-	}, nil
+	conn := &SSHConnection{client: client}
+	for _, opt := range append([]Option{WithMaxSessions(10)}, opts...) {
+		opt(conn)
+	}
+	return conn, nil
+}
+
+// newSession opens a session and takes a slot of the session budget. The
+// returned release gives the slot back: it must run when the session ends, not
+// when the call that opened it returns.
+func (a *SSHConnection) newSession() (*ssh.Session, func(), error) {
+	a.sessions <- struct{}{}
+	session, err := a.client.NewSession()
+	if err != nil {
+		<-a.sessions
+		return nil, nil, err
+	}
+	return session, sync.OnceFunc(func() { <-a.sessions }), nil
 }
 
 func (a *SSHConnection) Forward(ctx context.Context, localPort int, remotePort int) error {
@@ -154,10 +181,11 @@ func (a *SSHConnection) ForwardKillAll(ctx context.Context) error {
 }
 
 func (a *SSHConnection) List(path string) ([]remote.FileInfo, error) {
-	session, err := a.client.NewSession()
+	session, release, err := a.newSession()
 	if err != nil {
 		return nil, err
 	}
+	defer release()
 	defer session.Close()
 
 	cmd := fmt.Sprintf("ls -laQ %s", remote.ShellQuote(path))
@@ -170,10 +198,11 @@ func (a *SSHConnection) List(path string) ([]remote.FileInfo, error) {
 }
 
 func (a *SSHConnection) MkDirAll(path string) error {
-	session, err := a.client.NewSession()
+	session, release, err := a.newSession()
 	if err != nil {
 		return err
 	}
+	defer release()
 	defer session.Close()
 
 	cmd := fmt.Sprintf("mkdir -p %s", remote.ShellQuote(path))
@@ -185,10 +214,11 @@ func (a *SSHConnection) MkDirAll(path string) error {
 }
 
 func (a *SSHConnection) WriteFile(r io.Reader, path string) error {
-	session, err := a.client.NewSession()
+	session, release, err := a.newSession()
 	if err != nil {
 		return err
 	}
+	defer release()
 	defer session.Close()
 
 	cmd := fmt.Sprintf("cat > %s", remote.ShellQuote(path))
@@ -202,7 +232,7 @@ func (a *SSHConnection) WriteFile(r io.Reader, path string) error {
 }
 
 func (a *SSHConnection) ReadFile(path string) (io.ReadCloser, error) {
-	session, err := a.client.NewSession()
+	session, release, err := a.newSession()
 	if err != nil {
 		return nil, err
 	}
@@ -215,11 +245,13 @@ func (a *SSHConnection) ReadFile(path string) (io.ReadCloser, error) {
 	output, err := session.StdoutPipe()
 	if err != nil {
 		_ = session.Close()
+		release()
 		return nil, err
 	}
 
 	if err := session.Start(cmd); err != nil {
 		_ = session.Close()
+		release()
 		return nil, fmt.Errorf("failed to start command: %w", err)
 	}
 
@@ -232,10 +264,12 @@ func (a *SSHConnection) ReadFile(path string) (io.ReadCloser, error) {
 	r, err := remote.ParseReadOutput(output, exit)
 	if err != nil {
 		_ = session.Close()
+		release()
 		return nil, err
 	}
 
 	return remote.WithCloser{Reader: r, CloseFun: func() error {
+		defer release()
 		// The read reports the command failure, and an ended session is closed.
 		if err := session.Close(); err != nil && !errors.Is(err, io.EOF) {
 			return err
@@ -245,10 +279,11 @@ func (a *SSHConnection) ReadFile(path string) (io.ReadCloser, error) {
 }
 
 func (a *SSHConnection) Remove(path string) error {
-	session, err := a.client.NewSession()
+	session, release, err := a.newSession()
 	if err != nil {
 		return err
 	}
+	defer release()
 	defer session.Close()
 
 	cmd := fmt.Sprintf("rm -rf %s", remote.ShellQuote(path))
@@ -260,10 +295,11 @@ func (a *SSHConnection) Remove(path string) error {
 }
 
 func (a *SSHConnection) Move(src string, dst string) error {
-	session, err := a.client.NewSession()
+	session, release, err := a.newSession()
 	if err != nil {
 		return err
 	}
+	defer release()
 	defer session.Close()
 
 	cmd := fmt.Sprintf("mv -T -- %s %s", remote.ShellQuote(src), remote.ShellQuote(dst))
@@ -275,10 +311,11 @@ func (a *SSHConnection) Move(src string, dst string) error {
 }
 
 func (a *SSHConnection) Stats(p string) (remote.FileInfo, error) {
-	session, err := a.client.NewSession()
+	session, release, err := a.newSession()
 	if err != nil {
 		return remote.FileInfo{}, err
 	}
+	defer release()
 	defer session.Close()
 
 	cmd := fmt.Sprintf("file -L %s", remote.ShellQuote(p))
@@ -308,12 +345,13 @@ func (a *SSHConnection) Stats(p string) (remote.FileInfo, error) {
 
 type SSHCommand struct {
 	session *ssh.Session
+	release func()
 	cmd     string
 	err     error
 }
 
 func (a *SSHConnection) GetCmd(cmd string, args ...string) remote.Cmder {
-	session, err := a.client.NewSession()
+	session, release, err := a.newSession()
 	if err != nil {
 		return &SSHCommand{
 			err: fmt.Errorf("failed to create SSH session: %w", err),
@@ -328,6 +366,7 @@ func (a *SSHConnection) GetCmd(cmd string, args ...string) remote.Cmder {
 
 	return &SSHCommand{
 		session: session,
+		release: release,
 		cmd:     strings.Join(parts, " "),
 	}
 }
@@ -337,6 +376,7 @@ func (c SSHCommand) Run(ctx context.Context) error {
 		return c.err
 	}
 
+	defer c.release()
 	defer c.session.Close()
 	return c.session.Run(c.cmd)
 }
@@ -346,6 +386,7 @@ func (c *SSHCommand) Output(ctx context.Context) ([]byte, error) {
 		return nil, c.err
 	}
 
+	defer c.release()
 	defer c.session.Close()
 	return c.session.CombinedOutput(c.cmd)
 }
@@ -355,29 +396,40 @@ func (c *SSHCommand) Interactive() (io.WriteCloser, io.Reader, io.Reader, remote
 		return nil, nil, nil, nil, c.err
 	}
 
+	// A failed start keeps no session, so the slot goes back here.
+	fail := func(err error) (io.WriteCloser, io.Reader, io.Reader, remote.Closer, error) {
+		_ = c.session.Close()
+		c.release()
+		return nil, nil, nil, nil, err
+	}
+
 	c.session.Stderr = c.session.Stdout // Redirect stderr to stdout
 	stdin, err := c.session.StdinPipe()
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to get stdin pipe: %w", err)
+		return fail(fmt.Errorf("failed to get stdin pipe: %w", err))
 	}
 	stdout, err := c.session.StdoutPipe()
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to get stdout pipe: %w", err)
+		return fail(fmt.Errorf("failed to get stdout pipe: %w", err))
 	}
 	stderr, err := c.session.StderrPipe()
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to get stderr pipe: %w", err)
+		return fail(fmt.Errorf("failed to get stderr pipe: %w", err))
 	}
 
 	if err := c.session.Start(c.cmd); err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to start command: %w", err)
+		return fail(fmt.Errorf("failed to start command: %w", err))
 	}
 
+	// The slot is held for the life of the remote process, not of this call.
 	return stdin, stdout, stderr, func() error {
+		defer func() {
+			_ = c.session.Close()
+			c.release()
+		}()
 		if err := c.session.Wait(); err != nil {
 			return fmt.Errorf("command failed: %w", err)
 		}
-		_ = c.session.Close()
 		return nil
 	}, nil
 }
@@ -396,7 +448,7 @@ func (a *SSHConnection) Push(ctx context.Context, local, remote string) error {
 		return false
 	}()
 
-	scpClient := NewScpClient(a.client)
+	scpClient := NewScpClient(a)
 
 	if !isDirLocal {
 		if isDirRemote {
