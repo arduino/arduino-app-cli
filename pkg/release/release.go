@@ -51,7 +51,7 @@ type ReleaseBrick struct {
 }
 
 type ReleaseModel struct {
-	ID    string `yaml:"id"`
+	ID   string `yaml:"id"`
 	Name string `yaml:"name,omitempty"`
 }
 
