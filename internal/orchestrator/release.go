@@ -162,8 +162,8 @@ func BuildRelease(
 		Target:       plat.BoardName,
 		CreatedAt:    now,
 		Notes:        req.Notes,
-		Bricks:       releaseBricks(appToBuild.Descriptor),
-		Models:       releaseModels(appToBuild.Descriptor, bricksIndex),
+		Bricks:       releaseBricks(appToBuild.Descriptor, bricksIndex),
+		Models:       releaseModels(ctx, appToBuild.Descriptor, bricksIndex, modelsIndex),
 		Libraries:    releaseLibraries(ctx, appToBuild),
 	}
 	if err := writeReleaseManifest(releaseDir, manifest); err != nil {
@@ -305,26 +305,41 @@ func stageReleaseIndexes(
 	})
 }
 
-// releaseBricks is the bricks of the app and the model each is wired with.
-func releaseBricks(descriptor app.AppDescriptor) []string {
-	return f.Map(descriptor.Bricks, func(brick app.Brick) string {
-		return brick.ID
+// releaseBricks is the bricks of the app, named and categorized from the bricks index.
+func releaseBricks(descriptor app.AppDescriptor, bricksIndex *bricksindex.BricksIndex) []ReleaseBrick {
+	return f.Map(descriptor.Bricks, func(brick app.Brick) ReleaseBrick {
+		releaseBrick := ReleaseBrick{ID: brick.ID}
+		if definition, found := bricksIndex.FindBrickByID(brick.ID); found {
+			releaseBrick.Name = definition.Name
+			releaseBrick.Category = definition.Category
+		} else {
+			slog.Error("Brick id not found", slog.String("brickId", brick.ID))
+		}
+		return releaseBrick
 	})
 }
 
 // releaseModels is the AI models the bricks of the app are wired with, each stated once.
-func releaseModels(descriptor app.AppDescriptor, bricksIndex *bricksindex.BricksIndex) []string {
-	models := make([]string, 0, len(descriptor.Bricks))
+func releaseModels(ctx context.Context, descriptor app.AppDescriptor, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex) []ReleaseModel {
+	lookup := modelsIndex.NewLookup()
+
+	models := make([]ReleaseModel, 0, len(descriptor.Bricks))
 	for _, brick := range descriptor.Bricks {
 		definition, found := bricksIndex.FindBrickByID(brick.ID)
 		if !found {
 			continue
 		}
 		modelID := selectedModelID(brick, definition)
-		if modelID == "" || slices.Contains(models, modelID) {
+		if modelID == "" || slices.ContainsFunc(models, func(m ReleaseModel) bool { return m.ID == modelID }) {
 			continue
 		}
-		models = append(models, modelID)
+		model := ReleaseModel{ID: modelID}
+		if found, err := lookup.ByID(ctx, modelID); err != nil {
+			slog.Warn("cannot name the model of a brick in the release manifest", slog.String("model_id", modelID), slog.String("error", err.Error()))
+		} else if found != nil {
+			model.Name = found.Name
+		}
+		models = append(models, model)
 	}
 	return models
 }

@@ -60,9 +60,8 @@ func TestReadReleaseManifest(t *testing.T) {
 		"src/app.yaml": "name: my-app\n",
 	}, []string{"release.yaml", "src/app.yaml"})
 
-	loaded, err := AppReleaseLoad(archivePath)
+	info, err := ReadReleaseManifest(archivePath)
 	require.NoError(t, err)
-	info := loaded.Manifest
 	assert.Equal(t, 1, info.Schema)
 	assert.Equal(t, "my-app", info.Name)
 	assert.Equal(t, "unoq", info.Target)
@@ -74,7 +73,7 @@ func TestReadReleaseManifestNotAReleaseArchive(t *testing.T) {
 	archivePath := paths.New(t.TempDir()).Join("not-an-archive.ard")
 	require.NoError(t, archivePath.WriteFile([]byte("plain text, no gzip header")))
 
-	_, err := AppReleaseLoad(archivePath)
+	_, err := ReadReleaseManifest(archivePath)
 	assert.ErrorContains(t, err, "is not a release archive")
 }
 
@@ -85,7 +84,7 @@ func TestReadReleaseManifestWrongExtension(t *testing.T) {
 	renamed := archivePath.Parent().Join("my-app-1.0.0-unoq.tar.gz")
 	require.NoError(t, archivePath.Rename(renamed))
 
-	_, err := AppReleaseLoad(renamed)
+	_, err := ReadReleaseManifest(renamed)
 	assert.ErrorContains(t, err, "is not a release archive")
 }
 
@@ -94,7 +93,7 @@ func TestReadReleaseManifestNoManifest(t *testing.T) {
 		"src/app.yaml": "name: my-app\n",
 	}, []string{"src/app.yaml"})
 
-	_, err := AppReleaseLoad(archivePath)
+	_, err := ReadReleaseManifest(archivePath)
 	assert.ErrorContains(t, err, "no release manifest")
 }
 
@@ -103,7 +102,7 @@ func TestReadReleaseManifestIncompleteManifest(t *testing.T) {
 		"release.yaml": "schema: 1\n",
 	}, []string{"release.yaml"})
 
-	_, err := AppReleaseLoad(archivePath)
+	_, err := ReadReleaseManifest(archivePath)
 	assert.ErrorContains(t, err, "states no name or no target")
 }
 
@@ -123,6 +122,6 @@ func TestReadReleaseManifestMultipleRoots(t *testing.T) {
 	require.NoError(t, gzipWriter.Close())
 	require.NoError(t, file.Close())
 
-	_, err = AppReleaseLoad(archivePath)
+	_, err = ReadReleaseManifest(archivePath)
 	assert.ErrorContains(t, err, "is not rooted at a single release folder")
 }
