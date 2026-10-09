@@ -153,8 +153,8 @@ func TestAppBuild(t *testing.T) {
 					}
 					assert.Equal(t, wantName, releaseName)
 
-					bricks := make([]string, 0, len(manifest.Bricks))
-					for _, brick := range manifest.Bricks {
+					bricks := make([]string, 0, len(manifest.GetBricksInfo()))
+					for _, brick := range manifest.GetBricksInfo() {
 						bricks = append(bricks, brick.ID)
 					}
 					assert.ElementsMatch(t, test.wantBricks, bricks)

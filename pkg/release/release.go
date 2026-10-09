@@ -37,11 +37,12 @@ type ReleaseManifest struct {
 	Icon         string `yaml:"icon,omitempty"`
 	Target       string `yaml:"target"`
 	// CreatedAt is when the build ran, UTC.
-	CreatedAt time.Time      `yaml:"created_at"`
-	Notes     string         `yaml:"notes,omitempty"`
-	Bricks    []ReleaseBrick `yaml:"bricks,omitempty"`
-	Models    []ReleaseModel `yaml:"models,omitempty"`
-	Libraries []string       `yaml:"libraries,omitempty"`
+	CreatedAt time.Time `yaml:"created_at"`
+	Notes     string    `yaml:"notes,omitempty"`
+	Libraries []string  `yaml:"libraries,omitempty"`
+
+	Bricks []ReleaseBrick `yaml:"-"`
+	Models []ReleaseModel `yaml:"-"`
 }
 
 type ReleaseBrick struct {
@@ -74,9 +75,20 @@ func ReadReleaseManifest(archive *paths.Path) (ReleaseManifest, error) {
 	}
 	defer gzipReader.Close()
 
+	var manifest ReleaseManifest
+	// bricksList mirrors prebuild/bricks-list.yaml: a flat list of bricks.
+	var bricksList struct {
+		Bricks []ReleaseBrick `yaml:"bricks"`
+	}
+	// modelsList mirrors prebuild/models-list.yaml: each model is a single-entry map keyed by its id.
+	var modelsList struct {
+		Models []map[string]ReleaseModel `yaml:"models"`
+	}
+	var foundManifest, foundBricks, foundModels bool
+
 	var releaseName string
 	tarReader := tar.NewReader(gzipReader)
-	for {
+	for !foundManifest || !foundBricks || !foundModels {
 		header, err := tarReader.Next()
 		if errors.Is(err, io.EOF) {
 			break
@@ -86,28 +98,52 @@ func ReadReleaseManifest(archive *paths.Path) (ReleaseManifest, error) {
 		}
 
 		name := path.Clean(filepath.ToSlash(header.Name))
-		root, entry, _ := strings.Cut(name, "/")
+		root, name, _ := strings.Cut(name, "/")
 		if releaseName == "" {
 			releaseName = root
 		}
 		if root != releaseName || root == "" || root == "." || root == ".." {
 			return ReleaseManifest{}, fmt.Errorf("%s is not rooted at a single release folder", archive.Base())
 		}
-		if entry != ReleaseManifestFileName {
-			continue
-		}
 
-		var info ReleaseManifest
-		if err := yaml.NewDecoder(tarReader).Decode(&info); err != nil {
-			return ReleaseManifest{}, fmt.Errorf("cannot read the release manifest: %w", err)
+		switch name {
+		case ReleaseManifestFileName:
+			if err := yaml.NewDecoder(tarReader).Decode(&manifest); err != nil {
+				return ReleaseManifest{}, fmt.Errorf("cannot read the release manifest: %w", err)
+			}
+			foundManifest = true
+		case BricksListFileName:
+			// decode and populate brickRelease
+			if err := yaml.NewDecoder(tarReader).Decode(&bricksList); err != nil {
+				return ReleaseManifest{}, fmt.Errorf("cannot read %s: %w", BricksListFileName, err)
+			}
+			foundBricks = true
+		case ModelsListFileName:
+			// decode and populate modelsListRelease
+			if err := yaml.NewDecoder(tarReader).Decode(&modelsList); err != nil {
+				return ReleaseManifest{}, fmt.Errorf("cannot read %s: %w", ModelsListFileName, err)
+			}
+			foundModels = true
 		}
-		if info.Name == "" || info.Target == "" {
-			return ReleaseManifest{}, fmt.Errorf("its release manifest states no name or no target")
-		}
-		return info, nil
+	}
+	if !foundManifest {
+		return ReleaseManifest{}, fmt.Errorf("%s no release manifest, it is not a release", archive.Base())
+	}
+	if manifest.Name == "" || manifest.Target == "" {
+		return ReleaseManifest{}, fmt.Errorf("its release manifest states no name or no target")
 	}
 
-	return ReleaseManifest{}, fmt.Errorf("%s no release manifest, it is not a release", archive.Base())
+	manifest.Bricks = bricksList.Bricks
+
+	manifest.Models = make([]ReleaseModel, 0, len(modelsList.Models))
+	for _, entry := range modelsList.Models {
+		for id, model := range entry {
+			model.ID = id
+			manifest.Models = append(manifest.Models, model)
+		}
+	}
+
+	return manifest, nil
 }
 
 func (r ReleaseManifest) GetBricksInfo() []ReleaseBrick {
