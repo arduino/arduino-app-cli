@@ -130,6 +130,27 @@ func TestWriteReleaseArchive(t *testing.T) {
 	assert.Equal(t, "../../../../usr/bin/python3", link.Linkname)
 }
 
+func TestAppLayout(t *testing.T) {
+	tests := []struct {
+		name  string
+		entry string
+		want  string
+	}{
+		{name: "the manifest is kept as it is", entry: "release.yaml", want: "release.yaml"},
+		{name: "src is the app folder", entry: "src/app.yaml", want: "app.yaml"},
+		{name: "prebuild is the cache a start would generate", entry: "prebuild/docker-compose.yaml", want: ".cache/docker-compose.yaml"},
+		{name: "data ships at the root and installs as the data folder", entry: "data/db/readings.csv", want: "data/db/readings.csv"},
+		{name: "the data folder itself", entry: "data", want: "data"},
+		{name: "anything else is the release alone", entry: "extra/leftover", want: ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, appLayout(tc.entry))
+		})
+	}
+}
+
 func TestStageReleaseIndexes(t *testing.T) {
 	t.Setenv("DOCKER_REGISTRY_BASE", "build.example/")
 	cfg := setTestOrchestratorConfig(t)

@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -175,8 +176,18 @@ func TestAppReleaseInstallFromArchive(t *testing.T) {
 	require.Equal(t, http.StatusCreated, createResp.StatusCode())
 	appID := *createResp.JSON201.Id
 
+	// The state the app wrote before the build, which the release must install as it is.
+	detailsResp, err := httpClient.GetAppDetailsWithResponse(t.Context(), appID)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, detailsResp.StatusCode())
+	require.NotNil(t, detailsResp.JSON200.Path)
+	appDataDir := paths.New(*detailsResp.JSON200.Path, "data")
+	require.NoError(t, appDataDir.MkdirAll())
+	require.NoError(t, appDataDir.Join("keep.txt").WriteFile([]byte("state\n")))
+
 	buildResp, err := httpClient.BuildAppWithResponse(t.Context(), appID, client.BuildAppJSONRequestBody{
-		Target: new(target),
+		Target:      new(target),
+		IncludeData: new(true),
 	})
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, buildResp.StatusCode())
@@ -237,6 +248,17 @@ func TestAppReleaseInstallFromArchive(t *testing.T) {
 		}
 	}
 	require.True(t, sawDone, "no done event received on the install stream")
+
+	t.Run("the data the release ships is installed", func(t *testing.T) {
+		detailsResp, err := httpClient.GetAppDetailsWithResponse(t.Context(), releaseID)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, detailsResp.StatusCode())
+		require.NotNil(t, detailsResp.JSON200.Path)
+
+		content, err := paths.New(*detailsResp.JSON200.Path, "data", "keep.txt").ReadFile()
+		require.NoError(t, err)
+		assert.Equal(t, "state\n", string(content))
+	})
 
 	t.Run("clone into an editable app", func(t *testing.T) {
 		cloneResp, err := httpClient.CloneAppWithResponse(t.Context(), releaseID, client.CloneRequest{Name: new("cloned-from-release")})
