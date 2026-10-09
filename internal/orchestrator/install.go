@@ -104,6 +104,11 @@ func InstallRelease(
 	if releasePath.Exist() {
 		return InstallReleaseResult{}, fmt.Errorf("%w: %s is already installed", ErrAppAlreadyExists, releaseName)
 	}
+	// Before the rename: what ships for the board leaves the staging dir, so none of it
+	// is left in the app folder the release installs as.
+	if err := installEIModels(stagingDir.Join(releaseExternalDir, releaseEIModelsDir), cfg.EIModelsDir()); err != nil {
+		return InstallReleaseResult{}, err
+	}
 	if err := stagingDir.Rename(releasePath); err != nil {
 		return InstallReleaseResult{}, fmt.Errorf("failed to install the release: %w", err)
 	}
@@ -155,11 +160,45 @@ func appLayout(entry string) string {
 	case app.DataDirName:
 		// Ships beside src, installs as the data folder of the app.
 		return path.Join(app.DataDirName, rest)
+	case releaseExternalDir:
+		// Ships beside src, installs in the dirs the board keeps its own content in.
+		return path.Join(releaseExternalDir, rest)
 	case app.ReleaseManifestFileName:
 		return app.ReleaseManifestFileName
 	default:
 		return ""
 	}
+}
+
+// installEIModels copies the models a release ships where the board keeps its own, which
+// is where the frozen compose binds them from. One already there is kept: an app uses it.
+func installEIModels(shippedDir *paths.Path, eiModelsDir *paths.Path) error {
+	if shippedDir.NotExist() {
+		return nil
+	}
+	defer func() {
+		if err := shippedDir.RemoveAll(); err != nil {
+			slog.Warn("cannot remove the models of the release staging dir", slog.String("path", shippedDir.String()), slog.String("error", err.Error()))
+		}
+	}()
+
+	// One folder per model, named by the id the build staged it under.
+	modelDirs, err := shippedDir.ReadDir(paths.FilterDirectories())
+	if err != nil {
+		return fmt.Errorf("failed to read the models of the release: %w", err)
+	}
+
+	for _, modelDir := range modelDirs {
+		installPath := eiModelsDir.Join(modelDir.Base())
+		if installPath.Exist() {
+			slog.Info("the board already holds the model the release ships", slog.String("model", modelDir.Base()))
+			continue
+		}
+		if err := modelDir.CopyDirTo(installPath); err != nil {
+			return fmt.Errorf("failed to install the model %q of the release: %w", modelDir.Base(), err)
+		}
+	}
+	return nil
 }
 
 // extractRelease unpacks the archive into destDir, each entry where layout puts it.

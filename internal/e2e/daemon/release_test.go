@@ -10,6 +10,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"path/filepath"
@@ -24,6 +25,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
 	"github.com/arduino/arduino-app-cli/pkg/release"
 )
 
@@ -405,4 +407,155 @@ func TestAppReleasePrepare(t *testing.T) {
 		}
 	}
 	require.True(t, sawPrepareDone, "no done event received on the prepare stream")
+}
+
+// TestAppReleaseEIModel builds a release of an app wired with an Edge Impulse model of a
+// user project, and installs it on a board that does not hold that model: it is on no
+// index, so the archive is what has to carry it. TestAppReleaseInstallFromArchive
+// installs an app with no brick and no model, so neither half is covered there.
+func TestAppReleaseEIModel(t *testing.T) {
+	if runtime.GOARCH != ARM64Arch {
+		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
+	}
+
+	customModelDir := e2e.MkTempDir(t, "custom-models")
+	httpClient, daemonAddr := GetHttpclientAndAddr(t, e2e.WithCustomModelDir(customModelDir), e2e.WithBoardName("unoq"))
+
+	const (
+		appName = "release-ei-model-app"
+		target  = "unoq"
+		brickID = "arduino:audio_classification"
+		modelID = "ei-model-42-7"
+	)
+	// The deploy of a user project leaves the model on the board, and nowhere else.
+	modelDir := customModelDir.Join("custom-ei", modelID)
+	modelContent := []byte("the impulse of the user\n")
+	_, err := custommodel.Store(modelDir, custommodel.ModelDescriptor{
+		ID:     modelID,
+		Name:   "the impulse of the user",
+		Runner: "brick",
+		Bricks: []custommodel.BrickConfig{{
+			ID: brickID,
+			ModelConfiguration: map[string]string{
+				"CUSTOM_MODEL_PATH":             modelDir.String(),
+				"EI_AUDIO_CLASSIFICATION_MODEL": modelDir.Join("model.eim").String(),
+			},
+		}},
+		Metadata: map[string]string{
+			"source":                "edgeimpulse",
+			"ei-project-id":         "42",
+			"ei-impulse-id":         "7",
+			"ei-impulse-name":       "my impulse",
+			"ei-deployment-version": "3",
+			"ei-model-type":         "float32",
+			"ei-engine":             "tflite",
+		},
+	}, io.NopCloser(bytes.NewReader(modelContent)), "model.eim")
+	require.NoError(t, err, "failed to store the model in the custom model directory")
+
+	createResp, err := httpClient.CreateAppWithResponse(
+		t.Context(),
+		&client.CreateAppParams{SkipSketch: new(true)},
+		client.CreateAppRequest{Icon: new("💻"), Name: appName},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode())
+	appID := *createResp.JSON201.Id
+
+	brickResp, err := httpClient.UpsertAppBrickInstanceWithResponse(
+		t.Context(), appID, brickID,
+		client.BrickCreateUpdateRequest{Model: new(models.EncodeModelID(modelID))},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, brickResp.StatusCode())
+
+	buildResp, err := httpClient.BuildAppWithResponse(t.Context(), appID, client.BuildAppJSONRequestBody{
+		Target: new(target),
+	})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, buildResp.StatusCode())
+
+	// The board of the install is one the model was never deployed to.
+	require.NoError(t, modelDir.RemoveAll())
+
+	// Not prepared: what the release needs to run is the containers of the brick, and
+	// the model is not one of them.
+	installed := installRelease(t, daemonAddr, appName+release.ReleaseArchiveExt, buildResp.Body, false)
+	require.NotEmpty(t, installed.ID)
+
+	// The model is back where the frozen compose binds it from.
+	content, err := modelDir.Join("model.eim").ReadFile()
+	require.NoError(t, err)
+	assert.Equal(t, modelContent, content)
+	assert.FileExists(t, modelDir.Join("model.yaml").String())
+
+	// And the board lists it as its own, as it does for a model deployed on it.
+	modelsResp, err := httpClient.GetAIModelsWithResponse(t.Context(), nil)
+	require.NoError(t, err)
+	require.NotNil(t, modelsResp.JSON200)
+	ids := make([]string, 0, len(*modelsResp.JSON200.Models))
+	for _, model := range *modelsResp.JSON200.Models {
+		ids = append(ids, *model.IdDecoded)
+	}
+	assert.Contains(t, ids, modelID)
+}
+
+// installReleaseDone is the payload of the done event the install stream ends with.
+type installReleaseDone struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Release string `json:"release"`
+	Target  string `json:"target"`
+}
+
+// installRelease uploads an archive to the install endpoint and answers with the done
+// event of its stream. prepare asks the install to download what the release needs.
+func installRelease(t *testing.T, daemonAddr, fileName string, archive []byte, prepare bool) installReleaseDone {
+	t.Helper()
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("file", fileName)
+	require.NoError(t, err)
+	_, err = part.Write(archive)
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	url := daemonAddr + "/v1/apps/install"
+	if prepare {
+		url += "?prepare=true"
+	}
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPut, url, body)
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	events, err := newSSEClient(req)
+	require.NoError(t, err)
+
+	var done installReleaseDone
+	var sawDone bool
+	for e := range events {
+		t.Log("Received SSE event", "event", e.Event, sseEventData, string(e.Data))
+		switch e.Event {
+		case sseEventError:
+			var payload struct {
+				Code    string `json:"code"`
+				Message string `json:"message"`
+			}
+			require.NoError(t, json.Unmarshal(e.Data, &payload))
+			// SERVER_CLOSED is emitted by the SSE teardown on every stream; ignore it.
+			if payload.Code == sseCodeServerClosed {
+				continue
+			}
+			t.Fatalf("install failed: code=%s message=%s", payload.Code, payload.Message)
+		case sseEventDone:
+			require.NoError(t, json.Unmarshal(e.Data, &done))
+			sawDone = true
+		}
+		if sawDone {
+			break
+		}
+	}
+	require.True(t, sawDone, "no done event received on the install stream")
+	return done
 }

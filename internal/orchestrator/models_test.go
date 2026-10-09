@@ -462,7 +462,7 @@ func TestInstallEIModel_WhenModelIsBuilt_DoNotTriggerTheBuild_and_StoreSucceeded
 	require.Equal(t, "ei-model-100-1", result.ID)
 
 	// assert write on disk
-	basePath := paths.New(tempDir).Join("custom-ei").Join(result.ID)
+	basePath := paths.New(tempDir).Join(result.ID)
 	assertModelFileContent(t, basePath.Join("model.eim").String())
 	assertAppYamlContent(t, basePath.Join("model.yaml").String())
 

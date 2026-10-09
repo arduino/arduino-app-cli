@@ -230,7 +230,8 @@ handlers:
 	}
 
 	prebuildDir := paths.New(t.TempDir())
-	require.NoError(t, stageReleaseIndexes(context.Background(), prebuildDir, appToBuild, bricksIndex, modelsIndex, cfg, types.Mapping{}))
+	eiModelsDir := paths.New(t.TempDir()).Join(releaseExternalDir, releaseEIModelsDir)
+	require.NoError(t, stageReleaseIndexes(context.Background(), prebuildDir, eiModelsDir, appToBuild, bricksIndex, modelsIndex, cfg, types.Mapping{}))
 
 	content, err := prebuildDir.Join("bricks-list.yaml").ReadFile()
 	require.NoError(t, err)
