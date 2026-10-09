@@ -45,6 +45,10 @@ import (
 
 const releaseSrcDir = "src"
 
+// releaseCustomEIDir is the Edge Impulse models a release ships for the board, one folder
+// per model id. Named as the store on disk is, which is where the install puts them.
+const releaseCustomEIDir = "custom-ei"
+
 type BuildReleaseRequest struct {
 	// Target defaults to the board running the build.
 	Target string
@@ -183,7 +187,7 @@ func BuildRelease(
 		return BuildReleaseResult{}, nil, fmt.Errorf("failed to freeze the compose files: %w", err)
 	}
 
-	if err := stageReleaseIndexes(ctx, prebuildDir, appToBuild, bricksIndex, modelsIndex, cfg, appEnv); err != nil {
+	if err := stageReleaseIndexes(ctx, prebuildDir, releaseDir.Join(releaseCustomEIDir), appToBuild, bricksIndex, modelsIndex, cfg, appEnv); err != nil {
 		return BuildReleaseResult{}, nil, fmt.Errorf("failed to freeze the brick and model indexes: %w", err)
 	}
 
@@ -232,10 +236,11 @@ func writeReleaseManifest(releaseDir *paths.Path, manifest ReleaseManifest) erro
 }
 
 // stageReleaseIndexes writes the bricks and the models the app uses where their indexes
-// are read from.
+// are read from, and copies into eiModelsDir the models the board holds as files.
 func stageReleaseIndexes(
 	ctx context.Context,
 	prebuildDir *paths.Path,
+	eiModelsDir *paths.Path,
 	appToBuild app.ArduinoApp,
 	bricksIndex *bricksindex.BricksIndex,
 	modelsIndex *modelsindex.ModelsIndex,
@@ -286,6 +291,16 @@ func stageReleaseIndexes(
 	}
 	if err := modelsindex.WriteModelsList(prebuildDir, models); err != nil {
 		return err
+	}
+	// A model deployed from a user Edge Impulse project is on no index the install can
+	// download from, so the release carries it.
+	for _, model := range models {
+		if model.Origin != modelsindex.EdgeImpulseOrigin || model.ModelFolderPath == nil {
+			continue
+		}
+		if err := model.ModelFolderPath.CopyDirTo(eiModelsDir.Join(model.ID)); err != nil {
+			return fmt.Errorf("failed to copy the model %q: %w", model.ID, err)
+		}
 	}
 	// The index reads a missing handlers file as none, unlike the two lists above.
 	if len(handlers) == 0 {

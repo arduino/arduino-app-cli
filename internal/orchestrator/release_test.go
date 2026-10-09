@@ -141,6 +141,7 @@ func TestAppLayout(t *testing.T) {
 		{name: "prebuild is the cache a start would generate", entry: "prebuild/docker-compose.yaml", want: ".cache/docker-compose.yaml"},
 		{name: "data ships at the root and installs as the data folder", entry: "data/db/readings.csv", want: "data/db/readings.csv"},
 		{name: "the data folder itself", entry: "data", want: "data"},
+		{name: "a model ships beside src and goes to the board", entry: "custom-ei/ei-model-1-2/model.eim", want: "custom-ei/ei-model-1-2/model.eim"},
 		{name: "anything else is the release alone", entry: "extra/leftover", want: ""},
 	}
 
@@ -230,7 +231,8 @@ handlers:
 	}
 
 	prebuildDir := paths.New(t.TempDir())
-	require.NoError(t, stageReleaseIndexes(context.Background(), prebuildDir, appToBuild, bricksIndex, modelsIndex, cfg, types.Mapping{}))
+	eiModelsDir := paths.New(t.TempDir()).Join(releaseCustomEIDir)
+	require.NoError(t, stageReleaseIndexes(context.Background(), prebuildDir, eiModelsDir, appToBuild, bricksIndex, modelsIndex, cfg, types.Mapping{}))
 
 	content, err := prebuildDir.Join("bricks-list.yaml").ReadFile()
 	require.NoError(t, err)
