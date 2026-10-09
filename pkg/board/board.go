@@ -440,11 +440,13 @@ func DisableNetworkMode(conn remote.RemoteConn, password string) error {
 }
 
 func getSerial(serialPath string) (string, error) {
-	serial, err := os.ReadFile(serialPath)
+	rawSerial, err := os.ReadFile(serialPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to get serial number: %w", err)
 	}
-	return string(bytes.TrimSpace(serial)), nil
+	serial := string(bytes.TrimSpace(rawSerial))
+	serial = fmt.Sprintf("%08x", serial)
+	return serial, nil
 }
 
 func EnsurePlatformInstalled(ctx context.Context, rawFQBN string) error {
