@@ -68,6 +68,9 @@ func TestWriteReleaseArchive(t *testing.T) {
 	write(0o755, "#!/bin/sh\n", "src", "python", "run.sh")
 	write(0o644, "junk", "src", "__pycache__", "app.pyc")
 	write(0o644, "junk", "src", ".cache", "leftover")
+	// The archiver always expects these two, written by whatever staged the release.
+	write(0o644, "bricks: []\n", release.BricksListFileName)
+	write(0o644, "models: []\n", release.ModelsListFileName)
 	// A package of the venv may well have a data folder, which must ship.
 	write(0o644, "weights", "prebuild", ".venv", "lib", "pkg", "data", "weights.bin")
 	write(0o755, "#!/bin/sh\n", "prebuild", ".venv", "bin", "activate")

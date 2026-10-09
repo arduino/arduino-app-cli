@@ -24,6 +24,8 @@ import (
 const (
 	ReleaseArchiveExt       = ".ard"
 	ReleaseManifestFileName = "release.yaml"
+	BricksListFileName      = "prebuild/bricks-list.yaml"
+	ModelsListFileName      = "prebuild/models-list.yaml"
 )
 
 // ReleaseManifest is what the archive states of itself: what a board needs to list a
@@ -32,31 +34,30 @@ type ReleaseManifest struct {
 	Schema       int    `yaml:"schema"`
 	Name         string `yaml:"name"`
 	ReleaseLabel string `yaml:"release_label,omitempty"`
+	Icon         string `yaml:"icon,omitempty"`
 	Target       string `yaml:"target"`
 	// CreatedAt is when the build ran, UTC.
-	CreatedAt time.Time      `yaml:"created_at"`
-	Notes     string         `yaml:"notes,omitempty"`
-	Bricks    []ReleaseBrick `yaml:"bricks,omitempty"`
-	Models    []ReleaseModel `yaml:"models,omitempty"`
-	Libraries []string       `yaml:"libraries,omitempty"`
+	CreatedAt time.Time `yaml:"created_at"`
+	Notes     string    `yaml:"notes,omitempty"`
+	Libraries []string  `yaml:"libraries,omitempty"`
+
+	bricks []ReleaseBrick
+	models []ReleaseModel
 }
 
-// ReleaseBrick is a brick of the app as the build wired it: the model is part of what a
-// release freezes, so it is stated here and not derived again on the board.
 type ReleaseBrick struct {
-	ID    string `yaml:"id"`
-	Model string `yaml:"model,omitempty"`
+	ID       string `yaml:"id"`
+	Name     string `yaml:"name,omitempty"`
+	Category string `yaml:"category,omitempty"`
 }
 
-// ReleaseModel is an AI model the app is built with. The id holds the runner and the
-// variant, which is as close to a version as a model gets.
 type ReleaseModel struct {
 	ID   string `yaml:"id"`
 	Name string `yaml:"name,omitempty"`
 }
 
-// ReadReleaseManifest reads the release file extracting and
-// stops once the release.yaml file is found
+// ReadReleaseManifest reads the manifest, the bricks list and the models list of a
+// release archive in a single pass
 func ReadReleaseManifest(archive *paths.Path) (ReleaseManifest, error) {
 	if ext := archive.Ext(); ext != ReleaseArchiveExt {
 		return ReleaseManifest{}, fmt.Errorf("%s is not a release archive: expected %q", archive.Base(), ReleaseArchiveExt)
@@ -74,9 +75,20 @@ func ReadReleaseManifest(archive *paths.Path) (ReleaseManifest, error) {
 	}
 	defer gzipReader.Close()
 
+	var manifest ReleaseManifest
+	// bricksList mirrors prebuild/bricks-list.yaml: a flat list of bricks.
+	var bricksList struct {
+		Bricks []ReleaseBrick `yaml:"bricks"`
+	}
+	// modelsList mirrors prebuild/models-list.yaml: each model is a single-entry map keyed by its id.
+	var modelsList struct {
+		Models []map[string]ReleaseModel `yaml:"models"`
+	}
+	var foundManifest, foundBricks, foundModels bool
+
 	var releaseName string
 	tarReader := tar.NewReader(gzipReader)
-	for {
+	for !foundManifest || !foundBricks || !foundModels {
 		header, err := tarReader.Next()
 		if errors.Is(err, io.EOF) {
 			break
@@ -86,26 +98,58 @@ func ReadReleaseManifest(archive *paths.Path) (ReleaseManifest, error) {
 		}
 
 		name := path.Clean(filepath.ToSlash(header.Name))
-		root, entry, _ := strings.Cut(name, "/")
+		root, name, _ := strings.Cut(name, "/")
 		if releaseName == "" {
 			releaseName = root
 		}
 		if root != releaseName || root == "" || root == "." || root == ".." {
 			return ReleaseManifest{}, fmt.Errorf("%s is not rooted at a single release folder", archive.Base())
 		}
-		if entry != ReleaseManifestFileName {
-			continue
-		}
 
-		var info ReleaseManifest
-		if err := yaml.NewDecoder(tarReader).Decode(&info); err != nil {
-			return ReleaseManifest{}, fmt.Errorf("cannot read the release manifest: %w", err)
+		switch name {
+		case ReleaseManifestFileName:
+			if err := yaml.NewDecoder(tarReader).Decode(&manifest); err != nil {
+				return ReleaseManifest{}, fmt.Errorf("cannot read the release manifest: %w", err)
+			}
+			foundManifest = true
+		case BricksListFileName:
+			// decode and populate brickRelease
+			if err := yaml.NewDecoder(tarReader).Decode(&bricksList); err != nil {
+				return ReleaseManifest{}, fmt.Errorf("cannot read %s: %w", BricksListFileName, err)
+			}
+			foundBricks = true
+		case ModelsListFileName:
+			// decode and populate modelsListRelease
+			if err := yaml.NewDecoder(tarReader).Decode(&modelsList); err != nil {
+				return ReleaseManifest{}, fmt.Errorf("cannot read %s: %w", ModelsListFileName, err)
+			}
+			foundModels = true
 		}
-		if info.Name == "" || info.Target == "" {
-			return ReleaseManifest{}, fmt.Errorf("its release manifest states no name or no target")
-		}
-		return info, nil
+	}
+	if !foundManifest {
+		return ReleaseManifest{}, fmt.Errorf("%s no release manifest, it is not a release", archive.Base())
+	}
+	if manifest.Name == "" || manifest.Target == "" {
+		return ReleaseManifest{}, fmt.Errorf("its release manifest states no name or no target")
 	}
 
-	return ReleaseManifest{}, fmt.Errorf("%s no release manifest, it is not a release", archive.Base())
+	manifest.bricks = bricksList.Bricks
+
+	manifest.models = make([]ReleaseModel, 0, len(modelsList.Models))
+	for _, entry := range modelsList.Models {
+		for id, model := range entry {
+			model.ID = id
+			manifest.models = append(manifest.models, model)
+		}
+	}
+
+	return manifest, nil
+}
+
+func (r ReleaseManifest) GetBricksInfo() []ReleaseBrick {
+	return r.bricks
+}
+
+func (r ReleaseManifest) GetModelInfo() []ReleaseModel {
+	return r.models
 }
