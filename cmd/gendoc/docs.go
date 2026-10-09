@@ -1148,10 +1148,11 @@ The installed model, with the values from its entry in the internal model list.
 **Event 'error'**:
 Contains a JSON object with the details of an error. The 200 status is sent with the stream, so
 every later failure is an error event. A models directory with no free space has the code
-'insufficient_storage'.
+'insufficient_storage', a model another request is still downloading 'download_in_progress'.
 'event: error'
 'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
 'data: {"code":"insufficient_storage","message":"insufficient storage to install model: model needs 34820885376 bytes, 3690143744 bytes free"}'
+'data: {"code":"download_in_progress","message":"model \"llamacpp:unsloth/Qwen3.5-0.8B-GGUF/Qwen3.5-0.8B-Q4_0\": model is already being downloaded"}'
 `,
 			},
 			Description: `Install an AI model from the internal model list. The progress is a stream of Server-Sent Events.
@@ -1200,10 +1201,11 @@ does not know that id before this event.
 **Event 'error'**:
 Contains a JSON object with the details of an error. The 200 status is sent with the stream, so
 every later failure is an error event. A models directory with no free space has the code
-'insufficient_storage'.
+'insufficient_storage', a model another request is still downloading 'download_in_progress'.
 'event: error'
 'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
 'data: {"code":"insufficient_storage","message":"insufficient storage to install model: model needs 34820885376 bytes, 3690143744 bytes free"}'
+'data: {"code":"download_in_progress","message":"model \"llamacpp:unsloth/Qwen3.5-0.8B-GGUF/Qwen3.5-0.8B-Q4_0\": model is already being downloaded"}'
 `,
 			},
 			Description: `Download an LLamaCPP AI model from a Hugging Face link. The progress is a stream of Server-Sent Events.

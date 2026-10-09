@@ -312,5 +312,9 @@ func (d *downloadStream) sendError(err error) {
 		d.sse.SendError(render.SSEErrorData{Code: "insufficient_storage", Message: err.Error()})
 		return
 	}
+	if errors.Is(err, modelsindex.ErrDownloadInProgress) {
+		d.sse.SendError(render.SSEErrorData{Code: "download_in_progress", Message: err.Error()})
+		return
+	}
 	d.sse.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: err.Error()})
 }
