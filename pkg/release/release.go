@@ -41,6 +41,7 @@ type ReleaseManifest struct {
 	Schema       int    `yaml:"schema"`
 	Name         string `yaml:"name"`
 	ReleaseLabel string `yaml:"release_label,omitempty"`
+	Icon         string `yaml:"icon,omitempty"`
 	Target       string `yaml:"target"`
 	// CreatedAt is when the build ran, UTC.
 	CreatedAt time.Time `yaml:"created_at"`
