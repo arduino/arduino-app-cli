@@ -60,6 +60,19 @@ type Cmder interface {
 	Interactive() (io.WriteCloser, io.Reader, io.Reader, Closer, error)
 }
 
+type ExitError struct {
+	Status       int
+	ErrorMessage string
+}
+
+func (e ExitError) Error() string {
+	return e.ErrorMessage
+}
+
+func (e ExitError) ExitCode() int {
+	return e.Status
+}
+
 type RemoteTransfer interface {
 	// Push copies a file or directory from the local path to the remote path.
 	// The remote path should always specify the final destination path, and not
