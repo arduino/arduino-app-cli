@@ -156,6 +156,17 @@ func TestAppReleaseBuildStream(t *testing.T) {
 func builtArchive(t *testing.T, resp *client.BuildAppResp) []byte {
 	t.Helper()
 
+	last, body := lastBuildPart(t, resp)
+	require.Equal(t, "application/gzip", last.Header.Get("Content-Type"), "the build failed: %s", body)
+	disposition := last.Header.Get("Content-Disposition")
+	assert.Contains(t, disposition, "attachment")
+	assert.Contains(t, disposition, release.ReleaseArchiveExt)
+	return body
+}
+
+func lastBuildPart(t *testing.T, resp *client.BuildAppResp) (*multipart.Part, []byte) {
+	t.Helper()
+
 	mediaType, params, err := mime.ParseMediaType(resp.HTTPResponse.Header.Get("Content-Type"))
 	require.NoError(t, err)
 	require.Equal(t, "multipart/mixed", mediaType)
@@ -174,12 +185,46 @@ func builtArchive(t *testing.T, resp *client.BuildAppResp) []byte {
 		require.NoError(t, err)
 	}
 	require.NotNil(t, last, "the build response has no part")
+	return last, body
+}
 
-	require.Equal(t, "application/gzip", last.Header.Get("Content-Type"), "the build failed: %s", body)
-	disposition := last.Header.Get("Content-Disposition")
-	assert.Contains(t, disposition, "attachment")
-	assert.Contains(t, disposition, release.ReleaseArchiveExt)
-	return body
+// TestAppReleaseBuildFailure asserts a build that fails once started is answered with a
+// 200 whose last part is the error.
+func TestAppReleaseBuildFailure(t *testing.T) {
+	if runtime.GOARCH != ARM64Arch {
+		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
+	}
+
+	httpClient := GetHttpclient(t, e2e.WithBoardName("unoq"))
+
+	createResp, err := httpClient.CreateAppWithResponse(
+		t.Context(),
+		&client.CreateAppParams{SkipSketch: new(true)},
+		client.CreateAppRequest{Icon: new("💻"), Name: "failing-build-app"},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode())
+	appID := *createResp.JSON201.Id
+
+	detailsResp, err := httpClient.GetAppDetailsWithResponse(t.Context(), appID)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, detailsResp.StatusCode())
+	require.NotNil(t, detailsResp.JSON200.Path)
+	requirements := paths.New(*detailsResp.JSON200.Path, "python", "requirements.txt")
+	require.NoError(t, requirements.WriteFile([]byte("a-package-that-does-not-exist==9.9.9\n")))
+
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Minute)
+	defer cancel()
+	resp, err := httpClient.BuildAppWithResponse(ctx, appID, client.BuildAppJSONRequestBody{Target: new("unoq")})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode())
+
+	last, body := lastBuildPart(t, resp)
+	require.Equal(t, "application/json", last.Header.Get("Content-Type"))
+	var failure models.ErrorResponse
+	require.NoError(t, json.Unmarshal(body, &failure))
+	assert.Equal(t, "INTERNAL_SERVER_ERROR", failure.Code)
+	assert.Contains(t, failure.Details, "failed to build the python environment")
 }
 
 func TestAppReleaseInstallFromArchive(t *testing.T) {

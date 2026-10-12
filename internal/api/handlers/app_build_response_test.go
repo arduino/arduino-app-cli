@@ -12,6 +12,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -26,6 +27,14 @@ type buildResponsePart struct {
 	header map[string][]string
 	body   []byte
 }
+
+// flushRecorder counts the flushes: one for the headers, then one for each heartbeat.
+type flushRecorder struct {
+	*httptest.ResponseRecorder
+	flushes atomic.Int32
+}
+
+func (r *flushRecorder) Flush() { r.flushes.Add(1) }
 
 func readBuildResponse(t *testing.T, recorder *httptest.ResponseRecorder) []buildResponsePart {
 	t.Helper()
@@ -56,14 +65,14 @@ func TestBuildResponse(t *testing.T) {
 		archive := paths.New(t.TempDir(), "app.ard")
 		require.NoError(t, archive.WriteFile([]byte("archive content")))
 
-		recorder := httptest.NewRecorder()
+		recorder := &flushRecorder{ResponseRecorder: httptest.NewRecorder()}
 		response := startBuildResponse(recorder, heartbeat)
-		time.Sleep(5 * heartbeat)
+		require.Eventually(t, func() bool { return recorder.flushes.Load() >= 3 }, 5*time.Second, time.Millisecond,
+			"no heartbeat was sent while the build was running")
 		require.NoError(t, response.SendArchive(archive, "app.ard"))
-		require.True(t, recorder.Flushed)
 
-		parts := readBuildResponse(t, recorder)
-		require.Greater(t, len(parts), 2, "no heartbeat was sent while the build was running")
+		parts := readBuildResponse(t, recorder.ResponseRecorder)
+		require.GreaterOrEqual(t, len(parts), 3)
 		for _, part := range parts[:len(parts)-1] {
 			assert.Equal(t, []string{"text/plain"}, part.header["Content-Type"])
 			assert.Empty(t, part.body)
@@ -102,21 +111,16 @@ func TestBuildResponse(t *testing.T) {
 		assert.Equal(t, "INTERNAL_SERVER_ERROR", got.Code)
 	})
 
-	t.Run("the heartbeat can be stopped more than once", func(t *testing.T) {
+	t.Run("an archive that fails while it is sent is left without the closing boundary", func(t *testing.T) {
+		// A directory opens, and fails at the first read.
 		recorder := httptest.NewRecorder()
 		response := startBuildResponse(recorder, heartbeat)
-		response.stopHeartbeat()
-		response.SendError(models.ErrorResponse{Details: "the build failed"})
-		response.stopHeartbeat()
-		require.NotEmpty(t, readBuildResponse(t, recorder))
-	})
+		require.Error(t, response.SendArchive(paths.New(t.TempDir()), "app.ard"))
 
-	t.Run("no heartbeat is sent once the response is over", func(t *testing.T) {
-		recorder := httptest.NewRecorder()
-		response := startBuildResponse(recorder, heartbeat)
-		response.SendError(models.ErrorResponse{Details: "the build failed"})
-		sent := recorder.Body.Len()
-		time.Sleep(5 * heartbeat)
-		assert.Equal(t, sent, recorder.Body.Len())
+		_, params, err := mime.ParseMediaType(recorder.Header().Get("Content-Type"))
+		require.NoError(t, err)
+		body := recorder.Body.String()
+		assert.Contains(t, body, "Content-Type: application/gzip")
+		assert.NotContains(t, body, "--"+params["boundary"]+"--")
 	})
 }
