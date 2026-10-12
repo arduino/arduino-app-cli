@@ -35,9 +35,10 @@ var ErrAuthFailed = errors.New("ssh authentication failed")
 var ErrTooManySessions = errors.New("too many concurrent ssh sessions")
 
 type SSHConnection struct {
-	client   *ssh.Client
-	sessions chan struct{}
-	wg       sync.WaitGroup
+	client      *ssh.Client
+	sessions    chan struct{}
+	sessionWait time.Duration
+	wg          sync.WaitGroup
 
 	mu             sync.Mutex
 	ForwardedPorts []ForwardedPort
@@ -52,7 +53,27 @@ type ForwardedPort struct {
 // Ensures SSHConnection implements the RemoteConn interface at compile time.
 var _ remote.RemoteConn = (*SSHConnection)(nil)
 
-func FromHost(user, password, address string) (*SSHConnection, error) {
+// Option configures a connection returned by FromHost.
+type Option func(*SSHConnection)
+
+// WithMaxSessions bounds the sessions open at once. sshd never reports its own
+// MaxSessions, so this cap only lowers the chance of a refusal; 10 is its default.
+func WithMaxSessions(n int) Option {
+	return func(a *SSHConnection) {
+		a.sessions = make(chan struct{}, max(n, 1))
+	}
+}
+
+// WithSessionWait bounds the wait for a free session slot when the caller has
+// no deadline of its own. It never bounds the session itself. Zero does not
+// wait: a full budget fails at once.
+func WithSessionWait(d time.Duration) Option {
+	return func(a *SSHConnection) {
+		a.sessionWait = d
+	}
+}
+
+func FromHost(user, password, address string, opts ...Option) (*SSHConnection, error) {
 	client, err := ssh.Dial("tcp", address, &ssh.ClientConfig{
 		User: user,
 		Auth: []ssh.AuthMethod{
@@ -71,22 +92,32 @@ func FromHost(user, password, address string) (*SSHConnection, error) {
 		return nil, fmt.Errorf("failed to dial SSH: %w", err)
 	}
 
-	// sshd never reports its own MaxSessions, so this cap only lowers the chance
-	// of a refusal; 10 is the default of sshd.
-	return &SSHConnection{client: client, sessions: make(chan struct{}, 10)}, nil
+	conn := &SSHConnection{client: client}
+	for _, opt := range append([]Option{WithMaxSessions(10), WithSessionWait(60 * time.Second)}, opts...) {
+		opt(conn)
+	}
+	return conn, nil
 }
 
 // newSession opens a session and takes a slot of the session budget. The
 // returned release gives the slot back: it must run when the session ends, not
 // when the call that opened it returns.
 func (a *SSHConnection) newSession(ctx context.Context, what string) (*ssh.Session, func(), error) {
-	select {
-	case a.sessions <- struct{}{}:
-	case <-ctx.Done():
-		return nil, nil, ctx.Err()
-	// The bound of a caller with no deadline: a slot can stay out for ever.
-	case <-time.After(60 * time.Second):
-		return nil, nil, fmt.Errorf("%w: %s", ErrTooManySessions, what)
+	if a.sessionWait <= 0 {
+		select {
+		case a.sessions <- struct{}{}:
+		default:
+			return nil, nil, fmt.Errorf("%w: %s", ErrTooManySessions, what)
+		}
+	} else {
+		select {
+		case a.sessions <- struct{}{}:
+		case <-ctx.Done():
+			return nil, nil, ctx.Err()
+		// The bound of a caller with no deadline: a slot can stay out for ever.
+		case <-time.After(a.sessionWait):
+			return nil, nil, fmt.Errorf("%w: %s", ErrTooManySessions, what)
+		}
 	}
 
 	session, err := a.client.NewSession()
