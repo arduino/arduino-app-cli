@@ -597,7 +597,9 @@ before the app is started again.
 
 **Last part**, one of:
 - 'Content-Type: application/gzip', with a 'Content-Disposition' naming the file: the gzipped release archive.
-- 'Content-Type: application/json': the build failed, the body is an error response ('code', 'details').`,
+- 'Content-Type: application/json': the build failed, the body is an error response ('code', 'details').
+
+A response that ends without its closing boundary is not complete: the archive it carries is truncated and must be discarded.`,
 				StatusCode: http.StatusOK,
 			},
 			PossibleErrors: []ErrorResponse{

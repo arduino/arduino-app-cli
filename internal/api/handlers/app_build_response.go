@@ -20,15 +20,14 @@ import (
 	"github.com/arduino/go-paths-helper"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
-// buildHeartbeatInterval is how often a build response sends an empty part while the
-// archive is not ready: a client that drops a request left without data keeps this one.
+// buildHeartbeatInterval keeps alive the clients that drop a request left without data.
 const buildHeartbeatInterval = 15 * time.Second
 
-// buildResponse is the multipart/mixed body of a build request. It is answered at once
-// with a 200 and kept alive with empty parts until the build is over: the last part is
-// the release archive, or the error of the build as JSON, the status being already sent.
+// buildResponse is a multipart/mixed body: empty parts while the build runs, then the
+// release archive or the error of the build as the last part.
 type buildResponse struct {
 	w      http.ResponseWriter
 	writer *multipart.Writer
@@ -38,7 +37,6 @@ type buildResponse struct {
 	stopped  chan struct{}
 }
 
-// startBuildResponse sends the status and the headers, and starts the heartbeat.
 func startBuildResponse(w http.ResponseWriter, heartbeat time.Duration) *buildResponse {
 	b := &buildResponse{
 		w:       w,
@@ -59,7 +57,6 @@ func startBuildResponse(w http.ResponseWriter, heartbeat time.Duration) *buildRe
 			case <-b.stop:
 				return
 			case <-ticker.C:
-				// A failure here is a client that left: the build is canceled with its request.
 				if _, err := b.writer.CreatePart(textproto.MIMEHeader{"Content-Type": {"text/plain"}}); err != nil {
 					return
 				}
@@ -70,12 +67,12 @@ func startBuildResponse(w http.ResponseWriter, heartbeat time.Duration) *buildRe
 	return b
 }
 
-// SendArchive ends the response with the release archive.
 func (b *buildResponse) SendArchive(archive *paths.Path, fileName string) error {
 	b.stopHeartbeat()
 
 	file, err := archive.Open()
 	if err != nil {
+		b.SendError(models.ErrorResponse{Code: string(render.InternalServiceErr), Details: "unable to read the release archive"})
 		return err
 	}
 	defer file.Close()
@@ -87,15 +84,13 @@ func (b *buildResponse) SendArchive(archive *paths.Path, fileName string) error 
 	if err != nil {
 		return err
 	}
-	// Left without its closing boundary if the copy fails, for the client to tell that the
-	// archive is not whole.
+	// No closing boundary if the copy fails: the client can tell the archive is truncated.
 	if _, err := io.Copy(part, file); err != nil {
 		return err
 	}
 	return b.writer.Close()
 }
 
-// SendError ends the response with the error of the build, in place of the archive.
 func (b *buildResponse) SendError(response models.ErrorResponse) {
 	b.stopHeartbeat()
 
@@ -111,7 +106,7 @@ func (b *buildResponse) SendError(response models.ErrorResponse) {
 	}
 }
 
-// stopHeartbeat waits for the heartbeat to be over: the parts are written one at a time.
+// stopHeartbeat waits for the heartbeat to end. It can be called more than once.
 func (b *buildResponse) stopHeartbeat() {
 	b.stopOnce.Do(func() { close(b.stop) })
 	<-b.stopped

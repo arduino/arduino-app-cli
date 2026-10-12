@@ -152,8 +152,7 @@ func TestAppReleaseBuildStream(t *testing.T) {
 	require.NoError(t, gzipReader.Close())
 }
 
-// builtArchive reads the release archive out of a build response: the last part of a
-// multipart body, after the heartbeats sent while the build was running.
+// builtArchive reads the release archive out of a build response: its last part.
 func builtArchive(t *testing.T, resp *client.BuildAppResp) []byte {
 	t.Helper()
 
@@ -176,7 +175,6 @@ func builtArchive(t *testing.T, resp *client.BuildAppResp) []byte {
 	}
 	require.NotNil(t, last, "the build response has no part")
 
-	// The archive is a gzip attachment for the client to save: a JSON part is a failed build.
 	require.Equal(t, "application/gzip", last.Header.Get("Content-Type"), "the build failed: %s", body)
 	disposition := last.Header.Get("Content-Disposition")
 	assert.Contains(t, disposition, "attachment")

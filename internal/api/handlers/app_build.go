@@ -36,9 +36,8 @@ type buildRequest struct {
 	ReleaseNotes string `json:"notes" description:"notes to attach to the release"`
 }
 
-// HandleAppBuild builds an app into a release archive and sends the archive back as the
-// last part of a multipart response, kept alive while the build runs. Build progress is
-// published to the global build events stream.
+// HandleAppBuild builds an app into a release archive and sends it back as the last part
+// of a multipart response. Build progress is published to the global build events stream.
 func HandleAppBuild(
 	dockerClient command.Cli,
 	provisioner *orchestrator.Provision,
@@ -83,9 +82,8 @@ func HandleAppBuild(
 			IncludeData:  buildReq.IncludeData,
 		}
 
-		// Answered before the build: from here on the status is sent, and an error is the
-		// last part of the response.
 		response := startBuildResponse(w, buildHeartbeatInterval)
+		defer response.stopHeartbeat()
 
 		result, reader, err := orchestrator.BuildRelease(r.Context(), dockerClient, provisioner, appToBuild, req, cfg, func(item orchestrator.StreamMessage) {
 			broker.PublishStreamMessage(buildID, item)
@@ -103,8 +101,7 @@ func HandleAppBuild(
 		// Closing the stream removes the build staging dir, whatever happens to the archive.
 		defer func() { _ = reader.Close() }()
 
-		// The archive is drained to a file before it is sent: a late write error is still
-		// answered with an error, not with a truncated archive.
+		// Drained to a file first: a late write error is answered with an error, not a truncated archive.
 		artifactsDir := paths.New(os.TempDir(), "build-artifacts")
 		if err := artifactsDir.MkdirAll(); err != nil {
 			slog.Error("unable to create the build artifacts dir", slog.String("error", err.Error()))

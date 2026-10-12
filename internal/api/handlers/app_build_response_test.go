@@ -27,7 +27,6 @@ type buildResponsePart struct {
 	body   []byte
 }
 
-// readBuildResponse reads the parts of a recorded build response.
 func readBuildResponse(t *testing.T, recorder *httptest.ResponseRecorder) []buildResponsePart {
 	t.Helper()
 
@@ -87,6 +86,29 @@ func TestBuildResponse(t *testing.T) {
 		var got models.ErrorResponse
 		require.NoError(t, json.Unmarshal(last.body, &got))
 		assert.Equal(t, models.ErrorResponse{Code: "INTERNAL_SERVER_ERROR", Details: "the build failed"}, got)
+	})
+
+	t.Run("an archive that cannot be read ends with an error", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		response := startBuildResponse(recorder, heartbeat)
+		require.Error(t, response.SendArchive(paths.New(t.TempDir(), "missing.ard"), "missing.ard"))
+
+		parts := readBuildResponse(t, recorder)
+		require.NotEmpty(t, parts)
+		last := parts[len(parts)-1]
+		assert.Equal(t, []string{"application/json"}, last.header["Content-Type"])
+		var got models.ErrorResponse
+		require.NoError(t, json.Unmarshal(last.body, &got))
+		assert.Equal(t, "INTERNAL_SERVER_ERROR", got.Code)
+	})
+
+	t.Run("the heartbeat can be stopped more than once", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		response := startBuildResponse(recorder, heartbeat)
+		response.stopHeartbeat()
+		response.SendError(models.ErrorResponse{Details: "the build failed"})
+		response.stopHeartbeat()
+		require.NotEmpty(t, readBuildResponse(t, recorder))
 	})
 
 	t.Run("no heartbeat is sent once the response is over", func(t *testing.T) {
