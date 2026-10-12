@@ -19,20 +19,23 @@ import (
 )
 
 type ScpClient struct {
-	Client *ssh.Client
+	// newSession is the connection gate: scp spends a session like any command.
+	newSession func(ctx context.Context, what string) (*ssh.Session, func(), error)
 }
 
-func NewScpClient(client *ssh.Client) *ScpClient {
-	return &ScpClient{Client: client}
+func NewScpClient(conn *SSHConnection) *ScpClient {
+	return &ScpClient{newSession: conn.newSession}
 }
 
 const remoteBinary = "scp"
 
 func (c *ScpClient) PushDir(ctx context.Context, fsys fs.FS, name, remote string) error {
-	session, err := c.Client.NewSession()
+	cmd := fmt.Sprintf("%s -rt %s", remoteBinary, remotepkg.ShellQuote(remote))
+	session, release, err := c.newSession(ctx, cmd)
 	if err != nil {
 		return err
 	}
+	defer release()
 	defer session.Close()
 
 	r, err := session.StdoutPipe()
@@ -45,7 +48,6 @@ func (c *ScpClient) PushDir(ctx context.Context, fsys fs.FS, name, remote string
 	}
 	defer w.Close()
 
-	cmd := fmt.Sprintf("%s -rt %s", remoteBinary, remotepkg.ShellQuote(remote))
 	if err := session.Start(cmd); err != nil {
 		return err
 	}
@@ -63,10 +65,12 @@ func (c *ScpClient) PushDir(ctx context.Context, fsys fs.FS, name, remote string
 }
 
 func (c *ScpClient) PushFile(ctx context.Context, local, remote string) error {
-	session, err := c.Client.NewSession()
+	cmd := fmt.Sprintf("%s -t %s", remoteBinary, remotepkg.ShellQuote(remote))
+	session, release, err := c.newSession(ctx, cmd)
 	if err != nil {
 		return err
 	}
+	defer release()
 	defer session.Close()
 
 	r, err := session.StdoutPipe()
@@ -79,7 +83,6 @@ func (c *ScpClient) PushFile(ctx context.Context, local, remote string) error {
 	}
 	defer w.Close()
 
-	cmd := fmt.Sprintf("%s -t %s", remoteBinary, remotepkg.ShellQuote(remote))
 	if err := session.Start(cmd); err != nil {
 		return err
 	}

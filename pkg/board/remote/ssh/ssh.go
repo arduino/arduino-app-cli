@@ -7,6 +7,7 @@ package ssh
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 
@@ -28,9 +30,15 @@ import (
 
 var ErrAuthFailed = errors.New("ssh authentication failed")
 
+// ErrTooManySessions reports a session budget that stayed full: the caller is
+// saturated, the board did not refuse anything.
+var ErrTooManySessions = errors.New("too many concurrent ssh sessions")
+
 type SSHConnection struct {
-	client *ssh.Client
-	wg     sync.WaitGroup
+	client      *ssh.Client
+	sessions    chan struct{}
+	sessionWait time.Duration
+	wg          sync.WaitGroup
 
 	mu             sync.Mutex
 	ForwardedPorts []ForwardedPort
@@ -45,7 +53,27 @@ type ForwardedPort struct {
 // Ensures SSHConnection implements the RemoteConn interface at compile time.
 var _ remote.RemoteConn = (*SSHConnection)(nil)
 
-func FromHost(user, password, address string) (*SSHConnection, error) {
+// Option configures a connection returned by FromHost.
+type Option func(*SSHConnection)
+
+// WithMaxSessions bounds the sessions open at once. sshd never reports its own
+// MaxSessions, so this cap only lowers the chance of a refusal; 10 is its default.
+func WithMaxSessions(n int) Option {
+	return func(a *SSHConnection) {
+		a.sessions = make(chan struct{}, max(n, 1))
+	}
+}
+
+// WithSessionWait bounds the wait for a free session slot when the caller has
+// no deadline of its own. It never bounds the session itself. Zero does not
+// wait: a full budget fails at once.
+func WithSessionWait(d time.Duration) Option {
+	return func(a *SSHConnection) {
+		a.sessionWait = d
+	}
+}
+
+func FromHost(user, password, address string, opts ...Option) (*SSHConnection, error) {
 	client, err := ssh.Dial("tcp", address, &ssh.ClientConfig{
 		User: user,
 		Auth: []ssh.AuthMethod{
@@ -64,9 +92,61 @@ func FromHost(user, password, address string) (*SSHConnection, error) {
 		return nil, fmt.Errorf("failed to dial SSH: %w", err)
 	}
 
-	return &SSHConnection{
-		client: client,
-	}, nil
+	conn := &SSHConnection{client: client}
+	for _, opt := range append([]Option{WithMaxSessions(10), WithSessionWait(60 * time.Second)}, opts...) {
+		opt(conn)
+	}
+	return conn, nil
+}
+
+// newSession opens a session and takes a slot of the session budget. The
+// returned release gives the slot back: it must run when the session ends, not
+// when the call that opened it returns.
+func (a *SSHConnection) newSession(ctx context.Context, what string) (*ssh.Session, func(), error) {
+	if a.sessionWait <= 0 {
+		select {
+		case a.sessions <- struct{}{}:
+		default:
+			return nil, nil, fmt.Errorf("%w: %s", ErrTooManySessions, what)
+		}
+	} else {
+		select {
+		case a.sessions <- struct{}{}:
+		case <-ctx.Done():
+			return nil, nil, ctx.Err()
+		// The bound of a caller with no deadline: a slot can stay out for ever.
+		case <-time.After(a.sessionWait):
+			return nil, nil, fmt.Errorf("%w: %s", ErrTooManySessions, what)
+		}
+	}
+
+	// The board frees a session a moment after we do, so a refusal right after a
+	// release is normal: back off and open again.
+	// 50ms, 100ms, 200ms, 400ms, then give up.
+	const (
+		minBackoff = 50 * time.Millisecond
+		maxBackoff = 400 * time.Millisecond
+	)
+	for backoff := minBackoff; ; backoff *= 2 {
+		session, err := a.client.NewSession()
+		if err == nil {
+			return session, sync.OnceFunc(func() { <-a.sessions }), nil
+		}
+
+		// Only the server refusing the channel is worth another try.
+		_, refused := errors.AsType[*ssh.OpenChannelError](err)
+		if !refused || backoff > maxBackoff {
+			<-a.sessions
+			return nil, nil, err
+		}
+
+		select {
+		case <-ctx.Done():
+			<-a.sessions
+			return nil, nil, ctx.Err()
+		case <-time.After(backoff):
+		}
+	}
 }
 
 func (a *SSHConnection) Forward(ctx context.Context, localPort int, remotePort int) error {
@@ -154,13 +234,14 @@ func (a *SSHConnection) ForwardKillAll(ctx context.Context) error {
 }
 
 func (a *SSHConnection) List(path string) ([]remote.FileInfo, error) {
-	session, err := a.client.NewSession()
+	cmd := fmt.Sprintf("ls -laQ %s", remote.ShellQuote(path))
+	session, release, err := a.newSession(context.Background(), cmd)
 	if err != nil {
 		return nil, err
 	}
+	defer release()
 	defer session.Close()
 
-	cmd := fmt.Sprintf("ls -laQ %s", remote.ShellQuote(path))
 	output, err := session.Output(cmd)
 	if err != nil {
 		return nil, err
@@ -170,13 +251,14 @@ func (a *SSHConnection) List(path string) ([]remote.FileInfo, error) {
 }
 
 func (a *SSHConnection) MkDirAll(path string) error {
-	session, err := a.client.NewSession()
+	cmd := fmt.Sprintf("mkdir -p %s", remote.ShellQuote(path))
+	session, release, err := a.newSession(context.Background(), cmd)
 	if err != nil {
 		return err
 	}
+	defer release()
 	defer session.Close()
 
-	cmd := fmt.Sprintf("mkdir -p %s", remote.ShellQuote(path))
 	if err := session.Run(cmd); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
@@ -185,13 +267,14 @@ func (a *SSHConnection) MkDirAll(path string) error {
 }
 
 func (a *SSHConnection) WriteFile(r io.Reader, path string) error {
-	session, err := a.client.NewSession()
+	cmd := fmt.Sprintf("cat > %s", remote.ShellQuote(path))
+	session, release, err := a.newSession(context.Background(), cmd)
 	if err != nil {
 		return err
 	}
+	defer release()
 	defer session.Close()
 
-	cmd := fmt.Sprintf("cat > %s", remote.ShellQuote(path))
 	session.Stdin = r
 
 	if err := session.Run(cmd); err != nil {
@@ -202,7 +285,9 @@ func (a *SSHConnection) WriteFile(r io.Reader, path string) error {
 }
 
 func (a *SSHConnection) ReadFile(path string) (io.ReadCloser, error) {
-	session, err := a.client.NewSession()
+	// LC_ALL=C: the parser reads the failure of cat in English.
+	cmd := fmt.Sprintf("LC_ALL=C cat %s", remote.ShellQuote(path))
+	session, release, err := a.newSession(context.Background(), cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -210,16 +295,16 @@ func (a *SSHConnection) ReadFile(path string) (io.ReadCloser, error) {
 	var stderr bytes.Buffer
 	session.Stderr = &stderr
 
-	// LC_ALL=C: the parser reads the failure of cat in English.
-	cmd := fmt.Sprintf("LC_ALL=C cat %s", remote.ShellQuote(path))
 	output, err := session.StdoutPipe()
 	if err != nil {
 		_ = session.Close()
+		release()
 		return nil, err
 	}
 
 	if err := session.Start(cmd); err != nil {
 		_ = session.Close()
+		release()
 		return nil, fmt.Errorf("failed to start command: %w", err)
 	}
 
@@ -232,10 +317,12 @@ func (a *SSHConnection) ReadFile(path string) (io.ReadCloser, error) {
 	r, err := remote.ParseReadOutput(output, exit)
 	if err != nil {
 		_ = session.Close()
+		release()
 		return nil, err
 	}
 
 	return remote.WithCloser{Reader: r, CloseFun: func() error {
+		defer release()
 		// The read reports the command failure, and an ended session is closed.
 		if err := session.Close(); err != nil && !errors.Is(err, io.EOF) {
 			return err
@@ -245,13 +332,14 @@ func (a *SSHConnection) ReadFile(path string) (io.ReadCloser, error) {
 }
 
 func (a *SSHConnection) Remove(path string) error {
-	session, err := a.client.NewSession()
+	cmd := fmt.Sprintf("rm -rf %s", remote.ShellQuote(path))
+	session, release, err := a.newSession(context.Background(), cmd)
 	if err != nil {
 		return err
 	}
+	defer release()
 	defer session.Close()
 
-	cmd := fmt.Sprintf("rm -rf %s", remote.ShellQuote(path))
 	if err := session.Run(cmd); err != nil {
 		return fmt.Errorf("failed to remove file: %w", err)
 	}
@@ -260,13 +348,14 @@ func (a *SSHConnection) Remove(path string) error {
 }
 
 func (a *SSHConnection) Move(src string, dst string) error {
-	session, err := a.client.NewSession()
+	cmd := fmt.Sprintf("mv -T -- %s %s", remote.ShellQuote(src), remote.ShellQuote(dst))
+	session, release, err := a.newSession(context.Background(), cmd)
 	if err != nil {
 		return err
 	}
+	defer release()
 	defer session.Close()
 
-	cmd := fmt.Sprintf("mv -T -- %s %s", remote.ShellQuote(src), remote.ShellQuote(dst))
 	if err := session.Run(cmd); err != nil {
 		return fmt.Errorf("failed to move %q to %q: %w", src, dst, err)
 	}
@@ -275,13 +364,14 @@ func (a *SSHConnection) Move(src string, dst string) error {
 }
 
 func (a *SSHConnection) Stats(p string) (remote.FileInfo, error) {
-	session, err := a.client.NewSession()
+	cmd := fmt.Sprintf("file -L %s", remote.ShellQuote(p))
+	session, release, err := a.newSession(context.Background(), cmd)
 	if err != nil {
 		return remote.FileInfo{}, err
 	}
+	defer release()
 	defer session.Close()
 
-	cmd := fmt.Sprintf("file -L %s", remote.ShellQuote(p))
 	output, err := session.Output(cmd)
 	if err != nil {
 		return remote.FileInfo{}, err
@@ -307,77 +397,91 @@ func (a *SSHConnection) Stats(p string) (remote.FileInfo, error) {
 }
 
 type SSHCommand struct {
-	session *ssh.Session
-	cmd     string
-	err     error
+	conn *SSHConnection
+	cmd  string
 }
 
 func (a *SSHConnection) GetCmd(cmd string, args ...string) remote.Cmder {
-	session, err := a.client.NewSession()
-	if err != nil {
-		return &SSHCommand{
-			err: fmt.Errorf("failed to create SSH session: %w", err),
-		}
-	}
-
 	parts := make([]string, 0, 1+len(args))
 	parts = append(parts, remote.ShellQuote(cmd))
 	for _, arg := range args {
 		parts = append(parts, remote.ShellQuote(arg))
 	}
 
-	return &SSHCommand{
-		session: session,
-		cmd:     strings.Join(parts, " "),
-	}
+	// The session is taken when the command runs, so an unused Cmder costs none.
+	return &SSHCommand{conn: a, cmd: strings.Join(parts, " ")}
 }
 
-func (c SSHCommand) Run(ctx context.Context) error {
-	if c.err != nil {
-		return c.err
+func (c *SSHCommand) Run(ctx context.Context) error {
+	session, release, err := c.conn.newSession(ctx, c.cmd)
+	if err != nil {
+		return fmt.Errorf("failed to create SSH session: %w", err)
 	}
+	defer release()
+	defer session.Close()
 
-	defer c.session.Close()
-	return c.session.Run(c.cmd)
+	// Closing the session unblocks Wait: sshd commonly ignores a signal request.
+	defer context.AfterFunc(ctx, func() { _ = session.Close() })()
+	err = session.Run(c.cmd)
+	return cmp.Or(ctx.Err(), err)
 }
 
 func (c *SSHCommand) Output(ctx context.Context) ([]byte, error) {
-	if c.err != nil {
-		return nil, c.err
+	session, release, err := c.conn.newSession(ctx, c.cmd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create SSH session: %w", err)
 	}
+	defer release()
+	defer session.Close()
 
-	defer c.session.Close()
-	return c.session.CombinedOutput(c.cmd)
+	// Closing the session unblocks Wait: sshd commonly ignores a signal request.
+	defer context.AfterFunc(ctx, func() { _ = session.Close() })()
+	// A canceled command still reports what it wrote before the end.
+	out, err := session.CombinedOutput(c.cmd)
+	return out, cmp.Or(ctx.Err(), err)
 }
 
 func (c *SSHCommand) Interactive() (io.WriteCloser, io.Reader, io.Reader, remote.Closer, error) {
-	if c.err != nil {
-		return nil, nil, nil, nil, c.err
+	// No ctx here: the Closer the caller gets is the end of the session.
+	session, release, err := c.conn.newSession(context.Background(), c.cmd)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to create SSH session: %w", err)
 	}
 
-	c.session.Stderr = c.session.Stdout // Redirect stderr to stdout
-	stdin, err := c.session.StdinPipe()
-	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to get stdin pipe: %w", err)
-	}
-	stdout, err := c.session.StdoutPipe()
-	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to get stdout pipe: %w", err)
-	}
-	stderr, err := c.session.StderrPipe()
-	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to get stderr pipe: %w", err)
+	// A failed start keeps no session, so the slot goes back here.
+	fail := func(err error) (io.WriteCloser, io.Reader, io.Reader, remote.Closer, error) {
+		_ = session.Close()
+		release()
+		return nil, nil, nil, nil, err
 	}
 
-	if err := c.session.Start(c.cmd); err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to start command: %w", err)
+	session.Stderr = session.Stdout // Redirect stderr to stdout
+	stdin, err := session.StdinPipe()
+	if err != nil {
+		return fail(fmt.Errorf("failed to get stdin pipe: %w", err))
+	}
+	stdout, err := session.StdoutPipe()
+	if err != nil {
+		return fail(fmt.Errorf("failed to get stdout pipe: %w", err))
+	}
+	stderr, err := session.StderrPipe()
+	if err != nil {
+		return fail(fmt.Errorf("failed to get stderr pipe: %w", err))
 	}
 
+	if err := session.Start(c.cmd); err != nil {
+		return fail(fmt.Errorf("failed to start command: %w", err))
+	}
+
+	// The slot is held for the life of the remote process, not of this call.
 	return stdin, stdout, stderr, func() error {
-		if err := c.session.Wait(); err != nil {
+		defer func() {
+			_ = session.Close()
+			release()
+		}()
+		if err := session.Wait(); err != nil {
 			return fmt.Errorf("command failed: %w", err)
 		}
-		_ = c.session.Close()
 		return nil
 	}, nil
 }
@@ -396,7 +500,7 @@ func (a *SSHConnection) Push(ctx context.Context, local, remote string) error {
 		return false
 	}()
 
-	scpClient := NewScpClient(a.client)
+	scpClient := NewScpClient(a)
 
 	if !isDirLocal {
 		if isDirRemote {
