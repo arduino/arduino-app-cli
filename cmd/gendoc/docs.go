@@ -599,7 +599,9 @@ before the app is started again.
 - 'Content-Type: application/gzip', with a 'Content-Disposition' naming the file: the gzipped release archive.
 - 'Content-Type: application/json': the build failed, the body is an error response ('code', 'details').
 
-A response that ends without its closing boundary is not complete: the archive it carries is truncated and must be discarded.`,
+A response that ends without its closing boundary is not complete: the archive it carries is truncated and must be discarded.
+
+The error statuses (400, 412, 500) are only answered before the build starts (invalid id, body or target, app that cannot be loaded): once it has started the status is 200, and a failure is the last part.`,
 				StatusCode: http.StatusOK,
 			},
 			PossibleErrors: []ErrorResponse{
