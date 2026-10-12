@@ -333,6 +333,7 @@ func IsUserPasswordSet(conn remote.RemoteShell) (bool, error) {
 
 	isUserSet, err := remote.ParseChage(out)
 	if err != nil {
+		_ = closer()
 		return false, err
 	}
 	if err := closer(); err != nil {
@@ -349,9 +350,13 @@ func SetUserPassword(conn remote.RemoteConn, newPass string) error {
 	}
 
 	if _, err = stdin.Write([]byte(newPass)); err != nil {
+		// stdin first: closer waits, and arduino-passwd ends only on EOF.
+		_ = stdin.Close()
+		_ = closer()
 		return fmt.Errorf("failed to write password: %w", err)
 	}
 	if err := stdin.Close(); err != nil {
+		_ = closer()
 		return fmt.Errorf("failed to close stdin: %w", err)
 	}
 
