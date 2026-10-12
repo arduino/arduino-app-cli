@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"path/filepath"
@@ -55,7 +56,7 @@ func TestAppReleaseBuildInvalidTarget(t *testing.T) {
 }
 
 // TestAppReleaseBuildStream builds a release through the API and asserts the archive is
-// streamed back as the response body while the optional build_id tags the build
+// sent back as the last part of the response while the optional build_id tags the build
 // events stream. The python environment is built in the runner image, which is
 // arm64 only, so a docker daemon is required as well.
 func TestAppReleaseBuildStream(t *testing.T) {
@@ -145,16 +146,42 @@ func TestAppReleaseBuildStream(t *testing.T) {
 	resp := outcome.resp
 	require.Equal(t, http.StatusOK, resp.StatusCode())
 
-	// The archive is streamed as a gzip attachment for the client to save.
-	require.Contains(t, resp.HTTPResponse.Header.Get("Content-Type"), "gzip")
-	disposition := resp.HTTPResponse.Header.Get("Content-Disposition")
-	assert.Contains(t, disposition, "attachment")
-	assert.Contains(t, disposition, release.ReleaseArchiveExt)
-
 	// The body is a valid gzip stream: what it ships is asserted by the cli build test.
-	gzipReader, err := gzip.NewReader(bytes.NewReader(resp.Body))
+	gzipReader, err := gzip.NewReader(bytes.NewReader(builtArchive(t, resp)))
 	require.NoError(t, err)
 	require.NoError(t, gzipReader.Close())
+}
+
+// builtArchive reads the release archive out of a build response: the last part of a
+// multipart body, after the heartbeats sent while the build was running.
+func builtArchive(t *testing.T, resp *client.BuildAppResp) []byte {
+	t.Helper()
+
+	mediaType, params, err := mime.ParseMediaType(resp.HTTPResponse.Header.Get("Content-Type"))
+	require.NoError(t, err)
+	require.Equal(t, "multipart/mixed", mediaType)
+
+	var last *multipart.Part
+	var body []byte
+	reader := multipart.NewReader(bytes.NewReader(resp.Body), params["boundary"])
+	for {
+		part, err := reader.NextRawPart()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+		last = part
+		body, err = io.ReadAll(part)
+		require.NoError(t, err)
+	}
+	require.NotNil(t, last, "the build response has no part")
+
+	// The archive is a gzip attachment for the client to save: a JSON part is a failed build.
+	require.Equal(t, "application/gzip", last.Header.Get("Content-Type"), "the build failed: %s", body)
+	disposition := last.Header.Get("Content-Disposition")
+	assert.Contains(t, disposition, "attachment")
+	assert.Contains(t, disposition, release.ReleaseArchiveExt)
+	return body
 }
 
 func TestAppReleaseInstallFromArchive(t *testing.T) {
@@ -198,7 +225,7 @@ func TestAppReleaseInstallFromArchive(t *testing.T) {
 	writer := multipart.NewWriter(body)
 	part, err := writer.CreateFormFile("file", appName+".ard")
 	require.NoError(t, err)
-	_, err = part.Write(buildResp.Body)
+	_, err = part.Write(builtArchive(t, buildResp))
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 
@@ -317,7 +344,7 @@ func TestAppReleasePrepare(t *testing.T) {
 	writer := multipart.NewWriter(body)
 	part, err := writer.CreateFormFile("file", appName+".ard")
 	require.NoError(t, err)
-	_, err = part.Write(buildResp.Body)
+	_, err = part.Write(builtArchive(t, buildResp))
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 
