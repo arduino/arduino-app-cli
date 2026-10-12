@@ -56,7 +56,7 @@ func PrepareRelease(
 	if err != nil {
 		return err
 	}
-	if len(manifest.Models) == 0 {
+	if len(manifest.GetModelInfo()) == 0 {
 		cb(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
 		return nil
 	}
@@ -67,8 +67,8 @@ func PrepareRelease(
 	if err != nil {
 		return fmt.Errorf("cannot read the models the release ships: %w", err)
 	}
-	for i, model := range manifest.Models {
-		done := 50.0 + 50.0*float32(i)/float32(len(manifest.Models))
+	for i, model := range manifest.GetModelInfo() {
+		done := 50.0 + 50.0*float32(i)/float32(len(manifest.GetModelInfo()))
 		cb(StreamMessage{data: "downloading the model " + model.ID})
 		cb(StreamMessage{progress: &Progress{Name: "models", Progress: done}})
 		if _, err := models.Install(ctx, docker, model.ID, plat, func(message modelsindex.StreamMessage) {

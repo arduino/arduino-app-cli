@@ -24,6 +24,7 @@ import (
 
 func newInstallCmd(cfg config.Configuration) *cobra.Command {
 	var noPrepare bool
+	var forceYes bool
 	cmd := &cobra.Command{
 		Use:   "install release_path",
 		Short: "Install an Arduino App release archive",
@@ -36,13 +37,35 @@ for this board, and it is named after the release, date included.
 
 The install then downloads what the release needs to run, its containers and its
 models, which a start would otherwise wait for. Pass --no-prepare to install the
-release alone, and prepare it later with 'start --prepare'.`,
+release alone, and prepare it later with 'start --prepare'.
+
+A release can run commands on this device, so the install asks for a
+confirmation first. Install a release only from trusted sources. Pass --yes to
+install it without being asked.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()
 			}
-			installHandler(cmd.Context(), cfg, paths.New(args[0]), !noPrepare)
+			archive := paths.New(args[0])
+
+			if archive.NotExist() {
+				feedback.Fatal(fmt.Sprintf("%s: %s not found", orchestrator.ErrBadRequest, archive), feedback.ErrBadArgument)
+			}
+			if !forceYes {
+				question := fmt.Sprintf("WARNING: '%s' can run any command on this device, with full access to the system.\n"+
+					"Only install App Releases from sources you trust.\n"+
+					"Do you want to continue? (yes/no)", archive.Base())
+				yes, err := feedback.Confirm(question)
+				if err != nil {
+					return err
+				}
+				if !yes {
+					feedback.Print("Install canceled.")
+					return nil
+				}
+			}
+			installHandler(cmd.Context(), cfg, archive, !noPrepare)
 			return nil
 		},
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -54,6 +77,7 @@ release alone, and prepare it later with 'start --prepare'.`,
 	}
 
 	cmd.Flags().BoolVar(&noPrepare, "no-prepare", false, "Install the release alone, without downloading its containers and its models")
+	cmd.Flags().BoolVar(&forceYes, "yes", false, "Install without asking for confirmation")
 
 	return cmd
 }
