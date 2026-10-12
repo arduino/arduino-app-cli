@@ -120,12 +120,28 @@ func (a *SSHConnection) newSession(ctx context.Context, what string) (*ssh.Sessi
 		}
 	}
 
-	session, err := a.client.NewSession()
-	if err != nil {
-		<-a.sessions
-		return nil, nil, err
+	// The board frees a session a moment after we do, so a refusal right after a
+	// release is normal: back off and open again. 400ms is the last wait.
+	for backoff := 50 * time.Millisecond; ; backoff *= 2 {
+		session, err := a.client.NewSession()
+		if err == nil {
+			return session, sync.OnceFunc(func() { <-a.sessions }), nil
+		}
+
+		// Only the server refusing the channel is worth another try.
+		_, refused := errors.AsType[*ssh.OpenChannelError](err)
+		if !refused || backoff > 400*time.Millisecond {
+			<-a.sessions
+			return nil, nil, err
+		}
+
+		select {
+		case <-ctx.Done():
+			<-a.sessions
+			return nil, nil, ctx.Err()
+		case <-time.After(backoff):
+		}
 	}
-	return session, sync.OnceFunc(func() { <-a.sessions }), nil
 }
 
 func (a *SSHConnection) Forward(ctx context.Context, localPort int, remotePort int) error {
