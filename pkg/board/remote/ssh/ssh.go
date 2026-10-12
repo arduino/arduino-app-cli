@@ -121,8 +121,13 @@ func (a *SSHConnection) newSession(ctx context.Context, what string) (*ssh.Sessi
 	}
 
 	// The board frees a session a moment after we do, so a refusal right after a
-	// release is normal: back off and open again. 400ms is the last wait.
-	for backoff := 50 * time.Millisecond; ; backoff *= 2 {
+	// release is normal: back off and open again.
+	// 50ms, 100ms, 200ms, 400ms, then give up.
+	const (
+		minBackoff = 50 * time.Millisecond
+		maxBackoff = 400 * time.Millisecond
+	)
+	for backoff := minBackoff; ; backoff *= 2 {
 		session, err := a.client.NewSession()
 		if err == nil {
 			return session, sync.OnceFunc(func() { <-a.sessions }), nil
@@ -130,7 +135,7 @@ func (a *SSHConnection) newSession(ctx context.Context, what string) (*ssh.Sessi
 
 		// Only the server refusing the channel is worth another try.
 		_, refused := errors.AsType[*ssh.OpenChannelError](err)
-		if !refused || backoff > 400*time.Millisecond {
+		if !refused || backoff > maxBackoff {
 			<-a.sessions
 			return nil, nil, err
 		}
