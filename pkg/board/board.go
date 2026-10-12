@@ -308,14 +308,23 @@ func GetCustomName(conn remote.RemoteConn) (string, error) {
 	return string(bytes.TrimSpace(out)), nil
 }
 
-func IsUserPasswordSet(ctx context.Context, conn remote.RemoteShell) (bool, error) {
+func IsUserPasswordSet(conn remote.RemoteShell) (bool, error) {
 	// TODO: remove hardcoded arduino username
-	out, err := conn.GetCmd("chage", "-l", "arduino").Output(ctx)
+	cmd := conn.GetCmd("chage", "-l", "arduino")
+	w, out, _, closer, err := cmd.Interactive()
 	if err != nil {
-		return false, fmt.Errorf("failed to check password: %w: %s", err, out)
+		return false, fmt.Errorf("failed to check password: %w", err)
 	}
+	w.Close() // we don't need to write anything
 
-	return remote.ParseChage(bytes.NewReader(out))
+	isUserSet, err := remote.ParseChage(out)
+	if err != nil {
+		return false, err
+	}
+	if err := closer(); err != nil {
+		return false, err
+	}
+	return isUserSet, nil
 }
 
 func SetUserPassword(conn remote.RemoteConn, newPass string) error {
