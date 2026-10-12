@@ -287,7 +287,7 @@ func SetCustomName(ctx context.Context, conn remote.RemoteConn, name string) err
 
 	// avahi publishes the name, so it is restarted when it runs. Each sudo of the
 	// script matches its own sudoers rule.
-	if out, err := conn.GetCmd("sh", "-c", `systemctl is-active --quiet avahi-daemon || exit 0
+	if out, err := conn.GetCmd("sh", "-c", `systemctl is-active avahi-daemon >/dev/null || exit 0
 sudo systemctl stop avahi-daemon && sudo systemctl start avahi-daemon`).Output(ctx); err != nil {
 		slog.Warn("failed to restart avahi-daemon, network discovery might not work until next reboot", "error", err, "output", string(out))
 	}
@@ -343,11 +343,13 @@ func SetUserPassword(conn remote.RemoteConn, newPass string) error {
 
 func EnableNetworkMode(conn remote.RemoteConn, password string) error {
 	// One shell, so the password is fed once, and -x names the failing command in
-	// the output. ssh-keygen -A writes the host keys an image ships without.
+	// the output.
 	if out, err := ExecAsRoot(conn, password, "sh", "-c", `set -ex
-systemctl unmask ssh.service avahi-daemon.service
-ssh-keygen -A
-systemctl enable --now avahi-daemon.service ssh.service`); err != nil {
+systemctl unmask ssh.service
+systemctl unmask avahi-daemon.service
+dpkg-reconfigure openssh-server
+systemctl enable --now avahi-daemon.service
+systemctl enable --now ssh.service`); err != nil {
 		return fmt.Errorf("failed to enable network mode: %w: %s", err, string(out))
 	}
 
@@ -356,10 +358,10 @@ systemctl enable --now avahi-daemon.service ssh.service`); err != nil {
 
 func NetworkModeStatus(ctx context.Context, conn remote.RemoteConn) (bool, error) {
 	// Network mode is on when both units are enabled and running.
-	if err := conn.GetCmd("sh", "-c", `systemctl is-enabled --quiet ssh \
-		&& systemctl is-active --quiet ssh \
-		&& systemctl is-enabled --quiet avahi-daemon \
-		&& systemctl is-active --quiet avahi-daemon`).Run(ctx); err != nil {
+	if err := conn.GetCmd("sh", "-c", `systemctl is-enabled ssh \
+		&& systemctl is-active ssh \
+		&& systemctl is-enabled avahi-daemon \
+		&& systemctl is-active avahi-daemon`).Run(ctx); err != nil {
 		if _, isExit := remote.ExitCode(err); isExit {
 			return false, nil
 		}
@@ -371,8 +373,10 @@ func NetworkModeStatus(ctx context.Context, conn remote.RemoteConn) (bool, error
 
 func DisableNetworkMode(conn remote.RemoteConn, password string) error {
 	if out, err := ExecAsRoot(conn, password, "sh", "-c", `set -ex
-systemctl mask ssh.service avahi-daemon.service
-systemctl disable --now avahi-daemon.service ssh.service`); err != nil {
+systemctl mask ssh.service
+systemctl mask avahi-daemon.service
+systemctl disable --now avahi-daemon.service
+systemctl disable --now ssh.service`); err != nil {
 		return fmt.Errorf("failed to disable network mode: %w: %s", err, string(out))
 	}
 
