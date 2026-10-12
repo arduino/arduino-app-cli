@@ -319,9 +319,10 @@ paths:
     post:
       description: 'Build the application into a release archive: the python environment
         is built and the compose files are resolved for the target board, so that
-        installing it generates nothing. The gzipped release archive is streamed back
-        as the response body for the client to save; build progress is reported on
-        the app build events stream.'
+        installing it generates nothing. The response is answered at once and kept
+        alive while the build runs: its last part is the gzipped release archive for
+        the client to save, or the error of the build. Build progress is reported
+        on the app build events stream.'
       operationId: buildApp
       parameters:
       - description: application identifier.
@@ -360,11 +361,18 @@ paths:
       responses:
         "200":
           content:
-            application/gzip:
+            multipart/mixed:
               schema:
                 format: base64
                 type: string
-          description: The gzipped release archive, streamed for the client to save.
+          description: |-
+            A multipart body, sent while the build runs. The status is sent before the build is over, so the outcome is in the last part.
+
+            **Heartbeat parts** ('Content-Type: text/plain'): empty, sent regularly until the build is over. To be ignored.
+
+            **Last part**, one of:
+            - 'Content-Type: application/gzip', with a 'Content-Disposition' naming the file: the gzipped release archive.
+            - 'Content-Type: application/json': the build failed, the body is an error response ('code', 'details').
         "400":
           $ref: '#/components/responses/BadRequest'
         "412":

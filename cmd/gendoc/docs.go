@@ -585,14 +585,20 @@ before the app is started again.
 				Notes        string `json:"notes" description:"Notes is the release note, markdown, and goes in the manifest as it is given."`
 				IncludeData  bool   `json:"include_data" description:"IncludeData ships the data folder of the app, at the root of the archive."`
 			})(nil),
-			Description: "Build the application into a release archive: the python environment is built and the compose files are resolved for the target board, so that installing it generates nothing. The gzipped release archive is streamed back as the response body for the client to save; build progress is reported on the app build events stream.",
+			Description: "Build the application into a release archive: the python environment is built and the compose files are resolved for the target board, so that installing it generates nothing. The response is answered at once and kept alive while the build runs: its last part is the gzipped release archive for the client to save, or the error of the build. Build progress is reported on the app build events stream.",
 			Summary:     "Build an app into a release archive",
 			Tags:        []Tag{ApplicationTag},
 			CustomSuccessResponse: &CustomResponseDef{
-				ContentType:   "application/gzip",
+				ContentType:   "multipart/mixed",
 				DataStructure: []byte{},
-				Description:   "The gzipped release archive, streamed for the client to save.",
-				StatusCode:    http.StatusOK,
+				Description: `A multipart body, sent while the build runs. The status is sent before the build is over, so the outcome is in the last part.
+
+**Heartbeat parts** ('Content-Type: text/plain'): empty, sent regularly until the build is over. To be ignored.
+
+**Last part**, one of:
+- 'Content-Type: application/gzip', with a 'Content-Disposition' naming the file: the gzipped release archive.
+- 'Content-Type: application/json': the build failed, the body is an error response ('code', 'details').`,
+				StatusCode: http.StatusOK,
 			},
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
