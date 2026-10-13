@@ -32,6 +32,7 @@ func newBrickCmd(cfg config.Configuration) *cobra.Command {
 	}
 
 	brickCmd.AddCommand(newBrickNewCmd(cfg))
+	brickCmd.AddCommand(newBrickAddCmd(cfg))
 	brickCmd.AddCommand(newBrickConfigCmd(cfg))
 
 	return brickCmd
@@ -43,8 +44,8 @@ func newBrickNewCmd(cfg config.Configuration) *cobra.Command {
 		Short: "Create a local brick in an Arduino App",
 		Long: `Create a local brick in an Arduino App.
 
-The brick is generated in the bricks folder of the app. List it in app.yaml to use
-it, and edit its brick_compose.yaml for the containers it needs.`,
+The brick is generated in the bricks folder of the app. Add it to the app with
+"app brick add", and edit its brick_compose.yaml for the containers it needs.`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			brickNewHandler(args[0], args[1])
@@ -94,11 +95,74 @@ type brickNewResult struct {
 func (r brickNewResult) String() string {
 	// The brick is ignored until the app lists it.
 	return fmt.Sprintf("✓ Created brick %s in %s\n"+
-		"  Add it to app.yaml to use it:\n    bricks:\n      - %s:",
+		"  Add it to the app: arduino-app-cli app brick add . %s",
 		r.Brick, r.Path, r.Brick)
 }
 
 func (r brickNewResult) Data() any {
+	return r
+}
+
+func newBrickAddCmd(cfg config.Configuration) *cobra.Command {
+	var model string
+	cmd := &cobra.Command{
+		Use:   "add app_path brick_id",
+		Short: "Add a brick to an Arduino App",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			brickAddHandler(cmd.Context(), args[0], args[1], model)
+			return nil
+		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			switch len(args) {
+			case 0:
+				return completion.ApplicationNames(cfg)(cmd, args, toComplete)
+			case 1:
+				return completion.BrickIDs()(cmd, args, toComplete)
+			}
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		},
+	}
+
+	cmd.Flags().StringVar(&model, "model", "", "The AI model the brick runs, by id")
+
+	return cmd
+}
+
+func brickAddHandler(ctx context.Context, appRef, brickID, model string) {
+	arduinoApp, err := Load(appRef)
+	if err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+	}
+	editable, err := arduinoApp.GetAsEditable()
+	if err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+	}
+
+	req := bricks.BrickCreateUpdateRequest{ID: brickID}
+	if model != "" {
+		req.Model = &model
+	}
+	if err := servicelocator.GetBrickService().BrickCreate(ctx, req, editable); err != nil {
+		feedback.Fatal(fmt.Sprintf("Cannot add the brick: %s", err), feedback.ErrBadArgument)
+	}
+
+	feedback.PrintResult(brickAddResult{Brick: brickID, Model: model})
+}
+
+type brickAddResult struct {
+	Brick string `json:"brick"`
+	Model string `json:"model,omitempty"`
+}
+
+func (r brickAddResult) String() string {
+	if r.Model != "" {
+		return fmt.Sprintf("✓ Added brick %s with model %s", r.Brick, r.Model)
+	}
+	return fmt.Sprintf("✓ Added brick %s", r.Brick)
+}
+
+func (r brickAddResult) Data() any {
 	return r
 }
 
