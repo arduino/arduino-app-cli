@@ -57,6 +57,8 @@ type Manager struct {
 	debUpdateService             ServiceUpdater
 	arduinoPlatformUpdateService ServiceUpdater
 	selfRestart                  bool
+	// Overridden by the tests to avoid real network I/O.
+	connected func() bool
 
 	mu   sync.RWMutex
 	subs map[chan Event]struct{}
@@ -66,6 +68,7 @@ func NewManager(debUpdateService ServiceUpdater, arduinoPlatformUpdateService Se
 	return &Manager{
 		debUpdateService:             debUpdateService,
 		arduinoPlatformUpdateService: arduinoPlatformUpdateService,
+		connected:                    isConnected,
 		subs:                         make(map[chan Event]struct{}),
 	}
 }
@@ -85,7 +88,7 @@ func (m *Manager) ListUpgradablePackages(ctx context.Context, matcher func(Upgra
 
 	// Make sure to be connected to the internet, before checking for updates.
 	// This is needed because the checks below work also when offline (using cached data).
-	if !isConnected() {
+	if !m.connected() {
 		return nil, ErrNoInternetConnection
 	}
 
