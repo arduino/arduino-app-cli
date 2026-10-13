@@ -81,7 +81,7 @@ func AppLogs(
 	addServices := func(composeFile *paths.Path, brickID string) error {
 		services, err := extractServicesFromComposeFile(composeFile)
 		if err != nil {
-			return err
+			return fmt.Errorf("brick %s: invalid compose file %s: %w", brickID, appRelative(composeFile, app.FullPath), err)
 		}
 		for _, s := range services {
 			if _, claimed := serviceToBrickMapping[s.name]; !claimed {
