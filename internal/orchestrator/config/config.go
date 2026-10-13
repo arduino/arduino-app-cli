@@ -280,6 +280,12 @@ func (c *Configuration) CustomModelsDir() *paths.Path {
 	return c.customModelsDir
 }
 
+// EIModelsDir is where a model deployed from the user's own Edge Impulse project is
+// kept, one folder per model id.
+func (c *Configuration) EIModelsDir() *paths.Path {
+	return c.customModelsDir.Join("custom-ei")
+}
+
 func (c *Configuration) ModelsDir() *paths.Path {
 	return c.modelsDir
 }
