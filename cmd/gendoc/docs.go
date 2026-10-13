@@ -585,23 +585,25 @@ before the app is started again.
 				Notes        string `json:"notes" description:"Notes is the release note, markdown, and goes in the manifest as it is given."`
 				IncludeData  bool   `json:"include_data" description:"IncludeData ships the data folder of the app, at the root of the archive."`
 			})(nil),
-			Description: "Build the application into a release archive: the python environment is built and the compose files are resolved for the target board, so that installing it generates nothing. The response is answered at once and kept alive while the build runs: its last part is the gzipped release archive for the client to save, or the error of the build. Build progress is reported on the app build events stream.",
+			Description: "Build the application into a release archive: the python environment is built and the compose files are resolved for the target board, so that installing it generates nothing. The response stays open while the build runs: its last part is the release archive, or the build error. Progress is reported on the app build events stream.",
 			Summary:     "Build an app into a release archive",
 			Tags:        []Tag{ApplicationTag},
 			CustomSuccessResponse: &CustomResponseDef{
 				ContentType:   "multipart/mixed",
 				DataStructure: []byte{},
-				Description: `A multipart body, sent while the build runs. The status is sent before the build is over, so the outcome is in the last part.
+				Description: `A multipart response, open while the build runs.
 
-**Heartbeat parts** ('Content-Type: text/plain'): empty, sent regularly until the build is over. To be ignored.
+**Heartbeat parts** ('Content-Type: text/plain'):
+Empty, sent every 15 seconds to keep the connection alive.
 
 **Last part**, one of:
-- 'Content-Type: application/gzip', with a 'Content-Disposition' naming the file: the gzipped release archive.
-- 'Content-Type: application/json': the build failed, the body is an error response ('code', 'details').
+- 'Content-Type: application/gzip': the release archive.
+- 'Content-Type: application/json': the build failed, with an error response ('code', 'details').
 
-A response that ends without its closing boundary is not complete: the archive it carries is truncated and must be discarded.
+The status is always 200 once the build has started.
+A response without the closing boundary is incomplete: discard the archive.
 
-The error statuses (400, 412, 500) are only answered before the build starts (invalid id, body or target, app that cannot be loaded): once it has started the status is 200, and a failure is the last part.`,
+Requests rejected before the build starts return a regular 400, 412 or 500.`,
 				StatusCode: http.StatusOK,
 			},
 			PossibleErrors: []ErrorResponse{
