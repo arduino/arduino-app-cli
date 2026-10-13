@@ -8,8 +8,10 @@ package orchestrator
 import (
 	"testing"
 
+	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFrozenLookup(t *testing.T) {
@@ -75,5 +77,33 @@ func TestFrozenLookup(t *testing.T) {
 			assert.Equal(t, test.wantSet, set)
 			assert.Equal(t, test.want, value)
 		})
+	}
+}
+
+func TestFrozenComposeIncludes(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+	compose := []byte("services:\n  svc:\n    image: busybox\n")
+
+	assetCompose := cfg.AssetDir().Join("compose", "arduino", "asset_brick", "brick_compose.yaml")
+	require.NoError(t, assetCompose.Parent().MkdirAll())
+	require.NoError(t, assetCompose.WriteFile(compose))
+
+	// A brick the app brings along is outside the asset dir, at a different depth.
+	appDir := paths.New(t.TempDir()).Join("home", "arduino", "ArduinoApps", "my-app")
+	localCompose := appDir.Join("bricks", "local_brick", "brick_compose.yaml")
+	require.NoError(t, localCompose.Parent().MkdirAll())
+	require.NoError(t, localCompose.WriteFile(compose))
+
+	genPath := appDir.Join(".cache")
+	require.NoError(t, genPath.MkdirAll())
+
+	includes, err := frozenComposeIncludes(paths.NewPathList(assetCompose.String(), localCompose.String()), genPath, cfg, types.Mapping{})
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		"compose/compose/arduino/asset_brick/brick_compose.yaml",
+		"compose/local_brick/brick_compose.yaml",
+	}, includes)
+	for _, include := range includes {
+		assert.FileExists(t, genPath.Join(include).String())
 	}
 }
