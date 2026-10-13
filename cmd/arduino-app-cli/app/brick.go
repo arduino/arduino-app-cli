@@ -84,19 +84,22 @@ func brickNewHandler(appRef, name string) {
 	}
 
 	// The path the editor shows, not the absolute one.
-	feedback.PrintResult(brickNewResult{Brick: id, Path: paths.New("bricks", id).String()})
+	feedback.PrintResult(brickNewResult{Brick: id, Path: paths.New("bricks", id).String(), app: appRef})
 }
 
 type brickNewResult struct {
 	Brick string `json:"brick"`
 	Path  string `json:"path"`
+
+	// The app as the user named it, a path or an id: the hint must repeat it.
+	app string
 }
 
 func (r brickNewResult) String() string {
 	// The brick is ignored until the app lists it.
 	return fmt.Sprintf("✓ Created brick %s in %s\n"+
-		"  Add it to the app: arduino-app-cli app brick add . %s",
-		r.Brick, r.Path, r.Brick)
+		"  Add it to the app: arduino-app-cli app brick add %s %s",
+		r.Brick, r.Path, r.app, r.Brick)
 }
 
 func (r brickNewResult) Data() any {
