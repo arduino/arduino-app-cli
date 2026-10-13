@@ -118,7 +118,7 @@ func newBrickAddCmd(cfg config.Configuration) *cobra.Command {
 			case 0:
 				return completion.ApplicationNames(cfg)(cmd, args, toComplete)
 			case 1:
-				return completion.BrickIDs()(cmd, args, toComplete)
+				return completion.AppBrickIDs(args[0])
 			}
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		},
@@ -188,7 +188,8 @@ On an App Release, only secret variables can be changed.`,
 			case 0:
 				return completion.ApplicationNames(cfg)(cmd, args, toComplete)
 			case 1:
-				return completion.BrickIDs()(cmd, args, toComplete)
+				// Only a brick the app lists can be configured.
+				return completion.AppListedBrickIDs(args[0])
 			}
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		},
