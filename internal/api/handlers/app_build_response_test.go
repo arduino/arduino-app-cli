@@ -123,4 +123,21 @@ func TestBuildResponse(t *testing.T) {
 		assert.Contains(t, body, "Content-Type: application/gzip")
 		assert.NotContains(t, body, "--"+params["boundary"]+"--")
 	})
+
+	t.Run("a second Close does not block", func(t *testing.T) {
+		response := startBuildResponse(httptest.NewRecorder(), heartbeat)
+		response.SendError(models.ErrorResponse{Details: "the build failed"})
+
+		closed := make(chan struct{})
+		go func() {
+			defer close(closed)
+			response.Close()
+			response.Close()
+		}()
+		select {
+		case <-closed:
+		case <-time.After(5 * time.Second):
+			t.Fatal("Close blocked")
+		}
+	})
 }
