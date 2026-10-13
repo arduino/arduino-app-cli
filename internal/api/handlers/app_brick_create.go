@@ -11,8 +11,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"regexp"
-	"strings"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
@@ -51,7 +49,7 @@ func HandleAppLocalBrickCreate(idProvider *appid.Provider) http.HandlerFunc {
 			return
 		}
 
-		id, err := generateBrickID(req.Name)
+		id, err := generator.BrickIDFromName(req.Name)
 		if err != nil {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
 			return
@@ -70,23 +68,4 @@ func HandleAppLocalBrickCreate(idProvider *appid.Provider) http.HandlerFunc {
 
 		render.EncodeResponse(w, http.StatusCreated, AppLocalBrickCreateResponse{ID: id})
 	}
-}
-
-var brickIDRegexp = regexp.MustCompile(`[^a-z0-9]+`)
-
-func generateBrickID(name string) (string, error) {
-	if strings.Contains(name, ".") {
-		return "", errors.New("brick name cannot contain '.' character")
-	}
-	if strings.Contains(name, ":") {
-		return "", errors.New("brick name cannot contain ':' character")
-	}
-
-	id := strings.ToLower(name)
-	id = brickIDRegexp.ReplaceAllString(id, "_")
-	id = strings.Trim(id, "_")
-	if id == "" {
-		return "", errors.New("brick name must contain at least one alphanumeric character")
-	}
-	return id, nil
 }
