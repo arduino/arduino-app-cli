@@ -68,7 +68,7 @@ func startBuildResponse(w http.ResponseWriter, heartbeat time.Duration) *buildRe
 }
 
 func (b *buildResponse) SendArchive(archive *paths.Path, fileName string) error {
-	b.stopHeartbeat()
+	b.Close()
 
 	file, err := archive.Open()
 	if err != nil {
@@ -92,7 +92,7 @@ func (b *buildResponse) SendArchive(archive *paths.Path, fileName string) error 
 }
 
 func (b *buildResponse) SendError(response models.ErrorResponse) {
-	b.stopHeartbeat()
+	b.Close()
 
 	part, err := b.writer.CreatePart(textproto.MIMEHeader{"Content-Type": {"application/json"}})
 	if err == nil {
@@ -106,8 +106,9 @@ func (b *buildResponse) SendError(response models.ErrorResponse) {
 	}
 }
 
-// stopHeartbeat waits for the heartbeat to end. It can be called more than once.
-func (b *buildResponse) stopHeartbeat() {
+// Close stops the heartbeat. It does not end the body: SendArchive and SendError do.
+// It can be called more than once.
+func (b *buildResponse) Close() {
 	b.stopOnce.Do(func() { close(b.stop) })
 	<-b.stopped
 }

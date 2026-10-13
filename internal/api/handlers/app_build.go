@@ -83,7 +83,7 @@ func HandleAppBuild(
 		}
 
 		response := startBuildResponse(w, buildHeartbeatInterval)
-		defer response.stopHeartbeat()
+		defer response.Close()
 
 		result, reader, err := orchestrator.BuildRelease(r.Context(), dockerClient, provisioner, appToBuild, req, cfg, func(item orchestrator.StreamMessage) {
 			broker.PublishStreamMessage(buildID, item)
