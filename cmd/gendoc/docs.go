@@ -585,7 +585,7 @@ before the app is started again.
 				Notes        string `json:"notes" description:"Notes is the release note, markdown, and goes in the manifest as it is given."`
 				IncludeData  bool   `json:"include_data" description:"IncludeData ships the data folder of the app, at the root of the archive."`
 			})(nil),
-			Description: "Build the application into a release archive: the python environment is built and the compose files are resolved for the target board, so that installing it generates nothing. The response stays open while the build runs: its last part is the release archive, or the build error. Progress is reported on the app build events stream.",
+			Description: "Build the application into a release archive: the python environment is built and the compose files are resolved for the target board, so that installing it generates nothing. The response stays open while the build runs: its last part is the release archive, or the build error. Progress is reported in the response and on the app build events stream.",
 			Summary:     "Build an app into a release archive",
 			Tags:        []Tag{ApplicationTag},
 			CustomSuccessResponse: &CustomResponseDef{
@@ -596,9 +596,14 @@ before the app is started again.
 **Heartbeat parts** ('Content-Type: text/plain'):
 Empty, sent every 15 seconds to keep the connection alive.
 
+**Progress parts** ('Content-Type: application/json'), named by their 'event' as on the build events stream:
+'{"event":"progress","name":"python environment","progress":20}'
+'{"event":"message","message":"building the python environment"}'
+
 **Last part**, one of:
 - 'Content-Type: application/gzip': the release archive.
-- 'Content-Type: application/json': the build failed, with an error response ('code', 'details').
+- 'Content-Type: application/json': the build failed.
+'{"event":"error","code":"INTERNAL_SERVER_ERROR","details":"An error occurred during operation"}'
 
 The status is always 200 once the build has started.
 A response without the closing boundary is incomplete: discard the archive.

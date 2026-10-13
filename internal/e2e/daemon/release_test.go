@@ -221,8 +221,12 @@ func TestAppReleaseBuildFailure(t *testing.T) {
 
 	last, body := lastBuildPart(t, resp)
 	require.Equal(t, "application/json", last.Header.Get("Content-Type"))
-	var failure models.ErrorResponse
+	var failure struct {
+		Event string `json:"event"`
+		models.ErrorResponse
+	}
 	require.NoError(t, json.Unmarshal(body, &failure))
+	assert.Equal(t, "error", failure.Event)
 	assert.Equal(t, "INTERNAL_SERVER_ERROR", failure.Code)
 	assert.Contains(t, failure.Details, "failed to build the python environment")
 }

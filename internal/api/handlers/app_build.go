@@ -87,6 +87,7 @@ func HandleAppBuild(
 
 		result, reader, err := orchestrator.BuildRelease(r.Context(), dockerClient, provisioner, appToBuild, req, cfg, func(item orchestrator.StreamMessage) {
 			broker.PublishStreamMessage(buildID, item)
+			response.SendProgress(item.GetProgress(), item.GetData())
 		})
 		if err != nil {
 			slog.Error("Unable to build the app", slog.String("error", err.Error()))

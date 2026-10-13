@@ -12,6 +12,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 )
 
 type buildResponsePart struct {
@@ -92,9 +94,7 @@ func TestBuildResponse(t *testing.T) {
 		require.NotEmpty(t, parts)
 		last := parts[len(parts)-1]
 		assert.Equal(t, []string{"application/json"}, last.header["Content-Type"])
-		var got models.ErrorResponse
-		require.NoError(t, json.Unmarshal(last.body, &got))
-		assert.Equal(t, models.ErrorResponse{Code: "INTERNAL_SERVER_ERROR", Details: "the build failed"}, got)
+		assert.JSONEq(t, `{"event":"error","code":"INTERNAL_SERVER_ERROR","details":"the build failed"}`, string(last.body))
 	})
 
 	t.Run("an archive that cannot be read ends with an error", func(t *testing.T) {
@@ -122,6 +122,56 @@ func TestBuildResponse(t *testing.T) {
 		body := recorder.Body.String()
 		assert.Contains(t, body, "Content-Type: application/gzip")
 		assert.NotContains(t, body, "--"+params["boundary"]+"--")
+	})
+
+	t.Run("the progress and the messages are sent as JSON parts, in order", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		response := startBuildResponse(recorder, time.Hour)
+		response.SendProgress(&orchestrator.Progress{Name: "sketch", Progress: 80}, "building sketch")
+		response.SendProgress(nil, "compiling")
+		response.SendError(models.ErrorResponse{Details: "the build failed"})
+		// Dropped: the last part is already sent.
+		response.SendProgress(nil, "too late")
+
+		parts := readBuildResponse(t, recorder)
+		require.Len(t, parts, 4)
+		for _, part := range parts {
+			assert.Equal(t, []string{"application/json"}, part.header["Content-Type"])
+		}
+		assert.JSONEq(t, `{"event":"progress","name":"sketch","progress":80}`, string(parts[0].body))
+		assert.JSONEq(t, `{"event":"message","message":"building sketch"}`, string(parts[1].body))
+		assert.JSONEq(t, `{"event":"message","message":"compiling"}`, string(parts[2].body))
+		assert.JSONEq(t, `{"event":"error","details":"the build failed"}`, string(parts[3].body))
+	})
+
+	t.Run("the progress and the heartbeat are written one part at a time", func(t *testing.T) {
+		archive := paths.New(t.TempDir(), "app.ard")
+		require.NoError(t, archive.WriteFile([]byte("archive content")))
+
+		recorder := &flushRecorder{ResponseRecorder: httptest.NewRecorder()}
+		response := startBuildResponse(recorder, time.Millisecond)
+		var senders sync.WaitGroup
+		for range 4 {
+			senders.Go(func() {
+				for range 50 {
+					response.SendProgress(&orchestrator.Progress{Name: "sketch", Progress: 80}, "compiling")
+				}
+			})
+		}
+		senders.Wait()
+		require.NoError(t, response.SendArchive(archive, "app.ard"))
+
+		// Parts written together would not parse.
+		parts := readBuildResponse(t, recorder.ResponseRecorder)
+		var events int
+		for _, part := range parts[:len(parts)-1] {
+			if part.header["Content-Type"][0] == "application/json" {
+				require.True(t, json.Valid(part.body), "%s", part.body)
+				events++
+			}
+		}
+		assert.Equal(t, 400, events)
+		assert.Equal(t, "archive content", string(parts[len(parts)-1].body))
 	})
 
 	t.Run("a second Close does not block", func(t *testing.T) {
