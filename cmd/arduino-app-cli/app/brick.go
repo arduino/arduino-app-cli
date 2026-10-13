@@ -33,6 +33,7 @@ func newBrickCmd(cfg config.Configuration) *cobra.Command {
 
 	brickCmd.AddCommand(newBrickNewCmd(cfg))
 	brickCmd.AddCommand(newBrickAddCmd(cfg))
+	brickCmd.AddCommand(newBrickDeleteCmd(cfg))
 	brickCmd.AddCommand(newBrickConfigCmd(cfg))
 
 	return brickCmd
@@ -163,6 +164,63 @@ func (r brickAddResult) String() string {
 		return fmt.Sprintf("✓ Added brick %s with model %s", r.Brick, r.Model)
 	}
 	return fmt.Sprintf("✓ Added brick %s", r.Brick)
+}
+
+func newBrickDeleteCmd(cfg config.Configuration) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "delete app_path brick_id",
+		Aliases: []string{"del"},
+		Short:   "Remove a brick from an Arduino App",
+		Long: `Remove a brick from an Arduino App.
+
+The brick is removed from the app descriptor. The folder of a local brick stays
+where it is, so the app can take it back.`,
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			brickDeleteHandler(args[0], args[1])
+			return nil
+		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			switch len(args) {
+			case 0:
+				return completion.ApplicationNames(cfg)(cmd, args, toComplete)
+			case 1:
+				return completion.AppListedBrickIDs(args[0])
+			}
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		},
+	}
+
+	return cmd
+}
+
+func brickDeleteHandler(appRef, brickID string) {
+	arduinoApp, err := Load(appRef)
+	if err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+	}
+	editable, err := arduinoApp.GetAsEditable()
+	if err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+	}
+
+	if err := servicelocator.GetBrickService().BrickDelete(editable, brickID); err != nil {
+		feedback.Fatal(fmt.Sprintf("Cannot remove the brick: %s", err), feedback.ErrBadArgument)
+	}
+
+	feedback.PrintResult(brickDeleteResult{Brick: brickID})
+}
+
+type brickDeleteResult struct {
+	Brick string `json:"brick"`
+}
+
+func (r brickDeleteResult) String() string {
+	return fmt.Sprintf("✓ Removed brick %s", r.Brick)
+}
+
+func (r brickDeleteResult) Data() any {
+	return r
 }
 
 func (r brickAddResult) Data() any {
