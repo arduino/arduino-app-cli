@@ -21,7 +21,7 @@ import (
 func IDToAlias(id appid.ID) string {
 	v := id.String()
 	res, err := base64.RawURLEncoding.DecodeString(v)
-	if err != nil {
+	if err != nil || v == "" {
 		return v
 	}
 
