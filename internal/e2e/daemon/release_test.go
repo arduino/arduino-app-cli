@@ -550,7 +550,7 @@ func TestAppReleaseEIModel(t *testing.T) {
 
 	// Not prepared: what the release needs to run is the containers of the brick, and
 	// the model is not one of them.
-	installed := installRelease(t, daemonAddr, appName+release.ReleaseArchiveExt, buildResp.Body, false)
+	installed := installRelease(t, daemonAddr, appName+release.ReleaseArchiveExt, builtArchive(t, buildResp), false)
 	require.NotEmpty(t, installed.ID)
 
 	// The app folder keeps no copy of what was installed for the board.
