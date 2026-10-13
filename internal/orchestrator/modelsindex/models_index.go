@@ -620,7 +620,8 @@ var (
 	ErrDownloadReported = errors.New("the download reported an error")
 )
 
-// The Hugging Face handler's failures, as ClassifyHandlerError reads them from its error text.
+// The Hugging Face handler's failures, as ClassifyHandlerError reads them from the error
+// text of a models-downloader image that names no code.
 var (
 	ErrBadModelURL      = errors.New("invalid model URL")
 	ErrModelNotFound    = errors.New("model not found on the hub")

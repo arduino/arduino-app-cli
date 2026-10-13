@@ -67,6 +67,15 @@ func TestParseDownloadHandlerLine(t *testing.T) {
 			},
 		},
 		{
+			name:        "error event with its code",
+			line:        `{"event":"error","description":"Hugging Face repository 'a/b' is gated.","code":"model_private_or_gated"}`,
+			expectEvent: 1,
+			expected: StreamMessage{
+				err:     "Hugging Face repository 'a/b' is gated.",
+				errCode: "model_private_or_gated",
+			},
+		},
+		{
 			name:        "unknown event maps to info",
 			line:        `{"event":"something-else","description":"note"}`,
 			expectEvent: 0,

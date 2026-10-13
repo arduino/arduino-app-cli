@@ -89,7 +89,7 @@ func TestDownloadStream(t *testing.T) {
 		sse := &fakeSSE{}
 		stream := &downloadStream{sse: sse}
 
-		stream.publish(modelsindex.NewErrorMessage("repository does not exist"))
+		stream.publish(modelsindex.NewErrorMessage("", "repository does not exist"))
 
 		assert.Empty(t, sse.events)
 		require.Len(t, sse.errors, 1)
@@ -98,8 +98,16 @@ func TestDownloadStream(t *testing.T) {
 		}, sse.errors[0])
 	})
 
-	t.Run("a Hugging Face error line carries its own code", func(t *testing.T) {
-		// The UI picks its message by code, not by the handler's words.
+	t.Run("the handler's code is passed through", func(t *testing.T) {
+		// The UI picks its message by code, not by the handler's words, which may change.
+		sse := &fakeSSE{}
+		(&downloadStream{sse: sse}).publish(modelsindex.NewErrorMessage("model_disabled", "reworded sentence"))
+
+		require.Len(t, sse.errors, 1)
+		assert.Equal(t, render.SSEErrorData{Code: "model_disabled", Message: "reworded sentence"}, sse.errors[0])
+	})
+
+	t.Run("an image without codes has its cause read from the text", func(t *testing.T) {
 		tests := []struct {
 			text string
 			code render.SSEErrCode
@@ -112,7 +120,7 @@ func TestDownloadStream(t *testing.T) {
 		}
 		for _, tc := range tests {
 			sse := &fakeSSE{}
-			(&downloadStream{sse: sse}).publish(modelsindex.NewErrorMessage(tc.text))
+			(&downloadStream{sse: sse}).publish(modelsindex.NewErrorMessage("", tc.text))
 
 			require.Len(t, sse.errors, 1)
 			assert.Equal(t, render.SSEErrorData{Code: tc.code, Message: tc.text}, sse.errors[0])
