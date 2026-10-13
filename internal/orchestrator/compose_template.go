@@ -102,8 +102,7 @@ func generateComposeTemplate(
 		// 4. Retrieve the compose services names.
 		svcs, err := extractServicesFromComposeFile(composeFilePath)
 		if err != nil {
-			slog.Warn("loading brick_compose", slog.String("brick_id", brick.ID), slog.String("path", composeFilePath.String()), slog.Any("error", err))
-			continue
+			return fmt.Errorf("brick %s: invalid compose file %s: %w", brick.ID, appRelative(composeFilePath, arduinoApp.FullPath), err)
 		}
 
 		if len(svcs) == 0 {
@@ -135,8 +134,7 @@ func generateComposeTemplate(
 		}
 		svcs, err := extractServicesFromComposeFile(serviceCompose)
 		if err != nil {
-			slog.Error("loading service_compose", slog.String("service_id", s.ServiceID), slog.String("path", serviceCompose.String()), slog.Any("error", err))
-			continue
+			return fmt.Errorf("service %s: invalid compose file %s: %w", s.ServiceID, appRelative(serviceCompose, arduinoApp.FullPath), err)
 		}
 		composeFiles.AddIfMissing(serviceCompose)
 		services = append(services, svcs...)
@@ -335,6 +333,15 @@ func frozenComposeIncludes(composeFiles paths.PathList, genPath *paths.Path, cfg
 		includes = append(includes, include.String())
 	}
 	return includes, nil
+}
+
+// appRelative is the path the editor of the app shows, absolute for a file outside it.
+func appRelative(file *paths.Path, appDir *paths.Path) string {
+	rel, err := file.RelFrom(appDir)
+	if inside, _ := file.IsInsideDir(appDir); err != nil || !inside {
+		return file.String()
+	}
+	return "./" + rel.String()
 }
 
 func frozenCompose(composeFile *paths.Path, lookup func(string) (string, bool)) ([]byte, error) {
