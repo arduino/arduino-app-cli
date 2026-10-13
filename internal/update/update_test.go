@@ -40,6 +40,7 @@ func newTestManager(deb, arduino ServiceUpdater) *Manager {
 	return &Manager{
 		debUpdateService:             deb,
 		arduinoPlatformUpdateService: arduino,
+		connected:                    func() bool { return true },
 		subs:                         make(map[chan Event]struct{}),
 	}
 }
@@ -51,6 +52,7 @@ func TestManagerListUpgradablePackages(t *testing.T) {
 		svc1Err        error
 		svc2Packages   []UpgradablePackage
 		svc2Err        error
+		offline        bool
 		expectErr      bool
 		expectPackages int
 	}{
@@ -94,23 +96,43 @@ func TestManagerListUpgradablePackages(t *testing.T) {
 			svc2Err:   errors.New("error 2"),
 			expectErr: true,
 		},
+		{
+			// The services answer from their cache when offline, so only the
+			// connectivity probe can tell "no updates" from "no connection".
+			name:         "no internet connection",
+			svc1Packages: []UpgradablePackage{{Name: "pkg1", FromVersion: "1.0", ToVersion: "2.0"}},
+			svc2Packages: []UpgradablePackage{{Name: "pkg2", FromVersion: "0.1", ToVersion: "0.2"}},
+			offline:      true,
+			expectErr:    true,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			var calls atomic.Int32
 			svc1 := &mockServiceUpdater{
 				checkFn: func(ctx context.Context, matcher func(UpgradablePackage) bool) ([]UpgradablePackage, error) {
+					calls.Add(1)
 					return tc.svc1Packages, tc.svc1Err
 				},
 			}
 			svc2 := &mockServiceUpdater{
 				checkFn: func(ctx context.Context, matcher func(UpgradablePackage) bool) ([]UpgradablePackage, error) {
+					calls.Add(1)
 					return tc.svc2Packages, tc.svc2Err
 				},
 			}
 			m := newTestManager(svc1, svc2)
+			if tc.offline {
+				m.connected = func() bool { return false }
+			}
 
 			results, err := m.ListUpgradablePackages(context.Background(), nil)
+			if tc.offline {
+				require.ErrorIs(t, err, ErrNoInternetConnection)
+				assert.Zero(t, calls.Load(), "the services must not be queried when offline")
+				return
+			}
 			if tc.expectErr {
 				require.Error(t, err)
 				return
