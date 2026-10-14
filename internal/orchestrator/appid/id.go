@@ -84,6 +84,19 @@ func (p *Provider) IDFromPath(path *paths.Path) (ID, error) {
 	if path == nil || !path.Exist() {
 		return ID{}, ErrInvalidID
 	}
+	return p.idFromPath(path)
+}
+
+// IDFromPathAllowMissing is like IDFromPath, but it does not require the path to exist.
+// Use it when the path comes from an external source (e.g. Docker labels).
+func (p *Provider) IDFromPathAllowMissing(path *paths.Path) (ID, error) {
+	if path == nil || path.String() == "" {
+		return ID{}, ErrInvalidID
+	}
+	return p.idFromPath(path)
+}
+
+func (p *Provider) idFromPath(path *paths.Path) (ID, error) {
 	path, err := path.Abs()
 	if err != nil {
 		return ID{}, err

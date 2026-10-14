@@ -7,6 +7,7 @@ package remote
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -89,4 +90,22 @@ func (w WithCloser) Close() error {
 // Any embedded single quote is escaped using the standard '\” idiom.
 func ShellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// ExitCode reports the status of a command that ran and failed. os/exec spells it
+// ExitCode, x/crypto/ssh spells it ExitStatus; ok is false for any other error.
+func ExitCode(err error) (code int, ok bool) {
+	if execErr, ok := errors.AsType[interface {
+		error
+		ExitCode() int
+	}](err); ok {
+		return execErr.ExitCode(), true
+	}
+	if sshErr, ok := errors.AsType[interface {
+		error
+		ExitStatus() int
+	}](err); ok {
+		return sshErr.ExitStatus(), true
+	}
+	return 0, false
 }

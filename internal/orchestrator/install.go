@@ -23,6 +23,7 @@ import (
 	"github.com/docker/cli/cli/command"
 	yaml "github.com/goccy/go-yaml"
 
+	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -47,6 +48,8 @@ type ReleaseResult struct {
 
 // InstallRelease unpacks a release archive into the releases dir as the app it runs
 // as: src is the app folder, prebuild the .cache, and prepare downloads what it needs.
+//
+// TODO: the unpacking needs a rewrite of its own.
 func InstallRelease(
 	ctx context.Context,
 	docker command.Cli,
@@ -104,6 +107,11 @@ func InstallRelease(
 	if releasePath.Exist() {
 		return InstallReleaseResult{}, fmt.Errorf("%w: %s is already installed", ErrAppAlreadyExists, releaseName)
 	}
+	// Before the rename: the models go to the board, so the staged copy of them must not
+	// stay in the app folder the release installs as.
+	if err := installEIModels(stagingDir.Join(releaseCustomEIDir), cfg.EIModelsDir()); err != nil {
+		return InstallReleaseResult{}, err
+	}
 	if err := stagingDir.Rename(releasePath); err != nil {
 		return InstallReleaseResult{}, fmt.Errorf("failed to install the release: %w", err)
 	}
@@ -123,6 +131,7 @@ func InstallRelease(
 	if err != nil {
 		return InstallReleaseResult{}, err
 	}
+	fatomic.Sync()
 	if prepare {
 		// The release is installed either way: what failed is a download a start does
 		// again, so it is worth saying which of the two the caller is looking at.
@@ -155,11 +164,43 @@ func appLayout(entry string) string {
 	case app.DataDirName:
 		// Ships beside src, installs as the data folder of the app.
 		return path.Join(app.DataDirName, rest)
+	case releaseCustomEIDir:
+		// Ships beside src, installs where the board keeps its own models.
+		return path.Join(releaseCustomEIDir, rest)
 	case app.ReleaseManifestFileName:
 		return app.ReleaseManifestFileName
 	default:
 		return ""
 	}
+}
+
+// installEIModels copies the models a release ships where the board keeps its own, which
+// is where the frozen compose binds them from. One already there is kept: an app uses it.
+//
+// The copy is never a move: the models are under $HOME, another partition on the board.
+func installEIModels(shippedDir *paths.Path, eiModelsDir *paths.Path) error {
+	if shippedDir.NotExist() {
+		return nil
+	}
+
+	// One folder per model, named by the id the build staged it under.
+	modelDirs, err := shippedDir.ReadDir(paths.FilterDirectories())
+	if err != nil {
+		return fmt.Errorf("failed to read the models of the release: %w", err)
+	}
+
+	for _, modelDir := range modelDirs {
+		installPath := eiModelsDir.Join(modelDir.Base())
+		if installPath.Exist() {
+			slog.Info("the board already holds the model the release ships", slog.String("model", modelDir.Base()))
+			continue
+		}
+		if err := modelDir.CopyDirTo(installPath); err != nil {
+			return fmt.Errorf("failed to install the model %q of the release: %w", modelDir.Base(), err)
+		}
+	}
+	// The app folder is what the staging dir becomes, and the models are not part of it.
+	return shippedDir.RemoveAll()
 }
 
 // extractRelease unpacks the archive into destDir, each entry where layout puts it.

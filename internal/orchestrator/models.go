@@ -208,7 +208,7 @@ func isModelInUse(ctx context.Context, modelsIndex *modelsindex.ModelsIndex, doc
 	return nil
 }
 
-func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, eiClient *edgeimpulse.EIClient, modelsDir *paths.Path, platform platform.Platform, projectID int, impulseID int) (modelsindex.AIModel, error) {
+func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, modelsIndex *modelsindex.ModelsIndex, dockerClient command.Cli, eiClient *edgeimpulse.EIClient, eiModelsDir *paths.Path, platform platform.Platform, projectID int, impulseID int) (modelsindex.AIModel, error) {
 
 	eiParams, err := platform.EIDeploymentParams()
 	if err != nil {
@@ -251,7 +251,7 @@ func InstallEIModel(ctx context.Context, bricksIndex *bricksindex.BricksIndex, m
 	} else {
 		mversion = dpList[0].DeploymentVersion
 	}
-	edgeModelsDir := modelsDir.Join("custom-ei").Join(id)
+	edgeModelsDir := eiModelsDir.Join(id)
 	blobModelsDir := edgeModelsDir.Join("model.eim")
 
 	modelRC, err := eiClient.DownloadHistoricDeployment(ctx, projectID, mversion)

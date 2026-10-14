@@ -17,8 +17,9 @@ import (
 	"time"
 
 	"github.com/gofrs/flock"
-	"github.com/google/renameio/v2"
 	"github.com/vmihailenco/msgpack/v5"
+
+	"github.com/arduino/arduino-app-cli/internal/fatomic"
 )
 
 var (
@@ -74,7 +75,7 @@ func UpsertProperty(filePath string, key string, value []byte) error {
 	if err != nil {
 		return err
 	}
-	return renameio.WriteFile(filePath, newData, 0644)
+	return fatomic.WriteFile(filePath, newData, 0644)
 }
 
 func DeleteProperty(filePath string, key string) (bool, error) {
@@ -107,7 +108,7 @@ func DeleteProperty(filePath string, key string) (bool, error) {
 	if err != nil {
 		return true, err
 	}
-	return true, renameio.WriteFile(filePath, newData, 0644)
+	return true, fatomic.WriteFile(filePath, newData, 0644)
 }
 
 func GetProperty(filePath string, key string) ([]byte, bool, error) {

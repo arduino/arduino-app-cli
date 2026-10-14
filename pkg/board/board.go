@@ -8,13 +8,11 @@ package board
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
 	"os"
-	"os/exec"
 	"regexp"
 	"slices"
 	"strings"
@@ -283,27 +281,15 @@ func SetCustomName(ctx context.Context, conn remote.RemoteConn, name string) err
 		return fmt.Errorf("invalid custom name: %s, must match regex %s", name, customNameRegex.String())
 	}
 
-	err := conn.GetCmd("sudo", "hostnamectl", "set-hostname", name).
-		Run(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to set board name: %w", err)
-
+	if out, err := conn.GetCmd("sudo", "hostnamectl", "set-hostname", name).Output(ctx); err != nil {
+		return fmt.Errorf("failed to set board name: %w: %s", err, out)
 	}
 
-	isEnable, err := NetworkModeStatus(ctx, conn)
-	if err != nil {
-		return fmt.Errorf("failed get board status: %w", err)
-	}
-	if isEnable {
-		cmds := [][]string{
-			{"sudo", "systemctl", "stop", "avahi-daemon"},
-			{"sudo", "systemctl", "start", "avahi-daemon"},
-		}
-		for _, cmd := range cmds {
-			if out, err := conn.GetCmd(cmd[0], cmd[1:]...).Output(ctx); err != nil {
-				slog.Warn("failed to restart avahi-daemon, network discovery might not work until next reboot", "error", err, "output", string(out))
-			}
-		}
+	// avahi publishes the name, so it is restarted when it runs. Each sudo of the
+	// script matches its own sudoers rule.
+	if out, err := conn.GetCmd("sh", "-c", `systemctl is-active avahi-daemon >/dev/null || exit 0
+sudo systemctl stop avahi-daemon && sudo systemctl start avahi-daemon`).Output(ctx); err != nil {
+		slog.Warn("failed to restart avahi-daemon, network discovery might not work until next reboot", "error", err, "output", string(out))
 	}
 
 	return nil
@@ -333,6 +319,7 @@ func IsUserPasswordSet(conn remote.RemoteShell) (bool, error) {
 
 	isUserSet, err := remote.ParseChage(out)
 	if err != nil {
+		_ = closer()
 		return false, err
 	}
 	if err := closer(); err != nil {
@@ -349,9 +336,13 @@ func SetUserPassword(conn remote.RemoteConn, newPass string) error {
 	}
 
 	if _, err = stdin.Write([]byte(newPass)); err != nil {
+		// stdin first: closer waits, and arduino-passwd ends only on EOF.
+		_ = stdin.Close()
+		_ = closer()
 		return fmt.Errorf("failed to write password: %w", err)
 	}
 	if err := stdin.Close(); err != nil {
+		_ = closer()
 		return fmt.Errorf("failed to close stdin: %w", err)
 	}
 
@@ -364,76 +355,43 @@ func SetUserPassword(conn remote.RemoteConn, newPass string) error {
 	return nil
 }
 
-// LegacyEnableNetworkMode is used to enable network mode by using sudoers file, this should deprecated.
-func LegacyEnableNetworkMode(ctx context.Context, conn remote.RemoteConn) error {
-	cmds := [][]string{
-		{"sudo", "dpkg-reconfigure", "openssh-server"},
-		{"sudo", "systemctl", "enable", "ssh"},
-		{"sudo", "systemctl", "start", "ssh"},
-		{"sudo", "systemctl", "enable", "avahi-daemon"},
-		{"sudo", "systemctl", "start", "avahi-daemon"},
-	}
-
-	for _, cmd := range cmds {
-		if out, err := conn.GetCmd(cmd[0], cmd[1:]...).Output(ctx); err != nil {
-			return fmt.Errorf("failed to run cmd %q: %w: %s", strings.Join(cmd, " "), err, string(out))
-		}
-	}
-
-	return nil
-}
-
 func EnableNetworkMode(conn remote.RemoteConn, password string) error {
-	cmds := [][]string{
-		{"systemctl", "unmask", "ssh.service"},
-		{"systemctl", "unmask", "avahi-daemon.service"},
-		{"dpkg-reconfigure", "openssh-server"},
-		{"systemctl", "enable", "--now", "avahi-daemon.service"},
-		{"systemctl", "enable", "--now", "ssh.service"},
-	}
-
-	for _, cmd := range cmds {
-		if out, err := ExecAsRoot(conn, password, cmd...); err != nil {
-			return fmt.Errorf("failed to run cmd %q: %w: %s", strings.Join(cmd, " "), err, string(out))
-		}
+	// One shell, so the password is fed once, and -x names the failing command in
+	// the output.
+	if out, err := ExecAsRoot(conn, password, "sh", "-c", `set -ex
+systemctl unmask ssh.service
+systemctl unmask avahi-daemon.service
+dpkg-reconfigure openssh-server
+systemctl enable --now avahi-daemon.service
+systemctl enable --now ssh.service`); err != nil {
+		return fmt.Errorf("failed to enable network mode: %w: %s", err, string(out))
 	}
 
 	return nil
 }
 
 func NetworkModeStatus(ctx context.Context, conn remote.RemoteConn) (bool, error) {
-	cmds := [][]string{
-		{"systemctl", "is-enabled", "ssh"},
-		{"systemctl", "is-active", "ssh"},
-		{"systemctl", "is-enabled", "avahi-daemon"},
-		{"systemctl", "is-active", "avahi-daemon"},
-	}
-
-	for _, cmd := range cmds {
-		if err := conn.GetCmd(cmd[0], cmd[1:]...).Run(ctx); err != nil {
-			var exitErr *exec.ExitError
-			if errors.As(err, &exitErr) && exitErr.ExitCode() != 0 {
-				return false, nil
-			}
-			return false, fmt.Errorf("failed to run cmd %q: %w", strings.Join(cmd, " "), err)
+	// Network mode is on when both units are enabled and running.
+	if err := conn.GetCmd("sh", "-c", `systemctl is-enabled ssh \
+		&& systemctl is-active ssh \
+		&& systemctl is-enabled avahi-daemon \
+		&& systemctl is-active avahi-daemon`).Run(ctx); err != nil {
+		if _, isExit := remote.ExitCode(err); isExit {
+			return false, nil
 		}
+		return false, fmt.Errorf("failed to check network mode: %w", err)
 	}
 
 	return true, nil
 }
 
 func DisableNetworkMode(conn remote.RemoteConn, password string) error {
-	cmds := [][]string{
-		{"systemctl", "mask", "ssh.service"},
-		{"systemctl", "mask", "avahi-daemon.service"},
-		{"systemctl", "disable", "--now", "avahi-daemon.service"},
-		{"systemctl", "disable", "--now", "ssh.service"},
-	}
-
-	for _, cmd := range cmds {
-		if out, err := ExecAsRoot(conn, password, cmd...); err != nil {
-			return fmt.Errorf("failed to run cmd %q: %w: %s", strings.Join(cmd, " "), err, string(out))
-		}
+	if out, err := ExecAsRoot(conn, password, "sh", "-c", `set -ex
+systemctl mask ssh.service
+systemctl mask avahi-daemon.service
+systemctl disable --now avahi-daemon.service
+systemctl disable --now ssh.service`); err != nil {
+		return fmt.Errorf("failed to disable network mode: %w: %s", err, string(out))
 	}
 
 	return nil

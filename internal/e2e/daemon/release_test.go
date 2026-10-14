@@ -10,6 +10,8 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"path/filepath"
@@ -24,6 +26,7 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/e2e"
 	"github.com/arduino/arduino-app-cli/internal/e2e/client"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex/custommodel"
 	"github.com/arduino/arduino-app-cli/pkg/release"
 )
 
@@ -53,7 +56,7 @@ func TestAppReleaseBuildInvalidTarget(t *testing.T) {
 }
 
 // TestAppReleaseBuildStream builds a release through the API and asserts the archive is
-// streamed back as the response body while the optional build_id tags the build
+// sent back as the last part of the response while the optional build_id tags the build
 // events stream. The python environment is built in the runner image, which is
 // arm64 only, so a docker daemon is required as well.
 func TestAppReleaseBuildStream(t *testing.T) {
@@ -143,16 +146,89 @@ func TestAppReleaseBuildStream(t *testing.T) {
 	resp := outcome.resp
 	require.Equal(t, http.StatusOK, resp.StatusCode())
 
-	// The archive is streamed as a gzip attachment for the client to save.
-	require.Contains(t, resp.HTTPResponse.Header.Get("Content-Type"), "gzip")
-	disposition := resp.HTTPResponse.Header.Get("Content-Disposition")
-	assert.Contains(t, disposition, "attachment")
-	assert.Contains(t, disposition, release.ReleaseArchiveExt)
-
 	// The body is a valid gzip stream: what it ships is asserted by the cli build test.
-	gzipReader, err := gzip.NewReader(bytes.NewReader(resp.Body))
+	gzipReader, err := gzip.NewReader(bytes.NewReader(builtArchive(t, resp)))
 	require.NoError(t, err)
 	require.NoError(t, gzipReader.Close())
+}
+
+// builtArchive reads the release archive out of a build response: its last part.
+func builtArchive(t *testing.T, resp *client.BuildAppResp) []byte {
+	t.Helper()
+
+	last, body := lastBuildPart(t, resp)
+	require.Equal(t, "application/gzip", last.Header.Get("Content-Type"), "the build failed: %s", body)
+	disposition := last.Header.Get("Content-Disposition")
+	assert.Contains(t, disposition, "attachment")
+	assert.Contains(t, disposition, release.ReleaseArchiveExt)
+	return body
+}
+
+func lastBuildPart(t *testing.T, resp *client.BuildAppResp) (*multipart.Part, []byte) {
+	t.Helper()
+
+	mediaType, params, err := mime.ParseMediaType(resp.HTTPResponse.Header.Get("Content-Type"))
+	require.NoError(t, err)
+	require.Equal(t, "multipart/mixed", mediaType)
+
+	var last *multipart.Part
+	var body []byte
+	reader := multipart.NewReader(bytes.NewReader(resp.Body), params["boundary"])
+	for {
+		part, err := reader.NextRawPart()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+		last = part
+		body, err = io.ReadAll(part)
+		require.NoError(t, err)
+	}
+	require.NotNil(t, last, "the build response has no part")
+	return last, body
+}
+
+// TestAppReleaseBuildFailure asserts a build that fails once started is answered with a
+// 200 whose last part is the error.
+func TestAppReleaseBuildFailure(t *testing.T) {
+	if runtime.GOARCH != ARM64Arch {
+		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
+	}
+
+	httpClient := GetHttpclient(t, e2e.WithBoardName("unoq"))
+
+	createResp, err := httpClient.CreateAppWithResponse(
+		t.Context(),
+		&client.CreateAppParams{SkipSketch: new(true)},
+		client.CreateAppRequest{Icon: new("💻"), Name: "failing-build-app"},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode())
+	appID := *createResp.JSON201.Id
+
+	detailsResp, err := httpClient.GetAppDetailsWithResponse(t.Context(), appID)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, detailsResp.StatusCode())
+	require.NotNil(t, detailsResp.JSON200.Path)
+	requirements := paths.New(*detailsResp.JSON200.Path, "python", "requirements.txt")
+	require.NoError(t, requirements.WriteFile([]byte("a-package-that-does-not-exist==9.9.9\n")))
+
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Minute)
+	defer cancel()
+	resp, err := httpClient.BuildAppWithResponse(ctx, appID, client.BuildAppJSONRequestBody{Target: new("unoq")})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode())
+
+	last, body := lastBuildPart(t, resp)
+	require.Equal(t, "application/json", last.Header.Get("Content-Type"))
+	var failure struct {
+		Event string `json:"event"`
+		models.ErrorResponse
+	}
+	require.NoError(t, json.Unmarshal(body, &failure))
+	assert.Equal(t, "error", failure.Event)
+	assert.Equal(t, "INTERNAL_SERVER_ERROR", failure.Code)
+	assert.Contains(t, failure.Details, "failed to build the python environment")
 }
 
 func TestAppReleaseInstallFromArchive(t *testing.T) {
@@ -196,7 +272,7 @@ func TestAppReleaseInstallFromArchive(t *testing.T) {
 	writer := multipart.NewWriter(body)
 	part, err := writer.CreateFormFile("file", appName+".ard")
 	require.NoError(t, err)
-	_, err = part.Write(buildResp.Body)
+	_, err = part.Write(builtArchive(t, buildResp))
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 
@@ -315,7 +391,7 @@ func TestAppReleasePrepare(t *testing.T) {
 	writer := multipart.NewWriter(body)
 	part, err := writer.CreateFormFile("file", appName+".ard")
 	require.NoError(t, err)
-	_, err = part.Write(buildResp.Body)
+	_, err = part.Write(builtArchive(t, buildResp))
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 
@@ -405,4 +481,161 @@ func TestAppReleasePrepare(t *testing.T) {
 		}
 	}
 	require.True(t, sawPrepareDone, "no done event received on the prepare stream")
+}
+
+// TestAppReleaseEIModel builds a release of an app wired with an Edge Impulse model of a
+// user project, and installs it on a board that does not hold that model: it is on no
+// index, so the archive is what has to carry it. TestAppReleaseInstallFromArchive
+// installs an app with no brick and no model, so neither half is covered there.
+func TestAppReleaseEIModel(t *testing.T) {
+	if runtime.GOARCH != ARM64Arch {
+		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
+	}
+
+	customModelDir := e2e.MkTempDir(t, "custom-models")
+	httpClient, daemonAddr := GetHttpclientAndAddr(t, e2e.WithCustomModelDir(customModelDir), e2e.WithBoardName("unoq"))
+
+	const (
+		appName = "release-ei-model-app"
+		target  = "unoq"
+		brickID = "arduino:audio_classification"
+		modelID = "ei-model-42-7"
+	)
+	// The deploy of a user project leaves the model on the board, and nowhere else.
+	modelDir := customModelDir.Join("custom-ei", modelID)
+	modelContent := []byte("the impulse of the user\n")
+	_, err := custommodel.Store(modelDir, custommodel.ModelDescriptor{
+		ID:     modelID,
+		Name:   "the impulse of the user",
+		Runner: "brick",
+		Bricks: []custommodel.BrickConfig{{
+			ID: brickID,
+			ModelConfiguration: map[string]string{
+				"CUSTOM_MODEL_PATH":             modelDir.String(),
+				"EI_AUDIO_CLASSIFICATION_MODEL": modelDir.Join("model.eim").String(),
+			},
+		}},
+		Metadata: map[string]string{
+			"source":                "edgeimpulse",
+			"ei-project-id":         "42",
+			"ei-impulse-id":         "7",
+			"ei-impulse-name":       "my impulse",
+			"ei-deployment-version": "3",
+			"ei-model-type":         "float32",
+			"ei-engine":             "tflite",
+		},
+	}, io.NopCloser(bytes.NewReader(modelContent)), "model.eim")
+	require.NoError(t, err, "failed to store the model in the custom model directory")
+
+	createResp, err := httpClient.CreateAppWithResponse(
+		t.Context(),
+		&client.CreateAppParams{SkipSketch: new(true)},
+		client.CreateAppRequest{Icon: new("💻"), Name: appName},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode())
+	appID := *createResp.JSON201.Id
+
+	brickResp, err := httpClient.UpsertAppBrickInstanceWithResponse(
+		t.Context(), appID, brickID,
+		client.BrickCreateUpdateRequest{Model: new(models.EncodeModelID(modelID))},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, brickResp.StatusCode())
+
+	buildResp, err := httpClient.BuildAppWithResponse(t.Context(), appID, client.BuildAppJSONRequestBody{
+		Target: new(target),
+	})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, buildResp.StatusCode())
+
+	// The board of the install is one the model was never deployed to.
+	require.NoError(t, modelDir.RemoveAll())
+
+	// Not prepared: what the release needs to run is the containers of the brick, and
+	// the model is not one of them.
+	installed := installRelease(t, daemonAddr, appName+release.ReleaseArchiveExt, builtArchive(t, buildResp), false)
+	require.NotEmpty(t, installed.ID)
+
+	// The app folder keeps no copy of what was installed for the board.
+	detailsResp, err := httpClient.GetAppDetailsWithResponse(t.Context(), installed.ID)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, detailsResp.StatusCode())
+	assert.NoDirExists(t, filepath.Join(*detailsResp.JSON200.Path, "custom-ei"))
+
+	// The model is back where the frozen compose binds it from.
+	content, err := modelDir.Join("model.eim").ReadFile()
+	require.NoError(t, err)
+	assert.Equal(t, modelContent, content)
+	assert.FileExists(t, modelDir.Join("model.yaml").String())
+
+	// And the board lists it as its own, as it does for a model deployed on it.
+	modelsResp, err := httpClient.GetAIModelsWithResponse(t.Context(), nil)
+	require.NoError(t, err)
+	require.NotNil(t, modelsResp.JSON200)
+	ids := make([]string, 0, len(*modelsResp.JSON200.Models))
+	for _, model := range *modelsResp.JSON200.Models {
+		ids = append(ids, *model.IdDecoded)
+	}
+	assert.Contains(t, ids, modelID)
+}
+
+// installReleaseDone is the payload of the done event the install stream ends with.
+type installReleaseDone struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Release string `json:"release"`
+	Target  string `json:"target"`
+}
+
+// installRelease uploads an archive to the install endpoint and answers with the done
+// event of its stream. prepare asks the install to download what the release needs.
+func installRelease(t *testing.T, daemonAddr, fileName string, archive []byte, prepare bool) installReleaseDone {
+	t.Helper()
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("file", fileName)
+	require.NoError(t, err)
+	_, err = part.Write(archive)
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	url := daemonAddr + "/v1/apps/install"
+	if prepare {
+		url += "?prepare=true"
+	}
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPut, url, body)
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	events, err := newSSEClient(req)
+	require.NoError(t, err)
+
+	var done installReleaseDone
+	var sawDone bool
+	for e := range events {
+		t.Log("Received SSE event", "event", e.Event, sseEventData, string(e.Data))
+		switch e.Event {
+		case sseEventError:
+			var payload struct {
+				Code    string `json:"code"`
+				Message string `json:"message"`
+			}
+			require.NoError(t, json.Unmarshal(e.Data, &payload))
+			// SERVER_CLOSED is emitted by the SSE teardown on every stream; ignore it.
+			if payload.Code == sseCodeServerClosed {
+				continue
+			}
+			t.Fatalf("install failed: code=%s message=%s", payload.Code, payload.Message)
+		case sseEventDone:
+			require.NoError(t, json.Unmarshal(e.Data, &done))
+			sawDone = true
+		}
+		if sawDone {
+			break
+		}
+	}
+	require.True(t, sawDone, "no done event received on the install stream")
+	return done
 }
