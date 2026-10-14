@@ -596,7 +596,7 @@ before the app is started again.
 **Heartbeat parts** ('Content-Type: text/plain'):
 Empty, sent every 15 seconds to keep the connection alive.
 
-**Progress parts** ('Content-Type: application/json'), named by their 'event' as on the build events stream:
+**Progress parts** ('Content-Type: application/json'), with the same 'event' names as the build events stream:
 '{"event":"progress","name":"python environment","progress":20}'
 '{"event":"message","message":"building the python environment"}'
 
