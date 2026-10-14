@@ -21,6 +21,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
 
+	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
@@ -213,6 +214,7 @@ func ImportAppFromZip(
 	if err := tempDestDir.Rename(finalDestPath); err != nil {
 		return appid.ID{}, fmt.Errorf("failed to finalize app import (swap): %w", err)
 	}
+	fatomic.Sync()
 
 	appId, err := idProvider.IDFromPath(finalDestPath)
 	if err != nil {

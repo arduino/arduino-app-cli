@@ -9,10 +9,21 @@ package fatomic
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/google/renameio/v2"
 )
 
+// WriteFile replaces filename atomically, and syncs the file and its directory to disk.
 func WriteFile(filename string, data []byte, perm os.FileMode, opts ...renameio.Option) error {
-	return renameio.WriteFile(filename, data, perm)
+	if err := renameio.WriteFile(filename, data, perm); err != nil {
+		return err
+	}
+	// renameio syncs the file but not the directory, so the rename can be lost.
+	dir, err := os.Open(filepath.Dir(filename))
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	return dir.Sync()
 }

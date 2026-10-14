@@ -28,6 +28,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
+	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
@@ -439,6 +440,7 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 			}, str); err != nil {
 				return fmt.Errorf("could not install %s platform %s: %w", platform.PlatformID, version, err)
 			}
+			fatomic.Sync()
 		}
 	}
 
@@ -461,6 +463,7 @@ func downloadLibsAndPlatformsUsedInExamples(ctx context.Context, cfg config.Conf
 			return fmt.Errorf("could not download libs in app %s: %w", appPath, err)
 		}
 	}
+	fatomic.Sync()
 
 	return nil
 }
