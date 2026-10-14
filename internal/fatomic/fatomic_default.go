@@ -14,6 +14,7 @@ import (
 	"github.com/google/renameio/v2"
 )
 
+// WriteFile replaces filename atomically, and syncs the file and its directory to disk.
 func WriteFile(filename string, data []byte, perm os.FileMode, opts ...renameio.Option) error {
 	if err := renameio.WriteFile(filename, data, perm); err != nil {
 		return err
