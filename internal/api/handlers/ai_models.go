@@ -298,7 +298,8 @@ func (d *downloadStream) publish(e modelsindex.StreamMessage) {
 	case modelsindex.ErrorType:
 		code := render.SSEErrCode(e.GetErrorCode())
 		if code == "" {
-			code = render.InternalServiceErr
+			d.sse.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: e.GetError()})
+			return
 		}
 		d.sse.SendError(render.SSEErrorData{Code: code, Message: e.GetError()})
 	case modelsindex.DoneType:
