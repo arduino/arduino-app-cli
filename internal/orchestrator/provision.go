@@ -95,6 +95,7 @@ func NewProvision(
 	if err := tmpProvisionDir.Rename(dynamicProvisionDir); err != nil {
 		return nil, fmt.Errorf("failed to rename tmp provisioning folder: %w", err)
 	}
+	fatomic.Sync()
 
 	return provision, nil
 }
