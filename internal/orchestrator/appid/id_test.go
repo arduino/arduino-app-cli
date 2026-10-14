@@ -108,6 +108,39 @@ func TestNewIDFromPath(t *testing.T) {
 	}
 }
 
+func TestIDFromPathAllowMissing(t *testing.T) {
+	tmp := paths.New(t.TempDir())
+	t.Setenv("ARDUINO_APP_CLI__APPS_DIR", tmp.Join("apps").String())
+	t.Setenv("ARDUINO_APP_CLI__DATA_DIR", tmp.Join("data").String())
+
+	orchestratorConfig, err := config.NewFromEnv()
+	require.NoError(t, err)
+	idProvider := NewAppProvider(orchestratorConfig, unoQPlatform)
+
+	t.Run("missing user app", func(t *testing.T) {
+		missing := orchestratorConfig.AppsDir().Join("missing-app")
+		_, err := idProvider.IDFromPath(missing)
+		require.ErrorIs(t, err, ErrInvalidID)
+
+		got, err := idProvider.IDFromPathAllowMissing(missing)
+		require.NoError(t, err)
+		assert.Equal(t, f.Must(idProvider.ParseID("user:missing-app")), got)
+	})
+
+	t.Run("missing app in unknown location", func(t *testing.T) {
+		missing := tmp.Join("other", "missing-app")
+		got, err := idProvider.IDFromPathAllowMissing(missing)
+		require.NoError(t, err)
+		assert.Equal(t, missing.String(), got.ToPath().String())
+		assert.NotEmpty(t, got.String())
+	})
+
+	t.Run("nil path", func(t *testing.T) {
+		_, err := idProvider.IDFromPathAllowMissing(nil)
+		require.ErrorIs(t, err, ErrInvalidID)
+	})
+}
+
 func TestParseID(t *testing.T) {
 	tmp := paths.New(t.TempDir())
 	t.Setenv("ARDUINO_APP_CLI__APPS_DIR", tmp.Join("apps").String())

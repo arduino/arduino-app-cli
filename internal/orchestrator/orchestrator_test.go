@@ -834,7 +834,7 @@ func TestListActiveApps(t *testing.T) {
 		}, apps[0]))
 	})
 
-	t.Run("apps whose directory is missing are still shown with the path name", func(t *testing.T) {
+	t.Run("apps whose directory is missing are still shown with the id and the path name", func(t *testing.T) {
 		goneAppPath := cfg.AppsDir().Join("gone-app")
 
 		cli := newDockerCli([]container.Summary{
@@ -844,12 +844,13 @@ func TestListActiveApps(t *testing.T) {
 		apps, err := ListActiveApps(t.Context(), cli, idProvider)
 		require.NoError(t, err)
 		require.Len(t, apps, 1)
-		// The app directory does not exist, so no ID can be derived and only the
-		// path name is available as fallback.
-		require.Equal(t, AppInfo{
+		// The app directory does not exist: the ID is computed from the Docker label
+		// path and only the path name is available as fallback for the name.
+		assert.Empty(t, gCmp.Diff(AppInfo{
+			ID:     f.Must(idProvider.ParseID("user:gone-app")),
 			Name:   "gone-app",
 			Status: StatusRunning,
-		}, apps[0])
+		}, apps[0]))
 	})
 
 	t.Run("returns an error if the docker status cannot be retrieved", func(t *testing.T) {

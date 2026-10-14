@@ -630,7 +630,9 @@ func ListActiveApps(
 	return f.Map(appsStatus, func(s AppStatusInfo) AppInfo {
 		info := AppInfo{Status: s.Status}
 
-		if id, err := idProvider.IDFromPath(s.AppPath); err != nil {
+		// The app directory can be removed while the app is running: compute the ID from
+		// the path in the Docker labels without requiring it to exist on disk.
+		if id, err := idProvider.IDFromPathAllowMissing(s.AppPath); err != nil {
 			slog.Warn("unable to get app id", slog.String("path", s.AppPath.String()), slog.String("error", err.Error()))
 		} else {
 			info.ID = id
