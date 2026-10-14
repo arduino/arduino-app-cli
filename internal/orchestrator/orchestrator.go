@@ -268,8 +268,8 @@ func StartApp(
 			}
 		}
 
-		cb(StreamMessage{data: "python downloading"})
-
+		// What is downloaded, when something is, is reported by the pull itself: an image
+		// the board has is not announced as downloading.
 		if err := dockerhelper.PullImages(ctx, docker.Client(), dockerhelper.ComposeImages(prj),
 			func(line string) { cb(StreamMessage{data: line}) },
 			func(label string, curr, total int64) {
