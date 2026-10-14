@@ -16,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 	semver "go.bug.st/relaxed-semver"
 
+	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/helpers"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
 	"github.com/arduino/arduino-app-cli/internal/platform"
@@ -230,6 +231,7 @@ func (a *ArduinoPlatformUpdater) UpgradePackages(ctx context.Context, packages [
 	); err != nil {
 		return fmt.Errorf("error installing platform version %s: %w", targetVersion, err)
 	}
+	fatomic.Sync()
 
 	cbw := orchestrator.NewCallbackWriter(func(line string) {
 		eventCB(update.NewDataEvent(update.UpgradeLineEvent, line))

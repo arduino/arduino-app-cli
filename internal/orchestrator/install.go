@@ -23,6 +23,7 @@ import (
 	"github.com/docker/cli/cli/command"
 	yaml "github.com/goccy/go-yaml"
 
+	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -130,6 +131,7 @@ func InstallRelease(
 	if err != nil {
 		return InstallReleaseResult{}, err
 	}
+	fatomic.Sync()
 	if prepare {
 		// The release is installed either way: what failed is a download a start does
 		// again, so it is worth saying which of the two the caller is looking at.

@@ -90,6 +90,7 @@ func Store(dir *paths.Path, descr ModelDescriptor, modelFileReader io.ReadCloser
 	if err != nil {
 		return AiModel{}, fmt.Errorf("failed to write model: %w", err)
 	}
+	fatomic.Sync()
 	return m, nil
 }
 

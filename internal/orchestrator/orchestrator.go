@@ -822,6 +822,7 @@ func CreateApp(
 	if err := appgenerator.GenerateApp(basePath, newApp, req.SkipSketch); err != nil {
 		return CreateAppResponse{}, fmt.Errorf("failed to create app: %w", err)
 	}
+	fatomic.Sync()
 	id, err := idProvider.IDFromPath(basePath)
 	if err != nil {
 		return CreateAppResponse{}, fmt.Errorf("failed to get app id: %w", err)
@@ -924,6 +925,7 @@ func CloneApp(
 			return CloneAppResponse{}, fmt.Errorf("failed to write app.yaml file: %w", err)
 		}
 	}
+	fatomic.Sync()
 
 	id, err := idProvider.IDFromPath(dstPath)
 	if err != nil {
@@ -937,7 +939,11 @@ func DeleteApp(ctx context.Context, dockerClient command.Cli, platform platform.
 	_ = StopAndDestroyApp(ctx, dockerClient, platform, app, cfg, func(StreamMessage) {})
 	// TODO: Shall we report stop error?
 
-	return app.FullPath.RemoveAll()
+	if err := app.FullPath.RemoveAll(); err != nil {
+		return err
+	}
+	fatomic.Sync()
+	return nil
 }
 
 const defaultAppFileName = "default.app"
@@ -950,7 +956,9 @@ func SetDefaultApp(app *app.ArduinoApp, cfg config.Configuration) error {
 		err := defaultAppPath.Remove()
 		if err != nil {
 			slog.Warn("failed to remove default app file", slog.String("path", defaultAppPath.String()), slog.String("error", err.Error()))
+			return nil
 		}
+		fatomic.Sync()
 		return nil
 	}
 
@@ -1055,7 +1063,11 @@ func editAppFolder(req AppEditRequest, editApp *app.ArduinoApp, cfg config.Confi
 		editable.Name = editable.Descriptor.Name
 	}
 
-	return editable.Save()
+	if err := editable.Save(); err != nil {
+		return err
+	}
+	fatomic.Sync()
+	return nil
 }
 
 func findRenamePath(appPath *paths.Path, folderName string) (*paths.Path, error) {
