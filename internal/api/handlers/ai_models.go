@@ -298,8 +298,7 @@ func (d *downloadStream) publish(e modelsindex.StreamMessage) {
 	case modelsindex.ErrorType:
 		code := render.SSEErrCode(e.GetErrorCode())
 		if code == "" {
-			// An image older than the codes: read the cause from the text.
-			code = modelErrorCode(modelsindex.ClassifyHandlerError(e.GetError()))
+			code = render.InternalServiceErr
 		}
 		d.sse.SendError(render.SSEErrorData{Code: code, Message: e.GetError()})
 	case modelsindex.DoneType:
@@ -313,29 +312,9 @@ func (d *downloadStream) sendError(err error) {
 		slog.Error("download reported an error", "err", err)
 		return
 	}
-	d.sse.SendError(render.SSEErrorData{Code: modelErrorCode(err), Message: err.Error()})
-}
-
-// modelErrors gives each model failure a stable code the UI maps to its own message.
-var modelErrors = []struct {
-	err  error
-	code render.SSEErrCode
-}{
-	{modelsindex.ErrInsufficientStorage, "insufficient_storage"},
-	{modelsindex.ErrBadModelURL, "invalid_model_url"},
-	{modelsindex.ErrModelNotFound, "model_not_found"},
-	{modelsindex.ErrModelForbidden, "model_private_or_gated"},
-	{modelsindex.ErrModelGone, "model_disabled"},
-	{modelsindex.ErrUnsupportedModel, "model_incompatible"},
-	{modelsindex.ErrNoCompatibleFile, "no_compatible_file"},
-	{modelsindex.ErrHubUnreachable, "hub_unreachable"},
-}
-
-func modelErrorCode(err error) render.SSEErrCode {
-	for _, e := range modelErrors {
-		if errors.Is(err, e.err) {
-			return e.code
-		}
+	if errors.Is(err, modelsindex.ErrInsufficientStorage) {
+		d.sse.SendError(render.SSEErrorData{Code: "insufficient_storage", Message: err.Error()})
+		return
 	}
-	return render.InternalServiceErr
+	d.sse.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: err.Error()})
 }

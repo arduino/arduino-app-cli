@@ -107,26 +107,6 @@ func TestDownloadStream(t *testing.T) {
 		assert.Equal(t, render.SSEErrorData{Code: "model_disabled", Message: "reworded sentence"}, sse.errors[0])
 	})
 
-	t.Run("an image without codes has its cause read from the text", func(t *testing.T) {
-		tests := []struct {
-			text string
-			code render.SSEErrCode
-		}{
-			{"Hugging Face model repository 'a/b' does not exist, or is not public.", "model_not_found"},
-			{"Hugging Face repository 'a/b' is gated: its files are only served after its conditions are accepted.", "model_private_or_gated"},
-			{"Unsupported model architecture 'bert' in Hugging Face repository 'a/b'.", "model_incompatible"},
-			{"File 'm.gguf' does not exist in Hugging Face repository 'a/b', which contains no GGUF files at all.", "no_compatible_file"},
-			{"Could not verify Hugging Face repository 'a/b': timed out", "hub_unreachable"},
-		}
-		for _, tc := range tests {
-			sse := &fakeSSE{}
-			(&downloadStream{sse: sse}).publish(modelsindex.NewErrorMessage("", tc.text))
-
-			require.Len(t, sse.errors, 1)
-			assert.Equal(t, render.SSEErrorData{Code: tc.code, Message: tc.text}, sse.errors[0])
-		}
-	})
-
 	t.Run("the handler's own done line is a message, not the route's done", func(t *testing.T) {
 		sse := &fakeSSE{}
 		stream := &downloadStream{sse: sse}
