@@ -25,7 +25,7 @@ import (
 )
 
 // buildHeartbeatInterval keeps alive the clients that drop a request left without data.
-const buildHeartbeatInterval = 15 * time.Second
+const buildHeartbeatInterval = 30 * time.Second
 
 // buildResponse is a multipart/mixed body: heartbeat and progress parts while the build
 // runs, then the release archive or the error of the build as the last part.
