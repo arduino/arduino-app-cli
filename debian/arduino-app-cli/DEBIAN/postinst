@@ -11,6 +11,13 @@ export ARDUINO_APP_CLI__ALLOW_ROOT=true && arduino-app-cli completion bash > /et
 USER_NAME="$(getent passwd "$USER_ID" | cut -d: -f1)"
 USER_HOME="$(getent passwd "$USER_ID" | cut -d: -f6)"
 
+# The user session runs from boot, with the pipewire sockets the apps use. A marker tells
+# the purge that the package enabled lingering, not the user.
+LINGER_MARKER=/var/lib/arduino-app-cli/linger-enabled-by-package
+if [ ! -e "/var/lib/systemd/linger/$USER_NAME" ] && loginctl enable-linger "$USER_NAME"; then
+    touch "$LINGER_MARKER"
+fi
+
 chown -R "$USER_NAME":arduino /var/lib/arduino-app-cli \
 || chown -R :arduino /var/lib/arduino-app-cli
 
