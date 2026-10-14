@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"path/filepath"
@@ -55,7 +56,7 @@ func TestAppReleaseBuildInvalidTarget(t *testing.T) {
 }
 
 // TestAppReleaseBuildStream builds a release through the API and asserts the archive is
-// streamed back as the response body while the optional build_id tags the build
+// sent back as the last part of the response while the optional build_id tags the build
 // events stream. The python environment is built in the runner image, which is
 // arm64 only, so a docker daemon is required as well.
 func TestAppReleaseBuildStream(t *testing.T) {
@@ -145,16 +146,89 @@ func TestAppReleaseBuildStream(t *testing.T) {
 	resp := outcome.resp
 	require.Equal(t, http.StatusOK, resp.StatusCode())
 
-	// The archive is streamed as a gzip attachment for the client to save.
-	require.Contains(t, resp.HTTPResponse.Header.Get("Content-Type"), "gzip")
-	disposition := resp.HTTPResponse.Header.Get("Content-Disposition")
-	assert.Contains(t, disposition, "attachment")
-	assert.Contains(t, disposition, release.ReleaseArchiveExt)
-
 	// The body is a valid gzip stream: what it ships is asserted by the cli build test.
-	gzipReader, err := gzip.NewReader(bytes.NewReader(resp.Body))
+	gzipReader, err := gzip.NewReader(bytes.NewReader(builtArchive(t, resp)))
 	require.NoError(t, err)
 	require.NoError(t, gzipReader.Close())
+}
+
+// builtArchive reads the release archive out of a build response: its last part.
+func builtArchive(t *testing.T, resp *client.BuildAppResp) []byte {
+	t.Helper()
+
+	last, body := lastBuildPart(t, resp)
+	require.Equal(t, "application/gzip", last.Header.Get("Content-Type"), "the build failed: %s", body)
+	disposition := last.Header.Get("Content-Disposition")
+	assert.Contains(t, disposition, "attachment")
+	assert.Contains(t, disposition, release.ReleaseArchiveExt)
+	return body
+}
+
+func lastBuildPart(t *testing.T, resp *client.BuildAppResp) (*multipart.Part, []byte) {
+	t.Helper()
+
+	mediaType, params, err := mime.ParseMediaType(resp.HTTPResponse.Header.Get("Content-Type"))
+	require.NoError(t, err)
+	require.Equal(t, "multipart/mixed", mediaType)
+
+	var last *multipart.Part
+	var body []byte
+	reader := multipart.NewReader(bytes.NewReader(resp.Body), params["boundary"])
+	for {
+		part, err := reader.NextRawPart()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+		last = part
+		body, err = io.ReadAll(part)
+		require.NoError(t, err)
+	}
+	require.NotNil(t, last, "the build response has no part")
+	return last, body
+}
+
+// TestAppReleaseBuildFailure asserts a build that fails once started is answered with a
+// 200 whose last part is the error.
+func TestAppReleaseBuildFailure(t *testing.T) {
+	if runtime.GOARCH != ARM64Arch {
+		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
+	}
+
+	httpClient := GetHttpclient(t, e2e.WithBoardName("unoq"))
+
+	createResp, err := httpClient.CreateAppWithResponse(
+		t.Context(),
+		&client.CreateAppParams{SkipSketch: new(true)},
+		client.CreateAppRequest{Icon: new("💻"), Name: "failing-build-app"},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode())
+	appID := *createResp.JSON201.Id
+
+	detailsResp, err := httpClient.GetAppDetailsWithResponse(t.Context(), appID)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, detailsResp.StatusCode())
+	require.NotNil(t, detailsResp.JSON200.Path)
+	requirements := paths.New(*detailsResp.JSON200.Path, "python", "requirements.txt")
+	require.NoError(t, requirements.WriteFile([]byte("a-package-that-does-not-exist==9.9.9\n")))
+
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Minute)
+	defer cancel()
+	resp, err := httpClient.BuildAppWithResponse(ctx, appID, client.BuildAppJSONRequestBody{Target: new("unoq")})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode())
+
+	last, body := lastBuildPart(t, resp)
+	require.Equal(t, "application/json", last.Header.Get("Content-Type"))
+	var failure struct {
+		Event string `json:"event"`
+		models.ErrorResponse
+	}
+	require.NoError(t, json.Unmarshal(body, &failure))
+	assert.Equal(t, "error", failure.Event)
+	assert.Equal(t, "INTERNAL_SERVER_ERROR", failure.Code)
+	assert.Contains(t, failure.Details, "failed to build the python environment")
 }
 
 func TestAppReleaseInstallFromArchive(t *testing.T) {
@@ -198,7 +272,7 @@ func TestAppReleaseInstallFromArchive(t *testing.T) {
 	writer := multipart.NewWriter(body)
 	part, err := writer.CreateFormFile("file", appName+".ard")
 	require.NoError(t, err)
-	_, err = part.Write(buildResp.Body)
+	_, err = part.Write(builtArchive(t, buildResp))
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 
@@ -317,7 +391,7 @@ func TestAppReleasePrepare(t *testing.T) {
 	writer := multipart.NewWriter(body)
 	part, err := writer.CreateFormFile("file", appName+".ard")
 	require.NoError(t, err)
-	_, err = part.Write(buildResp.Body)
+	_, err = part.Write(builtArchive(t, buildResp))
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 
@@ -480,7 +554,7 @@ func TestAppReleaseEIModel(t *testing.T) {
 
 	// Not prepared: what the release needs to run is the containers of the brick, and
 	// the model is not one of them.
-	installed := installRelease(t, daemonAddr, appName+release.ReleaseArchiveExt, buildResp.Body, false)
+	installed := installRelease(t, daemonAddr, appName+release.ReleaseArchiveExt, builtArchive(t, buildResp), false)
 	require.NotEmpty(t, installed.ID)
 
 	// The app folder keeps no copy of what was installed for the board.

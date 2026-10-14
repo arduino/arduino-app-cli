@@ -36,8 +36,8 @@ type buildRequest struct {
 	ReleaseNotes string `json:"notes" description:"notes to attach to the release"`
 }
 
-// HandleAppBuild builds an app into a release archive and streams the archive
-// back as the response body. Build progress is published to the global build events stream.
+// HandleAppBuild builds an app into a release archive and sends it back as the last part
+// of a multipart response. Build progress is published to the global build events stream.
 func HandleAppBuild(
 	dockerClient command.Cli,
 	provisioner *orchestrator.Provision,
@@ -81,31 +81,33 @@ func HandleAppBuild(
 			Notes:        buildReq.ReleaseNotes,
 			IncludeData:  buildReq.IncludeData,
 		}
+
+		response := startBuildResponse(w, buildHeartbeatInterval)
+		defer response.Close()
+
 		result, reader, err := orchestrator.BuildRelease(r.Context(), dockerClient, provisioner, appToBuild, req, cfg, func(item orchestrator.StreamMessage) {
 			broker.PublishStreamMessage(buildID, item)
+			response.SendProgress(item.GetProgress(), item.GetData())
 		})
 		if err != nil {
 			slog.Error("Unable to build the app", slog.String("error", err.Error()))
 			code := render.InternalServiceErr
-			status := http.StatusInternalServerError
 			if errors.Is(err, orchestrator.ErrBadRequest) {
 				code = "BAD_REQUEST"
-				status = http.StatusBadRequest
 			}
 			broker.PublishError(buildID, code, err.Error())
-			render.EncodeResponse(w, status, models.ErrorResponse{Details: err.Error()})
+			response.SendError(models.ErrorResponse{Code: string(code), Details: err.Error()})
 			return
 		}
 		// Closing the stream removes the build staging dir, whatever happens to the archive.
 		defer func() { _ = reader.Close() }()
 
-		// The archive is drained to a file before it is served: a late write error is still
-		// answered with a status and a body, not a truncated download on a 200 already sent.
+		// Drained to a file first: a late write error is answered with an error, not a truncated archive.
 		artifactsDir := paths.New(os.TempDir(), "build-artifacts")
 		if err := artifactsDir.MkdirAll(); err != nil {
 			slog.Error("unable to create the build artifacts dir", slog.String("error", err.Error()))
 			broker.PublishError(buildID, render.InternalServiceErr, "unable to prepare the build output directory")
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to prepare the build output directory"})
+			response.SendError(models.ErrorResponse{Code: string(render.InternalServiceErr), Details: "unable to prepare the build output directory"})
 			return
 		}
 		archivePath := artifactsDir.Join(result.FileName)
@@ -114,15 +116,15 @@ func HandleAppBuild(
 		if err := releasebuild.WriteArchive(reader, archivePath); err != nil {
 			slog.Error("unable to write the release archive", slog.String("error", err.Error()))
 			broker.PublishError(buildID, render.InternalServiceErr, "unable to write the release archive")
-			render.EncodeResponse(w, http.StatusInternalServerError, models.ErrorResponse{Details: "unable to write the release archive"})
+			response.SendError(models.ErrorResponse{Code: string(render.InternalServiceErr), Details: "unable to write the release archive"})
 			return
 		}
 
 		broker.PublishDone(buildID, result.Name, result.Target)
 
-		w.Header().Set("Content-Type", "application/gzip")
-		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename=%q`, result.FileName))
-		http.ServeFile(w, r, archivePath.String())
+		if err := response.SendArchive(archivePath, result.FileName); err != nil {
+			slog.Error("unable to send the release archive", slog.String("error", err.Error()))
+		}
 	}
 }
 
