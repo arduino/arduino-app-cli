@@ -143,11 +143,11 @@ func TestAppBuild(t *testing.T) {
 					assert.Equal(t, test.appName, manifest.Name)
 					// The board the build is given, which the release name states as well.
 					assert.Equal(t, target, manifest.Target)
-					// Dated in UTC, and the same instant names the release.
+					// Dated in UTC.
 					_, offset := manifest.CreatedAt.Zone()
 					assert.Zero(t, offset)
 					assert.WithinRange(t, manifest.CreatedAt, buildStart, time.Now().UTC())
-					wantName := test.appName + "-" + manifest.CreatedAt.Format("20060102-150405") + "-" + target
+					wantName := test.appName + "-" + target
 					if test.archiveName != "" {
 						wantName = strings.TrimSuffix(test.archiveName, release.ReleaseArchiveExt)
 					}

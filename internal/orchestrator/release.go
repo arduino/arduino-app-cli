@@ -58,7 +58,7 @@ type BuildReleaseRequest struct {
 	// Notes is the release note, markdown, and goes in the manifest as it is given.
 	Notes string
 	// ReleaseName names the archive and the folder it extracts to. Defaults to the app
-	// name, the build date and the target board.
+	// name, the release label and the target board.
 	ReleaseName string
 	// IncludeData ships the data folder of the app, at the root of the archive.
 	IncludeData bool
@@ -110,14 +110,15 @@ func BuildRelease(
 	// TODO: fail when a service a brick requires is missing for the target. The
 	// generator skips it, so it would be missing from the archive for good.
 
-	// The same instant dates the release and names it: the date keeps the releases of
-	// an app ordered, as long as there is no version.
 	now := time.Now().UTC()
 	name := slug.Make(appToBuild.Name)
 	if name == "" {
 		return BuildReleaseResult{}, nil, fmt.Errorf("%w: the app has no name", ErrBadRequest)
 	}
-	releaseName := fmt.Sprintf("%s-%s-%s", name, now.Format("20060102-150405"), plat.BoardName)
+	releaseName := name + "-" + plat.BoardName
+	if label := slug.Make(req.ReleaseLabel); label != "" {
+		releaseName = name + "-" + label + "-" + plat.BoardName
+	}
 	// A caller names the archive to follow its output.
 	if req.ReleaseName != "" {
 		releaseName = req.ReleaseName

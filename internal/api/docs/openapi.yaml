@@ -1024,9 +1024,8 @@ paths:
   /v1/apps/install:
     put:
       description: Installs a release archive as a new app in the releases dir. The
-        release is read only and is named after the release, date included. If prepare
-        is true, it also downloads the containers and models the release needs to
-        run.
+        release is read only and is named after the release. If prepare is true, it
+        also downloads the containers and models the release needs to run.
       operationId: installApp
       parameters:
       - description: The release archive (.ard). Must be built for this board.

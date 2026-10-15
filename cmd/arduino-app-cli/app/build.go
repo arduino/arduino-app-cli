@@ -43,8 +43,8 @@ func newBuildCmd(cfg config.Configuration) *cobra.Command {
 
 The release is the app frozen with all its dependencies: the python environment is
 built and the compose files are resolved for the target board, so that installing
-it generates nothing. The release is named after the build date, and the target
-board defaults to the one running the build.`,
+it generates nothing. The release is named after the app, the release label and
+the target board, which defaults to the one running the build.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
