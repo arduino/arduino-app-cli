@@ -192,7 +192,7 @@ func ImportAppFromZip(
 
 	tempDestDir, err := cfg.MkStagingDir()
 	if err != nil {
-		return appid.ID{}, fmt.Errorf("unable to create temp app directory: %w", err)
+		return appid.ID{}, fmt.Errorf(""failed to create the staging dir:: %w", err)
 	}
 	defer func() { _ = tempDestDir.RemoveAll() }()
 
