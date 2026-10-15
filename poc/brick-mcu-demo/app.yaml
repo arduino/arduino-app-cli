@@ -1,0 +1,5 @@
+name: Brick MCU demo
+icon: 🟥
+description: Python drives the LED matrix of the board through the led_matrix brick. The brick brings the MCU code, so the app has no sketch of its own.
+bricks:
+  - led_matrix:
