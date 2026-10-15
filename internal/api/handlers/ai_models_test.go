@@ -99,7 +99,6 @@ func TestDownloadStream(t *testing.T) {
 	})
 
 	t.Run("the handler's code is passed through", func(t *testing.T) {
-		// The UI picks its message by code, not by the handler's words, which may change.
 		sse := &fakeSSE{}
 		(&downloadStream{sse: sse}).publish(modelsindex.NewErrorMessage("model_disabled", "reworded sentence"))
 

@@ -428,8 +428,6 @@ func (p *StreamMessage) GetError() string       { return p.err }
 func (p *StreamMessage) GetProgress() *Progress { return p.progress }
 func (p *StreamMessage) GetDone() string        { return p.done }
 
-// GetErrorCode is the cause the handler names for its error, or "" when it names none:
-// an internal failure, or an image too old to report codes.
 func (p *StreamMessage) GetErrorCode() string { return p.errCode }
 
 // GetModel is nil until the handler names what it wrote, and stays nil for a handler too
