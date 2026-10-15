@@ -211,6 +211,7 @@ func ImportAppFromZip(
 		return appid.ID{}, fmt.Errorf("invalid app: %w: %v", ErrBadRequest, err)
 	}
 
+	fatomic.Sync()
 	if err := tempDestDir.Rename(finalDestPath); err != nil {
 		return appid.ID{}, fmt.Errorf("failed to finalize app import (swap): %w", err)
 	}

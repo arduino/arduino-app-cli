@@ -16,6 +16,7 @@ import (
 	"github.com/docker/cli/cli/command"
 
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
+	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
@@ -90,9 +91,11 @@ func NewProvision(
 	if err := provision.init(tmpProvisionDir.String()); err != nil {
 		return nil, fmt.Errorf("failed to perform dynamic provisioning: %w", err)
 	}
+	fatomic.Sync()
 	if err := tmpProvisionDir.Rename(dynamicProvisionDir); err != nil {
 		return nil, fmt.Errorf("failed to rename tmp provisioning folder: %w", err)
 	}
+	fatomic.Sync()
 
 	return provision, nil
 }

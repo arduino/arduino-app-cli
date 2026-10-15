@@ -112,6 +112,7 @@ func InstallRelease(
 	if err := installEIModels(stagingDir.Join(releaseCustomEIDir), cfg.EIModelsDir()); err != nil {
 		return InstallReleaseResult{}, err
 	}
+	fatomic.Sync()
 	if err := stagingDir.Rename(releasePath); err != nil {
 		return InstallReleaseResult{}, fmt.Errorf("failed to install the release: %w", err)
 	}
