@@ -1,0 +1,44 @@
+# Written by the Arduino models-downloader whenever the models on disk change.
+# Do not edit: it is the output of the list action, rewritten by every download and delete.
+models:
+- id: piper-tts-en
+  name: Piper TTS (English)
+  handler: ai-hub-handler
+  runtime: qnn
+  model_publisher: qualcomm-ai-hub
+  model_origin: built_in
+  installed: true
+  size_mb: 46.0
+  model_size_mb: 46
+- id: ei:efficientnet-b4
+  name: General purpose object classification - EfficientNet-B4
+  handler: ei-handler
+  runtime: edge-impulse-sdk
+  model_publisher: edge-impulse
+  model_origin: built_in
+  installed: false
+  downloading: false
+  size_mb: 89.0
+  model_size_mb: 89
+- id: llamacpp:unsloth/Qwen3-0.6B-GGUF/Qwen3-0.6B-Q4_0
+  name: unsloth/Qwen3-0.6B-GGUF/Qwen3-0.6B-Q4_0
+  handler: hf-handler
+  runtime: llamacpp
+  model_publisher: unsloth
+  model_origin: user
+  path: /models/llamacpp/unsloth/Qwen3-0.6B-GGUF/Qwen3-0.6B-Q4_0.gguf
+  installed: true
+  downloading: false
+  size_mb: 0.0
+  disk_size_mb: 0.0
+  download_metadata:
+    downloaded_at: '2026-10-15T09:08:41Z'
+    handler: hf-handler
+    model_id: llamacpp:unsloth/Qwen3-0.6B-GGUF/Qwen3-0.6B-Q4_0
+    model_origin: user
+    files:
+    - Qwen3-0.6B-Q4_0.gguf
+    inputs:
+      models_repository: llamacpp
+      model_directory: unsloth/Qwen3-0.6B-GGUF
+      model_url: unsloth/Qwen3-0.6B-GGUF:Q4_0
