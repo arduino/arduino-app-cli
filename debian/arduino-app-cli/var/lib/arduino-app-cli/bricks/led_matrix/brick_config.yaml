@@ -1,0 +1,4 @@
+id: led_matrix
+name: LED Matrix
+description: "Draws frames on the board LED matrix. The MCU code is in the sketch library of the brick."
+category: display

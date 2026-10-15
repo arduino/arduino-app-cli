@@ -1,0 +1,4 @@
+id: modulino
+name: Modulino
+description: "Reads and drives the Modulino modules of the Qwiic bus. The MCU code is in the sketch library of the brick."
+category: sensor
