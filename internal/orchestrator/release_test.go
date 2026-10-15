@@ -24,6 +24,7 @@ import (
 
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
 	"github.com/arduino/arduino-app-cli/pkg/release"
 )
@@ -271,9 +272,9 @@ func TestBuildSketch(t *testing.T) {
 		require.False(t, hasSketch, "this is the gate BuildRelease builds the sketch on")
 
 		destPath := paths.New(t.TempDir())
-		err = buildSketch(context.Background(), pythonApp, unoQPlatform, paths.New(t.TempDir()), destPath, false, noProgress)
+		err = buildSketch(context.Background(), pythonApp, unoQPlatform, &bricksindex.BricksIndex{}, config.Configuration{}, paths.New(t.TempDir()), destPath, false, noProgress)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "no sketch path found")
+		assert.Contains(t, err.Error(), "no brick brings one")
 		assert.False(t, destPath.Join("sketch.fw").Exist(), "no firmware without a sketch")
 	})
 
@@ -285,7 +286,7 @@ func TestBuildSketch(t *testing.T) {
 
 		// The compile needs the platform of the profile, so the build stops here.
 		destPath := paths.New(t.TempDir())
-		err = buildSketch(context.Background(), sketchApp, unoQPlatform, paths.New(t.TempDir()), destPath, false, noProgress)
+		err = buildSketch(context.Background(), sketchApp, unoQPlatform, &bricksindex.BricksIndex{}, config.Configuration{}, paths.New(t.TempDir()), destPath, false, noProgress)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no default profile")
 		assert.False(t, destPath.Join("sketch.fw").Exist())

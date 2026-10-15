@@ -110,7 +110,7 @@ func Load(appPath *paths.Path) (ArduinoApp, error) {
 	}
 
 	if appPath.Join("bricks").Exist() {
-		app.LocalBricks = loadBricksFromFolder(appPath.Join("bricks"))
+		app.LocalBricks = LoadBricksFromFolder(appPath.Join("bricks"))
 	}
 
 	app.release = loadRelease(appPath)
@@ -448,7 +448,9 @@ func truncateDescription(s string, max int) string {
 	return s
 }
 
-func loadBricksFromFolder(dir *paths.Path) []bricksindex.Brick {
+// LoadBricksFromFolder reads every brick of a folder: the bricks of an app, or the
+// ones shipped in the data dir.
+func LoadBricksFromFolder(dir *paths.Path) []bricksindex.Brick {
 	if dir == nil || !dir.Exist() {
 		slog.Debug("App does not contain a bricks folder, skipping loading app bricks", "path", dir)
 		return nil
@@ -504,6 +506,7 @@ func load(brickPath *paths.Path) (b bricksindex.Brick, err error) {
 	}
 	brick.Source = "App"
 	brick.FullPath = brickPath
+	brick.SketchLibrary = brickPath.Join("sketch")
 	brick.ComposeFile = composeFile
 	brick.ReadmeFile = brickPath.Join("README.md")
 	brick.ExamplesPath = brickPath.Join("examples")

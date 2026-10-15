@@ -26,11 +26,18 @@ import (
 
 type BricksIndex struct {
 	BuiltInBricks []Brick
+	SystemBricks  []Brick
 	AppBricks     []Brick
 }
 
 func (b *BricksIndex) WithAppBricks(bricks []Brick) *BricksIndex {
 	b.AppBricks = bricks
+	return b
+}
+
+// WithSystemBricks adds the bricks shipped in the data dir, which every app can use.
+func (b *BricksIndex) WithSystemBricks(bricks []Brick) *BricksIndex {
+	b.SystemBricks = bricks
 	return b
 }
 
@@ -41,6 +48,9 @@ func (b *BricksIndex) FindBrickByID(id string) (*Brick, bool) {
 	if idx := slices.IndexFunc(b.AppBricks, searchFunc); idx != -1 {
 		return &b.AppBricks[idx], true
 	}
+	if idx := slices.IndexFunc(b.SystemBricks, searchFunc); idx != -1 {
+		return &b.SystemBricks[idx], true
+	}
 	if idx := slices.IndexFunc(b.BuiltInBricks, searchFunc); idx != -1 {
 		return &b.BuiltInBricks[idx], true
 	}
@@ -49,7 +59,7 @@ func (b *BricksIndex) FindBrickByID(id string) (*Brick, bool) {
 
 // TODO: use iterator instead of returning a slice
 func (b *BricksIndex) ListBricks() []Brick {
-	bricks := slices.Concat(b.AppBricks, b.BuiltInBricks)
+	bricks := slices.Concat(b.AppBricks, b.SystemBricks, b.BuiltInBricks)
 	slices.SortFunc(bricks, func(a, b Brick) int {
 		return strings.Compare(a.Name, b.Name)
 	})
@@ -129,12 +139,13 @@ type Brick struct {
 
 	Source string `yaml:"-"`
 
-	FullPath     *paths.Path `yaml:"-"`
-	ComposeFile  *paths.Path `yaml:"-"` // brick_compose.yaml file path, optional
-	ReadmeFile   *paths.Path `yaml:"-"` // README.md file path, optional
-	ExamplesPath *paths.Path `yaml:"-"` // code examples folder path, optional
-	DocsAPIPath  *paths.Path `yaml:"-"` // API docs file path, optional
-	RequireModel bool        `yaml:"-"`
+	FullPath      *paths.Path `yaml:"-"`
+	SketchLibrary *paths.Path `yaml:"-"` // Arduino library holding the brick MCU code, optional
+	ComposeFile   *paths.Path `yaml:"-"` // brick_compose.yaml file path, optional
+	ReadmeFile    *paths.Path `yaml:"-"` // README.md file path, optional
+	ExamplesPath  *paths.Path `yaml:"-"` // code examples folder path, optional
+	DocsAPIPath   *paths.Path `yaml:"-"` // API docs file path, optional
+	RequireModel  bool        `yaml:"-"`
 
 	containerPorts []string `yaml:"-"` // Ports extracted from the compose file, optional
 }
@@ -144,6 +155,15 @@ func (b Brick) GetComposeFile() (*paths.Path, bool) {
 		return nil, false
 	}
 	return b.ComposeFile, true
+}
+
+// GetSketchLibrary returns the Arduino library a brick brings for the
+// microcontroller. The library is compiled with the app sketch.
+func (b Brick) GetSketchLibrary() (*paths.Path, bool) {
+	if b.SketchLibrary == nil || b.SketchLibrary.Join("library.properties").NotExist() {
+		return nil, false
+	}
+	return b.SketchLibrary, true
 }
 
 func (b Brick) GetVariable(name string) (BrickVariable, bool) {

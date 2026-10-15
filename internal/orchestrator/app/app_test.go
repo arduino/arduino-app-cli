@@ -382,7 +382,7 @@ func TestLoadBricksFromFolder(t *testing.T) {
 
 			tt.setup(t, bricksDir)
 
-			bricks := loadBricksFromFolder(bricksDir)
+			bricks := LoadBricksFromFolder(bricksDir)
 
 			assert.Equal(t, tt.expectedBrickCount, len(bricks), "expected %d bricks but got %d", tt.expectedBrickCount, len(bricks))
 
@@ -396,7 +396,7 @@ func TestLoadBricksFromFolder(t *testing.T) {
 func TestLoadBricksFromFolderWithNoBricks(t *testing.T) {
 	t.Run("returns nil for nonexistent directory", func(t *testing.T) {
 		bricksDir := paths.New("/nonexistent/path")
-		bricks := loadBricksFromFolder(bricksDir)
+		bricks := LoadBricksFromFolder(bricksDir)
 		assert.Nil(t, bricks)
 		assert.Len(t, bricks, 0)
 	})
@@ -409,7 +409,7 @@ func TestLoadBricksFromFolderWithNoBricks(t *testing.T) {
 		otherDir := bricksDir.Join("other")
 		assert.NoError(t, otherDir.MkdirAll())
 
-		bricks := loadBricksFromFolder(bricksDir)
+		bricks := LoadBricksFromFolder(bricksDir)
 		assert.Empty(t, bricks)
 	})
 }

@@ -180,6 +180,8 @@ func generateComposeTemplate(
 
 	// Mounted only where the board has them.
 	optionalMounts := slices.Concat(
+		// The bricks of the data dir are available to every app, read-only.
+		[]string{cfg.DataDir().Join("bricks").String() + ":" + globalBricksDir + ":ro"},
 		[]string{"/run/udev:ro", "/run/user/1000/pipewire-0"},
 		// camx CSI cameras are accessed through the cam_server socket and a host userspace library
 		[]string{"/run/cam_server", "/usr/lib/libcamera_metadata.so.0.1.0"},
@@ -453,10 +455,18 @@ func servicesOverrides(services []serviceInfo, user string, appEnv types.Mapping
 	return overrides
 }
 
+// globalBricksDir is where the bricks of the data dir are mounted.
+const globalBricksDir = "/opt/arduino-bricks"
+
 // templateEnvironment is the `environment:` section of a template: the values the app
 // is wired with, plus a reference to every host fact, resolved when it is rendered.
 func templateEnvironment(appEnv types.Mapping) types.Mapping {
 	env := appEnv.Clone()
+	if pythonPath, ok := env["PYTHONPATH"]; ok && pythonPath != "" {
+		env["PYTHONPATH"] = pythonPath + ":" + globalBricksDir
+	} else {
+		env["PYTHONPATH"] = globalBricksDir
+	}
 	for name := range hostVariables {
 		env[name] = "${" + name + "}"
 	}

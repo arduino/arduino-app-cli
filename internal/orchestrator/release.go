@@ -193,11 +193,11 @@ func BuildRelease(
 
 	// The sketch is optional, as it is for the release manifest: an app made of
 	// python only ships without a firmware.
-	if _, hasSketch := stagedApp.GetSketchPath(); hasSketch {
+	if appHasSketchToBuild(stagedApp, stagedApp.Bricks(bricksIndex)) {
 		cb(StreamMessage{data: "building sketch", progress: &Progress{Name: "sketch", Progress: 80.0}})
 		// The compile reads the staged sources and caches in the app folder, as a
 		// start does. Only the firmware lands in the release, in prebuild.
-		if err := buildSketch(ctx, stagedApp, plat, appToBuild.SketchBuildPath(), prebuildDir, req.Verbose, cb); err != nil {
+		if err := buildSketch(ctx, stagedApp, plat, stagedApp.Bricks(bricksIndex), cfg, appToBuild.SketchBuildPath(), prebuildDir, req.Verbose, cb); err != nil {
 			return BuildReleaseResult{}, nil, err
 		}
 	}
@@ -333,6 +333,7 @@ func targetIndexes(cfg config.Configuration, docker command.Cli, target string) 
 	if err != nil {
 		return platform.Platform{}, nil, nil, nil, fmt.Errorf("failed to load the bricks index of %s: %w", plat.BoardName, err)
 	}
+	bricksIndex = bricksIndex.WithSystemBricks(SystemBricks(cfg))
 	servicesIndex, err := servicesindex.Load(plat, cfg.AssetDir().Join("services"))
 	if err != nil {
 		return platform.Platform{}, nil, nil, nil, fmt.Errorf("failed to load the services index of %s: %w", plat.BoardName, err)
@@ -449,17 +450,26 @@ func buildPythonEnv(ctx context.Context, docker command.Cli, pythonImage string,
 // ReleaseFirmwareFileName is the compiled sketch a release ships in its prebuild dir.
 const ReleaseFirmwareFileName = "sketch.fw"
 
-func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platform.Platform, buildPath, destPath *paths.Path, verbose bool, cb func(StreamMessage)) error {
+func buildSketch(ctx context.Context, appToBuild app.ArduinoApp, platform platform.Platform, index *bricksindex.BricksIndex, cfg config.Configuration, buildPath, destPath *paths.Path, verbose bool, cb func(StreamMessage)) error {
 	output := NewCallbackWriter(func(line string) {
 		cb(StreamMessage{data: line})
 	})
 
-	sketchPath, ok := appToBuild.GetSketchPath()
-	if !ok {
-		return fmt.Errorf("no sketch path found in the Arduino app")
+	bricks := bricksWithSketchLibrary(appToBuild, index)
+	sketchPath, err := stageSketch(appToBuild, bricks)
+	if err != nil {
+		return err
+	}
+	brickLibraries, brickDependencies, err := brickSketchLibraries(bricks, cfg)
+	if err != nil {
+		return err
 	}
 	if err := buildPath.MkdirAll(); err != nil {
 		return fmt.Errorf("failed to create build directory: %w", err)
+	}
+
+	if err := addBrickLibrariesToProfile(ctx, sketchPath, brickLibraries, brickDependencies, output); err != nil {
+		return err
 	}
 
 	srv, inst, err := initializeArduinoCli(ctx, sketchPath, output)

@@ -198,7 +198,7 @@ func StartApp(
 
 	cb(StreamMessage{progress: &Progress{Name: "preparing", Progress: 0.0}})
 
-	if _, ok := appToStart.GetSketchPath(); ok {
+	if appHasSketchToBuild(appToStart, appToStart.Bricks(bricksIndex)) {
 		if isRelease {
 			cb(StreamMessage{progress: &Progress{Name: "uploading sketch", Progress: 0.0}})
 
@@ -210,7 +210,9 @@ func StartApp(
 		} else {
 			cb(StreamMessage{progress: &Progress{Name: "sketch compiling and uploading", Progress: 0.0}})
 
-			if editable, err := appToStart.GetAsEditable(); err == nil {
+			// The migration rewrites the app sketch, so it skips an app without one.
+			_, hasOwnSketch := appToStart.GetSketchPath()
+			if editable, err := appToStart.GetAsEditable(); hasOwnSketch && err == nil {
 				if ok, err := migrateRemoveRouterBridgeIfNeeded(ctx, platform, editable); err != nil {
 					cb(StreamMessage{data: "Failed to apply app migration for platform arduino:zephyr >0.54.1. Error: " + err.Error()})
 				} else if ok {
@@ -218,7 +220,7 @@ func StartApp(
 				}
 			}
 
-			if err := compileUploadSketch(ctx, verbose, platform, appToStart, sketchCallbackWriter); err != nil {
+			if err := compileUploadSketch(ctx, verbose, platform, appToStart, appToStart.Bricks(bricksIndex), cfg, sketchCallbackWriter); err != nil {
 				return err
 			}
 		}
@@ -231,7 +233,7 @@ func StartApp(
 
 		cb(StreamMessage{data: "python provisioning"})
 		provisionStartProgress := float32(0.0)
-		if _, ok := appToStart.GetSketchPath(); ok {
+		if appHasSketchToBuild(appToStart, appToStart.Bricks(bricksIndex)) {
 			provisionStartProgress = 10.0
 		}
 
@@ -320,7 +322,8 @@ func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.P
 		slog.Debug("unable to disable audio service linger", slog.String("error", err.Error()))
 	}
 
-	if _, ok := app.GetSketchPath(); ok {
+	appBricks := (&bricksindex.BricksIndex{}).WithSystemBricks(SystemBricks(cfg)).WithAppBricks(app.LocalBricks)
+	if appHasSketchToBuild(app, appBricks) {
 		// Before stopping the microcontroller we want to make sure that the app was running.
 		running, err := getRunningApp(ctx, docker.Client())
 		if err != nil {
@@ -1116,16 +1119,27 @@ func compileUploadSketch(
 	verbose bool,
 	platform platform.Platform,
 	arduinoApp app.ArduinoApp,
+	index *bricksindex.BricksIndex,
+	cfg config.Configuration,
 	w io.Writer,
 ) error {
-	sketchPath, ok := arduinoApp.GetSketchPath()
-	if !ok {
-		return fmt.Errorf("no sketch path found in the Arduino app")
+	bricks := bricksWithSketchLibrary(arduinoApp, index)
+	sketchPath, err := stageSketch(arduinoApp, bricks)
+	if err != nil {
+		return err
+	}
+	brickLibraries, brickDependencies, err := brickSketchLibraries(bricks, cfg)
+	if err != nil {
+		return err
 	}
 	// Make the cache dir for the compiled sketch
 	buildPath := arduinoApp.SketchBuildPath()
 	if err := buildPath.MkdirAll(); err != nil {
 		return fmt.Errorf("failed to create build directory: %w", err)
+	}
+
+	if err := addBrickLibrariesToProfile(ctx, sketchPath, brickLibraries, brickDependencies, w); err != nil {
+		return err
 	}
 
 	srv, inst, err := initializeArduinoCli(ctx, sketchPath, w)
