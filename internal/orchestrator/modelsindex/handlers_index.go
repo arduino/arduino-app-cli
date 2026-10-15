@@ -400,6 +400,7 @@ const (
 
 type StreamMessage struct {
 	err      string
+	errCode  string
 	data     string
 	progress *Progress
 	done     string
@@ -426,6 +427,8 @@ func (p *StreamMessage) GetData() string        { return p.data }
 func (p *StreamMessage) GetError() string       { return p.err }
 func (p *StreamMessage) GetProgress() *Progress { return p.progress }
 func (p *StreamMessage) GetDone() string        { return p.done }
+
+func (p *StreamMessage) GetErrorCode() string { return p.errCode }
 
 // GetModel is nil until the handler names what it wrote, and stays nil for a handler too
 // old to report it.
@@ -456,8 +459,8 @@ func NewProgressMessage(p Progress) StreamMessage {
 	return StreamMessage{progress: &p}
 }
 
-func NewErrorMessage(description string) StreamMessage {
-	return StreamMessage{err: description}
+func NewErrorMessage(code, description string) StreamMessage {
+	return StreamMessage{err: description, errCode: code}
 }
 
 func NewDoneMessage(description string) StreamMessage {
@@ -473,6 +476,7 @@ func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
 		SizeMB      float64 `json:"size_mb"`
 		Unit        string  `json:"unit"`
 		ModelID     string  `json:"model_id"`
+		Code        string  `json:"code"`
 	}
 	if err := json.Unmarshal([]byte(line), &raw); err != nil {
 		slog.Debug("non-JSON stdout from handler", "line", line)
@@ -502,7 +506,7 @@ func parseDownloadHandlerLine(line string, publish func(StreamMessage)) {
 		}
 		publish(NewInfoMessage(raw.Description, model))
 	case "error":
-		publish(NewErrorMessage(raw.Description))
+		publish(NewErrorMessage(raw.Code, raw.Description))
 	default:
 		slog.Warn("unknown event from handler", "event", raw.Event, "line", line)
 	}

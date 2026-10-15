@@ -89,13 +89,21 @@ func TestDownloadStream(t *testing.T) {
 		sse := &fakeSSE{}
 		stream := &downloadStream{sse: sse}
 
-		stream.publish(modelsindex.NewErrorMessage("repository does not exist"))
+		stream.publish(modelsindex.NewErrorMessage("", "repository does not exist"))
 
 		assert.Empty(t, sse.events)
 		require.Len(t, sse.errors, 1)
 		assert.Equal(t, render.SSEErrorData{
 			Code: render.InternalServiceErr, Message: "repository does not exist",
 		}, sse.errors[0])
+	})
+
+	t.Run("the handler's code is passed through", func(t *testing.T) {
+		sse := &fakeSSE{}
+		(&downloadStream{sse: sse}).publish(modelsindex.NewErrorMessage("model_disabled", "reworded sentence"))
+
+		require.Len(t, sse.errors, 1)
+		assert.Equal(t, render.SSEErrorData{Code: "model_disabled", Message: "reworded sentence"}, sse.errors[0])
 	})
 
 	t.Run("the handler's own done line is a message, not the route's done", func(t *testing.T) {
