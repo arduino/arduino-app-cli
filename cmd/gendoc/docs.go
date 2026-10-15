@@ -585,7 +585,7 @@ before the app is started again.
 				Notes        string `json:"notes" description:"Notes is the release note, markdown, and goes in the manifest as it is given."`
 				IncludeData  bool   `json:"include_data" description:"IncludeData ships the data folder of the app, at the root of the archive."`
 			})(nil),
-			Description: "Build the application into a release archive: the python environment is built and the compose files are resolved for the target board, so that installing it generates nothing. The response stays open while the build runs: its last part is the release archive, or the build error. Progress is reported in the response and on the app build events stream.",
+			Description: "Build the application into a release archive: the app built for one board, with the compiled sketch, the python environment and the compose files. The response stays open while the build runs: its last part is the release archive, or the build error. Progress is reported in the response and on the app build events stream.",
 			Summary:     "Build an app into a release archive",
 			Tags:        []Tag{ApplicationTag},
 			CustomSuccessResponse: &CustomResponseDef{
@@ -693,7 +693,7 @@ Contains a JSON object with the details of an error.
 'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
 `,
 			},
-			Description: "Installs a release archive as a new app in the releases dir. The release is read only and is named after the release. If prepare is true, it also downloads the containers and models the release needs to run.",
+			Description: "Installs a release archive as a new app in the releases dir. The release must be built for this board, and it is read only. If prepare is true, it also downloads the containers and models the release needs to run.",
 			Summary:     "Installs an app from a release archive",
 			Tags:        []Tag{ApplicationTag},
 			PossibleErrors: []ErrorResponse{
