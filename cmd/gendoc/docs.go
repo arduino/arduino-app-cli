@@ -693,7 +693,7 @@ Contains a JSON object with the details of an error.
 'data: {"code":"INTERNAL_SERVER_ERROR","message":"An error occurred during operation"}'
 `,
 			},
-			Description: "Installs a release archive as a new app in the releases dir. The release is read only and is named after the release, date included. If prepare is true, it also downloads the containers and models the release needs to run.",
+			Description: "Installs a release archive as a new app in the releases dir. The release is read only and is named after the release. If prepare is true, it also downloads the containers and models the release needs to run.",
 			Summary:     "Installs an app from a release archive",
 			Tags:        []Tag{ApplicationTag},
 			PossibleErrors: []ErrorResponse{
