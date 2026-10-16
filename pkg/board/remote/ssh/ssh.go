@@ -20,6 +20,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -42,6 +43,9 @@ type SSHConnection struct {
 
 	mu             sync.Mutex
 	ForwardedPorts []ForwardedPort
+
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 type ForwardedPort struct {
@@ -74,15 +78,40 @@ func WithSessionWait(d time.Duration) Option {
 }
 
 func FromHost(user, password, address string, opts ...Option) (*SSHConnection, error) {
-	client, err := ssh.Dial("tcp", address, &ssh.ClientConfig{
-		User: user,
-		Auth: []ssh.AuthMethod{
-			ssh.Password(password),
-		},
-		// TODO: audit the security of this setting
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // nolint:gosec
-	})
+	ctx, cancel := context.WithCancel(context.Background())
+	board := slog.String("board", address)
+
+	client, err := func() (*ssh.Client, error) {
+		tcp, err := net.Dial("tcp", address)
+		if err != nil {
+			return nil, err
+		}
+		const silence = 5 * time.Second
+		kick := &kickConn{Conn: tcp, timeout: silence, timer: time.AfterFunc(silence, func() {
+			if ctx.Err() == nil {
+				slog.Warn("the board sent nothing", board, slog.Duration("silence", silence))
+			}
+			cancel()
+		})}
+		// The timer runs only after the handshake.
+		kick.timer.Stop()
+		c, chans, reqs, err := ssh.NewClientConn(kick, address, &ssh.ClientConfig{
+			User: user,
+			Auth: []ssh.AuthMethod{
+				ssh.Password(password),
+			},
+			// TODO: audit the security of this setting
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(), // nolint:gosec
+		})
+		if err != nil {
+			return nil, err
+		}
+		kick.armed.Store(true)
+		kick.timer.Reset(silence)
+		return ssh.NewClient(c, chans, reqs), nil
+	}()
 	if err != nil {
+		cancel()
 		msg := err.Error()
 		if strings.Contains(msg, "unable to authenticate") ||
 			strings.Contains(msg, "no supported methods remain") ||
@@ -92,11 +121,25 @@ func FromHost(user, password, address string, opts ...Option) (*SSHConnection, e
 		return nil, fmt.Errorf("failed to dial SSH: %w", err)
 	}
 
-	conn := &SSHConnection{client: client}
+	conn := &SSHConnection{client: client, ctx: ctx, cancel: cancel}
 	for _, opt := range append([]Option{WithMaxSessions(10), WithSessionWait(60 * time.Second)}, opts...) {
 		opt(conn)
 	}
+	go conn.watchClose(board)
+	go conn.keepalive()
 	return conn, nil
+}
+
+// Done closes when the board closes the connection, or sends no byte for 5s. The
+// keepalive makes an idle board answer every second, and each byte read resets the timer.
+func (a *SSHConnection) Done() <-chan struct{} {
+	return a.ctx.Done()
+}
+
+// Close stops the forwards and closes the ssh connection.
+func (a *SSHConnection) Close() error {
+	a.cancel()
+	return errors.Join(a.ForwardKillAll(context.Background()), a.client.Close())
 }
 
 // newSession opens a session and takes a slot of the session budget. The
@@ -515,4 +558,48 @@ func (a *SSHConnection) Push(ctx context.Context, local, remote string) error {
 		}
 		return scpClient.PushDir(ctx, os.DirFS(local), name, remote)
 	}
+}
+
+// watchClose cancels the ctx when the board closes the connection.
+func (a *SSHConnection) watchClose(board slog.Attr) {
+	err := a.client.Wait()
+	if a.ctx.Err() == nil {
+		slog.Warn("the board closed the ssh connection", board, slog.Any("error", err))
+	}
+	a.cancel()
+}
+
+// keepalive sends keepalive@openssh.com every second, so an idle board still sends a byte.
+// It is a global request: it opens no channel and takes no slot of MaxSessions.
+func (a *SSHConnection) keepalive() {
+	for {
+		select {
+		case <-a.ctx.Done():
+			return
+		case <-time.After(time.Second):
+		}
+		_, _, _ = a.client.SendRequest("keepalive@openssh.com", true, nil)
+	}
+}
+
+// kickConn is the kicker of go.bug.st/downloader on a net.Conn: once armed, every byte
+// read resets the timer, and the timer cancels the connection when it fires.
+type kickConn struct {
+	net.Conn
+	timer   *time.Timer
+	timeout time.Duration
+	armed   atomic.Bool
+}
+
+func (c *kickConn) Read(p []byte) (int, error) {
+	n, err := c.Conn.Read(p)
+	if n > 0 && c.armed.Load() {
+		c.timer.Reset(c.timeout)
+	}
+	return n, err
+}
+
+func (c *kickConn) Close() error {
+	c.timer.Stop()
+	return c.Conn.Close()
 }
