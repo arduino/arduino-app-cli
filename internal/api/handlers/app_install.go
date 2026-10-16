@@ -83,9 +83,9 @@ func HandleAppInstall(
 		result, err := orchestrator.InstallRelease(r.Context(), dockerClient, provisioner, tempFilePath, idProvider, cfg, plat, prepare, func(item orchestrator.StreamMessage) {
 			switch item.GetType() {
 			case orchestrator.ProgressType:
-				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress(*item.GetProgress())})
+				sseStream.Send(render.SSEEvent{Type: render.ProgressEvent, Data: progress(*item.GetProgress())})
 			case orchestrator.InfoType:
-				sseStream.Send(render.SSEEvent{Type: "message", Data: sseLog{Message: item.GetData()}})
+				sseStream.Send(render.SSEEvent{Type: render.MessageEvent, Data: sseLog{Message: item.GetData()}})
 			}
 		})
 		if err != nil {
@@ -100,7 +100,7 @@ func HandleAppInstall(
 			return
 		}
 
-		sseStream.Send(render.SSEEvent{Type: "done", Data: AppInstallResponse{
+		sseStream.Send(render.SSEEvent{Type: render.DoneEvent, Data: AppInstallResponse{
 			ID:      result.AppID.String(),
 			Name:    result.Name,
 			Release: result.Release.ID,

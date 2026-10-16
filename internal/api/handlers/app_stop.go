@@ -58,9 +58,9 @@ func HandleAppStop(
 		err = orchestrator.StopApp(r.Context(), dockerClient, platform, app, cfg, func(item orchestrator.StreamMessage) {
 			switch item.GetType() {
 			case orchestrator.ProgressType:
-				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress(*item.GetProgress())})
+				sseStream.Send(render.SSEEvent{Type: render.ProgressEvent, Data: progress(*item.GetProgress())})
 			case orchestrator.InfoType:
-				sseStream.Send(render.SSEEvent{Type: "message", Data: log{Message: item.GetData()}})
+				sseStream.Send(render.SSEEvent{Type: render.MessageEvent, Data: log{Message: item.GetData()}})
 			}
 		})
 		if err != nil {

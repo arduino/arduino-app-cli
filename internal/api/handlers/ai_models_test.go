@@ -38,7 +38,7 @@ func (f *fakeSSE) SendError(event render.SSEErrorData) { f.errors = append(f.err
 func (f *fakeSSE) types() []string {
 	types := make([]string, 0, len(f.events))
 	for _, e := range f.events {
-		types = append(types, e.Type)
+		types = append(types, string(e.Type))
 	}
 	return types
 }

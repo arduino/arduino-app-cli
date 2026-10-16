@@ -227,7 +227,7 @@ func HandleInstallModel(dockerClient command.Cli, modelsIndex *modelsindex.Model
 			stream.sendError(err)
 			return
 		}
-		sseStream.Send(render.SSEEvent{Type: "done", Data: models.NewAIModelItem(installed)})
+		sseStream.Send(render.SSEEvent{Type: render.DoneEvent, Data: models.NewAIModelItem(installed)})
 	}
 }
 
@@ -265,7 +265,7 @@ func HandleDownloadModel(dockerClient command.Cli, modelsIndex *modelsindex.Mode
 			stream.sendError(err)
 			return
 		}
-		sseStream.Send(render.SSEEvent{Type: "done", Data: models.NewAIModelItem(installed)})
+		sseStream.Send(render.SSEEvent{Type: render.DoneEvent, Data: models.NewAIModelItem(installed)})
 	}
 }
 
@@ -285,14 +285,14 @@ type downloadStream struct {
 func (d *downloadStream) publish(e modelsindex.StreamMessage) {
 	switch e.GetType() {
 	case modelsindex.InfoType:
-		d.sse.Send(render.SSEEvent{Type: "message", Data: sseLog{Message: e.GetData()}})
+		d.sse.Send(render.SSEEvent{Type: render.MessageEvent, Data: sseLog{Message: e.GetData()}})
 	case modelsindex.ProgressType:
 		p := e.GetProgress()
 		var progress float32
 		if p.Total > 0 {
 			progress = float32(p.Current) / float32(p.Total) * 100
 		}
-		d.sse.Send(render.SSEEvent{Type: "progress", Data: sseProgress{
+		d.sse.Send(render.SSEEvent{Type: render.ProgressEvent, Data: sseProgress{
 			Name: p.Name, Current: p.Current, Total: p.Total, Progress: progress,
 		}})
 	case modelsindex.ErrorType:
@@ -302,7 +302,7 @@ func (d *downloadStream) publish(e modelsindex.StreamMessage) {
 			d.sse.SendError(render.SSEErrorData{Code: render.InternalServiceErr, Message: e.GetError()})
 		}
 	case modelsindex.DoneType:
-		d.sse.Send(render.SSEEvent{Type: "message", Data: sseLog{Message: e.GetDone()}})
+		d.sse.Send(render.SSEEvent{Type: render.MessageEvent, Data: sseLog{Message: e.GetDone()}})
 	}
 }
 
