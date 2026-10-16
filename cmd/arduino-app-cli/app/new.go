@@ -37,6 +37,7 @@ func newCreateCmd(cfg config.Configuration) *cobra.Command {
 			name := args[0]
 			return createHandler(cfg, name, icon, description, brickIDs, noSketch, fromApp)
 		},
+		ValidArgsFunction: cobra.NoFileCompletions,
 	}
 
 	cmd.Flags().StringVarP(&icon, "icon", "i", "", "Icon for the app")
@@ -48,6 +49,7 @@ func newCreateCmd(cfg config.Configuration) *cobra.Command {
 	_ = cmd.RegisterFlagCompletionFunc("bricks", completion.BrickIDsWithFilterFunc(func(b bricks.BrickListItem) bool {
 		return !slices.Contains(brickIDs, b.ID)
 	}))
+	_ = cmd.RegisterFlagCompletionFunc("from-app", completion.ApplicationNames(cfg))
 
 	return cmd
 }
