@@ -14,6 +14,7 @@ import (
 	"github.com/arduino/arduino-app-cli/cmd/arduino-app-cli/internal/servicelocator"
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricks"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/config"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/modelsindex"
@@ -115,6 +116,43 @@ func ModelIDsWithFilterFunc(filter func(model modelsindex.AIModel) bool) cobra.C
 
 func BrickIDs() cobra.CompletionFunc {
 	return BrickIDsWithFilterFunc(func(_ bricks.BrickListItem) bool { return true })
+}
+
+// AppBrickIDs are the bricks the app can be given, its local ones included.
+func AppBrickIDs(appRef string) ([]string, cobra.ShellCompDirective) {
+	arduinoApp, ok := loadApp(appRef)
+	if !ok {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	var ids []string
+	for _, brick := range arduinoApp.Bricks(servicelocator.GetBricksIndex()).ListBricks() {
+		ids = append(ids, brick.ID)
+	}
+	return ids, cobra.ShellCompDirectiveNoFileComp
+}
+
+// AppListedBrickIDs are the bricks the app already lists in its descriptor.
+func AppListedBrickIDs(appRef string) ([]string, cobra.ShellCompDirective) {
+	arduinoApp, ok := loadApp(appRef)
+	if !ok {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	var ids []string
+	for _, brick := range arduinoApp.Descriptor.Bricks {
+		ids = append(ids, brick.ID)
+	}
+	return ids, cobra.ShellCompDirectiveNoFileComp
+}
+
+func loadApp(appRef string) (app.ArduinoApp, bool) {
+	id, err := servicelocator.GetAppIDProvider().ParseID(appRef)
+	if err != nil {
+		return app.ArduinoApp{}, false
+	}
+	arduinoApp, err := app.Load(id.ToPath())
+	return arduinoApp, err == nil
 }
 
 func BrickIDsWithFilterFunc(filter func(apps bricks.BrickListItem) bool) cobra.CompletionFunc {
