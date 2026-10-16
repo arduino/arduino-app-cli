@@ -24,6 +24,15 @@ type LocalConnection struct{}
 // Ensures LocalConnection implements the RemoteConn interface at compile time.
 var _ remote.RemoteConn = (*LocalConnection)(nil)
 
+// Done never closes.
+func (a *LocalConnection) Done() <-chan struct{} {
+	return nil
+}
+
+func (a *LocalConnection) Close() error {
+	return nil
+}
+
 func (a *LocalConnection) Forward(ctx context.Context, localPort int, remotePort int) error {
 	// Locally we don't need to forward ports.
 	return nil
