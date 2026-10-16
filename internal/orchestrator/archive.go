@@ -237,7 +237,6 @@ func ImportAppFromZip(
 
 func extractZip(r *zip.Reader, dest string, rootPrefix string) error {
 	dest = filepath.Clean(dest) + string(os.PathSeparator)
-	const maxFileSize = 100 * 1024 * 1024 // 100MB limit per file
 
 	for _, f := range r.File {
 		zipName := entryName(f, rootPrefix)
@@ -272,17 +271,17 @@ func extractZip(r *zip.Reader, dest string, rootPrefix string) error {
 			return fmt.Errorf("unable to open entry %s: %w", f.Name, err)
 		}
 
-		lr := io.LimitReader(rc, maxFileSize+1)
-		written, err := io.Copy(outFile, lr)
+		// The zip reader fails with ErrFormat past the declared size.
+		_, err = io.Copy(outFile, rc)
 
 		outFile.Close()
 		rc.Close()
 
+		if errors.Is(err, zip.ErrFormat) {
+			return fmt.Errorf("%w: %s: %v", ErrBadRequest, f.Name, err)
+		}
 		if err != nil {
 			return fmt.Errorf("write file %s: %w", fpath, err)
-		}
-		if written > maxFileSize {
-			return fmt.Errorf("file %s too large", f.Name)
 		}
 	}
 
