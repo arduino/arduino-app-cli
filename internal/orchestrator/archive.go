@@ -203,6 +203,9 @@ func ImportAppFromZip(
 	defer func() { _ = tempDestDir.RemoveAll() }()
 
 	if err := extractZip(&r.Reader, tempDestDir.String(), rootPrefix); err != nil {
+		if errors.Is(err, syscall.ENOSPC) {
+			return appid.ID{}, fmt.Errorf("%w: not enough space on the board", ErrBadRequest)
+		}
 		return appid.ID{}, err
 	}
 
