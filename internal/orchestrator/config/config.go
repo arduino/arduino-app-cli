@@ -260,6 +260,15 @@ func (c *Configuration) MkTempAssetDir() (*paths.Path, error) {
 	return c.assetDir.Parent().MkTempDir("dynamic-provisioning")
 }
 
+// MkStagingDir makes a dir that no app list explores, with a name that app.Load accepts.
+func (c *Configuration) MkStagingDir() (*paths.Path, error) {
+	stagingRoot := c.dataDir.Join("staging")
+	if err := stagingRoot.MkdirAll(); err != nil {
+		return nil, err
+	}
+	return stagingRoot.MkTempDir("app-")
+}
+
 // MkTempBuildDir is where a release is staged while it is built. Not the system temp
 // dir: it holds the python environment of the app, and /tmp is in RAM on a board.
 func (c *Configuration) MkTempBuildDir() (*paths.Path, error) {

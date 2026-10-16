@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -519,35 +518,6 @@ func TestListApp(t *testing.T) {
 				Default:     false,
 			},
 		}, res.Apps))
-	})
-
-	t.Run("ignore temporary apps starting with .tmp_", func(t *testing.T) {
-		tmpAppPath, err := app.MkTmpAppDir(cfg.AppsDir())
-		require.NoError(t, err)
-
-		tmpAppName := tmpAppPath.Base()
-		require.True(t, strings.HasPrefix(tmpAppName, ".tmp_"))
-
-		_, err = os.Create(tmpAppPath.Join("app.yaml").String())
-		require.NoError(t, err)
-
-		res, err := ListApps(t.Context(), dockerCli, ListAppRequest{
-			ShowApps: true,
-		}, idProvider, nil, cfg, unoQPlatform)
-		require.NoError(t, err)
-
-		for _, a := range res.Apps {
-			assert.NotEqual(t, tmpAppName, a.Name, ".temp_ app should be ignored")
-
-			if strings.Contains(a.ID.String(), tmpAppName) {
-				t.Errorf("the app %s was not filtered out", a.Name)
-			}
-		}
-
-		// check on broken apps
-		for _, b := range res.BrokenApps {
-			assert.NotContains(t, b.Name, tmpAppName, "the temporary app should not be in the broken apps list")
-		}
 	})
 
 	t.Run("test nested apps do not produce bogus broken apps in parent dirs", func(t *testing.T) {
