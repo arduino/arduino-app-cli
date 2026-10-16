@@ -2574,6 +2574,8 @@ components:
       type: object
     VersionResponse:
       properties:
+        python_runner_version:
+          type: string
         version:
           type: string
       type: object
