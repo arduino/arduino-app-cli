@@ -270,8 +270,7 @@ func extractZip(r *zip.Reader, dest string, rootPrefix string) error {
 			return fmt.Errorf("unable to open entry %s: %w", f.Name, err)
 		}
 
-		// The zip reader fails with ErrFormat past the declared size.
-		_, err = io.Copy(outFile, rc)
+		_, err = io.Copy(outFile, rc) // nolint:gosec // the zip reader fails with ErrFormat past the declared size
 
 		outFile.Close()
 		rc.Close()
