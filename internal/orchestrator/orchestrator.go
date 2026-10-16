@@ -49,6 +49,7 @@ var (
 	ErrAppNotFound      = fmt.Errorf("app not found")
 	ErrBadRequest       = fmt.Errorf("bad request")
 	ErrNotPrepared      = fmt.Errorf("app is not prepared")
+	ErrAppRunning       = fmt.Errorf("app is running")
 )
 
 type AppStreamMessage struct {
@@ -1004,12 +1005,25 @@ type AppEditRequest struct {
 }
 
 func EditApp(
+	ctx context.Context,
+	docker command.Cli,
 	req AppEditRequest,
 	editApp *app.ArduinoApp,
 	cfg config.Configuration,
 ) (editErr error) {
 	if req.Name != nil && slug.Make(*req.Name) == "" {
 		return fmt.Errorf("%w: invalid app name %q", app.ErrInvalidApp, *req.Name)
+	}
+
+	if req.Name != nil {
+		// Containers keep the old app path in their labels: renaming a running app breaks them.
+		status, err := getAppStatus(ctx, docker.Client(), *editApp)
+		if err != nil {
+			return fmt.Errorf("failed to get app status: %w", err)
+		}
+		if status.Status == StatusRunning || status.Status == StatusStarting {
+			return ErrAppRunning
+		}
 	}
 
 	if req.Name != nil || req.Icon != nil || req.Description != nil {

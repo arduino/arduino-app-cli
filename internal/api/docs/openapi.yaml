@@ -609,6 +609,8 @@ paths:
           description: Successful response
         "400":
           $ref: '#/components/responses/BadRequest'
+        "409":
+          $ref: '#/components/responses/Conflict'
         "412":
           $ref: '#/components/responses/PreconditionFailed'
         "500":

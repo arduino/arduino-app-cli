@@ -112,12 +112,14 @@ func HandleAppDetailsEdits(
 				Description: editRequest.Description,
 			}
 		}
-		err = orchestrator.EditApp(appEditRequest, &appToEdit, cfg)
+		err = orchestrator.EditApp(r.Context(), dockerClient, appEditRequest, &appToEdit, cfg)
 		if err != nil {
 			switch {
 			case errors.Is(err, app.ErrInvalidApp):
 				slog.Error("Unable to edit the app 1", slog.String("error", err.Error()))
 				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
+			case errors.Is(err, orchestrator.ErrAppRunning):
+				render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: "stop the app before renaming it"})
 			case errors.Is(err, orchestrator.ErrAppAlreadyExists):
 				slog.Error("The name is already in use.", slog.String("error", err.Error()))
 				render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{
