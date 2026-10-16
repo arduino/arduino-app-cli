@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"syscall"
 
@@ -20,6 +21,7 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	yaml "github.com/goccy/go-yaml"
+	"github.com/shirou/gopsutil/v4/disk"
 
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
@@ -190,7 +192,15 @@ func ImportAppFromZip(
 		finalDestPath, _ = findAppPathByName(newName, cfg)
 	}
 
+	if err := checkFreeSpace(&r.Reader, rootPrefix, finalDestPath.Parent()); err != nil {
+		return appid.ID{}, err
+	}
+
 	tempDestDir, err := cfg.MkStagingDir()
+	if err != nil {
+		return appid.ID{}, fmt.Errorf("failed to create the staging dir: %w", err)
+	}
+
 	if err != nil {
 		return appid.ID{}, fmt.Errorf("failed to create the staging dir: %w", err)
 	}
@@ -229,23 +239,9 @@ func extractZip(r *zip.Reader, dest string, rootPrefix string) error {
 	dest = filepath.Clean(dest) + string(os.PathSeparator)
 	const maxFileSize = 100 * 1024 * 1024 // 100MB limit per file
 
-	rootPrefixClean := filepath.FromSlash(rootPrefix)
-	if rootPrefixClean == "." {
-		rootPrefixClean = ""
-	}
-
 	for _, f := range r.File {
-		zipName := filepath.Clean(filepath.FromSlash(f.Name))
-
-		if rootPrefixClean != "" {
-			if !strings.HasPrefix(zipName, rootPrefixClean) {
-				continue
-			}
-			zipName = strings.TrimPrefix(zipName, rootPrefixClean)
-			zipName = strings.TrimPrefix(zipName, string(os.PathSeparator))
-		}
-
-		if zipName == "" || zipName == "." {
+		zipName := entryName(f, rootPrefix)
+		if zipName == "" {
 			continue
 		}
 
@@ -290,6 +286,56 @@ func extractZip(r *zip.Reader, dest string, rootPrefix string) error {
 		}
 	}
 
+	return nil
+}
+
+// entryName is the path of f under the app root, empty when f is not extracted.
+func entryName(f *zip.File, rootPrefix string) string {
+	prefix := filepath.FromSlash(rootPrefix)
+	if prefix == "." {
+		prefix = ""
+	}
+
+	name := filepath.Clean(filepath.FromSlash(f.Name))
+	if prefix != "" {
+		if !strings.HasPrefix(name, prefix) {
+			return ""
+		}
+		name = strings.TrimPrefix(name, prefix)
+		name = strings.TrimPrefix(name, string(os.PathSeparator))
+	}
+	if name == "." {
+		return ""
+	}
+	return name
+}
+
+// checkFreeSpace refuses an archive whose extracted files, by their declared sizes,
+// do not fit in the free space of dest.
+func checkFreeSpace(r *zip.Reader, rootPrefix string, dest *paths.Path) error {
+	var needed uint64
+	for _, f := range r.File {
+		if f.FileInfo().IsDir() || entryName(f, rootPrefix) == "" {
+			continue
+		}
+		needed += f.UncompressedSize64
+		if needed < f.UncompressedSize64 {
+			needed = math.MaxUint64
+		}
+	}
+
+	free, err := freeSpace(dest)
+	if err != nil {
+		return fmt.Errorf("unable to read the free space: %w", err)
+	}
+	if needed > free {
+		const mb = 1024 * 1024
+		neededMB := needed / mb
+		if needed%mb != 0 {
+			neededMB++
+		}
+		return fmt.Errorf("%w: the app needs %d MB, only %d MB available on the board", ErrBadRequest, neededMB, free/mb)
+	}
 	return nil
 }
 
@@ -362,4 +408,13 @@ func findZipRoot(r *zip.Reader) (string, error) {
 	}
 
 	return "", fmt.Errorf("invalid archive structure: missing or misplaced app.yaml. Supported paths: archive.zip/app.yaml or archive.zip/<root_dir>/app.yaml")
+}
+
+// freeSpace is the space of the disk holding path that a non-root user can write.
+func freeSpace(path *paths.Path) (uint64, error) {
+	usage, err := disk.Usage(path.String())
+	if err != nil {
+		return 0, err
+	}
+	return usage.Free, nil
 }

@@ -451,3 +451,12 @@ func TestFindZipRoot(t *testing.T) {
 		})
 	}
 }
+
+func TestFreeSpace(t *testing.T) {
+	free, err := freeSpace(paths.New(t.TempDir()))
+	require.NoError(t, err)
+	assert.Positive(t, free)
+
+	_, err = freeSpace(paths.New(t.TempDir(), "missing"))
+	assert.Error(t, err)
+}
