@@ -276,7 +276,7 @@ func extractZip(r *zip.Reader, dest string, rootPrefix string) error {
 		outFile.Close()
 		rc.Close()
 
-		if errors.Is(err, zip.ErrFormat) {
+		if errors.Is(err, zip.ErrFormat) || errors.Is(err, zip.ErrChecksum) {
 			return fmt.Errorf("%w: %s: %v", ErrBadRequest, f.Name, err)
 		}
 		if err != nil {
@@ -287,7 +287,6 @@ func extractZip(r *zip.Reader, dest string, rootPrefix string) error {
 	return nil
 }
 
-// entryName is the path of f under the app root, empty when f is not extracted.
 func entryName(f *zip.File, rootPrefix string) string {
 	prefix := filepath.FromSlash(rootPrefix)
 	if prefix == "." {
@@ -308,8 +307,6 @@ func entryName(f *zip.File, rootPrefix string) string {
 	return name
 }
 
-// checkFreeSpace refuses an archive whose extracted files, by their declared sizes,
-// do not fit in the free space of dest.
 func checkFreeSpace(r *zip.Reader, rootPrefix string, dest *paths.Path) error {
 	var needed uint64
 	for _, f := range r.File {
@@ -322,10 +319,11 @@ func checkFreeSpace(r *zip.Reader, rootPrefix string, dest *paths.Path) error {
 		}
 	}
 
-	free, err := freeSpace(dest)
+	usage, err := disk.Usage(dest.String())
 	if err != nil {
 		return fmt.Errorf("unable to read the free space: %w", err)
 	}
+	free := usage.Free
 	if needed > free {
 		const mb = 1024 * 1024
 		neededMB := needed / mb
@@ -406,13 +404,4 @@ func findZipRoot(r *zip.Reader) (string, error) {
 	}
 
 	return "", fmt.Errorf("invalid archive structure: missing or misplaced app.yaml. Supported paths: archive.zip/app.yaml or archive.zip/<root_dir>/app.yaml")
-}
-
-// freeSpace is the space of the disk holding path that a non-root user can write.
-func freeSpace(path *paths.Path) (uint64, error) {
-	usage, err := disk.Usage(path.String())
-	if err != nil {
-		return 0, err
-	}
-	return usage.Free, nil
 }
