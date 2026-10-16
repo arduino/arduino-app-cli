@@ -1021,7 +1021,7 @@ func EditApp(
 		if err != nil {
 			return fmt.Errorf("failed to get app status: %w", err)
 		}
-		if status.Status == StatusRunning || status.Status == StatusStarting {
+		if status.Status == StatusRunning || status.Status == StatusStarting || status.Status == StatusStopping {
 			return ErrAppRunning
 		}
 	}
