@@ -343,6 +343,133 @@ func TestImportAppFromZip(t *testing.T) {
 	}
 }
 
+func TestImportAppFromZipSize(t *testing.T) {
+	type zipEntry struct {
+		name     string
+		content  string
+		zeros    int64  // written after content
+		declared uint64 // when set, stored as is with content as the data
+	}
+
+	tests := []struct {
+		name        string
+		entries     []zipEntry
+		wantErr     string
+		checkResult func(t *testing.T, appDir *paths.Path)
+	}{
+		{
+			name: "file over 100 MB is imported",
+			entries: []zipEntry{
+				{name: "app.yaml", content: "name: test"},
+				{name: "python/main.py", content: "pass"},
+				{name: "models/model.bin", zeros: 101 << 20},
+			},
+			checkResult: func(t *testing.T, appDir *paths.Path) {
+				info, err := appDir.Join("models", "model.bin").Stat()
+				require.NoError(t, err)
+				assert.Equal(t, int64(101<<20), info.Size())
+			},
+		},
+		{
+			name: "declared size over the free space",
+			entries: []zipEntry{
+				{name: "app.yaml", content: "name: test"},
+				{name: "python/main.py", content: "pass"},
+				{name: "models/model.bin", declared: 1 << 60},
+			},
+			wantErr: "MB available on the board",
+		},
+		{
+			name: "declared sizes overflowing their sum",
+			entries: []zipEntry{
+				{name: "app.yaml", content: "name: test"},
+				{name: "python/main.py", content: "pass"},
+				{name: "a.bin", declared: 1 << 63},
+				{name: "b.bin", declared: 1 << 63},
+			},
+			wantErr: "MB available on the board",
+		},
+		{
+			name: "file writing more than declared",
+			entries: []zipEntry{
+				{name: "app.yaml", content: "name: test"},
+				{name: "python/main.py", content: "pass"},
+				{name: "data.bin", content: strings.Repeat("x", 1000), declared: 10},
+			},
+			wantErr: "data.bin",
+		},
+		{
+			name: "files outside the app root are not counted",
+			entries: []zipEntry{
+				{name: "my-app/app.yaml", content: "name: test"},
+				{name: "my-app/python/main.py", content: "pass"},
+				{name: "other/huge.bin", declared: 1 << 60},
+			},
+			checkResult: func(t *testing.T, appDir *paths.Path) {
+				assert.True(t, appDir.Join("app.yaml").Exist())
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tmpRoot := t.TempDir()
+			t.Setenv("ARDUINO_APP_CLI__APPS_DIR", filepath.Join(tmpRoot, "ArduinoApps"))
+			t.Setenv("ARDUINO_APP_CLI__DATA_DIR", filepath.Join(tmpRoot, "Data"))
+			cfg, err := config.NewFromEnv()
+			require.NoError(t, err)
+			require.NoError(t, cfg.AssetDir().MkdirAll())
+			require.NoError(t, cfg.EnsureFolders())
+
+			zipPath := paths.New(tmpRoot, "my-app.zip")
+			f, err := zipPath.Create()
+			require.NoError(t, err)
+			w := zip.NewWriter(f)
+			for _, e := range tc.entries {
+				var fw io.Writer
+				if e.declared != 0 {
+					fw, err = w.CreateRaw(&zip.FileHeader{
+						Name:               e.name,
+						Method:             zip.Store,
+						CompressedSize64:   uint64(len(e.content)),
+						UncompressedSize64: e.declared,
+					})
+				} else {
+					fw, err = w.Create(e.name)
+				}
+				require.NoError(t, err)
+				_, err = io.WriteString(fw, e.content)
+				require.NoError(t, err)
+				_, err = io.CopyN(fw, zeroReader{}, e.zeros)
+				require.NoError(t, err)
+			}
+			require.NoError(t, w.Close())
+			require.NoError(t, f.Close())
+
+			id, err := ImportAppFromZip(cfg, zipPath, appid.NewAppProvider(cfg, unkownPlatform), zipPath.Base())
+
+			if tc.wantErr != "" {
+				require.ErrorIs(t, err, ErrBadRequest)
+				require.Contains(t, err.Error(), tc.wantErr)
+				left, err := cfg.AppsDir().ReadDir()
+				require.NoError(t, err)
+				require.Empty(t, left, "nothing is left in the apps directory")
+				return
+			}
+			require.NoError(t, err)
+			require.NotEmpty(t, id)
+			tc.checkResult(t, cfg.AppsDir().Join("my-app"))
+		})
+	}
+}
+
+type zeroReader struct{}
+
+func (zeroReader) Read(p []byte) (int, error) {
+	clear(p)
+	return len(p), nil
+}
+
 func createZipFile(t *testing.T, filename string, files map[string]string) {
 	t.Helper()
 	f, err := os.Create(filename)
