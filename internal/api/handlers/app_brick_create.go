@@ -12,11 +12,13 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/arduino/arduino-app-cli/internal/api/models"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/app/generator"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/appid"
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/render"
 )
 
@@ -54,6 +56,11 @@ func HandleAppLocalBrickCreate(idProvider *appid.Provider) http.HandlerFunc {
 		id, err := generateBrickID(req.Name)
 		if err != nil {
 			render.EncodeResponse(w, http.StatusBadRequest, models.ErrorResponse{Details: err.Error()})
+			return
+		}
+
+		if slices.ContainsFunc(a.LocalBricks, func(b bricksindex.Brick) bool { return b.ID == id }) {
+			render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: fmt.Sprintf("a brick with the same id '%s' already exists", id)})
 			return
 		}
 
