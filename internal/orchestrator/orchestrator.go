@@ -106,6 +106,17 @@ func StartApp(
 		cb = func(StreamMessage) {}
 	}
 
+	Prewarm()
+
+	// The board is prepared while the app is checked and rendered: a start waits for it
+	// before it starts anything, and before it returns.
+	boardReady := make(chan struct{})
+	go func() {
+		defer close(boardReady)
+		prepareBoard(ctx, cfg, platform)
+	}()
+	defer func() { <-boardReady }()
+
 	bricksIndex = appToStart.Bricks(bricksIndex)
 
 	modelsIndex = appToStart.Models(modelsIndex, docker, cfg, platform)
@@ -168,9 +179,12 @@ func StartApp(
 				continue
 			}
 			slog.Debug("stopping failed app before starting a new one", slog.String("name", failedApp.Name))
+			<-boardReady
 			if err := StopApp(ctx, docker, platform, failedApp, cfg, nil); err != nil {
 				slog.Warn("failed to stop failed app", slog.String("name", failedApp.Name), slog.String("error", err.Error()))
 			}
+			// The stop undid the preparation of the board: it is done once more.
+			prepareBoard(ctx, cfg, platform)
 		}
 	}
 
@@ -181,15 +195,6 @@ func StartApp(
 	release, isRelease := appToStart.GetRelease()
 	if isRelease {
 		slog.Debug("starting an app installed from a release", slog.String("release", release.ID), slog.String("target", release.Target))
-	}
-
-	// We start PW for any platform or addon in order to be consistend with Network and SBC mode.
-	if err := pipewire.EnsurePipewireRunning(ctx, cfg); err != nil {
-		slog.Warn("failed to enable audio service linger", slog.String("error", err.Error()))
-	}
-
-	if err := setLedsToUserControlledMode(platform); err != nil {
-		slog.Debug("unable to set status leds", slog.String("error", err.Error()))
 	}
 
 	sketchCallbackWriter := NewCallbackWriter(func(line string) {
@@ -263,8 +268,8 @@ func StartApp(
 			}
 		}
 
-		cb(StreamMessage{data: "python downloading"})
-
+		// What is downloaded, when something is, is reported by the pull itself: an image
+		// the board has is not announced as downloading.
 		if err := dockerhelper.PullImages(ctx, docker.Client(), dockerhelper.ComposeImages(prj),
 			func(line string) { cb(StreamMessage{data: line}) },
 			func(label string, curr, total int64) {
@@ -274,6 +279,7 @@ func StartApp(
 			return err
 		}
 
+		<-boardReady
 		slog.Debug("starting app", slog.String("project", prj.Name))
 		line := func(line string) { cb(StreamMessage{data: line}) }
 		err = dockerhelper.ComposeUp(ctx, docker, prj, line)
@@ -298,6 +304,19 @@ func StartApp(
 	}
 	cb(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
 	return nil
+}
+
+// prepareBoard readies the board for an app: the audio service, and the leds an app may
+// drive. It needs nothing a start computes.
+func prepareBoard(ctx context.Context, cfg config.Configuration, platform platform.Platform) {
+	// We start PW for any platform or addon in order to be consistend with Network and SBC mode.
+	if err := pipewire.EnsurePipewireRunning(ctx, cfg); err != nil {
+		slog.Warn("failed to enable audio service linger", slog.String("error", err.Error()))
+	}
+
+	if err := setLedsToUserControlledMode(platform); err != nil {
+		slog.Debug("unable to set status leds", slog.String("error", err.Error()))
+	}
 }
 
 func stopAppWithCmd(ctx context.Context, docker command.Cli, platform platform.Platform, app app.ArduinoApp, cfg config.Configuration, cmd string, cb func(StreamMessage)) error {

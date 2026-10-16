@@ -50,6 +50,10 @@ func newStartCmd(cfg config.Configuration) *cobra.Command {
 }
 
 func startHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp, verbose bool, prepare bool) error {
+	// What a start needs first is paid together, not one after the other.
+	orchestrator.Prewarm()
+	servicelocator.PreloadIndexes()
+
 	out, _, getResult := feedback.OutputStreams()
 
 	streamCb := func(message orchestrator.StreamMessage) {
