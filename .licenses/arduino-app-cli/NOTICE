@@ -18601,7 +18601,6 @@ License for the following packages:
   golang.org/x/crypto/blowfish@v0.57.0
   golang.org/x/crypto/cast5@v0.57.0
   golang.org/x/crypto/curve25519@v0.57.0
-  golang.org/x/crypto/hkdf@v0.57.0
   golang.org/x/crypto/sha3@v0.57.0
   golang.org/x/crypto/ssh@v0.57.0
   golang.org/x/crypto/ssh/agent@v0.57.0
@@ -18609,7 +18608,6 @@ License for the following packages:
   golang.org/x/crypto/ssh/knownhosts@v0.57.0
   golang.org/x/net/context@v0.59.0
   golang.org/x/net/http2@v0.59.0
-  golang.org/x/net/internal/httpcommon@v0.59.0
   golang.org/x/net/internal/httpsfv@v0.59.0
   golang.org/x/net/internal/socks@v0.59.0
   golang.org/x/net/internal/timeseries@v0.59.0
