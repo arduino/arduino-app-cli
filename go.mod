@@ -1,6 +1,6 @@
 module github.com/arduino/arduino-app-cli
 
-go 1.26.3
+go 1.27.2
 
 require (
 	github.com/Andrew-M-C/go.emoji v1.1.4
