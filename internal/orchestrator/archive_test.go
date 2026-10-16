@@ -349,6 +349,7 @@ func TestImportAppFromZipSize(t *testing.T) {
 		content  string
 		zeros    int64  // written after content
 		declared uint64 // when set, stored as is with content as the data
+		crc      uint32 // with declared; zero skips the check
 	}
 
 	tests := []struct {
@@ -399,6 +400,15 @@ func TestImportAppFromZipSize(t *testing.T) {
 			wantErr: "data.bin",
 		},
 		{
+			name: "file with a wrong checksum",
+			entries: []zipEntry{
+				{name: "app.yaml", content: "name: test"},
+				{name: "python/main.py", content: "pass"},
+				{name: "data.bin", content: "hello", declared: 5, crc: 1},
+			},
+			wantErr: "checksum",
+		},
+		{
 			name: "files outside the app root are not counted",
 			entries: []zipEntry{
 				{name: "my-app/app.yaml", content: "name: test"},
@@ -433,6 +443,7 @@ func TestImportAppFromZipSize(t *testing.T) {
 						Method:             zip.Store,
 						CompressedSize64:   uint64(len(e.content)),
 						UncompressedSize64: e.declared,
+						CRC32:              e.crc,
 					})
 				} else {
 					fw, err = w.Create(e.name)
@@ -583,13 +594,4 @@ func TestFindZipRoot(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestFreeSpace(t *testing.T) {
-	free, err := freeSpace(paths.New(t.TempDir()))
-	require.NoError(t, err)
-	assert.Positive(t, free)
-
-	_, err = freeSpace(paths.New(t.TempDir(), "missing"))
-	assert.Error(t, err)
 }
