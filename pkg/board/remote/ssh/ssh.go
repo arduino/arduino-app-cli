@@ -130,7 +130,8 @@ func FromHost(user, password, address string, opts ...Option) (*SSHConnection, e
 	return conn, nil
 }
 
-// Done closes when the board closes the connection, or goes silent.
+// Done closes when the board closes the connection, or sends no byte for 5s. The
+// keepalive makes an idle board answer every second, and each byte read resets the timer.
 func (a *SSHConnection) Done() <-chan struct{} {
 	return a.ctx.Done()
 }
@@ -568,7 +569,8 @@ func (a *SSHConnection) watchClose(board slog.Attr) {
 	a.cancel()
 }
 
-// keepalive sends the board a global request every second.
+// keepalive sends keepalive@openssh.com every second, so an idle board still sends a byte.
+// It is a global request: it opens no channel and takes no slot of MaxSessions.
 func (a *SSHConnection) keepalive() {
 	for {
 		select {
@@ -581,7 +583,7 @@ func (a *SSHConnection) keepalive() {
 }
 
 // kickConn is the kicker of go.bug.st/downloader on a net.Conn: once armed, every byte
-// read resets the timer.
+// read resets the timer, and the timer cancels the connection when it fires.
 type kickConn struct {
 	net.Conn
 	timer   *time.Timer
