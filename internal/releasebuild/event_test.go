@@ -185,7 +185,7 @@ func TestEventBrokerPublishDone(t *testing.T) {
 	broker.PublishDone("build-1", "my-app", "unoq")
 
 	got := receive(t, ch)
-	require.Equal(t, "done", got.Type)
+	require.Equal(t, "done", string(got.Type))
 	require.Equal(t, doneEvent{BuildID: "build-1", Name: "my-app", Target: "unoq"}, got.Data)
 }
 
@@ -197,6 +197,6 @@ func TestEventBrokerPublishError(t *testing.T) {
 	broker.PublishError("build-1", render.InternalServiceErr, "boom")
 
 	got := receive(t, ch)
-	require.Equal(t, "error", got.Type)
+	require.Equal(t, "error", string(got.Type))
 	require.Equal(t, errorEvent{BuildID: "build-1", Code: render.InternalServiceErr, Message: "boom"}, got.Data)
 }

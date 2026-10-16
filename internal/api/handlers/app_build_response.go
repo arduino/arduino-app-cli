@@ -78,16 +78,16 @@ func startBuildResponse(w http.ResponseWriter, heartbeat time.Duration) *buildRe
 // The JSON parts name their event as the build events stream does.
 type (
 	progressPart struct {
-		Event    string  `json:"event"`
-		Name     string  `json:"name"`
-		Progress float32 `json:"progress"`
+		Event    render.SSEEventType `json:"event"`
+		Name     string              `json:"name"`
+		Progress float32             `json:"progress"`
 	}
 	messagePart struct {
-		Event   string `json:"event"`
-		Message string `json:"message"`
+		Event   render.SSEEventType `json:"event"`
+		Message string              `json:"message"`
 	}
 	errorPart struct {
-		Event string `json:"event"`
+		Event render.SSEEventType `json:"event"`
 		models.ErrorResponse
 	}
 )
@@ -101,10 +101,10 @@ func (b *buildResponse) SendProgress(progress *orchestrator.Progress, message st
 		return
 	}
 	if progress != nil {
-		_ = b.writeJSON(progressPart{Event: "progress", Name: progress.Name, Progress: progress.Progress})
+		_ = b.writeJSON(progressPart{Event: render.ProgressEvent, Name: progress.Name, Progress: progress.Progress})
 	}
 	if message != "" {
-		_ = b.writeJSON(messagePart{Event: "message", Message: message})
+		_ = b.writeJSON(messagePart{Event: render.MessageEvent, Message: message})
 	}
 	b.flush()
 }
@@ -144,7 +144,7 @@ func (b *buildResponse) SendError(response models.ErrorResponse) {
 	defer b.mu.Unlock()
 	b.ended = true
 
-	err := b.writeJSON(errorPart{Event: "error", ErrorResponse: response})
+	err := b.writeJSON(errorPart{Event: render.ErrorEvent, ErrorResponse: response})
 	if err == nil {
 		err = b.writer.Close()
 	}

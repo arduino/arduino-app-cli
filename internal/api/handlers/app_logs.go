@@ -103,13 +103,13 @@ func HandleAppLogs(
 		for item := range messagesIter {
 			switch item.Source {
 			case orchestrator.LogSourceMain:
-				sseStream.Send(render.SSEEvent{Type: "message", Data: ResponseLogs{
+				sseStream.Send(render.SSEEvent{Type: render.MessageEvent, Data: ResponseLogs{
 					ID:            "main",
 					ContainerName: item.ContainerName,
 					Message:       item.Content,
 				}})
 			case orchestrator.LogSourceBrick:
-				sseStream.Send(render.SSEEvent{Type: "message", Data: ResponseLogs{
+				sseStream.Send(render.SSEEvent{Type: render.MessageEvent, Data: ResponseLogs{
 					ID:            item.BrickID,
 					ContainerName: item.ContainerName,
 					Message:       item.Content,
