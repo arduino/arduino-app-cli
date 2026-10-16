@@ -30,10 +30,8 @@ func newInstallCmd(cfg config.Configuration) *cobra.Command {
 		Short: "Install an Arduino App release archive",
 		Long: `Install an Arduino App release archive.
 
-A release is installed in the releases dir, apart from the apps, and it is read
-only: the python environment and the compose files the build froze are its cache,
-so that starting it generates nothing and nothing may change it. It must be built
-for this board, and it is named after the release.
+A release is the app built for one board, and it must be built for this board.
+It is installed read only in the releases dir, apart from the apps.
 
 The install then downloads what the release needs to run, its containers and its
 models, which a start would otherwise wait for. Pass --no-prepare to install the

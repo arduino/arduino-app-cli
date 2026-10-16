@@ -41,10 +41,9 @@ func newBuildCmd(cfg config.Configuration) *cobra.Command {
 		Short: "Build an Arduino App into a release archive",
 		Long: `Build an Arduino App into a release archive.
 
-The release is the app frozen with all its dependencies: the python environment is
-built and the compose files are resolved for the target board, so that installing
-it generates nothing. The release is named after the app, the release label and
-the target board, which defaults to the one running the build.`,
+A release is the app built for one board: the compiled sketch, the python
+environment and the compose files. It is named after the app, the release label
+and the target board, which defaults to the one running the build.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
