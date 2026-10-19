@@ -59,6 +59,9 @@ func PrepareRelease(
 		return fmt.Errorf("cannot read the models the release ships: %w", err)
 	}
 	for i, model := range models.InternalModels {
+		if model.NeedsNoDownload() {
+			continue
+		}
 		done := 50.0 + 50.0*float32(i)/float32(len(models.InternalModels))
 		cb(StreamMessage{data: "downloading the model " + model.ID})
 		cb(StreamMessage{progress: &Progress{Name: "models", Progress: done}})
