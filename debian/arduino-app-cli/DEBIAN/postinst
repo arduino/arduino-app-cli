@@ -1,6 +1,6 @@
 #!/bin/bash
 
-USER_ID=1000
+USER_NAME="arduino"
 
 systemctl enable arduino-app-cli
 systemctl enable arduino-avahi-serial.service
@@ -8,8 +8,7 @@ systemctl enable arduino-avahi-serial.service
 mkdir -p /etc/bash_completion.d/
 export ARDUINO_APP_CLI__ALLOW_ROOT=true && arduino-app-cli completion bash > /etc/bash_completion.d/arduino-app-cli.bash || true
 
-USER_NAME="$(getent passwd "$USER_ID" | cut -d: -f1)"
-USER_HOME="$(getent passwd "$USER_ID" | cut -d: -f6)"
+USER_HOME="$(getent passwd "$USER_NAME" | cut -d: -f6)"
 
 chown -R "$USER_NAME":arduino /var/lib/arduino-app-cli \
 || chown -R :arduino /var/lib/arduino-app-cli

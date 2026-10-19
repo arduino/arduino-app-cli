@@ -3,7 +3,4 @@
 read -s "pass"
 [ -n "$pass" ] || exit 1
 
-user=$(getent passwd 1000 | cut -d: -f1)
-
-echo "$user:$pass" | chpasswd
-
+echo "arduino:$pass" | chpasswd

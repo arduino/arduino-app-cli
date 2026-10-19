@@ -2,7 +2,7 @@
 
 set -e
 
-USER_ID=1000
+USER_NAME="arduino"
 GROUP_NAME="arduino"
 OTHER_GROUPS="sysupgrade docker"
 
@@ -10,26 +10,25 @@ if ! getent group "$GROUP_NAME" >/dev/null 2>&1; then
     addgroup "$GROUP_NAME"
 fi
 
-if ! getent passwd "$USER_ID" >/dev/null 2>&1; then
+if ! getent passwd "$USER_NAME" >/dev/null 2>&1; then
+    # Let adduser allocate an available UID according to the system policy.
     adduser \
-        --uid "$USER_ID" \
         --ingroup "$GROUP_NAME" \
         --home "/home/arduino" \
         --shell /bin/false \
         --disabled-password \
-        "arduino" >/dev/null
+        "$USER_NAME" >/dev/null
 fi
 
-username="$(getent passwd "$USER_ID" | cut -d: -f1)"
-USER_HOME="$(getent passwd "$USER_ID" | cut -d: -f6)"
+USER_HOME="$(getent passwd "$USER_NAME" | cut -d: -f6)"
 
-usermod -aG "$GROUP_NAME" "$username"
+usermod -aG "$GROUP_NAME" "$USER_NAME"
 
 for GROUP in $OTHER_GROUPS; do
     if ! getent group "$GROUP" >/dev/null 2>&1; then
         groupadd --system "$GROUP"
     fi
-    usermod -aG "$GROUP" "$username"
+    usermod -aG "$GROUP" "$USER_NAME"
 done
 
 # Starting with this version, the arduino-app-cli user directory is

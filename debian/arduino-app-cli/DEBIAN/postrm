@@ -1,6 +1,6 @@
 #!/bin/bash
 
-USER_ID=1000
+USER_NAME="arduino"
 
 if [ -d /run/systemd/system ]; then
   systemctl daemon-reload

@@ -1,5 +1,5 @@
 configure_agent_profiles() {
-  USER_HOME="$(getent passwd "$USER_ID" | cut -d: -f6)"
+  USER_HOME="$(getent passwd "$USER_NAME" | cut -d: -f6)"
   [ -n "$USER_HOME" ] || return 0
 
   MASTER_AGENT="/etc/arduino-app-cli/AGENTS.md"
@@ -20,14 +20,14 @@ $USER_HOME/.copilot/copilot-instructions.md
 
     if [ ! -d "$DIR_PATH" ]; then
       mkdir -p "$DIR_PATH"
-      chown 1000:arduino "$DIR_PATH"
+      chown "$USER_NAME":arduino "$DIR_PATH"
     fi
 
     if [ -e "$TARGET_PATH" ] || [ -L "$TARGET_PATH" ]; then
       UNTOUCHED_FILES="${UNTOUCHED_FILES}${TARGET_PATH}\n"
     else
       ln -s "$MASTER_AGENT" "$TARGET_PATH"
-      chown -h 1000:arduino "$TARGET_PATH"
+      chown -h "$USER_NAME":arduino "$TARGET_PATH"
       INSTALLED_LINKS="${INSTALLED_LINKS}${TARGET_PATH}\n"
     fi
   done
@@ -54,4 +54,3 @@ $USER_HOME/.copilot/copilot-instructions.md
     echo "   Your files have been left untouched. The new configuration file is at: $MASTER_AGENT"
   fi
 }
-
