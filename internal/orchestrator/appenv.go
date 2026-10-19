@@ -91,8 +91,8 @@ type hostFacts struct {
 	cfg     config.Configuration
 }
 
-// appEnvironment is what the app is wired with, from the app and the board it is built
-// for: nothing here is read off a machine.
+// appEnvironment is what the app is wired with, from the app and the board it is built for.
+// Its values are compose syntax, a $ escaped and a secret a ${NAME}: a template writes them as they are.
 func appEnvironment(
 	ctx context.Context,
 	app app.ArduinoApp,
@@ -124,6 +124,9 @@ func appEnvironment(
 		maps.Insert(envs, maps.All(brick.Variables))
 	}
 
+	for name, value := range envs {
+		envs[name] = strings.ReplaceAll(value, "$", "$$")
+	}
 	envs["BOARD_NAME"] = plat.BoardName
 
 	// A secret is only referenced here: its value is filled in when the app is

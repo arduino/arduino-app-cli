@@ -372,18 +372,12 @@ func frozenCompose(composeFile *paths.Path, lookup func(string) (string, bool)) 
 	return data, nil
 }
 
-// frozenLookup answers a ${VAR} of a file the resolve step freezes. A value goes in with
-// its $ escaped.
+// frozenLookup answers a ${VAR} of a file the resolve step freezes. An app value goes in as it
+// is, an environment value with its $ escaped.
 func frozenLookup(cfg config.Configuration, appEnv types.Mapping) func(string) (string, bool) {
 	return func(name string) (string, bool) {
-		reference := "${" + name + "}"
 		if value, set := appEnv[name]; set {
-			// A secret is in appEnv as a reference to itself: it is read from app.yaml
-			// by the render step only, so it must stay a reference here.
-			if value == reference {
-				return reference, true
-			}
-			return strings.ReplaceAll(value, "$", "$$"), true
+			return value, true
 		}
 		// The registry is a fact of the cli: only the configuration reads its environment.
 		if name == "DOCKER_REGISTRY_BASE" {
