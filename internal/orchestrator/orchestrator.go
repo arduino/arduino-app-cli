@@ -116,7 +116,7 @@ func StartApp(
 		}
 	}
 
-	if err := checkBricks(ctx, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex); err != nil {
+	if err := checkBricks(ctx, appToStart.Descriptor.Bricks, bricksIndex, modelsIndex, true); err != nil {
 		return err
 	}
 
