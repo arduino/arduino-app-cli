@@ -23,7 +23,8 @@ func TestFrozenLookup(t *testing.T) {
 	t.Setenv("LOG_LEVEL", "debug")
 
 	lookup := frozenLookup(cfg, types.Mapping{
-		"MODEL_PROMPT": "cost is 5$ a day",
+		// Compose syntax, as appEnvironment writes it.
+		"MODEL_PROMPT": "cost is 5$$ a day",
 		// A secret is in appEnv as a reference to itself.
 		"API_KEY": "${API_KEY}",
 	})
@@ -41,7 +42,7 @@ func TestFrozenLookup(t *testing.T) {
 			wantSet:  true,
 		},
 		{
-			name:     "an app value goes in with its $ escaped",
+			name:     "an app value goes in as it is",
 			variable: "MODEL_PROMPT",
 			want:     "cost is 5$$ a day",
 			wantSet:  true,

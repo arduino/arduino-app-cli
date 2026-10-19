@@ -934,8 +934,8 @@ func TestGetAppEnvironmentVariablesWithDefaults(t *testing.T) {
 	appDesc.Descriptor.Bricks = []app.Brick{
 		{
 			ID:        "arduino:object_detection",
-			Model:     "",                  // use the default model
-			Variables: map[string]string{}, // use the default variables
+			Model:     "",                                        // use the default model
+			Variables: map[string]string{"PASSWORD": "pa$sword"}, // the declared ones use their default
 		},
 	}
 
@@ -988,6 +988,7 @@ models:
 	require.Equal(t, cfg.ModelsDir().String(), env["MODELS_PATH"])
 	require.Equal(t, "/models/ootb/ei/yolo-x-nano.eim", env["EI_OBJ_DETECTION_MODEL"])
 	require.Equal(t, "/home/arduino/.arduino-bricks/models", env["CUSTOM_MODEL_PATH"])
+	require.Equal(t, "pa$$sword", env["PASSWORD"], "a $ of the app is escaped for compose")
 	// we ignore HOST_IP since it's dynamic
 }
 
