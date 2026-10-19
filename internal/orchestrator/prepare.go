@@ -52,23 +52,17 @@ func PrepareRelease(
 		return fmt.Errorf("failed to download the containers of the release: %w", err)
 	}
 
-	manifest, err := readReleaseManifest(arduinoApp.FullPath)
-	if err != nil {
-		return err
-	}
-	if len(manifest.GetModelInfo()) == 0 {
-		cb(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
-		return nil
-	}
-
-	// The release states its models, and ships their records: the index of this board is
-	// not the one that built it and may not know them.
+	// The release ships the records of its models: the index of this board is not the one
+	// that built it and may not know them.
 	models, err := arduinoApp.ReleaseModels(docker, cfg, plat)
 	if err != nil {
 		return fmt.Errorf("cannot read the models the release ships: %w", err)
 	}
-	for i, model := range manifest.GetModelInfo() {
-		done := 50.0 + 50.0*float32(i)/float32(len(manifest.GetModelInfo()))
+	for i, model := range models.InternalModels {
+		if model.NeedsNoDownload() {
+			continue
+		}
+		done := 50.0 + 50.0*float32(i)/float32(len(models.InternalModels))
 		cb(StreamMessage{data: "downloading the model " + model.ID})
 		cb(StreamMessage{progress: &Progress{Name: "models", Progress: done}})
 		if _, err := models.Install(ctx, docker, model.ID, plat, func(message modelsindex.StreamMessage) {

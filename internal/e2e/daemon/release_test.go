@@ -365,11 +365,13 @@ func TestAppReleasePrepare(t *testing.T) {
 		t.Skipf("Skipping test: requires arm64 architecture, currently running on %s", runtime.GOARCH)
 	}
 
-	httpClient, daemonAddr := GetHttpclientAndAddr(t, e2e.WithBoardName("unoq"))
+	// The only downloadable models of the test assets are for ventunoq.
+	httpClient, daemonAddr := GetHttpclientAndAddr(t, e2e.WithModelsDir(e2e.MkTempDir(t, "models")), e2e.WithBoardName("ventunoq"))
 
 	const (
 		appName = "release-prepare-app"
-		target  = "unoq"
+		target  = "ventunoq"
+		modelID = "ei:desk-items-detector"
 	)
 
 	createResp, err := httpClient.CreateAppWithResponse(
@@ -380,6 +382,13 @@ func TestAppReleasePrepare(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusCreated, createResp.StatusCode())
 	appID := *createResp.JSON201.Id
+
+	brickResp, err := httpClient.UpsertAppBrickInstanceWithResponse(
+		t.Context(), appID, "arduino:object_detection",
+		client.BrickCreateUpdateRequest{Model: new(models.EncodeModelID(modelID))},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, brickResp.StatusCode())
 
 	buildResp, err := httpClient.BuildAppWithResponse(t.Context(), appID, client.BuildAppJSONRequestBody{
 		Target: new(target),
@@ -481,6 +490,12 @@ func TestAppReleasePrepare(t *testing.T) {
 		}
 	}
 	require.True(t, sawPrepareDone, "no done event received on the prepare stream")
+
+	modelResp, err := httpClient.GetAIModelDetailsWithResponse(t.Context(), models.EncodeModelID(modelID))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, modelResp.StatusCode())
+	require.NotNil(t, modelResp.JSON200)
+	assert.Equal(t, client.ModelStatus("installed"), *modelResp.JSON200.Status, "prepare must download the model of the release")
 }
 
 // TestAppReleaseEIModel builds a release of an app wired with an Edge Impulse model of a

@@ -48,7 +48,8 @@ func selectedModelID(brick app.Brick, definition *bricksindex.Brick) string {
 // checkBricks validates that each app brick exists in the index, that its selected model (when
 // required) is installed, and that all required brick variables are set.
 // Errors are joined so every issue is reported at once.
-func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.BricksIndex, modelIndex *modelsindex.ModelsIndex) error {
+// A build passes installed false: the board of the release downloads the model at prepare.
+func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.BricksIndex, modelIndex *modelsindex.ModelsIndex, installed bool) error {
 	var allErrors error
 	models := modelIndex.NewLookup()
 	for _, appBrick := range bricks {
@@ -67,7 +68,7 @@ func checkBricks(ctx context.Context, bricks []app.Brick, index *bricksindex.Bri
 			case model == nil:
 				allErrors = errors.Join(allErrors, fmt.Errorf("model %q for brick %q not found", selectedModel, appBrick.ID))
 			default:
-				if model.Status != modelsindex.InstalledStatus {
+				if installed && model.Status != modelsindex.InstalledStatus {
 					allErrors = errors.Join(allErrors, fmt.Errorf("%w: model %q for brick %q is not installed", ErrNotPrepared, selectedModel, appBrick.ID))
 				}
 				switch supported, err := models.ModelForBrick(ctx, selectedModel, appBrick.ID); {

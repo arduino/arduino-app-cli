@@ -99,7 +99,7 @@ func BuildRelease(
 	}
 
 	bricksIndex = bricksIndex.WithAppBricks(appToBuild.LocalBricks)
-	if err := checkBricks(ctx, appToBuild.Descriptor.Bricks, bricksIndex, modelsIndex); err != nil {
+	if err := checkBricks(ctx, appToBuild.Descriptor.Bricks, bricksIndex, modelsIndex, false); err != nil {
 		return BuildReleaseResult{}, nil, err
 	}
 
