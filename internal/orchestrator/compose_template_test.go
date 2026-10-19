@@ -35,12 +35,6 @@ func TestFrozenLookup(t *testing.T) {
 		wantSet  bool
 	}{
 		{
-			name:     "a host fact stays the reference the render step answers",
-			variable: "APP_HOME",
-			want:     "${APP_HOME}",
-			wantSet:  true,
-		},
-		{
 			name:     "an app value goes in with its $ escaped",
 			variable: "MODEL_PROMPT",
 			want:     "cost is 5$$ a day",
@@ -78,6 +72,12 @@ func TestFrozenLookup(t *testing.T) {
 			assert.Equal(t, test.want, value)
 		})
 	}
+
+	t.Run("a host fact stays as written, default included", func(t *testing.T) {
+		frozen, err := frozenYAML([]byte("volumes:\n  - ${HOST_DSP_INSTALLATION_PATH:-/usr/share/qcom}:/usr/share/qcom\n"), lookup)
+		require.NoError(t, err)
+		assert.Contains(t, string(frozen), "${HOST_DSP_INSTALLATION_PATH:-/usr/share/qcom}:/usr/share/qcom")
+	})
 }
 
 func TestFrozenComposeIncludes(t *testing.T) {

@@ -6,6 +6,7 @@
 package orchestrator
 
 import (
+	"bytes"
 	"cmp"
 	"encoding/json"
 	"fmt"
@@ -356,13 +357,10 @@ func frozenCompose(composeFile *paths.Path, lookup func(string) (string, bool)) 
 }
 
 // frozenLookup answers a ${VAR} of a file the resolve step freezes. A value goes in with
-// its $ escaped, a host fact stays the reference the render step answers.
+// its $ escaped.
 func frozenLookup(cfg config.Configuration, appEnv types.Mapping) func(string) (string, bool) {
 	return func(name string) (string, bool) {
 		reference := "${" + name + "}"
-		if _, isHostFact := hostVariables[name]; isHostFact {
-			return reference, true
-		}
 		if value, set := appEnv[name]; set {
 			// A secret is in appEnv as a reference to itself: it is read from app.yaml
 			// by the render step only, so it must stay a reference here.
@@ -382,8 +380,15 @@ func frozenLookup(cfg config.Configuration, appEnv types.Mapping) func(string) (
 }
 
 // frozenYAML substitutes the ${VAR} expressions of a yaml document: lookup says which
-// ones are baked in now and which stay a reference.
+// ones are baked in now and which stay a reference. A host fact stays as it is written,
+// default included, for the render step to answer.
 func frozenYAML(content []byte, lookup func(string) (string, bool)) ([]byte, error) {
+	for name := range hostVariables {
+		for _, end := range []string{"}", ":"} {
+			content = bytes.ReplaceAll(content, []byte("${"+name+end), []byte("$${"+name+end))
+		}
+	}
+
 	var document map[string]any
 	if err := yaml.Unmarshal(content, &document); err != nil {
 		return nil, fmt.Errorf("failed to parse: %w", err)
