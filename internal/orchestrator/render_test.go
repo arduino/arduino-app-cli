@@ -224,7 +224,8 @@ bricks:
 	require.NoError(t, err)
 
 	// A brick is free to declare a variable holding a template of its own.
-	appEnv := types.Mapping{"FOO": "bar", "PROMPT": "Hello {{ name }}, reply"}
+	// Compose syntax, as appEnvironment writes it.
+	appEnv := types.Mapping{"FOO": "bar", "PROMPT": "Hello {{ name }}, reply", "PASSWORD": "pa$$sword"}
 	require.NoError(t, generateComposeTemplate(&arduinoApp, arduinoApp.ProvisioningStateDir(), bricksIndex,
 		servicesIndex, "python-apps-base:latest", cfg, appEnv, unkownPlatform))
 
@@ -240,10 +241,12 @@ bricks:
 	require.Equal(t, "bar", *runner.Environment["FOO"])
 	require.Equal(t, "Hello {{ name }}, reply", *runner.Environment["PROMPT"], "a value of the app is passed through")
 	require.Equal(t, arduinoApp.FullPath.String(), *runner.Environment["APP_HOME"], "a host fact is answered")
+	require.Equal(t, "pa$sword", *runner.Environment["PASSWORD"], "a $ of the app is not substituted")
 
 	main, err := prj.GetService("main")
 	require.NoError(t, err)
 	require.Equal(t, "python-apps-base:latest", main.Image)
 	require.Equal(t, "Hello {{ name }}, reply", *main.Environment["PROMPT"])
+	require.Equal(t, "pa$sword", *main.Environment["PASSWORD"])
 	require.Contains(t, main.DependsOn, "ei-video-obj-detection-runner")
 }
