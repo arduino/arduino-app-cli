@@ -44,6 +44,9 @@ func newRestartCmd(cfg config.Configuration) *cobra.Command {
 }
 
 func restartHandler(ctx context.Context, cfg config.Configuration, app app.ArduinoApp, verbose bool) error {
+	orchestrator.Prewarm()
+	servicelocator.PreloadIndexes()
+
 	out, _, getResult := feedback.OutputStreams()
 
 	err := orchestrator.RestartApp(
