@@ -15,10 +15,10 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
-	"slices"
 	"strings"
 	"time"
 
+	"github.com/containerd/errdefs"
 	dockerClient "github.com/moby/moby/client"
 	"github.com/shirou/gopsutil/v4/disk"
 
@@ -39,15 +39,22 @@ func PullImages(ctx context.Context, docker dockerClient.APIClient, images []str
 	if progress == nil {
 		progress = func(string, int64, int64) {}
 	}
+	var imagesToPull []string
+	for _, image := range images {
+		present, err := HasImage(ctx, docker, image)
+		if err != nil {
+			return err
+		}
+		if !present {
+			imagesToPull = append(imagesToPull, image)
+		}
+	}
+	if len(imagesToPull) == 0 {
+		return nil
+	}
 	pulledImages, err := ListImages(ctx, docker)
 	if err != nil {
 		return err
-	}
-	imagesToPull := slices.DeleteFunc(slices.Clone(images), func(image string) bool {
-		return slices.Contains(pulledImages, image)
-	})
-	if len(imagesToPull) == 0 {
-		return nil
 	}
 
 	allLayers := make([]dockerImageLayer, 0, len(imagesToPull))
@@ -93,6 +100,18 @@ func PullImages(ctx context.Context, docker dockerClient.APIClient, images []str
 		progress(lastLabel, totalBytes, totalBytes)
 	}
 	return nil
+}
+
+// HasImage lets the engine resolve image references, including implicit latest tags.
+func HasImage(ctx context.Context, docker dockerClient.APIClient, image string) (bool, error) {
+	_, err := docker.ImageInspect(ctx, image)
+	if errors.Is(err, errdefs.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed to inspect image %q: %w", image, err)
+	}
+	return true, nil
 }
 
 // ListImages reports every image the engine has, as name:version.

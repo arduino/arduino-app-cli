@@ -9,7 +9,6 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	"slices"
 
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
@@ -107,12 +106,12 @@ func checkImages(
 	docker command.Cli,
 	prj *types.Project,
 ) error {
-	allImages, err := dockerhelper.ListImages(ctx, docker.Client())
-	if err != nil {
-		return fmt.Errorf("failed to list the images of the board: %w", err)
-	}
 	for _, image := range dockerhelper.ComposeImages(prj) {
-		if !slices.Contains(allImages, image) {
+		present, err := dockerhelper.HasImage(ctx, docker.Client(), image)
+		if err != nil {
+			return err
+		}
+		if !present {
 			return fmt.Errorf("%w: the container %q is not on the board", ErrNotPrepared, image)
 		}
 	}

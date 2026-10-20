@@ -6,12 +6,72 @@
 package dockerhelper
 
 import (
+	"context"
+	"errors"
 	"io"
 	"testing"
 
+	"github.com/containerd/errdefs"
 	dockerClient "github.com/moby/moby/client"
 	"github.com/stretchr/testify/require"
 )
+
+type imageInspectClient struct {
+	dockerClient.APIClient
+	inspect func(string) error
+}
+
+func (c imageInspectClient) ImageInspect(_ context.Context, image string, _ ...dockerClient.ImageInspectOption) (dockerClient.ImageInspectResult, error) {
+	return dockerClient.ImageInspectResult{}, c.inspect(image)
+}
+
+func TestHasImage(t *testing.T) {
+	daemonError := errors.New("cannot reach Docker")
+	for _, tc := range []struct {
+		name    string
+		image   string
+		err     error
+		present bool
+	}{
+		{name: "implicit latest", image: "viktoruj/ping_pong", present: true},
+		{name: "explicit latest", image: "viktoruj/ping_pong:latest", present: true},
+		{name: "qualified name", image: "docker.io/viktoruj/ping_pong:latest", present: true},
+		{name: "digest", image: "viktoruj/ping_pong@sha256:abc", present: true},
+		{name: "missing", image: "viktoruj/ping_pong:missing", err: errdefs.ErrNotFound},
+		{name: "daemon failure", image: "viktoruj/ping_pong", err: daemonError},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			docker := imageInspectClient{inspect: func(image string) error {
+				require.Equal(t, tc.image, image)
+				return tc.err
+			}}
+			present, err := HasImage(t.Context(), docker, tc.image)
+			require.Equal(t, tc.present, present)
+			if tc.err == daemonError {
+				require.ErrorIs(t, err, daemonError)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestPullImagesSkipsLocalReferences(t *testing.T) {
+	images := []string{"viktoruj/ping_pong", "viktoruj/ping_pong:latest"}
+	var inspected []string
+	docker := imageInspectClient{inspect: func(image string) error {
+		inspected = append(inspected, image)
+		return nil
+	}}
+	require.NoError(t, PullImages(t.Context(), docker, images, nil, nil))
+	require.Equal(t, images, inspected)
+}
+
+func TestPullImagesReportsInspectFailure(t *testing.T) {
+	daemonError := errors.New("cannot reach Docker")
+	docker := imageInspectClient{inspect: func(string) error { return daemonError }}
+	require.ErrorIs(t, PullImages(t.Context(), docker, []string{"viktoruj/ping_pong"}, nil, nil), daemonError)
+}
 
 func TestParseDockerImage(t *testing.T) {
 	tests := []struct {
