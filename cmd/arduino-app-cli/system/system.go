@@ -157,13 +157,14 @@ func getFilterFunc(onlyArduino bool) func(p update.UpgradablePackage) bool {
 }
 
 func newCleanUpCmd(cfg config.Configuration, docker command.Cli) *cobra.Command {
+	var opts orchestrator.SystemCleanupOptions
 	cmd := &cobra.Command{
 		Use:   "cleanup",
 		Short: "Removes unused and obsolete application images to free up disk space.",
 		Args:  cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			feedback.Printf("Running cleanup...")
-			result, err := orchestrator.SystemCleanup(cmd.Context(), cfg, servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), servicelocator.GetModelsIndex(), docker, servicelocator.GetPlatform())
+			result, err := orchestrator.SystemCleanup(cmd.Context(), cfg, servicelocator.GetBricksIndex(), servicelocator.GetServicesIndex(), servicelocator.GetModelsIndex(), docker, servicelocator.GetPlatform(), opts)
 			if err != nil {
 				return err
 			}
@@ -184,6 +185,7 @@ func newCleanUpCmd(cfg config.Configuration, docker command.Cli) *cobra.Command 
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&opts.Releases, "releases", false, "Also remove the images of the installed releases")
 	return cmd
 }
 

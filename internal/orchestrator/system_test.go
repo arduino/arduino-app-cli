@@ -12,6 +12,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
 
+	"github.com/arduino/arduino-app-cli/internal/orchestrator/app"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/bricksindex"
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 )
@@ -174,4 +175,41 @@ func TestRemovableImages(t *testing.T) {
 			require.Equal(t, before, tt.allImages, "the list of the caller is not touched")
 		})
 	}
+}
+
+func TestGetReleaseImages(t *testing.T) {
+	cfg := setTestOrchestratorConfig(t)
+
+	writeRelease := func(name string) app.ArduinoApp {
+		releaseDir := cfg.ReleasesDir().Join(name)
+		require.NoError(t, releaseDir.Join("python").MkdirAll())
+		require.NoError(t, releaseDir.Join("app.yaml").WriteFile([]byte("name: "+name+"\n")))
+		require.NoError(t, releaseDir.Join("python", "main.py").WriteFile([]byte("print('ready')\n")))
+		require.NoError(t, writeReleaseManifest(releaseDir, ReleaseManifest{Schema: app.ReleaseManifestSchema, Name: name, Target: "unoq"}))
+		release, err := app.Load(releaseDir)
+		require.NoError(t, err)
+		return release
+	}
+
+	// The compose file the install renders.
+	release := writeRelease("installed-release")
+	require.NoError(t, release.ProvisioningStateDir().MkdirAll())
+	require.NoError(t, release.AppComposeFilePath().WriteFile([]byte(`
+services:
+  main:
+    image: ghcr.io/arduino/app-bricks/python-apps-base:0.1.0
+  runner:
+    image: ghcr.io/arduino/app-bricks/video-object-detection:1.0.0
+`)))
+
+	// No compose file: the render of its install failed.
+	writeRelease("broken-release")
+
+	images, err := getReleaseImages(cfg)
+	require.ErrorContains(t, err, "broken-release", "the release that cannot be read is reported")
+	require.NotContains(t, err.Error(), "installed-release")
+	require.ElementsMatch(t, []string{
+		"ghcr.io/arduino/app-bricks/python-apps-base:0.1.0",
+		"ghcr.io/arduino/app-bricks/video-object-detection:1.0.0",
+	}, images, "a broken release does not hide the images of the others")
 }

@@ -233,9 +233,14 @@ func (s SystemCleanupResult) IsEmpty() bool {
 	return s == SystemCleanupResult{}
 }
 
+type SystemCleanupOptions struct {
+	// Releases removes the images of the installed releases too.
+	Releases bool
+}
+
 // SystemCleanup removes dangling containers and unused images.
 // Also running apps are stopped and removed.
-func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex, docker command.Cli, platform platform.Platform) (SystemCleanupResult, error) {
+func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *bricksindex.BricksIndex, servicesindex *servicesindex.ServicesIndex, modelsIndex *modelsindex.ModelsIndex, docker command.Cli, platform platform.Platform, opts SystemCleanupOptions) (SystemCleanupResult, error) {
 	var result SystemCleanupResult
 
 	// Read before anything removes the containers: they tell which network is ours.
@@ -276,6 +281,14 @@ func SystemCleanup(ctx context.Context, cfg config.Configuration, bricksindex *b
 	imagesMustStay, err := getRequiredImages(cfg, bricksindex, servicesindex, modelsIndex)
 	if err != nil {
 		return result, err
+	}
+	if !opts.Releases {
+		// A release that cannot be read can lose its images: its start fails until a prepare.
+		releaseImages, err := getReleaseImages(cfg)
+		if err != nil {
+			feedback.Warnf("the images of some releases may be removed - %v", err)
+		}
+		imagesMustStay = append(imagesMustStay, releaseImages...)
 	}
 	slog.Debug("images that must stay", "imagesMustStay", imagesMustStay)
 
@@ -322,6 +335,28 @@ func getRequiredImages(cfg config.Configuration, bricksindex *bricksindex.Bricks
 	requiredImages = append(requiredImages, handlerImages...)
 
 	return requiredImages, nil
+}
+
+// getReleaseImages lists the images of the installed releases, from the compose file
+// their install rendered. The error joins the releases it cannot read; the images of
+// the others are still returned.
+func getReleaseImages(cfg config.Configuration) ([]string, error) {
+	releasePaths, errs := app.FindAppsInFolders(paths.NewPathList(cfg.ReleasesDir().String()))
+	var images []string
+	for _, releasePath := range releasePaths {
+		release, err := app.Load(releasePath)
+		if err != nil {
+			errs = errors.Join(errs, fmt.Errorf("cannot load the release %s: %w", releasePath.Base(), err))
+			continue
+		}
+		releaseImages, err := extractImagesFromCompose(release.AppComposeFilePath())
+		if err != nil {
+			errs = errors.Join(errs, fmt.Errorf("cannot read the images of the release %s: %w", releasePath.Base(), err))
+			continue
+		}
+		images = append(images, releaseImages...)
+	}
+	return images, errs
 }
 
 func installPlatformPackage(ctx context.Context, plat platform.Platform, eventCB InitEventCallback) error {
