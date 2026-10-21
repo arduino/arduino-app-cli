@@ -2,6 +2,15 @@
 
 USER_NAME="arduino"
 
+if [ "$1" = "configure" ]; then
+    for GROUP in arduino sysupgrade adm video users sudo docker netdev dialout audio render bluetooth input gpiod; do
+        if ! getent group "$GROUP" >/dev/null 2>&1; then
+            groupadd --system "$GROUP" || exit 1
+        fi
+        usermod -aG "$GROUP" "$USER_NAME" || exit 1
+    done
+fi
+
 systemctl enable arduino-app-cli
 systemctl enable arduino-avahi-serial.service
 

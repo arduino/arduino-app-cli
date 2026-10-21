@@ -1,10 +1,16 @@
 # Arduino App CLI
 
-## Installation requiremets
+## Installation requirements
 
-`arduino-app-cli` experience is strictly tied to Arduino hardware and software, so some limitation prevent a more general installation. In particulat the cli should only be run from an user with id `1000` that is part of `arduino`, `sysupgrade`, and `docker` group.
+The `arduino-app-cli` experience is tied to Arduino hardware and software. The CLI should run as the non-root `arduino` user, which belongs to the `arduino`, `sysupgrade`, and `docker` groups. No specific numeric UID is required.
 
-During the .deb installation, the package will check if an user with uid `1000` exist, if exist the required groups are set otherwise a new `arduino` user with id 1000 is created and added to the `docker`, `sysupgrade` and `arduino` group.
+During `.deb` installation, the package reuses the `arduino` account if it exists. Otherwise, Debian's `adduser` creates it using the first available UID allowed by the system's user-allocation policy. The account is added to the required groups, and the daemon runs as `arduino`. An unrelated account occupying UID `1000` is not used or modified.
+
+Package configuration also ensures membership in the board's standard groups: `adm`, `video`, `users`, `sudo`, `netdev`, `dialout`, `audio`, `render`, `bluetooth`, `input`, and `gpiod`. Missing groups are created, and existing memberships are preserved. Membership in `sudo` enables administrative access according to the system's sudo policy.
+
+App containers use the UID of the user running the CLI or daemon. Runtime directories and the optional PipeWire socket mount use `/run/user/<uid>` for that user.
+
+Installation and upgrades set the `arduino` account's login shell to `/bin/bash`. Newly created accounts have password login disabled until a password is set.
 
 ## Environment Variables
 

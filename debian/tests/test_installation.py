@@ -28,7 +28,10 @@ args = sys.argv[1:]
 state["calls"].append([command, *args])
 status = 0
 
-if command == "getent":
+if command == state.get("fail_command"):
+    print(command + ": simulated failure", file=sys.stderr)
+    status = 1
+elif command == "getent":
     database, key = args
     if database == "passwd":
         account = state["accounts"].get(key)
@@ -40,7 +43,7 @@ if command == "getent":
         if account is None:
             status = 2
         else:
-            print("{name}:x:{uid}:100:Arduino:{home}:/bin/false".format(**account))
+            print("{name}:x:{uid}:100:Arduino:{home}:{shell}".format(**account))
     elif key in state["groups"]:
         print(key + ":x:100:")
     else:
@@ -52,13 +55,26 @@ elif command == "adduser":
     else:
         if "--uid" in args:
             raise RuntimeError("The installer must delegate UID allocation to adduser")
+        if "--gecos" not in args or args[args.index("--gecos") + 1] != "":
+            raise RuntimeError("The installer must disable interactive account-details prompts")
         uid = 1000
         while any(a["uid"] == uid for a in state["accounts"].values()):
             uid += 1
         name = args[-1]
         state["accounts"][name] = {
-            "name": name, "uid": uid, "home": state["arduino_home"]
+            "name": name, "uid": uid, "home": state["arduino_home"],
+            "shell": args[args.index("--shell") + 1],
         }
+elif command == "usermod":
+    if "--shell" in args:
+        state["accounts"][args[-1]]["shell"] = args[args.index("--shell") + 1]
+    if "-aG" in args:
+        group = args[args.index("-aG") + 1]
+        if group not in state["groups"]:
+            raise RuntimeError("Cannot join missing group: " + group)
+        memberships = state["accounts"][args[-1]].setdefault("groups", [])
+        if group not in memberships:
+            memberships.append(group)
 elif command in ("addgroup", "groupadd"):
     state["groups"].append(args[-1])
 elif command == "chpasswd":
@@ -83,9 +99,21 @@ class InstallationTest(unittest.TestCase):
         mock.write_text(MOCK_COMMAND.replace("#!PYTHON", "#!" + sys.executable, 1))
         mock.chmod(0o755)
         for command in (
-            "getent", "adduser", "addgroup", "groupadd", "usermod",
-            "systemctl", "arduino-app-cli", "chown", "chmod",
-            "mkdir", "cp", "rm", "ln", "rmdir", "chpasswd",
+            "getent",
+            "adduser",
+            "addgroup",
+            "groupadd",
+            "usermod",
+            "systemctl",
+            "arduino-app-cli",
+            "chown",
+            "chmod",
+            "mkdir",
+            "cp",
+            "rm",
+            "ln",
+            "rmdir",
+            "chpasswd",
         ):
             (self.bin / command).symlink_to(mock)
         self.environment = {
@@ -93,12 +121,14 @@ class InstallationTest(unittest.TestCase):
             "PATH": str(self.bin) + os.pathsep + os.environ["PATH"],
             "INSTALLATION_TEST_STATE": str(self.state_file),
         }
-        self.save_state({
-            "accounts": {},
-            "groups": [],
-            "calls": [],
-            "arduino_home": str(self.home),
-        })
+        self.save_state(
+            {
+                "accounts": {},
+                "groups": [],
+                "calls": [],
+                "arduino_home": str(self.home),
+            }
+        )
 
     def save_state(self, state):
         self.state_file.write_text(json.dumps(state))
@@ -108,27 +138,36 @@ class InstallationTest(unittest.TestCase):
 
     def add_account(self, name, uid, home):
         state = self.state()
-        state["accounts"][name] = {"name": name, "uid": uid, "home": str(home)}
+        state["accounts"][name] = {
+            "name": name,
+            "uid": uid,
+            "home": str(home),
+            "shell": "/bin/false",
+        }
         self.save_state(state)
 
     def run_script(self, name, argument, helper=None, input=None):
         source = (PACKAGE / name).read_text()
         if helper:
-            source = source.replace(
-                "#LOAD_HELPER", (PACKAGE / "DEBIAN" / helper).read_text()
-            )
+            source = source.replace("#LOAD_HELPER", (PACKAGE / "DEBIAN" / helper).read_text())
         completion = self.root / "completion"
         completion.mkdir(exist_ok=True)
         source = source.replace("/etc/bash_completion.d/", str(completion) + "/")
         shell = "sh" if source.startswith("#!/bin/sh\n") else "bash"
         return subprocess.run(
             [shell, "-c", source, name, argument],
-            input=input, text=True, capture_output=True, env=self.environment,
+            input=input,
+            text=True,
+            capture_output=True,
+            env=self.environment,
         )
 
     def test_creating_account_uses_first_available_uid(self):
         for occupied, expected in (
-            ([], 1000), ([1000], 1001), ([1000, 1001], 1002), ([1000, 1002], 1001),
+            ([], 1000),
+            ([1000], 1001),
+            ([1000, 1001], 1002),
+            ([1000, 1002], 1001),
         ):
             with self.subTest(occupied=occupied):
                 state = self.state()
@@ -141,15 +180,29 @@ class InstallationTest(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 state = self.state()
                 self.assertEqual(state["accounts"]["arduino"]["uid"], expected)
+                self.assertEqual(state["accounts"]["arduino"]["shell"], "/bin/bash")
                 self.assertEqual(
                     [call for call in state["calls"] if call[0] == "usermod"],
-                    [["usermod", "-aG", group, "arduino"]
-                     for group in ("arduino", "sysupgrade", "docker")],
+                    [["usermod", "--shell", "/bin/bash", "-aG", "arduino", "arduino"]]
+                    + [["usermod", "-aG", group, "arduino"] for group in ("sysupgrade", "docker")],
                 )
                 self.assertEqual(
                     [call for call in state["calls"] if call[0] == "adduser"],
-                    [["adduser", "--ingroup", "arduino", "--home", "/home/arduino",
-                      "--shell", "/bin/false", "--disabled-password", "arduino"]],
+                    [
+                        [
+                            "adduser",
+                            "--ingroup",
+                            "arduino",
+                            "--home",
+                            "/home/arduino",
+                            "--shell",
+                            "/bin/bash",
+                            "--disabled-password",
+                            "--gecos",
+                            "",
+                            "arduino",
+                        ]
+                    ],
                 )
 
     def test_existing_arduino_account_is_reused_on_install_and_upgrade(self):
@@ -158,13 +211,17 @@ class InstallationTest(unittest.TestCase):
         for argument in ("install", "upgrade"):
             result = self.run_script("DEBIAN/preinst", argument)
             self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(self.state()["accounts"]["arduino"]["shell"], "/bin/bash")
         state = self.state()
         self.assertEqual(state["accounts"]["arduino"]["uid"], 1234)
+        self.assertEqual(state["accounts"]["busy"]["shell"], "/bin/false")
         self.assertFalse(any(call[0] == "adduser" for call in state["calls"]))
-        self.assertIn(["rm", "-rf", str(self.home / ".local/share/arduino-app-cli/examples")],
-                      state["calls"])
-        self.assertFalse(any(str(self.busy_home) in part
-                             for call in state["calls"] for part in call))
+        self.assertIn(
+            ["rm", "-rf", str(self.home / ".local/share/arduino-app-cli/examples")], state["calls"]
+        )
+        self.assertFalse(
+            any(str(self.busy_home) in part for call in state["calls"] for part in call)
+        )
 
     def test_account_creation_failure_stops_installation(self):
         state = self.state()
@@ -183,10 +240,71 @@ class InstallationTest(unittest.TestCase):
         calls = self.state()["calls"]
         self.assertIn(["chown", "-R", "arduino:arduino", "/var/lib/arduino-app-cli"], calls)
         self.assertIn(["rm", "-rf", str(self.home / ".local/share/arduino-app-cli")], calls)
-        for profile in (".claude/CLAUDE.md", ".gemini/GEMINI.md",
-                        ".codex/AGENTS.md", ".copilot/copilot-instructions.md"):
+        for profile in (
+            ".claude/CLAUDE.md",
+            ".gemini/GEMINI.md",
+            ".codex/AGENTS.md",
+            ".copilot/copilot-instructions.md",
+        ):
             self.assertIn(["chown", "-h", "arduino:arduino", str(self.home / profile)], calls)
         self.assertFalse(any(str(self.busy_home) in part for call in calls for part in call))
+
+    def test_postinstall_ensures_board_groups_and_preserves_existing_memberships(self):
+        required_groups = {
+            "arduino",
+            "sysupgrade",
+            "adm",
+            "video",
+            "users",
+            "sudo",
+            "docker",
+            "netdev",
+            "dialout",
+            "audio",
+            "render",
+            "bluetooth",
+            "input",
+            "gpiod",
+        }
+        for existing_groups in (set(), {"arduino", "docker", "gpiod"}, required_groups):
+            with self.subTest(existing_groups=existing_groups):
+                self.add_account("busy", 1000, self.busy_home)
+                self.add_account("arduino", 1234, self.home)
+                state = self.state()
+                state["groups"] = sorted(existing_groups | {"custom"})
+                state["accounts"]["arduino"]["groups"] = ["custom"]
+                state["calls"] = []
+                self.save_state(state)
+                for _ in range(2):
+                    result = self.run_script("DEBIAN/postinst", "configure", "postinst.helper.sh")
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                state = self.state()
+                self.assertEqual(state["accounts"]["arduino"]["uid"], 1234)
+                self.assertEqual(
+                    set(state["accounts"]["arduino"]["groups"]), required_groups | {"custom"}
+                )
+                self.assertNotIn("groups", state["accounts"]["busy"])
+                self.assertCountEqual(
+                    [call for call in state["calls"] if call[0] == "groupadd"],
+                    [
+                        ["groupadd", "--system", group]
+                        for group in required_groups - existing_groups
+                    ],
+                )
+
+    def test_postinstall_group_failure_stops_configuration(self):
+        for command in ("groupadd", "usermod"):
+            with self.subTest(command=command):
+                self.add_account("arduino", 1234, self.home)
+                state = self.state()
+                state["groups"] = []
+                state["calls"] = []
+                state["fail_command"] = command
+                self.save_state(state)
+                result = self.run_script("DEBIAN/postinst", "configure", "postinst.helper.sh")
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(command + ": simulated failure", result.stderr)
+                self.assertFalse(any(call[0] == "systemctl" for call in self.state()["calls"]))
 
     def test_purge_targets_arduino_home(self):
         self.add_account("busy", 1000, self.busy_home)

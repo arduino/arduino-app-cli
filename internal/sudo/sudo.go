@@ -10,7 +10,6 @@ package sudo
 import (
 	"context"
 	"fmt"
-	"os/user"
 	"slices"
 	"strings"
 
@@ -93,18 +92,14 @@ func (c Command) Process(tail ...string) (*paths.Process, error) {
 // password. `sudo -l` resolves a rule and runs nothing.
 func Check(ctx context.Context) ([]string, error) {
 	// -U reads the rules of the daemon user: sudo allows root everything.
-	const daemonUID = "1000"
-	daemon, err := user.LookupId(daemonUID)
-	if err != nil {
-		return nil, fmt.Errorf("no user with uid %s on this system: %w", daemonUID, err)
-	}
+	const daemonUsername = "arduino"
 
 	// -l twice adds the matching rule to the output. A NOPASSWD rule prints
 	// "Options: !authenticate" there; a single -l only says the command is
 	// allowed, password or not, and sudoers has no "NOPASSWD" text to grep for.
 	sudoList := func(args ...string) ([]byte, error) {
 		cmd, err := paths.NewProcess(nil,
-			slices.Concat([]string{"sudo", "-n", "-l", "-l", "-U", daemon.Username}, args)...)
+			slices.Concat([]string{"sudo", "-n", "-l", "-l", "-U", daemonUsername}, args)...)
 		if err != nil {
 			return nil, err
 		}
@@ -114,7 +109,7 @@ func Check(ctx context.Context) ([]string, error) {
 	// The Defaults of the user name the variables sudo keeps.
 	kept, err := sudoList()
 	if err != nil {
-		return nil, fmt.Errorf("cannot list the sudo rules of %s: %w: %s", daemon.Username, err, kept)
+		return nil, fmt.Errorf("cannot list the sudo rules of %s: %w: %s", daemonUsername, err, kept)
 	}
 
 	var missing, checked []string

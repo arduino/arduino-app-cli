@@ -15,14 +15,15 @@ if ! getent passwd "$USER_NAME" >/dev/null 2>&1; then
     adduser \
         --ingroup "$GROUP_NAME" \
         --home "/home/arduino" \
-        --shell /bin/false \
+        --shell /bin/bash \
         --disabled-password \
+        --gecos "" \
         "$USER_NAME" >/dev/null
 fi
 
 USER_HOME="$(getent passwd "$USER_NAME" | cut -d: -f6)"
 
-usermod -aG "$GROUP_NAME" "$USER_NAME"
+usermod --shell /bin/bash -aG "$GROUP_NAME" "$USER_NAME"
 
 for GROUP in $OTHER_GROUPS; do
     if ! getent group "$GROUP" >/dev/null 2>&1; then

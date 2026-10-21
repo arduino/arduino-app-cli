@@ -12,6 +12,8 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"os/user"
+	"strconv"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -102,8 +104,8 @@ func main() {
 		feedback.Fatal(fmt.Sprintf("invalid config: %s", err), feedback.ErrGeneric)
 	}
 
-	if os.Geteuid() != 1000 && !configuration.AllowRoot {
-		feedback.Fatal("arduino-app-cli must be run as a non-root user with UID 1000. Try `su - arduino` before this command.", feedback.ErrGeneric)
+	if err := checkUser(os.Geteuid(), configuration.AllowRoot, user.Lookup); err != nil {
+		feedback.FatalError(err, feedback.ErrGeneric)
 	}
 
 	// Skip folder creation only when running as root (e.g. under ALLOW_ROOT):
@@ -123,6 +125,20 @@ func main() {
 		}
 		feedback.FatalError(err, 1)
 	}
+}
+
+func checkUser(uid int, allowRoot bool, lookupUser func(string) (*user.User, error)) error {
+	if allowRoot {
+		return nil
+	}
+	account, err := lookupUser("arduino")
+	if err != nil {
+		return fmt.Errorf("cannot find the arduino user on this system: %w", err)
+	}
+	if uid == 0 || strconv.Itoa(uid) != account.Uid {
+		return errors.New("arduino-app-cli must be run as the non-root arduino user. Try `su - arduino` before this command.")
+	}
+	return nil
 }
 
 func ParseLogLevel(level string) (slog.Level, error) {
