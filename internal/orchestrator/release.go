@@ -164,6 +164,7 @@ func BuildRelease(
 		Name:         appToBuild.Name,
 		ReleaseLabel: req.ReleaseLabel,
 		Icon:         appToBuild.Descriptor.Icon,
+		Description:  appToBuild.Descriptor.Description,
 		Target:       plat.BoardName,
 		CreatedAt:    now,
 		Notes:        req.Notes,
