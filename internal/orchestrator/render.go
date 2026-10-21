@@ -29,6 +29,8 @@ import (
 // leaving what to write around it to the template.
 var hostFuncs = template.FuncMap{
 	"pathExists": func(path string) bool { return paths.New(path).Exist() },
+	"userID":     os.Getuid,
+	"runtimeDir": userRuntimeDir,
 
 	"groupID": func(name string) string {
 		group, err := user.LookupGroup(name)
