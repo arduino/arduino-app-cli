@@ -7,8 +7,10 @@ package orchestrator
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"maps"
+	"os"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -28,15 +30,23 @@ import (
 
 const appHomeRef = "${APP_HOME}"
 
-// An app runs as uid 1000, the same the cli itself requires (cmd/arduino-app-cli),
-// in the arduino group, which is required to exist but not to have a known id.
-const appUserExpr = exprPrefix + `{{ with groupID "arduino" }}1000:{{ . }}{{ else }}1000{{ end }}`
+// Apps run as the CLI's user, with the arduino group when available.
+const appUserExpr = exprPrefix + `{{ userID }}{{ with groupID "arduino" }}:{{ . }}{{ end }}`
+
+const pipewireMountExpr = exprPrefix +
+	`{{ $path := printf "%s/pipewire-0" runtimeDir }}{{ if pathExists $path }}` +
+	`{"type":"bind","source":{{ printf "%q" $path }},"target":{{ printf "%q" $path }},"bind":{"create_host_path":false}}` +
+	`{{ end }}`
+
+func userRuntimeDir() string {
+	return fmt.Sprintf("/run/user/%d", os.Getuid())
+}
 
 // hostVariables are what a template references as ${VAR}: the name is the reference the
 // resolve step writes, the function is the answer the render step fills in.
 var hostVariables = map[string]func(hostFacts) string{
 	"APP_HOME":        func(facts hostFacts) string { return facts.appPath.String() },
-	"XDG_RUNTIME_DIR": func(hostFacts) string { return "/run/user/1000" },
+	"XDG_RUNTIME_DIR": func(hostFacts) string { return userRuntimeDir() },
 	// Directory where AI models are installed, shared with the containerized runners.
 	"MODELS_PATH": func(facts hostFacts) string { return facts.cfg.ModelsDir().String() },
 
