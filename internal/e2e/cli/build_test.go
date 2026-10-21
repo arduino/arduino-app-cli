@@ -53,6 +53,8 @@ func TestAppBuild(t *testing.T) {
 		// wantBricks is what the manifest must state, and so what the frozen compose set
 		// must hold a brick compose for.
 		wantBricks []string
+		// wantDescription is what the manifest must state: app new writes it to the README only.
+		wantDescription string
 		// requirements is the python dependency the app declares, so the case proves the
 		// venv the release ships holds it already.
 		requirements string
@@ -64,10 +66,11 @@ func TestAppBuild(t *testing.T) {
 		includeData bool
 	}{
 		{
-			name:        "an app with no sketch and no bricks",
-			appName:     "plain-app",
-			newArgs:     []string{"--no-sketch"},
-			archiveName: "my-release" + release.ReleaseArchiveExt,
+			name:            "an app with no sketch and no bricks",
+			appName:         "plain-app",
+			newArgs:         []string{"--no-sketch", "--description", "A plain app."},
+			wantDescription: "A plain app.",
+			archiveName:     "my-release" + release.ReleaseArchiveExt,
 		},
 		{
 			name:       "an app with a brick",
@@ -141,6 +144,7 @@ func TestAppBuild(t *testing.T) {
 
 					assert.Equal(t, app.ReleaseManifestSchema, manifest.Schema)
 					assert.Equal(t, test.appName, manifest.Name)
+					assert.Equal(t, test.wantDescription, manifest.Description)
 					// The board the build is given, which the release name states as well.
 					assert.Equal(t, target, manifest.Target)
 					// Dated in UTC.
