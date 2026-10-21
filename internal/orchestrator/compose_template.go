@@ -175,11 +175,12 @@ func generateComposeTemplate(
 			Source: "/dev",
 			Target: "/dev",
 		},
+		pipewireMountExpr,
 	}
 
 	// Mounted only where the board has them.
 	optionalMounts := slices.Concat(
-		[]string{"/run/udev:ro", "/run/user/1000/pipewire-0"},
+		[]string{"/run/udev:ro"},
 		// camx CSI cameras are accessed through the cam_server socket and a host userspace library
 		[]string{"/run/cam_server", "/usr/lib/libcamera_metadata.so.0.1.0"},
 		// libfastrpc reads the board model here, to pick the DSP firmware of the board

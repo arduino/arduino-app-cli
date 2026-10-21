@@ -6,6 +6,9 @@
 package orchestrator
 
 import (
+	"fmt"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
@@ -18,6 +21,64 @@ import (
 	"github.com/arduino/arduino-app-cli/internal/orchestrator/servicesindex"
 	"github.com/arduino/arduino-app-cli/internal/platform"
 )
+
+func TestRenderUserIdentity(t *testing.T) {
+	originalUserID := hostFuncs["userID"]
+	originalGroupID := hostFuncs["groupID"]
+	t.Cleanup(func() {
+		hostFuncs["userID"] = originalUserID
+		hostFuncs["groupID"] = originalGroupID
+	})
+	hostFuncs["userID"] = func() int { return 1234 }
+
+	for _, gid := range []string{"", "2345"} {
+		t.Run("group "+gid, func(t *testing.T) {
+			hostFuncs["groupID"] = func(string) string { return gid }
+			value, err := renderComposeValue(appUserExpr)
+			require.NoError(t, err)
+			expected := "1234"
+			if gid != "" {
+				expected += ":" + gid
+			}
+			require.Equal(t, expected, value)
+		})
+	}
+}
+
+func TestRenderPipewireMount(t *testing.T) {
+	originalRuntimeDir := hostFuncs["runtimeDir"]
+	originalPathExists := hostFuncs["pathExists"]
+	t.Cleanup(func() {
+		hostFuncs["runtimeDir"] = originalRuntimeDir
+		hostFuncs["pathExists"] = originalPathExists
+	})
+	hostFuncs["runtimeDir"] = func() string { return "/run/user/1234" }
+
+	for _, exists := range []bool{true, false} {
+		t.Run(fmt.Sprintf("socket exists %t", exists), func(t *testing.T) {
+			hostFuncs["pathExists"] = func(path string) bool {
+				require.Equal(t, "/run/user/1234/pipewire-0", path)
+				return exists
+			}
+			value, err := renderComposeValue(pipewireMountExpr)
+			require.NoError(t, err)
+			if !exists {
+				require.Nil(t, value)
+				return
+			}
+			require.Equal(t, map[string]any{
+				"type": "bind", "source": "/run/user/1234/pipewire-0",
+				"target": "/run/user/1234/pipewire-0",
+				"bind":   map[string]any{"create_host_path": false},
+			}, value)
+		})
+	}
+}
+
+func TestUserRuntimeDir(t *testing.T) {
+	require.Equal(t, fmt.Sprintf("/run/user/%d", os.Getuid()), userRuntimeDir())
+	require.Equal(t, userRuntimeDir(), hostVariables["XDG_RUNTIME_DIR"](hostFacts{}))
+}
 
 // render is what the resolve step would write, rendered and read back.
 func render(t *testing.T, template string) map[string]any {
@@ -244,6 +305,9 @@ bricks:
 	main, err := prj.GetService("main")
 	require.NoError(t, err)
 	require.Equal(t, "python-apps-base:latest", main.Image)
+	require.Equal(t, fmt.Sprint(os.Getuid()), strings.SplitN(main.User, ":", 2)[0])
+	require.Equal(t, main.User, runner.User, "included services use the same host UID")
+	require.Equal(t, userRuntimeDir(), *main.Environment["XDG_RUNTIME_DIR"])
 	require.Equal(t, "Hello {{ name }}, reply", *main.Environment["PROMPT"])
 	require.Contains(t, main.DependsOn, "ei-video-obj-detection-runner")
 }
