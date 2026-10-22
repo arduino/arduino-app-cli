@@ -92,6 +92,8 @@ func FromHost(user, password, address string, opts ...Option) (*SSHConnection, e
 				slog.Warn("the board sent nothing", board, slog.Duration("silence", silence))
 			}
 			cancel()
+			// Fail the blocked reads now, not at the TCP timeout.
+			_ = tcp.Close()
 		})}
 		// The timer runs only after the handshake.
 		kick.timer.Stop()
