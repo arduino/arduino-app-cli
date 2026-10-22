@@ -33,7 +33,6 @@ func newCreateCmd(cfg config.Configuration) *cobra.Command {
 		Short: "Creates a new Arduino App",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cobra.MinimumNArgs(1)
 			name := args[0]
 			return createHandler(cfg, name, icon, description, brickIDs, noSketch, fromApp)
 		},
