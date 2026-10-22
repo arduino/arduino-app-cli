@@ -60,7 +60,7 @@ func HandleAppLocalBrickCreate(idProvider *appid.Provider) http.HandlerFunc {
 		}
 
 		if slices.ContainsFunc(a.LocalBricks, func(b bricksindex.Brick) bool { return b.ID == id }) {
-			render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: fmt.Sprintf("a brick with the same id '%s' already exists", id)})
+			render.EncodeResponse(w, http.StatusConflict, models.ErrorResponse{Details: fmt.Sprintf("a local brick with the same id '%s' already exists", id)})
 			return
 		}
 
