@@ -28,8 +28,9 @@ import (
 
 const appHomeRef = "${APP_HOME}"
 
-// An app runs as uid 1000, the same the cli itself requires (cmd/arduino-app-cli),
-// in the arduino group, which is required to exist but not to have a known id.
+// An app runs as uid 1000, the uid the cli itself runs as on a standard
+// installation (cmd/arduino-app-cli), in the arduino group, which is required
+// to exist but not to have a known id.
 const appUserExpr = exprPrefix + `{{ with groupID "arduino" }}1000:{{ . }}{{ else }}1000{{ end }}`
 
 // hostVariables are what a template references as ${VAR}: the name is the reference the
