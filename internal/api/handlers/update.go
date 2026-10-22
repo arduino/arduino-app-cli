@@ -22,7 +22,7 @@ func HandleCheckUpgradable(updater *update.Manager) http.HandlerFunc {
 
 		onlyArduinoPackages := false
 		if val := queryParams.Get("only-arduino"); val != "" {
-			onlyArduinoPackages = strings.ToLower(val) == "true"
+			onlyArduinoPackages = strings.ToLower(val) == queryTrue
 		}
 
 		filterFunc := update.MatchAllPackages
@@ -64,7 +64,7 @@ func HandleUpdateApply(updater *update.Manager) http.HandlerFunc {
 		queryParams := r.URL.Query()
 		onlyArduinoPackages := false
 		if val := queryParams.Get("only-arduino"); val != "" {
-			onlyArduinoPackages = strings.ToLower(val) == "true"
+			onlyArduinoPackages = strings.ToLower(val) == queryTrue
 		}
 
 		filterFunc := update.MatchAllPackages
