@@ -74,21 +74,21 @@ func (b *EventBroker) Subscribe() (<-chan render.SSEEvent, func()) {
 // a progress value, an info message, or both.
 func (b *EventBroker) PublishStreamMessage(buildID string, item orchestrator.StreamMessage) {
 	if p := item.GetProgress(); p != nil {
-		b.publish(render.SSEEvent{Type: "progress", Data: progressEvent{BuildID: buildID, Name: p.Name, Progress: p.Progress}})
+		b.publish(render.SSEEvent{Type: render.ProgressEvent, Data: progressEvent{BuildID: buildID, Name: p.Name, Progress: p.Progress}})
 	}
 	if item.GetData() != "" {
-		b.publish(render.SSEEvent{Type: "message", Data: messageEvent{BuildID: buildID, Message: item.GetData()}})
+		b.publish(render.SSEEvent{Type: render.MessageEvent, Data: messageEvent{BuildID: buildID, Message: item.GetData()}})
 	}
 }
 
 // PublishDone publishes the "done" event that a finished build emits.
 func (b *EventBroker) PublishDone(buildID, name, target string) {
-	b.publish(render.SSEEvent{Type: "done", Data: doneEvent{BuildID: buildID, Name: name, Target: target}})
+	b.publish(render.SSEEvent{Type: render.DoneEvent, Data: doneEvent{BuildID: buildID, Name: name, Target: target}})
 }
 
 // PublishError publishes the "error" event that a failed build emits.
 func (b *EventBroker) PublishError(buildID string, code render.SSEErrCode, message string) {
-	b.publish(render.SSEEvent{Type: "error", Data: errorEvent{BuildID: buildID, Code: code, Message: message}})
+	b.publish(render.SSEEvent{Type: render.ErrorEvent, Data: errorEvent{BuildID: buildID, Code: code, Message: message}})
 }
 
 // publish delivers an event to every current subscriber. It never blocks the

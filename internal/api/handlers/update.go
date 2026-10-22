@@ -149,12 +149,12 @@ func HandleUpdateEvents(updater *update.Manager) http.HandlerFunc {
 				})
 			case update.ProgressEvent:
 				sseStream.Send(render.SSEEvent{
-					Type: event.Type.String(),
+					Type: render.SSEEventType(event.Type.String()),
 					Data: event.GetProgress(),
 				})
 			default:
 				sseStream.Send(render.SSEEvent{
-					Type: event.Type.String(),
+					Type: render.SSEEventType(event.Type.String()),
 					Data: event.GetData(),
 				})
 			}

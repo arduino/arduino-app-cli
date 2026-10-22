@@ -30,14 +30,25 @@ type SSEErrorData struct {
 	Message string     `json:"message,omitempty"`
 }
 
+// SSEEventType is the name of an event, the one the client dispatches it by.
+type SSEEventType string
+
+const (
+	ProgressEvent SSEEventType = "progress"
+	MessageEvent  SSEEventType = "message"
+	DoneEvent     SSEEventType = "done"
+	ErrorEvent    SSEEventType = "error"
+	CloseEvent    SSEEventType = "close"
+)
+
 type SSEEvent struct {
-	Type string `json:"type"`
-	Data any    `json:"data"`
+	Type SSEEventType `json:"type"`
+	Data any          `json:"data"`
 }
 
 func NewErrorEvent(data any) SSEEvent {
 	return SSEEvent{
-		Type: "error",
+		Type: ErrorEvent,
 		Data: data,
 	}
 }
@@ -99,10 +110,10 @@ func NewSSEStream(ctx context.Context, w http.ResponseWriter) (*SSEStream, error
 func (s *SSEStream) loop() {
 	defer func() {
 		// This is kept for backward compatibility. We should remove this in the future.
-		_ = s.send(SSEEvent{Type: "error", Data: SSEErrorData{Code: "SERVER_CLOSED"}})
+		_ = s.send(SSEEvent{Type: ErrorEvent, Data: SSEErrorData{Code: "SERVER_CLOSED"}})
 
 		// Notify the client that the stream is closed
-		_ = s.send(SSEEvent{Type: "close", Data: "Stream closed by server"})
+		_ = s.send(SSEEvent{Type: CloseEvent, Data: "Stream closed by server"})
 		close(s.stoppedCh)
 	}()
 
@@ -122,7 +133,7 @@ func (s *SSEStream) loop() {
 				return
 			}
 			if err := s.send(event); err != nil {
-				slog.Debug("failed to send SSE event", slog.String("event", event.Type), slog.Any("error", err))
+				slog.Debug("failed to send SSE event", slog.String("event", string(event.Type)), slog.Any("error", err))
 				return
 			}
 		}
@@ -131,19 +142,19 @@ func (s *SSEStream) loop() {
 
 func (s *SSEStream) Send(event SSEEvent) {
 	if s.isClosing.Load() {
-		slog.Debug("SSE stream is closing, ignoring event", slog.String("event", event.Type))
+		slog.Debug("SSE stream is closing, ignoring event", slog.String("event", string(event.Type)))
 		return
 	}
 	select {
 	case s.messageCh <- event:
 	case <-s.stoppedCh:
 		// The write loop is gone, a failed write above all: never block the caller.
-		slog.Debug("SSE stream is stopped, ignoring event", slog.String("event", event.Type))
+		slog.Debug("SSE stream is stopped, ignoring event", slog.String("event", string(event.Type)))
 	}
 }
 
 func (s *SSEStream) SendError(event SSEErrorData) {
-	s.Send(SSEEvent{Type: "error", Data: event})
+	s.Send(SSEEvent{Type: ErrorEvent, Data: event})
 }
 
 func (s *SSEStream) Close() {
@@ -157,7 +168,7 @@ func (s *SSEStream) Close() {
 
 func (s *SSEStream) send(e SSEEvent) error {
 	if e.Type != "" {
-		if _, err := s.sseFlusher.Write([]byte("event: " + e.Type + "\n")); err != nil {
+		if _, err := s.sseFlusher.Write([]byte("event: " + string(e.Type) + "\n")); err != nil {
 			return err
 		}
 	}

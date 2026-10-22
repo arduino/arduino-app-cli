@@ -67,9 +67,9 @@ func HandleAppPrepare(
 		if err := orchestrator.PrepareInstalledRelease(r.Context(), dockerClient, provisioner, arduinoApp, cfg, plat, func(item orchestrator.StreamMessage) {
 			switch item.GetType() {
 			case orchestrator.ProgressType:
-				sseStream.Send(render.SSEEvent{Type: "progress", Data: progress(*item.GetProgress())})
+				sseStream.Send(render.SSEEvent{Type: render.ProgressEvent, Data: progress(*item.GetProgress())})
 			case orchestrator.InfoType:
-				sseStream.Send(render.SSEEvent{Type: "message", Data: sseLog{Message: item.GetData()}})
+				sseStream.Send(render.SSEEvent{Type: render.MessageEvent, Data: sseLog{Message: item.GetData()}})
 			}
 		}); err != nil {
 			code := render.InternalServiceErr
@@ -81,7 +81,7 @@ func HandleAppPrepare(
 		}
 
 		release, _ := arduinoApp.GetRelease()
-		sseStream.Send(render.SSEEvent{Type: "done", Data: AppPrepareResponse{
+		sseStream.Send(render.SSEEvent{Type: render.DoneEvent, Data: AppPrepareResponse{
 			ID:      id.String(),
 			Name:    arduinoApp.Name,
 			Release: release.ID,
