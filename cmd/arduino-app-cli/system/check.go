@@ -47,6 +47,14 @@ func checkPlatform(ctx context.Context, docker command.Cli) []check {
 		{"docker engine", func() (string, error) { return checkDockerEngine(ctx, docker) }},
 		{"sudo rules", func() (string, error) { return checkSudoRules(ctx) }},
 		{"user groups", checkUserGroups},
+		// TODO export ARDUINO_DIRECTORIES_DATA=/home/arduino/.arduino15/
+		// chmod -R g+w .arduino15
+		// chmod -R g+r /home/arduino/.arduino15/packages/arduino/hardware/zephyr/0.90.90-0.head.monza-1.0.1.66+b22aeca1/
+		// chmod g+x /home/arduino/.arduino15/packages/arduino/hardware/zephyr/0.90.90-0.head.monza-1.0.1.66+b22aeca1/
+		// mkdir /tmp/remoteocd
+		// chmod u+w /tmp/remoteocd/
+		// chmod g+w /tmp/remoteocd/
+		// chgrp arduino /tmp/remoteocd/
 	}
 
 	results := make([]check, 0, len(checks))
