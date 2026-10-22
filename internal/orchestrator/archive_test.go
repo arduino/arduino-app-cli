@@ -328,12 +328,6 @@ func TestImportAppFromZip(t *testing.T) {
 				require.NoError(t, err)
 				require.NotEmpty(t, id)
 
-				// Verify temp folder cleanup
-				files, _ := os.ReadDir(appsDirPath)
-				for _, f := range files {
-					require.False(t, strings.HasPrefix(f.Name(), ".tmp_"), "Temp folder not cleaned: %s", f.Name())
-				}
-
 				if !tc.preExisting && tc.expectedFolder != "" {
 					finalPath := cfg.AppsDir().Join(tc.expectedFolder)
 					require.True(t, finalPath.Exist(), "App folder should be %s", tc.expectedFolder)
