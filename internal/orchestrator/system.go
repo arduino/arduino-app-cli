@@ -27,6 +27,7 @@ import (
 	semver "go.bug.st/relaxed-semver"
 
 	"github.com/arduino/arduino-app-cli/cmd/feedback"
+	"github.com/arduino/arduino-app-cli/internal/buildtag"
 	"github.com/arduino/arduino-app-cli/internal/dockerhelper"
 	"github.com/arduino/arduino-app-cli/internal/fatomic"
 	"github.com/arduino/arduino-app-cli/internal/helpers"
@@ -360,6 +361,9 @@ func getReleaseImages(cfg config.Configuration) ([]string, error) {
 }
 
 func installPlatformPackage(ctx context.Context, plat platform.Platform, eventCB InitEventCallback) error {
+	if buildtag.ImmutableOS {
+		return nil
+	}
 	if !slices.Contains(platform.SupportedBoards(), plat.BoardName) {
 		eventCB(InitEvent{Type: InitLogEvent, Source: InitSourceDeb, Message: fmt.Sprintf("no platform-specific debian package to install for board '%s'", plat.BoardName)})
 		return nil
