@@ -7,6 +7,10 @@ Wants=network-online.target docker.service arduino-router.service
 ExecStart=/usr/bin/arduino-app-cli daemon --port 8800 --log-level error
 User=1000
 Group=arduino
+# Holds the control socket of each app container, kept across restarts: the containers mount it
+RuntimeDirectory=arduino-app-cli
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
 StandardOutput=journal
 StandardError=journal
 Restart=always
