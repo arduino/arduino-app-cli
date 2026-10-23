@@ -85,13 +85,14 @@ func renderComposeFile(ctx context.Context, arduinoApp *app.ArduinoApp, env, sec
 		templateFiles.Add(override)
 	}
 
+	renderer := newComposeRenderer()
 	configFiles := make([]types.ConfigFile, 0, len(templateFiles))
 	for _, templateFile := range templateFiles {
 		content, err := templateFile.ReadFile()
 		if err != nil {
 			return nil, fmt.Errorf("cannot read %s: %w", templateFile, err)
 		}
-		rendered, err := renderComposeTemplate(content)
+		rendered, err := renderer.template(content)
 		if err != nil {
 			return nil, fmt.Errorf("cannot render %s: %w", templateFile, err)
 		}
@@ -135,22 +136,37 @@ func renderComposeFile(ctx context.Context, arduinoApp *app.ArduinoApp, env, sec
 // renderComposeTemplate evaluates the expressions of a compose template: a value
 // becomes what it renders to, and a list item that renders to nothing is dropped.
 func renderComposeTemplate(content []byte) ([]byte, error) {
+	return newComposeRenderer().template(content)
+}
+
+// composeRenderer evaluates the expressions of the templates of one start. Every service
+// asks the same board facts, the groups above all, each a read of /etc/group: an
+// expression is evaluated once.
+type composeRenderer struct {
+	rendered map[string]string
+}
+
+func newComposeRenderer() *composeRenderer {
+	return &composeRenderer{rendered: map[string]string{}}
+}
+
+func (r *composeRenderer) template(content []byte) ([]byte, error) {
 	var document any
 	if err := yaml.Unmarshal(content, &document); err != nil {
 		return nil, err
 	}
-	document, err := renderComposeNode(document)
+	document, err := r.node(document)
 	if err != nil {
 		return nil, err
 	}
 	return yaml.Marshal(document)
 }
 
-func renderComposeNode(node any) (any, error) {
+func (r *composeRenderer) node(node any) (any, error) {
 	switch value := node.(type) {
 	case map[string]any:
 		for key, child := range value {
-			rendered, err := renderComposeNode(child)
+			rendered, err := r.node(child)
 			if err != nil {
 				return nil, err
 			}
@@ -172,7 +188,7 @@ func renderComposeNode(node any) (any, error) {
 			expression, isExpression := child.(string)
 			isExpression = isExpression && strings.HasPrefix(expression, exprPrefix)
 
-			item, err := renderComposeNode(child)
+			item, err := r.node(child)
 			if err != nil {
 				return nil, err
 			}
@@ -199,32 +215,35 @@ func renderComposeNode(node any) (any, error) {
 		return items, nil
 
 	case string:
-		return renderComposeValue(value)
+		return r.value(value)
 
 	default:
 		return node, nil
 	}
 }
 
-// renderComposeValue evaluates a value the resolve step marked as an expression. Any
+// value evaluates a value the resolve step marked as an expression. Any
 // other value is what it says, {{ }} and all: an app is free to carry a template of its
 // own in a brick variable, and it is none of our business.
-func renderComposeValue(value string) (any, error) {
+func (r *composeRenderer) value(value string) (any, error) {
 	expression, marked := strings.CutPrefix(value, exprPrefix)
 	if !marked {
 		return value, nil
 	}
-	// An unknown function is an error here, before anything is started.
-	parsed, err := template.New("compose").Funcs(hostFuncs).Parse(expression)
-	if err != nil {
-		return nil, err
+	out, done := r.rendered[expression]
+	if !done {
+		// An unknown function is an error here, before anything is started.
+		parsed, err := template.New("compose").Funcs(hostFuncs).Parse(expression)
+		if err != nil {
+			return nil, err
+		}
+		var rendered strings.Builder
+		if err := parsed.Execute(&rendered, nil); err != nil {
+			return nil, err
+		}
+		out = strings.TrimSpace(rendered.String())
+		r.rendered[expression] = out
 	}
-	var rendered strings.Builder
-	if err := parsed.Execute(&rendered, nil); err != nil {
-		return nil, err
-	}
-
-	out := strings.TrimSpace(rendered.String())
 	if out == "" {
 		return nil, nil
 	}
