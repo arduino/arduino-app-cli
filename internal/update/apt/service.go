@@ -136,7 +136,7 @@ func (s *Service) UpgradePackages(ctx context.Context, packages []update.Package
 			eventCB(update.NewDataEvent(update.UpgradeLineEvent, "Pulling the latest docker images (again) ..."))
 			for result, err := range runSystemInit(ctx) {
 				if err != nil {
-					return fmt.Errorf("error pulling docker images: %w", err)
+					return fmt.Errorf("error running system init: %w", err)
 				}
 				handleInitResult(result)
 			}
@@ -283,7 +283,15 @@ func runSystemInit(ctx context.Context) iter.Seq2[orchestrator.InitResult, error
 			return
 		}
 
+		// The json-lines output reports a failure as a last {"error": ...} line.
+		var initErr string
 		stdout := orchestrator.NewCallbackWriter(func(line string) {
+			var failure struct {
+				Error string `json:"error"`
+			}
+			if json.Unmarshal([]byte(line), &failure) == nil && failure.Error != "" {
+				initErr = failure.Error
+			}
 			if !yield(parseSystemInitLine(line), nil) {
 				if err := cmd.Kill(); err != nil {
 					slog.Error("Failed to kill 'arduino-app-cli system init' command", slog.String("error", err.Error()))
@@ -294,6 +302,9 @@ func runSystemInit(ctx context.Context) iter.Seq2[orchestrator.InitResult, error
 		cmd.RedirectStdoutTo(stdout)
 
 		if err = cmd.RunWithinContext(ctx); err != nil {
+			if initErr != "" {
+				err = fmt.Errorf("%s: %w", initErr, err)
+			}
 			_ = yield(orchestrator.InitResult{}, err)
 			return
 		}
