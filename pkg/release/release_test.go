@@ -107,6 +107,24 @@ func TestReadReleaseManifestIncompleteManifest(t *testing.T) {
 	assert.ErrorContains(t, err, "states no name or no target")
 }
 
+func TestReadReleaseManifestNoCreatedAt(t *testing.T) {
+	archivePath := writeTestArchive(t, map[string]string{
+		"release.yaml": "schema: 1\nname: my-app\ntarget: unoq\n",
+	}, []string{"release.yaml"})
+
+	_, err := ReadReleaseManifest(archivePath)
+	assert.ErrorContains(t, err, "states no created_at")
+}
+
+func TestReadReleaseManifestNoSchema(t *testing.T) {
+	archivePath := writeTestArchive(t, map[string]string{
+		"release.yaml": "name: my-app\ntarget: unoq\ncreated_at: 2026-09-14T13:45:12Z\n",
+	}, []string{"release.yaml"})
+
+	_, err := ReadReleaseManifest(archivePath)
+	assert.ErrorContains(t, err, "states no schema")
+}
+
 func TestReadReleaseManifestMultipleRoots(t *testing.T) {
 	archivePath := paths.New(t.TempDir()).Join("my-app-1.0.0-unoq.ard")
 

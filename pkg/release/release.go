@@ -143,6 +143,12 @@ func ReadReleaseManifestFromReader(r io.Reader) (ReleaseManifest, error) {
 	if manifest.Name == "" || manifest.Target == "" {
 		return ReleaseManifest{}, errors.New("its release manifest states no name or no target")
 	}
+	if manifest.Schema == 0 {
+		return ReleaseManifest{}, errors.New("its release manifest states no schema")
+	}
+	if manifest.CreatedAt.IsZero() {
+		return ReleaseManifest{}, errors.New("its release manifest states no created_at")
+	}
 
 	manifest.bricks = bricksList.Bricks
 
