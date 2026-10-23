@@ -26,6 +26,11 @@ type RemoteConn interface {
 	RemoteShell // TODO: should be removed after refactoring.
 	Forwarder
 	RemoteTransfer
+
+	// Done closes when the board is lost.
+	Done() <-chan struct{}
+	// Close stops the watch and releases the connection.
+	Close() error
 }
 
 type FS interface {

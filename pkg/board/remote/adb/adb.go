@@ -33,6 +33,9 @@ const username = "arduino"
 type ADBConnection struct {
 	adbPath string
 	host    string
+	ctx     context.Context
+	cancel  context.CancelFunc
+	watch   sync.Once
 }
 
 // Ensures ADBConnection implements the RemoteConn interface at compile time.
@@ -79,9 +82,12 @@ func FromSerial(serial string, adbPath string) (*ADBConnection, error) {
 		return nil, fmt.Errorf("device %s is not connected", serial)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	return &ADBConnection{
 		adbPath: adbPath,
 		host:    serial,
+		ctx:     ctx,
+		cancel:  cancel,
 	}, nil
 }
 
@@ -97,6 +103,32 @@ func FromHost(host string, adbPath string) (*ADBConnection, error) {
 		return nil, fmt.Errorf("failed to connect to ADB host %s: %w: %s", host, err, out)
 	}
 	return FromSerial(host, adbPath)
+}
+
+// Done closes when adb no longer lists the device. The first call starts the watch.
+func (a *ADBConnection) Done() <-chan struct{} {
+	a.watch.Do(func() {
+		go func() {
+			defer a.cancel()
+			cmd, err := paths.NewProcess(nil, a.adbPath, "-s", a.host, "wait-for-disconnect")
+			if err != nil {
+				slog.Warn("cannot watch the ADB device", slog.String("serial", a.host), slog.Any("error", err))
+				return
+			}
+			out, err := cmd.RunAndCaptureCombinedOutput(a.ctx)
+			if a.ctx.Err() != nil {
+				return
+			}
+			slog.Warn("the ADB device is gone", slog.String("serial", a.host), slog.Any("error", err), slog.String("output", string(out)))
+		}()
+	})
+	return a.ctx.Done()
+}
+
+// Close stops the watch.
+func (a *ADBConnection) Close() error {
+	a.cancel()
+	return nil
 }
 
 func (a *ADBConnection) Forward(ctx context.Context, localPort int, remotePort int) error {
