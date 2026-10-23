@@ -6,6 +6,8 @@
 package orchestrator
 
 import (
+	"fmt"
+	"os"
 	"testing"
 
 	"github.com/arduino/go-paths-helper"
@@ -44,6 +46,16 @@ services:
 		main := document["services"].(map[string]any)["main"].(map[string]any)
 		require.Equal(t, "/here", main["working_dir"])
 		require.Equal(t, "busybox", main["image"], "a value without an expression is untouched")
+	})
+
+	t.Run("the main user is the uid and gid the cli runs as", func(t *testing.T) {
+		document := render(t, `
+services:
+  main:
+    user: '`+mainUserExpr+`'
+`)
+		main := document["services"].(map[string]any)["main"].(map[string]any)
+		require.Equal(t, fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()), main["user"])
 	})
 
 	t.Run("a key that renders to nothing is dropped", func(t *testing.T) {
