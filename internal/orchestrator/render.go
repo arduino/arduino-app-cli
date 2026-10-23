@@ -14,6 +14,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+	"sync"
 	"text/template"
 
 	"github.com/arduino/go-paths-helper"
@@ -150,6 +151,23 @@ func newComposeRenderer() *composeRenderer {
 	return &composeRenderer{rendered: map[string]string{}}
 }
 
+// parsedExpressions keeps the parsed template of each expression for the life of the process:
+// parsing is what a render costs on a board, while the facts are read again at every one.
+var parsedExpressions sync.Map
+
+func parseExpression(expression string) (*template.Template, error) {
+	if parsed, ok := parsedExpressions.Load(expression); ok {
+		return parsed.(*template.Template), nil
+	}
+	// An unknown function is an error here, before anything is started.
+	parsed, err := template.New("compose").Funcs(hostFuncs).Parse(expression)
+	if err != nil {
+		return nil, err
+	}
+	parsedExpressions.Store(expression, parsed)
+	return parsed, nil
+}
+
 func (r *composeRenderer) template(content []byte) ([]byte, error) {
 	var document any
 	if err := yaml.Unmarshal(content, &document); err != nil {
@@ -232,8 +250,7 @@ func (r *composeRenderer) value(value string) (any, error) {
 	}
 	out, done := r.rendered[expression]
 	if !done {
-		// An unknown function is an error here, before anything is started.
-		parsed, err := template.New("compose").Funcs(hostFuncs).Parse(expression)
+		parsed, err := parseExpression(expression)
 		if err != nil {
 			return nil, err
 		}

@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"maps"
 	"strings"
+	"sync"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/types"
@@ -49,14 +50,7 @@ var hostVariables = map[string]func(hostFacts) string{
 		return ""
 	},
 
-	"CONFIGURED_CARRIERS": func(facts hostFacts) string {
-		carriers, err := linuxconfig.GetEnabledCarriers(facts.ctx)
-		if err != nil {
-			slog.Warn("unable to get configured carriers", slog.String("error", err.Error()))
-			return ""
-		}
-		return strings.Join(f.Map(carriers, func(c linuxconfig.Carrier) string { return c.CarrierName }), ",")
-	},
+	"CONFIGURED_CARRIERS": func(facts hostFacts) string { return configuredCarriers.get(facts.ctx) },
 
 	"HOST_IP": func(hostFacts) string {
 		hostIP, err := helpers.GetHostIP()
@@ -85,6 +79,31 @@ var hostVariables = map[string]func(hostFacts) string{
 }
 
 // hostFacts is what the answers above are allowed to look at, besides the board.
+// carriersFact answers CONFIGURED_CARRIERS once per process: the enabled carriers are a fact of the
+// boot, and arduino-linux-config is a subprocess worth tens of milliseconds on a board.
+type carriersFact struct {
+	mu    sync.Mutex
+	value string
+	known bool
+}
+
+var configuredCarriers carriersFact
+
+func (c *carriersFact) get(ctx context.Context) string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.known {
+		return c.value
+	}
+	carriers, err := linuxconfig.GetEnabledCarriers(ctx)
+	if err != nil {
+		slog.Warn("unable to get configured carriers", slog.String("error", err.Error()))
+		return ""
+	}
+	c.value, c.known = strings.Join(f.Map(carriers, func(c linuxconfig.Carrier) string { return c.CarrierName }), ","), true
+	return c.value
+}
+
 type hostFacts struct {
 	ctx     context.Context
 	appPath *paths.Path
