@@ -9,8 +9,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"maps"
 	"slices"
@@ -128,7 +130,7 @@ func loadHandlers(dir *paths.Path, modelsDir *paths.Path, cfg config.Configurati
 		}
 	}
 
-	return &HandlersIndex{handlers: handlers, listing: listing, configEnv: configEnv}, nil
+	return &HandlersIndex{handlers: handlers, listing: listing, configEnv: configEnv, modelsDir: modelsDir}, nil
 }
 
 // WriteHandlers writes into dir a models-handlers.yaml holding only the handlers named,
@@ -188,6 +190,7 @@ type HandlersIndex struct {
 	handlers  map[string]ModelHandler
 	listing   *ListingConfig
 	configEnv map[string]string
+	modelsDir *paths.Path
 }
 
 func (h *HandlersIndex) GetHandlerByID(id string) (ModelHandler, bool) {
@@ -203,6 +206,11 @@ type handlerModelListOutput struct {
 	Event  string              `json:"event"`
 	Models []handlerModelEntry `json:"models"`
 }
+
+// listingFileName is the listing the models-downloader materializes in the models root
+// whenever the models on disk change: the models the list action prints, as YAML with
+// the same keys. It is replaced by rename, so it is never read half written.
+const listingFileName = "models.yaml"
 
 type entryMetadata struct {
 	ModelID string            `json:"model_id"`
@@ -335,9 +343,12 @@ func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient,
 		slog.Warn("handlers index or listing config is nil, cannot get model info")
 		return models, nil
 	}
-	entries, err := runListAction(ctx, cli, h.listing, h.configEnv)
-	if err != nil {
-		return models, fmt.Errorf("cannot list models: %w", err)
+	entries, ok := h.readListingFile(models)
+	if !ok {
+		var err error
+		if entries, err = runListAction(ctx, cli, h.listing, h.configEnv); err != nil {
+			return models, fmt.Errorf("cannot list models: %w", err)
+		}
 	}
 	// A shallow clone: applyStat replaces the maps it writes rather than editing them.
 	modelsInfo := slices.Clone(models)
@@ -358,6 +369,41 @@ func (h *HandlersIndex) getModelsInfo(ctx context.Context, cli client.APIClient,
 		modelsInfo = append(modelsInfo, model)
 	}
 	return modelsInfo, nil
+}
+
+// readListingFile answers the listing from the file in the models root, with no
+// container run. false when the file is missing, unreadable, or does not list every
+// model of the catalog a handler downloads: a file written from another models-list.yaml
+// (an older image) misses the models that catalog did not have.
+func (h *HandlersIndex) readListingFile(models []AIModel) ([]handlerModelEntry, bool) {
+	if h.modelsDir == nil {
+		return nil, false
+	}
+	path := h.modelsDir.Join(listingFileName)
+	content, err := path.ReadFile()
+	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			slog.Warn("cannot read the listing file, running the list action", "path", path, "err", err)
+		}
+		return nil, false
+	}
+	var output handlerModelListOutput
+	if err := yaml.Unmarshal(content, &output); err != nil {
+		slog.Warn("cannot parse the listing file, running the list action", "path", path, "err", err)
+		return nil, false
+	}
+	listed := make(map[string]bool, len(output.Models))
+	for _, entry := range output.Models {
+		listed[entry.ID] = true
+	}
+	for _, m := range models {
+		if m.Origin == CuratedOrigin && !m.NeedsNoDownload() && len(m.Deployment.Variables) > 0 && !listed[m.ID] {
+			slog.Info("the listing file does not list a catalog model, running the list action", "model", m.ID)
+			return nil, false
+		}
+	}
+	slog.Debug("listing read from file", "path", path, "models", len(output.Models))
+	return output.Models, true
 }
 
 func runListAction(ctx context.Context, cli client.APIClient, listing *ListingConfig, configEnv map[string]string) ([]handlerModelEntry, error) {
