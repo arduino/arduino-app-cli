@@ -7,6 +7,7 @@ require (
 	github.com/arduino/arduino-cli v1.5.2-0.20260925125641-e39aa9996f70
 	github.com/arduino/go-paths-helper v1.14.0
 	github.com/compose-spec/compose-go/v2 v2.15.0
+	github.com/containerd/errdefs v1.0.0
 	github.com/docker/cli v29.8.0+incompatible
 	github.com/docker/compose/v5 v5.5.1
 	github.com/fatih/color v1.19.0
@@ -119,7 +120,6 @@ require (
 	github.com/containerd/containerd/api v1.11.1 // indirect
 	github.com/containerd/containerd/v2 v2.3.4 // indirect
 	github.com/containerd/continuity v0.5.0 // indirect
-	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v1.0.0-rc.5 // indirect

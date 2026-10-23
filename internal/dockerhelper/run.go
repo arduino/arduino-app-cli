@@ -168,9 +168,6 @@ func IsExitError(err error) bool {
 // ensureImage downloads what the board has not, with the disk check and the retry that
 // every other pull has.
 func ensureImage(ctx context.Context, docker client.APIClient, img string) error {
-	if _, err := docker.ImageInspect(ctx, img); err == nil {
-		return nil
-	}
 	return PullImages(ctx, docker, []string{img}, nil, nil)
 }
 

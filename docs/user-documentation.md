@@ -6,6 +6,14 @@
 
 During the .deb installation, the package will check if an user with uid `1000` exist, if exist the required groups are set otherwise a new `arduino` user with id 1000 is created and added to the `docker`, `sysupgrade` and `arduino` group.
 
+## Container image references
+
+Image availability is checked against the board's Docker engine using Docker's
+reference resolution. An image without a tag, such as `viktoruj/ping_pong`, refers
+to `viktoruj/ping_pong:latest`. If that image is already local, it satisfies the
+app's readiness check and is not downloaded again during preparation.
+Use an explicit version tag or digest when you need a specific image version.
+
 ## Environment Variables
 
 The following environment variables are used to configure Arduino App CLI:
