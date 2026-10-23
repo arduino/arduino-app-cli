@@ -176,6 +176,12 @@ func generateComposeTemplate(
 			Source: "/dev",
 			Target: "/dev",
 		},
+		// Where the app launcher binds the control socket the daemon reaches it through
+		volume{
+			Type:   "bind",
+			Source: appRuntimeDirRef,
+			Target: launcherSocketDir,
+		},
 	}
 
 	// Mounted only where the board has them.
@@ -248,15 +254,18 @@ func generateComposeTemplate(
 		Volumes:           volumes,
 		Ports:             slices.Collect(maps.Keys(ports)),
 		Entrypoint:        "/run.sh",
+		Command:           []string{"serve"},
 		DependsOn:         dependsOn,
 		User:              appUserExpr,
 		GroupAdd:          groupExprs(groupNames),
 		DeviceCgroupRules: cgroupRules,
 		ExtraHosts:        []string{"msgpack-rpc-router:host-gateway"},
 		Labels: map[string]string{
-			DockerAppLabel:     "true",
-			DockerAppMainLabel: "true",
-			DockerAppPathLabel: appHomeRef,
+			DockerAppLabel:           "true",
+			DockerAppMainLabel:       "true",
+			DockerAppPathLabel:       appHomeRef,
+			DockerAppLauncherLabel:   "true",
+			DockerAppRuntimeDirLabel: appRuntimeDirRef,
 		},
 		Environment: templateEnvironment(appEnv),
 		Logging: &logging{

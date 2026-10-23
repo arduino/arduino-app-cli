@@ -813,7 +813,9 @@ paths:
   /v1/apps/{id}/start:
     post:
       description: Start the application and handles all the operation to start any
-        dependecies. If the app contains a sketch it also flash it in the micro.
+        dependecies. If the app contains a sketch it also flash it in the micro. Starting
+        the app that is already running reloads it with its current sources, in place when
+        its launcher runs it.
       operationId: startApp
       parameters:
       - description: Return a verbose output. Default is false.

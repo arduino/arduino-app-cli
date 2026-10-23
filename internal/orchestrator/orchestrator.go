@@ -107,6 +107,7 @@ func StartApp(
 	if cb == nil {
 		cb = func(StreamMessage) {}
 	}
+	steps := newStepTimer("start")
 
 	bricksIndex = appToStart.Bricks(bricksIndex)
 
@@ -143,6 +144,7 @@ func StartApp(
 			return err
 		}
 	}
+	steps.done("checks")
 
 	appsStatus, err := getAppsStatus(ctx, docker.Client())
 	if err != nil {
@@ -159,7 +161,21 @@ func StartApp(
 			if err != nil {
 				return fmt.Errorf("failed to load running app: %w", err)
 			}
-			return fmt.Errorf("app %q is running", runningApp.Name)
+			if !s.AppPath.EqualsTo(appToStart.FullPath) {
+				return fmt.Errorf("app %q is running", runningApp.Name)
+			}
+			// A start of the running app is a reload: in place when its launcher runs it,
+			// which the start asks to replace the app, after a stop otherwise
+			main, err := mainContainer(ctx, docker.Client(), appToStart.FullPath)
+			if err != nil {
+				return err
+			}
+			if main != nil && isLauncherContainer(*main) {
+				continue
+			}
+			if err := StopApp(ctx, docker, platform, runningApp, cfg, cb); err != nil {
+				return err
+			}
 		case StatusFailed:
 			if s.AppPath.EqualsTo(appToStart.FullPath) {
 				continue
@@ -177,6 +193,7 @@ func StartApp(
 	}
 
 	cb(StreamMessage{data: fmt.Sprintf("Starting app %q", appToStart.Name)})
+	steps.done("apps status")
 
 	// An app installed from a release holds in .cache what a start generates: the
 	// compose files and the python env, frozen for the board it was built for.
@@ -193,6 +210,7 @@ func StartApp(
 	if err := setLedsToUserControlledMode(platform); err != nil {
 		slog.Debug("unable to set status leds", slog.String("error", err.Error()))
 	}
+	steps.done("pipewire and leds")
 
 	sketchCallbackWriter := NewCallbackWriter(func(line string) {
 		cb(StreamMessage{data: line})
@@ -230,6 +248,7 @@ func StartApp(
 
 	if appToStart.MainPythonFile != nil {
 		appEnv := appEnvironment(ctx, appToStart, bricksIndex, modelsIndex, platform)
+		steps.done("app environment")
 
 		cb(StreamMessage{data: "python provisioning"})
 		provisionStartProgress := float32(0.0)
@@ -248,6 +267,7 @@ func StartApp(
 				return err
 			}
 		}
+		steps.done("resolve")
 
 		// What the template references, answered on this board. The app half is in
 		// the template already, frozen, when the app comes from a release.
@@ -256,6 +276,7 @@ func StartApp(
 		if err != nil {
 			return err
 		}
+		steps.done("render")
 
 		// Without a prepare, a start never fetches nor builds an image: it fails on a
 		// missing one and asks for a prepare first.
@@ -266,6 +287,15 @@ func StartApp(
 			for name, service := range prj.Services {
 				service.PullPolicy = types.PullPolicyNever
 				prj.Services[name] = service
+			}
+		}
+
+		// The folder the launcher binds its socket in, created by the daemon so that the
+		// app user owns it: docker would create a missing bind source as root.
+		served := launcherServed(prj)
+		if served {
+			if err := appRuntimeDir(cfg, appToStart.FullPath).MkdirAll(); err != nil {
+				return fmt.Errorf("failed to create the app runtime folder: %w", err)
 			}
 		}
 
@@ -281,6 +311,7 @@ func StartApp(
 		}
 
 		slog.Debug("starting app", slog.String("project", prj.Name))
+		steps.done("images")
 		line := func(line string) { cb(StreamMessage{data: line}) }
 		err = dockerhelper.ComposeUp(ctx, docker, prj, line)
 		if errors.Is(err, dockerhelper.ErrNetwork) {
@@ -300,6 +331,17 @@ func StartApp(
 		}
 		if err != nil {
 			return err
+		}
+		steps.done("compose up")
+
+		// Compose brought the main container up, or left it as it was after the app ended
+		// or for a reload: the launcher in it starts the app, replacing the running one.
+		if served {
+			cb(StreamMessage{data: "python starting"})
+			if err := startThroughLauncher(ctx, docker.Client(), appToStart.FullPath, cb); err != nil {
+				return err
+			}
+			steps.done("launcher")
 		}
 	}
 	cb(StreamMessage{progress: &Progress{Name: "", Progress: 100.0}})
@@ -376,6 +418,9 @@ func StopAndDestroyApp(ctx context.Context, dockerClient command.Cli, platform p
 	if err := cleanAppCacheFiles(app, cb); err != nil {
 		return err
 	}
+	if err := appRuntimeDir(cfg, app.FullPath).RemoveAll(); err != nil {
+		slog.Warn("unable to remove the app runtime folder", slog.String("error", err.Error()))
+	}
 	return nil
 }
 
@@ -419,21 +464,7 @@ func RestartApp(
 	verbose bool,
 	cb func(StreamMessage),
 ) error {
-	runningApp, err := getRunningApp(ctx, docker.Client())
-	if err != nil {
-		return err
-	}
-
-	if runningApp != nil {
-		if runningApp.FullPath.String() != appToStart.FullPath.String() {
-			return fmt.Errorf("another app %q is running", runningApp.Name)
-		}
-
-		if err := StopApp(ctx, docker, platform, *runningApp, cfg, cb); err != nil {
-			return err
-		}
-	}
-
+	// A start of the running app is a reload already
 	return StartApp(ctx, docker, provisioner, modelsIndex, bricksIndex, servicesIndex, appToStart, cfg, platform, verbose, !appToStart.IsRelease(), cb)
 }
 
