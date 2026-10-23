@@ -764,6 +764,7 @@ Contains a JSON object with the details of an error.
 			PossibleErrors: []ErrorResponse{
 				{StatusCode: http.StatusPreconditionFailed, Reference: "#/components/responses/PreconditionFailed"},
 				{StatusCode: http.StatusBadRequest, Reference: "#/components/responses/BadRequest"},
+				{StatusCode: http.StatusConflict, Reference: "#/components/responses/Conflict"},
 				{StatusCode: http.StatusInternalServerError, Reference: "#/components/responses/InternalServerError"},
 			},
 		},

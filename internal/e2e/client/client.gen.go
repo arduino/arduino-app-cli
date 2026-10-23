@@ -4871,6 +4871,7 @@ type EditAppResp struct {
 	HTTPResponse *http.Response
 	JSON200      *AppDetailedInfo
 	JSON400      *BadRequest
+	JSON409      *Conflict
 	JSON412      *PreconditionFailed
 	JSON500      *InternalServerError
 }
@@ -7160,6 +7161,13 @@ func ParseEditAppResp(rsp *http.Response) (*EditAppResp, error) {
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
 		var dest PreconditionFailed
