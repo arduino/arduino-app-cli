@@ -272,23 +272,12 @@ func StartApp(
 		// What the template references, answered on this board. The app half is in
 		// the template already, frozen, when the app comes from a release.
 		env := hostEnvironment(ctx, appToStart.FullPath, cfg).Merge(appEnv)
+		previous, _ := appToStart.AppComposeFilePath().ReadFile()
 		prj, err := provisioner.Render(ctx, &appToStart, env, appToStart.Secrets(bricksIndex))
 		if err != nil {
 			return err
 		}
 		steps.done("render")
-
-		// Without a prepare, a start never fetches nor builds an image: it fails on a
-		// missing one and asks for a prepare first.
-		if !prepare {
-			if err := checkImages(ctx, docker, prj); err != nil {
-				return err
-			}
-			for name, service := range prj.Services {
-				service.PullPolicy = types.PullPolicyNever
-				prj.Services[name] = service
-			}
-		}
 
 		// The folder the launcher binds its socket in, created by the daemon so that the
 		// app user owns it: docker would create a missing bind source as root.
@@ -299,40 +288,66 @@ func StartApp(
 			}
 		}
 
-		cb(StreamMessage{data: "python downloading"})
-
-		if err := dockerhelper.PullImages(ctx, docker.Client(), dockerhelper.ComposeImages(prj),
-			func(line string) { cb(StreamMessage{data: line}) },
-			func(label string, curr, total int64) {
-				// Downloading the images is from 20% to 80% of the start of an app.
-				cb(StreamMessage{progress: &Progress{Name: label, Progress: 20 + float32(curr*60/total)}})
-			}); err != nil {
-			return err
+		// A reload of a running app asks nothing of the images or of compose: the project it
+		// rendered is the one its containers run, and all of them are up. Anything else, a
+		// changed project, a stopped sidecar, a cold container, goes through compose as always.
+		warm := false
+		if served {
+			current, _ := appToStart.AppComposeFilePath().ReadFile()
+			if warm, err = appProjectUp(ctx, docker.Client(), appToStart.FullPath, prj, previous, current); err != nil {
+				return err
+			}
+			steps.done("project check")
 		}
 
-		slog.Debug("starting app", slog.String("project", prj.Name))
-		steps.done("images")
-		line := func(line string) { cb(StreamMessage{data: line}) }
-		err = dockerhelper.ComposeUp(ctx, docker, prj, line)
-		if errors.Is(err, dockerhelper.ErrNetwork) {
-			// The board is likely out of subnets: the apps give up the networks they
-			// keep, and this app is started once more.
-			cb(StreamMessage{data: "Could not create the network, freeing the ones the apps keep"})
-			appContainers, pruneErr := dockerhelper.Containers(ctx, docker.Client(), DockerAppLabel+"=true")
-			if pruneErr != nil {
-				slog.Warn("failed to list the app containers", slog.String("error", pruneErr.Error()))
+		if !warm {
+			// Without a prepare, a start never fetches nor builds an image: it fails on a
+			// missing one and asks for a prepare first.
+			if !prepare {
+				if err := checkImages(ctx, docker, prj); err != nil {
+					return err
+				}
+				for name, service := range prj.Services {
+					service.PullPolicy = types.PullPolicyNever
+					prj.Services[name] = service
+				}
 			}
-			freed, pruneErr := dockerhelper.PruneNetworks(ctx, docker.Client(), ourNetworks(appContainers))
-			if pruneErr != nil {
-				slog.Warn("failed to free the networks of the apps", slog.String("error", pruneErr.Error()))
+
+			cb(StreamMessage{data: "python downloading"})
+
+			if err := dockerhelper.PullImages(ctx, docker.Client(), dockerhelper.ComposeImages(prj),
+				func(line string) { cb(StreamMessage{data: line}) },
+				func(label string, curr, total int64) {
+					// Downloading the images is from 20% to 80% of the start of an app.
+					cb(StreamMessage{progress: &Progress{Name: label, Progress: 20 + float32(curr*60/total)}})
+				}); err != nil {
+				return err
 			}
-			slog.Debug("freed app networks", slog.Int("count", freed))
+			steps.done("images")
+
+			slog.Debug("starting app", slog.String("project", prj.Name))
+			line := func(line string) { cb(StreamMessage{data: line}) }
 			err = dockerhelper.ComposeUp(ctx, docker, prj, line)
+			if errors.Is(err, dockerhelper.ErrNetwork) {
+				// The board is likely out of subnets: the apps give up the networks they
+				// keep, and this app is started once more.
+				cb(StreamMessage{data: "Could not create the network, freeing the ones the apps keep"})
+				appContainers, pruneErr := dockerhelper.Containers(ctx, docker.Client(), DockerAppLabel+"=true")
+				if pruneErr != nil {
+					slog.Warn("failed to list the app containers", slog.String("error", pruneErr.Error()))
+				}
+				freed, pruneErr := dockerhelper.PruneNetworks(ctx, docker.Client(), ourNetworks(appContainers))
+				if pruneErr != nil {
+					slog.Warn("failed to free the networks of the apps", slog.String("error", pruneErr.Error()))
+				}
+				slog.Debug("freed app networks", slog.Int("count", freed))
+				err = dockerhelper.ComposeUp(ctx, docker, prj, line)
+			}
+			if err != nil {
+				return err
+			}
+			steps.done("compose up")
 		}
-		if err != nil {
-			return err
-		}
-		steps.done("compose up")
 
 		// Compose brought the main container up, or left it as it was after the app ended
 		// or for a reload: the launcher in it starts the app, replacing the running one.

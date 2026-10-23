@@ -7,6 +7,7 @@ package orchestrator
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -61,6 +62,9 @@ const (
 )
 
 const mainServiceName = "main"
+
+// composeServiceLabel names the service a container runs.
+const composeServiceLabel = "com.docker.compose.service"
 
 // procRoot is where the process table is read, replaced in tests.
 var procRoot = "/proc"
@@ -190,6 +194,36 @@ func parentPID(pid int) (int, error) {
 		}
 	}
 	return 0, fmt.Errorf("no parent in the status of the process %d", pid)
+}
+
+// appProjectUp tells whether the project of the app runs as rendered: the compose file written
+// now is the one written before, byte for byte, and every service of the project has a running
+// container. The main container is the one answering the launcher socket, so no ping is needed.
+func appProjectUp(ctx context.Context, docker dockerClient.APIClient, appPath *paths.Path, prj *types.Project, previous, current []byte) (bool, error) {
+	if len(previous) == 0 || !bytes.Equal(previous, current) {
+		return false, nil
+	}
+	containers, err := dockerhelper.Containers(ctx, docker, DockerAppPathLabel+"="+appPath.String())
+	if err != nil {
+		return false, err
+	}
+	return projectServicesRunning(prj, containers), nil
+}
+
+// projectServicesRunning tells whether each service of the project has a running container.
+func projectServicesRunning(prj *types.Project, containers []container.Summary) bool {
+	running := map[string]bool{}
+	for _, c := range containers {
+		if c.State == container.StateRunning && c.Labels[composeProjectLabel] == prj.Name {
+			running[c.Labels[composeServiceLabel]] = true
+		}
+	}
+	for name := range prj.Services {
+		if !running[name] {
+			return false
+		}
+	}
+	return len(prj.Services) > 0
 }
 
 // startThroughLauncher starts the app in its main container, which compose brought up, through

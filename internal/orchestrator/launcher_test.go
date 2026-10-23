@@ -62,3 +62,16 @@ func TestTheLauncherDecidesTheStatusOfTheAppItDrives(t *testing.T) {
 		assert.Equal(t, StatusRunning, statuses[0].Status)
 	})
 }
+
+func TestAProjectIsUpWhenEveryServiceHasARunningContainer(t *testing.T) {
+	prj := &types.Project{Name: "app", Services: types.Services{"main": {}, "db": {}}}
+	running := func(service string) container.Summary {
+		return container.Summary{State: container.StateRunning, Labels: map[string]string{composeProjectLabel: "app", composeServiceLabel: service}}
+	}
+	exited := running("db")
+	exited.State = container.StateExited
+	assert.True(t, projectServicesRunning(prj, []container.Summary{running("main"), running("db")}))
+	assert.False(t, projectServicesRunning(prj, []container.Summary{running("main"), exited}), "a stopped sidecar needs compose")
+	assert.False(t, projectServicesRunning(prj, []container.Summary{running("main")}), "a sidecar without a container needs compose")
+	assert.False(t, projectServicesRunning(&types.Project{Name: "app"}, nil))
+}
