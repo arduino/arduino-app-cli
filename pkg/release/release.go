@@ -140,8 +140,11 @@ func ReadReleaseManifestFromReader(r io.Reader) (ReleaseManifest, error) {
 	if !foundManifest {
 		return ReleaseManifest{}, errors.New("no release manifest, it is not a release")
 	}
-	if manifest.Name == "" || manifest.Target == "" {
-		return ReleaseManifest{}, errors.New("its release manifest states no name or no target")
+	if manifest.Name == "" {
+		return ReleaseManifest{}, errors.New("its release manifest states no name")
+	}
+	if manifest.Target == "" {
+		return ReleaseManifest{}, errors.New("its release manifest states no target")
 	}
 	if manifest.Schema == 0 {
 		return ReleaseManifest{}, errors.New("its release manifest states no schema")
