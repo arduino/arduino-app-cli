@@ -80,6 +80,9 @@ RUN if [ "${SKIP_SYSTEM_INIT}" = 1 ]; then \
 RUN echo "deb [trusted=yes arch=${ARCH}] file:/var/www/html/myrepo local main" \
     > /etc/apt/sources.list.d/my-mock-repo.list
 
+# The container has no board: system init needs a platform to download.
+RUN echo '{"fqbn": "arduino:zephyr:unoq"}' > /var/lib/arduino-app-cli/platform.json
+
 EXPOSE 8800
 # CMD: systemd must be PID 1
 CMD ["/sbin/init"]
