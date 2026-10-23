@@ -69,9 +69,20 @@ func ReadReleaseManifest(archive *paths.Path) (ReleaseManifest, error) {
 	}
 	defer file.Close()
 
-	gzipReader, err := gzip.NewReader(file)
+	manifest, err := ReadReleaseManifestFromReader(file)
 	if err != nil {
-		return ReleaseManifest{}, fmt.Errorf("%s is not a release archive: %w", archive.Base(), err)
+		return ReleaseManifest{}, fmt.Errorf("%s: %w", archive.Base(), err)
+	}
+	return manifest, nil
+}
+
+// ReadReleaseManifestFromReader reads the manifest, the bricks list and the models list of
+// a release archive in a single pass, exactly like ReadReleaseManifest, but from an
+// already-open gzip-compressed tar stream instead of a path on disk.
+func ReadReleaseManifestFromReader(r io.Reader) (ReleaseManifest, error) {
+	gzipReader, err := gzip.NewReader(r)
+	if err != nil {
+		return ReleaseManifest{}, fmt.Errorf("is not a release archive: %w", err)
 	}
 	defer gzipReader.Close()
 
@@ -94,7 +105,7 @@ func ReadReleaseManifest(archive *paths.Path) (ReleaseManifest, error) {
 			break
 		}
 		if err != nil {
-			return ReleaseManifest{}, fmt.Errorf("cannot read %s: %w", archive.Base(), err)
+			return ReleaseManifest{}, fmt.Errorf("cannot read tar entry: %w", err)
 		}
 
 		name := path.Clean(filepath.ToSlash(header.Name))
@@ -103,7 +114,7 @@ func ReadReleaseManifest(archive *paths.Path) (ReleaseManifest, error) {
 			releaseName = root
 		}
 		if root != releaseName || root == "" || root == "." || root == ".." {
-			return ReleaseManifest{}, fmt.Errorf("%s is not rooted at a single release folder", archive.Base())
+			return ReleaseManifest{}, errors.New("is not rooted at a single release folder")
 		}
 
 		switch name {
@@ -127,10 +138,10 @@ func ReadReleaseManifest(archive *paths.Path) (ReleaseManifest, error) {
 		}
 	}
 	if !foundManifest {
-		return ReleaseManifest{}, fmt.Errorf("%s no release manifest, it is not a release", archive.Base())
+		return ReleaseManifest{}, errors.New("no release manifest, it is not a release")
 	}
 	if manifest.Name == "" || manifest.Target == "" {
-		return ReleaseManifest{}, fmt.Errorf("its release manifest states no name or no target")
+		return ReleaseManifest{}, errors.New("its release manifest states no name or no target")
 	}
 
 	manifest.bricks = bricksList.Bricks
