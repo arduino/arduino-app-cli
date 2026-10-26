@@ -9,6 +9,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"os/user"
+	"strconv"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/compose-spec/compose-go/v2/loader"
@@ -233,8 +236,34 @@ func provisionComposeVolumes(prj *types.Project) {
 					slog.Warn("Failed to create host directory for compose file", slog.String("service", name), slog.String("host_directory", hostDirectory.String()), slog.Any("error", err))
 				} else {
 					slog.Debug("Pre-provisioning host directory for compose file", slog.String("service", name), slog.String("host_directory", hostDirectory.String()))
+					if err := shareWithGroup(hostDirectory, appGroupName); err != nil {
+						slog.Warn("Failed to share host directory with the app group", slog.String("service", name), slog.String("host_directory", hostDirectory.String()), slog.Any("error", err))
+					}
 				}
 			}
 		}
 	}
+}
+
+// appGroupName is the group the containers of the services run in: the one that has to
+// be able to write what the cli creates for them.
+const appGroupName = "arduino"
+
+// shareWithGroup lets the group write the directory, and what is created in it: the
+// cli creates it as its own user, while a service may run as another uid in the group.
+// The group is set before the mode: setgid is dropped when the owner is not in it.
+func shareWithGroup(dir *paths.Path, groupName string) error {
+	group, err := user.LookupGroup(groupName)
+	if err != nil {
+		return err
+	}
+	gid, err := strconv.Atoi(group.Gid)
+	if err != nil {
+		return err
+	}
+	if err := os.Chown(dir.String(), -1, gid); err != nil {
+		return err
+	}
+	// MkdirAll is subject to the umask, so the mode is set explicitly.
+	return os.Chmod(dir.String(), 0775|os.ModeSetgid)
 }
