@@ -501,6 +501,7 @@ func waitForRestart(t *testing.T, host string) {
 		if event.Event == "restarting" {
 			break
 		}
+		require.NotEqual(t, "done", event.Event, "the update ended without a restart")
 	}
 }
 
