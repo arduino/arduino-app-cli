@@ -8,6 +8,7 @@ package release
 import (
 	"archive/tar"
 	"compress/gzip"
+	"strings"
 	"testing"
 	"time"
 
@@ -97,13 +98,40 @@ func TestReadReleaseManifestNoManifest(t *testing.T) {
 	assert.ErrorContains(t, err, "no release manifest")
 }
 
-func TestReadReleaseManifestIncompleteManifest(t *testing.T) {
+func TestReadReleaseManifestNoName(t *testing.T) {
 	archivePath := writeTestArchive(t, map[string]string{
-		"release.yaml": "schema: 1\n",
+		"release.yaml": "schema: 1\ntarget: unoq\ncreated_at: 2026-09-14T13:45:12Z\n",
 	}, []string{"release.yaml"})
 
 	_, err := ReadReleaseManifest(archivePath)
-	assert.ErrorContains(t, err, "states no name or no target")
+	assert.ErrorContains(t, err, "states no name")
+}
+
+func TestReadReleaseManifestNoTarget(t *testing.T) {
+	archivePath := writeTestArchive(t, map[string]string{
+		"release.yaml": "schema: 1\nname: my-app\ncreated_at: 2026-09-14T13:45:12Z\n",
+	}, []string{"release.yaml"})
+
+	_, err := ReadReleaseManifest(archivePath)
+	assert.ErrorContains(t, err, "states no target")
+}
+
+func TestReadReleaseManifestNoCreatedAt(t *testing.T) {
+	archivePath := writeTestArchive(t, map[string]string{
+		"release.yaml": "schema: 1\nname: my-app\ntarget: unoq\n",
+	}, []string{"release.yaml"})
+
+	_, err := ReadReleaseManifest(archivePath)
+	assert.ErrorContains(t, err, "states no created_at")
+}
+
+func TestReadReleaseManifestNoSchema(t *testing.T) {
+	archivePath := writeTestArchive(t, map[string]string{
+		"release.yaml": "name: my-app\ntarget: unoq\ncreated_at: 2026-09-14T13:45:12Z\n",
+	}, []string{"release.yaml"})
+
+	_, err := ReadReleaseManifest(archivePath)
+	assert.ErrorContains(t, err, "states no schema")
 }
 
 func TestReadReleaseManifestMultipleRoots(t *testing.T) {
@@ -124,4 +152,32 @@ func TestReadReleaseManifestMultipleRoots(t *testing.T) {
 
 	_, err = ReadReleaseManifest(archivePath)
 	assert.ErrorContains(t, err, "is not rooted at a single release folder")
+}
+
+func TestReadReleaseManifestFromReader(t *testing.T) {
+	manifest := "schema: 1\n" +
+		"name: my-app\n" +
+		"target: unoq\n" +
+		"created_at: 2026-09-14T13:45:12Z\n" +
+		"notes: hello\n"
+
+	archivePath := writeTestArchive(t, map[string]string{
+		"release.yaml": manifest,
+		"src/app.yaml": "name: my-app\n",
+	}, []string{"release.yaml", "src/app.yaml"})
+
+	file, err := archivePath.Open()
+	require.NoError(t, err)
+	defer file.Close()
+
+	info, err := ReadReleaseManifestFromReader(file)
+	require.NoError(t, err)
+	assert.Equal(t, 1, info.Schema)
+	assert.Equal(t, "my-app", info.Name)
+	assert.Equal(t, "unoq", info.Target)
+}
+
+func TestReadReleaseManifestFromReaderNotAReleaseArchive(t *testing.T) {
+	_, err := ReadReleaseManifestFromReader(strings.NewReader("plain text, no gzip header"))
+	assert.ErrorContains(t, err, "is not a release archive")
 }
