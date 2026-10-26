@@ -889,7 +889,7 @@ func TestAppStartBuildsLocalBrick(t *testing.T) {
 	for name, content := range map[string]string{
 		"brick_config.yaml":  "id: hello-build\nname: Hello Build\n",
 		"brick_compose.yaml": "services:\n  hello-build:\n    build:\n      context: .\n",
-		"Dockerfile":         "FROM busybox\nCOPY message.txt /message.txt\nCMD [\"sh\", \"-c\", \"cat /message.txt; sleep infinity\"]\n",
+		"Dockerfile":         "FROM busybox\nCOPY message.txt /message.txt\nCMD [\"sh\", \"-c\", \"trap 'exit 0' TERM; cat /message.txt; sleep infinity & wait\"]\n",
 	} {
 		require.NoError(t, brickDir.Join(name).WriteFile([]byte(content)))
 	}
