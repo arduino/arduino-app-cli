@@ -7,6 +7,8 @@ package orchestrator
 
 import (
 	"os"
+	"os/user"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -150,6 +152,34 @@ func testProjectIncluding(t *testing.T, appPath *paths.Path, composeFile *paths.
 	)
 	require.NoError(t, err)
 	return prj
+}
+
+func TestShareWithGroup(t *testing.T) {
+	group, err := user.LookupGroupId(strconv.Itoa(os.Getgid()))
+	require.NoError(t, err)
+
+	t.Run("the group can write the directory and what is created in it", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, os.Chmod(dir, 0755))
+
+		require.NoError(t, shareWithGroup(paths.New(dir), group.Name))
+
+		info, err := os.Stat(dir)
+		require.NoError(t, err)
+		require.Equal(t, os.FileMode(0775), info.Mode().Perm(), "the umask does not apply")
+		require.NotZero(t, info.Mode()&os.ModeSetgid, "what is created in it keeps the group")
+	})
+
+	t.Run("a group the board has not is an error", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, os.Chmod(dir, 0755))
+
+		require.Error(t, shareWithGroup(paths.New(dir), "no-such-group-on-this-board"))
+
+		info, err := os.Stat(dir)
+		require.NoError(t, err)
+		require.Equal(t, os.FileMode(0755), info.Mode().Perm(), "the directory is left as it was")
+	})
 }
 
 func TestVolumeParser(t *testing.T) {
