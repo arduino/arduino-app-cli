@@ -934,6 +934,22 @@ func TestAppStartBuildsLocalBrick(t *testing.T) {
 
 		startAndExpect("hello from build 2")
 	})
+
+	t.Run("ReleaseBuildRefused", func(t *testing.T) {
+		resp, err := httpClient.BuildAppWithResponse(t.Context(), appID, client.BuildAppJSONRequestBody{Target: new("unoq")})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode())
+
+		_, body := lastBuildPart(t, resp)
+		var failure struct {
+			Event string `json:"event"`
+			models.ErrorResponse
+		}
+		require.NoError(t, json.Unmarshal(body, &failure))
+		assert.Equal(t, "error", failure.Event)
+		assert.Equal(t, "BAD_REQUEST", failure.Code)
+		assert.Contains(t, failure.Details, `the brick "hello-build" builds its container from a Dockerfile`)
+	})
 }
 
 func TestAppDetails(t *testing.T) {

@@ -178,6 +178,7 @@ type serviceInfo struct {
 	hasHealthcheck bool
 	user           *string
 	requireDevices bool
+	build          bool
 }
 
 // extractServicesFromComposeFile reads what a brick or service compose declares: its
@@ -213,6 +214,7 @@ func extractServicesFromComposeFile(composeFile *paths.Path) ([]serviceInfo, err
 			name:           name,
 			hasHealthcheck: hasHealthcheck,
 			user:           userPtr,
+			build:          svc.Build != nil,
 		})
 	}
 	return services, nil

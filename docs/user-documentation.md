@@ -19,6 +19,7 @@ Use an explicit version tag or digest when you need a specific image version.
 A brick compose service with `build:` is built at every app start, and a relative
 `context` is the brick folder. The build uses the legacy builder of the Docker engine,
 not BuildKit: BuildKit-only Dockerfile syntax, such as `RUN --mount` or heredocs, fails.
+A release build refuses an app with such a brick.
 
 ## Environment Variables
 

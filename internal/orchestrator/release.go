@@ -107,6 +107,25 @@ func BuildRelease(
 		return BuildReleaseResult{}, nil, err
 	}
 
+	// The board of a release does not build: a brick that builds its container cannot ship.
+	for _, brick := range appToBuild.Descriptor.Bricks {
+		indexBrick, found := bricksIndex.FindBrickByID(brick.ID)
+		if !found {
+			continue
+		}
+		composeFile, ok := indexBrick.GetComposeFile()
+		if !ok {
+			continue
+		}
+		services, err := extractServicesFromComposeFile(composeFile)
+		if err != nil {
+			return BuildReleaseResult{}, nil, fmt.Errorf("brick %s: invalid compose file %s: %w", brick.ID, appRelative(composeFile, appToBuild.FullPath), err)
+		}
+		if slices.ContainsFunc(services, func(s serviceInfo) bool { return s.build }) {
+			return BuildReleaseResult{}, nil, fmt.Errorf("%w: the brick %q builds its container from a Dockerfile, which a release cannot ship", ErrBadRequest, brick.ID)
+		}
+	}
+
 	// TODO: fail when a service a brick requires is missing for the target. The
 	// generator skips it, so it would be missing from the archive for good.
 
