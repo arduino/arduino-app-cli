@@ -22,11 +22,12 @@ import (
 // stopTimeout is what a container is given to stop before it is killed.
 const stopTimeout = 5 * time.Second
 
-// ComposeImages is every image the project names, which is what a pull is given.
+// ComposeImages is every image the project names, which is what a pull is given. An
+// image a service builds is not: the registry does not have it.
 func ComposeImages(prj *types.Project) []string {
 	images := make([]string, 0, len(prj.Services))
 	for _, service := range prj.Services {
-		if service.Image != "" {
+		if service.Image != "" && service.Build == nil {
 			images = append(images, service.Image)
 		}
 	}
@@ -36,10 +37,14 @@ func ComposeImages(prj *types.Project) []string {
 // ComposeUp starts the app the project states, reporting to line what it does. The
 // compose of the board takes no part: the sdk this binary links talks to the engine.
 func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line func(string)) error {
-	// An image the board already has is not asked for again: `--pull missing`.
+	// An image the board already has is not asked for again: `--pull missing`. A built
+	// one is built at every start, and the cache keeps an unchanged one as it is.
 	for name, service := range prj.Services {
 		if service.PullPolicy == "" {
 			service.PullPolicy = types.PullPolicyMissing
+			if service.Build != nil {
+				service.PullPolicy = types.PullPolicyBuild
+			}
 			prj.Services[name] = service
 		}
 	}
@@ -47,12 +52,12 @@ func ComposeUp(ctx context.Context, docker command.Cli, prj *types.Project, line
 	stampComposeLabels(prj)
 
 	reported := newProgress(line)
-	backend, err := compose.NewComposeService(docker, compose.WithEventProcessor(reported))
+	backend, err := compose.NewComposeService(classicBuilder{docker}, compose.WithEventProcessor(reported))
 	if err != nil {
 		return err
 	}
 	err = backend.Up(ctx, prj, api.UpOptions{
-		Create: api.CreateOptions{RemoveOrphans: true, Inherit: true},
+		Create: api.CreateOptions{RemoveOrphans: true, Inherit: true, Build: &api.BuildOptions{}},
 		Start:  api.StartOptions{Project: prj},
 	})
 	// What went wrong is reported as an event, and the error itself says little.
@@ -92,6 +97,12 @@ func ComposeDown(ctx context.Context, docker command.Cli, projectName string, li
 		Timeout:       &timeout,
 	})
 }
+
+// classicBuilder makes the sdk build with the legacy builder of the engine. WARNING: the sdk
+// needs buildx 0.17, which the UNO Q does not have; drop this once the board ships it.
+type classicBuilder struct{ command.Cli }
+
+func (classicBuilder) BuildKitEnabled() (bool, error) { return false, nil }
 
 // stampComposeLabels marks the services the way the sdk marks the projects it loads
 // itself: compose finds the containers of a project by these labels.

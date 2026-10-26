@@ -99,11 +99,11 @@ func TestFrozenComposeIncludes(t *testing.T) {
 
 	includes, err := frozenComposeIncludes(paths.NewPathList(assetCompose.String(), localCompose.String()), genPath, cfg, types.Mapping{})
 	require.NoError(t, err)
-	assert.Equal(t, []string{
-		"compose/compose/arduino/asset_brick/brick_compose.yaml",
-		"compose/local_brick/brick_compose.yaml",
+	assert.Equal(t, []composeInclude{
+		{Path: "compose/compose/arduino/asset_brick/brick_compose.yaml"},
+		{Path: "compose/local_brick/brick_compose.yaml", ProjectDirectory: "../bricks/local_brick"},
 	}, includes)
 	for _, include := range includes {
-		assert.FileExists(t, genPath.Join(include).String())
+		assert.FileExists(t, genPath.Join(include.Path).String())
 	}
 }

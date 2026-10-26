@@ -144,9 +144,9 @@ func generateComposeTemplate(
 	// The project name is not stated here: the render step names the app after the
 	// path it is installed at, which a release build cannot know.
 	var mainAppCompose struct {
-		Include  []string       `yaml:"include,omitempty"`
-		Services map[string]any `yaml:"services,omitempty"`
-		Networks map[string]any `yaml:"networks,omitempty"`
+		Include  []composeInclude `yaml:"include,omitempty"`
+		Services map[string]any   `yaml:"services,omitempty"`
+		Networks map[string]any   `yaml:"networks,omitempty"`
 	}
 
 	// The network carries the labels of its containers: a cleanup finds it once they
@@ -292,7 +292,7 @@ func generateComposeTemplate(
 // included by, substituted, and is the include: list of that template. What a copy states
 // no longer depends on the asset dir it came from, nor on the environment of whoever
 // starts the app: only the host facts are left for the render step to answer.
-func frozenComposeIncludes(composeFiles paths.PathList, genPath *paths.Path, cfg config.Configuration, appEnv types.Mapping) ([]string, error) {
+func frozenComposeIncludes(composeFiles paths.PathList, genPath *paths.Path, cfg config.Configuration, appEnv types.Mapping) ([]composeInclude, error) {
 	composesDir := genPath.Join("compose")
 	// A leftover copy from a previous resolve would be included again if a brick that
 	// was removed is added back with a compose of its own.
@@ -302,13 +302,20 @@ func frozenComposeIncludes(composeFiles paths.PathList, genPath *paths.Path, cfg
 
 	lookup := frozenLookup(cfg, appEnv)
 
-	includes := make([]string, 0, len(composeFiles))
+	includes := make([]composeInclude, 0, len(composeFiles))
 	for _, composeFile := range composeFiles {
 		// Keep the layout of the asset dir: it makes the copied names unique. A local
 		// brick is outside it, where RelFrom answers a ../ chain and not an error.
+		var projectDir string
 		relPath, err := composeFile.RelFrom(cfg.AssetDir())
 		if inside, _ := composeFile.IsInsideDir(cfg.AssetDir()); err != nil || !inside {
 			relPath = paths.New(composeFile.Parent().Base(), composeFile.Base())
+			// The relative paths of a local brick, as a build context, stay in its folder.
+			brickDir, err := composeFile.Parent().RelFrom(genPath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve the folder of %s: %w", composeFile, err)
+			}
+			projectDir = brickDir.String()
 		}
 
 		frozen, err := frozenCompose(composeFile, lookup)
@@ -330,9 +337,16 @@ func frozenComposeIncludes(composeFiles paths.PathList, genPath *paths.Path, cfg
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve the include path of %s: %w", dst, err)
 		}
-		includes = append(includes, include.String())
+		includes = append(includes, composeInclude{Path: include.String(), ProjectDirectory: projectDir})
 	}
 	return includes, nil
+}
+
+// composeInclude is the long form of an include: the relative paths of the file are
+// resolved from ProjectDirectory, or from the folder of the file when it is empty.
+type composeInclude struct {
+	Path             string `yaml:"path"`
+	ProjectDirectory string `yaml:"project_directory,omitempty"`
 }
 
 // appRelative is the path the editor of the app shows, absolute for a file outside it.
