@@ -35,10 +35,6 @@ const appRuntimeDirRef = "${" + appRuntimeDirVar + "}"
 const appUserExpr = exprPrefix + `{{ with groupID "arduino" }}1000:{{ . }}{{ else }}1000{{ end }}`
 const mainUserExpr = exprPrefix + `{{ currentUid }}:{{ currentGid }}`
 
-// mainUserExpr is the user of the main service, the one running the python-apps-base
-// image: the uid:gid the cli runs as, instead of the fixed one of appUserExpr.
-const mainUserExpr = exprPrefix + `{{ currentUser }}`
-
 // hostVariables are what a template references as ${VAR}: the name is the reference the
 // resolve step writes, the function is the answer the render step fills in.
 var hostVariables = map[string]func(hostFacts) string{
