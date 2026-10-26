@@ -28,13 +28,13 @@ import (
 
 const appHomeRef = "${APP_HOME}"
 
-// An app runs as uid 1000, the uid the cli itself runs as on a standard
-// installation (cmd/arduino-app-cli), in the arduino group, which is required
-// to exist but not to have a known id.
+// appUserExpr is the user of the services of an app other than main that do not set
+// their own: a fixed uid 1000, with the arduino group as gid when the host has it.
+// The main service does not use it, see mainUserExpr.
 const appUserExpr = exprPrefix + `{{ with groupID "arduino" }}1000:{{ . }}{{ else }}1000{{ end }}`
 
-// mainUserExpr is the user of the main service, the one running the python-apps-base
-// image: the uid:gid the cli runs as, instead of the fixed one of appUserExpr.
+// image: the uid:gid the cli runs as, instead of the fixed one of appUserExpr
+// The arduino group is added to it, as to every service, through group_add.
 const mainUserExpr = exprPrefix + `{{ currentUser }}`
 
 // hostVariables are what a template references as ${VAR}: the name is the reference the
