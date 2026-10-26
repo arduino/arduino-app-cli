@@ -98,13 +98,22 @@ func TestReadReleaseManifestNoManifest(t *testing.T) {
 	assert.ErrorContains(t, err, "no release manifest")
 }
 
-func TestReadReleaseManifestIncompleteManifest(t *testing.T) {
+func TestReadReleaseManifestNoName(t *testing.T) {
 	archivePath := writeTestArchive(t, map[string]string{
-		"release.yaml": "schema: 1\n",
+		"release.yaml": "schema: 1\ntarget: unoq\ncreated_at: 2026-09-14T13:45:12Z\n",
 	}, []string{"release.yaml"})
 
 	_, err := ReadReleaseManifest(archivePath)
-	assert.ErrorContains(t, err, "states no name or no target")
+	assert.ErrorContains(t, err, "states no name")
+}
+
+func TestReadReleaseManifestNoTarget(t *testing.T) {
+	archivePath := writeTestArchive(t, map[string]string{
+		"release.yaml": "schema: 1\nname: my-app\ncreated_at: 2026-09-14T13:45:12Z\n",
+	}, []string{"release.yaml"})
+
+	_, err := ReadReleaseManifest(archivePath)
+	assert.ErrorContains(t, err, "states no target")
 }
 
 func TestReadReleaseManifestNoCreatedAt(t *testing.T) {
