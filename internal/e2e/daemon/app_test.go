@@ -787,28 +787,7 @@ func TestAppLogs(t *testing.T) {
 	require.Equal(t, http.StatusCreated, createResp.StatusCode())
 	appWithLogsId := *createResp.JSON201.Id
 
-	startResp, err := httpClient.StartApp(t.Context(), appWithLogsId, nil)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, startResp.StatusCode)
-	defer startResp.Body.Close() // loop closes it too, but the linter cannot see that
-	startEvents := make(chan Event)
-	go loop(startResp.Body, startEvents)
-	for event := range startEvents {
-		t.Logf("start event: %s %s", event.Event, string(event.Data))
-		if event.Event != sseEventError {
-			continue
-		}
-		var errData struct {
-			Code    string `json:"code"`
-			Message string `json:"message"`
-		}
-		require.NoError(t, json.Unmarshal(event.Data, &errData))
-		// SERVER_CLOSED is emitted by the SSE teardown on every stream; ignore it.
-		if errData.Code == sseCodeServerClosed {
-			continue
-		}
-		t.Fatalf("app failed to start: code=%s message=%s", errData.Code, errData.Message)
-	}
+	startApp(t, httpClient, appWithLogsId)
 
 	t.Run("InvalidAppId_Fail", func(t *testing.T) {
 		var actualResponseBody models.ErrorResponse
@@ -886,6 +865,75 @@ func TestAppLogs(t *testing.T) {
 		t.Fatal("no message event received before timeout")
 	})
 	// find a way to test 400 invalid tail value: client generated code is type safe, so an invalid value can't be sent
+}
+
+func TestAppStartBuildsLocalBrick(t *testing.T) {
+	cli := e2e.CreateEnvForDaemon(t)
+	httpClient, err := client.NewClientWithResponses(cli.DaemonAddr)
+	require.NoError(t, err)
+
+	appName := "app-with-built-brick"
+	createResp, err := httpClient.CreateAppWithResponse(
+		t.Context(),
+		&client.CreateAppParams{SkipSketch: new(true)},
+		client.CreateAppRequest{Icon: new("🔨"), Name: appName},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode())
+	appID := *createResp.JSON201.Id
+
+	// The build context is relative: it must be the brick folder, not the copy of its compose.
+	appDir := cli.AppsDir().Join(appName)
+	brickDir := appDir.Join("bricks", "hello-build")
+	require.NoError(t, brickDir.MkdirAll())
+	for name, content := range map[string]string{
+		"brick_config.yaml":  "id: hello-build\nname: Hello Build\n",
+		"brick_compose.yaml": "services:\n  hello-build:\n    build:\n      context: .\n",
+		"Dockerfile":         "FROM busybox\nCOPY message.txt /message.txt\nCMD [\"sh\", \"-c\", \"cat /message.txt; sleep infinity\"]\n",
+	} {
+		require.NoError(t, brickDir.Join(name).WriteFile([]byte(content)))
+	}
+	require.NoError(t, appDir.Join("app.yaml").WriteFile([]byte("name: "+appName+"\nbricks:\n- hello-build:\n")))
+
+	startAndExpect := func(message string) {
+		require.NoError(t, brickDir.Join("message.txt").WriteFile([]byte(message+"\n")))
+		startApp(t, httpClient, appID)
+
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		defer cancel()
+		logsResp, err := httpClient.GetAppLogs(ctx, appID, &client.GetAppLogsParams{Filter: new("bricks")})
+		require.NoError(t, err)
+		defer logsResp.Body.Close()
+		require.Equal(t, http.StatusOK, logsResp.StatusCode)
+		logEvents := make(chan Event)
+		go loop(logsResp.Body, logEvents)
+		for event := range logEvents {
+			if event.Event != "message" {
+				continue
+			}
+			var payload handlers.ResponseLogs
+			require.NoError(t, json.Unmarshal(event.Data, &payload))
+			if strings.Contains(payload.Message, message) {
+				return
+			}
+		}
+		t.Fatalf("the brick container did not print %q", message)
+	}
+
+	t.Run("FirstStartBuilds", func(t *testing.T) {
+		startAndExpect("hello from build 1")
+	})
+
+	t.Run("ChangedContextRebuilds", func(t *testing.T) {
+		stopResp, err := httpClient.StopApp(t.Context(), appID)
+		require.NoError(t, err)
+		defer stopResp.Body.Close()
+		require.Equal(t, http.StatusOK, stopResp.StatusCode)
+		_, err = io.Copy(io.Discard, stopResp.Body)
+		require.NoError(t, err)
+
+		startAndExpect("hello from build 2")
+	})
 }
 
 func TestAppDetails(t *testing.T) {
