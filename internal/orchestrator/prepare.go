@@ -62,12 +62,23 @@ func PrepareRelease(
 		if model.NeedsNoDownload() {
 			continue
 		}
-		done := 50.0 + 50.0*float32(i)/float32(len(models.InternalModels))
+		// Each model gets an equal slice of the second half.
+		span := 50.0 / float32(len(models.InternalModels))
+		done := 50.0 + span*float32(i)
 		cb(StreamMessage{data: "downloading the model " + model.ID})
 		cb(StreamMessage{progress: &Progress{Name: "models", Progress: done}})
 		if _, err := models.Install(ctx, docker, model.ID, plat, func(message modelsindex.StreamMessage) {
 			if message.IsData() {
 				cb(StreamMessage{data: message.GetData()})
+			}
+			if message.IsProgress() {
+				p := message.GetProgress()
+				cb(StreamMessage{progress: &Progress{
+					Name:     model.ID,
+					Progress: done + span*p.Progress/100,
+					Current:  p.Current,
+					Total:    p.Total,
+				}})
 			}
 		}); err != nil {
 			return fmt.Errorf("failed to download the model %q: %w", model.ID, err)

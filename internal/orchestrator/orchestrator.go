@@ -72,6 +72,8 @@ type StreamMessage struct {
 type Progress struct {
 	Name     string
 	Progress float32
+	Current  int64
+	Total    int64
 }
 
 func (p *StreamMessage) IsData() bool           { return p.data != "" }
