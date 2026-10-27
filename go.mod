@@ -6,11 +6,13 @@ require (
 	github.com/Andrew-M-C/go.emoji v1.1.4
 	github.com/arduino/arduino-cli v1.5.2-0.20260925125641-e39aa9996f70
 	github.com/arduino/go-paths-helper v1.14.0
+	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/compose-spec/compose-go/v2 v2.15.0
 	github.com/containerd/errdefs v1.0.0
 	github.com/docker/cli v29.8.0+incompatible
 	github.com/docker/compose/v5 v5.5.1
 	github.com/fatih/color v1.19.0
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/goccy/go-yaml v1.19.2
 	github.com/gofrs/flock v0.13.1
 	github.com/google/go-cmp v0.7.0
@@ -27,6 +29,7 @@ require (
 	github.com/oapi-codegen/runtime v1.6.0
 	github.com/shirou/gopsutil/v4 v4.25.6
 	github.com/sirupsen/logrus v1.10.2
+	github.com/sourcegraph/jsonrpc2 v0.2.2
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
 	github.com/swaggest/jsonschema-go v0.3.78
@@ -150,7 +153,6 @@ require (
 	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/fsnotify/fsevents v0.2.0 // indirect
-	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/fvbommel/sortorder v1.2.0 // indirect
 	github.com/getkin/kin-openapi v0.144.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
